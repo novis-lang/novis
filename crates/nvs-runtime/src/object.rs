@@ -448,6 +448,18 @@ pub struct ClassDesc {
     /// [`ClassTable::set_public_fields`]. **Cost:** one `bool` per field per
     /// class, once per process, not per instance.
     public_fields: Vec<bool>,
+    /// Each field slot's declared type, spelled as the declaration spells it —
+    /// empty for a class no declaration laid out, on [`Self::public_fields`]'
+    /// terms exactly.
+    ///
+    /// The type fact [`Self::field_tags`] cannot carry, and the reason both
+    /// exist: a tag is what compiled code checks a store against, so `?int`,
+    /// `int` and a literal `7` are one tag and a class, an array and a shape
+    /// are one more — while `Core\Reflect\PropertyInfo` reports what the
+    /// program *wrote*. `nvs_types::layout` spells it, `nvs_ir::ir::Class`
+    /// carries it, and [`ClassTable::set_field_types`] fills it. **Cost:** one
+    /// `String` per field per class, once per process, not per instance.
+    field_types: Vec<String>,
     /// The address of the **native** function that renders an instance of this
     /// class as a `string`, or null for every class that has none — which is
     /// every class a program declares, and every `Core` class the spec gives
@@ -1007,6 +1019,23 @@ impl ClassDesc {
         self.public_fields.get(index).copied().unwrap_or(false)
     }
 
+    /// The type slot `index` is declared with, as its declaration spells it —
+    /// `"?int"`, `"array<string>"`, `"App\\User"`.
+    ///
+    /// `None` where no declaration named one: a slot of a class the compiler
+    /// synthesized, and a slot of the exception tree `nvs_hir::errors` names,
+    /// whose types `nvs_types::error_lib` seeds as interned ids rather than as
+    /// text. That is an absence a caller reports as such — unlike
+    /// [`Self::field_is_public`], where the unknown case is a privilege
+    /// question and so answers `false` rather than "unknown".
+    #[must_use]
+    pub fn field_type(&self, index: usize) -> Option<&str> {
+        self.field_types
+            .get(index)
+            .map(String::as_str)
+            .filter(|ty| !ty.is_empty())
+    }
+
     /// Whether an instance of this class is also an instance of `other` —
     /// `instanceof`'s whole test, and a typed `catch`'s.
     ///
@@ -1366,6 +1395,7 @@ impl ClassTable {
             field_tags: Vec::new(),
             secret_fields: Vec::new(),
             public_fields: Vec::new(),
+            field_types: Vec::new(),
             render: std::ptr::null(),
             unwind: std::ptr::null(),
         }));
@@ -1452,6 +1482,36 @@ impl ClassTable {
             public.len()
         );
         desc.public_fields = public;
+    }
+
+    /// Fills in `id`'s per-slot declared type names — see
+    /// [`ClassDesc::field_types`].
+    ///
+    /// Separate from [`ClassTable::set_public_fields`] on that method's own
+    /// terms: a synthesized class carries a visibility bit for no slot and a
+    /// type name for no slot either, but the two are different readings of the
+    /// declaration and a class may reach this table with one and not the
+    /// other.
+    ///
+    /// # Panics
+    ///
+    /// If `id` does not belong to this table, or if `types` is not one entry
+    /// per slot — a length disagreement would answer one property's type with
+    /// another's, which is the same misreport a name-keyed roster exists to
+    /// prevent.
+    pub fn set_field_types(&mut self, id: ClassId, types: Vec<String>) {
+        let desc = self
+            .classes
+            .get_mut(id.0)
+            .expect("a class id always belongs to the table that handed it out");
+        assert!(
+            types.len() == desc.fields.len(),
+            "`{}` has {} field slots but {} declared type names",
+            desc.name,
+            desc.fields.len(),
+            types.len()
+        );
+        desc.field_types = types;
     }
 
     /// Fills in `id`'s declared property defaults — see [`ClassDesc::defaults`].

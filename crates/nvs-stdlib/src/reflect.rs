@@ -117,14 +117,17 @@
 //!    here, so `get_class_methods` and `method_exists` have their answers; the
 //!    spec's roster row (`docs/spec/01-core-library.md` § 13) is the home of the
 //!    full list, and each of the five is waiting on descriptor data no crate
-//!    carries yet rather than on a decision. `PropertyInfo` and `ParameterInfo`
-//!    are the near pair — a property's declared type and a parameter's name are
-//!    neither of them in [`nvs_runtime::ClassDesc`], which holds a slot's name,
-//!    its visibility bit and at most one [`nvs_runtime::Tag`]. `PropertyInfo`
-//!    also re-asks the decision below for the walk that already exists:
+//!    carries yet rather than on a decision. `PropertyInfo` is the nearest: a
+//!    slot's declared type is on the descriptor now
+//!    ([`nvs_runtime::ClassDesc::field_type`]), beside its name and its
+//!    visibility bit, so what is left is the class itself. It re-asks the
+//!    decision below for the walk that already exists:
 //!    [`nvs_core_reflect_class_info_properties`] names only what the calling
 //!    site may read, where the method roster names everything, and a row
 //!    carrying its own bit is what would let the two answer alike.
+//!    `ParameterInfo` is one step behind it — a parameter's *name* is in no
+//!    descriptor at all, [`nvs_runtime::MethodRow`] carrying an arity and a tag
+//!    per slot and no spelling.
 //!    `ConstantInfo`,
 //!    `AttributeInfo` and `EnumInfo` are the far three: a descriptor carries no
 //!    constants, no attributes and no enum cases at all, so each is a join from
@@ -139,14 +142,6 @@
 //!    second bit carried down from `nvs_types::layout`, next to the one
 //!    [`nvs_runtime::ClassDesc::field_is_public`] answers; until then the
 //!    narrower answer is the one that refuses rather than the one that leaks.
-//!    — owner: M8
-//! 3. A reflective write does not run a per-property `set` hook
-//!    (`rule:classes/property-hooks`): [`nvs_core_reflect_class_info_set`]
-//!    reaches storage through [`nvs_runtime::write_erased_property`], which is
-//!    the erased store and not the hook call a known class's write lowers to,
-//!    so a hooked property is written past its own hook and its observer is
-//!    told what storage took. The observer step itself is § 3's and is not a
-//!    gap.
 //!    — owner: M8
 
 use nvs_runtime::{ClassDesc, Fault, NvsArray, NvsObj, NvsStr, Tag, ThrownClass, Value};

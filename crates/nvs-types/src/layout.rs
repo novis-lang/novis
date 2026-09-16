@@ -77,6 +77,22 @@ pub struct ClassLayout {
     ///
     /// **Cost:** one `bool` per field slot per class, once per compiled unit.
     pub public_fields: Vec<bool>,
+    /// Each field slot's declared type as the declaration spells it, in
+    /// [`Self::fields`]' own order, and the **empty string** for a slot no
+    /// declaration laid out — the exception tree's, whose types live as
+    /// `TypeId`s in [`crate::error_lib`] and never as text.
+    ///
+    /// A name rather than a [`crate::ty::TypeId`], because the reader is
+    /// `Core\Reflect\PropertyInfo` and a descriptor is what it reads from: the
+    /// interner that resolves an id is gone by then, and `nvs_runtime::Tag` —
+    /// the one type fact the runtime already carries per slot — cannot tell
+    /// `?int` from `int`, `array<string>` from `array<User>`, or one class from
+    /// another. Carried for [`Self::public_fields`]' reason exactly, one step
+    /// further: the spelling exists only where the declaration does.
+    ///
+    /// **Cost:** one `String` per field slot per class, once per compiled unit,
+    /// never per request.
+    pub field_types: Vec<String>,
     /// Every *other* class and interface an instance of this one also is,
     /// rendered the same way [`ClassLayout`]'s own key is. Transitive, and
     /// deliberately excluding the class itself — `instanceof` checks identity
@@ -195,7 +211,7 @@ pub fn build_class_layouts(
     files: &[crate::ProgramFile<'_>],
     graph: &ClassGraph,
 ) -> ClassLayoutTable {
-    let mut own: FxHashMap<QName, Vec<(String, bool)>> = FxHashMap::default();
+    let mut own: FxHashMap<QName, Vec<(String, bool, String)>> = FxHashMap::default();
     let mut own_methods: FxHashMap<QName, Vec<(String, bool)>> = FxHashMap::default();
     let mut own_hooks: FxHashMap<QName, Vec<(String, String, bool)>> = FxHashMap::default();
     // The exception tree first: it has no source declaration to collect from
@@ -204,10 +220,13 @@ pub fn build_class_layouts(
     for (name, _) in nvs_hir::errors::TREE {
         // Public on `own_methods`' terms, and for its reason: spec § 10's four
         // properties are read from inside every `catch` block, and a
-        // synthesized declaration writes no modifier to read.
+        // synthesized declaration writes no modifier to read. The declared
+        // type is `ClassLayout::field_types`' empty case for the reason that
+        // field's doc gives: this roster is names, and `crate::error_lib` types
+        // it in a currency no text of these slots exists in.
         let fields = nvs_hir::errors::own_properties(name)
             .iter()
-            .map(|p| ((*p).to_owned(), true))
+            .map(|p| ((*p).to_owned(), true, String::new()))
             .collect();
         // These constructors are synthesized rather than written
         // (`nvs_ir::lower::exception`), so they are the methods with a body
@@ -255,7 +274,14 @@ pub fn build_class_layouts(
         let mut slots = Vec::new();
         let mut seen = Vec::new();
         flatten_fields(qname, graph, &own, &mut slots, &mut seen);
-        let (fields, public_fields): (Vec<String>, Vec<bool>) = slots.into_iter().unzip();
+        let mut fields = Vec::with_capacity(slots.len());
+        let mut public_fields = Vec::with_capacity(slots.len());
+        let mut field_types = Vec::with_capacity(slots.len());
+        for (name, public, ty) in slots {
+            fields.push(name);
+            public_fields.push(public);
+            field_types.push(ty);
+        }
 
         let mut conforms = Vec::new();
         let mut visited = vec![qname.clone()];
@@ -274,6 +300,7 @@ pub fn build_class_layouts(
             ClassLayout {
                 fields,
                 public_fields,
+                field_types,
                 conforms: conforms.iter().map(QName::to_string).collect(),
                 methods,
                 hooks,
@@ -289,7 +316,7 @@ fn collect_own(
     stmts: &[Stmt],
     src: &SourceFile,
     namespace: &[String],
-    out: &mut FxHashMap<QName, Vec<(String, bool)>>,
+    out: &mut FxHashMap<QName, Vec<(String, bool, String)>>,
     methods: &mut FxHashMap<QName, Vec<(String, bool)>>,
     hooks: &mut FxHashMap<QName, Vec<(String, String, bool)>>,
 ) {
@@ -403,12 +430,15 @@ fn is_public(modifiers: &[Modifier]) -> bool {
 }
 
 /// One declaration's own instance-property names, in declaration order, each
-/// with whether it is `public` — a written `public int $n;` and a promoted
-/// constructor parameter alike, each where it stands among the members.
+/// with whether it is `public` and the type it declares — a written `public
+/// int $n;` and a promoted constructor parameter alike, each where it stands
+/// among the members.
 ///
 /// The visibility bit is [`own_methods`]' bit, read the same way by
 /// [`is_public`]: `rule:security/reflection-enforces-visibility`'s reflective read has to face the check ordinary
-/// code faces, and nothing below this crate can see a keyword.
+/// code faces, and nothing below this crate can see a keyword. The type rides
+/// with it because the spelling is a keyword's neighbour and lives exactly as
+/// long — see [`declared_type`] and [`ClassLayout::field_types`].
 ///
 /// A promoted parameter occupies an ordinary slot, because it is an ordinary
 /// property: `nvs_types::signatures` records its type and visibility and
@@ -419,7 +449,7 @@ fn is_public(modifiers: &[Modifier]) -> bool {
 fn own_properties(
     members: &[nvs_syntax::ast::ClassMember],
     src: &SourceFile,
-) -> Vec<(String, bool)> {
+) -> Vec<(String, bool, String)> {
     members
         .iter()
         .flat_map(|member| match &member.kind {
@@ -427,6 +457,7 @@ fn own_properties(
                 vec![(
                     crate::strip_sigil(span_text(src, p.name)).to_owned(),
                     is_public(&p.modifiers),
+                    declared_type(src, Some(&p.ty)),
                 )]
             }
             ClassMemberKind::Method(m) if span_text(src, m.name) == "constructor" => m
@@ -437,12 +468,33 @@ fn own_properties(
                     (
                         crate::strip_sigil(span_text(src, p.name)).to_owned(),
                         is_public(&p.modifiers),
+                        declared_type(src, p.ty.as_ref()),
                     )
                 })
                 .collect(),
             _ => Vec::new(),
         })
         .collect()
+}
+
+/// One declaration's type as it is written, with every run of whitespace
+/// flattened to a single space so a union broken across lines still reads as
+/// one name — and the empty string where the declaration wrote none, which
+/// `nvs_syntax::check_declarations` has already reported.
+///
+/// The written spelling rather than [`crate::ty::TypeInterner::describe`]'s
+/// canonical one, because this pass resolves no types: it walks an AST and a
+/// hierarchy, and taking the interned rendering would mean threading the
+/// signature table through every caller to canonicalise a name a program's
+/// author already wrote. What a reflective read then reports is the
+/// declaration, which is the thing it is describing.
+fn declared_type(src: &SourceFile, ty: Option<&nvs_syntax::ast::Type>) -> String {
+    ty.map_or_else(String::new, |ty| {
+        span_text(src, ty.span)
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+    })
 }
 
 fn is_static(p: &PropertyMember) -> bool {
@@ -454,8 +506,8 @@ fn is_static(p: &PropertyMember) -> bool {
 fn flatten_fields(
     qname: &QName,
     graph: &ClassGraph,
-    own: &FxHashMap<QName, Vec<(String, bool)>>,
-    fields: &mut Vec<(String, bool)>,
+    own: &FxHashMap<QName, Vec<(String, bool, String)>>,
+    fields: &mut Vec<(String, bool, String)>,
     seen: &mut Vec<QName>,
 ) {
     if seen.contains(qname) {
@@ -479,8 +531,9 @@ fn flatten_fields(
             // is the slot's too, for the same reason it is one slot: there is
             // one field, so there is one answer to who may read it, and the
             // narrower one is the safe direction for a question `rule:security/reflection-enforces-visibility`
-            // makes a privilege check.
-            if !fields.iter().any(|(held, _)| *held == slot.0) {
+            // makes a privilege check, and its declared type is the slot's for
+            // the same reason: one field, one type.
+            if !fields.iter().any(|(held, _, _)| *held == slot.0) {
                 fields.push(slot.clone());
             }
         }

@@ -321,6 +321,58 @@ echo $m->tag();
     assert_eq!(output_of(source), "marker");
 }
 
+/// `rule:core-classes/reflect`'s property half, at the layer that carries it:
+/// a slot's declared type is spelled where the declaration is and reaches the
+/// runtime descriptor, because `nvs_runtime::ClassDesc::field_tag` — the only
+/// other per-slot type fact — answers `?int`, `int` and `7` with one tag and
+/// every class with another.
+///
+/// The types are read against the visibility bits rather than alone: the two
+/// are parallel vectors over one slot order, so a roster that slipped by one
+/// would still answer plausibly on its own.
+#[test]
+fn a_propertys_declared_type_reaches_its_descriptor_in_slot_order() {
+    let unit = compile(
+        "<?nvs
+class Base {
+    public ?int $tally = null;
+}
+class Item extends Base {
+    public array<string> $tags;
+    public function constructor(private string $note) { $this->tags = [\"a\"]; }
+}
+echo (new Item(\"n\"))->tags[0];
+",
+    )
+    .expect("the fixture compiles");
+
+    let item = unit.class_desc("Item").expect("the class is declared");
+    // Ancestors first, then this class's own in declaration order — the slot
+    // order `nvs_types::layout` fixes, with the promoted parameter standing
+    // where its `constructor` member does.
+    assert_eq!(item.field_type(0), Some("?int"));
+    assert_eq!(item.field_type(1), Some("array<string>"));
+    assert_eq!(item.field_type(2), Some("string"));
+    assert_eq!(item.field_type(3), None, "there is no fourth slot");
+    // The same three slots, read through the roster beside this one.
+    assert!(item.field_is_public(1));
+    assert!(
+        !item.field_is_public(2),
+        "the promoted parameter is private"
+    );
+
+    // The parent holds its own slot at the index it claimed, and a class
+    // nothing laid out from a declaration reports the absence rather than a
+    // name: the exception tree is typed in `nvs_types::error_lib` as interned
+    // ids, which are not text.
+    let base = unit.class_desc("Base").expect("the class is declared");
+    assert_eq!(base.field_type(0), Some("?int"));
+    let thrown = unit
+        .class_desc("LogicError")
+        .expect("the exception tree is always defined");
+    assert_eq!(thrown.field_type(0), None);
+}
+
 #[test]
 fn a_throw_out_of_a_frame_holding_an_object_releases_it() {
     // The landing block's cleanup, for an object rather than a string: the

@@ -159,6 +159,20 @@ pub struct Class {
     /// **Cost:** one `bool` per field slot per class, once per compiled unit,
     /// not per request.
     pub public_fields: Vec<bool>,
+    /// Each field slot's declared type as its declaration spells it, in
+    /// [`Self::fields`]' own order — or **empty**, on [`Self::public_fields`]'
+    /// terms exactly: "nothing told this class", never "every slot is
+    /// untyped".
+    ///
+    /// A straight copy of `nvs_types::layout::ClassLayout::field_types`, which
+    /// owns why the name travels rather than the `nvs_runtime::Tag` the
+    /// runtime already holds per slot. `nvs-codegen` hands it to
+    /// `nvs_runtime::ClassTable::set_field_types`, and
+    /// `Core\Reflect\PropertyInfo` is what reads it back.
+    ///
+    /// **Cost:** one `String` per field slot per class, once per compiled
+    /// unit, not per request.
+    pub field_types: Vec<String>,
     /// Every *other* class and interface an instance of this one also is,
     /// transitively, as labels. Excludes the class itself.
     pub conforms: Vec<String>,

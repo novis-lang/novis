@@ -766,6 +766,10 @@ pub fn lower_program(
                 // order it is aligned to — `nvs_types::layout` decided it where
                 // the declaration's keyword still exists.
                 public_fields: layout.public_fields.clone(),
+                // The declared type beside it, aligned to the same slot order
+                // and copied for the same reason: the spelling lives where the
+                // declaration does.
+                field_types: layout.field_types.clone(),
                 conforms: layout.conforms.clone(),
                 methods: layout.methods.clone(),
                 // The accessors beside them, on the same terms: the front end
@@ -815,6 +819,7 @@ pub fn lower_program(
         field_reprs: Vec::new(),
         secret_fields: Vec::new(),
         public_fields: Vec::new(),
+        field_types: Vec::new(),
         conforms: Vec::new(),
         methods: Vec::new(),
         hooks: Vec::new(),
@@ -838,6 +843,7 @@ pub fn lower_program(
         field_reprs: Vec::new(),
         secret_fields: Vec::new(),
         public_fields: Vec::new(),
+        field_types: Vec::new(),
         conforms: Vec::new(),
         methods: Vec::new(),
         hooks: Vec::new(),
@@ -1947,6 +1953,10 @@ impl<'a> Lowering<'a> {
             // literal that built it and every one is readable, which is the one
             // answer `Core\Reflect`'s walk can give a shape.
             public_fields: vec![true; field_count],
+            // Empty rather than one entry per slot, which is `ir::Class`'s
+            // "nothing told this class": a shape literal declares no type to
+            // spell, its slots being typed by what was written into them.
+            field_types: Vec::new(),
             // `rule:types/object-literal`: a shape literal's class has no methods, no
             // supertypes and no `implements`, it carries no attribute, and
             // every one of its slots is written by the literal that built it
@@ -3445,6 +3455,7 @@ fn nested_shapes(
             field_reprs: vec![Ty::Tagged; field_count],
             secret_fields: vec![false; field_count],
             public_fields: vec![true; field_count],
+            field_types: Vec::new(),
             conforms: Vec::new(),
             methods: Vec::new(),
             hooks: Vec::new(),

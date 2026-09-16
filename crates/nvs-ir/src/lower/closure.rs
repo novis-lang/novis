@@ -296,6 +296,9 @@ pub(crate) fn lower_closure(
             // slot reading as unreadable is the direction `field_is_public`
             // wants.
             public_fields: Vec::new(),
+            // And for the same reason again: a capture's type was written on
+            // the variable it closes over, not on a property declaration.
+            field_types: Vec::new(),
             // The marker `rule:types/callable-is-a-closure`'s `$x is callable`
             // walks for — see `super::CLOSURE_MARKER` — and one more per
             // written signature this literal satisfies, which is the same walk
@@ -767,6 +770,7 @@ pub(crate) fn lower_callable(
             field_reprs: Vec::new(),
             secret_fields: Vec::new(),
             public_fields: Vec::new(),
+            field_types: Vec::new(),
             // A first-class callable is a closure, so it carries the same
             // edges an `fn` literal's class does — the one every closure has
             // and one per written signature it satisfies, read back at the

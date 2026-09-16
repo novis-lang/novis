@@ -1443,6 +1443,14 @@ impl Classes {
             self.table
                 .set_public_fields(id, class.public_fields.clone());
         }
+        // The declared type beside it, at the same granularity and guarded the
+        // same way: `Core\Reflect\PropertyInfo` names the type a slot was
+        // declared with, and `nvs_runtime::ClassDesc::field_tag` — the only
+        // other type fact per slot — answers a whole family of declarations
+        // with one tag.
+        if class.field_types.len() == class.fields.len() && !class.field_types.is_empty() {
+            self.table.set_field_types(id, class.field_types.clone());
+        }
         let slots = class
             .fields
             .iter()
