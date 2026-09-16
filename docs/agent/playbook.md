@@ -2949,6 +2949,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   diagnostic while the suite already sees the new one — which reads as a bug in the change you just
   made. Run `cargo build` before reading a diagnostic out of `nvs.exe` whenever you have touched Rust
   this session. [until: reviewed 2026-10-16]
+- **`cargo check --target aarch64-apple-darwin` cannot check an aarch64 `#[cfg]` from this machine.**
+  It builds the whole graph for that target, and `ring`'s build script hands Apple flags (`-arch`,
+  `-mmacosx-version-min=11.0`) to the local `cc`, which refuses them before any crate of this
+  repository is reached. Keep architecture-dependent code to constants and pure functions a
+  host-independent unit test can still exercise — `crates/nvs-cli/src/cache.rs`'s aarch64 relocation
+  writers are the shape — and leave the cfg itself to the CI matrix.
+  [until: reviewed 2026-09-17]
 
 ## Writing a test case
 
