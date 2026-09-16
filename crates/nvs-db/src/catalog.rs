@@ -72,23 +72,6 @@
 //! `no_catalog_query_carries_a_parameter_marker` holds that: a reader that
 //! grew a bind would be the first place an introspection could be pointed at a
 //! database the caller did not connect to.
-//!
-//! # Known gaps
-//!
-//! 1. **An unquoted spelling on a text column is read as that text.**
-//!    [`unquote`] falls back to the whole string where a server printed no
-//!    quotes, because MySQL's `information_schema` prints a literal that way —
-//!    but PostgreSQL, SQL Server and SQLite always quote a string default, so
-//!    on those an unquoted spelling is an *expression* and reading it as a
-//!    value is the direction [`column_default`]'s own doc calls unrecoverable:
-//!    the plan then proposes a default the server will never report back, and
-//!    no number of applies converges. Narrowing the fallback to the dialect
-//!    that needs it is a change to that function and the tests over it, not to
-//!    [`assemble`].
-//!    Decided: Add an opaque, read-only ColumnDefault case holding the raw text, compared verbatim and
-//!    never emitted — The plan converges and nothing is lost; costs one vocabulary case that programs
-//!    cannot construct.
-//!    — owner: unowned-closures
 
 use crate::schema::{
     Column, ColumnDefault, FloatWidth, IntWidth, ScalarType, Schema, SchemaError, Table,
@@ -705,9 +688,13 @@ fn sqlserver_scalar(head: &str, args: Option<&str>) -> Option<ScalarType> {
 ///   column's own type, so dropping it loses nothing this function did not
 ///   already have.
 /// - **MySQL prints a literal with no quotes at all.** `COLUMN_DEFAULT` gives
-///   `hi`, not `'hi'`, so an unquoted value is read as the literal it is
-///   rather than refused — which is also why this reader is type-directed and
-///   not shape-directed.
+///   `hi`, not `'hi'`, so on that dialect an unquoted value is read as the
+///   literal it is rather than refused — which is also why this reader is
+///   type-directed and not shape-directed. That reading is MySQL's alone. The
+///   other three quote every string default they print, so a bare spelling on
+///   a text column there is an *expression*, and it is read as
+///   [`ColumnDefault::Opaque`]. Every other type parses its own text, so an
+///   expression fails that check without any help from the quoting.
 /// - **`NULL` is the keyword and never a value**, so a column defaulting to it
 ///   is the column with no default at all — which is what SQL means by the two
 ///   as well. MariaDB is where that is load-bearing: its `information_schema`
@@ -728,6 +715,14 @@ fn sqlserver_scalar(head: &str, args: Option<&str>) -> Option<ScalarType> {
 /// says nothing needs doing when it does, and only one of those is recoverable
 /// by looking at the plan. What the assembly does with a `None` is its own
 /// doc's business, not this function's.
+///
+/// [`ColumnDefault::Opaque`] is not a third direction, and it is not a way in
+/// for the expressions above. It is the answer in the one place where refusing
+/// was never on offer: a bare spelling on a text column, which the reader has
+/// no honest way to tell from a value and used to take as one. Keeping the
+/// server's words means the two reads either side of an apply compare equal,
+/// which is what a refusal there could not do and a wrong value could not
+/// either.
 #[must_use]
 pub fn column_default(spelling: &str, ty: &ScalarType, dialect: Dialect) -> Option<ColumnDefault> {
     let bare = strip_cast(unwrap_parens(spelling.trim()));
@@ -737,7 +732,7 @@ pub fn column_default(spelling: &str, ty: &ScalarType, dialect: Dialect) -> Opti
     if matches!(ty, ScalarType::DateTime | ScalarType::Instant) && is_now(bare) {
         return Some(ColumnDefault::Now);
     }
-    let value = unquote(bare, dialect)?;
+    let (value, quoted) = unquote(bare, dialect)?;
     let default = match ty {
         ScalarType::Int(_) => ColumnDefault::Int(value.parse().ok()?),
         ScalarType::Uint(_) => ColumnDefault::Uint(value.parse().ok()?),
@@ -755,7 +750,13 @@ pub fn column_default(spelling: &str, ty: &ScalarType, dialect: Dialect) -> Opti
             }
             ColumnDefault::Decimal(value)
         }
-        ScalarType::Text { .. } => ColumnDefault::Text(value),
+        // The one type that takes whatever it is handed, which is why the
+        // quoting is read here and nowhere else: every other case validates its
+        // own text by parsing it, and an expression fails that on its own.
+        ScalarType::Text { .. } if quoted || dialect == Dialect::MySql => {
+            ColumnDefault::Text(value)
+        }
+        ScalarType::Text { .. } => return Some(ColumnDefault::Opaque(spelling.trim().to_owned())),
         ScalarType::Bool => match value.to_ascii_lowercase().as_str() {
             "1" | "true" | "t" => ColumnDefault::Bool(true),
             "0" | "false" | "f" => ColumnDefault::Bool(false),
@@ -834,19 +835,24 @@ fn is_now(text: &str) -> bool {
 }
 
 /// The value inside a quoted literal, or the whole text where the server
-/// printed it unquoted.
+/// printed it unquoted — and **which of those two it was**.
 ///
 /// `N'…'` is SQL Server's national literal and `b'…'` MySQL's bit literal, and
 /// both are the emitter's own spellings. Inside, a doubled quote is the one
 /// escape every backend shares and a backslash is MySQL's alone — an escape
 /// outside those two is refused rather than guessed at, because this is a
 /// closed set of literals and not a lexer.
-fn unquote(text: &str, dialect: Dialect) -> Option<String> {
+///
+/// The flag is `true` when the server quoted, and it is not an implementation
+/// detail the caller may drop: a server that quotes says "this is a value" in
+/// the only words it has, and [`column_default`] reads a bare spelling on the
+/// three dialects that always quote as an expression rather than as text.
+fn unquote(text: &str, dialect: Dialect) -> Option<(String, bool)> {
     let opened = ["N'", "n'", "b'", "B'", "'"]
         .into_iter()
         .find_map(|prefix| text.strip_prefix(prefix));
     let Some(body) = opened else {
-        return Some(text.to_owned());
+        return Some((text.to_owned(), false));
     };
     let body = body.strip_suffix('\'')?;
     let mut out = String::with_capacity(body.len());
@@ -868,7 +874,7 @@ fn unquote(text: &str, dialect: Dialect) -> Option<String> {
             other => out.push(other),
         }
     }
-    Some(out)
+    Some((out, true))
 }
 
 /// One row of [`Read::Columns`], in this module's own names.
@@ -1635,6 +1641,7 @@ mod tests {
             ColumnDefault::Text(_) => "text",
             ColumnDefault::Bool(_) => "bool",
             ColumnDefault::Now => "now",
+            ColumnDefault::Opaque(_) => "opaque",
         }
     }
 
@@ -1681,6 +1688,9 @@ mod tests {
     /// equality is exact — unlike a type, a default has no choice to make, so
     /// anything but the value that went in is a normalisation § 5 would have
     /// to invent to hide.
+    ///
+    /// [`ColumnDefault::Opaque`] is not swept, and cannot be: nothing emits it,
+    /// so there is no text of the emitter's to read back.
     #[test]
     fn a_default_the_emitter_wrote_reads_back_as_the_same_case() {
         let defaults = every_default();
@@ -1773,9 +1783,11 @@ mod tests {
             column_default("1", &ScalarType::Int(IntWidth::Small), Dialect::Sqlite),
             Some(ColumnDefault::Int(1))
         );
+        // And a clock's name on a text column is no timestamp, no text either,
+        // but the words SQLite reported — the case below is where that lives.
         assert_eq!(
             column_default("CURRENT_TIMESTAMP", &text20, Dialect::Sqlite),
-            Some(ColumnDefault::Text("CURRENT_TIMESTAMP".to_owned()))
+            Some(ColumnDefault::Opaque("CURRENT_TIMESTAMP".to_owned()))
         );
 
         // Refusals: an expression, a literal that ran on past its own quote, a
@@ -1798,6 +1810,48 @@ mod tests {
                 "`{spelling}` read as a {dialect:?} default on {ty:?}"
             );
         }
+    }
+
+    /// `rule:core-classes/schema-introspection`: a text column's default is the
+    /// value where the server quoted it and the server's own words where it did
+    /// not — on every dialect but MySQL, whose `information_schema` quotes
+    /// nothing it prints.
+    ///
+    /// The three that always quote print an expression the same bare way a
+    /// value would arrive in, and no reading tells those two apart.
+    /// [`ColumnDefault::Opaque`] is what makes the reads either side of an
+    /// apply compare a default against itself instead of against a text default
+    /// no emitter ever wrote.
+    #[test]
+    fn a_bare_text_default_is_opaque_on_the_dialects_that_always_quote() {
+        let text20 = ScalarType::Text { max: Some(20) };
+        for dialect in DIALECTS {
+            let bare = column_default("CURRENT_TIMESTAMP", &text20, dialect);
+            if dialect == Dialect::MySql {
+                assert_eq!(
+                    bare,
+                    Some(ColumnDefault::Text("CURRENT_TIMESTAMP".to_owned())),
+                    "MySQL prints a text literal bare, so this one is the value"
+                );
+            } else {
+                assert_eq!(
+                    bare,
+                    Some(ColumnDefault::Opaque("CURRENT_TIMESTAMP".to_owned())),
+                    "{dialect:?} quotes a text default, so a bare one is an expression"
+                );
+            }
+            assert_eq!(
+                column_default("'hi'", &text20, dialect),
+                Some(ColumnDefault::Text("hi".to_owned())),
+                "{dialect:?} lost a quoted text default"
+            );
+        }
+        // Verbatim is the server's whole spelling, wrappers and all: what the
+        // second read has to match is what the first one was given.
+        assert_eq!(
+            column_default("(getdate())", &text20, Dialect::SqlServer),
+            Some(ColumnDefault::Opaque("(getdate())".to_owned()))
+        );
     }
 
     /// The `NULL` keyword is no default on every dialect, and MariaDB is the

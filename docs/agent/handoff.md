@@ -2,59 +2,58 @@
 
 ## State
 
-**Goal `unowned-closures`. The register is `unowned: 15`, goal-owned is down to 48 over 89 items**
-(`python tools/owners.py`), `--deferrals` green. The 15 unowned are the scheduling questions and
-none of them is this goal's own gap.
+**Goal `unowned-closures`. The register is `unowned: 15`, goal-owned is down to 47 over 88 items**
+(`python tools/owners.py`), `--deferrals` green. The 15 unowned are the scheduling questions and none
+of them is this goal's own gap.
 
-**§ 5's normalisation is built, and it is one function.** `crates/nvs-db/src/plan.rs:528`'s
-`stored_as` writes a type with `ddl::column_type` and reads it back with `catalog::scalar_type`,
-which is the round trip with the server left out, so every lossy case the two maps already document
-is normalised by construction and a spelling either map grows is covered the day it is written.
-`same_column` compares the folded types and is otherwise the plain equality it was; a step still
-carries `want`'s own spelling. `crates/nvs-db/src/catalog.rs` gaps 1 and 2 and
-`crates/nvs-db/src/ddl.rs` gap 1 are struck, built rather than deferred.
+**`ColumnDefault::Opaque` is built, and it is read-only in two separate halves.** Nothing emits it —
+`crates/nvs-db/src/ddl.rs:510`'s arm is an `unreachable!`, because a step emits the *wanted* schema's
+default and a wanted schema came through `ColumnDefault::from_node`, which refuses the one key
+`to_node` writes. Nothing outside a catalog read builds one. `fits` takes it on every type on purpose:
+that question is whether a literal may be *written* on every backend, and this case is never written.
 
-**SQL Server's assembled spelling carries `DATETIME_PRECISION`**, for `time`, `datetime2` and
-`datetimeoffset` and for no other type: `date` and `datetime` report a precision they cannot be
-declared with, and assembling `date(0)` would fail the whole read rather than describe a column
-better. That list is a list in the `CASE`, not a non-null test.
+**A bare text default is the server's words on every dialect but MySQL.** `unquote` now reports
+whether the server quoted, and `crates/nvs-db/src/catalog.rs:@column_default` reads that flag on the
+one type that takes whatever it is handed. Every other type validates its own text by parsing it, so
+an expression fails without the quoting being consulted, and the refusals that function already made
+are unchanged. `crates/nvs-db/src/catalog.rs`'s `# Known gaps` block is gone with its last item.
 
-**What proves it without a container**: every vocabulary type on every dialect, applied and read
-back off its own emitter, is an empty plan (`catalog.rs`'s
-`every_type_read_back_off_its_own_emitter_is_an_empty_plan`), and a `uint32` and a `bytes(64)`
-applied to a real SQLite file come back as an `int64` and an unbounded `bytes` with the plan
-still empty. The four matrix fixtures are unchanged, so no container leg moved.
+**What nvs-db still owes**: `crates/nvs-db/src/ddl.rs:84` gap 1 and `crates/nvs-db/src/schema.rs:53`
+gap 1, both owned by this goal and both in the next group.
 
 ## Next group
 
-**Stage 5: the vocabulary's one read-only case** — one file set: `crates/nvs-db/src/schema.rs`,
-`crates/nvs-db/src/catalog.rs`, `crates/nvs-db/src/ddl.rs`. Both slices are the same `Decided:`
-sentence, the opaque default, and `rule:core-classes/schema-is-a-value` is what the vocabulary
-sits inside.
+**Stage 5: the vocabulary's two portability gaps** — one file set: `crates/nvs-db/src/ddl.rs`,
+`crates/nvs-db/src/schema.rs`. Items 1 and 2 are the two halves of one `Decided:` sentence;
+`rule:core-classes/schema-is-a-value` is what the vocabulary sits inside and
+`rule:core-classes/schema-plan` what the emitter does.
 
-- [ ] **Add the opaque, read-only `ColumnDefault` case, compared verbatim and never constructed**
-      — `crates/nvs-db/src/schema.rs:320` is the enum and `crates/nvs-db/src/schema.rs:925` /
-      `crates/nvs-db/src/schema.rs:938` are the surface half: `to_node` shows it in a dump and
-      `from_node` refuses it, which is what "not constructible from a program" means in the one
-      place a program could construct one. `crates/nvs-db/src/ddl.rs:510` (`literal`) is the
-      emitter half — only a *read* side can hold the case and a step carries `want`'s, so the arm
-      exists to be unreachable rather than to spell anything.
-- [ ] **Narrow `unquote`'s whole-string fallback to MySQL and answer the other three with that
-      case** — `crates/nvs-db/src/catalog.rs:844` (`unquote`) under
-      `crates/nvs-db/src/catalog.rs:732` (`column_default`), striking the gap now at
-      `crates/nvs-db/src/catalog.rs:78`. MySQL's `information_schema` is the one catalog that
-      prints a literal unquoted; on the other three an unquoted spelling is an expression, and
-      holding it verbatim is what makes the plan converge. `rule:core-classes/schema-introspection`.
+- [ ] **Delimit every identifier the emitter writes** — `crates/nvs-db/src/schema.rs:53`'s gap 1 is
+      the `Decided:` sentence, and `RANK` on MySQL 8 is the case it names: the vocabulary validates
+      an identifier rather than delimiting it, so a reserved word is a `CREATE TABLE` the server will
+      not parse. `crates/nvs-db/src/ddl.rs:404` (`column_clause`) and
+      `crates/nvs-db/src/ddl.rs:137` (`create_table`) write a bare `name()`; the per-dialect
+      delimiter is the same judgement `crates/nvs-db/src/ddl.rs:553` (`quoted`) already makes for a
+      text literal, and the module doc names `Core\Db::quoteIdentifier` as where it came from. The
+      catalog reads names back undelimited, so nothing on that side moves.
+- [ ] **Refuse an index over unbounded text in the builder** — the second half of the same
+      `Decided:` sentence: `crates/nvs-db/src/schema.rs:613` (`index`) and
+      `crates/nvs-db/src/schema.rs:599` (`unique`) are where a key's columns are checked, and there
+      is no portable spelling to emit instead — SQL Server refuses `NVARCHAR(MAX)` as a key column
+      outright and MySQL takes it only as a prefix key. A new `SchemaError` case is what the refusal
+      needs; `crates/nvs-db/src/schema.rs:@SchemaError` is the enum.
+- [ ] **Look a SQL Server default constraint's name up in the emitted batch** —
+      `crates/nvs-db/src/ddl.rs:84`'s gap 1 is the `Decided:` sentence: `ALTER COLUMN` there carries
+      a type and a nullability and nothing else, so a default change needs the generated constraint
+      name, which neither `Change` nor the catalog carries. `crates/nvs-db/src/ddl.rs:654`
+      (`change_column`) is the emitter, and the step becomes dynamic SQL over
+      `sys.default_constraints` — the one place this module writes a statement that is not a literal
+      an operator could paste, so its doc has to say so.
 
 ## Backlog
 
-- Widen `assembled_fixture` to a `uint` and a bounded `bytes` when a matrix run can be spent —
-  `crates/nvs-db/src/catalog.rs`; its doc names the two cases that cover them without a server.
-- `docs/agent/carried-gaps.md:191` is half stale: the fold exists now, and what is left in that
-  entry is the SQL Server default-constraint name, the opaque default and the two constructs no
-  backend takes portably.
-- `crates/nvs-db/src/plan.rs` is outside `[context] modules` although the group's work lands in
-  it; the driver sweeps it in from this session's commits, so nothing needs editing by hand.
-- `crates/nvs-stdlib/src/path.rs` gaps 1 and 2 (UNC, drive-relative) are one file set for a later
-  group — `docs/agent/carried-gaps.md`.
-- `crates/nvs-stdlib/src/zip.rs` gaps 1 and 2 (Zip64, entry CRC) likewise.
+- `crates/nvs-db/src/catalog.rs` reads a bare spelling on a *non*-text column as a parse failure,
+  not as an opaque default; the two disagree by design, and `column_default`'s own doc argues it.
+- `crates/nvs-cli/src/cache.rs:166` gaps 1 and 2 — `aarch64` and Mach-O's leading underscore, owned
+  by this goal and a different file set.
+- The unowned 15 are scheduling questions, indexed in `docs/agent/carried-gaps.md` § *Unowned*.
