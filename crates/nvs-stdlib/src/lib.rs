@@ -632,7 +632,7 @@ mod tests {
             else {
                 panic!("`{template}` refused as something other than a throw");
             };
-            assert_eq!(checked, thrown, "for `{template}`");
+            assert_eq!(checked.message, thrown, "for `{template}`");
         }
         for (template, arity) in [("%s", 1), ("%2$s %1$s", 2), ("100%% of %d", 1)] {
             format::placeholders(template).expect("a template");

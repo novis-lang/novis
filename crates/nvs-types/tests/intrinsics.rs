@@ -13,7 +13,7 @@ mod common;
 
 use common::{check_src, check_src_granted, check_src_table, check_src_table_allowing_errors};
 use nvs_config::tree::{CapDb, CapQueue, Capabilities, Setting};
-use nvs_diagnostics::{Code, Diagnostics, code};
+use nvs_diagnostics::{Code, Diagnostics, Severity, code};
 use nvs_stdlib::regex::Tier;
 use nvs_stdlib::registry::{CoreTy, Qual};
 use nvs_types::expr_table::ExprTypeTable;
@@ -112,6 +112,66 @@ fn a_literal_format_template_checks_its_placeholder_count_and_types() {
         !fine.has_errors(),
         "a well-formed or dynamic template was refused: {fine:?}"
     );
+}
+
+/// § 3's exact offset. Asserted as the *text* the primary label covers rather
+/// than as a column, so the case says what a reader would see underlined and
+/// survives the wrapper above it changing length.
+#[test]
+fn a_refused_placeholder_underlines_its_own_offset() {
+    for (literal, want) in [
+        // An escape ahead of the placeholder, so its decoded offset and its
+        // written one differ: a refusal reading the decoded offset as a column
+        // lands two characters early.
+        ("\"ok\\t %q here\"", "%q"),
+        // The single-quoted grammar's own escape, ahead of a placeholder that
+        // reads further than the arguments go. `$` reaches the template
+        // grammar only in this spelling — in a double-quoted literal `%2$s`
+        // is an interpolated `$s` long before this pass sees it.
+        ("'it\\'s %s %2$s'", "%2$s"),
+        // Nothing ahead of the offending placeholder but another placeholder:
+        // the case that fails, rather than passing by accident, if what is
+        // really being exercised is the fallback to the whole literal.
+        ("'%1$s and %3$s'", "%3$s"),
+    ] {
+        let src = format!(
+            "<?nvs\nclass Main {{\n  public static function main(): void {{\n    \
+             echo Core\\Str::format({literal}, \"one\");\n  }}\n}}\n"
+        );
+        let underlined = underlined_by_the_refusal(&src);
+        assert_eq!(underlined, want, "for `{literal}`");
+    }
+}
+
+/// The bound the case above is stated against: a spelling whose decoded bytes
+/// sit at no source offset of their own is underlined whole, and is still
+/// refused. A heredoc is that spelling, because the flexible-indentation strip
+/// moves every byte off the offset it was written at.
+#[test]
+fn a_heredoc_template_is_refused_against_the_whole_literal() {
+    let src = "<?nvs\nclass Main {\n  public static function main(): void {\n    \
+               echo Core\\Str::format(<<<'TPL'\n        ok %q here\n        TPL, \"one\");\n  }\n}\n";
+    let underlined = underlined_by_the_refusal(src);
+    assert!(
+        underlined.starts_with("<<<'TPL'") && underlined.contains("%q"),
+        "a heredoc is underlined whole, not in part: {underlined:?}"
+    );
+}
+
+/// The text the first refusal's primary label covers — what a reader would see
+/// carets under. Asserted as text rather than as a column so a case says what
+/// it means and survives the wrapper around it changing length.
+fn underlined_by_the_refusal(src: &str) -> &str {
+    let diags = check_src(src);
+    let refusal = diags
+        .iter()
+        .find(|d| d.severity == Severity::Error)
+        .unwrap_or_else(|| panic!("nothing was refused in:\n{src}"));
+    let label = refusal
+        .labels
+        .first()
+        .unwrap_or_else(|| panic!("refused without a primary label in:\n{src}"));
+    &src[label.span.start as usize..label.span.end as usize]
 }
 
 #[test]

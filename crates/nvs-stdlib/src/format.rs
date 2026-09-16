@@ -85,9 +85,9 @@ pub(crate) fn format(template: &str, arguments: &[Value]) -> Result<String, Faul
     let mut used = vec![false; arguments.len()];
     let mut next = 0usize;
     for piece in Pieces::new(template) {
-        match piece.map_err(|why| Fault::thrown_as(ThrownClass::Logic, why))? {
+        match piece.map_err(|why| Fault::thrown_as(ThrownClass::Logic, why.message))? {
             Piece::Text(text) => out.push_str(text),
-            Piece::Spec(spec) => {
+            Piece::Spec(spec, _) => {
                 let index = spec.index(&mut next);
                 let argument = arguments.get(index).ok_or_else(|| {
                     Fault::thrown_as(ThrownClass::Logic, reads_missing(index, arguments.len()))
@@ -118,6 +118,38 @@ pub struct Placeholder {
     pub index: usize,
     /// The conversion character, already one of the closed list.
     pub conversion: char,
+    /// Where in the template this one was written, so a refusal about it can
+    /// underline it rather than the literal that carried it.
+    pub written: Written,
+}
+
+/// Where something the template grammar read was written in the template: the
+/// offset of its opening `%` and how far from there it runs.
+///
+/// Offsets are into the template *as a value* — the cooked string, escapes
+/// already applied — which is the only form this module ever sees. Mapping one
+/// back to a column in the source a literal was written at is the caller's
+/// half, and `nvs_syntax::string_lit::cook_string_literal_positions` is what
+/// answers it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Written {
+    /// Byte offset of the opening `%`.
+    pub at: usize,
+    /// Bytes from [`Self::at`] this covers — the whole placeholder, or for a
+    /// refusal exactly the text its message quotes back.
+    pub len: usize,
+}
+
+/// A placeholder this grammar cannot read, with the words [`format`] would
+/// have thrown and where the offending text sits in the template.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Malformed {
+    /// The text of the `LogicError` [`format`] raises on the same template, so
+    /// a diagnostic quotes the runtime's own words rather than a second
+    /// wording of one refusal.
+    pub message: String,
+    /// The text [`Self::message`] quotes, located in the template.
+    pub written: Written,
 }
 
 /// Every placeholder in `template`, in written order, or the message the
@@ -132,17 +164,17 @@ pub struct Placeholder {
 ///
 /// # Errors
 ///
-/// The text of the `LogicError` [`format`] would have raised on the same
-/// template, so a diagnostic quotes the runtime's own words rather than a
-/// second wording of the same refusal.
-pub fn placeholders(template: &str) -> Result<Vec<Placeholder>, String> {
+/// [`Malformed`], carrying the words [`format`] would have thrown on the same
+/// template and where in it the offending text was written.
+pub fn placeholders(template: &str) -> Result<Vec<Placeholder>, Malformed> {
     let mut found = Vec::new();
     let mut next = 0usize;
     for piece in Pieces::new(template) {
-        if let Piece::Spec(spec) = piece? {
+        if let Piece::Spec(spec, written) = piece? {
             found.push(Placeholder {
                 index: spec.index(&mut next),
                 conversion: spec.conversion,
+                written,
             });
         }
     }
@@ -175,7 +207,7 @@ pub fn never_read(index: usize) -> String {
 /// nothing downstream has to know the escape exists.
 enum Piece<'a> {
     Text(&'a str),
-    Spec(Spec),
+    Spec(Spec, Written),
 }
 
 /// The template grammar's one walk, borrowing the template and allocating
@@ -186,44 +218,60 @@ enum Piece<'a> {
 /// first refusal anyway.
 struct Pieces<'a> {
     rest: &'a str,
+    /// Where `rest` begins in the template it was made from — the running
+    /// total that lets a piece say where it was written without the template
+    /// being threaded alongside it.
+    at: usize,
 }
 
 impl<'a> Pieces<'a> {
     const fn new(template: &'a str) -> Self {
-        Self { rest: template }
+        Self {
+            rest: template,
+            at: 0,
+        }
     }
 }
 
 impl<'a> Iterator for Pieces<'a> {
-    type Item = Result<Piece<'a>, String>;
+    type Item = Result<Piece<'a>, Malformed>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.rest.is_empty() {
             return None;
         }
+        let start = self.at;
         let Some(at) = self.rest.find('%') else {
+            self.at += self.rest.len();
             return Some(Ok(Piece::Text(std::mem::take(&mut self.rest))));
         };
         if at > 0 {
             let (text, rest) = self.rest.split_at(at);
             self.rest = rest;
+            self.at += at;
             return Some(Ok(Piece::Text(text)));
         }
         let after = &self.rest[1..];
         if let Some(tail) = after.strip_prefix('%') {
             self.rest = tail;
+            self.at += 2;
             // The `%` this escape stands for, sliced out of the template so the
             // piece borrows rather than owning.
             return Some(Ok(Piece::Text(&after[..1])));
         }
         match Spec::parse(after) {
             Ok((spec, tail)) => {
+                let len = self.rest.len() - tail.len();
                 self.rest = tail;
-                Some(Ok(Piece::Spec(spec)))
+                self.at += len;
+                Some(Ok(Piece::Spec(spec, Written { at: start, len })))
             }
-            Err(message) => {
+            Err(mut why) => {
                 self.rest = "";
-                Some(Err(message))
+                // `Spec::parse` measures from the `%` it was handed the text
+                // after, so the offset it reports is relative to this piece.
+                why.written.at += start;
+                Some(Err(why))
             }
         }
     }
@@ -258,7 +306,7 @@ impl Spec {
     /// Refuses with a message rather than a [`Fault`]: this is the half of the
     /// module both entry points share, and only [`format`] is in a position to
     /// throw. See the module docs' *One parse, two entry points*.
-    fn parse(after: &str) -> Result<(Self, &str), String> {
+    fn parse(after: &str) -> Result<(Self, &str), Malformed> {
         let bytes = after.as_bytes();
         let mut at = 0usize;
 
@@ -335,10 +383,18 @@ impl Spec {
             conversion,
             's' | 'd' | 'u' | 'f' | 'e' | 'g' | 'x' | 'X' | 'o' | 'b'
         ) {
-            return Err(format!(
-                "Core\\Str::format(): `%{conversion}` is not one of the conversions the template \
-                 grammar allows (`%s %d %u %f %e %g %x %X %o %b %%`)"
-            ));
+            return Err(Malformed {
+                message: format!(
+                    "Core\\Str::format(): `%{conversion}` is not one of the conversions the \
+                     template grammar allows (`%s %d %u %f %e %g %x %X %o %b %%`)"
+                ),
+                // The whole placeholder, `%` through the conversion that ended
+                // it: the flags and width ahead of it read without complaint,
+                // but they are part of the one placeholder being refused and
+                // underlining the conversion alone points inside a construct
+                // rather than at it.
+                written: Written { at: 0, len: at + 1 },
+            });
         }
         Ok((
             Self {
@@ -646,10 +702,21 @@ fn nonfinite(value: f64) -> String {
     }
 }
 
-/// A placeholder this grammar cannot read at all.
-fn malformed(after: &str) -> String {
+/// A placeholder this grammar cannot read at all, measured from the `%` that
+/// `after` follows: the message and the span it underlines are built from one
+/// cut of the text, so what is quoted and what is underlined cannot come
+/// apart.
+fn malformed(after: &str) -> Malformed {
     let shown: String = after.chars().take(8).collect();
-    format!("Core\\Str::format(): `%{shown}` is not a placeholder this template grammar allows")
+    Malformed {
+        message: format!(
+            "Core\\Str::format(): `%{shown}` is not a placeholder this template grammar allows"
+        ),
+        written: Written {
+            at: 0,
+            len: 1 + shown.len(),
+        },
+    }
 }
 
 /// A value with no reading for the conversion it reached.
@@ -839,7 +906,15 @@ mod tests {
             let nvs_runtime::Fault::Thrown(_, message) = thrown else {
                 panic!("`{template}` refused as something other than a throw");
             };
-            assert_eq!(checked, message, "for `{template}`");
+            assert_eq!(checked.message, message, "for `{template}`");
+            // What the refusal says it is refusing has to be inside the
+            // template it was refusing, or a caller mapping it back to a
+            // column underlines somewhere else entirely.
+            assert!(
+                checked.written.at + checked.written.len <= template.len(),
+                "`{template}` located its refusal outside itself: {:?}",
+                checked.written
+            );
         }
         for template in ["%s", "%s %d", "%2$s %1$s %2$s", "100%% of %s", "%08.3f"] {
             let read = super::placeholders(template).expect("a template");

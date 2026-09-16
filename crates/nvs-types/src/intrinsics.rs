@@ -69,18 +69,27 @@
 //!   `nvs_runtime::capability::require` and § 4 holds either way. Which
 //!   commands hand one over, and why `nvs run` is deliberately not one of
 //!   them, is `nvs-cli`'s `front_end_granted`.
+//! * **A refusal underlines the offset inside the pattern, where the grammar
+//!   that read it says where it was.** § 3 asks for the exact offset, and a
+//!   literal's own span cannot give it: that span covers the quotes and the
+//!   escapes, so a byte of the *decoded* text has no column until something
+//!   maps it back. [`decoded_span`] is that map —
+//!   `nvs_syntax::string_lit`'s second cooking mode, run only once a
+//!   diagnostic is being built, so an accepted pattern never pays for it. The
+//!   bound is which grammars can ask: `nvs_stdlib::format` locates every
+//!   placeholder it reads and every refusal it makes
+//!   ([`nvs_stdlib::format::Written`]), so a bad `%q` and an argument of the
+//!   wrong type each underline the placeholder alone. The SQL, regex, CLDR and
+//!   metric-name validators answer with a message and no position, so their
+//!   refusals underline the whole pattern; the message quotes the offending
+//!   text, which is what a reader searches for. One *spelling* falls back the
+//!   same way for a different reason: a heredoc's flexible-indentation strip
+//!   moves every byte off the offset it was written at, so its decoded text
+//!   has no column to point at — which spellings can answer is
+//!   `nvs_syntax::string_lit`'s own doc.
 //!
 //! # Known gaps
 //!
-//! 1. **A diagnostic underlines the whole literal, not the offset inside it.**
-//!    § 3 asks for the exact offset; a string literal's span covers its
-//!    escapes and its quotes, so mapping a byte of the *decoded* text back to
-//!    a column needs a decoder that records positions
-//!    ([`crate::string_lit`] is where that would live). The message quotes the
-//!    offending placeholder instead, which is what a reader searches for.
-//!    Decided: Re-decode with positions only when a diagnostic is emitted — Exact carets and zero cost
-//!    on the success path, at the cost of a second decoder mode.
-//!    — owner: unowned-closures
 //! 2. **Nothing is prepared yet.** § 3's second effect — the compiled pattern
 //!    and the parsed plan stored in `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s artifact cache — needs a
 //!    channel from here to `nvs-ir`; validation is the half that pays for
@@ -485,7 +494,7 @@ pub(crate) fn check_call(
     match row.grammar {
         Grammar::Template => {
             let tail = tail_types(row, list, arg_types, slots);
-            check_template(&text, span, tail.as_deref(), env);
+            check_template(&text, pattern, tail.as_deref(), env);
         }
         Grammar::Sql => check_sql(&text, span, row, list, slots, env),
         // Both CLDR rows read the same pattern language through the same
@@ -677,16 +686,13 @@ fn tail_types(
 /// the call did not give, and an argument no placeholder consumes. The fourth
 /// — a value with no reading for its conversion — is the one this pass makes
 /// *narrower* than the runtime does, per the module docs' third bullet.
-fn check_template(
-    text: &str,
-    span: nvs_diagnostics::Span,
-    values: Option<&[TypeId]>,
-    env: &mut Env<'_>,
-) {
+fn check_template(text: &str, pattern: &Expr, values: Option<&[TypeId]>, env: &mut Env<'_>) {
+    let span = pattern.span;
     let placeholders = match nvs_stdlib::format::placeholders(text) {
         Ok(placeholders) => placeholders,
-        Err(message) => {
-            report_malformed(span, &message, env);
+        Err(why) => {
+            let at = decoded_span(pattern, why.written, env).unwrap_or(span);
+            report_malformed(at, &why.message, env);
             return;
         }
     };
@@ -700,8 +706,9 @@ fn check_template(
     let mut read = vec![false; given];
     for placeholder in &placeholders {
         let Some(seen) = read.get_mut(placeholder.index) else {
+            let at = decoded_span(pattern, placeholder.written, env).unwrap_or(span);
             report_mismatch(
-                span,
+                at,
                 &nvs_stdlib::format::reads_missing(placeholder.index, given),
                 "the template reads further than the arguments go",
                 env,
@@ -724,8 +731,9 @@ fn check_template(
         if reads_number(placeholder.conversion) && !may_be_number(ty, env) {
             let described = env.interner.describe(ty);
             let conversion = placeholder.conversion;
+            let at = decoded_span(pattern, placeholder.written, env).unwrap_or(span);
             report_mismatch(
-                span,
+                at,
                 &format!(
                     "`%{conversion}` reads a number, and argument {} is a `{described}`",
                     placeholder.index + 1
@@ -769,6 +777,31 @@ fn may_be_number(ty: TypeId, env: &Env<'_>) -> bool {
         Ty::Union(members) => members.iter().any(|member| may_be_number(*member, env)),
         _ => false,
     }
+}
+
+/// § 3's exact offset: the span of a range of the pattern's *decoded* text,
+/// for a refusal that knows where inside the pattern it is pointing.
+///
+/// The map from decoded bytes back to columns is
+/// `nvs_syntax::string_lit`'s second cooking mode, run here and only here —
+/// **a diagnostic is already being emitted by the time this is called**, so
+/// the pass that accepts a pattern never builds one. What it holds while it is
+/// alive is that module's own docs.
+///
+/// `None` is every case where an offset is not knowable, and the caller
+/// underlines the whole pattern instead: a pattern the fold assembled out of
+/// more than one literal, which has no single written text to point into, and
+/// the spellings whose decoded bytes have no source offsets at all.
+fn decoded_span(
+    pattern: &Expr,
+    written: nvs_stdlib::format::Written,
+    env: &Env<'_>,
+) -> Option<nvs_diagnostics::Span> {
+    let ExprKind::Str(literal) = pattern.unparenthesized().kind else {
+        return None;
+    };
+    let (_, positions) = crate::string_lit::cook_string_literal_positions(env.src, literal);
+    crate::string_lit::decoded_range_span(literal, &positions, written.at, written.len)
 }
 
 /// § 3's first effect: a malformed constant, reported where it was written.

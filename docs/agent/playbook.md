@@ -2936,6 +2936,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   served life running beside it in the same binary reports. Re-run `python tools/verify.py` before
   reading it as yours; fixing it means scoping that global, not editing the case.
   [until: gone crates/nvs-cli/src/service.rs:fn install]
+- **`cargo test` does not rebuild `target/debug/nvs.exe`, so a caret you read out of it after a
+  test-only build is the previous commit's.** The driver builds the binary at the commit a session
+  *starts* from and `cargo test` builds only test targets, so `nvs check` keeps rendering the old
+  diagnostic while the suite already sees the new one — which reads as a bug in the change you just
+  made. Run `cargo build` before reading a diagnostic out of `nvs.exe` whenever you have touched Rust
+  this session. [until: reviewed 2026-10-16]
 
 ## Writing a test case
 
@@ -5344,6 +5350,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   magnitude. Scope the measurement to `tests/conformance/` — which has no oracle section
   ([the bullet above](playbook.md)) — or split each differential file at `--ORACLE--` before
   counting. [until: reviewed 2026-09-16]
+- **A `%2$s` in a *double-quoted* Novis literal is an interpolated `$s`, not a `Core\Str::format`
+  placeholder.** Interpolation happens in the lexer, long before the intrinsic pass reads the
+  template, so a positional-placeholder fixture written with double quotes fails as ``E0301 `$s` is
+  not declared`` and pins nothing about `format`. Single-quote any template containing `$`
+  (`'%2$s'`), which is what the cases in `crates/nvs-types/tests/intrinsics.rs` already do.
+  [until: reviewed 2026-10-16]
 
 ## Splitting a file that got too big
 

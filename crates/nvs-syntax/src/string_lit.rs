@@ -48,6 +48,17 @@
 //! broken the byte-for-byte correspondence to a single source span); a
 //! nowdoc's body applies no escapes at all, exactly like `nvs-ir`'s own
 //! single-quoted case — dedenting is the *only* transformation it gets.
+//!
+//! **Cooking has a second mode, and only a diagnostic asks for it.**
+//! [`cook_string_literal_positions`] returns the same value
+//! [`cook_string_literal`] does, alongside the map from each decoded byte back
+//! to the file offset the character that produced it was written at. That map
+//! is what lets a checker underline the one placeholder inside a template
+//! rather than the whole literal ([`decoded_range_span`]), which a span
+//! covering the quotes and the escapes cannot do. It holds four bytes per
+//! decoded byte, for as long as the diagnostic is being built, and is filled
+//! only where a caller passes somewhere to put it — so cooking for a *value*,
+//! which is every cook on the success path, allocates none of it.
 
 use nvs_diagnostics::{SourceFile, Span};
 
@@ -91,7 +102,7 @@ pub enum CookIssue {
 #[must_use]
 pub fn cook_double_quoted_text(src: &SourceFile, span: Span) -> (String, Vec<CookIssue>) {
     let text = src.span_text(span).unwrap_or_default();
-    cook_double_quoted_chars(text, span, span_of(span), &[])
+    cook_double_quoted_chars(text, span, span_of(span), &[], None)
 }
 
 /// The two escapes a markup literal adds to the double-quoted grammar, and the
@@ -114,7 +125,7 @@ const MARKUP_ESCAPES: &[char] = &['`', '{'];
 #[must_use]
 pub fn cook_markup_text(src: &SourceFile, span: Span) -> (String, Vec<CookIssue>) {
     let text = src.span_text(span).unwrap_or_default();
-    cook_double_quoted_chars(text, span, span_of(span), MARKUP_ESCAPES)
+    cook_double_quoted_chars(text, span, span_of(span), MARKUP_ESCAPES, None)
 }
 
 /// Maps a cooked run's own byte offsets back to spans in the file, for a run
@@ -144,7 +155,7 @@ fn span_of(span: Span) -> impl Fn(usize, usize) -> Span {
 /// `nvs-ir`'s `cook_str_literal`/`Lowering::lower_interpolated_parts`.
 #[must_use]
 pub fn cook_double_quoted_text_str(text: &str, attribute_to: Span) -> (String, Vec<CookIssue>) {
-    cook_double_quoted_chars(text, attribute_to, |_, _| attribute_to, &[])
+    cook_double_quoted_chars(text, attribute_to, |_, _| attribute_to, &[], None)
 }
 
 /// Cooks a whole [`crate::ast::ExprKind::Str`] literal — delimiters
@@ -203,24 +214,114 @@ pub fn cook_string_literal(src: &SourceFile, span: Span) -> String {
         return cook_double_quoted_text(src, inner_span).0;
     }
     let inner = src.span_text(inner_span).unwrap_or_default();
+    cook_single_quoted(inner, quote, None)
+}
+
+/// [`cook_string_literal`]'s single-quoted branch: the two escapes that
+/// spelling has, over the text strictly between its quotes.
+///
+/// `positions` is filled exactly as [`cook_double_quoted_chars`] fills its
+/// own — `inner`'s offsets, one per decoded byte, plus the past-the-end
+/// sentinel — so [`cook_string_literal_positions`] rebases either the same
+/// way.
+fn cook_single_quoted(inner: &str, quote: char, mut positions: Option<&mut Vec<u32>>) -> String {
     let mut out = String::with_capacity(inner.len());
-    let mut chars = inner.chars();
-    while let Some(c) = chars.next() {
+    let mut chars = inner.char_indices();
+    let mut mark = 0usize;
+    while let Some((at, c)) = chars.next() {
+        if let Some(map) = positions.as_deref_mut() {
+            map.resize(out.len(), off_as_u32(mark));
+            mark = at;
+        }
         if c != '\\' {
             out.push(c);
             continue;
         }
         match chars.next() {
-            Some('\\') => out.push('\\'),
-            Some(next) if next == quote => out.push(quote),
-            Some(other) => {
+            Some((_, '\\')) => out.push('\\'),
+            Some((_, next)) if next == quote => out.push(quote),
+            Some((_, other)) => {
                 out.push('\\');
                 out.push(other);
             }
             None => out.push('\\'),
         }
     }
+    if let Some(map) = positions {
+        map.resize(out.len(), off_as_u32(mark));
+        map.push(off_as_u32(inner.len()));
+    }
     out
+}
+
+/// [`cook_string_literal`]'s second mode: the same value, and the map from
+/// each decoded byte back to the file offset the character that produced it
+/// was written at.
+///
+/// `positions[k]` is that offset for decoded byte `k`, and the map carries one
+/// entry more than the string is long — the offset just past the last
+/// character consumed — so a decoded range always has an exclusive end to
+/// read. [`decoded_range_span`] is what reads it.
+///
+/// **An empty map means no offset is knowable**, and two spellings return one.
+/// A heredoc/nowdoc's flexible-indentation strip shifts every offset past the
+/// first stripped line, which is the same correspondence
+/// [`cook_double_quoted_text_str`] already gives up. A literal whose byte
+/// escapes did not assemble into valid UTF-8 has had the bytes the map indexes
+/// replaced by the lossy substitution. A caller reading an empty map
+/// underlines the whole literal, which is what every caller did before this
+/// mode existed.
+///
+/// This mode exists for a diagnostic and runs only when one is being emitted:
+/// cooking for a *value* is [`cook_string_literal`] and allocates none of it.
+///
+/// # Panics
+///
+/// Panics if `span` is empty, exactly as [`cook_string_literal`] does.
+#[must_use]
+pub fn cook_string_literal_positions(src: &SourceFile, span: Span) -> (String, Vec<u32>) {
+    let raw = src.span_text(span).unwrap_or_default();
+    if raw.starts_with("<<<") {
+        return (cook_heredoc_literal(src, span, raw), Vec::new());
+    }
+    let quote = raw
+        .chars()
+        .next()
+        .unwrap_or_else(|| panic!("an empty string literal span at {span:?} — lexer bug?"));
+    if quote != '\'' && quote != '"' {
+        // A bareword offset carries no escape grammar at all — see
+        // [`cook_string_literal`]'s own branch — so its map is the identity.
+        let map = (0..=raw.len())
+            .map(|at| span.start + off_as_u32(at))
+            .collect();
+        return (raw.to_owned(), map);
+    }
+    let inner_span = Span::new(span.file, span.start + 1, span.end - 1);
+    let inner = src.span_text(inner_span).unwrap_or_default();
+    let mut map = Vec::with_capacity(inner.len() + 1);
+    let cooked = if quote == '"' {
+        cook_double_quoted_chars(inner, inner_span, span_of(inner_span), &[], Some(&mut map)).0
+    } else {
+        cook_single_quoted(inner, quote, Some(&mut map))
+    };
+    for at in &mut map {
+        *at += inner_span.start;
+    }
+    (cooked, map)
+}
+
+/// The source span of a decoded byte range, read back through
+/// [`cook_string_literal_positions`]'s map.
+///
+/// `None` when the map is empty — the spellings that have no byte-for-byte
+/// correspondence — and when the range runs past what was decoded, which is a
+/// caller holding a different string than it cooked. Either way the caller
+/// falls back to `literal` itself.
+#[must_use]
+pub fn decoded_range_span(literal: Span, positions: &[u32], at: usize, len: usize) -> Option<Span> {
+    let start = *positions.get(at)?;
+    let end = *positions.get(at.checked_add(len)?)?;
+    Some(Span::new(literal.file, start, end.max(start)))
 }
 
 /// [`cook_string_literal`]'s heredoc/nowdoc branch — `raw` is `span`'s own
@@ -236,11 +337,19 @@ fn cook_heredoc_literal(src: &SourceFile, span: Span, raw: &str) -> String {
     }
 }
 
+/// `positions`, when a caller asks for one, is filled with `text`'s own
+/// offsets — one entry per decoded byte, plus the past-the-end sentinel — and
+/// the caller rebases them onto the file. It is padded at the *top* of each
+/// iteration from the offset the previous one consumed, rather than beside
+/// every append below: the escape table pushes bytes at more than a dozen
+/// sites and takes three different `continue`s out of the loop, so a mapping
+/// written per-append is one a later escape row silently forgets.
 fn cook_double_quoted_chars(
     text: &str,
     whole_span_for_utf8_issue: Span,
     escape_span: impl Fn(usize, usize) -> Span,
     extra: &[char],
+    mut positions: Option<&mut Vec<u32>>,
 ) -> (String, Vec<CookIssue>) {
     let chars: Vec<(usize, char)> = text.char_indices().collect();
     let n = chars.len();
@@ -248,9 +357,15 @@ fn cook_double_quoted_chars(
     let mut issues = Vec::new();
     let mut buf = [0u8; 4];
 
+    // The offset every byte appended but not yet mapped was written at.
+    let mut mark = 0usize;
     let mut i = 0usize;
     while i < n {
-        let (_, c) = chars[i];
+        let (at, c) = chars[i];
+        if let Some(map) = positions.as_deref_mut() {
+            map.resize(bytes.len(), off_as_u32(mark));
+            mark = at;
+        }
         if c != '\\' {
             bytes.extend_from_slice(c.encode_utf8(&mut buf).as_bytes());
             i += 1;
@@ -376,10 +491,23 @@ fn cook_double_quoted_chars(
         }
     }
 
+    if let Some(map) = positions.as_deref_mut() {
+        map.resize(bytes.len(), off_as_u32(mark));
+        // One entry more than the decoded text is long, so a decoded range
+        // ending at the last byte still has an exclusive end to read.
+        map.push(off_as_u32(text.len()));
+    }
+
     match String::from_utf8(bytes) {
         Ok(s) => (s, issues),
         Err(e) => {
             issues.push(CookIssue::InvalidUtf8(whole_span_for_utf8_issue));
+            // Lossy substitution rewrites the very bytes the map indexes, so
+            // the map no longer describes this string at all. Empty is how a
+            // caller is told no offset is knowable here.
+            if let Some(map) = positions {
+                map.clear();
+            }
             (String::from_utf8_lossy(e.as_bytes()).into_owned(), issues)
         }
     }

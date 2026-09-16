@@ -2,61 +2,54 @@
 
 ## State
 
-**Goal `unowned-closures`, and the register is at `unowned: 15`.** `python tools/owners.py` reports
-`unowned: 15`, `untagged: 0`, `broken-tag: 0`, `unreasoned: 0` and `sections outside Known gaps: 0`;
-`--deferrals` is green. Every one of the 15 needs an answer only the user can give bar
-`crates/nvs-runtime/src/graph.rs:74` gap 1, so the goal's own check — `unowned: 0` — is a `BLOCKED`
-the moment that one is settled. 54 gaps still carry `owner: unowned-closures`.
+**Goal `unowned-closures`. The register is unchanged at `unowned: 15`, and goal-owned is down to
+53.** The 15 unowned are the scheduling questions, none of which is one of this goal's own gaps, so
+`python tools/owners.py`'s `unowned: 0` still turns on answers only the user can give — the position
+the previous session left it in, unmoved by this one. `--deferrals` is green.
 
-**The three roster passes read the call's argument mapping.**
-`crate::expr::args::argument_filling` is `check_args_typed`'s `ArgSlot` mapping read back, and
-`crates/nvs-types/src/intrinsics.rs`, `links.rs` and `reasons.rs` address their argument through it
-— so `Core\Str::format(template: …)`, `Core\Router::url(name: …)` and `Core\Html::toSource(reason:
-…)` are read exactly as the positional spellings are. A `...` still says nothing about a variadic
-*tail* (its count is a run-time fact), and that is stated where it is decided rather than carried as
-a gap. Four module-doc gaps struck with it, and the carried-gaps entry that indexed them.
+**`crates/nvs-types/src/intrinsics.rs` gap 1 is struck, built rather than deferred.** A refusal about
+a template placeholder now underlines the placeholder instead of the whole literal.
+`nvs_syntax::string_lit::cook_string_literal_positions` is the decoder's second mode — the map from
+each decoded byte to the file offset it was written at — and it runs only once a diagnostic is being
+built, which is what the gap's `Decided:` sentence chose. `nvs_stdlib::format::Written` is the other
+half: the grammar locates every placeholder it reads and every refusal it makes.
 
-**The intrinsic roster has a restriction column.** `Intrinsic::restriction` carries a member's own
-rule about a pattern its grammar reads — today `Restriction::CivilFields`, which is
-`nvs_stdlib::cldr::validate_civil`, so a literal zonal pattern at `Core\Time::parse` is refused
-while compiling. Two `.nvst` cases moved that pattern into a variable to keep the runtime throw
-they pin reachable.
+**What is left of it is a bound, in that module's own prose rather than a gap.** The SQL, regex, CLDR
+and metric-name validators answer with a message and no position, so their refusals still underline
+the whole pattern; a heredoc falls back for a different reason, its indentation strip having moved
+every byte off the offset it was written at.
 
-**Both slices are one commit, because they share `intrinsics.rs`.** Splitting them would have left
-the first commit calling a `pub fn` the second adds, so the history takes one commit naming both.
+**Gap numbering in that file is deliberately not contiguous — do not renumber it.** The block opens
+at gap 2, which is the slot `docs/agent/loop-goal.md` § *Standing decisions* names as this goal's one
+ADR. `crates/nvs-ir/src/lib.rs` is the same shape (gaps 14 and 18), so this is the tree's practice
+and not a leftover.
 
-**Stage 3's file set is down to `intrinsics.rs` gaps 1 and 2.** Gap 1 (the diagnostic's own offset)
-wants a decoder that records positions, which `crates/nvs-types/src/string_lit.rs` does not hold —
-that path is `[context] modules`' one dead pattern and the module does not exist under that name.
-Gap 2 is this goal's ADR slot.
+**The manifest's one dead pattern is gone.** `[context] modules` named
+`crates/nvs-types/src/string_lit.rs`, which no file matches: that path is a `pub use` of
+`nvs_syntax::string_lit` at `crates/nvs-types/src/lib.rs:203`, and the escape grammar itself lives in
+`nvs-syntax`. `orient.py` reported it dead every session and will not now.
 
 ## Next group
 
-**Stage 3: the checker's intrinsic pass, what is left of it** — one file set:
-`crates/nvs-types/src/intrinsics.rs`, whatever holds the string-literal decoder, and
+**Stage 3: the checker's intrinsic pass, the two gaps left in it** — one file set:
+`crates/nvs-types/src/intrinsics.rs`, `crates/nvs-ir/src/lower/`, and
 `crates/nvs-types/tests/intrinsics.rs`.
 
-- [ ] **Find where a string literal is decoded, and say so in the manifest** —
-      `crates/nvs-types/src/intrinsics.rs:75` (gap 1) names `crate::string_lit`, which no file in
-      the tree matches: `orient.py` prints that `[context] modules` pattern as dead every session.
-      Locate the decoder (`python tools/peek.py --locate` over `crates/nvs-types/src`), then fix
-      both the gap's own reference and the manifest pattern in `docs/agent/loop-goal.toml`.
-- [ ] **A refused placeholder underlines its own offset** — `crates/nvs-types/src/intrinsics.rs:75`
-      (gap 1): the decided option is a second decoder mode that records positions, reached only when
-      a diagnostic is emitted, so the success path stays what it is. `report_malformed`
-      (`crates/nvs-types/src/intrinsics.rs:775`) is the one place every grammar's refusal passes
-      through, and `rule:expressions/intrinsic-list-is-closed` is the pass this lives inside.
-- [ ] **Nothing is prepared yet** — `crates/nvs-types/src/intrinsics.rs:84` (gap 2) is this goal's
-      one ADR slot: the checker-to-IR channel that carries a prepared pattern into the artifact
-      cache (`crates/nvs-cli/src/cache.rs:2491` names it from the other end). Take it only with the
-      two slices above landed, and open the next free record for it.
+- [ ] **Open this goal's one ADR for the prepared-pattern channel, and build it** —
+      `crates/nvs-types/src/intrinsics.rs:94` (gap 2) is the slot, and its `Decided:` sentence is
+      "build the checker-to-IR channel; store prepared patterns in the artifact". The roster row
+      already names what preparation produces (`rule:expressions/intrinsic-list-is-closed`), and
+      `crates/nvs-types/src/expr_table.rs:@ExprTypeTable` is the existing checker-to-IR channel to
+      widen rather than a second one to invent — `record_regex_tier` at
+      `crates/nvs-types/src/intrinsics.rs:519` is a prepared fact already travelling that way.
+- [ ] **Refuse an unterminated string literal in a literal query, and amend the doc that declines
+      it** — `crates/nvs-types/src/intrinsics.rs:101` (gap 3), whose `Decided:` sentence settles the
+      disagreement in this direction. The other half is `crates/nvs-db/src/sql.rs:53`, whose
+      "malformed SQL is the server's diagnosis, not ours" paragraph is what has to be rewritten in
+      the same slice (`rule:core-classes/db-literal-query-checking`).
 
 ## Backlog
 
-- `crates/nvs-types/src/intrinsics.rs:91` gap 3 waits on which of two module docs is right about
-  `rule:core-classes/db-literal-query-checking`'s unterminated string literal (`nvs_db::sql`
-  declines it in the other direction).
-- The 15 `unowned` items are a `BLOCKED` for the user bar `crates/nvs-runtime/src/graph.rs:74`
-  gap 1 — `python tools/owners.py` lists them.
-- `docs/agent/carried-gaps.md` still holds 61 items; the ones this goal closes go out with the
-  module-doc gaps they index.
+- The four other grammars report a message with no offset, so their refusals underline the whole
+  pattern — stated as a bound on `crates/nvs-types/src/intrinsics.rs`, not owed work.
+- 53 gaps still carry `owner: unowned-closures`; `python tools/owners.py` lists them by file.
