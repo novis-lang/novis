@@ -1,0 +1,66 @@
+--TEST--
+A `#[Json\Field(skip: true)]` property that is still a constructor parameter leaves a position no key fills, and the call that asks for a whole instance out of a document is refused — `rule:core-classes/derive-field-list`, `rule:core-api/required-optional-and-nullable`
+--FILE--
+<?nvs
+// `rule:core-classes/derive-field-list`: `skip` takes a property off the
+// contract and exempts it from the constructor-parameter requirement. The class
+// stays well formed either way — it still encodes, and the program can still
+// build one itself — so the refusal is of the **call** that asks for one out of
+// a document, exactly as the row door refuses a `queryAs<T>`.
+//
+// The accepted side of the bound: a skipped property the constructor does not
+// take is filled by the constructor body, so every position the decoder has to
+// fill is a field and this call is fine.
+#[Core\Json\Derive]
+class Cached {
+    public string $name;
+    #[Core\Json\Field(skip: true)]
+    public int $hits;
+
+    public function constructor(string $name) {
+        $this->name = $name;
+        $this->hits = 0;
+    }
+}
+
+// The refused side, one line different: the skipped property stayed a
+// parameter, so there is a position the contract names no key for. A constant
+// carried on a field cannot answer for it — `nvs_runtime::CodecField::default`
+// fills an absent *optional key*, and this position has no field to read one
+// off.
+#[Core\Json\Derive]
+class Stamped {
+    public string $name;
+    #[Core\Json\Field(skip: true)]
+    public int $stamp;
+
+    public function constructor(string $name, int $stamp) {
+        $this->name = $name;
+        $this->stamp = $stamp;
+    }
+}
+
+// A document is a tree, so the question is asked of every deriving class the
+// written one reaches rather than of its own fields alone: this call names a
+// class that is fillable itself and holds one that is not.
+#[Core\Json\Derive]
+class Envelope {
+    public Stamped $payload;
+
+    public function constructor(Stamped $payload) {
+        $this->payload = $payload;
+    }
+}
+
+echo Core\Json::encode(Core\Json::decodeAs<Cached>("{\"name\":\"ada\"}")), "\n";
+var $stamped = Core\Json::decodeAs<Stamped>("{\"name\":\"ada\"}");
+var $envelope = Core\Json::decodeAs<Envelope>("{\"payload\":{\"name\":\"ada\"}}");
+echo $stamped->name, $envelope->payload->name, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0820]: `Stamped`'s codec fills 1 of its constructor's 2 parameter(s), so `Core\Json::decodeAs` cannot build one
+%A
+error[E0820]: `Stamped`'s codec fills 1 of its constructor's 2 parameter(s), so `Core\Json::decodeAs` cannot build one
+%A
+error: aborting due to 2 errors

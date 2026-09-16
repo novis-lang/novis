@@ -1,0 +1,49 @@
+--TEST--
+`Core\Request::queryAs<T>` and `postAs<T>` hydrate a declared class out of a parameter set, and answer what the same call over an inline shape answers — `rule:core-classes/derive-field-list`, `rule:security/derived-codec-qualifiers`
+--GET--
+q=novis&page=2
+--POST--
+name=ada&csrf=t0ken
+--FILE--
+<?nvs
+// A written class and an inline shape are two spellings of one question at
+// these members, so what a call is asked while compiling is the **owner's**
+// answer and never the member's spelling: `queryAs` is written on a request
+// here and on a database connection elsewhere, and only the second of those is
+// asked `rule:core-classes/db-column-types`'s question about a column map.
+#[Core\Json\Derive]
+class Search {
+    // `rule:security/derived-codec-qualifiers`: a parameter set is a peer's
+    // octets — `rule:security/tainted-sources` makes the query and the body
+    // alike one — so the field that receives them is the field that declares
+    // them.
+    public tainted string $q;
+
+    public function constructor(tainted string $q) {
+        $this->q = $q;
+    }
+}
+
+#[Core\Json\Derive]
+class Profile {
+    public tainted string $name;
+
+    public function constructor(tainted string $name) {
+        $this->name = $name;
+    }
+}
+
+var $search = Core\Request::queryAs<Search>();
+echo $search->q, "\n";
+
+var $profile = Core\Request::postAs<Profile>();
+echo $profile->name, "\n";
+
+// Agreement rather than two examples: the shape spelling of the same read
+// answers the same thing, so a door that grew a rule of its own for one of the
+// two targets fails here while still looking right on its own line.
+echo Core\Json::encode(Core\Request::queryAs<tainted {q: string}>()), "\n";
+--EXPECT--
+novis
+ada
+{"q":"novis"}

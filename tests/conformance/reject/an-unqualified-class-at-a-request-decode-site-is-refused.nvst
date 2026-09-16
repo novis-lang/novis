@@ -1,0 +1,63 @@
+--TEST--
+A declared class written at any of `Core\Request`'s decoding members is asked for the qualifier its inline-shape sibling is asked for, at every one of them — `rule:security/derived-codec-qualifiers`, `rule:security/tainted-sources`
+--FILE--
+<?nvs
+// The class half of `an-unqualified-shape-at-a-request-decode-site-is-refused`,
+// asked of all three members together: every `Core\Request` member that reads a
+// parameter set reads a peer's octets, so which of them a call wrote cannot
+// change the answer. Three classes rather than one, because the refusal is
+// reported once per property however many sites reach it.
+#[Core\Json\Derive]
+class Body {
+    public string $note;
+
+    public function constructor(string $note) {
+        $this->note = $note;
+    }
+}
+
+#[Core\Json\Derive]
+class Query {
+    public string $q;
+
+    public function constructor(string $q) {
+        $this->q = $q;
+    }
+}
+
+#[Core\Json\Derive]
+class Form {
+    public string $email;
+
+    public function constructor(string $email) {
+        $this->email = $email;
+    }
+}
+
+// The accepted side of the bound, named beside the refused ones: `tainted` on
+// the declaration is the whole of what the rule asks for, and no issue below is
+// about this class.
+#[Core\Json\Derive]
+class Ok {
+    public tainted string $term;
+
+    public function constructor(tainted string $term) {
+        $this->term = $term;
+    }
+}
+
+var $body = Core\Request::jsonAs<Body>();
+var $query = Core\Request::queryAs<Query>();
+var $form = Core\Request::postAs<Form>();
+var $ok = Core\Request::queryAs<Ok>();
+echo $body->note, $query->q, $form->email, $ok->term, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0810]: `Body::$note` is declared `string`, and `Core\Request::jsonAs` answers a peer's octets
+%A
+error[E0810]: `Query::$q` is declared `string`, and `Core\Request::queryAs` answers a peer's octets
+%A
+error[E0810]: `Form::$email` is declared `string`, and `Core\Request::postAs` answers a peer's octets
+%A
+error: aborting due to 3 errors
