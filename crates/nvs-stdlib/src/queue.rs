@@ -5082,6 +5082,22 @@ mod tests {
         text
     }
 
+    /// A column as `driver`'s dialect names it in that DDL, delimiters and all.
+    ///
+    /// `nvs_db::ddl` writes every identifier inside the quotes its dialect reserves for one, so a
+    /// declaration is the quoted name and never the bare one. The delimiters are written out here
+    /// rather than asked of that crate: what this file asserts is which columns the queue's schema
+    /// declares, and a helper that took the emitter's own answer would agree with it about a name
+    /// it never wrote.
+    fn declared(column: &str, driver: nvs_db::Driver) -> String {
+        let (open, close) = match nvs_db::Dialect::of(driver) {
+            nvs_db::Dialect::PostgreSql | nvs_db::Dialect::Sqlite => ('"', '"'),
+            nvs_db::Dialect::MySql => ('`', '`'),
+            nvs_db::Dialect::SqlServer => ('[', ']'),
+        };
+        format!("{open}{column}{close}")
+    }
+
     /// The `errors` column is text a reader has to parse, and what a job threw is arbitrary text —
     /// so the one thing this owes is that a message able to end the array early does not. Asserted
     /// by parsing the answer back rather than by comparing it to a spelling, since the escaping is
@@ -5254,13 +5270,13 @@ mod tests {
 
             for column in inserted.split(',').map(str::trim) {
                 assert!(
-                    jobs.contains(&format!("{column} ")),
+                    jobs.contains(&format!("{} ", declared(column, driver))),
                     "{dialect}: the `jobs` DDL creates `{column}`, which `INSERT_POSTGRES` binds"
                 );
             }
-            for column in ["state ", "attempts ", "queue "] {
+            for column in ["state", "attempts", "queue"] {
                 assert!(
-                    jobs.contains(column),
+                    jobs.contains(&format!("{} ", declared(column, driver))),
                     "{dialect}: the `jobs` DDL creates the column `STATUS_POSTGRES` and `COUNTS_POSTGRES` read as \
                      `{column}`"
                 );
@@ -5268,11 +5284,16 @@ mod tests {
             // `CLAIM_POSTGRES` is the one statement that reads a column no `INSERT_POSTGRES` writes: a claim's own
             // instant, which is where § 4's visibility timeout is measured from.
             assert!(
-                jobs.contains("claimed_at "),
+                jobs.contains(&format!("{} ", declared("claimed_at", driver))),
                 "{dialect}: the `jobs` DDL creates `claimed_at`, which `CLAIM_POSTGRES` writes and reads back"
             );
             assert!(
-                jobs.contains("(queue, state, run_at)"),
+                jobs.contains(&format!(
+                    "({}, {}, {})",
+                    declared("queue", driver),
+                    declared("state", driver),
+                    declared("run_at", driver)
+                )),
                 "{dialect}: `CLAIM_POSTGRES` seeks by queue, then state, then due-ness, which is the order \
                  of this index"
             );
@@ -5289,16 +5310,16 @@ mod tests {
                  `INSERT_POSTGRES` writes the key into while the job is pending"
             );
 
-            for column in ["id ", "queue "] {
+            for column in ["id", "queue"] {
                 assert!(
-                    dead.contains(column),
+                    dead.contains(&format!("{} ", declared(column, driver))),
                     "{dialect}: the `dead_letter` DDL creates `{column}`, which is what \
                      `DEAD_TABLE`'s doc says this module reads of it"
                 );
             }
             for column in moved.split(',').map(str::trim) {
                 assert!(
-                    dead.contains(&format!("{column} ")),
+                    dead.contains(&format!("{} ", declared(column, driver))),
                     "{dialect}: the `dead_letter` DDL creates `{column}`, which `DEAD_LETTER_POSTGRES` writes"
                 );
             }
@@ -6666,7 +6687,9 @@ mod tests {
                 // a second answer to the same question, which is the thing being refused.
                 let mut at = 0;
                 for column in &columns {
-                    let found = ddl[at..].find(&format!("{column} ")).unwrap_or_else(|| {
+                    let found = ddl[at..]
+                        .find(&format!("{} ", declared(column, driver)))
+                        .unwrap_or_else(|| {
                         panic!(
                             "{}'s `{name}` does not declare `{column}` where the one schema value \
                              puts it",

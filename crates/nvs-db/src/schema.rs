@@ -50,19 +50,15 @@
 //!
 //! # Known gaps
 //!
-//! 1. **Two constructs this vocabulary holds are not portable, and nothing
-//!    here refuses either.** Both were found by applying a schema to all five
-//!    servers — `catalog`'s `an_applied_schema_introspects_back_to_an_empty_plan_on_*`
-//!    is that walk, and its fixture's own doc is where each is written down.
-//!    An **index over unbounded text** is refused outright by SQL Server, whose
-//!    key column may not be `NVARCHAR(MAX)`, and taken by MySQL only as
-//!    [`crate::ddl`]'s prefix key. An **identifier a backend reserves** —
-//!    `RANK` is a keyword on MySQL 8 — is a `CREATE TABLE` that server will not
-//!    parse, and no emitter here can prevent it, because
-//!    `rule:core-classes/schema-is-a-value` validates an identifier rather than
-//!    delimiting it. Closing either is a builder that refuses the construct or
-//!    an emitter that has a spelling for it, and which one is a decision the
-//!    milestone that needs it takes.
+//! 1. **One construct this vocabulary holds is not portable, and nothing here
+//!    refuses it.** An **index over unbounded text** is refused outright by
+//!    SQL Server, whose key column may not be `NVARCHAR(MAX)`, and taken by
+//!    MySQL only as [`crate::ddl`]'s prefix key. It was found by applying a
+//!    schema to all five servers — `catalog`'s
+//!    `an_applied_schema_introspects_back_to_an_empty_plan_on_*` is that walk,
+//!    and its fixture's own doc is where it is written down. Closing it is a
+//!    builder that refuses the construct, there being no portable spelling an
+//!    emitter could write instead.
 //!    Decided: Emitter always quotes identifiers; builder refuses an index over unbounded text —
 //!    Quoting is standard and cheap; the text-index refusal is honest because there is no portable
 //!    spelling.
@@ -86,8 +82,11 @@ pub const MAX_IDENTIFIER: usize = 63;
 ///
 /// ASCII on purpose. Every backend also accepts some set of non-ASCII letters,
 /// and no two of those sets are the same — `char::is_alphabetic` would accept a
-/// name PostgreSQL takes and SQL Server folds differently, which is exactly the
-/// dialect dependence validating instead of delimiting exists to avoid having.
+/// name PostgreSQL takes and SQL Server folds differently, and a delimiter
+/// settles which parser reads a name as one token, never how that parser folds
+/// it. What this rule buys [`crate::ddl`]'s delimiting is that it is total: a
+/// name it admits cannot carry the delimiter that would end it, so every
+/// identifier an emitter writes closes where the emitter says it does.
 ///
 /// This is the length-free half of the rule, because it is also
 /// `Core\Db::quoteIdentifier`'s whole rule: that member laundering a name for a

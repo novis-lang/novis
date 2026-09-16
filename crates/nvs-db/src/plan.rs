@@ -927,7 +927,8 @@ mod tests {
             assert!(
                 step.sql()
                     .iter()
-                    .any(|statement| statement.contains("DROP TABLE operators_own")),
+                    .any(|statement| statement.starts_with("DROP TABLE")
+                        && statement.contains("operators_own")),
                 "{dialect:?} elided the SQL of a report: {:?}",
                 step.sql()
             );

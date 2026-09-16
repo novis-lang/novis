@@ -30,13 +30,16 @@
 //! statements is written rather than bound. Two closed sets are what make that
 //! safe, and both are [`crate::schema`]'s rather than this module's:
 //!
-//! - **An identifier is validated, never delimited** — a [`Ident`] is ASCII
+//! - **An identifier is validated and then delimited** — a [`Ident`] is ASCII
 //!   letters, digits and `_` within [`MAX_IDENTIFIER`](crate::MAX_IDENTIFIER),
-//!   so it is written bare and carries nothing into the statement it lands in.
-//!   The cost of that judgement is that a table named `order` is not sayable,
-//!   which is the trade
-//!   `rule:security/tainted-qualifier` already
-//!   made for `Core\Db::quoteIdentifier`.
+//!   and [`delimited`] writes it in the dialect's own quotes. The validation is
+//!   what makes the delimiting total: no name the vocabulary admits can carry
+//!   the delimiter that would end it, so the first closing delimiter a parser
+//!   meets is the one this module wrote, and a name the server reserves —
+//!   `RANK` on MySQL 8 — is still the name the schema gave it.
+//!   `Core\Db::quoteIdentifier` validates and stops there because that member
+//!   has no connection and so no dialect to quote for
+//!   (`rule:security/tainted-qualifier`); every call here has one.
 //! - **A literal is one of [`ColumnDefault`]'s cases**, each with a
 //!   spelling per dialect save the read-only [`ColumnDefault::Opaque`], which
 //!   no statement written here can carry. A program writes no expression
@@ -136,7 +139,7 @@ pub fn create_schema(schema: &Schema, dialect: Dialect) -> Vec<String> {
 #[must_use]
 pub fn create_table(table: &Table, dialect: Dialect) -> Vec<String> {
     let mut statements = vec![create_table_statement(
-        &table.name().to_string(),
+        &delimited(table.name().as_str(), dialect),
         table,
         dialect,
     )];
@@ -162,6 +165,8 @@ pub fn create_table(table: &Table, dialect: Dialect) -> Vec<String> {
 ///
 /// The two are the same everywhere but in [`sqlite_rebuild`], which builds the
 /// table it is about to become under a staging name and renames it into place.
+/// `name` arrives already [`delimited`], because the staging one is no
+/// [`Ident`] and both callers hold the dialect that says how.
 fn create_table_statement(name: &str, table: &Table, dialect: Dialect) -> String {
     let rowid = rowid_identity(table, dialect);
     let mut clauses: Vec<String> = table
@@ -184,7 +189,7 @@ fn create_table_statement(name: &str, table: &Table, dialect: Dialect) -> String
         if null_filter(table, key, dialect).is_none() {
             clauses.push(format!(
                 "CONSTRAINT {} UNIQUE ({})",
-                key.name(),
+                delimited(key.name().as_str(), dialect),
                 key_columns(table, key.columns(), dialect)
             ));
         }
@@ -193,7 +198,7 @@ fn create_table_statement(name: &str, table: &Table, dialect: Dialect) -> String
         for key in table.indexes() {
             clauses.push(format!(
                 "INDEX {} ({})",
-                key.name(),
+                delimited(key.name().as_str(), dialect),
                 key_columns(table, key.columns(), dialect)
             ));
         }
@@ -218,8 +223,8 @@ fn filtered_unique_index(table: &Table, key: &Key, dialect: Dialect) -> Option<S
     let predicate = null_filter(table, key, dialect)?;
     Some(format!(
         "CREATE UNIQUE INDEX {} ON {} ({}) WHERE {predicate};",
-        key.name(),
-        table.name(),
+        delimited(key.name().as_str(), dialect),
+        delimited(table.name().as_str(), dialect),
         key_columns(table, key.columns(), dialect)
     ))
 }
@@ -238,7 +243,7 @@ fn null_filter(table: &Table, key: &Key, dialect: Dialect) -> Option<String> {
         .columns()
         .iter()
         .filter(|name| table.column(name).is_some_and(Column::is_nullable))
-        .map(|name| format!("{name} IS NOT NULL"))
+        .map(|name| format!("{} IS NOT NULL", delimited(name.as_str(), dialect)))
         .collect();
     if terms.is_empty() {
         return None;
@@ -251,8 +256,8 @@ fn null_filter(table: &Table, key: &Key, dialect: Dialect) -> Option<String> {
 fn create_index(table: &Table, key: &Key, dialect: Dialect) -> String {
     format!(
         "CREATE INDEX {} ON {} ({});",
-        key.name(),
-        table.name(),
+        delimited(key.name().as_str(), dialect),
+        delimited(table.name().as_str(), dialect),
         key_columns(table, key.columns(), dialect)
     )
 }
@@ -402,13 +407,11 @@ fn sqlserver_type(ty: &ScalarType) -> String {
 /// primary key, the type and the autoincrement in three words that have to be
 /// written in that order and nowhere else.
 fn column_clause(column: &Column, dialect: Dialect, rowid: bool) -> String {
+    let name = delimited(column.name().as_str(), dialect);
     let mut parts: Vec<String> = if rowid {
-        vec![
-            column.name().to_string(),
-            "INTEGER PRIMARY KEY AUTOINCREMENT".to_owned(),
-        ]
+        vec![name, "INTEGER PRIMARY KEY AUTOINCREMENT".to_owned()]
     } else {
-        let mut parts = vec![column.name().to_string(), column_type(column.ty(), dialect)];
+        let mut parts = vec![name, column_type(column.ty(), dialect)];
         if !column.is_nullable() {
             parts.push("NOT NULL".to_owned());
         }
@@ -451,7 +454,10 @@ fn unsigned_check(column: &Column, dialect: Dialect) -> Option<String> {
     if dialect == Dialect::MySql || !matches!(column.ty(), ScalarType::Uint(_)) {
         return None;
     }
-    Some(format!("CHECK ({} >= 0)", column.name()))
+    Some(format!(
+        "CHECK ({} >= 0)",
+        delimited(column.name().as_str(), dialect)
+    ))
 }
 
 /// The columns of a key, with MySQL's prefix length where it needs one.
@@ -465,10 +471,11 @@ fn key_columns(table: &Table, columns: &[Ident], dialect: Dialect) -> String {
                     ScalarType::Text { max: None } | ScalarType::Bytes { max: None }
                 )
             });
+            let written = delimited(name.as_str(), dialect);
             if dialect == Dialect::MySql && unbounded {
-                format!("{name}({TEXT_KEY_PREFIX})")
+                format!("{written}({TEXT_KEY_PREFIX})")
             } else {
-                name.to_string()
+                written
             }
         })
         .collect::<Vec<String>>()
@@ -543,6 +550,29 @@ pub(crate) fn literal(default: &ColumnDefault, ty: &ScalarType, dialect: Dialect
     }
 }
 
+/// An identifier in `dialect`'s own delimiters.
+///
+/// Every name this module writes goes through here. A backend reserves words
+/// no other one does — `RANK` is a keyword on MySQL 8 — and a schema's names
+/// are not this emitter's to rename, so the quotes are what keep a `CREATE
+/// TABLE` parseable wherever it is pasted. Nothing is escaped on the way
+/// through and nothing has to be: [`crate::schema::is_bare_identifier`] admits
+/// ASCII letters, digits and `_`, and no delimiter is one of those.
+///
+/// SQL Server takes the bracket form rather than the double quote it also
+/// accepts, because the quoted form there is only an identifier while
+/// `QUOTED_IDENTIFIER` is on and a session may have turned it off. PostgreSQL
+/// folds an undelimited name to lower case and a delimited one exactly, which
+/// is one of the reasons [`Ident`] compares case-insensitively rather than
+/// trusting either.
+fn delimited(name: &str, dialect: Dialect) -> String {
+    match dialect {
+        Dialect::PostgreSql | Dialect::Sqlite => format!("\"{name}\""),
+        Dialect::MySql => format!("`{name}`"),
+        Dialect::SqlServer => format!("[{name}]"),
+    }
+}
+
 /// A text literal in `dialect`'s own escaping.
 ///
 /// Doubling the quote is the standard every backend implements. The backslash
@@ -586,15 +616,18 @@ pub fn step(change: Change, dialect: Dialect) -> Step {
 fn sql_for(change: &Change, dialect: Dialect) -> Vec<String> {
     match change {
         Change::CreateTable(table) => create_table(table, dialect),
-        Change::DropTable(name) => vec![format!("DROP TABLE {name};")],
+        Change::DropTable(name) => {
+            vec![format!("DROP TABLE {};", delimited(name.as_str(), dialect))]
+        }
         Change::AddColumn { table, column } => add_column(table, column, dialect),
         Change::DropColumn { table, column } => {
             if dialect == Dialect::Sqlite {
                 sqlite_rebuild(table, None)
             } else {
                 vec![format!(
-                    "ALTER TABLE {} DROP COLUMN {column};",
-                    table.name()
+                    "ALTER TABLE {} DROP COLUMN {};",
+                    delimited(table.name().as_str(), dialect),
+                    delimited(column.as_str(), dialect)
                 )]
             }
         }
@@ -620,7 +653,7 @@ fn add_column(table: &Table, column: &Column, dialect: Dialect) -> Vec<String> {
     };
     vec![format!(
         "ALTER TABLE {} ADD {keyword}{};",
-        table.name(),
+        delimited(table.name().as_str(), dialect),
         column_clause(column, dialect, false)
     )]
 }
@@ -652,7 +685,8 @@ fn sqlite_can_add(column: &Column) -> bool {
 /// only the ones that changed — a `TYPE` alter it did not need is a full table
 /// rewrite. SQLite has no spelling for any of it and rebuilds.
 fn change_column(table: &Table, from: &Column, to: &Column, dialect: Dialect) -> Vec<String> {
-    let name = table.name();
+    let name = delimited(table.name().as_str(), dialect);
+    let column = delimited(to.name().as_str(), dialect);
     match dialect {
         Dialect::Sqlite => sqlite_rebuild(table, None),
         Dialect::MySql => vec![format!(
@@ -660,15 +694,13 @@ fn change_column(table: &Table, from: &Column, to: &Column, dialect: Dialect) ->
             column_clause(to, dialect, false)
         )],
         Dialect::SqlServer => vec![format!(
-            "ALTER TABLE {name} ALTER COLUMN {} {} {};",
-            to.name(),
+            "ALTER TABLE {name} ALTER COLUMN {column} {} {};",
             column_type(to.ty(), dialect),
             if to.is_nullable() { "NULL" } else { "NOT NULL" }
         )],
         Dialect::PostgreSql => {
             let retype = format!(
-                "ALTER TABLE {name} ALTER COLUMN {} TYPE {};",
-                to.name(),
+                "ALTER TABLE {name} ALTER COLUMN {column} TYPE {};",
                 column_type(to.ty(), dialect)
             );
             let mut statements = Vec::new();
@@ -677,8 +709,7 @@ fn change_column(table: &Table, from: &Column, to: &Column, dialect: Dialect) ->
             }
             if from.is_nullable() != to.is_nullable() {
                 statements.push(format!(
-                    "ALTER TABLE {name} ALTER COLUMN {} {};",
-                    to.name(),
+                    "ALTER TABLE {name} ALTER COLUMN {column} {};",
                     if to.is_nullable() {
                         "DROP NOT NULL"
                     } else {
@@ -689,14 +720,10 @@ fn change_column(table: &Table, from: &Column, to: &Column, dialect: Dialect) ->
             if from.default_value() != to.default_value() {
                 statements.push(match to.default_value() {
                     Some(default) => format!(
-                        "ALTER TABLE {name} ALTER COLUMN {} SET DEFAULT {};",
-                        to.name(),
+                        "ALTER TABLE {name} ALTER COLUMN {column} SET DEFAULT {};",
                         literal(default, to.ty(), dialect)
                     ),
-                    None => format!(
-                        "ALTER TABLE {name} ALTER COLUMN {} DROP DEFAULT;",
-                        to.name()
-                    ),
+                    None => format!("ALTER TABLE {name} ALTER COLUMN {column} DROP DEFAULT;"),
                 });
             }
             // A step is never empty, whatever the caller handed us.
@@ -722,15 +749,15 @@ fn add_key(table: &Table, key: &Key, kind: KeyKind, dialect: Dialect) -> String 
         (KeyKind::Index, _) => create_index(table, key, dialect),
         (KeyKind::Unique, Dialect::Sqlite) => format!(
             "CREATE UNIQUE INDEX {} ON {} ({});",
-            key.name(),
-            table.name(),
+            delimited(key.name().as_str(), dialect),
+            delimited(table.name().as_str(), dialect),
             key_columns(table, key.columns(), dialect)
         ),
         (KeyKind::Unique, _) => filtered_unique_index(table, key, dialect).unwrap_or_else(|| {
             format!(
                 "ALTER TABLE {} ADD CONSTRAINT {} UNIQUE ({});",
-                table.name(),
-                key.name(),
+                delimited(table.name().as_str(), dialect),
+                delimited(key.name().as_str(), dialect),
                 key_columns(table, key.columns(), dialect)
             )
         }),
@@ -745,7 +772,8 @@ fn add_key(table: &Table, key: &Key, kind: KeyKind, dialect: Dialect) -> String 
 /// schema-level object there and a table-level one here. SQLite cannot drop a
 /// constraint at all and rebuilds.
 fn drop_key(table: &Table, key: &Ident, kind: KeyKind, dialect: Dialect) -> Vec<String> {
-    let name = table.name();
+    let name = delimited(table.name().as_str(), dialect);
+    let key = delimited(key.as_str(), dialect);
     match (kind, dialect) {
         (KeyKind::Unique, Dialect::Sqlite) => sqlite_rebuild(table, None),
         (KeyKind::Unique, Dialect::MySql) => {
@@ -781,14 +809,14 @@ fn drop_key(table: &Table, key: &Ident, kind: KeyKind, dialect: Dialect) -> Vec<
 /// the one thing that makes a data copy tolerable as a schema change at all.
 fn sqlite_rebuild(table: &Table, added: Option<&Ident>) -> Vec<String> {
     let dialect = Dialect::Sqlite;
-    let name = table.name();
-    let staging = format!("{name}_nvs_rebuild");
+    let name = delimited(table.name().as_str(), dialect);
+    let staging = delimited(&format!("{}_nvs_rebuild", table.name()), dialect);
     let copied: Vec<String> = table
         .columns()
         .iter()
         .map(Column::name)
         .filter(|column| !added.is_some_and(|new| new == *column))
-        .map(ToString::to_string)
+        .map(|column| delimited(column.as_str(), dialect))
         .collect();
 
     let mut statements = vec![create_table_statement(&staging, table, dialect)];
@@ -995,6 +1023,85 @@ mod tests {
         Dialect::SqlServer,
     ];
 
+    /// How each dialect delimits an identifier, written out here rather than
+    /// asked of [`delimited`]: a case that takes its expectation from the
+    /// function under test asserts that the function equals itself.
+    fn delimiters(dialect: Dialect) -> (char, char) {
+        match dialect {
+            Dialect::PostgreSql | Dialect::Sqlite => ('"', '"'),
+            Dialect::MySql => ('`', '`'),
+            Dialect::SqlServer => ('[', ']'),
+        }
+    }
+
+    /// `name` as `dialect` writes it.
+    fn as_written(name: &str, dialect: Dialect) -> String {
+        let (open, close) = delimiters(dialect);
+        format!("{open}{name}{close}")
+    }
+
+    /// Whether `statement` names `name` as a word of its own without
+    /// `dialect`'s delimiters around it.
+    ///
+    /// A word of its own is the whole of the judgement: `wide` inside
+    /// `wide_nvs_rebuild` is not this identifier, and the delimited staging
+    /// name it sits in would otherwise read as a bare one.
+    fn written_bare(statement: &str, name: &str, dialect: Dialect) -> bool {
+        let (open, close) = delimiters(dialect);
+        let bytes = statement.as_bytes();
+        let mut from = 0;
+        while let Some(found) = statement[from..].find(name) {
+            let start = from + found;
+            let end = start + name.len();
+            from = end;
+            let before = start.checked_sub(1).map(|at| bytes[at] as char);
+            let after = bytes.get(end).map(|byte| *byte as char);
+            let boundary = |side: Option<char>| {
+                side.is_none_or(|char| !char.is_ascii_alphanumeric() && char != '_')
+            };
+            if boundary(before) && boundary(after) && (before != Some(open) || after != Some(close))
+            {
+                return true;
+            }
+        }
+        false
+    }
+
+    /// Every name [`every_construct`] and [`every_change`] hand the emitter,
+    /// including the staging table only SQLite's rebuild writes.
+    fn fixture_identifiers() -> Vec<String> {
+        let schema = every_construct();
+        let mut names = Vec::new();
+        for table in schema.tables() {
+            names.push(table.name().to_string());
+            names.extend(
+                table
+                    .columns()
+                    .iter()
+                    .map(|column| column.name().to_string()),
+            );
+            names.extend(
+                table
+                    .unique_keys()
+                    .iter()
+                    .chain(table.indexes().iter())
+                    .map(|key| key.name().to_string()),
+            );
+        }
+        names.extend(
+            [
+                "note",
+                "owner",
+                "touched_at",
+                "wide_gone_key",
+                "wide_gone_idx",
+                "wide_nvs_rebuild",
+            ]
+            .map(str::to_owned),
+        );
+        names
+    }
+
     /// A schema naming every construct the vocabulary has: all the scalar
     /// types at both of their widths, an identity, a nullable and a
     /// non-nullable column, every kind of default, a single and a composite
@@ -1146,7 +1253,12 @@ mod tests {
             for column in wide.columns() {
                 let clause = clauses
                     .iter()
-                    .find(|line| line.starts_with(&format!("{} ", column.name())))
+                    .find(|line| {
+                        line.starts_with(&format!(
+                            "{} ",
+                            as_written(column.name().as_str(), dialect)
+                        ))
+                    })
                     .unwrap_or_else(|| panic!("{dialect:?} has no clause for `{}`", column.name()));
                 let sql = column_type(column.ty(), dialect);
                 assert!(!sql.is_empty(), "{:?} has no spelling", column.ty());
@@ -1189,14 +1301,19 @@ mod tests {
             );
             assert!(create.contains("PRIMARY KEY"), "{dialect:?} has no key");
             assert!(
-                create.contains("CONSTRAINT wide_label_key UNIQUE (label)"),
+                create.contains(&format!(
+                    "CONSTRAINT {} UNIQUE ({})",
+                    as_written("wide_label_key", dialect),
+                    as_written("label", dialect)
+                )),
                 "{dialect:?} has no unique constraint"
             );
             assert!(
-                statements
-                    .last()
-                    .unwrap()
-                    .contains("PRIMARY KEY (left_id, right_id)"),
+                statements.last().unwrap().contains(&format!(
+                    "PRIMARY KEY ({}, {})",
+                    as_written("left_id", dialect),
+                    as_written("right_id", dialect)
+                )),
                 "{dialect:?} has no composite key"
             );
 
@@ -1228,7 +1345,8 @@ mod tests {
             };
             assert!(
                 create.contains(&format!(
-                    "happened_at {} NOT NULL DEFAULT {now}",
+                    "{} {} NOT NULL DEFAULT {now}",
+                    as_written("happened_at", dialect),
                     column_type(&ScalarType::Instant, dialect)
                 )),
                 "{dialect:?} defaults an instant to the wrong clock"
@@ -1246,6 +1364,66 @@ mod tests {
                     "{dialect:?} declares {} more than once",
                     key.name()
                 );
+            }
+        }
+    }
+
+    /// `rule:core-classes/schema-plan`: every identifier the emitter writes is
+    /// delimited for its dialect, so a name a backend reserves is still the
+    /// name the schema gave it.
+    ///
+    /// **A property over the sweep rather than a list of quoted strings**:
+    /// every statement the vocabulary emits, in every dialect, is searched for
+    /// every name the fixtures use, and each occurrence that stands as a word
+    /// of its own has to sit between that dialect's delimiters. An emitter that
+    /// quoted the table and forgot one key column reads plausibly on every line
+    /// a golden text would have checked.
+    #[test]
+    fn every_identifier_the_emitter_writes_is_delimited_for_its_dialect() {
+        for dialect in DIALECTS {
+            let (open, _) = delimiters(dialect);
+            let mut statements = create_schema(&every_construct(), dialect);
+            for change in every_change() {
+                statements.extend(step(change, dialect).sql().to_vec());
+            }
+            for statement in &statements {
+                assert!(
+                    statement.contains(open),
+                    "{dialect:?} wrote a statement naming nothing: {statement}"
+                );
+                for name in fixture_identifiers() {
+                    assert!(
+                        !written_bare(statement, &name, dialect),
+                        "{dialect:?} writes `{name}` bare: {statement}"
+                    );
+                }
+            }
+
+            // The case the gap named: a table and two columns every backend has
+            // a keyword for, which the vocabulary accepts and no emitter may
+            // hand to a parser bare.
+            let reserved = Schema::new(vec![
+                Table::new(
+                    "order",
+                    vec![
+                        Column::new("rank", ScalarType::Int(IntWidth::Normal)).unwrap(),
+                        Column::new("select", ScalarType::Text { max: Some(10) }).unwrap(),
+                    ],
+                )
+                .unwrap()
+                .primary_key(&["rank"])
+                .unwrap()
+                .index("order_select_idx", &["select"])
+                .unwrap(),
+            ])
+            .unwrap();
+            for statement in create_schema(&reserved, dialect) {
+                for name in ["order", "rank", "select", "order_select_idx"] {
+                    assert!(
+                        !written_bare(&statement, name, dialect),
+                        "{dialect:?} writes the reserved `{name}` bare: {statement}"
+                    );
+                }
             }
         }
     }
@@ -1297,8 +1475,8 @@ mod tests {
         let mysql = create_schema(&schema, Dialect::MySql);
 
         assert_eq!(mysql.len(), 2, "one statement per table");
-        assert!(mysql[0].contains("INDEX wide_body_idx ("));
-        assert!(mysql[0].contains("INDEX wide_day_clock_idx (day, clock)"));
+        assert!(mysql[0].contains("INDEX `wide_body_idx` ("));
+        assert!(mysql[0].contains("INDEX `wide_day_clock_idx` (`day`, `clock`)"));
         assert!(
             !mysql
                 .iter()
@@ -1315,9 +1493,15 @@ mod tests {
         for dialect in [Dialect::PostgreSql, Dialect::Sqlite, Dialect::SqlServer] {
             let statements = create_schema(&schema, dialect);
             assert!(
-                statements
-                    .iter()
-                    .any(|statement| statement == "CREATE INDEX wide_body_idx ON wide (body);"),
+                statements.iter().any(|statement| {
+                    *statement
+                        == format!(
+                            "CREATE INDEX {} ON {} ({});",
+                            as_written("wide_body_idx", dialect),
+                            as_written("wide", dialect),
+                            as_written("body", dialect)
+                        )
+                }),
                 "{dialect:?} declares an index of its own"
             );
         }
@@ -1336,11 +1520,13 @@ mod tests {
         let mysql = create_schema(&schema, Dialect::MySql);
 
         assert!(
-            mysql[0].contains(&format!("INDEX wide_body_idx (body({TEXT_KEY_PREFIX}))")),
+            mysql[0].contains(&format!(
+                "INDEX `wide_body_idx` (`body`({TEXT_KEY_PREFIX}))"
+            )),
             "MySQL cannot index a LONGTEXT column whole"
         );
         assert!(
-            mysql[0].contains("CONSTRAINT wide_label_key UNIQUE (label)"),
+            mysql[0].contains("CONSTRAINT `wide_label_key` UNIQUE (`label`)"),
             "a VARCHAR(200) is indexable as it stands"
         );
 
@@ -1348,7 +1534,8 @@ mod tests {
             assert!(
                 !create_schema(&schema, dialect)
                     .iter()
-                    .any(|statement| statement.contains("body(")),
+                    .any(|statement| statement
+                        .contains(&format!("{}(", as_written("body", dialect)))),
                 "{dialect:?} indexes a text column whole"
             );
         }
@@ -1409,8 +1596,8 @@ mod tests {
     #[test]
     fn a_unique_key_over_a_nullable_column_is_a_filtered_index_on_sql_server() {
         let table = both_unique_spellings();
-        const FILTERED: &str = "CREATE UNIQUE INDEX jobs_dedupe ON jobs (dedupe_pending) \
-                                WHERE dedupe_pending IS NOT NULL;";
+        const FILTERED: &str = "CREATE UNIQUE INDEX [jobs_dedupe] ON [jobs] ([dedupe_pending]) \
+                                WHERE [dedupe_pending] IS NOT NULL;";
 
         let statements = create_table(&table, Dialect::SqlServer);
         assert!(
@@ -1419,7 +1606,7 @@ mod tests {
             statements[0]
         );
         assert!(
-            statements[0].contains("CONSTRAINT jobs_token UNIQUE (token)"),
+            statements[0].contains("CONSTRAINT [jobs_token] UNIQUE ([token])"),
             "a NOT NULL column keeps the constraint form: {}",
             statements[0]
         );
@@ -1436,13 +1623,17 @@ mod tests {
         assert_eq!(filtered.grade(), Grade::Locking);
         assert_eq!(
             add_unique(&table, 1, Dialect::SqlServer).sql(),
-            ["ALTER TABLE jobs ADD CONSTRAINT jobs_token UNIQUE (token);"]
+            ["ALTER TABLE [jobs] ADD CONSTRAINT [jobs_token] UNIQUE ([token]);"]
         );
 
         for dialect in [Dialect::PostgreSql, Dialect::MySql, Dialect::Sqlite] {
             let written = create_table(&table, dialect);
             assert!(
-                written[0].contains("CONSTRAINT jobs_dedupe UNIQUE (dedupe_pending)"),
+                written[0].contains(&format!(
+                    "CONSTRAINT {} UNIQUE ({})",
+                    as_written("jobs_dedupe", dialect),
+                    as_written("dedupe_pending", dialect)
+                )),
                 "{dialect:?} needs no filter for a nullable unique key: {}",
                 written[0]
             );
@@ -1736,20 +1927,23 @@ mod tests {
         );
         let sql = taken.sql();
         assert_eq!(sql.len(), 6, "create, copy, drop, rename and two indexes");
-        assert!(sql[0].starts_with("CREATE TABLE wide_nvs_rebuild ("));
-        assert!(sql[1].starts_with("INSERT INTO wide_nvs_rebuild (id, small_int"));
-        assert!(sql[1].ends_with("FROM wide;"));
+        assert!(sql[0].starts_with("CREATE TABLE \"wide_nvs_rebuild\" ("));
+        assert!(sql[1].starts_with("INSERT INTO \"wide_nvs_rebuild\" (\"id\", \"small_int\""));
+        assert!(sql[1].ends_with("FROM \"wide\";"));
         assert!(
             !sql[1].contains("thumb"),
             "the dropped column has nowhere to go"
         );
-        assert_eq!(sql[2], "DROP TABLE wide;");
-        assert_eq!(sql[3], "ALTER TABLE wide_nvs_rebuild RENAME TO wide;");
+        assert_eq!(sql[2], "DROP TABLE \"wide\";");
+        assert_eq!(
+            sql[3],
+            "ALTER TABLE \"wide_nvs_rebuild\" RENAME TO \"wide\";"
+        );
         assert!(
             sql[4..]
                 .iter()
                 .all(|statement| statement.starts_with("CREATE INDEX ")
-                    && statement.contains(" ON wide (")),
+                    && statement.contains(" ON \"wide\" (")),
             "the indexes went with the table the drop took, and come back named"
         );
 
@@ -1763,7 +1957,7 @@ mod tests {
             },
             Dialect::Sqlite,
         );
-        assert!(added.sql()[0].contains("owner BIGINT NOT NULL"));
+        assert!(added.sql()[0].contains("\"owner\" BIGINT NOT NULL"));
         assert!(
             !added.sql()[1].contains("owner"),
             "there is no value to copy"

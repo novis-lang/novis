@@ -1927,7 +1927,7 @@ mod tests {
                 .iter()
                 .map(|key| key.name().to_string())
                 .collect::<Vec<_>>(),
-            ["wide_weight"],
+            ["wide_rank"],
             "a unique key read back as a plain index"
         );
         let plan = crate::plan::diff(&fixture, &read, Dialect::SqlServer);
@@ -1937,9 +1937,9 @@ mod tests {
         );
 
         for predicate in [
-            "([weight] = 7)",
+            "([rank] = 7)",
             "([label] IS NOT NULL)",
-            "([slug] IS NOT NULL AND [weight] > 0)",
+            "([slug] IS NOT NULL AND [rank] > 0)",
             "([slug] IS NOT NULL AND [note] IS NOT NULL)",
         ] {
             let mut altered = indexes.clone();
@@ -1973,17 +1973,18 @@ mod tests {
     /// [`introspects_back_to_an_empty_plan`] applies this value to four real
     /// servers and each refused an earlier spelling of it:
     ///
-    /// - **The index is over `weight` and not over the unbounded `note`.** SQL
+    /// - **The index is over `rank` and not over the unbounded `note`.** SQL
     ///   Server refuses an index whose key column is `NVARCHAR(MAX)` outright,
     ///   and MySQL takes one only as [`crate::ddl`]'s prefix key, so an index
     ///   over unbounded text is a construct the vocabulary holds and the five
     ///   backends do not agree on. That disagreement is its own question and
     ///   `crate::schema`'s gap list is where it is written down; a fixture
     ///   carrying it would report it as a round-trip failure on every run.
-    /// - **The `int` column is `weight` and not `rank`.** `RANK` is reserved on
-    ///   MySQL 8, and `rule:core-classes/schema-is-a-value`'s identifiers are
-    ///   validated rather than delimited — so a name a backend reserves is a
-    ///   `CREATE TABLE` that server will not parse, whatever this crate does.
+    /// - **The `int` column is named `rank`, which MySQL 8 reserves.** A name a
+    ///   backend keeps for itself is a `CREATE TABLE` that server refuses
+    ///   unless the emitter delimits it, so this column is what asks all five
+    ///   servers whether [`crate::ddl`] did — the vocabulary validates a name
+    ///   (`rule:core-classes/schema-is-a-value`) and the emitter quotes it.
     ///
     /// **`slug` is nullable and unique**, which is the one construct whose SQL
     /// Server spelling is not a constraint at all
@@ -2007,7 +2008,7 @@ mod tests {
                 Column::new("slug", ScalarType::Text { max: Some(64) })
                     .unwrap()
                     .null(),
-                Column::new("weight", ScalarType::Int(IntWidth::Normal))
+                Column::new("rank", ScalarType::Int(IntWidth::Normal))
                     .unwrap()
                     .default(ColumnDefault::Int(7))
                     .unwrap(),
@@ -2024,7 +2025,7 @@ mod tests {
         .unwrap()
         .unique("wide_slug", &["slug"])
         .unwrap()
-        .index("wide_weight", &["weight"])
+        .index("wide_rank", &["rank"])
         .unwrap();
         let pair = Table::new(
             "pair",
