@@ -317,7 +317,9 @@
         "tests/conformance/core/core-ast-parse-answers-the-compilers-own-tree.nvst",
         "tests/conformance/core/core-ast-parse-stops-where-the-compiler-stops.nvst",
         "tests/conformance/core/core-ast-node-walk-is-a-whole-tree-asserted-by-counting.nvst",
-        "tests/conformance/core/core-ast-nodes-is-children-closed-transitively.nvst"
+        "tests/conformance/core/core-ast-nodes-is-children-closed-transitively.nvst",
+        "tests/conformance/core/ast-parse-answers-a-typed-node-per-production.nvst",
+        "tests/conformance/core/ast-parse-file-reads-through-the-io-door-under-fs-read.nvst"
       ]
     },
     {

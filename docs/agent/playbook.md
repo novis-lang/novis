@@ -7273,6 +7273,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   build` enumerate the rest, and apply those as one `splice.py --patch` anchored on `param_tags:`
   plus the line under it — `grep -rn "param_tags:"` is the real roster.
   [until: gone crates/nvs-runtime/src/object.rs:pub struct MethodRow]
+- **A family of `Core` classes cannot be *static* types, because `instanceof` against a `Core` name is
+  refused outright.** `crates/nvs-types/src/expr/members.rs:349` reports `E_INSTANCEOF_NOT_A_CLASS`
+  and `Core` descriptors are defined with no parents, so a registered `Core\Ast\Binary` is a name a
+  program can write and no value can be checked against — plus a registry row owing three conformance
+  cases that name it. Give the family descriptors and no `registry::CLASSES` row, and let
+  `Core\Reflect::forObject($v)->name()` be where the identity is read.
+  [until: gone crates/nvs-types/src/expr/members.rs:E_INSTANCEOF_NOT_A_CLASS]
 
 ## Divergences and refusals already pinned
 

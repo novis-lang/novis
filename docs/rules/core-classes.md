@@ -702,14 +702,24 @@ what PHP's reflection makes them.
 
 `rule:core-classes/ast-is-inert`
 
-`Core\Ast::parse` and `::parseFile` call directly into the same lexer and parser the compiler itself
-runs, so a construct that parses when a file is compiled parses identically when a running program
-parses the same text, and a rejected construct is rejected identically in both places. There is no
-second grammar implementation anywhere in the project.
+`Core\Ast::parse` calls directly into the same lexer and parser the compiler itself runs, so a
+construct that parses when a file is compiled parses identically when a running program parses the
+same text, and a rejected construct is rejected identically in both places. There is no second
+grammar implementation anywhere in the project.
 
-The return value is a **typed** node tree — one type per production — never an untyped array or a
-stringly-keyed structure. Handing back the parse tree as untyped data would be exactly the shortcut
-`token_get_all()` takes, reintroduced at the one place a fully-typed alternative is easiest to give.
+**Parsing a file is that one member composed with `Core\IO::read`, and there is no `parseFile`.** A
+path is the filesystem's question, so asking it through a second member would put a `fs.read` check
+somewhere other than the door that already owns one ([`security/capability-check-at-the-door`](security.md#security-capability-check-at-the-door)),
+and leave the class holding a capability for the sake of one spelling. Two calls keep `Core\Ast`
+capability-free, which is what [`security/reflection-needs-no-capability`](security.md#security-reflection-needs-no-capability) rests on.
+
+The return value is a **typed** node tree — one class per production, named for the production the
+grammar's own walk names — never an untyped array or a stringly-keyed structure. Handing back the
+parse tree as untyped data would be exactly the shortcut `token_get_all()` takes, reintroduced at the
+one place a fully-typed alternative is easiest to give. Those classes are identity rather than
+surface: a `Core` class sits in no hierarchy and `instanceof` against one is refused, so a node's
+production is what `Core\Reflect::forObject` answers and `kind()` is the same production spelled
+short.
 
 **A parsed tree is inert. There is no path from an AST value back into execution.** `eval` does not
 exist and stays rejected: a string has no stable identity, no cache key, and no capability-grantable

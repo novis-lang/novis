@@ -425,17 +425,8 @@ where taking it is the work and the code that follows it is not.
   rather than a slot: that module's § *Decision: the tree is inert because there is nothing in it to
   run* says a node answering its own source text is the point at which `parse`'s `$source` stops
   being `Qual::Neutral`, so the text comes back out `tainted` and every consumer of it becomes a
-  sink question. `crates/nvs-stdlib/src/ast.rs` gap 2.
+  sink question. `crates/nvs-stdlib/src/ast.rs` gap 1.
   [until: gone crates/nvs-stdlib/src/ast.rs:carries no position and no text]
-- **`Core\Ast::parseFile` is absent, and the rule behind the class is why it is not simply owed.**
-  Spec § 3 rosters it, but it reads a path, and
-  `rule:tooling/reflection-and-source-parsing-are-core-features` rests both classes needing no
-  capability grant on neither of them touching the filesystem
-  (`rule:security/reflection-needs-no-capability`). What has to be decided is whether the member
-  exists at all: a capability-bearing member on a class whose safety argument is that it has none,
-  against leaving the composition to `Core\IO::read` plus `parse` — where the `fs.read` check
-  already lives — and striking the roster row instead. `crates/nvs-stdlib/src/ast.rs` gap 3.
-  [until: gone crates/nvs-stdlib/src/ast.rs:is not here. It reads a path]
 - **A `secret` value held in an `array<T>` element or in a shape literal's field is dumped in full**,
   because redaction reads a *declared* property's bit off `nvs_runtime::ClassDesc::field_is_secret`
   and neither container has a declaration to read: `rule:security/secret-qualifier` does not compose

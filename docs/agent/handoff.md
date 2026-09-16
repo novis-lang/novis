@@ -2,47 +2,40 @@
 
 ## State
 
-Goal `m8-stdlib-depth`. **Stages 0, 2, 3, 4, 5 and 6 are done; stage 7 (`Core\Ast`) is open** and is
-the driver's failing acceptance check.
+Goal `m8-stdlib-depth`. **Stages 0, 2, 3, 4, 5 and 6 are done; stage 7 (`Core\Ast`) has its roster and
+its two cases, and only the fuzz target is left in it.**
 
-A method's parameter names now travel `field_types`' road: `nvs_types::layout::ClassLayout::methods`
-carries them as a fourth tuple element, `nvs_ir::ir::Class::methods` copies it down, both codegen
-binders join it onto `nvs_runtime::MethodRow::param_names`, and `Core\Reflect\MethodInfo::parameters`
-answers `array<Core\Reflect\ParameterInfo>` off it. An **empty** list reads as "no declaration was
-read for this row" — a synthesized member (exception constructor, delegation forward, closure and
-generator class) and every native row — never "takes nothing", and `parameterCount` is what still
-answers for one. `crates/nvs-types/src/layout.rs:101` is the home of that reading.
+`nvs_syntax::walk::KINDS` is the production table — every kind the walk answers with, sorted — and
+`crates/nvs-stdlib/src/ast.rs`'s `PRODUCTIONS` is one `CoreClass` per entry at the same index, so
+`class_of` is a binary search over the grammar's own table. A parsed node is an instance of *its
+production's* class; `Core\Ast\Node` stays the written type of `parse`, `children` and `nodes`, and no
+instance carries it. The production classes hold **no `registry::CLASSES` row** on purpose — that
+decision and its reasoning are `crates/nvs-stdlib/src/ast.rs`'s second module-doc decision and the
+playbook bullet beside it.
 
-`Core\Reflect\ParameterInfo` is registered and carries the name alone: a parameter's declared *type*
-has no road to the descriptor yet. `NOT_YET_BUILT` (`crates/nvs-stdlib/src/reflect.rs:2237`) is down
-to `ConstantInfo`, `AttributeInfo`, `EnumInfo`, and is still two-sided — registering one fails the
-gate until its line is deleted. Nothing is blocked.
+`parseFile` is **struck**, not deferred: `rule:core-classes/ast-is-inert` now says parsing a file is
+`Core\IO::read` composed with `parse`, the module doc's first decision carries the trade, and the
+carried-gaps entry is deleted. `crates/nvs-stdlib/src/ast.rs`'s known gaps are down to one — positions
+and text, owner `unowned-closures` — so the goal's § *Not this goal* line naming "`ast.rs:52` gap 2
+(positions)" now means gap **1**. Nothing is blocked.
 
 ## Next group
 
-**Stage 7: `Core\Ast` — the typed roster, the two cases and the fuzz target** — one file set:
-`crates/nvs-stdlib/src/ast.rs`, `crates/nvs-syntax/src/walk.rs`, `tests/conformance/core/` and
-`fuzz/`. `rule:core-classes/ast-is-inert` is the rule; ADR 0019 § 3 the record; the goal's
-§ *Standing decisions* pre-authorizes the shape.
+**Stage 7: the `ast` fuzz target and its seed replay** — one file set: `fuzz/`,
+`crates/nvs-stdlib/src/ast.rs` and `crates/nvs-syntax/src/walk.rs`.
+`rule:core-classes/ast-is-inert` is the rule; the goal's § *Standing decisions* fixes that the
+acceptance never runs nightly.
 
-- [ ] **A typed class per production, replacing the one untyped node** — `crates/nvs-stdlib/src/ast.rs:127`
-      is `NODE`, whose `kind()` names the production rather than being one, and gap 1 at
-      `crates/nvs-stdlib/src/ast.rs:46` owns why. The roster is generated from
-      `nvs_syntax::walk`'s production table — `crates/nvs-syntax/src/walk.rs:99` is `Node`,
-      `crates/nvs-syntax/src/walk.rs:175` the entry point — and the acceptance's
-      `every_production_the_walk_names_has_a_typed_ast_class` (new, `cargo test -p nvs-stdlib`) is
-      what holds the two together.
-- [ ] **The two `.nvst` cases the acceptance names** —
-      `tests/conformance/core/ast-parse-answers-a-typed-node-per-production.nvst` and
-      `tests/conformance/core/ast-parse-file-reads-through-the-io-door-under-fs-read.nvst`. Gap 3's
-      `Decided:` sentence at `crates/nvs-stdlib/src/ast.rs:62` **strikes** the spec § 3 `parseFile`
-      row, so the second case composes `Core\IO::read` with `parse` under `fs.read` rather than
-      calling a capability-bearing member; striking the spec row is part of that slice.
-- [ ] **The `ast` fuzz target and the seed replay beside it** — `fuzz/Cargo.toml:45` is the last
-      `[[bin]]` block and `fuzz/fuzz_targets/parse.rs` the model. The acceptance runs `cargo
-      metadata` over the manifest, never nightly, and
-      `core_ast_parse_gives_the_compilers_verdict_on_every_parse_seed` (new, `-p nvs-stdlib`) replays
-      the seeds on stable through `Core\Ast::parse`.
+- [ ] **An `ast` fuzz target beside the parser's** — `fuzz/Cargo.toml:45` is the last `[[bin]]` block
+      and `fuzz/fuzz_targets/parse.rs` the model. The body calls `nvs_syntax::walk::of_source`, which
+      is what `crates/nvs-stdlib/src/ast.rs:@nvs_core_ast_parse` reaches, so the target fuzzes the
+      member without linking `nvs-stdlib`. The acceptance is `cargo metadata --manifest-path
+      fuzz/Cargo.toml` naming `"name":"ast"`, never `cargo +nightly fuzz`.
+- [ ] **`core_ast_parse_gives_the_compilers_verdict_on_every_parse_seed`** (new, `cargo test -p
+      nvs-stdlib`) — a test beside `crates/nvs-stdlib/src/ast.rs:449`, which is
+      `nvs_core_ast_parse`'s body. It replays the parse target's seed corpus on stable and asserts
+      the member's verdict is the compiler's: a seed `nvs_syntax::parse_file` reports an error for is
+      a `ParseError` here, and one it accepts answers a tree.
 
 ## Backlog
 
@@ -50,4 +43,7 @@ gate until its line is deleted. Nothing is blocked.
   read them where it reads the name (ADR 0019 § 1, `crates/nvs-types/src/layout.rs:101`).
 - `Core\Reflect`'s remaining roster classes — `ConstantInfo`, `AttributeInfo`, `EnumInfo` — are
   listed in `NOT_YET_BUILT` and owned by ADR 0019 § 1 and § 4.
+- `walk::KINDS` is held to the match arms by a scan of the file's own text
+  (`crates/nvs-syntax/src/walk.rs:@SPANS`); a `const {}` assertion at each arm would be the stronger
+  gate if the arms are ever touched wholesale.
 - Stage 8 and later of this goal are untouched; `docs/agent/loop-goal.toml` is the list.
