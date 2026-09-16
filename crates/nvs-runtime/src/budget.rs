@@ -110,16 +110,12 @@
 //! and [`crate::array`], never this module's own `GlobalAlloc`, whose null
 //! reaches `handle_alloc_error` and aborts the process.
 //!
-//! # Known gaps
-//!
-//! 1. **An allocator that does not ask [`affords`] makes one allocation larger
-//!    than the whole remaining budget before anything notices it.** The compare
-//!    in [`add`] happens after `Backing` has handed back the block, so a request
-//!    that asks for its ceiling twice over in a single operation holds those
-//!    bytes until its next poll.
-//!    Decided: Route input-sized allocations in helpers through `affords` — Closes it where an
-//!    attacker controls the size (repeat, fill, decode), at the cost of auditing the helpers.
-//!    — owner: unowned-closures
+//! Every allocator whose size is a **count off a call site** asks it: the value
+//! allocators named above, and [`crate::affordable`], which is the one seam
+//! every count-shaped `Core` argument is checked at. So a request cannot ask
+//! for its whole ceiling twice over in a single operation and hold the bytes
+//! until its next poll — the ask is refused in front of the allocation, where
+//! [`add`]'s compare could only have caught the *second* such operation.
 //!
 //! # Whose bytes they are
 //!

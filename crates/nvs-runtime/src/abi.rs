@@ -235,31 +235,60 @@ impl Fault {
 /// here: its `memory_limit` is enforced in the allocator precisely because
 /// per-function checks did not hold.
 ///
-/// # What it does and does not promise
+/// # What it refuses, in two tiers
 ///
-/// Today it refuses only what cannot be allocated at all — a size past
-/// `isize::MAX`, or a computation that already overflowed to `None`. It is
-/// **not** a budget: nothing here knows what a request may spend.
-/// `rule:programs/memory-priority` settles that
-/// it will be, through the `[limits.hard]` per-request ceiling the arena
-/// enforces, and this function is the seam that ceiling attaches to — one
-/// place to change rather than one per call site.
+/// A size past `isize::MAX`, or a computation that already overflowed to
+/// `None`, is an allocation **no process** could make. Nothing about the
+/// request is wrong, so that is a throw.
+///
+/// A size the running request cannot afford is
+/// `rule:errors/on-limit`'s resource `FATAL`.
+/// [`crate::budget::affords`] is asked against `[limits] memory`'s remaining
+/// balance, and a `false` from it has already recorded the breach: the request
+/// is over from that moment whatever this caller does next, so handing it back
+/// a `catch` to carry on from would put a resource limit below the tier
+/// `rule:errors/escalation-ladder` gives it.
+///
+/// Asking *in front of* the allocation is what bounds **one** operation rather
+/// than a loop of them — [`crate::budget::add`] compares once the block is
+/// already held, so an input-sized ask that reaches the allocator first is a
+/// request holding twice its ceiling before anything polls it.
+/// `rule:programs/memory-priority` settles that a per-request ceiling is
+/// enforceable, and this is the seam it attaches to for every count-shaped
+/// argument — one place to change rather than one per call site.
+///
+/// An uncapped request is refused nothing here but the unallocatable: `affords`
+/// answers on its sentinel without reading a balance, which is what every
+/// context with no configuration — every test's — costs.
 ///
 /// # Errors
 ///
-/// A [`Fault::Thrown`], so a program can catch it. The alternative is the
-/// allocator's own behaviour, which is an abort for the raw paths and a panic
-/// for the `Vec` ones — contained to the request by [`run_helper`], but not
-/// catchable, and a resource refusal is exactly the kind a caller may want to
-/// handle.
+/// A [`Fault::Thrown`] for the unallocatable size, so a program can catch it.
+/// The alternative is the allocator's own behaviour, which is an abort for the
+/// raw paths and a panic for the `Vec` ones — contained to the request by
+/// [`run_helper`], but not catchable, and a refusal of that shape is exactly
+/// the kind a caller may want to handle.
+///
+/// A [`Fault::Fatal`] for the unaffordable one, which no `catch` sees.
+/// [`run_helper`]'s failure arm re-reads
+/// [`Ctx::memory_breach`](crate::Ctx::memory_breach) and reports the breach in
+/// place of whatever the member said, so a refused `Core` member names the
+/// ceiling and the reading; the message built here is what a direct caller
+/// reads.
 pub fn affordable(bytes: Option<usize>, member: &str) -> Result<usize, Fault> {
-    bytes
+    let size = bytes
         .filter(|size| isize::try_from(*size).is_ok())
         .ok_or_else(|| {
             Fault::thrown(format!(
                 "{member}: the requested allocation is larger than any this process could hold"
             ))
-        })
+        })?;
+    if !crate::budget::affords(size) {
+        return Err(Fault::fatal(format!(
+            "{member}: the request cannot afford an allocation of {size} bytes — it is past its memory limit"
+        )));
+    }
+    Ok(size)
 }
 
 /// How many iterations of a [`bounded_loop`] pass between two deadline polls.

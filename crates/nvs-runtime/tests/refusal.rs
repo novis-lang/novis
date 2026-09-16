@@ -19,9 +19,9 @@
 
 use nvs_runtime::{
     ArrayHeader, Ctx, FATAL, IMMORTAL_REFCOUNT, NvsArray, NvsStr, OutputSink, SafepointFlags,
-    Value, budget, nvs_array_append, nvs_array_next_slot, nvs_array_release, nvs_array_set,
-    nvs_array_set_index, nvs_array_value_at, nvs_str_append, nvs_str_concat, nvs_str_concat_n,
-    nvs_str_release, prime_empty_array,
+    Value, affordable, budget, nvs_array_append, nvs_array_next_slot, nvs_array_release,
+    nvs_array_set, nvs_array_set_index, nvs_array_value_at, nvs_str_append, nvs_str_concat,
+    nvs_str_concat_n, nvs_str_release, prime_empty_array,
 };
 
 /// A request under `bytes` of ceiling, holding nothing of its own yet.
@@ -93,6 +93,57 @@ fn a_single_operation_past_the_ceiling_never_allocates_what_it_asked_for() {
     assert!(
         matches!(ctx.memory_breach(), Some(nvs_runtime::Fault::Fatal(_))),
         "the poll a refusal wakes does not report it, so `rule:errors/on-limit`'s `FATAL` never arrives",
+    );
+}
+
+/// The seam every count-shaped `Core` argument passes through refuses an ask
+/// the running request cannot afford — and refuses it at the tier a resource
+/// limit gets, not the one an unallocatable size gets.
+///
+/// Both tiers, because the distinction is the whole of what `affordable`
+/// carries. A size no process could hold is a `Thrown` a program may catch:
+/// nothing about the request is wrong, and the caller may well have a fallback.
+/// A size *this* request cannot hold is `rule:errors/on-limit`'s `Fatal`,
+/// because the refusal is recorded by the time it is worded — a `catch` would
+/// hand the program a way to carry on inside a request that is already over.
+///
+/// The ask that fits comes first, and records nothing, which is what says the
+/// refusal below belongs to the size rather than to the ceiling's presence.
+#[test]
+fn an_ask_past_the_ceiling_is_refused_by_the_shared_size_check() {
+    let ctx = ctx_under(16 << 20);
+    assert_eq!(
+        affordable(Some(1 << 10), "Core\\Arr::fill").ok(),
+        Some(1 << 10),
+        "an ask the request has room for thousands of times over was refused",
+    );
+
+    assert!(
+        matches!(
+            affordable(Some(usize::MAX), "Core\\Arr::fill"),
+            Err(nvs_runtime::Fault::Thrown(..))
+        ),
+        "a size no process could allocate was reported as the request's own limit",
+    );
+    assert!(
+        !ctx.over_memory_limit(),
+        "one of the two asks above recorded a refusal, so nothing below is this seam's doing",
+    );
+
+    assert!(
+        matches!(
+            affordable(Some(256 << 20), "Core\\Str::repeat"),
+            Err(nvs_runtime::Fault::Fatal(_))
+        ),
+        "an ask of sixteen times the whole ceiling was served, or was worded as a throw the program carries on from",
+    );
+    assert!(
+        ctx.over_memory_limit(),
+        "the refusal was not recorded against the request that made it",
+    );
+    assert!(
+        matches!(ctx.memory_breach(), Some(nvs_runtime::Fault::Fatal(_))),
+        "the poll this refusal wakes does not report it, so a member's caller never sees the ceiling",
     );
 }
 

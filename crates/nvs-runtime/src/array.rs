@@ -1029,11 +1029,12 @@ impl NvsArray {
     ///
     /// The fallible seam for a producer whose entry count is a **count off a
     /// call site** — `Core\Arr::fill`'s is the whole of its first argument.
-    /// [`crate::affordable`] refuses only a size past `isize::MAX`, so every
-    /// count between that and what the machine can actually serve reaches the
-    /// allocator, and an allocator that refuses inside [`Vec::push`] is an
-    /// abort: the process and every in-flight request with it, for a refusal
-    /// the caller may well want to handle. This is
+    /// [`crate::affordable`] refuses a size past `isize::MAX` and one past the
+    /// running request's remaining budget, so what still reaches the allocator
+    /// is an uncapped request's every count between those and what the machine
+    /// can actually serve — and an allocator that refuses inside [`Vec::push`]
+    /// is an abort: the process and every in-flight request with it, for a
+    /// refusal the caller may well want to handle. This is
     /// [`NvsStr::try_build`](crate::NvsStr::try_build)'s bargain over the entry
     /// storage instead of over a payload.
     ///
