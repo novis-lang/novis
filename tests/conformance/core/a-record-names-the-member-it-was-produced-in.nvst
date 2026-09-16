@@ -1,5 +1,5 @@
 --TEST--
-A record names the file, line and enclosing member it was produced at, a record produced at file scope names no member at all, and a `Throwable`'s location is that same datum -- `rule:errors/a-record-names-where-it-was-produced`
+A record names the file, line and enclosing member it was produced at, a record produced at file scope names no member at all, and a `Throwable`'s location is that same datum whether a `throw` or a checked operator raised it -- `rule:errors/a-record-names-where-it-was-produced`
 --FILE--
 <?nvs
 // The datum is the *producer's own* call site, not the frame that reached it:
@@ -35,7 +35,26 @@ class Relay {
 }
 
 echo Relay::thrown(), "\n";
+
+// The third reader, and the only one that fills the datum with no Novis
+// expression behind it: a checked operator raises inline, and is handed the
+// site of the statement it failed in -- the very constant a `throw` in that
+// statement would have taken, so whichever of the two raises names the same
+// place.
+class Checked {
+    public static function divided(int $by): string {
+        try {
+            var $quotient = 10 / $by;
+            return "no throw";
+        } catch (Throwable $failure) {
+            return $failure->location;
+        }
+    }
+}
+
+echo Checked::divided(0), "\n";
 --EXPECT--
 {"level":"info","msg":"placed","source":{"file":"case.nvs","line":9,"member":"Orders::place"}}
 {"level":"info","msg":"done","source":{"file":"case.nvs","line":18}}
 case.nvs:27
+case.nvs:44
