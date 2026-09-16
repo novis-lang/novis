@@ -15056,7 +15056,7 @@ Renders `$value` exactly as `dump` would and answers it as the carrier of the si
 |---|---|---|
 | `$value` | `mixed` | The value to render, walked as `dump` walks one. |
 
-**Returns** `Core\Cli\Text` — The rendering as a `Core\Cli\Text`, without the trailing newline `dump` writes.
+**Returns** `Core\Cli\Text` — The rendering as a `Core\Cli\Text`, the carrier of the sink in force, without the trailing newline `dump` writes.
 
 <a id="core-core-test"></a>
 ### `Core\Test`
@@ -25246,6 +25246,7 @@ long-running host — at a reload, or only at boot.
 | `control.socket` | operator only — a request cannot change it | at boot only |
 | `io.temp_root` | operator only — a request cannot change it | at boot only |
 | `debug.keep_temporary` | operator only — a request cannot change it | at reload |
+| `debug.inline` | a request may only narrow it | at reload |
 | `server` | operator only — a request cannot change it | at boot only |
 | `opcache` | operator only — a request cannot change it | at reload |
 | `opcache.file_cache_dir` | operator only — a request cannot change it | at boot only |

@@ -7292,6 +7292,20 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   untagged exception, for exactly that reason. Read what each rendering writes before picking a node
   kind for a new producer: `grep -n "Node::Span" crates/nvs-render/src` finds every exhaustive match,
   and there are only the two. [until: gone crates/nvs-render/src/json.rs:AsNode]
+- **A config field's `[unread:]` trailer is refused the moment *any* crate names the key, and
+  `nvs_config::mode::DERIVED` counts as a namer.** Three gates in
+  `crates/nvs-config/tests/directives.rs` fail together, the decisive one being
+  `no_key_with_a_reader_still_claims_to_be_unread`. Grep the dotted key across `crates/` first;
+  where a reader exists, describe the directive plainly and put what is still owed in the
+  consuming crate's own `# Known gaps`.
+  [until: gone crates/nvs-config/tests/directives.rs:no_key_with_a_reader_still_claims_to_be_unread]
+
+- **A `CoreTy::Union` of two `Core` classes passes every Rust test and is a return type no Novis
+  program can act on.** `instanceof` against a `Core` class is `E0496` — a registry signature has
+  no descriptor to walk — so no spelling in `rule:types/narrowing` reaches either arm and only
+  `echo` accepts the value, which surfaces from a `.nvst` case long after `-p <crate>` went green.
+  Before widening a `return_ty` to two classes, check a program can tell them apart; prefer one
+  class and a `# Known gaps` row. [until: gone crates/nvs-hir/src/**:E0496]
 
 ## Divergences and refusals already pinned
 
