@@ -542,7 +542,7 @@ adding to a list when a feature lands.
 `docs/agent/goals/`** — the one chain, always, because that is the only file `loop.py` walks
 and an emission anywhere else would be a chain nothing reads. **Deciding to run it is the user's**, like
 `doc-cleanup.md` and `dependency-update.md`, for the same reason: it decides what several hundred
-sessions will do next. The user made that decision, and [goal `dossier`](goals/62-dossier.md) is
+sessions will do next. The user made that decision, and [goal `dossier`](goals/63-dossier.md) is
 what it turned into — one session whose whole job is to fire the emitter, so the roster's own goals land
 on the end of the chain the driver is already walking and the run continues into them without a restart.
 `Chain.refresh()` in `loop.py` is the half that makes that true; the emitter is idempotent by slug and by
