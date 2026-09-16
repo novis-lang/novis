@@ -555,6 +555,57 @@ pub fn call_render(ctx: &mut Ctx, receiver: Value, what: &str) -> Result<Option<
         })
 }
 
+/// Orders `left` against `right` through `rule:classes/comparable`'s
+/// `compareTo`, whichever of the two conventions `left`'s class answers it
+/// under — or `None` when it answers it under neither.
+///
+/// The one entry point for ordering two objects, because the two conventions
+/// are the thing a caller must not have to choose between. A class a program
+/// declares carries the member on its method table and is called through
+/// [`call_method`], which transfers a reference per slot. A `Core` class
+/// carries it on [`crate::ClassDesc::comparer`] instead, because a native
+/// member is an `rule:errors/propagation` helper that **borrows** its
+/// arguments — so this neither retains on the way in nor releases on the way
+/// out, exactly as [`call_render`] does not. The `int` it answers with carries
+/// the one reference either call's result does.
+///
+/// The descriptor is asked first: a `Core` class has no method row to find, and
+/// no class carries both.
+///
+/// # Errors
+///
+/// [`method_address`]'s engine faults, plus [`Fault::Pending`] when the
+/// comparison itself throws.
+pub fn call_compare_to(
+    ctx: &mut Ctx,
+    left: Value,
+    right: Value,
+    what: &str,
+) -> Result<Option<Value>, Fault> {
+    let desc = descriptor_of(left, what, crate::object::COMPARE_TO)?;
+    #[expect(
+        unsafe_code,
+        reason = "`descriptor_of` answers only a non-null descriptor, and one \
+                  is owned by its class table for that table's whole life"
+    )]
+    let Some(target) = (unsafe { &*desc }).comparer() else {
+        return call_method(ctx, left, crate::object::COMPARE_TO, &[right], what);
+    };
+    #[expect(
+        unsafe_code,
+        reason = "the address came out of `ClassTable::set_compare`, which \
+                  `nvs-stdlib` calls only with a registered `Core` member's \
+                  own address, and every one of those has this signature"
+    )]
+    let target: NvsFn = unsafe { std::mem::transmute::<*const u8, NvsFn>(target) };
+    crate::abi::call(target, ctx, &[left, right])
+        .map(Some)
+        .map_err(|status| {
+            debug_assert_ne!(status, OK, "call reports Err only for a non-OK status");
+            Fault::Pending(status)
+        })
+}
+
 /// Resumes the dying generator `receiver` into its unwind entry point, at the
 /// address its class carries ([`crate::ClassDesc::unwind_entry`]).
 ///

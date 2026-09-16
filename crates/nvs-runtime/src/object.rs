@@ -476,6 +476,23 @@ pub struct ClassDesc {
     /// before the method table. **Cost:** one pointer per class, once per
     /// process, not per instance.
     render: *const u8,
+    /// The address of the **native** function that orders two instances of
+    /// this class — `rule:classes/comparable`'s `compareTo` — or null for
+    /// every class that carries none, which is every class a program declares
+    /// and every `Core` class the spec gives no such member.
+    ///
+    /// [`Self::render`]'s field, one member along, and for its reason exactly:
+    /// the address is a native helper that **borrows** both operands, while a
+    /// [`Self::methods`] row is a compiled function that releases its
+    /// parameters, so which field the address came out of is what tells a
+    /// caller the convention to call it under. A program's own `Comparable`
+    /// class is on the method table and answers through
+    /// [`crate::dispatch::call_method`]; a `Core` one is here. Filled by
+    /// [`ClassTable::set_compare`], which only `nvs-stdlib` calls; read by
+    /// [`crate::dispatch::call_compare_to`], which asks it before the method
+    /// table. **Cost:** one pointer per class, once per process, not per
+    /// instance.
+    compare: *const u8,
     /// The address of this class's [`GENERATOR_UNWIND_METHOD`] entry point, or
     /// null for every class that answers no such name — which is every class
     /// but a generator's synthesized state class.
@@ -1233,6 +1250,17 @@ impl ClassDesc {
         }
     }
 
+    /// The address of this class's native `compareTo`, or `None` for a class
+    /// carrying none — see [`Self::compare`] for why it is not a method row.
+    #[must_use]
+    pub fn comparer(&self) -> Option<*const u8> {
+        if self.compare.is_null() {
+            None
+        } else {
+            Some(self.compare)
+        }
+    }
+
     /// The address of this class's [`GENERATOR_UNWIND_METHOD`] entry point, or
     /// `None` for a class that answers no such name — see [`Self::unwind`].
     #[must_use]
@@ -1411,6 +1439,7 @@ impl ClassTable {
             public_fields: Vec::new(),
             field_types: Vec::new(),
             render: std::ptr::null(),
+            compare: std::ptr::null(),
             unwind: std::ptr::null(),
         }));
         id
@@ -1754,6 +1783,24 @@ impl ClassTable {
             .get_mut(id.0)
             .expect("a class id always belongs to the table that handed it out");
         desc.render = address;
+    }
+
+    /// Fills in `id`'s native `compareTo` — see [`ClassDesc::comparer`].
+    ///
+    /// `address` is an `rule:errors/propagation` helper taking the two
+    /// instances to order and **borrowing** both, which is what separates this
+    /// from [`ClassTable::set_methods`]; `nvs_stdlib::instance` is its only
+    /// caller, for [`ClassTable::set_render`]'s reason.
+    ///
+    /// # Panics
+    ///
+    /// If `id` does not belong to this table.
+    pub fn set_compare(&mut self, id: ClassId, address: *const u8) {
+        let desc = self
+            .classes
+            .get_mut(id.0)
+            .expect("a class id always belongs to the table that handed it out");
+        desc.compare = address;
     }
 
     /// The descriptor `name` names, **borrowed** — the same one
@@ -3318,6 +3365,15 @@ pub unsafe extern "C" fn nvs_class_method(
 
 /// The one method [`construct`] runs — `rule:classes/no-leading-underscore-identifiers` fixes the spelling.
 pub const CONSTRUCTOR: &str = "constructor";
+
+/// `rule:classes/comparable`'s one member, which a class opts into by
+/// implementing the interface.
+///
+/// The spelling's one home: `nvs_types::iter_lib` seeds the declaration,
+/// [`ClassDesc::comparer`] carries a `Core` class's native address under it,
+/// and `nvs_stdlib::registry::implements_comparable` reads a member roster for
+/// it. A second copy is how the three come to disagree about one string.
+pub const COMPARE_TO: &str = "compareTo";
 
 /// Builds an instance of `class` by running its own `constructor` — what a
 /// native member does where compiled code would emit

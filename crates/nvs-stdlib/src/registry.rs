@@ -3160,11 +3160,38 @@ pub fn implements_comparable(class: &str) -> bool {
         .find(|found| found.name == class)
         .is_some_and(|found| {
             found.instance.iter().any(|member| {
-                member.name == "compareTo"
+                member.name == nvs_runtime::COMPARE_TO
                     && matches!(member.params, [CoreTy::Instance(param)] if *param == class)
                     && matches!(member.return_ty, CoreTy::Int)
             })
         })
+}
+
+/// The symbol of `name`'s `compareTo` — the implementation half of
+/// [`implements_comparable`], and `None` for every class that declares no such
+/// member.
+///
+/// Factored out for [`render_symbol`]'s reason, over the other of the two
+/// members the engine reaches by name: `crate::instance` puts this address on
+/// the class's own descriptor, so a `Core` object ordered through an erased
+/// operand — the `Core\Heap` holding it, which knows no class — compares
+/// through the very implementation this registry told the *checker* it would.
+/// Asked of [`implements_comparable`] rather than of the roster directly, so a
+/// row that answers the interface and a row that is merely spelled like it
+/// cannot part company here.
+#[must_use]
+pub(crate) fn compare_symbol(name: &str) -> Option<&'static str> {
+    if !implements_comparable(name) {
+        return None;
+    }
+    class(name)
+        .and_then(|class| {
+            class
+                .instance
+                .iter()
+                .find(|member| member.name == nvs_runtime::COMPARE_TO)
+        })
+        .map(|member| member.symbol)
 }
 
 /// Whether `class` implements `Parses` — `rule:expressions/try-parse`'s pair,

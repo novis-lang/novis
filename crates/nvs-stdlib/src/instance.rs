@@ -48,6 +48,36 @@
 //! resolves, and every consumer that iterates a class's members would have to
 //! learn to skip it.
 //!
+//! # Decision: a registered member the engine reaches by name gets a descriptor field
+//!
+//! Two members are reached on a `Core` instance by *name* rather than from a
+//! call site that resolved them: `rule:classes/stringable`'s `toString`, when
+//! an erased operand is echoed, and `rule:classes/comparable`'s `compareTo`,
+//! when a `Core\Heap` or another collection orders two values it knows no
+//! class for. Both are answered by a field on [`ClassDesc`] —
+//! `ClassDesc::renderer` and `ClassDesc::comparer` — and not by a
+//! [`DISPATCH_ROSTER`] row.
+//!
+//! **The fork is the calling convention, not the lookup.** A roster row is
+//! called through `nvs_runtime::dispatch`'s `call_at`, which transfers a
+//! reference per slot including the receiver, because that table otherwise
+//! holds compiled Novis methods and those release their parameters. A
+//! *registered* `Core` member is an `rule:errors/propagation` helper that
+//! **borrows** its arguments, so listing one as a row would leak one reference
+//! per operand per call — for an ordering, two per comparison, on every sift
+//! of every heap. The roster's own members can be rows because they are
+//! row-less symbols written for it ([`crate::cursor`]), which release argument
+//! slot 0 themselves; a member a program can also call by name cannot be, and
+//! a per-class transferring wrapper beside each one would be a second
+//! implementation of every ordering in the library.
+//!
+//! **Derived from the registry, never written down here.** [`descriptors`]
+//! asks `registry::render_symbol` and `registry::compare_symbol`, which are the
+//! same rosters `registry::class_renders` and `registry::implements_comparable`
+//! answer the *compiler* from. A hand-written table beside them would be free
+//! to miss a class the checker had already let a program `echo` or order, which
+//! is exactly the gap this closes.
+//!
 //! # Decision: the descriptors are one leaked table for the process
 //!
 //! A [`ClassDesc`]'s *address* is its identity, and it must outlive every
@@ -108,11 +138,14 @@ const INTERNAL_CLASSES: &[&CoreClass] = &[&crate::cursor::CLASS];
 /// registry is the surface a program reaches; this is the protocol the engine
 /// reaches.
 ///
-/// **`toString` is not a row here and never becomes one.** The engine reaches
-/// it by name too, but through [`ClassDesc::renderer`] rather than the method
-/// table, because it keeps the ordinary `Core` convention of borrowing its
-/// receiver where a row here transfers one — see [`descriptors`], which
-/// derives it from the registry instead.
+/// **`toString` and `compareTo` are not rows here and never become ones.** The
+/// engine reaches both by name too, but through [`ClassDesc::renderer`] and
+/// [`ClassDesc::comparer`] rather than the method table, because each is a
+/// *registered* member and keeps the ordinary `Core` convention of borrowing
+/// its receiver where a row here transfers one — see this module's
+/// § *Decision: a registered member the engine reaches by name gets a
+/// descriptor field*, and [`descriptors`], which derives both from the
+/// registry instead.
 const DISPATCH_ROSTER: &[(&str, &[(&str, &str)])] = &[
     (
         crate::objmap::NAME,
@@ -355,6 +388,15 @@ fn descriptors() -> &'static ClassTable {
             // `echo $uri` — did not see.
             if let Some(symbol) = registry::render_symbol(class.name) {
                 table.set_render(id, crate::address_of(symbol));
+            }
+            // `rule:classes/comparable`'s one ordering member, on its own
+            // descriptor field for the reason directly above and derived from
+            // the registry for the same one: `registry::implements_comparable`
+            // — the check the compiler makes at `$a < $b` — and this are one
+            // question asked once, so a class the checker will let a program
+            // order cannot be a class a `Core\Heap` finds no ordering for.
+            if let Some(symbol) = registry::compare_symbol(class.name) {
+                table.set_compare(id, crate::address_of(symbol));
             }
         }
         Box::leak(Box::new(table))
@@ -726,6 +768,67 @@ mod tests {
                       process, so this borrow is sound for any lifetime"
         )]
         unsafe { &*descriptor(class) }.renderer()
+    }
+
+    /// The same pairing for `rule:classes/comparable`'s ordering, and the
+    /// gap it closes: a class the checker lets `$a < $b` compile against is
+    /// one a `Core\Heap` holding it with no comparator has to order at run
+    /// time, and the only thing that reaches the member there is the
+    /// descriptor. Asserted in both directions, and against the class's own
+    /// registered symbol rather than merely against "some address", so a
+    /// derivation that found *a* member would still fail.
+    #[test]
+    fn every_core_class_declaring_compare_to_has_a_dispatch_row() {
+        let mut comparable = 0;
+        for class in registry::CLASSES {
+            // [`descriptors`]'s own skip: a namespace class has no descriptor
+            // to ask, and asking for one panics.
+            if class.slots.is_empty() && class.instance.is_empty() {
+                assert!(
+                    registry::compare_symbol(class.name).is_none(),
+                    "{} declares a comparison but has no instances to order",
+                    class.name
+                );
+                continue;
+            }
+            let Some(symbol) = registry::compare_symbol(class.name) else {
+                assert!(
+                    comparer_of(class).is_none(),
+                    "{} orders at run time but declares no `{}`",
+                    class.name,
+                    nvs_runtime::COMPARE_TO
+                );
+                continue;
+            };
+            comparable += 1;
+            assert!(
+                registry::implements_comparable(class.name),
+                "{} carries a comparison the interface check does not see",
+                class.name
+            );
+            assert_eq!(
+                comparer_of(class),
+                Some(crate::address_of(symbol)),
+                "{} orders where it is written but not at run time",
+                class.name
+            );
+        }
+        assert!(
+            comparable > 0,
+            "no `Core` class declares `{}`, so this asserted nothing",
+            nvs_runtime::COMPARE_TO
+        );
+    }
+
+    /// `class`'s descriptor's native comparison — the test-side spelling of
+    /// the read `nvs_runtime::dispatch::call_compare_to` makes.
+    fn comparer_of(class: &CoreClass) -> Option<*const u8> {
+        #[expect(
+            unsafe_code,
+            reason = "the leaked table owns the descriptor for the whole \
+                      process, so this borrow is sound for any lifetime"
+        )]
+        unsafe { &*descriptor(class) }.comparer()
     }
 
     /// The two rosters this module's docs pair up: a class the checker will

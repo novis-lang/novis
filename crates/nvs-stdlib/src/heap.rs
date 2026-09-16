@@ -29,7 +29,7 @@
 //! 1. the `comparator` given at construction, if there is one;
 //! 2. otherwise `rule:classes/comparable`'s
 //!    `Comparable::compareTo`, reached through the receiving object's own class
-//!    descriptor ([`nvs_runtime::dispatch`]);
+//!    descriptor (`nvs_runtime::dispatch`'s `call_compare_to`);
 //! 3. otherwise the natural order [`crate::ordering::compare_values`] owns,
 //!    which is every scalar and throws for anything else.
 //!
@@ -37,14 +37,12 @@
 //! two and is written at the call site that wanted it — the same precedence
 //! `Core\Arr::sort`'s `{comparator: …}` has over its own natural order.
 //!
-//! **Known gap:** a `Core`-owned instance — a `Core\Time\Instant`, say —
-//! declares `compareTo` in the registry but does not list it on its
-//! descriptor's method table, so step 2 does not find it and such a heap needs
-//! an explicit comparator. The mechanism is no longer missing — that table is
-//! [`crate::instance`]'s dispatch roster, which § 9's own `iterate` is on — so
-//! what is left is a row per `Core` class that declares `compareTo`, plus the
-//! receiver-transfer wrapper such a row owes ([`crate::cursor`]).
-//! — owner: m8-stdlib-depth
+//! Step 2 reaches a `Core`-owned instance — a `Core\Time\Instant` — as readily
+//! as a class the program declared, and neither the heap nor this module names
+//! either: the two carry their `compareTo` under different calling conventions
+//! and `call_compare_to` is the one place that knows which
+//! ([`crate::instance`]'s § *Decision: a registered member the engine reaches
+//! by name gets a descriptor field*).
 //!
 //! # What it spends, and what a comparator may not do
 //!
@@ -78,12 +76,6 @@ pub(crate) const NEW_SYMBOL: &str = "nvs_core_heap_new";
 /// class's method table rather than as a registered member — see
 /// [`crate::cursor`] and [`crate::instance`]'s dispatch roster.
 pub(crate) const ITERATE_SYMBOL: &str = "nvs_core_heap_iterate";
-
-/// `rule:classes/comparable`'s one member,
-/// which a class opts into by implementing the interface. Must agree with
-/// `nvs_types::iter_lib`'s seeded spelling, exactly as
-/// [`nvs_runtime::sequence`]'s three names do.
-const COMPARE_TO: &str = "compareTo";
 
 /// `new Core\Heap<T>({comparator})` — the constructor
 /// [`crate::registry::CONSTRUCTORS`] registers.
@@ -365,7 +357,7 @@ fn compare(
     // the pair has a natural order below or no order at all.
     if left.obj_ptr().is_some()
         && right.obj_ptr().is_some()
-        && let Some(verdict) = nvs_runtime::call_method(ctx, left, COMPARE_TO, &[right], &member)?
+        && let Some(verdict) = nvs_runtime::call_compare_to(ctx, left, right, &member)?
     {
         return sign_of(verdict, &member);
     }
@@ -762,16 +754,16 @@ mod tests {
         call(nvs_core_heap_new, &mut ctx, &[Value::null()]).expect("a fresh heap does not throw")
     }
 
-    /// Releases a heap this frame owns the only reference to.
-    fn drop_heap(heap: Value) {
+    /// Releases a value this frame owns the only reference to.
+    fn release(value: Value) {
         #[expect(
             unsafe_code,
-            reason = "this frame owns the one reference the constructor \
-                      produced, and releasing it is what the compiled caller \
-                      would do"
+            reason = "this frame owns the one reference the constructor, the \
+                      build or the pop produced, and releasing it is what the \
+                      compiled caller would do"
         )]
         unsafe {
-            heap.release();
+            value.release();
         }
     }
 
@@ -795,7 +787,7 @@ mod tests {
             (1..=9).map(Some).collect::<Vec<Option<i64>>>(),
             "a heap ordered by `compare_values` answers smallest first"
         );
-        drop_heap(heap);
+        release(heap);
     }
 
     /// `peek` leaves the heap alone, and both it and `pop` throw once there
@@ -813,7 +805,54 @@ mod tests {
             call(nvs_core_heap_peek, &mut ctx, &[heap]).is_err(),
             "`peek` on an empty heap throws"
         );
-        drop_heap(heap);
+        release(heap);
+    }
+
+    /// A heap of `Core`-owned instances orders itself, with no comparator and
+    /// no class in hand: `Core\Time\Instant` declares
+    /// `rule:classes/comparable`'s member, so this module's step 2 reaches it
+    /// through the descriptor exactly as it reaches a class the program
+    /// declared ([`crate::instance`]'s § *Decision: a registered member the
+    /// engine reaches by name gets a descriptor field*).
+    ///
+    /// The seconds are pushed in an order no sift can leave alone, and each
+    /// instant is released after its push: a `Core` member **borrows** its
+    /// arguments, so the reference the build produced is still this frame's.
+    #[test]
+    fn a_heap_of_core_instants_orders_by_compare_to_without_a_comparator() {
+        let heap = natural();
+        for second in [30, 10, 20, 40] {
+            let instant = instant_at(second);
+            on(heap, nvs_core_heap_push, &[instant]);
+            release(instant);
+        }
+
+        let mut popped = Vec::new();
+        while on(heap, nvs_core_heap_is_empty, &[]).as_bool() == Some(false) {
+            let instant = on(heap, nvs_core_heap_pop, &[]);
+            popped.push(second_of(instant));
+            release(instant);
+        }
+        assert_eq!(
+            popped,
+            vec![10, 20, 30, 40],
+            "a `Core` instance orders by its own `compareTo`, smallest first"
+        );
+        release(heap);
+    }
+
+    /// A fresh `Core\Time\Instant` at `second` past the epoch, as the one
+    /// reference a helper hands back.
+    fn instant_at(second: i64) -> Value {
+        crate::instance::build(&crate::time::INSTANT, [Value::int(second), Value::int(0)])
+    }
+
+    /// The epoch second `instant` holds, read the way every `Instant` member
+    /// reads its receiver.
+    fn second_of(instant: Value) -> i64 {
+        crate::time::instant_of(&[instant], 0, "compareTo")
+            .expect("a built instant reads back as the timestamp it was built at")
+            .as_second()
     }
 
     /// A duplicate is held, not folded away: this is a priority queue, and
@@ -829,6 +868,6 @@ mod tests {
         assert_eq!(on(heap, nvs_core_heap_pop, &[]).as_int(), Some(1));
         assert_eq!(on(heap, nvs_core_heap_pop, &[]).as_int(), Some(2));
         assert_eq!(on(heap, nvs_core_heap_pop, &[]).as_int(), Some(2));
-        drop_heap(heap);
+        release(heap);
     }
 }
