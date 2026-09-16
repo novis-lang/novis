@@ -224,10 +224,11 @@ pub fn check_program_granted(
     // The call-site half of the same deferral: § 9's map asked of the class a
     // `queryAs<T>` wrote, after every deriving class has recorded its mapping.
     crate::derive::check_row_sites(&row_sites, &signatures, exprs, diags);
-    // The same deferral at the document door: a constructor the contract fills
-    // less than all of, asked of the written class and of every deriving class
-    // its fields reach.
-    crate::derive::check_json_sites(&json_sites, exprs, diags);
+    // The same deferral at the document door: whether the written class
+    // participates in the format at all, and a constructor the contract fills
+    // less than all of, asked of it and of every deriving class its fields
+    // reach.
+    crate::derive::check_json_sites(&json_sites, &signatures, exprs, diags);
     // The same deferral for the other member that writes a class: the body a
     // `jsonAs<T>` decodes is a peer's, so `rule:security/derived-codec-qualifiers`
     // asks the fields receiving it to declare the qualifier they receive.

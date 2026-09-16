@@ -221,17 +221,6 @@ where taking it is the work and the code that follows it is not.
   layer down: `format` and `parse` compile their pattern per call, through the one `compile` that
   module owns, and neither can prepare anything until that channel exists.
   [until: gone crates/nvs-types/src/intrinsics.rs:owner: unowned]
-- **The third of `rule:core-classes/derive-attribute`'s rule that lives at run time, and whether it
-  moves.** `nvs-types`' derive pass checks a `#[Json\Derive]`/`#[Db\Derive]` class whole and asks the
-  same rule again of the class a `queryAs<T>` wrote, but there is no `Core\Json::decodeAs` half:
-  `decodeAs<array<T>>` is a legitimate JSON array document, so "the mapping cannot fill the
-  constructor" is a question about a *document* rather than about the class, and the
-  missing-attribute refusal stays `nvs_stdlib::json`'s at run time. What has to be decided is whether
-  that refusal moves to compile time at all, which is the rule's call rather than one this pass may
-  widen into — and until it is taken, one of the two members enforces the attribute where the program
-  is written and the other only where it runs.
-  `crates/nvs-types/src/derive.rs` § *Known gaps* carries the tag.
-  [until: gone crates/nvs-types/src/derive.rs:owner: unowned]
 - **The derive machinery is a descriptor read by native Rust**, where
   `rule:core-classes/derive-generates-what-is-missing` costs it as straight-line code emitted per
   class. Both halves of `Core\Json` walk a per-class `nvs_runtime::CodecField` list instead, and two

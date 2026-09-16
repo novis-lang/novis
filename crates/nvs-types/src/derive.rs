@@ -38,26 +38,6 @@
 //! also carries the declared type a decoder checks against, erased to
 //! [`nvs_stdlib::CodecTy`], and the *constructor position* it fills — `rule:core-classes/derive-field-list`'s "a decode is an ordinary `new`" resolved to an index, so that nothing
 //! below this line looks a parameter up by name.
-//!
-//! # Known gaps
-//!
-//! 1. **[`check_json_sites`] does not ask whether `T` carries a codec at all.**
-//!    The condition it does ask — a constructor the contract fills less than
-//!    all of — is the one [`check_row_sites`] shares with it, and the two
-//!    doors part company on the rest: a `decodeAs<array<T>>` is a JSON array
-//!    document and is legitimate where the row door refuses the plural twice,
-//!    and a document is a tree, so a column map has nothing to say here. What
-//!    is left is the missing-`#[Json\Derive]` third, still answered by
-//!    `nvs_stdlib::json`'s `check_codec` at run time. Moving it here is not
-//!    additive the way the arity condition was:
-//!    `json-decode-as-reads-only-a-class-that-declared-a-codec` asserts that a
-//!    class with no attribute is refused *as a `LogicError`*, that the two
-//!    directions agree per class, and that the codec is read before the
-//!    document — three run-time properties a compile-time refusal deletes
-//!    rather than moves, so the case is rewritten in the same slice.
-//!    Decided: Yes: check `T` (and `array<T>`'s element) statically — The two members enforce the attribute
-//!    the same way and the error is earlier, which is a rule amendment.
-//!    — owner: unowned-closures
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, Span, code};
 use nvs_hir::QName;
@@ -1058,24 +1038,36 @@ impl JsonSite {
 /// fillable too. `seen` is what stops the walk on a class holding a field of
 /// its own type, which `rule:core-classes/derive-field-list` admits.
 ///
-/// A class carrying no codec at all is **not** refused here — that is this
-/// module's own gap 1, and `nvs_stdlib::json`'s `check_codec` is where it is
-/// still answered.
+/// **Two conditions, two codes**, which is where this parts company with
+/// [`check_row_sites`]' one. The written class participating at all is asked
+/// first, of the root alone, and is `E0821`; the constructor the contract fills
+/// less than all of is asked of the reachable set and is `E0820`. A reader
+/// fixing the first writes an attribute or a decoder on a class that has
+/// neither, and a reader fixing the second edits a contract that is already
+/// there — different edits on different declarations, where the row door's
+/// conditions are all one edit at the call.
 pub(crate) fn check_json_sites(
     sites: &[JsonSite],
+    signatures: &crate::signatures::SignatureTable,
     exprs: &crate::expr_table::ExprTypeTable,
     diags: &mut Diagnostics,
 ) {
     for site in sites {
+        if exprs.codec(&site.class.to_string()).is_none() {
+            check_json_participation(site, signatures, diags);
+            // Nothing recorded a field list, so there is no contract to walk
+            // and no reachable set under it.
+            continue;
+        }
         let mut seen = std::collections::BTreeSet::<String>::new();
         let mut pending = vec![site.class.to_string()];
         while let Some(class) = pending.pop() {
             if !seen.insert(class.clone()) {
                 continue;
             }
-            // Gap 1's class at the root, and at any depth a field naming a class
-            // that carries no codec, which [`resolve_field_types`] has already
-            // refused at the declaration that wrote it.
+            // A field naming a class that carries no codec, which
+            // [`resolve_field_types`] has already refused at the declaration
+            // that wrote it. The root took the branch above.
             let Some(codec) = exprs.codec(&class) else {
                 continue;
             };
@@ -1112,6 +1104,55 @@ pub(crate) fn check_json_sites(
             );
         }
     }
+}
+
+/// Whether `site`'s class participates in the JSON format at all, reported as
+/// `E0821` where it does not.
+///
+/// **Two doors into participation, and the class picks one.**
+/// `rule:core-classes/derive-attribute` generates the codec where the attribute
+/// is written, and `rule:core-classes/derive-generates-what-is-missing` lets a
+/// class write a half itself — so a class declaring [`DECODE`] has opted in as
+/// squarely as the attribute does and records no field list precisely because
+/// there is nothing left to generate. The encoding half answers for nothing
+/// here: it is the decoder this call needs, and a class writing only that one
+/// takes the same door `rule:core-classes/derive-generates-what-is-missing`'s
+/// "the generated decoder and keeps its encoder" class takes from the other
+/// side. `nvs_stdlib::json`'s own gap 1 is what still owes the dispatch to it.
+///
+/// The root only. A field naming a class with no codec is refused at the
+/// declaration that wrote it, which is [`resolve_field_types`], so asking again
+/// here would report one edit twice.
+fn check_json_participation(
+    site: &JsonSite,
+    signatures: &crate::signatures::SignatureTable,
+    diags: &mut Diagnostics,
+) {
+    if signatures
+        .get(&site.class)
+        .is_some_and(|sig| sig.methods.contains_key(DECODE))
+    {
+        return;
+    }
+    let class = &site.class;
+    let member = &site.member;
+    diags.report(
+        Diagnostic::error(
+            code::E_DECODED_CLASS_HAS_NO_CODEC,
+            format!(
+                "`{class}` carries no `#[Json\\Derive]` and declares no `{DECODE}`, so \
+                 `{member}` has no codec to read one with"
+            ),
+        )
+        .with_primary(site.span, "written here")
+        .with_help(
+            "`rule:core-classes/derive-attribute`: reading a class out of a document is opt-in — \
+             write `#[Json\\Derive]` on the class, which is what generates the `Core\\Json\\Codec` \
+             this call needs, or declare that interface's `fromJson` yourself and build the \
+             instance from the `mixed` value. A `#[Db\\Derive]` is the row half and answers for \
+             nothing here: `rule:core-classes/db-column-types`'s map is over columns",
+        ),
+    );
 }
 
 /// One call site of a member that decodes a peer's octets into a written class,

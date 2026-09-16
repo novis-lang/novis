@@ -3613,6 +3613,22 @@ pub mod code {
     /// a row is flat, so `E0806` also answers for a column map a document has
     /// no equivalent of.
     pub const E_DECODED_CLASS_NOT_CONSTRUCTIBLE: Code = Code::new("E0820");
+    /// A member that builds an instance out of a document names a class that
+    /// declared no JSON codec at all.
+    ///
+    /// `rule:core-classes/derive-attribute` makes participation opt-in, and a
+    /// class takes one of two doors into it: `#[Json\Derive]`, which generates
+    /// the `Core\Json\Codec`, or the `fromJson` half of that interface written
+    /// by hand. A class that took neither can never be read out of a document,
+    /// and the call naming it is where that is known — so it is refused while
+    /// compiling rather than on the first request that reaches the member.
+    /// [`E_QUERY_AS_NOT_A_ROW_CLASS`] is the same refusal at the row door.
+    ///
+    /// Separate from [`E_DECODED_CLASS_NOT_CONSTRUCTIBLE`] because the edit is
+    /// a different one: that code names a contract the class does have and a
+    /// constructor position it leaves unfilled, and this one names a class with
+    /// no contract to inspect.
+    pub const E_DECODED_CLASS_HAS_NO_CODEC: Code = Code::new("E0821");
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.

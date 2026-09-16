@@ -1,11 +1,11 @@
 --TEST--
-`Core\Json::decodeAs<T>` reads a class only where its declaration says so, and the attribute decides both directions of the wire — `rule:core-classes/derive-field-list` and `rule:core-classes/derive-reports-every-field`, `rule:core-api/shape-rules` R4
+One declaration decides both of `Core\Json`'s directions, and the half of that still asked at run time is the encoder — `rule:core-classes/derive-attribute`, `rule:core-classes/derive-generates-what-is-missing`, `rule:core-api/shape-rules` R4
 --FILE--
 <?nvs
-// `rule:core-classes/derive-reports-every-field`: a class participates in a wire format by carrying the
-// attribute. These three declare the same two fields; only the first line of
-// the first one differs, which is what makes the pair a bound rather than two
-// examples.
+// `rule:core-classes/derive-attribute`: a class participates in a wire format
+// by carrying the attribute. These three declare the same two fields; only the
+// first line of the first one differs, which is what makes the pair a bound
+// rather than two examples.
 #[Core\Json\Derive]
 final class Row {
     public int $n;
@@ -37,15 +37,10 @@ final class Legacy {
     }
 }
 
-// § 2: the declared class decodes, and it is the constructor that built it.
-bool $rowDecodes = true;
-try {
-    var $row = Core\Json::decodeAs<Row>("{\"n\":1,\"name\":\"ada\"}");
-    echo "row-read=", $row->name, "\n";
-} catch (LogicError $rowNoDecode) {
-    $rowDecodes = false;
-    echo $rowNoDecode->message, "\n";
-}
+// The declared class, both directions, and it is the constructor that built the
+// decoded one.
+var $row = Core\Json::decodeAs<Row>("{\"n\":1,\"name\":\"ada\"}");
+echo "row-read=", $row->name, "\n";
 bool $rowEncodes = true;
 try {
     echo "row-wrote=", Core\Json::encode(new Row(1, "ada")), "\n";
@@ -53,32 +48,20 @@ try {
     $rowEncodes = false;
 }
 
-// The undeclared pair. The refusal quotes back the class it was *handed*, so
-// the sentence is not a constant: two classes, two sentences, differing in the
-// one place the caller chose.
-bool $plainDecodes = true;
-try {
-    var $plain = Core\Json::decodeAs<Plain>("{\"n\":1,\"name\":\"ada\"}");
-    echo "plain-read=", $plain->name, "\n";
-} catch (LogicError $plainNoDecode) {
-    $plainDecodes = false;
-    echo $plainNoDecode->message, "\n";
-}
+// The undeclared pair, at the door that still asks when it runs. The decoding
+// direction names its class in the call, so
+// `rule:core-classes/derive-attribute` has that one refused while compiling and
+// `reject/a-class-that-declared-no-json-codec-is-refused-at-the-decode-site`
+// pins it; encoding names no class anywhere but in the value it was handed, so
+// it is answered here. The two cases together are the property that one
+// attribute decides both directions: each door refuses exactly `Plain` and
+// `Legacy`.
 bool $plainEncodes = true;
 try {
     var $plainWritten = Core\Json::encode(new Plain(1, "ada"));
     echo "plain-wrote=", $plainWritten, "\n";
 } catch (LogicError $plainNoEncode) {
     $plainEncodes = false;
-}
-
-bool $legacyDecodes = true;
-try {
-    var $legacy = Core\Json::decodeAs<Legacy>("{\"n\":1,\"name\":\"ada\"}");
-    echo "legacy-read=", $legacy->name, "\n";
-} catch (LogicError $legacyNoDecode) {
-    $legacyDecodes = false;
-    echo $legacyNoDecode->message, "\n";
 }
 bool $legacyEncodes = true;
 try {
@@ -88,38 +71,26 @@ try {
     $legacyEncodes = false;
 }
 
-// One attribute decides both directions, so the two members have to *agree*
-// per class rather than each be right on its own line: a decoder that grew a
-// participation rule of its own — reading any class whose fields happen to be
-// scalars — still answers plausibly above and fails here.
-int $agreed = 0;
-if ($rowEncodes == $rowDecodes) {
-    $agreed = $agreed + 1;
+// Asserted by counting rather than read off a line above: an encoder that grew
+// a participation rule of its own — writing any class whose fields happen to be
+// scalars — still prints plausibly per class and fails this.
+int $wrote = 0;
+if ($rowEncodes) {
+    $wrote = $wrote + 1;
 }
-if ($plainEncodes == $plainDecodes) {
-    $agreed = $agreed + 1;
+if ($plainEncodes) {
+    $wrote = $wrote + 1;
 }
-if ($legacyEncodes == $legacyDecodes) {
-    $agreed = $agreed + 1;
+if ($legacyEncodes) {
+    $wrote = $wrote + 1;
 }
-int $participating = 0;
-if ($rowDecodes) {
-    $participating = $participating + 1;
-}
-if ($plainDecodes) {
-    $participating = $participating + 1;
-}
-if ($legacyDecodes) {
-    $participating = $participating + 1;
-}
-echo "agreed=", $agreed, " of 3\n";
-echo "participating=", $participating, " of 3\n";
+echo "wrote=", $wrote, " of 3\n";
 
-// § 10's two branches: the class was named by the call site, so a class that
-// cannot participate is a bug in the program rather than something the world
-// did, and the refusal is a `LogicError`.
+// § 10's two branches: the class was written by the program, so one it cannot
+// encode is a bug in the program rather than something the world did, and the
+// refusal is a `LogicError`.
 try {
-    var $unreachable = Core\Json::decodeAs<Plain>("{\"n\":1,\"name\":\"ada\"}");
+    var $unwritable = Core\Json::encode(new Plain(1, "ada"));
     echo "not refused\n";
 } catch (RuntimeError $runtime) {
     echo "class=runtime\n";
@@ -127,18 +98,9 @@ try {
     echo "class=logic\n";
 }
 
-// The codec is read before the document is, so one unreadable text is two
-// different failures decided only by the class asked for: the class that
-// cannot participate refuses first, and the one that can gets as far as the
-// syntax. A decoder that parsed first would answer `ParseError` to both.
-try {
-    var $neverPlain = Core\Json::decodeAs<Plain>("{oops}");
-    echo "not refused\n";
-} catch (ParseError $parsePlain) {
-    echo "malformed-plain=parse\n";
-} catch (LogicError $logicPlain) {
-    echo "malformed-plain=logic\n";
-}
+// The class is answered before the document is, and for a class that can
+// participate that leaves the syntax to fail on: an unreadable text under a
+// declared class is the document's own error rather than the program's.
 try {
     var $neverRow = Core\Json::decodeAs<Row>("{oops}");
     echo "not refused\n";
@@ -150,10 +112,6 @@ try {
 --EXPECT--
 row-read=ada
 row-wrote={"n":1,"name":"ada"}
-Core\Json::decodeAs(): `Plain` has no JSON codec — a class participates by carrying `#[Json\Derive]`
-Core\Json::decodeAs(): `Legacy` has no JSON codec — a class participates by carrying `#[Json\Derive]`
-agreed=3 of 3
-participating=1 of 3
+wrote=1 of 3
 class=logic
-malformed-plain=logic
 malformed-row=parse

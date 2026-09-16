@@ -4134,6 +4134,11 @@ fn two_shapes_of_one_field_name_share_a_class_and_carry_a_contract_each() {
 fn a_written_class_carries_no_contract_beside_its_descriptor() {
     let (program, map, file) = lower_whole_file_with_src(concat!(
         "<?nvs\n",
+        // The attribute is what makes the call legal at all: a class that
+        // declared no codec is `E0821` at the site that names it, and this
+        // fixture is about the slot beside the descriptor rather than about
+        // that refusal.
+        "#[Core\\Json\\Derive]\n",
         "class Note {\n",
         "  public string $name;\n",
         "  function constructor(string $name) { $this->name = $name; }\n",

@@ -166,13 +166,26 @@
 //! stays under it as the backstop for a class built by hand, as the row door's
 //! does.
 //!
+//! A class that declared **no codec at all** is refused by that same pass, one
+//! condition earlier and as `E0821`: `rule:core-classes/derive-attribute` makes
+//! participation opt-in, so a call naming a class that carries neither
+//! `#[Json\Derive]` nor a written `fromJson` names something no document can be
+//! read into, and the call is where that is known. [`check_codec`]'s
+//! `LogicError` stays under it on the same terms — the backstop for a
+//! descriptor built by hand, which no call site named.
+//!
 //! # Known gaps
 //!
-//! 1. **A hand-written `Core\Json\Codec` is not consulted.** `rule:core-classes/derive-generates-what-is-missing` lets
-//!    a class write its own `toJson()` and keep the generated decoder; today
-//!    only the derived field list is read, so a class with a hand-written
-//!    encoder and no attribute still refuses. Closing it is a
-//!    `ClassDesc::method("toJson")` lookup and a call back into compiled code
+//! 1. **A hand-written `Core\Json\Codec` is not consulted, in either
+//!    direction.** `rule:core-classes/derive-generates-what-is-missing` lets a
+//!    class write one half and take the other from the attribute; today only
+//!    the derived field list is read, so a class with a hand-written encoder
+//!    and no attribute still refuses to write. The decoding half is the one a
+//!    program now reaches: `nvs_types::derive`'s `check_json_sites` lets a call
+//!    name a class that declared `fromJson` itself, since that is the second
+//!    door into participation and a door has to be one at both ends, so such a
+//!    call compiles and then meets [`check_codec`]'s refusal. Closing it is a
+//!    `ClassDesc::method` lookup per half and a call back into compiled code
 //!    from the native walk, or it is nothing to write at all once that walk is
 //!    the emitted code gap 2 asks about.
 //!    Decided: Keep the descriptor and widen it (default constants on CodecField, a ClassDesc method
@@ -1470,7 +1483,9 @@ impl<'a> Contract<'a> {
 /// # Errors
 ///
 /// `LogicError` where `class` carries no derived codec at all, which is a
-/// defect in the program.
+/// defect in the program — `nvs_types::derive`'s `check_json_sites` says the
+/// same thing as `E0821` while compiling, so what is left here is the backstop
+/// for a descriptor built by hand, which no call site named.
 #[expect(
     unsafe_code,
     reason = "the caller owes the liveness of a descriptor no signature can express"
@@ -1839,8 +1854,9 @@ unsafe fn decode_fields(
     // own default above, and a property `skip: true` removed from the contract
     // leaves a parameter no field names, so there is no field here to read a
     // constant off. `nvs_types::derive`'s `check_json_sites` refuses a call
-    // naming such a class while compiling; this is the backstop for a class
-    // built by hand, and it is loud rather than passing `null`, which would be
+    // naming such a class while compiling, so this is unreachable from source
+    // — `E0820` gets there first — and is the backstop for a descriptor built
+    // by hand. Loud rather than passing `null`, which would be
     // right for `?T $x = null` and silently wrong for everything else. A shape
     // reaches this with every position filled, an absent optional key included:
     // what fills that one is the never-written marker.
@@ -2098,10 +2114,11 @@ unsafe fn convert_field(
                 scalar(field.ty, Some(cases), found, contract.reading)
             }
         }
-        // Reachable only through a *nested* class, whose own fields
-        // [`decode_as`]'s pre-check never saw: an [`undecoded`] wire type is a
-        // declaration `rule:core-classes/derive-field-list`'s reachable test
-        // refuses, so it is an engine fault wherever it is met and never an
+        // Met only through a *nested* class, whose own fields [`decode_as`]'s
+        // pre-check never saw — and unreachable from source even there: an
+        // [`undecoded`] wire type is a declaration
+        // `rule:core-classes/derive-field-list`'s reachable test refuses at
+        // `E0756`, so it is an engine fault wherever it is met and never an
         // issue in a list a program shows a user.
         CodecTy::Opaque | CodecTy::Bytes => {
             return Err(DecodeFailure::Fault(Fault::fatal(format!(
@@ -2173,7 +2190,10 @@ unsafe fn decode_nested(
     // the whole call came through, not of how deep the field sits.
     let nested = unsafe { Contract::new(class, contract.shape_at(index)) }.over(contract.reading);
     // Asked of a class only, on [`check_codec`]'s terms: an inline shape *is* a
-    // wire contract, and `{}` is an empty one rather than a missing one.
+    // wire contract, and `{}` is an empty one rather than a missing one. A
+    // field typed as a class carrying no codec is unreachable from source —
+    // `E0756` refuses that declaration — so this is the backstop for a
+    // descriptor built by hand.
     if nested.fields().is_empty() && !nested.is_shape() {
         return Err(DecodeFailure::Fault(Fault::fatal(format!(
             "Core\\Json::decodeAs(): `{}`'s `{}` field decodes into `{}`, which carries no \
@@ -2587,6 +2607,9 @@ unsafe fn decode_element(
     // is and the contract holding that shape's field types is resolved beside
     // the class at the same index.
     let element = unsafe { Contract::new(class, contract.shape_at(index)) }.over(contract.reading);
+    // [`decode_nested`]'s judgement too: an element class carrying no codec is
+    // unreachable from source, `E0756` refusing that declaration, so this is
+    // the backstop for a descriptor built by hand.
     if element.fields().is_empty() && !element.is_shape() {
         return Err(DecodeFailure::Fault(Fault::fatal(format!(
             "Core\\Json::decodeAs(): `{}`'s `{}` field holds `{}`, which carries no derived \

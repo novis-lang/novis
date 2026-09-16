@@ -1460,6 +1460,15 @@ and `#[Db\Derive]` on the class, `#[Json\Field]` and `#[Db\Field]` on a property
 the class implement the corresponding interface; writing `implements Core\Json\Codec` beside it is
 redundant but accepted.
 
+**Opting in is answered at the call as well as at the declaration.** A member that builds an instance
+out of a document or a row names the class in the call itself, so that is where the compiler asks
+whether the class participates at all: one carrying neither the format's attribute nor the
+hand-written half the derive would have generated — `fromJson` for a document, `fromRow` for a row —
+is refused while compiling, `E0821` at a document door and `E0806` at a row's. Both doors answer the
+same way, and both answer before the program runs, so a class no document could ever be read into is
+not something the first request to reach the member discovers. The run-time refusal stays underneath
+as the backstop for a descriptor built by hand, which no call site named.
+
 **A compiler-recognized attribute is matched nominally.** The compiler acts on an attribute only when
 its name *resolves*, through the ordinary namespace and `use` rules, to one of a closed `Core`-owned
 list. So `#[Core\Json\Derive]` and a `use`d `#[Derive]` are one attribute reached two ways, while a

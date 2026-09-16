@@ -1,0 +1,77 @@
+--TEST--
+A class that carries neither `#[Json\Derive]` nor a written `fromJson` can be read out of no document, and the call that asks for one is refused while compiling — `rule:core-classes/derive-attribute`, `rule:core-classes/derive-generates-what-is-missing`
+--FILE--
+<?nvs
+// `rule:core-classes/derive-attribute`: participation is opt-in, and the two
+// doors into it are this attribute and the hand-written half the derive would
+// otherwise generate. The accepted side of the bound, first door.
+#[Core\Json\Derive]
+final class Row {
+    public int $n;
+
+    public function constructor(int $n) {
+        $this->n = $n;
+    }
+}
+
+// The accepted side, second door. `rule:core-classes/derive-generates-what-is-missing`
+// lets a class write a half itself, and `fromJson` is the half this call needs,
+// so the class has opted in as squarely as the attribute does — it records no
+// field list precisely because there is nothing left to generate.
+final class Written {
+    public int $n;
+
+    public function constructor(int $n) {
+        $this->n = $n;
+    }
+
+    public static function fromJson(mixed $value): Written {
+        return new Written(0);
+    }
+}
+
+// The refused side, one declaration different: neither door. The class stays
+// well formed for everything else it does — the program can still build one —
+// so the refusal is of the **call** that asks for one out of a document.
+final class Plain {
+    public int $n;
+
+    public function constructor(int $n) {
+        $this->n = $n;
+    }
+}
+
+final class Legacy {
+    public int $n;
+
+    public function constructor(int $n) {
+        $this->n = $n;
+    }
+}
+
+var $row = Core\Json::decodeAs<Row>("{\"n\":1}");
+var $written = Core\Json::decodeAs<Written>("{\"n\":1}");
+echo $row->n, $written->n, "\n";
+
+// The report quotes back the class it was handed, so the sentence is not a
+// constant: two classes, two of them, differing in the one place the caller
+// chose.
+var $plain = Core\Json::decodeAs<Plain>("{\"n\":1}");
+var $legacy = Core\Json::decodeAs<Legacy>("{\"n\":1}");
+echo $plain->n, $legacy->n, "\n";
+
+// The class is answered before the document is, and a compile-time refusal is
+// as far forward as that goes: this text is not JSON at all and the class is
+// still what the report names.
+var $malformed = Core\Json::decodeAs<Plain>("{oops}");
+echo $malformed->n, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0821]: `Plain` carries no `#[Json\Derive]` and declares no `fromJson`, so `Core\Json::decodeAs` has no codec to read one with
+%A
+error[E0821]: `Legacy` carries no `#[Json\Derive]` and declares no `fromJson`, so `Core\Json::decodeAs` has no codec to read one with
+%A
+error[E0821]: `Plain` carries no `#[Json\Derive]` and declares no `fromJson`, so `Core\Json::decodeAs` has no codec to read one with
+%A
+error: aborting due to 3 errors

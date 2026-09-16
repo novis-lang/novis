@@ -1078,7 +1078,8 @@
       "guardedBy": [
         "tests/conformance/core/db-derive-is-a-recognized-attribute.nvst",
         "tests/conformance/core/json-derive-encodes-declared-fields.nvst",
-        "tests/conformance/reject/a-json-field-attribute-has-exactly-two-options.nvst"
+        "tests/conformance/reject/a-json-field-attribute-has-exactly-two-options.nvst",
+        "tests/conformance/reject/a-class-that-declared-no-json-codec-is-refused-at-the-decode-site.nvst"
       ]
     },
     {
