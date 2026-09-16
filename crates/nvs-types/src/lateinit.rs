@@ -45,27 +45,22 @@
 //! which is the sound direction: the closure runs when it is called, so no
 //! walk of the method holding it can say what has been written by then.
 //!
-//! **Known gaps**, deliberately out of scope for this slice, same standard
-//! as every other gap in this crate — reject or stay silent, never wrongly
-//! accept and never wrongly flag:
-//! - Only a class's *own* `lateinit` properties (see
-//!   [`crate::signatures::own_lateinit_properties`]) are tracked here. A
-//!   property declared `lateinit` on a parent class, read through `$this` in
-//!   a *subclass*'s own method, is not checked by this pass at all — it
-//!   relies entirely on `rule:classes/lateinit`'s runtime throw. This mirrors
-//!   `crate::signatures::own_required_properties`'s own choice to exclude
-//!   `extends`, for the same reason: the property is checked when its own
-//!   declaring class's methods are checked, not re-derived here.
-//!   Decided: Keep own-class only; the runtime throw covers subclasses — Simple and consistent with the
-//!   sibling pass, and `lateinit` is by definition checked at run time anyway.
-//!   — owner: unowned-closures
-//! - A `set`-hooked `lateinit` property is not modeled specially here either
-//!   (mirroring `crate::ctor_init`'s identical gap for a hooked required
-//!   property) — see `rule:classes/lateinit`'s own *Revisiting* section, which defers this
-//!   exact question to `docs/spec/`.
-//!   Decided: Keep the exemption; the runtime read-before-write throw covers it — Safe (an unwritten
-//!   read throws) and simple, and the error comes only at run time.
-//!   — owner: unowned-closures
+//! **Only a class's own `lateinit` properties are tracked**, the set
+//! [`crate::signatures::own_lateinit_properties`] returns. A property
+//! declared `lateinit` on a parent and read through `$this` in a *subclass*'s
+//! own method is not checked by this pass: it is checked when its own
+//! declaring class's methods are, which is the same reason
+//! [`crate::signatures::own_required_properties`] excludes `extends` rather
+//! than re-deriving an inherited obligation at every subclass. A read this
+//! pass does not reach falls through to `rule:classes/lateinit`'s runtime
+//! throw, which is what `lateinit` is defined against in any case.
+//!
+//! **A `set`-hooked `lateinit` property is not modeled specially either**,
+//! mirroring [`crate::ctor_init`]'s identical bound for a hooked required
+//! property and holding for the same reason: neither pass has a model of a
+//! hook's body, so a read of one is left to that same runtime throw.
+//! `rule:classes/lateinit`'s own *Revisiting* section defers the question to
+//! `docs/spec/`.
 
 use nvs_diagnostics::{Diagnostic, code};
 use nvs_hir::QName;

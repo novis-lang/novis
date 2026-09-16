@@ -61,14 +61,17 @@
 //! therefore refused, and `rule:classes/lateinit` is the spelling for a
 //! property that really is written after construction.
 //!
+//! **A property backed by a `set` hook carries no obligation here.**
+//! [`crate::signatures::ClassSignature::required_properties`] leaves it out
+//! rather than asking whether the hook commits a value, because this pass has
+//! no model of a hook's body: what a hook does with what it is handed cannot
+//! be read off the constructor's own paths. A hooked property no constructor
+//! assigns is caught where every unwritten property is caught in the end, by
+//! `rule:classes/lateinit`'s read-before-write throw at run time — later than
+//! a compile error, and the price of never refusing a hook that does commit
+//! the value.
+//!
 //! **Known gaps**, deliberately out of scope for this slice:
-//! - A property backed by a `set` hook is exempted from
-//!   [`crate::signatures::ClassSignature::required_properties`] entirely,
-//!   rather than checked against whether the hook actually commits a value —
-//!   this module has no model of a hook's body at all.
-//!   Decided: Keep the exemption; the runtime read-before-write throw covers it — Safe (an unwritten
-//!   read throws) and simple, and the error comes only at run time.
-//!   — owner: unowned-closures
 //! - A class with no explicit `constructor` is not itself checked against
 //!   the `parent::constructor(...)` obligation — it has no constructor body
 //!   of its own for such a call to go in; PHP inherits the parent
