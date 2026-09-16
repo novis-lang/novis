@@ -15,6 +15,10 @@ case-subset type is reached (`rule:types/enum-case-type`). Adding equality-drive
 have to be stated again for `!=`, `&&`, `||` and negation, where `as` says the same thing in one
 place.
 
+The subject of every spelling is a **binding**, named. A property, an element or any other place is
+never the thing narrowed: `$e->previous != null` proves nothing about the next read of
+`$e->previous`, so a nullable one is reached through `?->` or bound to a local and tested there.
+
 Narrowing never changes a binding's declared type (`rule:types/declaration`); it changes what the
 checker knows about it on one path. A value that has to *stay* narrowed is a second binding at the
 type you want, or a checked `as` (`rule:types/conversion`).

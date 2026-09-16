@@ -52,16 +52,23 @@
 //! `parent::constructor(…)` is already refused, by the same check every other
 //! `extends` gets — nothing exception-specific is needed for that.
 //!
-//! # Known gaps
+//! # `previous` is read like every other nullable property
 //!
-//! * **`$e->previous` is set but cannot be *read* through.** The chain is
-//!   built — `new RuntimeError("…", {previous: $e})` stores it, and reading
-//!   the property back yields the `Throwable|null` it was given — but that
-//!   type erases to `nvs_ir::Ty::Tagged`, so reaching `->message` on it needs
-//!   the value bound to a local and narrowed with `!= null` first (`rule:expressions/nullable-conversion`).
-//!   A property access straight off `$e->previous` is the tagged-receiver
-//!   case `nvs_ir::Ty::Tagged`'s own known gap names.
-//!   — owner: unowned
+//! The chain is built and read back at the type it was given: `new
+//! RuntimeError("…", {previous: $e})` stores it and `$e->previous` is the
+//! `Throwable|null` that went in. Reaching a member of *that* is the ordinary
+//! nullable-receiver question, and nothing exception-specific answers it. A
+//! plain `->` straight off `$e->previous` is `E0459`; `$e->previous?->message`
+//! reads through it in one expression; a binding the same `== null` test
+//! narrows is the other route, and the one worth taking when more than one
+//! read follows.
+//!
+//! What rules the middle term out — narrowing `$e->previous` in place — is
+//! `rule:types/narrowing`'s subject rather than anything about exceptions:
+//! every spelling narrows a *binding*, by name, which is what [`crate::locals`]
+//! keys the narrowed type on. That `Throwable|null` erases to
+//! `nvs_ir::Ty::Tagged` costs this nothing, since an erased receiver lowers
+//! like any other.
 
 use nvs_hir::QName;
 use nvs_hir::errors::{PROPERTIES, ROOT, TREE};
