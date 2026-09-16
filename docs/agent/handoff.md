@@ -2,48 +2,51 @@
 
 ## State
 
-**Goal `unowned-closures`, stage 6 — the register.** `python tools/owners.py` reports `unowned: 31`,
-`past-milestone: 8`, `untagged: 0`, `broken-tag: 0` and `unreasoned: 0`; the stage wants the first at
-0, and its other check, `python tools/owners.py --deferrals`, is green. `owners.py` § *UNOWNED* is
-the roster of all 31, each with its reason in `docs/agent/carried-gaps.md` § *Unowned*.
+**Goal `unowned-closures`, stage 6 — the register.** `python tools/owners.py` reports `unowned: 20`
+(was 31), `goal-owned: 65`, `past-milestone: 8`, `untagged: 0`, `broken-tag: 0`, `unreasoned: 0` and
+`sections outside Known gaps: 0`; the stage's other check, `python tools/owners.py --deferrals`, is
+green. The stage wants the first at 0, and § *UNOWNED* is the roster of the 20 left.
 
-**`nvs-types` now has no unowned gap at all.** `intrinsics.rs` gap 6 was stale: `nvs check` has read
-the tree since `nvs-cli`'s `front_end_granted` was built, and `crates/nvs-cli/tests/check_grants.rs`
-pins all three halves of it — an ungranted literal host is `E0618`, no configuration is silence, and
-a broken `nvs.toml` outranks both. What the pass does now is stated in its own module doc, and the
-carried-gaps bullet whose `[until:]` condition that met is gone.
+**`nvs-ir` now has no unowned gap.** All eleven were bounds rather than owed work, and the tree said
+so: `python tools/holes.py` counts 0 refusal sites, so every "…panics" claim among them was stale, and
+`target/debug/nvs.exe` run over a scratch file answered `<=>` on an `int`, a mixed numeric and a
+`decimal` pair, `**`, `**=`, and a ternary joining an `int` and a `float` arm. The eleven are now
+prose under `crates/nvs-ir/src/lib.rs` § *What each area lowers, and the limit it holds within*;
+`# Known gaps` moved to the foot of that doc and holds 7 (M12), 14, 18 and the new 21, its preamble
+rewritten because it claimed every item panics.
 
-**`rule:types/declaration`'s return slot is now enforced** — `E0823`, at a method, an abstract
-method and an interface member alike. The corpus was already unanimous (1596 non-constructor
-signatures wrote the slot; the only one that did not is the `__construct` reject fixture, which
-`E0114` already refuses and this check is deliberately silent on), so nothing in the trees moved.
-The rule now states the constructor exception it always relied on. Conformance is 2003, differential
-281, `python tools/verify.py` green. Nothing is blocked.
+**One live bug found while reading, filed as gap 21 rather than fixed.** A conversion whose target is
+a *union* carrying `null` never reaches the membership chain: `"z" as ?"a"|"b"` answers `"z"` where
+`rule:expressions/nullable-conversion` answers `null`, because the annotation parses as a
+`TypeKind::Union` whose first member carries the `?` and `nullable_target` reads the annotation's own
+kind. `$s as ?"a"` is unaffected. Nothing is blocked.
 
 ## Next group
 
-**Stage 6: `nvs-ir`'s unowned cluster, the largest one left** — one file set:
-`crates/nvs-ir/src/lib.rs`'s single `# Known gaps` block and `docs/agent/carried-gaps.md`. Read the
-block whole before deciding anything: one carried-gaps entry reasons for all eleven gaps at once, so
-this is likely one decision rather than eleven. **Read the code before believing the gap** — three
-of the last four gaps taken described a hole the tree had already closed, and a ten-line scratch
-file under `.agent-tmp/` run through `target/debug/nvs.exe` settled each faster than the prose did.
+**Stage 6: gap 21, the one live bug the register now names** — one file set:
+`crates/nvs-ir/src/lower/convert.rs` and one new `tests/conformance/lang/` case.
 
-- [ ] **Decide `nvs-ir`'s eleven unowned gaps as one reading of one block** —
-      `crates/nvs-ir/src/lib.rs:209` through `crates/nvs-ir/src/lib.rs:532` (gaps 2, 3, 4, 5, 6, 9,
-      15, 16, 17, 19, 20), `rule:types/arithmetic` and `rule:expressions/one-equality-operator` for
-      the operator rows among them. Per the goal's § *Standing decisions*: build it, state it as a
-      bound, or defer it to an M9+ milestone whose plan states the scope.
-- [ ] **Strike or re-own the one carried-gaps entry that reasons for the whole block** —
-      `docs/agent/carried-gaps.md:152`, whose `[until:]` trailer names the tree state that retires
-      it. It cites `docs/agent/carried-refusals.md`'s item 901, which is the argument it leans on.
+- [ ] **Read the annotation through its union in `nullable_target`** —
+      `crates/nvs-ir/src/lower/convert.rs:2047` is the three-arm match that answers `None` for
+      `Union[Nullable("a"), "b"]`, `crates/nvs-ir/src/lower/convert.rs:700` is the `as ?T` branch it
+      gates (whose `class_ref_base`, array-restamp and property-key rows all read the *whole*
+      annotation already), and `crates/nvs-ir/src/lower/convert.rs:1580`'s `nullable_target_atoms`
+      already drops `null` out of a union of any width. `rule:expressions/nullable-conversion`.
+- [ ] **Pin both spellings with one conformance case** — `?"a"|"b"` and `"a"|"b"|null`, a hit and a
+      miss each, against `crates/nvs-ir/src/lower/convert.rs:1692`'s
+      `lower_nullable_membership`; `rule:types/literal-types` for the accepted set's rendering.
+- [ ] **Then take the next unowned cluster, `crates/nvs-cli/src/openapi.rs:32`** (gaps 1–5, the
+      largest one left) — a different file set, so only if the two above leave room.
 
 ## Backlog
 
-- `crates/nvs-ir/src/lib.rs`'s remaining gaps after the cluster, if the block splits — its own
-  module doc.
-- `crates/nvs-cli/src/openapi.rs`'s five unowned gaps, the next cluster by size — that module's doc.
-- `crates/nvs-host/`'s three unowned gaps across `group.rs`, `placed.rs` and `worker.rs` — one
-  placement question in three files.
-- The eight `past-milestone: 8` deferrals, which name a milestone the program has already passed and
-  so are owed by a goal or nobody — `python tools/owners.py` names each.
+- `crates/nvs-runtime/src/graph.rs:61`, `:77` and `ctx/mod.rs:65` — three unowned (owners.py § UNOWNED).
+- `crates/nvs-host/src/group.rs:90`, `placed.rs:33`, `worker.rs:98` — three unowned, one file set.
+- The eight `past-milestone` items owners.py lists: each needs a goal or a bound, not an older `M`.
+- `docs/agent/carried-gaps.md:53` — `Core\Process::spawn`'s owner goal `m8-stdlib-depth` is retired
+  (`python tools/playbook.py --check` names it).
+- `crates/nvs-ir/src/lower/convert.rs:406` — `convert_or_null`'s `# Panics` section still names
+  `$m as ?array<T>`, which `lower_array_restamp` has answered since; the code below it says so.
+- `crates/nvs-server/src/schedule.rs:1596` — `a_fleet_lease_is_renewed_while_its_run_is_in_flight`
+  failed beside the other test binaries and passed alone in the next run, which is the isolation
+  defect `tools/verify.py` § *Why `test` runs its binaries side by side* describes.

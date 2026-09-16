@@ -6887,13 +6887,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   Write its fixture in a parameter, property or `type` alias, and collect it with
   `check_src_allowing_parse_errors`.
   [until: gone crates/nvs-syntax/src/parser/stmt.rs:cp.diags_len]
-- **`nvs-ir`'s `# Known gaps` list has a contract, and a half-landed checker bit does not meet it.**
-  The list opens with "Each panics naming itself rather than miscompiling", so a gap that silently
-  keeps the old answer — a new `ExprInfo` field `nvs-ir` does not read yet — cannot be filed there,
-  and filing it would make the list's own promise false for every reader after you. State that kind
-  of boundary where the code is instead: the `ExprInfo` field's own doc says what the entry carries,
-  and the lowering site's comment says which fields it reads and which it does not.
-  [until: gone crates/nvs-ir/src/lib.rs:Each panics naming itself]
 - **A shape's synthesized class cannot carry a codec, because two different shapes share it.**
   `nvs_ir::lower::shape_class_label` keys on the sorted field *names* alone
   (`crates/nvs-ir/src/lower/mod.rs:2957`), so `{n: int}` and `{n: string}` are one class and one

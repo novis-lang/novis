@@ -149,19 +149,6 @@ where taking it is the work and the code that follows it is not.
   has no suffix case. The rows themselves are guarded by `crates/nvs-types/tests/routes.rs`. Found by
   the docs migration's sweep (unit C8), which could record it and not write it.
   [until: exists tests/conformance/core/a-shared-route-name-is-one-endpoint-everywhere.nvst]
-- **`nvs-ir`'s lowering residue, beyond the refusal sites
-  [carried-refusals.md](carried-refusals.md)'s item 901 carries.** That entry's argument covers the
-  whole file: M4 reached its loop goal, the milestone is carried, and no live entry on the chain
-  writes `nvs-ir` lowering again, so what that acceptance list did not ask for stayed. It is a panic
-  each — `<=>` and `**` have no `ir::BinOp` row, a ternary's two arms have no recorded result type to
-  widen to, `as ?"a"` has no merge for the arm that answers `null` — plus one leak on the throw path
-  and one **security** row, a `secret` compared against a `mixed` falling out of constant time, which
-  closes by teaching `nvs_runtime::value_identical` the property rather than by adding a lowering
-  arm. The items that index a hole another module's doc owns are tagged here too, and for the
-  scheduling question rather than for the detail: each names the doc that holds it. What has to be
-  decided is which goal reopens the crate — item 901 named one, `typed-callable`, and it retired
-  without closing a site. `crates/nvs-ir/src/lib.rs` § *Known gaps* carries the tags.
-  [until: gone crates/nvs-ir/src/lib.rs:owner: unowned]
 - **`nvs-runtime`'s missing representations, which nothing on the chain asks for.**
   Every string producer but `nvs_str_append`'s in-place path allocates its result, so what has to be
   decided there is whether each gains the sole-ownership check `NvsArray`'s copy-on-write already
