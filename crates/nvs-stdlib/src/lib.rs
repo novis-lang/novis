@@ -190,6 +190,7 @@ mod keyring;
 mod log;
 mod mail;
 pub mod math;
+mod metrics;
 mod mime;
 mod multipart;
 mod net;
@@ -381,6 +382,7 @@ fn address_of(symbol: &'static str) -> *const u8 {
         .or_else(|| log::address(symbol))
         .or_else(|| mail::address(symbol))
         .or_else(|| math::address(symbol))
+        .or_else(|| metrics::address(symbol))
         .or_else(|| mime::address(symbol))
         .or_else(|| net::address(symbol))
         .or_else(|| objmap::address(symbol))

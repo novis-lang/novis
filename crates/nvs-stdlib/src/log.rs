@@ -292,7 +292,7 @@ fn message_of(value: &Value) -> Result<&str, Fault> {
 /// `source` is the one field neither this crate nor the context can answer for:
 /// `rule:errors/a-record-names-where-it-was-produced` makes it a property of the
 /// *call site*, so it arrives as the constant
-/// [`crate::registry::RECORD_PRODUCERS`] puts in argument 0 and is set here
+/// [`crate::registry::SOURCE_MEMBERS`] puts in argument 0 and is set here
 /// rather than by [`Ctx::stamp_envelope`], which answers for the request.
 ///
 /// Everything past building it belongs elsewhere: which keys a rendering
@@ -469,7 +469,7 @@ mod tests {
         );
     }
 
-    /// The zero word [`crate::registry::RECORD_PRODUCERS`] hands a producer
+    /// The zero word [`crate::registry::SOURCE_MEMBERS`] hands a producer
     /// with no call site — what a test driving the helper by hand holds, there
     /// being no compiled unit under it to have baked a carrier.
     fn no_source() -> Value {

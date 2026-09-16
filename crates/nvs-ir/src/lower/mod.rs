@@ -2108,7 +2108,7 @@ impl<'a> Lowering<'a> {
         [desc, list, codec]
     }
 
-    /// The constant a producer on `nvs_stdlib::registry::RECORD_PRODUCERS`
+    /// The constant a member on `nvs_stdlib::registry::SOURCE_MEMBERS`
     /// takes as its argument 0: where this call site is, as
     /// [`InstKind::SourceConst`] carries it.
     ///

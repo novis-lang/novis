@@ -3565,7 +3565,7 @@ impl<'a> Lowering<'a> {
             let written_class =
                 nvs_types::core_takes_written_class(&call.class.to_string(), &call.method)
                     .then(|| self.written_type_constants(*cur, call));
-            // A member on `nvs_stdlib::registry::RECORD_PRODUCERS` is handed
+            // A member on `nvs_stdlib::registry::SOURCE_MEMBERS` is handed
             // where it was called, as argument 0 — `Lowering::producer_source`
             // owns the position and why it is emitted here.
             let source = nvs_types::core_takes_source(&call.class.to_string(), &call.method)
@@ -3793,7 +3793,7 @@ impl<'a> Lowering<'a> {
             let written_class =
                 nvs_types::core_takes_written_class(&call.class.to_string(), &call.method)
                     .then(|| self.written_type_constants(*cur, call));
-            // A member on `nvs_stdlib::registry::RECORD_PRODUCERS` is handed
+            // A member on `nvs_stdlib::registry::SOURCE_MEMBERS` is handed
             // where it was called, as argument 0 — `Lowering::producer_source`
             // owns the position.
             let source = nvs_types::core_takes_source(&call.class.to_string(), &call.method)

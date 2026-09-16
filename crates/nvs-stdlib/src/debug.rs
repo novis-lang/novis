@@ -164,7 +164,7 @@ nvs_runtime::nvs_helper! {
     /// The tail arrives as one `array` argument holding the arguments under
     /// `"0"`, `"1"`, … — [`crate::registry::CoreTy::Variadic`] owns why — and
     /// ahead of it is where this call was written, which
-    /// [`crate::registry::RECORD_PRODUCERS`] puts in argument 0 and owns the
+    /// [`crate::registry::SOURCE_MEMBERS`] puts in argument 0 and owns the
     /// position of.
     ///
     /// A dump with no arguments at all writes nothing rather than an empty
@@ -423,7 +423,7 @@ mod tests {
 
     /// `rule:errors/a-record-names-where-it-was-produced`: the record a dump
     /// produces names the file, line and member its own call was written at,
-    /// read off the constant [`crate::registry::RECORD_PRODUCERS`] puts in
+    /// read off the constant [`crate::registry::SOURCE_MEMBERS`] puts in
     /// argument 0.
     ///
     /// Asserted on the record rather than on what the channel shows, because

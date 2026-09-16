@@ -2005,6 +2005,12 @@ pub const CLASSES: &[CoreClass] = &[
     // reason [`CoreTy::Instance`] states — a `Core` instance has no property a
     // program can reach.
     crate::ratelimit::DECISION,
+    // `rule:observability/metrics-three-members`'s three verbs, beside the
+    // limiter because they are the two halves of one question a deployment
+    // asks: how much a caller may have, and how much everything is doing. Its
+    // registry is `nvs_runtime::metrics`' and not this crate's, for the reason
+    // that module's own doc gives.
+    crate::metrics::CLASS,
     // `rule:tooling/reflection-and-source-parsing-are-core-features`'s read-only introspection, whose members are the door onto a
     // description and nothing else — a program can reach a member it may not
     // call only through the description, and § 2 makes that reach face the
@@ -2928,15 +2934,24 @@ pub fn takes_written_class(class: &str, method: &str) -> bool {
 }
 
 /// The closed roster of members whose helper is handed **where it was called**,
-/// as an extra leading argument — `rule:errors/a-record-names-where-it-was-produced`'s
-/// file, one-based line and enclosing `Class::member`.
+/// as an extra leading argument — the file, the one-based line and the
+/// enclosing `Class::member` of the call.
 ///
-/// A record says where it was produced and only the compiler knows, so the
-/// datum arrives as a constant of the call: `nvs_ir::ir::InstKind::SourceConst`
-/// carries what `nvs_ir::lower::Lowering::source` derived, `nvs-codegen` bakes
+/// Only the compiler knows where a call is, so the datum arrives as a constant
+/// of the call: `nvs_ir::ir::InstKind::SourceConst` carries what
+/// `nvs_ir::lower::Lowering::source` derived, `nvs-codegen` bakes
 /// `nvs_runtime::source::encode`'s bytes into the unit, and the helper reads
 /// them back through `nvs_runtime::source::of_operand`. A member on this roster
 /// therefore has `args: [N]` **one more** than [`CoreMethod::params`] counts.
+///
+/// **Two rules put a member here**, and each wants the datum to send a reader
+/// to a line of their own program.
+/// `rule:errors/a-record-names-where-it-was-produced` makes a record name where
+/// it was produced, which is `Core\Debug::dump` and `Core\Log::write`.
+/// `rule:observability/metrics-three-members` fixes a metric name to one kind
+/// on first use, so the call that disagrees with it throws naming **both**
+/// sites — the one that fixed the kind and the one that did not match it —
+/// and the first of those is a site the registry kept from an earlier call.
 ///
 /// **The constant is always argument 0**, ahead of the receiver and of
 /// everything the call wrote, which is [`WRITTEN_CLASS_MEMBERS`]' rule for its
@@ -2955,20 +2970,25 @@ pub fn takes_written_class(class: &str, method: &str) -> bool {
 /// — `rule:errors/debug-dump`'s nodes, without an envelope — so a source it was
 /// handed would reach no reader, and a slot nothing reads is a slot that goes
 /// wrong quietly.
-pub const RECORD_PRODUCERS: &[(&str, &str)] =
-    &[(crate::debug::NAME, "dump"), (crate::log::NAME, "write")];
+pub const SOURCE_MEMBERS: &[(&str, &str)] = &[
+    (crate::debug::NAME, "dump"),
+    (crate::log::NAME, "write"),
+    (crate::metrics::NAME, "increment"),
+    (crate::metrics::NAME, "observe"),
+    (crate::metrics::NAME, "gauge"),
+];
 
-/// Whether `class::method` is one of [`RECORD_PRODUCERS`].
+/// Whether `class::method` is one of [`SOURCE_MEMBERS`].
 #[must_use]
 pub fn takes_source(class: &str, method: &str) -> bool {
-    RECORD_PRODUCERS
+    SOURCE_MEMBERS
         .iter()
         .any(|(owner, name)| *owner == class && *name == method)
 }
 
 /// The closed roster of members whose helper is handed **the class its call
 /// site is inside**, as an extra trailing argument — the same
-/// `nvs_ir::ir::InstKind::SourceConst` [`RECORD_PRODUCERS`] takes, read for its
+/// `nvs_ir::ir::InstKind::SourceConst` [`SOURCE_MEMBERS`] takes, read for its
 /// enclosing `Class::member` half alone.
 ///
 /// `rule:security/reflection-enforces-visibility` states its rule over the call
@@ -2980,7 +3000,7 @@ pub fn takes_source(class: &str, method: &str) -> bool {
 /// `args: [N]` **one more** than [`CoreMethod::params`] counts, receiver
 /// included.
 ///
-/// **The constant is always the last argument**, where [`RECORD_PRODUCERS`]' is
+/// **The constant is always the last argument**, where [`SOURCE_MEMBERS`]' is
 /// always argument 0, so the two rosters need no order decided between them: a
 /// member on both reads the source at the front and the site at the back. A
 /// trailing slot is affordable here and not there because no member on this
@@ -4769,7 +4789,7 @@ mod tests {
     ///
     /// A variadic member's own tail is its last slot and its position is what
     /// the site constant would take, so the two cannot share a member: that is
-    /// [`RECORD_PRODUCERS`]' whole reason for claiming argument 0 instead, and
+    /// [`SOURCE_MEMBERS`]' whole reason for claiming argument 0 instead, and
     /// this is the check that keeps the cheaper choice honest here.
     #[test]
     fn every_call_site_member_takes_a_fixed_argument_list() {

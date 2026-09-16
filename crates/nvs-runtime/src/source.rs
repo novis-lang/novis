@@ -122,7 +122,7 @@ pub unsafe fn decode(blob: *const u8) -> Option<Source> {
 /// field the envelope omits rather than rendering empty.
 ///
 /// The one reader a `Core` member wants: `nvs_stdlib::registry`'s
-/// `RECORD_PRODUCERS` is what puts the operand there, and this is what turns it
+/// `SOURCE_MEMBERS` is what puts the operand there, and this is what turns it
 /// back into the datum, so no producer spells the two steps for itself.
 ///
 /// # Safety
