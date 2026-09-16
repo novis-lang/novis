@@ -2,55 +2,50 @@
 
 ## State
 
-Goal `m8-stdlib-depth`. **Stage 12's first item is landed**: `Core\Metrics` is a registered class
-with `increment`, `observe` and `gauge`, and stages 0–11 are closed. What is left is stage 12's
-call-site half, then stages 13–15 (`Core\Process::spawn`, the verification remainder, the rulebook).
-Nothing is blocked.
+Goal `m8-stdlib-depth`. **Stage 12's call-site half is landed**: a literal series name outside
+`[a-z][a-z0-9_]*` is `E0769` where it was written, on all three verbs, and a `tainted` label value
+or series name is `E0401` at the argument. Stages 0–11 are closed.
 
-The per-core registry moved **down**, from `nvs-server` to `nvs_runtime::metrics`, because
-`nvs-stdlib` and `nvs-server` may not depend on each other and both write to one registry. Both
-module docs record the split. `crates/nvs-server/src/metrics.rs` is now a re-export plus the one
-declared-series case the floor names, so every `crate::metrics::…` caller in that crate is
-unchanged. `meter_this_core` now **adopts** an exporter into a registry that already exists, since
-`Core\Metrics` builds one on any thread that writes a metric without having been metered — which is
-every `nvs run`.
+**Stage 12 is not finished, and the driver's failing check is what is left**: of the three Rust
+tests its acceptance names under `-p nvs-stdlib`, only `core_metrics_is_a_registered_class` exists.
+The other two are the next group and neither needs new behaviour — the code they assert is landed.
 
-`registry::RECORD_PRODUCERS` is now `registry::SOURCE_MEMBERS`, because a second rule now puts a
-member on it: a metric name fixed to one kind throws naming both call sites, and the site arrives as
-the same argument-0 constant a record producer takes. Each metrics member therefore has `args: [4]`
-for three declared arguments.
+The grammar's one home is `nvs_stdlib::metrics::validate_name`, and that module is now `pub` so the
+checker reaches it. `Grammar::MetricName` is the one row on the intrinsic list whose refusal the
+runtime does **not** repeat — the registry fixes whatever it is handed, because a metric write may
+not fail the request that made it — and `crates/nvs-types/src/intrinsics.rs`' module doc, fourth
+bullet, is where that asymmetry is argued. Nothing is blocked.
 
 ## Next group
 
-**Stage 12, the call-site half: a literal name and a label value are checked where they are
-written** — one file set: the two checks are `nvs-types`' and the cases that pin them are reject
-cases, so `crates/nvs-types/src/intrinsics.rs`, `crates/nvs-types/src/core_lib.rs` and
-`tests/conformance/reject/` are open together.
+**Stage 12, the two acceptance tests that do not exist yet** — one file set: both are `#[cfg(test)]`
+tests in `crates/nvs-stdlib/src/metrics.rs`'s module at `:428`, reading `nvs_runtime::metrics`.
 
-- [ ] **A literal `$name` outside `[a-z][a-z0-9_]*` is a compile error** —
-      `crates/nvs-types/src/intrinsics.rs:360` is `check_call`, the call-site literal inspection the
-      four intrinsics already run, and `crates/nvs-types/src/intrinsics.rs:188` is the closed list it
-      walks. `rule:observability/metrics-three-members` is the grammar ("validated at compile time
-      against `[a-z][a-z0-9_]*`, by the same call-site literal inspection
-      `rule:security/secret-sinks-refuse` performs"), and a non-literal name stays a run-time
-      question — the registry fixes whatever it is handed. Closes
-      `a_literal_metrics_name_outside_the_grammar_is_a_compile_error` under `-p nvs-types`.
-- [ ] **A `tainted` label value is a compile-time diagnostic** — `crates/nvs-types/src/core_lib.rs:996`
-      is where a `Qual::Sink` parameter refuses a qualified argument, and the open question is whether
-      it reaches the **element** type of a `CoreTy::Array`: the row writes
-      `CoreTy::Array(&CoreTy::Text(Qual::Sink))` (`crates/nvs-stdlib/src/metrics.rs:81`) and nothing
-      yet proves the qualifier is read through the array. `rule:security/metric-label-refuses-tainted`
-      is the rule and `$name` is a sink for the same reason. Closes
-      `a_tainted_metrics_label_value_is_a_compile_time_diagnostic`.
-- [ ] **A reject case for each**, beside
-      `tests/conformance/reject/a-core-io-path-refuses-a-tainted-argument.nvst:1`, which is the
-      nearest `Qual::Sink` refusal already pinned and the shape to copy — an `--EXPECTF-ERROR--`
-      block reproducing the diagnostic's own indentation, which widens with the line number.
+- [ ] **A name used as a gauge and then incremented throws naming both sites** —
+      `crates/nvs-stdlib/src/metrics.rs:364` is `mismatch`, which builds the `LogicError` and reads
+      where the name was fixed off `nvs_runtime::metrics::fixed_at`
+      (`crates/nvs-runtime/src/metrics.rs:906`). `rule:observability/metrics-three-members` is the
+      rule; `tests/conformance/core/metrics-a-name-is-fixed-to-one-kind-and-the-throw-names-both-sites.nvst`
+      already pins it from a program, so this is the same claim asked of the helper. Closes
+      `a_metrics_name_used_as_a_gauge_then_incremented_throws_naming_both_sites` under
+      `-p nvs-stdlib`.
+- [ ] **A build with the exporter feature off still accumulates** —
+      `crates/nvs-runtime/src/metrics.rs:888` is `record`, which builds a registry on any thread
+      that writes a metric without having been metered, and `:921` is `on_this_core`, the only way
+      to read one back. `rule:observability/the-exporter-is-a-feature-and-core-metrics-is-not` is
+      the rule: behaviour is identical across builds except for the export path. Closes
+      `core_metrics_accumulates_with_the_exporter_feature_off` under `-p nvs-stdlib`.
 
 ## Backlog
 
-- Stage 13, `Core\Process::spawn` — `crates/nvs-stdlib/src/process.rs:36-50`, goal prose stage 13.
-- `nvs_runtime::metrics` gap 1 (`[metrics] endpoint` has no pusher) — owner `unowned-closures`.
-- `docs/agent/carried-gaps.md` lost two rows this session; the `Core\Process::spawn` row there is the
-  one stage 13 strikes.
-- `crates/nvs-stdlib/tests/migration-members-outstanding.txt:22` is struck with `spawn`.
+- Stage 13, `Core\Process::spawn` and M8's two open `Core\Process` bullets — `docs/agent/loop-goal.md`
+  § *Stage 13*, `crates/nvs-stdlib/src/process.rs:36-50`, guard at
+  `benches/abi-probe/tests/perf_guards.rs:436`.
+- Stages 14–15, the verification remainder and the `shipped` flips — the `[[check]]` blocks tagged
+  `15 the rulebook` in `docs/agent/loop-goal.toml`.
+- `rule:observability/metrics-three-members` spells the bag `array<string, string>` while the row
+  declares `array<string>` (`crates/nvs-stdlib/src/metrics.rs:116`). One of the two is wrong; stage
+  15's rulebook pass is where it is settled.
+- `[context] modules` is missing `crates/nvs-stdlib/src/metrics.rs` — the pack printed
+  `crates/nvs-runtime/src/metrics.rs` for stage 12 but not the class's own module, which is where
+  both of the next group's tests go.
