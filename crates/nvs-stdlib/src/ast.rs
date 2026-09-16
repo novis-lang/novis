@@ -505,7 +505,8 @@ nvs_runtime::nvs_helper! {
 
 #[cfg(test)]
 mod tests {
-    use nvs_runtime::{Ctx, NvsObj, NvsStr, OutputSink, Tag, Value, call};
+    use nvs_diagnostics::{Diagnostic, Diagnostics, SourceMap};
+    use nvs_runtime::{Ctx, NvsObj, NvsStr, OutputSink, THROWN, Tag, Value, call};
 
     use super::{CHILDREN_SLOT, KIND_SLOT, NAME, NODE, NODE_NAME, PRODUCTIONS, class_of};
     use crate::registry::{CLASSES, CoreTy};
@@ -769,5 +770,115 @@ mod tests {
             assert_data(child, seen);
             from = slot + 1;
         }
+    }
+
+    /// `rule:core-classes/ast-is-inert`'s one grammar, over a corpus: every seed
+    /// the fuzz targets read gets the compiler's own verdict from
+    /// `Core\Ast::parse` — source `nvs_syntax::parse_file` reports an error
+    /// for throws `ParseError`, and source it accepts answers a tree whose
+    /// every node is one of the roster's production classes.
+    ///
+    /// The corpus is `fuzz/seeds/parse/`, which the `parse` and `ast` targets
+    /// both take, and this is the leg that runs everywhere: libFuzzer needs
+    /// nightly and does not build on Windows, so the unbounded half runs where
+    /// it can and the seeds are replayed here.
+    ///
+    /// The verdict compared against is `parse_file`'s own diagnostics rather
+    /// than `nvs_syntax::walk::of_source`'s error, which is the door the
+    /// member itself calls: asking one function twice would assert nothing
+    /// about two answers agreeing. Both verdicts are then required of the
+    /// corpus by counting, so a seed directory that drifted into holding only
+    /// programs that parse stops testing the refusal silently.
+    #[test]
+    fn core_ast_parse_gives_the_compilers_verdict_on_every_parse_seed() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fuzz/seeds/parse");
+        let mut seeds: Vec<std::path::PathBuf> = std::fs::read_dir(&dir)
+            .unwrap_or_else(|why| {
+                panic!("the seed corpus at {} is committed: {why}", dir.display())
+            })
+            .map(|entry| entry.expect("a readable seed").path())
+            .collect();
+        seeds.sort();
+        let mut parsed = 0usize;
+        let mut refused = 0usize;
+
+        for seed in &seeds {
+            let name = seed.display().to_string();
+            let source = std::fs::read_to_string(seed)
+                .unwrap_or_else(|why| panic!("{name} is UTF-8 source: {why}"));
+            let mut map = SourceMap::new();
+            let id = map.add(name.clone(), source.clone());
+            let mut diags = Diagnostics::new();
+            let _ = nvs_syntax::parse_file(map.file(id), &mut diags);
+            let compiler_refuses = diags.iter().any(Diagnostic::is_error);
+
+            let value = Value::str(NvsStr::new(source.as_bytes()));
+            let mut ctx = Ctx::new(OutputSink::Sink);
+            match call(super::nvs_core_ast_parse, &mut ctx, &[value]) {
+                Ok(tree) => {
+                    parsed += 1;
+                    assert!(
+                        !compiler_refuses,
+                        "{name}: the compiler refuses this source and \
+                         `Core\\Ast::parse` answered a tree"
+                    );
+                    let mut seen = Vec::new();
+                    collect_classes(tree, &mut seen);
+                    assert_eq!(
+                        seen.first().map(String::as_str),
+                        Some(r"Core\Ast\File"),
+                        "{name}: a parsed file is a `File` node"
+                    );
+                    for class in &seen {
+                        assert!(
+                            class.starts_with(PRODUCTION_PREFIX),
+                            "{name}: {class} is not one of the roster's production classes"
+                        );
+                    }
+                    #[expect(
+                        unsafe_code,
+                        reason = "this test owns the one reference `parse` answered \
+                                  with, and the tree's own references are the nodes'"
+                    )]
+                    unsafe {
+                        tree.release();
+                    }
+                }
+                Err(status) => {
+                    refused += 1;
+                    assert!(
+                        compiler_refuses,
+                        "{name}: the compiler accepts this source and \
+                         `Core\\Ast::parse` refused it"
+                    );
+                    assert_eq!(
+                        status, THROWN,
+                        "{name}: a refused parse is a throw a program can catch, \
+                         never a fault it cannot"
+                    );
+                    assert_eq!(
+                        ctx.pending_class().as_deref(),
+                        Some("ParseError"),
+                        "{name}: the class a `catch` clause names"
+                    );
+                }
+            }
+
+            #[expect(
+                unsafe_code,
+                reason = "the argument is this test's own string, alive across the \
+                          call and released once after it"
+            )]
+            unsafe {
+                value.release();
+            }
+        }
+
+        assert!(
+            parsed > 0 && refused > 0,
+            "the corpus asks both questions: {parsed} seed(s) parse and \
+             {refused} are refused, of {}",
+            seeds.len()
+        );
     }
 }
