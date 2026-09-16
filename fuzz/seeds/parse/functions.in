@@ -1,0 +1,41 @@
+<?nvs
+class ConfigError extends Throwable
+{
+}
+
+class Loader
+{
+    public static function load(string $key, string $fallback = 'none'): string
+    {
+        if ($key == 'bad') {
+            throw new ConfigError('bad key');
+        }
+
+        return $key == '' ? $fallback : 'value-of-' . $key;
+    }
+
+    public static function total(int $base, int ...$rest): int
+    {
+        var $sum = $base;
+        foreach ($rest as int $one) {
+            $sum += $one;
+        }
+
+        return $sum;
+    }
+
+    public static function apply(callable $f, int $n): int
+    {
+        try {
+            return $f($n) as int;
+        } catch (ConfigError $refused) {
+            return -1;
+        } finally {
+            echo "applied\n";
+        }
+    }
+}
+
+echo Loader::load('host'), "\n";
+echo Loader::total(1, 2, 3), "\n";
+echo Loader::apply(fn (int $n): int => $n * 2, 21), "\n";

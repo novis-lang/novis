@@ -21,6 +21,13 @@ nvs-stdlib = { path = "../crates/nvs-stdlib" }
 nvs-syntax = { path = "../crates/nvs-syntax" }
 
 [[bin]]
+name = "ast"
+path = "fuzz_targets/ast.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "lex"
 path = "fuzz_targets/lex.rs"
 test = false

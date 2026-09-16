@@ -1,0 +1,12 @@
+<?nvs
+class User {
+    public string $name;
+
+    public function greet(): string {
+        return "hi ";
+    }
+}
+
+var $u = new User();
+echo $u->
+if (true) {

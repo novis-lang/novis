@@ -2,6 +2,9 @@
 //! including inputs the grammar rejects — a rejection must come back as a
 //! diagnostic, never a crash.
 //!
+//! The seeds are `fuzz/seeds/parse/`, shared with the `ast` target beside this
+//! one, which takes the same input and carries the walk over the tree as well.
+//!
 //! Run with `cargo +nightly fuzz run parse` (needs `cargo-fuzz`; libFuzzer is
 //! not supported on Windows, so this only runs where a nightly toolchain
 //! with a C compiler is available — see AGENTS.md's WSL section).

@@ -658,6 +658,16 @@ pays 32s of cold build instead of 0.31s. Nothing ages `/var/tmp` out — Ubuntu 
 From the repo root (not `fuzz/` itself — cargo-fuzz expects the parent directory):
 `cargo +nightly fuzz run lex -- -max_total_time=300`, and `parse` likewise.
 
+`ast` — `Core\Ast::parse`'s own door, `nvs_syntax::walk::of_source`, asserting that every production the
+walk answers with is one the typed roster names — takes `parse`'s seeds, since both read one source text:
+
+    mkdir -p fuzz/corpus/ast
+    cargo +nightly fuzz run ast fuzz/corpus/ast fuzz/seeds/parse -- -max_total_time=300
+
+Those same seeds are replayed on stable by
+`crates/nvs-stdlib/src/ast.rs`'s `core_ast_parse_gives_the_compilers_verdict_on_every_parse_seed`, which is
+the leg that runs on Windows and in the acceptance check.
+
 `prefix` — truncated and mid-edit documents through `nvs-syntax`, which is M4B's *Verify* asking for a
 five-minute run — is on the acceptance list and takes its two corpus directories as arguments:
 

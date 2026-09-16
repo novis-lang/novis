@@ -613,7 +613,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [lex, parse, prefix]
+        target: [ast, lex, parse, prefix]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: dtolnay/rust-toolchain@be39649afda95dbf70f87cce95f68b8d5797b296 # nightly branch
@@ -633,14 +633,18 @@ jobs:
           restore-keys: fuzz-corpus-${{ matrix.target }}-
       # `fuzz/corpus/` is the accumulated corpus and is not in the repository, so
       # a target's hand-written seeds live in `fuzz/seeds/<target>/` and are
-      # copied in here. Nothing the cache restored is at risk: libFuzzer names
-      # what it saves after the input's hash, so a seed can only overwrite
-      # itself. The guard is for a target with no seeds — lex and parse have none.
+      # copied in here. `ast` reads `parse`'s, because both take one source text
+      # and a second copy of the same files is a second thing to keep true.
+      # Nothing the cache restored is at risk: libFuzzer names what it saves
+      # after the input's hash, so a seed can only overwrite itself. The guard is
+      # for a target with no seeds of its own, which `lex` is.
       - name: Seed corpus for ${{ matrix.target }}
         run: |
-          if [ -d fuzz/seeds/${{ matrix.target }} ]; then
+          seeds=fuzz/seeds/${{ matrix.target }}
+          if [ "${{ matrix.target }}" = ast ]; then seeds=fuzz/seeds/parse; fi
+          if [ -d "$seeds" ]; then
             mkdir -p fuzz/corpus/${{ matrix.target }}
-            cp fuzz/seeds/${{ matrix.target }}/* fuzz/corpus/${{ matrix.target }}/
+            cp "$seeds"/* fuzz/corpus/${{ matrix.target }}/
           fi
       - name: Fuzz ${{ matrix.target }} for 300s
         run: cargo +nightly fuzz run ${{ matrix.target }} -- -max_total_time=300
