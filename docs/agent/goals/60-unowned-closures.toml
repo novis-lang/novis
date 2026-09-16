@@ -109,6 +109,9 @@ modules = [
   "crates/nvs-types/src/ctor_init.rs",
   "crates/nvs-types/src/lateinit.rs",
   "crates/nvs-types/src/intrinsics.rs",
+  "crates/nvs-types/src/links.rs",
+  "crates/nvs-types/src/expr/args.rs",
+  "crates/nvs-syntax/src/string_lit.rs",
   "crates/nvs-types/src/derive.rs",
   # Stage 4 -- the library.
   "crates/nvs-stdlib/src/compress.rs",
@@ -122,6 +125,8 @@ modules = [
   "crates/nvs-server/src/schedule.rs",
   "crates/nvs-server/src/trace.rs",
   "crates/nvs-db/src/catalog.rs",
+  "crates/nvs-db/src/schema.rs",
+  "crates/nvs-db/src/ddl.rs",
 ]
 
 rules = [
@@ -161,8 +166,13 @@ plan = ["Open now", "Blocking"]
 rules = ["security/tainted-sources", "errors/throw-is-not-slower"]
 
 [context.stage.3]
-# M1's `use function` / `use const` refusal names this rule.
-rules = ["classes/no-free-functions-or-constants"]
+# M1's `use function` / `use const` refusal names this rule, and the intrinsic pass's own two: what
+# the closed list is, and what a named argument is owed at a call that spells one.
+rules = [
+  "classes/no-free-functions-or-constants",
+  "expressions/intrinsic-list-is-closed",
+  "core-api/parameters-are-callable-by-name",
+]
 shapes = ["A `.nvst` test case"]
 
 [context.stage.4]
@@ -175,8 +185,21 @@ rules = [
 ]
 shapes = ["A `Core` member", "A `.nvst` test case"]
 
+[context.stage.5]
+# What a unit is keyed by and when a resolve may look at the file behind a path, plus the header an
+# artifact has to describe itself with -- the three an item in this stage keeps landing on.
+rules = [
+  "config/an-edit-reaches-the-next-request-without-a-restart",
+  "config/the-extension-set-is-in-every-unit-key",
+  "packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header",
+]
+
 [context.stage.6]
-milestones = ["M10:lead"]
+# A deferral is read against the plan file that has to have scoped it, so the candidate milestones are
+# printed rather than fetched one at a time; 0184's two sections are what the `nvs-host` placement
+# items are owed against.
+milestones = ["M10:lead", "M15:lead", "M9:lead"]
+adrs = ["0184 §2", "0184 §5"]
 
 # A constant-time compare and a hook marker are both refcount-neutral; the decided items each state
 # what they spend in their own module doc.
@@ -2402,9 +2425,21 @@ args = ["test", "-p", "nvs-stdlib"]
 tests = [
   "every_registered_cipher_is_an_aead",
   "a_signed_cookie_round_trips_and_a_tampered_one_is_refused",
-  "a_csrf_token_is_bound_to_the_session_that_issued_it",
   "a_totp_window_is_bounded_and_a_replay_is_refused",
   "a_jwt_with_an_unexpected_algorithm_is_refused",
+]
+
+# The CSRF token's *format* is `nvs-runtime`'s and not this crate's: `Core\Csrf` and the server door
+# are two readers in crates that cannot see each other, so the construction sits under both
+# (`crates/nvs-runtime/src/csrf.rs`). The binding is asserted where it is built; `nvs-stdlib` holds
+# the registry members over it.
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-runtime (a CSRF token is bound to the session that issued it)"
+args = ["test", "-p", "nvs-runtime"]
+tests = [
+  "a_token_is_bound_to_its_session_its_key_and_this_purpose",
 ]
 
 [[check]]

@@ -2425,9 +2425,21 @@ args = ["test", "-p", "nvs-stdlib"]
 tests = [
   "every_registered_cipher_is_an_aead",
   "a_signed_cookie_round_trips_and_a_tampered_one_is_refused",
-  "a_csrf_token_is_bound_to_the_session_that_issued_it",
   "a_totp_window_is_bounded_and_a_replay_is_refused",
   "a_jwt_with_an_unexpected_algorithm_is_refused",
+]
+
+# The CSRF token's *format* is `nvs-runtime`'s and not this crate's: `Core\Csrf` and the server door
+# are two readers in crates that cannot see each other, so the construction sits under both
+# (`crates/nvs-runtime/src/csrf.rs`). The binding is asserted where it is built; `nvs-stdlib` holds
+# the registry members over it.
+[[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-runtime (a CSRF token is bound to the session that issued it)"
+args = ["test", "-p", "nvs-runtime"]
+tests = [
+  "a_token_is_bound_to_its_session_its_key_and_this_purpose",
 ]
 
 [[check]]
