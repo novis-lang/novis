@@ -50,7 +50,6 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 | `queryAs<T>`'s three refusals are at run time; the band they waited on is open | `gap-zero` | `crates/nvs-stdlib/src/db/mod.rs` gap 4 |
 | Spec § 13's `Core\Test` cell states the roster in English, so `request`'s bag is spelled nowhere in the spec | `unowned-closures` | `docs/spec/01-core-library.md:1001`; the bag itself is `crates/nvs-stdlib/src/test.rs`'s `REQUEST_OPTIONS`, and `docs/novis.md` renders the signature |
 | `Core\Queue`'s `limits` and `grants` stay undeclared until an isolate enforces them | `gap-zero` | `crates/nvs-stdlib/src/queue.rs` gap 1 |
-| `Core\Process::spawn` — `proc_open`'s and `popen`'s streaming half — is unregistered, and `run` is the whole of what there is | `m8-stdlib-depth` | `crates/nvs-stdlib/tests/migration-members-outstanding.txt` |
 
 ## Unowned
 
@@ -139,9 +138,10 @@ where taking it is the work and the code that follows it is not.
   *Consequences* says outright that it "remains open"; goal `carried-gaps`'s item 7 closes the *leak* at teardown
   and does not build the collector. This is an **open decision, not an unclosed gap**, and it stays
   here so that it stays visible. Its consequence shows up in one other place and that is not a
-  duplicate: `nvs_safepoint` clears and ignores two of its four flags (`crates/nvs-runtime/src/lib.rs`
-  gap 5), and `COLLECT` is inert because this collector does not exist. The other, `DEBUG_BREAK`, waits
-  on `nvs dap` and is M10's. [until: reviewed 2026-09-06]
+  duplicate: `nvs_safepoint` clears `COLLECT` and acts on nothing, because this collector does not exist
+  (`crates/nvs-runtime/src/lib.rs` gap 5, `crates/nvs-ir/src/lib.rs` gap 14). The flag beside it,
+  `DEBUG_BREAK`, waits on `nvs dap` and is M10's, under a gap of its own in each of those two files.
+  [until: reviewed 2026-09-06]
 - **`rule:routing/a-shared-name-is-one-endpoint-everywhere` is shipped and unguarded.** Its three
   observations — `Core\Router::url` answers the one path, `Match::name` answers for every verb, the
   API document suffixes the operation with the verb — have no fixture: no `.nvst` under
@@ -545,14 +545,6 @@ where taking it is the work and the code that follows it is not.
   deploy script would use as much as a case would, and which is a surface addition nothing has asked
   the user for yet. `crates/nvs-stdlib/src/queue.rs`'s `schema`.
   [until: gone tests/conformance/core/queue-cancel-releases-a-dedupe-key-on-sqlite.nvst:create table nvs_jobs]
-- **A parameter hint is drawn only for the call variant that carries parameter names**, because
-  `nvs_types::ResolvedCall::param_names` is reached through `ExprInfo::Call` and a `new`, a call
-  through a `callable` signature and an erased call on a `mixed` receiver each record a different
-  variant — one of which has no names to give at any price. What has to be decided is whether the
-  *type* phase records more for every program so the editor can draw two more hints: widening is a
-  table question, and the table is on the compile path while the hint is not, so the cost lands on
-  `AGENTS.md`'s priority 3 to buy something at priority 4. `crates/nvs-lsp/src/hints.rs` gap 1.
-  [until: reviewed 2026-09-11]
 - **Emmet and HTML validation do not reach a template region**, where completion, hover, the colour
   picker and tag renaming do. Forwarding runs a *provider* over a virtual document, and neither of
   those two is one: Emmet expands from the language of the document the cursor is in, and validation

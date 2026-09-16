@@ -2226,6 +2226,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   module doc this goal reads holds one, so ask for it as `crates/nvs-ir/src/lib.rs:re:Known gaps:40`
   or take the line number from `python tools/owners.py` and read a range around it.
   [until: reviewed 2026-09-16]
+- **A `carried-gaps.md` bullet's `gap N` can name a number the module no longer has, and
+  `owners.py --check --reasons` passes anyway.** That check only asks that *some* bullet name the
+  module's path, so § *Unowned*'s three bullets citing `crates/nvs-runtime/src/graph.rs` gaps 1–3
+  read as covering a file whose list now holds two — one of those gaps closed and one renumbered.
+  Read the module's own numbered list before trusting a register bullet's number, and re-point the
+  bullet in the slice that touches the file. [until: reviewed 2026-09-16]
 
 ## Running things
 

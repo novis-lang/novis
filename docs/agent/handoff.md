@@ -2,54 +2,51 @@
 
 ## State
 
-**Goal `unowned-closures`, stage 6 — the register.** `python tools/owners.py` reports `unowned: 20`,
-`goal-owned: 64`, `milestone-owned: 15`, `past-milestone: 8`, `untagged: 0`, `broken-tag: 0`,
-`unreasoned: 0` and `sections outside Known gaps: 0`, over 107 items in 65 blocks. The stage wants
-`unowned` at 0, and § *UNOWNED* is the roster of the 20.
+**Goal `unowned-closures`, stage 6 is done, and the register is at `unowned: 19`.** `python
+tools/owners.py` reports `unowned: 19`, `milestone-owned: 18`, `past-milestone: 8`, `untagged: 0`,
+`broken-tag: 0`, `unreasoned: 0` and `sections outside Known gaps: 0` over 109 items;
+`python tools/owners.py --deferrals` is green with M10 carrying 14 of them.
 
-**`nvs-ir`'s gap 21 is fixed and struck.** `as ?T` now finds its `?` wherever the annotation writes
-it — on the whole of it, on a union member (`?"a"|"b"`, which parses as `Union[Nullable("a"), "b"]`
-because `?` binds the atom), or spelled out as `"a"|"b"|null` — and all three run
-`rule:expressions/nullable-conversion`'s membership chain. The crate's `# Known gaps` block now holds
-14 (M10-bound, see below) and 18; 7 stays M12.
+**The three retags landed.** `crates/nvs-lsp/src/hints.rs` gap 1 is `M10`, and `docs/plan/m10.md`'s lead
+states the scope itself — the walk annotates `nvs_types::ExprInfo::Call` alone, and the widening is a
+table question the milestone pays for on the compile path. `DEBUG_BREAK` is now a gap of its own in both
+crates, `crates/nvs-ir/src/lib.rs` gap 19 and `crates/nvs-runtime/src/lib.rs` gap 8, leaving `COLLECT`
+alone under gap 14 and gap 5 with the collector decision those two carry.
 
-**The goal's stages do not cover the roster, and that is what stands between this stage and
-`unowned: 0`.** Of the 20 unowned items, the goal file names six as work: `crates/nvs-hir/src/requires.rs`
-gap 2 (stage 3), `crates/nvs-runtime/src/graph.rs` gaps 1–2 (stage 2), `crates/nvs-stdlib/src/regex.rs`
-gap 3 and `crates/nvs-stdlib/src/task.rs` gap 1 (stage 4), `crates/nvs-lsp/src/hints.rs` gap 1
-(stage 6). The other 14 — `crates/nvs-cli/src/openapi.rs` gaps 1–5, `crates/nvs-cli/src/runner.rs`
-gap 1, `crates/nvs-db/src/span.rs` gap 1, `crates/nvs-db/src/tds/mod.rs` gap 1, the three
-`crates/nvs-host/src/` gaps, `crates/nvs-runtime/src/ctx/mod.rs` gap 1,
-`crates/nvs-stdlib/src/cache.rs` gap 1, `crates/nvs-stdlib/src/response.rs` gap 2 — are named nowhere
-in `docs/agent/goals/60-unowned-closures.md` and carry no `Decided:` sentence (`grep -c Decided:` is
-0 in every one of those files). By the goal's own stage 0 each is a `BLOCKED` when a session reaches
-it with no obvious build; their reasons are already written in `docs/agent/carried-gaps.md`
-§ *Unowned*. Nothing is blocked while the six above are still open.
+**The driver's red floor check is green.** `python tools/playbook.py --check` had named
+`docs/agent/carried-gaps.md`'s `Core\Process::spawn` row for three sessions; the member is registered and
+answers a handle (`crates/nvs-stdlib/src/process.rs:152`, pinned by
+`process_spawn_is_a_registered_member`), so the row is struck rather than re-owned.
+
+**Five items the goal's own stages name stand between here and `unowned: 0`** — `graph.rs` gaps 1–2
+(stage 2), `requires.rs` gap 2 (stage 3), `regex.rs` gap 3 and `task.rs` gap 1 (stage 4) — plus the 14 the
+goal names nowhere, which is the user's sheet and not a session's.
 
 ## Next group
 
-**Stage 6: the honest deferrals** — one file set: `crates/nvs-lsp/src/hints.rs`,
-`crates/nvs-ir/src/lib.rs`, `crates/nvs-runtime/src/lib.rs` and `docs/plan/m10.md`.
+**Stage 2: the lowering and the runtime** — one file set: `crates/nvs-runtime/src/graph.rs` and
+`docs/agent/carried-gaps.md`.
 
-- [ ] **Retag `crates/nvs-lsp/src/hints.rs:64`'s gap 1 to `M10`** — the block heading is
-      `crates/nvs-lsp/src/hints.rs:62`, and `docs/plan/m10.md:19` is where the scope sentence goes if
-      it does not already cover a call the checker recorded as anything but `ExprInfo::Call`.
-      `docs/agent/goals/60-unowned-closures.md:115` is the stage that schedules it; it is one of the
-      20 and takes the roster to 19.
-- [ ] **Split the `DEBUG_BREAK` half from the collector half** — `crates/nvs-ir/src/lib.rs:614`
-      gap 14 and `crates/nvs-runtime/src/lib.rs:209` gap 5 both cover two safepoint flags at once.
-      `DEBUG_BREAK` waits on `nvs dap` and is M10's; `COLLECT` waits on the in-flight collector, which
-      `docs/agent/carried-gaps.md:140` holds as an open decision rather than an unclosed gap. Retag
-      only what M10 actually buys, and leave the collector where its decision lives.
-- [ ] **Prove it with `python tools/owners.py --deferrals`** — the stage's second check, green today
-      and the thing a retag can turn red. `crates/nvs-lsp/src/index.rs` carries no `# Known gaps`
-      block at all and `crates/nvs-lsp/src/completion.rs:191` is a bold `**Known gaps.**` run already
-      tagged `M10`, which `owners.py` does not count; the stage text names both, so neither is work.
+- [ ] **Refuse an object holding a host handle where a graph is copied** —
+      `crates/nvs-runtime/src/graph.rs:61` gap 1, the third of `rule:classes/graph-copy`'s refusals and
+      priority 1: the copied key indexes the *receiving* side's table, so the child reads whatever that
+      side opened at that index. The goal's stage 2 lists it under **Decided** and the module carries no
+      `Decided:` sentence, while `docs/agent/carried-gaps.md:93` still frames the choice as open — a bit
+      on the `ClassDesc`, the way `ClassDesc::is_closure()` marks a closure, or the declared type at the
+      copy site. If neither option is written down anywhere, that is the `BLOCKED` for the user.
+- [ ] **Re-point § *Unowned*'s graph.rs bullets** — `docs/agent/carried-gaps.md:79`, `:86` and `:93` name
+      gaps 1, 2 and 3 while `crates/nvs-runtime/src/graph.rs` holds two: the closure-recognition bullet's
+      gap is gone from the module, and the host-handle bullet is the module's gap 1. Strike what closed
+      and re-point the rest in the slice above.
+- [ ] **`crates/nvs-runtime/src/graph.rs:77` gap 2**, the decoded `Core` instance a program cannot narrow.
+      Both refusals are `nvs-types`' (`E0496` and `E0711`, `rule:types/conversion` tabulating no
+      conversion into a `Core` class), so decide whether the build belongs in stage 3's file set before
+      opening it here.
 
 ## Backlog
 
-- The 14 unowned items no stage names — a sheet the user has not answered; `docs/agent/carried-gaps.md` § *Unowned*.
-- `crates/nvs-hir/src/requires.rs` gap 2, the one unowned item with a build stage 3 already specifies.
-- `crates/nvs-runtime/src/graph.rs` gaps 1–2, listed under stage 2's **Decided** with no `Decided:` sentence in the file.
+- The 14 unowned items no stage names — the user's sheet; each reason is in `docs/agent/carried-gaps.md` § *Unowned*.
+- `crates/nvs-hir/src/requires.rs` gap 2: `owners.py` counts the name-harvest over-approximation, which reads as a bound, while stage 3 describes a double-quoted cooker — settle which item the stage means.
 - `crates/nvs-stdlib/src/regex.rs` gap 3 and `crates/nvs-stdlib/src/task.rs` gap 1, stage 4's two builds.
 - The 8 `past-milestone` deferrals, which `owners.py` says are owed by a goal or nobody.
+- `crates/nvs-lsp/src/index.rs` carries no `# Known gaps` block and `completion.rs:191` is a bold run already tagged `M10`; stage 6's text names both, so neither is work.
