@@ -38,9 +38,10 @@
 //!   `rule:security/tainted-qualifier` already
 //!   made for `Core\Db::quoteIdentifier`.
 //! - **A literal is one of [`ColumnDefault`]'s cases**, each with a
-//!   spelling per dialect. There are no expression defaults, so the one place a
-//!   string reaches statement text — [`ColumnDefault::Text`] — is quoted here,
-//!   in the dialect's own escaping.
+//!   spelling per dialect save the read-only [`ColumnDefault::Opaque`], which
+//!   no statement written here can carry. A program writes no expression
+//!   defaults, so the one place a string reaches statement text —
+//!   [`ColumnDefault::Text`] — is quoted here, in the dialect's own escaping.
 //!
 //! # An engine's own limit is the dialect's rule
 //!
@@ -497,7 +498,7 @@ pub(crate) fn rowid_identity(table: &Table, dialect: Dialect) -> Option<&Ident> 
         .map(Column::name)
 }
 
-/// One of [`ColumnDefault`]'s cases as a literal `dialect` reads.
+/// One of [`ColumnDefault`]'s writable cases as a literal `dialect` reads.
 ///
 /// The column's own type is read for one case and it is not a nicety.
 /// [`ColumnDefault::Now`]'s doc calls `CURRENT_TIMESTAMP` the one spelling all
@@ -530,6 +531,15 @@ pub(crate) fn literal(default: &ColumnDefault, ty: &ScalarType, dialect: Dialect
             (Dialect::SqlServer, ScalarType::Instant) => "SYSDATETIMEOFFSET()".to_owned(),
             _ => "CURRENT_TIMESTAMP".to_owned(),
         },
+        // The arm exists to be unreachable rather than to spell anything. Every
+        // step emits the *wanted* schema's default, a program wrote that
+        // schema, and `ColumnDefault::from_node` refuses the only key this case
+        // could have arrived under — so reaching here is a schema read off a
+        // server handed to the emitter, and the one thing that must not happen
+        // is the server's words going back out as statement text.
+        ColumnDefault::Opaque(text) => {
+            unreachable!("an opaque default reached the emitter: {text}")
+        }
     }
 }
 

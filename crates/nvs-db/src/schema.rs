@@ -309,13 +309,17 @@ impl ScalarType {
     }
 }
 
-/// § 2's closed set of defaults: a literal of a vocabulary scalar type, or the
-/// current timestamp.
+/// § 2's closed set of defaults: a literal of a vocabulary scalar type, the
+/// current timestamp, or — read off a server and never written — the words of
+/// a default this set cannot say.
 ///
-/// There are no expression defaults, and that one rule closes two holes at
-/// once. An expression is an unbindable string reaching a DDL sink, and it is
+/// A program writes no expression defaults, and that one rule closes two holes
+/// at once. An expression is an unbindable string reaching a DDL sink, and it is
 /// also the value a server is most likely to spell back differently — which is
-/// the normalization difficulty § 5 exists to survive.
+/// the normalization difficulty § 5 exists to survive. [`ColumnDefault::Opaque`]
+/// is the reading half of that rule and not an exception to it: it carries such
+/// a string out of a server and into a comparison, and there is no path from it
+/// back into statement text.
 #[derive(Debug, Clone, PartialEq)]
 pub enum ColumnDefault {
     /// A signed integer literal.
@@ -333,6 +337,21 @@ pub enum ColumnDefault {
     /// The server's current timestamp at insert — `CURRENT_TIMESTAMP`, the one
     /// spelling every backend shares.
     Now,
+    /// A default a server reported that no case above can hold, kept verbatim
+    /// in the server's own words and compared as text.
+    ///
+    /// Read-only, in two separate halves. Nothing emits it: [`crate::ddl`]'s
+    /// `literal` has an arm for it only so that match stays exhaustive, and a
+    /// step carries the *wanted* schema's default, which a program wrote.
+    /// Nothing outside a catalog read builds one either, because the canonical
+    /// form has no key it can arrive under — [`ColumnDefault::from_node`]
+    /// refuses the key [`ColumnDefault::to_node`] writes.
+    ///
+    /// It exists so that a column whose default this vocabulary cannot say
+    /// still compares equal to itself across two reads. Reading such a default
+    /// as nothing at all is the alternative, and it makes § 5's plan propose
+    /// the same step on every run, which no number of applies converges.
+    Opaque(String),
 }
 
 impl ColumnDefault {
@@ -349,6 +368,12 @@ impl ColumnDefault {
     /// This is also the rule [`crate::catalog::column_default`] reads a
     /// server's own default against, so a literal that could not have been
     /// written is not one an introspection invents either.
+    ///
+    /// [`ColumnDefault::Opaque`] fits every type, and that is not a hole in the
+    /// same rule: the question here is whether a literal may be *written* on
+    /// every backend, and that case is never written anywhere. What it holds is
+    /// the text one server already has on that column, so the only backend it
+    /// has to be portable across is the one it was read from.
     pub(crate) fn fits(&self, ty: &ScalarType) -> bool {
         matches!(
             (self, ty),
@@ -362,6 +387,7 @@ impl ColumnDefault {
                     ColumnDefault::Now,
                     ScalarType::DateTime | ScalarType::Instant
                 )
+                | (ColumnDefault::Opaque(_), _)
         )
     }
 }
@@ -922,6 +948,11 @@ impl ColumnDefault {
     /// [`ColumnDefault::Now`] carries `true` rather than nothing, so that every
     /// default in the form has the same shape and a reader never has to tell a
     /// key with no value from a missing one.
+    ///
+    /// [`ColumnDefault::Opaque`] is shown under a key [`ColumnDefault::from_node`]
+    /// does not accept. A dump of a schema read off a server says what that
+    /// server has, including the defaults this vocabulary cannot say; feeding
+    /// the dump back in is where asking for one is refused.
     fn to_node(&self) -> Node {
         let (key, value) = match self {
             ColumnDefault::Int(value) => ("int", Node::Int(*value)),
@@ -931,6 +962,7 @@ impl ColumnDefault {
             ColumnDefault::Text(text) => ("text", Node::Text(text.clone())),
             ColumnDefault::Bool(value) => ("bool", Node::Bool(*value)),
             ColumnDefault::Now => ("now", Node::Bool(true)),
+            ColumnDefault::Opaque(text) => ("opaque", Node::Text(text.clone())),
         };
         Node::Map(vec![pair(key, value)])
     }
@@ -954,6 +986,10 @@ impl ColumnDefault {
             ("text", Node::Text(text)) => ColumnDefault::Text(text.clone()),
             ("bool", Node::Bool(value)) => ColumnDefault::Bool(*value),
             ("now", Node::Bool(true)) => ColumnDefault::Now,
+            // `opaque` is deliberately absent from the keys above, and from the
+            // wanted list the refusal names. It is what a server said, never
+            // what a program may ask for, and a default a program could ask for
+            // in a server's own words is the expression hole § 2 closes.
             _ => return Err(bad),
         })
     }
@@ -1411,6 +1447,35 @@ mod tests {
             )])),
             Err(SchemaError::BadArray { .. })
         ));
+    }
+
+    /// `rule:core-classes/schema-is-a-value`: the read-only case is one-way — a
+    /// dump shows it, and the canonical form has no key that builds one.
+    ///
+    /// The column it is attached to is an integer here on purpose: an opaque
+    /// default is whatever the server has on whatever column, so the fit that
+    /// every other case is checked for is not a question this one answers.
+    #[test]
+    fn an_opaque_default_is_dumped_and_never_read_back() {
+        let default = ColumnDefault::Opaque("nextval('s'::regclass)".to_owned());
+        let node = default.to_node();
+        assert_eq!(
+            node,
+            Node::Map(vec![pair(
+                "opaque",
+                Node::Text("nextval('s'::regclass)".to_owned())
+            )])
+        );
+        assert!(matches!(
+            ColumnDefault::from_node(&node),
+            Err(SchemaError::BadArray { .. })
+        ));
+        assert!(
+            Column::new("id", ScalarType::Int(IntWidth::Big))
+                .unwrap()
+                .default(default)
+                .is_ok()
+        );
     }
 
     /// An identity column is an integer, there is at most one, and it is the
