@@ -426,7 +426,10 @@ fn labels_of(value: Value) -> Vec<(String, String)> {
 
 #[cfg(test)]
 mod tests {
-    use super::{CLASS, NAME};
+    use nvs_runtime::metrics::{self, Refused, Written};
+    use nvs_runtime::{Fault, ThrownClass};
+
+    use super::{CLASS, NAME, mismatch};
     use crate::registry::{CoreTy, Qual};
 
     /// `rule:observability/metrics-three-members`: three verbs, three kinds,
@@ -455,6 +458,109 @@ mod tests {
                 "{}'s name is a sink",
                 method.name
             );
+        }
+    }
+
+    /// `rule:observability/metrics-three-members`: the kind belongs to the
+    /// series, so a second verb disagreeing with the first is a `LogicError`
+    /// naming **both** the call that fixed the name and the call that
+    /// disagreed, and the disagreeing call records nothing.
+    #[test]
+    fn a_metrics_name_used_as_a_gauge_then_incremented_throws_naming_both_sites() {
+        metrics::record(
+            Some("queue.nvs:12"),
+            "queue_depth",
+            Written::Gauge(7.0),
+            &[],
+        )
+        .expect("a gauge write fixes the name to a gauge");
+        let refusal = metrics::record(
+            Some("queue.nvs:31"),
+            "queue_depth",
+            Written::Increment(1),
+            &[],
+        )
+        .expect_err("a counter write disagrees with the gauge that fixed the name");
+        assert!(
+            matches!(refusal, Refused::Kind { .. }),
+            "a verb disagreeing about the kind is a kind refusal, not {refusal:?}"
+        );
+
+        match mismatch("increment", "queue_depth", &refusal, Some("queue.nvs:31")) {
+            Fault::Thrown(class, message) => {
+                assert_eq!(class, ThrownClass::Logic);
+                assert!(message.contains(&refusal.to_string()), "{message}");
+                assert!(message.contains("fixed at queue.nvs:12"), "{message}");
+                assert!(message.contains("written at queue.nvs:31"), "{message}");
+                assert!(message.contains(r"`Core\Metrics::increment`"), "{message}");
+            }
+            other => panic!("a kind mismatch is a thrown `LogicError`, and this is {other:?}"),
+        }
+
+        let registry = metrics::on_this_core().expect("the first write built this thread's one");
+        assert_eq!(
+            registry.read("queue_depth", &[]),
+            Some(&metrics::Value::Gauge(7.0)),
+            "the refused call left the gauge as the call that fixed it wrote it"
+        );
+    }
+
+    /// `rule:observability/the-exporter-is-a-feature-and-core-metrics-is-not`:
+    /// this crate cannot depend on `nvs-server`, so this test binary *is* a
+    /// build with no exporter — and all three verbs still accumulate into the
+    /// per-core registry, which is the whole behavioural difference that rule
+    /// allows between builds.
+    #[test]
+    fn core_metrics_accumulates_with_the_exporter_feature_off() {
+        let mail = [("queue", "mail")];
+        metrics::record(
+            Some("jobs.nvs:8"),
+            "jobs_run_total",
+            Written::Increment(2),
+            &mail,
+        )
+        .expect("a counter write is recorded");
+        metrics::record(
+            Some("jobs.nvs:8"),
+            "jobs_run_total",
+            Written::Increment(1),
+            &mail,
+        )
+        .expect("a second write accumulates onto the first");
+        metrics::record(
+            Some("jobs.nvs:9"),
+            "job_seconds",
+            Written::Observe(0.25),
+            &[],
+        )
+        .expect("a histogram write is recorded");
+        metrics::record(
+            Some("jobs.nvs:10"),
+            "workers_idle",
+            Written::Gauge(4.0),
+            &[],
+        )
+        .expect("a gauge write is recorded");
+
+        let registry = metrics::on_this_core().expect("a write builds this thread's registry");
+        assert!(
+            registry.exporter().is_none(),
+            "nothing here exports, and the series accumulate regardless"
+        );
+        assert_eq!(
+            registry.read("jobs_run_total", &mail),
+            Some(&metrics::Value::Counter(3))
+        );
+        assert_eq!(
+            registry.read("workers_idle", &[]),
+            Some(&metrics::Value::Gauge(4.0))
+        );
+        match registry.read("job_seconds", &[]) {
+            Some(metrics::Value::Histogram(histogram)) => {
+                assert_eq!(histogram.count, 1);
+                assert!((histogram.sum - 0.25).abs() < 1e-9, "{}", histogram.sum);
+            }
+            other => panic!("`observe` fixes the name to a histogram, and this read {other:?}"),
         }
     }
 }
