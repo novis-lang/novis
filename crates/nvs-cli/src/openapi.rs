@@ -36,11 +36,14 @@
 //!    and the codec is not on the row. It is that roster and not the class's
 //!    declared properties: a property map holds the private ones too, and a
 //!    document that published those would be leaking exactly what
-//!    `#[Json\Derive]` exists to decide.
-//!    — owner: unowned
+//!    `#[Json\Derive]` exists to decide. Carrying that roster on the row is
+//!    M10's, with the rest of a document a strict validator accepts
+//!    (`docs/plan/m10.md`); [`schema`] renders it then with no change here.
+//!    — owner: M10
 //! 2. **Request body schemas**, for the same reason and one more: which
 //!    parameter *is* the body is a question the row does not answer either.
-//!    — owner: unowned
+//!    Both are the same widening of the row, so they land together.
+//!    — owner: M10
 //! 3. **`components.securitySchemes`.** § 2's `security` names reach the
 //!    operation ([`operation`] writes them), but *what* a named scheme is —
 //!    bearer, an API key, OAuth2 and its flows — is nowhere in the tree:
@@ -51,21 +54,16 @@
 //!    would be the emitter stating a fact about deployment that no one wrote,
 //!    which is the one thing `rule:routing/api-document-is-generated-from-the-route-table` is against; the component object lands
 //!    here, with no change to [`operation`], on the day a scheme has a home.
-//!    — owner: unowned
+//!    M10 is where it gets one, because a scheme has to be *declared* where the
+//!    row can carry it rather than in a deployment the compiler never reads.
+//!    — owner: M10
 //! 4. **`info.version`.** The document has to carry one (3.1 requires it) and
-//!    nothing in the program declares one, so it is a fixed `0.0.0` until
-//!    `nvs.toml` grows the key M6's reader would own.
-//!    — owner: unowned
-//! 5. **An enum-case subset**, which is the half of § 1's *Enumerations* row a
-//!    literal union does not cover. A capture declared at one gets the empty
-//!    schema — *any* — because `nvs_types::routes`' `closed_set` returns no set
-//!    for it on purpose: a case's segment spelling is `Core\Router::match`'s to
-//!    decide, and that member is out of scope. When the row carries the set,
-//!    [`schema`] emits it with no further work, exactly as a literal union's
-//!    already is. Anything else outside [`schema`]'s list is the same honest
-//!    rendering of "the compiler knows this type and the emitter has no mapping
-//!    for it yet".
-//!    — owner: unowned
+//!    nothing in the program declares one, so it is a fixed `0.0.0`. A version
+//!    is what a program is *published* as, so it arrives with the manifest that
+//!    publishes one — M15's `package.toml` (`docs/plan/m15.md`) — rather than
+//!    from a deployment key this module would be quoting back at whoever wrote
+//!    it.
+//!    — owner: M15
 
 use std::collections::BTreeMap;
 
@@ -365,6 +363,10 @@ fn parameter(param: &RouteParam) -> Value {
 /// deciding a *JSON* type the row does not carry, in the module whose whole
 /// premise is that it decides nothing; and no `"type"` is emitted beside the set
 /// for the same reason, JSON Schema taking the type from the members.
+///
+/// A type the list above has no arm for joins that same empty schema and says
+/// nothing further, which is what a document that decides nothing looks like
+/// where the compiler knows a type this module has no mapping for.
 ///
 /// `parses` is [`RouteParam::parses`], and it is what a class-typed capture is
 /// read from rather than its name: `describe` renders a class and an enum the

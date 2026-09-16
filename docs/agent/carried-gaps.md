@@ -234,17 +234,6 @@ where taking it is the work and the code that follows it is not.
   pulling a small entry from it, buys enough to carry a second header format. Goal `formats` is
   retired and no milestone's plan names it. `crates/nvs-stdlib/src/zip.rs` gap 1.
   [until: gone crates/nvs-stdlib/src/zip.rs:Zip64 is not read]
-- **The generated API document is honest and incomplete, and completing it grows four sources
-  outside the emitter.** A class response body and a request body need the codec roster on the route
-  row rather than a property map, `components.securitySchemes` needs somewhere in the tree to
-  declare a scheme, `info.version` needs an `nvs.toml` key, and an enum-case subset needs
-  `Core\Router::match` to decide a case's segment spelling. Each is *absent* from the document
-  rather than guessed at, which is
-  `rule:routing/api-document-is-generated-from-the-route-table`'s call and not in question. What
-  has to be decided is whether Novis commits to a document a strict validator accepts, because that
-  is four surfaces rather than an emitter change, and `nvs openapi` is useful as it stands.
-  `crates/nvs-cli/src/openapi.rs` gaps 1–5.
-  [until: gone crates/nvs-cli/src/openapi.rs:A response body that is an object]
 - **The shared cache tier speaks `redis://host[:port]` and nothing else**, so a store behind a
   password, one addressed by database index, and a `rediss://` one are each refused with a sentence
   rather than dialled half-served. What has to be decided is whether `[cache.shared]` grows a
@@ -518,14 +507,6 @@ where taking it is the work and the code that follows it is not.
   per core. What has to be decided is whether a serving core registers an inbox as it starts, which
   is a question about `nvs serve`'s boot order and not about the crossing.
   `crates/nvs-host/src/worker.rs` § *Known gaps*. [until: reviewed 2026-09-14]
-- **The test suite makes and joins its isolates one at a time**, so a suite's wall time is the sum of
-  its cases where `docs/decisions/0079.md:158` promises an isolate per test *and* a parallel suite,
-  and that record's milestone table carries both to a milestone the program has passed
-  (`docs/decisions/0079.md:872`). Only the parallelism is open — every case already runs in an
-  isolate of its own — so what has to be decided is what bounds it: a runner that spawns the suite as
-  a task group buys `rule:concurrency/limit-and-deadline-are-the-only-bounds`'s two bounds and owes a
-  decision about a case that reads the terminal. `crates/nvs-cli/src/runner.rs` gap 1.
-  [until: reviewed 2026-09-14]
 
 ## What is *not* on either list
 
