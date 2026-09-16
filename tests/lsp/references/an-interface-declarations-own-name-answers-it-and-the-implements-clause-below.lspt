@@ -1,0 +1,21 @@
+--TEST--
+a cursor on an interface's own declaration answers the declaration and the `implements` clause of the class below, a clause naming the interface as directly as an expression that resolved to it, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+interface Gre<|>ets
+{
+    public function greet(): string;
+}
+
+class User implements Greets
+{
+    public function greet(): string
+    {
+        return "hi";
+    }
+}
+--REQUEST--
+references
+--EXPECT--
+case.nvs:2:11
+case.nvs:7:23

@@ -1,0 +1,20 @@
+--TEST--
+a cursor on an interface's own declaration highlights the `implements` clause of the class below and not the declaration itself, which is this request's own narrowing of the reference list at the same cursor, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+interface Gre<|>ets
+{
+    public function greet(): string;
+}
+
+class User implements Greets
+{
+    public function greet(): string
+    {
+        return "hi";
+    }
+}
+--REQUEST--
+documentHighlight
+--EXPECT--
+case.nvs:7:23

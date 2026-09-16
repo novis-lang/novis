@@ -71,13 +71,6 @@
 //!    walk can record and the declaration counts no uses however many sites
 //!    read it. The missing variant is that module's to add.
 //!    — owner: unowned
-//! 3. **A name in an `extends` or `implements` clause is no occurrence
-//!    either.** A use is read off [`Analysed::exprs`](crate::Analysed) and a
-//!    clause is not an expression, so an interface every class in the
-//!    workspace implements still counts none. [`SymbolIndex::subtypes`] reads
-//!    the resolved graph rather than this side, which is why a type hierarchy
-//!    is right where the count above the same name is not.
-//!    — owner: unowned
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -769,13 +762,21 @@ fn supertypes_of(analysed: &Analysed, qname: &QName) -> Vec<String> {
 
 /// Every resolved use one file of an analysis writes, in source order.
 ///
-/// One walk of the statements the analysis already parsed, asking the type
+/// Two walks, because a name is written in two kinds of place. The expressions
+/// are one walk of the statements the analysis already parsed, asking the type
 /// phase's own table what each node resolved to — which is
 /// `rule:ide/five-features-are-one-reference-index`'s occurrence side and
 /// `docs/decisions/0099.md` § 3's "resolution applied to every occurrence
 /// rather than to the one under a cursor". Nothing is
 /// re-resolved here: [`target_of`] is the same reading `definition` and `hover`
 /// answer a cursor with, so a reference list and a jump cannot disagree.
+///
+/// The `extends` and `implements` clauses are the second walk, because a clause
+/// is not an expression and no entry of [`Analysed::exprs`](crate::Analysed)
+/// covers one. What such a name resolved to is `nvs_hir::ClassLinks`, off the
+/// same graph [`supertypes_of`] reads the declaration side from, so an
+/// interface counts the classes that implement it and the two sides of one
+/// inheritance edge come out of one resolution.
 ///
 /// A use is recorded at the **name**, which [`named`] reads off the node rather
 /// than off the expression around it: a highlight box is drawn on exactly the
@@ -799,11 +800,75 @@ fn occurrences(analysed: &Analysed, loaded: &Loaded, path: &Path) -> Vec<Occurre
         }
     }
 
+    for symbol in analysed.module.symbols.iter() {
+        if symbol.decl_span.file != loaded.id {
+            continue;
+        }
+        let Some(links) = analysed.module.graph.get(&symbol.qname) else {
+            continue;
+        };
+        let Some((stmt, _)) = declared_type(analysed, &symbol.qname) else {
+            continue;
+        };
+        let (extends, implements) = supertype_names(stmt);
+        clause_uses(&extends, &links.extends, path, &mut found);
+        clause_uses(&implements, &links.implements, path, &mut found);
+    }
+
     // Two nodes can cover the same bytes — a statement that is one expression —
-    // and both read the same entry out of the table.
+    // and both read the same entry out of the table. The sort is also what puts
+    // the two walks into the one order the index answers in.
     found.sort();
     found.dedup();
     found
+}
+
+/// The names one declaration's `extends` and `implements` clauses write, in the
+/// order they were written.
+///
+/// That order is `nvs_hir::HierarchyResolver::collect_links`'s own, which is
+/// what lets [`clause_uses`] pair the written names against the resolved ones
+/// by position. An enum writes neither: `rule:enums/no-class-machinery` rejects
+/// `implements` on one and there is no `extends` grammar for it at all, so the
+/// graph holds no entry for an enum to pair against either.
+fn supertype_names(stmt: &Stmt) -> (Vec<Span>, Vec<Span>) {
+    match &stmt.kind {
+        StmtKind::ClassDecl(decl) => (
+            decl.extends.iter().map(|base| base.span).collect(),
+            decl.implements
+                .iter()
+                .map(|entry| entry.name.span)
+                .collect(),
+        ),
+        StmtKind::InterfaceDecl(decl) => (
+            decl.extends.iter().map(|parent| parent.span).collect(),
+            Vec::new(),
+        ),
+        _ => (Vec::new(), Vec::new()),
+    }
+}
+
+/// One occurrence per clause entry, at the name written and against the name it
+/// resolved to.
+///
+/// Paired off by position, and only when the two sides are the same length:
+/// `nvs_hir::HierarchyResolver::resolve` keeps a name that resolved and drops
+/// one that named nothing or named the wrong kind of declaration, so a clause
+/// with an unresolved entry in it would otherwise record every name after that
+/// one against its neighbour's symbol. A file whose clause did not fully
+/// resolve already carries an `E_UNDEFINED_CLASS`, and counting no uses out of
+/// it is the answer that cannot be wrong about which name a reader is looking
+/// at.
+fn clause_uses(written: &[Span], resolved: &[QName], path: &Path, found: &mut Vec<Occurrence>) {
+    if written.len() != resolved.len() {
+        return;
+    }
+    for (name, qname) in written.iter().zip(resolved) {
+        found.push(Occurrence {
+            symbol: qname.to_string(),
+            site: site(path, *name),
+        });
+    }
 }
 
 /// What one resolved use names, spelled the module doc's way.
