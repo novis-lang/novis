@@ -3,52 +3,54 @@
 ## State
 
 **Goal `unowned-closures`, and the register is at `unowned: 15`.** `python tools/owners.py` reports
-`unowned: 15`, `untagged: 0`, `broken-tag: 0`, `unreasoned: 0` and `sections outside Known gaps: 0`
-over 101 items; `python tools/owners.py --deferrals` is green.
+`unowned: 15`, `untagged: 0`, `broken-tag: 0`, `unreasoned: 0` and `sections outside Known gaps: 0`;
+`python tools/owners.py --deferrals` is green. The 15 still need answers only the user can give, bar
+`crates/nvs-runtime/src/graph.rs:74` gap 1, so `unowned: 0` stays a `BLOCKED` the moment that one is
+settled.
 
-**`requires.rs` gap 2 is closed: every `match` the require/autoload harvest makes over an
-`nvs_syntax::ast` enum names every variant that enum declares.** The wildcard arm each one still
-carries is what `#[non_exhaustive]` requires of a cross-crate `match`, and the module doc
-(`crates/nvs-hir/src/requires.rs:76`) is that bound's home. Names it did not reach before and does
-now: a destructuring leaf's declared type (`[Framework\Row $row] = $pair;`, the new guard test),
-`TypeAtom::PropertyKey`'s argument, a hole in an `html` markup literal, an object literal's field
-values, and whatever a refused top-level `function`/`const` wrote inside itself.
+**`ctor_init.rs` keeps no `Known gaps` block: the code was already ahead of it.** A class that
+declares no constructor refuses every own required property with no default, inherited constructor or
+not — `check_class_init`'s no-constructor arm (`crates/nvs-types/src/ctor_init.rs:142`) has always run
+for a class that `extends`, which running the compiler over the fixture confirmed, so no `E0824` was
+claimed and the arm is unchanged. What the slice wrote is the bound as prose, the amended fragment
+(`rule:classes/definite-property-initialization` now says inheriting a constructor is not declaring
+one) and the guard case that pins the inheriting shape the existing case did not cover.
 
-**`ctor_init.rs` and `lateinit.rs` keep three fewer gaps.** The sheet answered all three with "keep
-it", so each is written as the module's own prose bound per the goal's § *Standing decisions*:
-a `set`-hooked property carries no definite-initialization obligation, only a class's own `lateinit`
-properties are tracked, and a `set`-hooked `lateinit` property is not modeled either. `lateinit.rs`
-has no `# Known gaps` block left at all.
-
-**Stage 3's list now holds two builds, and the goal's remaining `unowned` work is one item.** Of the
-15 unowned, 14 need answers only the user can give; the last is
-`crates/nvs-runtime/src/graph.rs:74` gap 1 — binding a decoded `Core` instance by its own class name,
-refused today by `E0496` and `E0711`, both `nvs-types`'. Whether that is a gap to build or a bound to
-state is the open question, so `unowned: 0` is a `BLOCKED` the moment it is answered.
+**`requires.rs` gap 1 is half built, and the half left is the `const` one.** A `require` path built
+out of literals joined by `.` now folds and resolves (`literal_require_path`,
+`crates/nvs-hir/src/requires.rs:1405`); a class constant in one does not, because the only constant
+Novis has is a class constant and reading one needs the table this walk is building. The sheet's
+`Decided:` sentence stays on the narrowed bullet rather than being re-priced.
 
 ## Next group
 
-**Stage 3: the checker and the front end** — one file set: `crates/nvs-types/src/{ctor_init.rs,
-signatures.rs}` and `crates/nvs-hir/src/requires.rs`.
+**Stage 5: the cache side of the probe trace** — one file set: `crates/nvs-cli/src/script.rs`,
+`crates/nvs-config/src/cache.rs` and `crates/nvs-cli/src/main.rs`.
 
-- [ ] **A class with no explicit `constructor` refuses every own required property that has no
-      default** — `crates/nvs-types/src/ctor_init.rs:75` is the gap and the sheet's answer is to
-      build it, so `check_class_init` at `crates/nvs-types/src/ctor_init.rs:131` gains the
-      no-constructor arm over `crate::signatures::own_required_properties`
-      (`crates/nvs-types/src/signatures.rs:1756`). `rule:classes/definite-property-initialization` is
-      the rule, and it promises the check only for a declared constructor today — amend the fragment
-      in the same slice. The next free code in the band is `E0824`.
-- [ ] **`Probe::tried` folds into the compiled-unit key** — `crates/nvs-hir/src/requires.rs:100` is
-      the gap (now gap 2): the probe trace the walk hands back is read by nobody, and what closes it
-      is on the cache side — a probed miss becomes a negative `PathEntry`, and the trace's digest
-      joins the unit key beside the content hash, at `crates/nvs-config/src/cache.rs:36` and
-      `crates/nvs-cli/src/script.rs:164`.
-      `rule:packaging/autoload-probes-fold-into-the-cache-key` is what it owes.
+- [ ] **The probe trace's digest joins the unit key** — `crates/nvs-config/src/cache.rs:269`
+      (`UnitKey::new`) takes it beside the content hash, and `crates/nvs-cli/src/main.rs:1564` is
+      where the `AutoloadMap` that carries `probe_trace()` already exists and is dropped, so `Checked`
+      carries it out to `crates/nvs-cli/src/script.rs:648`.
+      `rule:packaging/autoload-probes-fold-into-the-cache-key` is the rule.
+      **The design problem to answer first:** the key can only be formed from a trace the compile
+      produces, so a path with no recorded trace has nothing to look up — record the trace per content
+      digest beside the unit table and insert the compiled unit under the key the *post-compile* trace
+      gives, or a cold path compiles twice before it settles.
+- [ ] **A probed miss becomes a negative path entry** — `crates/nvs-cli/src/script.rs:163`
+      (`PathEntry`, every field `Copy`) and `crates/nvs-cli/src/script.rs:712` (`observe`) are the
+      anchors: re-stat the recorded probe paths under the same `validate`/`revalidate_freq` gate the
+      content stat rides, so a file created where a probe missed recompiles the unit.
+      `rule:packaging/autoload-probes-fold-into-the-cache-key`, and
+      `crates/nvs-hir/src/requires.rs:1952` is the hir-side half already pinned.
+- [ ] **The rule stops saying half of it is on disk** —
+      `docs/rules/packaging/autoload-probes-fold-into-the-cache-key.md:22` is the paragraph, and
+      `crates/nvs-hir/src/requires.rs:107`'s gap 2 is struck in the same slice once both land.
 
 ## Backlog
 
 - `crates/nvs-runtime/src/graph.rs:74` gap 1 — the last unowned item a session could settle, and the
   one that turns this goal into a `BLOCKED`; the module doc owns it.
+- `crates/nvs-hir/src/requires.rs:96` gap 1's `const` half — the obstacle is written in the bullet.
 - Stage 3's M1 pair — `crates/nvs-syntax/src/lib.rs` gaps 2 and 3 — is untaken; the goal file owns
   the description.
 - `crates/nvs-types/src/intrinsics.rs` gaps 1–5 (the prepared-pattern channel) are the stage's

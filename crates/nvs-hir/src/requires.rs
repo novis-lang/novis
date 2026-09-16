@@ -86,17 +86,24 @@
 //! fails to autoload (`rule:programs/autoload`), so the direction to widen in
 //! is always "harvest more", never "filter harder".
 //!
+//! **A statically known path is a literal, or literals concatenated.**
+//! [`literal_require_path`] cooks a plain `'...'`/`"..."` token and folds a `.`
+//! between two halves that are themselves statically known, so
+//! `require 'lib/' . 'db.nvs';` is resolved and bundled exactly as the
+//! one-literal spelling is. Everything else is the dynamic fallback: a
+//! heredoc/nowdoc token, an interpolation, an `as` conversion, a variable.
+//!
 //! **Known gaps:**
-//! - Only a plain `'...'`/`"..."` string literal (with no interpolation) is
-//!   recognised as statically known. Heredoc/nowdoc and any expression built
-//!   out of one — concatenation, a `const`, an `as` conversion — is treated
-//!   as dynamic here even where a human reader could work out the value;
-//!   widening this is a constant-folding problem for a later milestone, not
-//!   a name-resolution one.
+//! - A `const` in a `require` path is not folded, so
+//!   `require Paths::LIB . 'db.nvs';` is dynamic where the concatenation alone
+//!   would not be. A class constant is the only constant Novis has
+//!   (`rule:classes/no-free-functions-or-constants`), so reading one means
+//!   resolving a class — and the table that answers that is the one this walk
+//!   is building, out of files a `require` this walk has not folded yet may be
+//!   what loads.
 //!   Decided: Fold literal concatenations and consts before the graph walk — More requires are resolved
 //!   and bundled at build time, at the cost of a small constant folder that runs before the checker's.
 //!   — owner: unowned-closures
-
 //! - `rule:packaging/autoload-probes-fold-into-the-cache-key`'s probe trace is
 //!   recorded and handed back ([`crate::autoload::ProbeTrace`], on the
 //!   [`AutoloadMap`] this walk returns) and read by nobody yet. What is left is
@@ -110,10 +117,10 @@ use std::path::{Path, PathBuf};
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, SourceId, SourceMap, Span, code};
 use nvs_syntax::ast::{
-    Arg, ArrayItem, AttributeGroup, AutoloadDecl, AutoloadKind, Block, CallArgs, ClassMember,
-    ClassMemberKind, ConstMember, DestructureElement, DestructureTarget, Expr, ExprKind, FnBody,
-    ImplementsClause, MemberName, MethodMember, Name, NamespaceDecl, NewTarget, Param,
-    PropertyHook, PropertyHookBody, Stmt, StmtKind, StringPart, Type, TypeAtom, TypeKind,
+    Arg, ArrayItem, AttributeGroup, AutoloadDecl, AutoloadKind, BinaryOp, Block, CallArgs,
+    ClassMember, ClassMemberKind, ConstMember, DestructureElement, DestructureTarget, Expr,
+    ExprKind, FnBody, ImplementsClause, MemberName, MethodMember, Name, NamespaceDecl, NewTarget,
+    Param, PropertyHook, PropertyHookBody, Stmt, StmtKind, StringPart, Type, TypeAtom, TypeKind,
 };
 use nvs_syntax::{check_declarations, parse_file};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -1382,19 +1389,37 @@ fn walk_expr(expr: &Expr, src: &SourceFile, out: &mut Harvest) {
     }
 }
 
-/// Extracts a `require` path's literal text, if it was written as a plain
-/// `'...'`/`"..."` string with no interpolation — unwrapping any surrounding
-/// `(...)` first, so `require ('config.nvs');` resolves the same as
+/// Extracts a `require` path's literal text, if the expression is built out of
+/// plain `'...'`/`"..."` strings with no interpolation — unwrapping any
+/// surrounding `(...)` first, so `require ('config.nvs');` resolves the same as
 /// `require 'config.nvs';`.
+///
+/// **A `.` between two static halves is one of them.** `require __DIR__` is not
+/// the spelling Novis has, so a program that builds a path out of a prefix
+/// writes the prefix as a literal and concatenates — `require 'lib/' . 'db.nvs';`
+/// — and folding the operator here is what keeps that program's target
+/// statically known rather than a dynamic fallback. The fold is the whole of
+/// the constant folding this walk does: each operand is this same function, so
+/// a chain of any length resolves and one dynamic operand anywhere in it makes
+/// the whole path dynamic again.
 fn literal_require_path(expr: &Expr, src: &SourceFile) -> Option<String> {
     let mut inner = expr;
     while let ExprKind::Paren(next) = &inner.kind {
         inner = next;
     }
-    let ExprKind::Str(span) = &inner.kind else {
-        return None;
-    };
-    cook_quoted(src, *span)
+    match &inner.kind {
+        ExprKind::Str(span) => cook_quoted(src, *span),
+        ExprKind::Binary {
+            op: BinaryOp::Concat,
+            lhs,
+            rhs,
+        } => {
+            let mut folded = literal_require_path(lhs, src)?;
+            folded.push_str(&literal_require_path(rhs, src)?);
+            Some(folded)
+        }
+        _ => None,
+    }
 }
 
 /// Cooks a lexed string token into its value, for the two spellings a
@@ -1448,6 +1473,9 @@ mod tests {
 
         fn write(&self, name: &str, contents: &str) -> PathBuf {
             let path = self.path.join(name);
+            if let Some(parent) = path.parent() {
+                fs::create_dir_all(parent).expect("create fixture directory");
+            }
             fs::write(&path, contents).expect("write fixture");
             path
         }
@@ -1688,6 +1716,34 @@ class Unreached {}
                 .contains(&crate::qname::QName::parse("Helper"))
         );
         assert!(module.symbols.contains(&crate::qname::QName::parse("App")));
+    }
+
+    #[test]
+    fn a_concatenated_literal_require_resolves_like_one_literal() {
+        let dir = TempDir::new("concat");
+        dir.write("lib/db.nvs", "<?nvs\nclass Db {}\n");
+        dir.write("main.nvs", "<?nvs\nrequire 'lib/' . 'db' . '.nvs';\n");
+
+        let (module, diags) = resolve_entry(&dir, "main.nvs");
+        assert!(!diags.has_errors(), "{diags:?}");
+        assert!(module.symbols.contains(&crate::qname::QName::parse("Db")));
+    }
+
+    #[test]
+    fn a_concatenation_with_a_dynamic_half_stays_dynamic() {
+        let dir = TempDir::new("concat-dynamic");
+        dir.write("lib/db.nvs", "<?nvs\nclass Db {}\n");
+        dir.write(
+            "main.nvs",
+            "<?nvs\n$name = 'db';\nrequire 'lib/' . $name . '.nvs';\n",
+        );
+
+        let (module, diags) = resolve_entry(&dir, "main.nvs");
+        assert!(!diags.has_errors(), "{diags:?}");
+        assert!(
+            !module.symbols.contains(&crate::qname::QName::parse("Db")),
+            "a dynamic operand makes the whole path dynamic"
+        );
     }
 
     #[test]
