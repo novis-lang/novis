@@ -975,6 +975,13 @@ pub struct IndexRow {
 ///   ignored**, because a base table with no columns is not a table this
 ///   vocabulary can hold at all. The table is then absent from the value, and
 ///   [`Schema`]'s own doc owns what the diff does with that.
+/// - **A key over an unbounded text or bytes column is dropped**, because no
+///   [`Table`] can hold one — `crate::schema`'s own section says why no two
+///   backends index such a column the same way. Failing the read instead would
+///   make a database that has one unreadable, and the drop costs nothing in
+///   the other direction: no declared schema can name that key either, so the
+///   diff proposes neither creating nor dropping it, which is the answer a
+///   partial index already gets below.
 ///
 /// # Errors
 ///
@@ -995,6 +1002,11 @@ pub fn assemble(
             .iter()
             .map(|row| column_of(row, dialect))
             .collect::<Result<Vec<Column>, SchemaError>>()?;
+        let unbounded: Vec<String> = built
+            .iter()
+            .filter(|column| column.ty().is_unbounded())
+            .map(|column| column.name().to_string())
+            .collect();
         let mut table = Table::new(name, built)?;
         let nullable: Vec<&str> = rows
             .iter()
@@ -1008,6 +1020,12 @@ pub fn assemble(
             key_rows.sort_by_key(|row| row.ordinal);
             let names: Vec<&str> = key_rows.iter().map(|row| row.column.as_str()).collect();
             if !predicate_is_the_key_itself(&key_rows, &names, &nullable, dialect) {
+                continue;
+            }
+            if names
+                .iter()
+                .any(|name| unbounded.iter().any(|column| column == name))
+            {
                 continue;
             }
             table = if key_rows[0].primary {
@@ -1239,6 +1257,11 @@ mod tests {
     /// primary key is the rowid, which `pragma_index_list` does not report at
     /// all, and `pair`'s is a composite, which it reports as an
     /// `sqlite_autoindex_…` the second branch has to drop.
+    ///
+    /// The plain index is over `rank` and not over the unbounded `note` beside
+    /// it, for the reason [`assembled_fixture`] states at greater length: no
+    /// key may name an unbounded column, and a fixture holding one could not be
+    /// built at all.
     fn sqlite_fixture() -> Vec<Table> {
         let wide = Table::new(
             "wide",
@@ -1251,6 +1274,7 @@ mod tests {
                 Column::new("note", ScalarType::Text { max: None })
                     .unwrap()
                     .null(),
+                Column::new("rank", ScalarType::Int(IntWidth::Normal)).unwrap(),
             ],
         )
         .unwrap()
@@ -1258,7 +1282,7 @@ mod tests {
         .unwrap()
         .unique("wide_label", &["label"])
         .unwrap()
-        .index("wide_note", &["note"])
+        .index("wide_rank", &["rank"])
         .unwrap();
         let pair = Table::new(
             "pair",
@@ -1303,12 +1327,12 @@ mod tests {
             wide.iter()
                 .map(|row| row.column.as_str())
                 .collect::<Vec<_>>(),
-            ["id", "label", "note"],
+            ["id", "label", "note", "rank"],
             "declaration order is `cid`, not the name"
         );
         assert_eq!(
             wide.iter().map(|row| row.ordinal).collect::<Vec<_>>(),
-            [1, 2, 3]
+            [1, 2, 3, 4]
         );
         // The rowid alias, read back as an identity: `INTEGER PRIMARY KEY` is
         // the whole of what SQLite records, `AUTOINCREMENT` being a
@@ -1361,7 +1385,7 @@ mod tests {
                 row.column.as_str(),
                 row.unique,
                 row.primary,
-            ) == ("wide_note", "note", false, false)
+            ) == ("wide_rank", "rank", false, false)
         }));
     }
 
@@ -1974,12 +1998,11 @@ mod tests {
     /// servers and each refused an earlier spelling of it:
     ///
     /// - **The index is over `rank` and not over the unbounded `note`.** SQL
-    ///   Server refuses an index whose key column is `NVARCHAR(MAX)` outright,
-    ///   and MySQL takes one only as [`crate::ddl`]'s prefix key, so an index
-    ///   over unbounded text is a construct the vocabulary holds and the five
-    ///   backends do not agree on. That disagreement is its own question and
-    ///   `crate::schema`'s gap list is where it is written down; a fixture
-    ///   carrying it would report it as a round-trip failure on every run.
+    ///   Server refuses an index whose key column is `NVARCHAR(MAX)` outright
+    ///   and MySQL takes one only as a prefix, which is why the vocabulary
+    ///   refuses such a key outright — `crate::schema`'s own section owns that,
+    ///   and this fixture is where the disagreement was found, as a round-trip
+    ///   failure on every run.
     /// - **The `int` column is named `rank`, which MySQL 8 reserves.** A name a
     ///   backend keeps for itself is a `CREATE TABLE` that server refuses
     ///   unless the emitter delimits it, so this column is what asks all five
@@ -2154,6 +2177,38 @@ mod tests {
     /// `rule:core-classes/schema-introspection`: the two reads answer one [`Schema`], whichever driver
     /// answered them.
     ///
+    /// `rule:core-classes/schema-introspection`: a database whose index is over
+    /// an unbounded column still reads, with that key dropped.
+    ///
+    /// No [`Table`] can hold such a key — `crate::schema`'s own section is what
+    /// refuses it — so the two answers available here are dropping it and
+    /// failing the whole read, and failing it would make one `CREATE INDEX` an
+    /// operator ran enough to put a database beyond introspection. The rows are
+    /// the fixture's own with its index aimed at `note`, which is a row set a
+    /// server answers and no builder can produce.
+    #[test]
+    fn an_index_over_an_unbounded_column_is_dropped_rather_than_failing_the_read() {
+        let (columns, mut indexes) = rows_of(&assembled_fixture(), Dialect::PostgreSql);
+        for row in &mut indexes {
+            if row.index == "wide_rank" {
+                row.column = "note".to_owned();
+            }
+        }
+        let read = assemble(&columns, &indexes, Dialect::PostgreSql)
+            .expect("a key over an unbounded column failed the read it is only dropped from");
+        let wide = read.table(&Ident::new("wide").unwrap()).unwrap();
+        assert!(
+            wide.indexes().is_empty(),
+            "a key the vocabulary cannot hold arrived in the value"
+        );
+        assert_eq!(
+            wide.unique_keys().len(),
+            2,
+            "the keys beside it were dropped with it"
+        );
+        assert_eq!(wide.primary_key_columns(), [Ident::new("id").unwrap()]);
+    }
+
     /// The claim is an **agreement across the drivers**, not a value written
     /// out here: each server is handed the spelling [`ddl`] wrote for it, and
     /// every one must arrive back at the schema that produced it. A reader that
@@ -2300,7 +2355,7 @@ mod tests {
                 .iter()
                 .map(|column| column.name().to_string())
                 .collect::<Vec<_>>(),
-            ["id", "label", "note"],
+            ["id", "label", "note", "rank"],
             "declaration order did not survive the round trip"
         );
         assert!(wide.columns()[0].is_identity() && !wide.columns()[2].is_identity());
@@ -2310,7 +2365,7 @@ mod tests {
             wide.unique_keys()[0].columns(),
             [Ident::new("label").unwrap()]
         );
-        assert_eq!(wide.indexes()[0].name(), &Ident::new("wide_note").unwrap());
+        assert_eq!(wide.indexes()[0].name(), &Ident::new("wide_rank").unwrap());
         let pair = read.table(&Ident::new("pair").unwrap()).unwrap();
         assert_eq!(
             pair.primary_key_columns(),

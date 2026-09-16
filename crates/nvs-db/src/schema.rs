@@ -48,21 +48,22 @@
 //! spelling, and the vocabulary grows only when a construct exists on every
 //! backend *and* something needs it.
 //!
-//! # Known gaps
+//! # A key over unbounded text is refused where it is built
 //!
-//! 1. **One construct this vocabulary holds is not portable, and nothing here
-//!    refuses it.** An **index over unbounded text** is refused outright by
-//!    SQL Server, whose key column may not be `NVARCHAR(MAX)`, and taken by
-//!    MySQL only as [`crate::ddl`]'s prefix key. It was found by applying a
-//!    schema to all five servers — `catalog`'s
-//!    `an_applied_schema_introspects_back_to_an_empty_plan_on_*` is that walk,
-//!    and its fixture's own doc is where it is written down. Closing it is a
-//!    builder that refuses the construct, there being no portable spelling an
-//!    emitter could write instead.
-//!    Decided: Emitter always quotes identifiers; builder refuses an index over unbounded text —
-//!    Quoting is standard and cheap; the text-index refusal is honest because there is no portable
-//!    spelling.
-//!    — owner: unowned-closures
+//! The vocabulary holds unbounded text and unbounded bytes, and every backend
+//! stores a column of one; what no two backends agree on is *indexing* one. SQL
+//! Server will not take an `NVARCHAR(MAX)` as a key column at all, and MySQL
+//! takes one only as a prefix of its leading bytes — a constraint stricter than
+//! the one that was asked for, since it refuses two distinct values sharing
+//! that prefix. There being no portable spelling an emitter could write
+//! instead, a key naming such a column is refused as
+//! [`SchemaError::UnboundedInKey`] by [`Table::primary_key`], [`Table::unique`]
+//! and [`Table::index`] alike, so the construct cannot reach [`crate::ddl`].
+//!
+//! The read direction stays total: a database that already has such an index is
+//! introspected with the key dropped rather than refused, which is
+//! [`crate::catalog::assemble`]'s own doc to state and is the same answer a
+//! partial index has always had.
 
 use std::fmt;
 
@@ -287,6 +288,16 @@ impl ScalarType {
     #[must_use]
     pub fn is_integer(&self) -> bool {
         matches!(self, ScalarType::Int(_) | ScalarType::Uint(_))
+    }
+
+    /// Whether this is a backend's unbounded text or blob type, which is what
+    /// no key may name — the module's own section says why.
+    #[must_use]
+    pub fn is_unbounded(&self) -> bool {
+        matches!(
+            self,
+            ScalarType::Text { max: None } | ScalarType::Bytes { max: None }
+        )
     }
 
     /// The bounds every backend agrees on, checked wherever a type is built
@@ -575,9 +586,10 @@ impl Table {
     ///
     /// [`SchemaError::EmptyKey`], [`SchemaError::UnknownColumn`] for a name the
     /// table has not got, [`SchemaError::Duplicate`] for a column named twice
-    /// in one key, and [`SchemaError::NullableInKey`] for a nullable one — no
-    /// backend admits null into a primary key, so refusing here is the same
-    /// answer arriving before the server is asked.
+    /// in one key, [`SchemaError::UnboundedInKey`] for one whose type is a
+    /// backend's unbounded text or blob, and [`SchemaError::NullableInKey`] for
+    /// a nullable one — no backend admits null into a primary key, so refusing
+    /// here is the same answer arriving before the server is asked.
     pub fn primary_key(mut self, columns: &[&str]) -> Result<Table, SchemaError> {
         self.primary_key = self.resolve(columns, "primary key")?;
         for name in &self.primary_key {
@@ -663,8 +675,15 @@ impl Table {
         let mut resolved: Vec<Ident> = Vec::with_capacity(columns.len());
         for name in columns {
             let name = Ident::new(name)?;
-            if self.column(&name).is_none() {
+            let Some(column) = self.column(&name) else {
                 return Err(SchemaError::UnknownColumn {
+                    table: self.name.clone(),
+                    column: name,
+                });
+            };
+            if column.ty().is_unbounded() {
+                return Err(SchemaError::UnboundedInKey {
+                    what,
                     table: self.name.clone(),
                     column: name,
                 });
@@ -1153,6 +1172,16 @@ pub enum SchemaError {
         /// The name that resolved to nothing.
         column: Ident,
     },
+    /// A key naming a column of a backend's unbounded text or blob type, which
+    /// the module doc's own section is what refuses.
+    UnboundedInKey {
+        /// What kind of key names it.
+        what: &'static str,
+        /// The table the key belongs to.
+        table: Ident,
+        /// The column no backend takes as a key the same way.
+        column: Ident,
+    },
     /// A nullable column in a primary key.
     NullableInKey(Ident),
     /// `DECIMAL(p, s)` outside `1 <= p <= 38, s <= p`.
@@ -1205,6 +1234,15 @@ impl fmt::Display for SchemaError {
             SchemaError::UnknownColumn { table, column } => {
                 write!(f, "table `{table}` has no column `{column}`")
             }
+            SchemaError::UnboundedInKey {
+                what,
+                table,
+                column,
+            } => write!(
+                f,
+                "the {what} on table `{table}` names `{column}`, which is unbounded: SQL Server \
+                 refuses such a key column and MySQL indexes a prefix of it"
+            ),
             SchemaError::NullableInKey(column) => write!(
                 f,
                 "column `{column}` is nullable and no backend admits null into a primary key"
@@ -1364,6 +1402,48 @@ mod tests {
             table.primary_key(&["id", "id"]),
             Err(SchemaError::Duplicate { .. })
         ));
+    }
+
+    /// `rule:core-classes/schema-is-a-value`: no key names an unbounded column,
+    /// whichever kind of key it is.
+    ///
+    /// Every builder and both unbounded types, because the refusal is
+    /// [`Table::resolve`]'s one place: a check written into [`Table::index`]
+    /// alone would leave a primary key over a `LONGTEXT` to be found by
+    /// whichever of the five servers the schema was applied to first. The
+    /// bounded pair beside them is the other half of the bound — a
+    /// `VARCHAR(200)` and a `VARBINARY(64)` are key columns everywhere, so a
+    /// refusal reading the type rather than the family would fail here.
+    #[test]
+    fn no_key_names_a_column_of_an_unbounded_type() {
+        let table = || {
+            Table::new(
+                "wide",
+                vec![
+                    Column::new("body", ScalarType::Text { max: None }).unwrap(),
+                    Column::new("payload", ScalarType::Bytes { max: None }).unwrap(),
+                    Column::new("label", ScalarType::Text { max: Some(200) }).unwrap(),
+                    Column::new("thumb", ScalarType::Bytes { max: Some(64) }).unwrap(),
+                ],
+            )
+            .unwrap()
+        };
+        for unbounded in ["body", "payload"] {
+            for refused in [
+                table().primary_key(&[unbounded]),
+                table().unique("wide_key", &[unbounded]),
+                table().index("wide_idx", &[unbounded]),
+                table().index("wide_idx", &["label", unbounded]),
+            ] {
+                let Err(SchemaError::UnboundedInKey { column, .. }) = refused else {
+                    panic!("a key over `{unbounded}` was built");
+                };
+                assert_eq!(column.as_str(), unbounded);
+            }
+        }
+        table().primary_key(&["label"]).unwrap();
+        table().unique("wide_key", &["thumb"]).unwrap();
+        table().index("wide_idx", &["label", "thumb"]).unwrap();
     }
 
     /// Two rules no backend disagrees about, refused before the server is asked.
@@ -1643,7 +1723,7 @@ mod tests {
         .unwrap()
         .index("notes_recent", &["created_at", "title"])
         .unwrap()
-        .index("notes_by_body", &["body"])
+        .index("notes_by_rating", &["rating"])
         .unwrap();
         let authors = Table::new(
             "authors",
@@ -1675,16 +1755,19 @@ mod tests {
         );
         assert_eq!(
             names_in(&tables[1], "indexes"),
-            ["notes_by_body", "notes_recent"]
+            ["notes_by_rating", "notes_recent"]
         );
         assert_eq!(
             tables[1].get("indexes").unwrap(),
             &Node::List(vec![
                 Node::Map(vec![
-                    ("name".to_string(), Node::Text("notes_by_body".to_string())),
+                    (
+                        "name".to_string(),
+                        Node::Text("notes_by_rating".to_string())
+                    ),
                     (
                         "columns".to_string(),
-                        Node::List(vec![Node::Text("body".to_string())])
+                        Node::List(vec![Node::Text("rating".to_string())])
                     ),
                 ]),
                 Node::Map(vec![
