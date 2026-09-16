@@ -1,0 +1,36 @@
+--TEST--
+a promoted constructor parameter's visibility keyword is the property's own, so a `private` one is refused outside its class and a `protected` one outside the chain — `rule:classes/promotion-is-constructor-only`, `rule:core-api/written-visibility`
+--FILE--
+<?nvs
+// The keyword that promotes is the keyword the access check reads:
+// `nvs_types::signatures` records the level beside the property's type, so a
+// promoted parameter reaches the same check a written declaration does and
+// needs no case of its own.
+class Vault {
+    public function constructor(private string $secret, protected string $note, public string $label) {}
+    public function reveal(): string {
+        // Inside the declaring class every level is reachable.
+        return $this->secret;
+    }
+}
+
+class Branch extends Vault {
+    public function seen(): string {
+        // `protected` reaches down the `extends` chain, so this is accepted
+        // and the refusals below are about where the access is written.
+        return $this->note;
+    }
+}
+
+Vault $v = new Vault("shh", "seen", "front");
+echo $v->label, "\n";
+echo $v->secret, "\n";
+echo $v->note, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0471]: `Vault::$secret` is `private`, so only `Vault`'s own bodies reach it
+%A
+error[E0471]: `Vault::$note` is `protected`, so only `Vault` and the classes that extend it reach it
+%A
+error: aborting due to 2 errors
