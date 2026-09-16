@@ -104,6 +104,16 @@
 //! own, which is the same indirection one layer up — and it is ELF's `PltRelative`/`GotRelative`
 //! pair the area exists for.
 //!
+//! **Both architectures, and one place they differ.** [`HOST_ARCH`] names x86-64 and aarch64, which
+//! between them are every row of `docs/plan/design.md`'s platform table, and everything above is
+//! the same for each: the same placement, the same landings, the same one-way protection change.
+//! What differs is only how a resolved value reaches the bytes that hold it, and [`Form`] is that
+//! difference in one type — x86-64 writes a flat little-endian field, while aarch64's fixed-width
+//! instructions carry a call, a page and an offset inside a page as bit ranges within one word,
+//! and reach a symbol through a pair of instructions that have to agree. [`form_of`] is where a
+//! container format's own relocation number becomes one of those, and it is the only place either
+//! format's numbering is read.
+//!
 //! Every failure is an [`Unloadable`], and every variant of that is a cache miss on § 3's terms: an
 //! unresolvable name says the artifact was written against a runtime this process no longer
 //! matches, which is "not mine" rather than "broken", so nothing is deleted and nothing is
@@ -161,20 +171,6 @@
 //! this. Its § 2 decides a bundle carries *source*, not precompiled artifacts, and feeds into this
 //! cache rather than out of it, so there is no already-produced payload for the cache to ship over.
 //!
-//! # Known gaps
-//!
-//! * **`aarch64` is not loaded: this loader does not speak its relocations.** Publishing the pages
-//!   there is answered — [`nvs_codegen::make_executable`] is that step's one home and every page
-//!   this module maps goes through it — but reaching a symbol is not. An aarch64 payload gets at a
-//!   literal through an `ADR_PREL_PG_HI21`/`…_LO12` instruction pair and at a call through a
-//!   `CALL26`, and each of those is a bit range inside a fixed-width instruction rather than the
-//!   flat little-endian field [`Layout::apply`] writes; `object` reports a `CALL26` as 26 bits
-//!   wide, which is the shape of the difference. Until that vocabulary is written [`HOST_ARCH`] is
-//!   [`Architecture::Unknown`] off x86-64, so an aarch64 artifact is a miss and every run
-//!   compiles — slow, never wrong, which is the direction a refusal should point while the answer
-//!   would be a guess.
-//!   — owner: unowned-closures
-//!
 
 // Every compile site calls `unit_for` and `from_config`, and nothing outside this module calls
 // anything else here. What is left over is the vocabulary § 3's own steps are stated in —
@@ -194,8 +190,8 @@ use nvs_config::cache::{Digest, EnvHash, artifact_key, content_hash, env_hash};
 use nvs_config::trust::{self, Untrusted};
 use object::read::{Object, ObjectSection, ObjectSymbol};
 use object::{
-    Architecture, BinaryFormat, RelocationKind, RelocationTarget, SectionKind, SymbolIndex,
-    SymbolKind, SymbolSection,
+    Architecture, BinaryFormat, RelocationEncoding, RelocationFlags, RelocationKind,
+    RelocationTarget, SectionKind, SymbolIndex, SymbolKind, SymbolSection,
 };
 use rand::RngExt;
 
@@ -417,26 +413,60 @@ impl Verified {
     }
 }
 
-/// The one architecture this loader knows how to relocate for, or [`Architecture::Unknown`] on a
-/// host where it does not.
+/// The architecture this loader knows how to relocate for, or [`Architecture::Unknown`] on a host
+/// where it does not.
 ///
 /// A payload's architecture is already in `env_hash` and therefore in its path, so this can only
 /// disagree with the file for a hand-placed one — but the check is also what keeps the loader off
-/// a host it has no answer for. **`aarch64` is deliberately not here**: its relocations are encoded
-/// into instruction bit fields that [`Layout::apply`] cannot write, and the module doc's
-/// *Known gaps* owns that.
+/// a host it has no answer for. `x86-64` and `aarch64` are the two, which between them are every
+/// row of `docs/plan/design.md`'s platform table.
 #[cfg(target_arch = "x86_64")]
 const HOST_ARCH: Architecture = Architecture::X86_64;
-#[cfg(not(target_arch = "x86_64"))]
+#[cfg(target_arch = "aarch64")]
+const HOST_ARCH: Architecture = Architecture::Aarch64;
+#[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
 const HOST_ARCH: Architecture = Architecture::Unknown;
 
+/// Whether § 4's writer publishes anything on this host — [`HOST_ARCH`]'s question asked of the
+/// *host* rather than of a file, because an artifact no loader will ever read is a second
+/// Cranelift walk every cold run pays for nothing.
+///
+/// `aarch64` publishes through ELF and Mach-O, which is every host that platform table names it
+/// on. A COFF `aarch64` host is not on it and the object backend has no aarch64 relocation spelled
+/// for COFF at all, so the artifact there is one that could never be written rather than one this
+/// loader declines to read: such a host compiles every run, exactly as an architecture with no
+/// backend does.
+#[cfg(any(target_arch = "x86_64", all(target_arch = "aarch64", not(windows))))]
+const HOST_PUBLISHES: bool = true;
+#[cfg(not(any(target_arch = "x86_64", all(target_arch = "aarch64", not(windows)))))]
+const HOST_PUBLISHES: bool = false;
+
 /// x86-64's `jmp qword ptr [rip + 0]`, whose eight-byte operand follows it — [`Landing::Stub`]'s
-/// whole body, and the reason no relocation this loader applies can be out of range.
+/// whole body there, and the reason no relocation this loader applies can be out of range.
 const JUMP_THROUGH_NEXT_EIGHT: [u8; 6] = [0xFF, 0x25, 0x00, 0x00, 0x00, 0x00];
 
-/// Bytes reserved for one [`Landing`], and the alignment it gets. Sixteen for both kinds: a slot
-/// needs eight and a stub fourteen, and one size keeps the arithmetic in [`Layout`] to one branch.
+/// aarch64's spelling of that jump: `ldr x16, #8` then `br x16`, so the eight bytes the branch
+/// reads again follow the instructions that read them. `x16` is the procedure-call standard's
+/// first scratch register, reserved for exactly this — a linker's own veneer uses it, and no
+/// callee may assume anything about it.
+const LOAD_NEXT_EIGHT_AND_BRANCH: [u8; 8] = [0x50, 0x00, 0x00, 0x58, 0x00, 0x02, 0x1F, 0xD6];
+
+/// Bytes reserved for one [`Landing`], and the alignment it gets. Sixteen for both kinds and both
+/// architectures: a slot needs eight, x86-64's stub fourteen and aarch64's exactly sixteen, and one
+/// size keeps the arithmetic in [`Layout`] to one branch.
 const LANDING_LEN: usize = 16;
+
+/// The instructions a [`Landing::Stub`] opens with here, with the eight bytes holding the address
+/// they jump through immediately behind them — which is what both spellings above are chosen for,
+/// so [`Layout::fill_landings`] writes the address at one offset it derives rather than at one it
+/// has to know per architecture.
+fn stub_body(arch: Architecture) -> Result<&'static [u8], Unloadable> {
+    match arch {
+        Architecture::X86_64 => Ok(&JUMP_THROUGH_NEXT_EIGHT),
+        Architecture::Aarch64 => Ok(&LOAD_NEXT_EIGHT_AND_BRANCH),
+        arch => Err(Unloadable::Unrepresentable(format!("a stub for {arch:?}"))),
+    }
+}
 
 /// Why a verified artifact still could not be made runnable in this process.
 ///
@@ -498,6 +528,11 @@ struct Layout {
     /// The payload's own container format, which is all [`linkage_name`] needs to know to undo the
     /// spelling that format gave a symbol.
     format: BinaryFormat,
+    /// The payload's own architecture, which is what [`form_of`] reads a relocation's number
+    /// against and what [`stub_body`] writes for. Taken from the file rather than from
+    /// [`HOST_ARCH`] for [`linkage_name`]'s reason: a loader that reads the object it is holding
+    /// cannot disagree with it.
+    arch: Architecture,
 }
 
 impl Layout {
@@ -509,6 +544,7 @@ impl Layout {
             landings: BTreeMap::new(),
             len: 0,
             format: object.format(),
+            arch: object.architecture(),
         };
         for section in object.sections() {
             if !allocatable(section.kind()) {
@@ -534,12 +570,9 @@ impl Layout {
                     layout.format,
                     symbol.name().map_err(|_| Unloadable::Unreadable)?,
                 );
-                let Some(landing) = landing_for(
-                    relocation.kind(),
-                    symbol.kind(),
-                    !symbol.is_undefined(),
-                    name,
-                )?
+                let (reach, form) = form_of(layout.arch, &relocation)?;
+                let Some(landing) =
+                    landing_for(reach, form, symbol.kind(), !symbol.is_undefined(), name)?
                 else {
                     continue;
                 };
@@ -596,9 +629,9 @@ impl Layout {
             let at = match landing {
                 Landing::Slot => *start,
                 Landing::Stub => {
-                    pages[*start..*start + JUMP_THROUGH_NEXT_EIGHT.len()]
-                        .copy_from_slice(&JUMP_THROUGH_NEXT_EIGHT);
-                    *start + JUMP_THROUGH_NEXT_EIGHT.len()
+                    let body = stub_body(self.arch)?;
+                    pages[*start..*start + body.len()].copy_from_slice(body);
+                    *start + body.len()
                 }
             };
             let address = u64::try_from(address).map_err(|_| Unloadable::Unreadable)?;
@@ -617,14 +650,18 @@ impl Layout {
         relocation: &object::Relocation,
         resolve: &dyn Fn(&str) -> Option<*const u8>,
     ) -> Result<(), Unloadable> {
-        let width = usize::from(relocation.size()) / 8;
-        let field = pages
-            .get(at..at.checked_add(width).ok_or(Unloadable::Unreadable)?)
-            .ok_or(Unloadable::Unreadable)?;
+        let (reach, form) = form_of(self.arch, relocation)?;
+        let width = form.width();
+        let end = at.checked_add(width).ok_or(Unloadable::Unreadable)?;
+        let field = pages.get(at..end).ok_or(Unloadable::Unreadable)?;
         // A format with implicit addends — COFF is one — keeps the addend in the field itself,
-        // and `object` reports the part it knows separately. The two add.
+        // and `object` reports the part it knows separately. The two add. An instruction field is
+        // never one of those, whatever the format says: Mach-O carries a non-zero aarch64 addend
+        // in an `ARM64_RELOC_ADDEND` record of its own and stops calling the addend implicit once
+        // it has, and ELF spells every aarch64 addend in the `RELA` entry, so the bit range about
+        // to be overwritten has nothing in it to read back.
         let mut addend = relocation.addend();
-        if relocation.has_implicit_addend() {
+        if relocation.has_implicit_addend() && form.is_flat() {
             addend = addend
                 .checked_add(read_le(field).ok_or_else(|| {
                     Unloadable::Unrepresentable(format!("an implicit addend {width} bytes wide"))
@@ -645,7 +682,7 @@ impl Layout {
                 // The same question [`Layout::of`] asked, asked again rather than remembered: the
                 // landing a *field* wants is decided by that field's own kind, so a symbol reached
                 // both ways cannot be handed the other one's.
-                match landing_for(relocation.kind(), symbol.kind(), defined, name)? {
+                match landing_for(reach, form, symbol.kind(), defined, name)? {
                     // A landing is the target now: the stub jumps to the symbol, the slot holds
                     // it, and either way what this field encodes is a displacement inside the
                     // loader's own mapping.
@@ -665,7 +702,10 @@ impl Layout {
                         .expose_provenance(),
                 }
             }
-            RelocationTarget::Section(index) => {
+            // A field naming a section names something already inside this mapping, so it needs no
+            // landing. A *GOT* field naming one would need a slot nobody reserved — [`Layout::of`]
+            // walks symbols — so it is a miss rather than a field pointed at the section itself.
+            RelocationTarget::Section(index) if reach != Reach::Got => {
                 base + *self.sections.get(&index.0).ok_or(Unloadable::Unreadable)?
             }
             target => {
@@ -675,20 +715,23 @@ impl Layout {
             }
         };
 
-        let target = i64::try_from(target).map_err(|_| Unloadable::Unreadable)?;
-        let value = match relocation.kind() {
-            RelocationKind::Absolute => target + addend,
-            RelocationKind::Relative
-            | RelocationKind::PltRelative
-            | RelocationKind::GotRelative => {
-                let place = i64::try_from(base + at).map_err(|_| Unloadable::Unreadable)?;
-                target + addend - place
-            }
-            kind => {
-                return Err(Unloadable::Unrepresentable(format!("{kind:?}")));
-            }
-        };
-        write_le(&mut pages[at..at + width], value)
+        let target = i64::try_from(target)
+            .map_err(|_| Unloadable::Unreadable)?
+            .checked_add(addend)
+            .ok_or(Unloadable::Unreadable)?;
+        let place = i64::try_from(base + at).map_err(|_| Unloadable::Unreadable)?;
+        let field = &mut pages[at..end];
+        match form {
+            Form::Absolute { .. } => write_le(field, target),
+            Form::Displacement { .. } => write_le(field, target - place),
+            Form::Branch26 => write_branch26(field, target - place),
+            // `ADRP` reaches a page, and the two ends of the distance it covers are the page the
+            // target is in and the page this instruction is in — never the addresses themselves,
+            // so the low twelve bits of each are dropped before they are subtracted rather than
+            // after.
+            Form::Page21 => write_page21(field, page_of(target) - page_of(place)),
+            Form::PageOffset12 => write_page_offset12(field, target & 0xFFF),
+        }
     }
 
     /// Where a symbol defined by the payload landed, as an offset into the mapping.
@@ -741,42 +784,166 @@ fn allocatable(kind: SectionKind) -> bool {
     )
 }
 
-/// What a symbol needs placed for a relocation of this kind, if anything — `defined` says whether
+/// What a relocation's field is computed against, once the container format's own spelling of it
+/// has been read.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Reach {
+    /// The symbol's own address.
+    Symbol,
+    /// A word holding the symbol's address, which the instruction the field belongs to loads
+    /// *through* — the GOT, and a [`Landing::Slot`] whether or not the payload defines the symbol.
+    Got,
+    /// The symbol as the destination of a call, which an undefined symbol reaches through a
+    /// [`Landing::Stub`] whatever the distance.
+    Call,
+}
+
+/// Where a relocation's resolved value goes, and how what it lands in spells it.
+///
+/// **This is where the two architectures differ, and it is the only place they do.** x86-64 gives
+/// every relocation a flat little-endian field of its own, so the value and the bytes are the same
+/// number. aarch64 has fixed-width instructions and no flat field to spare, so a call's
+/// displacement, a page and an offset inside a page are each a bit range within one four-byte
+/// word, and one symbol reference is a pair of instructions that have to agree.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Form {
+    /// A flat little-endian field `width` bytes wide, holding the target's own address.
+    Absolute { width: usize },
+    /// A flat little-endian field `width` bytes wide, holding the distance from the field to the
+    /// target.
+    Displacement { width: usize },
+    /// That distance again, in `B`/`BL`'s 26-bit immediate, which counts instructions rather than
+    /// bytes and so reaches ±128 MiB.
+    Branch26,
+    /// The distance from the 4 KiB page the instruction sits in to the page the target sits in, in
+    /// `ADRP`'s 21-bit immediate — which counts pages, and which the encoding splits in two.
+    Page21,
+    /// The target's offset inside its own 4 KiB page, in the 12-bit immediate of the `ADD` or the
+    /// load that completes an `ADRP` pair, scaled by the access width that instruction names.
+    PageOffset12,
+}
+
+impl Form {
+    /// Bytes of the mapping this form reads and writes.
+    fn width(self) -> usize {
+        match self {
+            Self::Absolute { width } | Self::Displacement { width } => width,
+            // One aarch64 instruction, whatever the bit range inside it.
+            Self::Branch26 | Self::Page21 | Self::PageOffset12 => 4,
+        }
+    }
+
+    /// Whether the field is a whole little-endian integer, which is the only shape an implicit
+    /// addend can be read back out of.
+    fn is_flat(self) -> bool {
+        matches!(self, Self::Absolute { .. } | Self::Displacement { .. })
+    }
+}
+
+/// What a relocation asks for, out of the number its container format recorded it as.
+///
+/// `object` maps the relocations that every architecture spells the same way onto a
+/// [`RelocationKind`] and reports the rest as [`RelocationKind::Unknown`], with the format's own
+/// number left intact in [`RelocationFlags`]. aarch64's instruction-field relocations are all in
+/// that second group, so they are read from the flags here — and read **only when the payload is
+/// aarch64**, because a Mach-O `r_type` is one byte and `ARM64_RELOC_PAGE21` is numerically
+/// `X86_64_RELOC_SIGNED`.
+///
+/// # Errors
+///
+/// [`Unloadable::Unrepresentable`] for a relocation this loader has no encoding for, which is a
+/// cache miss like every other variant.
+fn form_of(
+    arch: Architecture,
+    relocation: &object::Relocation,
+) -> Result<(Reach, Form), Unloadable> {
+    if arch == Architecture::Aarch64 {
+        let paired = match relocation.flags() {
+            RelocationFlags::Elf { r_type } => match r_type {
+                object::elf::R_AARCH64_ADR_PREL_PG_HI21 => Some((Reach::Symbol, Form::Page21)),
+                object::elf::R_AARCH64_ADD_ABS_LO12_NC => Some((Reach::Symbol, Form::PageOffset12)),
+                object::elf::R_AARCH64_ADR_GOT_PAGE => Some((Reach::Got, Form::Page21)),
+                object::elf::R_AARCH64_LD64_GOT_LO12_NC => Some((Reach::Got, Form::PageOffset12)),
+                _ => None,
+            },
+            RelocationFlags::MachO { r_type, .. } => match r_type {
+                object::macho::ARM64_RELOC_PAGE21 => Some((Reach::Symbol, Form::Page21)),
+                object::macho::ARM64_RELOC_PAGEOFF12 => Some((Reach::Symbol, Form::PageOffset12)),
+                object::macho::ARM64_RELOC_GOT_LOAD_PAGE21 => Some((Reach::Got, Form::Page21)),
+                object::macho::ARM64_RELOC_GOT_LOAD_PAGEOFF12 => {
+                    Some((Reach::Got, Form::PageOffset12))
+                }
+                _ => None,
+            },
+            _ => None,
+        };
+        if let Some(paired) = paired {
+            return Ok(paired);
+        }
+    }
+
+    let width = usize::from(relocation.size()) / 8;
+    // A call is named three ways between the backend's writer and the two formats' readers —
+    // `Relative` on the way out, `PltRelative` on the way back in — and the encoding is the one
+    // thing all three agree on.
+    let call = relocation.encoding() == RelocationEncoding::AArch64Call;
+    match relocation.kind() {
+        RelocationKind::Absolute => Ok((Reach::Symbol, Form::Absolute { width })),
+        RelocationKind::GotRelative => Ok((Reach::Got, Form::Displacement { width })),
+        RelocationKind::Relative | RelocationKind::PltRelative if call => {
+            Ok((Reach::Call, Form::Branch26))
+        }
+        RelocationKind::PltRelative => Ok((Reach::Call, Form::Displacement { width })),
+        RelocationKind::Relative => Ok((Reach::Symbol, Form::Displacement { width })),
+        kind => Err(Unloadable::Unrepresentable(format!("{kind:?}"))),
+    }
+}
+
+/// What a symbol needs placed for a relocation of this shape, if anything — `defined` says whether
 /// the payload defines it or leaves it to `resolve`.
 ///
 /// A [`Landing::Slot`] and a [`Landing::Stub`] are the two shapes a 64-bit address can be reached
-/// through from a 32-bit field. An absolute field is already wide enough to hold the address
-/// itself, so it needs neither, and neither does any field naming a symbol this payload defines —
-/// with **one** exception, which is the whole reason `defined` is not simply a filter on the
-/// caller's side.
+/// through from a field too narrow to hold one. An absolute field is already wide enough to hold
+/// the address itself, so it needs neither, and neither does any field naming a symbol this payload
+/// defines — with **one** exception, which is the whole reason `defined` is not simply a filter on
+/// the caller's side.
 ///
-/// That exception is [`RelocationKind::GotRelative`]. Its slot is an *indirection the instruction
-/// performs*, not a way of reaching something far away: `movq sym@GOTPCREL(%rip), %r` loads eight
-/// bytes from wherever the field points. Cranelift emits it for every non-`colocated` global, which
-/// is every literal `nvs-codegen` puts in a data section (see that crate's `clear_colocated`), so
-/// the payload's own `nvs_bytes_*` come through here defined and still needing a slot. Pointing
-/// such a field at the literal instead loads the literal's first eight bytes as an address — for an
-/// immortal `StrHeader` that is `nvs_runtime::IMMORTAL_REFCOUNT`, and `echo` of it dereferences
+/// That exception is [`Reach::Got`]. Its slot is an *indirection the instruction performs*, not a
+/// way of reaching something far away: x86-64's `movq sym@GOTPCREL(%rip), %r` and aarch64's
+/// `adrp`/`ldr [x, #:got_lo12:]` pair both load eight bytes from wherever the field points.
+/// Cranelift emits that form for every non-`colocated` global, which is every literal
+/// `nvs-codegen` puts in a data section (see that crate's `clear_colocated`), so the payload's own
+/// `nvs_bytes_*` come through here defined and still needing a slot. Pointing such a field at the
+/// literal instead loads the literal's first eight bytes as an address — for an immortal
+/// `StrHeader` that is `nvs_runtime::IMMORTAL_REFCOUNT`, and `echo` of it dereferences
 /// `usize::MAX`.
+///
+/// **An `ADRP` pair naming a symbol the payload does not define is a miss, not a landing.** The
+/// pair computes an address rather than loading one, so there is nowhere to put an indirection the
+/// compiler did not emit — the same answer this function has always given a PC-relative field
+/// naming undefined *data*. Cranelift reaches an imported symbol through the GOT, so what would
+/// arrive here is a payload some other backend wrote.
 fn landing_for(
-    kind: RelocationKind,
+    reach: Reach,
+    form: Form,
     symbol: SymbolKind,
     defined: bool,
     name: &str,
 ) -> Result<Option<Landing>, Unloadable> {
-    match kind {
-        RelocationKind::Absolute => Ok(None),
-        RelocationKind::GotRelative => Ok(Some(Landing::Slot)),
+    match (reach, form) {
+        (Reach::Got, _) => Ok(Some(Landing::Slot)),
+        (_, Form::Absolute { .. }) => Ok(None),
         // Everything the payload defines is inside this one mapping, so a displacement to it is
         // always representable and a veneer would only be a hop.
         _ if defined => Ok(None),
-        RelocationKind::PltRelative => Ok(Some(Landing::Stub)),
-        // A PC-relative field naming code is a call, and a stub answers it whatever the distance.
-        // One naming *data* has nowhere to put an indirection the compiler did not emit, so it is
-        // a miss rather than a guess.
-        RelocationKind::Relative if symbol == SymbolKind::Text => Ok(Some(Landing::Stub)),
-        kind => Err(Unloadable::Unrepresentable(format!(
-            "{kind:?} against `{name}`"
+        (Reach::Call, _) => Ok(Some(Landing::Stub)),
+        // A PC-relative field naming code is a call whatever the format called it, and a stub
+        // answers it whatever the distance.
+        (Reach::Symbol, Form::Displacement { .. }) if symbol == SymbolKind::Text => {
+            Ok(Some(Landing::Stub))
+        }
+        (_, form) => Err(Unloadable::Unrepresentable(format!(
+            "{form:?} against `{name}`"
         ))),
     }
 }
@@ -805,6 +972,91 @@ fn write_le(field: &mut [u8], value: i64) -> Result<(), Unloadable> {
         1 => field.copy_from_slice(&i8::try_from(value).map_err(|_| too_wide())?.to_le_bytes()),
         _ => return Err(too_wide()),
     }
+    Ok(())
+}
+
+/// The 4 KiB page an address sits in — `ADRP`'s unit, and the one thing it and the `ADD` or load
+/// paired with it divide between them: the page is what the first instruction reaches, and the
+/// offset inside it is what the second adds back.
+fn page_of(address: i64) -> i64 {
+    address & !0xFFF
+}
+
+/// The four bytes of `field` as the one aarch64 instruction they are.
+fn instruction(field: &[u8]) -> Result<u32, Unloadable> {
+    let word: [u8; 4] = field.try_into().map_err(|_| Unloadable::Unreadable)?;
+    Ok(u32::from_le_bytes(word))
+}
+
+/// Writes a resolved displacement into `B`/`BL`'s 26-bit immediate, which counts instructions.
+///
+/// The reach is ±128 MiB, and every call this loader writes names a target inside its own mapping
+/// — the payload's own code, or a [`Landing::Stub`] beside it — so the range is a bound on how
+/// large a unit may be rather than a constraint on where the host image sits.
+fn write_branch26(field: &mut [u8], displacement: i64) -> Result<(), Unloadable> {
+    let word = instruction(field)?;
+    let out_of_reach = || Unloadable::Unrepresentable(format!("{displacement} in a 26-bit branch"));
+    if displacement % 4 != 0 {
+        return Err(out_of_reach());
+    }
+    let immediate = i32::try_from(displacement / 4).map_err(|_| out_of_reach())?;
+    if !(-(1 << 25)..(1 << 25)).contains(&immediate) {
+        return Err(out_of_reach());
+    }
+    let patched = (word & 0xFC00_0000) | (immediate.cast_unsigned() & 0x03FF_FFFF);
+    field.copy_from_slice(&patched.to_le_bytes());
+    Ok(())
+}
+
+/// Writes a resolved page distance into `ADRP`'s 21-bit immediate, which the encoding splits in
+/// two: the low two bits sit at 30:29 and the other nineteen at 23:5.
+///
+/// The reach is ±4 GiB. Unlike a branch's, this one is never stretched by where the host image
+/// sits: [`landing_for`] only ever lets an `ADRP` name a symbol the payload defines or a
+/// [`Landing::Slot`], and both of those are inside this mapping.
+fn write_page21(field: &mut [u8], distance: i64) -> Result<(), Unloadable> {
+    let word = instruction(field)?;
+    let out_of_reach = || Unloadable::Unrepresentable(format!("{distance} in a 21-bit page field"));
+    let pages = i32::try_from(distance >> 12).map_err(|_| out_of_reach())?;
+    if !(-(1 << 20)..(1 << 20)).contains(&pages) {
+        return Err(out_of_reach());
+    }
+    let pages = pages.cast_unsigned();
+    let patched = (word & 0x9F00_001F) | ((pages & 0x3) << 29) | (((pages >> 2) & 0x7_FFFF) << 5);
+    field.copy_from_slice(&patched.to_le_bytes());
+    Ok(())
+}
+
+/// Writes a resolved page offset into the 12-bit immediate at 21:10 of the `ADD` or the load that
+/// completes an `ADRP` pair.
+///
+/// **The scale is the instruction's, not the relocation's.** A load's immediate counts units of
+/// its own access width, so the same twelve bits mean bytes after an `ADD`, eight-byte words after
+/// an `ldr x`, and sixteen after a 128-bit vector load. Mach-O has one `ARM64_RELOC_PAGEOFF12` for
+/// all of them, so the instruction is read for its size field exactly as a linker reads it, and an
+/// offset that is not a whole number of those units is a miss rather than a truncation.
+fn write_page_offset12(field: &mut [u8], offset: i64) -> Result<(), Unloadable> {
+    let word = instruction(field)?;
+    // A load or store with an unsigned immediate: 29:27 are `111` and 25:24 are `01`. Its scale is
+    // the size field at 31:30 — except for a 128-bit access, which spells `size` as zero and says
+    // so by setting the SIMD bit at 26 together with the high `opc` bit at 23.
+    let scale = if word & 0x3B00_0000 == 0x3900_0000 {
+        match word >> 30 {
+            0 if word & 0x0480_0000 == 0x0480_0000 => 4,
+            size => size,
+        }
+    } else {
+        0
+    };
+    let unit = 1_i64 << scale;
+    if offset % unit != 0 {
+        return Err(Unloadable::Unrepresentable(format!(
+            "{offset} in a page offset scaled by {unit}"
+        )));
+    }
+    let immediate = u32::try_from(offset >> scale).map_err(|_| Unloadable::Unreadable)? & 0xFFF;
+    let patched = (word & !(0xFFF << 10)) | (immediate << 10);
+    field.copy_from_slice(&patched.to_le_bytes());
     Ok(())
 }
 
@@ -1310,8 +1562,10 @@ pub(crate) fn unit_for(
     }
     let unit = nvs_codegen::compile(program)?;
     // § 4's writer, on the path that has just paid for a compile: a failure to publish is a cache
-    // that stays cold, which is the one thing this whole module promises can never be worse.
-    if let Ok(payload) = nvs_codegen::compile_object(program) {
+    // that stays cold, which is the one thing this whole module promises can never be worse. A
+    // host [`HOST_PUBLISHES`] says no for writes nothing, because the object walk would be paid on
+    // every cold run for a file no loader will ever read.
+    if HOST_PUBLISHES && let Ok(payload) = nvs_codegen::compile_object(program) {
         drop(cache.store(key, &payload));
     }
     Ok((unit, Provenance::Compiled))
@@ -2091,16 +2345,17 @@ mod tests {
         .expect("the script echoed UTF-8")
     }
 
-    /// The other side of every `#[cfg(target_arch = "x86_64")]` below: off x86-64 a verified
-    /// payload is a **miss**, and that is a decision rather than a shortfall.
+    /// The other side of every warm-hit gate below: on an architecture this loader has no
+    /// relocation vocabulary for, a verified payload is a **miss**, and that is a decision rather
+    /// than a shortfall.
     ///
-    /// The module doc's *Known gaps* owns why — making freshly written bytes executable on
-    /// `aarch64` needs instruction-cache maintenance `mprotect` does not imply — and [`HOST_ARCH`]
-    /// is where it is spelled. What that costs is one compile per run and nothing a script can
-    /// observe, which is exactly what every other miss in this file costs, so the cases that
-    /// assert a *warm hit* are the ones that carry the gate and this one carries the claim.
+    /// [`HOST_ARCH`] is where it is spelled, and it names the two architectures
+    /// `docs/plan/design.md`'s platform table does. What a third one costs is one compile per run
+    /// and nothing a script can observe, which is exactly what every other miss in this file
+    /// costs, so the cases that assert a *warm hit* are the ones that carry the gate and this one
+    /// carries the claim.
     #[test]
-    #[cfg(not(target_arch = "x86_64"))]
+    #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
     fn a_payload_is_a_miss_elsewhere() {
         let dir = scratch("foreign-arch");
         let source = dir.join("program.nvs");
@@ -2136,7 +2391,8 @@ mod tests {
     /// time the entry frame was entered. A loader that mapped without relocating, or that
     /// relocated against the compiling process's addresses, cannot get here.
     #[test]
-    #[cfg(target_arch = "x86_64")] // A warm hit is x86-64's; see `a_payload_is_a_miss_elsewhere`.
+    // A warm hit is a loaded host's; see `a_payload_is_a_miss_elsewhere`.
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
     fn a_warm_hit_maps_private_writable_relocates_then_makes_the_pages_executable() {
         let dir = scratch("warm-hit");
         let source = dir.join("program.nvs");
@@ -2176,7 +2432,8 @@ mod tests {
     /// process out of the IR its own front end just lowered, and never carried in the file. That is
     /// § 2's decision stated as an observation rather than as prose.
     #[test]
-    #[cfg(target_arch = "x86_64")] // A warm hit is x86-64's; see `a_payload_is_a_miss_elsewhere`.
+    // A warm hit is a loaded host's; see `a_payload_is_a_miss_elsewhere`.
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
     fn a_class_in_a_payload_reaches_the_descriptor_this_process_built() {
         let dir = scratch("descriptors");
         let source = dir.join("program.nvs");
@@ -2219,7 +2476,8 @@ mod tests {
     /// `relocate` returned executable pages because a row is written into this process's
     /// descriptor and never back into the mapping.
     #[test]
-    #[cfg(target_arch = "x86_64")] // A warm hit is x86-64's; see `a_payload_is_a_miss_elsewhere`.
+    // A warm hit is a loaded host's; see `a_payload_is_a_miss_elsewhere`.
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
     fn a_virtual_call_in_a_payload_reaches_the_method_row_the_loader_bound() {
         let dir = scratch("bind-methods");
         let source = dir.join("program.nvs");
@@ -2264,7 +2522,8 @@ mod tests {
     /// armed by `Unit::install_in` — because that is what lets the compile site hold one variable
     /// whichever path produced it, which is the whole point of § 3 ending in a `Unit`.
     #[test]
-    #[cfg(target_arch = "x86_64")] // A warm hit is x86-64's; see `a_payload_is_a_miss_elsewhere`.
+    // A warm hit is a loaded host's; see `a_payload_is_a_miss_elsewhere`.
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
     fn a_warm_hit_assembles_the_unit_a_cold_compile_would_have() {
         let dir = scratch("loaded-unit");
         let source = dir.join("program.nvs");
@@ -2321,7 +2580,8 @@ mod tests {
     /// runs are asserted to print the same thing as well, because "did not compile it" is only
     /// worth anything beside "and ran the same program".
     #[test]
-    #[cfg(target_arch = "x86_64")] // A warm hit is x86-64's; see `a_payload_is_a_miss_elsewhere`.
+    // A warm hit is a loaded host's; see `a_payload_is_a_miss_elsewhere`.
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
     fn a_second_run_of_the_same_program_does_not_compile_it() {
         let dir = scratch("second-run");
         let source = dir.join("program.nvs");
@@ -2409,7 +2669,8 @@ mod tests {
     /// digest alone: the unedited program is a hit *first*, so the miss below is the edit's doing
     /// and not an empty cache's, and the edited program is a hit on the run after it.
     #[test]
-    #[cfg(target_arch = "x86_64")] // A warm hit is x86-64's; see `a_payload_is_a_miss_elsewhere`.
+    // A warm hit is a loaded host's; see `a_payload_is_a_miss_elsewhere`.
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
     fn an_edited_source_file_is_a_miss_on_the_next_run() {
         let dir = scratch("edited");
         let source = dir.join("program.nvs");
@@ -2461,7 +2722,8 @@ mod tests {
     /// only the ordering stops it. The recompile afterwards is the "not an error" half — a corrupt
     /// entry costs one compile and nothing a script can observe.
     #[test]
-    #[cfg(target_arch = "x86_64")] // A warm hit is x86-64's; see `a_payload_is_a_miss_elsewhere`.
+    // A warm hit is a loaded host's; see `a_payload_is_a_miss_elsewhere`.
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
     fn a_payload_whose_checksum_fails_is_a_miss_and_not_an_error() {
         let dir = scratch("checksum");
         let source = dir.join("program.nvs");
@@ -2522,7 +2784,8 @@ mod tests {
     /// prepared entry came from is in the key exactly as the payload's is, and a foreign one misses
     /// on both checks below rather than being read as a mismatch.
     #[test]
-    #[cfg(target_arch = "x86_64")] // A warm hit is x86-64's; see `a_payload_is_a_miss_elsewhere`.
+    // A warm hit is a loaded host's; see `a_payload_is_a_miss_elsewhere`.
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
     fn a_payload_written_by_a_different_toolchain_is_a_miss() {
         let dir = scratch("toolchain");
         let source = dir.join("program.nvs");
@@ -2603,7 +2866,8 @@ mod tests {
     /// finished and the box is idle — `tools/loop.py`'s release checks — and both margins hold
     /// there by a wider factor than here.
     #[test]
-    #[cfg(target_arch = "x86_64")] // A warm hit is x86-64's; see `a_payload_is_a_miss_elsewhere`.
+    // A warm hit is a loaded host's; see `a_payload_is_a_miss_elsewhere`.
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64"))]
     #[cfg_attr(
         debug_assertions,
         ignore = "a cost margin needs an idle machine; the driver's release slot is one"
@@ -2723,5 +2987,249 @@ mod tests {
         // And only the first one. A label `nvs-codegen` minted with its own leading underscore
         // would come back with it.
         assert_eq!(linkage_name(BinaryFormat::MachO, "__nvs_fn_0"), "_nvs_fn_0");
+    }
+
+    /// One instruction, written back the way an assembler would have written it.
+    ///
+    /// Every case below is stated as the encoding of the instruction it produces, because that is
+    /// the claim: a bit range put in the wrong place still writes a plausible word, and only the
+    /// whole word compared against what the mnemonic assembles to says which one it is.
+    fn assembled(word: u32) -> String {
+        format!("{word:#010x}")
+    }
+
+    /// [`write_branch26`] puts a call's displacement in `B`/`BL`'s immediate, in instructions, and
+    /// leaves the opcode alone.
+    ///
+    /// Asserted here rather than left to an aarch64 host for [`linkage_name`]'s reason — this
+    /// tree's own tests place x86-64 payloads, so nothing else in the suite would notice the field
+    /// being written a bit out of place — and the range checks are the half no payload exercises
+    /// at all: a unit large enough to need one would take minutes to compile.
+    #[test]
+    fn an_aarch64_branch_carries_its_displacement_in_instructions() {
+        // `bl #0`, and the same instruction reaching forward a kilobyte: 0x400 bytes is 0x100
+        // instructions, and nothing outside the low 26 bits moves.
+        let mut field = 0x9400_0000_u32.to_le_bytes();
+        write_branch26(&mut field, 0x400).expect("a kilobyte is well inside ±128 MiB");
+        assert_eq!(
+            assembled(u32::from_le_bytes(field)),
+            assembled(0x9400_0100),
+            "`bl #1024`"
+        );
+
+        // Backwards, which is where a field written as an unsigned number goes wrong: -8 bytes is
+        // -2 instructions, and the immediate is the low 26 bits of it.
+        let mut field = 0x9400_0000_u32.to_le_bytes();
+        write_branch26(&mut field, -8).expect("two instructions back is in reach");
+        assert_eq!(
+            assembled(u32::from_le_bytes(field)),
+            assembled(0x97FF_FFFE),
+            "`bl #-8`"
+        );
+
+        // An unconditional `b` is the same field under a different opcode, and keeps it.
+        let mut field = 0x1400_0000_u32.to_le_bytes();
+        write_branch26(&mut field, 0x400).expect("in reach");
+        assert_eq!(
+            assembled(u32::from_le_bytes(field)),
+            assembled(0x1400_0100),
+            "`b #1024`"
+        );
+
+        // Neither a displacement that is not a whole number of instructions nor one past ±128 MiB
+        // is written narrowed: both are misses, which is what every refusal in this module is.
+        let mut field = 0x9400_0000_u32.to_le_bytes();
+        assert!(matches!(
+            write_branch26(&mut field, 6),
+            Err(Unloadable::Unrepresentable(_))
+        ));
+        assert!(matches!(
+            write_branch26(&mut field, 1 << 27),
+            Err(Unloadable::Unrepresentable(_))
+        ));
+        assert_eq!(
+            u32::from_le_bytes(field),
+            0x9400_0000,
+            "a refused relocation leaves the instruction as it found it"
+        );
+    }
+
+    /// [`write_page21`] splits `ADRP`'s immediate the way the encoding does — two bits at 30:29 and
+    /// nineteen at 23:5 — and counts pages rather than bytes.
+    #[test]
+    fn an_aarch64_page_field_is_split_across_the_instruction() {
+        // One page forward lands entirely in the low half of the immediate, which is the bit range
+        // an encoder that wrote all twenty-one bits contiguously would miss.
+        let mut field = 0x9000_0000_u32.to_le_bytes();
+        write_page21(&mut field, 0x1000).expect("one page is in reach");
+        assert_eq!(
+            assembled(u32::from_le_bytes(field)),
+            assembled(0xB000_0000),
+            "`adrp x0, #4096`"
+        );
+
+        // Four pages carries into the high half and leaves the low one empty.
+        let mut field = 0x9000_0000_u32.to_le_bytes();
+        write_page21(&mut field, 0x4000).expect("four pages is in reach");
+        assert_eq!(
+            assembled(u32::from_le_bytes(field)),
+            assembled(0x9000_0020),
+            "`adrp x0, #16384`"
+        );
+
+        // Backwards, sign-extended across both halves — and the destination register is not part
+        // of the immediate.
+        let mut field = 0x9000_0003_u32.to_le_bytes();
+        write_page21(&mut field, -0x1000).expect("one page back is in reach");
+        assert_eq!(
+            assembled(u32::from_le_bytes(field)),
+            assembled(0xF0FF_FFE3),
+            "`adrp x3, #-4096`"
+        );
+
+        // ±4 GiB is the whole reach, and past it is a miss.
+        let mut field = 0x9000_0000_u32.to_le_bytes();
+        assert!(matches!(
+            write_page21(&mut field, 1 << 33),
+            Err(Unloadable::Unrepresentable(_))
+        ));
+    }
+
+    /// [`write_page_offset12`] scales the offset by the access width the *instruction* names, which
+    /// is the one thing `ARM64_RELOC_PAGEOFF12` does not say.
+    #[test]
+    fn an_aarch64_page_offset_is_scaled_by_the_instruction_it_lands_in() {
+        // `add x0, x0, #0` counts bytes.
+        let mut field = 0x9100_0000_u32.to_le_bytes();
+        write_page_offset12(&mut field, 0x123).expect("a byte offset needs no scaling");
+        assert_eq!(
+            assembled(u32::from_le_bytes(field)),
+            assembled(0x9104_8C00),
+            "`add x0, x0, #291`"
+        );
+
+        // `ldr x0, [x0]` counts eight-byte words, which is the form a GOT slot is read through.
+        let mut field = 0xF940_0000_u32.to_le_bytes();
+        write_page_offset12(&mut field, 0x40).expect("64 is eight words");
+        assert_eq!(
+            assembled(u32::from_le_bytes(field)),
+            assembled(0xF940_2000),
+            "`ldr x0, [x0, #64]`"
+        );
+
+        // `ldr q0, [x0]` counts sixteens, and says so by setting the vector bit together with the
+        // high half of `opc` rather than through the size field, which reads as zero.
+        let mut field = 0x3DC0_0000_u32.to_le_bytes();
+        write_page_offset12(&mut field, 0x20).expect("32 is two quadwords");
+        assert_eq!(
+            assembled(u32::from_le_bytes(field)),
+            assembled(0x3DC0_0800),
+            "`ldr q0, [x0, #32]`"
+        );
+
+        // `ldrsb x0, [x0]` sets that same high `opc` bit with the vector bit clear, and counts
+        // bytes. Reading bit 23 alone would scale this one by sixteen.
+        let mut field = 0x3980_0000_u32.to_le_bytes();
+        write_page_offset12(&mut field, 0x7).expect("a signed byte load counts bytes");
+        assert_eq!(
+            assembled(u32::from_le_bytes(field)),
+            assembled(0x3980_1C00),
+            "`ldrsb x0, [x0, #7]`"
+        );
+
+        // An offset that is not a whole number of the instruction's own units is a miss, never an
+        // address rounded down to one that fits.
+        let mut field = 0xF940_0000_u32.to_le_bytes();
+        assert!(matches!(
+            write_page_offset12(&mut field, 0x44),
+            Err(Unloadable::Unrepresentable(_))
+        ));
+    }
+
+    /// A [`Landing::Stub`] is the same two facts on both architectures: a jump through the eight
+    /// bytes immediately behind it, inside [`LANDING_LEN`].
+    #[test]
+    fn a_stub_jumps_through_the_eight_bytes_behind_it() {
+        for arch in [Architecture::X86_64, Architecture::Aarch64] {
+            let body = stub_body(arch).expect("both architectures this loader relocates for");
+            assert!(
+                body.len() + 8 <= LANDING_LEN,
+                "{arch:?}'s stub and the address it reads fit in one landing"
+            );
+        }
+        assert_eq!(
+            stub_body(Architecture::X86_64).expect("x86-64"),
+            &JUMP_THROUGH_NEXT_EIGHT
+        );
+        // `ldr x16, #8` then `br x16`: the literal offset is counted from the load, which sits at
+        // the stub's own start, so the address lands exactly where the body ends.
+        let body = stub_body(Architecture::Aarch64).expect("aarch64");
+        assert_eq!(
+            assembled(instruction(&body[..4]).expect("one instruction")),
+            assembled(0x5800_0050),
+            "`ldr x16, #8`"
+        );
+        assert_eq!(
+            assembled(instruction(&body[4..]).expect("one instruction")),
+            assembled(0xD61F_0200),
+            "`br x16`"
+        );
+        assert_eq!(body.len(), 8, "and the address follows immediately");
+
+        assert!(matches!(
+            stub_body(Architecture::Riscv64),
+            Err(Unloadable::Unrepresentable(_))
+        ));
+    }
+
+    /// [`landing_for`]'s two answers that are not about distance: a GOT field gets a slot even for
+    /// a symbol the payload defines, and an `ADRP` pair naming one it does not is a miss.
+    #[test]
+    fn a_got_field_gets_a_slot_and_an_adrp_pair_to_an_import_gets_nothing() {
+        for form in [
+            Form::Page21,
+            Form::PageOffset12,
+            Form::Displacement { width: 4 },
+        ] {
+            assert_eq!(
+                landing_for(Reach::Got, form, SymbolKind::Data, true, "nvs_bytes_0"),
+                Ok(Some(Landing::Slot)),
+                "a {form:?} loaded through needs its slot however near the target is"
+            );
+        }
+        // Defined, and reached directly: already inside this mapping.
+        assert_eq!(
+            landing_for(
+                Reach::Symbol,
+                Form::Page21,
+                SymbolKind::Data,
+                true,
+                "nvs_bytes_0"
+            ),
+            Ok(None)
+        );
+        // Undefined, and reached directly: there is nowhere to put an indirection the compiler did
+        // not emit, so the artifact is not this process's.
+        assert!(matches!(
+            landing_for(
+                Reach::Symbol,
+                Form::Page21,
+                SymbolKind::Data,
+                false,
+                "nvs_helper_throw"
+            ),
+            Err(Unloadable::Unrepresentable(_))
+        ));
+        // A call to an import is the case a stub exists for.
+        assert_eq!(
+            landing_for(
+                Reach::Call,
+                Form::Branch26,
+                SymbolKind::Text,
+                false,
+                "nvs_helper_throw"
+            ),
+            Ok(Some(Landing::Stub))
+        );
     }
 }
