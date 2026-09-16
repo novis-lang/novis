@@ -2208,6 +2208,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   later, `is not written yet`. Check every name in the goal file at once before re-running it —
   each `cases` path against the disk, each `tests` name as a *prefix* of some `fn` in the tree,
   since `cargo test` matches by substring. [until: reviewed 2026-09-16]
+- **`splice.py` cannot tell two byte-identical blocks in one file apart.** Five identical
+  `Inst { … }` literals in `crates/nvs-ir/src/lower/control.rs` are one anchor five times over, and
+  a patch naming it edits the first and leaves four. Widen each anchor with the lines around it, or
+  — when every occurrence wants the same edit — give that one block to the Edit tool's `replace_all`
+  and keep the rest of the run in the patch. [until: exists tools/splice.py:--occurrence]
 
 ## Running things
 
