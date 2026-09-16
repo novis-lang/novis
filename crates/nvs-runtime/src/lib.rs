@@ -213,23 +213,6 @@
 //!    path and turns 'hit the ceiling' into 'collect, then continue', at the cost of building the
 //!    collector.
 //!    — owner: unowned-closures
-//! 6. **A helper's raise carries no site, and so no frame.** The two raises
-//!    compiled code makes are done: [`nvs_raise`] is handed the site the
-//!    `throw` was compiled with and [`nvs_raise_new`] the site of the
-//!    statement a checked operator overflowed in, and
-//!    [`Thrown::capture_site`] renders the raising frame from either, so an
-//!    exception caught beside the throw or beside the arithmetic carries that
-//!    frame. A helper's bare-message [`Fault`] is handed no site at all, so it
-//!    still begins its trace at the first compiled frame it unwinds out of,
-//!    and a `catch` in the frame the helper was called from sees an empty one.
-//!    Closing it is an operand on the helper ABI's own signature, carrying
-//!    what `nvs_ir::ir::Inst::raise_site` already carries for the operators.
-//!    That `previous` cannot be set *at all* yet is a different gap, owned by
-//!    `nvs_types::error_lib`, which explains why the synthesized constructor
-//!    takes only a message.
-//!    Decided: Capture a full backtrace at every raise — Best for debugging, but it allocates on every
-//!    throw, which breaks the rule that a throw costs no more than a return.
-//!    — owner: unowned-closures
 //! 7. **A cycle is reclaimed at teardown, not while the request runs.** Every
 //!    object links into its context's live list, and dropping the context
 //!    sweeps whatever the root drain left there — `rule:security/isolate-teardown-is-a-drain-then-a-sweep`, with
@@ -388,7 +371,7 @@ pub use throwable::{
     BACKTRACE_SLOT, CONSTRAINT_SLOT, DRIVER_CODE_SLOT, ENTRY_SCRIPT_FRAME, FINISH_MARKER_NAME,
     ISSUES_SLOT, KIND_SLOT, LOCATION_SLOT, MESSAGE_SLOT, PREVIOUS_SLOT, REASON_SLOT, SLOT_COUNT,
     SQL_SLOT, SQL_STATE_SLOT, Thrown, ThrownClass, is_finish, nvs_raise, nvs_raise_new,
-    nvs_take_thrown, nvs_trace_push,
+    nvs_raise_site, nvs_take_thrown, nvs_trace_push,
 };
 pub use trace_context::TraceContext;
 pub use value::{Tag, Value, nvs_value_release, nvs_value_retain};

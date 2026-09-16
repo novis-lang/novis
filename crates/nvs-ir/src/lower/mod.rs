@@ -2247,6 +2247,12 @@ impl<'a> Lowering<'a> {
     /// written into it lands on both — and [`Self::merge_envs`] writes into
     /// its incoming blocks. See the body for the double release that avoids.
     ///
+    /// That block is also where [`InstKind::SeedRaiseSite`] goes, carrying
+    /// [`Self::source`] in [`Inst::raise_site`]: reaching a handler in this
+    /// frame is the one exception path that pushes no frame label, so it is
+    /// the one place a failure raised with no site of its own — a helper's
+    /// fault — would be caught naming nowhere.
+    ///
     /// [`Self::owned_temporaries`] is released on **both** exits, ahead of
     /// either, and that is the one thing the asymmetry does not reach: a
     /// temporary has no `Env` entry for a handler to find it through, so the
@@ -2283,6 +2289,20 @@ impl<'a> Lowering<'a> {
                 // name — a `foreach`'s own reserved binding is the one every
                 // program has — would release it twice.
                 let caught = self.new_block();
+                // The one edge on which nothing ever names where the failure
+                // happened: no frame is unwound out of a throw caught in its
+                // own frame, and a helper's fault renders no site of its own.
+                // The statement whose call failed is that site, and the
+                // instruction writes only where nothing else already did —
+                // `InstKind::SeedRaiseSite` owns the rest.
+                let site = self.source();
+                self.block_insts[caught.index() as usize].push(Inst {
+                    result: None,
+                    ty: None,
+                    kind: InstKind::SeedRaiseSite,
+                    on_error: None,
+                    raise_site: Some(site),
+                });
                 self.seal(caught, Terminator::Jump(handler));
                 self.try_stack[at].edges.push((caught, env.clone()));
                 // The uncatchable-status exit, and the one place this frame's

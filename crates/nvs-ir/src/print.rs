@@ -79,6 +79,14 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         let _ = writeln!(out, "    release v{}", operand.index());
         return;
     }
+    if let InstKind::SeedRaiseSite = inst.kind {
+        let where_ = inst.raise_site.as_ref().map_or_else(
+            || "-".to_owned(),
+            |site| format!("{}:{}", site.file, site.line),
+        );
+        let _ = writeln!(out, "    raise.site {where_}");
+        return;
+    }
     if let InstKind::RefStore { slot, value } = inst.kind {
         let _ = writeln!(out, "    ref.store v{}, v{}", slot.index(), value.index());
         return;
@@ -341,6 +349,7 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
         InstKind::RefSlot { init } => format!("ref.slot v{}", init.index()),
         InstKind::RefLoad { slot } => format!("ref.load v{}", slot.index()),
         InstKind::StmtMarker(_)
+        | InstKind::SeedRaiseSite
         | InstKind::Safepoint
         | InstKind::Retain { .. }
         | InstKind::Release { .. }

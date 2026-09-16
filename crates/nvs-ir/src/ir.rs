@@ -431,14 +431,18 @@ pub struct Inst {
     /// `location` and the innermost frame of its backtrace
     /// (`rule:errors/a-record-names-where-it-was-produced`).
     ///
-    /// `Some` on the checked arithmetic rows, whose failure is raised inline
-    /// rather than returned by a callee. `crate::lower::Lowering::emit_raising`
-    /// is the only thing that sets it, off the same `Lowering::source` a
-    /// `throw` in that statement would take for its own
-    /// [`InstKind::SourceConst`], so the two spellings of *where* come from one
-    /// datum. `None` everywhere else: an instruction that fails by a callee's
-    /// status names its site in that callee's own arguments where it names one
-    /// at all, and the loop-counter increment `crate::lower` synthesizes for a
+    /// `Some` on two rows, and both take it from the same
+    /// `crate::lower::Lowering::source` a `throw` in that statement would take
+    /// for its own [`InstKind::SourceConst`], so every spelling of *where*
+    /// comes from one datum. The checked arithmetic rows, whose failure is
+    /// raised inline rather than returned by a callee, get it from
+    /// `crate::lower::Lowering::emit_raising`; [`InstKind::SeedRaiseSite`] gets
+    /// it from `crate::lower::Lowering::landing_block`, which is naming the
+    /// statement whose call failed rather than a raise of its own.
+    ///
+    /// `None` everywhere else: an instruction that fails by a callee's status
+    /// names its site in that callee's own arguments where it names one at
+    /// all, and the loop-counter increment `crate::lower` synthesizes for a
     /// `foreach` has no statement of the program's own to name.
     ///
     /// **The datum, not an operand.** A [`InstKind::SourceConst`] beside the
@@ -1223,6 +1227,29 @@ pub enum InstKind {
     /// no Novis operand, and cannot fail — so it needs neither the argument
     /// list nor the status check `HelperCall` exists to carry.
     TakeThrown,
+    /// Names the site a pending failure was raised at, for the one shape that
+    /// records none: an exception caught in the frame it happened in.
+    ///
+    /// A backtrace is built from the frames an exception *leaves*
+    /// ([`Terminator::Propagate`]), and a raise compiled code makes renders
+    /// its own frame from [`Inst::raise_site`]. A helper raising its own fault
+    /// does neither, so the one landing site where no frame is ever pushed —
+    /// the catchable edge of [`Terminator::Catch`] — is where that exception
+    /// would reach a `catch` naming nowhere. This instruction is emitted
+    /// there, and nowhere else, carrying the enclosing statement's site in
+    /// [`Inst::raise_site`] exactly as the checked arithmetic rows carry
+    /// theirs.
+    ///
+    /// Defines no value and cannot fail. `nvs_runtime::nvs_raise_site` is the
+    /// whole of what it lowers to, and it writes only where nothing else
+    /// already named a frame — so a `throw` caught beside itself and an
+    /// exception arriving from a callee both pass through it untouched.
+    ///
+    /// **It sits on the caught edge rather than in the landing block**, so
+    /// neither the path where the call succeeded nor [`Terminator::Catch`]'s
+    /// `onward` exit runs it: a `FATAL` leaving the frame is not a `Throwable`
+    /// and has no backtrace to seed (`rule:errors/escalation-ladder`).
+    SeedRaiseSite,
     /// Increments a [`Ty::is_refcounted`] value's reference count — emitted
     /// exactly where `crate::lower`'s "copy" case needs a second durable
     /// owner to see it stay alive (see that module's docs for the precise
@@ -2789,10 +2816,13 @@ pub enum Terminator {
     /// A landing block's exit inside a `try`: on `THROWN`, enter `handler`;
     /// on any other non-`OK` status, take `onward`.
     ///
-    /// No frame is recorded here, and deliberately so: the backtrace holds the
+    /// No frame is *pushed* here, and deliberately so: the backtrace holds the
     /// frames the exception actually unwound *out of*, and a caught throw
     /// never leaves this one. See `nvs_runtime::throwable`'s own docs for why
-    /// that differs from PHP's construction-time stack snapshot.
+    /// that differs from PHP's construction-time stack snapshot. That makes
+    /// this the one landing site where a raise carrying no site of its own
+    /// would reach a `catch` naming nowhere, which is what
+    /// [`InstKind::SeedRaiseSite`] sits on the `handler` edge to close.
     ///
     /// `onward` is a second landing block of this same frame, and it is what
     /// makes the two exits release the same things. Entering `handler`

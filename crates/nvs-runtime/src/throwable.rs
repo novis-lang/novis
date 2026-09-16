@@ -47,16 +47,27 @@
 //! leaves the frame that raised it, and the trace holds each frame exactly
 //! once. It stands where the throw never leaves — a `catch` in the raising
 //! frame, the one place no landing block pushes anything (`nvs_ir`'s
-//! `Terminator::Dispatch`) — so an exception caught beside its own `throw`
+//! `Terminator::Catch`) — so an exception caught beside its own `throw`
 //! carries that frame rather than an empty trace.
 //!
-//! What no raise can produce is the frames *below* it: PHP snapshots the whole
-//! stack at construction, and matching that needs a walk of Novis's own frame
-//! chain. A checked operator's inline raise ([`nvs_raise_new`]) carries the
-//! site of the statement it was compiled in and renders that frame like any
-//! other throw; an exception a helper raises out of its own [`crate::Fault`]
-//! is handed none, so that trace still begins at the first compiled frame it
-//! unwinds out of.
+//! Every raise names the frame it happened in, by one of two routes. A `throw`
+//! and a checked operator's inline raise ([`nvs_raise_new`]) each carry the
+//! site of the statement they were compiled in and render the frame
+//! themselves. A helper raising its own [`crate::Fault`] carries no site, so
+//! [`nvs_raise_site`] renders it instead — called on that same never-pushes
+//! edge, from the statement whose call failed, and writing only where nothing
+//! already named a frame, so an exception arriving from a callee passes
+//! through untouched.
+//!
+//! Two things no raise produces. The frames *below* it: PHP snapshots the
+//! whole stack at construction, and matching that needs a walk of Novis's own
+//! frame chain. And the `location` of a helper's fault that *propagates* out
+//! of the frame it was raised in — that trace opens at the frame it unwound
+//! out of, as it always has, while the property stays empty, because a pushed
+//! label is a rendering rather than the datum a `location` is read back from,
+//! and the datum reaches that frame only through an operand on the helper
+//! ABI's own signature: a cost on the path where the call succeeds, which is
+//! the one `rule:errors/throw-is-not-slower` prices.
 
 use crate::ctx::Ctx;
 use crate::object::{ClassDesc, NvsObj, ObjHeader};
@@ -767,6 +778,38 @@ impl Thrown {
         out
     }
 
+    /// Whether the `backtrace` property already names a frame.
+    ///
+    /// The one question [`Ctx::seed_raise_site`] asks. A pending exception
+    /// with no frame at all is one no raise rendered a site for and no frame
+    /// has been unwound out of, which is exactly a helper's own
+    /// [`crate::Fault`] on its way to a `catch` in the frame that called the
+    /// helper. Anything else already names where it came from, and a second
+    /// label would name a frame twice.
+    ///
+    /// An object too narrow to hold a backtrace, or a slot holding something
+    /// that is not an array, answers `false` on the same terms
+    /// [`Self::frames`] returns nothing on: there is no frame there to find.
+    #[must_use]
+    pub fn has_frame(&self) -> bool {
+        let Some(obj) = self.borrow() else {
+            return false;
+        };
+        if obj.field_count() < SLOT_COUNT {
+            return false;
+        }
+        let Some(array) = obj.field(BACKTRACE_SLOT).array_ptr() else {
+            return false;
+        };
+        #[expect(
+            unsafe_code,
+            reason = "the slot holds one reference the object owns; the handle \
+                      is never dropped, so that reference is not released here"
+        )]
+        let handle = std::mem::ManuallyDrop::new(unsafe { NvsArray::from_raw(array) });
+        handle.count() > 0
+    }
+
     /// Runs `write` over the `backtrace` property's array, in place, and
     /// answers whether it was reached at all.
     ///
@@ -1026,6 +1069,48 @@ pub unsafe extern "C" fn nvs_raise_new(
         } else {
             (*ctx).raise(thrown);
         }
+    }
+}
+
+/// Renders the frame a pending failure was raised in, for the one shape that
+/// otherwise records none: a failure caught in the very frame it happened in.
+///
+/// Every other frame label in a backtrace is pushed by a frame the exception
+/// *leaves* ([`nvs_trace_push`]), and a raise compiled code makes renders its
+/// own ([`Thrown::capture_site`]). A helper raising its bare [`crate::Fault`]
+/// does neither, so a `catch` beside the call that failed would read an empty
+/// trace and no `location`. `nvs-codegen` emits this call on the catchable
+/// edge of a landing site inside a `try` — `nvs_ir::ir::InstKind::SeedRaiseSite`
+/// — where `source` is the carrier for the statement whose call failed.
+///
+/// It writes only where nothing else did: a `throw` or a checked operator in
+/// this same frame already named itself, and an exception that arrived from a
+/// callee already names that callee's frame. [`Ctx::seed_raise_site`] is the
+/// whole of that judgment.
+///
+/// **What it spends:** on the caught edge only, one decode of the carrier and
+/// one rendered label, and nothing at all on the path where the call
+/// succeeded (`rule:errors/throw-is-not-slower`).
+///
+/// # Safety
+///
+/// `ctx` must be non-null, aligned and valid for the duration of the call, and
+/// `source` must be null or an address [`crate::source::encode`]'s bytes were
+/// baked at.
+#[expect(
+    unsafe_code,
+    reason = "compiled code passes its context pointer and a carrier into its \
+              own data section"
+)]
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn nvs_raise_site(ctx: *mut Ctx, source: *const u8) {
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees `ctx` is valid and that `source` is \
+                  null or bytes a compiled unit baked"
+    )]
+    unsafe {
+        (*ctx).seed_raise_site(source);
     }
 }
 

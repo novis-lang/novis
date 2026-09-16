@@ -29,6 +29,7 @@ fn m(object) -> int {
   bb3:
     catch -> bb4 else bb5
   bb4:
+    raise.site t.nvs:5
     jump bb1
   bb5:
     release v0

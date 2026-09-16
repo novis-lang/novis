@@ -1625,6 +1625,10 @@ struct Signatures {
     /// instruction carries no site, exactly as `raise`'s third is. See
     /// `nvs_runtime::nvs_raise_new`.
     raise_new: Signature,
+    /// `nvs_raise_site(ctx, source)` — the site a pending failure was raised
+    /// at, handed over on the one exception edge that pushes no frame label of
+    /// its own. See `nvs_runtime::nvs_raise_site`.
+    raise_site: Signature,
     /// `nvs_object_instanceof(object, desc) -> bool` — `I8`, the width a
     /// Cranelift comparison produces and the one [`ty::clif_ty`] gives
     /// [`nvs_ir::Ty::Bool`].
@@ -2212,6 +2216,10 @@ impl Signatures {
         raise_new.params.push(AbiParam::new(ptr)); // message length
         raise_new.params.push(AbiParam::new(ptr)); // the raise's own carrier, or zero
 
+        let mut raise_site = module.make_signature();
+        raise_site.params.push(AbiParam::new(ptr)); // ctx
+        raise_site.params.push(AbiParam::new(ptr)); // the failing statement's carrier, or zero
+
         let mut instanceof = module.make_signature();
         instanceof.params.push(AbiParam::new(ptr)); // object
         instanceof.params.push(AbiParam::new(ptr)); // class descriptor
@@ -2333,6 +2341,7 @@ impl Signatures {
             ptr_to_ptr,
             raise,
             raise_new,
+            raise_site,
             instanceof,
             class_method,
             slot_get,

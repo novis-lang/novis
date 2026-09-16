@@ -408,6 +408,64 @@ impl Ctx {
         self.raise(thrown);
     }
 
+    /// Renders the site of a failure raised in this frame and caught in it —
+    /// [`crate::nvs_raise_site`]'s whole body, and the only place a frame is
+    /// recorded for an exception that unwinds out of nothing.
+    ///
+    /// A failure that already names a frame keeps it. A `throw` or a checked
+    /// operator rendered its own through [`Thrown::capture_site`], and one
+    /// that arrived from a callee names that callee's frame, so this writes
+    /// only for the case the compiled raises leave open: a helper's bare
+    /// [`crate::Fault`], whose site is the statement whose call failed.
+    ///
+    /// The promotion to an object is [`Self::push_frame`]'s, on the same
+    /// terms — a class the driver never installed leaves the message pending
+    /// and unsited rather than failing.
+    ///
+    /// The frame this writes is **provisional**, exactly as a `throw`'s own
+    /// is: a `catch` matching no clause hands the exception onward, and the
+    /// label that frame pushes on its way out replaces this one rather than
+    /// naming the frame twice ([`Self::raise_sited`]).
+    ///
+    /// # Safety
+    ///
+    /// `blob` must be null or an address [`crate::source::encode`]'s bytes
+    /// were baked at.
+    #[expect(
+        unsafe_code,
+        reason = "the carrier's liveness is the caller's obligation and cannot \
+                  be expressed in the signature"
+    )]
+    pub unsafe fn seed_raise_site(&mut self, blob: *const u8) {
+        let Some(pending) = self.pending.take() else {
+            return;
+        };
+        // Captured before promotion, for the one case promotion cannot produce
+        // an object for — see `Pending`'s note on an uninstalled class.
+        let message = pending.message().into_owned();
+        let class = pending.class();
+        let desc = class.map_or(std::ptr::null(), |class| self.error_desc(class));
+        #[expect(
+            unsafe_code,
+            reason = "`set_runtime_error_class`'s own contract makes the \
+                      installed descriptor outlive every instance built here"
+        )]
+        let thrown = unsafe { pending.into_thrown(desc) };
+        if thrown.is_none() {
+            self.pending = Some(Pending::Message(
+                class.unwrap_or_default(),
+                Cow::Owned(message),
+            ));
+            return;
+        }
+        if !thrown.has_frame() {
+            #[expect(unsafe_code, reason = "forwarding this function's own contract")]
+            let seeded = unsafe { thrown.capture_site(blob) };
+            self.site_frame_pending |= seeded;
+        }
+        self.pending = Some(Pending::Thrown(thrown));
+    }
+
     /// The pending message, if any, without clearing it.
     #[must_use]
     pub fn pending(&self) -> Option<Cow<'_, str>> {
@@ -672,6 +730,7 @@ impl Ctx {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::throwable::Frame;
 
     /// `rule:core-classes/db-error`'s retry loop reads a refusal's `kind` off a failure it has
     /// not decided about yet, so the read leaves the pending exactly as it
@@ -722,6 +781,71 @@ mod tests {
             ctx.pending_slot("Core\\Db\\DbError", crate::KIND_SLOT)
                 .is_none(),
             "nothing is pending once it has been taken"
+        );
+    }
+
+    /// A helper's fault reaches a `catch` in the frame that called the helper
+    /// having unwound out of nothing, so the site seeded on that edge is the
+    /// only thing that ever names where it happened. The other half is the
+    /// skip: a failure carrying a frame already names its own origin, and a
+    /// second label there would name a frame twice
+    /// (`rule:errors/throw-is-not-slower`).
+    #[test]
+    fn a_seeded_site_names_the_raising_frame_and_leaves_a_named_one_alone() {
+        const NARROW: [&str; 4] = ["message", "previous", "backtrace", "location"];
+        let mut table = ClassTable::new();
+        let root = table.define("RuntimeError", &NARROW, &[]);
+        let shared = std::sync::Arc::new(table);
+
+        let site = crate::source::encode(&nvs_render::Source {
+            file: "case.nvs".to_owned(),
+            line: 7,
+            member: Some("Relay::go".to_owned()),
+        });
+
+        let mut ctx = Ctx::buffered();
+        ctx.set_runtime_error_class(ErrorClass::new(std::sync::Arc::clone(&shared), root));
+        ctx.set_pending("the world said no");
+        #[expect(
+            unsafe_code,
+            reason = "the carrier is a live `Vec` for the whole of the call"
+        )]
+        unsafe {
+            ctx.seed_raise_site(site.as_ptr());
+        }
+        let seeded = ctx.take_thrown();
+        assert_eq!(seeded.message(), "the world said no");
+        assert_eq!(
+            seeded
+                .frames()
+                .iter()
+                .map(Frame::label)
+                .collect::<Vec<String>>(),
+            vec!["Relay::go() at case.nvs:7"],
+            "a bare-message fault is promoted and the seeded frame is the whole trace"
+        );
+
+        let mut ctx = Ctx::buffered();
+        ctx.set_runtime_error_class(ErrorClass::new(shared, root));
+        ctx.set_pending("raised further down");
+        // The frame a callee pushed on its way out: this failure already says
+        // where it came from.
+        ctx.push_frame("Inner::deeper() at case.nvs:21");
+        #[expect(
+            unsafe_code,
+            reason = "the carrier is a live `Vec` for the whole of the call"
+        )]
+        unsafe {
+            ctx.seed_raise_site(site.as_ptr());
+        }
+        assert_eq!(
+            ctx.take_thrown()
+                .frames()
+                .iter()
+                .map(Frame::label)
+                .collect::<Vec<String>>(),
+            vec!["Inner::deeper() at case.nvs:21"],
+            "an exception arriving from a callee passes through the seed untouched"
         );
     }
 

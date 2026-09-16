@@ -120,8 +120,14 @@ is what leaves the slope above untouched, and the label the frame pushes as the 
 replaces that rendering rather than following it, so no frame is named twice. **A checked operator
 is handed its statement's site on the same terms**: the blob is baked in the cold block it already
 raises from, beside the message bytes, so the arithmetic that does not overflow spends no
-instruction on it. A raise a helper makes out of its own fault is handed no site and renders
-nothing.
+instruction on it. **A helper's fault is handed no site**, and its frame is rendered on the one
+edge that would otherwise carry none — reaching a `catch` in the frame the helper was called from.
+That rendering sits on the caught edge of the landing site, which only a failure enters, so a call
+that returned cleanly spends nothing on it, and it writes only where nothing already named a frame,
+so an exception arriving from a callee passes through untouched. The bound: a fault that
+*propagates* out of the frame it was raised in opens its trace at that frame's own label as before
+and names no `location`, a pushed label being a rendering rather than the datum a `location` is read
+back from.
 
 <aside class="nv-rule-diverges">
 <p class="nv-rule-diverges-label">Where this differs from PHP</p>

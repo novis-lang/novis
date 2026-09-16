@@ -1019,6 +1019,19 @@ impl Emitter<'_, '_> {
                 let value = self.b.inst_results(call)[0];
                 self.define(inst, value)?;
             }
+            InstKind::SeedRaiseSite => {
+                // The carrier is baked here, on the caught edge, for the same
+                // reason `Self::raise_arithmetic_error` bakes its own in the
+                // cold block: the path where the call succeeded never reaches
+                // this block, so it spends no instruction on the site
+                // (`rule:errors/throw-is-not-slower`).
+                let site = match &inst.raise_site {
+                    Some(source) => self.emit_bytes(&nvs_runtime::source::encode(source))?.0,
+                    None => self.b.ins().iconst(types::I64, 0),
+                };
+                let callee = self.runtime_ref("nvs_raise_site", RuntimeSig::RaiseSite)?;
+                self.b.ins().call(callee, &[self.ctx_p, site]);
+            }
             InstKind::Phi { .. } => return Err(internal("a phi reached the instruction walk")),
             other => {
                 return Err(CodegenError::Unsupported(describe(other)));
@@ -3840,6 +3853,7 @@ impl Emitter<'_, '_> {
             RuntimeSig::PtrToPtr => &self.sigs.ptr_to_ptr,
             RuntimeSig::Raise => &self.sigs.raise,
             RuntimeSig::RaiseNew => &self.sigs.raise_new,
+            RuntimeSig::RaiseSite => &self.sigs.raise_site,
             RuntimeSig::InstanceOf => &self.sigs.instanceof,
             RuntimeSig::ClassMethod => &self.sigs.class_method,
             RuntimeSig::SlotGet => &self.sigs.slot_get,
@@ -3901,6 +3915,7 @@ enum RuntimeSig {
     PtrToPtr,
     Raise,
     RaiseNew,
+    RaiseSite,
     InstanceOf,
     ClassMethod,
     SlotGet,

@@ -25,6 +25,7 @@ fn <script>() -> tagged {
   bb3:
     catch -> bb4 else bb5
   bb4:
+    raise.site t.nvs:6
     jump bb1
   bb5:
     propagate "<script>() at t.nvs:6"
@@ -32,6 +33,7 @@ fn <script>() -> tagged {
     release v2
     catch -> bb7 else bb8
   bb7:
+    raise.site t.nvs:7
     jump bb1
   bb8:
     propagate "<script>() at t.nvs:7"
