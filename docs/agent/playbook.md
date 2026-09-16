@@ -5288,6 +5288,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   patterns it looks like it sees. Find the pattern argument through `nvs_syntax::walk` and the class's
   own registry rows instead, and settle each one by handing it to `compile`, which is what
   `every_literal_regex_pattern_in_the_suite_has_its_tier_recorded` does. [until: reviewed 2026-09-16]
+- **The one-second JWT case fails about one run in many, with `expired at N and it is now N` on the
+  line that should verify.** Waiting for the second to turn before signing narrows that window
+  without closing it, because `Core\Jwt::sign` reads the clock again itself. Re-run the case alone
+  before believing a red conformance step; the fix is for it to assert against the `exp` the token
+  carries rather than the second the spin saw. [until: reviewed 2026-09-16]
 
 ## Splitting a file that got too big
 
