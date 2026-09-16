@@ -2,50 +2,54 @@
 
 ## State
 
-Goal `m8-stdlib-depth`. **Stage 12's call-site half is landed**: a literal series name outside
-`[a-z][a-z0-9_]*` is `E0769` where it was written, on all three verbs, and a `tainted` label value
-or series name is `E0401` at the argument. Stages 0–11 are closed.
+Goal `m8-stdlib-depth`. **Stage 12 is closed.** `Core\Metrics` is registered with three verbs and no
+reader, a literal name outside `[a-z][a-z0-9_]*` and a `tainted` label value are compile-time
+diagnostics on all three verbs, and the three Rust tests the stage's acceptance names all exist and
+pass under `-p nvs-stdlib`. Its `.nvst` cases are on disk.
 
-**Stage 12 is not finished, and the driver's failing check is what is left**: of the three Rust
-tests its acceptance names under `-p nvs-stdlib`, only `core_metrics_is_a_registered_class` exists.
-The other two are the next group and neither needs new behaviour — the code they assert is landed.
-
-The grammar's one home is `nvs_stdlib::metrics::validate_name`, and that module is now `pub` so the
-checker reaches it. `Grammar::MetricName` is the one row on the intrinsic list whose refusal the
-runtime does **not** repeat — the registry fixes whatever it is handed, because a metric write may
-not fail the request that made it — and `crates/nvs-types/src/intrinsics.rs`' module doc, fourth
-bullet, is where that asymmetry is argued. Nothing is blocked.
+Stages 0–12 are closed; stage 13 (`Core\Process::spawn`) is the next one and is unstarted — the class
+today has `run` alone (`crates/nvs-stdlib/src/process.rs:95`) and none of its five acceptance tests
+exists. Nothing is blocked.
 
 ## Next group
 
-**Stage 12, the two acceptance tests that do not exist yet** — one file set: both are `#[cfg(test)]`
-tests in `crates/nvs-stdlib/src/metrics.rs`'s module at `:428`, reading `nvs_runtime::metrics`.
+**Stage 13: `Core\Process::spawn`** — one file set: `crates/nvs-stdlib/src/process.rs` (the registry
+row at `:95`, the bounded drain at `:420`, the scheduler test at `:734`, the tests module at `:516`),
+plus the handle class's registration in `crates/nvs-stdlib/src/registry.rs`.
 
-- [ ] **A name used as a gauge and then incremented throws naming both sites** —
-      `crates/nvs-stdlib/src/metrics.rs:364` is `mismatch`, which builds the `LogicError` and reads
-      where the name was fixed off `nvs_runtime::metrics::fixed_at`
-      (`crates/nvs-runtime/src/metrics.rs:906`). `rule:observability/metrics-three-members` is the
-      rule; `tests/conformance/core/metrics-a-name-is-fixed-to-one-kind-and-the-throw-names-both-sites.nvst`
-      already pins it from a program, so this is the same claim asked of the helper. Closes
-      `a_metrics_name_used_as_a_gauge_then_incremented_throws_naming_both_sites` under
-      `-p nvs-stdlib`.
-- [ ] **A build with the exporter feature off still accumulates** —
-      `crates/nvs-runtime/src/metrics.rs:888` is `record`, which builds a registry on any thread
-      that writes a metric without having been metered, and `:921` is `on_this_core`, the only way
-      to read one back. `rule:observability/the-exporter-is-a-feature-and-core-metrics-is-not` is
-      the rule: behaviour is identical across builds except for the export path. Closes
-      `core_metrics_accumulates_with_the_exporter_feature_off` under `-p nvs-stdlib`.
+- [ ] **`spawn` and its handle class are registered** — a second `CoreMethod` beside `run`'s at
+      `crates/nvs-stdlib/src/process.rs:95`, answering the handle as a `CoreTy::Instance`, with the
+      handle's own instance members and reference cards. `rule:core-classes/process-spawn` is the
+      rule (`python tools/rules.py --show core-classes/process-spawn`) and
+      `rule:core-classes/process-is-argv-only` keeps the argv-only shape —
+      `there_is_no_shell_string_form_of_run_or_spawn` at
+      `crates/nvs-stdlib/src/process.rs:547` already asserts it over the whole roster, so a `spawn`
+      with a second text parameter fails there. The goal's § *Standing decisions* fixes the spelling
+      under the verb lexicon. Closes `process_spawn_is_a_registered_member`.
+- [ ] **A handle's reads suspend and the child never outlives its task** — the reads reuse the
+      bounded pipe reader at `crates/nvs-stdlib/src/process.rs:420` and suspend the way
+      `a_process_wait_suspends_its_coroutine_through_the_blocking_pool`
+      (`crates/nvs-stdlib/src/process.rs:734`) already shows, with the kill on task end that the
+      goal's standing decisions require so memory stays O(in-flight). Closes
+      `a_spawned_childs_reads_suspend_the_coroutine_and_free_the_core`,
+      `killing_a_spawned_child_ends_it_and_wait_answers_its_status` and
+      `a_spawned_child_is_killed_when_its_task_ends` under `-p nvs-stdlib`.
+- [ ] **One span per spawn, and the child's output reaches the program** —
+      `a_spawn_produces_exactly_one_span` joins the tests module at
+      `crates/nvs-stdlib/src/process.rs:516`. The shape to follow is `Core\Http`'s, which files one
+      trace event per call whatever its attempts through `ctx.record_http` at
+      `crates/nvs-stdlib/src/http.rs:3806`, behind the `TRACE` debug flag —
+      `rule:observability/trace-events-carry-a-kind` is the rule. Then the conformance case
+      `tests/conformance/core/process-spawn-streams-a-childs-output-into-the-program.nvst` the
+      stage's `nvs-suite` check names.
 
 ## Backlog
 
-- Stage 13, `Core\Process::spawn` and M8's two open `Core\Process` bullets — `docs/agent/loop-goal.md`
-  § *Stage 13*, `crates/nvs-stdlib/src/process.rs:36-50`, guard at
-  `benches/abi-probe/tests/perf_guards.rs:436`.
+- The release guard `concurrent_spawns_leave_the_scheduler_serving_other_tasks` —
+  `benches/abi-probe/tests/perf_guards.rs:436`, run under `--release -p nvs-abi-probe`, is stage 13's
+  second check and lands after the three slices above.
 - Stages 14–15, the verification remainder and the `shipped` flips — the `[[check]]` blocks tagged
-  `15 the rulebook` in `docs/agent/loop-goal.toml`.
+  `14 verification remainder` and `15 the rulebook` in `docs/agent/loop-goal.toml`.
 - `rule:observability/metrics-three-members` spells the bag `array<string, string>` while the row
   declares `array<string>` (`crates/nvs-stdlib/src/metrics.rs:116`). One of the two is wrong; stage
   15's rulebook pass is where it is settled.
-- `[context] modules` is missing `crates/nvs-stdlib/src/metrics.rs` — the pack printed
-  `crates/nvs-runtime/src/metrics.rs` for stage 12 but not the class's own module, which is where
-  both of the next group's tests go.
