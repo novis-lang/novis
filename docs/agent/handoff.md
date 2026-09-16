@@ -2,51 +2,58 @@
 
 ## State
 
-**Goal `unowned-closures`, stage 3 closed.** Two gaps struck, and the front end now has **one escape
-grammar**. It moved down to `crates/nvs-syntax/src/string_lit.rs` — out of `nvs-types`, which depends
-on `nvs-hir` and so sits *above* name resolution — and `nvs_types::string_lit` is a `pub use` of it, so
-no call site moved. `cook_quoted` (`crates/nvs-hir/src/requires.rs:1276`) is now a spelling filter in
-front of `cook_string_literal`: a `require` path, an `autoload` prefix, a root and a `discover` glob all
-decode octal, hex and `\u{...}` exactly as an ordinary string literal does, where before they took a
-practical subset and left the backslash verbatim.
+**Goal `unowned-closures`, stage 4 open.** `Core\Compress`'s incremental surface is on disk and its
+gap is struck. `Core\Compress::compressor` and `::decompressor` open two classes — a
+`Compress\Compressor`, whose `finish` answers `bytes`, and a `Compress\Decompressor`, whose `finish`
+answers `tainted bytes` — each fed by `add` and closed by `finish`. A decompressor resolves `Bound`
+at the opening and `finish` applies it once over the whole stream, so feeding a frame in ten chunks
+buys exactly what feeding it in one does. `crates/nvs-stdlib/src/compress.rs:45` § *The incremental
+surface, and why it is two classes* is the home of why two classes, why the chunks rather than a
+coder, why PHP's `$flush_mode` has no spelling, and what a stream spends.
 
-`rule:packaging/autoload-probes-fold-into-the-cache-key`'s probe trace is recorded rather than dropped.
-`AutoloadMap::resolve_recording` (`crates/nvs-hir/src/autoload.rs:315`) keeps every probed path, misses
-included, in the `ProbeTrace` (`crates/nvs-hir/src/autoload.rs:163`) the map already carries back, and
-the graph walk is its only caller — so `nvs check --autoload-map` or an editor resolving a name cannot
-lengthen a trace a cache key is computed from. **Nothing reads it yet**: the fragment says so as *Half
-on disk*, and `requires.rs`'s own known gaps name the cache-side half that is left.
-
-Nothing is blocked, and **`python tools/rules.py --check` is green tree-wide again** — the queued goal
-`class-scoped-types` named an uncreated rule by its `rule:` token inside a check's `argv`, which the
-citation resolver reads like any other, so it named it by path instead. `session.py --wrap` works again;
-the last sessions' by-hand commits were that red. Stage 1's floor is goal `m8-stdlib-depth`'s whole
-list, carried and untouched.
+**The failing acceptance check is not what this group closed.** Stage 4's check is `python
+tools/owners.py` wanting `, 0 owned by a retired goal`, and the five items it names belong to retired
+goal `m8-stdlib-depth` — not one of them is a `Core\Compress` gap. They are the group below, which is
+a different file set and needs its own pack. Nothing is blocked.
 
 ## Next group
 
-**Stage 4: the library — `Core\Compress`'s incremental surface** — one file set:
-`crates/nvs-stdlib/src/compress.rs` and `tests/conformance/core/`.
+**Stage 4: the module docs — the five gaps retired goal `m8-stdlib-depth` left** — one file set:
+`crates/nvs-stdlib/src/debug.rs`, `crates/nvs-stdlib/src/json.rs`, `crates/nvs-stdlib/src/db/mod.rs`
+and `crates/nvs-render/src/lib.rs`. `python tools/owners.py` prints the list; the verdict for each is
+*build it and strike the gap*, or re-owner to an M9+ milestone whose plan states the scope. `unowned`
+is not available — this goal exists to empty it.
 
-- [ ] **`Core\Compress\Stream` inflates chunk by chunk under one bound** —
-      `crates/nvs-stdlib/src/compress.rs:47`'s known gap 1: `deflate_init`, `deflate_add` and
-      `inflate_init` map to a `Core\Compress\Stream` instance and none of them is written. Every backend
-      beside it is driven whole on purpose (`crates/nvs-stdlib/src/compress.rs:471`), and the gap states
-      the trap: a bound applied per call rather than per stream is not a bound
-      (`rule:core-classes/decompression-bound`).
-- [ ] **The conformance case the stage-4 check names** —
-      `tests/conformance/core/compress-a-stream-inflates-chunk-by-chunk-under-one-bound.nvst`, which does
-      not exist yet. The three cases beside it are all whole-buffer; the bound's own shape to copy is
-      `tests/conformance/core/compress-refuses-a-decompression-past-its-bound.nvst:1`, and the new one
-      asserts the bound across chunks rather than within one.
+- [ ] **`[debug] inline` is the channel a dump reaches a response body through** —
+      `crates/nvs-stdlib/src/debug.rs:35` gap 1 and `crates/nvs-stdlib/src/debug.rs:43` gap 2, one
+      file: the directive and the record beside it, then `render`'s two carriers
+      (`rule:errors/debug-dump`, `rule:errors/renderings`). Gap 2 names its own precondition — a
+      `Core` class cannot be narrowed by `instanceof`, which is `E0496` — so read the gap before
+      building rather than after.
+- [ ] **An `array<T>` of inline shapes needs an element description that nests** —
+      `crates/nvs-stdlib/src/json.rs:151` gap 1 (`rule:core-classes/derive-field-list`): the
+      element's contract has nowhere to ride, since `nvs_runtime::CodecField` carries one and a list
+      has spent it naming the element's wire type. The same widening `array<array<T>>` waits on, so
+      this is the one of the five most likely to be a milestone owner rather than a build.
+- [ ] **A hydration's skipped field has no call site to emit its default from** —
+      `crates/nvs-stdlib/src/db/mod.rs:268` gap 3 (`rule:core-classes/derive-field-list`), the
+      neighbouring question at the other door to the `json.rs` one; `nvs_types::derive`'s
+      `check_row_sites` already refuses every other shape as `E0806` while compiling.
+- [ ] **A `#[Test]` result is a producer, so § 22's three output formats are one record rendered
+      three ways** — `crates/nvs-render/src/lib.rs:39` gap 1 (`rule:errors/diagnostic-record`), the
+      only one of the five outside `nvs-stdlib`.
 
 ## Backlog
 
-- The probe trace's cache half: a negative `PathEntry` per probed miss, and the trace's digest beside the
-  content hash in the unit key — `crates/nvs-hir/src/requires.rs`'s known gaps own it,
-  `rule:packaging/autoload-probes-fold-into-the-cache-key` specifies it, and `UnitKey::new` has two call
-  sites (`crates/nvs-cli/src/script.rs:491`, `:546`).
-- A discovery query's listed directories reach no revalidation set either — the same rule's second
-  paragraph, untouched.
-- A goal's check may not name a rule it has not created yet by its `rule:` token — the resolver reads
-  every token under `docs/`. Nothing enforces that; `tools/rules.py`'s `--citations` is where it would go.
+- The `[context] modules` manifest names `crates/nvs-stdlib/src/compress.rs` but not `hash.rs`,
+  `instance.rs`, `registry.rs` or `identity_store.rs` — a `Core` instance class cannot be written
+  without all four, so add them.
+- `[context] rules` is missing `core-api/shape-rules`, `core-api/verb-lexicon`,
+  `core-api/symmetric-names` and `security/tainted-sources`; naming a new `Core` class needs them and
+  the last one decided this group's design.
+- `[context]` has no way to name a test file, so `crates/nvs-stdlib/tests/conformance_coverage.rs`
+  and `tests/corpus/mod.rs` — the floor of three and how a case is attributed to a class — were read
+  from scratch; `modules` takes only crate `src/` paths.
+- The four remaining `past-milestone` findings `python tools/owners.py` prints (M1, M6, M7 owners on
+  live gaps) are not the stage-4 check but are the same kind of work, one call away.
+- `python tools/gaps.py --coverage` ranks the classes still nearest the floor of three.

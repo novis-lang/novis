@@ -159,6 +159,8 @@ Conventions the whole file uses:
 | [`Core\Xml\Reader`](#core-core-xml-reader) |  |
 | [`Core\Xml\Writer`](#core-core-xml-writer) |  |
 | [`Core\Compress`](#core-core-compress) |  |
+| [`Core\Compress\Compressor`](#core-core-compress-compressor) |  |
+| [`Core\Compress\Decompressor`](#core-core-compress-decompressor) |  |
 | [`Core\Mime`](#core-core-mime) |  |
 | [`Core\Zip`](#core-core-zip) |  |
 | [`Core\Http`](#core-core-http) |  |
@@ -20479,12 +20481,14 @@ Writes a document type declaration naming `$name`, before the root element. Nami
 <a id="core-core-compress"></a>
 ### `Core\Compress`
 
-Keywords: compress, decompress
+Keywords: compress, decompress, compressor, decompressor
 
 | Member | Signature |
 |---|---|
 | [`Core\Compress::compress`](#core-core-compress-compress) | `compress(bytes\|string $data, Core\Codec $codec): bytes` |
 | [`Core\Compress::decompress`](#core-core-compress-decompress) | `decompress(bytes $data, Core\Codec $codec, uint $maxBytes = 67108864, uint $maxRatio = 1000): bytes` |
+| [`Core\Compress::compressor`](#core-core-compress-compressor) | `compressor(Core\Codec $codec): Core\Compress\Compressor` |
+| [`Core\Compress::decompressor`](#core-core-compress-decompressor) | `decompressor(Core\Codec $codec, uint $maxBytes = 67108864, uint $maxRatio = 1000): Core\Compress\Decompressor` |
 
 <a id="core-core-compress-compress"></a>
 #### `Core\Compress::compress`
@@ -20521,6 +20525,118 @@ Decompresses `$data` under `$codec`, **under a bound that cannot be switched off
 **Returns** `bytes` — The decompressed octets, never a truncation — a decompression that would pass either bound throws instead of answering the prefix it had reached.
 
 **Throws** `ParseError` — `$data` is not a well-formed frame of `$codec`, or the output would pass either half of the bound. Never an `IOError`: a hostile archive and a full disk are different questions.
+
+<a id="core-core-compress-compressor"></a>
+#### `Core\Compress::compressor`
+
+```nvs skip
+Core\Compress::compressor(Core\Codec $codec): Core\Compress\Compressor
+```
+
+Opens an incremental compression under `$codec`, as `deflate_init` does — a `Core\Compress\Compressor` fed by `add` and closed by `finish`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$codec` | `Core\Codec` | The format to write, any `Core\Codec` case. Fixed for the stream's whole life: a frame is one format. |
+
+**Returns** `Core\Compress\Compressor` — A fresh, open stream that has been fed nothing yet.
+
+<a id="core-core-compress-decompressor"></a>
+#### `Core\Compress::decompressor`
+
+```nvs skip
+Core\Compress::decompressor(Core\Codec $codec, uint $maxBytes = 67108864, uint $maxRatio = 1000): Core\Compress\Decompressor
+```
+
+Opens an incremental decompression under `$codec`, as `inflate_init` does — a `Core\Compress\Decompressor` fed by `add` and closed by `finish`, **under the same bound that cannot be switched off**.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$codec` | `Core\Codec` | The format the chunks are in. Nothing is sniffed — a frame that is not this format is refused rather than guessed at. |
+| `$maxBytes` | `uint` (default `67108864`) | The most output this whole stream will produce, in octets — resolved against `[limits] max_decompressed` here, at the opening, and charged once across every chunk rather than once per `add`. |
+| `$maxRatio` | `uint` (default `1000`) | The most output per octet fed to the stream. The second half of the same bound, measured against everything `add` was handed. |
+
+**Returns** `Core\Compress\Decompressor` — A fresh, open stream that has been fed nothing yet, carrying the bound it will be measured against.
+
+<a id="core-core-compress-compressor"></a>
+### `Core\Compress\Compressor`
+
+Keywords: add, finish
+
+| Member | Signature |
+|---|---|
+| [`Core\Compress\Compressor->add`](#core-core-compress-compressor-add) | `add(bytes\|string $data): void` |
+| [`Core\Compress\Compressor->finish`](#core-core-compress-compressor-finish) | `finish(): bytes` |
+
+<a id="core-core-compress-compressor-add"></a>
+#### `Core\Compress\Compressor->add`
+
+```nvs skip
+$compressor->add(bytes|string $data): void
+```
+
+Feeds `$data` to the stream, as `deflate_add` does; the chunks are compressed in order at `finish`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$data` | `bytes\|string` | The next octets; a `string` is read as its UTF-8 bytes. |
+
+**Returns** `void` — Nothing. PHP's `deflate_add` answers whatever its flush mode let the coder emit, and there is no such answer here: the frame is written whole at `finish`.
+
+**Throws** `RuntimeError` — The stream has already been finished — a frame is whole once it is written, so open a new stream.
+
+<a id="core-core-compress-compressor-finish"></a>
+#### `Core\Compress\Compressor->finish`
+
+```nvs skip
+$compressor->finish(): bytes
+```
+
+Closes the stream and answers the frame for everything `add` fed it — the same octets `Core\Compress::compress` answers over the concatenation.
+
+**Returns** `bytes` — The compressed frame, as `bytes`; the stream is finished afterwards and its chunks released. Not tainted by its input, for the reason this module's docs give: a frame is not a payload any sink reads as text.
+
+**Throws** `RuntimeError` — The stream has already been finished — a second `finish` is refused rather than answering a second frame.
+
+<a id="core-core-compress-decompressor"></a>
+### `Core\Compress\Decompressor`
+
+Keywords: add, finish
+
+| Member | Signature |
+|---|---|
+| [`Core\Compress\Decompressor->add`](#core-core-compress-decompressor-add) | `add(bytes $data): void` |
+| [`Core\Compress\Decompressor->finish`](#core-core-compress-decompressor-finish) | `finish(): tainted bytes` |
+
+<a id="core-core-compress-decompressor-add"></a>
+#### `Core\Compress\Decompressor->add`
+
+```nvs skip
+$decompressor->add(bytes $data): void
+```
+
+Feeds `$data` to the stream, as `inflate_add` does; the chunks are decompressed in order at `finish`, under the one bound the stream was opened with.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$data` | `bytes` | The next octets of the compressed frame. Nothing is decoded yet, so nothing here is refused for size — the bound is the whole stream's and `finish` applies it. |
+
+**Returns** `void` — Nothing. PHP's `inflate_add` answers whatever its flush mode let the decoder emit, and a bound charged against such an answer would be a bound per call rather than per stream.
+
+**Throws** `RuntimeError` — The stream has already been finished — the octets are final, so open a new stream.
+
+<a id="core-core-compress-decompressor-finish"></a>
+#### `Core\Compress\Decompressor->finish`
+
+```nvs skip
+$decompressor->finish(): tainted bytes
+```
+
+Closes the stream and answers everything `add` fed it, decompressed — the same octets `Core\Compress::decompress` answers over the concatenation, under the same bound.
+
+**Returns** `tainted bytes` — The decompressed octets as `tainted bytes`, never a truncation; the stream is finished afterwards and its chunks released. Tainted because a frame's contents are whatever it said they were, which is `rule:security/tainted-sources`' reading for every other reader of untrusted octets.
+
+**Throws** `ParseError` — The chunks are not a well-formed frame of the stream's codec, or the output would pass either half of the bound the stream was opened under. The bound is the whole stream's: every chunk is charged against one ceiling.; `RuntimeError` — The stream has already been finished — including by a `finish` that refused, since a refused frame is over.
 
 <a id="core-core-mime"></a>
 ### `Core\Mime`
@@ -27030,6 +27146,8 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `gzrewind` | dropped | the same, and the honest spelling is to decode again |
 | `gzfile` | member | `Core\IO::read` for the bytes, `Core\Compress::decompress` for the decoding and `Core\Str` for the split into lines — three jobs PHP folded into one call, and the middle one is the only one that is about compression |
 | `gzpassthru` | dropped | it writes the remainder of a handle straight to the output. Output is `echo` over a value the program is holding (`rule:security/sink-predicate`) |
+| `deflate_init` | member | `Core\Compress::compressor`, answering a `Compress\Compressor` — an object rather than a context `resource` (R14). [01 § 17](spec/01-core-library.md) names this family as one of the three surfaces it replaces |
+| `inflate_init` | member | `Core\Compress::decompressor`, answering a `Compress\Decompressor` — the same, decompressing, under the same non-optional ceiling, charged once across the whole stream |
 | `inflate_get_status` | dropped | an integer read after every `inflate_add` to learn whether the stream ended or failed. A failure throws and an ending is the end of the iteration (`rule:core-api/shape-rules`) |
 | `inflate_get_read_len` | dropped | how much input the last call consumed, which a caller needs only because PHP's context does not report what it produced |
 | `zip_open` | dropped | an archive is a value rather than a handle, and a handle would be a `resource` (`rule:core-api/shape-rules` R14). It is also what lets a caller hold an archive open and never ask it any of the questions above |
