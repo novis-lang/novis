@@ -144,6 +144,30 @@ fn turning_coverage_on_records_one_hit_per_executed_statement() {
     assert_eq!(ctx.stmt_hits(), [1, 1, 1]);
 }
 
+/// A retrieval the checker answers whole — `rule:attributes/retrieval-folds-while-checking`'s
+/// fold — written as one statement's entire expression, with an ordinary statement on either side
+/// of it.
+const A_FOLDED_CALL: &str = "<?nvs\nclass Row {\n    #[{column: \"name\"}]\n    public string $name = \"\";\n}\necho \"a\";\n?{column: string} $found = Core\\Attributes::get<{column: string}>(Row::constructor(...), \"name\");\necho \"b\";\n";
+
+#[test]
+fn a_statement_holding_a_folded_intrinsic_call_is_still_reported_covered() {
+    // `rule:expressions/preparation-preserves-behaviour`'s last paragraph names one observable
+    // difference and bounds it: a fully folded call is no longer a call, so no per-call probe
+    // fires for it — and the statement it was written in is still a statement, so
+    // `rule:testing/debug-probes`' coverage reports it like any other. The failure this pins is a
+    // line vanishing from a coverage report for having been answered early, which would make
+    // coverage a claim about the optimiser rather than about the program.
+    //
+    // That the call really folded is what the run itself says: both rows of `Core\Attributes`
+    // name a body that aborts the process on entry (`nvs_stdlib::attributes`'s
+    // `folded_at_compile_time`), so a script that returns at all is one whose retrieval never
+    // became a call.
+    let mut ctx = Ctx::buffered();
+    ctx.set_debug_flags(DebugFlags::COVERAGE);
+    run_with(&mut ctx, A_FOLDED_CALL).expect("the script ran");
+    assert_eq!(ctx.stmt_hits(), [1, 1, 1]);
+}
+
 /// A statement path and a call path in one script, so `rule:testing/debug-probes`'s probe units
 /// are present for the assertion below to count.
 const MEASURED: &str = "<?nvs\nclass Math {\n    public static function double(int $n): int {\n        return $n + $n;\n    }\n}\nint $n = Math::double(2);\necho $n;\n";
