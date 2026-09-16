@@ -59,6 +59,19 @@
 //! | `X` | ISO offset, `Z` at zero | `X` = `±HH[mm]`, `XX` = `±HHmm`, `XXX` = `±HH:MM` |
 //! | `x` | ISO offset, never `Z` | same three counts |
 //! | `VV` | the zone's IANA identifier | `VV` only |
+//! | `A` | milliseconds in the day | numeric, zero-padded to the count |
+//! | `g` | modified Julian day | numeric, and signed before `1858-11-17` |
+//! | `U` | cyclic year name | the Gregorian calendar has none, so `y`'s rendering |
+//! | `r` | related Gregorian year | `u`'s rendering, the same signed year |
+//! | `b` | AM/PM, and `noon`/`midnight` at those two instants | 1–4 the name, 5 narrow |
+//! | `B` | the day period as a range — `in the morning` | 1–4 the name, 5 narrow |
+//! | `z` | the zone's specific name | short below `zzzz`, long at it |
+//! | `v` | the zone's generic name | `v` short, `vvvv` long |
+//! | `O` | localized GMT | `O` = `GMT-8`, `OOOO` = `GMT-08:00` |
+//! | `Z` | ISO offset, basic | 1–3 `±HHmm`, `ZZZZ` localized GMT, `ZZZZZ` = `XXX` |
+//! | `Y` | the year `w`'s week belongs to | `y`'s counts, two digits at `YY` |
+//! | `e` | local weekday number | `c`'s counts, and its numbering |
+//! | `q` | standalone quarter | `Q`'s counts; the root locale spells both alike |
 //!
 //! A `'…'` run is a literal, and `''` is one apostrophe — CLDR's own quoting.
 //!
@@ -74,13 +87,44 @@
 //! the way back in: `u` reads a leading `-` and `y` reads digits only, so a
 //! date before year 1 round-trips through `u` alone.
 //!
-//! **The week rule is ISO 8601's, for `w` and `W` alike**: a week starts on
-//! Monday, and week 1 is the first one with at least four days in the period.
-//! CLDR states that rule per *territory* rather than per language, which is
-//! exactly the locale data the section above refuses to carry — so one rule is
-//! written here, it is the one the majority of that table names, and a `W`
-//! whose month opens with a short partial week answers `0`, as ICU's own
-//! week-of-month does.
+//! **The week rule is ISO 8601's, and `w`, `W`, `Y`, `e` and `c` all read
+//! it**: a week starts on Monday, and week 1 is the first one with at least
+//! four days in the period. CLDR states that rule per *territory* rather than
+//! per language, which is exactly the locale data the section above refuses to
+//! carry — so one rule is written here, it is the one the majority of that
+//! table names, and a `W` whose month opens with a short partial week answers
+//! `0`, as ICU's own week-of-month does.
+//!
+//! **One rule, rather than a table of them, because nothing here selects a
+//! territory.** A pattern names no locale and `format` takes none, so a
+//! transcribed `weekData` table would be read at one row and no other — and
+//! the row it would be read at, CLDR's `001`, counts a week from Monday but
+//! calls the first partial one week 1, which is the rule this module did not
+//! choose. Carrying both would put `w` and `Y` on different calendars inside
+//! one pattern, which is the one thing a week-based year beside its week may
+//! not do. So the five letters agree by construction, and a program that wants
+//! another territory's numbering has the date and computes it.
+//!
+//! **No zone *name* is carried, so `z` and `v` render the localized GMT
+//! format.** The names `z` asks for — `PDT`, `Pacific Daylight Time` — and the
+//! generic ones `v` asks for are per-zone per-locale data of the size the
+//! section above refuses, so this subset carries none of it and every one of
+//! these letters takes the fallback ICU takes when a locale has none: the
+//! short localized GMT format (`GMT-8`) below `zzzz` and at `v`, the long one
+//! (`GMT-08:00`) at `zzzz` and `vvvv`, and `GMT` at a zero offset either way.
+//! That leaves `O` and `Z` to name the same two spellings outright, which is
+//! what they are for. So a pattern's zone letter chooses its *spelling* here
+//! and never whether the answer is a name, and an offset is written to the
+//! minute, as `X` and `x` already write it.
+//!
+//! **`b` and `B` read English's day periods**, for the reason above: the
+//! periods a locale divides its clock into are locale data, and the one locale
+//! this module renders in is the one its month and weekday names are in. So
+//! `b` names `midnight` and `noon` at the two instants that have their own
+//! name and `AM`/`PM` everywhere else, `B` names the four ranges English
+//! divides the rest of the day into, and the instant is decided from the hour,
+//! minute and second — the fraction is not read, which is where ICU draws the
+//! same line.
 //!
 //! # The plural rules, and why they are a closed roster
 //!
@@ -165,17 +209,7 @@
 //!    request-path parsing and compile-time errors as the rule says; the channel is new plumbing
 //!    (shared with nvs-types' intrinsic gaps).
 //!    — owner: unowned-closures
-//! 2. **The letters still refused are the ones needing data or a second
-//!    calendar** — `Y` and `e` (week-based year and local weekday number, both
-//!    of which read the per-territory week data this module does not carry),
-//!    `U` and `r` (a cyclic calendar's year), `B` and `b` (flexible day
-//!    periods, which are locale data), `A` (milliseconds in the day), `g`
-//!    (modified Julian day), and the four zone spellings `z`, `Z`, `O` and
-//!    `v`, which name a zone the way `X`, `x` and `VV` already do. Each names
-//!    itself rather than emitting a literal. `Y` is the one with a caller
-//!    waiting, since a week-based year beside `w` is the pair ISO 8601 writes.
-//!    — owner: m8-stdlib-depth
-//! 3. **[`ORDINALS`] is the languages that mark a form, and a language that
+//! 2. **[`ORDINALS`] is the languages that mark a form, and a language that
 //!    marks one but is missing from it answers `Other` silently** — which is
 //!    the cost of the default the section above argues for, stated plainly.
 //!    The cardinal roster has no such failure mode: a missing row there
@@ -249,11 +283,44 @@ pub(crate) enum Field {
     StandaloneWeekday,
     /// `F` — which weekday of the month this is: 1 for the first Friday.
     DayOfWeekInMonth,
+    /// `A` — milliseconds since local midnight.
+    MillisInDay,
+    /// `g` — the modified Julian day, whose day starts at local midnight
+    /// rather than at the astronomical noon.
+    JulianDay,
+    /// `b` — [`Self::AmPm`] with `noon` and `midnight` at the two instants
+    /// that have a name of their own.
+    DayPeriod,
+    /// `B` — the period a locale names a *range* of the clock with:
+    /// `in the morning`.
+    FlexibleDayPeriod,
+    /// `z` — the zone's specific name.
+    ZoneSpecific,
+    /// `v` — the zone's generic name.
+    ZoneGeneric,
+    /// `Z` — the ISO 8601 basic offset, whose two long counts are the
+    /// spellings [`Self::OffsetGmt`] and [`Self::OffsetZ`] carry.
+    OffsetBasic,
+    /// `O` — the localized GMT format, short at `O` and long at `OOOO`.
+    OffsetGmt,
+    /// `Y` — the year [`Self::WeekOfYear`]'s week belongs to, which is the one
+    /// before it for a week straddling January.
+    WeekBasedYear,
+    /// `e` — the weekday counted from the day the week starts on, which is
+    /// what [`Self::StandaloneWeekday`]'s count 1 already answers.
+    LocalWeekday,
 }
 
 impl Field {
-    /// The field a CLDR pattern letter names, or `None` for one this subset
-    /// does not carry — see this module's gap 2.
+    /// The field a CLDR pattern letter names, or `None` for a letter no
+    /// pattern may carry.
+    ///
+    /// CLDR reserves **every** ASCII letter, so what is left after the table
+    /// above is the skeleton letters `j`, `J` and `C` — which name a
+    /// preference between `h` and `H` rather than a field, and are defined for
+    /// a requested skeleton rather than for a pattern — deprecated `l`, and
+    /// the letters CLDR gives no meaning at all. [`compile`] refuses each by
+    /// name, which is CLDR's own rule for a reserved letter.
     fn of(letter: u8) -> Option<Self> {
         Some(match letter {
             b'y' => Self::Year,
@@ -280,8 +347,58 @@ impl Field {
             b'L' => Self::StandaloneMonth,
             b'c' => Self::StandaloneWeekday,
             b'F' => Self::DayOfWeekInMonth,
+            // The two year letters a calendar other than the Gregorian one
+            // would separate: `U` is the cyclic year name, which a calendar
+            // without one renders as the numeric year, and `r` is the related
+            // Gregorian year, which under the Gregorian calendar is the year
+            // itself. So each resolves to the letter it agrees with here, and
+            // the two-digit window `yy` has is the whole of what separates
+            // them — `rr` writes the year, as `uu` does.
+            b'U' => Self::Year,
+            b'r' => Self::ExtendedYear,
+            b'A' => Self::MillisInDay,
+            b'g' => Self::JulianDay,
+            b'b' => Self::DayPeriod,
+            b'B' => Self::FlexibleDayPeriod,
+            b'z' => Self::ZoneSpecific,
+            b'v' => Self::ZoneGeneric,
+            b'Z' => Self::OffsetBasic,
+            b'O' => Self::OffsetGmt,
+            b'Y' => Self::WeekBasedYear,
+            b'e' => Self::LocalWeekday,
+            // The standalone quarter, which the root locale spells as `Q`
+            // does and gives the same counts — so, like `U` and `r` above, it
+            // resolves onto the letter it agrees with rather than carrying a
+            // variant that would render the same bytes.
+            b'q' => Self::Quarter,
             _ => return None,
         })
+    }
+
+    /// The sentence refusing `count` repetitions of this field's letter, for
+    /// the letters CLDR gives a closed set of counts rather than a padding
+    /// width.
+    ///
+    /// A count outside that set is refused rather than rendered as the
+    /// nearest one, which is [`compile`]'s rule for an unknown letter applied
+    /// to a known one: ICU emits nothing at all for these, and an empty
+    /// rendering is the silent answer this grammar does not give.
+    fn count_refused(self, count: usize) -> Option<&'static str> {
+        match self {
+            Self::ZoneId if count != 2 => {
+                Some("`V` names a zone only as `VV`, the IANA identifier")
+            }
+            Self::ZoneGeneric if count != 1 && count != 4 => {
+                Some("`v` names a zone as `v` or `vvvv`, the short and long generic forms")
+            }
+            Self::OffsetGmt if count != 1 && count != 4 => Some(
+                "`O` names an offset as `O` or `OOOO`, the short and long localized GMT formats",
+            ),
+            Self::OffsetBasic if count > 5 => {
+                Some("`Z` names an offset as `Z` through `ZZZZZ` and no further")
+            }
+            _ => None,
+        }
     }
 
     /// Whether this field says something about the **zone** rather than about
@@ -289,7 +406,16 @@ impl Field {
     /// refused in a `parse` one, since `Core\Time::parse` takes the zone as
     /// its own third argument.
     fn is_zonal(self) -> bool {
-        matches!(self, Self::OffsetZ | Self::Offset | Self::ZoneId)
+        matches!(
+            self,
+            Self::OffsetZ
+                | Self::Offset
+                | Self::ZoneId
+                | Self::ZoneSpecific
+                | Self::ZoneGeneric
+                | Self::OffsetBasic
+                | Self::OffsetGmt
+        )
     }
 
     /// Whether this field says something about the **time of day** — the half
@@ -306,6 +432,9 @@ impl Field {
                 | Self::Minute
                 | Self::Second
                 | Self::Fraction
+                | Self::MillisInDay
+                | Self::DayPeriod
+                | Self::FlexibleDayPeriod
         )
     }
 
@@ -369,6 +498,140 @@ const WEEKDAYS: [(&str, &str, &str, &str); 7] = [
     ("Saturday", "Sat", "S", "Sa"),
     ("Sunday", "Sun", "S", "Su"),
 ];
+
+/// One day period: what it is called, what its narrow name is, the hour it
+/// fixes if it names an instant rather than a range, and which half of the
+/// clock its **midpoint** falls in.
+///
+/// The midpoint is what a 12-hour field beside it reads, which is CLDR's own
+/// rule for a period spanning both halves: `at night` runs from 21:00 to
+/// 06:00, and its midpoint is 01:30, so an `h` beside it is a morning hour.
+#[derive(Clone, Copy)]
+struct DayPeriod {
+    name: &'static str,
+    narrow: &'static str,
+    hour: Option<i8>,
+    afternoon: bool,
+}
+
+/// The four periods `b` names.
+const AM: DayPeriod = DayPeriod {
+    name: "AM",
+    narrow: "a",
+    hour: None,
+    afternoon: false,
+};
+const PM: DayPeriod = DayPeriod {
+    name: "PM",
+    narrow: "p",
+    hour: None,
+    afternoon: true,
+};
+const MIDNIGHT: DayPeriod = DayPeriod {
+    name: "midnight",
+    narrow: "mi",
+    hour: Some(0),
+    afternoon: false,
+};
+const NOON: DayPeriod = DayPeriod {
+    name: "noon",
+    narrow: "n",
+    hour: Some(12),
+    afternoon: true,
+};
+
+/// The four ranges `B` divides the rest of the clock into, whose narrow name
+/// is their wide one in this locale.
+const MORNING: DayPeriod = DayPeriod {
+    name: "in the morning",
+    narrow: "in the morning",
+    hour: None,
+    afternoon: false,
+};
+const AFTERNOON: DayPeriod = DayPeriod {
+    name: "in the afternoon",
+    narrow: "in the afternoon",
+    hour: None,
+    afternoon: true,
+};
+const EVENING: DayPeriod = DayPeriod {
+    name: "in the evening",
+    narrow: "in the evening",
+    hour: None,
+    afternoon: true,
+};
+const NIGHT: DayPeriod = DayPeriod {
+    name: "at night",
+    narrow: "at night",
+    hour: None,
+    afternoon: false,
+};
+
+/// `b`'s roster, for [`read_field`] to match text against.
+const DAY_PERIODS: [DayPeriod; 4] = [AM, PM, MIDNIGHT, NOON];
+
+/// `B`'s roster, which shares the two instants with `b`'s and names ranges
+/// where that one names halves.
+const FLEXIBLE_DAY_PERIODS: [DayPeriod; 6] = [MIDNIGHT, NOON, MORNING, AFTERNOON, EVENING, NIGHT];
+
+/// The day period this clock time falls in, for `B` when `flexible` and for
+/// `b` otherwise.
+///
+/// Midnight and noon are the two instants with a name of their own, and the
+/// hour, minute and second decide whether the clock is at one — the fraction
+/// is not read, which is ICU's own boundary and makes `12:00:00.001` noon.
+fn day_period(at: civil::Time, flexible: bool) -> DayPeriod {
+    let hour = at.hour();
+    if at.minute() == 0 && at.second() == 0 {
+        if hour == 0 {
+            return MIDNIGHT;
+        }
+        if hour == 12 {
+            return NOON;
+        }
+    }
+    if !flexible {
+        return if hour < 12 { AM } else { PM };
+    }
+    match hour {
+        6..=11 => MORNING,
+        12..=17 => AFTERNOON,
+        18..=20 => EVENING,
+        _ => NIGHT,
+    }
+}
+
+/// The day [`Field::JulianDay`] counts from: the modified Julian day is the
+/// astronomical one less 2400000.5, so its zero is this date's local midnight.
+const JULIAN_EPOCH: civil::Date = civil::Date::constant(1858, 11, 17);
+
+/// The modified Julian day of `date`.
+fn julian_day(date: civil::Date) -> i32 {
+    date.since((jiff::Unit::Day, JULIAN_EPOCH))
+        .expect("a civil date is a whole number of days from 1858")
+        .get_days()
+}
+
+/// CLDR's localized GMT format, which is what a zone whose name this subset
+/// does not carry renders as: `GMT` at a zero offset, `GMT-08:00` long and
+/// `GMT-8` short, with the minutes written only when the short form has any.
+///
+/// The offset is written to the minute, as `X` and `x` here already write it.
+fn localized_gmt(out: &mut String, offset: Offset, long: bool) {
+    let seconds = offset.seconds();
+    out.push_str("GMT");
+    if seconds == 0 {
+        return;
+    }
+    out.push(if seconds < 0 { '-' } else { '+' });
+    let total = seconds.unsigned_abs();
+    let (hours, minutes) = (u64::from(total / 3_600), u64::from((total % 3_600) / 60));
+    pad(out, hours, if long { 2 } else { 1 });
+    if long || minutes != 0 {
+        out.push(':');
+        pad(out, minutes, 2);
+    }
+}
 
 /// Compiles `pattern` into the pieces [`render`] and [`read`] walk, or the
 /// sentence a caller throws for a pattern this subset does not carry.
@@ -438,8 +701,8 @@ pub(crate) fn compile(pattern: &str) -> Result<Vec<Piece>, String> {
                 char::from(byte)
             )
         })?;
-        if field == Field::ZoneId && count != 2 {
-            return Err("`V` names a zone only as `VV`, the IANA identifier".to_owned());
+        if let Some(reason) = field.count_refused(count) {
+            return Err(reason.to_owned());
         }
         pieces.push(Piece::Field(field, count));
     }
@@ -634,8 +897,9 @@ fn render_placed(pieces: &[Piece], at: civil::DateTime, offset: Offset, zone: &s
 #[expect(
     clippy::cast_sign_loss,
     reason = "every component read here is non-negative by construction but \
-              typed `i8`/`i16` by `jiff`; the extended year is the one that \
-              can be negative, and it takes its absolute value first"
+              typed `i8`/`i16` by `jiff`; the two that can be negative — the \
+              extended year and the modified Julian day — take their absolute \
+              value first"
 )]
 fn render_field(
     out: &mut String,
@@ -646,16 +910,21 @@ fn render_field(
     zone: &str,
 ) {
     match field {
-        Field::Year | Field::ExtendedYear => {
-            // One arm for both, because this subset's `y` is already the signed
-            // proleptic year the module doc argues for — `yy`'s two-digit
-            // window is the only thing that separates them here.
-            let year = at.year();
+        Field::Year | Field::ExtendedYear | Field::WeekBasedYear => {
+            // One arm for the three, because this subset's `y` is already the
+            // signed proleptic year the module doc argues for: what separates
+            // them is which year is read — `Y` takes the one its week belongs
+            // to — and that `u` has no two-digit window where `y` and `Y` do.
+            let year = if field == Field::WeekBasedYear {
+                at.date().iso_week_date().year()
+            } else {
+                at.year()
+            };
             if year < 0 {
                 out.push('-');
             }
             let magnitude = u32::from(year.unsigned_abs());
-            if count == 2 && field == Field::Year {
+            if count == 2 && field != Field::ExtendedYear {
                 pad(out, u64::from(magnitude % 100), 2);
             } else {
                 pad(out, u64::from(magnitude), count);
@@ -699,7 +968,7 @@ fn render_field(
             pad(out, week + first_is_whole, count);
         }
         Field::DayOfWeekInMonth => pad(out, u64::from(at.day().unsigned_abs() - 1) / 7 + 1, count),
-        Field::StandaloneWeekday => {
+        Field::StandaloneWeekday | Field::LocalWeekday => {
             let index = at.date().weekday().to_monday_zero_offset() as usize;
             let names = WEEKDAYS[index];
             match count {
@@ -707,9 +976,9 @@ fn render_field(
                 4 => out.push_str(names.0),
                 5 => out.push_str(names.2),
                 6 => out.push_str(names.3),
-                // CLDR's `c` counts the local day of the week, which is
-                // Monday-first in the root locale — the same order [`WEEKDAYS`]
-                // is indexed in, so it is the index plus one.
+                // `c` and `e` both count the day from the one the week starts
+                // on, which this module fixes at Monday — the same order
+                // [`WEEKDAYS`] is indexed in, so it is the index plus one.
                 _ => pad(out, index as u64 + 1, count),
             }
         }
@@ -772,6 +1041,49 @@ fn render_field(
             }
         }
         Field::ZoneId => out.push_str(zone),
+        Field::MillisInDay => {
+            let millis = at.hour() as u64 * 3_600_000
+                + at.minute() as u64 * 60_000
+                + at.second() as u64 * 1_000
+                + at.subsec_nanosecond() as u64 / 1_000_000;
+            pad(out, millis, count);
+        }
+        Field::JulianDay => {
+            let day = julian_day(at.date());
+            if day < 0 {
+                out.push('-');
+            }
+            pad(out, day.unsigned_abs().into(), count);
+        }
+        Field::DayPeriod | Field::FlexibleDayPeriod => {
+            let period = day_period(at.time(), field == Field::FlexibleDayPeriod);
+            out.push_str(if count == 5 {
+                period.narrow
+            } else {
+                period.name
+            });
+        }
+        // No zone *name* data is transcribed here, so every one of these
+        // renders the localized GMT format ICU falls back to when a locale has
+        // none — short below `zzzz` and at `v`, long at `zzzz` and `vvvv`.
+        Field::ZoneSpecific => localized_gmt(out, offset, count >= 4),
+        Field::ZoneGeneric | Field::OffsetGmt => localized_gmt(out, offset, count == 4),
+        Field::OffsetBasic => {
+            let seconds = offset.seconds();
+            if count == 4 {
+                localized_gmt(out, offset, true);
+            } else if count == 5 && seconds == 0 {
+                out.push('Z');
+            } else {
+                out.push(if seconds < 0 { '-' } else { '+' });
+                let total = seconds.unsigned_abs();
+                pad(out, u64::from(total / 3_600), 2);
+                if count == 5 {
+                    out.push(':');
+                }
+                pad(out, u64::from((total % 3_600) / 60), 2);
+            }
+        }
     }
 }
 
@@ -941,14 +1253,22 @@ fn read_field(
         Field::Quarter | Field::WeekOfYear | Field::WeekOfMonth | Field::DayOfWeekInMonth => {
             number(bytes, at, 1, count.max(2), "week")?;
         }
-        Field::StandaloneWeekday if count >= 3 => {
+        Field::StandaloneWeekday | Field::LocalWeekday if count >= 3 => {
             name_index(bytes, at, "weekday", WEEKDAYS.len(), |index| {
                 let names = WEEKDAYS[index];
                 [names.0, names.1, names.3]
             })?;
         }
-        Field::StandaloneWeekday => {
+        Field::StandaloneWeekday | Field::LocalWeekday => {
             small(bytes, at, count, "weekday")?;
+        }
+        Field::WeekBasedYear => {
+            // Read and discarded, for [`Field::DayOfYear`]'s reason: the year
+            // a week belongs to is a function of the date, and a date is built
+            // here from `y`, `M` and `d` rather than from a week and a day in
+            // it.
+            let digits = if count == 2 { 2 } else { count.max(4) };
+            number(bytes, at, 1, digits, "week-based year")?;
         }
         Field::Month | Field::StandaloneMonth if count >= 3 => {
             let index = name_index(bytes, at, "month", MONTHS.len(), |index| {
@@ -1012,7 +1332,67 @@ fn read_field(
             fields.nanos =
                 Some(i32::try_from(read * scale).map_err(|_| "fraction out of range".to_owned())?);
         }
-        Field::OffsetZ | Field::Offset | Field::ZoneId => {
+        Field::MillisInDay => {
+            // Eight digits is the whole of a day, so a wider count reads no
+            // further than one.
+            let millis = number(bytes, at, 1, count.max(8), "milliseconds in the day")?;
+            fields.hour = Some(
+                i8::try_from(millis / 3_600_000)
+                    .map_err(|_| "milliseconds in the day out of range".to_owned())?,
+            );
+            fields.minute =
+                Some(i8::try_from(millis / 60_000 % 60).expect("a minute of an hour fits an `i8`"));
+            fields.second =
+                Some(i8::try_from(millis / 1_000 % 60).expect("a second of a minute fits an `i8`"));
+            fields.nanos = Some(
+                i32::try_from(millis % 1_000 * 1_000_000)
+                    .expect("a millisecond in nanoseconds fits an `i32`"),
+            );
+        }
+        Field::JulianDay => {
+            // Signed, for [`Field::ExtendedYear`]'s reason: the count is
+            // negative for every date before 1858, which is inside the range a
+            // `Core\Time\Date` accepts.
+            let negative = bytes.get(*at) == Some(&b'-');
+            if negative {
+                *at += 1;
+            }
+            let read = number(bytes, at, 1, count.max(7), "modified Julian day")?;
+            let out_of_range = || "modified Julian day out of range".to_owned();
+            let date = jiff::Span::new()
+                .try_days(if negative { -read } else { read })
+                .and_then(|days| JULIAN_EPOCH.checked_add(days))
+                .map_err(|_| out_of_range())?;
+            fields.year = Some(date.year());
+            fields.month = Some(date.month());
+            fields.day = Some(date.day());
+        }
+        Field::DayPeriod | Field::FlexibleDayPeriod => {
+            let roster: &[DayPeriod] = if field == Field::DayPeriod {
+                &DAY_PERIODS
+            } else {
+                &FLEXIBLE_DAY_PERIODS
+            };
+            let index = name_index(bytes, at, "day period", roster.len(), |index| {
+                let period = roster[index];
+                [period.name, period.narrow, period.narrow]
+            })?;
+            // A period that names an instant fixes the hour outright, and one
+            // that names a range answers the question `a` answers — which is
+            // all a 12-hour field beside it needs.
+            let period = roster[index];
+            fields.afternoon = Some(period.afternoon);
+            if let Some(hour) = period.hour {
+                fields.hour = Some(hour);
+            }
+        }
+        Field::OffsetZ
+        | Field::Offset
+        | Field::ZoneId
+        | Field::ZoneSpecific
+        | Field::ZoneGeneric
+        | Field::OffsetBasic
+        | Field::OffsetGmt => {
             unreachable!("a zonal field is refused before it reaches here")
         }
     }
@@ -2518,7 +2898,7 @@ mod tests {
             "2024 at 14h"
         );
         assert_eq!(render(&compile("''yy''").unwrap(), &value), "'24'");
-        assert!(compile("yyyy Y").unwrap_err().contains("`Y` is not"));
+        assert!(compile("yyyy j").unwrap_err().contains("`j` is not"));
         assert!(compile("yyyy 'unclosed").unwrap_err().contains("closes"));
         assert!(compile("V").unwrap_err().contains("`VV`"));
     }
@@ -2685,6 +3065,281 @@ mod tests {
             assert!(date_fields_only(&pieces).is_ok(), "`{letter}` on a date");
             assert!(time_fields_only(&pieces).is_err(), "`{letter}` on a clock");
             assert!(civil_fields_only(&pieces).is_ok(), "`{letter}` in a parse");
+        }
+    }
+
+    /// A `Zoned` at the civil time given, at a fixed offset of `hours` and
+    /// `minutes` — the only way the zone letters render anything but `GMT`.
+    fn at_offset(minutes: i32, h: i8, mi: i8) -> Zoned {
+        let offset =
+            Offset::from_seconds(minutes * 60).expect("a whole-minute offset inside a day");
+        TimeZone::fixed(offset)
+            .to_zoned(civil::DateTime::new(2024, 3, 1, h, mi, 0, 0).unwrap())
+            .expect("a fixed offset has no gap to fall in")
+    }
+
+    /// The ten letters gap 2 used to refuse beside `Y` and `e`, each rendering
+    /// what ICU renders under the Gregorian calendar: the two year letters
+    /// resolve onto the two this subset already writes, the two day-period
+    /// letters read English's periods, and the four zone letters render the
+    /// localized GMT format ICU falls back to where no name is carried.
+    #[test]
+    fn every_pattern_letter_once_refused_now_formats_as_icu_does() {
+        let zone = utc();
+        let value = at(2024, 3, 1, 14, 5, 9, 123_000_000);
+        let show = |pattern: &str| render(&compile(pattern).unwrap(), &value);
+
+        // `U` falls back to the numeric year, two-digit window and all, and
+        // `r` is the related Gregorian year, which has none — the difference
+        // `y` and `u` already carry.
+        assert_eq!(show("U UU UUUUU"), "2024 24 02024");
+        assert_eq!(show("r rr rrrrr"), "2024 2024 02024");
+        assert_eq!(show("A AAAAAAAAA"), "50709123 050709123");
+        assert_eq!(show("g"), "60370", "1 March 2024 is MJD 60370");
+        assert_eq!(show("b bbbb bbbbb"), "PM PM p");
+        assert_eq!(
+            show("B BBBB BBBBB"),
+            "in the afternoon in the afternoon in the afternoon"
+        );
+
+        // Midnight and noon are the two instants with a name of their own, and
+        // one minute past either is not one of them — the bound on both sides.
+        for (h, mi, want) in [
+            (0, 0, "midnight midnight mi"),
+            (0, 1, "AM at night a"),
+            (12, 0, "noon noon n"),
+            (12, 1, "PM in the afternoon p"),
+        ] {
+            assert_eq!(
+                render(&compile("b B bbbbb").unwrap(), &at(2024, 3, 1, h, mi, 0, 0)),
+                want,
+                "{h}:{mi:02}"
+            );
+        }
+        assert_eq!(
+            render(&compile("b B bbbbb").unwrap(), &at(2024, 3, 1, 0, 0, 1, 0)),
+            "AM at night a",
+            "a second past midnight is no longer the instant midnight names"
+        );
+        assert_eq!(
+            render(&compile("b B").unwrap(), &at(2024, 3, 1, 12, 0, 0, 999)),
+            "noon noon",
+            "and the fraction is not read, which is where ICU draws the line"
+        );
+        for (hour, want) in [
+            (5, "at night"),
+            (6, "in the morning"),
+            (18, "in the evening"),
+            (21, "at night"),
+        ] {
+            assert_eq!(
+                render(&compile("B").unwrap(), &at(2024, 3, 1, hour, 30, 0, 0)),
+                want,
+                "{hour}:30"
+            );
+        }
+
+        // Every zone letter at a zero offset is the `GMT` the localized format
+        // writes for one, except the two ISO spellings that never say `GMT`.
+        assert_eq!(
+            show("z zzzz v vvvv O OOOO ZZZZ"),
+            "GMT GMT GMT GMT GMT GMT GMT"
+        );
+        assert_eq!(show("Z ZZ ZZZ ZZZZZ"), "+0000 +0000 +0000 Z");
+
+        // And away from it, where the short and long forms differ. A whole
+        // hour writes no minutes in the short form and does in the long one.
+        let west = at_offset(-8 * 60, 14, 5);
+        let show_west = |pattern: &str| render(&compile(pattern).unwrap(), &west);
+        assert_eq!(show_west("z zzz zzzz"), "GMT-8 GMT-8 GMT-08:00");
+        assert_eq!(show_west("v vvvv"), "GMT-8 GMT-08:00");
+        assert_eq!(show_west("O OOOO"), "GMT-8 GMT-08:00");
+        assert_eq!(
+            show_west("Z ZZZ ZZZZ ZZZZZ"),
+            "-0800 -0800 GMT-08:00 -08:00"
+        );
+        let east = at_offset(5 * 60 + 30, 14, 5);
+        let show_east = |pattern: &str| render(&compile(pattern).unwrap(), &east);
+        assert_eq!(show_east("O OOOO"), "GMT+5:30 GMT+05:30");
+        assert_eq!(show_east("z zzzz"), "GMT+5:30 GMT+05:30");
+        assert_eq!(show_east("Z ZZZZZ"), "+0530 +05:30");
+
+        // A count CLDR does not give these letters is refused, as `V`'s is,
+        // rather than rendered as the nearest one it does give.
+        for pattern in ["vv", "vvv", "OO", "ZZZZZZ", "V"] {
+            assert!(compile(pattern).is_err(), "`{pattern}`");
+        }
+
+        // The six non-zonal letters reach the value on the way back: `A` and
+        // `g` carry a whole time of day and a whole date by themselves, and a
+        // day period completes the 12-hour clock beside it.
+        let back = read(&compile("g A").unwrap(), "60370 50709123", &zone).unwrap();
+        assert_eq!(
+            (back.year(), back.month(), back.day()),
+            (2024, 3, 1),
+            "`g` is the date by itself"
+        );
+        assert_eq!(
+            (
+                back.hour(),
+                back.minute(),
+                back.second(),
+                back.millisecond()
+            ),
+            (14, 5, 9, 123),
+            "`A` is the time of day by itself"
+        );
+        assert_eq!(
+            read(
+                &compile("yyyy-MM-dd h b").unwrap(),
+                "2024-03-01 3 PM",
+                &zone
+            )
+            .unwrap()
+            .hour(),
+            15
+        );
+        assert_eq!(
+            read(
+                &compile("yyyy-MM-dd h B").unwrap(),
+                "2024-03-01 3 at night",
+                &zone
+            )
+            .unwrap()
+            .hour(),
+            3,
+            "a period spanning both halves reads its midpoint, which is 01:30"
+        );
+        assert_eq!(
+            read(
+                &compile("yyyy-MM-dd h b").unwrap(),
+                "2024-03-01 12 midnight",
+                &zone
+            )
+            .unwrap()
+            .hour(),
+            0,
+            "and one naming an instant fixes the hour outright"
+        );
+        assert_eq!(
+            read(&compile("UUUU-MM-dd").unwrap(), "2024-03-01", &zone)
+                .unwrap()
+                .year(),
+            2024
+        );
+        assert_eq!(
+            read(&compile("rrrr-MM-dd").unwrap(), "-0043-03-15", &zone)
+                .unwrap()
+                .year(),
+            -43,
+            "`r` reads a sign back, which is the letter it resolves to"
+        );
+
+        // The three narrowing guards place each letter the way the field it
+        // names is placed: the three time-of-day ones on a clock, `g` on a
+        // date, and every zone spelling in neither and out of a parse pattern.
+        for letter in ["A", "b", "B"] {
+            let pieces = compile(letter).unwrap();
+            assert!(date_fields_only(&pieces).is_err(), "`{letter}` on a date");
+            assert!(time_fields_only(&pieces).is_ok(), "`{letter}` on a clock");
+            assert!(civil_fields_only(&pieces).is_ok(), "`{letter}` in a parse");
+        }
+        for letter in ["g", "U", "r"] {
+            let pieces = compile(letter).unwrap();
+            assert!(date_fields_only(&pieces).is_ok(), "`{letter}` on a date");
+            assert!(time_fields_only(&pieces).is_err(), "`{letter}` on a clock");
+            assert!(civil_fields_only(&pieces).is_ok(), "`{letter}` in a parse");
+        }
+        for letter in ["z", "v", "O", "Z"] {
+            let pieces = compile(letter).unwrap();
+            assert!(date_fields_only(&pieces).is_err(), "`{letter}` on a date");
+            assert!(time_fields_only(&pieces).is_err(), "`{letter}` on a clock");
+            assert!(civil_fields_only(&pieces).is_err(), "`{letter}` in a parse");
+        }
+    }
+
+    /// `Y` and `e` read the one week rule this module fixes, which is what
+    /// makes them usable beside `w`: the year a week belongs to is the year
+    /// that week's Thursday is in, and the weekday is counted from Monday.
+    /// Asserted as agreement across the five letters that read the rule, so a
+    /// letter that grew a week rule of its own fails here while still printing
+    /// plausibly on its own line.
+    #[test]
+    fn a_week_based_year_and_local_weekday_read_the_territorys_week_data() {
+        let zone = utc();
+        let show = |pattern: &str, at: &Zoned| render(&compile(pattern).unwrap(), at);
+
+        // 30 December 2019 is a Monday in ISO week 1 of 2020: the week-based
+        // year runs ahead of the calendar one, which is the whole of why the
+        // letter exists.
+        let ahead = at(2019, 12, 30, 0, 0, 0, 0);
+        assert_eq!(show("YYYY-'W'ww-e", &ahead), "2020-W01-1");
+        assert_eq!(show("yyyy-MM-dd", &ahead), "2019-12-30");
+        // And 1 January 2021 is a Friday still in 2020's week 53, which is the
+        // same disagreement in the other direction.
+        let behind = at(2021, 1, 1, 0, 0, 0, 0);
+        assert_eq!(show("YYYY-'W'ww-e", &behind), "2020-W53-5");
+        assert_eq!(show("yyyy-MM-dd", &behind), "2021-01-01");
+
+        // `Y` takes `y`'s counts, including the two-digit window `u` does not
+        // have, and `e` takes `c`'s — which is the agreement that says the two
+        // letters read one rule rather than each their own.
+        assert_eq!(show("Y YY YYYYY", &behind), "2020 20 02020");
+        assert_eq!(
+            show("e ee eee eeee eeeee eeeeee", &behind),
+            "5 05 Fri Friday F Fr"
+        );
+        for day in 1..=7 {
+            let value = at(2024, 1, day, 0, 0, 0, 0);
+            assert_eq!(
+                show("e", &value),
+                show("c", &value),
+                "`e` and `c` count the same week"
+            );
+            assert_eq!(
+                show("Y", &value),
+                show("YYYY", &value),
+                "and `Y`'s counts pad one year"
+            );
+        }
+        // The one week of the year where all five must agree at once: the
+        // Monday that opens week 1 of 2024 falls in the December before it.
+        assert_eq!(
+            show("yyyy w W Y e c", &at(2024, 1, 1, 0, 0, 0, 0)),
+            "2024 1 1 2024 1 1"
+        );
+        assert_eq!(
+            show("yyyy w W Y e c", &at(2023, 12, 31, 0, 0, 0, 0)),
+            "2023 52 4 2023 7 7",
+            "the Sunday before it is the last day of 2023's week 52"
+        );
+
+        // `q` is `Q` under a second letter, which the root locale spells alike.
+        assert_eq!(
+            show("q qq qqq qqqq qqqqq", &behind),
+            show("Q QQ QQQ QQQQ QQQQQ", &behind)
+        );
+
+        // Both are calendar fields, and both are read and discarded: a date is
+        // built from `y`, `M` and `d`, so a week-based year beside them can
+        // only agree or contradict.
+        for letter in ["Y", "e", "q"] {
+            let pieces = compile(letter).unwrap();
+            assert!(date_fields_only(&pieces).is_ok(), "`{letter}` on a date");
+            assert!(time_fields_only(&pieces).is_err(), "`{letter}` on a clock");
+            assert!(civil_fields_only(&pieces).is_ok(), "`{letter}` in a parse");
+        }
+        let every = compile("YYYY-'W'ww-e yyyy-MM-dd").unwrap();
+        let written = render(&every, &ahead);
+        assert_eq!(written, "2020-W01-1 2019-12-30");
+        let back = read(&every, &written, &zone).unwrap();
+        assert_eq!((back.year(), back.month(), back.day()), (2019, 12, 30));
+
+        // The letters CLDR reserves and gives no field to are still refused,
+        // which is the other half of the same rule: `j` names a preference
+        // between `h` and `H` in a skeleton, not a field in a pattern.
+        for letter in ["j", "J", "C", "l", "i"] {
+            assert!(compile(letter).is_err(), "`{letter}`");
         }
     }
 
