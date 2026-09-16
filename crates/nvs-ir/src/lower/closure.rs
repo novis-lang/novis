@@ -307,6 +307,8 @@ pub(crate) fn lower_closure(
             // Public: a closure's environment class is unspellable, so nothing
             // can name this member at all except the runtime's own call path.
             methods: vec![(FN_INVOKE.to_owned(), class.clone(), true)],
+            // Nor a property to hook: every slot is a capture.
+            hooks: Vec::new(),
             // A closure is not a declaration and carries no attribute, and
             // every one of its slots is written by the factory that builds it.
             codec: Vec::new(),
@@ -773,6 +775,8 @@ pub(crate) fn lower_callable(
                 .chain(exprs.callable_markers_at(*span).iter().cloned())
                 .collect(),
             methods: vec![(FN_INVOKE.to_owned(), class.clone(), true)],
+            // Nor a property to hook: every slot is a capture.
+            hooks: Vec::new(),
             codec: Vec::new(),
             db_codec: Vec::new(),
             ctor_arity: 0,

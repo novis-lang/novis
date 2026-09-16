@@ -512,6 +512,18 @@ impl Unit {
         self.entries.contains_key(name)
     }
 
+    /// The runtime descriptor this unit built for `label`, or `None` for a
+    /// class the program never declared.
+    ///
+    /// Borrowed from the table the unit owns, so it is readable without
+    /// `unsafe` — see `nvs_runtime::ClassTable::desc_of`. What compiled code
+    /// holds is that descriptor's address, baked in at every site that
+    /// allocates or tests an instance.
+    #[must_use]
+    pub fn class_desc(&self, label: &str) -> Option<&nvs_runtime::ClassDesc> {
+        self.classes.desc_of(label)
+    }
+
     /// The raw code pointer compiled under `name`, with **its whole ABI
     /// contract left to the caller**.
     ///
@@ -975,6 +987,24 @@ impl Descriptors {
                 })
                 .collect();
             self.classes.table.set_methods(entry.id, methods);
+            // The accessors, joined the same way and skipped on the same
+            // terms. No `{declaring}::{method}` is assembled here: a hook's
+            // label *is* its symbol's name, spelled once by
+            // `nvs_types::signatures::hook_label`.
+            let hooks = entry
+                .hooks
+                .iter()
+                .filter_map(|(property, label, set)| {
+                    let (symbol, shape) = functions.get(label)?;
+                    Some(nvs_runtime::HookRow {
+                        property: property.clone(),
+                        set: *set,
+                        code: code.address_of(symbol)?,
+                        param_tags: shape.param_tags,
+                    })
+                })
+                .collect();
+            self.classes.table.set_hooks(entry.id, hooks);
         }
     }
 
@@ -1175,6 +1205,12 @@ struct ClassEntry {
     /// `nvs_runtime::ClassTable::set_methods`.
     id: nvs_runtime::ClassId,
     methods: Vec<(String, String, bool)>,
+    /// Every property hook it answers as `(property name, hook label, is the
+    /// `set` accessor)`, kept for [`Self::methods`]' reason and spent at the
+    /// same moment — see `nvs_runtime::ClassTable::set_hooks`. The label is
+    /// already the one the hook's function is emitted under, so this half
+    /// needs no `{declaring}::{method}` join.
+    hooks: Vec<(String, String, bool)>,
     /// `nvs_ir::ir::Class::conforms` verbatim — this class's *transitive*
     /// supertype set, kept because [`Classes::conforming_to`] needs the
     /// hierarchy read the other way round and this crate may not deref a
@@ -1421,6 +1457,7 @@ impl Classes {
                 slots,
                 id,
                 methods: class.methods.clone(),
+                hooks: class.hooks.clone(),
                 conforms: class.conforms.clone(),
             },
         );
@@ -2041,6 +2078,24 @@ impl UnitBuilder<JITModule> {
                 })
                 .collect();
             self.classes.table.set_methods(entry.id, methods);
+            // The accessors, on the AOT binder's terms exactly — the label a
+            // hook's function was compiled under is the label the roster
+            // carries, so nothing is assembled here.
+            let hooks = entry
+                .hooks
+                .iter()
+                .filter_map(|(property, label, set)| {
+                    let id = self.functions.get(label)?;
+                    let shape = self.shapes.get(label).copied().unwrap_or_default();
+                    Some(nvs_runtime::HookRow {
+                        property: property.clone(),
+                        set: *set,
+                        code: self.module.get_finalized_function(*id),
+                        param_tags: shape.param_tags,
+                    })
+                })
+                .collect();
+            self.classes.table.set_hooks(entry.id, hooks);
         }
     }
 }

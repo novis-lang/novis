@@ -768,6 +768,9 @@ pub fn lower_program(
                 public_fields: layout.public_fields.clone(),
                 conforms: layout.conforms.clone(),
                 methods: layout.methods.clone(),
+                // The accessors beside them, on the same terms: the front end
+                // is the only layer that ever saw the `{ get; set; }` block.
+                hooks: layout.hooks.clone(),
                 // `rule:core-classes/derive-attribute`'s field list, joined to this class's slot order — the
                 // one place both tables are in hand. A field the layout has no
                 // slot for is dropped rather than mis-indexed: `nvs_types::derive`
@@ -814,6 +817,7 @@ pub fn lower_program(
         public_fields: Vec::new(),
         conforms: Vec::new(),
         methods: Vec::new(),
+        hooks: Vec::new(),
         codec: Vec::new(),
         db_codec: Vec::new(),
         ctor_arity: 0,
@@ -836,6 +840,7 @@ pub fn lower_program(
         public_fields: Vec::new(),
         conforms: Vec::new(),
         methods: Vec::new(),
+        hooks: Vec::new(),
         codec: Vec::new(),
         db_codec: Vec::new(),
         ctor_arity: 0,
@@ -1949,6 +1954,7 @@ impl<'a> Lowering<'a> {
             // declared default to say.
             conforms: Vec::new(),
             methods: Vec::new(),
+            hooks: Vec::new(),
             codec: Vec::new(),
             db_codec: Vec::new(),
             ctor_arity: 0,
@@ -3441,6 +3447,7 @@ fn nested_shapes(
             public_fields: vec![true; field_count],
             conforms: Vec::new(),
             methods: Vec::new(),
+            hooks: Vec::new(),
             codec: Vec::new(),
             db_codec: Vec::new(),
             ctor_arity: 0,

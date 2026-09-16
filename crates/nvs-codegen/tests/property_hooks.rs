@@ -65,6 +65,73 @@ echo (new Box(2))->doubled;
     assert!(!unit.has_function("Box::$doubled::set"));
 }
 
+/// Every hook a class answers reaches its **runtime descriptor**, keyed by
+/// the property and the accessor and inherited the way a method is — which is
+/// what lets an access through an erased receiver run the accessor a
+/// statically resolved one calls directly, `rule:classes/property-hooks`
+/// making every read and write of a hooked property a call to its hook at
+/// every access spelling alike.
+///
+/// Asserted at the descriptor rather than at the label, because
+/// `each_property_hook_is_compiled_under_its_own_label` already pins that the
+/// function exists: what is new here is the *roster* — an override beating the
+/// declaration it overrides, an accessor the subclass did not rewrite still
+/// answering from the superclass's body, and a hook staying out of the method
+/// table, where a `Class::name()` call and
+/// `Core\Reflect\ClassInfo::methods` would otherwise find it.
+#[test]
+fn a_classs_hooks_reach_its_descriptor_keyed_by_property_and_accessor() {
+    let unit = compile(
+        "<?nvs
+class Base {
+    public string $label;
+    public string $shout {
+        get => $this->label . \"!\";
+        set(string $v) { $this->label = $v; }
+    }
+    public function constructor(string $label) { $this->label = $label; }
+}
+class Loud extends Base {
+    public string $shout {
+        set(string $v) { $this->label = $v . \"?\"; }
+    }
+}
+echo (new Loud(\"hi\"))->shout;
+",
+    )
+    .expect("the fixture compiles");
+
+    let base = unit.class_desc("Base").expect("the class is declared");
+    for set in [false, true] {
+        let row = base
+            .hook_row("shout", set)
+            .expect("the declaration wrote both accessors");
+        assert!(!row.code.is_null(), "set={set}");
+    }
+    assert!(base.hook_row("label", false).is_none());
+
+    // The subclass rewrote `set` and left `get` alone, so its roster answers
+    // one body of its own and one of its parent's — the same precedence
+    // `flatten_methods` gives an overridden method, read on the accessor
+    // rather than on the name.
+    let loud = unit.class_desc("Loud").expect("the class is declared");
+    let own = loud.hook_row("shout", true).expect("its own `set`");
+    let inherited = loud.hook_row("shout", false).expect("the inherited `get`");
+    assert!(!own.code.is_null());
+    assert_eq!(
+        inherited.code,
+        base.hook_row("shout", false)
+            .expect("the parent's `get`")
+            .code
+    );
+    assert_ne!(own.code, base.hook_row("shout", true).expect("`set`").code);
+
+    // And neither roster is the method table: a hook is an accessor of a
+    // property, so nothing reaching a class by a *method* name finds one.
+    assert!(loud.method_row("shout").is_none());
+    assert!(loud.method_row("Loud::$shout::set").is_none());
+}
+
 /// A hook that throws propagates through
 /// `rule:errors/propagation`'s checked-return
 /// path like any other call, because it *is* one — the read carries the same

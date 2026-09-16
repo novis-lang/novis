@@ -172,6 +172,18 @@ pub struct Class {
     /// which exists until a function has been compiled, which is why only the
     /// bit that has no source below the front end travels here.
     pub methods: Vec<(String, String, bool)>,
+    /// Every property hook an instance of this class answers, as `(property
+    /// name, hook label, is the `set` accessor)` — a straight copy of
+    /// `nvs_types::layout::ClassLayout::hooks`, which owns the precedence rule
+    /// and why a hook is not on [`Self::methods`].
+    ///
+    /// [`Self::methods`]' journey exactly: `nvs-codegen` joins each row's
+    /// compiled address on — the label here is the one the hook's own
+    /// [`Function`] is emitted under — and the runtime descriptor holds the
+    /// result as a `nvs_runtime::HookRow`, so an access through an erased
+    /// receiver can run the accessor a statically resolved one calls
+    /// directly.
+    pub hooks: Vec<(String, String, bool)>,
     /// `rule:core-classes/derive-attribute`'s derived JSON
     /// codec, in declaration order — empty for a class carrying no
     /// `#[Json\Derive]`, which is every class in a program that never writes

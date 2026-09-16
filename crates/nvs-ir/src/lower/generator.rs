@@ -550,6 +550,8 @@ pub(crate) fn lower_generator(
             }
             methods
         },
+        // Its slots are spilled locals, and a local declares no accessor.
+        hooks: Vec::new(),
         // A generator state class is synthesized, so nothing wrote an
         // attribute on it, and no source property to carry a default.
         codec: Vec::new(),

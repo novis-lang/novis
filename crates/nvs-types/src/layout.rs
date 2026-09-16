@@ -100,6 +100,24 @@ pub struct ClassLayout {
     /// rather than with the address. Every other visibility question is
     /// answered where the call is written, against the signature table.
     pub methods: Vec<(String, String, bool)>,
+    /// Every property hook an instance of this class answers, as `(property
+    /// name, hook label, is the `set` accessor)` — its own first, then the
+    /// nearest ancestor declaring each `(property, accessor)` pair it does
+    /// not, on [`Self::methods`]' precedence exactly. Only hooks with a
+    /// *body*: an abstract one is a requirement, not code.
+    ///
+    /// Beside the method roster rather than in it, because
+    /// `rule:classes/property-hooks` makes a hook an accessor of a property
+    /// and not a method: a `Class::name()` call must never reach one, and
+    /// `Core\Reflect\ClassInfo::methods` reads [`Self::methods`].
+    ///
+    /// The label is `crate::signatures::hook_label`'s, which is the name the
+    /// hook's compiled function is emitted under — the join
+    /// `nvs-codegen` needs to put an address on the row, and the reason the
+    /// declaring class is not carried separately as it is for a method.
+    /// The accessor bit is carried rather than read back off the label's
+    /// tail, so that spelling stays this crate's alone.
+    pub hooks: Vec<(String, String, bool)>,
 }
 
 impl ClassLayout {
@@ -179,6 +197,7 @@ pub fn build_class_layouts(
 ) -> ClassLayoutTable {
     let mut own: FxHashMap<QName, Vec<(String, bool)>> = FxHashMap::default();
     let mut own_methods: FxHashMap<QName, Vec<(String, bool)>> = FxHashMap::default();
+    let mut own_hooks: FxHashMap<QName, Vec<(String, String, bool)>> = FxHashMap::default();
     // The exception tree first: it has no source declaration to collect from
     // (`nvs_hir::errors`), and a user class extending it needs its four slots
     // already claimed before its own are appended.
@@ -221,7 +240,14 @@ pub fn build_class_layouts(
         own_methods.insert(QName::parse(name), Vec::new());
     }
     for file in files {
-        collect_own(file.stmts, file.src, &[], &mut own, &mut own_methods);
+        collect_own(
+            file.stmts,
+            file.src,
+            &[],
+            &mut own,
+            &mut own_methods,
+            &mut own_hooks,
+        );
     }
 
     let mut table = ClassLayoutTable::default();
@@ -239,6 +265,10 @@ pub fn build_class_layouts(
         let mut walked = Vec::new();
         flatten_methods(qname, graph, &own_methods, &mut methods, &mut walked);
 
+        let mut hooks = Vec::new();
+        let mut hook_walked = Vec::new();
+        flatten_hooks(qname, graph, &own_hooks, &mut hooks, &mut hook_walked);
+
         table.by_label.insert(
             qname.to_string(),
             ClassLayout {
@@ -246,6 +276,7 @@ pub fn build_class_layouts(
                 public_fields,
                 conforms: conforms.iter().map(QName::to_string).collect(),
                 methods,
+                hooks,
             },
         );
     }
@@ -260,6 +291,7 @@ fn collect_own(
     namespace: &[String],
     out: &mut FxHashMap<QName, Vec<(String, bool)>>,
     methods: &mut FxHashMap<QName, Vec<(String, bool)>>,
+    hooks: &mut FxHashMap<QName, Vec<(String, String, bool)>>,
 ) {
     let mut current = namespace.to_vec();
     for stmt in stmts {
@@ -269,14 +301,15 @@ fn collect_own(
                     .as_ref()
                     .map_or_else(Vec::new, |n| qname_segments(src, n));
                 match body {
-                    Some(block) => collect_own(&block.stmts, src, &scoped, out, methods),
+                    Some(block) => collect_own(&block.stmts, src, &scoped, out, methods, hooks),
                     None => current = scoped,
                 }
             }
             StmtKind::ClassDecl(decl) => {
                 let qname = QName::join(&current, span_text(src, decl.name.span));
                 out.insert(qname.clone(), own_properties(&decl.members, src));
-                methods.insert(qname, own_methods(&decl.members, src));
+                methods.insert(qname.clone(), own_methods(&decl.members, src));
+                hooks.insert(qname.clone(), own_hooks(&qname, &decl.members, src));
             }
             // An interface declares no instance property (`rule:classes/interface-default-methods` gives
             // it method bodies, not state), but it still needs an entry: it is
@@ -287,7 +320,11 @@ fn collect_own(
             StmtKind::InterfaceDecl(decl) => {
                 let qname = QName::join(&current, span_text(src, decl.name.span));
                 out.insert(qname.clone(), Vec::new());
-                methods.insert(qname, own_methods(&decl.members, src));
+                methods.insert(qname.clone(), own_methods(&decl.members, src));
+                // An interface declares no *hooked* property either, its
+                // properties being none at all; the entry is still made, on
+                // the terms above.
+                hooks.insert(qname.clone(), own_hooks(&qname, &decl.members, src));
             }
             _ => {}
         }
@@ -312,6 +349,45 @@ fn own_methods(members: &[nvs_syntax::ast::ClassMember], src: &SourceFile) -> Ve
                 Some((span_text(src, m.name).to_owned(), is_public(&m.modifiers)))
             }
             _ => None,
+        })
+        .collect()
+}
+
+/// One declaration's own property hooks, as `(property name, hook label, is
+/// the `set` accessor)` — only those with a body, on [`own_methods`]' terms
+/// exactly, since an abstract hook states a requirement and compiles to
+/// nothing.
+///
+/// The label is spelled here with [`crate::signatures::hook_label`] rather
+/// than assembled downstream, which is that function's whole purpose: the
+/// hook's *definition* and every name for it agree by construction. `class` is
+/// the declaration's own qualified name, so an inherited hook still carries
+/// the class whose body it is — the join `nvs-codegen` makes to find its
+/// compiled address.
+fn own_hooks(
+    class: &QName,
+    members: &[nvs_syntax::ast::ClassMember],
+    src: &SourceFile,
+) -> Vec<(String, String, bool)> {
+    members
+        .iter()
+        .filter_map(|member| match &member.kind {
+            ClassMemberKind::Property(p) => p.hooks.as_ref().map(|hooks| (p, hooks)),
+            _ => None,
+        })
+        .flat_map(|(p, hooks)| {
+            let name = crate::strip_sigil(span_text(src, p.name)).to_owned();
+            hooks
+                .iter()
+                .filter(|hook| hook.body.is_some())
+                .map(|hook| {
+                    (
+                        name.clone(),
+                        crate::signatures::hook_label(class, &name, hook.kind),
+                        hook.kind == nvs_syntax::ast::PropertyHookKind::Set,
+                    )
+                })
+                .collect::<Vec<_>>()
         })
         .collect()
 }
@@ -445,6 +521,43 @@ fn flatten_methods(
     // interface default of the same name (`rule:classes/interface-default-methods`'s conflict rule).
     for parent in links.extends.iter().chain(links.implements.iter()) {
         flatten_methods(parent, graph, own, methods, walked);
+    }
+}
+
+/// Appends every property hook `qname` answers to `hooks`, as `(property
+/// name, hook label, is the `set` accessor)` — its own first, then its
+/// superclass chain's, then any interface's.
+///
+/// [`flatten_methods`]' walk, keyed on the *pair* rather than on a name: a
+/// class that hooks only the `set` of a property its superclass hooks both
+/// accessors of answers its own `set` and the inherited `get`, which is what
+/// overriding one accessor means.
+fn flatten_hooks(
+    qname: &QName,
+    graph: &ClassGraph,
+    own: &FxHashMap<QName, Vec<(String, String, bool)>>,
+    hooks: &mut Vec<(String, String, bool)>,
+    walked: &mut Vec<QName>,
+) {
+    if walked.contains(qname) {
+        return;
+    }
+    walked.push(qname.clone());
+    if let Some(declared) = own.get(qname) {
+        for (property, label, set) in declared {
+            if !hooks
+                .iter()
+                .any(|(have, _, kind)| have == property && kind == set)
+            {
+                hooks.push((property.clone(), label.clone(), *set));
+            }
+        }
+    }
+    let Some(links) = graph.get(qname) else {
+        return;
+    };
+    for parent in links.extends.iter().chain(links.implements.iter()) {
+        flatten_hooks(parent, graph, own, hooks, walked);
     }
 }
 

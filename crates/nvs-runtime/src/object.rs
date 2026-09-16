@@ -318,6 +318,20 @@ pub struct ClassDesc {
     /// the unit is finalized: see this module's docs for why a name and not a
     /// slot index.
     methods: Vec<MethodRow>,
+    /// Every property hook an instance of this class answers — its own plus
+    /// every inherited one — as a [`HookRow`], sorted by property name and
+    /// then by accessor so [`ClassDesc::hook_row`] is a binary search. Empty
+    /// until [`ClassTable::set_hooks`] fills it, on
+    /// [`ClassTable::set_methods`]' terms exactly.
+    ///
+    /// Beside the method table rather than in it: `rule:classes/property-hooks`
+    /// makes a hook an accessor of a property and not a method, so it is
+    /// unreachable by `Class::name()` and invisible to
+    /// `Core\Reflect\ClassInfo::methods`. What reaches it is an access through
+    /// an *erased* receiver, where the site that wrote `$obj->prop` had no
+    /// class to resolve the hook against — the same read
+    /// [`ClassDesc::field_slot`] answers, which is why the roster rides here.
+    hooks: Vec<HookRow>,
     /// `rule:core-classes/derive-attribute`'s derived JSON
     /// field list, in declaration order — empty for every class not carrying
     /// `#[Json\Derive]`, which is the default and costs one empty `Vec` per
@@ -526,6 +540,46 @@ pub struct MethodRow {
     /// caller reaching this table without a class in hand refuses on, rather
     /// than a shape it could believe.
     pub native: bool,
+}
+
+/// One property hook's compiled address and the shape a caller holding only
+/// tagged values has to check the incoming value against — [`MethodRow`]'s
+/// twin for `rule:classes/property-hooks`' accessors.
+///
+/// Its own row type rather than a [`MethodRow`] under a mangled name, because
+/// the two are looked up by different keys and answer different questions: a
+/// method is found by the name a call site wrote, while a hook is found by the
+/// *property* an access named plus which of the two accessors that access is.
+/// A name that carried both would have to be parsed back apart at every
+/// lookup, and `nvs_types::signatures::hook_label`'s spelling is a compile-time
+/// fact this crate has no business re-reading.
+///
+/// **Cost:** the string, the pointer and the two flags per hook per class,
+/// once per process and not per instance — and nothing at all for a class
+/// declaring no hook, which is most of them.
+#[derive(Clone, Debug)]
+pub struct HookRow {
+    /// The hooked property's name, without the `$` sigil — the name an access
+    /// through an erased receiver wrote, and what this table is sorted on
+    /// first.
+    pub property: String,
+    /// Whether this row is the property's `set` hook; `false` is its `get`.
+    /// The second half of the key, and what the table is sorted on after
+    /// [`Self::property`].
+    pub set: bool,
+    /// The compiled hook body's address — an ordinary Novis function taking
+    /// the receiver in parameter slot 0, exactly as a method does
+    /// (`nvs_ir::lower::lower_property_hook`).
+    pub code: *const u8,
+    /// Which runtime [`Tag`] the incoming value must have, in
+    /// [`MethodRow::param_tags`]' encoding verbatim — parameter 0 in the least
+    /// significant nibble, which for a `set` hook is the value being stored.
+    ///
+    /// No arity rides beside it, unlike a method's, because the language fixes
+    /// one: `get` declares no parameter and `set` declares exactly the value
+    /// (`rule:classes/property-hooks`), so a caller knows how many arguments it
+    /// is passing before it reads the row.
+    pub param_tags: u64,
 }
 
 /// The name of the resume-to-unwind entry point on a generator's state class,
@@ -1025,6 +1079,22 @@ impl ClassDesc {
             .map(|index| &self.methods[index])
     }
 
+    /// The [`HookRow`] for `property`'s `set` hook when `set`, its `get` hook
+    /// otherwise — or `None` when the property declares that accessor nowhere
+    /// in the chain, which is the ordinary answer for every unhooked property.
+    ///
+    /// `None` means "write the slot" rather than "the write fails": a property
+    /// with no hook is its own storage, and
+    /// `rule:types/erased-member-access`'s slot access is what a caller falls
+    /// back to.
+    #[must_use]
+    pub fn hook_row(&self, property: &str, set: bool) -> Option<&HookRow> {
+        self.hooks
+            .binary_search_by(|row| row.property.as_str().cmp(property).then(row.set.cmp(&set)))
+            .ok()
+            .map(|index| &self.hooks[index])
+    }
+
     /// How many methods this descriptor answers for — its own plus every
     /// inherited one.
     #[must_use]
@@ -1285,6 +1355,7 @@ impl ClassTable {
             fields: fields.iter().map(|f| f.as_ref().to_owned()).collect(),
             conforms,
             methods: Vec::new(),
+            hooks: Vec::new(),
             codec: Vec::new(),
             codec_classes: Vec::new(),
             codec_shapes: Vec::new(),
@@ -1568,6 +1639,30 @@ impl ClassTable {
             .unwrap_or(std::ptr::null());
     }
 
+    /// Fills in `id`'s hook table — one [`HookRow`] per `(property,
+    /// accessor)`, which this sorts on that pair so [`ClassDesc::hook_row`]
+    /// can binary-search them.
+    ///
+    /// Separate from [`ClassTable::define`] for [`ClassTable::set_methods`]'
+    /// reason exactly, and separate from *it* because a hook is not a method:
+    /// the two tables are keyed differently and a `Class::name()` call must
+    /// never find an accessor.
+    ///
+    /// # Panics
+    ///
+    /// If `id` does not belong to this table.
+    pub fn set_hooks(&mut self, id: ClassId, hooks: Vec<HookRow>) {
+        let desc = self
+            .classes
+            .get_mut(id.0)
+            .expect("a class id always belongs to the table that handed it out");
+        desc.hooks = hooks;
+        desc.hooks
+            .sort_by(|a, b| a.property.cmp(&b.property).then(a.set.cmp(&b.set)));
+        desc.hooks
+            .dedup_by(|a, b| a.property == b.property && a.set == b.set);
+    }
+
     /// Fills in `id`'s native renderer — see [`ClassDesc::renderer`].
     ///
     /// `address` is an `rule:errors/propagation` helper that takes the instance as its one
@@ -1585,6 +1680,23 @@ impl ClassTable {
             .get_mut(id.0)
             .expect("a class id always belongs to the table that handed it out");
         desc.render = address;
+    }
+
+    /// The descriptor `name` names, **borrowed** — the same one
+    /// [`ClassTable::desc`] hands out as a raw pointer, read by a caller that
+    /// is not compiled code.
+    ///
+    /// A borrow rather than a pointer because the two callers want opposite
+    /// things: machine code needs an address that outlives every frame, while
+    /// a crate reading a class's tables — a test, a tool, `nvs-codegen`
+    /// itself — needs an answer it can reach without writing `unsafe`, which
+    /// `#![deny(unsafe_code)]` puts out of its reach entirely. The lifetime is
+    /// this table's, which is exactly the guarantee the pointer already
+    /// carried informally.
+    #[must_use]
+    pub fn desc_of(&self, name: &str) -> Option<&ClassDesc> {
+        let id = self.id_of(name)?;
+        self.classes.get(id.0).map(Box::as_ref)
     }
 
     /// The descriptor pointer for `id` — the token compiled code holds.
@@ -3615,12 +3727,15 @@ pub unsafe extern "C" fn nvs_object_slot_set(
 /// name to have taken a slot position from, which is the whole of what makes
 /// this access keyed.
 ///
-/// **The one thing it inherits that is not free is the erased path's own known
+/// **The one thing it inherits that is not free is the erased read's own known
 /// gap**: this reads the slot, so a property declaring a `get` hook
-/// (`rule:classes/property-hooks`) is read past
-/// its hook, and [`write_erased_property`] does the same on the write side.
-/// That is owned there and closes for every caller at once — the reason § 5
-/// routes a key through this rather than answering it in a way of its own.
+/// (`rule:classes/property-hooks`) is still read past its hook. The write side
+/// no longer has it — [`write_erased_property`] finds the `set` hook on the
+/// descriptor and calls it — and what the read owes is the same lookup against
+/// [`ClassDesc::hook_row`]'s other accessor, plus the `Ctx` to run a hook
+/// with, which this whole path is currently written without. The gap is owned
+/// in the read path and closes for every caller at once, which is the reason
+/// § 5 routes a key through this rather than answering it in a way of its own.
 ///
 /// # Errors
 ///
@@ -3884,9 +3999,23 @@ unsafe fn slot_state(desc: &ClassDesc, ptr: *mut ObjHeader, name: &str, hint: us
 /// arrived with, once the store has committed. A class that implements nothing
 /// pays one name comparison against a conformance list `new` already built.
 ///
-/// There is no `set` hook on this path — a hooked property's write lowers to a
-/// call to the hook, never to a slot store — so the value written is exactly
-/// the value committed, and it is the one the observer is told about.
+/// **A hooked property is written through its `set` hook here too.** Where the
+/// receiver's class is known, such a write lowers to a call to the hook and
+/// never reaches a slot store at all; an erased receiver has no class to lower
+/// against, so the hook is found on the descriptor instead
+/// ([`ClassDesc::hook_row`]) and called with the same receiver-in-slot-0
+/// convention a compiled site uses. `rule:classes/property-hooks` makes every
+/// write of a hooked property a call to its `set` *at every access spelling
+/// alike*, and writing past one would make a class's own invariant advisory
+/// for anything holding a `mixed` — the hole this closes, and the reason the
+/// value is judged against the hook's declared parameter rather than against
+/// the field's declared tag.
+///
+/// The hook's body commits the value, so nothing below it runs for that write:
+/// its store to the backing slot is an ordinary in-class `FieldSet`, carrying
+/// the observer step the same lowering gives every other write inside the
+/// class. Where no hook is declared the value written is exactly the value
+/// committed, and it is the one the observer is told about.
 ///
 /// # Errors
 ///
@@ -3918,6 +4047,27 @@ pub fn write_erased_property(
                   is live and its descriptor is too"
     )]
     let desc = unsafe { &*NvsObj::class_of(ptr) };
+    // Before the slot, because for a hooked property the slot is the hook's
+    // to write: this door is the access spelling that had no class to lower
+    // against, not a second way of storing.
+    if let Some(row) = desc.hook_row(name, true) {
+        let callee = format!("`{}::${name}::set`", desc.name());
+        // The check converts as well as refuses — a widened `int` has to reach
+        // the hook as the `float` it declares — so it runs over this frame's
+        // own copy, exactly as `dispatch::call_erased_method_from`'s does.
+        let mut passed = [value];
+        crate::closure::check_param_tags(&callee, row.param_tags, &mut passed)?;
+        let answered = crate::dispatch::call_at(ctx, receiver, row.code, &passed)?;
+        #[expect(
+            unsafe_code,
+            reason = "the hook's return is a fresh reference this frame owns, \
+                      and a `set` hook returns nothing for anyone to read"
+        )]
+        unsafe {
+            answered.release();
+        }
+        return Ok(Value::null());
+    }
     let Some(slot) = desc.field_slot(name, hint) else {
         return Err(Fault::thrown(format!(
             "`{}` has no field `{name}`",
