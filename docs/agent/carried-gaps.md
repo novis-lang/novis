@@ -183,17 +183,13 @@ where taking it is the work and the code that follows it is not.
   the mapping. `crates/nvs-types/src/links.rs` § *Known gaps*,
   `crates/nvs-types/src/reasons.rs` § *Known gaps* and `crates/nvs-stdlib/src/router.rs` § *Known
   gaps*. [until: gone crates/nvs-types/src/links.rs:A named argument is not folded]
-- **`nvs-types`' two unwritten checker passes, which no entry on the chain asks for.** Exhaustive
-  control-flow reachability is one — "every path through this non-void function returns", and with
-  it whether a bare `return;` is legal where it stands — and an equality-operand compatibility
-  check is the other, without which `==` between two different enum types, and `int` against
-  `uint`, are both accepted. Both are M4 checker holes and M4 is carried: its loop goal's
-  acceptance list passes, and no live entry on the chain writes this crate's checking passes again.
-  What has to be decided is whether the checker grows the flow analysis they need at all — the walk
-  is structural rather than a CFG by `crates/nvs-types/src/locals.rs`'s own design note — and, for
-  equality, whether an operand-compatibility rule is taken for every type pair at once, since
-  taking it for enums alone leaves the operator inconsistent with itself.
-  `crates/nvs-types/src/lib.rs` § *Known gaps* carries the tags.
+- **`nvs-types`' one unwritten checker pass, which no entry on the chain asks for.** Exhaustive
+  control-flow reachability — "every path through this non-void function returns", and with it
+  whether a bare `return;` is legal where it stands. It is an M4 checker hole and M4 is carried: its
+  loop goal's acceptance list passes, and no live entry on the chain writes this crate's checking
+  passes again. What has to be decided is whether the checker grows the flow analysis it needs at
+  all — the walk is structural rather than a CFG by `crates/nvs-types/src/locals.rs`'s own design
+  note. `crates/nvs-types/src/lib.rs` § *Known gaps* carries the tag.
   [until: gone crates/nvs-types/src/lib.rs:owner: unowned]
 - **`nvs-types`' intrinsic pass, whose six gaps are each a decision rather than a backlog.** The
   pass validates a literal pattern wherever `rule:expressions/intrinsic-list-is-closed`'s roster
@@ -511,16 +507,6 @@ where taking it is the work and the code that follows it is not.
   has to be decided is whether that walk becomes a CFG at all, since a fall-through edge is precisely
   what a structural walk cannot carry. `crates/nvs-types/src/locals.rs` gap 1.
   [until: reviewed 2026-09-10]
-- **A promoted constructor parameter is a property no table records, so its visibility is enforced by
-  nobody.** `is_visible_from` is reached only for a property this signature table found, and
-  `nvs_hir::members`'s member table has the same hole, so `rule:core-api/written-visibility`'s level
-  is recorded for the constructor that declares it and not for the property it declares. Beside it, a
-  variadic parameter's declared type is matched against every argument from its position onward
-  rather than modeled as its own `array<T>`. What has to be decided is which table records a promoted
-  parameter as a property — this one or `nvs_hir::members`', since the visibility check hangs off
-  whichever finds it — and whether a variadic parameter carries an `array<T>` of its own inside the
-  body, which is a type-lattice question rather than a signature one.
-  `crates/nvs-types/src/signatures.rs` gaps 1–2. [until: reviewed 2026-09-10]
 - **A named constant is a legal property default and an illegal parameter default.** An enum case
   (`Mode $m = Mode::Fast`) or another class's `const` becomes a `nvs_runtime::FieldDefault`
   materialized straight into a slot, where the case *is* the integer it folded to; at a parameter
