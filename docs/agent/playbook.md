@@ -5268,6 +5268,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   Walk `Shape` and `Options` as well as `Array`, `Union` and `Nullable`, and name the key-carrier
   classes — `registry::tests::no_protocol_class_exposes_a_raw_value_accessor`'s `CARRIERS` is that
   list. [until: gone crates/nvs-stdlib/src/registry.rs:CARRIERS]
+- **A regex tier read back out of `ExprTypeTable` covers `Core\Regex::compile` and nothing else.**
+  `crates/nvs-types/src/intrinsics.rs`'s roster carries one Regex row, so a literal handed straight to
+  `matches`, `match`, `matchAll`, `replace`, `replaceWith` or `split` is never folded and has no
+  recorded tier — a test counting `regex_tiers()` over the conformance suite sees an eighth of the
+  patterns it looks like it sees. Find the pattern argument through `nvs_syntax::walk` and the class's
+  own registry rows instead, and settle each one by handing it to `compile`, which is what
+  `every_literal_regex_pattern_in_the_suite_has_its_tier_recorded` does. [until: reviewed 2026-09-16]
 
 ## Splitting a file that got too big
 

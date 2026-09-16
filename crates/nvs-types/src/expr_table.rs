@@ -1750,6 +1750,14 @@ impl ExprTypeTable {
         self.regex_tiers.values().copied()
     }
 
+    /// The same settlements carrying the span each was read from, for a caller
+    /// holding the source and wanting to *name* the patterns rather than count
+    /// them — the span is the literal's own, so slicing the source at it gives
+    /// the pattern back as it was written.
+    pub fn regex_tier_sites(&self) -> impl Iterator<Item = (Span, nvs_stdlib::regex::Tier)> + '_ {
+        self.regex_tiers.iter().map(|(span, tier)| (*span, *tier))
+    }
+
     /// Records one synthesized `by $field` forward — see [`Delegation`], whose
     /// doc comment owns why the decision is taken here and emitted there.
     ///

@@ -53,6 +53,31 @@ pub(crate) fn check_src_table(src: &str) -> (Diagnostics, ExprTypeTable) {
     (diags, exprs)
 }
 
+/// [`check_src_table`] without its two assertions — for a caller handing the
+/// checker source it did not write itself and so cannot promise parses and
+/// resolves, which wants the table whatever came back. The caller reads the
+/// diagnostics to decide what silence in the table means.
+pub(crate) fn check_src_table_allowing_errors(src: &str) -> (Diagnostics, ExprTypeTable) {
+    let mut map = SourceMap::new();
+    let file = map.add("t.nvs", src);
+    let mut diags = Diagnostics::new();
+    let stmts = parse_file(map.file(file), &mut diags);
+    let module = resolve_file(&stmts, map.file(file), &mut diags);
+    let mut interner = TypeInterner::new();
+    let mut exprs = ExprTypeTable::new();
+    check_program(
+        &[nvs_types::ProgramFile {
+            src: map.file(file),
+            stmts: &stmts,
+        }],
+        &module,
+        &mut interner,
+        &mut exprs,
+        &mut diags,
+    );
+    (diags, exprs)
+}
+
 /// Like [`check_src_table`], but hands back the interner too, and a way to name
 /// a written annotation's span — what a fixture asserting *which type an atom
 /// interned to* needs, since a `TypeId` means nothing without the interner that
