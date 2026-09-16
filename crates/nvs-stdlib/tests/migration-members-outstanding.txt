@@ -16,7 +16,3 @@
 # with no Novis answer is a `dropped` or an `open` row in that table, not a
 # `member` row with a spelling nothing backs.
 
-# `Core\Process` is registered and `run` is on it; `spawn` -- the streaming half
-# `proc_open` and `popen` are pointed at -- is not. Goal `m8-stdlib-depth` builds
-# it.
-Core\Process::spawn        # m8-stdlib-depth

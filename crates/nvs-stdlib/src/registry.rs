@@ -1487,6 +1487,7 @@ pub const CLASSES: &[CoreClass] = &[
     // [`CAPABILITIES`] alongside that class's.
     crate::process::CLASS,
     crate::process::RESULT,
+    crate::process::HANDLE,
     crate::time::TIME,
     crate::time::INSTANT,
     crate::time::DATETIME,
@@ -2321,6 +2322,17 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
     (
         crate::process::NAME,
         "run",
+        Some(nvs_config::Cap::ProcessExec),
+    ),
+    // `spawn` reaches the same door on the same terms — it differs from `run`
+    // only in not waiting, and a program that may not start a child may not
+    // start one it intends to stream either. `Core\Process\Handle`'s five
+    // members need no row for `Core\Process\Result`'s reason once over: the
+    // child was checked when `spawn` produced it, and reading a pipe it already
+    // owns reaches nothing a second grant could scope.
+    (
+        crate::process::NAME,
+        "spawn",
         Some(nvs_config::Cap::ProcessExec),
     ),
     // `rule:http-server/allow-url-pins-the-address` and `rule:security/net-address-policy`: approving a URL resolves its host, which is an effect,

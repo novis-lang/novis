@@ -126,9 +126,11 @@ this is a new sink reusing an existing escape hatch, not a new mechanism.
 request — rather than a bespoke process-only timer. On expiry the child is killed and the suspended
 coroutine resumes into a throw naming the timeout.
 
-**Not shipped.** `crates/nvs-stdlib/src/process.rs` registers `run` with a path and an argument array
-and nothing else; there is no options type, so a child inherits the environment, runs in the calling
-process's directory, and is bounded only by the request's own wall-clock deadline.
+**Not shipped.** `crates/nvs-stdlib/src/process.rs` registers `run` and `spawn` with a path and an
+argument array and nothing else; there is no options type, so a child inherits the environment, runs
+in the calling process's directory, and is bounded only by the request's own wall-clock deadline. It
+lands on both members at once when it lands, there being no reason for one of them to take a working
+directory the other does not.
 
 <sub>See also [`core-classes/process-run`](core-classes.md#core-classes-process-run), [`core-classes/secret-reveal`](core-classes.md#core-classes-secret-reveal). Decided in [0044](../decisions/0044.md), [0033](../decisions/0033.md), [0005](../decisions/0005.md).</sub>
 
@@ -138,17 +140,28 @@ process's directory, and is bounded only by the request's own wall-clock deadlin
 
 `rule:core-classes/process-spawn`
 
-`Core\Process::spawn` takes the same path, argument array and options as `run` and answers a handle
-instead of waiting: read stdout, read stderr, write stdin, wait, kill. Every read and write suspends
-the calling coroutine exactly as `run`'s wait does, so streaming a child's output into a response
-costs one coroutine and no worker thread.
+`Core\Process::spawn` takes the same path and argument array as `run` and answers a
+`Core\Process\Handle` instead of waiting: `readStdout`, `readStderr`, `writeStdin`, `wait`, `kill`.
+Every read and write suspends the calling coroutine exactly as `run`'s wait does, so streaming a
+child's output into a response costs one coroutine and no worker thread.
 
 One handle covers what PHP splits between `passthru` (stream straight through) and `proc_open` (full
 pipe control), because the difference between them is which members a caller happens to use, not two
 kinds of process.
 
-**Not shipped.** `crates/nvs-stdlib/src/process.rs` registers `run` alone; there is no handle type,
-so a program that needs to interleave with a child's output has no member to reach for.
+A read answers `null` at the end of its stream and a chunk otherwise, never a line and never the
+whole output. `wait` closes the child's standard input first, drains what neither read has taken, and
+answers the same `Core\Process\Result` a completed `run` does — so a program that streamed everything
+gets two empty captures, and one that streamed nothing gets what `run` would have given it. Standard
+input is the one place in this class a `tainted` value is accepted: what goes down it is data the
+child parses on its own terms, where a path and an argument are a command this process builds.
+
+**A child never outlives the task that spawned it.** One still running when its task ends is killed
+and reaped, so memory and processes alike stay O(in-flight) rather than O(children ever started), and
+a handle the program simply stops reading from leaves nothing behind.
+
+The options bag both members will take is [`core-classes/process-options`](core-classes.md#core-classes-process-options), and it is not shipped
+on either of them yet.
 
 <sub>See also [`core-classes/process-run`](core-classes.md#core-classes-process-run), [`core-classes/process-is-argv-only`](core-classes.md#core-classes-process-is-argv-only). Decided in [0044](../decisions/0044.md).</sub>
 

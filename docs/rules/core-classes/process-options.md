@@ -10,6 +10,8 @@ this is a new sink reusing an existing escape hatch, not a new mechanism.
 request — rather than a bespoke process-only timer. On expiry the child is killed and the suspended
 coroutine resumes into a throw naming the timeout.
 
-**Not shipped.** `crates/nvs-stdlib/src/process.rs` registers `run` with a path and an argument array
-and nothing else; there is no options type, so a child inherits the environment, runs in the calling
-process's directory, and is bounded only by the request's own wall-clock deadline.
+**Not shipped.** `crates/nvs-stdlib/src/process.rs` registers `run` and `spawn` with a path and an
+argument array and nothing else; there is no options type, so a child inherits the environment, runs
+in the calling process's directory, and is bounded only by the request's own wall-clock deadline. It
+lands on both members at once when it lands, there being no reason for one of them to take a working
+directory the other does not.

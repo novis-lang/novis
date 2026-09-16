@@ -1,11 +1,22 @@
-`Core\Process::spawn` takes the same path, argument array and options as `run` and answers a handle
-instead of waiting: read stdout, read stderr, write stdin, wait, kill. Every read and write suspends
-the calling coroutine exactly as `run`'s wait does, so streaming a child's output into a response
-costs one coroutine and no worker thread.
+`Core\Process::spawn` takes the same path and argument array as `run` and answers a
+`Core\Process\Handle` instead of waiting: `readStdout`, `readStderr`, `writeStdin`, `wait`, `kill`.
+Every read and write suspends the calling coroutine exactly as `run`'s wait does, so streaming a
+child's output into a response costs one coroutine and no worker thread.
 
 One handle covers what PHP splits between `passthru` (stream straight through) and `proc_open` (full
 pipe control), because the difference between them is which members a caller happens to use, not two
 kinds of process.
 
-**Not shipped.** `crates/nvs-stdlib/src/process.rs` registers `run` alone; there is no handle type,
-so a program that needs to interleave with a child's output has no member to reach for.
+A read answers `null` at the end of its stream and a chunk otherwise, never a line and never the
+whole output. `wait` closes the child's standard input first, drains what neither read has taken, and
+answers the same `Core\Process\Result` a completed `run` does — so a program that streamed everything
+gets two empty captures, and one that streamed nothing gets what `run` would have given it. Standard
+input is the one place in this class a `tainted` value is accepted: what goes down it is data the
+child parses on its own terms, where a path and an argument are a command this process builds.
+
+**A child never outlives the task that spawned it.** One still running when its task ends is killed
+and reaped, so memory and processes alike stay O(in-flight) rather than O(children ever started), and
+a handle the program simply stops reading from leaves nothing behind.
+
+The options bag both members will take is `rule:core-classes/process-options`, and it is not shipped
+on either of them yet.

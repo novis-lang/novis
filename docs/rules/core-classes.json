@@ -7,9 +7,17 @@
       "id": "core-classes/cli-arguments",
       "title": "`Core\\Cli::arguments` is how a program reads the words it was started with, at every depth",
       "status": "shipped",
-      "because": ["0012", "0086", "0118"],
+      "because": [
+        "0012",
+        "0086",
+        "0118"
+      ],
       "divergesFromPhp": "`$argv` and `$argc` do not exist, the elements are `tainted`, and the answer is a process fact rather than a per-isolate one",
-      "seeAlso": ["core-classes/script-args", "core-classes/session-is-started-explicitly", "statements/no-host-populated-variables"],
+      "seeAlso": [
+        "core-classes/script-args",
+        "core-classes/session-is-started-explicitly",
+        "statements/no-host-populated-variables"
+      ],
       "guardedBy": [
         "tests/conformance/core/cli-arguments-answers-the-words-the-program-was-started-with.nvst",
         "tests/conformance/core/cli-arguments-is-empty-for-a-program-started-with-no-words.nvst",
@@ -21,9 +29,17 @@
       "id": "core-classes/script-args",
       "title": "`Core\\Script::args` is the value the current isolate was spawned with, and `null` where there was none",
       "status": "shipped",
-      "because": ["0012", "0006", "0023"],
+      "because": [
+        "0012",
+        "0006",
+        "0023"
+      ],
       "divergesFromPhp": "Novis's own `$_ARGS` superglobal was retired for the same reason PHP's were — a spawned isolate reads its argument through a member",
-      "seeAlso": ["core-classes/cli-arguments", "statements/no-host-populated-variables", "statements/an-isolate-has-its-own-statics"],
+      "seeAlso": [
+        "core-classes/cli-arguments",
+        "statements/no-host-populated-variables",
+        "statements/an-isolate-has-its-own-statics"
+      ],
       "guardedBy": [
         "tests/conformance/core/script-args-are-read.nvst",
         "tests/conformance/core/script-args-are-each-isolates-own.nvst",
@@ -34,9 +50,17 @@
       "id": "core-classes/process-is-argv-only",
       "title": "`Core\\Process` is the one way to run another program, and there is no shell string anywhere in it",
       "status": "shipped",
-      "because": ["0044", "0024", "0118"],
+      "because": [
+        "0044",
+        "0024",
+        "0118"
+      ],
       "divergesFromPhp": "`exec`, `system`, `shell_exec`, `passthru`, `popen`, `proc_open` and backticks are all gone, and no flag brings a command line back",
-      "seeAlso": ["core-classes/process-run", "core-classes/process-refuses-a-shell-target", "core-classes/process-spawn"],
+      "seeAlso": [
+        "core-classes/process-run",
+        "core-classes/process-refuses-a-shell-target",
+        "core-classes/process-spawn"
+      ],
       "guardedBy": [
         "tests/conformance/reject/there-is-no-shell-string-form-of-process-run.nvst",
         "tests/conformance/core/process-exec-is-deny-by-default.nvst",
@@ -47,9 +71,18 @@
       "id": "core-classes/process-run",
       "title": "`run` waits by suspending the coroutine, and hands back the exit code with both captures as `bytes`",
       "status": "shipped",
-      "because": ["0044", "0009", "0005"],
+      "because": [
+        "0044",
+        "0009",
+        "0005"
+      ],
       "divergesFromPhp": "captured output is `bytes`, so text costs an `as string` that throws on invalid UTF-8 rather than mangling it",
-      "seeAlso": ["core-classes/process-is-argv-only", "core-classes/process-options", "types/bytes", "types/conversion"],
+      "seeAlso": [
+        "core-classes/process-is-argv-only",
+        "core-classes/process-options",
+        "types/bytes",
+        "types/conversion"
+      ],
       "guardedBy": [
         "tests/conformance/core/process-a-completed-run-answers-the-status-the-child-chose.nvst",
         "tests/conformance/core/process-a-completed-runs-two-streams-stay-apart.nvst",
@@ -62,35 +95,61 @@
       "id": "core-classes/process-options",
       "title": "`ProcessOptions` carries a working directory, a replaced environment and a timeout, and nothing else",
       "status": "designed",
-      "because": ["0044", "0033", "0005"],
+      "because": [
+        "0044",
+        "0033",
+        "0005"
+      ],
       "divergesFromPhp": "a supplied environment replaces the parent's rather than merging with it",
-      "seeAlso": ["core-classes/process-run", "core-classes/secret-reveal"],
+      "seeAlso": [
+        "core-classes/process-run",
+        "core-classes/secret-reveal"
+      ],
       "guardedBy": []
     },
     {
       "id": "core-classes/process-spawn",
       "title": "`spawn` answers a handle whose reads and writes suspend, covering `proc_open` and `passthru` in one type",
       "status": "designed",
-      "because": ["0044"],
-      "seeAlso": ["core-classes/process-run", "core-classes/process-is-argv-only"],
+      "because": [
+        "0044"
+      ],
+      "seeAlso": [
+        "core-classes/process-run",
+        "core-classes/process-is-argv-only"
+      ],
       "guardedBy": []
     },
     {
       "id": "core-classes/process-refuses-a-shell-target",
       "title": "A target only a second command-line parser could run is refused, on every platform",
       "status": "shipped",
-      "because": ["0044"],
+      "because": [
+        "0044"
+      ],
       "divergesFromPhp": "a `.bat`, `.cmd` or `.ps1` target does not run at all; a shebang script does, because `execve` reads it without re-parsing anything",
-      "seeAlso": ["core-classes/process-is-argv-only", "core-classes/process-run"],
-      "guardedBy": ["tests/conformance/core/process-run-refuses-every-shell-target-and-only-those.nvst"]
+      "seeAlso": [
+        "core-classes/process-is-argv-only",
+        "core-classes/process-run"
+      ],
+      "guardedBy": [
+        "tests/conformance/core/process-run-refuses-every-shell-target-and-only-those.nvst"
+      ]
     },
     {
       "id": "core-classes/io-write-stream",
       "title": "`Core\\IO::writeStream` is where every stream reaches disk, and a failed write removes its partial file",
       "status": "shipped",
-      "because": ["0105", "0063", "0024"],
+      "because": [
+        "0105",
+        "0063",
+        "0024"
+      ],
       "divergesFromPhp": "there is no `move_uploaded_file` and no temp file to move — a part is streamed to a path the program chose, and `overwrite` defaults to false",
-      "seeAlso": ["core-classes/temporary-dir-sweep", "core-classes/process-run"],
+      "seeAlso": [
+        "core-classes/temporary-dir-sweep",
+        "core-classes/process-run"
+      ],
       "guardedBy": [
         "tests/conformance/core/io-write-stream-lands-its-chunks-in-order-and-refuses-to-replace.nvst",
         "tests/conformance/core/io-write-stream-asks-the-door-before-it-draws-a-chunk.nvst",
@@ -101,9 +160,21 @@
       "id": "core-classes/temporary-dir-sweep",
       "title": "A temporary directory lives under a Novis-owned root and is deleted when its script ends, and the sweep never throws",
       "status": "shipped",
-      "because": ["0131", "0127", "0072", "0106", "0078", "0059", "0004"],
+      "because": [
+        "0131",
+        "0127",
+        "0072",
+        "0106",
+        "0078",
+        "0059",
+        "0004"
+      ],
       "divergesFromPhp": "there is no `tmpfile`, no `sys_get_temp_dir` writing and no `tempnam` — the runtime hands out a directory it owns and reclaims it",
-      "seeAlso": ["core-classes/temporary-dir-orphan-sweep", "core-classes/io-write-stream", "errors/propagation"],
+      "seeAlso": [
+        "core-classes/temporary-dir-orphan-sweep",
+        "core-classes/io-write-stream",
+        "errors/propagation"
+      ],
       "guardedBy": [
         "tests/conformance/core/io-a-temporary-directory-is-made-not-named.nvst",
         "tests/conformance/core/io-a-temporary-directory-is-a-granted-path-like-any-other.nvst",
@@ -114,34 +185,65 @@
       "id": "core-classes/temporary-dir-orphan-sweep",
       "title": "The orphan sweep is keyed on the owner being alive, never on age, and runs in exactly two places",
       "status": "shipped",
-      "because": ["0131"],
-      "seeAlso": ["core-classes/temporary-dir-sweep"],
+      "because": [
+        "0131"
+      ],
+      "seeAlso": [
+        "core-classes/temporary-dir-sweep"
+      ],
       "guardedBy": []
     },
     {
       "id": "core-classes/regex-two-tiers",
       "title": "A pattern runs on the linear engine unless it cannot, and the backtracking tier's step budget throws when exhausted",
       "status": "shipped",
-      "because": ["0056", "0005", "0020"],
+      "because": [
+        "0056",
+        "0005",
+        "0020"
+      ],
       "divergesFromPhp": "there is no modifier that asks for backtracking, and `preg_*`'s silent `false` on a backtrack limit is a catchable throw here",
-      "seeAlso": ["core-classes/regex-literal-tiering", "core-classes/regex-syntax", "errors/escalation-ladder"],
-      "guardedBy": ["tests/conformance/core/regex-tiers-and-the-backtracking-budget.nvst"]
+      "seeAlso": [
+        "core-classes/regex-literal-tiering",
+        "core-classes/regex-syntax",
+        "errors/escalation-ladder"
+      ],
+      "guardedBy": [
+        "tests/conformance/core/regex-tiers-and-the-backtracking-budget.nvst"
+      ]
     },
     {
       "id": "core-classes/regex-literal-tiering",
       "title": "A literal pattern is validated and tiered while checking, and a malformed one is a compile error",
       "status": "shipped",
-      "because": ["0056", "0057", "0005"],
-      "seeAlso": ["core-classes/regex-two-tiers", "expressions/intrinsic-literals", "expressions/intrinsic-list-is-closed"],
-      "guardedBy": ["crates/nvs-types/tests/intrinsics.rs"]
+      "because": [
+        "0056",
+        "0057",
+        "0005"
+      ],
+      "seeAlso": [
+        "core-classes/regex-two-tiers",
+        "expressions/intrinsic-literals",
+        "expressions/intrinsic-list-is-closed"
+      ],
+      "guardedBy": [
+        "crates/nvs-types/tests/intrinsics.rs"
+      ]
     },
     {
       "id": "core-classes/regex-syntax",
       "title": "Regex syntax is PCRE's with no `u` modifier, and a construct neither engine supports is diagnosed by name",
       "status": "shipped",
-      "because": ["0056", "0009"],
+      "because": [
+        "0056",
+        "0009"
+      ],
       "divergesFromPhp": "Unicode mode is not a flag because `string` is always UTF-8, and `/e` and its relatives are not reintroduced",
-      "seeAlso": ["core-classes/regex-two-tiers", "types/string-is-utf8", "types/bytes"],
+      "seeAlso": [
+        "core-classes/regex-two-tiers",
+        "types/string-is-utf8",
+        "types/bytes"
+      ],
       "guardedBy": [
         "tests/conformance/core/regex-compile-carries-the-four-flags.nvst",
         "tests/conformance/core/regex-match-offset-is-a-grapheme-index-from-zero-to-the-subject-length.nvst"
@@ -151,9 +253,22 @@
       "id": "core-classes/html-auto-escape",
       "title": "`echo` in an HTTP request escapes everything it is given, and `Core\\Html\\Markup` is the only raw-write bypass",
       "status": "shipped",
-      "because": ["0024", "0133", "0087", "0088", "0086", "0169"],
+      "because": [
+        "0024",
+        "0133",
+        "0087",
+        "0088",
+        "0086",
+        "0169"
+      ],
       "divergesFromPhp": "output is escaped by the sink rather than by a call the developer remembers, and a runtime-computed string can never become `Markup` through `as`",
-      "seeAlso": ["core-classes/html-literal", "core-classes/html-escape-answers-markup", "core-classes/html-to-source", "core-classes/html-sanitize", "errors/ambiguous-input-refused"],
+      "seeAlso": [
+        "core-classes/html-literal",
+        "core-classes/html-escape-answers-markup",
+        "core-classes/html-to-source",
+        "core-classes/html-sanitize",
+        "errors/ambiguous-input-refused"
+      ],
       "guardedBy": [
         "tests/conformance/core/markup-lifts-a-literal-and-writes-what-escape-would-not.nvst",
         "tests/conformance/core/markup-composes-with-plus-and-stays-markup.nvst",
@@ -164,9 +279,16 @@
       "id": "core-classes/html-literal",
       "title": "``html`…` `` is a `Core\\Html\\Markup` whose segments are trusted and whose holes are escaped",
       "status": "shipped",
-      "because": ["0169"],
+      "because": [
+        "0169"
+      ],
       "divergesFromPhp": "there is no template literal in PHP; the nearest thing is `<?= ?>` in an inline-HTML region, and this is that rule available in expression position",
-      "seeAlso": ["core-classes/html-auto-escape", "core-classes/html-escape-answers-markup", "types/duration-literal", "tooling/styling-is-a-value-not-a-grammar"],
+      "seeAlso": [
+        "core-classes/html-auto-escape",
+        "core-classes/html-escape-answers-markup",
+        "types/duration-literal",
+        "tooling/styling-is-a-value-not-a-grammar"
+      ],
       "guardedBy": [
         "tests/conformance/core/a-markup-literal-trusts-its-segments-and-escapes-its-holes.nvst",
         "tests/conformance/core/a-markup-literal-with-no-holes-is-the-lift-of-the-same-bytes.nvst",
@@ -184,9 +306,17 @@
       "id": "core-classes/html-escape-answers-markup",
       "title": "`Core\\Html::escape` answers a `Markup`, so the eager-escape habit stops compiling",
       "status": "shipped",
-      "because": ["0133", "0024", "0087"],
+      "because": [
+        "0133",
+        "0024",
+        "0087"
+      ],
       "divergesFromPhp": "`htmlspecialchars`'s replacement does not answer a `string`, so its result cannot be concatenated back into one and double-escaped",
-      "seeAlso": ["core-classes/html-auto-escape", "core-classes/html-to-source", "core-classes/html-sanitize"],
+      "seeAlso": [
+        "core-classes/html-auto-escape",
+        "core-classes/html-to-source",
+        "core-classes/html-sanitize"
+      ],
       "guardedBy": [
         "tests/conformance/core/html-escape-launders-a-tainted-value-and-writes-all-five-characters.nvst",
         "tests/conformance/core/html-escape-changes-nothing-else-and-escapes-what-already-reads-as-a-reference.nvst",
@@ -197,8 +327,16 @@
       "id": "core-classes/html-to-source",
       "title": "`Core\\Html::toSource` is the one way out of a `Markup`, and it takes a written reason",
       "status": "shipped",
-      "because": ["0133", "0024", "0063"],
-      "seeAlso": ["core-classes/html-escape-answers-markup", "core-classes/html-auto-escape", "core-classes/secret-reveal"],
+      "because": [
+        "0133",
+        "0024",
+        "0063"
+      ],
+      "seeAlso": [
+        "core-classes/html-escape-answers-markup",
+        "core-classes/html-auto-escape",
+        "core-classes/secret-reveal"
+      ],
       "guardedBy": [
         "tests/conformance/core/to-source-hands-back-the-bytes-of-every-way-a-markup-is-obtained.nvst",
         "tests/conformance/core/to-source-refuses-an-empty-reason-and-takes-any-written-one.nvst"
@@ -208,8 +346,17 @@
       "id": "core-classes/html-sanitize",
       "title": "`Core\\Html::sanitize` answers a `Markup` by rebuilding the document, never by filtering it",
       "status": "shipped",
-      "because": ["0133", "0024", "0051", "0122"],
-      "seeAlso": ["core-classes/html-escape-answers-markup", "core-classes/html-parsing", "core-classes/html-auto-escape"],
+      "because": [
+        "0133",
+        "0024",
+        "0051",
+        "0122"
+      ],
+      "seeAlso": [
+        "core-classes/html-escape-answers-markup",
+        "core-classes/html-parsing",
+        "core-classes/html-auto-escape"
+      ],
       "guardedBy": [
         "tests/conformance/core/html-sanitize-rebuilds-a-document-and-writes-no-tag-for-what-the-allowlist-lacks.nvst",
         "tests/conformance/core/html-sanitize-reaches-a-fixed-point-over-a-document-that-mutates.nvst",
@@ -223,9 +370,18 @@
       "id": "core-classes/html-parsing",
       "title": "HTML parses by the WHATWG algorithm onto `Core\\Xml`'s own tree, and that parse never fails",
       "status": "shipped",
-      "because": ["0122", "0095", "0063", "0121"],
+      "because": [
+        "0122",
+        "0095",
+        "0063",
+        "0121"
+      ],
       "divergesFromPhp": "there is no `LIBXML_*` flag matrix and no document class that flips between recovering and throwing — the two front doors are two classes",
-      "seeAlso": ["core-classes/html-sanitize", "core-classes/pdf-one-engine", "errors/ambiguous-input-refused"],
+      "seeAlso": [
+        "core-classes/html-sanitize",
+        "core-classes/pdf-one-engine",
+        "errors/ambiguous-input-refused"
+      ],
       "guardedBy": [
         "tests/conformance/core/html-parse-never-fails-and-supplies-what-a-document-left-out.nvst",
         "tests/conformance/core/html-places-misnested-and-stray-content-where-the-algorithm-says.nvst",
@@ -240,9 +396,15 @@
       "id": "core-classes/xml-tree-and-stream",
       "title": "`Core\\Xml` is a materialising tree beside a one-window stream, and no operation is available through both",
       "status": "shipped",
-      "because": ["0168"],
+      "because": [
+        "0168"
+      ],
       "divergesFromPhp": "`DOMDocument`, `SimpleXMLElement`, `XMLReader` and the expat callbacks are four vocabularies for one document — there are two here, they share a node family, and they share no operation",
-      "seeAlso": ["core-classes/html-parsing", "core-classes/xml-refuses-by-construction", "core-api/one-paradigm-per-operation"],
+      "seeAlso": [
+        "core-classes/html-parsing",
+        "core-classes/xml-refuses-by-construction",
+        "core-api/one-paradigm-per-operation"
+      ],
       "guardedBy": [
         "tests/conformance/core/xml-a-reader-answers-one-node-at-a-time-in-document-order.nvst",
         "tests/conformance/core/xml-a-writer-answers-a-document-its-own-reader-reads-back.nvst",
@@ -258,9 +420,16 @@
       "id": "core-classes/xml-refuses-by-construction",
       "title": "`Core\\Xml` refuses a document type declaration whole and resolves no entity, so XXE and billion-laughs are absent rather than bounded",
       "status": "shipped",
-      "because": ["0168"],
+      "because": [
+        "0168"
+      ],
       "divergesFromPhp": "there is no `libxml_disable_entity_loader`, no `LIBXML_NOENT` and no entity loader for either to have switched — a `<!DOCTYPE …>` does not parse at all",
-      "seeAlso": ["core-classes/xml-tree-and-stream", "core-classes/decompression-bound", "security/no-runtime-grant", "errors/ambiguous-input-refused"],
+      "seeAlso": [
+        "core-classes/xml-tree-and-stream",
+        "core-classes/decompression-bound",
+        "security/no-runtime-grant",
+        "errors/ambiguous-input-refused"
+      ],
       "guardedBy": [
         "tests/conformance/core/xml-expands-the-five-predefined-entities-and-nothing-else.nvst",
         "tests/conformance/core/xml-refuses-malformed-input-rather-than-repairing-it.nvst",
@@ -271,18 +440,34 @@
       "id": "core-classes/validate-has-no-type-predicates",
       "title": "`Core\\Validate` carries no predicate that names a type, because `as ?T` already is one",
       "status": "shipped",
-      "because": ["0066", "0063"],
+      "because": [
+        "0066",
+        "0063"
+      ],
       "divergesFromPhp": "`is_numeric`, `ctype_digit`, `filter_var(FILTER_VALIDATE_INT)` and their kind have no replacement — the conversion is the test",
-      "seeAlso": ["expressions/nullable-conversion", "expressions/try-parse", "types/conversion"],
-      "guardedBy": ["tests/conformance/core/validate-members.nvst"]
+      "seeAlso": [
+        "expressions/nullable-conversion",
+        "expressions/try-parse",
+        "types/conversion"
+      ],
+      "guardedBy": [
+        "tests/conformance/core/validate-members.nvst"
+      ]
     },
     {
       "id": "core-classes/secret-reveal",
       "title": "`Core\\Secret::reveal` is the one named way out of `secret`, and it carries a written reason",
       "status": "shipped",
-      "because": ["0033", "0024"],
+      "because": [
+        "0033",
+        "0024"
+      ],
       "divergesFromPhp": "there is no generic unwrap; a confidential value leaves its qualifier only through this member or through a function that consumes it and returns something else",
-      "seeAlso": ["core-classes/html-to-source", "core-classes/process-options", "core-classes/ratelimit-gcra"],
+      "seeAlso": [
+        "core-classes/html-to-source",
+        "core-classes/process-options",
+        "core-classes/ratelimit-gcra"
+      ],
       "guardedBy": [
         "tests/conformance/reject/reveal-removes-secret-and-not-tainted.nvst",
         "tests/conformance/core/a-reveal-drops-the-secret-qualifier.nvst",
@@ -296,9 +481,16 @@
       "id": "core-classes/reflect",
       "title": "`Core\\Reflect` is read-only structural introspection, and it is a first-class feature rather than an extension",
       "status": "shipped",
-      "because": ["0019", "0043"],
+      "because": [
+        "0019",
+        "0043"
+      ],
       "divergesFromPhp": "reflection is always present rather than a compiled-in extension, it covers no traits because there are none, and it never widens access",
-      "seeAlso": ["core-classes/ast-is-inert", "enums/reflection", "types/erased-member-access"],
+      "seeAlso": [
+        "core-classes/ast-is-inert",
+        "enums/reflection",
+        "types/erased-member-access"
+      ],
       "guardedBy": [
         "tests/conformance/core/reflect-forclass-reaches-a-description-by-name-and-absence-is-null.nvst",
         "tests/conformance/core/reflect-describes-a-class-by-the-properties-visible-from-outside.nvst",
@@ -310,9 +502,16 @@
       "id": "core-classes/ast-is-inert",
       "title": "`Core\\Ast` runs the compiler's own parser and hands back typed, inert nodes",
       "status": "shipped",
-      "because": ["0019", "0006"],
+      "because": [
+        "0019",
+        "0006"
+      ],
       "divergesFromPhp": "`token_get_all`'s untyped arrays are replaced by one type per production, and there is no `eval` for a rewritten tree to reach",
-      "seeAlso": ["core-classes/reflect", "types/declaration", "programs/compile-target"],
+      "seeAlso": [
+        "core-classes/reflect",
+        "types/declaration",
+        "programs/compile-target"
+      ],
       "guardedBy": [
         "tests/conformance/core/core-ast-parse-answers-the-compilers-own-tree.nvst",
         "tests/conformance/core/core-ast-parse-stops-where-the-compiler-stops.nvst",
@@ -326,8 +525,18 @@
       "id": "core-classes/topic",
       "title": "`Core\\Topic` is the only way two connections meet, and a slow subscriber is closed rather than tolerated",
       "status": "shipped",
-      "because": ["0083", "0023", "0033", "0059", "0051", "0076"],
-      "seeAlso": ["core-classes/ratelimit-two-members", "core-classes/queue-storage-is-a-table"],
+      "because": [
+        "0083",
+        "0023",
+        "0033",
+        "0059",
+        "0051",
+        "0076"
+      ],
+      "seeAlso": [
+        "core-classes/ratelimit-two-members",
+        "core-classes/queue-storage-is-a-table"
+      ],
       "guardedBy": [
         "tests/conformance/core/a-topic-name-is-a-sink-and-refuses-one-that-came-from-outside.nvst",
         "tests/conformance/core/a-topic-needs-a-connection-to-subscribe-on.nvst",
@@ -339,9 +548,20 @@
       "id": "core-classes/db-one-api",
       "title": "`Core\\Db` is the only database API, and every statement it runs is prepared",
       "status": "shipped",
-      "because": ["0067", "0024", "0028", "0051", "0063"],
+      "because": [
+        "0067",
+        "0024",
+        "0028",
+        "0051",
+        "0063"
+      ],
       "divergesFromPhp": "there is no PDO, no mysqli, no pgsql and no sqlite3 twin, no `quote`/`real_escape_string`, no emulated prepares and no multi-statement query",
-      "seeAlso": ["core-classes/db-parameters", "core-classes/db-statement-members", "core-classes/db-drivers-are-an-enum", "types/conversion"],
+      "seeAlso": [
+        "core-classes/db-parameters",
+        "core-classes/db-statement-members",
+        "core-classes/db-drivers-are-an-enum",
+        "types/conversion"
+      ],
       "guardedBy": [
         "tests/conformance/core/db-a-prepared-statement-binds-by-name-and-by-position.nvst",
         "tests/conformance/core/db-query-takes-its-values-beside-the-statement.nvst",
@@ -353,9 +573,19 @@
       "id": "core-classes/db-connection-is-named",
       "title": "A connection is named in configuration or built from settings, and both memoize for the request",
       "status": "shipped",
-      "because": ["0067", "0064", "0103", "0033", "0047"],
+      "because": [
+        "0067",
+        "0064",
+        "0103",
+        "0033",
+        "0047"
+      ],
       "divergesFromPhp": "a credential is never a DSN string in program source, and there is no destructor to close a connection — the request teardown does it",
-      "seeAlso": ["core-classes/db-capabilities", "core-classes/db-safe-connection-defaults", "core-classes/db-one-api"],
+      "seeAlso": [
+        "core-classes/db-capabilities",
+        "core-classes/db-safe-connection-defaults",
+        "core-classes/db-one-api"
+      ],
       "guardedBy": [
         "tests/conformance/core/db-a-connection-names-its-driver-and-is-open-until-closed.nvst",
         "tests/conformance/core/db-settings-are-checked-against-the-one-arm-they-select.nvst",
@@ -368,9 +598,19 @@
       "id": "core-classes/db-capabilities",
       "title": "Three deny-by-default capabilities gate naming a database, dialling one, and issuing DDL to it",
       "status": "shipped",
-      "because": ["0067", "0058", "0024", "0118", "0145"],
+      "because": [
+        "0067",
+        "0058",
+        "0024",
+        "0118",
+        "0145"
+      ],
       "divergesFromPhp": "opening a connection is a granted act rather than a library call, and a hostname reaching `Settings.host` may not be `tainted`",
-      "seeAlso": ["core-classes/db-connection-is-named", "core-classes/schema-apply-capability", "core-classes/db-safe-connection-defaults"],
+      "seeAlso": [
+        "core-classes/db-connection-is-named",
+        "core-classes/schema-apply-capability",
+        "core-classes/db-safe-connection-defaults"
+      ],
       "guardedBy": [
         "tests/conformance/core/db-connect-refuses-a-name-the-grant-does-not-cover.nvst",
         "tests/conformance/core/db-open-asks-the-grant-about-the-host-and-then-the-address.nvst",
@@ -382,33 +622,70 @@
       "id": "core-classes/db-safe-connection-defaults",
       "title": "Three connection defaults close holes PHP leaves open, and none can be configured to the unsafe value",
       "status": "shipped",
-      "because": ["0067", "0009"],
+      "because": [
+        "0067",
+        "0009"
+      ],
       "divergesFromPhp": "`LOCAL INFILE` cannot be enabled, TLS verifies fully rather than `prefer`, and the charset is forced to UTF-8",
-      "seeAlso": ["core-classes/db-capabilities", "core-classes/db-column-types", "types/bytes"],
-      "guardedBy": ["tests/conformance/core/db-open-refuses-a-tls-mode-weaker-than-verify-full.nvst"]
+      "seeAlso": [
+        "core-classes/db-capabilities",
+        "core-classes/db-column-types",
+        "types/bytes"
+      ],
+      "guardedBy": [
+        "tests/conformance/core/db-open-refuses-a-tls-mode-weaker-than-verify-full.nvst"
+      ]
     },
     {
       "id": "core-classes/db-drivers-are-an-enum",
       "title": "The five drivers are an enum with one `match` per entry point, not a `Driver` trait",
       "status": "shipped",
-      "because": ["0132", "0067", "0003"],
-      "seeAlso": ["core-classes/db-crate-boundary", "core-classes/db-one-api", "core-classes/db-unix-socket-path"],
-      "guardedBy": ["tests/conformance/core/db-a-connection-names-its-driver-and-is-open-until-closed.nvst"]
+      "because": [
+        "0132",
+        "0067",
+        "0003"
+      ],
+      "seeAlso": [
+        "core-classes/db-crate-boundary",
+        "core-classes/db-one-api",
+        "core-classes/db-unix-socket-path"
+      ],
+      "guardedBy": [
+        "tests/conformance/core/db-a-connection-names-its-driver-and-is-open-until-closed.nvst"
+      ]
     },
     {
       "id": "core-classes/db-unix-socket-path",
       "title": "A Unix-socket host is the string that deployment already holds, and MSSQL refuses one",
       "status": "shipped",
-      "because": ["0142", "0067", "0132"],
-      "seeAlso": ["core-classes/db-connection-is-named", "core-classes/db-drivers-are-an-enum"],
-      "guardedBy": ["crates/nvs-db/src/mysql.rs", "crates/nvs-db/src/maria.rs", "crates/nvs-db/src/pg.rs", "crates/nvs-db/src/tds/mod.rs"]
+      "because": [
+        "0142",
+        "0067",
+        "0132"
+      ],
+      "seeAlso": [
+        "core-classes/db-connection-is-named",
+        "core-classes/db-drivers-are-an-enum"
+      ],
+      "guardedBy": [
+        "crates/nvs-db/src/mysql.rs",
+        "crates/nvs-db/src/maria.rs",
+        "crates/nvs-db/src/pg.rs",
+        "crates/nvs-db/src/tds/mod.rs"
+      ]
     },
     {
       "id": "core-classes/server-version-is-what-the-server-said",
       "title": "`serverVersion` answers what the server said during the handshake, and never spends a round trip",
       "status": "shipped",
-      "because": ["0187"],
-      "seeAlso": ["core-classes/db-connection-is-named", "core-classes/db-drivers-are-an-enum", "core-classes/schema-plan"],
+      "because": [
+        "0187"
+      ],
+      "seeAlso": [
+        "core-classes/db-connection-is-named",
+        "core-classes/db-drivers-are-an-enum",
+        "core-classes/schema-plan"
+      ],
       "guardedBy": [
         "crates/nvs-stdlib/tests/db_stream.rs",
         "tests/conformance/core/db-server-version-answers-what-the-connection-kept.nvst",
@@ -419,17 +696,34 @@
       "id": "core-classes/db-connection-busy-state",
       "title": "Busy state is a field on the connection, and a wire not at a message boundary is closed rather than reset",
       "status": "shipped",
-      "because": ["0132", "0067"],
-      "seeAlso": ["core-classes/db-streaming", "core-classes/db-statement-members", "core-classes/db-drivers-are-an-enum"],
-      "guardedBy": ["tests/conformance/core/db-a-closed-connection-refuses-every-member-that-needs-it.nvst"]
+      "because": [
+        "0132",
+        "0067"
+      ],
+      "seeAlso": [
+        "core-classes/db-streaming",
+        "core-classes/db-statement-members",
+        "core-classes/db-drivers-are-an-enum"
+      ],
+      "guardedBy": [
+        "tests/conformance/core/db-a-closed-connection-refuses-every-member-that-needs-it.nvst"
+      ]
     },
     {
       "id": "core-classes/db-statement-members",
       "title": "Five members run a statement, results are buffered by default, and only one of them streams",
       "status": "shipped",
-      "because": ["0067", "0004", "0063"],
+      "because": [
+        "0067",
+        "0004",
+        "0063"
+      ],
       "divergesFromPhp": "there is no unbuffered-query flag and no per-driver difference in what a second statement on a busy connection does",
-      "seeAlso": ["core-classes/db-streaming", "core-classes/db-column-types", "core-classes/db-connection-busy-state"],
+      "seeAlso": [
+        "core-classes/db-streaming",
+        "core-classes/db-column-types",
+        "core-classes/db-connection-busy-state"
+      ],
       "guardedBy": [
         "tests/conformance/core/db-query-answers-a-rows-and-not-an-array.nvst",
         "tests/conformance/core/db-execute-answers-a-write-and-not-a-count.nvst",
@@ -443,9 +737,16 @@
       "id": "core-classes/db-parameters",
       "title": "One placeholder is one value, and expanding a list into `IN` is written with `Core\\Db::inList`",
       "status": "shipped",
-      "because": ["0067", "0007", "0024"],
+      "because": [
+        "0067",
+        "0007",
+        "0024"
+      ],
       "divergesFromPhp": "an array bound to a placeholder is one value rather than a silently expanded list, and an empty `inList` throws instead of guessing",
-      "seeAlso": ["core-classes/db-one-api", "core-classes/db-statement-members"],
+      "seeAlso": [
+        "core-classes/db-one-api",
+        "core-classes/db-statement-members"
+      ],
       "guardedBy": [
         "tests/conformance/core/db-in-list-marks-a-run-of-bound-values.nvst",
         "tests/conformance/core/db-in-list-refuses-an-empty-list.nvst",
@@ -457,8 +758,16 @@
       "id": "core-classes/db-literal-query-checking",
       "title": "A literal query is checked while compiling, and no vendor's SQL grammar is ever parsed",
       "status": "shipped",
-      "because": ["0067", "0057", "0145"],
-      "seeAlso": ["core-classes/db-parameters", "core-classes/schema-introspection", "expressions/intrinsic-literals"],
+      "because": [
+        "0067",
+        "0057",
+        "0145"
+      ],
+      "seeAlso": [
+        "core-classes/db-parameters",
+        "core-classes/schema-introspection",
+        "expressions/intrinsic-literals"
+      ],
       "guardedBy": [
         "tests/conformance/core/db-stream-is-checked-while-compiling-like-every-other-statement.nvst",
         "tests/conformance/core/db-open-refuses-a-settings-literal-that-names-no-driver.nvst"
@@ -468,9 +777,24 @@
       "id": "core-classes/db-column-types",
       "title": "Every column has one natural Novis type, and the requested type converts losslessly or throws",
       "status": "shipped",
-      "because": ["0067", "0054", "0009", "0024", "0036", "0063", "0071", "0145"],
+      "because": [
+        "0067",
+        "0054",
+        "0009",
+        "0024",
+        "0036",
+        "0063",
+        "0071",
+        "0145"
+      ],
       "divergesFromPhp": "nothing is a string because the text protocol made it one — a `DECIMAL` is a `decimal`, a `BIGINT UNSIGNED` is a `uint`, and `TINYINT(1)` holding `7` refuses to read as `bool`",
-      "seeAlso": ["core-classes/db-statement-members", "core-classes/schema-vocabulary-is-closed", "types/decimal", "types/uint", "types/conversion"],
+      "seeAlso": [
+        "core-classes/db-statement-members",
+        "core-classes/schema-vocabulary-is-closed",
+        "types/decimal",
+        "types/uint",
+        "types/conversion"
+      ],
       "guardedBy": [
         "tests/conformance/core/db-row-reads-a-column-by-type-and-answers-nullable.nvst",
         "tests/conformance/core/db-a-typed-row-throws-naming-the-column.nvst",
@@ -483,8 +807,16 @@
       "id": "core-classes/db-streaming",
       "title": "A streaming result holds its connection until it is drained, and a second statement on it throws",
       "status": "shipped",
-      "because": ["0067", "0132", "0187"],
-      "seeAlso": ["core-classes/db-statement-members", "core-classes/db-connection-busy-state", "core-classes/a-stream-parks-its-read-on-the-connection"],
+      "because": [
+        "0067",
+        "0132",
+        "0187"
+      ],
+      "seeAlso": [
+        "core-classes/db-statement-members",
+        "core-classes/db-connection-busy-state",
+        "core-classes/a-stream-parks-its-read-on-the-connection"
+      ],
       "guardedBy": [
         "crates/nvs-stdlib/tests/db_stream.rs",
         "tests/conformance/core/db-stream-is-checked-while-compiling-like-every-other-statement.nvst",
@@ -495,8 +827,14 @@
       "id": "core-classes/a-stream-parks-its-read-on-the-connection",
       "title": "A stream's read state is parked on the connection on every driver, and a buffer is never the answer",
       "status": "shipped",
-      "because": ["0187"],
-      "seeAlso": ["core-classes/db-streaming", "core-classes/db-connection-busy-state", "core-classes/db-drivers-are-an-enum"],
+      "because": [
+        "0187"
+      ],
+      "seeAlso": [
+        "core-classes/db-streaming",
+        "core-classes/db-connection-busy-state",
+        "core-classes/db-drivers-are-an-enum"
+      ],
       "guardedBy": [
         "crates/nvs-stdlib/tests/db_stream.rs",
         "tests/conformance/core/db-stream-as-answers-a-walk-and-not-a-buffered-result.nvst",
@@ -507,9 +845,18 @@
       "id": "core-classes/db-transactions",
       "title": "A transaction is a closure, and `Transaction` is a `Queryable` rather than a second query surface",
       "status": "shipped",
-      "because": ["0067", "0028", "0043", "0002"],
+      "because": [
+        "0067",
+        "0028",
+        "0043",
+        "0002"
+      ],
       "divergesFromPhp": "there is no `beginTransaction`/`commit`/`rollBack` on the connection and no `inTransaction`; nesting is a savepoint, and a rollback signal survives an intervening `catch (Throwable)`",
-      "seeAlso": ["core-classes/db-error", "core-classes/db-statement-members", "errors/propagation"],
+      "seeAlso": [
+        "core-classes/db-error",
+        "core-classes/db-statement-members",
+        "errors/propagation"
+      ],
       "guardedBy": [
         "tests/conformance/core/db-transaction-answers-what-its-closure-answers.nvst",
         "tests/conformance/core/db-transaction-hands-its-closure-a-transaction-and-not-a-connection.nvst",
@@ -522,9 +869,18 @@
       "id": "core-classes/db-error",
       "title": "One `DbError` carries a normalised kind across every driver, and never a bound parameter",
       "status": "shipped",
-      "because": ["0067", "0033", "0063", "0002"],
+      "because": [
+        "0067",
+        "0033",
+        "0063",
+        "0002"
+      ],
       "divergesFromPhp": "an application branches on `ErrorKind::UniqueViolation` rather than on `1062`, `23505` or the text `\"Duplicate entry\"`",
-      "seeAlso": ["core-classes/db-transactions", "errors/throwable-hierarchy", "errors/diagnostic-record"],
+      "seeAlso": [
+        "core-classes/db-transactions",
+        "errors/throwable-hierarchy",
+        "errors/diagnostic-record"
+      ],
       "guardedBy": [
         "tests/conformance/core/db-connect-refuses-a-block-it-cannot-read-by-the-field.nvst",
         "tests/conformance/core/db-a-typed-row-throws-naming-the-column.nvst"
@@ -534,16 +890,34 @@
       "id": "core-classes/db-crate-boundary",
       "title": "The wire lives in `nvs-db` below the standard library, where a codec is borrowed and a state machine is written",
       "status": "shipped",
-      "because": ["0132", "0067", "0051"],
-      "seeAlso": ["core-classes/db-drivers-are-an-enum", "core-classes/db-connection-busy-state", "core-classes/schema-introspection"],
+      "because": [
+        "0132",
+        "0067",
+        "0051"
+      ],
+      "seeAlso": [
+        "core-classes/db-drivers-are-an-enum",
+        "core-classes/db-connection-busy-state",
+        "core-classes/schema-introspection"
+      ],
       "guardedBy": []
     },
     {
       "id": "core-classes/schema-is-a-value",
       "title": "A schema is a value with three spellings, and its array form is the canonical one",
       "status": "shipped",
-      "because": ["0145", "0090", "0071", "0067"],
-      "seeAlso": ["core-classes/schema-vocabulary-is-closed", "core-classes/schema-introspection", "core-classes/schema-plan", "types/arrays"],
+      "because": [
+        "0145",
+        "0090",
+        "0071",
+        "0067"
+      ],
+      "seeAlso": [
+        "core-classes/schema-vocabulary-is-closed",
+        "core-classes/schema-introspection",
+        "core-classes/schema-plan",
+        "types/arrays"
+      ],
       "guardedBy": [
         "tests/conformance/core/db-schema-round-trips-its-canonical-array-form.nvst",
         "tests/conformance/core/db-schema-normalizes-every-spelling-of-one-schema.nvst"
@@ -553,16 +927,34 @@
       "id": "core-classes/schema-vocabulary-is-closed",
       "title": "The schema vocabulary is five constructs shared by all five backends, with no raw escape hatch",
       "status": "shipped",
-      "because": ["0145", "0067", "0024", "0187"],
-      "seeAlso": ["core-classes/schema-is-a-value", "core-classes/db-column-types", "core-classes/schema-plan", "core-classes/a-unique-key-reads-nulls-as-distinct"],
-      "guardedBy": ["tests/conformance/core/db-schema-refuses-what-the-closed-vocabulary-cannot-say.nvst"]
+      "because": [
+        "0145",
+        "0067",
+        "0024",
+        "0187"
+      ],
+      "seeAlso": [
+        "core-classes/schema-is-a-value",
+        "core-classes/db-column-types",
+        "core-classes/schema-plan",
+        "core-classes/a-unique-key-reads-nulls-as-distinct"
+      ],
+      "guardedBy": [
+        "tests/conformance/core/db-schema-refuses-what-the-closed-vocabulary-cannot-say.nvst"
+      ]
     },
     {
       "id": "core-classes/a-unique-key-reads-nulls-as-distinct",
       "title": "A unique key reads nulls as distinct on every backend, and SQL Server spells that as a filtered index",
       "status": "shipped",
-      "because": ["0187"],
-      "seeAlso": ["core-classes/schema-vocabulary-is-closed", "core-classes/schema-plan", "core-classes/queue-storage-is-a-table"],
+      "because": [
+        "0187"
+      ],
+      "seeAlso": [
+        "core-classes/schema-vocabulary-is-closed",
+        "core-classes/schema-plan",
+        "core-classes/queue-storage-is-a-table"
+      ],
       "guardedBy": [
         "crates/nvs-db/src/ddl.rs",
         "crates/nvs-db/src/catalog.rs",
@@ -573,17 +965,35 @@
       "id": "core-classes/schema-converges",
       "title": "A plan is the difference between a schema value and a live database, and `Core` knows no migrations",
       "status": "shipped",
-      "because": ["0145", "0082"],
+      "because": [
+        "0145",
+        "0082"
+      ],
       "divergesFromPhp": "there is no version number, no history table, no `up`/`down` pair and no fleet lock — the plan is recomputed from the database every time",
-      "seeAlso": ["core-classes/schema-plan", "core-classes/schema-introspection", "core-classes/schema-absence-never-destroys", "programs/no-migration-runner"],
-      "guardedBy": ["tests/conformance/core/db-schema-plans-every-difference-and-apply-safe-closes-them.nvst"]
+      "seeAlso": [
+        "core-classes/schema-plan",
+        "core-classes/schema-introspection",
+        "core-classes/schema-absence-never-destroys",
+        "programs/no-migration-runner"
+      ],
+      "guardedBy": [
+        "tests/conformance/core/db-schema-plans-every-difference-and-apply-safe-closes-them.nvst"
+      ]
     },
     {
       "id": "core-classes/schema-introspection",
       "title": "An existing database is read by catalog query, and no DDL parser exists at any tier",
       "status": "shipped",
-      "because": ["0145", "0067", "0051"],
-      "seeAlso": ["core-classes/schema-is-a-value", "core-classes/db-literal-query-checking", "core-classes/schema-converges"],
+      "because": [
+        "0145",
+        "0067",
+        "0051"
+      ],
+      "seeAlso": [
+        "core-classes/schema-is-a-value",
+        "core-classes/db-literal-query-checking",
+        "core-classes/schema-converges"
+      ],
       "guardedBy": [
         "tests/conformance/core/db-schema-plans-every-difference-and-apply-safe-closes-them.nvst",
         "tests/conformance/core/db-schema-normalizes-every-spelling-of-one-schema.nvst"
@@ -593,8 +1003,17 @@
       "id": "core-classes/schema-plan",
       "title": "Every plan step carries a grade and its complete SQL, and an unknown grade grades up",
       "status": "shipped",
-      "because": ["0145", "0067", "0187"],
-      "seeAlso": ["core-classes/schema-apply-capability", "core-classes/schema-absence-never-destroys", "core-classes/schema-converges", "core-classes/a-unique-key-reads-nulls-as-distinct"],
+      "because": [
+        "0145",
+        "0067",
+        "0187"
+      ],
+      "seeAlso": [
+        "core-classes/schema-apply-capability",
+        "core-classes/schema-absence-never-destroys",
+        "core-classes/schema-converges",
+        "core-classes/a-unique-key-reads-nulls-as-distinct"
+      ],
       "guardedBy": [
         "tests/conformance/core/db-schema-apply-safe-refuses-what-apply-including-risky-runs.nvst",
         "tests/conformance/core/db-schema-plans-every-difference-and-apply-safe-closes-them.nvst"
@@ -604,25 +1023,54 @@
       "id": "core-classes/schema-absence-never-destroys",
       "title": "Something in the database and not in the schema value is reported with its SQL, and never dropped",
       "status": "shipped",
-      "because": ["0145", "0084"],
-      "seeAlso": ["core-classes/schema-plan", "core-classes/schema-converges", "core-classes/queue-storage-is-a-table"],
-      "guardedBy": ["tests/conformance/core/db-schema-reports-a-table-it-does-not-declare-and-never-drops-it.nvst"]
+      "because": [
+        "0145",
+        "0084"
+      ],
+      "seeAlso": [
+        "core-classes/schema-plan",
+        "core-classes/schema-converges",
+        "core-classes/queue-storage-is-a-table"
+      ],
+      "guardedBy": [
+        "tests/conformance/core/db-schema-reports-a-table-it-does-not-declare-and-never-drops-it.nvst"
+      ]
     },
     {
       "id": "core-classes/schema-apply-capability",
       "title": "Planning is an ordinary read, and applying takes `db.schema` under a member named for its risk",
       "status": "shipped",
-      "because": ["0145", "0067", "0084"],
-      "seeAlso": ["core-classes/db-capabilities", "core-classes/schema-plan", "core-classes/queue-storage-is-a-table"],
-      "guardedBy": ["tests/conformance/core/db-schema-apply-safe-refuses-what-apply-including-risky-runs.nvst"]
+      "because": [
+        "0145",
+        "0067",
+        "0084"
+      ],
+      "seeAlso": [
+        "core-classes/db-capabilities",
+        "core-classes/schema-plan",
+        "core-classes/queue-storage-is-a-table"
+      ],
+      "guardedBy": [
+        "tests/conformance/core/db-schema-apply-safe-refuses-what-apply-including-risky-runs.nvst"
+      ]
     },
     {
       "id": "core-classes/derive-attribute",
       "title": "One written attribute per format generates a codec, and it is matched by resolved name",
       "status": "shipped",
-      "because": ["0071", "0062", "0067", "0102"],
+      "because": [
+        "0071",
+        "0062",
+        "0067",
+        "0102"
+      ],
       "divergesFromPhp": "no class is serialisable by being a class — a wire format is opted into at the declaration, and visibility never decides what is encoded",
-      "seeAlso": ["core-classes/derive-field-list", "core-classes/derive-generates-what-is-missing", "attributes/inert-metadata", "attributes/structural-retrieval"],
+      "seeAlso": [
+        "core-classes/derive-field-list",
+        "core-classes/derive-generates-what-is-missing",
+        "attributes/inert-metadata",
+        "attributes/structural-retrieval"
+      ],
       "guardedBy": [
         "tests/conformance/core/db-derive-is-a-recognized-attribute.nvst",
         "tests/conformance/core/json-derive-encodes-declared-fields.nvst",
@@ -633,8 +1081,18 @@
       "id": "core-classes/derive-field-list",
       "title": "The field list is the declared property list, and every field is a constructor parameter of the same name",
       "status": "shipped",
-      "because": ["0071", "0022", "0038", "0030", "0067"],
-      "seeAlso": ["core-classes/derive-attribute", "core-classes/derive-reports-every-field", "core-classes/db-column-types"],
+      "because": [
+        "0071",
+        "0022",
+        "0038",
+        "0030",
+        "0067"
+      ],
+      "seeAlso": [
+        "core-classes/derive-attribute",
+        "core-classes/derive-reports-every-field",
+        "core-classes/db-column-types"
+      ],
       "guardedBy": [
         "tests/conformance/reject/a-json-derive-field-needs-a-matching-constructor-parameter.nvst",
         "tests/conformance/reject/a-derive-field-with-no-codec-is-refused-at-its-declaration.nvst",
@@ -647,9 +1105,17 @@
       "id": "core-classes/derive-reports-every-field",
       "title": "A generated decoder reports every failed field at once, before the constructor runs",
       "status": "shipped",
-      "because": ["0071", "0002", "0067"],
+      "because": [
+        "0071",
+        "0002",
+        "0067"
+      ],
       "divergesFromPhp": "a decode failure is one throw carrying a located list, not the first problem the parser happened to hit",
-      "seeAlso": ["core-classes/derive-field-list", "core-classes/db-error", "errors/throwable-hierarchy"],
+      "seeAlso": [
+        "core-classes/derive-field-list",
+        "core-classes/db-error",
+        "errors/throwable-hierarchy"
+      ],
       "guardedBy": [
         "tests/conformance/core/json-derive-decodes-and-reports-every-field.nvst",
         "tests/conformance/core/json-decodes-a-typed-list.nvst"
@@ -659,8 +1125,19 @@
       "id": "core-classes/derive-generates-what-is-missing",
       "title": "The derive generates only the half the class does not write, at compile time, storing nothing per object",
       "status": "shipped",
-      "because": ["0071", "0023", "0029", "0042", "0063"],
-      "seeAlso": ["core-classes/derive-attribute", "core-classes/derive-field-list", "types/object-literal", "types/shape-type"],
+      "because": [
+        "0071",
+        "0023",
+        "0029",
+        "0042",
+        "0063"
+      ],
+      "seeAlso": [
+        "core-classes/derive-attribute",
+        "core-classes/derive-field-list",
+        "types/object-literal",
+        "types/shape-type"
+      ],
       "guardedBy": [
         "tests/conformance/core/json-encodes-a-shape-as-an-object.nvst",
         "tests/conformance/core/json-decode-as-reads-only-a-class-that-declared-a-codec.nvst",
@@ -671,9 +1148,20 @@
       "id": "core-classes/queue-storage-is-a-table",
       "title": "The job queue is two tables in a connection the operator names, converged by an explicit command",
       "status": "shipped",
-      "because": ["0084", "0145", "0067", "0024", "0153", "0187"],
+      "because": [
+        "0084",
+        "0145",
+        "0067",
+        "0024",
+        "0153",
+        "0187"
+      ],
       "divergesFromPhp": "there is no broker, no daemon of its own and no implicit boot-time DDL — the tables are created by `nvs queue migrate` and by nothing else",
-      "seeAlso": ["core-classes/schema-converges", "core-classes/schema-apply-capability", "core-classes/db-capabilities"],
+      "seeAlso": [
+        "core-classes/schema-converges",
+        "core-classes/schema-apply-capability",
+        "core-classes/db-capabilities"
+      ],
       "guardedBy": [
         "tests/conformance/core/queue-push-refuses-an-enqueue-with-no-queue-configured.nvst",
         "tests/conformance/core/queue-push-judges-its-options-before-it-opens-anything.nvst"
@@ -683,9 +1171,18 @@
       "id": "core-classes/session-is-started-explicitly",
       "title": "A session is opened by calling `Core\\Session::start`, and there is no ambient session array",
       "status": "shipped",
-      "because": ["0012", "0139", "0059", "0008"],
+      "because": [
+        "0012",
+        "0139",
+        "0059",
+        "0008"
+      ],
       "divergesFromPhp": "`$_SESSION` does not exist, nothing starts a session implicitly, and a member called before `start` throws",
-      "seeAlso": ["statements/no-host-populated-variables", "core-classes/cli-arguments", "core-classes/script-args"],
+      "seeAlso": [
+        "statements/no-host-populated-variables",
+        "core-classes/cli-arguments",
+        "core-classes/script-args"
+      ],
       "guardedBy": [
         "tests/conformance/core/session-a-member-called-before-start-throws-naming-it.nvst",
         "tests/conformance/core/session-every-member-refuses-a-record-nobody-opened.nvst",
@@ -697,9 +1194,19 @@
       "id": "core-classes/ratelimit-two-members",
       "title": "`consume` and `shed` are two jobs with two verbs, and neither is a tier of the other",
       "status": "shipped",
-      "because": ["0075", "0059", "0063", "0074", "0077"],
+      "because": [
+        "0075",
+        "0059",
+        "0063",
+        "0074",
+        "0077"
+      ],
       "divergesFromPhp": "there is no per-IP or per-path limiting, no `[ratelimit]` config block and no middleware writing a `429` for you",
-      "seeAlso": ["core-classes/ratelimit-gcra", "core-classes/ratelimit-unreachable-store-throws", "core-classes/topic"],
+      "seeAlso": [
+        "core-classes/ratelimit-gcra",
+        "core-classes/ratelimit-unreachable-store-throws",
+        "core-classes/topic"
+      ],
       "guardedBy": [
         "tests/conformance/core/ratelimit-shed-is-per-core-and-reaches-no-store.nvst",
         "tests/conformance/core/ratelimit-shed-keys-its-own-memory.nvst",
@@ -710,8 +1217,18 @@
       "id": "core-classes/ratelimit-gcra",
       "title": "Both tiers run GCRA over one stored timestamp per key, and the `Decision` computes `retryAfter`",
       "status": "shipped",
-      "because": ["0075", "0063", "0024", "0033"],
-      "seeAlso": ["core-classes/ratelimit-two-members", "core-classes/ratelimit-unreachable-store-throws", "core-classes/secret-reveal", "types/duration-literal"],
+      "because": [
+        "0075",
+        "0063",
+        "0024",
+        "0033"
+      ],
+      "seeAlso": [
+        "core-classes/ratelimit-two-members",
+        "core-classes/ratelimit-unreachable-store-throws",
+        "core-classes/secret-reveal",
+        "types/duration-literal"
+      ],
       "guardedBy": [
         "tests/conformance/core/ratelimit-decision-readers-agree-with-the-sweep.nvst",
         "tests/conformance/core/ratelimit-shed-weighs-a-call-and-bounds-a-burst.nvst",
@@ -723,17 +1240,34 @@
       "id": "core-classes/ratelimit-unreachable-store-throws",
       "title": "An unreachable shared store throws, because whether to fail open is knowledge only the call site has",
       "status": "shipped",
-      "because": ["0075", "0063", "0002"],
-      "seeAlso": ["core-classes/ratelimit-two-members", "core-classes/ratelimit-gcra", "errors/propagation"],
-      "guardedBy": ["tests/conformance/core/ratelimit-refuses-rather-than-deciding-allowed.nvst"]
+      "because": [
+        "0075",
+        "0063",
+        "0002"
+      ],
+      "seeAlso": [
+        "core-classes/ratelimit-two-members",
+        "core-classes/ratelimit-gcra",
+        "errors/propagation"
+      ],
+      "guardedBy": [
+        "tests/conformance/core/ratelimit-refuses-rather-than-deciding-allowed.nvst"
+      ]
     },
     {
       "id": "core-classes/crypto-interop-tier",
       "title": "`Core\\Crypto`'s algorithm roster is closed, every algorithm argument is required, and the sealed layout is what a browser reads",
       "status": "shipped",
-      "because": ["0179"],
+      "because": [
+        "0179"
+      ],
       "divergesFromPhp": "there is no cipher name in a string and no unauthenticated mode to reach for, so `aes-256-ecb` has no spelling",
-      "seeAlso": ["core-api/tier-roster", "security/algorithm-comes-from-the-key", "security/jwe-compact-subset", "core-classes/secret-reveal"],
+      "seeAlso": [
+        "core-api/tier-roster",
+        "security/algorithm-comes-from-the-key",
+        "security/jwe-compact-subset",
+        "core-classes/secret-reveal"
+      ],
       "guardedBy": [
         "tests/conformance/core/crypto-aes-gcm-sealed-bytes-are-nonce-then-ciphertext-then-tag.nvst",
         "tests/conformance/core/crypto-seals-and-opens-under-the-cipher-the-call-names.nvst",
@@ -746,26 +1280,45 @@
       "id": "core-classes/signature",
       "title": "`Core\\Signature` signs a canonicalized payload, and the lifetime rides inside the signed bytes",
       "status": "designed",
-      "because": ["0146", "0060", "0033"],
+      "because": [
+        "0146",
+        "0060",
+        "0033"
+      ],
       "divergesFromPhp": "there is no string to assemble and therefore nothing for two sides to disagree about, and a verified payload comes back `tainted`",
-      "seeAlso": ["core-classes/router-signed-url", "core-classes/uri-removable-components", "core-classes/secret-reveal"],
+      "seeAlso": [
+        "core-classes/router-signed-url",
+        "core-classes/uri-removable-components",
+        "core-classes/secret-reveal"
+      ],
       "guardedBy": []
     },
     {
       "id": "core-classes/router-signed-url",
       "title": "`Core\\Router` signs a route name and its parameters, so a signature survives a remount",
       "status": "designed",
-      "because": ["0146", "0097", "0102"],
-      "seeAlso": ["core-classes/signature"],
+      "because": [
+        "0146",
+        "0097",
+        "0102"
+      ],
+      "seeAlso": [
+        "core-classes/signature"
+      ],
       "guardedBy": []
     },
     {
       "id": "core-classes/uri-removable-components",
       "title": "`Core\\Uri` spends the omitted-versus-null distinction on three components and on one query parameter at a time",
       "status": "shipped",
-      "because": ["0147", "0146"],
+      "because": [
+        "0147",
+        "0146"
+      ],
       "divergesFromPhp": "there is no `parse_url`/`http_build_query` round trip to lose a component in — removing one is a written `null`, and an empty query is a different value from no query",
-      "seeAlso": ["core-classes/signature"],
+      "seeAlso": [
+        "core-classes/signature"
+      ],
       "guardedBy": [
         "tests/conformance/core/uri-with-refuses-a-component-that-moves.nvst",
         "tests/conformance/core/uri-with-draws-the-scheme-grammar-and-tells-an-empty-host-from-none.nvst",
@@ -779,21 +1332,31 @@
       "id": "core-classes/output-that-scales-with-its-input-bounds-the-input",
       "title": "A member whose output scales with its input either allocates through the guarded value allocator or bounds the input",
       "status": "shipped",
-      "because": ["0174"],
+      "because": [
+        "0174"
+      ],
       "seeAlso": [
         "core-classes/decompression-bound",
         "core-classes/regex-two-tiers",
         "errors/an-allocation-past-the-ceiling-is-refused-in-front-of-itself"
       ],
-      "guardedBy": ["crates/nvs-stdlib/tests/allocation_policy.rs"]
+      "guardedBy": [
+        "crates/nvs-stdlib/tests/allocation_policy.rs"
+      ]
     },
     {
       "id": "core-classes/decompression-bound",
       "title": "Every decompression runs under an output ceiling and a ratio, and there is no spelling for turning either off",
       "status": "shipped",
-      "because": ["0166"],
+      "because": [
+        "0166"
+      ],
       "divergesFromPhp": "`$max_length` was optional and defaulted to unlimited, so the safe call was the one the caller had to remember to write",
-      "seeAlso": ["core-api/tier-roster", "config/three-changeability-classes", "programs/memory-priority"],
+      "seeAlso": [
+        "core-api/tier-roster",
+        "config/three-changeability-classes",
+        "programs/memory-priority"
+      ],
       "guardedBy": [
         "tests/conformance/core/compress-refuses-a-decompression-past-its-bound.nvst",
         "tests/conformance/core/zip-reads-an-entry-under-a-bound-it-cannot-raise.nvst",
@@ -805,154 +1368,290 @@
       "id": "core-classes/image-pipeline",
       "title": "An image is an immutable value carrying a plan, and nothing decodes until a terminal runs it",
       "status": "designed",
-      "because": ["0120", "0063", "0003"],
+      "because": [
+        "0120",
+        "0063",
+        "0003"
+      ],
       "divergesFromPhp": "gd's mutable resource and its ambient mode flags are gone; an operation answers a new value, and the component's entry points are coarse by rule",
-      "seeAlso": ["core-classes/image-pixel-model", "core-classes/image-pixel-cap", "core-classes/image-one-entry-point-per-job"],
+      "seeAlso": [
+        "core-classes/image-pixel-model",
+        "core-classes/image-pixel-cap",
+        "core-classes/image-one-entry-point-per-job"
+      ],
       "guardedBy": []
     },
     {
       "id": "core-classes/image-pixel-model",
       "title": "Pixels are RGBA8 and nothing else, which retires gd's palettes, mode flags and drawing primitives",
       "status": "designed",
-      "because": ["0120"],
+      "because": [
+        "0120"
+      ],
       "divergesFromPhp": "there are no palette images, no `imagesetpixel`, no drawing primitives and no `imageaffine` — four named transforms cover the affine cases a web application reaches for",
-      "seeAlso": ["core-classes/image-pipeline", "core-classes/image-format-roster"],
+      "seeAlso": [
+        "core-classes/image-pipeline",
+        "core-classes/image-format-roster"
+      ],
       "guardedBy": []
     },
     {
       "id": "core-classes/image-format-roster",
       "title": "The format roster is a closed table of decoders and encoders, each naming what implements it",
       "status": "designed",
-      "because": ["0120", "0051", "0128"],
+      "because": [
+        "0120",
+        "0051",
+        "0128"
+      ],
       "divergesFromPhp": "TIFF, BMP, TGA, ICO, PNM, HEIC and gd's own formats are not readable at all, and JPEG XL decodes without encoding",
-      "seeAlso": ["core-classes/image-pipeline", "core-classes/pdf-page-is-an-image-source", "core-classes/image-pixel-cap"],
+      "seeAlso": [
+        "core-classes/image-pipeline",
+        "core-classes/pdf-page-is-an-image-source",
+        "core-classes/image-pixel-cap"
+      ],
       "guardedBy": []
     },
     {
       "id": "core-classes/image-pixel-cap",
       "title": "The pixel cap is read off the header before a buffer is allocated, and a call may only lower it",
       "status": "designed",
-      "because": ["0120", "0005", "0055", "0020", "0095"],
+      "because": [
+        "0120",
+        "0005",
+        "0055",
+        "0020",
+        "0095"
+      ],
       "divergesFromPhp": "a decompression bomb is refused from its declared dimensions rather than discovered by exhausting memory",
-      "seeAlso": ["core-classes/image-pipeline", "core-classes/pdf-page-is-an-image-source", "core-classes/spreadsheet-bulk-boundary"],
+      "seeAlso": [
+        "core-classes/image-pipeline",
+        "core-classes/pdf-page-is-an-image-source",
+        "core-classes/spreadsheet-bulk-boundary"
+      ],
       "guardedBy": []
     },
     {
       "id": "core-classes/image-correct-by-default",
       "title": "`open` orients and converts to sRGB, and `encode` strips metadata unless the plan kept it",
       "status": "designed",
-      "because": ["0120"],
+      "because": [
+        "0120"
+      ],
       "divergesFromPhp": "a phone photo is upright and a CMYK JPEG is sRGB without the caller knowing the tags exist, and location data does not survive a re-encode",
-      "seeAlso": ["core-classes/image-pipeline", "core-classes/image-one-entry-point-per-job"],
+      "seeAlso": [
+        "core-classes/image-pipeline",
+        "core-classes/image-one-entry-point-per-job"
+      ],
       "guardedBy": []
     },
     {
       "id": "core-classes/image-one-entry-point-per-job",
       "title": "Comparison, hashing, placeholders, text, QR codes and SVG are one entry point each, because each is one job",
       "status": "designed",
-      "because": ["0120", "0079", "0095"],
-      "seeAlso": ["core-classes/image-pipeline", "core-classes/image-pixel-cap", "testing/assertions-are-typed"],
+      "because": [
+        "0120",
+        "0079",
+        "0095"
+      ],
+      "seeAlso": [
+        "core-classes/image-pipeline",
+        "core-classes/image-pixel-cap",
+        "testing/assertions-are-typed"
+      ],
       "guardedBy": []
     },
     {
       "id": "core-classes/pdf-render-has-no-io",
       "title": "PDF generation is a first-party extension that performs no I/O, and an unresolved asset throws",
       "status": "designed",
-      "because": ["0121", "0120", "0051", "0058", "0095"],
+      "because": [
+        "0121",
+        "0120",
+        "0051",
+        "0058",
+        "0095"
+      ],
       "divergesFromPhp": "the SSRF and local-file-read class that defines PHP's HTML-to-PDF libraries is absent by construction — there is nothing in the sandbox to fetch with",
-      "seeAlso": ["core-classes/pdf-one-engine", "core-classes/pdf-output-is-inert", "core-classes/spreadsheet-has-no-io"],
+      "seeAlso": [
+        "core-classes/pdf-one-engine",
+        "core-classes/pdf-output-is-inert",
+        "core-classes/spreadsheet-has-no-io"
+      ],
       "guardedBy": []
     },
     {
       "id": "core-classes/pdf-one-engine",
       "title": "The only input language is HTML plus a CSS subset, and every backend answers that one interface",
       "status": "designed",
-      "because": ["0121", "0051", "0120", "0122", "0044"],
+      "because": [
+        "0121",
+        "0051",
+        "0120",
+        "0122",
+        "0044"
+      ],
       "divergesFromPhp": "there is no second FPDF-shaped imperative engine with its own coordinate model — drawings are inline SVG",
-      "seeAlso": ["core-classes/pdf-render-has-no-io", "core-classes/pdf-css-subset", "core-classes/html-parsing", "core-classes/process-is-argv-only"],
+      "seeAlso": [
+        "core-classes/pdf-render-has-no-io",
+        "core-classes/pdf-css-subset",
+        "core-classes/html-parsing",
+        "core-classes/process-is-argv-only"
+      ],
       "guardedBy": []
     },
     {
       "id": "core-classes/pdf-css-subset",
       "title": "The CSS subset is documented, and the render result lists every declaration it dropped",
       "status": "designed",
-      "because": ["0121"],
-      "seeAlso": ["core-classes/pdf-one-engine", "core-classes/spreadsheet-evaluation-and-roster"],
+      "because": [
+        "0121"
+      ],
+      "seeAlso": [
+        "core-classes/pdf-one-engine",
+        "core-classes/spreadsheet-evaluation-and-roster"
+      ],
       "guardedBy": []
     },
     {
       "id": "core-classes/pdf-output-is-inert",
       "title": "The writer emits nothing a reader would execute, and equal input gives byte-equal output",
       "status": "designed",
-      "because": ["0121", "0024", "0079"],
-      "seeAlso": ["core-classes/pdf-render-has-no-io", "core-classes/spreadsheet-output-is-inert", "core-classes/pdf-page-is-an-image-source"],
+      "because": [
+        "0121",
+        "0024",
+        "0079"
+      ],
+      "seeAlso": [
+        "core-classes/pdf-render-has-no-io",
+        "core-classes/spreadsheet-output-is-inert",
+        "core-classes/pdf-page-is-an-image-source"
+      ],
       "guardedBy": []
     },
     {
       "id": "core-classes/pdf-page-is-an-image-source",
       "title": "A PDF page is a decode-only format of the image component: one page per `open`, priced by the pixel cap",
       "status": "designed",
-      "because": ["0128", "0120", "0121", "0051"],
+      "because": [
+        "0128",
+        "0120",
+        "0121",
+        "0051"
+      ],
       "divergesFromPhp": "rasterising a page needs no Imagick, no Ghostscript and no shell — it is `Image::open` with a `page` and a `dpi`",
-      "seeAlso": ["core-classes/image-pixel-cap", "core-classes/image-format-roster", "core-classes/pdf-decode-refusals"],
+      "seeAlso": [
+        "core-classes/image-pixel-cap",
+        "core-classes/image-format-roster",
+        "core-classes/pdf-decode-refusals"
+      ],
       "guardedBy": []
     },
     {
       "id": "core-classes/pdf-decode-refusals",
       "title": "An encrypted document and a detectable omission both throw, and everything past rasterising is somebody else's job",
       "status": "designed",
-      "because": ["0128", "0095", "0121", "0044"],
-      "seeAlso": ["core-classes/pdf-page-is-an-image-source", "core-classes/pdf-render-has-no-io", "errors/ambiguous-input-refused"],
+      "because": [
+        "0128",
+        "0095",
+        "0121",
+        "0044"
+      ],
+      "seeAlso": [
+        "core-classes/pdf-page-is-an-image-source",
+        "core-classes/pdf-render-has-no-io",
+        "errors/ambiguous-input-refused"
+      ],
       "guardedBy": []
     },
     {
       "id": "core-classes/spreadsheet-has-no-io",
       "title": "The spreadsheet component is a first-party extension that fetches nothing and executes nothing it reads",
       "status": "designed",
-      "because": ["0123", "0120", "0121", "0051", "0055"],
+      "because": [
+        "0123",
+        "0120",
+        "0121",
+        "0051",
+        "0055"
+      ],
       "divergesFromPhp": "an external workbook reference, a linked image and a remote data connection come back as data, and VBA is enumerable payload that never runs",
-      "seeAlso": ["core-classes/spreadsheet-formula-is-a-value", "core-classes/spreadsheet-bulk-boundary", "core-classes/pdf-render-has-no-io"],
+      "seeAlso": [
+        "core-classes/spreadsheet-formula-is-a-value",
+        "core-classes/spreadsheet-bulk-boundary",
+        "core-classes/pdf-render-has-no-io"
+      ],
       "guardedBy": []
     },
     {
       "id": "core-classes/spreadsheet-formula-is-a-value",
       "title": "Only an explicit `Formula` value writes a formula cell, so an export built from user data is inert",
       "status": "designed",
-      "because": ["0123", "0024"],
+      "because": [
+        "0123",
+        "0024"
+      ],
       "divergesFromPhp": "a string beginning `=`, `+`, `-` or `@` writes as text, so formula injection is closed by type rather than by a remembered quote prefix",
-      "seeAlso": ["core-classes/spreadsheet-has-no-io", "core-classes/spreadsheet-evaluation-and-roster"],
+      "seeAlso": [
+        "core-classes/spreadsheet-has-no-io",
+        "core-classes/spreadsheet-evaluation-and-roster"
+      ],
       "guardedBy": []
     },
     {
       "id": "core-classes/spreadsheet-bulk-boundary",
       "title": "A workbook crosses the boundary in whole blocks, and a bomb is refused before a sheet buffer exists",
       "status": "designed",
-      "because": ["0123", "0120"],
+      "because": [
+        "0123",
+        "0120"
+      ],
       "divergesFromPhp": "there is no per-cell accessor to loop over, which is the shape most PhpSpreadsheet code takes",
-      "seeAlso": ["core-classes/image-pipeline", "core-classes/image-pixel-cap", "core-classes/spreadsheet-has-no-io"],
+      "seeAlso": [
+        "core-classes/image-pipeline",
+        "core-classes/image-pixel-cap",
+        "core-classes/spreadsheet-has-no-io"
+      ],
       "guardedBy": []
     },
     {
       "id": "core-classes/spreadsheet-evaluation-and-roster",
       "title": "The roster is read-wide and write-narrow, a macro is never written, and evaluation is an explicit call",
       "status": "designed",
-      "because": ["0123", "0051", "0121"],
-      "seeAlso": ["core-classes/spreadsheet-formula-is-a-value", "core-classes/spreadsheet-output-is-inert", "core-classes/pdf-css-subset"],
+      "because": [
+        "0123",
+        "0051",
+        "0121"
+      ],
+      "seeAlso": [
+        "core-classes/spreadsheet-formula-is-a-value",
+        "core-classes/spreadsheet-output-is-inert",
+        "core-classes/pdf-css-subset"
+      ],
       "guardedBy": []
     },
     {
       "id": "core-classes/spreadsheet-output-is-inert",
       "title": "The writer embeds no executable content and no entropy, so equal input gives byte-equal output",
       "status": "designed",
-      "because": ["0123", "0121", "0079"],
-      "seeAlso": ["core-classes/pdf-output-is-inert", "core-classes/spreadsheet-evaluation-and-roster"],
+      "because": [
+        "0123",
+        "0121",
+        "0079"
+      ],
+      "seeAlso": [
+        "core-classes/pdf-output-is-inert",
+        "core-classes/spreadsheet-evaluation-and-roster"
+      ],
       "guardedBy": []
     },
     {
       "id": "core-classes/net-one-api-three-transports",
       "title": "`Core\\Net` is one class over TCP, UDP and Unix sockets, reached through five entry points that park on the runtime's own reactor",
       "status": "shipped",
-      "because": ["0162"],
+      "because": [
+        "0162"
+      ],
       "seeAlso": [
         "security/net-listen-is-a-separate-grant-from-net-connect",
         "security/a-path-is-not-a-url",
@@ -970,7 +1669,9 @@
       "id": "core-classes/net-a-socket-does-not-outlive-its-request",
       "title": "A `Core\\Net` socket closes with the request that opened it, so there is no persistent connection and no pool across requests",
       "status": "designed",
-      "because": ["0162"],
+      "because": [
+        "0162"
+      ],
       "seeAlso": [
         "core-classes/net-one-api-three-transports",
         "security/no-cross-request-state",
@@ -982,7 +1683,9 @@
       "id": "core-classes/net-udp-carries-no-reliability-layer",
       "title": "A datagram socket sends and receives messages and offers no ordering, retransmission or acknowledgement above them",
       "status": "designed",
-      "because": ["0162"],
+      "because": [
+        "0162"
+      ],
       "seeAlso": [
         "core-classes/net-one-api-three-transports",
         "core-api/tier-placement"
