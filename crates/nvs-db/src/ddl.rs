@@ -75,23 +75,12 @@
 //!   bare number and an exact decimal with trailing zeros are stored as
 //!   numbers. That is the SQLite driver's binding question, answered in
 //!   [`crate::sqlite`] where `DECIMAL`'s already is, and not by choosing a
-//!   different declared type here, which would only move the cost into gap 1.
+//!   different declared type here, which would only move the cost into § 5's
+//!   normalisation (`crate::plan`'s `stored_as`).
 //!
 //! # Known gaps
 //!
-//! 1. **Some round-trips are lossy, and § 5's normalization owns them, not
-//!    this module.** PostgreSQL has one `BYTEA` for both
-//!    [`ScalarType::Bytes`] widths; MySQL has no `UUID` type and takes
-//!    `CHAR(36)`; SQL Server has no JSON type and takes `NVARCHAR(MAX)`, which
-//!    is also its unbounded text. An `uint` is another: only MySQL has the
-//!    type, so the other three take the next width up and a `CHECK`, and no
-//!    catalog reports the check as a type. Each is a column an introspector
-//!    reads back as a *different* vocabulary case, and the diff has to know it
-//!    before it converges.
-//!    Decided: One normalisation pass that folds both sides through the dialect's map before the diff —
-//!    One function that owns every lossy case; the diff stays a plain equality.
-//!    — owner: unowned-closures
-//! 2. **A SQL Server default is a separate named constraint, so a change to
+//! 1. **A SQL Server default is a separate named constraint, so a change to
 //!    one is not emitted.** `ALTER COLUMN` carries a type and a nullability
 //!    there and nothing else; replacing a default means dropping the
 //!    constraint holding it, by the name the server generated, and neither

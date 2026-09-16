@@ -8,10 +8,15 @@
 //! else would have to be corrected there anyway.
 //!
 //! It is also where [`diff`] lives, and by the same division: § 5's comparison
-//! reads two [`crate::schema::Schema`] values and nothing else, so *finding* a
-//! difference is a question about values where spelling and grading it are
-//! questions about a server. The diff answers the first and hands each change
-//! it found to [`crate::ddl::step`] for the second.
+//! reads two [`crate::schema::Schema`] values and reaches no server, so
+//! *finding* a difference is a question about values where spelling and grading
+//! it are questions about a server. The diff answers the first and hands each
+//! change it found to [`crate::ddl::step`] for the second.
+//!
+//! The one thing it asks a dialect is what that dialect can *hold*, because a
+//! type the server cannot tell from another is not a difference: [`stored_as`]
+//! is § 5's normalisation, the single function every lossy case lives in, and
+//! the comparison either side of it stays a plain equality.
 //!
 //! # A step is never elided
 //!
@@ -38,6 +43,7 @@
 
 use std::fmt;
 
+use crate::catalog;
 use crate::ddl;
 use crate::schema::{Column, Ident, Key, ScalarType, Schema, Table};
 use crate::sql::Dialect;
@@ -378,11 +384,13 @@ impl fmt::Display for Plan {
 /// database was introspected into, as the plan that closes it in `dialect`.
 ///
 /// This is § 5's comparison and the whole of it: `want` and `have` are two
-/// values of one vocabulary, and the diff reads their fields and nothing else.
-/// No statement is emitted, retrieved, parsed or compared here — the SQL a
-/// step carries is [`crate::ddl::step`]'s answer *after* the difference has
-/// already been found, which is why one difference is the same [`Change`] on
-/// every dialect and only its spelling and its grade move.
+/// values of one vocabulary, and the diff reads their fields. No statement is
+/// retrieved or parsed here and no server is reached — the SQL a step carries
+/// is [`crate::ddl::step`]'s answer *after* the difference has already been
+/// found, which is why one difference is the same [`Change`] on every dialect
+/// and only its spelling and its grade move. The one statement fragment that
+/// is written is [`stored_as`]'s, and it is never emitted: it is how the
+/// comparison asks what `dialect` can hold.
 ///
 /// The order is the order the steps must run in: `want`'s tables in
 /// declaration order, and within a table its columns in declaration order —
@@ -412,7 +420,12 @@ impl fmt::Display for Plan {
 ///    never by position. The same holds of a table's columns.
 /// 2. **A unique constraint's name** — [`same_key`], which is also § 5's
 ///    "implicitly created index".
-/// 3. **The width of SQLite's rowid** — [`same_column`].
+/// 3. **Every type the dialect spells the same way as another** — [`stored_as`],
+///    which folds both sides through the emitter's map and the catalog's
+///    reader before they are compared.
+/// 4. **The width of SQLite's rowid** — [`same_column`], and the one case
+///    [`stored_as`] cannot reach, because that identity is written outside
+///    [`crate::ddl::column_type`] altogether.
 #[must_use]
 pub fn diff(want: &Schema, have: &Schema, dialect: Dialect) -> Plan {
     let mut changes: Vec<Change> = Vec::new();
@@ -486,31 +499,77 @@ fn diff_table(want: &Table, have: &Table, dialect: Dialect, out: &mut Vec<Change
     }
 }
 
+/// `ty` as `dialect` holds it — § 5's normalisation, and the one function
+/// every lossy case lives in.
+///
+/// The map is not written out here, and deliberately: what the server is asked
+/// for is whatever [`crate::ddl::column_type`] writes for `ty`, and what any
+/// introspection of that column can then report is whatever
+/// [`crate::catalog::scalar_type`] makes of that same string. Composing the two
+/// is not a model of the round trip, it *is* the round trip with the server
+/// left out — so a spelling the emitter grows is normalised the day it is
+/// written rather than the day somebody remembers this function exists.
+///
+/// That is every case both maps document: a `bytes(64)` is unbounded `bytes`
+/// on PostgreSQL and SQLite, which hold no declared length for binary; a
+/// `uint32` is an `int64` on the three dialects with no unsigned integer and a
+/// `uint64` a `decimal(20, 0)` on two of them; a `json` is unbounded `text` on
+/// SQL Server, which writes `NVARCHAR(MAX)` for both. Each pair is two columns
+/// one server cannot tell apart, so no DDL could turn one into the other and a
+/// diff reporting one would propose the same step on every run for ever.
+///
+/// It is idempotent, which is what makes folding *both* sides sound rather than
+/// only the declared one: the read-back side is already a normalised type, and
+/// `every_catalog_spelling_the_emitter_wrote_reads_back_as_its_own_type` is
+/// exactly the assertion that emitting it again yields the string it was read
+/// from. A type this dialect cannot read back is left as it is rather than
+/// dropped — that same test says there is none, and if one ever appears the
+/// diff compares what it was given.
+fn stored_as(ty: &ScalarType, dialect: Dialect) -> ScalarType {
+    catalog::scalar_type(&ddl::column_type(ty, dialect), dialect).unwrap_or_else(|| ty.clone())
+}
+
 /// Whether the column the database has is the column the schema declares,
 /// after § 5's normalisation.
 ///
-/// Equality of the values first, which is the whole answer everywhere but
-/// SQLite: a [`Column`] is its type, its nullability, its identity and its
-/// default, and its name is equal already or this pair would not have been
-/// looked up.
+/// Equality of the values first: a [`Column`] is its type, its nullability, its
+/// identity and its default, and its name is equal already or this pair would
+/// not have been looked up. A column that survived its dialect's map unchanged
+/// — which is most of them, on most dialects — is answered there and allocates
+/// nothing.
 ///
-/// The exception is SQLite's rowid. `INTEGER PRIMARY KEY AUTOINCREMENT` is the
-/// only identity that dialect has ([`crate::ddl::rowid_identity`]), it is an
-/// alias for the 64-bit rowid whatever width was declared, and
-/// `pragma table_info` answers the declared type back as `INTEGER` — so a
-/// table written from `Int(Big)` reads as `Int(Normal)` and there is nothing
-/// the server can be asked that would say otherwise. Normalising the width out
-/// is the only alternative to a plan that rewrites the same table forever.
+/// Otherwise the other three fields must match exactly and the two types are
+/// compared as [`stored_as`] leaves them, because a difference the server
+/// cannot represent is not a difference. The emitted step still carries
+/// `want`'s own spelling: normalising is how the comparison is made, never what
+/// it produces.
+///
+/// SQLite's rowid is the case that survives all of it. `INTEGER PRIMARY KEY
+/// AUTOINCREMENT` is the only identity that dialect has
+/// ([`crate::ddl::rowid_identity`]), it is an alias for the 64-bit rowid
+/// whatever width was declared, and `pragma table_info` answers the declared
+/// type back as `INTEGER` — so a table written from `Int(Big)` reads as
+/// `Int(Normal)`, [`stored_as`] cannot see it because that spelling is written
+/// by [`crate::ddl`]'s column clause rather than by its type map, and there is
+/// nothing the server can be asked that would say otherwise. Normalising the
+/// width out is the only alternative to a plan that rewrites the same table
+/// forever.
 fn same_column(table: &Table, have: &Column, want: &Column, dialect: Dialect) -> bool {
     if have == want {
+        return true;
+    }
+    if have.is_nullable() != want.is_nullable()
+        || have.is_identity() != want.is_identity()
+        || have.default_value() != want.default_value()
+    {
+        return false;
+    }
+    if stored_as(have.ty(), dialect) == stored_as(want.ty(), dialect) {
         return true;
     }
     ddl::rowid_identity(table, dialect) == Some(want.name())
         && matches!(have.ty(), ScalarType::Int(_))
         && matches!(want.ty(), ScalarType::Int(_))
-        && have.is_nullable() == want.is_nullable()
-        && have.is_identity() == want.is_identity()
-        && have.default_value() == want.default_value()
 }
 
 /// Whether two keys of one kind are the same key, after § 5's normalisation.
@@ -679,6 +738,109 @@ mod tests {
                 "drop table stale",
             ]
         );
+    }
+
+    /// One table, a primary key and the column under test.
+    fn one_column(ty: ScalarType) -> Schema {
+        Schema::new(vec![
+            Table::new(
+                "wide",
+                vec![col("id", ScalarType::Int(IntWidth::Big)), col("value", ty)],
+            )
+            .unwrap()
+            .primary_key(&["id"])
+            .unwrap(),
+        ])
+        .unwrap()
+    }
+
+    /// § 5's normalisation, at the type: a column the server cannot tell from
+    /// another is not a difference, and one it can still is.
+    ///
+    /// Both bounds, because [`stored_as`] folds *both* sides and a fold that
+    /// went too far would pass the first half alone. The pairs are the lossy
+    /// cases that function's doc names, and the second half is where each of
+    /// them is a real change — MySQL keeps the unsigned integer and the
+    /// bounded binary the other three lose, and no dialect confuses two types
+    /// it has separate spellings for.
+    #[test]
+    fn a_type_the_dialect_cannot_tell_from_another_is_not_a_change() {
+        for (dialect, declared, read_back) in [
+            (
+                Dialect::PostgreSql,
+                ScalarType::Bytes { max: Some(64) },
+                ScalarType::Bytes { max: None },
+            ),
+            (
+                Dialect::Sqlite,
+                ScalarType::Bytes { max: Some(64) },
+                ScalarType::Bytes { max: None },
+            ),
+            (
+                Dialect::PostgreSql,
+                ScalarType::Uint(IntWidth::Normal),
+                ScalarType::Int(IntWidth::Big),
+            ),
+            (
+                Dialect::SqlServer,
+                ScalarType::Uint(IntWidth::Small),
+                ScalarType::Int(IntWidth::Normal),
+            ),
+            (
+                Dialect::PostgreSql,
+                ScalarType::Uint(IntWidth::Big),
+                ScalarType::Decimal {
+                    precision: 20,
+                    scale: 0,
+                },
+            ),
+            (
+                Dialect::SqlServer,
+                ScalarType::Json,
+                ScalarType::Text { max: None },
+            ),
+        ] {
+            let plan = diff(
+                &one_column(declared.clone()),
+                &one_column(read_back),
+                dialect,
+            );
+            assert!(
+                plan.is_empty(),
+                "{dialect:?} proposes a step between two columns it spells `{}`:\n{plan}",
+                ddl::column_type(&declared, dialect)
+            );
+        }
+
+        for (dialect, declared, read_back) in [
+            (
+                Dialect::MySql,
+                ScalarType::Uint(IntWidth::Normal),
+                ScalarType::Int(IntWidth::Big),
+            ),
+            (
+                Dialect::MySql,
+                ScalarType::Bytes { max: Some(64) },
+                ScalarType::Bytes { max: None },
+            ),
+            (
+                Dialect::PostgreSql,
+                ScalarType::Text { max: Some(200) },
+                ScalarType::Text { max: Some(40) },
+            ),
+            (Dialect::SqlServer, ScalarType::Date, ScalarType::DateTime),
+        ] {
+            let plan = diff(
+                &one_column(declared.clone()),
+                &one_column(read_back),
+                dialect,
+            );
+            assert!(
+                !plan.is_empty(),
+                "{dialect:?} normalised away a difference it spells `{}`",
+                ddl::column_type(&declared, dialect)
+            );
+        }
     }
 
     /// § 5's normalisation, at the name a unique constraint's index is given.
