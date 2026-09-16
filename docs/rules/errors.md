@@ -54,7 +54,7 @@ not a special case.
 
 <a id="errors-throw-is-not-slower"></a>
 
-## A throw costs no more than a return, and allocates nothing
+## A throw costs no more than a return, and only its raise allocates
 
 `rule:errors/throw-is-not-slower`
 
@@ -68,9 +68,17 @@ path returns the status immediately while the success path also copies a 16-byte
 every frame. That is the property PHP compatibility rests on, since frameworks throw on ordinary
 control-flow paths.
 
-It holds only while throwing does not allocate. Storing a message as a `String` made a throw 2.8× a
-return, more than the whole propagation path it was meant to measure, so the pending-error slot is
-a `Cow<'static, str>` and a static exception message allocates nothing.
+It holds only while *propagating* does not allocate. Storing a message as a `String` made a throw
+2.8× a return, more than the whole propagation path it was meant to measure, so the pending-error
+slot is a `Cow<'static, str>` and a static exception message allocates nothing.
+
+**The raise itself renders one frame label, and that is the whole of what a throw allocates.** The
+exception carries the frame it was raised in, rendered from the site the `throw` was compiled with,
+so a `catch` beside the `throw` — the one place no frame is ever unwound out of — reads a backtrace
+naming that frame instead of an empty one. It is spent **once per raise and never per frame**, which
+is what leaves the slope above untouched, and the label the frame pushes as the throw leaves
+replaces that rendering rather than following it, so no frame is named twice. A raise the runtime
+makes for itself is handed no site and renders nothing.
 
 <sub>See also [`errors/propagation`](errors.md#errors-propagation). Decided in [0002](../decisions/0002.md).</sub>
 

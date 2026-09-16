@@ -121,6 +121,12 @@ fn throwing_costs_about_the_same_as_returning() {
     // ratio here means the error path has acquired real work — an allocation
     // for the message is on its own enough to put a throw at several times a
     // return. See `Ctx::pending`.
+    //
+    // What this prices is the *propagation*: the probe's helper leaves a
+    // message on the context, the way a real helper's `Fault` does, and no site
+    // is rendered anywhere. `rule:errors/throw-is-not-slower`'s other half — the
+    // label a raise carrying a site renders once for its own frame — is
+    // `a_raise_renders_one_frame_label_and_nothing_larger` below.
     const MAX_RATIO: f64 = 2.0;
 
     let mut probe = Probe::new();
@@ -146,6 +152,61 @@ fn throwing_costs_about_the_same_as_returning() {
         ratio < MAX_RATIO,
         "a throw now costs {ratio:.1}x a normal return ({thrown:.1} ns vs {ok:.1} ns), \
          over the {MAX_RATIO}x guard"
+    );
+}
+
+#[test]
+#[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
+fn a_raise_renders_one_frame_label_and_nothing_larger() {
+    // `rule:errors/throw-is-not-slower` now says a raise allocates: it renders
+    // the frame it happened in, from the site the `throw` was compiled with, so
+    // a `catch` beside the `throw` has a backtrace at all. What must stay true
+    // is the *shape* of that cost — one decode and one label, paid once. The
+    // answer this ceiling rules out is the one the decision behind
+    // `nvs_runtime`'s gap 6 priced and rejected: walking a stack, or asking the
+    // OS for a backtrace, lands two orders of magnitude above it.
+    //
+    // Measured as the difference between raising with a site and raising with
+    // the zero word, so the object allocation both arms pay cancels.
+    const MAX_NS: f64 = 500.0;
+
+    let mut table = nvs_runtime::ClassTable::new();
+    let slots = ["message", "previous", "backtrace", "location"];
+    let class = table.define("LogicError", &slots, &[]);
+    let class = table.desc(class);
+    let blob = nvs_runtime::source::encode(&nvs_render::Source {
+        file: "app/Http/Handler.nvs".to_owned(),
+        line: 118,
+        member: Some("Handler::respond".to_owned()),
+    });
+    let mut ctx = nvs_runtime::Ctx::buffered();
+
+    #[expect(
+        unsafe_code,
+        reason = "the raise primitive is the thing being measured, and the \
+                  class table, the exception's reference and the blob are all \
+                  this frame's own"
+    )]
+    // SAFETY: the table outlives every instance made from it, each raise is
+    // handed one reference it takes over, and the blob is `encode`'s bytes.
+    let mut raise = |site: *const u8| unsafe {
+        let thrown = nvs_runtime::Thrown::new(class, "boom");
+        nvs_runtime::nvs_raise(&raw mut ctx, thrown.into_raw(), site);
+        drop(black_box(nvs_runtime::Ctx::take_thrown(&mut ctx)));
+    };
+    let bare = ns_per_op(100_000, 5, || raise(std::ptr::null()));
+    let sited = ns_per_op(100_000, 5, || raise(blob.as_ptr()));
+
+    let rendering = sited - bare;
+    println!(
+        "a raise's own frame label: {rendering:.1} ns ({sited:.1} ns sited vs {bare:.1} ns bare){}",
+        under(rendering, MAX_NS)
+    );
+
+    assert!(
+        rendering < MAX_NS,
+        "rendering a raise's own frame now costs {rendering:.1} ns, over the {MAX_NS} ns guard — \
+         a throw is meant to pay for one label, not for a walk of anything"
     );
 }
 

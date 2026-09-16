@@ -39,6 +39,11 @@ nvs-types.workspace = true
 nvs-ir.workspace = true
 nvs-codegen.workspace = true
 nvs-runtime.workspace = true
+# The raise guard prices what a `throw` renders for its own backtrace frame,
+# and the site it renders from is a `nvs_render::Source` the compiled unit
+# baked — so the fixture encodes a real one rather than a byte string shaped
+# like one.
+nvs-render.workspace = true
 # ADR 0009 § 2's granularity guard measures the seam `Core\Str` actually calls
 # (`nvs_stdlib::granularity`), not a re-implementation of it — the same reason
 # the arithmetic guards compile the real fixture.
