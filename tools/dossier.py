@@ -159,6 +159,7 @@ from __future__ import annotations
 
 import argparse
 import concurrent.futures
+import fnmatch
 import hashlib
 import json
 import os
@@ -234,7 +235,7 @@ RESERVED = ("crates/", "tools/", "docs/perf/", "docs/agent/", "docs/adr/", "docs
 #: 12 -> 3.19x, 18 -> 3.14x. **Six is 79% of everything width can give and eight is 80%**, and 18
 #: is slower than 12 because each lane costs the parent a launch call whether or not it shortens a
 #: wave. Eight, and the tail is what to attack next -- more than half of it is the session's own
-#: fixed cost, which only fewer, larger goals would touch, and `--per-goal `gap-owners`` already puts the
+#: fixed cost, which only fewer, larger goals would touch, and `--per-goal` at 27 already puts the
 #: parent's window over the 200k ceiling to save three hours. One input is an estimate and it is
 #: the 16: no dossier goal has run yet. `--workers N` and `NVS_DOSSIER_WORKERS` override this.
 FANOUT_WORKERS = 8
@@ -1672,7 +1673,14 @@ def print_findings(clear: bool) -> int:
 # ------------------------------------------------------------------------------ goal writing
 
 
-GOAL_RULES = ["0079", "0063", "0026", "0117", "0004", "0088"]
+#: What every generated goal's `[context] rules` names. A rule id prints that rule's body whole and
+#: a record number prints one title per rule the record created, so the two ids are the rules a
+#: session writing proofs reads in full, and 0134 is the record that created them and the six
+#: beside them. 0079 and 0063 are deliberately absent: each created twenty-four rules, and naming
+#: them printed forty-eight titles about the test runner and the `Core` shape rules into every
+#: session of every generated goal -- the one section of 0079 a bench needs is `adrs` below.
+GOAL_RULES = ["testing/four-proofs", "testing/a-failing-proof-is-fixed-or-recorded",
+              "0134", "0026", "0117", "0004", "0088"]
 GOAL_SHAPES = [
     "A `.nvst` test case",
     "A feature's four proofs — an example, an attack, a bench, a `covers:` marker",
@@ -1783,11 +1791,15 @@ def emit_goals(entries: list[Entry], proofs: dict[str, Proofs], policy: dict, sk
     * **A goal's identity is its slug, never its position in this emission.** A later run -- with
       complete groups dropped -- puts the same group at a different batch index, so numbering off
       that index would hand an existing goal a number some other group already answers to.
-      `numbering()` is what keeps a slug on the number it was first given, and re-emitting then
+      `chain_numbers()` is what keeps a slug on the number it was first given, and re-emitting then
       rewrites that goal's own three files in place.
     * **A goal already on the chain is never appended twice**, and the ones that are get numbered
       on from the chain's last goal, because the number is the position and a person says it out
       loud.
+    * **A feature some goal on disk already gates on is never given a second goal**, whatever
+      label the batch it falls into carries today -- `claimed_features` is the whole of it. A
+      goal the run has walked is left as it is: its checks are the floor's now, and rewriting its
+      files would hand a retired goal its acceptance list back.
 
     `--dry-run` writes nothing at all and says what the emission would change, which is the form the
     emitting goal's own acceptance check takes: a check that appended the hundred goals itself
@@ -1796,20 +1808,39 @@ def emit_goals(entries: list[Entry], proofs: dict[str, Proofs], policy: dict, sk
     todo = entries
     if skip_complete:
         todo = [e for e in entries if owed(e, proofs[e.id], policy, skips)]
+    out_dir = out_dir.resolve()
+    where = rel(out_dir)                      # posix, and relative to the repository if it is inside
     if not todo:
-        print("dossier: nothing owed -- no goals to write.")
+        print(f"dossier: nothing owed -- {NOTHING_APPENDED}.")
         return 0
     batches = goal_batches(todo, size)
-    out_dir = out_dir.resolve()
     if not dry_run:
         out_dir.mkdir(parents=True, exist_ok=True)
-    where = rel(out_dir)                      # posix, and relative to the repository if it is inside
     env = inherited_env()
-    numbers, fresh = numbering(batches)
+    known, last = chain_numbers()
+    live = goalsmod.live()
+    taken_groups, taken_ids = claimed_features(out_dir)
 
+    written, fresh, owed_count = 0, 0, 0
     for label, members in batches:
-        slug = slugify(label)[:60]
-        n = numbers[slug]
+        slug = goal_slug(label)
+        if slug in known:
+            # A goal the run has walked is somebody's floor already: its `.toml` may be gone, and
+            # writing it back would un-retire it. What its features still owe is the floor's to
+            # report, and a re-owed feature that no goal on disk claims is appended below.
+            if known[slug].retired or known[slug].num <= live:
+                continue
+            n = known[slug].num
+        else:
+            members = [e for e in members
+                       if e.group not in taken_groups and e.id not in taken_ids]
+            if not members:
+                continue
+            fresh += 1
+            last += 1
+            n = last
+        written += 1
+        owed_count += len(members)
         anchors = sorted({e.impl_file for e in members if e.impl_file})
         groups = sorted({e.group for e in members})
         # A group split across several goals gates on its own features and not on the class, or
@@ -1825,27 +1856,61 @@ def emit_goals(entries: list[Entry], proofs: dict[str, Proofs], policy: dict, sk
                           [e.id for e in members] if split else None, env),
                 encoding="utf-8", newline="\n")
             (out_dir / f"{n}-{slug}.handoff.md").write_text(
-                goal_handoff(n, label, members, proofs, policy, skips),
+                goal_handoff(label, members, proofs, policy, skips),
                 encoding="utf-8", newline="\n")
 
-    owed_count = sum(len(m) for _, m in batches)
-    print(f"dossier: {'would write' if dry_run else 'wrote'} {len(batches)} goal(s) into "
-          f"{where}/ ({owed_count} features owed, up to {size} per goal)")
+    print(f"dossier: {'would write' if dry_run else 'wrote'} {written} goal(s) into "
+          f"{where}/ ({owed_count} owed feature(s) across them, up to {size} per goal)")
     if not fresh:
-        print("dossier: every one of them was already on the chain -- nothing appended.")
+        print(f"dossier: {NOTHING_APPENDED}.")
         return 0
-    last = max(numbers.values())
     print(f"dossier: {'would append' if dry_run else 'appended'} {fresh} goal(s) as goals "
           f"{last - fresh + 1}-{last}"
           + ("." if dry_run else ". The running driver picks them up at its next switch."))
     return 0
 
 
-#: What `orient.py` can turn into a map line: `groups` there is `brief.crate_modules()` merged with
-#: `brief.editor_modules()`, so a `[context] modules` entry naming anything else prints nothing and
-#: warns. A reference chapter is the case that hits -- it is where a `lang:` feature is *documented*,
-#: never where it is implemented.
-MAPPABLE = ("crates/", "editors/")
+#: The line `--emit-goals` ends on when it has nothing to add, in both of the ways that happens --
+#: nothing owed at all, or every owed feature already some goal's job. Goal `dossier`'s own
+#: acceptance check reads this exact sentence off a `--dry-run`, so it is one string, here.
+NOTHING_APPENDED = "the chain already names every one of them -- nothing appended"
+
+
+def goal_slug(label: str) -> str:
+    """A batch's slug, which is its identity on the chain: the filename stem after the number."""
+    return slugify(label)[:60]
+
+
+def claimed_features(out_dir: Path) -> tuple[set[str], set[str]]:
+    """The groups and feature ids the generated goals already on disk gate on.
+
+    Read off each goal's own `[[check]]` argv -- `--group G` claims the whole group, present and
+    future members alike, and `--only` claims the ids it lists -- because that check is what makes
+    a feature some goal's job. A batch is cut from what is owed *today*, and that moves with every
+    session: one class in a merged batch going complete changes the batch's label, and the label
+    is the slug, so a re-emission would otherwise append a second goal for features a goal on disk
+    already owns. Filtering an unknown slug's members through this is what keeps `--dry-run`
+    answering *nothing appended* for as long as that is true, which is what goal `dossier`'s check
+    -- carried as the floor of every generated goal after it -- asks every session.
+    """
+    groups: set[str] = set()
+    ids: set[str] = set()
+    for path in out_dir.glob("*.toml"):
+        try:
+            spec = tomllib.loads(path.read_text(encoding="utf-8"))
+        except (OSError, tomllib.TOMLDecodeError):
+            continue
+        for check in spec.get("check", []):
+            argv = [str(a) for a in check.get("argv", [])]
+            for i, arg in enumerate(argv):
+                if arg == "--group" and i + 1 < len(argv):
+                    groups.add(argv[i + 1])
+                elif arg == "--only":
+                    for value in argv[i + 1:]:
+                        if value.startswith("--"):
+                            break
+                        ids.add(value)
+    return groups, ids
 
 
 def check_goals(out_dir: Path) -> int:
@@ -1856,6 +1921,10 @@ def check_goals(out_dir: Path) -> int:
     of that goal and prints nothing, and a missing `[valgrind] skip` makes `goal-switch.py` refuse
     the switch outright -- which stops the run rather than degrading it.
 
+    A `modules` pattern resolves the way `orient.py`'s map resolves it: against `git ls-files`, so
+    a reference chapter -- where a `lang:` or `tools:` feature lives -- is a line on the map like a
+    crate module is, and the one thing that warns is a pattern nothing in the repository matches.
+
     This is deliberately a *file* check and executes nothing, so it stays cheap enough to be the
     acceptance check of the goal that writes these.
     """
@@ -1863,6 +1932,7 @@ def check_goals(out_dir: Path) -> int:
     if not tomls:
         print(f"dossier: no generated goal under {rel(out_dir)} -- nothing to check.")
         return 1
+    tracked = [p for p in git("ls-files").split("\n") if p]
     findings: list[str] = []
     for path in tomls:
         def bad(what: str) -> None:
@@ -1880,10 +1950,11 @@ def check_goals(out_dir: Path) -> int:
         if "skip" not in (spec.get("valgrind") or {}):
             bad("has no `[valgrind] skip = [...]`, which goal-switch.py refuses outright")
         for pattern in (spec.get("context") or {}).get("modules", []):
-            if not str(pattern).startswith(MAPPABLE):
-                bad(f"[context] modules names {pattern!r}, which orient.py cannot map "
-                    f"(it maps {' and '.join(MAPPABLE)} only) -- it warns once a session and "
-                    f"prints nothing")
+            pat = str(pattern)
+            if not any(fnmatch.fnmatch(p, pat) or fnmatch.fnmatch(p, pat.rstrip("/") + "/**")
+                       for p in tracked):
+                bad(f"[context] modules names {pat!r}, which matches no tracked file -- orient.py "
+                    f"warns once a session and prints nothing for it")
         for suffix in (".md", ".handoff.md"):
             if not (path.parent / (path.stem + suffix)).is_file():
                 bad(f"names no sibling {suffix}, which the chain entry points at")
@@ -1961,8 +2032,8 @@ def inherited_env() -> str:
             + rendered)
 
 
-def numbering(batches: list[tuple[str, list]]) -> tuple[dict[str, int], int]:
-    """`{slug: goal number}` for this emission, and how many of them are new.
+def chain_numbers() -> tuple[dict[str, goalsmod.Goal], int]:
+    """`{slug: goal}` for every goal on the chain, and the highest number on it.
 
     **A generated goal keeps the number it was first given.** A re-emission drops the groups that
     have gone complete, so a batch's position in *this* emission is not its position in the last
@@ -1971,17 +2042,7 @@ def numbering(batches: list[tuple[str, list]]) -> tuple[dict[str, int], int]:
     chain keeps its number and everything new is appended from the end.
     """
     chain = goalsmod.load()
-    known = {g.slug: g.num for g in chain}
-    last = max((g.num for g in chain), default=0)
-    out, fresh = {}, 0
-    for label, _ in batches:
-        slug = slugify(label)[:60]
-        if slug in known:
-            out[slug] = known[slug]
-        else:
-            fresh += 1
-            out[slug] = last + fresh
-    return out, fresh
+    return {g.slug: g for g in chain}, max((g.num for g in chain), default=0)
 
 
 def scope_flags(group: str | None, only: list[str] | None) -> str:
@@ -2009,8 +2070,15 @@ def partition_command(members: list[Entry], only: list[str] | None) -> str:
 
 def goal_prose(n: int, label: str, members: list[Entry], proofs: dict[str, Proofs], policy: dict,
                skips: dict, only: list[str] | None = None) -> str:
+    # The front matter is the one fact a goal's files cannot derive: `plan.py --check` derives
+    # every `Carried by` cell from it and refuses a goal without one, and `dossier` is a label
+    # rather than a milestone id, which is the shape that tool accepts for work in no milestone.
+    # The H1 is the one shape `chain.py` renumbers and `goals.py` reads a title off.
     lines = [
-        f"# Dossier goal {n} — {label}",
+        "---",
+        "milestone: dossier",
+        "---",
+        f"# Loop goal {n} — {label}",
         "",
         "**Generated by `python tools/dossier.py --emit-goals`.** The checks are the sibling",
         "`.toml`; this half is the target and the standing decisions. Regenerating overwrites both.",
@@ -2140,7 +2208,7 @@ def goal_toml(n: int, label: str, groups: list[str], anchors: list[str], no_perf
     perf_flag = ', "--no-perf"' if no_perf else ""
 
     lines = [
-        f"# Dossier goal {n} -- {label}. The acceptance test, as data.",
+        f"# Goal {n} -- {label}. The acceptance test, as data.",
         "#",
         "# GENERATED by `python tools/dossier.py --emit-goals` -- do not hand-edit; re-run it.",
         "# The sibling `.md` is the prose. One home each.",
@@ -2226,20 +2294,24 @@ def goal_toml(n: int, label: str, groups: list[str], anchors: list[str], no_perf
     return "\n".join(lines) + "\n"
 
 
-def goal_handoff(n: int, label: str, members: list[Entry], proofs: dict[str, Proofs], policy: dict,
+def goal_handoff(label: str, members: list[Entry], proofs: dict[str, Proofs], policy: dict,
                  skips: dict) -> str:
+    # The three headings are the ones `orient.py` reads the pack's item off and `session.py --wrap`
+    # requires of the handoff a session writes back; the goal names itself by slug, never by
+    # number, because the number is a position and this file is copied out of the chain's
+    # directory when the goal is installed.
     first = [e for e in members if owed(e, proofs[e.id], policy, skips)][:3]
     lines = [
-        f"# Handoff — dossier goal {n}, {label}",
+        "# Handoff",
         "",
-        "**Generated by `python tools/dossier.py --emit-goals`; the first session of this goal",
-        "overwrites it like any other handoff.**",
+        f"**Generated by `python tools/dossier.py --emit-goals` for goal `{goal_slug(label)}` —",
+        f"{label}. The first session of this goal overwrites it like any other handoff.**",
         "",
-        "## Where the work stands",
+        "## State",
         "",
         f"This goal has just been installed. Nothing in {label} has been taken yet.",
         "",
-        "## The next group",
+        "## Next group",
         "",
         "One slice is one feature with all four proofs. Take them in this order — the list runs in",
         "file order, so neighbours share an implementing file and the second and third cost a",
@@ -2248,7 +2320,7 @@ def goal_handoff(n: int, label: str, members: list[Entry], proofs: dict[str, Pro
     ]
     for e in first:
         missing = owed(e, proofs[e.id], policy, skips)
-        lines.append(f"- **`{e.id}`** — owes {', '.join(sorted(missing))}."
+        lines.append(f"- [ ] **`{e.id}`** — owes {', '.join(sorted(missing))}."
                      + (f" `{e.anchor}`" if e.anchor else ""))
     lines += [
         "",
