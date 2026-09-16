@@ -456,18 +456,15 @@ where taking it is the work and the code that follows it is not.
   which already reaches the registry — because the second answer makes one link error arrive from a
   different pass than every other. `crates/nvs-hir/src/hierarchy.rs` gap 1.
   [until: reviewed 2026-09-10]
-- **`require`'s statically-known path is a plain string literal and nothing else, with three more
-  corners around it.** Heredoc/nowdoc and any expression built out of a literal — a concatenation, a
-  `const`, an `as` conversion — is dynamic here even where a reader could work the value out; the
-  double-quoted cooker recognises a practical escape subset and leaves octal/hex/unicode un-cooked;
-  the name harvest is an over-approximation whose miss costs a class that fails to autoload; and
-  `rule:packaging/autoload-probes-fold-into-the-cache-key`'s probe trace is produced and then
-  dropped. What has to be decided for each is where it lives rather than what the code is: a constant
-  folder that runs before the graph is walked, a string-literal cooker something besides this module
-  needs, a harvest derived from the AST rather than hand-written so a new node cannot be missed, and
-  whether the artifact key grows the `PathEntry` table
-  `rule:packaging/an-artifact-is-one-immutable-content-addressed-file` names and nothing has built.
-  `crates/nvs-hir/src/requires.rs` gaps 1–4. [until: reviewed 2026-09-10]
+- **A `const` in a `require` path is not folded, with two corners around it.** A class constant is
+  the only constant Novis has, so reading one means resolving a class out of the very table this walk
+  is building; the double-quoted cooker recognises a practical escape subset and leaves
+  octal/hex/unicode un-cooked; the name harvest is an over-approximation whose miss costs a class
+  that fails to autoload. What has to be decided for each is where it lives rather than what the code
+  is: a constant folder that runs before the graph is walked, a string-literal cooker something
+  besides this module needs, and a harvest derived from the AST rather than hand-written so a new
+  node cannot be missed. `crates/nvs-hir/src/requires.rs`'s own `# Known gaps` is the live list.
+  [until: reviewed 2026-09-10]
 - **A `type` alias's own name is held to no casing rule.** `rule:core-api/identifier-casing`'s scope
   table lists the categories the checker enforces and "type alias" is not one of them, so the
   declaration walk passes over the one name it could check and does not guess a rule. What has to be

@@ -3,9 +3,9 @@ one exception. A file nobody references changes nothing, and when a reference is
 *referencing* file's content hash changes and the cache key misses on its own. The exception is
 **shadowing**: adding `src/Thing.nvs` when `App\Thing` currently resolves to
 `vendor/compat/Thing.nvs` changes the answer with no existing file touched. So a unit records the
-**ordered list of paths it probed, including the misses**; a negative entry is an ordinary path
-entry in the revalidation table, and the trace folds into the unit's cache key exactly as the target
-triple does.
+**ordered list of paths it probed, including the misses**; a probed miss is revalidated on the same
+terms as a file the unit compiled, under the same directives and the same rate cap, and the trace
+folds into the unit's cache key exactly as the target triple does.
 
 A **discovery query** (`rule:programs/implementing`) makes a unit depend on directory *contents*:
 adding a module that nothing references must change the generated list. So every directory listed
@@ -19,8 +19,9 @@ window for N listed directories — tens, not thousands — and exactly zero und
 which is what production runs. For a compiled build and the wasm target the question does not
 arise; resolution happens once, at build time.
 
-**Half on disk.** The resolver records the trace — every path probed, in order, misses included — and
-hands it back with the `autoload` map it already returns (`nvs_hir::autoload::ProbeTrace`). Nothing
-reads it yet: turning a probed miss into a negative path entry, and folding the trace's digest in
-beside the content hash, is the revalidation table's own half. A discovery query's listed directories
-are not collected at all.
+**The `autoload` half is on disk; the discovery query's is not.** The resolver records the trace —
+every path probed, in order, misses included (`nvs_hir::autoload::ProbeTrace`) — and the in-memory
+unit table keys on its digest beside the content hash and the environment, then re-asks those paths
+under the gate the content `stat` rides, so a file written where one of them missed sends that unit
+to a compile (`nvs_cli::script`). A discovery query's listed directories are not collected at all,
+and nothing hashes the discovered names.

@@ -54,10 +54,6 @@ One file set: `crates/nvs-ir/src/lower/`, `crates/nvs-runtime/src/`, `crates/nvs
 One file set: `crates/nvs-types/src/`, `crates/nvs-hir/src/`, `crates/nvs-syntax/src/`,
 `crates/nvs-diagnostics/src/`.
 
-- **Builds**: `crates/nvs-hir/src/requires.rs` gap 2 (`Probe::tried` folded into the unit key,
-  `crates/nvs-config/src/cache.rs:36-37`, `crates/nvs-cli/src/script.rs:164`);
-  `crates/nvs-types/src/ctor_init.rs` gap 1 (a class with no explicit `constructor` refuses every own
-  required property that has no default, `ctor_init.rs:131`, `signatures.rs:1756`).
 - **M1's two, which no goal on the chain had taken** (tagged `M1`, a milestone that must be complete):
   `crates/nvs-syntax/src/lib.rs` gap 2 — `use function` / `use const` get the targeted refusal the gap
   itself asks for, naming `rule:classes/no-free-functions-or-constants`, instead of a generic parse error;

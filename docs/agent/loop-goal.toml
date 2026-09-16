@@ -109,6 +109,9 @@ modules = [
   "crates/nvs-types/src/ctor_init.rs",
   "crates/nvs-types/src/lateinit.rs",
   "crates/nvs-types/src/intrinsics.rs",
+  "crates/nvs-types/src/links.rs",
+  "crates/nvs-types/src/expr/args.rs",
+  "crates/nvs-types/src/string_lit.rs",
   "crates/nvs-types/src/derive.rs",
   # Stage 4 -- the library.
   "crates/nvs-stdlib/src/compress.rs",
@@ -161,8 +164,13 @@ plan = ["Open now", "Blocking"]
 rules = ["security/tainted-sources", "errors/throw-is-not-slower"]
 
 [context.stage.3]
-# M1's `use function` / `use const` refusal names this rule.
-rules = ["classes/no-free-functions-or-constants"]
+# M1's `use function` / `use const` refusal names this rule, and the intrinsic pass's own two: what
+# the closed list is, and what a named argument is owed at a call that spells one.
+rules = [
+  "classes/no-free-functions-or-constants",
+  "expressions/intrinsic-list-is-closed",
+  "core-api/parameters-are-callable-by-name",
+]
 shapes = ["A `.nvst` test case"]
 
 [context.stage.4]
@@ -174,6 +182,15 @@ rules = [
   "core-classes/derive-generates-what-is-missing",
 ]
 shapes = ["A `Core` member", "A `.nvst` test case"]
+
+[context.stage.5]
+# What a unit is keyed by and when a resolve may look at the file behind a path, plus the header an
+# artifact has to describe itself with -- the three an item in this stage keeps landing on.
+rules = [
+  "config/an-edit-reaches-the-next-request-without-a-restart",
+  "config/the-extension-set-is-in-every-unit-key",
+  "packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header",
+]
 
 [context.stage.6]
 milestones = ["M10:lead"]

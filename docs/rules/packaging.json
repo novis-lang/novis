@@ -177,7 +177,8 @@
       ],
       "guardedBy": [
         "tests/conformance/lang/an-autoload-prefix-probes-its-second-root-only-after-the-first-misses.nvst",
-        "tests/conformance/lang/an-explicit-autoload-prefix-shadows-a-discover-glob.nvst"
+        "tests/conformance/lang/an-explicit-autoload-prefix-shadows-a-discover-glob.nvst",
+        "crates/nvs-cli/src/script.rs"
       ]
     },
     {

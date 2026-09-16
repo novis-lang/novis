@@ -4,54 +4,59 @@
 
 **Goal `unowned-closures`, and the register is at `unowned: 15`.** `python tools/owners.py` reports
 `unowned: 15`, `untagged: 0`, `broken-tag: 0`, `unreasoned: 0` and `sections outside Known gaps: 0`;
-`python tools/owners.py --deferrals` is green. The 15 still need answers only the user can give, bar
-`crates/nvs-runtime/src/graph.rs:74` gap 1, so `unowned: 0` stays a `BLOCKED` the moment that one is
-settled.
+`--deferrals` is green. Every one of the 15 needs an answer only the user can give bar
+`crates/nvs-runtime/src/graph.rs:74` gap 1, so the goal's own check — `unowned: 0` — is a `BLOCKED`
+the moment that one is settled. 59 gaps still carry `owner: unowned-closures`.
 
-**`ctor_init.rs` keeps no `Known gaps` block: the code was already ahead of it.** A class that
-declares no constructor refuses every own required property with no default, inherited constructor or
-not — `check_class_init`'s no-constructor arm (`crates/nvs-types/src/ctor_init.rs:142`) has always run
-for a class that `extends`, which running the compiler over the fixture confirmed, so no `E0824` was
-claimed and the arm is unchanged. What the slice wrote is the bound as prose, the amended fragment
-(`rule:classes/definite-property-initialization` now says inheriting a constructor is not declaring
-one) and the guard case that pins the inheriting shape the existing case did not cover.
+**`rule:packaging/autoload-probes-fold-into-the-cache-key` is on disk for `autoload`.** A `UnitKey`
+is `{ path, content_hash, probe_hash, env_hash }`; `crates/nvs-cli/src/script.rs`'s resolver keeps the
+recorded trace in front of the unit table, spells `ProbeHash::unrecorded` for content it has not
+compiled, re-keys the compile's own result, and re-asks the probed paths under the gate the content
+`stat` rides — so a file written where a probe missed recompiles the unit. The rule's own paragraph
+says what is left: a `discover` glob's listed directories are collected nowhere and the discovered
+names hash into no key.
 
-**`requires.rs` gap 1 is half built, and the half left is the `const` one.** A `require` path built
-out of literals joined by `.` now folds and resolves (`literal_require_path`,
-`crates/nvs-hir/src/requires.rs:1405`); a class constant in one does not, because the only constant
-Novis has is a class constant and reading one needs the table this walk is building. The sheet's
-`Decided:` sentence stays on the narrowed bullet rather than being re-priced.
+**Stage 3's Builds row is gone, both of its items being closed.** `requires.rs` gap 2 is struck; the
+`ctor_init.rs` half closed as prose a session earlier. What stage 3 still holds is M1's two and the
+**Decided** row.
+
+**The pack did not print the rule the item named.** `[context] rules` carries the goal's four, and
+stage 5 had no overlay, so `rule:packaging/autoload-probes-fold-into-the-cache-key` cost a `peek`.
+`[context.stage.5]` now exists and `[context.stage.3]` names the intrinsic pass's two.
 
 ## Next group
 
-**Stage 5: the cache side of the probe trace** — one file set: `crates/nvs-cli/src/script.rs`,
-`crates/nvs-config/src/cache.rs` and `crates/nvs-cli/src/main.rs`.
+**Stage 3: the checker's intrinsic pass** — one file set: `crates/nvs-types/src/intrinsics.rs`,
+`crates/nvs-types/src/links.rs`, `crates/nvs-types/src/expr/args.rs` and
+`crates/nvs-types/src/string_lit.rs`.
 
-- [ ] **The probe trace's digest joins the unit key** — `crates/nvs-config/src/cache.rs:269`
-      (`UnitKey::new`) takes it beside the content hash, and `crates/nvs-cli/src/main.rs:1564` is
-      where the `AutoloadMap` that carries `probe_trace()` already exists and is dropped, so `Checked`
-      carries it out to `crates/nvs-cli/src/script.rs:648`.
-      `rule:packaging/autoload-probes-fold-into-the-cache-key` is the rule.
-      **The design problem to answer first:** the key can only be formed from a trace the compile
-      produces, so a path with no recorded trace has nothing to look up — record the trace per content
-      digest beside the unit table and insert the compiled unit under the key the *post-compile* trace
-      gives, or a cold path compiles twice before it settles.
-- [ ] **A probed miss becomes a negative path entry** — `crates/nvs-cli/src/script.rs:163`
-      (`PathEntry`, every field `Copy`) and `crates/nvs-cli/src/script.rs:712` (`observe`) are the
-      anchors: re-stat the recorded probe paths under the same `validate`/`revalidate_freq` gate the
-      content stat rides, so a file created where a probe missed recompiles the unit.
-      `rule:packaging/autoload-probes-fold-into-the-cache-key`, and
-      `crates/nvs-hir/src/requires.rs:1952` is the hir-side half already pinned.
-- [ ] **The rule stops saying half of it is on disk** —
-      `docs/rules/packaging/autoload-probes-fold-into-the-cache-key.md:22` is the paragraph, and
-      `crates/nvs-hir/src/requires.rs:107`'s gap 2 is struck in the same slice once both land.
+- [ ] **A named or spread argument reaches the pattern passes** — `crates/nvs-types/src/intrinsics.rs:86`
+      (gap 4) and `crates/nvs-types/src/links.rs:46` (gap 1) are one change, which is why they are one
+      slice: `check_args_typed` (`crates/nvs-types/src/expr/args.rs:48`) already builds the slot
+      mapping neither pass is handed, so `Core\Str::format(template: "…")` folds and validates exactly
+      as the positional spelling does. `rule:core-api/parameters-are-callable-by-name` is the rule the
+      call site owes, `rule:expressions/intrinsic-list-is-closed` the one this pass lives inside.
+- [ ] **A refused placeholder underlines its own offset** — `crates/nvs-types/src/intrinsics.rs:58`
+      (gap 1): re-decode with positions only where a diagnostic is emitted, which is the sheet's
+      answer, so the success path pays nothing; `crates/nvs-types/src/string_lit.rs` is where the
+      second decoder mode belongs. `rule:expressions/intrinsic-list-is-closed`.
+- [ ] **The roster grows a restriction column** — `crates/nvs-types/src/intrinsics.rs:74` (gap 3): a
+      member's own restriction on a well-formed pattern — `Core\Time::parse` refusing a zonal field,
+      `nvs_stdlib::cldr`'s `civil_fields_only` — is refused where it was written rather than at run
+      time. `rule:expressions/intrinsic-list-is-closed`.
 
 ## Backlog
 
-- `crates/nvs-runtime/src/graph.rs:74` gap 1 — the last unowned item a session could settle, and the
-  one that turns this goal into a `BLOCKED`; the module doc owns it.
-- `crates/nvs-hir/src/requires.rs:96` gap 1's `const` half — the obstacle is written in the bullet.
-- Stage 3's M1 pair — `crates/nvs-syntax/src/lib.rs` gaps 2 and 3 — is untaken; the goal file owns
-  the description.
-- `crates/nvs-types/src/intrinsics.rs` gaps 1–5 (the prepared-pattern channel) are the stage's
-  largest Decided block and the one ADR slot this goal may open.
+- `crates/nvs-types/src/intrinsics.rs:67` gap 2 is this goal's one ADR slot (the checker-to-IR
+  prepared-pattern channel) — a session of its own, not a fourth slice.
+- `crates/nvs-types/src/intrinsics.rs:93` gap 5 waits on which of two module docs is right
+  (`nvs_db::sql` declines it in the other direction) — `docs/agent/carried-gaps.md`.
+- The in-memory unit key's content hash is the entry file's source alone
+  (`crates/nvs-cli/src/script.rs`, `observe`), so an edit to a required or autoloaded file moves
+  nothing; only the artifact key hashes every reached file. Unasked against
+  `rule:config/an-edit-reaches-the-next-request-without-a-restart`.
+- `crates/nvs-cli/src/cache.rs:166` and `:174` share one `Decided:` — one make-executable function in
+  `nvs-codegen` — and neither is testable on an x86-64 Windows host.
+- `crates/nvs-runtime/src/graph.rs:74` gap 1 is the last unowned gap that does not need the user.
+- A `discover` glob's listed directories join no revalidation set —
+  `rule:packaging/autoload-probes-fold-into-the-cache-key`, last paragraph.

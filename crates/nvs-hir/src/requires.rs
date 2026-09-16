@@ -104,14 +104,6 @@
 //!   Decided: Fold literal concatenations and consts before the graph walk — More requires are resolved
 //!   and bundled at build time, at the cost of a small constant folder that runs before the checker's.
 //!   — owner: unowned-closures
-//! - `rule:packaging/autoload-probes-fold-into-the-cache-key`'s probe trace is
-//!   recorded and handed back ([`crate::autoload::ProbeTrace`], on the
-//!   [`AutoloadMap`] this walk returns) and read by nobody yet. What is left is
-//!   entirely on the cache side: a probed miss becomes a negative entry in
-//!   `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s
-//!   `PathEntry` table, and the trace's digest joins the unit key beside the
-//!   content hash. Nothing this module produces is missing for it.
-//!   — owner: unowned-closures
 
 use std::path::{Path, PathBuf};
 
