@@ -209,13 +209,14 @@ pub(super) unsafe fn hydrate(
     // its own default above, and a property `skip: true` removed from the
     // mapping leaves a parameter no field names, so there is no field here to
     // read a constant off. `nvs_types::derive`'s `check_row_sites` refuses a
-    // `queryAs<T>` naming such a class while compiling; this stays as the
-    // backstop for a class built by hand.
+    // `queryAs<T>` naming such a class while compiling, as `check_json_sites`
+    // does at the document door; this stays as the backstop for a class built
+    // by hand.
     if let Some(index) = filled.iter().position(|done| !done) {
         release_all(&ctor_args);
         return Err(Fault::fatal(format!(
-            "{QUERY_AS}: `{}`'s constructor parameter {index} is not a codec field, and a \
-             skipped field's default is `nvs_stdlib::db`'s own known gap 3",
+            "{QUERY_AS}: `{}`'s constructor parameter {index} is not a codec field, which \
+             `E0806` refuses at the call that names such a class",
             desc.name()
         )));
     }

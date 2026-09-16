@@ -146,53 +146,53 @@
 //! and answers it differently, because a column has its own components to build
 //! one out of.
 //!
+//! `rule:core-api/required-optional-and-nullable`'s three shipped rows are
+//! answered here, and on the field itself: `nvs_runtime::CodecField::default`
+//! carries the constructor parameter's own constant beside `required`, so an
+//! absent optional key is filled rather than reported missing. That table's
+//! fourth row is another door's — a written `= null` parameter default is
+//! refused while checking, which is `nvs_types::defaults`' own gap. A **shape**
+//! is in neither and never will be: it declares no constructor, so there is no
+//! default to be missing, and [`decode_field`] answers an absent optional key
+//! with the never-written marker instead.
+//!
+//! A constructor position **no field names** is not that question at all: a
+//! property `#[Json\Field(skip: true)]` took off the contract while its
+//! parameter stayed, so there is no field to read a constant off.
+//! `nvs_types::derive`'s `check_json_sites` refuses the call that asks for an
+//! instance out of a document over such a class — `E0820`, at every member that
+//! writes one, and over every deriving class the written one reaches, since a
+//! document is a tree. [`decode_fields`]'s engine fault for the same shape
+//! stays under it as the backstop for a class built by hand, as the row door's
+//! does.
+//!
 //! # Known gaps
 //!
-//! 1. **A skipped property that stayed a constructor parameter has nothing to
-//!    fill it.** `nvs_runtime::CodecField::default` carries the parameter's own
-//!    constant beside `required`, so `rule:core-api/required-optional-and-nullable`'s
-//!    `T $x = <default>` row is answered here: an absent optional key is filled
-//!    rather than reported missing. A position **no field names** is what is
-//!    left — a property `#[Json\Field(skip: true)]` took off the contract while
-//!    its constructor parameter stayed — and [`decode_fields`] reports it as an
-//!    engine fault, because a constant carried on a field cannot be read for a
-//!    position that has no field. Closing it is a second carrier keyed on the
-//!    constructor position, or emitting the decoder as code, which is gap 3's
-//!    question. The table's `?T $x = null` row is a different door's: a written
-//!    `= null` parameter default is refused while checking, which is
-//!    `nvs_types::defaults`' own gap. A **shape** is in neither and never will
-//!    be: it declares no constructor, so there is no default to be missing, and
-//!    [`decode_field`] answers an absent optional key with the never-written
-//!    marker instead.
-//!    Decided: Keep the descriptor and widen it (default constants on CodecField, a ClassDesc method
-//!    lookup for toJson); amend the rule — One native walker and small, local changes; costs one loop
-//!    and a string compare per field.
-//!    — owner: unowned-closures
-//! 2. **A hand-written `Core\Json\Codec` is not consulted.** `rule:core-classes/derive-generates-what-is-missing` lets
+//! 1. **A hand-written `Core\Json\Codec` is not consulted.** `rule:core-classes/derive-generates-what-is-missing` lets
 //!    a class write its own `toJson()` and keep the generated decoder; today
 //!    only the derived field list is read, so a class with a hand-written
 //!    encoder and no attribute still refuses. Closing it is a
 //!    `ClassDesc::method("toJson")` lookup and a call back into compiled code
 //!    from the native walk, or it is nothing to write at all once that walk is
-//!    the emitted code gap 3 asks about.
+//!    the emitted code gap 2 asks about.
 //!    Decided: Keep the descriptor and widen it (default constants on CodecField, a ClassDesc method
 //!    lookup for toJson); amend the rule — One native walker and small, local changes; costs one loop
 //!    and a string compare per field.
 //!    — owner: unowned-closures
-//! 3. **Both halves walk a per-class field list rather than straight-line
+//! 2. **Both halves walk a per-class field list rather than straight-line
 //!    code.** `rule:core-classes/derive-generates-what-is-missing` asks for IR emitted per derived class; what is built
 //!    is one compile-time-built descriptor per class, read by native Rust. No
 //!    reflection and nothing per object either way — the difference is one
 //!    bounded loop and one `String` compare per field, against a table that is
 //!    O(derived classes) in the artifact. What has to be decided is which of
-//!    the two the machinery stays, and gaps 1 and 2 wait on that one answer:
-//!    a parameter default's constant and a `toJson` lookup are both cheap in
-//!    emitted code and both a widening of the descriptor otherwise.
+//!    the two the machinery stays, and gap 1 waits on that one answer: a
+//!    `toJson` lookup is cheap in emitted code and a widening of the descriptor
+//!    otherwise.
 //!    Decided: Keep the descriptor and widen it (default constants on CodecField, a ClassDesc method
 //!    lookup for toJson); amend the rule — One native walker and small, local changes; costs one loop
 //!    and a string compare per field.
 //!    — owner: unowned-closures
-//! 4. **The encoder's real bound is the native stack, not [`DEPTH_CEILING`].**
+//! 3. **The encoder's real bound is the native stack, not [`DEPTH_CEILING`].**
 //!    [`Encodable`] recurses through `serde_json`'s serializer, and a document
 //!    nested deeply enough runs the thread's stack out well before the ceiling
 //!    is reached — an abort, not a throw. What the refusal above took away is
@@ -1838,15 +1838,17 @@ unsafe fn decode_fields(
     // that leaves a position unfilled: a field the contract carries took its
     // own default above, and a property `skip: true` removed from the contract
     // leaves a parameter no field names, so there is no field here to read a
-    // constant off — the module's own gap 1. Loud rather than passing `null`,
-    // which would be right for `?T $x = null` and silently wrong for everything
-    // else. A shape reaches this with every position filled, an absent optional
-    // key included: what fills that one is the never-written marker.
+    // constant off. `nvs_types::derive`'s `check_json_sites` refuses a call
+    // naming such a class while compiling; this is the backstop for a class
+    // built by hand, and it is loud rather than passing `null`, which would be
+    // right for `?T $x = null` and silently wrong for everything else. A shape
+    // reaches this with every position filled, an absent optional key included:
+    // what fills that one is the never-written marker.
     if let Some(index) = filled.iter().position(|done| !done) {
         release_all(&ctor_args);
         return Err(DecodeFailure::Fault(Fault::fatal(format!(
             "Core\\Json::decodeAs(): `{}`'s constructor parameter {index} is not a codec \
-             field, and a skipped field's default is `nvs_stdlib::json`'s own known gap",
+             field, which `E0820` refuses at the call that names such a class",
             contract.name()
         ))));
     }

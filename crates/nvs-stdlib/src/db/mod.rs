@@ -209,6 +209,23 @@
 //! no session state to leak, and a rollback of whatever transaction is open is
 //! the whole of it.
 //!
+//! **A row is hydrated where the call was written, and refused there too.**
+//! [`hydrate`] is the walk over [`nvs_runtime::ClassDesc::db_codec`], reached
+//! per result set on `queryAs<T>` and per step on `streamAs<T>`, and every way
+//! a call is answered *no* is a property of the call site or of the class:
+//! `nvs_types::derive`'s `check_row_sites` says all of them as `E0806` while
+//! compiling, over both members. A list type argument, whose form asks for the
+//! plural twice; a `T` carrying no `#[Db\Derive]` codec; a field the erasure
+//! gave no wire type; and a mapping that fills fewer parameters than the
+//! constructor declares, which is `rule:core-classes/derive-field-list`'s
+//! skipped property that stayed one. A field the mapping *carries* brings its
+//! own constant — `nvs_runtime::CodecField::default`, which fills an absent
+//! column for a parameter that declares a default — while a `skip: true` leaves
+//! a parameter no field names, which is why that last condition is the call's
+//! to answer rather than the declaration's. The run-time refusals stay under
+//! the compiling pass as the backstop for a class built by hand, and each says
+//! so. `crate::json` states the same division at the document door.
+//!
 //! # Known gaps
 //!
 //! 1. **An `open` describing an endpoint no block describes still takes the
@@ -265,25 +282,6 @@
 //!    Decided: Split stands: a shape mismatch is a ParseError, as for Json::decodeAs — One class for
 //!    'data does not fit the type' across Json and Db, and no spec change.
 //!    — owner: unowned-closures
-//! 3. **A constructor parameter no codec field fills is a fatal rather than
-//!    `rule:core-classes/derive-field-list`'s default.** [`hydrate`] is the
-//!    walk over [`nvs_runtime::ClassDesc::db_codec`], reached per result set on
-//!    `queryAs<T>` and per step on `streamAs<T>`. Every way a call is answered
-//!    *no* is a property of the call site or of the class, and
-//!    `nvs_types::derive`'s `check_row_sites` says all of them as `E0806` while
-//!    compiling, over both members: a list type argument, whose form asks for
-//!    the plural twice; a `T` carrying no `#[Db\Derive]` codec; a field the
-//!    erasure gave no wire type; and a mapping that fills fewer parameters than
-//!    the constructor declares. The run-time refusals stay under the compiling
-//!    pass as the backstop for a class built by hand, and each says so. What is
-//!    left is the skipped field itself. A field the mapping *carries* now
-//!    brings its own constant — `nvs_runtime::CodecField::default`, which is
-//!    what fills an absent column for a parameter that declares a default — but
-//!    a `skip: true` leaves a parameter no field names, and a constant carried
-//!    on a field cannot be read for a position that has none. Only that second
-//!    carrier is owed, and it is `crate::json`'s gap 1: the same knot at the
-//!    other door.
-//!    — owner: m8-stdlib-depth
 
 use std::net::{SocketAddr, ToSocketAddrs as _};
 
