@@ -46,6 +46,19 @@ fn every_thrown_class_is_in_the_compiler_s_exception_tree() {
     );
 }
 
+/// A raise renders the frame it happened in from the site the `throw` was
+/// compiled with, and that carrier names the enclosing member and never the
+/// label a script frame has — so the runtime restates the one the compiler
+/// gives a program's own top-level statements, and this is what keeps the two
+/// spellings from drifting into a trace naming the same frame twice.
+#[test]
+fn the_runtime_and_the_compiler_spell_a_script_frame_alike() {
+    assert_eq!(
+        nvs_runtime::ENTRY_SCRIPT_FRAME,
+        nvs_ir::lower::ENTRY_SCRIPT_LABEL
+    );
+}
+
 #[test]
 fn the_runtime_and_the_compiler_agree_on_every_throwable_slot() {
     use nvs_hir::errors::PROPERTIES;
@@ -178,6 +191,26 @@ fn a_caught_throw_stops_the_backtrace_at_the_frame_that_handled_it() {
     let out = output_of(&source);
     assert_eq!(out.lines().count(), 1, "{out}");
     assert!(out.starts_with("Deep::level3() at "), "{out}");
+}
+
+#[test]
+fn a_throw_caught_in_the_frame_that_raised_it_names_that_frame() {
+    // The frame a `catch` beside the `throw` sees is the one the raise rendered
+    // for itself, from the site it was compiled with: no landing block ever
+    // pushes a label for a throw that does not leave its frame, so this is the
+    // whole of the trace — and the frame's own name is the script label, since
+    // `<script>` is what this file scope is compiled under.
+    let out = output_of(
+        "<?nvs
+try {
+    throw new LogicError(\"boom\");
+} catch (Throwable $e) {
+    foreach ($e->backtrace as string $frame) { echo $frame; }
+}
+",
+    );
+    assert_eq!(out.lines().count(), 1, "{out}");
+    assert!(out.starts_with("<script>() at "), "{out}");
 }
 
 #[test]

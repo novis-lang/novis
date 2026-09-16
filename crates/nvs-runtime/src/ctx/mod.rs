@@ -709,6 +709,14 @@ pub struct Ctx {
     /// for why one field carries both shapes rather than two sitting beside
     /// each other.
     pending: Option<Pending>,
+    /// Whether the innermost frame of [`Self::pending`]'s backtrace is the one
+    /// the raise rendered from its own site, rather than one a compiled frame
+    /// pushed — [`Ctx::raise_sited`] sets it and [`Ctx::push_frame`] spends it,
+    /// and between them they are why a frame the throw unwinds out of is named
+    /// once rather than twice.
+    ///
+    /// **What it spends:** one word per request.
+    site_frame_pending: bool,
     /// Where `echo` writes.
     output: OutputSink,
     /// Where a **diagnostic** writes — `rule:errors/debug-dump`'s destination for a CLI `Core\Debug::dump`, and later for the log

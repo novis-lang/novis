@@ -29,18 +29,32 @@
 //! `nvs-codegen`'s `the_runtime_and_the_compiler_agree_on_every_throwable_slot`
 //! is the test that holds the two together.
 //!
-//! # The backtrace is built as the throw propagates
+//! # The backtrace is the raise's own frame, then the ones it unwinds out of
 //!
-//! A frame label is pushed by [`nvs_trace_push`] from the *error* path of each
-//! compiled frame the throw travels out of — never from a push/pop record kept
-//! on the way in. That is the whole reason
-//! `rule:errors/propagation` can claim a call
-//! costs a compare-and-branch: a frame-record scheme would move the cost onto
-//! the success path, which is the path that runs. The consequence is visible
-//! and deliberate: the trace holds exactly the frames the exception *unwound
-//! out of*, so a `catch` in the frame that called the thrower sees the
-//! thrower's frame and nothing below it. PHP instead snapshots the whole stack
-//! at construction; matching that needs a walk of Novis's own frame chain.
+//! [`Thrown::capture_site`] writes the raising frame at the raise, from the
+//! site the `throw` was compiled with, and [`nvs_trace_push`] adds one more
+//! label from the *error* path of each compiled frame the throw then travels
+//! out of — never from a push/pop record kept on the way in. That is the whole
+//! reason `rule:errors/propagation` can claim a
+//! call costs a compare-and-branch: a frame-record scheme would move the cost
+//! onto the success path, which is the path that runs. What a raise spends
+//! instead is one rendered label, once, which is
+//! `rule:errors/throw-is-not-slower`'s stated price.
+//!
+//! That first frame is provisional. A site blob names the enclosing member and
+//! never the label a script frame carries, so the compiler's own rendering
+//! replaces it ([`Thrown::replace_innermost_frame`]) the moment the throw
+//! leaves the frame that raised it, and the trace holds each frame exactly
+//! once. It stands where the throw never leaves — a `catch` in the raising
+//! frame, the one place no landing block pushes anything (`nvs_ir`'s
+//! `Terminator::Dispatch`) — so an exception caught beside its own `throw`
+//! carries that frame rather than an empty trace.
+//!
+//! What no raise can produce is the frames *below* it: PHP snapshots the whole
+//! stack at construction, and matching that needs a walk of Novis's own frame
+//! chain. An exception the runtime raises for itself ([`nvs_raise_new`], a
+//! helper's [`crate::Fault`]) is handed no site at all, so its own trace begins
+//! at the first compiled frame it unwinds out of.
 
 use crate::ctx::Ctx;
 use crate::object::{ClassDesc, NvsObj, ObjHeader};
@@ -124,6 +138,17 @@ pub const MESSAGE_SLOT: usize = 0;
 pub const PREVIOUS_SLOT: usize = 1;
 /// The slot `Throwable::$backtrace` occupies.
 pub const BACKTRACE_SLOT: usize = 2;
+/// What a frame with no enclosing member is called in a backtrace: the label
+/// the compiler names a program's own top-level statements with.
+///
+/// Restated here for the reason the slot indices above are — this crate depends
+/// on nothing — and `nvs_ir::lower::ENTRY_SCRIPT_LABEL` is its one home;
+/// `nvs-codegen`'s `the_runtime_and_the_compiler_spell_a_script_frame_alike` is
+/// what holds the two together. A site blob carries the enclosing member and
+/// never a frame label ([`crate::source`]), so this is the spelling
+/// [`Thrown::capture_site`] renders a file-scope `throw` under, until the frame
+/// it is leaving pushes its own.
+pub const ENTRY_SCRIPT_FRAME: &str = "<script>";
 /// The slot `Throwable::$location` occupies.
 pub const LOCATION_SLOT: usize = 3;
 
@@ -740,24 +765,28 @@ impl Thrown {
         out
     }
 
-    /// Appends one frame label to the `backtrace` property, in place.
+    /// Runs `write` over the `backtrace` property's array, in place, and
+    /// answers whether it was reached at all.
     ///
     /// The field's own reference is *moved out* of the slot and back in, so
     /// the array's refcount stays at one and copy-on-write never separates —
     /// retaining it first would copy the whole trace once per frame the throw
     /// unwinds through.
-    pub fn push_frame(&self, label: &str) {
+    ///
+    /// An object with too few fields, or a slot holding something that is not
+    /// an array, is left exactly as it stands and answers `false`.
+    fn with_backtrace(&self, write: impl FnOnce(&mut NvsArray)) -> bool {
         let Some(obj) = self.borrow() else {
-            return;
+            return false;
         };
         if obj.field_count() < SLOT_COUNT {
-            return;
+            return false;
         }
         let held = obj.take_field(BACKTRACE_SLOT);
         let Some(array) = held.array_ptr() else {
             // Not an array: put back exactly what was there, unchanged.
             obj.set_field(BACKTRACE_SLOT, held);
-            return;
+            return false;
         };
         #[expect(
             unsafe_code,
@@ -765,22 +794,62 @@ impl Thrown {
                       and `into_raw` hands it straight back to the slot"
         )]
         let mut handle = unsafe { NvsArray::from_raw(array) };
-        handle.append(Value::str(NvsStr::new(label.as_bytes())));
+        write(&mut handle);
         obj.set_field(BACKTRACE_SLOT, Value::from_array_ptr(handle.into_raw()));
+        true
     }
 
-    /// Fills the `location` property from the carrier the `throw` that is
-    /// raising this object was compiled with.
+    /// Appends one frame label to the `backtrace` property, in place, and
+    /// answers whether it was recorded.
+    pub fn push_frame(&self, label: &str) -> bool {
+        self.with_backtrace(|frames| frames.append(Value::str(NvsStr::new(label.as_bytes()))))
+    }
+
+    /// Overwrites the innermost frame with `label` — how the compiler's own
+    /// rendering of the raising frame supersedes the provisional one
+    /// [`Self::capture_site`] wrote, rather than naming that frame twice.
+    ///
+    /// Appends where there is no frame to overwrite, so a caller that reaches
+    /// this for an exception the raise seeded nothing on still records the
+    /// frame it was called with.
+    pub fn replace_innermost_frame(&self, label: &str) {
+        self.with_backtrace(|frames| {
+            let value = Value::str(NvsStr::new(label.as_bytes()));
+            match frames
+                .count()
+                .checked_sub(1)
+                .and_then(|innermost| i64::try_from(innermost).ok())
+            {
+                Some(innermost) => frames.set_index(innermost, value),
+                None => frames.append(value),
+            }
+        });
+    }
+
+    /// Fills the `location` property and the innermost backtrace frame from the
+    /// carrier the `throw` that is raising this object was compiled with, and
+    /// answers whether that frame was written.
     ///
     /// **The throw site, not the construction site** — the same choice the
     /// backtrace beside it already makes, and this module's own header says
     /// why. A rethrow of the same object is a second site and moves it.
     ///
-    /// A null carrier leaves the slot exactly as it stands: a `catch` matching
-    /// no clause hands the very same reference onward rather than raising
-    /// anywhere of its own, and an exception the runtime built for itself has
-    /// no site at all — a producer with no source omits the field rather than
-    /// rendering it empty (`rule:errors/a-record-names-where-it-was-produced`).
+    /// The frame is the raise's own, rendered in the spelling
+    /// [`nvs_trace_push`] pushes and off the same decoded datum the location
+    /// comes from, so the two cannot disagree about where the throw was. It is
+    /// provisional, and [`Self::replace_innermost_frame`] is what supersedes
+    /// it; the module header is the whole of why.
+    ///
+    /// A null carrier leaves both properties exactly as they stand: a `catch`
+    /// matching no clause hands the very same reference onward rather than
+    /// raising anywhere of its own, and an exception the runtime built for
+    /// itself has no site at all — a producer with no source omits the field
+    /// rather than rendering it empty
+    /// (`rule:errors/a-record-names-where-it-was-produced`).
+    ///
+    /// **What it spends:** one rendered label and the string the array takes
+    /// over, per raise that carries a site, and nothing per frame the throw
+    /// then travels through (`rule:errors/throw-is-not-slower`).
     ///
     /// # Safety
     ///
@@ -790,20 +859,24 @@ impl Thrown {
         unsafe_code,
         reason = "the blob's liveness is the caller's obligation to state — it is a compiled unit's own data section"
     )]
-    unsafe fn write_location(&self, blob: *const u8) {
+    pub unsafe fn capture_site(&self, blob: *const u8) -> bool {
         let Some(obj) = self.borrow() else {
-            return;
+            return false;
         };
         if obj.field_count() < SLOT_COUNT {
-            return;
+            return false;
         }
         // SAFETY: forwarding this function's own contract unchanged — the
         // caller says the blob is null or the bytes a unit baked.
         let Some(source) = (unsafe { crate::source::decode(blob) }) else {
-            return;
+            return false;
         };
         let rendered = crate::source::location(&source);
         obj.set_field(LOCATION_SLOT, Value::str(NvsStr::new(rendered.as_bytes())));
+        self.push_frame(&format!(
+            "{}() at {rendered}",
+            source.member.as_deref().unwrap_or(ENTRY_SCRIPT_FRAME)
+        ))
     }
 }
 
@@ -839,9 +912,11 @@ impl Drop for Thrown {
 /// value copied into a second durable slot.
 ///
 /// `source` is the throw's own site, as `nvs_ir::ir::InstKind::SourceConst`
-/// carries it, and fills the object's `location` through
-/// [`Thrown::write_location`] before the context takes it. The zero word is a
-/// raise that is no site of its own, and leaves that property standing.
+/// carries it, and fills the object's `location` and its innermost backtrace
+/// frame through [`Thrown::capture_site`] before the context takes it. The zero
+/// word is a raise that is no site of its own, and leaves both standing — along
+/// with the mark that says the frame already there is still the provisional one
+/// ([`Ctx::raise_sited`]).
 ///
 /// # Safety
 ///
@@ -864,8 +939,8 @@ pub unsafe extern "C" fn nvs_raise(ctx: *mut Ctx, thrown: *mut ObjHeader, source
     )]
     unsafe {
         let thrown = Thrown::from_raw(thrown);
-        thrown.write_location(source);
-        (*ctx).raise(thrown);
+        let seeded = thrown.capture_site(source);
+        (*ctx).raise_sited(thrown, seeded);
     }
 }
 
@@ -930,9 +1005,10 @@ pub unsafe extern "C" fn nvs_raise_new(
     }
 }
 
-/// Records one more frame a pending `THROWN` has unwound out of — the
-/// backtrace's whole mechanism, called only from a compiled frame's error
-/// path.
+/// Records one more frame a pending `THROWN` has unwound out of — called only
+/// from a compiled frame's error path, and the authoritative half of the
+/// backtrace's mechanism: the first call after a raise replaces the label that
+/// raise rendered for itself, and every one after it appends.
 ///
 /// A non-`THROWN` `status` is ignored: a resource-limit or internal failure is
 /// not a `Throwable` at all
@@ -1117,6 +1193,89 @@ mod tests {
             nvs_raise(&raw mut ctx, onward.into_raw(), std::ptr::null());
         }
         assert_eq!(location_of(&ctx.take_thrown()), "app/Http/Handler.nvs:118");
+    }
+
+    /// `rule:errors/throw-is-not-slower`: the raise renders its own frame, so
+    /// the one place no landing block ever pushes a label — a `catch` in the
+    /// frame that raised — reads a trace naming that frame rather than an empty
+    /// one.
+    #[test]
+    fn a_throw_caught_in_the_frame_that_raised_it_carries_that_frame() {
+        let (_table, _, leaf) = tree();
+        let mut ctx = Ctx::buffered();
+        #[expect(unsafe_code, reason = "the table outlives the instance")]
+        let e = unsafe { Thrown::new(leaf, "boom") };
+        let blob = crate::source::encode(&site());
+        #[expect(
+            unsafe_code,
+            reason = "driving the primitive compiled code calls, with this frame's own blob"
+        )]
+        // SAFETY: the context is this frame's, the exception's one reference is
+        // transferred, and the blob outlives the call.
+        unsafe {
+            nvs_raise(&raw mut ctx, e.into_raw(), blob.as_ptr());
+        }
+        assert_eq!(
+            ctx.take_thrown().trace_as_string(),
+            "#0 Handler::respond() at app/Http/Handler.nvs:118"
+        );
+    }
+
+    /// The label a compiled frame pushes **replaces** the one the raise
+    /// rendered for that same frame, and it is the compiler's that survives: a
+    /// site blob carries the enclosing member and never the label a script
+    /// frame is compiled with.
+    #[test]
+    fn the_first_frame_a_throw_leaves_replaces_the_one_the_raise_rendered() {
+        let (_table, _, leaf) = tree();
+        let mut ctx = Ctx::buffered();
+        #[expect(unsafe_code, reason = "the table outlives the instance")]
+        let e = unsafe { Thrown::new(leaf, "boom") };
+        let blob = crate::source::encode(&Source {
+            file: "app/main.nvs".to_owned(),
+            line: 11,
+            member: None,
+        });
+        #[expect(
+            unsafe_code,
+            reason = "driving the primitive compiled code calls, with this frame's own blob"
+        )]
+        // SAFETY: as above — a `throw` at file scope, whose site names no
+        // member at all.
+        unsafe {
+            nvs_raise(&raw mut ctx, e.into_raw(), blob.as_ptr());
+        }
+        ctx.push_frame("app/main.nvs#3$script() at app/main.nvs:11");
+        assert_eq!(
+            ctx.take_thrown().trace_as_string(),
+            "#0 app/main.nvs#3$script() at app/main.nvs:11"
+        );
+    }
+
+    /// Only the first: every frame after the one the throw was raised in is
+    /// appended, so a trace climbing two frames names both.
+    #[test]
+    fn a_frame_further_out_is_appended_after_the_raises_own() {
+        let (_table, _, leaf) = tree();
+        let mut ctx = Ctx::buffered();
+        #[expect(unsafe_code, reason = "the table outlives the instance")]
+        let e = unsafe { Thrown::new(leaf, "boom") };
+        let blob = crate::source::encode(&site());
+        #[expect(
+            unsafe_code,
+            reason = "driving the primitive compiled code calls, with this frame's own blob"
+        )]
+        // SAFETY: as above.
+        unsafe {
+            nvs_raise(&raw mut ctx, e.into_raw(), blob.as_ptr());
+        }
+        ctx.push_frame("Handler::respond() at app/Http/Handler.nvs:118");
+        ctx.push_frame("Router::dispatch() at app/Router.nvs:40");
+        assert_eq!(
+            ctx.take_thrown().trace_as_string(),
+            "#0 Handler::respond() at app/Http/Handler.nvs:118\n\
+             #1 Router::dispatch() at app/Router.nvs:40"
+        );
     }
 
     #[test]

@@ -214,6 +214,9 @@ impl Ctx {
     /// classes a `catch` will see — [`ThrownClass`] owns the roster.
     pub fn set_pending_as(&mut self, class: ThrownClass, message: impl Into<Cow<'static, str>>) {
         self.pending = Some(Pending::Message(class, message.into()));
+        // A message has no object yet and so no frame to supersede: whatever
+        // failure [`Self::raise_sited`] marked one for is the one this replaces.
+        self.site_frame_pending = false;
     }
 
     /// Installs the class a bare-message failure is promoted to — spec
@@ -319,18 +322,44 @@ impl Ctx {
     /// is kept.
     pub(crate) fn with_pending_set_aside<R>(&mut self, body: impl FnOnce(&mut Self) -> R) -> R {
         let saved = self.pending.take();
+        // The mark travels with the failure it describes, or the throw put back
+        // below would have `body`'s answer to "is the innermost frame still
+        // provisional" rather than its own.
+        let saved_site_frame = std::mem::take(&mut self.site_frame_pending);
         let out = body(self);
         // Dropping a `Pending::Thrown` releases the exception object's own
         // reference, which is why this is a replace rather than an assignment.
         drop(std::mem::replace(&mut self.pending, saved));
+        self.site_frame_pending = saved_site_frame;
         out
     }
 
-    /// Records an already-built exception as the pending `THROWN` — what
-    /// [`crate::nvs_raise`] does for Novis's own `throw`, taking ownership of the
-    /// reference it was handed.
+    /// Records an already-built exception as the pending `THROWN`, taking
+    /// ownership of the reference it was handed.
+    ///
+    /// The exception is one nothing rendered a raise site for — what
+    /// [`crate::nvs_raise_new`] and a helper's [`crate::Fault`] produce — so
+    /// any frame [`Self::raise_sited`] marked as provisional belongs to a
+    /// failure this one replaces, and the mark goes with it.
     pub fn raise(&mut self, thrown: Thrown) {
         self.pending = Some(Pending::Thrown(thrown));
+        self.site_frame_pending = false;
+    }
+
+    /// [`Self::raise`] for Novis's own `throw`: `seeded` is
+    /// [`Thrown::capture_site`]'s answer, and says the exception's innermost
+    /// backtrace frame is the label the raise rendered rather than one a
+    /// compiled frame pushed — so the first frame the throw unwinds out of
+    /// replaces it instead of naming that frame a second time.
+    ///
+    /// A raise carrying **no** site leaves the mark exactly as it found it.
+    /// The one compiled shape that raises without one is a `catch` matching no
+    /// clause, handing the very same object onward, so the frame this context
+    /// seeded at the original throw is still the innermost one and is still
+    /// the one the compiler's own rendering supersedes.
+    pub(crate) fn raise_sited(&mut self, thrown: Thrown, seeded: bool) {
+        self.pending = Some(Pending::Thrown(thrown));
+        self.site_frame_pending |= seeded;
     }
 
     /// Records a `THROWN` of `class` carrying `message`, with each pair in
@@ -601,6 +630,12 @@ impl Ctx {
     ///
     /// A bare message is promoted to a real exception here, so a helper-raised
     /// throw accumulates a backtrace from the first compiled frame it leaves.
+    ///
+    /// The first frame after a raise that rendered its own site **replaces**
+    /// that rendering rather than following it: both name the frame the throw
+    /// is leaving, and this one is the compiler's, which knows the label a
+    /// script frame carries and a site blob does not
+    /// ([`Self::raise_sited`]).
     pub fn push_frame(&mut self, label: &str) {
         let Some(pending) = self.pending.take() else {
             return;
@@ -624,7 +659,11 @@ impl Ctx {
             ));
             return;
         }
-        thrown.push_frame(label);
+        if std::mem::take(&mut self.site_frame_pending) {
+            thrown.replace_innermost_frame(label);
+        } else {
+            thrown.push_frame(label);
+        }
         self.pending = Some(Pending::Thrown(thrown));
     }
 }

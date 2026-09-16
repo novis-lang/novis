@@ -140,6 +140,7 @@ impl Ctx {
             deferred: Some(Vec::new()),
             holds_deferred_slot: false,
             pending: None,
+            site_frame_pending: false,
             runtime_error_class: None,
             core_classes: None,
             output,

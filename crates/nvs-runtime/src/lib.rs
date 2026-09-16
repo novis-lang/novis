@@ -213,16 +213,20 @@
 //!    path and turns 'hit the ceiling' into 'collect, then continue', at the cost of building the
 //!    collector.
 //!    — owner: unowned-closures
-//! 6. **An exception *this crate* builds carries a message and nothing
-//!    else.** [`Thrown::new`] — reached from [`nvs_raise_new`] and from a
-//!    helper's bare-message [`Fault`] — fills `message`, empties `backtrace`
-//!    and `location`, and leaves `previous` null, because none of them has a
-//!    value to pass at that point. An exception Novis code constructs is
-//!    unaffected: it is an ordinary [`ObjHeader`] built by an ordinary
-//!    constructor, and `nvs_ir::lower` fills `location` at the `throw`. That
-//!    `previous` cannot be set *at all* yet is a different gap, owned by
-//!    `nvs_types::error_lib`, which explains why the synthesized constructor
-//!    takes only a message.
+//! 6. **A raise *this crate* makes for itself carries no site, and so no
+//!    frame.** Novis's own `throw` is done: [`nvs_raise`] is handed the site
+//!    the `throw` was compiled with and [`Thrown::capture_site`] renders the
+//!    raising frame from it, so an exception caught beside its own `throw`
+//!    carries that frame. [`nvs_raise_new`] — the cold block of a checked
+//!    integer operator — and a helper's bare-message [`Fault`] are handed no
+//!    site at all, so both still begin their trace at the first compiled frame
+//!    they unwind out of, and a `catch` in the frame the operator or the helper
+//!    was called from sees an empty one. Closing it is an operand: the
+//!    `nvs_ir::ir::InstKind::SourceConst` a `throw` already materializes, on
+//!    the raise the arithmetic lowering emits and on the helper ABI's own
+//!    signature. That `previous` cannot be set *at all* yet is a different gap,
+//!    owned by `nvs_types::error_lib`, which explains why the synthesized
+//!    constructor takes only a message.
 //!    Decided: Capture a full backtrace at every raise — Best for debugging, but it allocates on every
 //!    throw, which breaks the rule that a throw costs no more than a return.
 //!    — owner: unowned-closures
@@ -381,9 +385,10 @@ pub use string::{
     nvs_str_retain,
 };
 pub use throwable::{
-    BACKTRACE_SLOT, CONSTRAINT_SLOT, DRIVER_CODE_SLOT, FINISH_MARKER_NAME, ISSUES_SLOT, KIND_SLOT,
-    LOCATION_SLOT, MESSAGE_SLOT, PREVIOUS_SLOT, REASON_SLOT, SLOT_COUNT, SQL_SLOT, SQL_STATE_SLOT,
-    Thrown, ThrownClass, is_finish, nvs_raise, nvs_raise_new, nvs_take_thrown, nvs_trace_push,
+    BACKTRACE_SLOT, CONSTRAINT_SLOT, DRIVER_CODE_SLOT, ENTRY_SCRIPT_FRAME, FINISH_MARKER_NAME,
+    ISSUES_SLOT, KIND_SLOT, LOCATION_SLOT, MESSAGE_SLOT, PREVIOUS_SLOT, REASON_SLOT, SLOT_COUNT,
+    SQL_SLOT, SQL_STATE_SLOT, Thrown, ThrownClass, is_finish, nvs_raise, nvs_raise_new,
+    nvs_take_thrown, nvs_trace_push,
 };
 pub use trace_context::TraceContext;
 pub use value::{Tag, Value, nvs_value_release, nvs_value_retain};
