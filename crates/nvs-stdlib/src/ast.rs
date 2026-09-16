@@ -12,10 +12,47 @@
 //! here, no tolerant re-lexing, and no arm that repairs input the compiler
 //! would reject (`rule:errors/ambiguous-input-refused`).
 //!
+//! **There is one member, and parsing a *file* is it composed with
+//! `Core\IO::read`.** A path is the filesystem's question, and a second member
+//! asking it would put a `fs.read` check somewhere other than the door that
+//! already owns one — leaving this class holding a capability for the sake of
+//! one spelling, when its whole safety argument
+//! (`rule:security/reflection-needs-no-capability`) is that it needs none. The
+//! rule is the home of that trade;
+//! `tests/conformance/core/ast-parse-file-reads-through-the-io-door-under-fs-read.nvst`
+//! is the composition written out.
+//!
 //! That is also why source with an error is a `ParseError` rather than a tree
 //! carrying an `Error` node. The compiler keeps error nodes because it has
 //! more passes to run and more diagnostics to collect; a program asking what
 //! this text *is* has one question and gets one answer.
+//!
+//! # Decision: a production is a class, and the class is the node's identity
+//!
+//! `rule:core-classes/ast-is-inert` asks for one type per production, and
+//! [`PRODUCTIONS`] is it: one [`CoreClass`] per entry of
+//! [`nvs_syntax::walk::KINDS`], at the same index, so [`class_of`] finds a
+//! node's class by a binary search rather than by a second copy of the
+//! grammar's vocabulary. A parsed node is an instance of *its production's*
+//! class — a `Core\Ast\Binary`, a `Core\Ast\ClassDecl` — and
+//! `Core\Reflect::forObject($node)->name()` is where a program reads that
+//! back.
+//!
+//! **They carry no registry row, and that is the decision rather than an
+//! omission.** A `Core` class sits in no hierarchy (`crate::instance`'s
+//! descriptors are defined with no parents) and `instanceof` against one is
+//! refused outright (`E_INSTANCEOF_NOT_A_CLASS`), so a registered
+//! `Core\Ast\Binary` would be a name a program could write in a type position
+//! and no value could ever be checked against — surface that costs the
+//! simplicity AGENTS.md's ordering puts fourth and buys nothing at any level
+//! above it. What a program branches on is [`NODE`]'s `kind()`, which is the
+//! same production spelled short; what the class adds is the identity behind
+//! it, which is the half `kind()` cannot be wrong about.
+//!
+//! So [`NODE`] is the *written* type — what `parse`, `children` and `nodes`
+//! declare — and a production class is the *runtime* one. Every one of them
+//! declares [`NODE`]'s own slots, so a member body reads slot by index and
+//! never asks which class the receiver is.
 //!
 //! # Decision: the tree is inert because there is nothing in it to run
 //!
@@ -30,7 +67,7 @@
 //! three doors.
 //!
 //! The cost is that a node cannot answer its own source text, which a
-//! pretty-printer wants — known gap 2. That is a slot away, and adding it is
+//! pretty-printer wants — known gap 1. That is a slot away, and adding it is
 //! the point at which `parse`'s `$source` stops being
 //! [`Qual::Neutral`](crate::registry::Qual::Neutral).
 //!
@@ -43,14 +80,8 @@
 //!
 //! # Known gaps
 //!
-//! 1. § 3's typed roster — `Core\Ast\ClassDecl`, `Core\Ast\MethodDecl`, one
-//!    class per production — is not here. Every node is a [`NODE`] whose
-//!    `kind()` names its production, which is the shape of the answer rather
-//!    than the answer: the roster refines it, and `nvs_syntax::walk`'s own
-//!    module doc owns which productions are nodes at all today.
-//!    — owner: M8
-//! 2. A node carries no position and no text, so a walk can count and classify
-//!    but not quote. See the second decision above for what adding it costs.
+//! 1. A node carries no position and no text, so a walk can count and classify
+//!    but not quote. The inertness decision above is what adding it costs.
 //!    Closing this is also what makes userland architecture rules real: a
 //!    `#[Test]` that walks the tree can fail today, but cannot name the
 //!    `file:line` it failed about, and a structural rule that cannot point is
@@ -59,13 +90,6 @@
 //!    Decided: Position (line/column/offset) only — Architecture tests can point at file:line, and the
 //!    input stays qualifier-neutral because no text comes back out.
 //!    — owner: unowned-closures
-//! 3. § 3's `Core\Ast::parseFile` is not here. It reads a path, so it is a
-//!    capability-bearing member (`rule:security/capability-declaration-is-one-table`
-//!    's `fs.read`) rather than a second spelling of this one, and the
-//!    `Core\IO` door it goes through is where that check already lives.
-//!    Decided: Strike the spec roster row; compose IO::read + parse — Class stays capability-free and
-//!    the fs.read check stays where it already lives; users write two calls.
-//!    — owner: m8-stdlib-depth
 
 use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, ThrownClass, Value};
 
@@ -91,7 +115,7 @@ pub(crate) const CLASS: CoreClass = CoreClass {
         names: &["source"],
         // Neutral, and not a sink: the answer names productions rather than
         // carrying the argument's content, and nothing executes what it
-        // describes (`rule:core-classes/ast-is-inert`). The day known gap 2 lets a node answer its
+        // describes (`rule:core-classes/ast-is-inert`). The day known gap 1 lets a node answer its
         // own text is the day this becomes `Qual::Contagious`.
         params: &[CoreTy::Text(Qual::Neutral)],
         defaults: &[],
@@ -122,8 +146,17 @@ const PARSE_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Ast\Node` — what [`CLASS`]'s member answers with, and what its own
-/// two collections are made of.
+/// The slots a node holds, shared by [`NODE`] and by every [`PRODUCTIONS`]
+/// entry so a member body reads by index and never asks which class its
+/// receiver is.
+const NODE_SLOTS: &[&str] = &["kind", "children"];
+
+/// `Core\Ast\Node` — the type [`CLASS`]'s member and this class's own two
+/// collections are declared as, and the members every parsed node answers.
+///
+/// No instance carries *this* class: a node's runtime class is its
+/// production's ([`PRODUCTIONS`]), which the module doc's second decision
+/// owns.
 pub(crate) const NODE: CoreClass = CoreClass {
     name: NODE_NAME,
     methods: &[],
@@ -156,9 +189,140 @@ pub(crate) const NODE: CoreClass = CoreClass {
             doc: Some(&NODES_DOC),
         },
     ],
-    slots: &["kind", "children"],
+    slots: NODE_SLOTS,
     constants: &[],
 };
+
+/// One class per production, in [`nvs_syntax::walk::KINDS`]'s order.
+///
+/// `concat!` builds each name at compile time, so a production is written here
+/// once and as the production — and
+/// `every_production_the_walk_names_has_a_typed_ast_class` is what holds this
+/// list to that table, index by index.
+macro_rules! productions {
+    ($($kind:literal),* $(,)?) => {
+        /// The typed roster `rule:core-classes/ast-is-inert` asks for: one
+        /// class per production of the grammar, parallel to
+        /// [`nvs_syntax::walk::KINDS`].
+        ///
+        /// Each declares [`NODE`]'s slots and no members of its own — the
+        /// module doc's second decision says why a production is an identity
+        /// rather than a second surface.
+        pub(crate) const PRODUCTIONS: &[CoreClass] = &[
+            $(CoreClass {
+                name: concat!(r"Core\Ast\", $kind),
+                methods: &[],
+                instance: &[],
+                slots: NODE_SLOTS,
+                constants: &[],
+            }),*
+        ];
+    };
+}
+
+productions![
+    "ArrayLiteral",
+    "Assign",
+    "AutoloadDecl",
+    "Await",
+    "Binary",
+    "Block",
+    "Bool",
+    "Break",
+    "Call",
+    "Catch",
+    "ClassConstAccess",
+    "ClassDecl",
+    "ClassNameConst",
+    "Clone",
+    "Const",
+    "ConstFetch",
+    "Continue",
+    "Conversion",
+    "Destructure",
+    "DoWhile",
+    "Duration",
+    "Echo",
+    "Empty",
+    "EnumCase",
+    "EnumDecl",
+    "Error",
+    "Exit",
+    "Expr",
+    "File",
+    "Float",
+    "Fn",
+    "For",
+    "Foreach",
+    "Function",
+    "Global",
+    "Goto",
+    "If",
+    "Index",
+    "InlineHtml",
+    "InstanceOf",
+    "Int",
+    "InterfaceDecl",
+    "Interpolated",
+    "Isset",
+    "LocalDecl",
+    "Markup",
+    "Match",
+    "Method",
+    "MethodCall",
+    "NamespaceDecl",
+    "New",
+    "Null",
+    "ObjectLiteral",
+    "Paren",
+    "ParentExpr",
+    "PostIncDec",
+    "PreIncDec",
+    "Print",
+    "Property",
+    "PropertyAccess",
+    "Require",
+    "Return",
+    "SelfExpr",
+    "SpawnScript",
+    "StaticCall",
+    "StaticExpr",
+    "StaticLocal",
+    "StaticPropertyAccess",
+    "Str",
+    "Switch",
+    "Ternary",
+    "Throw",
+    "Try",
+    "TypeAliasDecl",
+    "TypeTest",
+    "Unary",
+    "Unset",
+    "UseDecl",
+    "Variable",
+    "While",
+    "Yield",
+    "YieldFrom",
+];
+
+/// The class a node of production `kind` is an instance of.
+///
+/// A binary search over [`nvs_syntax::walk::KINDS`], which is sorted and
+/// index-parallel to [`PRODUCTIONS`] — so this is the grammar's own table
+/// answering, and nothing here is a second list of production names.
+///
+/// # Panics
+///
+/// Panics naming the production if the walk answered with one the roster has
+/// no class for. Both halves are checked against each other by
+/// `every_production_the_walk_names_has_a_typed_ast_class`, so reaching this
+/// is a build-time oversight rather than anything a program can cause.
+fn class_of(kind: &str) -> &'static CoreClass {
+    let index = nvs_syntax::walk::KINDS
+        .binary_search(&kind)
+        .unwrap_or_else(|_| panic!("the walk answered with the unrostered production `{kind}`"));
+    &PRODUCTIONS[index]
+}
 
 /// `Core\Ast\Node::kind`'s reference card — `rule:core-api/reference-card`.
 const KIND_DOC: MethodDoc = MethodDoc {
@@ -188,7 +352,8 @@ const NODES_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// One [`NODE`] instance per node of the walk, built bottom-up.
+/// One instance per node of the walk, built bottom-up, each of its own
+/// production's class.
 ///
 /// Recursion rather than an explicit stack because the parser's own nesting
 /// limit already bounds the depth at 96 levels — see `nvs_syntax::parser`'s
@@ -200,7 +365,7 @@ fn instance_of(node: &nvs_syntax::walk::Node) -> Value {
         children.append(instance_of(child));
     }
     crate::instance::build(
-        &NODE,
+        class_of(node.kind),
         [
             Value::str(NvsStr::new(node.kind.as_bytes())),
             Value::array(children),
@@ -340,10 +505,120 @@ nvs_runtime::nvs_helper! {
 
 #[cfg(test)]
 mod tests {
-    use nvs_runtime::{Ctx, NvsStr, OutputSink, Tag, Value, call};
+    use nvs_runtime::{Ctx, NvsObj, NvsStr, OutputSink, Tag, Value, call};
 
-    use super::{CHILDREN_SLOT, KIND_SLOT, NAME, NODE, NODE_NAME};
+    use super::{CHILDREN_SLOT, KIND_SLOT, NAME, NODE, NODE_NAME, PRODUCTIONS, class_of};
     use crate::registry::{CLASSES, CoreTy};
+
+    /// The namespace every production's class name carries, which is the one
+    /// [`NODE`] itself sits in.
+    const PRODUCTION_PREFIX: &str = r"Core\Ast\";
+
+    /// `rule:core-classes/ast-is-inert`'s typed roster is the grammar's, whole:
+    /// every production `nvs_syntax::walk` names has a class of its own, at the
+    /// index the walk's own table gives it.
+    ///
+    /// The index is what [`class_of`] searches, so this is not a spelling check
+    /// — a roster one entry short or one out of order builds fine and answers
+    /// the wrong class for every production after the hole.
+    #[test]
+    fn every_production_the_walk_names_has_a_typed_ast_class() {
+        let kinds = nvs_syntax::walk::KINDS;
+        assert_eq!(
+            PRODUCTIONS.len(),
+            kinds.len(),
+            "one class per production, and no class for a production the walk \
+             never answers with"
+        );
+        for (kind, class) in kinds.iter().zip(PRODUCTIONS) {
+            assert_eq!(
+                class.name,
+                format!("{PRODUCTION_PREFIX}{kind}"),
+                "the roster and `nvs_syntax::walk::KINDS` have gone apart at `{kind}`"
+            );
+            assert_eq!(
+                class_of(kind).name,
+                class.name,
+                "`class_of` found `{kind}` at another index"
+            );
+            assert_eq!(
+                class.slots, NODE.slots,
+                "{} holds a node's slots, which is what every member body reads \
+                 by index",
+                class.name
+            );
+            assert!(
+                !CLASSES.iter().any(|row| row.name == class.name),
+                "{} is registry surface, which the module doc's second decision \
+                 refuses: a `Core` class is in no hierarchy and `instanceof` \
+                 against one is refused, so the name would be writable and never \
+                 satisfiable",
+                class.name
+            );
+        }
+    }
+
+    /// A parsed node is an instance of its production's class, and the walk
+    /// below the root is too.
+    #[test]
+    fn a_parsed_node_carries_its_productions_own_class() {
+        let source = Value::str(NvsStr::new(b"<?nvs echo 1 + 2;"));
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let tree =
+            call(super::nvs_core_ast_parse, &mut ctx, &[source]).expect("that source parses");
+        let mut seen: Vec<String> = Vec::new();
+        collect_classes(tree, &mut seen);
+        assert_eq!(
+            seen,
+            [
+                r"Core\Ast\File",
+                r"Core\Ast\Echo",
+                r"Core\Ast\Binary",
+                r"Core\Ast\Int",
+                r"Core\Ast\Int",
+            ],
+            "every node of the tree names its own production"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the one reference `parse` answered with, and \
+                      the tree's own references are the nodes' own"
+        )]
+        unsafe {
+            tree.release();
+            source.release();
+        }
+    }
+
+    /// Appends `node`'s class name and its children's, in source order.
+    fn collect_classes(node: Value, out: &mut Vec<String>) {
+        let receiver = node.obj_ptr().expect("a node is an object");
+        #[expect(
+            unsafe_code,
+            reason = "the tree under test owns this node's reference for the \
+                      length of the call, and the descriptor is owned by this \
+                      crate's leaked table, which outlives every instance"
+        )]
+        let name = unsafe {
+            let object = std::mem::ManuallyDrop::new(NvsObj::from_raw(receiver));
+            (*object.class()).name().to_owned()
+        };
+        out.push(name);
+        let children = crate::instance::slot(receiver, CHILDREN_SLOT);
+        let Some(array) = children.array_ptr() else {
+            return;
+        };
+        let array = crate::arr::borrowed(array);
+        let mut from = 0usize;
+        while let Some(slot) = array.next_slot(from) {
+            let child = array
+                .value_at(slot)
+                .expect("next_slot only names live entries");
+            collect_classes(child, out);
+            from = slot + 1;
+        }
+    }
 
     /// Whether a signature's type mentions `class` anywhere inside it.
     ///

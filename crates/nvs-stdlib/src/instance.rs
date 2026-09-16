@@ -84,10 +84,11 @@ use crate::registry::{self, CoreClass};
 /// `Core`-owned classes with instances that no program can name, and so with
 /// no [`registry::CLASSES`] row: a runtime artifact rather than surface.
 ///
-/// Exactly one so far — the cursor § 9's collections hand a `foreach`, whose
-/// own module docs own why it has no row. They are defined here beside the
+/// The singletons — the cursor § 9's collections hand a `foreach`, whose own
+/// module docs own why it has no row. They are named here beside the
 /// registered classes because a descriptor is a descriptor: everything below
-/// [`ClassDesc`] is the same for both.
+/// [`ClassDesc`] is the same for both. A row-less *family* is a slice of its
+/// own instead, chained in [`descriptors`] where this one is.
 const INTERNAL_CLASSES: &[&CoreClass] = &[&crate::cursor::CLASS];
 
 /// Every member compiled code reaches on a `Core` instance **by name** — one
@@ -310,6 +311,12 @@ fn descriptors() -> &'static ClassTable {
         for class in registry::CLASSES
             .iter()
             .chain(INTERNAL_CLASSES.iter().copied())
+            // `rule:core-classes/ast-is-inert`'s typed roster, which is the
+            // other family of row-less classes and a slice rather than lines
+            // above because it is one class per production of the grammar —
+            // `crate::ast`'s own second decision owns why none of them is
+            // registry surface.
+            .chain(crate::ast::PRODUCTIONS.iter())
         {
             // A **namespace** class is what is skipped here, and declaring no
             // slots is not on its own what makes one: `Core\Socket` has

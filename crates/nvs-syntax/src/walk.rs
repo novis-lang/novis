@@ -30,12 +30,13 @@
 //! children of that node. So a parameter's default is a child of the function
 //! it belongs to, and no node stands for the parameter itself.
 //!
-//! The alternative was one node per struct in [`crate::ast`], which is the
-//! shape `rule:tooling/reflection-and-source-parsing-are-core-features`'s typed roster eventually wants — but that roster is one
-//! *class* per production, and until those classes exist a node with no type
-//! of its own is just a kind string with a longer name. Drawing the line at
-//! the three productions the ADR names keeps every expression in the tree,
-//! which is what a walk is for, and leaves the redraw to the roster.
+//! The alternative was one node per struct in [`crate::ast`], and
+//! `rule:tooling/reflection-and-source-parsing-are-core-features`'s typed
+//! roster is not it: that roster is one class per *production*, which is
+//! [`KINDS`] — the table this walk's kinds are, and the one `Core\Ast` names
+//! its classes from. Drawing the line at the three productions the ADR names
+//! keeps every expression in the tree, which is what a walk is for, without
+//! making a parameter or a type annotation a node in order to have a class.
 //!
 //! # Decision: a field is what the span does not show
 //!
@@ -137,6 +138,105 @@ pub enum Field {
     /// A flag the grammar recorded, such as `?->` or `&`.
     Flag(bool),
 }
+
+/// Every production this walk names, in [`Node::kind`]'s own spelling and in
+/// sorted order.
+///
+/// The table `Core\Ast`'s typed roster is generated from
+/// (`rule:core-classes/ast-is-inert`): one class per entry, at the same index,
+/// so a consumer holding a kind finds its class by a binary search here rather
+/// than by a second copy of the grammar's vocabulary.
+///
+/// The kinds themselves are match arms below, because the match is what the
+/// compiler checks against `#[non_exhaustive]` enums — so this is the *second*
+/// place a production is written, and
+/// [`tests::every_kind_the_walk_answers_with_is_in_the_table`] is what keeps
+/// the two one home: it reads this file's own text and fails on a production
+/// in either and not the other.
+pub const KINDS: &[&str] = &[
+    "ArrayLiteral",
+    "Assign",
+    "AutoloadDecl",
+    "Await",
+    "Binary",
+    "Block",
+    "Bool",
+    "Break",
+    "Call",
+    "Catch",
+    "ClassConstAccess",
+    "ClassDecl",
+    "ClassNameConst",
+    "Clone",
+    "Const",
+    "ConstFetch",
+    "Continue",
+    "Conversion",
+    "Destructure",
+    "DoWhile",
+    "Duration",
+    "Echo",
+    "Empty",
+    "EnumCase",
+    "EnumDecl",
+    "Error",
+    "Exit",
+    "Expr",
+    "File",
+    "Float",
+    "Fn",
+    "For",
+    "Foreach",
+    "Function",
+    "Global",
+    "Goto",
+    "If",
+    "Index",
+    "InlineHtml",
+    "InstanceOf",
+    "Int",
+    "InterfaceDecl",
+    "Interpolated",
+    "Isset",
+    "LocalDecl",
+    "Markup",
+    "Match",
+    "Method",
+    "MethodCall",
+    "NamespaceDecl",
+    "New",
+    "Null",
+    "ObjectLiteral",
+    "Paren",
+    "ParentExpr",
+    "PostIncDec",
+    "PreIncDec",
+    "Print",
+    "Property",
+    "PropertyAccess",
+    "Require",
+    "Return",
+    "SelfExpr",
+    "SpawnScript",
+    "StaticCall",
+    "StaticExpr",
+    "StaticLocal",
+    "StaticPropertyAccess",
+    "Str",
+    "Switch",
+    "Ternary",
+    "Throw",
+    "Try",
+    "TypeAliasDecl",
+    "TypeTest",
+    "Unary",
+    "Unset",
+    "UseDecl",
+    "Variable",
+    "While",
+    "Yield",
+    "YieldFrom",
+];
 
 impl Node {
     /// This node's whole subtree, itself excluded, in source order.
@@ -899,7 +999,68 @@ fn push_destructure(kids: &mut Vec<Node>, target: &DestructureTarget) {
 
 #[cfg(test)]
 mod tests {
-    use super::of_source;
+    use std::collections::BTreeSet;
+
+    use super::{KINDS, of_source};
+
+    /// The three spans of this file a kind literal can appear in, as the
+    /// `fn` line that opens each and the one that closes it.
+    ///
+    /// Everything between `unary_op` and `member` is the parser's own
+    /// vocabulary — a [`Field::Word`] rather than a production — which is why
+    /// the productions are two spans and not one.
+    ///
+    /// [`Field::Word`]: super::Field::Word
+    const SPANS: &[(&str, &str)] = &[
+        ("pub fn of_source(", "pub fn of_stmts("),
+        ("fn stmt(", "fn unary_op("),
+        ("fn member(", "fn push_opt("),
+    ];
+
+    /// [`KINDS`] is the productions the match arms answer with, exactly.
+    ///
+    /// Read off this file's own text because a production is a match arm and
+    /// there is nothing else to read: the arms are what the compiler checks
+    /// against `#[non_exhaustive]`, and the table is what a consumer indexes.
+    /// A new production fails here until it is in both, which is the whole
+    /// obligation the table adds.
+    #[test]
+    fn every_kind_the_walk_answers_with_is_in_the_table() {
+        let text = include_str!("walk.rs");
+        let mut answered: BTreeSet<&str> = BTreeSet::new();
+        for (open, close) in SPANS {
+            let start = text
+                .find(open)
+                .unwrap_or_else(|| panic!("`{open}` is in this file"));
+            let end = text[start..]
+                .find(close)
+                .unwrap_or_else(|| panic!("`{close}` follows `{open}`"))
+                + start;
+            for line in text[start..end].lines() {
+                if line.trim_start().starts_with("//") {
+                    continue;
+                }
+                for (index, piece) in line.split('"').enumerate() {
+                    if index % 2 == 1
+                        && piece.starts_with(|c: char| c.is_ascii_uppercase())
+                        && piece.chars().all(|c| c.is_ascii_alphabetic())
+                    {
+                        answered.insert(piece);
+                    }
+                }
+            }
+        }
+        let table: BTreeSet<&str> = KINDS.iter().copied().collect();
+        assert_eq!(
+            answered, table,
+            "the productions the walk answers with and `KINDS` have gone apart"
+        );
+        assert!(
+            KINDS.windows(2).all(|pair| pair[0] < pair[1]),
+            "`KINDS` is sorted, because a consumer finds a production's index by \
+             a binary search over it"
+        );
+    }
 
     #[test]
     fn a_files_walk_is_every_statement_and_expression_under_it() {
