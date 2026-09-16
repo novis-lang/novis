@@ -630,6 +630,8 @@ fn check_method(m: &MethodMember, ctx: &Ctx<'_>, env: &mut Env<'_>) {
         env.exprs.record_method(m.name, label.clone());
     }
 
+    check_return_type_is_written(m, env);
+
     let Some(body) = &m.body else {
         return; // abstract method or interface signature — nothing to check
     };
@@ -832,6 +834,47 @@ fn forwards_the_called_class(name: &str, ctx: &Ctx<'_>, env: &Env<'_>) -> bool {
     ctx.current_class
         .and_then(|c| crate::signatures::resolve_method(c, name, env.signatures, env.graph))
         .is_some_and(|(_, sig)| sig.returns_static)
+}
+
+/// `rule:types/declaration`'s return slot, which every declaration fills but
+/// the one that has no value to promise (`E0823`).
+///
+/// Asked ahead of [`check_method`]'s body gate rather than beside the lowering
+/// below, because a declaration with no body is still a declaration a caller
+/// reads: an abstract method and an interface member owe the slot on exactly
+/// the terms a concrete one does. The constructor is the exception the rule
+/// states — it answers with the instance, which is why
+/// `E_CONSTRUCTOR_RETURN_CARRIES_A_VALUE` refuses a valued `return` in one —
+/// and it is recognized here the same way [`check_method`] recognizes it for
+/// `readonly`, from the name this declaration was written with.
+///
+/// **`__construct` is silent here too, and it is not a second constructor
+/// name.** `nvs_syntax::casing` has already refused the spelling
+/// (`E_LEGACY_CONSTRUCTOR_SPELLING`), and a PHP constructor arrives written
+/// exactly one way — no return type, because PHP has no slot to write one in.
+/// Asking its author for a `: void` on the same declaration they are about to
+/// rename is an edit they would only undo, on the one path this diagnostic's
+/// whole audience walks.
+///
+/// Reporting does not stop the body being checked. [`lower_optional_type`]
+/// still answers `mixed` for the empty slot, so what follows is the check the
+/// author would have got by writing `mixed` themselves, and one missing
+/// annotation does not hide every other error in the body behind it.
+fn check_return_type_is_written(m: &MethodMember, env: &mut Env<'_>) {
+    let name = span_text(env.src, m.name);
+    if m.return_type.is_some() || name == "constructor" || name == "__construct" {
+        return;
+    }
+    let message = format!("`{name}` declares no return type");
+    env.diags.report(
+        Diagnostic::error(code::E_METHOD_RETURN_TYPE_REQUIRED, message)
+            .with_primary(m.name, "no `: T` follows this declaration's parameters")
+            .with_help(
+                "`rule:types/declaration` makes the return slot mandatory — write `: void` \
+                 where the body hands nothing back, and `: never` where it always throws. \
+                 A constructor is the one declaration that omits it",
+            ),
+    );
 }
 
 fn check_every_path_returns(m: &MethodMember, body: &Block, return_ty: TypeId, env: &mut Env<'_>) {

@@ -1,0 +1,23 @@
+--TEST--
+A method that writes no return type is refused, and the constructor beside it is the one declaration that omits one — `rule:types/declaration`
+--FILE--
+<?nvs
+class Counter {
+    public int $n;
+
+    public function constructor(int $n) {
+        $this->n = $n;
+    }
+
+    public function bump() {
+        $this->n = $this->n + 1;
+    }
+}
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0823]: `bump` declares no return type
+  --> case.nvs:9:21
+%A
+error: aborting due to 1 error

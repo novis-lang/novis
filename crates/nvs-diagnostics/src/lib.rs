@@ -3664,6 +3664,26 @@ pub mod code {
     /// no return value to produce, so `nvs_types::check` checks it against
     /// `void` and `return;` is its only stop.
     pub const E_VALUELESS_RETURN: Code = Code::new("E0822");
+    /// A method declaration that writes no return type, where the constructor
+    /// is the one declaration allowed to.
+    ///
+    /// `rule:types/declaration` makes the slot mandatory, `void` and `never`
+    /// included, and the constructor is the exception that rule states: it
+    /// hands back the instance rather than a value, which is the same fact
+    /// [`E_CONSTRUCTOR_RETURN_CARRIES_A_VALUE`] refuses a `return $x` in one
+    /// for. Every other declaration owes a written type, because the
+    /// declaration is what a caller reads and an omitted one means `mixed` —
+    /// the widest type in the language, arrived at by leaving a slot empty
+    /// rather than by writing it.
+    ///
+    /// Reported at a signature with no body too. An abstract method and an
+    /// interface member are read by exactly the callers this is protecting, so
+    /// the slot they leave empty is the one that costs most.
+    /// [`E_CLOSURE_RETURN_TYPE_REQUIRED`] is this requirement at a
+    /// block-bodied `fn`, and between them an expression-bodied closure is the
+    /// only callable whose return type may go unwritten — its body is one
+    /// expression, which is its own answer.
+    pub const E_METHOD_RETURN_TYPE_REQUIRED: Code = Code::new("E0823");
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.

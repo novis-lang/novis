@@ -1,0 +1,15 @@
+--TEST--
+A declaration with no body owes the return slot too, because an interface member is exactly what a caller reads — `rule:types/declaration`
+--FILE--
+<?nvs
+interface Shaped {
+    public function area();
+}
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0823]: `area` declares no return type
+  --> case.nvs:3:21
+%A
+error: aborting due to 1 error
