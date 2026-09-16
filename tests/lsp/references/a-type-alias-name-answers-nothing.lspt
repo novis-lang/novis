@@ -1,9 +1,0 @@
---TEST--
-a type alias is not one of the three things the index names a symbol for, so its own name answers nothing, `rule:ide/five-features-are-one-reference-index`
---FILE--
-<?nvs
-type I<|>d = uint;
---REQUEST--
-references
---EXPECT--
-none

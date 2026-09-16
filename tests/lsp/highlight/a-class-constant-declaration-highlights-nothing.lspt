@@ -1,5 +1,5 @@
 --TEST--
-a class constant's declaration highlights nothing however many sites read it, which is the other half of a constant having no symbol this query can key on, `rule:ide/five-features-are-one-reference-index`
+a class constant's declaration highlights nothing however many sites read it, because a constant read resolves to nothing the occurrence walk records, `rule:ide/five-features-are-one-reference-index`
 --FILE--
 <?nvs
 class Cart

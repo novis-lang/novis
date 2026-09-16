@@ -767,10 +767,10 @@ fn overlaid<'a>(
 /// `textDocument/prepareTypeHierarchy` — the type under the cursor, as the item
 /// the two requests below are then asked about.
 ///
-/// The declaration under the cursor is tried before the use under it, and that
-/// order is the whole of what makes the feature reachable: a developer opens a
-/// hierarchy from the `class C` line, and [`symbol_at`] answers for a resolved
-/// *use* — a declaration's own name is not one.
+/// A developer opens a hierarchy from the `class C` line, which is a
+/// declaration rather than a resolved use. [`symbol_at`] answers both readings
+/// of a cursor, so this request asks it once and the reachable case and the
+/// interesting one are one call.
 ///
 /// A class and an interface, and nothing else. They are what
 /// [`nvs_hir::ClassGraph`] holds an entry for, and an enum has neither an
@@ -784,7 +784,6 @@ fn prepare_type_hierarchy(
     params: &TypeHierarchyPrepareParams,
 ) -> Option<Vec<TypeHierarchyItem>> {
     let uri = &params.text_document_position_params.text_document.uri;
-    let path = path_of(uri)?;
     let analysed = analyse(documents, uri)?;
     let offset = offset_at(
         analysed.map.file(analysed.entry),
@@ -792,27 +791,12 @@ fn prepare_type_hierarchy(
         encoding,
     );
 
-    let symbol = match declared_at(index, &path, offset) {
-        Some(declared) => declared.symbol.clone(),
-        None => symbol_at(&analysed, offset)?,
-    };
+    let symbol = symbol_at(&analysed, offset)?;
     let declared = index.declaration(&symbol)?;
     if !matches!(declared.kind, DeclKind::Class | DeclKind::Interface) {
         return None;
     }
     Some(hierarchy_items(documents, &[declared], encoding))
-}
-
-/// The declaration whose own name covers `offset` in `path`, if one does.
-fn declared_at<'a>(
-    index: &'a SymbolIndex,
-    path: &Path,
-    offset: BytePos,
-) -> Option<&'a Declaration> {
-    index
-        .declarations_in(path)
-        .iter()
-        .find(|declared| declared.site.start <= offset && offset <= declared.site.end)
 }
 
 /// Every declaration as a hierarchy item, each file's positions counted in its
@@ -1164,17 +1148,13 @@ fn implementation(
     params: &GotoDefinitionParams,
 ) -> Option<GotoDefinitionResponse> {
     let uri = &params.text_document_position_params.text_document.uri;
-    let path = path_of(uri)?;
     let analysed = analyse(documents, uri)?;
     let offset = offset_at(
         analysed.map.file(analysed.entry),
         params.text_document_position_params.position,
         encoding,
     );
-    let symbol = match declared_at(index, &path, offset) {
-        Some(declared) => declared.symbol.clone(),
-        None => symbol_at(&analysed, offset)?,
-    };
+    let symbol = symbol_at(&analysed, offset)?;
     let found = index.subtypes(&symbol);
     let sites: Vec<&Site> = found.iter().map(|declared| &declared.site).collect();
     Some(GotoDefinitionResponse::Array(locations(

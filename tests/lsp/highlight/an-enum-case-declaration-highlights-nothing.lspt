@@ -1,5 +1,5 @@
 --TEST--
-a case declaration highlights nothing even where the case is read, because the index has no symbol of its own for a case and the read was recorded against the enum, `rule:ide/five-features-are-one-reference-index`
+a case declaration highlights nothing even where the case is read, because that read was recorded against the enum rather than against the case, `rule:ide/five-features-are-one-reference-index`
 --FILE--
 <?nvs
 enum Status: int

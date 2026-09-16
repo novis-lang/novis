@@ -78,14 +78,6 @@
 //!    the resolved graph rather than this side, which is why a type hierarchy
 //!    is right where the count above the same name is not.
 //!    — owner: unowned
-//! 4. **A cursor on a declaration's own name resolves to no symbol**, so
-//!    `textDocument/references` answers empty exactly where a reader is most
-//!    likely to ask it. [`symbol_at`] reads a name off a recorded expression
-//!    and a declaration is not one — the same seam that makes `definition`
-//!    answer `none` at a declaration, which is right there and wrong here.
-//!    `tests/lsp/references/` freezes the empty answer at a class, an
-//!    interface, an enum, a method and a property.
-//!    — owner: unowned
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -493,15 +485,66 @@ impl SymbolIndex {
 /// this index could hold one for.
 ///
 /// The read side's entry point: a reader has a position and the index is keyed
-/// by name, so this is the one step between them. It is
-/// [`crate::definition::named_at`] — the same reading `definition` and `hover`
-/// answer a cursor with — spelled by `symbol_of` below, which is what stops a
-/// cursor that jumps to a declaration and a cursor that lists references
-/// disagreeing about which name they are about.
+/// by name, so this is the one step between them, and every feature that turns
+/// a cursor into a query comes through here rather than reading a name for
+/// itself.
+///
+/// **A name is written two ways and both are answered here.** A use carries
+/// what the checker resolved it to, which is [`crate::definition::named_at`] —
+/// the same reading `definition` and `hover` answer a cursor with — spelled by
+/// `symbol_of` below. A declaration carries the name it *declares*, which no
+/// resolution walk sees because a declaration is not an expression, and that is
+/// [`declared_at`]. Spelling both in one place is what stops a cursor that
+/// jumps to a declaration and a cursor that lists references disagreeing about
+/// which name they are about.
+///
+/// The declaration is asked first. Both readings answering one offset would
+/// need a use written inside the bytes of a declared name, which no grammar
+/// here has, so the order is which question is cheaper rather than which
+/// answer wins.
 #[must_use]
 pub fn symbol_at(analysed: &Analysed, offset: BytePos) -> Option<String> {
+    if let Some(declared) = declared_at(analysed, offset) {
+        return Some(declared);
+    }
     let (target, _) = named_at(analysed, offset)?;
     Some(symbol_of(&target))
+}
+
+/// The name a declaration of the entry document writes at `offset`, spelled the
+/// module doc's first decision's way.
+///
+/// The entry document alone, because that is the file a cursor is ever in
+/// (`crate::document::Analysed::index`). The two halves are read where
+/// [`declarations`] reads them and in the same order — the type from
+/// `nvs_hir::SymbolTable`, the member from the declaration's own node — so a
+/// name answered here is a name the index is keyed on rather than a second
+/// spelling of one.
+fn declared_at(analysed: &Analysed, offset: BytePos) -> Option<String> {
+    analysed.module.symbols.iter().find_map(|symbol| {
+        if symbol.decl_span.file != analysed.entry {
+            return None;
+        }
+        if covers(symbol.decl_span, offset) {
+            return Some(symbol.qname.to_string());
+        }
+        let (stmt, file) = declared_type(analysed, &symbol.qname)?;
+        let class = symbol.qname.to_string();
+        member_names(stmt)
+            .into_iter()
+            .find(|(name, ..)| covers(*name, offset))
+            .and_then(|(name, ..)| member_symbol(&class, file, name))
+    })
+}
+
+/// Whether `offset` is inside `span`, its last byte included.
+///
+/// One byte wider than `nvs_diagnostics::Span::contains`, and deliberately: a
+/// caret just past the `r` of `User` is on `User` to whoever put it there, and
+/// a double-click leaves it exactly there. It is the bound
+/// `crate::server`'s hierarchy request has always asked a declaration about.
+const fn covers(span: Span, offset: BytePos) -> bool {
+    span.start <= offset && offset <= span.end
 }
 
 /// The version recorded for a file no client has open.
@@ -609,56 +652,69 @@ fn declarations(analysed: &Analysed, loaded: &Loaded, path: &Path) -> Vec<Declar
 }
 
 /// The members `stmt` declares, appended to `found`.
-///
-/// A property keeps its `$`, which is how the module doc's first decision tells
-/// `C::$x` from `C::x`, and a member whose name covers no bytes contributes
-/// nothing — a half-typed declaration at the cursor has no name to be a
-/// reference to yet.
 fn members(stmt: &Stmt, file: &SourceFile, class: &str, path: &Path, found: &mut Vec<Declaration>) {
+    for (name, kind, visibility) in member_names(stmt) {
+        let Some(symbol) = member_symbol(class, file, name) else {
+            continue;
+        };
+        found.push(Declaration {
+            symbol,
+            kind,
+            site: site(path, name),
+            visibility,
+            // A member inherits nothing of its own: what a class extends is a
+            // fact about the class, and the override edge a lens shows is read
+            // off the two ends of that.
+            supertypes: Vec::new(),
+        });
+    }
+}
+
+/// Every member name `stmt` declares, with what it declares and where it is
+/// readable from, in source order.
+///
+/// One list for the two questions asked about a member name: [`members`] turns
+/// each into an index entry, and [`declared_at`] asks which of them the cursor
+/// is on. `ClassMemberKind` is `#[non_exhaustive]` and `Error` is recovery, so
+/// a member shape this crate has not heard of declares no name either of them
+/// could answer about and contributes none.
+fn member_names(stmt: &Stmt) -> Vec<(Span, DeclKind, Visibility)> {
     let (declared, cases): (&[ClassMember], &[_]) = match &stmt.kind {
         StmtKind::ClassDecl(decl) => (&decl.members, &[]),
         StmtKind::InterfaceDecl(decl) => (&decl.members, &[]),
         StmtKind::EnumDecl(decl) => (&decl.members, &decl.cases),
-        _ => return,
+        _ => return Vec::new(),
     };
 
-    for member in declared {
-        let (name, kind, visibility) = match &member.kind {
-            ClassMemberKind::Property(property) => (
+    let mut names: Vec<(Span, DeclKind, Visibility)> = declared
+        .iter()
+        .filter_map(|member| match &member.kind {
+            ClassMemberKind::Property(property) => Some((
                 property.name,
                 DeclKind::Property,
                 visibility_of(&property.modifiers),
-            ),
-            ClassMemberKind::Const(constant) => (
+            )),
+            ClassMemberKind::Const(constant) => Some((
                 constant.name,
                 DeclKind::Const,
                 visibility_of(&constant.modifiers),
-            ),
-            ClassMemberKind::Method(method) => (
+            )),
+            ClassMemberKind::Method(method) => Some((
                 method.name,
                 DeclKind::Method,
                 visibility_of(&method.modifiers),
-            ),
-            // `ClassMemberKind` is `#[non_exhaustive]` and `Error` is
-            // recovery: a member shape this crate has not heard of declares no
-            // name it could answer a reference about.
-            _ => continue,
-        };
-        push_member(found, class, file, name, kind, visibility, path);
-    }
-    for case in cases {
-        // An enum case takes no modifier list and is reachable wherever the
-        // enum's own name is.
-        push_member(
-            found,
-            class,
-            file,
-            case.name.span,
-            DeclKind::EnumCase,
-            Visibility::Public,
-            path,
-        );
-    }
+            )),
+            _ => None,
+        })
+        .collect();
+    // An enum case takes no modifier list and is reachable wherever the enum's
+    // own name is.
+    names.extend(
+        cases
+            .iter()
+            .map(|case| (case.name.span, DeclKind::EnumCase, Visibility::Public)),
+    );
+    names
 }
 
 /// The visibility `modifiers` declares, which is `Public` when they declare
@@ -679,30 +735,15 @@ fn visibility_of(modifiers: &[Modifier]) -> Visibility {
         .unwrap_or(Visibility::Public)
 }
 
-/// One member declaration, unless its name covers no source bytes.
-fn push_member(
-    found: &mut Vec<Declaration>,
-    class: &str,
-    file: &SourceFile,
-    name: Span,
-    kind: DeclKind,
-    visibility: Visibility,
-    path: &Path,
-) {
+/// The symbol a member of `class` written at `name` spells, or nothing when the
+/// name covers no source bytes — a half-typed declaration at the cursor has no
+/// name to be a reference to yet.
+///
+/// A property keeps its `$`, which is how the module doc's first decision tells
+/// `C::$x` from `C::x`.
+fn member_symbol(class: &str, file: &SourceFile, name: Span) -> Option<String> {
     let spelling = text_of(file, name);
-    if spelling.is_empty() {
-        return;
-    }
-    found.push(Declaration {
-        symbol: format!("{class}::{spelling}"),
-        kind,
-        site: site(path, name),
-        visibility,
-        // A member inherits nothing of its own: what a class extends is a fact
-        // about the class, and the override edge a lens shows is read off the
-        // two ends of that.
-        supertypes: Vec::new(),
-    });
+    (!spelling.is_empty()).then(|| format!("{class}::{spelling}"))
 }
 
 /// The names `qname` directly extends or implements, spelled the way the

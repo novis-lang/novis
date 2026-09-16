@@ -1,0 +1,21 @@
+--TEST--
+a method's own declaration answers itself and every call that resolves to it, which is the same list a cursor on one of those calls answers and is the point of spelling both readings of a cursor in one place, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+class User
+{
+    public function gr<|>eet(): string
+    {
+        return "hi";
+    }
+}
+
+var $u = new User();
+echo $u->greet();
+echo $u->greet();
+--REQUEST--
+references
+--EXPECT--
+case.nvs:4:21
+case.nvs:11:10
+case.nvs:12:10

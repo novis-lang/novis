@@ -1,0 +1,16 @@
+--TEST--
+a cursor on a class's own declaration highlights every site in the file that allocates it and not the declaration itself, which is this request's own narrowing of the reference list at the same cursor, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+class Us<|>er
+{
+    public string $name = "";
+}
+
+var $u = new User();
+var $v = new User();
+--REQUEST--
+documentHighlight
+--EXPECT--
+case.nvs:7:14
+case.nvs:8:14

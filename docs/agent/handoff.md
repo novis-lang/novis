@@ -2,57 +2,64 @@
 
 ## State
 
-**Goal `unowned-closures`, stage 6 — the register.** The floor check `no module-doc gap names a goal
-that walked without closing it` is green: `python tools/owners.py` reports `retired-owner: 0`, since
-`nvs-render`'s `#[Test]`-result producer (`crates/nvs-render/src/lib.rs:39`) is M10's — the milestone
-that makes the identical move for a compiler diagnostic and lands the surfaces that read a record.
-The tool's other counts are `unowned: 42`, `untagged: 0`, `broken-tag: 0`, `unreasoned: 0`, and
-`past-milestone: 8`; stage 6 wants the first of those at 0.
+**Goal `unowned-closures`, stage 6 — the register.** `python tools/owners.py` reports `unowned: 41`,
+`untagged: 0`, `broken-tag: 0`, `unreasoned: 0`, `retired-owner: 0` and `past-milestone: 8`; stage 6
+wants the first of those at 0, and the stage's other check — `python tools/owners.py --deferrals` — is
+green. Nothing is blocked.
 
-**The two definite-assignment scanners now share one descent and nothing else.**
-`nvs_syntax::visit::each_child_expr` (`crates/nvs-syntax/src/visit.rs`) is the one match over the
-productions `ExprKind` holds, written where the enum is because it is `#[non_exhaustive]` and a
-wildcard arm in another crate would walk a new form as a leaf. It yields what an expression
-*evaluates*: a closure's body and an anonymous class's members are not children of the expression
-that writes them. `crate::ctor_init` joins the forms whose operands do not all run
-(`scan_branches`) by intersection, so `$flag ? ($this->count = 1) : 0` no longer counts; `crate::lateinit`
-threads one set straight through them, because a write seen on any branch suppressing a later read
-is the silence `rule:classes/lateinit-read-before-write` asks for. Both module docs state the
-closure bound as prose rather than a gap. Nothing is blocked.
+**A cursor on a declaration's own name now resolves to the symbol it declares.**
+`nvs_lsp::index::symbol_at` (`crates/nvs-lsp/src/index.rs:502`) asks `declared_at` before
+`crate::definition::named_at`: the declaration side reads the type from `nvs_hir::SymbolTable` and the
+member from the declaration's own node, in the order and from the sources `declarations` already reads
+them, so a name it answers is a name the index is keyed on. The member half of both is one list,
+`member_names`, and `member_symbol` is the one place `C::$x` is spelled. `crate::server`'s own
+index-side `declared_at` is gone: the type hierarchy and `implementation` ask `symbol_at` once, like the
+other three features. The cursor's file is the analysis entry, which is the only file a cursor is in
+(`Analysed::index`), and `covers` includes the name's last byte because that is where a double-click
+leaves the caret.
+
+`tests/lsp/` moved with it: twelve cases that froze the empty answer are renamed to the answer they now
+freeze, and four that still answer nothing say why in the terms that are now true. A `.lspt`
+expectation is never edited to make a case pass (`tests/lsp/README.md`), so a case whose claim changed
+is a new case under the name of its new claim.
 
 ## Next group
 
-**Stage 6: the reference index's four occurrence gaps** — one file set:
-`crates/nvs-lsp/src/index.rs`, and `crates/nvs-lsp/src/definition.rs` for the second item, which is
-where the missing variant goes.
+**Stage 6: the reference index's three remaining occurrence gaps** — one file set:
+`crates/nvs-lsp/src/index.rs`, `crates/nvs-lsp/src/definition.rs` for the second item, and the `.lspt`
+cases under `tests/lsp/references/` and `tests/lsp/highlight/`.
 
-- [ ] **A cursor on a declaration's own name resolves to the symbol it declares** —
-      `crates/nvs-lsp/src/index.rs:81`, `rule:ide/five-features-are-one-reference-index`. `symbol_at`
-      reads a name off a recorded expression and a declaration is not one, so
-      `textDocument/references` answers empty exactly where a reader asks it; `tests/lsp/references/`
-      freezes that empty answer at a class, an interface, an enum, a method and a property, and each
-      of those fixtures moves with the fix.
 - [ ] **A name in an `extends` or `implements` clause is an occurrence** —
-      `crates/nvs-lsp/src/index.rs:74`, same rule. A use is read off `Analysed::exprs` and a clause is
-      not an expression, so an interface every class implements counts none; `SymbolIndex::subtypes`
-      already reads the resolved graph, which is the shape the count above the name should take too.
+      `crates/nvs-lsp/src/index.rs:74`, `rule:ide/five-features-are-one-reference-index`. The written
+      spans are on the declaration's own node (`ClassDecl::extends`, `ClassDecl::implements`,
+      `InterfaceDecl::extends`, each entry a `Name` with its own span,
+      `crates/nvs-syntax/src/ast.rs:1518`); the resolved names are `nvs_hir::ClassLinks::extends` and
+      `::implements` off `analysed.module.graph` (`crates/nvs-hir/src/hierarchy.rs:60`). Pair the two
+      **by position and only when the lengths match** — `crates/nvs-hir/src/hierarchy.rs:266` drops a
+      name that did not resolve, and a clause paired off by one would record a use at the wrong name.
+      The hook is a second pass in `occurrences` (`crates/nvs-lsp/src/index.rs:784`), per symbol
+      declared in the file, reaching the node through `declared_type` the way `declarations` does.
+      `tests/lsp/references/an-interface-declarations-own-name-answers-itself-alone.lspt` and
+      `tests/lsp/highlight/an-interface-declarations-own-name-highlights-nothing.lspt` both move with
+      it: the clause in each is at `case.nvs:7:23`.
 - [ ] **Reading a class constant is an occurrence of it** — `crates/nvs-lsp/src/index.rs:68`, same
-      rule. `crate::definition::Target` names a type, a method and a property and no constant, so
-      `self::GREETING` resolves to nothing this walk can record — the variant is that module's to add
-      before the index can record one.
+      rule. `crate::definition::Target` (`crates/nvs-lsp/src/definition.rs:187`) names a type, a method
+      and a property and has no constant among them, so the variant goes there, with its arm in
+      `target_of` (`crates/nvs-lsp/src/definition.rs:380`) and its spelling in `symbol_of`
+      (`crates/nvs-lsp/src/index.rs:810`) — the declaration side already spells it `Cart::LIMIT`.
+      `tests/lsp/references/a-class-constant-read-answers-nothing.lspt` and
+      `.../a-class-constant-declaration-answers-itself-alone.lspt` move with it.
 - [ ] **An enum case occurrence is recorded against the case** — `crates/nvs-lsp/src/index.rs:61`,
-      same rule. Take this one last and only if the first three left room: the checker resolves the
-      site to the enum (`nvs_types::ExprInfo::EnumCase`) and `definition` answers the same way, so
-      closing it is a change in the checker's table rather than in this walk.
+      same rule. This one is a change in the checker's table rather than in the walk: the read resolves
+      to `nvs_types::ExprInfo::EnumCase`, whose `enum_` is what both this index and `definition` answer.
+      `tests/lsp/references/an-enum-case-declaration-answers-itself-alone.lspt`,
+      `.../an-enum-case-read-answers-the-enum-it-was-recorded-against.lspt` and their two `highlight`
+      twins move with it.
 
 ## Backlog
 
-- The `nvs-ir` lowering gaps are the largest unowned block left — `crates/nvs-ir/src/lib.rs` gaps 2–20,
-  each its own decision; that crate's own module doc holds them.
-- `crates/nvs-cli/src/openapi.rs` gaps 1–5 are one unowned block over one file, and the REST-client
-  note (`docs/agent/carried-gaps.md`) says OpenAPI is skipped on purpose — that reason may already
-  settle all five.
-- `crates/nvs-types/src/signatures.rs` gaps 1–2 and `locals.rs` gap 1 sit in files this session did
-  not open but the same pass owns.
-- `python tools/owners.py`'s `past-milestone: 8` is a separate finding from `unowned`, and no check
-  names it yet.
+- The other 41 `unowned` module-doc gaps stage 6 still wants at 0 — `python tools/owners.py` lists
+  each with its file and number.
+- `crates/nvs-hir/src/hierarchy.rs:38`'s own unowned gap (a `Core` link target is trusted to exist) is
+  in this goal and carries a `Decided:` sentence already.
+- What a shipped feature still owes across a goal switch is `docs/agent/carried-gaps.md`, not here.
