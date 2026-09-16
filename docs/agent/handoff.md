@@ -3,42 +3,53 @@
 ## State
 
 Goal `m8-stdlib-depth`. **Stages 0, 2, 3, 4 and 5 are done, and stage 6 is open on `Core\Reflect`.**
-Stage 6's five named `.nvst` cases are all on disk and green: a hooked property written reflectively
-now runs its `set` hook, because a class's hooks reach its runtime descriptor.
-`nvs_types::layout::ClassLayout::hooks` collects `(property, hook label, is the `set` accessor)` and
-flattens it on `methods`' precedence, `nvs_ir::ir::Class::hooks` copies it down, both binders join the
-compiled address on, and `nvs_runtime::ClassDesc::hook_row` answers it — which
-`write_erased_property` calls before it ever reaches a slot. Nothing is blocked.
+Stage 6's five named `.nvst` cases are all on disk and green. A property's **declared type** now reaches
+the runtime descriptor as a printable name, on the hook roster's own road:
+`nvs_types::layout::ClassLayout::field_types` spells it from the declaration that wrote it, aligned to
+`fields`' slot order; `nvs_ir::ir::Class::field_types` copies it down, `nvs-codegen` hands it to
+`nvs_runtime::ClassTable::set_field_types` under the length guard its visibility twin uses, and
+`nvs_runtime::ClassDesc::field_type` answers it — `None` for a slot no declaration laid out.
 
-**A floor regression was the acceptance failure, not unwritten work.** Commit `abdc729b6` had renamed
-the test a carried floor check pins; the name is restored and this goal's own stage-5 check names it.
-The playbook bullet above is the general shape.
+`crates/nvs-stdlib/src/reflect.rs`'s gap 3 is struck: last session's hook work made a reflective write
+run the `set` hook, and the gap still said it did not. Gap 1 now names the class registration itself as
+`PropertyInfo`'s one remaining blocker. Nothing is blocked.
 
-What stage 6 still owes is `every_reflect_info_class_the_record_names_is_registered`:
-`crates/nvs-stdlib/src/reflect.rs:116` gap 1 names the five absent `*Info` classes and what each waits
-on. The near pair is the group below, and it is the journey this session just built, one datum over.
+**The next item is not the five mechanical edits the last handoff called it.** `ClassInfo::methods`
+answers `array<MethodInfo>` while `ClassInfo::properties` answers `array<string>` filtered to the
+calling site, so registering `PropertyInfo` first decides which of those two shapes the property half
+takes. The item below names the evidence on both sides.
 
 ## Next group
 
-**Stage 6: `PropertyInfo` and `ParameterInfo`, carried down the same four crates** — one file set:
-`crates/nvs-types/src/layout.rs`, `crates/nvs-ir/src/ir.rs`, `crates/nvs-codegen/src/lib.rs`,
-`crates/nvs-runtime/src/object.rs` and `crates/nvs-stdlib/src/reflect.rs`. `rule:core-classes/reflect`
-is the rule; the goal's § *Standing decisions* pre-authorizes the shape, and
-`crates/nvs-stdlib/src/reflect.rs:116` gap 1 says each of these waits on descriptor data rather than
-on a decision.
+**Stage 6: the `*Info` classes, over descriptor data that now exists** — one file set:
+`crates/nvs-stdlib/src/reflect.rs`, `crates/nvs-stdlib/src/registry.rs`,
+`crates/nvs-stdlib/src/instance.rs` and `tests/conformance/core/`. `rule:core-classes/reflect` is the
+rule; ADR 0019 § 1's roster and § 2's *reading metadata is always available* are the record, and the
+goal's § *Standing decisions* pre-authorizes the shape.
 
-- [ ] **A property's declared type reaches its descriptor as a printable name** — the roster the hook
-      one is now beside: `crates/nvs-types/src/layout.rs:61` builds it,
-      `crates/nvs-ir/src/ir.rs:186` copies it down, `crates/nvs-codegen/src/lib.rs:1213` carries it to
-      `nvs_runtime::ClassTable`, and `crates/nvs-runtime/src/object.rs:290` holds it. A
-      `nvs_runtime::Tag` is not enough — `?int`, `array<string>` and a class are one tag or none.
-- [ ] **`Core\Reflect\PropertyInfo` is registered over it** — the five edits, roster at
-      `crates/nvs-stdlib/src/reflect.rs:373`, beside `METHOD_INFO` at
-      `crates/nvs-stdlib/src/reflect.rs:754`. Its walk answers what the calling site may read, which is
-      `nvs_core_reflect_class_info_properties`' rule at `crates/nvs-stdlib/src/reflect.rs:392`.
-- [ ] **`Core\Reflect\ParameterInfo` beside it** — a parameter's *name* has no home below the front
-      end either, so it travels the first item's road; `crates/nvs-stdlib/src/reflect.rs:116` gap 1 is
-      what it closes half of.
+- [ ] **`Core\Reflect\PropertyInfo` registered, and the surface call made before the five edits** —
+      `crates/nvs-stdlib/src/reflect.rs:749` is the template (`METHOD_INFO`: three readers over three
+      slots, one card each), `crates/nvs-stdlib/src/reflect.rs:855` is the walk that would fill it and
+      already builds both the visible and the declared name lists,
+      `crates/nvs-stdlib/src/registry.rs:2017` is the one-line registration and `:2987` the member
+      roster. The call to make first: either `properties` becomes `methods`' symmetric roster — ADR
+      0019 § 2 makes metadata readable whatever the visibility, and
+      `tests/conformance/core/reflect-describes-a-class-by-the-properties-visible-from-outside.nvst`
+      is a `rule:core-classes/reflect` guard case that is then amended *with* the rule in the same
+      slice — or a second member lands beside it and the two rosters keep answering differently. Read
+      the module doc's § *the method roster is complete* (`crates/nvs-stdlib/src/reflect.rs:46`)
+      first; it owns why they differ today. The type each row carries is
+      `nvs_runtime::ClassDesc::field_type` (`crates/nvs-runtime/src/object.rs:1032`).
+- [ ] **`Core\Reflect\ParameterInfo` beside it** — a parameter's *name* is in no descriptor:
+      `nvs_runtime::MethodRow` (`crates/nvs-runtime/src/object.rs:516`) carries the address, the arity
+      and one tag per slot and no spelling, while `nvs_types::signatures::MethodSig`
+      (`crates/nvs-types/src/signatures.rs:57`) holds the names. It travels the road this session
+      built, one datum over: `layout`/`signatures` → `nvs_ir::ir::Class` → `ClassTable` → `ClassDesc`.
+- [ ] **`every_reflect_info_class_the_record_names_is_registered`** — the stage-6 check at
+      `docs/agent/loop-goal.toml:10917`, enumerating ADR 0019 § 1's roster against
+      `crates/nvs-stdlib/src/registry.rs:2012`'s `CLASSES`. Write it with the **last** Info class of
+      the stage: it names seven classes and stays red until `ConstantInfo`, `AttributeInfo` and
+      `EnumInfo` land too, so writing it earlier only leaves a red test in the tree.
 
 ## Backlog
 
@@ -48,6 +59,9 @@ on a decision.
   attributes or enum cases at all — `crates/nvs-stdlib/src/reflect.rs:116` gap 1.
 - A `protected` member is reached reflectively from the declaring class alone, not from a subclass —
   `crates/nvs-stdlib/src/reflect.rs` gap 2, which fails closed.
-- `[context] modules` names none of `crates/nvs-runtime/src/object.rs`,
-  `crates/nvs-codegen/src/lib.rs` or `crates/nvs-ir/src/ir.rs`, which stage 6's work has now spent
-  three sessions in; the ledger has flagged it each time and it is left for a person to narrow.
+- The exception tree's slots carry no declared type *text* — `nvs_types::error_lib` types them as
+  interned ids, so `ClassDesc::field_type` answers `None` for every `Throwable` slot and a
+  `PropertyInfo` over a caught error will show it.
+- `[context] modules` named none of `crates/nvs-runtime/src/object.rs`, `crates/nvs-codegen/src/lib.rs`
+  or `crates/nvs-ir/src/ir.rs`; this session's commit touches all three, so the driver's own sweep of
+  the field should close it without a person.
