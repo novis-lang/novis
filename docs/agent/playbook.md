@@ -7321,7 +7321,8 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   no descriptor to walk — so no spelling in `rule:types/narrowing` reaches either arm and only
   `echo` accepts the value, which surfaces from a `.nvst` case long after `-p <crate>` went green.
   Before widening a `return_ty` to two classes, check a program can tell them apart; prefer one
-  class and a `# Known gaps` row. [until: gone crates/nvs-hir/src/**:E0496]
+  class and a `# Known gaps` row.
+  [until: gone crates/nvs-diagnostics/src/lib.rs:E_INSTANCEOF_NOT_A_CLASS]
 - **A new `Core` row's parameters are swept from outside the class's module, once from another
   crate.** `registry.rs`'s `UNCLASSIFIED` is deletions-only, so a bare `CoreTy::Str` in an options
   bag fails `every_member_parameter_carries_a_qualifier_classification` and may not be listed beside
