@@ -15171,7 +15171,7 @@ the dump went to stderr
 Core\Debug::dump(mixed ...$values): void
 ```
 
-Writes one rendered node per argument to the diagnostic channel — stderr in a CLI program, never stdout — which is what `var_dump` is for, minus its writing to output.
+Writes one rendered node per argument where the sink in force sends it: the diagnostic channel outside a request — stderr in a CLI program, never stdout — and a log record at `Debug` inside one, which `[debug] inline` additionally appends to an HTML response body. This is what `var_dump` is for, minus its writing to output.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -15186,13 +15186,13 @@ Writes one rendered node per argument to the diagnostic channel — stderr in a 
 Core\Debug::render(mixed $value): Core\Cli\Text
 ```
 
-Renders `$value` exactly as `dump` would and answers it as the carrier of the sink in force instead of writing it, so a dump can be embedded in output and stays singly escaped.
+Renders `$value` exactly as `dump` would and answers it as a `Core\Cli\Text` instead of writing it, so a dump can be embedded in output and stays singly escaped.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$value` | `mixed` | The value to render, walked as `dump` walks one. |
 
-**Returns** `Core\Cli\Text` — The rendering as a `Core\Cli\Text`, the carrier of the sink in force, without the trailing newline `dump` writes.
+**Returns** `Core\Cli\Text` — The plaintext rendering as a `Core\Cli\Text` under every sink, without the trailing newline `dump` writes.
 
 <a id="core-core-test"></a>
 ### `Core\Test`

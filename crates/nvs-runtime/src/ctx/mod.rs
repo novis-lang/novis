@@ -1054,6 +1054,21 @@ pub struct Ctx {
     /// **What it spends:** one word per request, and one short allocation per
     /// request that declares — never per write.
     content_type: Option<Box<str>>,
+    /// What this request's `Core\Debug::dump` calls rendered for its body, held
+    /// until the body is finished — `rule:errors/debug-dump`'s `[debug] inline`
+    /// row, and empty on every context that dumped nothing.
+    ///
+    /// Collected rather than written where the dump was made, because both
+    /// questions a block's placement turns on are answered only at the end.
+    /// Whether the body is HTML at all is [`Self::content_type`], which the body
+    /// member that declares it may not have run yet; and markup a block is
+    /// appended *after* cannot be markup the block landed in the middle of.
+    /// [`Self::flush_inline_debug`] is the one reader.
+    ///
+    /// **What it spends:** the rendered blocks of one request's dumps, released
+    /// with the request. Nothing at all outside a mode whose `[debug] inline`
+    /// ceiling is open, which a host that wrote no configuration does not have.
+    inline_debug: Vec<u8>,
     /// The file this response's body **is** — `Core\Response::sendFile`, the one
     /// body member whose bytes never pass through this context.
     ///

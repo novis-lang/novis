@@ -1213,6 +1213,15 @@ fn finish(isolate_ctx: &mut Ctx, answer: Value, receiving: Option<&ErrorClass>) 
     if !cancelled {
         isolate_ctx.end_session();
     }
+    // `rule:errors/debug-dump`'s `[debug] inline` row, appended here because
+    // this is the line where both of its conditions are finally known: the body
+    // member has declared what the body is if it was going to, and there is no
+    // markup left to write that a block could land in the middle of. Swallowed
+    // on failure for `rule:errors/engine-floor`'s reason — a development-mode
+    // block that could not be written is not a reason to fail the request it was
+    // describing — and `Ctx::flush_inline_debug` owns the rest, including why a
+    // JSON body is left alone.
+    drop(isolate_ctx.flush_inline_debug());
     let output = isolate_ctx.take_buffered_output().unwrap_or_default();
     // `rule:security/response-body-is-one-typed-member`'s declaration, taken beside the bytes it describes and on
     // every path out of here — a child that threw still wrote what it wrote,

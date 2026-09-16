@@ -432,10 +432,11 @@ pub struct Debug {
     /// as the only thing that enables it — and a host that wrote no configuration starts in
     /// `production`, where it is off.
     ///
-    /// A mode flip derives this key and `Core\Config` answers it, so it is not an unread one; what
-    /// is still owed is the reader that puts the block in the body, and `nvs_stdlib::debug`'s own
-    /// known gap is where that is written down. The rendering such a block would take is already
-    /// decided by the sink its bytes leave through.
+    /// A mode flip derives this key, `Core\Config` answers it, and `nvs_stdlib::debug` reads it in
+    /// force at every dump a request makes — which is the whole of what it does. The block that
+    /// results is held on the context and appended by the isolate's finish path
+    /// (`nvs_runtime::Ctx::flush_inline_debug`), because whether the body is HTML at all is a
+    /// declaration the body member may not have made yet when the dump was written.
     pub inline: Option<bool>,
     /// `rule:core-classes/temporary-dir-sweep` — `true` and the end-of-script sweep logs each path it would have deleted
     /// instead of deleting it, so the absence of cleanup is deliberate and visible rather than a

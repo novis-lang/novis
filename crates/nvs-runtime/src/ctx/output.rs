@@ -552,6 +552,63 @@ impl Ctx {
         self.content_type.take()
     }
 
+    /// Holds one rendered `Core\Debug::dump` block for this request's body —
+    /// `rule:errors/debug-dump`'s `[debug] inline` row, the only one of that
+    /// table's four that puts a dump in a response at all.
+    ///
+    /// The rendering arrives already made, from [`Self::carrier`], so what a
+    /// block looks like stays where `rule:errors/renderings` puts it: the
+    /// channel the bytes leave through picks it, and there is no second table
+    /// here to disagree with that one.
+    pub fn append_inline_debug(&mut self, block: &str) {
+        self.inline_debug.extend_from_slice(block.as_bytes());
+    }
+
+    /// Appends those blocks to this request's body, and never to a body that
+    /// declared it is not HTML.
+    ///
+    /// The isolate's finish path calls this once, beside
+    /// [`Self::take_content_type`] and before the output is taken, because two
+    /// things are true only there. The declaration saying what the body *is* has
+    /// been made if it is going to be; and every `Core\Out::capture` has closed,
+    /// so a dump is still not something a capture can swallow even though these
+    /// bytes go out through [`Self::write_output`] — which is what charges them
+    /// to `[limits] max_output`, the response being what they are part of.
+    ///
+    /// **A JSON body is never modified**, in either mode, which
+    /// `rule:errors/debug-dump` makes a property of the language rather than of
+    /// a deployment: an endpoint answers the same shape in development as in
+    /// production, so a client's strict validator cannot pass against one and
+    /// fail against the other. `None` is the request that only echoed, which
+    /// `rule:security/response-body-is-one-typed-member` reads as `text/html`.
+    ///
+    /// # Errors
+    ///
+    /// Whatever the sink returns. [`OutputSink::Body`] never fails, and it is
+    /// the sink every request this can write anything for is on.
+    pub fn flush_inline_debug(&mut self) -> io::Result<()> {
+        let blocks = std::mem::take(&mut self.inline_debug);
+        if blocks.is_empty() || !self.body_takes_a_block() {
+            return Ok(());
+        }
+        self.write_output(&blocks)
+    }
+
+    /// Whether this response's body is the HTML one a block may be appended to.
+    ///
+    /// Compared case-insensitively over the media type's own token, because
+    /// `Core\Response::bytes` takes the type as a parameter and a program may
+    /// spell it in any case RFC 9110 admits; the parameters after it — a
+    /// charset, a boundary — say nothing about whether the body is markup.
+    fn body_takes_a_block(&self) -> bool {
+        self.content_type.as_deref().is_none_or(|media| {
+            media
+                .as_bytes()
+                .get(..b"text/html".len())
+                .is_some_and(|head| head.eq_ignore_ascii_case(b"text/html"))
+        })
+    }
+
     /// Records the file this response's body is — `Core\Response::sendFile`,
     /// the one body member that hands over a name instead of bytes.
     ///

@@ -418,14 +418,14 @@ where taking it is the work and the code that follows it is not.
   from its initializer rather than written. Both ends that exist are closed — the argument is refused
   where the call is written and a `secret` property is a `nvs_render::Node::Redacted`. What has to be
   decided is whether the qualifier composes onto a container at all, which answers once for the type
-  lattice and is not a dump walk's call to make. `crates/nvs-stdlib/src/debug.rs` gap 1.
+  lattice and is not a dump walk's call to make. `crates/nvs-runtime/src/record.rs` gap 1.
   [until: reviewed 2026-09-10]
 - **An enum case dumps as its backing integer**, because an enum has no tag of its own at run time
   and a case arriving through `mixed` is indistinguishable from an `int`. The rendering half is not
   the hole — `nvs_render::Node::EnumCase` exists and is what a producer with a static type would
   build — so what has to be decided is whether an enum earns a representation of its own, a tag or a
   bit the roster can test. That answers for every `mixed` consumer at once rather than for this walk,
-  and `rule:types/conversion` is where it lands. `crates/nvs-stdlib/src/debug.rs` gap 2.
+  and `rule:types/conversion` is where it lands. `crates/nvs-runtime/src/record.rs` gap 2.
   [until: reviewed 2026-09-10]
 - **Seven of `Core\Regex`'s eight pattern parameters refuse a `tainted` argument by default rather
   than by a mark**, because `nvs_types::core_lib`'s `qual_of` answers `None` for a

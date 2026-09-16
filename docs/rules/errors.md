@@ -532,7 +532,7 @@ property that makes refusing one now cheap to revisit.
 
 ```
 Core\Debug::dump(mixed ...$values): void
-Core\Debug::render(mixed $value): <the carrier of the sink in force>
+Core\Debug::render(mixed $value): Core\Cli\Text
 ```
 
 | Context | Where a dump lands |
@@ -543,6 +543,14 @@ Core\Debug::render(mixed $value): <the carrier of the sink in force>
 | an HTTP request writing **JSON** | the log record only — **never inline** |
 
 CLI dumps go to stderr, not stdout, so piping and redirection keep working while debugging.
+
+**`render` answers `Core\Cli\Text` under every sink**, and that is a bound rather than a rounding of
+the table above. A member whose carrier varied would have to *declare* both of
+[`security/capture-answers-the-carrier`](security.md#security-capture-answers-the-carrier)'s classes, and no program can act on that union:
+`instanceof` against a `Core` class is `E0496` by decision and not by omission (`docs/decisions/0125.md` § 4),
+so [`types/narrowing`](types.md#types-narrowing) reaches neither arm and the union is inert everywhere but `echo` — which
+needs no union to begin with. A *dump* is still rendered for the sink in force, which is what
+[`errors/renderings`](errors.md#errors-renderings) says and what the `[debug] inline` row spends.
 
 **A JSON body is never modified, in either mode.** Injecting a `debug` key would make the served
 shape disagree with the published contract in exactly the environment where clients are written

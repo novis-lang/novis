@@ -10,60 +10,74 @@
 //! sink in force is the only input to which rendering runs (§ 3), which is
 //! what keeps the five producers from each growing a `$format` parameter and
 //! the renderings from becoming twenty. [`rendered_for`] is the whole of that
-//! choice, asked of the channel the bytes leave through: a dump's leave
-//! through `nvs_runtime::Ctx::write_diagnostic`, so it is that channel's
-//! carrier and not `echo`'s that decides.
+//! choice, asked of the channel the bytes leave through: a dump reaching a
+//! terminal leaves through `nvs_runtime::Ctx::write_diagnostic` and a block
+//! appended to a response leaves through the body, so each takes that
+//! channel's own carrier and neither is a table this module states twice.
 //!
 //! # Where a dump lands
 //!
-//! § 4's table: in a CLI program a dump goes to **stderr**, never stdout, so
-//! `prog | jq` and `prog > out.txt` keep working while a program is being
-//! debugged. `nvs_runtime::Ctx::write_diagnostic` is that channel and owns why
-//! it is a second sink rather than a fourth `OutputSink` variant. A dump is
+//! § 4's table, and [`nvs_core_debug_dump`] is the whole of the routing.
+//! Outside a request — a CLI program, a scheduled script, a job worker, a test
+//! — a dump goes to **stderr**, never stdout, so `prog | jq` and
+//! `prog > out.txt` keep working while a program is being debugged.
+//! `nvs_runtime::Ctx::write_diagnostic` is that channel and owns why it is a
+//! second sink rather than a fourth `OutputSink` variant. A dump is
 //! deliberately *not* captured by `Core\Out::capture`: capturing one would
 //! swallow the very output it was written to make visible.
 //!
+//! **Inside a request a dump is a log record**, at `Log\Level::Debug`, written
+//! through `nvs_runtime::Ctx::write_log_record` like `rule:errors/record-producers`'
+//! other writers — so `[log] target`, `[log] level` and `[log] format` answer
+//! for it too, and a forgotten call in production is a line in whatever the
+//! deployment already collects rather than an engine-side channel nobody reads.
+//! With no target configured the fallback channel is the diagnostic one and not
+//! the program's output, which is the difference between this producer and
+//! `Core\Log::write`: a dump is something the engine writes *about* a program,
+//! not something the program said.
+//!
+//! **`[debug] inline` adds the block, and changes nothing else.** With the
+//! directive in force the same record is rendered a second time, for the body's
+//! own carrier, and handed to `nvs_runtime::Ctx::append_inline_debug` — which
+//! holds it until the request finishes and appends it there, and owns why the
+//! two questions that placement turns on are answerable only at the end. The
+//! record is written in both modes; the block is the whole of what the
+//! directive buys. It is `RuntimeTighten` (`nvs_config::directive`), so a
+//! request may turn its own inline output off and can never turn it on, which
+//! leaves the run mode's default as the only thing that enables it — and a host
+//! that wrote no configuration starts in `production`, where it is off.
+//!
 //! The HTTP rows of that table are the security half of the rule: PHP's
 //! most-exploited information disclosure is not a bug in `var_dump`, it is
-//! that `var_dump` writes to *output*. Here a forgotten call writes to the
-//! diagnostic channel wherever it was made, a request included, and the
-//! spelling that would put one in a response body is `[debug] inline`, whose
-//! ceiling is closed by default. A JSON body is never modified in either mode.
-//!
-//! # Known gaps
-//!
-//! 1. **A dump has no way into a response body and writes no log record**,
-//!    which is the rest of that table: `[debug] inline` is the directive its
-//!    two HTML rows turn on and nothing spells one yet. What is already
-//!    decided is the *rendering* — point the diagnostic channel at the body
-//!    and the collapsible block follows with no second choice made anywhere —
-//!    so what the directive still owes is the channel and the record beside
-//!    it.
-//!    — owner: m8-stdlib-depth
-//! 2. **`render` answers the terminal carrier under every sink**, where
-//!    `rule:errors/debug-dump`'s signature line writes *the carrier of the
-//!    sink in force* and `rule:errors/renderings`' table gives the HTML sink
-//!    `Core\Html\Markup`. Answering two classes means declaring two, and a
-//!    program cannot act on that union: `instanceof` against a `Core` class is
-//!    `E0496` — a signature in this registry has no descriptor to walk — so
-//!    `rule:types/narrowing` has no spelling that reaches either arm and the
-//!    answer would be inert everywhere but `echo`. Declaring one class while
-//!    answering the other is the worse trade, since it would hand a
-//!    `Core\Html\Markup` to the `as string` conversion written for the
-//!    terminal carrier and bypass `rule:core-classes/html-to-source`'s demand
-//!    for a reason. The row lands when a `Core` class is testable.
-//!    — owner: m8-stdlib-depth
+//! that `var_dump` writes to *output*. Here a forgotten call writes a log line
+//! wherever it was made, and the one spelling that would put it in a response
+//! body is a directive whose ceiling is closed by default and which no request
+//! can open. A JSON body is never modified in either mode.
 //!
 //! # `render`, and why it is one member rather than a second mechanism
 //!
-//! `render` answers the carrier of the sink in force — `Core\Cli\Text`, under
-//! every sink, for gap 2's reason — so a dump can be *embedded* rather than
-//! written, by
+//! `render` answers a carrier rather than a `string`, so a dump can be
+//! *embedded* rather than written, by
 //! `rule:security/capture-answers-the-carrier`
 //! 's rule verbatim. Because it answers a carrier, `echo Core\Debug::render($x)`
 //! is singly escaped: those bytes have already been through the record's own
 //! transformations, and the carrier is what stops the next `echo` escaping
 //! them again.
+//!
+//! **The carrier is `Core\Cli\Text` under every sink, and that is a bound
+//! rather than a hole.** A member answering the sink's own carrier would have
+//! to *declare* both of `rule:errors/renderings`' two, and a program cannot act
+//! on that union: `instanceof` against a `Core` class is `E0496` by
+//! [ADR 0125](/docs/decisions/0125.md) § 4 — a decided refusal and not a
+//! missing feature, computed and registry-shaped class names both being
+//! request-controlled spellings the checker does not admit — so
+//! `rule:types/narrowing` reaches neither arm and the union would be inert
+//! everywhere but `echo`, which needs no union to begin with. Declaring one
+//! class while answering the other is the worse trade, since it hands a
+//! `Core\Html\Markup` to the `as string` conversion written for the terminal
+//! carrier and bypasses `rule:core-classes/html-to-source`'s demand for a
+//! reason. So the plaintext rendering is what `render` answers, and a program
+//! that wants the block in a body turns on the directive above instead.
 //!
 //! # The walk is not here
 //!
@@ -75,7 +89,7 @@
 //! rather than two.
 
 use nvs_render::{Level, Node, Record, Source};
-use nvs_runtime::{Fault, Tag, Value};
+use nvs_runtime::{Ctx, Fault, LogChannel, Tag, Value};
 
 use crate::registry::{CoreClass, CoreMethod, CoreTy, MethodDoc, ParamDoc};
 
@@ -117,8 +131,10 @@ pub(crate) const CLASS: CoreClass = CoreClass {
 
 /// `Core\Debug::dump`'s reference card — `rule:core-api/reference-card`.
 const DUMP_DOC: MethodDoc = MethodDoc {
-    short: "Writes one rendered node per argument to the diagnostic channel — stderr in a CLI \
-            program, never stdout — which is what `var_dump` is for, minus its writing to \
+    short: "Writes one rendered node per argument where the sink in force sends it: the \
+            diagnostic channel outside a request — stderr in a CLI program, never stdout — and \
+            a log record at `Debug` inside one, which `[debug] inline` additionally appends to \
+            an HTML response body. This is what `var_dump` is for, minus its writing to \
             output.",
     params: &[ParamDoc {
         name: "values",
@@ -134,16 +150,16 @@ const DUMP_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Debug::render`'s reference card — `rule:core-api/reference-card`.
 const RENDER_DOC: MethodDoc = MethodDoc {
-    short: "Renders `$value` exactly as `dump` would and answers it as the carrier of the sink \
-            in force instead of writing it, so a dump can be embedded in output and stays \
-            singly escaped.",
+    short: "Renders `$value` exactly as `dump` would and answers it as a `Core\\Cli\\Text` \
+            instead of writing it, so a dump can be embedded in output and stays singly \
+            escaped.",
     params: &[ParamDoc {
         name: "value",
         desc: "The value to render, walked as `dump` walks one.",
         shape: &[],
     }],
-    ret: "The rendering as a `Core\\Cli\\Text`, the carrier of the sink in force, without the \
-          trailing newline `dump` writes.",
+    ret: "The plaintext rendering as a `Core\\Cli\\Text` under every sink, without the trailing \
+          newline `dump` writes.",
     errors: &[],
 };
 
@@ -170,28 +186,69 @@ nvs_runtime::nvs_helper! {
     /// A dump with no arguments at all writes nothing rather than an empty
     /// line: `Core\Debug::dump()` says nothing, and a blank line in a build
     /// log is worse than silence.
+    ///
+    /// The two destinations below are § 4's table and the module doc is where
+    /// each row's reasoning is. What decides between them is whether this
+    /// context is answering a request, asked the same way
+    /// `Ctx::stamp_envelope` asks it — the request and not the sink, so that a
+    /// `spawn script` child inside one, which takes its parent's carrier and
+    /// answers no response of its own, is still a program whose dumps belong
+    /// in that request's log.
     fn nvs_core_debug_dump(ctx, args: [2]) {
         #[expect(
             unsafe_code,
             reason = "the carrier came out of a `SourceConst` the compiled unit baked into its own data section, which outlives every request served from it"
         )]
         let source = unsafe { nvs_runtime::source::of_operand(args[0]) };
-        let record = record_of(source, &args[1])?;
+        let mut record = record_of(source, &args[1])?;
         if record.nodes.is_empty() {
             return Ok(Value::null());
         }
-        let rendered = rendered_for(ctx.diagnostic_carrier(), &record.nodes);
-        // Unreachable from source, and by a different route than the checker
-        // refusals elsewhere in this file: the only diagnostic sink that can
-        // fail is `OutputSink::Stderr` — `Buffer` and `Sink` never do, which
-        // `Ctx::write_diagnostic`'s own `# Errors` states — and nothing in the
-        // language moves the channel or closes the descriptor. A program that
-        // dumps cannot make this happen; only the host can, by handing the
-        // process a stderr it then breaks, and there is no case that spells it.
-        ctx.write_diagnostic(rendered.as_bytes())
-            .map_err(|e| Fault::fatal(format!("Core\\Debug::dump could not write: {e}")))?;
+        if ctx.inbound().is_none() {
+            let rendered = rendered_for(ctx.diagnostic_carrier(), &record.nodes);
+            // Unreachable from source: the only diagnostic sink that can fail
+            // is `OutputSink::Stderr` — `Buffer` and `Sink` never do, which
+            // `Ctx::write_diagnostic`'s `# Errors` states — and nothing in the
+            // language moves the channel or closes the descriptor. Only the
+            // host can, by breaking the stderr it handed the process.
+            ctx.write_diagnostic(rendered.as_bytes())
+                .map_err(|e| Fault::fatal(format!("Core\\Debug::dump could not write: {e}")))?;
+            return Ok(Value::null());
+        }
+        // Rendered for `Ctx::carrier` and not for the diagnostic channel's:
+        // these bytes leave through the response body, so that is the sink in
+        // force for them. The nodes and never the envelope, which is what makes
+        // this the same rendering the terminal row gets rather than a third one
+        // — `rule:errors/renderings` gives the envelope's keys to the log
+        // target, and the record below is where they go.
+        if inline(ctx) {
+            let block = rendered_for(ctx.carrier(), &record.nodes);
+            ctx.append_inline_debug(&block);
+        }
+        ctx.stamp_envelope(&mut record.envelope);
+        // Swallowed rather than raised, which is `rule:errors/engine-floor`'s
+        // answer for every record write: a log target that could not be written
+        // is not a reason to fail the program that was being debugged, and
+        // `Core\Log::write` beside it makes the same call.
+        drop(ctx.write_log_record(&record, LogChannel::Diagnostic));
         Ok(Value::null())
     }
+}
+
+/// Whether `[debug] inline` is in force — `rule:errors/debug-dump`'s two HTML
+/// rows, and the only input to this module that is not a value being dumped.
+///
+/// Read **in force** rather than off the snapshot, unlike `[debug]
+/// keep_temporary` beside it in `nvs_runtime::sweep`: that key is `System` and
+/// has no in-language setter, while this one is `RuntimeTighten`, so a request
+/// that turned its own inline output off has written an overlay entry that only
+/// `nvs_config::Request::get` sees. A context carrying no configuration at all
+/// — every `.nvst` case, every unit test — answers `false`, which is the
+/// fail-closed direction and the same one an unconfigured host gets.
+fn inline(ctx: &Ctx) -> bool {
+    ctx.config()
+        .and_then(|config| config.get("debug.inline"))
+        .is_some_and(|value| value == "true")
 }
 
 nvs_runtime::nvs_helper! {
@@ -202,9 +259,9 @@ nvs_runtime::nvs_helper! {
     /// cannot be handed back as a `string` without the next `echo` escaping
     /// them a second time, so this answers what `Core\Out::capture` answers.
     ///
-    /// The terminal carrier under every sink, which is the module's gap 2 and
-    /// not a reading of the sink: the answer's class is a *declared* type, and
-    /// the two carriers have no spelling a program could tell apart.
+    /// The terminal carrier under every sink, which the module doc states as a
+    /// bound: the answer's class is a *declared* type, and the two carriers
+    /// have no spelling a program could tell apart.
     fn nvs_core_debug_render(_ctx, args: [1]) {
         Ok(crate::cli::built(Value::str(nvs_runtime::NvsStr::new(
             rendered(args[0]).as_bytes(),
@@ -319,8 +376,9 @@ mod tests {
                 render.return_ty,
                 CoreTy::Instance(name) if name == crate::cli::NAME
             ),
-            "`render` answers one class under every sink, which is gap 2 and not \
-             a reading of `rule:errors/renderings`' table"
+            "`render` answers one class under every sink, which the module doc \
+             states as a bound: the union the other reading needs is inert while \
+             `instanceof` against a `Core` class is `E0496`"
         );
     }
 
@@ -419,6 +477,111 @@ mod tests {
         unsafe {
             tail.release();
         }
+    }
+
+    /// A context answering an HTTP request and writing a response body, under
+    /// the configuration `written` states.
+    ///
+    /// The three HTTP rows of `rule:errors/debug-dump`'s table are read against
+    /// this and the row above them against [`nvs_runtime::Ctx::buffered`], which
+    /// is the whole difference the routing turns on. The diagnostic channel
+    /// buffers so that the record a request writes with no `[log] target`
+    /// configured is readable at all.
+    fn requesting(written: &str) -> nvs_runtime::Ctx {
+        let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Body(Vec::new()));
+        ctx.set_inbound(nvs_runtime::Inbound::new("GET", "/", ""));
+        ctx.set_config(crate::tests::granting(written));
+        ctx.set_diagnostic_sink(nvs_runtime::OutputSink::Buffer(Vec::new()));
+        ctx
+    }
+
+    /// One `Core\Debug::dump(7)` made in `ctx`, tail array and release included.
+    fn dump_in(ctx: &mut nvs_runtime::Ctx) {
+        let mut tail = nvs_runtime::NvsArray::new();
+        tail.append(Value::int(7));
+        let tail = Value::array(tail);
+        nvs_runtime::call(
+            nvs_core_debug_dump,
+            ctx,
+            &[Value::source_const(std::ptr::null()), tail],
+        )
+        .expect("a dump cannot fail");
+        #[expect(
+            unsafe_code,
+            reason = "this frame built the array and still owns the only \
+                      reference to it; the helper borrowed it"
+        )]
+        unsafe {
+            tail.release();
+        }
+    }
+
+    /// `rule:errors/debug-dump`'s HTTP rows: inside a request a dump is a
+    /// **record** at `Debug`, not the plaintext line the row above it writes,
+    /// and with `[debug] inline` unset nothing reaches the body at all.
+    ///
+    /// Asserted on the rendering's frame rather than on the whole line, because
+    /// which envelope keys a record carries is `nvs_render::json`'s own test and
+    /// `Ctx::write_log_record`'s; what is this module's is that the dump went
+    /// through them.
+    #[test]
+    fn a_dump_inside_a_request_is_a_record_and_not_a_line() {
+        let mut ctx = requesting("");
+        dump_in(&mut ctx);
+        let written = ctx
+            .take_buffered_diagnostic()
+            .expect("the diagnostic channel buffers");
+        let written = String::from_utf8(written).expect("a JSON Lines record is text");
+        assert!(
+            written.starts_with('{') && written.contains(r#""level":"debug""#),
+            "a dump in a request is one record at `Debug`: {written}"
+        );
+        assert!(
+            written.contains('7'),
+            "and the dumped value is still its node: {written}"
+        );
+        assert_eq!(
+            ctx.take_buffered_output().as_deref(),
+            Some(b"".as_slice()),
+            "with the directive unset the record is all there is"
+        );
+    }
+
+    /// `[debug] inline`'s two rows, both halves: the block reaches an HTML body
+    /// and never a JSON one, and it reaches it when the request *finishes*
+    /// rather than where the dump was written.
+    ///
+    /// The JSON leg is the security half — an endpoint answers the same shape
+    /// in development as in production, so a client's strict validator cannot
+    /// pass against one and fail against the other — and it is asserted through
+    /// the same flush as the HTML leg, a declaration being the only thing
+    /// between them.
+    #[test]
+    fn debug_inline_appends_a_block_to_an_html_body_and_never_to_a_json_one() {
+        let mut html = requesting("[debug]\ninline = true\n");
+        dump_in(&mut html);
+        assert_eq!(
+            html.take_buffered_output().as_deref(),
+            Some(b"".as_slice()),
+            "nothing is in the body while there is still markup to write"
+        );
+        html.flush_inline_debug().expect("a body sink never fails");
+        let body =
+            String::from_utf8(html.take_buffered_output().unwrap_or_default()).expect("markup");
+        assert!(
+            body.starts_with("<div class=\"nvs-nodes\">") && body.contains('7'),
+            "the body takes the collapsible block, rendered for its own carrier: {body}"
+        );
+
+        let mut json = requesting("[debug]\ninline = true\n");
+        dump_in(&mut json);
+        json.declare_content_type("application/json");
+        json.flush_inline_debug().expect("a body sink never fails");
+        assert_eq!(
+            json.take_buffered_output().as_deref(),
+            Some(b"".as_slice()),
+            "a JSON body is never modified, in either mode"
+        );
     }
 
     /// `rule:errors/a-record-names-where-it-was-produced`: the record a dump

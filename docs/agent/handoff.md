@@ -2,58 +2,53 @@
 
 ## State
 
-**Goal `unowned-closures`, stage 4 open.** `Core\Compress`'s incremental surface is on disk and its
-gap is struck. `Core\Compress::compressor` and `::decompressor` open two classes — a
-`Compress\Compressor`, whose `finish` answers `bytes`, and a `Compress\Decompressor`, whose `finish`
-answers `tainted bytes` — each fed by `add` and closed by `finish`. A decompressor resolves `Bound`
-at the opening and `finish` applies it once over the whole stream, so feeding a frame in ten chunks
-buys exactly what feeding it in one does. `crates/nvs-stdlib/src/compress.rs:45` § *The incremental
-surface, and why it is two classes* is the home of why two classes, why the chunks rather than a
-coder, why PHP's `$flush_mode` has no spelling, and what a stream spends.
+**Goal `unowned-closures`, stage 4 open.** `Core\Debug`'s two gaps are struck and the module owns
+both answers. Inside a request a dump is now one record at `Debug` through
+`Ctx::write_log_record` — so `[log] target`, `[log] level` and `[log] format` answer for it, and the
+unconfigured fallback is the diagnostic channel rather than the program's output; outside a request
+nothing moved. `[debug] inline` is read in force at each dump, renders the same nodes for the body's
+own carrier and hands the block to `Ctx::append_inline_debug`, which the isolate's finish path
+appends with `Ctx::flush_inline_debug` — after the body member has declared what the body is, so a
+JSON body is never modified, and after the markup, so a block never lands inside a tag.
+`render` answering `Core\Cli\Text` under every sink is now stated as a **bound**: `instanceof`
+against a `Core` class is `E0496` by decision ([0125](../decisions/0125.md) § 4), so the union the
+other reading needs is inert. `rule:errors/debug-dump`'s signature line is amended to match.
 
-**The failing acceptance check is not what this group closed.** Stage 4's check is `python
-tools/owners.py` wanting `, 0 owned by a retired goal`, and the five items it names belong to retired
-goal `m8-stdlib-depth` — not one of them is a `Core\Compress` gap. They are the group below, which is
-a different file set and needs its own pack. Nothing is blocked.
+The compress case the goal's stage-4 check names is on disk at that path. It was written last
+session under a different slug and has been renamed; the case itself is unchanged. Nothing is
+blocked.
+
+**The pack was missing two `[context]` fields for this item.** `modules` names no
+`crates/nvs-stdlib/src/debug.rs`, `crates/nvs-runtime/src/ctx/`, `crates/nvs-host/src/isolate.rs` or
+`crates/nvs-config/src/tree.rs`, and `rules` names neither `errors/debug-dump` nor
+`errors/renderings` — the two the item's own gaps cite. Both cost a fetch.
 
 ## Next group
 
-**Stage 4: the module docs — the five gaps retired goal `m8-stdlib-depth` left** — one file set:
-`crates/nvs-stdlib/src/debug.rs`, `crates/nvs-stdlib/src/json.rs`, `crates/nvs-stdlib/src/db/mod.rs`
-and `crates/nvs-render/src/lib.rs`. `python tools/owners.py` prints the list; the verdict for each is
-*build it and strike the gap*, or re-owner to an M9+ milestone whose plan states the scope. `unowned`
-is not available — this goal exists to empty it.
+**Stage 4: the codec descriptor that has to nest** — one file set:
+`crates/nvs-stdlib/src/json.rs`, `crates/nvs-stdlib/src/db/mod.rs` and `crates/nvs-render/src/lib.rs`,
+plus `nvs_runtime::CodecField`, which the first two both widen. `python tools/owners.py` prints
+what is left: three items, all owned by retired goal `m8-stdlib-depth`.
 
-- [ ] **`[debug] inline` is the channel a dump reaches a response body through** —
-      `crates/nvs-stdlib/src/debug.rs:35` gap 1 and `crates/nvs-stdlib/src/debug.rs:43` gap 2, one
-      file: the directive and the record beside it, then `render`'s two carriers
-      (`rule:errors/debug-dump`, `rule:errors/renderings`). Gap 2 names its own precondition — a
-      `Core` class cannot be narrowed by `instanceof`, which is `E0496` — so read the gap before
-      building rather than after.
 - [ ] **An `array<T>` of inline shapes needs an element description that nests** —
-      `crates/nvs-stdlib/src/json.rs:151` gap 1 (`rule:core-classes/derive-field-list`): the
-      element's contract has nowhere to ride, since `nvs_runtime::CodecField` carries one and a list
-      has spent it naming the element's wire type. The same widening `array<array<T>>` waits on, so
-      this is the one of the five most likely to be a milestone owner rather than a build.
+      `crates/nvs-stdlib/src/json.rs:151` gap 1 (`rule:core-classes/derive-field-list`). The element's
+      contract has nowhere to ride: `nvs_runtime::CodecField` carries one and a list has spent it on
+      the element's wire type, so `decode_as` refuses the field before reading the document. This is
+      the same widening `array<array<T>>` waits on, so decide the descriptor's shape here and let the
+      two doors follow.
 - [ ] **A hydration's skipped field has no call site to emit its default from** —
-      `crates/nvs-stdlib/src/db/mod.rs:268` gap 3 (`rule:core-classes/derive-field-list`), the
-      neighbouring question at the other door to the `json.rs` one; `nvs_types::derive`'s
-      `check_row_sites` already refuses every other shape as `E0806` while compiling.
-- [ ] **A `#[Test]` result is a producer, so § 22's three output formats are one record rendered
-      three ways** — `crates/nvs-render/src/lib.rs:39` gap 1 (`rule:errors/diagnostic-record`), the
-      only one of the five outside `nvs-stdlib`.
+      `crates/nvs-stdlib/src/db/mod.rs:268` gap 3, the other door onto the same descriptor
+      (`rule:core-classes/derive-attribute`). `crates/nvs-stdlib/src/json.rs:166` gap 2 carries the `Decided:` sentence for
+      the shared half — default constants on `CodecField`, a `ClassDesc` method lookup — so read that
+      before choosing, and amend the rule in the same slice if the answer changes it.
+- [ ] **A `#[Test]` result is a producer, so § 22's three output formats are one record rendered** —
+      `crates/nvs-render/src/lib.rs:39` gap 1 (`rule:errors/renderings`, `rule:errors/record-producers`).
+      Independent of the two above and the cheapest of the three; take it first if the descriptor
+      question turns out to need a decision.
 
 ## Backlog
 
-- The `[context] modules` manifest names `crates/nvs-stdlib/src/compress.rs` but not `hash.rs`,
-  `instance.rs`, `registry.rs` or `identity_store.rs` — a `Core` instance class cannot be written
-  without all four, so add them.
-- `[context] rules` is missing `core-api/shape-rules`, `core-api/verb-lexicon`,
-  `core-api/symmetric-names` and `security/tainted-sources`; naming a new `Core` class needs them and
-  the last one decided this group's design.
-- `[context]` has no way to name a test file, so `crates/nvs-stdlib/tests/conformance_coverage.rs`
-  and `tests/corpus/mod.rs` — the floor of three and how a case is attributed to a class — were read
-  from scratch; `modules` takes only crate `src/` paths.
-- The four remaining `past-milestone` findings `python tools/owners.py` prints (M1, M6, M7 owners on
-  live gaps) are not the stage-4 check but are the same kind of work, one call away.
-- `python tools/gaps.py --coverage` ranks the classes still nearest the floor of three.
+- `crates/nvs-runtime/src/record.rs` gaps 1 and 2 — a `secret` inside a container, and an enum case
+  walking to its integer; both carried in [carried-gaps.md](carried-gaps.md), neither this goal's.
+- Nine gaps deferred to milestones the program has already passed — `python tools/owners.py`'s second
+  block; they are owed by a goal or by nobody, and no goal names them.
