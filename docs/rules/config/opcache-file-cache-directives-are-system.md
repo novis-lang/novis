@@ -1,5 +1,6 @@
 The on-disk artifact cache is governed by five directives in `[opcache]`: `file_cache` (bool, default
-on), `file_cache_dir` (a path, root-owned, defaulting to a fixed per-build location), `file_cache_max_size`
+on), `file_cache_dir` (a path, root-owned, defaulting to a fixed location inside the account running the
+compile), `file_cache_max_size`
 (bytes), and the `file_cache_gc_probability` / `file_cache_gc_divisor` pair, which mirrors PHP's own
 `session.gc_probability`/`gc_divisor` because eviction rides the cold-compile path at a small
 probability rather than costing a warm hit anything.

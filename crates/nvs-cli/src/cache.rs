@@ -163,12 +163,6 @@
 //!
 //! # Known gaps
 //!
-//! * **`rule:config/the-extension-set-is-in-every-unit-key`'s `env_hash` says "the compiler build" and
-//!   spells it as the package version**, which does not distinguish two builds of an unreleased tree.
-//!   [`default_dir`] compensates by keying its directory on the running executable; a *configured*
-//!   `opcache.file_cache_dir` does not, so a development tree that writes one shares artifacts across
-//!   rebuilds. The fix belongs to that ADR's own digest rather than here.
-//!   — owner: M6
 //! * **`aarch64` is not loaded, deliberately.** Making freshly written bytes executable there needs
 //!   instruction-cache maintenance that `mprotect` does not imply, and this module has no home for
 //!   it; [`HOST_ARCH`] is [`Architecture::Unknown`] off x86-64, so every artifact is a miss there and
@@ -1333,12 +1327,19 @@ fn this_process(descriptors: &nvs_codegen::Descriptors) -> impl Fn(&str) -> Opti
 /// § 7's directives, resolved into the cache a run consults — or [`None`] for a run that consults
 /// none.
 ///
-/// [`None`] is `opcache.file_cache = false`, a host with no cache root to default to, and a
-/// directory § 5 refuses. None of them is reported: a run without a cache is a run that compiles,
-/// which is the fallback every miss in this module already takes.
+/// [`None`] is `opcache.file_cache = false`, a build that cannot identify itself, a host with no
+/// cache root to default to, and a directory § 5 refuses. None of them is reported: a run without a
+/// cache is a run that compiles, which is the fallback every miss in this module already takes.
+///
+/// The build question is asked here rather than beside the default directory, because it is the one
+/// case `rule:config/the-extension-set-is-in-every-unit-key`'s key does not separate and a
+/// *configured* `file_cache_dir` is exactly as exposed to it as the default one.
 pub(crate) fn from_config(config: &nvs_config::Config) -> Option<Cache> {
     let opcache = config.opcache.as_ref();
     if opcache.and_then(|opcache| opcache.file_cache) == Some(false) {
+        return None;
+    }
+    if !nvs_config::cache::build_is_identified() {
         return None;
     }
     let dir = match opcache.and_then(|opcache| opcache.file_cache_dir.as_deref()) {
@@ -1355,22 +1356,17 @@ pub(crate) fn from_config(config: &nvs_config::Config) -> Option<Cache> {
 /// § 7's "a fixed system location", read as *this account's* rather than the host's, and one
 /// directory per running binary.
 ///
-/// `%LOCALAPPDATA%\novis\opcache\<build>` on Windows, `$XDG_CACHE_HOME`'s or `~/.cache`'s
-/// `novis/opcache/<build>` elsewhere. A host-wide `/var/cache/novis` would be a directory some
-/// other account owns for every account but one, and § 5 refuses exactly that — so the default
-/// that works everywhere is the one inside the account already running the compile. An operator
-/// wanting one shared location writes `opcache.file_cache_dir`, which is `System`-class for the
-/// reason § 7 gives.
+/// `%LOCALAPPDATA%\novis\opcache` on Windows, `$XDG_CACHE_HOME`'s or `~/.cache`'s `novis/opcache`
+/// elsewhere. A host-wide `/var/cache/novis` would be a directory some other account owns for every
+/// account but one, and § 5 refuses exactly that — so the default that works everywhere is the one
+/// inside the account already running the compile. An operator wanting one shared location writes
+/// `opcache.file_cache_dir`, which is `System`-class for the reason § 7 gives.
 ///
-/// **`<build>` is this executable's own identity, and it is here because `env_hash`'s is coarser
-/// than a key needs.** `rule:config/the-extension-set-is-in-every-unit-key` folds "the compiler build" into every key and spells it as the
-/// package version, which distinguishes two releases but not two builds of an unreleased tree —
-/// so a rebuilt compiler would otherwise address the artifacts its predecessor emitted, and a
-/// change to codegen or to a runtime helper's behaviour would be answered out of the cache. The
-/// header cannot catch that: such a payload really is this version's, and its checksum is
-/// correct. Keying the *directory* on the binary makes a rebuild a cold cache instead, which is
-/// the same answer § 4's `env_hash` gives for a new machine, and it costs one `metadata` call per
-/// run. When `rule:config/the-extension-set-is-in-every-unit-key` distinguishes builds, this becomes redundant rather than wrong.
+/// **One directory, not one per compiler build.** `rule:config/the-extension-set-is-in-every-unit-key`'s
+/// `env_hash` names the running executable, so a rebuilt compiler addresses none of the artifacts
+/// its predecessor emitted however they are filed — and a directory per build would instead leave
+/// each dead build's artifacts in a directory of their own, outside the one § 6 budget
+/// [`eviction_of`] reads and with nothing that ever reclaims them.
 fn default_dir() -> Option<PathBuf> {
     #[cfg(windows)]
     let root = std::env::var_os("LOCALAPPDATA").map(PathBuf::from);
@@ -1378,25 +1374,7 @@ fn default_dir() -> Option<PathBuf> {
     let root = std::env::var_os("XDG_CACHE_HOME")
         .map(PathBuf::from)
         .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".cache")));
-    Some(root?.join("novis").join("opcache").join(build_identity()?))
-}
-
-/// This executable, as a directory name: its path, its length and its modification time, hashed.
-///
-/// [`None`] when the running binary cannot be named or examined, which leaves the run with no
-/// cache at all — the fail-closed direction, since the alternative is a directory shared by builds
-/// this cannot tell apart.
-fn build_identity() -> Option<String> {
-    let exe = std::env::current_exe().ok()?;
-    let meta = fs::metadata(&exe).ok()?;
-    let mut bytes = exe.as_os_str().to_string_lossy().into_owned().into_bytes();
-    bytes.extend_from_slice(&meta.len().to_le_bytes());
-    if let Ok(modified) = meta.modified()
-        && let Ok(since) = modified.duration_since(std::time::UNIX_EPOCH)
-    {
-        bytes.extend_from_slice(&since.as_nanos().to_le_bytes());
-    }
-    Some(content_hash(&bytes).to_string()[..16].to_owned())
+    Some(root?.join("novis").join("opcache"))
 }
 
 /// § 6's policy as `[opcache]` writes it, with [`Eviction::default`] for every key it leaves out.
