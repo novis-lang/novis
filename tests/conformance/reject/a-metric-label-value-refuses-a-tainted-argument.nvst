@@ -1,0 +1,37 @@
+--TEST--
+a metric label value refuses a tainted argument, and so does the series name — `rule:security/metric-label-refuses-tainted`, `rule:observability/metrics-three-members`
+--FILE--
+<?nvs
+// A user id, a tenant name or an error message in a label is unbounded
+// cardinality, which is the one way a program can make a registry cost what the
+// per-core bound exists to stop. What refuses it is the ordinary argument
+// check rather than a qualifier rule: `array<tainted string>` is not the
+// `array<string>` the bag declares. Asked of all three verbs, because a bag
+// that lost the declaration on one of them would leave one spelling of the
+// same mistake compiling.
+tainted string $user = "u-1";
+
+Core\Metrics::increment("logins_total", {labels: ["user" => $user]});
+Core\Metrics::observe("login_seconds", 0.5, {labels: ["user" => $user]});
+Core\Metrics::gauge("logins_in_flight", 1.0, {labels: ["user" => $user]});
+
+// The name is a sink for the same reason and a stronger one: a label value
+// multiplies a series, while a name *is* one.
+Core\Metrics::increment($user);
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:11:61
+%A
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:12:65
+%A
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:13:66
+%A
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:17:25
+%A
+error: aborting due to 4 errors
