@@ -70,16 +70,15 @@ wrote. Read menu item 8 there before you start; it is the item this stage put on
 that motivated this goal. Confirm each against your own tree — the numbers move — and then decide. They are a floor for
 this stage, not its ceiling.
 
-- [ ] **Eight of the 92 goals have an empty `[context] modules`, and the map prints nothing for them.**
-      A `lang:` or `tools:` goal names its reference chapter and `orient.py` prints it — the map resolves
-      any pattern against `git ls-files`, and `python tools/dossier.py --check-goals` tests the same
-      thing, so the stage 3 check below is that command exiting 0. What the roster resolves no file for
-      is a `config:directives` or `types:` feature, or one of the fifteen members whose class opens
-      under a name const the registry reader cannot resolve, so those eight goals open the crate by hand
-      in every session. **Whether that earns a per-kind fallback in `goal_toml()`** —
-      `crates/nvs-config/src/` for a directive, the registry for an enum — is yours to decide from what
-      those sessions actually open; say which and why in the commit. What is *not* open is where the fix goes — `goal_toml()`,
-      then re-emit.
+- [ ] **Every goal's `[context] modules` resolves, and the map prints it — confirm that on your own
+      emission.** A `lang:` or `tools:` goal names its reference chapter, a `types:` or
+      `config:directives` goal the table its rows come from, a `Core` goal the files its members'
+      registry literals sit in; `orient.py` resolves any pattern against `git ls-files`, and
+      `python tools/dossier.py --check-goals` tests the same thing, so the stage 3 check below is that
+      command exiting 0. One member is still unplaced — a standalone `CoreMethod` const the registry
+      reader attributes to the class above it — and its goal carries its neighbours' anchors. If a
+      generated goal's map still misses the file its sessions open, the fix is an anchor in `roster()`
+      or `table_anchors()`, then re-emit — never a hand-edit.
 - [ ] **The repetitive part is file creation, not thinking.** A feature owes ~6 files at paths derived
       from its id (`docs/examples/core/Str/at/`, `tests/hostile/core/Str/at/`,
       `benches/members/core/Str/at.nvs`), and 830 features is ~6,700 files. `--bless` already writes an

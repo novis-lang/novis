@@ -27,7 +27,7 @@ stage 2 with headroom left.
       to a generated file is lost at the next emission.
 - [ ] **Two commits**: the generator fix, if there was one, and the generated tree.
 - [ ] **Then stage 3**, which the goal prose owns in full. Four findings are already named there and
-      measured — eight goals whose `[context] modules` is empty, the `--scaffold` question
+      measured — every goal's `[context] modules` resolving, the `--scaffold` question
       (answered: no, with the figure), what the growing floor actually costs, and the fan-out's width —
       plus whatever those four did not name. `python tools/dossier.py --check-goals` is the one
       mechanical gate; the rest of the stage lands in `.loop/optimization/report.md`, and its
