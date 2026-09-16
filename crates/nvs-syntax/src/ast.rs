@@ -334,6 +334,22 @@ pub enum BinaryOp {
     Coalesce,
 }
 
+impl BinaryOp {
+    /// Whether this operator may leave its right operand unevaluated.
+    ///
+    /// `&&` and `||` stop at a left operand that already decides the answer,
+    /// and `??` stops at one that is not null. Every other operator evaluates
+    /// both — which is why `nvs_ir::lower` gives exactly these three a branch
+    /// and a phi rather than one instruction. A checking pass that has to know
+    /// which operand a path is proven to have run asks here, rather than
+    /// carrying a second copy of the set that would drift the first time an
+    /// operator is added.
+    #[must_use]
+    pub fn short_circuits(self) -> bool {
+        matches!(self, Self::And | Self::Or | Self::Coalesce)
+    }
+}
+
 /// An assignment operator, `target ⊕= value` (or plain `=`).
 #[non_exhaustive]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

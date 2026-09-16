@@ -40,6 +40,27 @@
 //! the body, so `rule:classes/definite-property-initialization` is discharged
 //! by construction and a constructor body has nothing to be checked against.
 //!
+//! **Every composite expression is descended into**, through
+//! [`nvs_syntax::visit::each_child_expr`] — the one match over the productions
+//! [`nvs_syntax::ast::ExprKind`] holds, written in the crate that owns the
+//! enum so a form added later is a build error there rather than one this pass
+//! quietly walks past. The forms whose operands do not all run are
+//! [`scan_branches`]'s, and it joins them exactly as [`walk_stmt`] joins an
+//! `if`/`else`: the right operand of a short-circuiting `&&`, `||` or `??`
+//! ([`nvs_syntax::ast::BinaryOp::short_circuits`]) proves nothing, and a
+//! ternary, a `match` and an expression-level `catch` intersect their
+//! alternatives — so `$flag ? ($this->count = 1) : 0` leaves `$count`
+//! unassigned, which is what `rule:classes/definite-property-initialization`'s
+//! "on every path" says it is.
+//!
+//! **A closure's body is not descended into**, and neither is an anonymous
+//! class's: a body written inside an expression runs when it is *called*,
+//! which is not where it is written and need not be ever, so
+//! `$this->prop = ...` inside one is not an assignment the constructor made.
+//! A constructor that assigns a property only from a closure it stores is
+//! therefore refused, and `rule:classes/lateinit` is the spelling for a
+//! property that really is written after construction.
+//!
 //! **Known gaps**, deliberately out of scope for this slice:
 //! - A property backed by a `set` hook is exempted from
 //!   [`crate::signatures::ClassSignature::required_properties`] entirely,
@@ -48,14 +69,6 @@
 //!   Decided: Keep the exemption; the runtime read-before-write throw covers it — Safe (an unwritten
 //!   read throws) and simple, and the error comes only at run time.
 //!   — owner: unowned-closures
-//! - [`scan_expr`] only descends into a handful of common composite
-//!   expression forms (assignment, calls, binary/unary/cast/ternary,
-//!   `instanceof`, array literals). A `$this->prop = ...` or
-//!   `parent::constructor(...)` buried inside a closure body, a `match` arm,
-//!   or another form this module doesn't descend into produces a spurious
-//!   diagnostic rather than being missed silently — safe by the same
-//!   "reject, never wrongly accept" standard as every other known gap here.
-//!   — owner: unowned
 //! - A class with no explicit `constructor` is not itself checked against
 //!   the `parent::constructor(...)` obligation — it has no constructor body
 //!   of its own for such a call to go in; PHP inherits the parent
@@ -68,8 +81,9 @@
 use nvs_diagnostics::{Diagnostic, Span, code};
 use nvs_hir::QName;
 use nvs_syntax::ast::{
-    AssignOp, CallArgs, ClassDecl, ClassMemberKind, Expr, ExprKind, MemberName, Stmt, StmtKind,
+    AssignOp, ClassDecl, ClassMemberKind, Expr, ExprKind, MemberName, Stmt, StmtKind,
 };
+use nvs_syntax::visit::each_child_expr;
 use rustc_hash::FxHashSet;
 
 use crate::expr::is_this_receiver;
@@ -410,23 +424,29 @@ fn walk_stmt(
     }
 }
 
-/// Looks for a `$this->prop = ...` assignment or a `parent::constructor(...)`
-/// call anywhere `e` directly nests one of a handful of common composite
-/// forms — see the module docs' known gaps for what this does not descend
-/// into.
+/// Records what `e` is worth to `state` — a `$this->prop = ...` assignment, a
+/// `parent::constructor(...)` call — and descends into every expression `e`
+/// evaluates, so no composite form hides one.
+///
+/// The descent is [`each_child_expr`]'s, which is total over the productions
+/// [`nvs_syntax::ast::ExprKind`] holds, except for the forms
+/// [`scan_branches`] takes first because not all of their operands run.
 pub(crate) fn scan_expr(e: &Expr, state: &mut InitState, env: &Env<'_>) {
+    if scan_branches(e, state, env) {
+        return;
+    }
+    each_child_expr(e, &mut |child| scan_expr(child, state, env));
     match &e.kind {
         ExprKind::Assign {
-            op, target, value, ..
+            op: AssignOp::Assign,
+            target,
+            ..
         } => {
-            scan_expr(value, state, env);
-            scan_expr(target, state, env);
-            if *op == AssignOp::Assign
-                && let ExprKind::PropertyAccess {
-                    object,
-                    property: MemberName::Ident(name_span),
-                    ..
-                } = &target.kind
+            if let ExprKind::PropertyAccess {
+                object,
+                property: MemberName::Ident(name_span),
+                ..
+            } = &target.kind
                 && is_this_receiver(object, env.src)
             {
                 state
@@ -436,73 +456,77 @@ pub(crate) fn scan_expr(e: &Expr, state: &mut InitState, env: &Env<'_>) {
         }
         ExprKind::StaticCall {
             class,
-            method,
-            args,
+            method: MemberName::Ident(name_span),
             ..
-        } => {
-            scan_call_args(args, state, env);
-            scan_expr(class, state, env);
-            if matches!(class.kind, ExprKind::ParentExpr)
-                && let MemberName::Ident(name_span) = method
-                && span_text(env.src, *name_span) == "constructor"
-            {
-                state.parent_called = true;
-            }
-        }
-        ExprKind::MethodCall { object, args, .. } => {
-            scan_expr(object, state, env);
-            scan_call_args(args, state, env);
-        }
-        ExprKind::Call { callee, args } => {
-            scan_expr(callee, state, env);
-            scan_call_args(args, state, env);
-        }
-        ExprKind::Binary { lhs, rhs, .. } => {
-            scan_expr(lhs, state, env);
-            scan_expr(rhs, state, env);
-        }
-        ExprKind::Catch { guarded, arms } => {
-            scan_expr(guarded, state, env);
-            for arm in arms {
-                scan_expr(&arm.body, state, env);
-            }
-        }
-        ExprKind::Ternary { cond, then, else_ } => {
-            scan_expr(cond, state, env);
-            if let Some(then) = then {
-                scan_expr(then, state, env);
-            }
-            scan_expr(else_, state, env);
-        }
-        ExprKind::Unary { expr: inner, .. }
-        | ExprKind::PreIncDec { expr: inner, .. }
-        | ExprKind::PostIncDec { expr: inner, .. }
-        | ExprKind::Conversion { expr: inner, .. }
-        | ExprKind::TypeTest { expr: inner, .. } => {
-            scan_expr(inner, state, env);
-        }
-        ExprKind::InstanceOf { expr: inner, class } => {
-            scan_expr(inner, state, env);
-            scan_expr(class, state, env);
-        }
-        ExprKind::ArrayLiteral(items) => {
-            for item in items {
-                if let Some(key) = &item.key {
-                    scan_expr(key, state, env);
-                }
-                scan_expr(&item.value, state, env);
-            }
+        } if matches!(class.kind, ExprKind::ParentExpr)
+            && span_text(env.src, *name_span) == "constructor" =>
+        {
+            state.parent_called = true;
         }
         _ => {}
     }
 }
 
-fn scan_call_args(args: &CallArgs, state: &mut InitState, env: &Env<'_>) {
-    if let CallArgs::List(list) = args {
-        for arg in list {
-            scan_expr(&arg.value, state, env);
+/// The expression forms whose operands do not all run, joined the way
+/// [`walk_stmt`] joins an `if`/`else`: an operand that may be skipped proves
+/// nothing, and alternatives are intersected, so an assignment written on one
+/// branch is not an assignment on every path out of the constructor.
+///
+/// Returns whether `e` was one of them, which is [`scan_expr`]'s signal not to
+/// also descend into it: a second walk would re-add the very assignments the
+/// join just declined.
+fn scan_branches(e: &Expr, state: &mut InitState, env: &Env<'_>) -> bool {
+    match &e.kind {
+        ExprKind::Binary { op, lhs, .. } if op.short_circuits() => {
+            // The right operand of `&&`, `||` and `??` runs only for some
+            // values of the left, so nothing it assigns is proven here.
+            scan_expr(lhs, state, env);
         }
+        ExprKind::Ternary { cond, then, else_ } => {
+            scan_expr(cond, state, env);
+            let mut taken = state.clone();
+            // The Elvis form `cond ?: else_` writes no `then` branch of its
+            // own: the path that skips `else_` leaves `cond`'s state as it is.
+            if let Some(then) = then {
+                scan_expr(then, &mut taken, env);
+            }
+            let mut skipped = state.clone();
+            scan_expr(else_, &mut skipped, env);
+            *state = InitState::merge(taken, skipped);
+        }
+        ExprKind::Match { subject, arms } => {
+            scan_expr(subject, state, env);
+            // A `match` that matches no arm throws, so every path that leaves
+            // it normally ran exactly one arm — and an arm's conditions are
+            // tried until one matches, so none of those is on every path.
+            let mut joined: Option<InitState> = None;
+            for arm in arms {
+                let mut arm_state = state.clone();
+                scan_expr(&arm.body, &mut arm_state, env);
+                joined = Some(match joined {
+                    Some(previous) => InitState::merge(previous, arm_state),
+                    None => arm_state,
+                });
+            }
+            if let Some(joined) = joined {
+                *state = joined;
+            }
+        }
+        ExprKind::Catch { guarded, arms } => {
+            // An arm runs on a path where `guarded` threw partway, so what
+            // `guarded` assigned is not proven on it: every arm starts from
+            // the state this expression was entered in.
+            let entry = state.clone();
+            scan_expr(guarded, state, env);
+            for arm in arms {
+                let mut arm_state = entry.clone();
+                scan_expr(&arm.body, &mut arm_state, env);
+                *state = InitState::merge(state.clone(), arm_state);
+            }
+        }
+        _ => return false,
     }
+    true
 }
 
 #[cfg(test)]
@@ -661,6 +685,72 @@ mod tests {
             "<?nvs\nclass Foo {\n  public int $count;\n  function constructor() {\n    try {\n      $this->count = 1;\n    } catch (LogicError $e) {\n      $this->count = 2;\n    }\n  }\n}\n",
         );
         assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    /// `scan_expr`'s descent is total over the AST, so a form carrying no
+    /// meaning of its own — parentheses here — cannot hide the assignment
+    /// inside it.
+    #[test]
+    fn a_constructor_assigning_inside_parentheses_is_fine() {
+        let diags = check_src(
+            "<?nvs\nclass Foo {\n  public int $count;\n  function constructor() {\n    ($this->count = 1);\n  }\n}\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    /// `scan_branches`'s `Match` arm: a `match` that matches no arm throws, so
+    /// every path leaving it normally ran one — and every one of these assigns.
+    #[test]
+    fn a_constructor_assigning_in_every_match_arm_is_fine() {
+        let diags = check_src(
+            "<?nvs\nclass Foo {\n  public int $count;\n  function constructor(int $x) {\n    int $y = match ($x) { 1 => $this->count = 1, default => $this->count = 2 };\n  }\n}\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    /// The same shape with one arm that assigns nothing: the join intersects
+    /// the arms, so `$count` is not proven.
+    #[test]
+    fn a_constructor_assigning_in_only_one_match_arm_is_diagnosed() {
+        let diags = check_src(
+            "<?nvs\nclass Foo {\n  public int $count;\n  function constructor(int $x) {\n    int $y = match ($x) { 1 => $this->count = 1, default => 2 };\n  }\n}\n",
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_UNINITIALIZED_PROPERTY)),
+            "{diags:?}"
+        );
+    }
+
+    /// `scan_branches`'s `Ternary` arm, and the reason the descent alone is
+    /// not enough: reaching the assignment is not proving it ran.
+    #[test]
+    fn a_constructor_assigning_on_one_ternary_branch_is_diagnosed() {
+        let diags = check_src(
+            "<?nvs\nclass Foo {\n  public int $count;\n  function constructor(bool $flag) {\n    int $y = $flag ? $this->count = 1 : 0;\n  }\n}\n",
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_UNINITIALIZED_PROPERTY)),
+            "{diags:?}"
+        );
+    }
+
+    /// A closure's body runs when the closure is called, so storing one that
+    /// would assign `$count` is not assigning it — the module docs' bound.
+    #[test]
+    fn a_constructor_assigning_only_inside_a_closure_body_is_diagnosed() {
+        let diags = check_src(
+            "<?nvs\nclass Foo {\n  public int $count;\n  function constructor() {\n    var $later = fn (): int => $this->count = 1;\n  }\n}\n",
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_UNINITIALIZED_PROPERTY)),
+            "{diags:?}"
+        );
     }
 
     /// The `catch` doesn't assign `$count`, so it's not satisfied on every

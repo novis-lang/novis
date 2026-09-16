@@ -119,6 +119,7 @@ mod lexer;
 mod parser;
 pub mod string_lit;
 mod token;
+pub mod visit;
 pub mod walk;
 
 pub use casing::check_declarations;
