@@ -2188,6 +2188,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   option's value and the positional targets are one argparse list and the run of targets after the
   flag has nowhere to land. Put `--context`/`--window` after the last target, or use the target's own
   `:3` suffix, which wins over the flag anyway. [until: reviewed 2026-09-16]
+- **A `///` that links a test by a `tests::` path passes every session's gate and fails the goal's
+  last one.** `mod tests` is `#[cfg(test)]`, so `cargo doc` resolves no `tests` item and
+  `-D warnings` turns the link into `unresolved link` — and `python tools/verify.py` compiles the
+  docs only under `--doc`, the gate a DONE claim needs and no ordinary session runs, so they
+  accumulate across crates unseen. Name a test in backticks and never in brackets, and when `--doc`
+  is red on one, `grep -rn 'tests::' --include=*.rs crates/` finds every sibling in one call.
+  [until: reviewed 2026-09-16]
 
 ## Running things
 
