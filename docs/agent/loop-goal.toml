@@ -132,7 +132,7 @@ modules = [
   # The pattern letters and the ordinal roster, gaps 2 and 4 (:156, :177). Stage 11.
   "crates/nvs-stdlib/src/cldr.rs",
   # The per-core registry `Core\Metrics` accumulates into. Stage 12.
-  "crates/nvs-server/src/metrics.rs",
+  "crates/nvs-runtime/src/metrics.rs",
   # `run`, its door and its off-core wait; `spawn` joins it. Stage 13.
   "crates/nvs-stdlib/src/process.rs",
   # Where every row and class is registered, and where `compareTo` rows are found (:3036).
