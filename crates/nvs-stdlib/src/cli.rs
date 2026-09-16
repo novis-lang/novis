@@ -73,10 +73,12 @@
 //! — so the sixteen names cost one allocation each where they are written and
 //! nothing is shared between isolates.
 //!
-//! [`nvs_core_cli_text_styled`] renders that style **when the `Text` is built**
-//! rather than when it is written, against the profile § 3 resolves once per
-//! process. Its own doc comment owns why the two are the same bytes today and
-//! what the difference would be; § 2's body records the decision.
+//! [`nvs_core_cli_text_styled`] keeps that style **as a run** beside the text
+//! it wears, and the escape sequence is rendered by whatever writes, for the
+//! stream it writes to, against the profile § 3 resolves once per process. So
+//! one `Text` goes styled to a terminal standard output and plain to a
+//! redirected standard error in the same run: [`rendered_at`] is where that
+//! happens and [`depth_for`] is the per-stream half of the answer.
 //!
 //! [`nvs_core_cli_text_concat`] is § 2's `Text + Text`, the third and last way
 //! a `Text` is obtained. It has no member row: the operator is the spelling,
@@ -134,17 +136,6 @@
 //!    Decided: Answer empty/neutral values and state it as the contract — Matches PHP (no $argv under a
 //!    web SAPI) and adds no failure mode.
 //!    — owner: unowned-closures
-//! 2. **A `Text` cannot be plain on one stream and styled on another in the
-//!    same run.** It holds bytes, and the styling is rendered into them once —
-//!    so a program writing the same `Text` to a terminal standard output and a
-//!    redirected standard error sends both the same thing. [`nvs_core_cli_write`]
-//!    is what made that reachable — before it there was only `echo`, which
-//!    writes standard output — and it is still unobservable *in a test*,
-//!    because § 3's colour depth is a process answer (`Cli::colorDepth` takes
-//!    no stream) and a case runs with both streams piped. What closes it is the
-//!    `Cli\Text` of runs § 2's body names, which is the shape a per-stream
-//!    render would need.
-//!    — owner: M8
 
 use nvs_runtime::terminal::{Answer, ColorDepth, Echo, Stream};
 use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, Value};
@@ -1069,6 +1060,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_cli_display_width" => (nvs_core_cli_display_width as *const ()).cast(),
         "nvs_core_cli_text_plain" => (nvs_core_cli_text_plain as *const ()).cast(),
         "nvs_core_cli_text_styled" => (nvs_core_cli_text_styled as *const ()).cast(),
+        "nvs_core_cli_text_text" => (nvs_core_cli_text_text as *const ()).cast(),
         TEXT_CONCAT_SYMBOL => (nvs_core_cli_text_concat as *const ()).cast(),
         "nvs_core_cli_color_index" => (nvs_core_cli_color_index as *const ()).cast(),
         "nvs_core_cli_color_rgb" => (nvs_core_cli_color_rgb as *const ()).cast(),
@@ -1193,8 +1185,9 @@ nvs_runtime::nvs_helper! {
     /// two rosters of the same three streams, disagreeing the first time one
     /// gains a case.
     ///
-    /// **What it spends:** one buffer the size of the value per call, because
-    /// the newline is appended to the bytes rather than written after them. A
+    /// **What it spends:** one rendering of the value per call, held as one
+    /// buffer, because the newline is appended to the bytes rather than
+    /// written after them. A
     /// second write to reach the same stream would be a second trip through the
     /// sink for one byte, and this member is bounded by the terminal it writes
     /// to rather than by the copy (`rule:programs/memory-priority`'s ordering: priority 3 over 5).
@@ -1214,19 +1207,14 @@ nvs_runtime::nvs_helper! {
         let mut bytes = match args[0].tag() {
             Some(Tag::Object) => {
                 let receiver = crate::instance::receiver(args[0], &TEXT, "write")?;
-                // Unreachable from source by two steps rather than by one
-                // diagnostic: `E0401` refuses any object that is not a
-                // `Core\Cli\Text`, and the slot of one that *is* holds a
-                // `Tag::Str` because [`built`] is its only producer and both
-                // constructors hand it the result of a substitution.
-                crate::instance::slot(receiver, nvs_runtime::CARRIER_TEXT_SLOT)
-                    .as_str_bytes()
-                    .ok_or_else(|| {
-                        Fault::fatal(
-                            "Core\\Cli::write expected a `Core\\Cli\\Text` carrying a `string`",
-                        )
-                    })?
-                    .to_vec()
+                // **This is the sink.** The runs are rendered here, for the
+                // stream this call names, which is what lets one `Text` go
+                // styled to a terminal standard output and plain to a
+                // redirected standard error in the same run. The carrier slot
+                // holds standard output's own rendering, which `echo` takes
+                // and this member never reads.
+                rendered_at(crate::instance::slot(receiver, TEXT_RUNS), depth_of(stream))?
+                    .into_bytes()
             }
             // Every other tag, and not just `Tag::Str`.
             // Unreachable from source: the row's parameter is a `CoreTy::Union`
@@ -1939,7 +1927,11 @@ fn label_of(ctx: &mut nvs_runtime::Ctx, labels: Value, option: Value) -> Result<
 pub const NAME: &str = nvs_runtime::CARRIER_CLI_TEXT;
 
 /// Spec § 13's `Core\Cli\Text` — `rule:security/capture-answers-the-carrier`'s slot, and `rule:tooling/styling-is-a-value-not-a-grammar`'s first
-/// constructor over it. See the module docs for what is still owed.
+/// constructor over it.
+///
+/// Two slots: the rendering standard output takes, which is the one
+/// `nvs_runtime::value_to_string` renders a carrier as, and the [`TEXT_RUNS`]
+/// every other stream is rendered from.
 pub(crate) const TEXT: CoreClass = CoreClass {
     name: NAME,
     methods: &[
@@ -1962,8 +1954,16 @@ pub(crate) const TEXT: CoreClass = CoreClass {
             doc: Some(&STYLED_DOC),
         },
     ],
-    instance: &[],
-    slots: &["text"],
+    instance: &[CoreMethod {
+        name: "text",
+        names: &[],
+        params: &[],
+        defaults: &[],
+        return_ty: CoreTy::Str,
+        symbol: "nvs_core_cli_text_text",
+        doc: Some(&TEXT_TEXT_DOC),
+    }],
+    slots: &["text", "runs"],
     constants: &[],
 };
 
@@ -1982,6 +1982,18 @@ const PLAIN_DOC: MethodDoc = MethodDoc {
     }],
     ret: "A `Core\\Cli\\Text` carrying the neutralized form. It composes with another `Text` and \
           is written by `echo`; it carries no styling, which is `styled`'s.",
+    errors: &[],
+};
+
+/// `Core\Cli\Text::text`'s reference card — `rule:core-api/reference-card`.
+const TEXT_TEXT_DOC: MethodDoc = MethodDoc {
+    short: "Answers what this `Core\\Cli\\Text` says, as a `string`, leaving its styling out: the \
+            text of every run joined, already control-byte-substituted. This is what a \
+            `Core\\Out::capture` filter reads before it writes a new carrier.",
+    params: &[],
+    ret: "The runs' own text, with no escape sequence in it that a `Cli\\Style` put there. It is \
+          safe to hand straight back to `plain` or `styled`, the terminal sink's substitution \
+          being idempotent.",
     errors: &[],
 };
 
@@ -2011,8 +2023,22 @@ const STYLED_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
-/// A `Core\Cli\Text` carrying `text`, which must be a `Tag::Str` value the
-/// caller is transferring.
+/// Slot 1 of a [`TEXT`] — its runs, two entries each: the substituted body,
+/// and the [`STYLE`] that body wears or `null` for one that wears none.
+///
+/// **The runs are what a `Text` is.** `rule:tooling/the-terminal-profile-resolves-once`
+/// drops styling entirely on a stream that is no terminal, and which stream a
+/// value goes to is not known until something writes it — so a style rendered
+/// into bytes at construction would fix one answer for every stream, which is
+/// exactly what [`nvs_core_cli_write`] renders per stream instead.
+///
+/// Flat rather than an array of pairs because the pairing is this module's
+/// own: no member answers a run and none takes one, so the layout owes the
+/// surface nothing.
+const TEXT_RUNS: usize = 1;
+
+/// A `Core\Cli\Text` of one unstyled run carrying `text`, which must be a
+/// `Tag::Str` value the caller is transferring.
 ///
 /// **This transfers bytes; it does not neutralize them.** Every caller owes
 /// that itself, and there are two: [`crate::out`]'s `capture`, whose bytes came
@@ -2020,8 +2046,149 @@ const STYLED_DOC: MethodDoc = MethodDoc {
 /// over its argument first. That is the whole of what keeps `rule:tooling/terminal-output-is-a-sink`'s raw
 /// path closed — `nvs_runtime::helpers::is_carrier_value` owns why the sink
 /// trusts the class rather than the bytes.
+///
+/// An unstyled run renders as its own bytes at every depth, so the carrier
+/// slot is the text itself and this constructor asks the profile nothing.
 pub(crate) fn built(text: nvs_runtime::Value) -> nvs_runtime::Value {
-    crate::instance::build(&TEXT, [text])
+    let mut runs = NvsArray::new();
+    #[expect(
+        unsafe_code,
+        reason = "the run keeps a reference of its own to the bytes the carrier \
+                  slot also holds, and the caller transferred exactly one"
+    )]
+    unsafe {
+        text.retain();
+    }
+    runs.append(text);
+    runs.append(Value::null());
+    crate::instance::build(&TEXT, [text, Value::array(runs)])
+}
+
+/// A `Core\Cli\Text` of `runs`, whose [`nvs_runtime::CARRIER_TEXT_SLOT`] holds
+/// them rendered for **standard output**.
+///
+/// That slot is the one `nvs_runtime::value_to_string` renders a carrier as,
+/// and it has no stream to ask about: `echo` writes the request's output
+/// channel, so standard output's rendering is the one it owes. Every other
+/// stream is rendered from the runs by whatever writes to it.
+///
+/// # Errors
+///
+/// Whatever [`rendered_at`] answers, with the runs released — so a fatal
+/// leaves no array behind and no half-built instance.
+fn of_runs(runs: NvsArray) -> Result<Value, Fault> {
+    let runs = Value::array(runs);
+    match rendered_at(runs, depth_of(Stream::Out)) {
+        Ok(rendered) => Ok(crate::instance::build(
+            &TEXT,
+            [Value::str(NvsStr::new(rendered.as_bytes())), runs],
+        )),
+        Err(fault) => {
+            #[expect(
+                unsafe_code,
+                reason = "this frame owns the array's only reference, and no \
+                          instance was built to take it over"
+            )]
+            unsafe {
+                runs.release();
+            }
+            Err(fault)
+        }
+    }
+}
+
+/// Every run of `runs`, rendered for a stream that can show `depth`.
+///
+/// The bytes are the runs' own, substituted by whichever constructor built
+/// them; what `depth` decides is the escape sequence in front of each body and
+/// the reset after it, and [`ColorDepth::None`] — the answer for a redirected
+/// stream — drops both. That is `rule:tooling/the-terminal-profile-resolves-once`'s
+/// *"when the stream is not a terminal, styling is dropped entirely"*, applied
+/// where the stream is known.
+///
+/// **What it spends:** one string the size of the answer and one `Vec` of the
+/// run entries, per call, both freed before the bytes reach the stream.
+///
+/// # Errors
+///
+/// A `Fault::fatal` for a shape this module did not build, which is
+/// unreachable from source: the runs of a `Text` are written by [`built`] and
+/// by [`of_runs`]'s callers and read by nothing a program can reach.
+fn rendered_at(runs: Value, depth: ColorDepth) -> Result<String, Fault> {
+    let array = runs.array_ptr().ok_or_else(|| {
+        Fault::fatal(format!(
+            "a `{NAME}` holds its runs in an array, got tag {}",
+            runs.tag_byte()
+        ))
+    })?;
+    let held: Vec<Value> = crate::str::Elements::of(array).collect();
+    let mut rendered = String::new();
+    for run in held.chunks(2) {
+        let body = run[0].as_text().ok_or_else(|| {
+            Fault::fatal(format!(
+                "a `{NAME}` run carries its body as a `string`, got tag {}",
+                run[0].tag_byte()
+            ))
+        })?;
+        let worn = run.get(1).copied().unwrap_or_else(Value::null);
+        let opening = if worn.tag() == Some(Tag::Object) {
+            let style = crate::instance::receiver(worn, &STYLE, "a run")?;
+            sgr(
+                ink_of(crate::instance::slot(style, STYLE_COLOR), "color")?,
+                ink_of(crate::instance::slot(style, STYLE_BACKGROUND), "background")?,
+                crate::instance::slot(style, STYLE_FLAGS)
+                    .as_int()
+                    .unwrap_or(0),
+                depth,
+            )
+        } else {
+            String::new()
+        };
+        if opening.is_empty() {
+            rendered.push_str(body);
+        } else {
+            // One reset closes everything the opening sequence set, so a run
+            // never leaks its own styling into the one written after it.
+            rendered.push_str(&opening);
+            rendered.push_str(body);
+            rendered.push_str("\u{1B}[0m");
+        }
+    }
+    Ok(rendered)
+}
+
+/// How much colour `stream` may show in this process — [`depth_for`] over the
+/// profile `rule:tooling/the-terminal-profile-resolves-once` resolves once.
+fn depth_of(stream: Stream) -> ColorDepth {
+    let profile = nvs_runtime::terminal::profile();
+    depth_for(
+        profile.color_depth(),
+        profile.is_tty(Stream::Out),
+        profile.is_tty(stream),
+    )
+}
+
+/// One stream's colour depth, from the **process** depth and whether standard
+/// output and that stream are terminals.
+///
+/// A pure function of the three, so a test can ask it about a terminal the
+/// process running it does not have.
+///
+/// The depth itself stays a process answer — `Cli::colorDepth` takes no stream,
+/// and `nvs_runtime::terminal` resolves it from standard output and the forcing
+/// variables together. What varies by stream is whether that depth reaches it:
+/// a depth that survived a standard output which is **not** a terminal was
+/// forced, and a forced depth is the run's answer everywhere; otherwise a
+/// stream shows what the process can when it is a terminal, and nothing when it
+/// is redirected.
+fn depth_for(process: ColorDepth, out_is_tty: bool, stream_is_tty: bool) -> ColorDepth {
+    if process == ColorDepth::None {
+        return ColorDepth::None;
+    }
+    if !out_is_tty || stream_is_tty {
+        return process;
+    }
+    ColorDepth::None
 }
 
 nvs_runtime::nvs_helper! {
@@ -2056,6 +2223,40 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+nvs_runtime::nvs_helper! {
+    /// `Core\Cli\Text::text(): string` — the runs' own bodies, joined, with no
+    /// styling: what this `Text` says rather than how it will look.
+    ///
+    /// # Why this carrier may be read back, and `Core\Html\Markup` may not
+    ///
+    /// `rule:security/capture-answers-the-carrier` gives its reason as the
+    /// second escape: bytes that have been through a sink, handed back as a
+    /// `string` and re-emitted, would be escaped twice and the page corrupted.
+    /// The terminal sink cannot do that to itself — `rule:tooling/terminal-output-is-a-sink`'s
+    /// substitution replaces a control byte with a *visible glyph*, which is
+    /// not a control byte, so a second pass has nothing left to replace. HTML
+    /// escaping is not idempotent (`&amp;` escapes again), which is why the
+    /// read half is here and there is none on the markup carrier.
+    ///
+    /// **The styling is left out**, and that is the other half of what makes
+    /// the answer safe to pass back into a constructor: a run's escape
+    /// sequence would be substituted on the way in and come back as a Control
+    /// Picture, so what can be read is what was read *out of* the program's
+    /// own text. [`crate::out`]'s `{through:}` is what wanted this — its
+    /// closure is handed the captured carrier and answers one, so without a
+    /// read it could only replace what it was given.
+    ///
+    /// **What it spends:** one string the size of the text, per call.
+    fn nvs_core_cli_text_text(_ctx, args: [1]) {
+        let receiver = crate::instance::receiver(args[0], &TEXT, "text")?;
+        let plain = rendered_at(
+            crate::instance::slot(receiver, TEXT_RUNS),
+            ColorDepth::None,
+        )?;
+        Ok(Value::str(NvsStr::new(plain.as_bytes())))
+    }
+}
+
 /// The symbol `Text + Text` lowers to — `rule:tooling/styling-is-a-value-not-a-grammar`'s composition rule, and
 /// the third way a program obtains a [`TEXT`].
 ///
@@ -2069,21 +2270,6 @@ nvs_runtime::nvs_helper! {
 /// `nvs-ir` reaches it through `nvs_types`, as `CORE_CLI_TEXT_CONCAT`.
 pub const TEXT_CONCAT_SYMBOL: &str = "nvs_core_cli_text_concat";
 
-/// One `Core\Cli\Text` operand's substituted bytes — slot
-/// [`nvs_runtime::CARRIER_TEXT_SLOT`], **borrowed**, exactly as
-/// [`crate::instance::slot`] hands it over.
-///
-/// Returned as a [`Value`] rather than as a `&str` for
-/// `crate::html::markup_slot`'s reason: the slot's own `Value` owns the
-/// reference the text is read through, so the borrow has to outlive this call.
-fn text_slot(value: Value, position: &str) -> Result<Value, Fault> {
-    let object = crate::instance::receiver(value, &TEXT, position)?;
-    Ok(crate::instance::slot(
-        object,
-        nvs_runtime::CARRIER_TEXT_SLOT,
-    ))
-}
-
 nvs_runtime::nvs_helper! {
     /// `$a + $b` over two `Core\Cli\Text` — `rule:tooling/styling-is-a-value-not-a-grammar`'s *"`Text + Text` is
     /// `Text`, immutable (R20), composing the way `Markup` already does"*, and
@@ -2096,42 +2282,48 @@ nvs_runtime::nvs_helper! {
     /// neutralize a style the program asked for, and the result would be the
     /// escape sequence printed as a Control Picture.
     ///
-    /// A styled operand closes its own sequence with a reset before this ever
-    /// sees it ([`nvs_core_cli_text_styled`]), so the sum carries no styling
-    /// across the seam and neither operand's appearance changes.
+    /// A styled run closes its own sequence with a reset as it is rendered
+    /// ([`rendered_at`]), so the sum carries no styling across the seam and
+    /// neither operand's appearance changes.
     ///
     /// The pair is the operator table's own — `nvs_types::expr::operators`'
     /// `carrier_composition_result` admits a carrier beside its own kind and
     /// refuses every other object beside `+` — so the only judgement left is
     /// the tag check below.
     ///
-    /// **What it spends:** one string allocation and one object allocation per
-    /// composition, both charged to the request. Neither operand is touched: a
-    /// `Text` is immutable, so `$a + $b` leaves both where they were, and a
-    /// chain of `n` fragments is `n - 1` of these.
+    /// **What it spends:** one array holding both operands' runs, one string
+    /// for the sink's rendering of them and one object, all charged to the
+    /// request. Neither operand is touched: a `Text` is immutable, so `$a + $b`
+    /// leaves both where they were, and a chain of `n` fragments is `n - 1` of
+    /// these.
     fn nvs_core_cli_text_concat(_ctx, args: [2]) {
-        let left = text_slot(args[0], "the left operand")?;
-        let right = text_slot(args[1], "the right operand")?;
-        // Unreachable from source: a carrier's slot holds what this module put
-        // there, and this module only ever puts a `Tag::Str` in it. The check
-        // stays because the ABI is `*const Value`, which carries no promise.
-        let tag_fault = |side: &str, value: &Value| {
-            Fault::fatal(format!(
-                "{side} of `Text + Text` expected a `string`, got tag {}",
-                value.tag_byte()
-            ))
-        };
-        let left_text = left
-            .as_text()
-            .ok_or_else(|| tag_fault("the left operand", &left))?;
-        let right_text = right
-            .as_text()
-            .ok_or_else(|| tag_fault("the right operand", &right))?;
-
-        let mut out = String::with_capacity(left_text.len() + right_text.len());
-        out.push_str(left_text);
-        out.push_str(right_text);
-        Ok(built(Value::str(NvsStr::new(out.as_bytes()))))
+        let mut runs = NvsArray::new();
+        for (operand, position) in [(args[0], "the left operand"), (args[1], "the right operand")] {
+            let carrier = crate::instance::receiver(operand, &TEXT, position)?;
+            let held = crate::instance::slot(carrier, TEXT_RUNS);
+            // Unreachable from source: a carrier's slots hold what this module
+            // put there. The check stays because the ABI is `*const Value`,
+            // which carries no promise.
+            let array = held.array_ptr().ok_or_else(|| {
+                Fault::fatal(format!(
+                    "{position} of `Text + Text` holds its runs in an array, got tag {}",
+                    held.tag_byte()
+                ))
+            })?;
+            for entry in crate::str::Elements::of(array) {
+                #[expect(
+                    unsafe_code,
+                    reason = "the sum keeps a reference of its own to every run \
+                              its operands lend it, and both operands are live \
+                              for the length of this call"
+                )]
+                unsafe {
+                    entry.retain();
+                }
+                runs.append(entry);
+            }
+        }
+        of_runs(runs)
     }
 }
 
@@ -2759,16 +2951,25 @@ nvs_runtime::nvs_helper! {
     /// handed, which is the structural guarantee that makes `Text` a
     /// constructor rather than a trust assertion.
     ///
-    /// # Where the degradation happens, and the one thing it cannot see
+    /// # The style is kept, and the degradation happens at the sink
     ///
-    /// `rule:tooling/the-terminal-profile-resolves-once`'s profile is resolved once per process, so rendering the
-    /// style here gives byte-identical output to rendering it at the moment of
-    /// the write — with one exception, which § 2's body records: a `Text` holds
-    /// bytes, so it cannot be written *plain to a redirected stderr and styled
-    /// to a terminal stdout* in the same run. The colour depth is a process
-    /// answer (`Cli::colorDepth` takes no stream), and `echo` — the only sink
-    /// that exists — writes standard output, so nothing on disk can observe
-    /// the difference today.
+    /// What this stores is a run — the substituted bytes and the `Cli\Style`
+    /// they wear — so the escape sequence is chosen by whatever writes, for the
+    /// stream it writes to ([`rendered_at`]). One `Text` therefore goes styled
+    /// to a terminal standard output and plain to a redirected standard error
+    /// in the same run, which is `rule:tooling/the-terminal-profile-resolves-once`'s
+    /// *"when the stream is not a terminal, styling is dropped entirely"* read
+    /// per stream. The depth stays a process answer — `Cli::colorDepth` takes
+    /// no stream — and what varies is whether it reaches the stream at all
+    /// ([`depth_for`]).
+    ///
+    /// **What it spends:** one array of two entries per `Text`, beside the
+    /// standard-output rendering [`of_runs`] leaves in the carrier slot for
+    /// `echo` to write.
+    ///
+    /// The style is not checked here: a run whose second entry is not a
+    /// `Cli\Style` is refused by [`rendered_at`] before [`of_runs`] builds
+    /// anything, so a `Text` that exists carries a style this module can read.
     fn nvs_core_cli_text_styled(_ctx, args: [2]) {
         // Unreachable from source, for the reason `plain`'s body gives: the
         // parameter is `CoreTy::Text`, so `E0401` refuses a non-`string`
@@ -2779,25 +2980,20 @@ nvs_runtime::nvs_helper! {
                 args[0].tag_byte()
             ))
         })?;
-        let style = crate::instance::receiver(args[1], &STYLE, "styled")?;
-        let color = ink_of(crate::instance::slot(style, STYLE_COLOR), "color")?;
-        let background = ink_of(crate::instance::slot(style, STYLE_BACKGROUND), "background")?;
-        let flags = crate::instance::slot(style, STYLE_FLAGS).as_int().unwrap_or(0);
-        let opening = sgr(
-            color,
-            background,
-            flags,
-            nvs_runtime::terminal::profile().color_depth(),
-        );
-        let body = nvs_render::text::substitute(text);
-        let carried = if opening.is_empty() {
-            body.into_owned()
-        } else {
-            // One reset closes everything the opening sequence set, so a `Text`
-            // never leaks its own styling into what is written after it.
-            format!("{opening}{body}\u{1B}[0m")
-        };
-        Ok(built(Value::str(NvsStr::new(carried.as_bytes()))))
+        let mut runs = NvsArray::new();
+        runs.append(Value::str(NvsStr::new(
+            nvs_render::text::substitute(text).as_bytes(),
+        )));
+        #[expect(
+            unsafe_code,
+            reason = "the run keeps a reference of its own to the style this \
+                      frame only borrows"
+        )]
+        unsafe {
+            args[1].retain();
+        }
+        runs.append(args[1]);
+        of_runs(runs)
     }
 }
 
@@ -3124,7 +3320,153 @@ mod tests {
     #[test]
     fn the_carrier_slot_matches_the_registered_layout() {
         assert_eq!(TEXT.slot("text"), nvs_runtime::CARRIER_TEXT_SLOT);
+        assert_eq!(TEXT.slot("runs"), TEXT_RUNS);
         assert!(nvs_runtime::is_carrier(NAME));
+    }
+
+    /// One red, bold `Cli\Style`, built the way a program builds one.
+    fn warning(ctx: &mut nvs_runtime::Ctx) -> Value {
+        let red = nvs_runtime::call(nvs_core_cli_color_index, ctx, &[Value::uint(1)])
+            .expect("Color::index answered");
+        let options = [
+            red,
+            Value::null(),
+            Value::bool(true),
+            Value::bool(false),
+            Value::bool(false),
+            Value::bool(false),
+            Value::bool(false),
+        ];
+        let style =
+            nvs_runtime::call(nvs_core_cli_style_of, ctx, &options).expect("Style::of answered");
+        #[expect(unsafe_code, reason = "the style holds the colour's own reference now")]
+        unsafe {
+            red.release();
+        }
+        style
+    }
+
+    /// The runs of `text`, as the entries this module wrote.
+    fn runs_of(text: Value) -> Vec<Value> {
+        let held = crate::instance::slot(text.obj_ptr().expect("a `Text` is an object"), TEXT_RUNS);
+        crate::str::Elements::of(held.array_ptr().expect("the runs are an array")).collect()
+    }
+
+    /// `rule:tooling/styling-is-a-value-not-a-grammar`'s `Text`: what it holds
+    /// is its runs — the bodies and the styles they wear — and the bytes are
+    /// the *sink's* rendering of those, so composition carries both operands'
+    /// runs through rather than their appearances.
+    #[test]
+    fn a_text_keeps_its_runs_and_is_rendered_at_the_sink() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let style = warning(&mut ctx);
+
+        let head = Value::str(NvsStr::new("deleting ".as_bytes()));
+        let warn = nvs_runtime::call(nvs_core_cli_text_styled, &mut ctx, &[head, style])
+            .expect("Text::styled answered");
+        let tail = Value::str(NvsStr::new("notes.txt".as_bytes()));
+        let plain = nvs_runtime::call(nvs_core_cli_text_plain, &mut ctx, &[tail])
+            .expect("Text::plain answered");
+        let whole = nvs_runtime::call(nvs_core_cli_text_concat, &mut ctx, &[warn, plain])
+            .expect("`Text + Text` answered");
+
+        let held = runs_of(whole);
+        assert_eq!(held.len(), 4, "a sum holds both operands' runs");
+        assert_eq!(
+            held[0].as_text(),
+            Some("deleting "),
+            "a run carries its body, not an escape sequence around it"
+        );
+        assert_eq!(
+            held[1].tag(),
+            Some(Tag::Object),
+            "a styled run keeps the `Cli\\Style` itself"
+        );
+        assert_eq!(held[2].as_text(), Some("notes.txt"));
+        assert!(held[3].obj_ptr().is_none(), "an unstyled run wears nothing");
+
+        let carrier = whole.obj_ptr().expect("a `Text` is an object");
+        let sink = rendered_at(
+            crate::instance::slot(carrier, TEXT_RUNS),
+            depth_of(Stream::Out),
+        )
+        .expect("the runs rendered for standard output");
+        assert_eq!(
+            crate::instance::slot(carrier, nvs_runtime::CARRIER_TEXT_SLOT).as_text(),
+            Some(sink.as_str()),
+            "the carrier slot is the runs rendered for the stream `echo` writes"
+        );
+        assert!(
+            sink.ends_with("notes.txt"),
+            "the rendering ends in the last run's own body"
+        );
+
+        #[expect(unsafe_code, reason = "each value owns the reference it releases")]
+        unsafe {
+            head.release();
+            tail.release();
+            style.release();
+            warn.release();
+            plain.release();
+            whole.release();
+        }
+    }
+
+    /// `rule:tooling/the-terminal-profile-resolves-once`'s *"when the stream is
+    /// not a terminal, styling is dropped entirely"*, per stream: one `Text`
+    /// written to both in the same run is styled on the terminal and plain on
+    /// the pipe.
+    ///
+    /// The terminal is faked rather than found, and that is forced twice over:
+    /// the profile resolves once per process, and the process running this test
+    /// has every stream piped — which is also why the `.nvst` case that pins
+    /// the *member* cannot see the difference. So the answer is given to
+    /// [`depth_for`] and [`rendered_at`], which are pure functions of it.
+    #[test]
+    fn one_text_is_styled_on_a_terminal_stream_and_plain_on_a_redirected_one() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let style = warning(&mut ctx);
+        let body = Value::str(NvsStr::new("danger".as_bytes()));
+        let warn = nvs_runtime::call(nvs_core_cli_text_styled, &mut ctx, &[body, style])
+            .expect("Text::styled answered");
+        let runs = crate::instance::slot(warn.obj_ptr().expect("a `Text` is an object"), TEXT_RUNS);
+
+        // The fake answer: standard output is a terminal showing the sixteen
+        // colours, and standard error is redirected.
+        let terminal = depth_for(ColorDepth::Ansi16, true, true);
+        let redirected = depth_for(ColorDepth::Ansi16, true, false);
+        assert_eq!(terminal, ColorDepth::Ansi16);
+        assert_eq!(redirected, ColorDepth::None);
+
+        assert_eq!(
+            rendered_at(runs, terminal).expect("the runs rendered for the terminal"),
+            "\u{1B}[1;31mdanger\u{1B}[0m",
+            "a terminal stream shows the style the run wears"
+        );
+        assert_eq!(
+            rendered_at(runs, redirected).expect("the runs rendered for the pipe"),
+            "danger",
+            "a redirected stream shows the body and nothing else"
+        );
+
+        // A depth that survived a standard output which is not a terminal was
+        // forced, and a forced depth is the answer for every stream.
+        assert_eq!(
+            depth_for(ColorDepth::Ansi16, false, false),
+            ColorDepth::Ansi16
+        );
+        assert_eq!(
+            depth_for(ColorDepth::None, true, true),
+            ColorDepth::None,
+            "`NO_COLOR` and a dumb terminal outrank a stream that could show colour"
+        );
+
+        #[expect(unsafe_code, reason = "each value owns the reference it releases")]
+        unsafe {
+            body.release();
+            style.release();
+            warn.release();
+        }
     }
 
     /// `rule:tooling/in-place-output-is-a-scoped-live-region` and `rule:tooling/the-terminal-is-restored-on-every-exit-path` with `rule:errors/panics-bypass-user-code`: a live region has an end, and the
@@ -3417,12 +3759,32 @@ mod tests {
         }
     }
 
-    /// The carrier holds exactly one slot: `nvs_runtime::value_to_string`
-    /// renders slot 0 and nothing else, so a second one would be invisible to
-    /// the only consumer there is.
+    /// `nvs_runtime::value_to_string` renders slot 0 and nothing else, so what
+    /// the layout owes it is a rendered `string` there — and the runs, which
+    /// only a member that knows its stream can render, are the slot after it.
     #[test]
-    fn the_carrier_holds_one_slot() {
-        assert_eq!(TEXT.slots.len(), 1);
+    fn the_carrier_renders_from_its_first_slot() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let body = Value::str(NvsStr::new("plain".as_bytes()));
+        let text = nvs_runtime::call(nvs_core_cli_text_plain, &mut ctx, &[body])
+            .expect("Text::plain answered");
+        let carrier = text.obj_ptr().expect("a `Text` is an object");
+        assert_eq!(
+            crate::instance::slot(carrier, nvs_runtime::CARRIER_TEXT_SLOT).tag(),
+            Some(Tag::Str),
+            "the slot `value_to_string` renders holds a `string`"
+        );
+        assert_eq!(
+            crate::instance::slot(carrier, TEXT_RUNS).tag(),
+            Some(Tag::Array),
+            "the runs sit beside that slot, where nothing in `nvs-runtime` reads them"
+        );
+
+        #[expect(unsafe_code, reason = "each value owns the reference it releases")]
+        unsafe {
+            body.release();
+            text.release();
+        }
     }
 
     /// `rule:tooling/terminal-output-is-a-sink`: terminal output substitutes a control sequence
