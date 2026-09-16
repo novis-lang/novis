@@ -1,0 +1,52 @@
+--TEST--
+Spec § 5: `Core\Regex::matchAll` reports the offsets a search taken one match at a time reports, over subjects whose clusters sit between the matches — `rule:types/string-is-utf8`
+--FILE--
+<?nvs
+// `matchAll` converts a whole run of byte positions into `rule:types/string-is-utf8`'s
+// grapheme index with one cursor over the subject, where `match` converts a
+// single position on its own. The two have to answer the same thing, and the
+// place they could part is a cluster between two matches: a cursor that counts
+// the gap since the previous match rather than the whole prefix drifts by one
+// per cluster it mis-attributes, and every match after that is wrong.
+
+// Each row puts a multi-byte cluster — a combining accent, a ZWJ family, a
+// regional-indicator pair, a CR LF, a three-byte ideograph — between the
+// matches, so a byte count, a code-point count and a grapheme count are three
+// different answers on every one.
+array<string> $subjects = [
+    "cafe\u{301} bar cafe\u{301} bar bar",
+    "\u{1f468}\u{200d}\u{1f469}\u{200d}\u{1f467}x1 y2 \u{1f1e6}\u{1f1f9}z3",
+    "a\r\nb\r\nc",
+    "日本語 de 日本語 de",
+];
+array<string> $patterns = ["bar", "[a-z]\\d", "[a-c]", "de"];
+
+// The offsets themselves, per subject, and the agreement counted rather than
+// read off a line: searching again from just past the previous match finds that
+// same match at that same offset. A tally is what asserts it — a cursor
+// drifting only on the third row still looks right on the first two.
+int $seen = 0;
+int $agree = 0;
+int $row = 0;
+foreach ($subjects as string $subject) {
+    var $pattern = $patterns[$row as string];
+    int $from = 0;
+    foreach (Core\Regex::matchAll($subject, $pattern) as Core\Regex\Match $one) {
+        echo $one->offset() as string, " ";
+        $seen = $seen + 1;
+        var $alone = Core\Regex::match($subject, $pattern, {from: $from});
+        if (($alone?->offset() ?? -1) == $one->offset()) {
+            $agree = $agree + 1;
+        }
+        $from = $one->offset() + Core\Str::length($one->text()) as int;
+    }
+    echo "|\n";
+    $row = $row + 1;
+}
+echo $seen as string, "/", $agree as string, "|\n";
+--EXPECT--
+5 14 18 |
+1 4 8 |
+0 2 4 |
+4 11 |
+11/11|

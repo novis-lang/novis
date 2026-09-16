@@ -170,8 +170,8 @@ impl Unit {
     ///
     /// **O(`byte`)**, allocation-free: the prefix is counted, not indexed. A
     /// caller converting many offsets over one subject therefore pays per
-    /// offset — see [`crate::regex`]'s own gap note, which owns that cost for
-    /// the one member that converts more than one.
+    /// offset, which is what [`Unit::cursor`] exists to spare the members that
+    /// report a whole run of them.
     ///
     /// # Panics
     ///
@@ -180,6 +180,26 @@ impl Unit {
     #[must_use]
     pub fn index_of_byte(self, subject: &str, byte: usize) -> usize {
         self.length(&subject[..byte])
+    }
+
+    /// [`Self::index_of_byte`] for a whole run of **non-decreasing** offsets
+    /// over one subject, walking that subject once in total rather than once
+    /// per offset.
+    ///
+    /// The seam a byte-addressed engine reporting many positions needs:
+    /// `Core\Regex::matchAll` converts one offset per match, and counting each
+    /// prefix from its start costs O(n·k) for *k* matches over *n* bytes where
+    /// counting the gap since the previous match costs O(n) for the run. The
+    /// matches arrive in increasing order, which is the whole precondition
+    /// [`Cursor`] asks for.
+    #[must_use]
+    pub fn cursor(self, subject: &str) -> Cursor<'_> {
+        Cursor {
+            pieces: self.pieces(subject),
+            start: 0,
+            counted: 0,
+            held: None,
+        }
     }
 
     /// The byte offset a **signed** unit index names, with a negative one
@@ -285,6 +305,66 @@ impl<'a> Iterator for Pieces<'a> {
             }
         }
         self.next()
+    }
+}
+
+/// [`Unit::cursor`]'s state: [`Unit::index_of_byte`]'s own answer, for offsets
+/// asked in the order the subject runs.
+///
+/// **Each offset must be at or after the one before it.** That is what an
+/// engine reporting its matches in the order they occur already hands over, and
+/// it is the only thing that makes one walk enough: the cursor holds its place
+/// in the subject and never goes back to the start. An offset behind the last
+/// one answers the last one's index, so a member converting positions in an
+/// arbitrary order calls [`Unit::index_of_byte`] per offset instead.
+#[derive(Clone, Debug)]
+pub struct Cursor<'a> {
+    /// The units not yet counted, the first of which begins at `start`.
+    pieces: Pieces<'a>,
+    /// The byte offset the first uncounted unit begins at.
+    start: usize,
+    /// How many units end at or before `start`.
+    counted: usize,
+    /// The byte length of the unit beginning at `start`, pulled from `pieces`
+    /// by an offset that landed inside it and held rather than counted.
+    held: Option<usize>,
+}
+
+impl Cursor<'_> {
+    /// How many units of the subject end at or before `byte` — what
+    /// [`Unit::index_of_byte`] answers for the same pair.
+    ///
+    /// The **partial** unit is the edge that earns the [`Cursor::held`] field:
+    /// a cluster can span a match's first byte, and an offset landing inside
+    /// one is the index of the unit it reached into rather than of the last one
+    /// that ended, which is what counting the prefix on its own would say. Such
+    /// a unit is not consumed, so an offset still inside it reads the same index
+    /// and the one after it is counted exactly once.
+    ///
+    /// A subject [`one_byte_per_cluster`] accepted is the whole of
+    /// [`Pieces::Bytes`], and there the index *is* the byte offset: no walk, and
+    /// no separate flag to carry, since the iterator's own arm is the fact.
+    #[must_use]
+    pub fn index_of_byte(&mut self, byte: usize) -> usize {
+        if matches!(self.pieces, Pieces::Bytes { .. }) {
+            return byte;
+        }
+        while self.start < byte {
+            let Some(len) = self
+                .held
+                .take()
+                .or_else(|| self.pieces.next().map(str::len))
+            else {
+                return self.counted;
+            };
+            if self.start + len > byte {
+                self.held = Some(len);
+                return self.counted + 1;
+            }
+            self.start += len;
+            self.counted += 1;
+        }
+        self.counted
     }
 }
 
@@ -405,6 +485,49 @@ mod tests {
                 reference,
                 "{subject:?} classified differently from the two-pass spelling"
             );
+        }
+    }
+
+    /// A [`Cursor`] answers what counting each prefix answers, at **every**
+    /// character boundary of the subject rather than at the cluster boundaries
+    /// where the two obviously agree.
+    ///
+    /// Asked as agreement over a sweep, because that is where the cheap
+    /// implementation of a cursor differs: counting the gap since the previous
+    /// offset double-counts a cluster an offset landed inside, and `"cafe"` +
+    /// U+0301, a CR LF pair and a ZWJ sequence are the three everyday shapes of
+    /// an offset that can. A cursor drifting by one on any of them fails here
+    /// while still looking right on a subject whose matches all start a
+    /// cluster.
+    #[test]
+    fn a_cursor_answers_what_counting_each_prefix_answers() {
+        let subjects = [
+            "",
+            "ascii",
+            "cafe\u{301} bar",
+            "a\r\nb\r\n",
+            "\u{1f468}\u{200d}\u{1f469}\u{200d}\u{1f467}x1",
+            "a\u{1f1e6}\u{1f1f9}\u{1f1e6}b",
+            "日本語",
+        ];
+        for subject in subjects {
+            for unit in [Unit::CodePoint, Unit::Grapheme] {
+                let mut cursor = unit.cursor(subject);
+                let mut asked = 0;
+                for byte in (0..=subject.len()).filter(|byte| subject.is_char_boundary(*byte)) {
+                    assert_eq!(
+                        cursor.index_of_byte(byte),
+                        unit.index_of_byte(subject, byte),
+                        "{subject:?} at byte {byte} in {unit:?}"
+                    );
+                    asked += 1;
+                }
+                // The sweep is only evidence if it reached the boundaries: an
+                // empty subject has the one at its end, every other one here
+                // has that and more.
+                let least = if subject.is_empty() { 1 } else { 2 };
+                assert!(asked >= least, "{subject:?} swept {asked} boundaries");
+            }
         }
     }
 

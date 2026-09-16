@@ -82,15 +82,7 @@
 //!    what does, and it names none. [`BACKTRACK_BUDGET`] is that default,
 //!    stated once, and reading it from config is a change to that one line.
 //!    — owner: M6
-//! 3. **`matchAll` converts each match's offset over the subject's prefix**,
-//!    so reporting positions for *k* matches in an *n*-byte subject is O(n·k)
-//!    rather than O(n) — [`crate::granularity::Unit::index_of_byte`] counts
-//!    from the start each time. The matches arrive in increasing order, so the
-//!    fix is a cursor that counts only the gap since the previous one; it is
-//!    not written because a cluster can in principle span a match boundary, and
-//!    getting that edge right is worth its own slice rather than a line here.
-//!    — owner: unowned
-//! 4. **This core's compiled-pattern cache is a cross-request store no
+//! 3. **This core's compiled-pattern cache is a cross-request store no
 //!    accounting bracket can take.** [`CACHE`] holds an `Rc` the compiling
 //!    request holds too, so a pattern's bytes have two owners and nothing can
 //!    put its allocation and its release on the same balance, which is what
@@ -111,7 +103,7 @@ use std::rc::Rc;
 
 use nvs_runtime::{Fault, HelperResult, NvsArray, NvsStr, Tag, Value};
 
-use crate::granularity::DEFAULT;
+use crate::granularity::{Cursor, DEFAULT};
 use crate::registry::{
     Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
 };
@@ -983,7 +975,7 @@ fn build(pattern: &str, flags: u8) -> Result<Compiled, String> {
 /// The [`Tier`] is sound for the same reason and not merely the refusal: a
 /// wrapper the linear engine can express cannot move a pattern the linear
 /// engine refused, nor the other way round, so the tier a flagged call lands
-/// in is the tier reported here. What *is* flag-sensitive is gap 1's `[regex]
+/// in is the tier reported here. What *is* flag-sensitive is gap 2's `[regex]
 /// backtracking = "deny"`, which refuses the second tier outright rather than
 /// re-routing anything into it, and which this fold does not read.
 pub fn validate(pattern: &str) -> Result<Tier, String> {
@@ -1249,7 +1241,13 @@ fn start_byte(subject: &str, from: i64) -> usize {
 /// order, which is `preg_match`'s: a named group is written under its name and
 /// then under its number, so a program migrating from PHP reads the same array
 /// back.
-fn built_match(subject: &str, names: &[Option<&str>], captured: &Captured<'_>) -> Value {
+///
+/// `offsets` is the subject the engine matched over, as the one thing this
+/// needs it for: the match's byte position in [`DEFAULT`]'s unit. A member
+/// reporting a run of matches passes **one** cursor through all of them, which
+/// is what keeps the whole run's conversion O(n) — [`Cursor`] owns the ordering
+/// that buys it.
+fn built_match(offsets: &mut Cursor<'_>, names: &[Option<&str>], captured: &Captured<'_>) -> Value {
     let text_of = |group: Option<(usize, &str)>| {
         group.map_or_else(Value::null, |(_, text)| {
             Value::str(NvsStr::new(text.as_bytes()))
@@ -1268,7 +1266,7 @@ fn built_match(subject: &str, names: &[Option<&str>], captured: &Captured<'_>) -
         .first()
         .copied()
         .flatten()
-        .map_or(0, |(byte, _)| DEFAULT.index_of_byte(subject, byte));
+        .map_or(0, |(byte, _)| offsets.index_of_byte(byte));
     crate::instance::build(
         &MATCH,
         [
@@ -1336,7 +1334,7 @@ nvs_runtime::nvs_helper! {
                 .map(|caps| backtracking_groups(&caps)),
         };
         Ok(found.map_or_else(Value::null, |captured| {
-            built_match(subject, &names, &captured)
+            built_match(&mut DEFAULT.cursor(subject), &names, &captured)
         }))
     }
 }
@@ -1351,9 +1349,10 @@ nvs_runtime::nvs_helper! {
     /// `Core\Arr::map($matches, fn($m) => $m->group(1))` is the transpose, in
     /// one line, when a caller wants it.
     ///
-    /// **Each match's `offset` is converted from bytes independently**, which
-    /// costs a pass over the subject's prefix per match — gap 3 above owns
-    /// that.
+    /// **Every match's `offset` is converted by one cursor**, so reporting
+    /// positions for *k* matches costs one walk of the subject rather than
+    /// *k* of its prefixes: the matches arrive in increasing byte order, which
+    /// is exactly what [`Cursor`] asks for.
     fn nvs_core_regex_match_all(_ctx, args: [2]) {
         let subject = text(&args[0], "matchAll", "the subject")?;
         let given = pattern_of(&args[1], "matchAll")?;
@@ -1361,18 +1360,19 @@ nvs_runtime::nvs_helper! {
 
         let compiled = compiled(pattern, given.flags, "matchAll")?;
         let names = names_of(&compiled);
+        let mut offsets = DEFAULT.cursor(subject);
         let mut out = NvsArray::new();
         match &*compiled {
             Compiled::Linear(re) => {
                 for caps in re.captures_iter(subject) {
-                    out.append(built_match(subject, &names, &linear_groups(&caps)));
+                    out.append(built_match(&mut offsets, &names, &linear_groups(&caps)));
                 }
             }
             Compiled::Backtracking(re) => {
                 for caps in re.captures_iter(subject) {
                     let caps =
                         caps.map_err(|err| budget_exhausted("matchAll", pattern, &err))?;
-                    out.append(built_match(subject, &names, &backtracking_groups(&caps)));
+                    out.append(built_match(&mut offsets, &names, &backtracking_groups(&caps)));
                 }
             }
         }
@@ -1528,11 +1528,11 @@ nvs_runtime::nvs_helper! {
 fn replacement_for(
     ctx: &mut nvs_runtime::Ctx,
     callback: Value,
-    subject: &str,
+    offsets: &mut Cursor<'_>,
     names: &[Option<&str>],
     captured: &Captured<'_>,
 ) -> Result<String, Fault> {
-    let matched = built_match(subject, names, captured);
+    let matched = built_match(offsets, names, captured);
     let answered = nvs_runtime::call_closure(ctx, callback, &[matched]);
     #[expect(
         unsafe_code,
@@ -1610,13 +1610,14 @@ nvs_runtime::nvs_helper! {
         }
 
         let mut out = String::with_capacity(subject.len());
+        let mut offsets = DEFAULT.cursor(subject);
         let mut cursor = 0;
         for captured in &found {
             let Some((start, whole)) = captured.first().copied().flatten() else {
                 continue;
             };
             out.push_str(&subject[cursor..start]);
-            out.push_str(&replacement_for(ctx, args[2], subject, &names, captured)?);
+            out.push_str(&replacement_for(ctx, args[2], &mut offsets, &names, captured)?);
             cursor = start + whole.len();
         }
         out.push_str(&subject[cursor..]);
@@ -1754,7 +1755,7 @@ mod tests {
             panic!("a plain pattern lands in the linear tier")
         };
         let caps = re.captures_at("  abc", 0).expect("matches");
-        let value = built_match("  abc", &names, &linear_groups(&caps));
+        let value = built_match(&mut DEFAULT.cursor("  abc"), &names, &linear_groups(&caps));
         let object = value.obj_ptr().expect("a Match is an object");
         let groups = crate::instance::slot(object, GROUPS_SLOT);
         let held = crate::arr::borrowed(groups.array_ptr().expect("an array"));
