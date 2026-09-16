@@ -2,64 +2,64 @@
 
 ## State
 
-**Goal `unowned-closures`, stage 6 — the register.** `python tools/owners.py` reports `unowned: 41`,
+**Goal `unowned-closures`, stage 6 — the register.** `python tools/owners.py` reports `unowned: 40`,
 `untagged: 0`, `broken-tag: 0`, `unreasoned: 0`, `retired-owner: 0` and `past-milestone: 8`; stage 6
 wants the first of those at 0, and the stage's other check — `python tools/owners.py --deferrals` — is
 green. Nothing is blocked.
 
-**A cursor on a declaration's own name now resolves to the symbol it declares.**
-`nvs_lsp::index::symbol_at` (`crates/nvs-lsp/src/index.rs:502`) asks `declared_at` before
-`crate::definition::named_at`: the declaration side reads the type from `nvs_hir::SymbolTable` and the
-member from the declaration's own node, in the order and from the sources `declarations` already reads
-them, so a name it answers is a name the index is keyed on. The member half of both is one list,
-`member_names`, and `member_symbol` is the one place `C::$x` is spelled. `crate::server`'s own
-index-side `declared_at` is gone: the type hierarchy and `implementation` ask `symbol_at` once, like the
-other three features. The cursor's file is the analysis entry, which is the only file a cursor is in
-(`Analysed::index`), and `covers` includes the name's last byte because that is where a double-click
-leaves the caret.
+**A name in an `extends` or `implements` clause is now an occurrence of what it resolved to.**
+`nvs_lsp::index::occurrences` (`crates/nvs-lsp/src/index.rs:785`) runs a second walk after the
+expression one: per symbol declared in the file, the written names come off the declaration's own node
+(`supertype_names`, `crates/nvs-lsp/src/index.rs:834`) and the resolved ones off
+`nvs_hir::ClassLinks`, the same graph `supertypes_of` reads the declaration side from. The two are
+paired by position and only when the lengths match (`clause_uses`, `crates/nvs-lsp/src/index.rs:862`),
+because `nvs_hir::HierarchyResolver::resolve` drops a name that did not resolve and a clause paired off
+by one would record a use at the wrong name. The module doc's third known gap is gone with it.
 
-`tests/lsp/` moved with it: twelve cases that froze the empty answer are renamed to the answer they now
-freeze, and four that still answer nothing say why in the terms that are now true. A `.lspt`
-expectation is never edited to make a case pass (`tests/lsp/README.md`), so a case whose claim changed
-is a new case under the name of its new claim.
+The cursor half of that edge is **not** here: `symbol_at` answers a declaration's own name and an
+expression, and a clause name is neither, so go-to-definition and a reference list *from* inside
+`implements Greets` still answer nothing.
 
 ## Next group
 
-**Stage 6: the reference index's three remaining occurrence gaps** — one file set:
-`crates/nvs-lsp/src/index.rs`, `crates/nvs-lsp/src/definition.rs` for the second item, and the `.lspt`
-cases under `tests/lsp/references/` and `tests/lsp/highlight/`.
+**Stage 6: the reference index's two remaining occurrence gaps, both of which are a change in the
+checker's table before they are one here** — one file set: `crates/nvs-types/src/expr/mod.rs`,
+`crates/nvs-types/src/expr_table.rs`, `crates/nvs-lsp/src/definition.rs`,
+`crates/nvs-lsp/src/index.rs`, and the `.lspt` cases under `tests/lsp/`.
 
-- [ ] **A name in an `extends` or `implements` clause is an occurrence** —
-      `crates/nvs-lsp/src/index.rs:74`, `rule:ide/five-features-are-one-reference-index`. The written
-      spans are on the declaration's own node (`ClassDecl::extends`, `ClassDecl::implements`,
-      `InterfaceDecl::extends`, each entry a `Name` with its own span,
-      `crates/nvs-syntax/src/ast.rs:1518`); the resolved names are `nvs_hir::ClassLinks::extends` and
-      `::implements` off `analysed.module.graph` (`crates/nvs-hir/src/hierarchy.rs:60`). Pair the two
-      **by position and only when the lengths match** — `crates/nvs-hir/src/hierarchy.rs:266` drops a
-      name that did not resolve, and a clause paired off by one would record a use at the wrong name.
-      The hook is a second pass in `occurrences` (`crates/nvs-lsp/src/index.rs:784`), per symbol
-      declared in the file, reaching the node through `declared_type` the way `declarations` does.
-      `tests/lsp/references/an-interface-declarations-own-name-answers-itself-alone.lspt` and
-      `tests/lsp/highlight/an-interface-declarations-own-name-highlights-nothing.lspt` both move with
-      it: the clause in each is at `case.nvs:7:23`.
-- [ ] **Reading a class constant is an occurrence of it** — `crates/nvs-lsp/src/index.rs:68`, same
-      rule. `crate::definition::Target` (`crates/nvs-lsp/src/definition.rs:187`) names a type, a method
-      and a property and has no constant among them, so the variant goes there, with its arm in
-      `target_of` (`crates/nvs-lsp/src/definition.rs:380`) and its spelling in `symbol_of`
-      (`crates/nvs-lsp/src/index.rs:810`) — the declaration side already spells it `Cart::LIMIT`.
-      `tests/lsp/references/a-class-constant-read-answers-nothing.lspt` and
-      `.../a-class-constant-declaration-answers-itself-alone.lspt` move with it.
+- [ ] **Reading a class constant is an occurrence of it** — `crates/nvs-lsp/src/index.rs:68`,
+      `rule:ide/five-features-are-one-reference-index`. `Class::CONST` is checked at
+      `crates/nvs-types/src/expr/mod.rs:537` through `crates/nvs-types/src/expr/members.rs:65` and
+      records **no** `ExprInfo` at all, so the variant is the slice's first half — beside
+      `ExprInfo::CoreConst` (`crates/nvs-types/src/expr_table.rs:898`), carrying the class `QName` and
+      the constant's name. Then `target_of` needs the arm
+      (`crates/nvs-lsp/src/definition.rs:380`) and `symbol_of` the `C::NAME` spelling the declaration
+      side already writes (`member_symbol`, no `$` sigil). **`named` is the trap**:
+      `crates/nvs-lsp/src/index.rs:896`'s `ClassConstAccess` arm answers the node's **class** side,
+      because the only thing recorded on that production today is an enum case, whose symbol is its
+      enum — a constant's name is the second child, so the arm has to know which target it is answering
+      for. Check what a new `Target` variant costs `crate::hover`'s card in `crates/nvs-lsp/src/render.rs`
+      before starting. Four cases move: `tests/lsp/references/a-class-constant-read-answers-nothing.lspt`,
+      `tests/lsp/references/a-class-constant-declaration-answers-itself-alone.lspt`,
+      `tests/lsp/highlight/a-class-constant-read-highlights-nothing.lspt`,
+      `tests/lsp/highlight/a-class-constant-declaration-highlights-nothing.lspt`.
 - [ ] **An enum case occurrence is recorded against the case** — `crates/nvs-lsp/src/index.rs:61`,
-      same rule. This one is a change in the checker's table rather than in the walk: the read resolves
-      to `nvs_types::ExprInfo::EnumCase`, whose `enum_` is what both this index and `definition` answer.
-      `tests/lsp/references/an-enum-case-declaration-answers-itself-alone.lspt`,
-      `.../an-enum-case-read-answers-the-enum-it-was-recorded-against.lspt` and their two `highlight`
-      twins move with it.
+      same rule. `ExprInfo::EnumCase` (`crates/nvs-types/src/expr_table.rs:873`) names the enum and
+      nothing else, so this is that table's widening and not this walk's:
+      `crates/nvs-lsp/src/definition.rs:387` reads the field, and moving it moves what `definition` and
+      `hover` answer on `Suit::Hearts` too (`docs/agent/carried-gaps.md:621`). The cases that move are
+      `tests/lsp/references/an-enum-case-read-answers-the-enum-it-was-recorded-against.lspt` and
+      `tests/lsp/highlight/an-enum-case-read-highlights-the-read-it-was-recorded-against.lspt`.
+- [ ] **A cursor on a clause name resolves to the name the clause resolved to** —
+      `crates/nvs-lsp/src/index.rs:516`, same rule. `declared_at` already reaches the declaration's node
+      through `declared_type` for a member name; a clause name is a name that declaration writes too,
+      and pairing it against `ClassLinks` is `supertype_names` plus the same length test
+      `clause_uses` makes. Index-side only, and it is what makes go-to-definition work from inside
+      `extends Base`.
 
 ## Backlog
 
-- The other 41 `unowned` module-doc gaps stage 6 still wants at 0 — `python tools/owners.py` lists
-  each with its file and number.
-- `crates/nvs-hir/src/hierarchy.rs:38`'s own unowned gap (a `Core` link target is trusted to exist) is
-  in this goal and carries a `Decided:` sentence already.
-- What a shipped feature still owes across a goal switch is `docs/agent/carried-gaps.md`, not here.
+- `crates/nvs-lsp/src/index.rs` gap 1 is also `docs/agent/carried-gaps.md:621` — closing one closes both.
+- `crates/nvs-lsp/src/hints.rs` gap 1 (a parameter hint needs a wider `ResolvedCall`),
+  `docs/agent/carried-gaps.md:628`.
+- `python tools/owners.py`'s `past-milestone: 8` is unexamined this goal; the stage's checks do not read it.
