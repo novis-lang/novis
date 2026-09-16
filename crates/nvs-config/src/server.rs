@@ -2,8 +2,8 @@
 //! drain period as durations — refusing the magnitudes that would leave a connection unbounded —
 //! and `listen` as the sockets to bind.
 //!
-//! Those, along with `max_in_flight`, `workers`, `socket_mode` and `health_path`, are the only
-//! parts of `[server]`
+//! Those, along with `max_in_flight`, `workers`, `socket_mode`, `health_path` and the
+//! `[server.connection]` bounds, are the only parts of `[server]`
 //! that resolve to something other than what was written *here*, so this module is small on purpose:
 //! everything else in the block is a path or a word read directly off [`crate::tree::Server`]. The
 //! mount table resolves as well, and it is [`mod@crate::mount`]'s because it needs a disk to
@@ -29,6 +29,15 @@
 //! to suit a proxy would otherwise have lengthened every restart. What makes a parked connection
 //! see the drain at all is `nvs_runtime::Drain`'s wake, and what the connection does when it does
 //! is `nvs_server::io`'s; this module is only the number.
+//!
+//! **`[server.connection]` resolves to overrides rather than to numbers**, which is the one shape
+//! in this module that is not "read the file and hand back a value". Every bound on an open
+//! connection is finite before anything is configured
+//! (`rule:concurrency/connection-bounds-are-finite`), and `nvs_server::bounds::Connection` is
+//! where each of those numbers is chosen and enforced — so [`connection_bounds_for`] refuses the
+//! magnitudes a bound cannot have and says which keys were written, and holds no default of its
+//! own. A copy of the shipped numbers here would be a second home for a set whose whole property
+//! is that there is one.
 //!
 //! **`false` and `0` are both refused**, under `E0619`. Everywhere else in this tree `false`
 //! removes a ceiling (`rule:config/three-changeability-classes`), and that spelling is exactly what
@@ -132,8 +141,8 @@ impl Default for Waits {
     }
 }
 
-/// The block resolves — the boot half of [`waits_for`], of [`listen_on`], of [`health_path`] and
-/// of [`crate::mount::check`].
+/// The block resolves — the boot half of [`waits_for`], of [`connection_bounds_for`], of
+/// [`listen_on`], of [`health_path`] and of [`crate::mount::check`].
 ///
 /// # Errors
 ///
@@ -144,6 +153,7 @@ impl Default for Waits {
 /// is the server's boot step rather than the resolver's.
 pub fn validate(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), Diagnostic> {
     waits_for(config, origins)?;
+    connection_bounds_for(config, origins)?;
     listen_on(config, origins)?;
     workers_for(config, origins)?;
     health_path(config, origins)?;
@@ -262,6 +272,168 @@ fn refuse(
     .with_help(format!(
         "write how long the server waits, as `10s` — there is no spelling for waiting forever, \
          and leaving `{key}` out keeps `rule:http-server/the-server-block-is-boot-class`'s own default"
+    ))
+}
+
+/// What a `[server.connection]` block wrote, key by key, with `None` for a key it left out.
+///
+/// **The numbers are not here, and that is the point.** Every bound on an open connection is
+/// finite before anything is configured (`rule:concurrency/connection-bounds-are-finite`), and
+/// `nvs_server::bounds::Connection::default` is where each of those numbers is chosen, argued
+/// against what one connection may hold, and enforced. A default repeated in this crate would be a
+/// second home for a number the server already states, so this type carries the *override* and
+/// nothing else: a `None` means the shipped bound stands, not that the bound is absent.
+///
+/// Copied rather than borrowed, for [`Waits`]' reason: the whole `[server]` block is `Boot`-class,
+/// so a connection already open keeps the bounds it was accepted under across a reload.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ConnectionBounds {
+    /// `max_open` — connections this process may hold open at once.
+    pub max_open: Option<u64>,
+    /// `max_frame` — the largest frame payload the codec accepts, in bytes.
+    pub frame: Option<u64>,
+    /// `max_message` — the largest reassembled message the codec accepts, in bytes.
+    pub message: Option<u64>,
+    /// `idle_timeout` — the longest a connection may go without a frame from its peer.
+    pub idle: Option<Duration>,
+    /// `max_lifetime` — the longest a connection may stay open at all.
+    pub lifetime: Option<Duration>,
+    /// `send_timeout` — the longest one `send` may take before it throws.
+    pub send: Option<Duration>,
+}
+
+/// The bounds the tree's `[server.connection]` writes over the server's own.
+///
+/// A tree with no block, and a block that leaves a key out, are both "the shipped bound stands"
+/// rather than an absence to be filled in later — which is [`waits_for`]'s reason and § 7's: an
+/// unconfigured connection is already bounded, and a reader that treated an unwritten key as
+/// unbounded would invert the one property that rule exists for.
+///
+/// # Errors
+///
+/// `E0649` for any key written as `false` or as zero, both of which are a bound with no bound in
+/// it. A value that is not a size, a count or a duration at all is `E0601` from
+/// [`mod@crate::value`], in that module's words rather than this one's.
+pub fn connection_bounds_for(
+    config: &Config,
+    origins: &BTreeMap<String, Origin>,
+) -> Result<ConnectionBounds, Diagnostic> {
+    let Some(block) = config
+        .server
+        .as_ref()
+        .and_then(|server| server.connection.as_ref())
+    else {
+        return Ok(ConnectionBounds::default());
+    };
+    Ok(ConnectionBounds {
+        max_open: bound(
+            "server.connection.max_open",
+            Unit::Count,
+            block.max_open.as_ref(),
+            "a connection outlives the request that upgraded it, so the only thing that bounds how \
+             many this process holds is this count",
+            origins,
+        )?,
+        frame: bound(
+            "server.connection.max_frame",
+            Unit::Bytes,
+            block.max_frame.as_ref(),
+            "a frame is buffered before it can be looked at, so this is the peer's own say over \
+             what one connection makes this process hold",
+            origins,
+        )?,
+        message: bound(
+            "server.connection.max_message",
+            Unit::Bytes,
+            block.max_message.as_ref(),
+            "a message is frames reassembled, so removing this cap lets a peer spend the \
+             connection's whole budget one continuation frame at a time",
+            origins,
+        )?,
+        idle: bound(
+            "server.connection.idle_timeout",
+            Unit::Duration,
+            block.idle_timeout.as_ref(),
+            "nothing else closes a connection whose peer stopped speaking — there is no request to \
+             end and no response to finish writing",
+            origins,
+        )?
+        .map(Duration::from_nanos),
+        lifetime: bound(
+            "server.connection.max_lifetime",
+            Unit::Duration,
+            block.max_lifetime.as_ref(),
+            "this is what catches the process that never reloads, so without it a busy connection \
+             can outlive every deploy that followed it",
+            origins,
+        )?
+        .map(Duration::from_nanos),
+        send: bound(
+            "server.connection.send_timeout",
+            Unit::Duration,
+            block.send_timeout.as_ref(),
+            "a peer that stopped reading is otherwise a coroutine parked in `send` for as long as \
+             it cares to leave it there",
+            origins,
+        )?
+        .map(Duration::from_nanos),
+    })
+}
+
+/// One written `[server.connection]` bound, or `None` for a key the block left out.
+///
+/// [`mod@crate::value`] is the parser, so `"4MB"`, `4194304`, `"30s"` and `30` each read as what
+/// they spell and a suffix it does not know is refused in its own words. What is left for this
+/// function is the magnitude question, and it is the same question in all three units: `false`
+/// removes a ceiling everywhere else in the tree, and zero is that value written the other way
+/// round — no connection open, no frame accepted, no wait elapsed.
+fn bound(
+    key: &str,
+    unit: Unit,
+    written: Option<&Setting>,
+    why: &str,
+    origins: &BTreeMap<String, Origin>,
+) -> Result<Option<u64>, Diagnostic> {
+    let Some(setting) = written else {
+        return Ok(None);
+    };
+    let quantity = Quantity::parse(key, unit, setting)
+        .map_err(|invalid| invalid.diagnostic(origins.get(key)))?;
+    match quantity {
+        Quantity::Bytes(0) | Quantity::Nanos(0) | Quantity::Count(0) | Quantity::Unbounded => {
+            Err(unbounded(key, setting, why, origins))
+        }
+        Quantity::Bytes(magnitude) | Quantity::Nanos(magnitude) | Quantity::Count(magnitude) => {
+            Ok(Some(magnitude))
+        }
+        // None of the three units above yields a ratio.
+        Quantity::Ratio(_) => Err(unbounded(key, setting, why, origins)),
+    }
+}
+
+/// A `[server.connection]` bound with no bound in it, under `E0649`.
+///
+/// One code for the block rather than one per unit, because the mistake is one mistake: what an
+/// operator wrote is a connection this server would hold with nothing to close it, and whether
+/// they spelled it as a size, a count or a wait changes only which sentence completes the note.
+fn unbounded(
+    key: &str,
+    written: &Setting,
+    why: &str,
+    origins: &BTreeMap<String, Origin>,
+) -> Diagnostic {
+    Diagnostic::error(
+        code::E_CONNECTION_BOUND_REMOVED,
+        format!(
+            "`{key}` is `{}`, which is a bound with no bound in it",
+            crate::value::as_written(written)
+        ),
+    )
+    .with_note(format!("{why}{}", origin_note(origins.get(key))))
+    .with_help(format!(
+        "write the bound this deployment wants, or leave `{key}` out to keep \
+         `rule:concurrency/connection-bounds-are-finite`'s own finite default — there is no \
+         spelling here for an unbounded one"
     ))
 }
 

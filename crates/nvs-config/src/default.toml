@@ -424,6 +424,18 @@
 # keep-alive under another name, so lengthening the wait a proxy needs leaves the restart alone.
 #drain_timeout = "30s"              # the drain period
 
+#[server.connection]
+# What holds a connection that was upgraded out of a request — a WebSocket, or an event stream on
+# the door that has no peer speaking. Every one of these is finite with nothing written here, and
+# none of them has an unbounded spelling: `false` and `0` are both refused, because a connection is
+# the one thing this server holds that no request ever ends.
+#max_open = 10000                   # connections this process holds open at once
+#max_frame = "1MB"                  # the largest frame payload the codec accepts
+#max_message = "4MB"                # the largest message, frames reassembled
+#idle_timeout = "5m"                # the longest silence from the peer; unarmed on an event stream
+#max_lifetime = "24h"               # the longest one connection may stay open, however busy
+#send_timeout = "30s"               # the longest one `send` may take before it throws
+
 #[[server.mount]]
 # One mount — `rule:http-server/a-request-resolves-in-five-steps`. A mount matches on `prefix`, on
 # `host`, or on both; `scan` is a glob under `[server] root` where `*` captures one path segment and

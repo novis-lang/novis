@@ -149,14 +149,6 @@ where taking it is the work and the code that follows it is not.
   has no suffix case. The rows themselves are guarded by `crates/nvs-types/tests/routes.rs`. Found by
   the docs migration's sweep (unit C8), which could record it and not write it.
   [until: exists tests/conformance/core/a-shared-route-name-is-one-endpoint-everywhere.nvst]
-- **A WebSocket connection's bounds are finite and configurable by nobody.**
-  `rule:concurrency/connection-bounds-are-finite` asks for finite rather than for configurable, so
-  `nvs-server`'s `bounds` answers it in full and every number is a constant: an operator who wants a
-  different idle, lifetime, frame size or open-connection ceiling rebuilds. It is unowned rather than
-  goal `config-is-written`'s because that goal closes keys that parse and reach no reader, and these are readers no key
-  reaches — `nvs_config::tree::Server` has no field for any of them, so the audit cannot see them.
-  `crates/nvs-server/src/bounds.rs` § *Known gap*, which names where the keys belong.
-  [until: gone crates/nvs-server/src/bounds.rs:Known gap: none of these has a]
 - **`nvs-ir`'s lowering residue, beyond the refusal sites
   [carried-refusals.md](carried-refusals.md)'s item 901 carries.** That entry's argument covers the
   whole file: M4 reached its loop goal, the milestone is carried, and no live entry on the chain

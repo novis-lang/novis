@@ -124,7 +124,9 @@ use std::sync::Arc;
 
 use jiff::Zoned;
 use nvs_config::mount::Mounted;
-use nvs_config::server::{Listen, capacity_for, listen_on, waits_for, workers_for};
+use nvs_config::server::{
+    Listen, capacity_for, connection_bounds_for, listen_on, waits_for, workers_for,
+};
 use nvs_diagnostics::{Diagnostics, SourceMap};
 use nvs_host::{Isolate, NvsListener, Output};
 use nvs_runtime::script::Program;
@@ -193,6 +195,16 @@ pub(crate) fn run(
     };
     let configured = match listen_on(&snapshot.config, &origins) {
         Ok(entries) => entries,
+        Err(diagnostic) => return report(diagnostic, &sources),
+    };
+    // `rule:concurrency/connection-bounds-are-finite`'s table, resolved here
+    // with the rest of the `Boot`-class block: what a `[server.connection]`
+    // block wrote, over the finite set `nvs_server::bounds::Connection` ships.
+    // It is read before a listener exists because a connection that upgrades
+    // outlives the request it came from, so the moment there is one to bound is
+    // already too late to ask a file.
+    let bounds = match connection_bounds_for(&snapshot.config, &origins) {
+        Ok(written) => nvs_server::bounds::Connection::configured(written),
         Err(diagnostic) => return report(diagnostic, &sources),
     };
     // `rule:http-server/admission-is-arithmetic-not-a-number`: the ceiling is the smaller of what the file asked for and
@@ -266,7 +278,8 @@ pub(crate) fn run(
         Arc::new(trusted),
         Arc::new(Cors::of(snapshot.config.http.as_ref())),
         Arc::clone(&current),
-    );
+    )
+    .bounded_by(bounds);
     // `rule:config/one-local-control-socket`'s address, read here with the rest
     // of the `Boot`-class block so that a value naming something a network
     // could reach refuses the start before anything is compiled. A tree that

@@ -1973,6 +1973,25 @@ pub mod code {
     /// one that widens it.
     pub const E_BAD_SOCKET_MODE: Code = Code::new("E0648");
 
+    /// A `[server.connection]` bound written with no bound in it — any of
+    /// that block's keys as `false` or as zero.
+    ///
+    /// `rule:concurrency/connection-bounds-are-finite` is the one bound set
+    /// whose subject outlives the request that created it, so a connection
+    /// held open with a ceiling an operator removed is memory and a
+    /// descriptor nothing in the process ever reclaims. `false` removes a
+    /// ceiling everywhere else in the tree
+    /// (`rule:config/three-changeability-classes`) and has no meaning here;
+    /// zero is the same value from the other side — no connection may be
+    /// open, no frame may arrive and no wait may elapse — which is a server
+    /// that upgrades nothing. The refusal names the key and the number the
+    /// block ships with.
+    ///
+    /// A value that is not a size, a count or a duration at all is `E0601`
+    /// in `nvs_config::value`'s own words; this code is only for a
+    /// well-formed value whose *magnitude* is the problem.
+    pub const E_CONNECTION_BOUND_REMOVED: Code = Code::new("E0649");
+
     // --- E07xx types, continued --------------------------------------------
     //
     // The E04xx band filled at `E0499`. Max-plus-one yields `E0500`, whose

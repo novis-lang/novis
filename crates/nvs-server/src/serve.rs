@@ -563,6 +563,16 @@ pub struct Serving {
     /// unaffected either way: it holds the [`Arc`] it took, and the clone here
     /// is taken once at its start.
     current: Arc<nvs_config::Current>,
+    /// `rule:concurrency/connection-bounds-are-finite`'s table, for every
+    /// connection this loop frames. Beside the admission ceiling above it
+    /// because it is the same kind of number read at the same moment: the whole
+    /// `[server]` block is `Boot`-class, so these are resolved once and a
+    /// connection already open keeps what it was accepted under.
+    ///
+    /// Not an [`Arc`], and the only field here that is not: it is a table of
+    /// `Copy` numbers, so sharing it would buy an indirection on the path that
+    /// reads it per connection and save nothing a clone does not.
+    bounds: crate::bounds::Connection,
 }
 
 impl Serving {
@@ -605,7 +615,24 @@ impl Serving {
             trusted,
             cors,
             current,
+            bounds: crate::bounds::Connection::default(),
         }
+    }
+
+    /// The same, under the connection bounds a boot resolved, rather than under
+    /// the ones this server ships.
+    ///
+    /// A step after the constructor and not a parameter of it, because that is
+    /// what the two callers are: a process that read a `[server.connection]`
+    /// block takes this, and every embedder and every test that is about
+    /// something else is served under
+    /// [`crate::bounds::Connection::default`] — which is
+    /// `rule:concurrency/connection-bounds-are-finite`'s point, that the
+    /// unconfigured table is already a complete one.
+    #[must_use]
+    pub fn bounded_by(mut self, bounds: crate::bounds::Connection) -> Self {
+        self.bounds = bounds;
+        self
     }
 }
 
@@ -805,6 +832,14 @@ fn joined_when_ended(writing: &RefCell<Option<Streamed<'_>>>, ctx: &mut Ctx) {
 /// [`crate::secure`]'s own docs own that direction, and the effective scheme
 /// this passes.
 ///
+/// **The connection bounds ride on `serving` and the waits do not**, which
+/// looks like an inconsistency and is the difference between the two. A wait
+/// bounds the request this loop is framing, so a caller that frames one
+/// connection with a clock of its own is an ordinary thing to be;
+/// `rule:concurrency/connection-bounds-are-finite`'s table bounds what the
+/// request may *leave behind*, and that is a property of the server rather than
+/// of any one connection offered to it.
+///
 /// **`waits` is the clock, and it is a parameter and not a default.** `rule:http-server/the-server-block-is-boot-class`
 /// 's four waits bound this connection from the moment it is accepted, and
 /// [`crate::io`]'s § *The clock* is where they are actually enforced; what this
@@ -939,12 +974,13 @@ where
     let pending_socket: RefCell<Option<nvs_runtime::Upgrade>> = RefCell::new(None);
     let pending_socket = &pending_socket;
     // `rule:concurrency/connection-bounds-are-finite`'s table for this
-    // connection, read once here rather than per request or per hand-over:
-    // every response written over this socket writes through the same send
-    // bound, and the framing at the end of this function is held inside the
-    // same numbers. `crate::bounds`' own § *Known gap* is where it is recorded
-    // that no `[server]` key overrides one yet.
-    let bounds = crate::bounds::Connection::default();
+    // connection, copied once here rather than read per request or per
+    // hand-over: every response written over this socket writes through the
+    // same send bound, and the framing at the end of this function is held
+    // inside the same numbers. What a `[server.connection]` block moved is
+    // already in it — the block is `Boot`-class, so [`Serving`] resolved it
+    // before the listener existed.
+    let bounds = serving.bounds;
     let send_timeout = bounds.send;
     // A request whose head has gone out and whose body is still being written.
     // At most one, because `hyper`'s h1 dispatcher writes one response at a

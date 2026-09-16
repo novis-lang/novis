@@ -1128,8 +1128,46 @@ pub struct Server {
     /// draining, spelled like the waits above and bounding a stop rather than an idle socket
     /// ([ADR 0186](/docs/decisions/0186.md) § 3).
     pub drain_timeout: Option<Setting>,
+    /// `[server.connection]` — what holds an upgraded connection, which is a different subject
+    /// from the waits above (`rule:concurrency/connection-bounds-are-finite`).
+    pub connection: Option<ServerConnection>,
     /// `[[server.mount]]` — one rule per mount (§ 4).
     pub mount: Vec<Mount>,
+}
+
+/// `[server.connection]` — the bounds one open connection is held inside
+/// (`rule:concurrency/connection-bounds-are-finite`).
+///
+/// A block of its own rather than six more `[server]` keys, because what these bound is a
+/// connection that outlived the request which upgraded it, while every wait above bounds a
+/// request. An operator reading `send_timeout` beside `write_idle_timeout` in one flat block would
+/// have two spellings of one idea in front of them and nothing to say which door each reaches.
+///
+/// Every key here is a bound and none has an unbounded spelling: `false` and zero are both
+/// `E0649`, which [`crate::server::connection_bounds_for`] refuses them with. A key left out is
+/// the finite number `nvs_server::bounds::Connection::default` ships, which is where each of those
+/// numbers is chosen and argued — this block is what writes over one, never where one lives.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq)]
+#[serde(default, deny_unknown_fields)]
+pub struct ServerConnection {
+    /// How many connections this process may hold open at once. A count, and deliberately not
+    /// `[server] max_in_flight`: a request that upgraded has ended, so a connection holding a
+    /// coroutine and a root isolate would otherwise be charged to nothing.
+    pub max_open: Option<Setting>,
+    /// The largest frame payload the codec accepts, in bytes.
+    pub max_frame: Option<Setting>,
+    /// The largest message — frames reassembled — the codec accepts, in bytes. A value below
+    /// `max_frame` is not refused here: a message is at least one frame, and
+    /// `nvs_server::bounds::Connection` is what holds the two together.
+    pub max_message: Option<Setting>,
+    /// How long a connection may go without a frame from its peer before it is closed. An event
+    /// stream's peer never speaks, so this bound is unarmed on that door and writing it moves the
+    /// WebSocket one alone.
+    pub idle_timeout: Option<Setting>,
+    /// How long a connection may stay open at all, however busy.
+    pub max_lifetime: Option<Setting>,
+    /// How long one `send` may take before it throws.
+    pub send_timeout: Option<Setting>,
 }
 
 /// One `[[server.mount]]` entry — `rule:http-server/a-request-resolves-in-five-steps`.

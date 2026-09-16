@@ -7,8 +7,9 @@
 //! the one thing this server holds that no request ever ends, so a bound left
 //! to a later configuration pass is a bound that is absent on every deployment
 //! that did not know to write it — which is the shape `rule:programs/memory-priority`'s priority 1
-//! refuses. [`Connection::default`] is therefore the whole answer and not a
-//! starting point, and the test at the foot of this module is what says so:
+//! refuses. [`Connection::default`] is therefore the whole answer a deployment
+//! that writes nothing is served under, and the test at the foot of this
+//! module is what says so:
 //! it destructures the struct, so a bound added here without a finite default
 //! fails to compile rather than shipping open.
 //!
@@ -58,14 +59,26 @@
 //! however busy it was. An application that wants a longer-lived connection
 //! sends anything at all — a ping is a frame, and § 3's loop never sees one.
 //!
-//! # Known gap: none of these has a `[server]` key yet
+//! # What a deployment may write, and what it may not
 //!
-//! § 7 asks for finite, not for configurable, so this module answers § 7 in
-//! full. What it does not yet answer is an operator who wants a different
-//! number: `nvs_config::tree::Server` has no key for any field here, so
-//! changing one is a rebuild. The keys are the obvious follow-on and belong
-//! beside [`nvs_config::server::waits_for`]'s, which is where a `[server]`
-//! duration is already parsed, refused at zero and given an origin note.
+//! Six of these fields are `[server.connection]` keys — `max_open`,
+//! `max_frame`, `max_message`, `idle_timeout`, `max_lifetime` and
+//! `send_timeout` — read by `nvs_config::server::connection_bounds_for` beside
+//! [`nvs_config::server::waits_for`]'s, and applied over the defaults below by
+//! [`Connection::configured`]. A key left out keeps its default and a key
+//! written as `false` or as zero is refused at boot, so configuring this block
+//! can move a bound but cannot remove one — which is § 7's property stated
+//! against a file rather than against a rebuild.
+//!
+//! [`Connection::drain`], [`Connection::subscriber_queue`] and
+//! [`Connection::reconnect`] have no key, each for its own reason and none of
+//! them an omission. The drain period is sized against one round trip on a
+//! proxied network and a connection has no in-flight request to finish, so
+//! there is nothing a deployment knows about it that this server does not;
+//! the queue depth is `nvs_runtime::INBOX_CAP` and belongs to the runtime that
+//! holds the queue; and the reconnection hint is drawn per stream, so a
+//! written base would be the one number here an operator could set and not
+//! observe.
 //!
 //! — owner: unowned
 
@@ -169,6 +182,53 @@ impl Default for Connection {
             reconnect: Duration::from_secs(3),
         }
     }
+}
+
+impl Connection {
+    /// [`Self::default`]'s bounds, with whatever the tree's `[server.connection]` block wrote over
+    /// them.
+    ///
+    /// The block arrives already parsed and already refused — `nvs_config::server`'s
+    /// `connection_bounds_for` is what reads the keys, says which were written and rejects the
+    /// magnitudes a bound cannot have, so what is left here is the one thing that crate cannot do:
+    /// know what the unwritten bounds are. That division is why it hands back overrides rather than
+    /// numbers, and it is what keeps [`Self::default`] the only place any of these is stated.
+    ///
+    /// One written value is changed on the way in, because the struct's own invariant outranks the
+    /// file: a [`message`](Self::message) below [`frame`](Self::frame) is raised to it. A message
+    /// is at least one frame, so the pair as written would close every connection that sent a full
+    /// one — and refusing the block instead would make a deployment that lowered a single bound
+    /// fail to start over a combination it can be given the nearest working reading of.
+    /// The three fields the block cannot reach — [`drain`](Self::drain),
+    /// [`subscriber_queue`](Self::subscriber_queue) and [`reconnect`](Self::reconnect) — are named
+    /// in this module's header with why each is the server's own number rather than an operator's.
+    #[must_use]
+    pub fn configured(written: nvs_config::ConnectionBounds) -> Self {
+        let shipped = Self::default();
+        let frame = written.frame.map_or(shipped.frame, saturating);
+        Self {
+            max_open: written.max_open.unwrap_or(shipped.max_open),
+            frame,
+            message: written
+                .message
+                .map_or(shipped.message, saturating)
+                .max(frame),
+            idle: written.idle.unwrap_or(shipped.idle),
+            lifetime: written.lifetime.unwrap_or(shipped.lifetime),
+            send: written.send.unwrap_or(shipped.send),
+            ..shipped
+        }
+    }
+}
+
+/// A written size as a length this process can hold, saturating at [`usize::MAX`].
+///
+/// The saturation is unreachable on any host this server runs on and is not a policy: a 64-bit
+/// target has no size a `u64` can spell and a `usize` cannot, and a smaller one cannot allocate the
+/// buffer the larger number asked for either way. Refusing at boot instead would make a deployment
+/// that moved one binary to a 32-bit host fail to start over a bound it was already going to hit.
+fn saturating(bytes: u64) -> usize {
+    usize::try_from(bytes).unwrap_or(usize::MAX)
 }
 
 /// The connections this process currently holds open.
@@ -641,6 +701,101 @@ mod tests {
             Slot::take_from(&COUNT, 1).is_some(),
             "the place was not given back when the connection closed"
         );
+    }
+
+    /// The six bounds a deployment may move, from the block it writes them in
+    /// to the table a connection is then framed inside.
+    ///
+    /// Written end to end rather than against
+    /// `nvs_config::server::connection_bounds_for` alone, because the failure
+    /// this guards is the seam: a key that parses, is refused correctly and
+    /// then reaches no field is exactly the setting an operator writes and
+    /// never observes. Every written number is deliberately unlike the shipped
+    /// one, so a mapping that dropped a key — or crossed two of them — fails
+    /// here rather than reading as a pass over a value that was already right.
+    ///
+    /// The three fields the block cannot reach are asserted as *unchanged* by a
+    /// block that writes everything it can, which is the only way a key added
+    /// to one of them later cannot land silently. The partial block is the
+    /// second half of `rule:config/later-wins-and-every-override-is-recorded`'s
+    /// per-key override: a written `[server.connection]` is a decision per key
+    /// and not one decision about the table.
+    #[test]
+    fn server_connection_bounds_are_read_from_the_server_block() {
+        let shipped = Connection::default();
+
+        let written = configured(
+            "[server.connection]\n\
+             max_open = 64\n\
+             max_frame = 262144\n\
+             max_message = 524288\n\
+             idle_timeout = \"90s\"\n\
+             max_lifetime = \"2h\"\n\
+             send_timeout = \"5s\"\n",
+        );
+        assert_eq!(written.max_open, 64, "the open-connection ceiling");
+        assert_eq!(written.frame, 262_144, "the frame bound");
+        assert_eq!(written.message, 524_288, "the message bound");
+        assert_eq!(written.idle, Duration::from_secs(90), "the idle bound");
+        assert_eq!(
+            written.lifetime,
+            Duration::from_secs(2 * 60 * 60),
+            "the lifetime bound"
+        );
+        assert_eq!(written.send, Duration::from_secs(5), "the send bound");
+        assert_eq!(
+            (written.drain, written.subscriber_queue, written.reconnect),
+            (shipped.drain, shipped.subscriber_queue, shipped.reconnect),
+            "a block reached a bound it has no key for"
+        );
+
+        // One key, and the other five are the numbers this server ships.
+        let partial = configured("[server.connection]\nidle_timeout = \"11s\"\n");
+        assert_eq!(partial.idle, Duration::from_secs(11));
+        assert_eq!(
+            Connection {
+                idle: shipped.idle,
+                ..partial
+            },
+            shipped,
+            "an unwritten key did not keep its own default"
+        );
+
+        // A message under the frame bound is raised to it: the pair as written
+        // would close every connection that sent a full frame, which
+        // `Connection::configured` owns.
+        let raised = configured("[server.connection]\nmax_frame = 262144\nmax_message = 1024\n");
+        assert_eq!(raised.message, raised.frame);
+
+        // And neither magnitude that would remove a bound is a value this block
+        // has, whichever unit it is written in.
+        for text in [
+            "[server.connection]\nmax_open = 0\n",
+            "[server.connection]\nmax_frame = 0\n",
+            "[server.connection]\nidle_timeout = \"0s\"\n",
+            "[server.connection]\nmax_lifetime = false\n",
+            "[server.connection]\nsend_timeout = false\n",
+        ] {
+            let refusal = bounds_for(text).expect_err("a bound with no bound in it was accepted");
+            assert_eq!(
+                refusal.code,
+                Some(nvs_diagnostics::code::E_CONNECTION_BOUND_REMOVED),
+                "refused under the wrong code: {text:?}"
+            );
+        }
+    }
+
+    /// One fixture block, from its text to the table a connection is framed
+    /// inside — the boot path `nvs_cli::serve` takes, with the origins map a
+    /// refusal would be pointed at left empty.
+    fn configured(text: &str) -> Connection {
+        Connection::configured(bounds_for(text).expect("the fixture is a block of bounds"))
+    }
+
+    /// [`configured`]'s first half, kept apart so a case can assert the refusal.
+    fn bounds_for(text: &str) -> Result<nvs_config::ConnectionBounds, nvs_diagnostics::Diagnostic> {
+        let config: nvs_config::Config = toml::from_str(text).expect("the fixture did not parse");
+        nvs_config::server::connection_bounds_for(&config, &std::collections::BTreeMap::new())
     }
 
     /// The same table read for the *other* half of finite: **no default is a
