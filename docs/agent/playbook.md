@@ -2213,6 +2213,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   a patch naming it edits the first and leaves four. Widen each anchor with the lines around it, or
   — when every occurrence wants the same edit — give that one block to the Edit tool's `replace_all`
   and keep the rest of the run in the patch. [until: exists tools/splice.py:--occurrence]
+- **The handoff's `## State` can name a different acceptance check than the one the driver is red on,
+  and the two have different repairs.** Goal `unowned-closures`'s stage 6 is `owners.py`'s
+  `unowned: 0`, so a `## State` naming that number reads as "the whole register is the work", while
+  the red floor check wanted the tool's `0 owned by a retired goal` line — whose repair is one owner
+  tag on one gap. Read the `want` the pack prints in full and grep the tool's own output for that
+  exact string before budgeting anything: `python tools/owners.py` prints nine counts and a
+  sentence, and a check may want any of them. [until: reviewed 2026-09-16]
 
 ## Running things
 
