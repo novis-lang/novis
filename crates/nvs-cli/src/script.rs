@@ -33,7 +33,8 @@
 //!
 //! **What it spends:** at most two compiled units per distinct written path —
 //! the one in force and, while an edit does not compile, the failure the next
-//! resolve of that same content is answered with. O(the program's text), never
+//! resolve of that same content is answered with — plus, per unit, the path and
+//! the two digests its key carries. O(the program's text), never
 //! O(isolates spawned) and never O(edits), per
 //! `rule:programs/memory-priority` — and freed with
 //! the resolver, which is a local of `nvs run` published through
@@ -44,12 +45,34 @@
 //! `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s § *Decision* is implemented here whole, because this is the
 //! tree's only in-memory unit table: a [`PathEntry`] holding the digest and the
 //! stamp the last check observed, in front of a table keyed by
-//! [`UnitKey`]`{ path, content_hash, env_hash }`. A resolve walks its five
+//! [`UnitKey`]`{ path, content_hash, probe_hash, env_hash }`. A resolve walks its five
 //! steps — reuse the known digest under `[opcache] validate = "never"` or
 //! inside `revalidate_freq`; otherwise `stat`, and re-read the source only
 //! where the stamp cannot answer; compile only content this table has not seen;
 //! write the digest back on success; leave it alone on failure, and answer that
 //! caller with the failure the new content is now keyed to.
+//!
+//! **The key's third field is one only a compile can produce**, so the table is
+//! addressed in two moves rather than one.
+//! `rule:packaging/autoload-probes-fold-into-the-cache-key` folds the paths a
+//! program's `autoload` resolution probed — the misses included, because a file
+//! appearing *in front of* the one that was reached changes the answer without
+//! touching a byte anything hashed — into that unit's key, and the list exists
+//! only once the front end has run. [`Compiler::probes`] is the index that
+//! closes the circle: a resolve reads the trace recorded for this path's
+//! content and spells its key with it, a content nothing here has compiled yet
+//! spells [`ProbeHash::unrecorded`], and the compile publishes its unit under
+//! the key its own trace gives. What the second move re-keys is the table
+//! entry, so a cold path still costs one compile and not two.
+//!
+//! **A probed miss is revalidated like any other path.** The trace is kept as
+//! the answers it got, so a resolve allowed to look at the file system at all
+//! ([`Revalidation`], step 1 above) asks the probed paths again and drops the
+//! trace where one of them answers differently — which sends that content to a
+//! compile, because the key it would be answered under is now nobody's. That is
+//! the one edit no content hash moves: writing `src/Thing.nvs` where
+//! `App\Thing` resolves through `vendor/compat/Thing.nvs` leaves every file the
+//! unit compiled byte-for-byte what it was.
 //!
 //! **A reader never waits behind a compile.** Both maps are [`RwLock`]s: a
 //! resolve that hits takes the read half and contends with nothing, and the
@@ -127,7 +150,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::time::{Instant, SystemTime};
 
-use nvs_config::cache::{Digest, EnvHash, Revalidation, UnitKey, Validate, content_hash, env_hash};
+use nvs_config::cache::{
+    Digest, EnvHash, ProbeHash, Revalidation, UnitKey, Validate, content_hash, env_hash, probe_hash,
+};
 use nvs_config::tree::Config;
 use nvs_runtime::script::{Program, Resolver};
 use nvs_runtime::{Ctx, Value};
@@ -182,6 +207,34 @@ struct PathEntry {
 struct Stamp {
     modified: SystemTime,
     len: u64,
+}
+
+/// What one compile of one content's `autoload` resolution probed:
+/// `rule:packaging/autoload-probes-fold-into-the-cache-key`'s trace as the key
+/// field it produced, and as the list a later resolve re-asks.
+///
+/// The bool is the **negative entry**, and it is the whole point of keeping the
+/// misses: a path probed and not found is what says the answer was a question,
+/// so a file created there later resolves differently with no file that was
+/// compiled having changed. A path that *was* found is kept on the same terms,
+/// because a deletion moves the answer to the next root just as an addition
+/// moves it to the earlier one.
+///
+/// **The answers are taken as the front end returns**, not as it probed, which
+/// bounds this: a file created between the probe and the end of that compile is
+/// recorded as having been there, and the unit stands until something else
+/// moves. It is the window [`observe`]'s digest already runs — the source it
+/// hashed is re-read by the front end — and it closes when a trace carries the
+/// resolution's own answer rather than a stat beside it.
+#[derive(Clone, Debug)]
+struct Probes {
+    /// The key field this generation was published under — [`probe_hash`] over
+    /// the paths below.
+    hash: ProbeHash,
+    /// Every path the resolution probed, in probe order, with whether it
+    /// existed. Empty for a program that autoloads nothing, which is the case
+    /// that costs this nothing at all.
+    answers: Vec<(PathBuf, bool)>,
 }
 
 /// `rule:config/an-edit-reaches-the-next-request-without-a-restart` step 3's state machine, whole.
@@ -296,6 +349,33 @@ pub(crate) struct Compiler {
     /// two paths holding the same source compile once and a reverted edit is a
     /// hit rather than a recompile.
     units: RwLock<HashMap<UnitKey, CompileState>>,
+    /// Which probe generation of a path's content the table above holds, and
+    /// what that generation probed — the index
+    /// `rule:packaging/autoload-probes-fold-into-the-cache-key` needs in front
+    /// of it, since the trace that completes a [`UnitKey`] is produced by the
+    /// compile the key is meant to spare.
+    ///
+    /// A lookup reads this to spell the key it is about to ask with, and finds
+    /// nothing for content this process has not compiled — which is
+    /// [`ProbeHash::unrecorded`], the key the compile then claims under and
+    /// re-keys away from ([`Self::record`]). So the entry here and the entry
+    /// there move together, and a content the table holds a unit for is a
+    /// content this map names the trace of.
+    ///
+    /// The probed paths are **not** entries in [`Self::paths`], which is the
+    /// shape the rule's wording suggests. That map answers *what a written path
+    /// last compiled to* — one entry per path resolved as an entry point, each
+    /// carrying the digest of a unit — and a probed path has no unit while
+    /// being perfectly able to become an entry point later, through a `spawn
+    /// script` of its own. Two meanings in one map is how the second one comes
+    /// to read the first one's stamp.
+    ///
+    /// **What it spends:** per unit in `units`, one path and one digest for the
+    /// key, plus the resolution's own trace — one path and one bool per name
+    /// probed per root. Swept by `units`' own rule, so the pair stays O(the
+    /// program's text) rather than O(edits) — `rule:programs/memory-priority`,
+    /// and `nvs_hir::autoload::ProbeTrace` is where the length is bounded.
+    probes: RwLock<HashMap<(PathBuf, Digest), Probes>>,
     /// The environment half of every key here — `rule:config/the-extension-set-is-in-every-unit-key`'s digest, taken
     /// from the configuration this process is serving.
     ///
@@ -369,6 +449,7 @@ impl Compiler {
         Self {
             paths: RwLock::new(HashMap::new()),
             units: RwLock::new(HashMap::new()),
+            probes: RwLock::new(HashMap::new()),
             env: RwLock::new(env_hash(config)),
             revalidation: Revalidation::from_config(config),
             cache: crate::cache::from_config(config),
@@ -414,6 +495,7 @@ impl Compiler {
         let mut units = exclusive(&self.units);
         let dropped = units.len();
         units.clear();
+        exclusive(&self.probes).clear();
         exclusive(&self.paths).clear();
         dropped
     }
@@ -471,6 +553,12 @@ impl Compiler {
             }
         };
 
+        // 2a. And the other thing this resolve is now allowed to look at: the
+        //     paths the last resolution of this content probed. A file created
+        //     where one of them missed is an edit no content hash moves, which
+        //     is the whole of `rule:packaging/autoload-probes-fold-into-the-cache-key`.
+        self.revalidate_probes(&written, observed.content_hash);
+
         // Step 2's second half and step 3's content key in one lookup: an
         // observation that did not move addresses the entry the last one wrote,
         // and one that did may still name content this process compiled before
@@ -488,7 +576,12 @@ impl Compiler {
         //    content's key is the one that runs it; a caller that arrives while
         //    it runs waits behind the same flight, so a cold path stormed by
         //    every core at once costs one front end rather than one per core.
-        let key = UnitKey::new(&written, observed.content_hash, self.env());
+        //    The key claimed here is the one a lookup can spell, so its probe
+        //    field is whatever this process has recorded for this content —
+        //    nothing at all, the first time. What the compile publishes is that
+        //    key with the trace it actually probed, which is the field only a
+        //    finished front end knows (`rule:packaging/autoload-probes-fold-into-the-cache-key`).
+        let key = self.key(&written, observed.content_hash);
         let flight = Arc::new(Flight::default());
         let claimed = match self.claim(&key, &flight) {
             Claim::Mine => true,
@@ -511,9 +604,12 @@ impl Compiler {
             return answer;
         }
         let landing = Landing(&flight);
-        let state = match self.compile(path, &written) {
-            Ok(compiled) => CompileState::Ready(compiled),
-            Err(message) => CompileState::Failed(message),
+        // A compile that failed produced no trace, so the failure stays under
+        // the key it was claimed with — which is the key the next resolve of
+        // this content spells, and is how it is answered rather than recompiled.
+        let (state, probed) = match self.compile(path, &written) {
+            Ok((compiled, probes)) => (CompileState::Ready(compiled), Some(probes)),
+            Err(message) => (CompileState::Failed(message), None),
         };
         // 4 and 5: the pointer moves only on success, and what the table keeps
         // for this path is the entry in force plus, at most, the failure the
@@ -524,7 +620,11 @@ impl Compiler {
         } else {
             known.map(|entry| entry.content_hash)
         };
-        self.record(key, state, keep);
+        let published = match &probed {
+            Some(probed) => key.with_probes(probed.hash),
+            None => key,
+        };
+        self.record(published, state, keep, probed);
         // The waiters, released once the answer is in the table and not before.
         // The explicit drop is the ordering; the guard is for the path where
         // the line above never ran at all.
@@ -543,7 +643,8 @@ impl Compiler {
         path: &Path,
         content: Digest,
     ) -> Option<Result<(Program, Arc<nvs_runtime::routes::Routes>), String>> {
-        match shared(&self.units).get(&UnitKey::new(path, content, self.env()))? {
+        let key = self.key(path, content);
+        match shared(&self.units).get(&key)? {
             // A compile in flight is not an answer, and saying so here is what
             // sends a step-1 hit on this content down to step 3 to wait for it
             // rather than reporting that the cache holds nothing.
@@ -553,6 +654,57 @@ impl Compiler {
                 Arc::clone(&compiled.routes),
             ))),
             CompileState::Failed(message) => Some(Err(message.clone())),
+        }
+    }
+
+    /// The key `path` at `content` is addressed by right now: the environment
+    /// this process is serving, and the probe trace [`Self::probes`] recorded
+    /// for that content — [`ProbeHash::unrecorded`] where it holds none, which
+    /// is the key a first compile of the content claims under.
+    ///
+    /// Both maps are read here and released before the caller touches `units`,
+    /// so no lock in this resolver is ever held across another: a reload taking
+    /// the write half of either cannot meet a reader holding the other.
+    fn key(&self, path: &Path, content: Digest) -> UnitKey {
+        let probes = shared(&self.probes)
+            .get(&(path.to_path_buf(), content))
+            .map_or_else(ProbeHash::unrecorded, |probed| probed.hash);
+        UnitKey::new(path, content, probes, self.env())
+    }
+
+    /// Step 2's other half: the paths the last resolution of this content
+    /// probed, asked again — `rule:packaging/autoload-probes-fold-into-the-cache-key`'s
+    /// negative entries, which ride the revalidation gate the content `stat`
+    /// rides rather than one of their own.
+    ///
+    /// A probed path that answers differently now means the next resolution
+    /// would take a different route, so the trace recorded here is no longer
+    /// this content's. Dropping the entry is what says so: the resolve behind
+    /// this call then spells [`ProbeHash::unrecorded`], misses, and compiles —
+    /// and [`Self::record`] sweeps the unit the stale trace addressed.
+    ///
+    /// The unit is **not** removed here. It is still the right answer for the
+    /// key it is under, a reader holding it is unaffected either way, and
+    /// leaving one place that takes units out of the table is what keeps the
+    /// sweep's accounting readable.
+    ///
+    /// **What it costs:** one `exists` per probed path, per revalidation window
+    /// that reaches step 2 — zero under `[opcache] validate = "never"`, which
+    /// is what production runs, and zero for a program that autoloads nothing.
+    fn revalidate_probes(&self, path: &Path, content: Digest) {
+        let entry = (path.to_path_buf(), content);
+        let moved = {
+            let probes = shared(&self.probes);
+            let Some(probed) = probes.get(&entry) else {
+                return;
+            };
+            probed
+                .answers
+                .iter()
+                .any(|(probed, existed)| probed.exists() != *existed)
+        };
+        if moved {
+            exclusive(&self.probes).remove(&entry);
         }
     }
 
@@ -618,19 +770,53 @@ impl Compiler {
     /// The sweep is what keeps the table O(paths): every earlier generation of
     /// this path goes, and a unit a running [`Program`] still holds stays
     /// mapped through that program's own `Arc` rather than through this map.
-    fn record(&self, key: UnitKey, state: CompileState, keep: Option<Digest>) {
-        let mut units = exclusive(&self.units);
+    ///
+    /// A generation is now the whole key rather than the content alone, so the
+    /// placeholder a first compile claimed under
+    /// ([`ProbeHash::unrecorded`]) goes the moment the trace that replaces it
+    /// lands — one entry per content, whichever of the two it turned out to be.
+    /// [`Self::probes`] is then told which one that is, after the unit is in
+    /// the table and before the waiters are released, so every caller woken by
+    /// the landing spells the new key and finds the unit already under it. A
+    /// caller arriving cold *between* the two writes spells the old key, finds
+    /// the placeholder gone and compiles on its own account — the same answer
+    /// the map already gives a waiter whose flight died, and it converges on
+    /// the same entry rather than on a second one.
+    ///
+    /// `probed` is [`None`] for a compile that produced no trace, which is
+    /// every failure: the sweep still runs, and what this content was already
+    /// recorded as having probed stays, because that is the trace the failure
+    /// is keyed under.
+    fn record(
+        &self,
+        key: UnitKey,
+        state: CompileState,
+        keep: Option<Digest>,
+        probed: Option<Probes>,
+    ) {
         let reached = key.content_hash();
-        units.retain(|other, _| {
-            other.path() != key.path()
-                || other.content_hash() == reached
-                || Some(other.content_hash()) == keep
+        {
+            let mut units = exclusive(&self.units);
+            units.retain(|other, _| {
+                other.path() != key.path() || other == &key || Some(other.content_hash()) == keep
+            });
+            units.insert(key.clone(), state);
+        }
+        let mut probes = exclusive(&self.probes);
+        probes.retain(|(path, content), _| {
+            path != key.path() || *content == reached || Some(*content) == keep
         });
-        units.insert(key, state);
+        if let Some(probed) = probed {
+            probes.insert((key.path().to_path_buf(), reached), probed);
+        }
     }
 
     /// The front end and the backend, over one path, with this process's own
     /// table holding nothing for it: the whole of what step 3 costs.
+    ///
+    /// The unit comes back beside the trace its `autoload` resolution probed,
+    /// because the caller's key is not complete until it has one and nothing
+    /// short of this function can produce it.
     ///
     /// The backend half may still come off disk — [`Self::cache`] is asked here
     /// and nowhere else — and that is why the counter below keeps counting a
@@ -639,7 +825,7 @@ impl Compiler {
     /// hit saves is the Cranelift walk, which this counter never claimed to
     /// measure.
     ///
-    fn compile(&self, path: &str, written: &Path) -> Result<Arc<Compiled>, String> {
+    fn compile(&self, path: &str, written: &Path) -> Result<(Arc<Compiled>, Probes), String> {
         // Counted here rather than at the call site, and before the front end
         // rather than after it: a compile that *failed* is still a compile
         // this cache paid for, and the claim being counted is about how many
@@ -647,6 +833,22 @@ impl Compiler {
         self.compiles.fetch_add(1, Ordering::Relaxed);
         let checked = crate::front_end(written)
             .map_err(|_| format!("`{path}` could not be compiled; see the errors above"))?;
+        // The half of this unit's key that only a finished resolution knows,
+        // taken before the map is dropped with the rest of the front end's
+        // tables: every path the `autoload` walk probed, in order and with the
+        // misses, which is what makes a file appearing *in front of* the one
+        // this compile reached a different unit rather than this one
+        // (`rule:packaging/autoload-probes-fold-into-the-cache-key`). The
+        // answers are stat'd here rather than carried out of the walk, which
+        // is [`Probes`]'s own bound.
+        let trace = checked.autoload.probe_trace().probed();
+        let probes = Probes {
+            hash: probe_hash(trace),
+            answers: trace
+                .iter()
+                .map(|probed| (probed.clone(), probed.exists()))
+                .collect(),
+        };
         // Held across the lowering and the key alike: § 1's digest is over
         // every file the `require`/`autoload` graph reached, which is the same
         // list that was lowered and not the entry file alone.
@@ -666,10 +868,13 @@ impl Compiler {
         )
         .map(|(unit, _)| unit)
         .map_err(|error| format!("`{path}`: {error}"))?;
-        Ok(Arc::new(Compiled {
-            unit: Arc::new(unit),
-            routes: Arc::new(crate::runtime_routes(&checked.exprs)),
-        }))
+        Ok((
+            Arc::new(Compiled {
+                unit: Arc::new(unit),
+                routes: Arc::new(crate::runtime_routes(&checked.exprs)),
+            }),
+            probes,
+        ))
     }
 }
 
@@ -857,7 +1062,7 @@ pub(crate) fn granting_snapshot() -> nvs_config::Snapshot {
 
 #[cfg(test)]
 mod tests {
-    use super::{CompileState, Compiler, granting_ctx as granting, shared};
+    use super::{CompileState, Compiler, ProbeHash, granting_ctx as granting, shared};
     use nvs_runtime::script::{Program, ResolveError, Resolver, resolve, scoped};
     use nvs_runtime::{Ctx, OutputSink, Value};
     use std::sync::Arc;
@@ -1011,6 +1216,123 @@ mod tests {
         let _first = compiler.resolve(&path).expect("the child compiles");
         let _second = compiler.resolve(&path).expect("and again, from the cache");
         assert_eq!(shared(&compiler.units).len(), 1);
+    }
+
+    /// A program whose `autoload` resolution really probes: `Framework\Core` is
+    /// declared under the *second* root, so the trace it records is a miss
+    /// under `./src` and a hit under `./vendor` — which is
+    /// `rule:packaging/autoload-probes-fold-into-the-cache-key`'s own example.
+    /// The directory is rebuilt from nothing, because a `src/Core.nvs` left by
+    /// an earlier run is the very thing the cases below create themselves.
+    fn an_autoloading_program(name: &str) -> (std::path::PathBuf, String) {
+        let dir = std::env::temp_dir().join(format!("nvs-probe-{}-{name}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("src")).expect("the root the probe misses");
+        std::fs::create_dir_all(dir.join("vendor")).expect("the root it hits");
+        std::fs::write(
+            dir.join("Bootstrap.nvs"),
+            "<?nvs\nautoload 'Framework' from './src', './vendor';\n",
+        )
+        .expect("the file declaring the map");
+        std::fs::write(dir.join("vendor").join("Core.nvs"), declaring("vendor"))
+            .expect("the autoloaded class, under the second root");
+        std::fs::write(
+            dir.join("entry.nvs"),
+            "<?nvs\nrequire './Bootstrap.nvs';\nvar $app = new Framework\\Core();\necho $app->say(), \"\\n\";\n",
+        )
+        .expect("the entry point");
+        let written = dir.join("entry.nvs").to_string_lossy().into_owned();
+        (dir, written)
+    }
+
+    /// `Framework\Core`, saying which root it was found under — the one thing
+    /// two copies of it under two roots differ by.
+    fn declaring(root: &str) -> String {
+        format!(
+            "<?nvs\nnamespace Framework;\nclass Core {{ public function say(): string {{ return '{root}'; }} }}\n"
+        )
+    }
+
+    #[test]
+    fn a_unit_is_published_under_the_trace_its_autoload_resolution_probed() {
+        // `rule:packaging/autoload-probes-fold-into-the-cache-key` from the
+        // side that has to *spell* a key: the trace is produced by the very
+        // compile the key exists to spare, so a resolve addresses the table
+        // once with what it knows and the compile re-keys its result with what
+        // it probed. A program whose trace is not empty is the only case where
+        // those two keys differ, and what would break here is a second resolve
+        // spelling a key nothing is under — which is a permanent recompile
+        // rather than a wrong answer, hence the counter.
+        let (_dir, written) = an_autoloading_program("published");
+
+        let compiler = Compiler::default();
+        let (_program, _routes) = compiler.compiled(&written).expect("the entry compiles");
+        let probed = shared(&compiler.probes)
+            .values()
+            .next()
+            .expect("one trace")
+            .hash;
+        assert_ne!(
+            probed,
+            ProbeHash::unrecorded(),
+            "the miss under `./src` and the hit under `./vendor` reached no key",
+        );
+        let units = shared(&compiler.units);
+        assert_eq!(units.len(), 1, "the claimed key outlived the published one");
+        assert_eq!(
+            units.keys().next().expect("one unit").probes(),
+            probed,
+            "the unit is not under the trace the map in front of it names",
+        );
+        drop(units);
+
+        let (_again, _routes) = compiler
+            .compiled(&written)
+            .expect("and again, from the cache");
+        assert_eq!(
+            compiler.compiles.load(Ordering::Relaxed),
+            1,
+            "the second resolve could not spell the key the first one published",
+        );
+        assert_eq!(shared(&compiler.units).len(), 1);
+    }
+
+    #[test]
+    fn a_file_created_where_a_probe_missed_recompiles_the_unit() {
+        // `rule:packaging/autoload-probes-fold-into-the-cache-key`'s claim end
+        // to end. Between the two resolves below, every file the first one
+        // compiled is byte-for-byte what it was and the entry point's own
+        // digest has not moved — so a table keyed on content alone would serve
+        // the vendor unit forever, and the recorded miss under `./src` is the
+        // only thing that says the answer was ever a question.
+        // `crates/nvs-hir/src/requires.rs` pins the trace this rests on; what
+        // is asked here is the cache in front of it.
+        let (dir, written) = an_autoloading_program("shadowing");
+        let compiler = revalidating();
+
+        let (before, _routes) = compiler.compiled(&written).expect("the entry compiles");
+        assert_eq!(said(before), "vendor\n");
+
+        std::fs::write(dir.join("src").join("Core.nvs"), declaring("src"))
+            .expect("the shadowing class, under the first root");
+        let (after, _routes) = compiler
+            .compiled(&written)
+            .expect("and again, with the shadow in place");
+        assert_eq!(
+            said(after),
+            "src\n",
+            "the unit compiled before `src/Core.nvs` existed is still being served",
+        );
+        assert_eq!(
+            compiler.compiles.load(Ordering::Relaxed),
+            2,
+            "the shadow was noticed by something other than a compile",
+        );
+        assert_eq!(
+            shared(&compiler.units).len(),
+            1,
+            "the generation the stale trace addressed is still in the table",
+        );
     }
 
     #[test]
