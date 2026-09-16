@@ -44,4 +44,4 @@ same object: yes
 message: the store said no
 frames: 3
 --EXPECTF-ERROR--
-{"level":"error","msg":"the store said no","fields":{"class":"LogicError","backtrace":"%s"}}
+{"level":"error","msg":"the store said no","fields":{"class":"LogicError"},"nodes":%s}

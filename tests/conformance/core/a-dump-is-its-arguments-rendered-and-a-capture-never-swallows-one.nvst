@@ -243,4 +243,4 @@ Ring#1 (2) {
   $next => [cycle -> #1]
   $name => string(1) "a"
 }
-{"level":"error","msg":"the case ends here, so its standard error can be asserted","fields":{"class":"RuntimeError","backtrace":"#0 <script>() at case.nvs:%d"}}
+{"level":"error","msg":"the case ends here, so its standard error can be asserted","fields":{"class":"RuntimeError"},"nodes":[{"function":"<script>","file":"case.nvs","line":%d}]}

@@ -166,6 +166,20 @@ fn write_node(out: &mut String, node: &Node, depth: usize) {
         Node::Span { file, line, label } => {
             out.push_str(&format!("{file}:{line}: {}", label.as_str()));
         }
+        Node::Frame {
+            depth,
+            function,
+            file,
+            line,
+        } => {
+            out.push_str(&format!("#{depth} {}()", function.as_str()));
+            if let Some(file) = file {
+                out.push_str(&format!(" at {file}"));
+                if let Some(line) = line {
+                    out.push_str(&format!(":{line}"));
+                }
+            }
+        }
     }
 }
 

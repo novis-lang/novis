@@ -46,6 +46,78 @@ use crate::ctx::Ctx;
 use crate::object::{ClassDesc, NvsObj, ObjHeader};
 use crate::{NvsArray, NvsStr, Value};
 
+/// One backtrace frame, taken apart from the label the throw pushed.
+///
+/// A frame is *one label* on the wire — `nvs_ir::Lowering::frame_label` renders
+/// `Class::member() at file:line` into the compiled unit's data section and
+/// [`nvs_trace_push`] appends it — so the parts are read back here rather than
+/// pushed one by one. That is what keeps `rule:errors/throw-is-not-slower`'s
+/// claim about the success path: a frame costs the error path a pointer and a
+/// length, and nothing at all is spent on the path that returns.
+///
+/// A label that does not carry a site — one the runtime pushed for itself —
+/// keeps the whole of it as [`Self::function`], and [`Self::label`] hands that
+/// same text back unchanged.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct Frame {
+    /// The member the frame was running — `Class::member`, or a script's own
+    /// label — without the `()` a rendering adds.
+    pub function: String,
+    /// The file it was written in, absent for a label that carries no site.
+    pub file: Option<String>,
+    /// Its one-based line, on the same terms.
+    pub line: Option<u32>,
+}
+
+impl Frame {
+    /// `label` taken apart, in the one form a pushed frame has.
+    #[must_use]
+    pub fn of(label: &str) -> Self {
+        let Some((function, site)) = label.split_once("() at ") else {
+            return Self {
+                function: label.to_owned(),
+                file: None,
+                line: None,
+            };
+        };
+        let (file, line) = match site.rsplit_once(':') {
+            Some((file, line)) => match line.parse() {
+                Ok(line) => (file, Some(line)),
+                Err(_) => (site, None),
+            },
+            None => (site, None),
+        };
+        Self {
+            function: function.to_owned(),
+            file: Some(file.to_owned()),
+            line,
+        }
+    }
+
+    /// The frame as the label it was pushed as — [`Self::of`]'s inverse, which
+    /// is what `#0`-first renderings of a trace are built from.
+    #[must_use]
+    pub fn label(&self) -> String {
+        match (&self.file, self.line) {
+            (Some(file), Some(line)) => format!("{}() at {file}:{line}", self.function),
+            (Some(file), None) => format!("{}() at {file}", self.function),
+            (None, _) => self.function.clone(),
+        }
+    }
+
+    /// The frame as `rule:errors/record-producers`'s node, `depth` frames out
+    /// from the throw.
+    #[must_use]
+    pub fn node(&self, depth: usize) -> nvs_render::Node {
+        nvs_render::Node::Frame {
+            depth,
+            function: nvs_render::Rendered::new(&self.function),
+            file: self.file.clone(),
+            line: self.line,
+        }
+    }
+}
+
 /// The slot `Throwable::$message` occupies — see this module's docs.
 pub const MESSAGE_SLOT: usize = 0;
 /// The slot `Throwable::$previous` occupies.
@@ -616,14 +688,30 @@ impl Thrown {
             out.push('#');
             out.push_str(&index.to_string());
             out.push(' ');
-            out.push_str(frame);
+            out.push_str(&frame.label());
         }
         out
     }
 
-    /// Every backtrace frame label, in push order.
+    /// The throw's own declared properties — the ones its class adds past the
+    /// [`SLOT_COUNT`] every `Throwable` has — as
+    /// `rule:errors/diagnostic-record`'s named nodes, with a `secret` one
+    /// redacted.
+    ///
+    /// The root's own four are not among them: `message` and `location` are
+    /// envelope keys of the record built from this, and `backtrace` is its
+    /// frames, so carrying them here would be the same datum twice in one
+    /// record. What is left is what a user's own `ConfigError` declared, and
+    /// `ParseError`'s `issues` — the part of a failure that no other key holds.
     #[must_use]
-    pub fn frames(&self) -> Vec<String> {
+    pub fn properties(&self) -> Vec<(String, nvs_render::Node)> {
+        crate::record::properties_past(self.as_value(), SLOT_COUNT)
+    }
+
+    /// Every backtrace frame, innermost first, taken apart from the label it
+    /// was pushed as.
+    #[must_use]
+    pub fn frames(&self) -> Vec<Frame> {
         let Some(obj) = self.borrow() else {
             return Vec::new();
         };
@@ -645,7 +733,7 @@ impl Thrown {
             if let Some(value) = handle.value_at(found)
                 && let Some(bytes) = value.as_str_bytes()
             {
-                out.push(String::from_utf8_lossy(bytes).into_owned());
+                out.push(Frame::of(&String::from_utf8_lossy(bytes)));
             }
             slot = found + 1;
         }
@@ -1058,8 +1146,8 @@ mod tests {
         }
         let frames = e.frames();
         assert_eq!(frames.len(), 64);
-        assert_eq!(frames[0], "f0");
-        assert_eq!(frames[63], "f63");
+        assert_eq!(frames[0].label(), "f0");
+        assert_eq!(frames[63].label(), "f63");
     }
 
     #[test]

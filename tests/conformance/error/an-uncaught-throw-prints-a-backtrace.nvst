@@ -12,4 +12,4 @@ echo Boom::go(), "\n";
 --EXPECT--
 before
 --EXPECTF-ERROR--
-{"level":"error","msg":"no","fields":{"class":"RuntimeError","backtrace":"#0 Boom::go() at case.nvs:%d\n#1 <script>() at case.nvs:%d"}}
+{"level":"error","msg":"no","fields":{"class":"RuntimeError"},"nodes":[{"function":"Boom::go","file":"case.nvs","line":%d},{"function":"<script>","file":"case.nvs","line":%d}]}

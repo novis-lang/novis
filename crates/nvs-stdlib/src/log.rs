@@ -377,14 +377,23 @@ mod tests {
     /// Both halves are driven for real — the floor through
     /// [`nvs_runtime::floor::uncaught`], the application through
     /// [`super::nvs_core_log_write`] itself — and the comparison is of the two
-    /// rendered lines, byte for byte. That is what makes this a check on the
-    /// *serialiser* rather than on two struct literals: a second writer growing
-    /// on either side would still print plausibly on its own line, and would
-    /// differ here in the first key it spelled its own way.
+    /// rendered lines, byte for byte up to the frames. That is what makes this
+    /// a check on the *serialiser* rather than on two struct literals: a second
+    /// writer growing on either side would still print plausibly on its own
+    /// line, and would differ here in the first key it spelled its own way.
+    ///
+    /// The one thing the floor's line carries that the application's does not
+    /// is the **frames**, which `rule:errors/record-producers` makes the
+    /// record's own nodes and which this caller has no source for — the same
+    /// asymmetry `the-floor-and-core-log-write-record-the-same-error-the-same-way.nvst`
+    /// states from the other end, where the application's line is the one
+    /// carrying a `source`. So the agreement asserted is that the floor's line
+    /// *is* the application's with the nodes appended: one envelope, one bag,
+    /// one order, one serialiser.
     ///
     /// The application's side is written the way a program writes it: the class
-    /// and the backtrace are an ordinary `fields` bag, since § 6 makes them
-    /// fields and not envelope keys, and the level crosses as the integer a
+    /// is an ordinary `fields` bag, since § 6 makes it a field and not an
+    /// envelope key, and the level crosses as the integer a
     /// lowered case is. `ts`, `request_id`, `trace_id` and `span_id` are absent
     /// from both, because this context answers no request and § 6's four
     /// request keys are stamped from one — the same agreement one step further
@@ -420,10 +429,6 @@ mod tests {
             NvsStr::new(b"class"),
             Value::str(NvsStr::new(thrown.class_name().as_bytes())),
         );
-        fields.set(
-            NvsStr::new(b"backtrace"),
-            Value::str(NvsStr::new(trace.as_bytes())),
-        );
         call(
             nvs_core_log_write,
             &mut ctx,
@@ -441,18 +446,26 @@ mod tests {
         )
         .expect("a JSON Lines line is text");
 
+        let (envelope, nodes) = floored
+            .split_once(",\"nodes\":")
+            .expect("the floor's record carries the frames this caller has none of");
         assert_eq!(
-            written, floored,
+            format!("{envelope}}}\n"),
+            written,
             "`rule:errors/log-write`: one record, two callers — every key, in one order, \
              from one serialiser"
         );
-        assert!(
-            written.starts_with(
-                "{\"level\":\"error\",\"msg\":\"the store said no\",\
-                 \"fields\":{\"class\":\"RuntimeError\",\"backtrace\":\""
-            ) && written.ends_with("\"}}\n"),
+        assert_eq!(
+            nodes, "[{\"function\":\"Main::main\"}]}\n",
+            "and what the floor adds is the frames, one node each, from the same \
+             trace `{trace}` a program reads off the object"
+        );
+        assert_eq!(
+            written,
+            "{\"level\":\"error\",\"msg\":\"the store said no\",\
+             \"fields\":{\"class\":\"RuntimeError\"}}\n",
             "and the shape both wrote is § 6's — the envelope keys they have a \
-             source for, then the bag, and nothing empty: {written}"
+             source for, then the bag, and nothing empty"
         );
     }
 

@@ -13,8 +13,10 @@ application code and the engine floor produce schema-identical records for the s
 // nested the same way. Two keys are one writer's and not the other's, and each
 // is that writer having a source for it: the application's line names where it
 // was written (`rule:errors/a-record-names-where-it-was-produced`, which the
-// floor has no call site for), and the floor's carries the `backtrace` this
-// caller has none of. What *does* differ is the
+// floor has no call site for), and the floor's carries the frames this caller
+// has none of — one `nodes` entry per frame, which is
+// `rule:errors/record-producers`'s shape for the throw producer. What *does*
+// differ is the
 // channel: § 6's application caller writes the program's own output, and
 // `nvs_runtime::floor` writes the diagnostic one, which is why this case has
 // both an `--EXPECT--` and an `--EXPECTF-ERROR--` section for one error.
@@ -22,6 +24,6 @@ Core\Log::write(Core\Log\Level::Error, "boom", ["class" => "RuntimeError"]);
 
 throw new RuntimeError("boom");
 --EXPECT--
-{"level":"error","msg":"boom","source":{"file":"case.nvs","line":18},"fields":{"class":"RuntimeError"}}
+{"level":"error","msg":"boom","source":{"file":"case.nvs","line":20},"fields":{"class":"RuntimeError"}}
 --EXPECTF-ERROR--
-{"level":"error","msg":"boom","fields":{"class":"RuntimeError","backtrace":"#0 <script>() at case.nvs:%d"}}
+{"level":"error","msg":"boom","fields":{"class":"RuntimeError"},"nodes":[{"function":"<script>","file":"case.nvs","line":%d}]}

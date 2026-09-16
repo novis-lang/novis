@@ -27,8 +27,8 @@
 //!
 //! # What is in an uncaught throw's record, and what is deliberately not
 //!
-//! [`uncaught`] fills § 6's `level`, `message` and a field apiece for the error
-//! class and, when the throw carried frames, the backtrace. It fills none of
+//! [`uncaught`] fills § 6's `level`, `message`, a field for the error class and
+//! one node per frame the throw carried. It fills none of
 //! `ts`, `request_id`, `trace_id` or `span_id`, because it is handed a
 //! `Throwable` and not a context, and those keys are the request's. [`report`]
 //! is where a context arrives, and it stamps them through
@@ -85,11 +85,27 @@ use crate::value::Value;
 
 /// One uncaught `Throwable` as `rule:errors/log-write`'s record, at [`Level::Error`].
 ///
-/// The frames are carried as one `backtrace` field in the `#0`-first form
-/// [`Thrown::trace_as_string`] renders, rather than as a node per frame: § 6
-/// calls the field "a stack summary", and one string is what a log pipeline
-/// greps. A throw with no frames — a `FATAL`, which has none by design — omits
-/// the field rather than carrying an empty one.
+/// The frames are the record's **own nodes**, one [`Node::Frame`] each, which
+/// is `rule:errors/record-producers`'s row for this producer and what
+/// [`Record::nodes`] already names as a `Throwable`'s half of it. A pipeline
+/// reads `nodes[0].function` instead of grepping inside a stack summary, and
+/// the plaintext rendering still prints the `#0`-first line a person greps —
+/// two readings of one shape, which is what one string could not give. A throw
+/// with no frames — a `FATAL`, which has none by design — carries none rather
+/// than an empty node.
+///
+/// Beside the error class, the throw's **own declared properties** are one
+/// `properties` field when its class adds any past `Throwable`'s four
+/// ([`Thrown::properties`] says which, and why the root's own are not among
+/// them), so a `ParseError`'s `issues` and a user class's own state reach the
+/// report. They are walked by [`crate::record`] — the same walk
+/// `Core\Debug::dump` uses — so `rule:errors/record-transformations`'s
+/// redaction reaches a `secret` property anywhere under one, and a secret is a
+/// [`Node::Redacted`] rather than bytes in a log.
+///
+/// **What it spends:** one node per frame and one per value reached under those
+/// properties, bounded by [`nvs_render::Caps`], on a path that has already
+/// failed.
 #[must_use]
 pub fn uncaught(thrown: &Thrown) -> Record {
     let mut record = note(Level::Error, &thrown.message());
@@ -97,13 +113,24 @@ pub fn uncaught(thrown: &Thrown) -> Record {
         .envelope
         .fields
         .push(("class".to_owned(), text(&thrown.class_name())));
-    let trace = thrown.trace_as_string();
-    if !trace.is_empty() {
-        record
-            .envelope
-            .fields
-            .push(("backtrace".to_owned(), text(&trace)));
+    let properties = thrown.properties();
+    if !properties.is_empty() {
+        record.envelope.fields.push((
+            "properties".to_owned(),
+            Node::Map(
+                properties
+                    .into_iter()
+                    .map(|(name, node)| (Rendered::new(&name), node))
+                    .collect(),
+            ),
+        ));
     }
+    record.nodes = thrown
+        .frames()
+        .iter()
+        .enumerate()
+        .map(|(depth, frame)| frame.node(depth))
+        .collect();
     record
 }
 
@@ -121,11 +148,13 @@ pub fn uncaught(thrown: &Thrown) -> Record {
 /// one failure.
 ///
 /// A field whose node is not a string scalar is **skipped** rather than
-/// rendered. Nothing the floor produces has one today, and rendering a tree here
-/// would be a second serialiser beside [`nvs_render`]'s, which is the divergence
-/// this module exists to prevent; when a producer grows a structured field, the
-/// walk that turns a [`Node`] into a `Value` is what this reaches for, not a
-/// stringification of its own.
+/// rendered, and the record's frames are the one structured thing carried
+/// across — as a `backtrace` list of `{function, file, line}` arrays, the shape
+/// [`nvs_render::json`] writes them in, so a handler reads the trace the same
+/// way whichever it was handed. The throw's `properties` field is not carried:
+/// a [`Node::Redacted`] or an [`nvs_render::Elision`] has no `Value` spelling,
+/// and a handler's array is the last place a redaction should be undone to make
+/// one.
 ///
 /// The caller takes over the returned value's one reference — it is the
 /// argument an isolate is handed, and `nvs_host::Isolate::new` consumes it.
@@ -141,7 +170,41 @@ pub fn report_argument(record: &Record) -> Value {
             report.set(NvsStr::new(name.as_bytes()), string(text.as_str()));
         }
     }
+    if let Some(frames) = frames_argument(&record.nodes) {
+        report.set(NvsStr::new(b"backtrace"), frames);
+    }
     Value::array(report)
+}
+
+/// The record's frames as one keyed array per frame, in the trace's order, or
+/// `None` for a record carrying none — a `FATAL`, and every producer that is
+/// not a throw.
+fn frames_argument(nodes: &[Node]) -> Option<Value> {
+    if !nodes.iter().any(|node| matches!(node, Node::Frame { .. })) {
+        return None;
+    }
+    let mut frames = NvsArray::new();
+    for node in nodes {
+        let Node::Frame {
+            function,
+            file,
+            line,
+            ..
+        } = node
+        else {
+            continue;
+        };
+        let mut frame = NvsArray::new();
+        frame.set(NvsStr::new(b"function"), string(function.as_str()));
+        if let Some(file) = file {
+            frame.set(NvsStr::new(b"file"), string(file));
+        }
+        if let Some(line) = line {
+            frame.set(NvsStr::new(b"line"), Value::uint(u64::from(*line)));
+        }
+        frames.append(Value::array(frame));
+    }
+    Some(Value::array(frames))
 }
 
 /// One `&str` as an owned Novis `string` value.
@@ -517,10 +580,14 @@ mod tests {
     use nvs_render::Source;
 
     use super::{
-        LOG_WINDOW_SLOTS, LOG_WINDOWS, Level, Window, admit, admit_log_record, expire_log_windows,
-        install_panic_hook, key, note, report_panic, text,
+        LOG_WINDOW_SLOTS, LOG_WINDOWS, Level, Node, Rendered, Value, Window, admit,
+        admit_log_record, expire_log_windows, install_panic_hook, key, note, report_panic, text,
+        uncaught,
     };
     use crate::ctx::CurrentCtx;
+    use crate::object::{ClassTable, NvsObj};
+    use crate::string::NvsStr;
+    use crate::throwable::{SLOT_COUNT, Thrown, ThrownClass};
     use crate::{Ctx, Inbound, OutputSink, TaskRoot, run_task};
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::{Arc, Mutex, PoisonError};
@@ -529,6 +596,145 @@ mod tests {
     /// Serialises the tests that replace the process's panic hook, so that
     /// neither restores what the other installed.
     static HOOK: Mutex<()> = Mutex::new(());
+
+    /// The slots every `Throwable` has, in slot order — `crate::throwable`'s
+    /// own header says why the order is load-bearing and where it is declared.
+    const THROWABLE_SLOTS: [&str; SLOT_COUNT] = ["message", "previous", "backtrace", "location"];
+
+    /// `rule:errors/record-producers`'s row for the throw producer: the frames
+    /// are the record's own nodes, one per frame, and the two readers of a
+    /// trace each get the spelling they read — `{function, file, line}` in the
+    /// JSON rendering a pipeline indexes, and the `#0`-first line a person
+    /// greps in the plaintext one.
+    #[test]
+    fn an_uncaught_throwables_frames_are_a_sequence_of_object_nodes() {
+        let mut table = ClassTable::new();
+        let id = table.define("RuntimeError", &THROWABLE_SLOTS, &[]);
+        let desc = table.desc(id);
+        #[expect(unsafe_code, reason = "the table outlives the exception built from it")]
+        let thrown = unsafe { Thrown::new(desc, "boom") };
+        thrown.push_frame("Boom::go() at app/Boom.nvs:3");
+        thrown.push_frame("<script>() at app/main.nvs:11");
+
+        let record = uncaught(&thrown);
+        assert_eq!(
+            record.nodes,
+            vec![
+                Node::Frame {
+                    depth: 0,
+                    function: Rendered::new("Boom::go"),
+                    file: Some("app/Boom.nvs".to_owned()),
+                    line: Some(3),
+                },
+                Node::Frame {
+                    depth: 1,
+                    function: Rendered::new("<script>"),
+                    file: Some("app/main.nvs".to_owned()),
+                    line: Some(11),
+                },
+            ],
+            "one node per frame, innermost first, and no stack summary beside them"
+        );
+        let json = nvs_render::json::render(&record);
+        assert!(
+            json.contains(
+                r#""nodes":[{"function":"Boom::go","file":"app/Boom.nvs","line":3},{"function":"<script>","file":"app/main.nvs","line":11}]"#
+            ),
+            "{json}"
+        );
+        let plain = nvs_render::plain::render(&record);
+        assert!(plain.contains("#0 Boom::go() at app/Boom.nvs:3"), "{plain}");
+        assert!(
+            plain.contains("#1 <script>() at app/main.nvs:11"),
+            "{plain}"
+        );
+    }
+
+    /// ADR 0092 § *Verification*'s M4 bullet: a `secret`-typed property on an
+    /// object in a stack frame is redacted in the uncaught record too.
+    ///
+    /// Novis's frames carry a label and nothing else —
+    /// `rule:errors/propagation` builds the trace as the throw unwinds, so
+    /// there is no captured argument or receiver in one to leak — which leaves
+    /// exactly one object standing in the frames a record carries: the throw
+    /// itself, and whatever its own class declared. Those properties go through
+    /// [`crate::record`]'s walk, so the *declared* qualifier decides and the
+    /// value is never read at all. Asserted through a **nested** object, which
+    /// is the shape the leak would take if the walk stopped at the throw's own
+    /// slots.
+    #[test]
+    fn a_secret_property_on_an_object_in_a_frame_is_redacted_in_the_uncaught_record() {
+        let mut table = ClassTable::new();
+        let settings = table.define("Settings", &["host", "token"], &[]);
+        table.set_secret_fields(settings, vec![false, true]);
+        let mut slots: Vec<String> = THROWABLE_SLOTS.iter().map(|s| (*s).to_owned()).collect();
+        slots.push("settings".to_owned());
+        let error = table.define("ConfigError", &slots, &[]);
+        let (settings, error) = (table.desc(settings), table.desc(error));
+
+        #[expect(
+            unsafe_code,
+            reason = "the table outlives every value built from it, and the \
+                      reference the object is built with is moved into the \
+                      exception's own slot"
+        )]
+        let held = unsafe { NvsObj::new(settings) };
+        held.set_field(0, Value::str(NvsStr::new(b"db.internal")));
+        held.set_field(1, Value::str(NvsStr::new(b"hunter2-the-token")));
+        #[expect(unsafe_code, reason = "as the object built above")]
+        let thrown = unsafe {
+            Thrown::new_as(
+                error,
+                ThrownClass::Runtime,
+                "could not configure",
+                &[(SLOT_COUNT, Value::from_obj_ptr(held.into_raw()))],
+            )
+        };
+        thrown.push_frame("Config::load() at app/Config.nvs:9");
+
+        let record = uncaught(&thrown);
+        let Some((_, Node::Map(properties))) = record
+            .envelope
+            .fields
+            .iter()
+            .find(|(name, _)| name == "properties")
+        else {
+            panic!("a class declaring a property past the root's four carries it");
+        };
+        let [
+            (
+                name,
+                Node::Object {
+                    class, properties, ..
+                },
+            ),
+        ] = properties.as_slice()
+        else {
+            panic!("the one property the class declared, as the object it holds");
+        };
+        assert_eq!(name.as_str(), "settings");
+        assert_eq!(class, "Settings");
+        assert_eq!(
+            properties[1],
+            ("token".to_owned(), Node::Redacted),
+            "the declared qualifier decides, one object below the throw"
+        );
+
+        let json = nvs_render::json::render(&record);
+        assert!(
+            !json.contains("hunter2-the-token"),
+            "a secret never reaches a log line: {json}"
+        );
+        assert!(json.contains(r#""token":{"$redacted":true}"#), "{json}");
+        assert!(
+            json.contains("db.internal"),
+            "and the property beside it still reports: {json}"
+        );
+        assert!(
+            !nvs_render::plain::render(&record).contains("hunter2-the-token"),
+            "nor the plaintext rendering of the same record"
+        );
+    }
 
     /// One `Core\Log::write`'s record, as the member and line its call site
     /// would have named — `rule:errors/a-record-names-where-it-was-produced`'s

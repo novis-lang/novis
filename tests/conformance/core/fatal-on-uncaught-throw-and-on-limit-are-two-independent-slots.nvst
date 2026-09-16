@@ -42,4 +42,4 @@ caught: handled here
 start
 second handler: boom
 --EXPECTF-ERROR--
-{"level":"error","msg":"boom","fields":{"class":"LogicError","backtrace":"%s"}}
+{"level":"error","msg":"boom","fields":{"class":"LogicError"},"nodes":%s}

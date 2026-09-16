@@ -59,6 +59,14 @@
 //!   spelled `$bytes` (or another of the tags). It is accepted rather than
 //!   closed, because closing it means tagging every node and paying for it on
 //!   every ordinary field.
+//!
+//! **A [`Node::Frame`] is the one kind JSON has no value for that is spelled
+//! without a tag**: `{"function":…,"file":…,"line":…}`, because
+//! `rule:errors/record-producers` fixes the trace's wire shape as an array of
+//! those objects and a pipeline that alerts on `nodes[0].function` should not
+//! have to reach through a `$`-key to find it. A frame is never mistaken for a
+//! `Map`, since the producer of one is the only writer of the other keys beside
+//! it.
 
 use std::fmt::Write as _;
 
@@ -237,6 +245,22 @@ impl Serialize for AsNode<'_> {
             Node::Span { file, line, label } => {
                 let mut map = ser.serialize_map(Some(1))?;
                 map.serialize_entry("$span", &AsSpan(file, *line, label))?;
+                map.end()
+            }
+            Node::Frame {
+                function,
+                file,
+                line,
+                ..
+            } => {
+                let mut map = ser.serialize_map(None)?;
+                map.serialize_entry("function", function.as_str())?;
+                if let Some(file) = file {
+                    map.serialize_entry("file", file)?;
+                }
+                if let Some(line) = line {
+                    map.serialize_entry("line", line)?;
+                }
                 map.end()
             }
         }

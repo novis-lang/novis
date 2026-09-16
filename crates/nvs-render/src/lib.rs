@@ -16,10 +16,12 @@
 //! sink transforms — [`text::substitute`] and [`html::escape`] — which are
 //! peers rather than part of the model: each is what one of
 //! `rule:tooling/echo-always-has-a-sink`'s sinks does to text on the way in,
-//! and they live here because the record's own transformations already do. `Core\Debug::dump` and
-//! `Core\Log::write` are the producers that exist, and both live in
-//! `nvs-stdlib` for the reason § *Where this sits* gives. The rendering and
-//! the three producers that do not exist are the block below.
+//! and they live here because the record's own transformations already do.
+//! `Core\Debug::dump` and `Core\Log::write` are producers in `nvs-stdlib` for
+//! the reason § *Where this sits* gives, and an uncaught `Throwable` is one in
+//! `nvs_runtime::floor`, which walks a value through `nvs_runtime::record` and
+//! carries its frames as [`Node::Frame`] nodes. The rendering and the two
+//! producers that do not exist are the block below.
 //!
 //! **`rule:errors/log-write`'s
 //! record-and-write helper renders here**, not in `nvs-runtime` beside the
@@ -36,17 +38,12 @@
 //!    `rule:errors/renderings`' three renderings has no implementation and
 //!    `[debug] inline` has nothing to wire into a response.
 //!    — owner: m8-stdlib-depth
-//! 2. **A `Throwable` and its trace is not a producer.**
-//!    `rule:errors/record-producers` asks for Sequence-of-Object frames, and
-//!    the uncaught path in `nvs-runtime` writes one string for the whole
-//!    stack summary instead.
-//!    — owner: m8-stdlib-depth
-//! 3. **A `#[Test]` result is not a producer**, so § 22's three output
+//! 2. **A `#[Test]` result is not a producer**, so § 22's three output
 //!    formats are the runner's own printing rather than one record rendered
 //!    three ways. `docs/decisions/0079.md:871` lands § 22 with the M4S tail,
 //!    which the program is already past.
 //!    — owner: m8-stdlib-depth
-//! 4. **A compiler diagnostic is not a producer**, which
+//! 3. **A compiler diagnostic is not a producer**, which
 //!    `docs/decisions/0092.md:439` schedules rather than defers.
 //!    — owner: M10
 //!
@@ -388,6 +385,31 @@ pub enum Node {
         line: u32,
         /// What the range is being pointed at for.
         label: Rendered,
+    },
+    /// One frame of a `Throwable`'s backtrace — `rule:errors/record-producers`'s
+    /// throw producer carries one of these per frame, rather than one string
+    /// for the whole stack summary.
+    ///
+    /// Its own kind rather than an [`Self::Object`] because a frame is not a
+    /// class instance: no `Throwable\Frame` exists for a program to name, and
+    /// the two readers of a trace want two spellings the shape already has —
+    /// the `#0`-first line a person greps in the plaintext rendering, and
+    /// `{function, file, line}` in the JSON one, which an object's
+    /// `$class`/`$properties` envelope would bury. Novis's frames carry a label
+    /// and nothing else (`rule:errors/propagation` builds the trace as the
+    /// throw unwinds), so these three parts are the whole of one.
+    Frame {
+        /// How far the frame is from the throw: `0` is the one it was raised
+        /// in. Carried on the node rather than read off its position, so a
+        /// frame says how deep it is wherever a rendering puts it.
+        depth: usize,
+        /// The member the frame was running — `Class::member`, or a script's
+        /// own label — without the `()` a rendering adds.
+        function: Rendered,
+        /// The file it was written in, absent for a label that carries no site.
+        file: Option<String>,
+        /// Its one-based line, on the same terms.
+        line: Option<u32>,
     },
 }
 
