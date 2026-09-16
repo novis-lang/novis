@@ -2419,6 +2419,7 @@ dependencies = [
  "md-5 0.10.6",
  "nvs-config",
  "nvs-db",
+ "nvs-diagnostics",
  "nvs-host",
  "nvs-render",
  "nvs-runtime",
