@@ -196,6 +196,17 @@
 //! A language neither table carries is still refused, by [`rules_for`], which
 //! is the boundary both members share.
 //!
+//! **That default is never an omission, because the roster is closed over
+//! [`RULES`].** Every language CLDR publishes a marked ordinal rule for and the
+//! cardinal roster carries has a row here, so a language answering `Other` is a
+//! language CLDR publishes nothing marked for — and one CLDR marks that the
+//! cardinal roster does not carry is refused by both members rather than
+//! answered, since the ordinal lookup falls through to [`rules_for`]. The only
+//! way this table can fall behind CLDR is the cardinal roster growing without
+//! it, which is what
+//! `every_language_cldr_gives_an_ordinal_rule_is_on_the_ordinal_roster`
+//! carries CLDR's own ordinal groups to catch.
+//!
 //! # Known gaps
 //!
 //! 1. **A pattern is compiled per call.** `rule:expressions/intrinsic-literals`
@@ -209,13 +220,6 @@
 //!    request-path parsing and compile-time errors as the rule says; the channel is new plumbing
 //!    (shared with nvs-types' intrinsic gaps).
 //!    — owner: unowned-closures
-//! 2. **[`ORDINALS`] is the languages that mark a form, and a language that
-//!    marks one but is missing from it answers `Other` silently** — which is
-//!    the cost of the default the section above argues for, stated plainly.
-//!    The cardinal roster has no such failure mode: a missing row there
-//!    throws. Widening this one is a row, and an arm only where the published
-//!    rule is a shape no arm has.
-//!    — owner: m8-stdlib-depth
 
 use std::cmp::Ordering;
 use std::ops::RangeInclusive;
@@ -2395,7 +2399,9 @@ enum OrdinalSet {
     Belarusian,
     /// Italian, Sardinian and Sicilian: four counts and nothing else.
     Italian,
-    /// French, Armenian, Filipino, Tagalog: the first and nothing else.
+    /// The first and nothing else — French, Irish, Armenian, Lao, Malay,
+    /// Romanian, Vietnamese and the Filipino pair, which is the widest group
+    /// CLDR publishes one ordinal rule for.
     FirstOnly,
     /// Hungarian, which marks the first and the fifth.
     Hungarian,
@@ -2419,6 +2425,9 @@ enum OrdinalSet {
     Kazakh,
     /// Welsh, which marks all five and is the only ordinal set with a `zero`.
     Welsh,
+    /// Cornish, whose `one` is the first four counts and reopens in bands of
+    /// every hundred, and whose `many` is the fifth of each.
+    Cornish,
     /// Macedonian, which reads `i` where the sets above read `n`.
     Macedonian,
     /// Georgian, whose `many` is a range of hundreds-remainders.
@@ -2545,6 +2554,19 @@ impl OrdinalSet {
             Self::Welsh if at.n_any(&[5, 6]) => Many,
             Self::Welsh => Other,
 
+            // one:  n = 1..4 or n % 100 = 1..4,21..24,41..44,61..64,81..84
+            // many: n = 5 or n % 100 = 5
+            Self::Cornish
+                if at.n_in(1..=4)
+                    || [1, 21, 41, 61, 81]
+                        .into_iter()
+                        .any(|base| at.n_mod_in(100, base..=base + 3)) =>
+            {
+                One
+            }
+            Self::Cornish if at.n_is(5) || at.n_mod_is(100, 5) => Many,
+            Self::Cornish => Other,
+
             // one:  i % 10 = 1 and i % 100 != 11
             // two:  i % 10 = 2 and i % 100 != 12
             // many: i % 10 = 7,8 and i % 100 != 17,18
@@ -2578,10 +2600,14 @@ impl OrdinalSet {
 /// properties, held by the same test.
 ///
 /// Shorter than [`RULES`] on purpose: this is the set of languages that differ
-/// from `Other`, which is how CLDR's own ordinal data is written. The module
-/// doc's ordinal section is the home of why the absence answers rather than
-/// throws, and `an_ordinal_category_is_answered_for_every_language_with_a_published_table`
-/// is what holds every row here to a row there.
+/// from `Other`, which is how CLDR's own ordinal data is written, and it is
+/// **every** one of them the cardinal roster carries. The module doc's ordinal
+/// section is the home of why the absence answers rather than throws;
+/// `an_ordinal_category_is_answered_for_every_language_with_a_published_table`
+/// holds every row here to a row there, and
+/// `every_language_cldr_gives_an_ordinal_rule_is_on_the_ordinal_roster` runs
+/// the other direction, so a published rule this table omits fails there
+/// rather than answering `Other` in a catalog.
 static ORDINALS: &[(&str, OrdinalSet)] = &[
     ("as", OrdinalSet::Bengali),
     ("az", OrdinalSet::Azerbaijani),
@@ -2592,6 +2618,7 @@ static ORDINALS: &[(&str, OrdinalSet)] = &[
     ("en", OrdinalSet::English),
     ("fil", OrdinalSet::FirstOnly),
     ("fr", OrdinalSet::FirstOnly),
+    ("ga", OrdinalSet::FirstOnly),
     ("gu", OrdinalSet::Hindi),
     ("hi", OrdinalSet::Hindi),
     ("hu", OrdinalSet::Hungarian),
@@ -2599,10 +2626,15 @@ static ORDINALS: &[(&str, OrdinalSet)] = &[
     ("it", OrdinalSet::Italian),
     ("ka", OrdinalSet::Georgian),
     ("kk", OrdinalSet::Kazakh),
+    ("kw", OrdinalSet::Cornish),
+    ("lo", OrdinalSet::FirstOnly),
     ("mk", OrdinalSet::Macedonian),
+    ("mo", OrdinalSet::FirstOnly),
     ("mr", OrdinalSet::Marathi),
+    ("ms", OrdinalSet::FirstOnly),
     ("ne", OrdinalSet::Nepali),
     ("or", OrdinalSet::Odia),
+    ("ro", OrdinalSet::FirstOnly),
     ("sc", OrdinalSet::Italian),
     ("scn", OrdinalSet::Italian),
     ("sq", OrdinalSet::Albanian),
@@ -2610,6 +2642,7 @@ static ORDINALS: &[(&str, OrdinalSet)] = &[
     ("tk", OrdinalSet::Turkmen),
     ("tl", OrdinalSet::FirstOnly),
     ("uk", OrdinalSet::Ukrainian),
+    ("vi", OrdinalSet::FirstOnly),
 ];
 
 /// The language subtag of a BCP 47 tag — everything before the first separator.
@@ -3630,10 +3663,10 @@ mod tests {
         assert!(format!("{ordinal:?}").contains("ordinalCategory"));
     }
 
-    /// Gap 4's second table: every language [`RULES`] carries has an ordinal
-    /// answer, every row of [`ORDINALS`] answers its own published rule, and
-    /// the default the module doc argues for is the one a language off that
-    /// roster gets.
+    /// The second table, swept: every language [`RULES`] carries has an
+    /// ordinal answer, every row of [`ORDINALS`] answers its own published
+    /// rule, and the default the module doc argues for is the one a language
+    /// off that roster gets.
     #[test]
     fn an_ordinal_category_is_answered_for_every_language_with_a_published_table() {
         use Category::{Few, Many, One, Other, Two, Zero};
@@ -3739,6 +3772,16 @@ mod tests {
             [6, 9, 10, 1].map(|n| place(n, "tk")),
             [Few, Few, Few, Other]
         );
+        // Cornish on both sides of a band it reopens: the fourth is `one`, the
+        // fifth is `many`, the sixth is neither, and a hundred reads the band
+        // again rather than the count.
+        assert_eq!(
+            [4, 5, 6, 21, 24, 25, 100, 101, 105].map(|n| place(n, "kw")),
+            [One, Many, Other, One, One, Other, Other, One, Many]
+        );
+        for subtag in ["ga", "lo", "mo", "ms", "ro", "vi"] {
+            assert_eq!([1, 2].map(|n| place(n, subtag)), [One, Other]);
+        }
 
         // The default, and the disagreement that is the whole reason this is a
         // second table: German and Japanese mark no ordinal form, and English
@@ -3766,6 +3809,98 @@ mod tests {
                 .select(Operands { i: 1, v: 1, f: 5 }),
             One
         );
+    }
+
+    /// The direction the sweep above does not run: every language CLDR
+    /// publishes a marked ordinal rule for is on [`ORDINALS`], the roster
+    /// carries nothing CLDR publishes no marked rule for, and no two published
+    /// rules are one rule under two names.
+    ///
+    /// The groups below are CLDR's own ordinal locale lists, over the cardinal
+    /// roster this table is closed against — the module doc's ordinal section
+    /// owns that closure, and a language CLDR marks that [`RULES`] does not
+    /// carry is a row in *that* table first, refused by both members until it
+    /// is one.
+    #[test]
+    fn every_language_cldr_gives_an_ordinal_rule_is_on_the_ordinal_roster() {
+        let published: &[(OrdinalSet, &[&str])] = &[
+            (OrdinalSet::Swedish, &["sv"]),
+            (OrdinalSet::English, &["en"]),
+            (
+                OrdinalSet::FirstOnly,
+                &["fil", "fr", "ga", "hy", "lo", "mo", "ms", "ro", "tl", "vi"],
+            ),
+            (OrdinalSet::Hungarian, &["hu"]),
+            (OrdinalSet::Nepali, &["ne"]),
+            (OrdinalSet::Belarusian, &["be"]),
+            (OrdinalSet::Ukrainian, &["uk"]),
+            (OrdinalSet::Turkmen, &["tk"]),
+            (OrdinalSet::Kazakh, &["kk"]),
+            (OrdinalSet::Italian, &["it", "sc", "scn"]),
+            (OrdinalSet::Georgian, &["ka"]),
+            (OrdinalSet::Albanian, &["sq"]),
+            (OrdinalSet::Cornish, &["kw"]),
+            (OrdinalSet::Macedonian, &["mk"]),
+            (OrdinalSet::Azerbaijani, &["az"]),
+            (OrdinalSet::Catalan, &["ca"]),
+            (OrdinalSet::Marathi, &["mr"]),
+            (OrdinalSet::Hindi, &["gu", "hi"]),
+            (OrdinalSet::Bengali, &["as", "bn"]),
+            (OrdinalSet::Odia, &["or"]),
+            (OrdinalSet::Welsh, &["cy"]),
+        ];
+
+        for (rules, locales) in published {
+            for subtag in *locales {
+                assert_eq!(
+                    ordinal_rules_for(subtag, ORDINAL_MEMBER).unwrap(),
+                    *rules,
+                    "`{subtag}` is published as {rules:?} and the roster answers otherwise"
+                );
+            }
+        }
+
+        // Counted rather than read off a line: every assertion above passes
+        // unchanged with a row here that CLDR marks nothing for, and one of
+        // those is a form invented for a language that writes none.
+        let listed: usize = published.iter().map(|(_, locales)| locales.len()).sum();
+        assert_eq!(
+            ORDINALS.len(),
+            listed,
+            "the roster and CLDR's published ordinal data are different lengths"
+        );
+
+        // And no arm is another arm's rule under a second name, which is what
+        // makes each one a transcription rather than a language's label: the
+        // pair that renders identically at every count is one rule, and the
+        // one that renders as the default marks nothing.
+        let answers = |rules: OrdinalSet| {
+            (0..=1_000u128)
+                .map(|count| {
+                    rules.select(Operands {
+                        i: count,
+                        v: 0,
+                        f: 0,
+                    })
+                })
+                .collect::<Vec<_>>()
+        };
+        let unmarked = answers(OrdinalSet::Unmarked);
+        for (index, (rules, locales)) in published.iter().enumerate() {
+            assert_ne!(
+                answers(*rules),
+                unmarked,
+                "{rules:?} marks nothing, so {locales:?} belongs off the roster"
+            );
+            for (other, named) in &published[index + 1..] {
+                assert_ne!(
+                    answers(*rules),
+                    answers(*other),
+                    "{rules:?} and {other:?} answer alike, so {locales:?} and {named:?} are one \
+                     group"
+                );
+            }
+        }
     }
 
     /// [`RULES`] is bisected and folded against, so both properties it is read
