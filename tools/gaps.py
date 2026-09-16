@@ -83,7 +83,9 @@ def corpus(root: Path) -> str:
 
 #: `CoreMethod { name: "chunk", … symbol: "nvs_core_arr_chunk" }`, paired by position: each
 #: literal carries exactly one of each, and `symbol` always follows `name` inside it.
-METHOD_RE = re.compile(r'CoreMethod\s*\{\s*name:\s*"([^"]+)"')
+#: A method names itself inline or through a `&str` const (`cap.rs` writes `name: HAS`), which
+#: `class_consts` resolves the same way it resolves a class's.
+METHOD_RE = re.compile(r'CoreMethod\s*\{\s*name:\s*(?:"([^"]+)"|([A-Za-z_][A-Za-z0-9_]*))')
 SYMBOL_RE = re.compile(r'symbol:\s*"([^"]+)"')
 #: A `CoreClass` names itself either inline (`name: r"Core\Arr"`) or through a file-level const
 #: (`name: NAME`), and the second spelling is the majority -- matching only the first found 7 of
@@ -105,27 +107,42 @@ def name_consts(text: str) -> dict[str, str]:
             for m in NAME_CONST_RE.finditer(text)}
 
 
+#: `pub const NAME: &str = nvs_runtime::CARRIER_CLI_TEXT;` -- a const that forwards another rather
+#: than spelling a string, resolved against the tree's map by the last path segment.
+ALIAS_CONST_RE = re.compile(r'const\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*&str\s*=\s*'
+                            r'(?:[A-Za-z_][A-Za-z0-9_]*::)+([A-Za-z_][A-Za-z0-9_]*)\s*;')
+
+#: Where the tree-wide map is read from: the stdlib, and the runtime crate a stdlib file forwards
+#: a carrier's name out of.
+CONST_ROOTS = (STDLIB, ROOT / "crates" / "nvs-runtime" / "src")
+
 _tree_consts: dict[str, str] | None = None
 
 
-def class_consts(text: str) -> dict[str, str]:
-    """The name consts a `CoreClass` literal in `text` may spell its `name:` with.
+def class_consts(path: Path, text: str) -> dict[str, str]:
+    """The name consts a `CoreClass` or `CoreMethod` literal in `text` may spell its `name:` with.
 
-    A file's own consts win, and behind them sit the tree's *unambiguous* ones: `db/row.rs` opens
-    its class as `name: ROW_NAME` with the const declared in `db/mod.rs`, and reading only the
-    literal's own file left every `Core\\Db` class unnamed. A name declared in more than one file
-    with different values -- `NAME`, which nearly every file declares -- is left out of the tree's
-    map, because a literal spelling `name: NAME` for a const it imports from `super` would
-    otherwise resolve to whichever file sorts last and credit its members to that class.
+    In order of precedence: the file's own consts; the ones it forwards from another crate by
+    alias; its parent module's, since `db/registry.rs` opens `Core\\Db` as `name: NAME` under a
+    `use super::*` and reading only its own file left every `Core\\Db` class unnamed; and behind
+    those the tree's *unambiguous* ones. A name declared in more than one file with different
+    values -- `NAME`, which nearly every file declares -- is left out of the tree's map, because a
+    literal spelling it for a const imported from elsewhere would otherwise resolve to whichever
+    file sorts last and credit its members to that class.
     """
     global _tree_consts
     if _tree_consts is None:
         seen: dict[str, set[str]] = {}
-        for path in sorted(STDLIB.rglob("*.rs")):
-            for name, value in name_consts(read(path)).items():
-                seen.setdefault(name, set()).add(value)
+        for root in CONST_ROOTS:
+            for p in sorted(root.rglob("*.rs")):
+                for name, value in name_consts(read(p)).items():
+                    seen.setdefault(name, set()).add(value)
         _tree_consts = {name: next(iter(v)) for name, v in seen.items() if len(v) == 1}
-    return {**_tree_consts, **name_consts(text)}
+    sibling = path.parent / "mod.rs"
+    parent = name_consts(read(sibling)) if path.name != "mod.rs" and sibling.is_file() else {}
+    aliases = {m.group(1): _tree_consts[m.group(2)]
+               for m in ALIAS_CONST_RE.finditer(text) if m.group(2) in _tree_consts}
+    return {**_tree_consts, **parent, **aliases, **name_consts(text)}
 
 
 def registry() -> dict[tuple[str, str], tuple[Path, int, str]]:
@@ -142,7 +159,7 @@ def registry() -> dict[tuple[str, str], tuple[Path, int, str]]:
     found: dict[tuple[str, str], tuple[Path, int, str]] = {}
     for path in sorted(STDLIB.rglob("*.rs")):
         text = read(path)
-        consts = class_consts(text)
+        consts = class_consts(path, text)
         starts = [(m.start(), m.group(1) or consts.get(m.group(2), ""))
                   for m in CLASS_RE.finditer(text)]
         if not starts:
@@ -154,11 +171,12 @@ def registry() -> dict[tuple[str, str], tuple[Path, int, str]]:
                     owner = name
                 else:
                     break
-            if not owner:
+            member = m.group(1) or consts.get(m.group(2), "")
+            if not owner or not member:
                 continue
             sym = SYMBOL_RE.search(text, m.end(), m.end() + 600)
             line = text.count("\n", 0, m.start()) + 1
-            found[(owner, m.group(1))] = (path, line, sym.group(1) if sym else "")
+            found[(owner, member)] = (path, line, sym.group(1) if sym else "")
     return found
 
 
@@ -187,7 +205,7 @@ def producers() -> dict[tuple[str, str], str]:
     found: dict[tuple[str, str], str] = {}
     for path in sorted(STDLIB.rglob("*.rs")):
         text = read(path)
-        consts = class_consts(text)
+        consts = class_consts(path, text)
         starts = [(m.start(), m.group(1) or consts.get(m.group(2), ""))
                   for m in CLASS_RE.finditer(text)]
         if not starts:
@@ -207,8 +225,9 @@ def producers() -> dict[tuple[str, str], str]:
             if not owner or not made:
                 continue
             name = made.group(1) or consts.get(made.group(2), "")
-            if name:
-                found[(owner, m.group(1))] = name
+            member = m.group(1) or consts.get(m.group(2), "")
+            if name and member:
+                found[(owner, member)] = name
     return found
 
 
