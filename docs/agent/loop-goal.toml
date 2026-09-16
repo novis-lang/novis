@@ -10657,7 +10657,7 @@ name = "a numeric never narrows, a JSON decimal keeps its digits, and a hand-wri
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
   "a_numeric_30_10_value_past_decimals_range_throws_rather_than_truncating",
-  "json_decode_into_a_decimal_field_round_trips_25_significant_digits",
+  "decode_as_fills_a_decimal_field_from_the_numbers_own_digits",
   "query_as_calls_a_hand_written_from_row",
 ]
 
@@ -10676,7 +10676,7 @@ args = ["test", "tests/conformance/"]
 cases = [
   "tests/conformance/core/db-query-as-hydrates-a-decimal-an-instant-and-bytes.nvst",
   "tests/conformance/reject/db-query-as-over-an-inline-shape-field-is-refused-while-compiling.nvst",
-  "tests/conformance/core/json-decode-as-a-decimal-field-keeps-25-significant-digits.nvst",
+  "tests/conformance/core/json-decode-as-round-trips-a-25-digit-decimal-exactly.nvst",
 ]
 
 # ---------------------------------------------------------------------------------------------------
@@ -11125,7 +11125,8 @@ cases = [
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 14 -- the rest of M8's non-database verification lists. Goal prose stage 14. Item 3 there
-# (the cache bullet) has no check: it is struck with evidence or it becomes a test in this list.
+# (the cache bullet) has no check and never gets one: it is struck, and its evidence is
+# `crates/nvs-cli/src/cache.rs:2511`, now `rule:expressions/preparation-preserves-behaviour`'s guard.
 # ---------------------------------------------------------------------------------------------------
 
 [[check]]
