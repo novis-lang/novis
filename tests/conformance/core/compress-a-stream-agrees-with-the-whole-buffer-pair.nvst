@@ -1,0 +1,59 @@
+--TEST--
+A `Core\Compress` stream answers what the whole-buffer pair answers over the concatenation of its chunks, for every codec and whatever shape the chunks arrived in — spec § 17, `rule:core-api/one-paradigm-per-operation`
+--FILE--
+<?nvs
+// § 17's incremental half exists so that a program feeding octets in pieces
+// does not have to concatenate them itself. Its whole contract is that the
+// chunking is not observable: `finish` answers what the whole-buffer member
+// would over the concatenation, which is asserted here by **counting** across
+// every codec rather than read off one line — a codec that answers plausibly
+// on its own row still fails the count.
+string $text = Core\Str::repeat("the quick brown fox jumps over the lazy dog\n", 64);
+bytes $payload = $text as bytes;
+int $size = Core\Bytes::length($payload) as int;
+array<Core\Codec> $codecs = [
+    Core\Codec::Gzip,
+    Core\Codec::Zlib,
+    Core\Codec::Deflate,
+    Core\Codec::Brotli,
+    Core\Codec::Zstd,
+];
+
+int $frames = 0;
+int $round = 0;
+foreach ($codecs as Core\Codec $codec) {
+    // Three chunks with an empty one among them: an `add` carrying no octets
+    // contributes none, which is the boundary a stream that accumulated a
+    // length rather than the buffers would get wrong.
+    var $writing = Core\Compress::compressor($codec);
+    $writing->add(Core\Bytes::slice($payload, 0, 700));
+    $writing->add("");
+    $writing->add(Core\Bytes::slice($payload, 700, $size - 700));
+    bytes $frame = $writing->finish();
+    if (Core\Bytes::compare($frame, Core\Compress::compress($payload, $codec)) == 0) {
+        $frames = $frames + 1;
+    }
+
+    // And the other direction, with the split falling inside the frame's own
+    // header rather than on a block edge: the decoder never sees the pieces,
+    // so a boundary five octets in is a boundary nowhere.
+    var $reading = Core\Compress::decompressor($codec);
+    $reading->add(Core\Bytes::slice($frame, 0, 5));
+    $reading->add(Core\Bytes::slice($frame, 5, (Core\Bytes::length($frame) as int) - 5));
+    if (Core\Bytes::length($reading->finish()) == $size) {
+        $round = $round + 1;
+    }
+}
+echo "frames agreeing with compress(): ", $frames, "\n";
+echo "streams round tripping: ", $round, "\n";
+
+// A stream fed nothing at all is the frame of the empty input, written as the
+// identity against the whole-buffer member rather than as a pasted constant.
+var $none = Core\Compress::compressor(Core\Codec::Gzip);
+echo Core\Bytes::compare($none->finish(), Core\Compress::compress("", Core\Codec::Gzip)) == 0
+    ? "empty agrees"
+    : "empty differs", "\n";
+--EXPECT--
+frames agreeing with compress(): 5
+streams round tripping: 5
+empty agrees

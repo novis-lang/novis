@@ -16,15 +16,14 @@
 //! in which header wraps one deflate stream, and a class that offered four
 //! would leave `gzdeflate` with no spelling at all.
 //!
-//! **Whole buffer here, and the incremental half is a different job.** This is
-//! `Core\Xml`'s precedent applied deliberately rather than by omission: a
-//! materialising member and a streaming one answer different questions, so they
-//! are two surfaces stated as two and never one member with a mode. What is
-//! written here is the whole-buffer pair, which is every row of the migration
-//! table's *whole buffer* group. The incremental group — `deflate_init`,
-//! `deflate_add`, `inflate_init` — is a `Core\Compress\Stream` object shaped
-//! like [`crate::hash`]'s, and is this module's known gap 1 rather than a
-//! second spelling of `decompress`.
+//! **Whole buffer, and two streams beside it.** This is `Core\Xml`'s precedent
+//! applied deliberately rather than by omission: a materialising member and a
+//! streaming one answer different questions, so they are two surfaces stated as
+//! two and never one member with a mode. [`CLASS`]'s first pair is the
+//! whole-buffer group, which is every row of the migration table's *whole
+//! buffer* group; [`COMPRESSOR`] and [`DECOMPRESSOR`] are the incremental one —
+//! `deflate_init`/`deflate_add` and `inflate_init`/`inflate_add` — and the
+//! section below is what they are and what they cost.
 //!
 //! **What this spends** (`rule:programs/memory-priority`): the output buffer,
 //! and nothing else that outlives the call. Every decoder here is driven as a
@@ -42,19 +41,64 @@
 //! handler for one to be registered against, which
 //! `the_server_still_sets_no_content_encoding_of_its_own` pins.
 //!
-//! # Known gaps
+//! # The incremental surface, and why it is two classes
 //!
-//! 1. **The incremental surface is not written.** `deflate_init`/`deflate_add`
-//!    and `inflate_init` map to a `Core\Compress\Stream` instance carrying the
-//!    codec, the accumulated chunks and PHP's flush mode; the decompressing
-//!    direction carries the same [`Bound`] as [`nvs_core_compress_decompress`]
-//!    and charges every chunk against it, because a bound applied per call
-//!    rather than per stream is not a bound.
-//!    — owner: unowned
+//! `Core\Compress\Compressor` and `Core\Compress\Decompressor` carry the same
+//! two members — `add` and `finish` — and differ in the one thing a program can
+//! observe: what `finish` answers. A decompressor's octets are whatever the
+//! frame said they were, so its `finish` answers `tainted bytes` as
+//! `rule:security/tainted-sources` has every other object-shaped reader of
+//! untrusted octets do; a compressor's are the program's own in another shape,
+//! so its `finish` answers `bytes`. One class would have to declare one return
+//! type for both, and an instance carries no qualifier for the two members to
+//! pass one between them. Both readings of that single type are worse than
+//! spending a class name: plain `bytes` launders a hostile archive, and `tainted
+//! bytes` would leave a program that compresses its own data with
+//! `Core\Taint::assertTrusted` as its only spelling, since `bytes` has no
+//! checked `as` conversion to launder through
+//! (`rule:security/taint-propagation`).
+//!
+//! **A compressed frame is not an injection payload**, which is why the
+//! compressing half is not tainted by its input the way
+//! [`nvs_core_compress_compress`] is. The octets a sink could misread are
+//! recovered only by a decompression, and that answers `tainted` again — so the
+//! qualifier is carried where it can be acted on rather than on a frame no sink
+//! reads as text.
+//!
+//! **A stream holds its chunks, not a codec state.** This is [`crate::hash`]'s
+//! wall and it is answered the same way: a `Core` instance's slots hold values
+//! Novis already holds ([`crate::instance`]), a `flate2` or brotli coder is a
+//! native object with no Novis spelling, and an instance has no destructor to
+//! free one with. So `add` retains its argument into an array slot and `finish`
+//! runs the backend once over the concatenation. PHP's `$flush_mode` therefore
+//! has no spelling here, and that is a property of this shape rather than an
+//! omission: every one of its constants means *emit what you have now*, and
+//! nothing is emitted before `finish`.
+//!
+//! **The bound is the stream's, applied once over the whole of it.** A
+//! decompressor resolves [`Bound`] when it is opened — the ask against the
+//! operator's ceiling, exactly as [`nvs_core_compress_decompress`] does — keeps
+//! the two resolved numbers in its own slots, and `finish` measures the total
+//! output against `min(total input × ratio, bytes)`. A bound charged per `add`
+//! would not be a bound: ten chunks would each be given the whole ceiling, so a
+//! stream would decompress ten times what one call may
+//! (`rule:core-classes/decompression-bound`).
+//!
+//! **What a stream spends** (`rule:programs/memory-priority`): one reference per
+//! chunk `add` was handed, held until `finish` — no copy, since a retained
+//! `NvsStr` is the caller's own buffer — plus, for the length of `finish`, one
+//! concatenation of all of them, which is the input a second time. So a program
+//! that streams to keep its footprint flat does not get that here: the cost is
+//! the total fed, charged to the request's `[limits] memory` and released at
+//! `finish` or with the request. That is AGENTS.md's priority 5 spent to buy
+//! priority 4, and it is observably `deflate_add`/`inflate_add` either way,
+//! which is what keeps the choice cheap to reverse — when a runtime tag owns a
+//! native object with a release hook, these slots become that object and no
+//! written program changes.
 
 use std::io::Read;
 
-use nvs_runtime::{Ctx, Fault, NvsStr, ThrownClass, Value};
+use nvs_runtime::{Ctx, Fault, NvsArray, NvsStr, ObjHeader, ThrownClass, Value};
 
 use crate::registry::{
     CaseDoc, Const, CoreClass, CoreEnum, CoreMethod, CoreTy, EnumDoc, ErrorDoc, MethodDoc,
@@ -175,6 +219,27 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             symbol: "nvs_core_compress_decompress",
             doc: Some(&DECOMPRESS_DOC),
         },
+        CoreMethod {
+            name: "compressor",
+            names: &["codec"],
+            params: &[CoreTy::Enum(CODEC_NAME)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(COMPRESSOR_NAME),
+            symbol: "nvs_core_compress_compressor",
+            doc: Some(&COMPRESSOR_DOC),
+        },
+        CoreMethod {
+            name: "decompressor",
+            names: &["codec", "maxBytes", "maxRatio"],
+            params: &[CoreTy::Enum(CODEC_NAME), CoreTy::Uint, CoreTy::Uint],
+            defaults: &[
+                Const::Uint(DEFAULT_MAX_BYTES),
+                Const::Uint(DEFAULT_MAX_RATIO),
+            ],
+            return_ty: CoreTy::Instance(DECOMPRESSOR_NAME),
+            symbol: "nvs_core_compress_decompressor",
+            doc: Some(&DECOMPRESSOR_DOC),
+        },
     ],
     instance: &[],
     slots: &[],
@@ -247,12 +312,221 @@ const DECOMPRESS_DOC: MethodDoc = MethodDoc {
     }],
 };
 
+/// `Core\Compress::compressor`'s reference card — `rule:core-api/reference-card`.
+const COMPRESSOR_DOC: MethodDoc = MethodDoc {
+    short: "Opens an incremental compression under `$codec`, as `deflate_init` does — a \
+            `Core\\Compress\\Compressor` fed by `add` and closed by `finish`.",
+    params: &[ParamDoc {
+        name: "codec",
+        desc: "The format to write, any `Core\\Codec` case. Fixed for the stream's whole life: a \
+               frame is one format.",
+        shape: &[],
+    }],
+    ret: "A fresh, open stream that has been fed nothing yet.",
+    errors: &[],
+};
+
+/// `Core\Compress::decompressor`'s reference card — `rule:core-api/reference-card`.
+const DECOMPRESSOR_DOC: MethodDoc = MethodDoc {
+    short: "Opens an incremental decompression under `$codec`, as `inflate_init` does — a \
+            `Core\\Compress\\Decompressor` fed by `add` and closed by `finish`, **under the same \
+            bound that cannot be switched off**.",
+    params: &[
+        ParamDoc {
+            name: "codec",
+            desc: "The format the chunks are in. Nothing is sniffed — a frame that is not this \
+                   format is refused rather than guessed at.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "maxBytes",
+            desc: "The most output this whole stream will produce, in octets — resolved against \
+                   `[limits] max_decompressed` here, at the opening, and charged once across every \
+                   chunk rather than once per `add`.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "maxRatio",
+            desc: "The most output per octet fed to the stream. The second half of the same bound, \
+                   measured against everything `add` was handed.",
+            shape: &[],
+        },
+    ],
+    ret: "A fresh, open stream that has been fed nothing yet, carrying the bound it will be \
+          measured against.",
+    errors: &[],
+};
+
+/// [`COMPRESSOR`]'s name, written once — see [`NAME`].
+pub(crate) const COMPRESSOR_NAME: &str = r"Core\Compress\Compressor";
+
+/// The incremental compressing half — `deflate_init` and `deflate_add`.
+///
+/// Three slots and two members. `codec` is the [`CODEC`] case the stream was
+/// opened with, as the integer the enum already is; `chunks` is every buffer
+/// `add` has been handed, in order; `open` is `false` once `finish` has
+/// answered. This module's own docs say why the state is the chunks rather than
+/// a coder, why this is a class of its own beside [`DECOMPRESSOR`], and what
+/// either one spends.
+pub(crate) const COMPRESSOR: CoreClass = CoreClass {
+    name: COMPRESSOR_NAME,
+    methods: &[],
+    instance: &[
+        CoreMethod {
+            name: "add",
+            names: &["data"],
+            params: &[CoreTy::Union(DATA)],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_compress_compressor_add",
+            doc: Some(&COMPRESSOR_ADD_DOC),
+        },
+        CoreMethod {
+            name: "finish",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Bytes,
+            symbol: "nvs_core_compress_compressor_finish",
+            doc: Some(&COMPRESSOR_FINISH_DOC),
+        },
+    ],
+    slots: &["codec", "chunks", "open"],
+    constants: &[],
+};
+
+/// `$compressor->add`'s reference card — `rule:core-api/reference-card`.
+const COMPRESSOR_ADD_DOC: MethodDoc = MethodDoc {
+    short: "Feeds `$data` to the stream, as `deflate_add` does; the chunks are compressed in \
+            order at `finish`.",
+    params: &[ParamDoc {
+        name: "data",
+        desc: "The next octets; a `string` is read as its UTF-8 bytes.",
+        shape: &[],
+    }],
+    ret: "Nothing. PHP's `deflate_add` answers whatever its flush mode let the coder emit, and \
+          there is no such answer here: the frame is written whole at `finish`.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The stream has already been finished — a frame is whole once it is written, so \
+               open a new stream.",
+    }],
+};
+
+/// `$compressor->finish`'s reference card — `rule:core-api/reference-card`.
+const COMPRESSOR_FINISH_DOC: MethodDoc = MethodDoc {
+    short: "Closes the stream and answers the frame for everything `add` fed it — the same \
+            octets `Core\\Compress::compress` answers over the concatenation.",
+    params: &[],
+    ret: "The compressed frame, as `bytes`; the stream is finished afterwards and its chunks \
+          released. Not tainted by its input, for the reason this module's docs give: a frame is \
+          not a payload any sink reads as text.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The stream has already been finished — a second `finish` is refused rather than \
+               answering a second frame.",
+    }],
+};
+
+/// [`DECOMPRESSOR`]'s name, written once — see [`NAME`].
+pub(crate) const DECOMPRESSOR_NAME: &str = r"Core\Compress\Decompressor";
+
+/// The incremental decompressing half — `inflate_init` and `inflate_add`.
+///
+/// [`COMPRESSOR`]'s three slots and two more: `maxBytes` and `maxRatio` are the
+/// [`Bound`] this stream was opened under, already resolved against the
+/// operator's ceiling, so `finish` measures the whole stream against the numbers
+/// the opening fixed and no later configuration read can raise them.
+pub(crate) const DECOMPRESSOR: CoreClass = CoreClass {
+    name: DECOMPRESSOR_NAME,
+    methods: &[],
+    instance: &[
+        CoreMethod {
+            name: "add",
+            names: &["data"],
+            params: &[CoreTy::Blob(Qual::Contagious)],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_compress_decompressor_add",
+            doc: Some(&DECOMPRESSOR_ADD_DOC),
+        },
+        CoreMethod {
+            name: "finish",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::TaintedBytes,
+            symbol: "nvs_core_compress_decompressor_finish",
+            doc: Some(&DECOMPRESSOR_FINISH_DOC),
+        },
+    ],
+    slots: &["codec", "chunks", "open", "maxBytes", "maxRatio"],
+    constants: &[],
+};
+
+/// `$decompressor->add`'s reference card — `rule:core-api/reference-card`.
+const DECOMPRESSOR_ADD_DOC: MethodDoc = MethodDoc {
+    short: "Feeds `$data` to the stream, as `inflate_add` does; the chunks are decompressed in \
+            order at `finish`, under the one bound the stream was opened with.",
+    params: &[ParamDoc {
+        name: "data",
+        desc: "The next octets of the compressed frame. Nothing is decoded yet, so nothing here \
+               is refused for size — the bound is the whole stream's and `finish` applies it.",
+        shape: &[],
+    }],
+    ret: "Nothing. PHP's `inflate_add` answers whatever its flush mode let the decoder emit, and \
+          a bound charged against such an answer would be a bound per call rather than per \
+          stream.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "The stream has already been finished — the octets are final, so open a new stream.",
+    }],
+};
+
+/// `$decompressor->finish`'s reference card — `rule:core-api/reference-card`.
+const DECOMPRESSOR_FINISH_DOC: MethodDoc = MethodDoc {
+    short: "Closes the stream and answers everything `add` fed it, decompressed — the same octets \
+            `Core\\Compress::decompress` answers over the concatenation, under the same bound.",
+    params: &[],
+    ret: "The decompressed octets as `tainted bytes`, never a truncation; the stream is finished \
+          afterwards and its chunks released. Tainted because a frame's contents are whatever it \
+          said they were, which is `rule:security/tainted-sources`' reading for every other reader \
+          of untrusted octets.",
+    errors: &[
+        ErrorDoc {
+            error: "ParseError",
+            desc: "The chunks are not a well-formed frame of the stream's codec, or the output \
+                   would pass either half of the bound the stream was opened under. The bound is \
+                   the whole stream's: every chunk is charged against one ceiling.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The stream has already been finished — including by a `finish` that refused, \
+                   since a refused frame is over.",
+        },
+    ],
+};
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::address_of`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "nvs_core_compress_compress" => (nvs_core_compress_compress as *const ()).cast(),
         "nvs_core_compress_decompress" => (nvs_core_compress_decompress as *const ()).cast(),
+        "nvs_core_compress_compressor" => (nvs_core_compress_compressor as *const ()).cast(),
+        "nvs_core_compress_decompressor" => (nvs_core_compress_decompressor as *const ()).cast(),
+        "nvs_core_compress_compressor_add" => {
+            (nvs_core_compress_compressor_add as *const ()).cast()
+        }
+        "nvs_core_compress_compressor_finish" => {
+            (nvs_core_compress_compressor_finish as *const ()).cast()
+        }
+        "nvs_core_compress_decompressor_add" => {
+            (nvs_core_compress_decompressor_add as *const ()).cast()
+        }
+        "nvs_core_compress_decompressor_finish" => {
+            (nvs_core_compress_decompressor_finish as *const ()).cast()
+        }
         _ => return None,
     })
 }
@@ -435,15 +709,24 @@ fn codec_of(args: &[Value], index: usize, member: &str) -> Result<Codec, Fault> 
 }
 
 /// The `bytes|string` in slot `index` as octets — see [`DATA`].
-fn data_of<'a>(args: &'a [Value], index: usize, member: &str) -> Result<&'a [u8], Fault> {
-    // unreachable from source: both rows declare `bytes` or `bytes|string` in
+///
+/// `class` is spelled out rather than assumed, because the streams' `add` reads
+/// its chunk through here and a message naming the wrong class is a message a
+/// reader cannot grep for.
+fn data_of<'a>(
+    args: &'a [Value],
+    index: usize,
+    class: &str,
+    member: &str,
+) -> Result<&'a [u8], Fault> {
+    // unreachable from source: every row declares `bytes` or `bytes|string` in
     // this slot, so a third tag is `E0401` at the call site.
     args[index]
         .as_bytes()
         .or_else(|| args[index].as_str_bytes())
         .ok_or_else(|| {
             Fault::fatal(format!(
-                "Core\\Compress::{member} expected a `bytes` or a `string`, got tag {}",
+                "{class}::{member} expected a `bytes` or a `string`, got tag {}",
                 args[index].tag_byte()
             ))
         })
@@ -758,7 +1041,7 @@ nvs_runtime::nvs_helper! {
     /// errors: a compressor's output is bounded by its input, so there is
     /// nothing here for a bound to be about.
     fn nvs_core_compress_compress(_ctx, args: [2]) {
-        let data = data_of(args, 0, "compress")?;
+        let data = data_of(args, 0, NAME, "compress")?;
         let codec = codec_of(args, 1, "compress")?;
         Ok(Value::bytes(NvsStr::new(&compress_to(codec, data)?)))
     }
@@ -776,7 +1059,7 @@ nvs_runtime::nvs_helper! {
     /// trusted, and a context that was never configured is bounded by the
     /// shipped defaults rather than by nothing.
     fn nvs_core_compress_decompress(ctx, args: [4]) {
-        let data = data_of(args, 0, "decompress")?;
+        let data = data_of(args, 0, NAME, "decompress")?;
         let codec = codec_of(args, 1, "decompress")?;
         let asked = Bound {
             bytes: uint_of(args, 2, "decompress", "`$maxBytes`")?,
@@ -788,6 +1071,261 @@ nvs_runtime::nvs_helper! {
             data,
             bound,
             "Core\\Compress::decompress()",
+        )?)))
+    }
+}
+
+// ============================================================================
+// The streams — the incremental form
+// ============================================================================
+
+/// Either stream class's `codec` slot, by index.
+const CODEC_SLOT: usize = 0;
+
+/// Either stream class's `chunks` slot, by index.
+const CHUNKS_SLOT: usize = 1;
+
+/// Either stream class's `open` slot, by index.
+const OPEN_SLOT: usize = 2;
+
+/// [`DECOMPRESSOR`]'s `maxBytes` slot, by index.
+const MAX_BYTES_SLOT: usize = 3;
+
+/// [`DECOMPRESSOR`]'s `maxRatio` slot, by index.
+const MAX_RATIO_SLOT: usize = 4;
+
+/// The receiver of one of a stream's two members, with the codec it was opened
+/// under read back out of it.
+///
+/// The two are decoded together because neither member has anything to do
+/// without both, and because reading the `codec` slot is where a receiver that
+/// is not one of that class's shows up.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for a receiver that is no object or whose `codec` slot
+/// holds no [`CODEC`] ordinal — compiled code can produce neither — and a
+/// [`Fault::thrown`] for a stream a `finish` has already closed, which is the
+/// one of the three a program causes.
+fn open_stream(
+    value: Value,
+    class: &CoreClass,
+    member: &str,
+) -> Result<(*mut ObjHeader, Codec), Fault> {
+    let receiver = crate::instance::receiver(value, class, member)?;
+    // unreachable from source: `compressor` and `decompressor` are the only
+    // writers of this slot, and each decodes the ordinal before it writes it,
+    // so an integer no `Core\Codec` case carries cannot be in one.
+    let codec = case_of(crate::instance::slot(receiver, CODEC_SLOT).as_int()).ok_or_else(|| {
+        Fault::fatal(format!(
+            "{}::{member} received a stream whose `codec` slot is not one `Core\\Compress` wrote",
+            class.name
+        ))
+    })?;
+    if crate::instance::slot(receiver, OPEN_SLOT).as_bool() != Some(true) {
+        return Err(Fault::thrown(format!(
+            "{}::{member}(): this stream is finished — a frame is whole once it has been \
+             answered, so open a new stream with Core\\Compress rather than reusing this one",
+            class.name
+        )));
+    }
+    Ok((receiver, codec))
+}
+
+/// One chunk retained into a stream's `chunks` slot.
+///
+/// **Retains its argument rather than copying it**, which is [`crate::hash`]'s
+/// reading and its reason: the buffer is immutable-until-copied, so holding a
+/// reference to the caller's own is both the cheap answer and the correct one.
+fn add_chunk(args: &[Value], class: &CoreClass, member: &str) -> Result<Value, Fault> {
+    let (receiver, _) = open_stream(args[0], class, member)?;
+    // Read before the retain, so a tag that reached here leaves the stream
+    // exactly as it found it.
+    let _ = data_of(args, 1, class.name, member)?;
+    #[expect(
+        unsafe_code,
+        reason = "the chunk array takes over a reference of its own, and the \
+                  argument's belongs to the caller"
+    )]
+    unsafe {
+        args[1].retain();
+    }
+    crate::identity_store::edit(receiver, CHUNKS_SLOT, class, member, |chunks| {
+        chunks.append(args[1]);
+    })?;
+    Ok(Value::null())
+}
+
+/// Every chunk `add` retained, concatenated in the order it was handed them.
+///
+/// **What it spends:** the concatenation, so a `finish` holds the total fed
+/// twice — which is why [`close`] runs on the result of this rather than after
+/// the backend, releasing the chunks before a codec allocates anything.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for a `chunks` slot holding anything but the array `add`
+/// writes, which is this crate disagreeing with itself.
+fn concatenated(
+    receiver: *mut ObjHeader,
+    class: &CoreClass,
+    member: &str,
+) -> Result<Vec<u8>, Fault> {
+    let mut data: Vec<u8> = Vec::new();
+    let chunks = crate::identity_store::borrow(receiver, CHUNKS_SLOT, class, member)?;
+    let mut from = 0_usize;
+    while let Some(slot) = chunks.next_slot(from) {
+        let held = chunks
+            .value_at(slot)
+            .expect("next_slot only names live entries");
+        // unreachable from source: `add` is the only writer of this slot and
+        // its one parameter is `bytes` or `bytes|string`, so a chunk carries
+        // `Tag::Bytes` or `Tag::Str` and the pair below answers for both.
+        let octets = held
+            .as_bytes()
+            .or_else(|| held.as_str_bytes())
+            .ok_or_else(|| {
+                Fault::fatal(format!(
+                    "{}::{member} found tag {} among its chunks, which only `add` writes",
+                    class.name,
+                    held.tag_byte()
+                ))
+            })?;
+        data.extend_from_slice(octets);
+        from = slot + 1;
+    }
+    Ok(data)
+}
+
+/// Closes `receiver` and releases the chunks it was holding.
+///
+/// Called before the backend runs rather than after it, so a `finish` that
+/// refuses leaves a closed stream holding nothing: a refused frame is over, and
+/// the octets that produced it are not worth holding for a second attempt that
+/// would be refused the same way.
+fn close(receiver: *mut ObjHeader) {
+    crate::instance::set_slot(receiver, OPEN_SLOT, Value::bool(false));
+    crate::identity_store::replace(receiver, CHUNKS_SLOT);
+}
+
+/// One of [`DECOMPRESSOR`]'s two bound slots, as the number the opening
+/// resolved and wrote there.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for a slot holding anything but a `uint`, which is this
+/// crate disagreeing with itself.
+fn bound_slot(receiver: *mut ObjHeader, slot: usize, member: &str) -> Result<u64, Fault> {
+    // unreachable from source: `decompressor` is the only writer of either
+    // slot, and writes a `uint` it has already read out of an argument.
+    crate::instance::slot(receiver, slot)
+        .as_uint()
+        .ok_or_else(|| {
+            Fault::fatal(format!(
+                "{DECOMPRESSOR_NAME}::{member} expected a `uint` in its `{}` slot",
+                DECOMPRESSOR.slots[slot]
+            ))
+        })
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Compress::compressor(Codec $codec): Compress\Compressor` —
+    /// replacing `deflate_init`, and the whole of PHP's deflate context.
+    ///
+    /// Takes the same `Core\Codec` [`nvs_core_compress_compress`] does, and
+    /// fixes it for the stream's life: a frame is one format, so there is
+    /// nothing a later `add` could choose.
+    fn nvs_core_compress_compressor(_ctx, args: [1]) {
+        // The ordinal rather than the decoded case, since a slot holds values
+        // Novis holds — but decoded first, so a bad one is refused here rather
+        // than at whichever `add` happens to read it back.
+        let _ = codec_of(args, 0, "compressor")?;
+        Ok(crate::instance::build(
+            &COMPRESSOR,
+            [args[0], Value::array(NvsArray::new()), Value::bool(true)],
+        ))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Compress::decompressor(Codec $codec, uint $maxBytes = 67108864,
+    /// uint $maxRatio = 1000): Compress\Decompressor` — replacing
+    /// `inflate_init`, under the bound that cannot be switched off.
+    ///
+    /// **The bound is resolved here and stored resolved.** The two arguments are
+    /// asks, as [`nvs_core_compress_decompress`]'s are, so what lands in the
+    /// slots is [`Bound::within`]'s answer — the smaller of the ask and the
+    /// operator's ceiling on each axis. Resolving at the opening rather than at
+    /// `finish` is what makes the number the stream was opened under the number
+    /// it is measured against, whatever the request does to its configuration in
+    /// between.
+    fn nvs_core_compress_decompressor(ctx, args: [3]) {
+        let _ = codec_of(args, 0, "decompressor")?;
+        let asked = Bound {
+            bytes: uint_of(args, 1, "decompressor", "`$maxBytes`")?,
+            ratio: uint_of(args, 2, "decompressor", "`$maxRatio`")?,
+        };
+        let bound = Bound::ceiling(ctx).within(asked);
+        Ok(crate::instance::build(
+            &DECOMPRESSOR,
+            [
+                args[0],
+                Value::array(NvsArray::new()),
+                Value::bool(true),
+                Value::uint(bound.bytes),
+                Value::uint(bound.ratio),
+            ],
+        ))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$compressor->add(bytes|string $data): void` — replacing `deflate_add`.
+    fn nvs_core_compress_compressor_add(_ctx, args: [2]) {
+        add_chunk(args, &COMPRESSOR, "add")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$compressor->finish(): bytes` — replacing the `ZLIB_FINISH` call every
+    /// `deflate_add` sequence ends with, and answering the same octets
+    /// [`nvs_core_compress_compress`] would over the concatenation.
+    fn nvs_core_compress_compressor_finish(_ctx, args: [1]) {
+        let (receiver, codec) = open_stream(args[0], &COMPRESSOR, "finish")?;
+        let data = concatenated(receiver, &COMPRESSOR, "finish")?;
+        close(receiver);
+        Ok(Value::bytes(NvsStr::new(&compress_to(codec, &data)?)))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$decompressor->add(bytes $data): void` — replacing `inflate_add`.
+    fn nvs_core_compress_decompressor_add(_ctx, args: [2]) {
+        add_chunk(args, &DECOMPRESSOR, "add")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$decompressor->finish(): tainted bytes` — the whole stream decoded
+    /// under the whole stream's bound.
+    ///
+    /// One [`decompress_within`] over the concatenation, which is what makes the
+    /// bound the stream's: the ratio half is measured against everything `add`
+    /// was handed and the byte half against one ceiling, so feeding a frame in
+    /// ten chunks buys exactly what feeding it in one does.
+    fn nvs_core_compress_decompressor_finish(_ctx, args: [1]) {
+        let (receiver, codec) = open_stream(args[0], &DECOMPRESSOR, "finish")?;
+        let bound = Bound {
+            bytes: bound_slot(receiver, MAX_BYTES_SLOT, "finish")?,
+            ratio: bound_slot(receiver, MAX_RATIO_SLOT, "finish")?,
+        };
+        let data = concatenated(receiver, &DECOMPRESSOR, "finish")?;
+        close(receiver);
+        Ok(Value::bytes(NvsStr::new(&decompress_within(
+            codec,
+            &data,
+            bound,
+            "Core\\Compress\\Decompressor::finish()",
         )?)))
     }
 }
@@ -897,7 +1435,9 @@ mod tests {
     /// Asserted over the rows rather than over a call, because the property is
     /// about what the checker will accept: a `string` parameter anywhere on
     /// this class is the defect, and a member that took one would still pass a
-    /// round-trip test.
+    /// round-trip test. The count it compares against is derived from the rows
+    /// themselves, so a member added to the class either names its format
+    /// `codec` and takes the enum, or fails here.
     #[test]
     fn the_codec_is_an_enum_and_there_is_no_name_as_string_spelling() {
         let mut enums = 0;
@@ -919,7 +1459,14 @@ mod tests {
                 }
             }
         }
-        assert_eq!(enums, 2, "both members choose their format by enum case");
+        assert_eq!(
+            enums,
+            CLASS
+                .members()
+                .filter(|member| member.names.contains(&"codec"))
+                .count(),
+            "every member naming a format chooses it by enum case"
+        );
         assert!(
             CODEC.cases.iter().any(|(name, _)| *name == "Deflate"),
             "raw deflate is a case, so `gzdeflate` has a spelling"

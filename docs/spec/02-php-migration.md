@@ -1079,10 +1079,10 @@ ceiling; PHP's `$max_length` argument, optional and defaulted to unlimited, is t
 | `gzfile` | member | `Core\IO::read` for the bytes, `Core\Compress::decompress` for the decoding and `Core\Str` for the split into lines — three jobs PHP folded into one call, and the middle one is the only one that is about compression |
 | `readgzfile` | member | the same first two, with the result echoed. Nothing reads, decodes and writes to the output in one step, because each of those is a different question about what the program is allowed to do |
 | `gzpassthru` | dropped | it writes the remainder of a handle straight to the output. Output is `echo` over a value the program is holding (`rule:security/sink-predicate`) |
-| `deflate_init` | member | `Core\Compress`, whose incremental half is an object rather than a context `resource` (R14) — [01 § 17](01-core-library.md) names this family as one of the three surfaces it replaces |
-| `deflate_add` | member | that object's update member. PHP's `$flush_mode` constants are the one place this API is genuinely incremental, and they stay |
-| `inflate_init` | member | the same, decompressing, under the same non-optional ceiling |
-| `inflate_add` | member | that object's update member |
+| `deflate_init` | member | `Core\Compress::compressor`, answering a `Compress\Compressor` — an object rather than a context `resource` (R14). [01 § 17](01-core-library.md) names this family as one of the three surfaces it replaces |
+| `deflate_add` | member | that object's `add`. PHP's `$flush_mode` constants have no spelling: every one of them means *emit what you have now*, and a `Compress\Compressor` writes its frame whole at `finish` — `crates/nvs-stdlib/src/compress.rs` owns why the stream holds its chunks rather than a coder |
+| `inflate_init` | member | `Core\Compress::decompressor`, answering a `Compress\Decompressor` — the same, decompressing, under the same non-optional ceiling, charged once across the whole stream |
+| `inflate_add` | member | that object's `add`, which answers nothing for its sibling's reason: a bound charged against what one chunk emitted would be a bound per call rather than per stream |
 | `inflate_get_status` | dropped | an integer read after every `inflate_add` to learn whether the stream ended or failed. A failure throws and an ending is the end of the iteration (`rule:core-api/shape-rules`) |
 | `inflate_get_read_len` | dropped | how much input the last call consumed, which a caller needs only because PHP's context does not report what it produced |
 

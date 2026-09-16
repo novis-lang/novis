@@ -1,0 +1,68 @@
+--TEST--
+A finished `Core\Compress` stream refuses a later `add` and a second `finish`, in both directions, and a `finish` that refused is finished too — spec § 17, `rule:core-api/a-lifetime-is-an-object`, `rule:core-classes/decompression-bound`
+--FILE--
+<?nvs
+// `finish` consumes the stream: a frame is whole once it has been answered, so
+// there is nothing a later chunk could join and nothing a second `finish`
+// could answer that would not be a second frame. Nothing in the accumulating
+// implementation needs that rule — the chunks would still be there — and it is
+// written anyway, because a coder is consumed by its own flush and a program
+// that outgrows this shape should not have to change.
+var $writing = Core\Compress::compressor(Core\Codec::Gzip);
+$writing->add("the first half ");
+$writing->add("and the second");
+echo "frame: ", Core\Bytes::length($writing->finish()) > 0 ? "some octets" : "none", "\n";
+
+try {
+    $writing->add(" and a third");
+    echo "a finished compressor took a chunk\n";
+} catch (RuntimeError $late) {
+    echo $late->message, "\n";
+}
+try {
+    $writing->finish();
+    echo "a finished compressor answered twice\n";
+} catch (RuntimeError $again) {
+    echo $again->message, "\n";
+}
+
+// The decompressing half is the same object rule under a different class, and
+// the message names the class it was asked of rather than `Core\Compress`.
+bytes $frame = Core\Compress::compress("something to decompress", Core\Codec::Zlib);
+var $reading = Core\Compress::decompressor(Core\Codec::Zlib);
+$reading->add($frame);
+echo "octets: ", Core\Bytes::length($reading->finish()), "\n";
+try {
+    $reading->add($frame);
+    echo "a finished decompressor took a chunk\n";
+} catch (RuntimeError $more) {
+    echo $more->message, "\n";
+}
+
+// And a `finish` that *refused* is finished as well: the stream releases its
+// chunks before the decoder runs, so a bomb costs the ceiling once and a second
+// attempt is a `RuntimeError` about a closed stream rather than a second
+// `ParseError` about the same frame.
+bytes $bomb = Core\Compress::compress(Core\Str::repeat("A", 16384), Core\Codec::Gzip);
+var $refusing = Core\Compress::decompressor(Core\Codec::Gzip, 1024);
+$refusing->add($bomb);
+try {
+    $refusing->finish();
+    echo "the bound did not hold\n";
+} catch (ParseError $over) {
+    echo "refused: the whole stream's bound\n";
+}
+try {
+    $refusing->finish();
+    echo "a refused stream answered\n";
+} catch (RuntimeError $closed) {
+    echo $closed->message, "\n";
+}
+--EXPECT--
+frame: some octets
+Core\Compress\Compressor::add(): this stream is finished — a frame is whole once it has been answered, so open a new stream with Core\Compress rather than reusing this one
+Core\Compress\Compressor::finish(): this stream is finished — a frame is whole once it has been answered, so open a new stream with Core\Compress rather than reusing this one
+octets: 23
+Core\Compress\Decompressor::add(): this stream is finished — a frame is whole once it has been answered, so open a new stream with Core\Compress rather than reusing this one
+refused: the whole stream's bound
+Core\Compress\Decompressor::finish(): this stream is finished — a frame is whole once it has been answered, so open a new stream with Core\Compress rather than reusing this one

@@ -1317,6 +1317,17 @@ mod tests {
     /// they are two readings rather than one: the first two are cases of a closed
     /// set this end offered, and the third is this process reading back its own
     /// policy.
+    /// `Core\Compress\Decompressor::finish` is the roster read over an
+    /// incremental decompression, and it is `Core\Zip::read`'s reading on the
+    /// class one door over: what a frame decompresses to is whatever the frame
+    /// said it was. Its sibling `Core\Compress\Compressor::finish` is the
+    /// deliberate absence, and it is not the contagion
+    /// `Core\Compress::compress` carries either — a compressed frame is not a
+    /// payload any sink reads as text, and the octets one could misread are
+    /// recovered only by a decompression, which is here. The mark is
+    /// unconditional rather than contagious for `Core\Xml\Node`'s reason: an
+    /// instance carries no qualifier for two members to pass one between, so
+    /// `add` cannot hand `finish` anything.
     /// All of them belong in this set for the reason the claims do: a member that
     /// promises `tainted` is invisible from every row but its own, so this is
     /// where a new arrival has to be looked at rather than waved through.
@@ -1360,6 +1371,11 @@ mod tests {
                 (r"Core\Cli", "arguments", "array<tainted string>".to_owned(),),
                 (r"Core\Cli", "ask", "tainted string".to_owned()),
                 (r"Core\Cli", "secret", "secret tainted string".to_owned(),),
+                (
+                    r"Core\Compress\Decompressor",
+                    "finish",
+                    "tainted bytes".to_owned(),
+                ),
                 (r"Core\Env", "all", "array<tainted string>".to_owned()),
                 (r"Core\Env", "get", "null|tainted string".to_owned()),
                 (r"Core\Http\Event", "data", "tainted string".to_owned()),

@@ -345,17 +345,6 @@ where taking it is the work and the code that follows it is not.
   would have taken it is live: `database` and `schema` are retired with M8's database half carried.
   `crates/nvs-stdlib/src/db/mod.rs` gap 2.
   [until: gone crates/nvs-stdlib/src/db/mod.rs:spec § 10's error tree]
-- **`Core\Compress` has no incremental half, and three migration rows point at the object that would
-  be it.** [02-php-migration.md](../spec/02-php-migration.md)'s `deflate_init`, `deflate_add` and
-  `inflate_init` rows each name it, shaped like `Core\Hash\Stream`
-  (`crates/nvs-stdlib/src/hash.rs:434`), and goal `formats` went green having written the
-  whole-buffer pair alone — its § *Standing decisions* resolved surface ambiguity toward whole buffer
-  first, so this half was deferred rather than missed. What has to be decided is whether it is
-  scheduled at all before those rows are read as promises, and that is one design question and not a
-  member's: a `Stream` must charge every chunk against one shared bound, because a bound applied per
-  call rather than per stream is not a bound, which is
-  `rule:core-classes/decompression-bound`'s call. `crates/nvs-stdlib/src/compress.rs` gap 1.
-  [until: gone crates/nvs-stdlib/src/compress.rs:The incremental surface is not written]
 - **Zip64 is not read, so no archive over 4 GiB or past 65535 entries has a spelling.** One records
   its sizes in an extra field and writes `0xFFFFFFFF` where this reader looks, and is refused as
   malformed rather than misread, so nothing about it is unsafe — the bound is measured rather than

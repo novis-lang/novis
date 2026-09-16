@@ -1881,6 +1881,13 @@ pub const CLASSES: &[CoreClass] = &[
     // `rule:core-classes/decompression-bound`'s bound is policy, and a policy
     // a program can decline is not one — see [`crate::compress`].
     crate::compress::CLASS,
+    // § 17's incremental pair, beside the class whose two openers answer them.
+    // Two classes rather than one because an instance carries no qualifier:
+    // `rule:security/tainted-sources` makes the decompressing half's `finish`
+    // answer `tainted bytes` and the compressing half's answer `bytes`, which
+    // one class would have to collapse — [`crate::compress`] is the argument.
+    crate::compress::COMPRESSOR,
+    crate::compress::DECOMPRESSOR,
     // § 17's detection class, beside the codec class for the reason both are
     // Tier 0: what a program is allowed to conclude about untrusted octets is
     // policy. Its whole knowledge is a compiled-in table of literal
