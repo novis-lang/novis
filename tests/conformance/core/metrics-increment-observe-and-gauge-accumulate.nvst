@@ -1,0 +1,36 @@
+--TEST--
+the three metrics verbs each accumulate into this core's registry and answer nothing back `rule:observability/metrics-three-members`, `rule:observability/a-registry-is-per-core-and-nothing-reads-it`
+--FILE--
+<?nvs
+// No program can read a metric back, so what a case can ask is that each verb
+// runs, that a second call under the same name accumulates rather than being
+// refused, and that the whole of it happens without an exporter configured --
+// which is what `rule:observability/the-exporter-is-a-feature-and-core-metrics-is-not`
+// promises a build with no scrape in it.
+Core\Metrics::increment("orders_placed_total");
+Core\Metrics::increment("orders_placed_total", {by: 4});
+Core\Metrics::observe("order_pack_seconds", 0.25);
+Core\Metrics::observe("order_pack_seconds", 1.5);
+Core\Metrics::gauge("orders_in_flight", 3.0);
+Core\Metrics::gauge("orders_in_flight", 2.0);
+echo "three verbs, six calls\n";
+
+// The bag is optional on all three and a label name is fixed with the series,
+// so the labelled series are their own names. The value is an `as`-converted
+// scalar, which is what `rule:security/metric-label-refuses-tainted` admits in
+// place of anything a request wrote.
+uint $status = 201;
+Core\Metrics::increment("payments_total", {labels: ["status" => $status as string]});
+Core\Metrics::observe("payment_seconds", 0.5, {labels: ["status" => $status as string]});
+Core\Metrics::gauge("payments_in_flight", 1.0, {labels: ["status" => $status as string]});
+echo "three verbs, labelled\n";
+
+// A second label value under one name is a second series and not a second
+// shape, so this is accumulation too -- the labels are what pick a member out
+// of a family, and the family is the name.
+Core\Metrics::increment("payments_total", {by: 2, labels: ["status" => "402"]});
+echo "a second label value is a second series\n";
+--EXPECT--
+three verbs, six calls
+three verbs, labelled
+a second label value is a second series

@@ -1,0 +1,73 @@
+--TEST--
+a metric name used as a gauge and then incremented throws, and the message names the call that fixed the kind as well as the one that disagreed `rule:observability/metrics-three-members`
+--FILE--
+<?nvs
+// The kind is a property of the series and not of the call, so the second verb
+// to reach one name is refused rather than accommodated. What a reader of that
+// message needs is the *other* line -- the one that decided the kind -- which
+// is why it carries two sites and not one.
+Core\Metrics::gauge("queue_depth", 7.0);
+try {
+    Core\Metrics::increment("queue_depth");
+    echo "not refused\n";
+} catch (LogicError $clash) {
+    if (Core\Str::contains($clash->message, "a metric name is fixed to one kind on first use, and this call disagrees with it: ")) {
+        echo "refused: the kind belongs to the series\n";
+    }
+    if (Core\Str::contains($clash->message, "`queue_depth` is a gauge and this call records a counter")) {
+        echo "names what it was fixed to and what this call wrote\n";
+    }
+    if (Core\Str::contains($clash->message, "fixed at ")) {
+        echo "names where the kind was fixed\n";
+    }
+    if (Core\Str::contains($clash->message, ", written at ")) {
+        echo "names where the disagreement is\n";
+    }
+    if (Core\Str::contains($clash->message, "Metrics::increment`")) {
+        echo "names the verb that disagreed\n";
+    }
+}
+
+// The label set is fixed with the kind and refused the same way: an exposition
+// format cannot hold a family whose members disagree about which labels they
+// have, so this is one mistake with two spellings rather than two rules.
+Core\Metrics::increment("shipments_total", {labels: ["carrier" => "rail"]});
+try {
+    Core\Metrics::increment("shipments_total", {labels: ["region" => "north"]});
+    echo "not refused\n";
+} catch (LogicError $labels) {
+    if (Core\Str::contains($labels->message, "`shipments_total` carries the labels carrier and this call wrote region")) {
+        echo "a label set is fixed with the kind\n";
+    }
+}
+
+// The two sites are the fixing call and the disagreeing one, whichever verbs
+// they are: `observe` fixes this one, so it is `observe`'s line the message
+// sends the reader to and `gauge`'s that it reports the disagreement at.
+Core\Metrics::observe("render_seconds", 0.125);
+try {
+    Core\Metrics::gauge("render_seconds", 0.125);
+    echo "not refused\n";
+} catch (LogicError $other) {
+    if (Core\Str::contains($other->message, "`render_seconds` is a histogram and this call records a gauge")) {
+        echo "the roles are the verbs' and not the members'\n";
+    }
+    if (Core\Str::contains($other->message, "Metrics::gauge`")) {
+        echo "names the verb that disagreed\n";
+    }
+}
+
+// And the name that agrees with itself is not refused at all, which is what
+// makes the two above a mismatch rather than a second write being forbidden.
+Core\Metrics::gauge("queue_depth", 4.0);
+echo "the same verb again is accumulation\n";
+--EXPECT--
+refused: the kind belongs to the series
+names what it was fixed to and what this call wrote
+names where the kind was fixed
+names where the disagreement is
+names the verb that disagreed
+a label set is fixed with the kind
+the roles are the verbs' and not the members'
+names the verb that disagreed
+the same verb again is accumulation
