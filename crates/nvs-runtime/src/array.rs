@@ -210,17 +210,24 @@
 //! move the recursion to the boundary between them. [`crate::release`] owns
 //! the one worklist both kinds drain into.
 //!
-//! # Known gap: no interned element-type descriptor
+//! # Decision: the element type is checked at the write, not remembered
 //!
-//! `rule:types/arrays` gives an array header a pointer to an interned, immutable
-//! descriptor of its element type, so a value arriving through `mixed`,
-//! `json_decode` or an isolate boundary can be checked. Nothing constructs an
-//! array from any of those routes yet — every array here is built by compiled
-//! code the checker already proved well-typed — so the word is not carried,
-//! and adding it is a widening of [`ArrayHeader`] rather than a redesign.
-//! Decided: Add it with the first reader — No cost until needed, and adding it later only widens
-//! ArrayHeader, which the module already notes.
-//! — owner: unowned-closures
+//! `rule:types/arrays` gives an array header a pointer to an interned,
+//! immutable descriptor of its element type exactly where something reads one
+//! back, and [`ArrayHeader`] carries none: every array here is built by
+//! compiled code the checker proved well-typed, and the two runtime checks that
+//! exist ask the *target* type rather than the array. A write through `mixed`
+//! is checked against the element type of the array being written to, and
+//! `as array<U>` restamps at O(n) against `U` ([`crate::helpers`]'s
+//! `nvs_to_array_of`) — neither has anything to ask an array what it holds.
+//!
+//! The one reader that would take a coarser answer takes it knowingly:
+//! [`crate::object`]'s tag list records that [`crate::value::Tag::Array`]
+//! answers for every `array<T>`, so a shape slot declared `array<Dog>` admits
+//! an `array<Animal>`. Closing *that* is what puts the first real reader on the
+//! descriptor, and it is a widening of [`ArrayHeader`] rather than a redesign:
+//! **one pointer per header**, interned process-wide, so a process pays
+//! O(distinct array types in the program) and an array pays a word.
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;

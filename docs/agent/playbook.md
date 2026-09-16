@@ -2900,6 +2900,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `{function, file, line}` objects. Run the program and read the rule the check's comment cites
   first: where the rule says the new output is right, the repair is the example or the `want`, in
   both toml copies. [until: reviewed 2026-09-16]
+- **`nvs-cli`'s `sd_notify_messages_are_ready_…_then_stopping` can fail with foreign
+  `READY=1`/`STOPPING=1` lines ahead of its own**, then pass alone and on the next full run.
+  `Notify::install` writes a process-global `OnceLock`, so this case's recorder also collects what a
+  served life running beside it in the same binary reports. Re-run `python tools/verify.py` before
+  reading it as yours; fixing it means scoping that global, not editing the case.
+  [until: gone crates/nvs-cli/src/service.rs:fn install]
 
 ## Writing a test case
 
@@ -7377,6 +7383,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   the shift where it is applied — the lowering — rather than off the helper's `args: [N]`, which is
   the only place the widened arity is visible.
   [until: gone crates/nvs-stdlib/src/registry.rs:SOURCE_MEMBERS]
+- **§ 6's "no conversion from text" compile error follows the `#[Option]` marker rather than the
+  type**, so a *positional* `#[Command]` parameter at a type nothing converts compiles and throws
+  when it is run. That is why `ArgConv::Unconverted` stays reachable however many conversions are
+  built. Keep the conformance case for that throw positional: rewritten with `#[Option]` it stops
+  testing the arm it names. [until: gone crates/nvs-types/src/commands.rs:Unconverted]
 
 ## Divergences and refusals already pinned
 

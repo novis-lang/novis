@@ -557,9 +557,12 @@ things change.
 - **Array literals are checked against the target type, never inferred and then compared.** Because
   every binding is annotated, a literal always has a target — which is why `var` refuses a bare one
   ([`types/var-inference`](types.md#types-var-inference)).
-- At runtime an array header carries a pointer to an interned, immutable type descriptor: **one
-  pointer per array header**, interned process-wide and O(distinct types in the program). Nesting is
-  bounded at depth 32 with a diagnostic, so a pathological type cannot make checking superlinear.
+- At runtime an array header carries a pointer to an interned, immutable type descriptor **exactly
+  where something reads one back**: **one pointer per array header**, interned process-wide and
+  O(distinct types in the program). An array every write to which was checked as it was compiled has
+  nothing to read it for, and carries none — the checks above are against the *target* type at the
+  write and at the `as`, never against a type the array remembers. Nesting is bounded at depth 32
+  with a diagnostic, so a pathological type cannot make checking superlinear.
 - The stdlib's array signatures are parametric in `T`. Type variables belong to declarations the
   compiler owns; a call site may write a type argument only for a compiler-owned member that declares
   one it cannot infer, and that door is a roster of four — `Core\Arr::shapeAs<T>`,
