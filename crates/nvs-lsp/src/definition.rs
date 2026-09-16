@@ -434,13 +434,125 @@ pub(crate) fn text_of(file: &SourceFile, span: Span) -> &str {
 /// A call and a first-class callable reference are the same answer here: both
 /// carry the `nvs_types::ResolvedCall` the checker made, and which of the two
 /// the site wrote decides what happens to the closure, not where the method is.
+///
+/// **The enum written in front of a case is answered from the node inside.**
+/// `Status::Draft` is recorded once, on the whole production, and the case is
+/// what it resolved to — so a cursor on `Status` would be answered with the
+/// case, while `crate::index` records that same span as a use of the *enum*,
+/// which it may because no enum extends another. The production writes its own
+/// name without a node of its own and holds exactly one child, the qualifier,
+/// so a cursor that is inside a node inside this one is on the qualifier and
+/// asks about the enum. `Cart::LIMIT` is not this case and still answers the
+/// constant wherever the cursor is: its entry names the class that *declares*
+/// the constant, which need not be the one the source wrote.
+/// A name no recorded expression covers is answered last and from the
+/// hierarchy graph instead ([`clause_at`]), which is the `extends` and
+/// `implements` clauses and nothing else.
 pub(crate) fn named_at(analysed: &Analysed, offset: BytePos) -> Option<(Target<'_>, Span)> {
-    analysed
-        .index
-        .at(offset)
-        .nodes()
+    let path = analysed.index.at(offset);
+    let nodes = path.nodes();
+    nodes
         .iter()
-        .find_map(|node| Some((target_of(analysed.exprs.lookup(node.span)?)?, node.span)))
+        .enumerate()
+        .find_map(|(depth, node)| {
+            let info = analysed.exprs.lookup(node.span)?;
+            let inside = depth.checked_sub(1).map(|inner| nodes[inner].span);
+            match (info, inside) {
+                (ExprInfo::EnumCase { enum_, .. }, Some(qualifier)) => {
+                    Some((Target::Type(enum_), qualifier))
+                }
+                _ => Some((target_of(info)?, node.span)),
+            }
+        })
+        .or_else(|| clause_at(analysed, offset))
+}
+
+/// The supertype an `extends` or `implements` clause of the entry document
+/// names at `offset`, and the span the source wrote it at.
+///
+/// A clause name is a use, and the one kind the walk above cannot see: a clause
+/// is not an expression, so no entry of [`Analysed::exprs`](crate::Analysed)
+/// covers one. What it resolved to is `nvs_hir::ClassLinks`, off the graph the
+/// checker already built, paired against the written names by position
+/// ([`paired`]) — the same pairing `crate::index` records the occurrence side
+/// of a clause from, so a jump out of `extends Base` and the reference list
+/// that names that clause are answered with one name.
+///
+/// The entry document alone, because that is the file a cursor is ever in, and
+/// the name the *clause resolved to* rather than the text in front of it: under
+/// `use App\Base;`, `extends Base` answers `App\Base`.
+pub(crate) fn clause_at(analysed: &Analysed, offset: BytePos) -> Option<(Target<'_>, Span)> {
+    analysed.module.symbols.iter().find_map(|symbol| {
+        if symbol.decl_span.file != analysed.entry {
+            return None;
+        }
+        let links = analysed.module.graph.get(&symbol.qname)?;
+        let (stmt, _) = declared_type(analysed, &symbol.qname)?;
+        let (extends, implements) = supertype_names(stmt);
+        let (bases, resolved_bases) = paired(&extends, &links.extends);
+        let (ifaces, resolved_ifaces) = paired(&implements, &links.implements);
+        bases
+            .iter()
+            .zip(resolved_bases)
+            .chain(ifaces.iter().zip(resolved_ifaces))
+            .find(|(name, _)| covers(**name, offset))
+            .map(|(name, qname)| (Target::Type(qname), *name))
+    })
+}
+
+/// The names one declaration's `extends` and `implements` clauses write, in the
+/// order they were written.
+///
+/// That order is `nvs_hir::HierarchyResolver::collect_links`'s own, which is
+/// what lets [`paired`] match the written names to the resolved ones by
+/// position. An enum writes neither: `rule:enums/no-class-machinery` rejects
+/// `implements` on one and there is no `extends` grammar for it at all, so the
+/// graph holds no entry for an enum to pair against either.
+pub(crate) fn supertype_names(stmt: &Stmt) -> (Vec<Span>, Vec<Span>) {
+    match &stmt.kind {
+        StmtKind::ClassDecl(decl) => (
+            decl.extends.iter().map(|base| base.span).collect(),
+            decl.implements
+                .iter()
+                .map(|entry| entry.name.span)
+                .collect(),
+        ),
+        StmtKind::InterfaceDecl(decl) => (
+            decl.extends.iter().map(|parent| parent.span).collect(),
+            Vec::new(),
+        ),
+        _ => (Vec::new(), Vec::new()),
+    }
+}
+
+/// The written clause names and what they resolved to, to be read off by
+/// position — and two empty slices unless the two sides are the same length.
+///
+/// `nvs_hir::HierarchyResolver::resolve` keeps a name that resolved and drops
+/// one that named nothing or named the wrong kind of declaration, so a clause
+/// with an unresolved entry in it would otherwise pair every name after that
+/// one with its neighbour's symbol. A file whose clause did not fully resolve
+/// already carries an `E_UNDEFINED_CLASS`, and answering nothing out of that
+/// clause is what cannot be wrong about which name a reader is looking at.
+pub(crate) fn paired<'a, 'b>(
+    written: &'a [Span],
+    resolved: &'b [QName],
+) -> (&'a [Span], &'b [QName]) {
+    if written.len() == resolved.len() {
+        (written, resolved)
+    } else {
+        (&[], &[])
+    }
+}
+
+/// Whether `offset` is inside `span`, its last byte included.
+///
+/// One byte wider than `nvs_diagnostics::Span::contains`, and deliberately: a
+/// caret just past the `r` of `User` is on `User` to whoever put it there, and
+/// a double-click leaves it exactly there. It is the bound `crate::server`'s
+/// hierarchy request has always asked a declaration about.
+pub(crate) const fn covers(span: Span, offset: BytePos) -> bool {
+    span.start <= offset && offset <= span.end
 }
 
 /// The name one recorded expression carries, or `None` for one that carries

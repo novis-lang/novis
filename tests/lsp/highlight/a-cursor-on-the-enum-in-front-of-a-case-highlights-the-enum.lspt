@@ -1,0 +1,15 @@
+--TEST--
+a cursor on the enum written in front of a case highlights that name as the use of the enum the index already records it as, one production writing two names and the cursor asking about the one it is standing on, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+enum Status: int
+{
+    case Draft = 1;
+    case Live = 2;
+}
+
+var $s = Sta<|>tus::Draft;
+--REQUEST--
+documentHighlight
+--EXPECT--
+case.nvs:8:10

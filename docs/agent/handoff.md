@@ -3,57 +3,43 @@
 ## State
 
 **Goal `unowned-closures`, stage 6 — the register.** `python tools/owners.py` reports `unowned: 38`,
-`untagged: 0`, `broken-tag: 0`, `unreasoned: 0`, `retired-owner: 0` and `past-milestone: 8`; stage 6
-wants the first at 0, and the stage's other check — `python tools/owners.py --deferrals` — is green.
-`crates/nvs-lsp/src/index.rs` now records no `# Known gaps` at all: its two occurrence gaps closed
-together, and `docs/agent/carried-gaps.md`'s entry for the enum-case one went with them. Nothing is
-blocked.
+`past-milestone: 8`, `goal-owned: 64`, `milestone-owned: 15`, `untagged: 0` and `unreasoned: 0`; the
+stage wants the first at 0, and its other check, `python tools/owners.py --deferrals`, is green. That
+count is the goal's whole remaining work: `owners.py` § *UNOWNED* lists all 38, each with its reason in
+`docs/agent/carried-gaps.md`, and the § above it lists the 8 deferred to a milestone already passed.
+Nothing is blocked.
 
-**Reading a class constant and reading an enum case are each an occurrence of what they name.** The
-checker records `nvs_types::ExprInfo::ClassConst` (`crates/nvs-types/src/expr_table.rs:898`) at a
-`Class::CONST` — the class that **declares** it, from the new
-`nvs_types::signatures::resolve_const_owned`, the constant's name, and the value `nvs-ir` already
-read out of `CoreConst`, which now means only a fold that named no member. `crate::definition`'s
-`Target::Constant` carries both reads, so `symbol_of` spells `C::NAME` the way the declaration side
-already does and `site` reaches an enum's case list through `declared_case`.
-
-**One read leaves two occurrences where the entry proves both names.** `Status::Draft` is a use of
-the case *and* of the enum, because no enum extends another and the qualifier is therefore the enum
-the entry carries (`case_qualifier`, `crates/nvs-lsp/src/index.rs:891`). `Cart::LIMIT` leaves one:
-the entry names the declaring class, so it cannot say whether the source wrote `Cart` or the parent
-it inherits from. Two answers moved with that — a case with no `///` of its own hovers as its enum
-(`enclosing_run`, `crates/nvs-lsp/src/hover.rs:281`), and an enum case now carries a code lens like
-every other declaration the index holds.
+**The LSP cursor thread is finished and `crates/nvs-lsp` records no `# Known gaps` at all** — it closes
+no unowned item, so the count above is where the goal now stands.
 
 ## Next group
 
-**Stage 6: the cursor side of the reference index, which answers a narrower question than the index
-now holds** — one file set: `crates/nvs-lsp/src/definition.rs`, `crates/nvs-lsp/src/index.rs`, and
-the `.lspt` cases under `tests/lsp/`.
+**Stage 6: `nvs-types`' own unowned gaps, each one built or given an owner** — one file set:
+`crates/nvs-types/src/signatures.rs`, `crates/nvs-types/src/lib.rs`, and the `.nvst` cases under
+`tests/conformance/`. Each item is the same decision, taken per the goal's § *Standing decisions*: build
+it, state it as a bound (which strikes the gap), or defer it to an M9+ milestone whose plan states the
+scope — never rewrite the gap down to what exists.
 
-- [ ] **A cursor on a clause name resolves to the name the clause resolved to** —
-      `crates/nvs-lsp/src/index.rs:514` (`declared_at`), `rule:ide/the-index-answers-the-cursor`.
-      `declared_at` already reaches the declaration's node through `declared_type` for a member name;
-      a clause name is a name that declaration writes too, and pairing it against `ClassLinks` is
-      `supertype_names` (`crates/nvs-lsp/src/index.rs:826`) plus the same length test `clause_uses`
-      makes. Index-side only, and it is what makes go-to-definition work from inside `extends Base`,
-      where the occurrence side has answered since the clause slice landed.
-- [ ] **A cursor on the enum written in front of a case asks about the case, not the enum** —
-      `crates/nvs-lsp/src/definition.rs:437` (`named_at`), `rule:ide/five-features-are-one-reference-index`.
-      The index records a use of `Status` at that very span now, and the cursor cannot reach it:
-      `named_at` answers the innermost node the checker recorded an entry for, and the qualifier is
-      not one. The fix is a step before that walk — an offset inside the class-side child of a
-      `ClassConstAccess` whose entry is an `ExprInfo::EnumCase` answers `Target::Type(enum_)` — and
-      the case that pins it today is
-      `tests/lsp/highlight/an-enum-case-read-highlights-the-case-and-not-the-enum-beside-it.lspt`,
-      whose cursor is on the qualifier and whose answer would move.
+- [ ] **A promoted constructor parameter is a property here, visibility included** —
+      `crates/nvs-types/src/signatures.rs:24` (gap 1), `rule:classes/promotion-is-constructor-only`,
+      `rule:core-api/written-visibility`. The table this module builds skips a `constructor(public int
+      $x)`, matching `nvs_hir::members`'s own member table, so `is_visible_from` is never reached for
+      one and its `private` is not enforced. The method side has no such gap because the modifier is on
+      the declaration; building this is the two tables together, in one slice.
+- [ ] **What a variadic parameter's declared type means is a bound, not a hole** —
+      `crates/nvs-types/src/signatures.rs:33` (gap 2). The type is matched against every argument from
+      that position onward rather than modelled as `array<T>`, which is an element check and is what
+      `crate::expr` uses. If that is the intended semantics, say so as the module's own prose with its
+      limit and strike the gap; if it is not, the `array<T>` model is the build.
+- [ ] **Equality-operand compatibility is one pass or none** — `crates/nvs-types/src/lib.rs:149`
+      (gap 1), `rule:expressions/equality-semantics`, `rule:expressions/mixed-equality`. Nothing
+      diagnoses `==` between two different enum types, or `int` against `uint`; the gap's own reasoning
+      is that singling enums out leaves the operator inconsistent with itself. `rule:types/conversion`
+      already refuses the `as` spelling, so the comparison is the whole hole.
 
 ## Backlog
 
-- `crates/nvs-lsp/src/hints.rs:64` gap 1 — a parameter hint is drawn only for `ExprInfo::Call`; the
-  decision it needs is in `docs/agent/carried-gaps.md`.
-- `crates/nvs-types/src/lib.rs:149` and `:156` — no equality-operand compatibility check, and no
-  exhaustive control-flow reachability; both that crate's module doc.
-- `crates/nvs-types/src/signatures.rs:24` and `:33` — a promoted constructor property and a variadic
-  parameter's declared type; same doc.
-- `crates/nvs-types/src/intrinsics.rs:94` gap 6 — the host check reaches one call shape only.
+- The other unowned clusters, largest first: `crates/nvs-ir/src/lib.rs` (11 items), `crates/nvs-cli/src/openapi.rs` (5), `crates/nvs-host/src/*` (3) — `python tools/owners.py` § *UNOWNED*.
+- The 8 gaps deferred to a milestone the program has already passed, each needing a live owner — `owners.py` § *DEFERRED TO A MILESTONE THE PROGRAM HAS ALREADY PASSED`.
+- `crates/nvs-types/src/lib.rs:156` gap 2 and `crates/nvs-types/src/locals.rs:84` gap 1 — exhaustive control-flow reachability, and what a falling-through `switch` case contributes; both in the group's file set if it runs short.
+- `crates/nvs-lsp/src/hints.rs:64` gap 1 — the one unowned LSP item, its reason at `docs/agent/carried-gaps.md:627`.

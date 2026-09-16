@@ -1,0 +1,17 @@
+--TEST--
+a cursor on the name an `extends` clause writes answers the superclass's declaration and the clause itself, a clause being a use no resolution walk records and so one the cursor reaches through the index's declaration side, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+class Base
+{
+    public string $name = "";
+}
+
+class Derived extends Ba<|>se
+{
+}
+--REQUEST--
+references
+--EXPECT--
+case.nvs:2:7
+case.nvs:7:23

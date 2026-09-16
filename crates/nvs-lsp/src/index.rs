@@ -79,7 +79,9 @@ use nvs_syntax::ast::{ClassMember, ClassMemberKind, Modifier, Stmt, StmtKind};
 use nvs_syntax::walk;
 use nvs_types::ExprInfo;
 
-use crate::definition::{Target, declared_type, named_at, target_of, text_of};
+use crate::definition::{
+    Target, covers, declared_type, named_at, paired, supertype_names, target_of, text_of,
+};
 use crate::document::{Analysed, Documents, analyse_file};
 
 /// The three visibility levels a [`Declaration`] carries.
@@ -528,16 +530,6 @@ fn declared_at(analysed: &Analysed, offset: BytePos) -> Option<String> {
     })
 }
 
-/// Whether `offset` is inside `span`, its last byte included.
-///
-/// One byte wider than `nvs_diagnostics::Span::contains`, and deliberately: a
-/// caret just past the `r` of `User` is on `User` to whoever put it there, and
-/// a double-click leaves it exactly there. It is the bound
-/// `crate::server`'s hierarchy request has always asked a declaration about.
-const fn covers(span: Span, offset: BytePos) -> bool {
-    span.start <= offset && offset <= span.end
-}
-
 /// The version recorded for a file no client has open.
 ///
 /// A version is the client's stamp on a buffer and a file read from disk has
@@ -822,47 +814,15 @@ fn occurrences(analysed: &Analysed, loaded: &Loaded, path: &Path) -> Vec<Occurre
     found
 }
 
-/// The names one declaration's `extends` and `implements` clauses write, in the
-/// order they were written.
-///
-/// That order is `nvs_hir::HierarchyResolver::collect_links`'s own, which is
-/// what lets [`clause_uses`] pair the written names against the resolved ones
-/// by position. An enum writes neither: `rule:enums/no-class-machinery` rejects
-/// `implements` on one and there is no `extends` grammar for it at all, so the
-/// graph holds no entry for an enum to pair against either.
-fn supertype_names(stmt: &Stmt) -> (Vec<Span>, Vec<Span>) {
-    match &stmt.kind {
-        StmtKind::ClassDecl(decl) => (
-            decl.extends.iter().map(|base| base.span).collect(),
-            decl.implements
-                .iter()
-                .map(|entry| entry.name.span)
-                .collect(),
-        ),
-        StmtKind::InterfaceDecl(decl) => (
-            decl.extends.iter().map(|parent| parent.span).collect(),
-            Vec::new(),
-        ),
-        _ => (Vec::new(), Vec::new()),
-    }
-}
-
 /// One occurrence per clause entry, at the name written and against the name it
 /// resolved to.
 ///
-/// Paired off by position, and only when the two sides are the same length:
-/// `nvs_hir::HierarchyResolver::resolve` keeps a name that resolved and drops
-/// one that named nothing or named the wrong kind of declaration, so a clause
-/// with an unresolved entry in it would otherwise record every name after that
-/// one against its neighbour's symbol. A file whose clause did not fully
-/// resolve already carries an `E_UNDEFINED_CLASS`, and counting no uses out of
-/// it is the answer that cannot be wrong about which name a reader is looking
-/// at.
+/// Paired off by position, which is [`crate::definition::paired`] and is read
+/// by [`crate::definition::clause_at`] as well, so the name a clause entry is
+/// recorded against is the name a cursor standing on it asks about.
 fn clause_uses(written: &[Span], resolved: &[QName], path: &Path, found: &mut Vec<Occurrence>) {
-    if written.len() != resolved.len() {
-        return;
-    }
-    for (name, qname) in written.iter().zip(resolved) {
+    let (names, qnames) = paired(written, resolved);
+    for (name, qname) in names.iter().zip(qnames) {
         found.push(Occurrence {
             symbol: qname.to_string(),
             site: site(path, *name),
@@ -881,10 +841,10 @@ fn clause_uses(written: &[Span], resolved: &[QName], path: &Path, found: &mut Ve
 /// subclass of the one that declares it — so the qualifier is left alone there
 /// rather than keyed under a name the source did not write.
 ///
-/// This is the index's side alone. A **cursor** anywhere in the production, the
-/// qualifier included, asks about what the production resolved to, because
-/// [`crate::definition::named_at`] answers the innermost node the checker
-/// recorded an entry for and the qualifier is not one.
+/// The cursor side answers the same two names, and at the same two spans:
+/// [`crate::definition::named_at`] reads the qualifier off the node inside the
+/// production, so a reader who clicks `Status` is asked about the enum and one
+/// who clicks `Draft` about the case.
 fn case_qualifier(info: &ExprInfo, node: &walk::Node, path: &Path) -> Option<Occurrence> {
     let ExprInfo::EnumCase { enum_, .. } = info else {
         return None;

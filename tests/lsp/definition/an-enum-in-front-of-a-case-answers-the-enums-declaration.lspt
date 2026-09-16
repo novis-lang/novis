@@ -1,0 +1,15 @@
+--TEST--
+a cursor on the enum a case read writes in front of the case jumps to the enum's own declaration, the production recording one resolution and the qualifier being the name the cursor is standing on, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+enum Status: int {
+    case Draft = 1;
+    case Live = 2;
+}
+
+$s = Sta<|>tus::Live;
+echo $s;
+--REQUEST--
+definition
+--EXPECT--
+case.nvs:2:6
