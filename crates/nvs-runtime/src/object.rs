@@ -3610,7 +3610,7 @@ pub unsafe extern "C" fn nvs_object_slot_get(
                   this call"
     )]
     let name = unsafe { std::slice::from_raw_parts(name, len) };
-    let body = move |_ctx: &mut Ctx, _args: &[Value]| -> crate::HelperResult {
+    let body = move |ctx: &mut Ctx, _args: &[Value]| -> crate::HelperResult {
         let name = std::str::from_utf8(name)
             .map_err(|_| Fault::fatal("internal error: a field name that is not UTF-8"))?;
         #[expect(
@@ -3618,7 +3618,7 @@ pub unsafe extern "C" fn nvs_object_slot_get(
             reason = "the caller guarantees this points at one initialized value"
         )]
         let receiver = unsafe { *receiver };
-        read_erased_property_hinted(receiver, name, hint, AbsentField::Throws)
+        read_erased_property_hinted(ctx, receiver, name, hint, AbsentField::Throws)
     };
     #[expect(
         unsafe_code,
@@ -3674,7 +3674,7 @@ pub unsafe extern "C" fn nvs_object_slot_optional_get(
                   this call"
     )]
     let name = unsafe { std::slice::from_raw_parts(name, len) };
-    let body = move |_ctx: &mut Ctx, _args: &[Value]| -> crate::HelperResult {
+    let body = move |ctx: &mut Ctx, _args: &[Value]| -> crate::HelperResult {
         let name = std::str::from_utf8(name)
             .map_err(|_| Fault::fatal("internal error: a field name that is not UTF-8"))?;
         #[expect(
@@ -3682,7 +3682,7 @@ pub unsafe extern "C" fn nvs_object_slot_optional_get(
             reason = "the caller guarantees this points at one initialized value"
         )]
         let receiver = unsafe { *receiver };
-        read_erased_property_hinted(receiver, name, hint, AbsentField::Null)
+        read_erased_property_hinted(ctx, receiver, name, hint, AbsentField::Null)
     };
     #[expect(
         unsafe_code,
@@ -3857,15 +3857,13 @@ pub unsafe extern "C" fn nvs_object_slot_set(
 /// name to have taken a slot position from, which is the whole of what makes
 /// this access keyed.
 ///
-/// **The one thing it inherits that is not free is the erased read's own known
-/// gap**: this reads the slot, so a property declaring a `get` hook
-/// (`rule:classes/property-hooks`) is still read past its hook. The write side
-/// no longer has it — [`write_erased_property`] finds the `set` hook on the
-/// descriptor and calls it — and what the read owes is the same lookup against
-/// [`ClassDesc::hook_row`]'s other accessor, plus the `Ctx` to run a hook
-/// with, which this whole path is currently written without. The gap is owned
-/// in the read path and closes for every caller at once, which is the reason
-/// § 5 routes a key through this rather than answering it in a way of its own.
+/// **A hooked property is read through its `get` hook**, as the write side
+/// reaches its `set`: the accessor is found on the descriptor
+/// ([`ClassDesc::hook_row`]) and run with the `Ctx` this helper is already
+/// handed. It is owned by [`read_erased_property_hinted`] rather than here, so
+/// every spelling of an erased read answers the hook at once — this, the
+/// statically named one, and the optional form — which is the reason § 5 routes
+/// a key through that path rather than answering it in a way of its own.
 ///
 /// # Errors
 ///
@@ -3889,14 +3887,14 @@ pub unsafe extern "C" fn nvs_object_key_get(
     key: *const Value,
     out: *mut Value,
 ) -> i32 {
-    let body = move |_ctx: &mut Ctx, _args: &[Value]| -> crate::HelperResult {
+    let body = move |ctx: &mut Ctx, _args: &[Value]| -> crate::HelperResult {
         #[expect(
             unsafe_code,
             reason = "the caller guarantees each points at one initialized value"
         )]
         let (receiver, key) = unsafe { (*receiver, *key) };
         let name = key_name(&key)?;
-        read_erased_property(receiver, name)
+        read_erased_property(ctx, receiver, name)
     };
     #[expect(
         unsafe_code,
@@ -3973,8 +3971,8 @@ fn key_name(key: &Value) -> Result<&str, Fault> {
 /// # Errors
 ///
 /// [`nvs_object_slot_get`]'s, which its own documentation owns.
-fn read_erased_property(receiver: Value, name: &str) -> crate::HelperResult {
-    read_erased_property_hinted(receiver, name, 0, AbsentField::Throws)
+fn read_erased_property(ctx: &mut Ctx, receiver: Value, name: &str) -> crate::HelperResult {
+    read_erased_property_hinted(ctx, receiver, name, 0, AbsentField::Throws)
 }
 
 /// What a read answers for a name the receiver's concrete class does not
@@ -3996,11 +3994,20 @@ enum AbsentField {
 /// [`ClassDesc::field_slot`] for what one buys — and its answer for a name
 /// the class does not carry.
 ///
+/// **A hooked property is read through its `get` hook**, found on the
+/// descriptor exactly as [`write_erased_property`] finds the `set` one and
+/// called with the same receiver-in-slot-0 convention a compiled site uses.
+/// That is what makes `rule:types/erased-member-access`'s "hooks behave here
+/// exactly as they do anywhere" true of the read as well: an access spelling
+/// that reached storage past a `get` would let anything holding a `mixed` see
+/// a backing slot the class publishes nothing about.
+///
 /// # Errors
 ///
 /// [`read_erased_property`]'s, less the missing-field throw under
-/// [`AbsentField::Null`].
+/// [`AbsentField::Null`], plus [`Fault::Pending`] where a `get` hook throws.
 fn read_erased_property_hinted(
+    ctx: &mut Ctx,
     receiver: Value,
     name: &str,
     hint: usize,
@@ -4023,6 +4030,12 @@ fn read_erased_property_hinted(
                   is too"
     )]
     let desc = unsafe { &*NvsObj::class_of(ptr) };
+    // Before the slot, and for [`write_erased_property`]'s reason in the other
+    // direction: where a property declares a `get`, the slot is that hook's to
+    // read and the value it answers is the property's.
+    if let Some(row) = desc.hook_row(name, false) {
+        return crate::dispatch::call_at(ctx, receiver, row.code, &[]);
+    }
     #[expect(
         unsafe_code,
         reason = "`desc` is this object's own descriptor, which is `slot_state`'s \
@@ -4890,6 +4903,10 @@ mod tests {
         // property both reach, and the one a fresh object's `null` is not.
         object.set_field(1, Value::unset());
         let receiver = Value::object(object.clone());
+        // The read takes one so that a hooked property can run its `get`; no
+        // class here declares a hook, so it is never the context a call is made
+        // on.
+        let mut ctx = Ctx::new(crate::OutputSink::Buffer(Vec::new()));
 
         // Present, present through a hint that misses, unwritten, a name the
         // class does not carry, and a receiver holding no object at all.
@@ -4909,7 +4926,8 @@ mod tests {
             let probed = unsafe {
                 nvs_object_slot_probe(&raw const subject, name.as_ptr(), name.len(), hint)
             };
-            let read = read_erased_property_hinted(subject, name, hint, AbsentField::Throws);
+            let read =
+                read_erased_property_hinted(&mut ctx, subject, name, hint, AbsentField::Throws);
             assert_eq!(
                 probed,
                 read.is_ok(),

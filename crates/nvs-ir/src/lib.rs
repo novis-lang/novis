@@ -639,36 +639,6 @@
 //!     miss arm has no shared representation with its hit arm, so it needs a
 //!     merge the throwing form does not.
 //!     — owner: unowned
-//! 21. **`rule:types/property-key`'s `property<T>` lowers whole, and what it inherits is ADR
-//!     0036 § 4's own gap and not one of its own.** A key is a name, so the type erases to
-//!     [`ty::Ty::Str`] ([`lower::erase_checked_ty`]) and a parameter, a return,
-//!     a local and a property hold one for nothing. § 2's conversions all
-//!     run: `property<T> as string` is the free `from == to` row, and the
-//!     rows *into* a key are the same membership chain gap 20 describes, built
-//!     from the roster `nvs_types::ExprInfo::PropertyKey` carries — the set is
-//!     what erasure loses, and that variant's own doc comment owns why the
-//!     entry is keyed by the annotation's span. A **written-out** operand
-//!     reaches no chain at all: § 2 decides it where it is written, so it costs
-//!     nothing at run time.
-//!
-//!     § 4's `$obj->$key` lowers too, as [`ir::InstKind::KeyGet`] and
-//!     [`ir::InstKind::KeySet`] — § 5's recorded choice, which is `rule:types/erased-member-access`'s
-//!     erased access with the name arriving as a value instead of as a `String`
-//!     the instruction carries. The alternative weighed here and rejected there
-//!     was a closed-set chain over the key's roster, one `BinOp::Eq` and one
-//!     [`ir::InstKind::FieldGet`] per name joined by a [`ir::InstKind::Phi`]:
-//!     no new instruction, but a comparison and a block per property at every
-//!     access, and each arm still tagging into the union's representation
-//!     before the join. That variant's own doc comment is the home of it.
-//!
-//!     **What is left is not this gap but `rule:types/erased-member-access`'s**, inherited by
-//!     routing through it exactly as § 5 intended: the erased access reaches
-//!     storage past a per-property `get`/`set` hook, so a key naming a hooked
-//!     property reads and writes its backing slot rather than running the hook.
-//!     That is recorded on `nvs_runtime::nvs_object_key_get` and on
-//!     `nvs_runtime::write_erased_property`, and it closes for every caller —
-//!     the reflective write, § 4's own store, and this — at once.
-//!     — owner: unowned
 
 pub mod ids;
 pub mod ir;

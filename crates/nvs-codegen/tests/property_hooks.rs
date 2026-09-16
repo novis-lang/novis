@@ -155,3 +155,65 @@ try {
 ";
     assert_eq!(output_of(source), "caught: hook said no");
 }
+
+/// `rule:types/erased-member-access`'s last clause — hooks behave through an
+/// erased receiver exactly as they do anywhere — on the write side, reached by
+/// `rule:types/property-key-access`'s `$obj->$key`.
+///
+/// A key names a **property**, not a slot. A store through one that reached the
+/// backing slot would make a class's own `set` advisory for anything holding a
+/// key, which is the same hole the reflective write closes and the reason the
+/// hook is found on the descriptor rather than lowered against a class the
+/// access does not know.
+///
+/// What is echoed is the *unhooked* property the `set` writes, so the case
+/// pins that the hook ran rather than that two spellings of a read agree.
+#[test]
+fn an_erased_key_write_runs_the_properties_set_hook() {
+    let source = "<?nvs
+class Box {
+    public string $label = \"hi\";
+
+    public string $shout {
+        get => $this->label . \"!\";
+        set(string $v) { $this->label = $v . \"?\"; }
+    }
+}
+
+Box $b = new Box();
+property<Box> $key = \"shout\" as property<Box>;
+$b->$key = \"yo\";
+echo $b->label;
+";
+    assert_eq!(output_of(source), "yo?");
+}
+
+/// The same clause on the read side, which the erased access owed for longer:
+/// the `get` is found on the descriptor and run with the context the helper is
+/// already handed, so a key reads what the class publishes and not the slot
+/// behind it.
+///
+/// The hooked property here is **virtual** — its `get` derives a value from
+/// another field and nothing ever writes its slot — so a read that went to
+/// storage would not merely answer a stale value but the unwritten-property
+/// throw `rule:classes/an-unwritten-property-read-throws` gives.
+#[test]
+fn an_erased_key_read_runs_the_properties_get_hook() {
+    let source = "<?nvs
+class Box {
+    public string $label = \"hi\";
+
+    public string $shout {
+        get => $this->label . \"!\";
+        set(string $v) { $this->label = $v . \"?\"; }
+    }
+}
+
+Box $b = new Box();
+property<Box> $key = \"shout\" as property<Box>;
+echo $b->$key, \"/\";
+$b->label = \"yo\";
+echo $b->$key, \"/\", $b->shout;
+";
+    assert_eq!(output_of(source), "hi!/yo!/yo!");
+}
