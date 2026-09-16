@@ -1,0 +1,26 @@
+--TEST--
+a class that inherits its parent's constructor still owes every property it declares itself — `rule:classes/definite-property-initialization`
+--FILE--
+<?nvs
+class Base {
+    public int $a;
+
+    public function constructor(int $a) {
+        $this->a = $a;
+    }
+}
+
+// `Child` declares no constructor: the one it inherits runs unchanged, and it
+// cannot assign a property declared after it, so `$b` is refused at its own
+// declaration rather than at whichever read would have found it unset.
+class Child extends Base {
+    public int $b;
+}
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0409]: `$b` has no default value, and `Child` declares no constructor to assign it
+   --> case.nvs:14:16
+%A
+error: aborting due to 1 error

@@ -71,15 +71,16 @@
 //! a compile error, and the price of never refusing a hook that does commit
 //! the value.
 //!
-//! **Known gaps**, deliberately out of scope for this slice:
-//! - A class with no explicit `constructor` is not itself checked against
-//!   the `parent::constructor(...)` obligation — it has no constructor body
-//!   of its own for such a call to go in; PHP inherits the parent
-//!   constructor unchanged in that case, and this slice does not model that
-//!   inheritance.
-//!   Decided: Model the inherited constructor: refuse own required properties without a default — The
-//!   error comes where the class is written, at the cost of a small extra rule in this pass.
-//!   — owner: unowned-closures
+//! **Inheriting a constructor is not declaring one.** A class that writes no
+//! `constructor` of its own runs its parent's unchanged, and that body cannot
+//! assign a property the subclass declared after it — so every own required
+//! property without a default is refused at its own declaration, exactly as
+//! for a class with no parent at all. The `parent::constructor(...)`
+//! obligation is not owed either, and there is nowhere for such a call to go:
+//! the inherited constructor runs by inheritance rather than from a body this
+//! class wrote. That is the whole of what this pass models about an inherited
+//! constructor, and it is what `rule:classes/definite-property-initialization`
+//! states.
 
 use nvs_diagnostics::{Diagnostic, Span, code};
 use nvs_hir::QName;

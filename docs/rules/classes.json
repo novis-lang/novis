@@ -115,6 +115,7 @@
       "guardedBy": [
         "tests/conformance/class/a-constructor-must-assign-every-property.nvst",
         "tests/conformance/class/a-property-with-no-constructor-at-all-is-refused.nvst",
+        "tests/conformance/class/an-inherited-constructor-does-not-discharge-a-subclass-property.nvst",
         "tests/conformance/class/a-promoted-constructor-parameter-is-a-property.nvst"
       ]
     },
