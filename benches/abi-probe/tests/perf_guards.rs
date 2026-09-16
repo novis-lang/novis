@@ -23,7 +23,9 @@
 )]
 
 use std::alloc::{GlobalAlloc, Layout, System};
+use std::cell::Cell;
 use std::hint::black_box;
+use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use nvs_abi_probe::{Ctx, Helper, Probe, Value, call};
@@ -516,6 +518,99 @@ fn a_spawn_to_result_round_trip_stays_in_the_microsecond_class() {
          child process with this boundary and M5's acceptance puts it in the single-digit \
          microseconds; at this figure the child is doing something a child should not, or the \
          boundary has acquired a syscall."
+    );
+}
+
+#[test]
+#[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
+fn concurrent_spawns_leave_the_scheduler_serving_other_tasks() {
+    // M8's list for `rule:core-classes/process-is-argv-only`: children in
+    // flight do not stop the core they were started from serving anything else.
+    // What is driven is the handoff the member performs — `blocking::run`
+    // around a real child — and not the member, which this crate cannot reach;
+    // `nvs-stdlib`'s `a_spawned_childs_reads_suspend_the_coroutine_and_free_the_core`
+    // owns the correctness half over `Core\Process::spawn` itself, and the
+    // property measured here is the scheduler's either way.
+    //
+    // The bound is a ratio between two figures this one run takes, so it needs
+    // no baseline and holds on any machine: a core that blocked on a child
+    // would reach the neighbour only after the last of them and report about
+    // 1x, where one that hands itself back reaches it in the microseconds
+    // before the first child has started. Measured on x86_64-pc-windows-msvc:
+    // a neighbour served 0.23 ms into a 10.7 ms run, a ratio of ~46x, where the
+    // same four children run one after another take 24.9 ms.
+    const MIN_RATIO: f64 = 10.0;
+    const CHILDREN: usize = 4;
+
+    let _installed =
+        nvs_host::reactor::install(nvs_host::Reactor::new().expect("the OS refused a poll"));
+    let mut sched = nvs_host::Scheduler::new();
+
+    // The serial figure the concurrent run is printed against: one child, start
+    // to reaped, off any core. It is printed and not asserted, because how far
+    // the children overlap is the blocking pool's bound and the host's core
+    // count, while what this guard fails on is the core being held at all.
+    nvs_abi_probe::process::spawn_noop();
+    let mut serial = Duration::MAX;
+    for _ in 0..3 {
+        let one = Instant::now();
+        nvs_abi_probe::process::spawn_noop();
+        serial = serial.min(one.elapsed());
+    }
+
+    let started = Instant::now();
+    for _ in 0..CHILDREN {
+        let ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Sink);
+        sched.spawn(ctx, nvs_runtime::TaskRoot::Worker, move |_ctx| {
+            let status = nvs_host::blocking::run(|| {
+                nvs_abi_probe::process::noop_command()
+                    .spawn()
+                    .expect("the host must be able to start a do-nothing process")
+                    .wait()
+                    .expect("a started child is one to be reaped")
+            });
+            assert!(status.success(), "a do-nothing process must exit cleanly");
+        });
+    }
+    let served: Rc<Cell<Option<Duration>>> = Rc::new(Cell::new(None));
+    let neighbour = Rc::clone(&served);
+    sched.spawn(
+        nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Sink),
+        nvs_runtime::TaskRoot::Worker,
+        move |_ctx| neighbour.set(Some(started.elapsed())),
+    );
+
+    let report = nvs_host::run_until_idle(&mut sched).expect("the loop failed");
+    let total = started.elapsed();
+    assert_eq!(
+        report.finished,
+        CHILDREN + 1,
+        "a task never came back off the blocking pool"
+    );
+    assert!(
+        nvs_host::blocking::pool_size().0 >= 1,
+        "the children were waited for on the core: this thread's pool never started a thread"
+    );
+
+    let serve = served.get().expect("the neighbour task never ran");
+    let ratio = total.as_secs_f64() / serve.as_secs_f64().max(1e-9);
+    println!(
+        "{CHILDREN} concurrent spawns: neighbour served at {:.2} ms of {:.2} ms, \
+         serially {:.2} ms, ratio {ratio:.0}x{}",
+        serve.as_secs_f64() * 1e3,
+        total.as_secs_f64() * 1e3,
+        serial.as_secs_f64() * 1e3 * CHILDREN as f64,
+        over(ratio, MIN_RATIO)
+    );
+
+    assert!(
+        ratio > MIN_RATIO,
+        "a neighbour task waited {:.2} ms of the {:.2} ms {CHILDREN} children took, a ratio of \
+         {ratio:.1}x and under the {MIN_RATIO}x guard. A child is waited for off the core \
+         through `nvs_host::blocking::run`; at this ratio the wait is holding the core and \
+         every other request on it is behind a process.",
+        serve.as_secs_f64() * 1e3,
+        total.as_secs_f64() * 1e3
     );
 }
 
