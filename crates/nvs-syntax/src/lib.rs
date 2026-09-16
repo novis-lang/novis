@@ -34,6 +34,14 @@
 //!   defined. Public because it is shared: `nvs-stdlib`'s
 //!   `Core\Time\Duration::parse` and (at M6) `nvs.toml`'s reader both call in,
 //!   which is what stops the three from drifting.
+//! - [`string_lit`] — what a written string literal *denotes*: the escape
+//!   grammar cooked to bytes, and a heredoc's flexible-indentation strip. The
+//!   lexer decides which backslash sequences exist; this decides what they
+//!   produce, which needs the whole literal assembled and so cannot happen at
+//!   lex time. Public for the same reason [`duration`] is, and the reason is
+//!   stronger: `nvs-hir` reads a `require` path out of a literal, `nvs-types`
+//!   diagnoses and interns one, `nvs-ir` lowers one, and all three must agree
+//!   byte for byte — see its own module docs.
 //!
 //! ```
 //! use nvs_diagnostics::{Diagnostics, SourceMap};
@@ -109,6 +117,7 @@ pub mod duration;
 pub mod index;
 mod lexer;
 mod parser;
+pub mod string_lit;
 mod token;
 pub mod walk;
 

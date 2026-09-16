@@ -78,9 +78,9 @@
 //!   double-quoted string literal's (or an interpolated-heredoc text run's)
 //!   escapes into the `string` it denotes, diagnosing the two ways cooking
 //!   can fail — an out-of-range `\u{...}` codepoint, or a byte escape
-//!   sequence that isn't valid UTF-8. `pub`, and reused directly by
-//!   `nvs-ir`'s own lowering rather than duplicated — see that module's own
-//!   docs for why this one, unlike `expr`'s `int_literal_digits`, is shared.
+//!   sequence that isn't valid UTF-8. A re-export of `nvs_syntax::string_lit`,
+//!   which is the one copy of that grammar the front end has — see that
+//!   module's own docs for why it sits below this crate rather than in it.
 //! - [`lateinit`] — [`lateinit::check_class_lateinit_reads`]: `rule:classes/lateinit`'s
 //!   `lateinit` property modifier. `signatures::build_signatures` validates
 //!   where it may appear (§ 1: refusing a scalar/enum type, `?T`, a promoted
@@ -195,7 +195,11 @@ pub(crate) mod retrieval;
 pub(crate) mod returns;
 pub mod routes;
 pub mod signatures;
-pub mod string_lit;
+/// Re-exported, not owned: the escape grammar lives in `nvs-syntax`, the one
+/// crate `nvs-hir`'s `require` resolution, this checker and `nvs-ir`'s lowering
+/// all depend on. The path stays `nvs_types::string_lit` because that is where
+/// a reader of a checker diagnostic about a `\u{...}` codepoint looks first.
+pub use nvs_syntax::string_lit;
 pub mod testing;
 pub mod ty;
 
