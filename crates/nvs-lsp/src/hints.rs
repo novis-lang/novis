@@ -67,7 +67,7 @@
 //!    each record a different variant, and only one of those carries
 //!    `param_names` at all. Widening is a table question rather than a walk
 //!    one.
-//!    — owner: unowned
+//!    — owner: M10
 
 use lsp_types::{InlayHint, InlayHintKind, InlayHintLabel};
 use nvs_diagnostics::{BytePos, PositionEncoding, Span};
