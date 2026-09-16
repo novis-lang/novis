@@ -452,6 +452,59 @@ def registry_anchors() -> dict[tuple[str, str], str]:
         return {}
 
 
+#: `("Throwable", None)` in `nvs_hir::errors::TREE` and `("Comparable", &[...])` in
+#: `nvs_hir::interfaces::RESERVED` -- the two rosters `nvs meta --json` reads off a tuple table.
+#: A namespaced row is spelled raw or with its backslashes doubled, like a name const.
+TUPLE_ROW_RE = re.compile(r'^\s*\((?:r"([^"]+)"|"((?:[^"\\]|\\.)+)"),', re.M)
+#: `pub const FINISH_MARKER: &str = "Core\\Script\\Finished";` -- an exception `errors.rs` declares
+#: as a const beside the tree rather than as a row of it.
+CONST_ROW_RE = re.compile(r'const\s+[A-Za-z_][A-Za-z0-9_]*\s*:\s*&str\s*=\s*'
+                          r'(?:r"([^"]+)"|"((?:[^"\\]|\\.)+)")\s*;')
+#: `Directive { key: "cache.local", ... }` in `nvs_config::DIRECTIVES`.
+DIRECTIVE_ROW_RE = re.compile(r'Directive\s*\{\s*key:\s*"([^"]+)"')
+#: A `CoreEnum` literal, named inline or through a const `gaps.class_consts` resolves.
+ENUM_RE = re.compile(r'CoreEnum\s*\{\s*name:\s*(?:r"([^"]+)"|([A-Za-z_][A-Za-z0-9_]*))')
+
+TABLES = (
+    ("exception", CRATES / "nvs-hir" / "src" / "errors.rs", TUPLE_ROW_RE),
+    ("exception", CRATES / "nvs-hir" / "src" / "errors.rs", CONST_ROW_RE),
+    ("interface", CRATES / "nvs-hir" / "src" / "interfaces.rs", TUPLE_ROW_RE),
+    ("directive", CRATES / "nvs-config" / "src" / "directive.rs", DIRECTIVE_ROW_RE),
+)
+
+
+def table_anchors() -> dict[str, dict[str, str]]:
+    """kind -> {name: `crates/…/file.rs:NN`} for every feature that is not a class member.
+
+    An exception, an interface and a directive each come from one table the registry document
+    is built off, so the anchor is that table's row; an enum is a `CoreEnum` literal in the
+    stdlib file that owns it. Like `registry_anchors`, a convenience the roster stands without:
+    the anchor seeds a goal's `[context] modules`, and a goal whose features resolve none opens
+    the crate by hand in every session.
+    """
+    out: dict[str, dict[str, str]] = {kind: {} for kind, _, _ in TABLES}
+    out["enum"] = {}
+    try:
+        for kind, path, pattern in TABLES:
+            text = read(path)
+            for m in pattern.finditer(text):
+                name = m.group(1) if m.group(1) is not None else \
+                    (m.group(2) or "").replace(BS + BS, BS)
+                out[kind].setdefault(name, f"{rel(path)}:{text.count(chr(10), 0, m.start()) + 1}")
+        import gaps  # noqa: PLC0415  (optional, as in `registry_anchors`)
+
+        for path in sorted((CRATES / "nvs-stdlib" / "src").rglob("*.rs")):
+            text = read(path)
+            consts = gaps.class_consts(path, text)
+            for m in ENUM_RE.finditer(text):
+                name = m.group(1) or consts.get(m.group(2), "")
+                if name:
+                    out["enum"].setdefault(name, f"{rel(path)}:{text.count(chr(10), 0, m.start()) + 1}")
+    except Exception:
+        pass
+    return out
+
+
 def php_twins() -> dict[tuple[str, str], list[str]]:
     """(class, member) -> the PHP built-ins the spec's *Replaces* column names."""
     try:
@@ -511,6 +564,7 @@ def roster(nvs: Path) -> list[Entry]:
     """Every feature Novis ships, from the four live sources. Nothing here is a list."""
     doc = meta_json(nvs)
     anchors = registry_anchors()
+    tables = table_anchors()
     twins = php_twins()
     out: list[Entry] = []
 
@@ -537,6 +591,7 @@ def roster(nvs: Path) -> list[Entry]:
                 kind=kind,
                 group=f"types:{kind}",
                 path=f"types/{class_tail(name)}",
+                anchor=tables[kind].get(name, ""),
                 summary=((item.get("doc") or {}).get("short", "") if isinstance(item, dict) else ""),
             ))
 
@@ -547,6 +602,7 @@ def roster(nvs: Path) -> list[Entry]:
             kind="directive",
             group="config:directives",
             path=f"config/{key.replace('.', '-')}",
+            anchor=tables["directive"].get(key, ""),
             summary=(f"{d.get('class', '')} directive, applied at {d.get('apply', '')}"
                      if isinstance(d, dict) else ""),
         ))
