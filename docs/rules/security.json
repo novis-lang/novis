@@ -1166,7 +1166,8 @@
         "expressions/one-equality-operator"
       ],
       "guardedBy": [
-        "tests/conformance/lang/comparing-two-secrets-answers-the-same-as-comparing-two-strings.nvst"
+        "tests/conformance/lang/comparing-two-secrets-answers-the-same-as-comparing-two-strings.nvst",
+        "tests/conformance/lang/a-secret-compared-against-a-mixed-is-constant-time.nvst"
       ]
     },
     {

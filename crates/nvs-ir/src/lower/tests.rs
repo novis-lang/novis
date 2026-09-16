@@ -3736,6 +3736,31 @@ bool $differ = $mac != $sent;
     assert!(text.contains("not "), "{text}");
 }
 
+/// The pair whose other side is a `mixed` — a decoded request field, a header,
+/// a cache read — which `rule:security/secret-comparison-is-constant-time`
+/// covers because `rule:security/secret-propagation` has already poisoned
+/// whatever a credential was compared against. `Helper::Identical` is what it
+/// used to take, and that row short-circuits on the first differing byte,
+/// which is the timing oracle the rule exists to close. The unqualified pair
+/// below still takes `Identical`, so the assertion reads the *choice* rather
+/// than the presence of a call.
+#[test]
+fn a_secret_compared_against_a_mixed_lowers_to_the_constant_time_helper() {
+    let (f, map, file) = lower_script_src(
+        "<?nvs
+secret string $token = \"a\";
+mixed $given = \"b\";
+bool $secretly = $token == $given;
+mixed $plain = \"a\";
+mixed $other = \"b\";
+bool $openly = $plain == $other;
+",
+    );
+    let text = print_function(&f, map.file(file));
+    assert_eq!(text.matches("helper.secret_eq").count(), 1, "{text}");
+    assert_eq!(text.matches("helper.identical").count(), 1, "{text}");
+}
+
 /// `rule:types/erased-member-access`'s deferral, one storage kind along from a member access: a
 /// `mixed` base defers *whether there is an array here* as well as which
 /// one, so a subscript through it reaches the helper pair that asks the

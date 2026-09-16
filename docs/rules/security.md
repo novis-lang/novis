@@ -1404,7 +1404,10 @@ comparison helper rather than the short-circuiting one every other operand pair 
 spelled: `==` is the only equality operator ([`expressions/one-equality-operator`](expressions.md#expressions-one-equality-operator)), the qualifier
 is already known at the comparison, and the lowering picks the helper. Where exactly one operand is
 `secret`, the qualifier has already poisoned the other
-([`security/secret-propagation`](security.md#security-secret-propagation)), so the pair is `secret` and the rule applies.
+([`security/secret-propagation`](security.md#security-secret-propagation)), so the pair is `secret` and the rule applies. That includes the
+other side arriving as a `mixed` — a decoded request field, a header, a cache read — where the helper
+reads the tag: a `string` or `bytes` payload of the side's own tag is compared in constant time, and
+every other tag answers `false`, which is what the short-circuiting row answers for the same pair.
 
 The gap it closes is narrow and real. Constant-time comparison is guaranteed inside the protocol
 roster, and a dedicated equality member is available to anyone who knows to reach for it — but a

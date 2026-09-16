@@ -2455,6 +2455,15 @@ pub enum Helper {
     /// `nvs_types::expr_table::ExprInfo::SecretEquality` at the comparison and
     /// `lower_binary` reads it back.
     ///
+    /// **One operand may be a [`crate::ty::Ty::Tagged`]**, which is a
+    /// credential compared against a `mixed` — a decoded request field, a
+    /// header, a cache read. The helper untags it: a `string` or `bytes`
+    /// payload of the other side's own tag is compared in constant time, and
+    /// every other tag answers `false`, which is what
+    /// `nvs_runtime::value_identical` answers for the same pair. A pair of
+    /// tags never arrives, `rule:security/secret-qualifier` putting the
+    /// qualifier on `string` and `bytes` alone.
+    ///
     /// Costed in `rule:security/secret-comparison-is-constant-time`: a few nanoseconds more per comparison
     /// than the short-circuiting row — priority 1 bought with priority 3,
     /// which is the ordering AGENTS.md states.

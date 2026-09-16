@@ -1261,16 +1261,25 @@ crate::nvs_helper! {
     /// comparison being shared.
     ///
     /// Takes a `string` **or** a `bytes` on either side — the two tags share
-    /// one allocation, and `rule:security/secret-qualifier` puts the qualifier on both bases. The
-    /// row is total, so this carries no error edge; `!=` is this helper under
-    /// an `nvs_ir::UnOp::Not`, the arrangement [`nvs_numeric_eq`] uses.
+    /// one allocation, and `rule:security/secret-qualifier` puts the qualifier
+    /// on both bases — and a `mixed` on the side the checker did not call
+    /// `secret`, which arrives carrying whatever tag it holds. A payload that
+    /// is not a buffer of the other side's own tag answers `false`, which is
+    /// what [`crate::value_identical`] answers for the same pair: a `bytes` is
+    /// a value rather than a handle and compares only against another `bytes`,
+    /// and no other tag has a buffer to read at all. Reading a tag leaks
+    /// nothing the timing property protects — the tag is not the secret — and
+    /// the branch is taken before a byte of either operand is touched.
+    ///
+    /// The row is total, so this carries no error edge; `!=` is this helper
+    /// under an `nvs_ir::UnOp::Not`, the arrangement [`nvs_numeric_eq`] uses.
     fn nvs_secret_eq(_ctx, args: [2]) {
-        let lhs = args[0]
-            .buffer_ptr()
-            .ok_or_else(|| wrong_tag("nvs_secret_eq", Tag::Str, args[0]))?;
-        let rhs = args[1]
-            .buffer_ptr()
-            .ok_or_else(|| wrong_tag("nvs_secret_eq", Tag::Str, args[1]))?;
+        let (Some(lhs), Some(rhs)) = (args[0].buffer_ptr(), args[1].buffer_ptr()) else {
+            return Ok(Value::bool(false));
+        };
+        if args[0].tag() != args[1].tag() {
+            return Ok(Value::bool(false));
+        }
         #[expect(
             unsafe_code,
             reason = "a Tag::Str or Tag::Bytes argument owns a reference to a live \
@@ -3605,6 +3614,49 @@ mod tests {
         )]
         unsafe {
             value.release();
+        }
+    }
+
+    /// `rule:security/secret-comparison-is-constant-time` reaches a credential
+    /// compared against a `mixed`, so this helper is handed a tag rather than
+    /// two known buffers. Every tag that is not the other side's answers
+    /// `false` — what [`crate::value_identical`] answers for the same pair —
+    /// and the `string`/`bytes` row is the one that matters: the two share an
+    /// allocation, so a comparison reading the buffer alone would equate a
+    /// `secret string` with a `bytes` holding the same octets.
+    #[test]
+    fn a_secret_comparison_answers_false_for_a_tag_the_other_side_does_not_share() {
+        let equal = |left: Value, right: Value| {
+            let mut ctx = Ctx::buffered();
+            call(nvs_secret_eq, &mut ctx, &[left, right])
+                .expect("the row is total")
+                .as_bool()
+                .expect("a comparison produces a bool")
+        };
+        let token = Value::str(NvsStr::new(b"s3cr3t"));
+        let same = Value::str(NvsStr::new(b"s3cr3t"));
+        let octets = Value::bytes(NvsStr::new(b"s3cr3t"));
+        let same_octets = Value::bytes(NvsStr::new(b"s3cr3t"));
+        assert!(equal(token, same));
+        assert!(equal(octets, same_octets));
+        assert!(!equal(token, octets));
+        assert!(!equal(octets, token));
+        // One side is a buffer by declaration — the operand the checker called
+        // `secret` — so these are the pairs a `mixed` on the other side makes,
+        // and a pair of non-buffers is not one of them.
+        assert!(!equal(token, Value::int(0)));
+        assert!(!equal(token, Value::null()));
+        assert!(!equal(Value::bool(true), octets));
+        #[expect(
+            unsafe_code,
+            reason = "the helper only borrows its operands; this test still \
+                      owns the one reference each was built with"
+        )]
+        unsafe {
+            token.release();
+            same.release();
+            octets.release();
+            same_octets.release();
         }
     }
 }

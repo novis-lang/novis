@@ -765,6 +765,23 @@ impl<'a> Lowering<'a> {
         negated
     }
 
+    /// Which operand pairs [`Helper::SecretEq`] answers, for an equality the
+    /// checker marked `nvs_types::expr_table::ExprInfo::SecretEquality`.
+    ///
+    /// One buffer at least, and at most one tag. `rule:security/secret-qualifier`
+    /// puts the qualifier on `string` and `bytes` alone, so the operand the
+    /// checker called `secret` always erases to [`Ty::Str`] or [`Ty::Bytes`]
+    /// and it is the *other* side that a `mixed` or a union leaves as a
+    /// [`Ty::Tagged`]. Refusing a pair of tags therefore refuses a shape the
+    /// checker cannot hand this arm, and it keeps the arm's answer readable
+    /// from the arm: two tags could hold two arrays, which the helper has no
+    /// buffer to read and would call unequal.
+    fn secret_comparable(lty: Ty, rty: Ty) -> bool {
+        let buffer = |ty| matches!(ty, Ty::Str | Ty::Bytes);
+        let comparable = |ty| buffer(ty) || ty == Ty::Tagged;
+        (buffer(lty) && comparable(rty)) || (comparable(lty) && buffer(rty))
+    }
+
     pub(crate) fn lower_binary(
         &mut self,
         whole: &Expr,
@@ -932,16 +949,17 @@ impl<'a> Lowering<'a> {
         // `lty`/`rty`, and is read back from what the checker recorded at this
         // comparison instead. See `Helper::SecretEq`.
         //
-        // Guarded on the two representations as well as on the entry: a
-        // `secret` operand compared against a `mixed` one has already been
-        // taken by the `Tagged` arm above, where the row is a runtime tag
-        // rather than a buffer this helper could read. § 2's poisoning makes
-        // that pair rare, and closing it would mean teaching
-        // `nvs_runtime::value_identical` the property, which is wider than
-        // this section asks for.
+        // A `Ty::Tagged` operand is inside this arm rather than falling to
+        // `Self::emit_equality`'s short-circuiting `Helper::Identical`: the
+        // rule applies wherever *either* operand is `secret`, and a credential
+        // compared against a `mixed` is exactly the shape a request body
+        // produces. The helper reads the tag, compares a `string` or `bytes`
+        // payload in constant time and answers `false` for every other one —
+        // which is the answer `nvs_runtime::value_identical` gives that pair,
+        // so the timing property is bought without moving the semantics.
+        // `Self::secret_comparable` is where the admitted pairs are spelled.
         if matches!(op, BinaryOp::Eq | BinaryOp::NotEq)
-            && matches!(lty, Ty::Str | Ty::Bytes)
-            && matches!(rty, Ty::Str | Ty::Bytes)
+            && Self::secret_comparable(lty, rty)
             && matches!(
                 self.exprs.lookup(whole.span),
                 Some(ExprInfo::SecretEquality)
@@ -956,9 +974,11 @@ impl<'a> Lowering<'a> {
                 },
                 env,
             );
-            // Both operands are refcounted, and both are only *read* — the
-            // same rule the `BinOp` table below applies to its own, written
-            // per operand because the two may be a `string` and a `bytes`.
+            // Every representation this arm admits is refcounted — `Ty::Str`,
+            // `Ty::Bytes` and `Ty::Tagged` alike — and both operands are only
+            // *read*, the same rule the `BinOp` table below applies to its
+            // own. Written per operand because only one side may alias a
+            // durable slot.
             for (operand, value) in [(lhs, lv), (rhs, rv)] {
                 if !self.aliasing_read(operand) {
                     self.emit_release(*cur, value);

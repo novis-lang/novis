@@ -406,20 +406,6 @@
 //!    `callable` carrying no parameter list for a call site to stage a cell
 //!    against.
 //!    — owner: unowned
-//! 11. **A `secret` value compared against a `mixed` one is not compared in
-//!     constant time.** The qualifiers themselves are not a gap: every
-//!     atom of `rule:security/tainted-qualifier`/0033 erases to the plain `string`/`bytes` it
-//!     shares an allocation with ([`lower::erase_checked_ty`]), and `rule:security/secret-comparison-is-constant-time`
-//!     's constant-time `==` reaches every pair whose two operands are
-//!     both that representation, through [`ir::Helper::SecretEq`] and the
-//!     `nvs_types::expr_table::ExprInfo::SecretEquality` the checker records
-//!     at the comparison. What that arm declines is the pair where one side
-//!     is [`ty::Ty::Tagged`]: it has no buffer to read, so the comparison
-//!     falls to [`ir::Helper::Identical`] and short-circuits. `rule:security/secret-propagation`'s
-//!     poisoning makes the shape rare, and closing it means teaching
-//!     `nvs_runtime::value_identical` the property rather than adding a
-//!     lowering arm.
-//!     — owner: unowned
 //! 14. **Not every safepoint flag is acted on.**
 //!     [`ir::InstKind::Safepoint`] is emitted at function entry and every loop
 //!     back edge, and `nvs-codegen` lowers it to a real poll: `CPU_LIMIT` and
