@@ -1,0 +1,36 @@
+--TEST--
+A field of `Core\Task::all`'s result accepts a write of the type that field's own callable declared, and reads it back — `rule:concurrency/all-answers-a-typed-shape`, `rule:types/erased-member-access`
+--FILE--
+<?nvs
+// The result carries the *argument literal's* class, because a shape class is
+// named for its field names alone and both sides spell the same ones — so the
+// slot tags that class promises would be the literal's, where every field
+// holds a closure, and every write below would be refused for writing an `int`
+// to a field declared `object`. `nvs_ir::lower::Lowering::record_core_result_shape`
+// records the result's own representations against that same label instead,
+// which degrades each disagreeing slot to unchecked — `nvs_runtime::object`'s
+// module doc § *What a shape write checks*, case 4.
+//
+// Two fields answering *different* types, and both written: a member that kept
+// one side's tags refuses on the first write, and one that degraded only the
+// slot it happened to see refuses on the second.
+var $page = Core\Task::all({
+    count: fn (): int    => 1,
+    label: fn (): string => "a",
+});
+$page->count = 5;
+$page->label = "b";
+echo $page->count, " ", $page->label, "\n";
+
+// The read side never depended on the tag — `SlotGet` keys on the name — so
+// the awaited values are still what a fresh group answers, and writing over
+// them is what the lines above proved. Asked of a second group so the first
+// one's writes cannot be what this prints.
+var $again = Core\Task::all({
+    count: fn (): int    => 7,
+    label: fn (): string => "c",
+});
+echo $again->count, " ", $again->label, "\n";
+--EXPECT--
+5 b
+7 c
