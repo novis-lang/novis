@@ -5190,9 +5190,9 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   request, because the roster is one per process.** Asserting a length or a total is therefore a race
   against whatever the harness scheduled alongside, and it passes alone and fails under `cargo test`.
   Give the case its own `route` label and assert on that series by name
-  (`crates/nvs-server/src/metrics.rs:1154`), and hold the cores alive across the gather with a
+  (`crates/nvs-runtime/src/metrics.rs:1249`), and hold the cores alive across the gather with a
   `Barrier` — a thread that exited is indistinguishable from one the roster never reached.
-  [until: gone crates/nvs-server/src/metrics.rs:static CORES]
+  [until: gone crates/nvs-runtime/src/metrics.rs:static CORES]
 - **A served request is an isolate, and an isolate used to be armed no memory ceiling at all** — a
   `[limits] memory` case written against `nvs run` passes while the same program served over a
   socket runs to its end. `Ctx::new` displaces the thread's threshold with `Armed::NONE`, and a
