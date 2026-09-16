@@ -5343,35 +5343,33 @@ mod tests {
     /// The one exception is a **handle**: a class whose slots something other
     /// than its own members read, and which the spec writes no member *on*.
     /// Its state is reachable, just not through itself, so it is listed here
-    /// by name rather than given a member the spec does not write. Two are:
-    /// `Core\Regex\Pattern`, read by `Core\Regex`'s members, and
-    /// `Core\Cli\Text`, whose one slot `nvs_runtime::value_to_string` reads
-    /// when `echo` writes a captured carrier out ([`crate::cli`]). The third
-    /// is `Core\Script\Handle`, whose one slot the lowering of `await` reads
-    /// and whose emptiness of members is the whole point of it
-    /// ([`crate::script`]). The fourth is `Core\IO\Lines`, whose one slot the
-    /// `iterate()` on [`crate::instance`]'s dispatch roster reads — spec § 14
+    /// by name rather than given a member the spec does not write.
+    /// `Core\Regex\Pattern` is read by `Core\Regex`'s members.
+    /// `Core\Script\Handle`'s one slot is read by the lowering of `await`, and
+    /// its emptiness of members is the whole point of it
+    /// ([`crate::script`]). `Core\IO\Lines`'s one slot is read by the
+    /// `iterate()` on [`crate::instance`]'s dispatch roster — spec § 14
     /// writes `lines(string $path): Iterable<string>` and no member *on* the
-    /// thing it answers with, so a `foreach` is the whole of its surface. The
-    /// fifth is `Core\Http\Target`, whose two slots the member that connects
-    /// reads: `rule:http-server/allow-url-pins-the-address` pins an approved address into it, and a member
+    /// thing it answers with, so a `foreach` is the whole of its surface.
+    /// `Core\Http\Target`'s two slots are read by the member that connects:
+    /// `rule:http-server/allow-url-pins-the-address` pins an approved address into it, and a member
     /// handing that address back would let a program rebuild the request
-    /// around a different one ([`crate::http`]). The sixth and seventh are
-    /// `Core\Cli\Color` and `Core\Cli\Style`, whose slots
-    /// `Core\Cli\Text::styled` reads when it renders one: `rule:tooling/styling-is-a-value-not-a-grammar` writes
+    /// around a different one ([`crate::http`]).
+    /// `Core\Cli\Color` and `Core\Cli\Style` hold the slots a
+    /// `Core\Cli\Text`'s runs are rendered from: `rule:tooling/styling-is-a-value-not-a-grammar` writes
     /// two constructors and a shape of options and no member on either result,
-    /// because a style is built and worn rather than interrogated. The eighth
-    /// is `Core\Html\Markup`, the other sink carrier and so `Core\Cli\Text`'s
-    /// entry for the same reason — `value_to_string` reads its one slot — with
+    /// because a style is built and worn rather than interrogated.
+    /// `Core\Html\Markup` is the sink carrier that belongs here —
+    /// `value_to_string` reads its one slot — with
     /// `rule:core-classes/html-auto-escape` adding that it has no constructor either, a member taking
     /// a runtime string being the bypass that section closes
-    /// ([`crate::html`]). The ninth is `Core\Db\InList`, whose one slot the
-    /// bind reads: `rule:core-classes/db-parameters`'s expansion marker is accepted at exactly one
+    /// ([`crate::html`]). `Core\Db\InList`'s one slot is read by the
+    /// bind: `rule:core-classes/db-parameters`'s expansion marker is accepted at exactly one
     /// position and nowhere else, so a member answering the values back would
     /// be a surface on a thing whose whole content is where it may appear
-    /// ([`crate::db`]). The last is `Core\Request\BodyStream`, whose one slot
-    /// the `advance()`/`current()` pair on [`crate::instance`]'s dispatch roster
-    /// writes and reads — `Core\IO\Lines`'s entry for `Core\IO\Lines`'s reason,
+    /// ([`crate::db`]). `Core\Request\BodyStream`'s one slot is written and
+    /// read by the `advance()`/`current()` pair on [`crate::instance`]'s dispatch roster
+    /// — `Core\IO\Lines`'s entry for `Core\IO\Lines`'s reason,
     /// spec § 15 writing `bodyStream(): Iterable<bytes>` and no member on the
     /// thing it answers with. `Core\Db\Stream` is that entry again for § 18's
     /// `stream()`, and its three slots are the connection's key, the block that
@@ -5387,10 +5385,11 @@ mod tests {
     /// ([`crate::http`]). `Core\Cache\SecretEntry` is `Core\Jwe\Key`'s shape
     /// again: a fill builds one, the sealing path reads its two slots, and a
     /// member answering the secret back would be a second door onto a value
-    /// `getSecret` is the only door onto ([`crate::cache`]). Two have left this list,
-    /// both the same way:
-    /// `Core\Db\Connection` when `query` landed on it, and `Core\Db\Rows` when
-    /// its readers did.
+    /// `getSecret` is the only door onto ([`crate::cache`]). Classes have left
+    /// this list, each the same way: `Core\Db\Connection` when `query` landed
+    /// on it, `Core\Db\Rows` when its readers did, and `Core\Cli\Text` when
+    /// `text()` did — its runs are still rendered by `value_to_string`, but a
+    /// class the spec writes a member on is no longer a handle.
     ///
     /// The other exception is the mirror image: a class with members and **no
     /// slots**, because its receiver's whole state is the *context*'s rather
@@ -5418,7 +5417,6 @@ mod tests {
 
         const HANDLES: &[&str] = &[
             r"Core\Regex\Pattern",
-            nvs_runtime::CARRIER_CLI_TEXT,
             nvs_runtime::CARRIER_HTML_MARKUP,
             crate::script::HANDLE_NAME,
             crate::io::LINES_NAME,

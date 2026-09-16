@@ -21,7 +21,8 @@
 //! * **It answers the carrier, not a `string`.** `rule:security/capture-answers-the-carrier`: those bytes have
 //!   already been through the sink, so handing them back as text would let the
 //!   next `echo` escape them twice. [`crate::cli`] is the carrier and owns what
-//!   one is.
+//!   one is — `Core\Cli\Text::text` included, which is how a `{through:}` reads
+//!   what it was handed and why that read is this sink's alone.
 //!
 //! # What it spends
 //!
@@ -30,17 +31,6 @@
 //! to the request and both freed with it. A request that never captures pays
 //! one not-taken branch per `echo`, which `nvs_runtime::Ctx`'s own
 //! `captures` field states.
-//!
-//! # Known gap
-//!
-//! 1. **`{through:}` cannot read the carrier it is handed.** Its closure takes
-//!    and answers a `Core\Cli\Text`, and that class does construct one —
-//!    `plain` and `styled`, on [`crate::cli`]'s `TEXT` — but declares no
-//!    instance member at all (`instance: &[]`), so a `through` can answer a
-//!    freshly built carrier and cannot look at the captured one it was given.
-//!    The plumbing here is complete and tested; what is missing is the read
-//!    half of `Core\Cli\Text`, which [`crate::cli`]'s own gap 2 waits on too.
-//!    — owner: m8-stdlib-depth
 
 use nvs_runtime::{Fault, NvsObj, NvsStr, Tag, Value};
 

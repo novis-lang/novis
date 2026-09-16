@@ -1,0 +1,24 @@
+--TEST--
+`Core\Cli\Text::text` answers the text of every run joined and leaves the styling out — `rule:tooling/styling-is-a-value-not-a-grammar`
+--FILE--
+<?nvs
+// A `Text` holds runs — a body and the `Cli\Style` that body wears — so reading
+// one answers what it says rather than how it will look. That holds whether or
+// not the stream it would be written to is a terminal, which is why this case
+// can assert it while every stream here is piped.
+var $style = Core\Cli\Style::of({color: Core\Cli\Color::RED, bold: true});
+var $warn = Core\Cli\Text::styled("careful", $style);
+echo $warn->text(), "\n";
+
+// Composition joins runs, so the text of a sum is its operands' texts in order,
+// and a styled operand contributes its body alone.
+var $whole = $warn + Core\Cli\Text::plain(": ") + Core\Cli\Text::plain("check the path");
+echo $whole->text(), "\n";
+
+// The empty carrier reads as the empty string, not as `null`.
+var $empty = Core\Cli\Text::plain("");
+echo "[", $empty->text(), "]\n";
+--EXPECT--
+careful
+careful: check the path
+[]

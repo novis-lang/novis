@@ -30,10 +30,10 @@ echo Core\Out::capture(fn (): void => {
 echo "[", Core\Out::capture(fn (): void => {}), "]\n";
 
 // § 12's `{through: $filter}` transforms what was captured and takes and
-// answers the same carrier. `Core\Cli\Text` carries no member of its own until
-// `rule:tooling/styling-is-a-value-not-a-grammar`'s rest of `Core\Cli` lands, so the only filter writable today is
-// the identity — what this pins is that the option is read and its closure is
-// called on the captured value.
+// answers the same carrier. The identity is the filter that pins the plumbing
+// alone — that the option is read and its closure called on the captured
+// value; a filter that reads the carrier and writes a different one is
+// `out-capture-through-rewrites-the-captured-text.nvst`.
 echo Core\Out::capture(
     fn (): void => { echo "filtered"; },
     {through: fn (Core\Cli\Text $t): Core\Cli\Text => $t}

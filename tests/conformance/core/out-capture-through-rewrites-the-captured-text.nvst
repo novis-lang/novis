@@ -1,0 +1,34 @@
+--TEST--
+`Core\Out::capture`'s `{through:}` reads the carrier it is handed and answers a rewritten one — spec § 12, `rule:security/capture-answers-the-carrier`
+--FILE--
+<?nvs
+// `rule:security/capture-answers-the-carrier`: the filter takes and answers the
+// carrier of the sink in force, never a `string`. What it reads it with is
+// `Core\Cli\Text::text`, which answers the captured text without any styling —
+// so a filter can rewrite what was captured rather than only replace it.
+echo Core\Out::capture(
+    fn (): void => { echo "hello"; },
+    {through: fn (Core\Cli\Text $t): Core\Cli\Text => Core\Cli\Text::plain(Core\Str::upper($t->text()))}
+), "\n";
+
+// The filter sees everything the closure wrote, in order and joined, including
+// what a nested capture re-emitted into it.
+echo Core\Out::capture(
+    fn (): void => {
+        echo "a";
+        echo Core\Out::capture(fn (): void => { echo "b"; });
+        echo "c";
+    },
+    {through: fn (Core\Cli\Text $t): Core\Cli\Text => Core\Cli\Text::plain("<" . $t->text() . ">")}
+), "\n";
+
+// A closure that wrote nothing is still handed a carrier, and it reads as the
+// empty string rather than as `null`.
+echo Core\Out::capture(
+    fn (): void => {},
+    {through: fn (Core\Cli\Text $t): Core\Cli\Text => Core\Cli\Text::plain("[" . $t->text() . "]")}
+), "\n";
+--EXPECT--
+HELLO
+<abc>
+[]

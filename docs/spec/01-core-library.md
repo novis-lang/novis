@@ -1173,7 +1173,8 @@ originates outside the process is `tainted` (`rule:security/tainted-qualifier`).
   `arguments(): array<tainted string>`, `write`, `escape`, `isTty(Cli\Stream)`, `width`, `height`,
   `colorDepth`, `displayWidth`; the prompts `ask`, `confirm`, `select<T>`, `multiSelect<T>` and
   `secret(): secret tainted string`; and the scoped regions `live<T>` and `progress<T>`. Its value types
-  are `Cli\Text`, `Cli\Style` and `Cli\Color`, its enums `Cli\Stream`, `Cli\ColorDepth` and `Cli\Shell`.
+  are `Cli\Text` — built by `plain`/`styled`, composed with `+`, and read back by `text(): string` —
+  `Cli\Style` and `Cli\Color`, its enums `Cli\Stream`, `Cli\ColorDepth` and `Cli\Shell`.
   Replaces `$argv`, `$argc`, `readline`, `mb_strwidth`, `posix_isatty`. **Terminal output is a `tainted`
   sink** that substitutes every control byte with a visible glyph; `Cli\Text` is the only thing that writes
   raw. The byte-and-line side of standard input is `Core\IO` (§ 14), not here; process exit is the `exit`
