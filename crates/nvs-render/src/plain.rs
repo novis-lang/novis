@@ -193,7 +193,7 @@ fn scalar_line(scalar: &Scalar) -> String {
         Scalar::Float(value) => format!("float({value})"),
         Scalar::Decimal(value) => format!("decimal({value})"),
         Scalar::Str { text, bytes } => format!("string({bytes}) {:?}", text.as_str()),
-        Scalar::Bytes(bytes) => format!("bytes({}) 0x{}", bytes.len(), hex(bytes)),
+        Scalar::Bytes(bytes) => format!("bytes({}) 0x{}", bytes.len(), crate::hex(bytes)),
     }
 }
 
@@ -214,16 +214,6 @@ fn elision_line(elision: &Elision) -> String {
             )
         }
     }
-}
-
-/// `bytes` as lower-case hex, which is the one rendering of binary that is
-/// exact, fixed-width and needs no encoding decision.
-fn hex(bytes: &[u8]) -> String {
-    let mut out = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        out.push_str(&format!("{byte:02x}"));
-    }
-    out
 }
 
 /// Pushes `depth` levels of indentation.

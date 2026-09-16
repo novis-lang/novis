@@ -68,8 +68,6 @@
 //! `Map`, since the producer of one is the only writer of the other keys beside
 //! it.
 
-use std::fmt::Write as _;
-
 use serde::Serialize;
 use serde::ser::{SerializeMap, SerializeSeq, Serializer};
 
@@ -332,7 +330,7 @@ impl Serialize for AsScalar<'_> {
             Scalar::Float(value) => tagged(ser, "$float", non_finite(*value)),
             Scalar::Decimal(text) => tagged(ser, "$decimal", text),
             Scalar::Str { text, .. } => ser.serialize_str(text.as_str()),
-            Scalar::Bytes(bytes) => tagged(ser, "$bytes", &hex(bytes)),
+            Scalar::Bytes(bytes) => tagged(ser, "$bytes", &crate::hex(bytes)),
         }
     }
 }
@@ -359,17 +357,6 @@ fn non_finite(value: f64) -> &'static str {
     } else {
         "-inf"
     }
-}
-
-/// `bytes` as lowercase hex — the module doc owns why hex rather than base64.
-fn hex(bytes: &[u8]) -> String {
-    let mut out = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        // Writing into a `String` cannot fail, and the result is discarded for
-        // that reason rather than swallowed.
-        let _ = write!(out, "{byte:02x}");
-    }
-    out
 }
 
 #[cfg(test)]

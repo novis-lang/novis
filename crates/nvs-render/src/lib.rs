@@ -11,17 +11,19 @@
 //!
 //! # What is here
 //!
-//! The model, the plaintext rendering ([`plain`]), § 5's four transformations,
-//! and the JSON one ([`json`]) that a log target emits. Beside them, the two
-//! sink transforms — [`text::substitute`] and [`html::escape`] — which are
+//! The model, § 5's four transformations, and all three of
+//! `rule:errors/renderings`' renderings: the plaintext one ([`plain`]) a
+//! terminal sink selects, the JSON one ([`json`]) a log target emits, and the
+//! HTML one ([`html::render`]) an HTML response body carries. Beside them, the
+//! two sink transforms — [`text::substitute`] and [`html::escape`] — which are
 //! peers rather than part of the model: each is what one of
 //! `rule:tooling/echo-always-has-a-sink`'s sinks does to text on the way in,
 //! and they live here because the record's own transformations already do.
 //! `Core\Debug::dump` and `Core\Log::write` are producers in `nvs-stdlib` for
 //! the reason § *Where this sits* gives, and an uncaught `Throwable` is one in
 //! `nvs_runtime::floor`, which walks a value through `nvs_runtime::record` and
-//! carries its frames as [`Node::Frame`] nodes. The rendering and the two
-//! producers that do not exist are the block below.
+//! carries its frames as [`Node::Frame`] nodes. The producers that do not
+//! exist are the block below.
 //!
 //! **`rule:errors/log-write`'s
 //! record-and-write helper renders here**, not in `nvs-runtime` beside the
@@ -34,16 +36,12 @@
 //!
 //! # Known gaps
 //!
-//! 1. **The HTML rendering is not written**, so the third of
-//!    `rule:errors/renderings`' three renderings has no implementation and
-//!    `[debug] inline` has nothing to wire into a response.
-//!    — owner: m8-stdlib-depth
-//! 2. **A `#[Test]` result is not a producer**, so § 22's three output
+//! 1. **A `#[Test]` result is not a producer**, so § 22's three output
 //!    formats are the runner's own printing rather than one record rendered
 //!    three ways. `docs/decisions/0079.md:871` lands § 22 with the M4S tail,
 //!    which the program is already past.
 //!    — owner: m8-stdlib-depth
-//! 3. **A compiler diagnostic is not a producer**, which
+//! 2. **A compiler diagnostic is not a producer**, which
 //!    `docs/decisions/0092.md:439` schedules rather than defers.
 //!    — owner: M10
 //!
@@ -532,6 +530,25 @@ impl Record {
             nodes: Vec::new(),
         }
     }
+}
+
+/// `bytes` as lower-case hex — the one rendering of binary all three
+/// renderings write, which is what keeps them from disagreeing about a value
+/// the model deliberately holds raw.
+///
+/// Hex rather than base64 because it costs this crate no dependency it would
+/// not otherwise carry, is fixed-width, and stays decodable by eye for the
+/// short values a dump usually carries.
+pub(crate) fn hex(bytes: &[u8]) -> String {
+    use std::fmt::Write as _;
+
+    let mut out = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        // Writing into a `String` cannot fail, and the result is discarded for
+        // that reason rather than swallowed.
+        let _ = write!(out, "{byte:02x}");
+    }
+    out
 }
 
 #[cfg(test)]
