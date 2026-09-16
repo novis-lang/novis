@@ -42,6 +42,16 @@
 //!   a series past the bound. A naming convention enforced with a throw would
 //!   be a request lost to a spelling, so the grammar is enforced where it is
 //!   free and a name a request computed is accumulated as written.
+//! * **The grants behind the host check arrive from the caller, and `None`
+//!   there is "no configuration was read" rather than an empty grant set.**
+//!   [`crate::Env::grants`] is what this pass reads and
+//!   [`crate::check::check_program_granted`] is how a caller fills it, so
+//!   `rule:core-classes/db-literal-query-checking`'s literal `Db::open` host
+//!   is answered while compiling on a machine that resolved a tree. Handed
+//!   `None`, this pass says nothing about a host at all — the door is still
+//!   `nvs_runtime::capability::require` and § 4 holds either way. Which
+//!   commands hand one over, and why `nvs run` is deliberately not one of
+//!   them, is `nvs-cli`'s `front_end_granted`.
 //!
 //! # Known gaps
 //!
@@ -91,15 +101,6 @@
 //!    Decided: Refuse at compile time and amend nvs_db::sql's doc — A certain bug is caught early, and
 //!    the rewriter must agree to refuse it too.
 //!    — owner: unowned-closures
-//! 6. **`rule:core-classes/db-literal-query-checking`'s host check reaches only a caller that hands over a
-//!    configuration**, and `nvs check` is not yet one. [`crate::Env::grants`]
-//!    is the channel and [`crate::check::check_program_granted`] is how a
-//!    caller fills it, but `nvs-cli`'s check path reads no `nvs.toml` today, so
-//!    the refusal is real and exercised and still fires for nobody. Wiring it
-//!    is a decision about `nvs check` rather than about this pass — a command
-//!    that reads configuration is a command a broken `nvs.toml` can fail — and
-//!    it belongs where that command's own errors are decided.
-//!    — owner: unowned
 
 use nvs_config::capability::Cap;
 use nvs_diagnostics::{Diagnostic, SourceFile, code};

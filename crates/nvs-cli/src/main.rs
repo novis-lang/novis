@@ -1524,8 +1524,9 @@ fn front_end(path: &std::path::Path) -> Result<Checked, ExitCode> {
 ///
 /// The tree is read **before the program is parsed**, so a `nvs.toml` that does
 /// not resolve fails the check as the configuration error it is rather than as
-/// whatever the program's own diagnostics happen to be. That answers
-/// `nvs_types::intrinsics`' gap 6: checking has a configuration in front of it.
+/// whatever the program's own diagnostics happen to be. That is what puts a
+/// configuration in front of `nvs_types::intrinsics`' host check, which reads
+/// nothing and refuses nobody when a caller hands it `None`.
 /// `sink` is which rendering the diagnostics leave by, and it is a parameter
 /// here rather than a choice at each [`emit_diagnostics`] call because a run
 /// has one: the two calls below are the two ways out of this function, and

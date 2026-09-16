@@ -183,24 +183,6 @@ where taking it is the work and the code that follows it is not.
   the mapping. `crates/nvs-types/src/links.rs` § *Known gaps*,
   `crates/nvs-types/src/reasons.rs` § *Known gaps* and `crates/nvs-stdlib/src/router.rs` § *Known
   gaps*. [until: gone crates/nvs-types/src/links.rs:A named argument is not folded]
-- **`nvs-types`' intrinsic pass, whose six gaps are each a decision rather than a backlog.** The
-  pass validates a literal pattern wherever `rule:expressions/intrinsic-list-is-closed`'s roster
-  names one, and it is complete at that. What is open is whether it also *prepares* one, which
-  needs a channel from the checker to `nvs-ir` that no live entry on the chain builds, and whether
-  a diagnostic can point at the offset inside a literal, which needs `crate::string_lit`'s decoder
-  to carry a position map that every literal in the program pays for. Three narrower ones sit
-  beside them: whether the roster grows a per-row restriction column, so that a member's own
-  refusal of a well-formed pattern (`Core\Time::parse`'s civil fields) is compile-time; whether
-  these compiler-known-call passes are handed the slot mapping `check_args_typed` builds, so that a
-  named or spread argument is read at all — the same question the `links.rs` entry above asks; and
-  which of two module docs is right about an unterminated string literal in a query. The sixth is
-  not this pass's: its host check fires for nobody because `nvs check` reads no `nvs.toml`, and
-  whether that command reads configuration — and so can be failed by a broken one — is a decision
-  about the command. `crates/nvs-types/src/intrinsics.rs` § *Known gaps* carries the tags, and
-  `crates/nvs-stdlib/src/time.rs` and `crates/nvs-stdlib/src/cldr.rs` are the same question one
-  layer down: `format` and `parse` compile their pattern per call, through the one `compile` that
-  module owns, and neither can prepare anything until that channel exists.
-  [until: gone crates/nvs-types/src/intrinsics.rs:owner: unowned]
 - **The derive machinery is a descriptor read by native Rust**, and both halves of `Core\Json` walk a
   per-class `nvs_runtime::CodecField` list rather than straight-line code emitted per class. The two
   narrower holes that waited on which of the two it stays are closed against the descriptor — a
