@@ -119,6 +119,13 @@ pub const DIRECTIVES: &[Directive] = &[
     // `rule:config/three-changeability-classes` names a response header as the counter-example to `System`: a request may set any of
     // `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s policy directives for itself, because it could already write the header directly.
     Directive { key: "http", class: Class::Runtime, apply: Apply::Reload },
+    // The first exception inside that block, and it is `rule:config/three-changeability-classes`'s
+    // own test rather than a policy: the door verifies *every* request's token against this key
+    // (`rule:security/csrf-is-on-by-default`), so a request that could set it would be choosing
+    // which forgeries its co-residents accept. `Reload` and not `Boot` because the door reads the
+    // standing tree per request, so a rotated key is in force for the next one.
+    Directive { key: "http.csrf_key", class: Class::System, apply: Apply::Reload },
+    Directive { key: "http.csrf_key_file", class: Class::System, apply: Apply::Reload },
     // The outbound pool's two caps, which are the exception inside that block: they bound a
     // **core's** memory rather than a request's, and a request widening one is
     // `rule:config/ceilings-are-their-own-directives`'s failure

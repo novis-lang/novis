@@ -3,9 +3,9 @@
 //! that is the only thing a caller can do with it.
 //!
 //! `rule:security/protocol-roster` places the class; what belongs here is why the session arrives as
-//! an argument, why there is no member answering the expected token, why the
-//! construction is [`crate::crypto`]'s third caller rather than an HMAC of its
-//! own, and what the domain tag in the plaintext is for.
+//! an argument, why there is no member answering the expected token, and why the
+//! construction is one [`nvs_runtime::csrf`] owns rather than an HMAC of this
+//! class's own.
 //!
 //! # The comparison is the only exposed operation
 //!
@@ -60,24 +60,23 @@
 //! handles. One key keeps the surface at two arguments, and an operator who
 //! wants a seamless rotation rotates the session key, not this one.
 //!
-//! # The construction is `Core\Crypto`'s, with a domain tag inside it
+//! # The construction is [`nvs_runtime::csrf`]'s, one crate below this one
+//!
+//! The format — the domain tag, the sealed binding, the nonce prefix, the
+//! base64 and the constant-time comparison — is
+//! [`nvs_runtime::csrf::Key`], and both members here are callers of it.
+//! `rule:security/csrf-is-on-by-default` is why it is not written here: the
+//! server door refuses an unsafe verb whose token does not verify, and
+//! `nvs-server` cannot see this crate. One format under both readers is what
+//! stops an application issuing tokens its own door refuses.
+//!
+//! That module's doc is the home of what a token is and why the tag is in the
+//! plaintext. What stays here is the *class*: two members, no accessor for an
+//! expected token, and the argument that a caller cannot get anywhere with `==`.
 //!
 //! A CSRF token is conventionally an HMAC, and that would be a second keyed
-//! primitive in a crate whose whole argument for `Core\SignedCookie` was that
-//! there is one AEAD in `nvs-stdlib` and everything is on the near side of it.
-//! So this is [`crate::crypto::seal_under`] again: the sealed plaintext is
-//! [`DOMAIN`] followed by the session identifier, and [`verify`] rebuilds
-//! exactly that and compares it to what opened.
-//!
-//! [`DOMAIN`] is the part that is not decoration. A program will reasonably use
-//! one `Core\Crypto::generateKey()` for its cookies and its CSRF tokens, and
-//! without a tag in the plaintext a signed cookie carrying a session identifier
-//! would *be* a valid CSRF token for that session, and the reverse. The tag
-//! carries a version because a later change to what is bound must refuse
-//! yesterday's tokens rather than accept them under a new reading. **What this
-//! spends** is [`DOMAIN`]'s octets on every token — twelve, inside base64's
-//! four-thirds — for a cross-protocol confusion that is otherwise a real
-//! deployment away.
+//! primitive in a tree whose whole argument for `Core\SignedCookie` was that one
+//! AEAD serves everything. It is the same AEAD here, reached one crate down.
 //!
 //! `rule:core-api/shape-rules` R17 asks
 //! whether this is `Core\SignedCookie` reached twice, and it is not: that class
@@ -90,31 +89,18 @@
 //! # Constant time
 //!
 //! The one comparison is `subtle::ConstantTimeEq` over the opened plaintext, on
-//! [`crate::hash`]'s reasoning, which is that module's own doc. Poly1305's tag
-//! comparison underneath is the `chacha20poly1305` crate's, also through
-//! `subtle`. No member here exposes a tag, a key or a raw sealed buffer, which
-//! is `rule:security/algorithm-comes-from-the-key`'s "no API exposes the raw value" for this entry.
+//! [`crate::hash`]'s reasoning, which is that module's own doc, and it is
+//! [`nvs_runtime::csrf::Key::verify`]'s. No member here exposes a tag, a key or
+//! a raw sealed buffer, which is `rule:security/algorithm-comes-from-the-key`'s
+//! "no API exposes the raw value" for this entry.
 
-use base64::Engine as _;
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
-use subtle::ConstantTimeEq as _;
-
+use nvs_runtime::csrf::{Key, NONCE_LEN};
 use nvs_runtime::{Fault, NvsStr, Value};
 
 use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
 
 /// The class name, once, for the messages that all name it.
 const NAME: &str = r"Core\Csrf";
-
-/// What every token's plaintext begins with, so a sealed value produced for
-/// another purpose under the same key is not one of these.
-///
-/// The trailing NUL is what keeps the tag a *prefix* rather than the start of
-/// the identifier: without it, a session named `1x` under version `v1` and a
-/// session named `x` under a hypothetical version `v11` would seal the same
-/// bytes. The `1` is the binding's version, and changing what is bound changes
-/// it.
-const DOMAIN: &[u8] = b"nvs.csrf.v1\0";
 
 /// The key both rows take: the 32 octets `Core\Crypto::generateKey()` answers,
 /// written once so neither row can drift from the other.
@@ -223,17 +209,11 @@ const VERIFY_DOC: MethodDoc = MethodDoc {
           text — altered, expired out of the key, issued for another session, or not base64 at \
           all. The comparison is constant-time, and the four cases are one answer so that a \
           forger learns nothing about which half landed.",
-    errors: &[
-        ErrorDoc {
-            error: "LogicError",
-            desc: "`$key` is not 32 octets long. A forged token is `false`, never a throw — \
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "`$key` is not 32 octets long. A forged token is `false`, never a throw — \
                    only a program bug throws here.",
-        },
-        ErrorDoc {
-            error: "RuntimeError",
-            desc: "This process cannot spare the buffer the token would open into.",
-        },
-    ],
+    }],
 };
 
 /// The address of one of *this* module's symbols, or `None` for a symbol that
@@ -267,7 +247,7 @@ fn text_at<'a>(
     })
 }
 
-/// The cipher keyed by the `bytes` at `slot`.
+/// The token key made out of the `bytes` at `slot`.
 ///
 /// # Errors
 ///
@@ -275,32 +255,18 @@ fn text_at<'a>(
 /// [`crate::crypto::wrong_key_length`]'s shared `LogicError` for one that is a
 /// `bytes` of the wrong length — reachable from source despite the parameter's
 /// `secret bytes`, because the qualifier says nothing about length and
-/// `Core\Random::bytes(8)` widens onto it.
-fn keyed(
-    args: &[Value],
-    slot: usize,
-    member: &str,
-) -> Result<chacha20poly1305::XChaCha20Poly1305, Fault> {
+/// `Core\Random::bytes(8)` widens onto it. The sentence is `Core\Crypto`'s so
+/// that every member of this tree taking a key says the same thing about one.
+fn keyed(args: &[Value], slot: usize, member: &str) -> Result<Key, Fault> {
     let key = args[slot].as_bytes().ok_or_else(|| {
         Fault::fatal(format!(
             "{NAME}::{member} expected a `bytes` for $key, got tag {}",
             args[slot].tag_byte()
         ))
     })?;
-    crate::crypto::cipher(key).ok_or_else(|| {
+    Key::new(key).ok_or_else(|| {
         crate::crypto::wrong_key_length(&format!("{NAME}::{member}"), "$key", key.len())
     })
-}
-
-/// What a token for `session` seals: the domain tag, then the identifier.
-///
-/// One function so [`nvs_core_csrf_issue`] and [`nvs_core_csrf_verify`] cannot
-/// disagree about the binding — the whole entry is that they do not.
-fn bound(session: &str) -> Vec<u8> {
-    let mut plain = Vec::with_capacity(DOMAIN.len() + session.len());
-    plain.extend_from_slice(DOMAIN);
-    plain.extend_from_slice(session.as_bytes());
-    plain
 }
 
 nvs_runtime::nvs_helper! {
@@ -315,11 +281,19 @@ nvs_runtime::nvs_helper! {
     /// session is an argument.
     fn nvs_core_csrf_issue(ctx, args: [2]) {
         let session = text_at(args, 0, "issue", "$session")?;
-        let cipher = keyed(args, 1, "issue")?;
+        let key = keyed(args, 1, "issue")?;
 
-        let sealed =
-            crate::crypto::seal_under(ctx, &cipher, &[], &bound(session), "Core\\Csrf::issue")?;
-        Ok(Value::str(NvsStr::new(URL_SAFE_NO_PAD.encode(&sealed).as_bytes())))
+        // The nonce is drawn here rather than below, because this is the side of
+        // `crate::random`'s seam where a `#[Test(seed: …)]` still reaches: one
+        // CSPRNG in the tree, and a sealed message a seeded run reproduces.
+        let mut nonce = [0_u8; NONCE_LEN];
+        crate::random::draw(ctx, |rng| {
+            use rand::Rng as _;
+
+            rng.fill_bytes(&mut nonce);
+        });
+        let token = key.issue(&nonce, session, "Core\\Csrf::issue")?;
+        Ok(Value::str(NvsStr::new(token.as_bytes())))
     }
 }
 
@@ -339,99 +313,45 @@ nvs_runtime::nvs_helper! {
     fn nvs_core_csrf_verify(_ctx, args: [3]) {
         let token = text_at(args, 0, "verify", "$token")?;
         let session = text_at(args, 1, "verify", "$session")?;
-        let cipher = keyed(args, 2, "verify")?;
+        let key = keyed(args, 2, "verify")?;
 
-        let Ok(sealed) = URL_SAFE_NO_PAD.decode(token) else {
-            return Ok(Value::bool(false));
-        };
-        let Some(plain) = crate::crypto::open_under(&cipher, &[], &sealed, "Core\\Csrf::verify")?
-        else {
-            return Ok(Value::bool(false));
-        };
-
-        Ok(Value::bool(bool::from(plain.ct_eq(&bound(session)))))
+        Ok(Value::bool(key.verify(token, session)))
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use nvs_runtime::csrf::KEY_LEN;
+
     use super::*;
 
-    /// Stage 4's CSRF check — `rule:security/protocol-roster`'s second bullet, which asks for
-    /// three things in one breath: a token bound to the session that issued it,
-    /// a comparison that is the only exposed operation, and no way for a caller
-    /// to hold the expected value.
+    /// `rule:security/protocol-roster`'s second entry as *this crate* answers
+    /// it: the token an application issues is the one every other reader of the
+    /// format verifies, and the class hands out nothing else.
     ///
-    /// Asserted over the construction rather than through the registry, for
-    /// [`crate::crypto`]'s reason: what could go wrong is the *binding* — a
-    /// token that verifies against any session, a domain tag that is not in the
-    /// plaintext, a comparison on a prefix — and every one of those is visible
-    /// here without a compiler in front of it.
+    /// The construction is asserted where it lives, in [`nvs_runtime::csrf`].
+    /// What could go wrong *here* is the seam — a member that reached a
+    /// different key, a different binding or a different alphabet than the door
+    /// does — so what this pins is the round trip through the names these two
+    /// rows call.
     #[test]
-    fn a_csrf_token_is_bound_to_the_session_that_issued_it() {
-        let key = crate::crypto::cipher(&[7_u8; 32]).expect("a 32-octet key keys");
-        let other = crate::crypto::cipher(&[3_u8; 32]).expect("a 32-octet key keys");
+    fn the_token_the_class_issues_is_the_one_every_reader_verifies() {
+        let key = Key::new(&[7_u8; KEY_LEN]).expect("a 32-octet key keys");
+        let token = key
+            .issue(&[5_u8; NONCE_LEN], "sid-ada", "Core\\Csrf::issue")
+            .expect("a short identifier seals");
 
-        // A token is the sealed binding, and nothing else: what `issue` writes
-        // is what `verify` rebuilds, so the two are pinned to one function.
-        let plain = bound("sid-ada");
-        assert!(
-            plain.starts_with(DOMAIN),
-            "the domain tag is in the plaintext, so a signed cookie of the same session \
-             identifier under the same key is not a token"
-        );
-
-        // The round trip, through the member's own spelling of the wire form.
-        let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Sink);
-        let sealed = crate::crypto::seal_under(&mut ctx, &key, &[], &plain, "test")
-            .expect("a short value seals");
-        let token = URL_SAFE_NO_PAD.encode(&sealed);
         assert!(
             token
                 .bytes()
                 .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-' || byte == b'_'),
             "every octet of {token} goes into a hidden field unescaped"
         );
-
-        // Bound to *this* session: the same token against a neighbouring
-        // identifier is refused, and a prefix of one is not a match either — a
-        // comparison written as `starts_with` would pass the first and fail
-        // here.
-        let opened = crate::crypto::open_under(&key, &[], &sealed, "test")
-            .expect("the buffer is affordable")
-            .expect("its own key opens it");
-        for (session, want) in [
-            ("sid-ada", true),
-            ("sid-ad", false),
-            ("sid-adam", false),
-            ("", false),
-        ] {
-            assert_eq!(
-                bool::from(opened.ct_eq(&bound(session))),
-                want,
-                "a token for `sid-ada` against `{session}`"
-            );
-        }
-
-        // A key that was rotated out refuses the token outright, which is the
-        // member's `false` rather than a distinguishable answer.
+        assert!(key.verify(&token, "sid-ada"));
         assert!(
-            crate::crypto::open_under(&other, &[], &sealed, "test")
-                .expect("the buffer is affordable")
-                .is_none(),
-            "a token under one key does not open under another"
-        );
-
-        // And two tokens for one session differ, so a caller who compares one
-        // token with another gets `false` from a pair that are both valid.
-        // This is what makes the missing accessor load-bearing rather than
-        // decorative.
-        let again = crate::crypto::seal_under(&mut ctx, &key, &[], &plain, "test")
-            .expect("a short value seals");
-        assert_ne!(
-            token,
-            URL_SAFE_NO_PAD.encode(&again),
-            "each token seals under its own nonce, so `==` between two tokens is useless"
+            !key.verify(&token, "sid-adam"),
+            "a token is bound to one session, and an identifier that merely starts with \
+             that one is another session"
         );
     }
 }

@@ -626,6 +626,22 @@ pub(crate) fn cookie(ctx: &Ctx) -> String {
     configured(ctx, COOKIE).unwrap_or_else(|| DEFAULT_COOKIE.to_owned())
 }
 
+/// [`cookie`]'s answer for a reader holding the tree rather than a context.
+///
+/// The server door is that reader: `rule:security/csrf-is-on-by-default` has it
+/// verify a token against the session the request rides under, and it decides
+/// that before an isolate — and so before a `Ctx` — exists. It is here rather
+/// than in `nvs-server` because the default is this module's, and a door that
+/// spelled `nvsid` itself would be a second answer to one question.
+#[must_use]
+pub fn cookie_in(config: &nvs_config::Config) -> &str {
+    config
+        .session
+        .as_ref()
+        .and_then(|session| session.cookie.as_deref())
+        .unwrap_or(DEFAULT_COOKIE)
+}
+
 /// An identifier no store has issued: 128 drawn bits, base64url with no padding.
 pub(crate) fn mint(ctx: &mut Ctx) -> String {
     use rand::Rng as _;

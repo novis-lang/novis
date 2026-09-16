@@ -1992,6 +1992,18 @@ pub mod code {
     /// well-formed value whose *magnitude* is the problem.
     pub const E_CONNECTION_BOUND_REMOVED: Code = Code::new("E0649");
 
+    /// `[http] csrf_key` holding something that is not a key: text that is
+    /// not base64, or base64 of any length other than the one a key is.
+    ///
+    /// Refused rather than ignored, because ignoring it is the silent
+    /// direction. The key is what arms the token half of
+    /// `rule:security/csrf-is-on-by-default`, so a deployment whose value
+    /// the door could not read would go on serving with its unsafe verbs
+    /// unverified while its configuration says they are checked — the one
+    /// way a security directive must not fail. The refusal names the key
+    /// and what a key is, and never a byte of the value.
+    pub const E_BAD_CSRF_KEY: Code = Code::new("E0650");
+
     // --- E07xx types, continued --------------------------------------------
     //
     // The E04xx band filled at `E0499`. Max-plus-one yields `E0500`, whose

@@ -234,6 +234,32 @@ pub const SECRETS: &[SecretPair] = &[
             }
         },
     },
+    // `rule:security/csrf-is-on-by-default`'s key: what the server door verifies a presented token
+    // against, and what an application issues one under. Key material rather than a password, and
+    // the pair is what makes it deliverable the way every other credential in this table is — a
+    // mounted file, never a line in a tree an operator diffs. The block names no `*`, so its one
+    // site is the unnamed one, as `http.client.proxy` above.
+    SecretPair {
+        block: "http",
+        value: "csrf_key",
+        sites: |config| {
+            config
+                .http
+                .as_ref()
+                .map(|http| Site {
+                    name: "",
+                    file: http.csrf_key_file.as_deref(),
+                    inline: http.csrf_key.as_deref(),
+                })
+                .into_iter()
+                .collect()
+        },
+        set: |config, _name, value| {
+            if let Some(http) = config.http.as_mut() {
+                http.csrf_key = Some(value.to_owned());
+            }
+        },
+    },
 ];
 
 /// § 7's cap on a secret file, in bytes.

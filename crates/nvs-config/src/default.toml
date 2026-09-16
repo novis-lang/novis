@@ -249,9 +249,21 @@
 
 
 # ----------------------------------------------------------------------------------------------
-# [http.*] — the four blocks that make `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`
+# [http.*] — the blocks that make `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`
 # true with nothing written: headers on, CORS closed, cookies locked down, no unbounded wait.
 # ----------------------------------------------------------------------------------------------
+
+#[http]
+# The key the door verifies a CSRF token against, and the one an application issues tokens under —
+# `Core\Csrf::issue($session, Core\Config::get("http.csrf_key"))`, with `Core\Crypto::generateKey()`
+# answering a value of the right length (`rule:security/csrf-is-on-by-default`). Naming it is what
+# **arms** the token half of the check: with a key, a `POST`, `PUT`, `PATCH` or `DELETE` matching a
+# route that did not write `csrf: false` is refused unless it presents a token bound to this
+# request's session cookie. With no key the door still refuses the cross-origin half, which needs
+# nothing configured. A secret like every other credential here, so `csrf_key_file` is the sibling a
+# mounted file arrives in and writing both is a refusal.
+#csrf_key = "…"
+#csrf_key_file = "/run/secrets/nvs-csrf-key"
 
 #[http.errors]
 # What a request that never got a frame shows: `generic` or `full`. Unset, the production default,

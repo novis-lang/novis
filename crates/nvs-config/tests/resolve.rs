@@ -1569,6 +1569,57 @@ fn a_cors_value_a_preflight_cannot_be_answered_with_is_refused() {
     );
 }
 
+/// `rule:security/csrf-is-on-by-default`: the key is what arms the token half of the door's check,
+/// so a value the door could not read is refused at boot.
+///
+/// The alternative is the one direction a security directive must not fail in — a deployment whose
+/// tree names a key, whose door therefore verifies nothing, and whose operator has no signal at all.
+/// The accepted half is asserted through `csrf_key` rather than through the tree's raw string,
+/// because what the door reads is the decode and not the spelling.
+#[test]
+fn an_http_csrf_key_that_is_not_a_key_is_refused_and_a_written_one_decodes() {
+    // 32 octets of `0x07`, in the alphabet a key is written in and in the one another tool would
+    // have produced it in.
+    let unpadded = "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc";
+    let padded = "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc=";
+
+    for written in ["not base64 at all!", "BwcH", ""] {
+        let diagnostic = refusal(
+            &http(&format!("[http]\ncsrf_key = \"{written}\"\n")),
+            "etc/nvs.toml",
+        );
+        assert_eq!(
+            diagnostic.code,
+            Some(code::E_BAD_CSRF_KEY),
+            "`{written}` is not a key",
+        );
+        assert!(
+            !diagnostic.message.contains(written) || written.is_empty(),
+            "a key does not belong in a message: {}",
+            diagnostic.message,
+        );
+    }
+
+    for written in [unpadded, padded] {
+        let tree = tree_of(
+            &http(&format!("[http]\ncsrf_key = \"{written}\"\n")),
+            "etc/nvs.toml",
+        );
+        assert_eq!(
+            nvs_config::http::csrf_key(&tree.config),
+            Some(vec![7_u8; 32]),
+            "`{written}` is the same key either way it is written",
+        );
+    }
+
+    // Nothing written is no key, which is the tree every deployment starts from: the door's origin
+    // half still refuses, and there is nothing for its token half to verify against.
+    assert_eq!(
+        nvs_config::http::csrf_key(&tree_of(&http(""), "etc/nvs.toml").config),
+        None,
+    );
+}
+
 /// `rule:http-server/secure-headers-with-nothing-written`: the free-text policies go onto every response verbatim, so a byte a header
 /// line cannot carry is refused at boot. `nvs_server::secure` declines to spell such a value and
 /// emits the shipped default instead, which is right for a request in flight and is exactly what

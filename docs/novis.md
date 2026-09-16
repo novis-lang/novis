@@ -19681,7 +19681,7 @@ Reports whether `$token` is a token this application issued for `$session` under
 
 **Returns** `bool` — `true` for a token this key issued against this session, `false` for every other text — altered, expired out of the key, issued for another session, or not base64 at all. The comparison is constant-time, and the four cases are one answer so that a forger learns nothing about which half landed.
 
-**Throws** `LogicError` — `$key` is not 32 octets long. A forged token is `false`, never a throw — only a program bug throws here.; `RuntimeError` — This process cannot spare the buffer the token would open into.
+**Throws** `LogicError` — `$key` is not 32 octets long. A forged token is `false`, never a throw — only a program bug throws here.
 
 <a id="core-core-totp"></a>
 ### `Core\Totp`
@@ -25548,6 +25548,8 @@ long-running host — at a reload, or only at boot.
 | `mode.ceiling` | operator only — a request cannot change it | at reload |
 | `capabilities` | a request may only narrow it | at reload |
 | `http` | a request may retune it, up to the `[limits.hard]` ceiling | at reload |
+| `http.csrf_key` | operator only — a request cannot change it | at reload |
+| `http.csrf_key_file` | operator only — a request cannot change it | at reload |
 | `http.client.pool_idle` | operator only — a request cannot change it | at reload |
 | `http.client.pool_idle_timeout` | operator only — a request cannot change it | at reload |
 | `http.client.tls` | operator only — a request cannot change it | at boot only |

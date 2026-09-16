@@ -538,6 +538,7 @@ const CREDENTIAL_FIELDS: &[&str] = &[
     "api_key",
     "access_key",
     "private_key",
+    "csrf_key",
 ];
 
 /// Every `pub struct` in the config tree, as its name and the field names it declares.

@@ -250,6 +250,7 @@ pub mod closure;
 pub mod commands;
 #[cfg(test)]
 pub(crate) mod counting_alloc;
+pub mod csrf;
 mod ctx;
 pub mod decimal;
 pub mod deferred;

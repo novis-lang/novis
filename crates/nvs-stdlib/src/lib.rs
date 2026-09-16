@@ -230,7 +230,12 @@ pub mod script;
 mod secret;
 mod serialize;
 mod server;
-mod session;
+// `pub` for [`session::cookie_in`] alone, and for [`request`]'s reason one notch along: the door
+// verifies a CSRF token against the session a request rides under
+// (`rule:security/csrf-is-on-by-default`), before an isolate exists, and the cookie's name and its
+// default are this module's. The members themselves are reached the way every other class's are,
+// through [`registry`].
+pub mod session;
 mod signal;
 mod signature;
 mod signed_cookie;

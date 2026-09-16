@@ -27,6 +27,12 @@ repository.workspace = true
 # than in the scheduler because the expression is already read here, at boot — one
 # reader, which is that module's doc comment's argument.
 [dependencies]
+# The alphabet `[http] csrf_key` is written in: `src/http.rs` decodes it so the
+# boot can refuse a value that is not a key, which is what keeps
+# `rule:security/csrf-is-on-by-default`'s token half from being silently
+# unarmed. No new crate reaches the tree — `nvs-runtime`, `nvs-host`, `nvs-db`
+# and `nvs-stdlib` all name it.
+base64.workspace = true
 blake3.workspace = true
 jiff.workspace = true
 nvs-diagnostics.workspace = true

@@ -487,6 +487,12 @@ pub struct Log {
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct Http {
+    /// `[http] csrf_key` — the key the server door verifies a CSRF token
+    /// against (`rule:security/csrf-is-on-by-default`). A secret, so
+    /// [`crate::secret`]'s `_file` sibling is the other half of it.
+    pub csrf_key: Option<String>,
+    /// `[http] csrf_key_file`.
+    pub csrf_key_file: Option<String>,
     /// `[http.errors]`.
     pub errors: Option<HttpErrors>,
     /// `[http.headers]`.

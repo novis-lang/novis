@@ -58,6 +58,15 @@ jiff.workspace = true
 # `subtle` states it: an optimiser is free to turn the obvious loop back into
 # an early exit, and that barrier is the whole point of the dependency.
 subtle.workspace = true
+# `src/csrf.rs`'s construction, which is here rather than in `nvs-stdlib`
+# because `rule:security/csrf-is-on-by-default`'s refusal happens at the server
+# door and `nvs-server` cannot reach that crate. No new crate reaches the tree —
+# `nvs-stdlib` names both of these, and the workspace manifest's comments beside
+# them are where the choice of construction is argued.
+chacha20poly1305.workspace = true
+# The alphabet a token travels in: unpadded URL-safe base64, which a hidden
+# field, a header and a query string all carry unescaped.
+base64.workspace = true
 # ADR 0009 § 2's grapheme cluster is `string`'s length unit, and this crate
 # holds the header the count is cached in and the concatenation that corrects
 # it at the seam — so the UAX #29 primitives have to be reachable from here.

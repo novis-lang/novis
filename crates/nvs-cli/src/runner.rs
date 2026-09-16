@@ -1031,7 +1031,7 @@ fn run_the_test(
     // nothing has run.
     let served = match wants_server(case) {
         false => None,
-        true => match TestServer::bind(unit, routes) {
+        true => match TestServer::bind(unit, routes, Door::of(ctx)) {
             Ok(server) => Some(server),
             Err(refused) => {
                 return Outcome::Failed(vec![format!(
@@ -1356,6 +1356,7 @@ impl TestServer {
     fn bind(
         unit: &Rc<nvs_codegen::Unit>,
         routes: &std::sync::Arc<nvs_runtime::routes::Routes>,
+        door: Door,
     ) -> Result<Self, String> {
         let wanted = std::net::SocketAddr::from((std::net::Ipv4Addr::LOCALHOST, 0));
         let mut listener = nvs_host::NvsListener::bind(wanted)
@@ -1368,7 +1369,7 @@ impl TestServer {
         let handler = Rc::new(
             move |request: nvs_server::Request<nvs_server::Incoming>,
                   origin: nvs_server::Origin| {
-                answer_on_the_wire(&held, &carried, request, origin)
+                answer_on_the_wire(&held, &carried, &door, request, origin)
             },
         );
         let serving = nvs_server::Serving::new(
@@ -1443,6 +1444,39 @@ impl TestServer {
     }
 }
 
+/// What `rule:security/csrf-is-on-by-default`'s refusal is decided from, read
+/// off the tree once at bind time.
+///
+/// `rule:testing/in-process-request` is why it exists at all: a request a test
+/// sends crosses the same door as one off the wire, so the check has to be taken
+/// here too. It is read once rather than per request because the listener
+/// outlives no reload — a test's tree is the one the case started under — and
+/// because the closure that answers is `'static` and a borrow of the context's
+/// snapshot is not.
+struct Door {
+    /// `[http] csrf_key` decoded, or `None` where the tree names none.
+    key: Option<Vec<u8>>,
+    /// The cookie the session identifier rides under.
+    cookie: String,
+}
+
+impl Door {
+    /// What the tree this case is running under says, or what a case with no
+    /// configuration at all gets: no key, and the shipped cookie name.
+    fn of(ctx: &nvs_runtime::Ctx) -> Self {
+        let Some(tree) = ctx.config().map(|request| &request.snapshot().config) else {
+            return Self {
+                key: None,
+                cookie: nvs_stdlib::session::cookie_in(&nvs_config::Config::default()).to_owned(),
+            };
+        };
+        Self {
+            key: nvs_config::http::csrf_key(tree),
+            cookie: nvs_stdlib::session::cookie_in(tree).to_owned(),
+        }
+    }
+}
+
 /// One request off the wire, answered by the program under test — the same
 /// shape `UnderTest::answer` builds for § 18's first mechanism, over a
 /// carrier `hyper` filled instead of one a `Core` member wrote.
@@ -1453,6 +1487,7 @@ impl TestServer {
 fn answer_on_the_wire(
     held: &std::rc::Weak<nvs_codegen::Unit>,
     routes: &std::sync::Arc<nvs_runtime::routes::Routes>,
+    door: &Door,
     request: nvs_server::Request<nvs_server::Incoming>,
     origin: nvs_server::Origin,
 ) -> nvs_server::Reply {
@@ -1486,6 +1521,15 @@ fn answer_on_the_wire(
     // it here: the request and the unit that will answer it are both in hand,
     // and no application code has run.
     nvs_server::route::take(routes, &mut inbound);
+    // And the refusal over it, for `crate::serve`'s reason and in the same place:
+    // `rule:testing/in-process-request` has a test's request cross this door the
+    // way one off the wire does, so a case that asserts a `403` on a forged write
+    // is asserting the server's own answer.
+    if nvs_server::route::csrf(&inbound, door.key.as_deref(), &door.cookie)
+        == nvs_server::route::Csrf::Refused
+    {
+        return nvs_server::Reply::forbidden();
+    }
     let (head, incoming) = request.into_parts();
     let supply = match nvs_server::body::of(&head.headers, incoming) {
         nvs_server::Arrived::Absent => None,

@@ -2,48 +2,50 @@
 
 ## State
 
-**Goal `unowned-closures`. The register is `unowned: 15`** (`python tools/owners.py`), `--deferrals`
-green, 44 items still owned by this goal. The 15 unowned are the scheduling questions and none of
-them is this goal's own gap.
+**Goal `unowned-closures`. The register is `unowned: 15`** (`python tools/owners.py`),
+`--deferrals` green. The 15 unowned are the scheduling questions, none of them this goal's own gap,
+and they are what stage 6's check reads — stage 5's work does not move that number.
 
-**`nvs_codegen::make_executable` is the one home for publishing written bytes as code**, and the
-artifact loader goes through it — `crates/nvs-codegen/src/lib.rs:@make_executable`,
-`crates/nvs-cli/src/cache.rs:@Verified::relocate`. Mach-O's leading underscore is no longer a gap
-either: `crates/nvs-cli/src/cache.rs:@linkage_name` strips it where a name is read.
+**The server door now refuses an unchecked cross-origin write** —
+`crates/nvs-server/src/route.rs:177`. The refusal has two grounds and they arm separately: the
+origin half needs nothing configured, the token half is armed by `[http] csrf_key`. That module's
+own section is the home of both, and `rule:security/csrf-is-on-by-default`'s fragment states them.
+Both of `nvs-cli`'s doors take the verdict — `crates/nvs-cli/src/serve.rs:954` off the wire and
+`crates/nvs-cli/src/runner.rs:1528` for `rule:testing/in-process-request`, which reads the tree
+once at bind time because the answering closure is `'static`.
 
-**`aarch64` still does not load, and the reason has changed.** The `Decided:` sentence priced the
-make-executable step, which is now built; what actually refuses an aarch64 payload is that this
-loader speaks no instruction-field relocations — `object` reports a `CALL26` as 26 *bits* wide,
-which the flat little-endian write in `Layout::apply` cannot serve. `crates/nvs-cli/src/cache.rs`'s
-`# Known gaps` now says that and still names this goal as owner; the bullet is one item, not two.
-Building the vocabulary is a slice nothing on this x86-64 host can execute, so it is in the backlog
-with anchors rather than taken silently.
+**`nvs_runtime::csrf` is the one home of the token format**, and `Core\Csrf` is a caller of it:
+`nvs-server` cannot see `nvs-stdlib`, so a door that rebuilt the construction would have been an
+application issuing tokens its own door refuses. `nvs_config::http::csrf_key` decodes the written
+key, and `validate` refuses one the door could not read (`E0650`), so the check has no silently
+unarmed state.
 
-**Stage 5's remaining items are the three server-door gaps plus `nvs-runtime`'s metrics one.** The
-`nvs-cli` and `nvs-db` entries in the goal prose's list are closed; the register is what is true.
+**Stage 5's remaining items are two server-door gaps**, plus `nvs-runtime`'s metrics one in the
+backlog. The `nvs-cli`, `nvs-db` and `nvs-server`/`route.rs` entries in the goal prose's list are
+closed; the register is what is true.
 
 ## Next group
 
-**Stage 5: the server door's three open gaps** — one file set:
-`crates/nvs-server/src/{route,schedule,trace}.rs`. All three are `# Known gaps` items in modules
-that run before any application code does, so the shapes and the `Ctx` wiring are shared.
+**Stage 5: the door's two remaining gaps** — one file set:
+`crates/nvs-server/src/{schedule,trace}.rs`. Both are `# Known gaps` items in modules that run
+beside the accept loop rather than inside a request, so the `Ctx` wiring and the `nvs_config`
+snapshot reads are shared.
 
-- [ ] **The door refuses an unchecked cross-origin write, rather than only answering whether it
-      checked** — `crates/nvs-server/src/route.rs:32` gap 1, whose rule is
-      `rule:routing/matched-once-before-the-handler` for where in the door it belongs.
 - [ ] **A fire's context carries the configuration its `limits` sub-cap is measured against** —
-      `crates/nvs-server/src/schedule.rs:80` gap 1, under
-      `rule:config/a-scheduled-run-is-a-root-isolate`, with `rule:programs/memory-priority` for what
-      the ceiling is enforced for.
+      `crates/nvs-server/src/schedule.rs:80` gap 1, whose rule is
+      `rule:config/a-scheduled-run-is-a-root-isolate`. `fire` builds the root on a bare `Ctx`, so
+      `narrow_under` has no ceiling to narrow and `script.spawn` is denied; what is missing is the
+      deployment's snapshot on that context, not the narrowing over it.
 - [ ] **A sampled request's graph gets more than its root span** —
-      `crates/nvs-server/src/trace.rs:78` gap 1, under
-      `rule:observability/an-inbound-traceparent-is-continued`.
+      `crates/nvs-server/src/trace.rs:78` gap 1, whose rule is
+      `rule:observability/a-call-never-becomes-a-span` for what must stay out of it. The gate to
+      build is "is this trace recorded", asked where a `query`, an `http` and a `spawn` are filed,
+      rather than `DebugFlags::TRACE`.
 
 ## Backlog
 
-- The aarch64 relocation vocabulary — `crates/nvs-cli/src/cache.rs:@Layout::apply`,
-  `:@landing_for`, `:@HOST_ARCH`, `:@JUMP_THROUGH_NEXT_EIGHT`; owned by this goal, unexecutable on
-  an x86-64 host, so it wants its own decision before a session takes it.
-- `crates/nvs-runtime/src/metrics.rs:105` gap 1 — stage 5, but its own file set.
-- `crates/nvs-cli/src/cache.rs` has no test that places a Mach-O payload; `linkage_name` is asserted
-  directly instead — `crates/nvs-cli/src/cache.rs`'s `mod tests`.
+- `[metrics] endpoint` has no pusher — `crates/nvs-runtime/src/metrics.rs:105` gap 1, stage 5.
+- aarch64 artifacts need instruction-field relocations — `crates/nvs-cli/src/cache.rs` `# Known
+  gaps`; nothing on this x86-64 host executes what it would build.
+- A `.nvst` case for the door's refusal would need `server: true` plus a tree naming a key —
+  `tests/conformance/`, and the Rust guards in `crates/nvs-server/src/route.rs` cover the verdict.

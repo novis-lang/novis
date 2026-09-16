@@ -941,6 +941,25 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
             if let Some(routes) = &routes {
                 nvs_server::route::take(routes, &mut inbound);
             }
+            // `rule:security/csrf-is-on-by-default`'s refusal, over the match
+            // just taken and before the body is split: a request this server
+            // will not run is one it allocates nothing for. Both of the door's
+            // inputs are resolved from the tree standing right now rather than
+            // the one this core booted on, so a rotated key is in force for the
+            // next request; `nvs_server::route::csrf` owns which requests each
+            // half of the check covers, and `nvs_stdlib::session` owns the
+            // cookie name, because the default is the one that module writes.
+            let standing = current.load();
+            let key = nvs_config::http::csrf_key(&standing.config);
+            let verdict = nvs_server::route::csrf(
+                &inbound,
+                key.as_deref(),
+                nvs_stdlib::session::cookie_in(&standing.config),
+            );
+            drop(standing);
+            if verdict == nvs_server::route::Csrf::Refused {
+                return Reply::forbidden();
+            }
             // Split only here: everything above reads the request whole, and
             // the body is the one part of it that does not go where the rest
             // does.

@@ -388,6 +388,19 @@ impl Reply {
         Self::status(StatusCode::PAYLOAD_TOO_LARGE)
     }
 
+    /// A checked unsafe verb the door could not tie to this deployment: `403`,
+    /// before an isolate exists.
+    ///
+    /// `rule:security/csrf-is-on-by-default` is the decision and
+    /// [`crate::route::csrf`] is where it is taken; this is only the status it
+    /// comes out as. Bodiless like every other refusal here, and `403` rather
+    /// than `400` because the request is well formed and this server is
+    /// declining it — a distinction a browser's own reporting reads.
+    #[must_use]
+    pub fn forbidden() -> Self {
+        Self::status(StatusCode::FORBIDDEN)
+    }
+
     /// `rule:http-server/a-request-resolves-in-five-steps` step 1's third arrow — no mount covers the request, so
     /// there is no application to give it to and none to have written this.
     ///
