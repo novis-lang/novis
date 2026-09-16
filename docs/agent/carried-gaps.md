@@ -221,14 +221,12 @@ where taking it is the work and the code that follows it is not.
   layer down: `format` and `parse` compile their pattern per call, through the one `compile` that
   module owns, and neither can prepare anything until that channel exists.
   [until: gone crates/nvs-types/src/intrinsics.rs:owner: unowned]
-- **The derive machinery is a descriptor read by native Rust**, where
-  `rule:core-classes/derive-generates-what-is-missing` costs it as straight-line code emitted per
-  class. Both halves of `Core\Json` walk a per-class `nvs_runtime::CodecField` list instead, and two
-  narrower holes wait on which of the two it stays: a constructor parameter's default is a constant
-  `nvs_types::defaults` evaluates at a *call site*, which a native decoder is not, and a hand-written
-  `toJson()` needs a `ClassDesc::method` lookup back into compiled code. Both are free in emitted
-  code and both a widening of the descriptor otherwise, so the decision is one and the code that
-  follows it is two. `crates/nvs-stdlib/src/json.rs` gaps 1, 2 and 3.
+- **The derive machinery is a descriptor read by native Rust**, and both halves of `Core\Json` walk a
+  per-class `nvs_runtime::CodecField` list rather than straight-line code emitted per class. The two
+  narrower holes that waited on which of the two it stays are closed against the descriptor — a
+  constructor parameter's default rides on the field as a constant, and a hand-written half is one
+  `ClassDesc::method` lookup at the walk's own class arm — so what is left is only whether the
+  machinery stays a descriptor at all. `crates/nvs-stdlib/src/json.rs` gap 1.
   [until: gone crates/nvs-stdlib/src/json.rs:rather than straight-line]
 - **`Core\Json::encode`'s real bound is the native stack rather than its own `DEPTH_CEILING`**, so a
   document that is legal and merely very deep aborts the process where every other refusal throws.
@@ -236,7 +234,7 @@ where taking it is the work and the code that follows it is not.
   has to be decided is whether the walk carries an explicit stack, which makes the bound an
   allocation the request is charged for, or the ceiling is read from the space
   `rule:concurrency/a-task-stack-is-reserved-wide-and-pooled` reserves.
-  `crates/nvs-stdlib/src/json.rs` gap 4.
+  `crates/nvs-stdlib/src/json.rs` gap 2.
   [until: gone crates/nvs-stdlib/src/json.rs:The encoder's real bound is the native stack]
 - **The queue's two tables are the runtime's own, and two questions about what they carry are open.**
   `nvs_jobs` gets its dedupe guarantee from a plain unique key over `dedupe_pending`, which

@@ -1565,10 +1565,13 @@ literal has no declaration to carry one and no identity a property list could on
 encoding is structural, keyed on its field names alone. And there is **no validation**: a derived
 codec checks types and presence, not that an email looks like one.
 
-What it costs: a compile-time pass over the classes carrying the attribute, emitting straight-line
-field-by-field code. **Nothing is stored per object and nothing is reflected at run time.** Footprint
-is O(derived classes in compiled code), not O(objects) and not O(requests), and a program with no
-derive attribute pays nothing at all, including no pass.
+What it costs: a compile-time pass over the classes carrying the attribute, recording each one's field
+list on its class descriptor for both halves to walk, field by field. **Nothing is stored per object**,
+and the only question either half asks at run time is whether the class wrote the half being read —
+one lookup in the method table the walk is already holding, taken once per instance rather than once
+per field, and paid on the encoding side by a refcount pair per level of the document while that
+member runs. Footprint is O(derived classes in compiled code), not O(objects) and not O(requests), and
+a program that neither carries the attribute nor writes a half pays nothing at all, including no pass.
 
 <sub>See also [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list), [`types/object-literal`](types.md#types-object-literal), [`types/shape-type`](types.md#types-shape-type). Decided in [0071](../decisions/0071.md), [0023](../decisions/0023.md), [0029](../decisions/0029.md), [0042](../decisions/0042.md), [0063](../decisions/0063.md).</sub>
 

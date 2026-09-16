@@ -2,55 +2,47 @@
 
 ## State
 
-**Goal `unowned-closures`, stage 4.** The decoding half of the hand-written codec is closed. A class
-that wrote `fromJson` is decoded through that member at every door and at every level of a document:
-`Contract::writes_decoder` (`crates/nvs-stdlib/src/json.rs:1493`) picks the door, `hand_written`
-(`crates/nvs-stdlib/src/json.rs:1619`) is `nvs_runtime::call_static_on` with the value as it arrived,
-and the three places that read an empty field list now take it first — `check_codec`'s `LogicError`,
-`decode_nested`'s fatal and `decode_element`'s, the last two rewritten to name both spellings a
-declaration has. `decode_object` asks before its object test, so § 6's `mixed` parameter means this
-door reads a document the field walk would refuse, and an `array<T>` dispatches once per element.
+**Goal `unowned-closures`, stage 4 is done; stage 5 is the goal's earliest red check.** The
+hand-written JSON codec is closed at both halves. A class that wrote `fromJson` is decoded through it
+at every level of a document, and one that wrote `toJson` is encoded through it the same way:
+`Encodable::serialize_object` (`crates/nvs-stdlib/src/json.rs:975`) asks the class table for the
+member before it reads the derived field list, so a written half beats the attribute's list and that
+list stays the decoder's where a class carries both.
 
-**The written half wins wherever the class answers the member**, not only where the field list is
-empty: `rule:core-classes/derive-generates-what-is-missing` is the derive filling in what the class
-does not write, so a class carrying `#[Json\Derive]` as well decodes through its member while the
-derived field list stays the encoder's. `nvs_stdlib::db::row` reads an empty mapping as its door
-instead, and may keep doing so, because `E0757` refuses an attribute beside a written `fromRow`.
-The lookup is `ClassDesc::method`'s flattened chain, which the member's doc states.
-
-`nvs_stdlib::json`'s gap 1 is narrowed to the encoding half, which is the item below. Nothing is
-blocked.
+The re-entrancy that call opens is settled and **stated** in `nvs_stdlib::json`'s module doc rather
+than left to be discovered. `Reentry` (`crates/nvs-stdlib/src/json.rs:578`) carries the `*mut Ctx`
+down the walk and the raised `Fault` back out past `S::Error`, which is a string and would lose the
+class a `catch` names; `Standing` (`crates/nvs-stdlib/src/json.rs:848`) retains this value and each
+of its ancestors across the call, so a member that frees or mutates what the walk is standing on
+cannot leave a borrowed handle over freed memory. Every door into the encoder now goes through
+`rendered` and carries a `&mut Ctx` for it — `Core\Json::encode`, `Core\Response::json`,
+`Core\Sse::send`, `Core\Jwt::signObject`, `Core\Queue::push`, `Core\Test::answerHttp` and the HTTP
+client's `json` body. Nothing is blocked.
 
 ## Next group
 
-**Stage 4: the hand-written codec, encoding half** — one file set: `crates/nvs-stdlib/src/json.rs`,
-and the case above as the decode-side model.
+**Stage 5: the server and the cache** — one file set: `crates/nvs-server/src/bounds.rs` and
+`crates/nvs-config/src/cache.rs`, which are the two halves of the goal's one red check
+(`docs/agent/loop-goal.toml:11114`). Neither test it names exists yet.
 
-- [ ] **A hand-written `toJson` is consulted** — `crates/nvs-stdlib/src/json.rs:192` gap 1,
-      `rule:core-classes/derive-generates-what-is-missing`. The lookup is
-      `Contract::writes_decoder`'s twin against `serialize_object`'s empty-codec refusal
-      (`crates/nvs-stdlib/src/json.rs:860`), and the same precedence: a written member beats the
-      derived field list. What it costs is not the lookup but the call — `Encodable`
-      (`crates/nvs-stdlib/src/json.rs:554`) is a `Copy` `serde::Serialize` holding no `Ctx`, and
-      `written` (`crates/nvs-stdlib/src/json.rs:1013`) turns every serde error into a `LogicError`,
-      so a `toJson` that throws needs a `*mut Ctx` on the walk and a side channel to carry the
-      `Fault::Pending` out past `S::Error` or the thrown class is lost.
-- [ ] **Decide the re-entrancy before writing that call** — same anchors. `serialize_object` and
-      `serialize_array` descend through a *borrowed* handle (`crate::arr::borrowed`,
-      `crates/nvs-stdlib/src/json.rs:790`) that takes no reference, so compiled code running
-      mid-walk can mutate or free the array the walk is inside. The decode side has no such
-      question: `hand_written` is reached before any borrow is taken. Priority 1 says this is
-      settled first and stated, not discovered.
-- [ ] **A `#[Test]` result is a producer, so § 22's three output formats are one record rendered** —
-      `crates/nvs-cli/src/runner.rs:418`, where the three fan out today. Unchanged for three groups,
-      and the one item here that shares no file with the two above.
+- [ ] **The server's connection bounds are read from the `[server]` block** —
+      `crates/nvs-server/src/bounds.rs:243`, `rule:concurrency/connection-bounds-are-finite`. Every
+      bound is finite before anything is configured, which is the rule's floor; what is missing is
+      the configured half, so a deployment cannot raise or lower one. The check wants
+      `server_connection_bounds_are_read_from_the_server_block`.
+- [ ] **A rebuilt compiler is a new cache key** — `crates/nvs-config/src/cache.rs:140`,
+      `rule:config/the-extension-set-is-in-every-unit-key`. `env_hash` mixes a compiler *version*
+      hash, so two builds of one release version key their units together and a rebuilt compiler
+      serves the old artifact. The check wants
+      `two_builds_of_one_release_version_key_their_units_apart`.
 
 ## Backlog
 
-- `nvs_stdlib::json` gap 2 — the walk is a descriptor loop rather than emitted code; the gap's
-  `Decided:` keeps the descriptor, so this is prose to settle, not a rewrite (`json.rs:207`).
-- `nvs_stdlib::json` gap 3 — the encoder's real bound is the native stack, not `DEPTH_CEILING`
-  (`json.rs:225`).
-- Stage 5's `server_connection_bounds_are_read_from_the_server_block` and
-  `two_builds_of_one_release_version_key_their_units_apart` are the goal's next red checks; both
-  name tests that do not exist yet (`docs/agent/loop-goal.toml:11114`).
+- A `#[Test]` result is a producer, so § 22's three output formats are one record rendered —
+  `crates/nvs-cli/src/runner.rs:418`, where the three fan out today. Carried since stage 4; it shares
+  no file with any group that has come up since.
+- `nvs_stdlib::json` gap 1 — the codec walk is a descriptor read by native Rust rather than emitted
+  code (`crates/nvs-stdlib/src/json.rs:216`). The gap's `Decided:` keeps the descriptor and the rule
+  now describes it, so what is left is whether the machinery stays one at all.
+- `nvs_stdlib::json` gap 2 — the encoder's real bound is the native stack, not `DEPTH_CEILING`
+  (`crates/nvs-stdlib/src/json.rs:229`).
