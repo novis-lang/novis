@@ -132,7 +132,7 @@ modules = [
   # The pattern letters and the ordinal roster, gaps 2 and 4 (:156, :177). Stage 11.
   "crates/nvs-stdlib/src/cldr.rs",
   # The per-core registry `Core\Metrics` accumulates into. Stage 12.
-  "crates/nvs-server/src/metrics.rs",
+  "crates/nvs-runtime/src/metrics.rs",
   # `run`, its door and its off-core wait; `spawn` joins it. Stage 13.
   "crates/nvs-stdlib/src/process.rs",
   # Where every row and class is registered, and where `compareTo` rows are found (:3036).
@@ -898,14 +898,16 @@ want = ["#0 Deep::inner()", "#1 Deep::outer()"]
 
 # An uncaught throw: non-zero exit plus `rule:errors/log-write`'s tier-4 floor record on stderr. The floor writes the
 # record `Core\Log::write` writes, and `rule:errors/renderings`'s log target renders it as JSON Lines by default, so the
-# Novis-level backtrace arrives as that record's `backtrace` field rather than as a bare block of text.
+# Novis-level backtrace arrives as that record's `nodes` array — one `{function, file, line}` object per frame, which is
+# the spelling `rule:errors/record-producers` fixes for the JSON rendering. The `#0` form a person greps is the
+# plaintext rendering, and `examples/trace.nvs`'s check above is where it is pinned.
 [[check]]
 kind = "ordered"
 stage = "1 floor"
 file = "examples/uncaught.nvs"
 stream = "stderr"
 exit = "nonzero"
-want = ['"level":"error"', '"msg":"unhandled"', '"class":"LogicError"', "#0 Boom::inner()", "#1 Boom::outer()"]
+want = ['"level":"error"', '"msg":"unhandled"', '"class":"LogicError"', '"function":"Boom::inner"', '"function":"Boom::outer"']
 
 # A contained helper panic: FATAL, non-zero, and the output produced before it survives.
 [[check]]
