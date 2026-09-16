@@ -1945,6 +1945,78 @@ mod tests {
         );
     }
 
+    /// `rule:security/metric-label-refuses-tainted`, asked of the resolved
+    /// signature the way a call site asks it — and refused by the same two
+    /// mechanisms `Core\Process::run`'s two halves are. `$name` is a
+    /// [`Qual::Sink`], so a `tainted string` is refused at the parameter. A
+    /// label **value** carries no mark of its own once the bag is lowered,
+    /// because [`qual_of`] reads no nested classification: what refuses it is
+    /// that `array<tainted string>` is a different type from the
+    /// `array<string>` the option declares, which the ordinary argument check
+    /// makes without a qualifier rule at all.
+    ///
+    /// Asked of all three verbs, because unbounded cardinality is a property of
+    /// the series rather than of the verb that wrote it: a bag that lost the
+    /// declaration on one member would leave one spelling of the same mistake
+    /// compiling while the other two still refused it.
+    #[test]
+    fn a_tainted_metrics_label_value_is_a_compile_time_diagnostic() {
+        let mut interner = TypeInterner::new();
+        let mut table = SignatureTable::new();
+        seed(&mut table, &mut interner);
+
+        for (member, bag) in [
+            ("increment", "{by?: uint, labels?: array<string>}"),
+            ("observe", "{labels?: array<string>}"),
+            ("gauge", "{labels?: array<string>}"),
+        ] {
+            let (owner, sig) = resolve_method(
+                &QName::parse(r"Core\Metrics"),
+                member,
+                &table,
+                &ClassGraph::default(),
+            )
+            .expect("every Core\\Metrics verb is registered");
+            assert_eq!(owner.to_string(), r"Core\Metrics");
+
+            assert_eq!(
+                sig.qual_at(0),
+                Some(Qual::Sink),
+                "{member}'s series name is a name and not text a request wrote, so it is a sink"
+            );
+            assert!(
+                !crate::expr::quals::admits_tainted_argument(
+                    sig.qual_at(0),
+                    sig.return_ty,
+                    &mut interner
+                ),
+                "and a sink admits no tainted argument, which is the diagnostic"
+            );
+
+            let options = *sig
+                .params
+                .last()
+                .expect("every verb carries its labels bag");
+            assert_eq!(
+                interner.describe(options),
+                bag,
+                "{member}'s bag declares its label values plain"
+            );
+        }
+
+        // The half that closes the label value, and the one worth asserting: a
+        // reader who knows only that the values are unclassified would conclude
+        // the bag is the hole, and what closes it is the interner.
+        let tainted = interner.tainted_string();
+        let tainted_labels = interner.array(tainted);
+        assert_ne!(
+            interner.describe(tainted_labels),
+            "array<string>",
+            "`array<tainted string>` is not the declared `array<string>`, so a user id or an \
+             error message in a label is refused by the argument check"
+        );
+    }
+
     /// `rule:security/process-exec-capability`, held at the row rather than at the door: starting a
     /// program is a capability, it is the one `nvs.toml` spells `process.exec`,
     /// a host that configured nothing has granted it to nobody, and a request
