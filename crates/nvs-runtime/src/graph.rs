@@ -83,7 +83,7 @@
 //!    `nvs-types`', and the address `instanceof` would test against is the one
 //!    `nvs_stdlib::class_descriptors` already hands the backend for a folded
 //!    `` html`…` `` constant.
-//!    — owner: unowned
+//!    — owner: core-class-tests
 
 use std::collections::HashMap;
 
