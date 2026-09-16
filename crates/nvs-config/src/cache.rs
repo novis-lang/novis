@@ -8,6 +8,7 @@
 //! extension_set_hash = BLAKE3(sorted sha256 pins of the [[extension]] array)
 //! env_hash           = BLAKE3(target_triple ‖ cpu_feature_bitset ‖ compiler_version_hash ‖ extension_set_hash)
 //! content_hash       = BLAKE3(source)
+//! probe_hash         = BLAKE3(each path the unit's autoload resolution probed, in probe order)
 //! artifact_key       = BLAKE3(content_hash ‖ env_hash)
 //! program_id         = BLAKE3(content_hash of each unit, in program order ‖ env_hash)
 //! ```
@@ -16,6 +17,15 @@
 //! from that digest rather than from the source a second time, so a unit's bytes cross BLAKE3 exactly
 //! once however many caches it lands in; [`artifact_key`] itself runs over 64 bytes. Both digests are
 //! cryptographic on purpose — `rule:packaging/an-artifact-is-one-immutable-content-addressed-file` says what a merely fast hash would give up.
+//!
+//! **[`ProbeHash`] is the one key field a lookup cannot compute for itself.**
+//! `rule:packaging/autoload-probes-fold-into-the-cache-key` folds the paths a unit's `autoload`
+//! resolution probed — the misses included — into that unit's key, and the list exists only once
+//! the resolution has run. So a caller addressing a unit *before* compiling it spells
+//! [`ProbeHash::unrecorded`], and the compile that follows re-keys its own result through
+//! [`UnitKey::with_probes`]; the caches that hold such a key are what say which of the two a given
+//! entry is under. The digest is over the trace alone, because the content and the environment are
+//! already the key's other two fields.
 //!
 //! **Both keys are built here, in the crate that holds the extension set**, rather than each in the
 //! cache that uses it. Those caches live in other crates and answer the same question; § 4's
@@ -218,6 +228,54 @@ pub fn content_hash(source: &[u8]) -> Digest {
     Digest(*blake3::hash(source).as_bytes())
 }
 
+/// What one unit's `autoload` resolution probed, as one value — `rule:packaging/autoload-probes-fold-into-the-cache-key`'s trace,
+/// and the third field of a [`UnitKey`].
+///
+/// A type of its own for [`EnvHash`]'s reason: this is a third digest over the same unit, and only
+/// the type system keeps it out of the content hash's argument position.
+///
+/// It holds no digest at all where nothing has probed this content yet ([`Self::unrecorded`]),
+/// which is a different answer from the digest of an **empty** trace: a program declaring no
+/// `autoload` really does probe nothing, and its unit is an ordinary hit rather than a key no
+/// lookup can ever spell.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub struct ProbeHash(Option<Digest>);
+
+impl ProbeHash {
+    /// The field a key carries when no resolution of this content has been recorded: the compile
+    /// that produces a trace has not run, so this is what the lookup ahead of it addresses.
+    #[must_use]
+    pub fn unrecorded() -> Self {
+        Self(None)
+    }
+
+    /// The digest itself, and [`None`] for [`Self::unrecorded`] — for a caller that wants the
+    /// bytes rather than the key field.
+    #[must_use]
+    pub fn digest(&self) -> Option<Digest> {
+        self.0
+    }
+}
+
+/// `rule:packaging/autoload-probes-fold-into-the-cache-key`'s trace as one digest: every path the resolution probed, in probe
+/// order, misses included (`nvs_hir::autoload::ProbeTrace`).
+///
+/// Order is significant, for the reason it is in [`program_id`] — the same paths probed in another
+/// order are another resolution — and each path is length-prefixed ([`feed`]), so two probes cannot
+/// run together into a third. A path is hashed as it was written down by the resolution that probed
+/// it, which is what a later resolution of the same program will spell again.
+///
+/// Cost: one BLAKE3 pass over the trace's own bytes, once per compile, on a step that has just run
+/// a whole front end. The trace is O(names × roots) and is released with the map it rode out on
+/// (`rule:programs/memory-priority`); nothing of it is held here.
+pub fn probe_hash(probed: &[PathBuf]) -> ProbeHash {
+    let mut hasher = blake3::Hasher::new();
+    for path in probed {
+        feed(&mut hasher, path.as_os_str().to_string_lossy().as_bytes());
+    }
+    ProbeHash(Some(Digest(*hasher.finalize().as_bytes())))
+}
+
 /// `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s on-disk key, as `rule:config/the-extension-set-is-in-every-unit-key` rekeyed it: `BLAKE3(content_hash ‖ env_hash)`.
 ///
 /// Both inputs are fixed 32-byte digests, so neither needs [`feed`]'s length prefix to keep them
@@ -254,24 +312,50 @@ pub fn program_id(units: &[Digest], env: EnvHash) -> ProgramId {
     ProgramId(Digest(*hasher.finalize().as_bytes()))
 }
 
-/// `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s in-memory unit key, as `rule:config/the-extension-set-is-in-every-unit-key` rekeyed it: `{ path, content_hash, env_hash }`.
+/// `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s in-memory unit key, as `rule:config/the-extension-set-is-in-every-unit-key` rekeyed it and
+/// `rule:packaging/autoload-probes-fold-into-the-cache-key` rekeyed it again: `{ path, content_hash, probe_hash, env_hash }`.
 ///
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct UnitKey {
     path: PathBuf,
     content_hash: Digest,
+    probes: ProbeHash,
     env: EnvHash,
 }
 
 impl UnitKey {
-    /// The key `path` has under `env` when its source hashes to `content` — [`content_hash`]'s
-    /// value, carried rather than recomputed so the source is read once.
-    pub fn new(path: &Path, content: Digest, env: EnvHash) -> Self {
+    /// The key `path` has under `env` when its source hashes to `content` and its `autoload`
+    /// resolution probed what `probes` digests — [`content_hash`]'s and [`probe_hash`]'s values,
+    /// carried rather than recomputed so neither the source nor the trace is walked twice.
+    ///
+    /// [`ProbeHash::unrecorded`] is the value a caller that has not compiled `content` yet has, and
+    /// [`Self::with_probes`] is what the compile then answers with.
+    pub fn new(path: &Path, content: Digest, probes: ProbeHash, env: EnvHash) -> Self {
         Self {
             path: path.to_path_buf(),
             content_hash: content,
+            probes,
             env,
         }
+    }
+
+    /// The same key with the trace a finished resolution recorded, which is the one field the
+    /// lookup ahead of that resolution could not name.
+    ///
+    /// The other three are read from the key rather than from the caller again, so a compile cannot
+    /// publish its unit under a path, a content or an environment other than the one it claimed —
+    /// a reload moving [`env_hash`] mid-compile is what that guards against.
+    #[must_use]
+    pub fn with_probes(self, probes: ProbeHash) -> Self {
+        Self { probes, ..self }
+    }
+
+    /// The trace this key is under — [`ProbeHash::unrecorded`] where the entry behind it was
+    /// published by a compile that produced none.
+    ///
+    #[must_use]
+    pub fn probes(&self) -> ProbeHash {
+        self.probes
     }
 
     /// The unit's path, which is what `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s revalidation `stat`s.

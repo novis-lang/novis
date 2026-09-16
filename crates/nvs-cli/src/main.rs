@@ -1456,8 +1456,11 @@ struct Checked {
     /// constant for `rule:types/enum-case-type`'s membership test.
     enums: nvs_types::EnumTable,
     layouts: nvs_types::ClassLayoutTable,
-    /// The autoload map the graph walk consulted, kept for
-    /// `check --autoload-map` and read by nothing else here.
+    /// The autoload map the graph walk consulted: `check --autoload-map`'s
+    /// document, and the probe trace beside it, which is the field of this
+    /// unit's cache key that nothing short of a finished resolution can name
+    /// (`rule:packaging/autoload-probes-fold-into-the-cache-key`,
+    /// `crate::script::Compiler`).
     autoload: nvs_hir::AutoloadMap,
 }
 

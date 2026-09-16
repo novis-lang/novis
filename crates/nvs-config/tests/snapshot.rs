@@ -10,7 +10,9 @@ use std::path::{Component, Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
-use nvs_config::cache::{Revalidation, UnitKey, Validate, artifact_key, content_hash, env_hash};
+use nvs_config::cache::{
+    ProbeHash, Revalidation, UnitKey, Validate, artifact_key, content_hash, env_hash, probe_hash,
+};
 use nvs_config::resolve::{Files, Resolved, Roots, resolve};
 use nvs_config::snapshot::{Current, Snapshot};
 use nvs_config::trust::Untrusted;
@@ -481,7 +483,7 @@ fn pinned(pins: &[&str]) -> Arc<Snapshot> {
 
 /// `rule:config/the-extension-set-is-in-every-unit-key`: one `env_hash` over the extension set, and **both** compiled-unit cache keys carry
 /// it — the on-disk `BLAKE3(content_hash ‖ env_hash)` and the in-memory
-/// `UnitKey { path, content_hash, env_hash }`. Asked of both keys together, because § 4's whole
+/// `UnitKey { path, content_hash, probe_hash, env_hash }`. Asked of both keys together, because § 4's whole
 /// content is that they move as one: a key built out of the source digest alone still looks right
 /// beside a case that only asks the other one. The last block is § 4's "hashed once": both keys
 /// take the source's digest, and the on-disk key is a derivation of it rather than either input
@@ -514,19 +516,23 @@ fn env_hash_is_carried_by_both_cache_keys() {
     assert_eq!(artifact_key(source, one), artifact_key(source, reordered));
 
     // In memory. Same path and same content, two environments, two units.
+    let unprobed = ProbeHash::unrecorded();
     assert_ne!(
-        UnitKey::new(&path, source, one),
-        UnitKey::new(&path, source, changed),
+        UnitKey::new(&path, source, unprobed, one),
+        UnitKey::new(&path, source, unprobed, changed),
         "the in-memory key carries env_hash",
     );
     assert_eq!(
-        UnitKey::new(&path, source, one),
-        UnitKey::new(&path, source, reordered)
+        UnitKey::new(&path, source, unprobed, one),
+        UnitKey::new(&path, source, unprobed, reordered)
     );
 
     // And it is the value itself that is carried, not a second derivation of the same inputs.
-    assert_eq!(UnitKey::new(&path, source, one).env(), one);
-    assert_eq!(UnitKey::new(&path, source, one).content_hash(), source);
+    assert_eq!(UnitKey::new(&path, source, unprobed, one).env(), one);
+    assert_eq!(
+        UnitKey::new(&path, source, unprobed, one).content_hash(),
+        source
+    );
 
     // The on-disk key is derived from the digest, not either input handed back.
     let key = artifact_key(source, one);
@@ -537,6 +543,50 @@ fn env_hash_is_carried_by_both_cache_keys() {
         artifact_key(content_hash(b"<?nvs\necho 2;\n"), one),
         "a changed source is a changed key",
     );
+}
+
+/// `rule:packaging/autoload-probes-fold-into-the-cache-key`: what a unit's `autoload` resolution
+/// probed is a field of that unit's key, so a file appearing *in front of* the one the resolution
+/// reached is a different unit — with no byte of anything the first compile hashed having changed.
+/// Asked as the three properties a cache rests on: the trace is ordered, an empty trace is a real
+/// value rather than the absent one, and the field is carried so a compile can re-key its own
+/// result without respelling the other three.
+#[test]
+fn a_units_key_carries_what_its_autoload_resolution_probed() {
+    let env = env_hash(&pinned(&["aa", "bb"]).config);
+    let source = content_hash(b"<?nvs\necho 1;\n");
+    let path = p("srv/www/index.nvs");
+
+    let reached = probe_hash(&[p("vendor/compat/Thing.nvs")]);
+    let shadowed = probe_hash(&[p("src/Thing.nvs"), p("vendor/compat/Thing.nvs")]);
+    assert_ne!(
+        UnitKey::new(&path, source, reached, env),
+        UnitKey::new(&path, source, shadowed, env),
+        "a path probed in front of the one that was reached is another unit",
+    );
+    assert_ne!(
+        shadowed,
+        probe_hash(&[p("vendor/compat/Thing.nvs"), p("src/Thing.nvs")]),
+        "the same two paths probed the other way round are another resolution",
+    );
+
+    // A program declaring no `autoload` probes nothing, and that is an answer rather than the
+    // absence of one: its unit is an ordinary hit rather than a key no lookup can ever spell.
+    assert_eq!(probe_hash(&[]), probe_hash(&[]));
+    assert_ne!(probe_hash(&[]), ProbeHash::unrecorded());
+    assert_eq!(ProbeHash::unrecorded().digest(), None);
+    assert!(probe_hash(&[]).digest().is_some());
+
+    let claimed = UnitKey::new(&path, source, ProbeHash::unrecorded(), env);
+    assert_eq!(claimed.probes(), ProbeHash::unrecorded());
+    let published = claimed.clone().with_probes(reached);
+    assert_eq!(published.probes(), reached);
+    assert_eq!(
+        published,
+        UnitKey::new(&path, source, reached, env),
+        "re-keying names the same unit the trace would have been spelled into",
+    );
+    assert_ne!(published, claimed);
 }
 
 /// `rule:config/an-edit-reaches-the-next-request-without-a-restart`'s two revalidation directives, read off the merged tree: what a resolve
