@@ -4455,7 +4455,10 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   grepping for the letter finds only half.** Cases printing only the refusal's class keep the letter
   in a variable, so `grep -rn "not a pattern letter"` misses them. Grep for the message and the
   pattern string (`"yyyy-` and `format(\"`) before widening a closed grammar, and pick the
-  replacement from the letters the module doc's gap still names. [until: reviewed 2026-09-06]
+  replacement from the letters CLDR reserves and gives no field — `j`, `J`, `C`, `l` — since every
+  letter that module's gap once named now formats. Two of those cases also **count** the alphabet
+  and the field roster, so widening the subset moves four numbers in one `--EXPECT--`.
+  [until: reviewed 2026-09-16]
 - **A test that a method table was bound needs a call the compiler cannot devirtualize, and
   `static::m()` is the reliable one.** `$obj->m()` on a known class lowers to a direct
   `InstKind::Call`; late static binding lowers to `InstKind::CallVirtual`. Use a `Base` whose

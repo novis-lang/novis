@@ -38,7 +38,7 @@ echo "trailing|", Read::of("2024-02-29 13:45:07 and more", "yyyy-MM-dd HH:mm:ss"
 echo "rolled-over|", Read::of("2024-02-30", "yyyy-MM-dd"), "\n";
 
 // The call site's own, which are the pattern rather than the text.
-echo "unknown-letter|", Read::of("2024-02-29", "yyyy-MM-Y"), "\n";
+echo "unknown-letter|", Read::of("2024-02-29", "yyyy-MM-j"), "\n";
 echo "offset|", Read::of("2024-02-29 13:45:07+02:00", "yyyy-MM-dd HH:mm:ssXXX"), "\n";
 echo "zone-id|", Read::of("2024-02-29 13:45:07 Europe/Berlin", "yyyy-MM-dd HH:mm:ss VV"), "\n";
 

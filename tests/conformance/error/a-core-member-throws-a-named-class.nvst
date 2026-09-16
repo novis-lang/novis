@@ -16,9 +16,9 @@ try {
 // reaches this `catch` at all: `rule:expressions/intrinsic-list-is-closed` makes `Core\Time::parse` an
 // intrinsic, so a malformed literal is § 2's compile error and the *runtime*
 // class this case is about is the computed spelling's.
-string $weekYears = "yyyy-YY-dd";
+string $reservedLetter = "yyyy-jj-dd";
 try {
-    Core\Time::parse("2020-01-01", $weekYears, Core\Time\Zone::UTC);
+    Core\Time::parse("2020-01-01", $reservedLetter, Core\Time\Zone::UTC);
     echo "not reached\n";
 } catch (ParseError $wrong) {
     echo "not reached either\n";

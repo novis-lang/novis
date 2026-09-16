@@ -43,7 +43,7 @@ try {
 // 0057 § 1's list, so a *literal* one of these is the same refusal made while
 // compiling, and § 2's division is that only a computed argument still reaches
 // a `catch`.
-string $unknownLetter = "yyyy Y";
+string $unknownLetter = "yyyy j";
 string $openQuote = "yyyy 'unclosed";
 try {
     $d->format($unknownLetter);

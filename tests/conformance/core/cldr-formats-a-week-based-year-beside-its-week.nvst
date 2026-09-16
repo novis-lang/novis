@@ -1,0 +1,40 @@
+--TEST--
+Spec § 4: `Y` writes the year `w`'s week belongs to, and every letter that reads a week rule reads the same one
+--FILE--
+<?nvs
+// ISO 8601 writes a week as a year, a week number and a day in it, and the
+// year in that triple is `Y` rather than `y`: the week that straddles New
+// Year belongs to one of the two calendar years and its days fall in both.
+// `crates/nvs-stdlib/src/cldr.rs`'s week section owns the rule the letters
+// share — a week starts on Monday, and week 1 is the first with four days in
+// the year.
+
+// A Monday in week 1 of 2020 that the calendar still calls December 2019.
+var $ahead = Core\Time\Date::at(2019, 12, 30);
+echo $ahead->format("YYYY-'W'ww-e"), "|", $ahead->format("yyyy-MM-dd"), "|\n";
+
+// And a Friday the calendar calls 2021 while the week it is in is 2020's
+// fifty-third — the same disagreement from the other side.
+var $behind = Core\Time\Date::at(2021, 1, 1);
+echo $behind->format("YYYY-'W'ww-e"), "|", $behind->format("yyyy-MM-dd"), "|\n";
+
+// `Y` takes `y`'s counts, including the two-digit window, and `e` takes the
+// name forms `E` has from three letters up.
+echo $behind->format("Y|YY|YYYYY"), "|\n";
+echo $behind->format("e|ee|eee|eeee|eeeee|eeeeee"), "|\n";
+
+// The five letters that read a week rule agree, because there is one rule to
+// read: no pattern names a locale, so `w` and `Y` cannot land on different
+// calendars inside one pattern. A `W` of `0` is a month opening with a week
+// too short to be its first.
+echo Core\Time\Date::at(2024, 1, 1)->format("yyyy|w|W|Y|e|c"), "|\n";
+echo Core\Time\Date::at(2023, 12, 31)->format("yyyy|w|W|Y|e|c"), "|\n";
+echo Core\Time\Date::at(2024, 3, 1)->format("yyyy|w|W|Y|e|c"), "|\n";
+--EXPECT--
+2020-W01-1|2019-12-30|
+2020-W53-5|2021-01-01|
+2020|20|02020|
+5|05|Fri|Friday|F|Fr|
+2024|1|1|2024|1|1|
+2023|52|4|2023|7|7|
+2024|9|0|2024|5|5|

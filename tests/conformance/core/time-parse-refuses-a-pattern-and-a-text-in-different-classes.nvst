@@ -34,16 +34,16 @@ echo Core\Time::parse("24-06-01", "yy-MM-dd", $berlin)->format("yyyy-MM-dd"), "|
 // 's list, so its *literal* form is refused while compiling instead, and
 // § 2's division leaves the computed spelling as the one whose class a `catch`
 // can still name.
-string $weekYears = "yyyy-MM-dd Y";
+string $reservedLetter = "yyyy-MM-dd j";
 string $unterminated = "yyyy 'unterminated";
 string $shortZone = "V";
-try { Core\Time::parse("2024-03-31", $weekYears, $berlin); }
+try { Core\Time::parse("2024-03-31", $reservedLetter, $berlin); }
 catch (LogicError $unknownLetter) { echo $unknownLetter->message, "\n"; }
 try { Core\Time::parse("2024-03-31", $unterminated, $berlin); }
 catch (LogicError $unclosed) { echo $unclosed->message, "\n"; }
 try { Core\Time::parse("2024-03-31", $shortZone, $berlin); }
 catch (LogicError $zoneCount) { echo $zoneCount->message, "\n"; }
-try { Core\Time::parse("nothing like a date", $weekYears, $berlin); }
+try { Core\Time::parse("nothing like a date", $reservedLetter, $berlin); }
 catch (LogicError $bothWrong) { echo $bothWrong->message, "\n"; }
 
 // A further refusal is about this *member* rather than about the pattern
@@ -81,7 +81,7 @@ catch (ParseError $trailing) { echo $trailing->message, "\n"; }
 // side is wrapped in the member's own name. A member throwing one class for
 // everything, or wrapping only the half it wrote itself, still prints plausibly
 // against any single row above.
-array<string> $patterns = ["Y", "R", "yyyy-MM-dd Y", "yyyy 'unterminated", "yyyy-MM-dd 'x", "V", "VVV", "yyyy-MM-dd VV", "yyyy-MM-dd XXX"];
+array<string> $patterns = ["j", "R", "yyyy-MM-dd j", "yyyy 'unterminated", "yyyy-MM-dd 'x", "V", "VVV", "yyyy-MM-dd VV", "yyyy-MM-dd XXX"];
 int $tookPattern = 0;
 int $patternLogic = 0;
 int $patternParse = 0;
@@ -130,7 +130,7 @@ echo $tookText, " taken, ", $textLogic, " logic, ", $textParse, " parse, ", $tex
 // was wrong still writes one clause — the split costs nothing to ignore, which
 // is what makes it worth having.
 int $caught = 0;
-array<string> $either = ["Y", "yyyy-MM-dd HH:mm"];
+array<string> $either = ["j", "yyyy-MM-dd HH:mm"];
 foreach ($either as string $mixed) {
     try {
         Core\Time::parse("nothing like a date", $mixed, $berlin);
@@ -143,10 +143,10 @@ echo $caught, " caught either way\n";
 2024-03-31 12:00 +02:00 Europe/Berlin|
 2024-12-31 23:45:30|
 2024-06-01|
-Core\Time::parse(): `Y` is not a pattern letter this library carries; quote it as `'Y'` to emit it literally
+Core\Time::parse(): `j` is not a pattern letter this library carries; quote it as `'j'` to emit it literally
 Core\Time::parse(): a `'` opens a literal that nothing closes
 Core\Time::parse(): `V` names a zone only as `VV`, the IANA identifier
-Core\Time::parse(): `Y` is not a pattern letter this library carries; quote it as `'Y'` to emit it literally
+Core\Time::parse(): `j` is not a pattern letter this library carries; quote it as `'j'` to emit it literally
 Core\Time::parse(): a pattern that parses names no zone — `Core\Time::parse` takes one as its third argument
 Core\Time::parse(): expected ` ` at offset 10
 Core\Time::parse(): expected 2 or more digits of month at offset 6

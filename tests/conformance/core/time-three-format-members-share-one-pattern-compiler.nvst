@@ -29,17 +29,17 @@ var $clock = Core\Time\TimeOfDay::at(14, 5, {second: 9});
 // its list, so a literal malformed pattern there is a compile error (§ 2),
 // while `Core\Time\Date::format` and `Core\Time\TimeOfDay::format` are not on
 // it and still throw from a literal.
-string $letterY = "Y";
+string $letterJ = "j";
 string $quoteLeftOpen = "'unclosed";
 string $zoneOnce = "V";
 string $zoneThrice = "VVV";
-try { echo $dt->format($letterY), "\n"; }
+try { echo $dt->format($letterJ), "\n"; }
 catch (LogicError $unknownOnDateTime) { echo $unknownOnDateTime->message, "\n"; }
-try { echo $date->format("Y"), "\n"; }
+try { echo $date->format("j"), "\n"; }
 catch (LogicError $unknownOnDate) { echo $unknownOnDate->message, "\n"; }
-try { echo $clock->format("Y"), "\n"; }
+try { echo $clock->format("j"), "\n"; }
 catch (LogicError $unknownOnClock) { echo $unknownOnClock->message, "\n"; }
-echo $dt->format("'Y'"), "\n";
+echo $dt->format("'j'"), "\n";
 
 // An unterminated quote is the other way the compiler stops, and it names the
 // opening rather than a position: a pattern is short and the `'` is what a
@@ -81,7 +81,7 @@ echo $date->format("'HH'"), "|", $clock->format("'yyyy'"), "\n";
 // narrows it, so an unreadable letter beats a field the value cannot carry;
 // and inside the narrowing, the field the class has no room for beats the zone
 // it does not have.
-try { echo $date->format("Y HH"), "\n"; }
+try { echo $date->format("j HH"), "\n"; }
 catch (LogicError $unreadableFirst) { echo $unreadableFirst->message, "\n"; }
 try { echo $date->format("HH VV"), "\n"; }
 catch (LogicError $timeBeforeZone) { echo $timeBeforeZone->message, "\n"; }
@@ -89,8 +89,8 @@ try { echo $clock->format("yyyy VV"), "\n"; }
 catch (LogicError $calendarBeforeZone) { echo $calendarBeforeZone->message, "\n"; }
 
 // Counted: the subset is closed over the whole ASCII alphabet, not merely over
-// the letters § 4's own examples happen to use. 52 single-letter patterns, 23
-// of which are fields, 29 refused — and 28 of those 29 quote the letter they
+// the letters § 4's own examples happen to use. 52 single-letter patterns, 36
+// of which are fields, 16 refused — and 15 of those 16 quote the letter they
 // were handed rather than a constant. The one refusal that does not is `V`,
 // which is a pattern letter at the wrong count and says so, which is why the
 // two numbers are not the same. A compiler treating an unknown letter as a
@@ -113,14 +113,14 @@ for (int $n = 0; $n < 52; $n = $n + 1) {
 }
 echo $taken, " taken, ", $refused, " refused, ", $named, " named\n";
 
-// Counted, and the claim the four narrowing sentences exist for: over all 24
-// fields the subset carries, `DateTime` takes every one — it is the value with
+// Counted, and the claim the four narrowing sentences exist for: over every
+// field the subset carries, `DateTime` takes every one — it is the value with
 // nothing missing — while the two halves **partition** the rest. No field is
-// accepted by both `Date` and `TimeOfDay`, and the three neither takes are
+// accepted by both `Date` and `TimeOfDay`, and the ones neither takes are
 // exactly the zonal ones, which is the same statement read from either end. A
 // half that leaked one field of the other's — a `Date` rendering `a`, a
 // `TimeOfDay` rendering `D` — still answers every row above correctly.
-array<string> $fields = ["y", "M", "d", "D", "E", "a", "h", "H", "K", "k", "m", "s", "S", "X", "x", "VV", "G", "u", "Q", "w", "W", "L", "c", "F"];
+array<string> $fields = ["y", "u", "U", "r", "M", "L", "d", "D", "E", "c", "e", "F", "Q", "q", "w", "W", "G", "g", "Y", "a", "h", "H", "K", "k", "m", "s", "S", "A", "b", "B", "X", "x", "VV", "z", "v", "Z", "O"];
 int $whole = 0;
 int $onDates = 0;
 int $onClocks = 0;
@@ -139,10 +139,10 @@ foreach ($fields as string $field) {
 }
 echo $whole, " whole, ", $onDates, " calendar, ", $onClocks, " clock, ", $onBoth, " both, ", $onNeither, " neither\n";
 --EXPECT--
-Core\Time\DateTime::format(): `Y` is not a pattern letter this library carries; quote it as `'Y'` to emit it literally
-Core\Time\Date::format(): `Y` is not a pattern letter this library carries; quote it as `'Y'` to emit it literally
-Core\Time\TimeOfDay::format(): `Y` is not a pattern letter this library carries; quote it as `'Y'` to emit it literally
-Y
+Core\Time\DateTime::format(): `j` is not a pattern letter this library carries; quote it as `'j'` to emit it literally
+Core\Time\Date::format(): `j` is not a pattern letter this library carries; quote it as `'j'` to emit it literally
+Core\Time\TimeOfDay::format(): `j` is not a pattern letter this library carries; quote it as `'j'` to emit it literally
+j
 Core\Time\DateTime::format(): a `'` opens a literal that nothing closes
 '
 UTC
@@ -153,8 +153,8 @@ Core\Time\Date::format(): a pattern rendering a date names no zone — a `Core\T
 Core\Time\TimeOfDay::format(): a pattern rendering a time of day names no calendar field — a `Core\Time\TimeOfDay` carries none
 Core\Time\TimeOfDay::format(): a pattern rendering a time of day names no zone — a `Core\Time\TimeOfDay` is zone-free
 HH|yyyy
-Core\Time\Date::format(): `Y` is not a pattern letter this library carries; quote it as `'Y'` to emit it literally
+Core\Time\Date::format(): `j` is not a pattern letter this library carries; quote it as `'j'` to emit it literally
 Core\Time\Date::format(): a pattern rendering a date names no time of day — a `Core\Time\Date` carries none
 Core\Time\TimeOfDay::format(): a pattern rendering a time of day names no calendar field — a `Core\Time\TimeOfDay` carries none
-23 taken, 29 refused, 28 named
-24 whole, 13 calendar, 8 clock, 0 both, 3 neither
+36 taken, 16 refused, 15 named
+37 whole, 19 calendar, 11 clock, 0 both, 7 neither

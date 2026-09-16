@@ -117,11 +117,12 @@ fn a_literal_date_format_is_validated_while_checking() {
     // letters, and the only two rows whose written argument positions differ:
     // `$d->format(…)`'s pattern is written argument 0, while `Core\Time::parse`
     // puts the text being parsed first (`rule:core-api/shape-rules` R1) and its pattern second.
-    // `Y` — CLDR's week-based year — is a real letter this closed subset does
-    // not carry, which is exactly the case the module's own refusal names.
+    // `j` — which CLDR reserves for a skeleton's preference between `h` and
+    // `H` rather than giving it a field — is a real letter this closed subset
+    // does not carry, which is exactly the case the module's own refusal names.
     let rendered = check_call(
         "    Core\\Time\\DateTime $d = Core\\Time::now()->in(Core\\Time\\Zone::UTC);\n    \
-         echo $d->format(\"yyyy-YY\");\n",
+         echo $d->format(\"yyyy-jj\");\n",
     );
     assert!(
         reported(&rendered, code::E_INTRINSIC_LITERAL_MALFORMED),
