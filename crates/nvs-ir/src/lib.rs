@@ -611,13 +611,13 @@
 //!    method row, through the one `nvs_runtime::closure`'s `check_param_tags`
 //!    implementation the `callable` bullet above already goes through.
 //!    — owner: M12
-//! 14. **Not every safepoint flag is acted on.**
+//! 14. **`COLLECT` is cleared and otherwise ignored.**
 //!     [`ir::InstKind::Safepoint`] is emitted at function entry and every loop
 //!     back edge, and `nvs-codegen` lowers it to a real poll: `CPU_LIMIT` and
 //!     `CANCEL` stop the request, and the function-entry site also carries
-//!     `rule:errors/on-limit`'s call-stack compare. `COLLECT` and `DEBUG_BREAK` are
-//!     cleared and otherwise ignored — there is no collector and no debugger
-//!     to hand the frame to. Nothing in this crate is what is missing; see
+//!     `rule:errors/on-limit`'s call-stack compare. The flag asking for a
+//!     collection is dropped there, because there is no collector to run.
+//!     Nothing in this crate is what is missing; see
 //!     `nvs_runtime::nvs_safepoint`.
 //!     Decided: Collector that runs only near the memory ceiling — Pays nothing on the normal request
 //!     path and turns 'hit the ceiling' into 'collect, then continue', at the cost of building the
@@ -644,6 +644,13 @@
 //!     logged and visible the way an uncaught one is, the exception already in flight is left alone,
 //!     and it needs a hook from object dismantling into the ladder.
 //!     — owner: unowned-closures
+//! 19. **`DEBUG_BREAK` is cleared and otherwise ignored.** The poll
+//!     [`ir::InstKind::Safepoint`] lowers to drops that flag where `CPU_LIMIT`
+//!     and `CANCEL` stop the request: there is no debugger to hand the frame
+//!     to, and the frame a breakpoint stops in is `nvs dap`'s question rather
+//!     than this crate's. Nothing in this crate is what is missing; see
+//!     `nvs_runtime::nvs_safepoint`.
+//!     — owner: M10
 
 pub mod ids;
 pub mod ir;
