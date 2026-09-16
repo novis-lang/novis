@@ -51,6 +51,7 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 | `Core\Queue`'s `limits` and `grants` stay undeclared until an isolate enforces them | `gap-zero` | `crates/nvs-stdlib/src/queue.rs` gap 1 |
 | A child written as a path runs on its parent's core however it is placed, so `on: "worker"` buys it nothing | `worker-placement` | `crates/nvs-host/src/placed.rs` § *Known gaps* |
 | A serving core offers itself as no destination, so a placement under `nvs serve` starts a worker core beside the ones already serving | `worker-placement` | `crates/nvs-host/src/worker.rs` § *Known gaps* |
+| A decoded `Core` instance is a `mixed` a program cannot narrow, so the round trip is reachable only through `mixed` | `core-class-tests` | `crates/nvs-runtime/src/graph.rs` gap 1 |
 
 ## Unowned
 
@@ -77,15 +78,6 @@ where taking it is the work and the code that follows it is not.
   the curve is ever the request path's problem at all: a table of tens of rows may never measure, so
   the decision is a measurement on `benches/serve-proxied.json`'s arms and the code that follows it
   is one function. `crates/nvs-runtime/src/routes.rs` gap 1. [until: reviewed 2026-09-10]
-- **A decoded `Core` instance is a `mixed` a program cannot narrow**, so the round trip is reachable
-  through `Core\Debug` and through anything taking a `mixed`, and not by naming the class. The value
-  itself comes back under its own descriptor — a `Core\Time\Date` arrives as one, slots intact — and the
-  checker refuses both ways of binding it: `E0496`, since `instanceof` finds no descriptor to walk, and
-  `E0711`, since `rule:types/conversion` tabulates no conversion into one. What has to be decided is
-  whether `instanceof` learns the descriptor address `nvs_stdlib::class_descriptors` already hands the
-  backend for a folded `` html`…` `` constant, or whether naming a `Core` class at a decode site stays
-  refused and `mixed` is the whole surface. `crates/nvs-runtime/src/graph.rs` gap 1.
-  [until: reviewed 2026-09-16]
 - **A division whose intermediate exceeds 128 bits throws where the quotient would have fit**, in the
   one corner where a wide mantissa and a wide scale difference meet: the fold of the two operands'
   scales is a `checked_mul` over `u128` taken before the divide. ADR 0054 § *Consequences* already
@@ -447,15 +439,6 @@ where taking it is the work and the code that follows it is not.
   which makes the root set part of what `nvs build --compile` freezes — or an autoload root is
   declared unsupported in a bundle and refused where it is written.
   `crates/nvs-diagnostics/src/embedded.rs` gap 1. [until: reviewed 2026-09-10]
-- **The stack ceiling is asserted rather than discovered.** `Ctx::new` arms from the stack pointer at
-  construction and a fixed `STACK_CEILING`, which is correct on a stack at least that deep and
-  permissive on a shallower one — where the guard page is still reached first and `enable_probestack`
-  still makes that a clean crash rather than a stack clash. Reading a thread's true bounds needs a
-  platform call this crate has no dependency for, and the module doc expects the request's stack to
-  become Novis's own to size at M6, which that milestone's plan does not state. What has to be
-  decided is where a request's stack comes from at all: a platform dependency that reads the running
-  thread's bounds, or a stack the runtime allocates and therefore already knows.
-  `crates/nvs-runtime/src/ctx/mod.rs` gap 1. [until: reviewed 2026-09-10]
 - **The door decides which requests a CSRF check covers and refuses none of them, and the route label
   it derives has no caller.** Verification is `rule:security/protocol-roster`'s constant-time
   comparison against a key bound to the issuing session, and this crate has neither half in reach:

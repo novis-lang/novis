@@ -2,50 +2,52 @@
 
 ## State
 
-**Goal `unowned-closures`, stage 6 (the register).** `python tools/owners.py` reads 80 items with
-`unowned: 6`, `untagged: 0`, `broken-tag: 0`, `unreasoned: 0`, and `--deferrals` green. The six left are
-in `nvs-db`, `nvs-runtime` and `nvs-stdlib`, two each.
+**Goal `unowned-closures`, stage 6 (the register).** `python tools/owners.py` reads 79 items with
+`unowned: 4`, `untagged: 0`, `broken-tag: 0`, `unreasoned: 0`, and `--deferrals` green. The four left
+are two in `nvs-db` and two in `nvs-stdlib`.
 
-**`nvs-host`'s whole share of the register is settled, and it took a chain entry rather than a
-deferral.** Both placement gaps are one seam and neither waits on a milestone: the table behind a
-resolver is already shareable — `nvs_cli::script::Compiler` keeps its two maps behind `RwLock`s and a
-serving fleet hands every core the same `Arc<Compiler>` (`crates/nvs-cli/src/serve.rs:703`) — so what is
-missing is a seam a core that has not started yet can install. Goal `worker-placement` is now the entry
-after `class-scoped-types` and before `gap-zero`, with its prose, manifest, acceptance list and seed
-handoff on disk; `placed.rs`, `group.rs` and `worker.rs` tag to it, and their two
-`docs/agent/carried-gaps.md` § *Unowned* bullets are rows in that file's § *Owned* table.
+**The stack-ceiling item was struck, not scheduled: the code is ahead of the prose the gap was written
+from.** The scheduler re-arms every task from the stack it handed out, at the one place a task's
+coroutine is built (`crates/nvs-host/src/scheduler.rs:826`, `crates/nvs-host/src/stack.rs:93`), so
+`rule:concurrency/a-tasks-recursion-limit-comes-from-its-own-stack` is answered for every program —
+`nvs run`, `nvs serve`, a queue worker and a test suite all reach their work through
+`nvs_host::Scheduler::spawn`. `Ctx::new`'s asserted `STACK_CEILING` bounds only a context driven on a
+thread's own stack, which is an embedder's case and no request's, and
+`crates/nvs-runtime/src/ctx/mod.rs` states it as that bound.
 
-**A floor check named the CSRF binding under the wrong crate** — the token's format is
-`crates/nvs-runtime/src/csrf.rs`, under both its readers, because `Core\Csrf` and the server door are in
-crates that cannot see each other. It is its own `-p nvs-runtime` block now, over the name the tree
-holds, and `docs/agent/loop-goal.toml` and `docs/agent/goals/60-unowned-closures.toml` are byte-identical
-again.
+**The decoded-`Core`-instance item took a chain entry.** Goal `core-class-tests` is now between
+`worker-placement` and `gap-zero`: `instanceof` and `as` refuse a `Core` class because `nvs-types` has
+no testable descriptor for one, while `nvs_stdlib::instance::class_descriptors` already publishes the
+address a test would walk and `Ctx::class_desc` already resolves a decoded value under its own
+descriptor — so it is a checker roster rather than any milestone's work, and no plan states the scope a
+deferral would need. Prose, manifest, acceptance list and seed handoff are on disk; `graph.rs` tags to
+it and its `docs/agent/carried-gaps.md` § *Unowned* bullet is a row in that file's § *Owned* table.
 
 ## Next group
 
-**Stage 6: the register** — one file set: `crates/nvs-runtime/src/`. Each item is a scheduling decision
+**Stage 6: the register** — one file set: `crates/nvs-db/src/`. Each item is a scheduling decision
 written into the gap's own `— owner:` line: a goal slug on the chain, or an M9+ deferral whose plan
 states the scope (`python tools/owners.py --deferrals` is the gate on the second kind).
 
-- [ ] **A stack ceiling is asserted, not discovered** — `crates/nvs-runtime/src/ctx/mod.rs:65` gap 1.
-      `rule:concurrency/a-tasks-recursion-limit-comes-from-its-own-stack` says the limit is armed from
-      the stack's **real bounds**, so the code is behind a rule rather than ahead of one; what it needs
-      is a platform call this crate has no dependency for, and the gap's own prose names M6, which is
-      complete. The decision is which entry owns reading a thread's bounds, not whether to.
-- [ ] **A decoded `Core` instance is a `mixed` a program cannot narrow** —
-      `crates/nvs-runtime/src/graph.rs:74` gap 1. Both refusals are `nvs-types`' (`E0496` because
-      `instanceof` finds no descriptor, `E0711` because `rule:types/conversion` tabulates no conversion
-      into one), and the address `instanceof` would test against is the one
-      `nvs_stdlib::class_descriptors` already hands the backend, so the owner question is which entry
-      carries that address into the checker.
+- [ ] **A span renders on a flag no grant turns on** — `crates/nvs-db/src/span.rs:65` gap 1.
+      `rule:testing/debug-probes` writes the `debug.trace` grant and spec § 11 gates the output on it,
+      but nothing outside a test sets `DebugFlags::TRACE` from a capability. Both halves are above this
+      crate — the flag is `nvs-runtime`'s, the grant `nvs-config`'s — so what the owner owns is the
+      place a request's capability set is read into its `Ctx`, which is a seam rather than a driver
+      change.
+- [ ] **A `bytes` parameter is refused by the TDS driver** — `crates/nvs-db/src/tds/mod.rs:88` gap 1,
+      this driver's only departure from [ADR 0067 § 9](../decisions/0067.md)'s table and pinned by
+      `a_bound_parameter_renders_as_t_sql_reads_it_and_a_bytes_is_refused`. `rule:core-classes/db-one-api`
+      is what the departure is measured against. Closing it makes `sp_prepexec`'s `@params` a function
+      of the values a call binds rather than of the statement alone, which reaches § 1's plan-cache key
+      — so the decision is that trade against stating the refusal as a bound of this dialect.
 
 ## Backlog
 
-- The four register items left after this group: `crates/nvs-db/src/span.rs:65` gap 1 and
-  `crates/nvs-db/src/tds/mod.rs:88` gap 1 (one file set), `crates/nvs-stdlib/src/cache.rs:155` gap 1 and
-  `crates/nvs-stdlib/src/response.rs:199` gap 2 (another).
-- `crates/nvs-runtime/src/script.rs`'s test-resolver comment says a real implementor is `!Sync` and uses
-  `scoped` for that reason; `nvs_cli::script::Compiler` is `RwLock`-backed and shared. Goal
-  `worker-placement`'s own handoff carries it.
-- `docs/agent/loop-goal.toml`'s `[context]` had drifted ahead of the goal file by three sessions of
-  widenings; the copy is restored, and a session that widens one should write both.
+- The last two unowned items share `crates/nvs-stdlib/src/`: `cache.rs:155` gap 1 (a shared store
+  behind a password, an index or TLS) and `response.rs:199` gap 2 (nothing adjudicates between two
+  declarations).
+- `crates/nvs-stdlib/src/queue.rs` gap 1 has two owners: the module tags `unowned-closures` and
+  `docs/agent/carried-gaps.md` § *Owned* gives it to `gap-zero`. One of them is wrong and the register
+  reads both.
+- When this goal's checks go green the driver takes goal `class-scoped-types`.
