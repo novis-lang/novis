@@ -1,0 +1,43 @@
+--TEST--
+a tainted path and a tainted argument list are refused at both members that start a program, so a name the program did not choose cannot become the command — `rule:core-classes/process-is-argv-only`, `rule:core-classes/process-spawn`
+--FILE--
+<?nvs
+// `rule:core-classes/process-is-argv-only`: the path and every element of the argument array are
+// plain `string`, so a tainted value needs a checked conversion or an explicit
+// launderer before either member takes it. What this file asks is that `run`
+// and `spawn` *agree* — the second member came later, and one that grew a
+// qualifier of its own would still read right on its own line and fail here.
+tainted string $t = "/bin/echo";
+array<tainted string> $words = [$t];
+array<string> $none = [];
+
+// The path. An argument list the program wrote does not rescue it: what is
+// refused is the name of the program, which is the whole of what a command
+// injection is.
+var $ran = Core\Process::run($t, $none);
+var $started = Core\Process::spawn($t, $none);
+
+// One element of the list, under a path the program wrote. The array carries
+// no nesting mark of its own — `array<tainted string>` is simply not
+// `array<string>`, which is the rule's own sentence — so this is refused for
+// the element's qualifier and not for anything the element says.
+var $second = Core\Process::run("/bin/echo", $words);
+var $third = Core\Process::spawn("/bin/echo", $words);
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:14:30
+%A
+error[E0401]: expected `string`, found `tainted string`
+   --> case.nvs:15:36
+%A
+error[E0401]: expected `array<string>`, found `array<tainted string>`
+   --> case.nvs:21:46
+%A
+error[E0401]: expected `array<string>`, found `array<tainted string>`
+   --> case.nvs:22:47
+%A
+error: aborting due to 4 errors
