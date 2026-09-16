@@ -3,53 +3,47 @@
 ## State
 
 Goal `m8-stdlib-depth`. **Stages 0, 2, 3, 4 and 5 are done, and stage 6 is open on `Core\Reflect`.**
-Stage 6's five named `.nvst` cases are all on disk and green. A property's **declared type** now reaches
-the runtime descriptor as a printable name, on the hook roster's own road:
-`nvs_types::layout::ClassLayout::field_types` spells it from the declaration that wrote it, aligned to
-`fields`' slot order; `nvs_ir::ir::Class::field_types` copies it down, `nvs-codegen` hands it to
-`nvs_runtime::ClassTable::set_field_types` under the length guard its visibility twin uses, and
-`nvs_runtime::ClassDesc::field_type` answers it — `None` for a slot no declaration laid out.
+Both of stage 6's checks are green: the five named `.nvst` cases, and
+`every_reflect_info_class_the_record_names_is_registered`, which reads ADR 0019 § 1's `*Info` roster
+out of the record and holds every name on it against `registry::CLASSES`.
 
-`crates/nvs-stdlib/src/reflect.rs`'s gap 3 is struck: last session's hook work made a reflective write
-run the `set` hook, and the gap still said it did not. Gap 1 now names the class registration itself as
-`PropertyInfo`'s one remaining blocker. Nothing is blocked.
+`Core\Reflect\PropertyInfo` is registered and carries a property's name, its visibility bit and the
+type its declaration spells. **The surface call is made and recorded**: `ClassInfo::properties` is now
+the complete roster, `methods`' symmetric twin, and the scope-sensitive walk keeps its own behaviour
+under `readableProperties`, which is the member on `registry::CALL_SITE_MEMBERS`. `hasProperty` lands
+beside `hasMethod`. `crates/nvs-stdlib/src/reflect.rs:46` § *both rosters are complete* is the home of
+why two members rather than one — spec § 13's row replaces `property_exists` and `get_object_vars`
+alike, and those are two answers.
 
-**The next item is not the five mechanical edits the last handoff called it.** `ClassInfo::methods`
-answers `array<MethodInfo>` while `ClassInfo::properties` answers `array<string>` filtered to the
-calling site, so registering `PropertyInfo` first decides which of those two shapes the property half
-takes. The item below names the evidence on both sides.
+`NOT_YET_BUILT` (`crates/nvs-stdlib/src/reflect.rs:2175`) is the roster's remaining four, and it is
+two-sided: registering one of them fails the gate until its line is deleted. Nothing is blocked.
 
 ## Next group
 
-**Stage 6: the `*Info` classes, over descriptor data that now exists** — one file set:
-`crates/nvs-stdlib/src/reflect.rs`, `crates/nvs-stdlib/src/registry.rs`,
-`crates/nvs-stdlib/src/instance.rs` and `tests/conformance/core/`. `rule:core-classes/reflect` is the
-rule; ADR 0019 § 1's roster and § 2's *reading metadata is always available* are the record, and the
-goal's § *Standing decisions* pre-authorizes the shape.
+**Stage 6: `Core\Reflect\ParameterInfo`, over descriptor data no crate carries yet** — one file set:
+`crates/nvs-types/src/layout.rs`, `crates/nvs-ir/src/ir.rs`, `crates/nvs-codegen/src/lib.rs`,
+`crates/nvs-runtime/src/object.rs` and `crates/nvs-stdlib/src/reflect.rs`. The road is the one
+`field_types` took: layout spells it, IR copies it down, codegen hands it to the class table, the
+descriptor answers it. `rule:core-classes/reflect` is the rule and ADR 0019 § 1's roster the record;
+the goal's § *Standing decisions* pre-authorizes the shape.
 
-- [ ] **`Core\Reflect\PropertyInfo` registered, and the surface call made before the five edits** —
-      `crates/nvs-stdlib/src/reflect.rs:749` is the template (`METHOD_INFO`: three readers over three
-      slots, one card each), `crates/nvs-stdlib/src/reflect.rs:855` is the walk that would fill it and
-      already builds both the visible and the declared name lists,
-      `crates/nvs-stdlib/src/registry.rs:2017` is the one-line registration and `:2987` the member
-      roster. The call to make first: either `properties` becomes `methods`' symmetric roster — ADR
-      0019 § 2 makes metadata readable whatever the visibility, and
-      `tests/conformance/core/reflect-describes-a-class-by-the-properties-visible-from-outside.nvst`
-      is a `rule:core-classes/reflect` guard case that is then amended *with* the rule in the same
-      slice — or a second member lands beside it and the two rosters keep answering differently. Read
-      the module doc's § *the method roster is complete* (`crates/nvs-stdlib/src/reflect.rs:46`)
-      first; it owns why they differ today. The type each row carries is
-      `nvs_runtime::ClassDesc::field_type` (`crates/nvs-runtime/src/object.rs:1032`).
-- [ ] **`Core\Reflect\ParameterInfo` beside it** — a parameter's *name* is in no descriptor:
-      `nvs_runtime::MethodRow` (`crates/nvs-runtime/src/object.rs:516`) carries the address, the arity
-      and one tag per slot and no spelling, while `nvs_types::signatures::MethodSig`
-      (`crates/nvs-types/src/signatures.rs:57`) holds the names. It travels the road this session
-      built, one datum over: `layout`/`signatures` → `nvs_ir::ir::Class` → `ClassTable` → `ClassDesc`.
-- [ ] **`every_reflect_info_class_the_record_names_is_registered`** — the stage-6 check at
-      `docs/agent/loop-goal.toml:10917`, enumerating ADR 0019 § 1's roster against
-      `crates/nvs-stdlib/src/registry.rs:2012`'s `CLASSES`. Write it with the **last** Info class of
-      the stage: it names seven classes and stays red until `ConstantInfo`, `AttributeInfo` and
-      `EnumInfo` land too, so writing it earlier only leaves a red test in the tree.
+- [ ] **A method's parameter names reach the runtime descriptor** — `nvs_runtime::MethodRow`
+      (`crates/nvs-runtime/src/object.rs:516`) carries a name, an arity and `param_tags`, and no
+      spelling for any parameter. Fill it on `field_types`' own road:
+      `crates/nvs-types/src/layout.rs:303` is where the layout spells what it knows,
+      `crates/nvs-ir/src/ir.rs:175` is the copy-down beside `Class::field_types`, and
+      `crates/nvs-codegen/src/lib.rs:1452` is the `set_field_types` call a `MethodRow` twin sits
+      next to. Carry the names per method row rather than per class: an arity already lives there, and
+      a second class-wide vector would have no slot order to align to.
+- [ ] **`Core\Reflect\ParameterInfo` registered, and `MethodInfo::parameters` beside it** —
+      `crates/nvs-stdlib/src/reflect.rs:880` is the template (`PROPERTY_INFO`: three readers over
+      three slots, one card each, built in `describe`), and `crates/nvs-stdlib/src/reflect.rs:2175` is
+      the `NOT_YET_BUILT` line the slice deletes. A row carries a name and its declared type where
+      `param_tags` can spell one; `parameterCount` stays, because a count is not a list.
+- [ ] **Three `.nvst` cases per new member** — `tests/conformance/core/`, on the shape
+      `tests/conformance/core/reflect-property-info-lists-a-classs-properties-with-their-visibility.nvst:19`
+      walks a roster with. The trap the playbook's *Writing a test case* names applies: a case must
+      spell `Core\Reflect\ParameterInfo` for its members to be counted at all.
 
 ## Backlog
 
@@ -61,7 +55,7 @@ goal's § *Standing decisions* pre-authorizes the shape.
   `crates/nvs-stdlib/src/reflect.rs` gap 2, which fails closed.
 - The exception tree's slots carry no declared type *text* — `nvs_types::error_lib` types them as
   interned ids, so `ClassDesc::field_type` answers `None` for every `Throwable` slot and a
-  `PropertyInfo` over a caught error will show it.
-- `[context] modules` named none of `crates/nvs-runtime/src/object.rs`, `crates/nvs-codegen/src/lib.rs`
-  or `crates/nvs-ir/src/ir.rs`; this session's commit touches all three, so the driver's own sweep of
-  the field should close it without a person.
+  `PropertyInfo` over a caught error shows it as `null`.
+- `docs/decisions/0126.md:75` names `ClassInfo::properties` for a *visibility-filtered* set, which is
+  `readableProperties` now. The record is frozen rationale; the shape-key slice takes the member from
+  `rule:security/reflection-enforces-visibility` rather than from that sentence.

@@ -5217,6 +5217,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   in it attributes to nobody, and a new member reads as `asked by 0 case(s)` however many cases call
   it. Name the class in a comment — or reach it through a member returning the bare `Instance` — and
   the same cases count. [until: gone crates/nvs-stdlib/tests/corpus/mod.rs:holders]
+- **A `Core` class only ever answered *inside an array* is attributed to no case, and its members
+  read as asked by zero.** `crates/nvs-stdlib/tests/corpus/mod.rs`'s `Attribution::builds` maps a
+  member to the class it builds from `CoreTy::Instance` and `InstanceAt` alone, so a row class
+  reached through `array<PropertyInfo>` holds a case only where the case spells its qualified name.
+  Write that name in — a typed `foreach ($roster as Core\Reflect\PropertyInfo $row)` does it.
+  [until: gone crates/nvs-stdlib/tests/corpus/mod.rs:CoreTy::Instance(made)]
 
 ## Splitting a file that got too big
 
