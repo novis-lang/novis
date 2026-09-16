@@ -1,0 +1,18 @@
+--TEST--
+reading a class constant answers the declaration that wrote it, and reading an inherited one answers the class that declares it rather than the class the read named, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+class Limits
+{
+    public const int MAX = 10;
+}
+
+class Cart extends Limits
+{
+}
+
+echo Cart::M<|>AX;
+--REQUEST--
+definition
+--EXPECT--
+case.nvs:4:22

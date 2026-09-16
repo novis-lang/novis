@@ -1,5 +1,5 @@
 --TEST--
-a class constant's declaration names no other declaration, so the cursor on it answers `none` where a read of it answers the class, `rule:ide/the-index-answers-the-cursor`
+a class constant's declaration names no other declaration, so the cursor on it answers `none` where a read of it answers the declaration, `rule:ide/the-index-answers-the-cursor`
 --FILE--
 <?nvs
 class Cart

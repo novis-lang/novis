@@ -33,10 +33,11 @@
 //! is declared. Narrowing that needs a node per member name, which is
 //! `nvs_syntax::walk`'s decision rather than this module's.
 //!
-//! **An enum case answers its enum.** `Mode::Read` under the cursor jumps to
-//! `enum Mode`, because a case is a member and the symbol table holds
-//! declarations. That is a true answer to a narrower question than was asked,
-//! which is the same trade the member slice above will close.
+//! **An enum case answers the case.** `Mode::Read` under the cursor jumps to
+//! `case Read`, because `rule:enums/no-class-machinery` makes a case a constant
+//! declared on its enum and a constant is a member like any other. `enum Mode`
+//! is what [`type_at`] answers there, which is the request that asks what
+//! something *is* rather than where the name came from.
 //!
 //! **The whole graph, not the entry alone.** The cursor is always in the open
 //! document ([`crate::selection`]'s reasoning), but what it names may be
@@ -49,7 +50,7 @@ use std::path::PathBuf;
 use lsp_types::Range;
 use nvs_diagnostics::{BytePos, PositionEncoding, SourceFile, Span};
 use nvs_hir::QName;
-use nvs_syntax::ast::{ClassMember, ClassMemberKind, DocComment, Stmt, StmtKind};
+use nvs_syntax::ast::{ClassMember, ClassMemberKind, DocComment, EnumCase, Stmt, StmtKind};
 use nvs_types::{ExprInfo, ResolvedCall, Ty, TypeId, TypeInterner};
 
 use crate::document::Analysed;
@@ -181,9 +182,10 @@ fn class_of(interner: &TypeInterner, ty: TypeId) -> Option<QName> {
 /// A type and a member are two lookups and not one: a type is declared at file
 /// scope and a member inside a declaration, so they are found in different
 /// places even though both start at the same [`nvs_hir::SymbolTable`] entry. A
-/// method and a property are separate arms rather than one name and a flag
-/// because `class C { public int $x; public function x(): int … }` is legal —
-/// one name, two declarations, and nothing but the kind tells them apart.
+/// method, a property and a constant are separate arms rather than one name
+/// and a kind flag because `class C { public int $x; public function x(): int
+/// … }` is legal — one name, more than one declaration, and nothing but which
+/// list the checker resolved it in tells them apart.
 pub(crate) enum Target<'a> {
     /// A class, an interface or an enum, by its fully-qualified name.
     Type(&'a QName),
@@ -208,6 +210,37 @@ pub(crate) enum Target<'a> {
         /// The property's own name.
         name: &'a str,
     },
+    /// A class constant, on [`Target::Property`]'s terms and told apart from
+    /// one by the sigil neither carries here: the source writes `C::$x` for the
+    /// property and `C::NAME` for the constant, so the two spellings differ
+    /// where they are compared even though both names arrive bare.
+    ///
+    /// An **enum case** is one of these and not a type: `rule:enums/no-class-machinery`
+    /// makes the case its own integer constant, declared on the enum the way a
+    /// constant is declared on a class, so `Suit::Hearts` resolves here and the
+    /// enum is what [`type_at`] answers instead.
+    Constant {
+        /// The declaring class, or the enum a case belongs to.
+        class: &'a QName,
+        /// The constant's own name.
+        name: &'a str,
+    },
+}
+
+/// Which of a declaration's member lists a name is looked for in.
+///
+/// A class writes three lists a resolved name can land in and one name may be
+/// in all three — `class C { public const int X = 1; public int $x; public
+/// function x(): int … }` — so what resolved is carried alongside the name
+/// rather than guessed from it.
+#[derive(Clone, Copy)]
+enum MemberKind {
+    /// A method, whose name the source writes bare.
+    Method,
+    /// A property, whose name the source writes with its `$`.
+    Property,
+    /// A class constant, whose name the source writes bare.
+    Constant,
 }
 
 /// One declaration, as the two cursor requests read it.
@@ -229,19 +262,32 @@ pub(crate) struct Site<'a> {
 pub(crate) fn site<'a>(analysed: &'a Analysed, target: &Target<'_>) -> Option<Site<'a>> {
     let (class, member) = match target {
         Target::Type(qname) => (*qname, None),
-        Target::Method(call) => (&call.class, Some((call.method.as_str(), true))),
-        Target::Property { class, name } => (*class, Some((*name, false))),
+        Target::Method(call) => (
+            &call.class,
+            Some((call.method.as_str(), MemberKind::Method)),
+        ),
+        Target::Property { class, name } => (*class, Some((*name, MemberKind::Property))),
+        Target::Constant { class, name } => (*class, Some((*name, MemberKind::Constant))),
     };
     let symbol = analysed.module.symbols.get(class)?;
     let file = analysed.map.file(symbol.decl_span.file);
     let stmt = declared_type(analysed, class).map(|(stmt, _)| stmt);
-    let Some((name, is_method)) = member else {
+    let Some((name, kind)) = member else {
         return Some(Site {
             span: symbol.decl_span,
             doc: stmt.and_then(doc_of),
         });
     };
-    let member = declared_member(stmt?, file, name, is_method)?;
+    let stmt = stmt?;
+    // A case is declared in its own list and not among the members, so it is
+    // the one member name reached without [`declared_member`].
+    if let Some(case) = declared_case(stmt, file, name, kind) {
+        return Some(Site {
+            span: case.name.span,
+            doc: case.doc.as_ref(),
+        });
+    }
+    let member = declared_member(stmt, file, name, kind)?;
     Some(Site {
         span: member_name(member)?,
         doc: member.doc.as_ref(),
@@ -302,16 +348,16 @@ fn doc_of(stmt: &Stmt) -> Option<&DocComment> {
     }
 }
 
-/// The member of `stmt` written as `name`, of the kind `is_method` selects.
+/// The member of `stmt` written as `name`, of the kind `kind` selects.
 ///
-/// A type alias has no body and an enum's cases are not what a call or a
-/// property access resolves to, so both answer nothing here rather than being
-/// searched.
+/// A type alias has no body and an enum's cases are not what a call, a property
+/// access or a constant read resolves to, so both answer nothing here rather
+/// than being searched.
 fn declared_member<'a>(
     stmt: &'a Stmt,
     file: &SourceFile,
     name: &str,
-    is_method: bool,
+    kind: MemberKind,
 ) -> Option<&'a ClassMember> {
     let members = match &stmt.kind {
         StmtKind::ClassDecl(decl) => &decl.members,
@@ -319,13 +365,40 @@ fn declared_member<'a>(
         StmtKind::EnumDecl(decl) => &decl.members,
         _ => return None,
     };
-    members.iter().find(|member| match &member.kind {
-        ClassMemberKind::Method(method) if is_method => text_of(file, method.name) == name,
-        ClassMemberKind::Property(property) if !is_method => {
+    members.iter().find(|member| match (&member.kind, kind) {
+        (ClassMemberKind::Method(method), MemberKind::Method) => text_of(file, method.name) == name,
+        (ClassMemberKind::Property(property), MemberKind::Property) => {
             text_of(file, property.name).trim_start_matches('$') == name
+        }
+        (ClassMemberKind::Const(constant), MemberKind::Constant) => {
+            text_of(file, constant.name) == name
         }
         _ => false,
     })
+}
+
+/// The case of `stmt` written as `name`, and nothing for any other kind of
+/// name or any declaration that is not an enum.
+///
+/// `rule:enums/no-class-machinery` makes a case an integer constant declared on
+/// its enum, so a read of one arrives here as a [`Target::Constant`] like a
+/// class constant does — and is then looked for in the list an enum keeps its
+/// cases in, which is not the member list every other declaration uses.
+fn declared_case<'a>(
+    stmt: &'a Stmt,
+    file: &SourceFile,
+    name: &str,
+    kind: MemberKind,
+) -> Option<&'a EnumCase> {
+    let StmtKind::EnumDecl(decl) = &stmt.kind else {
+        return None;
+    };
+    if !matches!(kind, MemberKind::Constant) {
+        return None;
+    }
+    decl.cases
+        .iter()
+        .find(|case| text_of(file, case.name.span) == name)
 }
 
 /// A member's own name span, or nothing for a shape that has none.
@@ -333,6 +406,7 @@ fn member_name(member: &ClassMember) -> Option<Span> {
     match &member.kind {
         ClassMemberKind::Method(method) => Some(method.name),
         ClassMemberKind::Property(property) => Some(property.name),
+        ClassMemberKind::Const(constant) => Some(constant.name),
         _ => None,
     }
 }
@@ -384,7 +458,13 @@ pub(crate) fn target_of(info: &ExprInfo) -> Option<Target<'_>> {
         // allocated is whatever descriptor is in hand, and no compile
         // knows it (`nvs_types::ExprInfo::NewDynamic`).
         ExprInfo::NewDynamic { bound, .. } => Target::Type(bound),
-        ExprInfo::EnumCase { enum_, .. } => Target::Type(enum_),
+        // The case and not the enum around it, which is the declaration the
+        // index already keys under `Status::Draft` — the enum is a fact about
+        // the case's *type* and [`type_at`] is the request that asks for one.
+        ExprInfo::EnumCase { enum_, case, .. } => Target::Constant {
+            class: enum_,
+            name: case,
+        },
         ExprInfo::Call(call) | ExprInfo::CallableRef(call) | ExprInfo::ClassRefCall(call) => {
             Target::Method(call)
         }
@@ -394,6 +474,11 @@ pub(crate) fn target_of(info: &ExprInfo) -> Option<Target<'_>> {
         ExprInfo::Property { class, name, .. }
         | ExprInfo::StaticProperty { class, name, .. }
         | ExprInfo::HookedProperty { class, name, .. } => Target::Property { class, name },
+        // The class the constant was *declared* on, which is what the checker
+        // recorded and what the declaration side of the index is keyed by —
+        // reading an inherited constant through a subclass names one
+        // declaration, not two (`nvs_types::ExprInfo::ClassConst`).
+        ExprInfo::ClassConst { class, name, .. } => Target::Constant { class, name },
         _ => return None,
     })
 }

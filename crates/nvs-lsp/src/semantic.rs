@@ -423,7 +423,9 @@ impl Named<'_> {
             return 0;
         };
         let class = match &target {
-            Target::Type(class) | Target::Property { class, .. } => *class,
+            Target::Type(class)
+            | Target::Property { class, .. }
+            | Target::Constant { class, .. } => *class,
             Target::Method(call) => &call.class,
         };
         if registry::class(&class.to_string()).is_some() {

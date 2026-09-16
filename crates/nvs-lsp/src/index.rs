@@ -56,21 +56,18 @@
 //! workspace pass and an open-documents pass produce byte-identical entries for
 //! a file they both reach.
 //!
-//! # Known gaps
+//! # Decision: an occurrence is keyed on a name the entry proves, not on the
+//! text in front of it
 //!
-//! 1. **An enum case occurrence is recorded against its enum**, not against
-//!    the case, because that is what the checker resolved it to
-//!    (`nvs_types::ExprInfo::EnumCase`) and `definition` answers the same way.
-//!    A declaration side that records the case and an occurrence side that
-//!    cannot name it is the one asymmetry here, and closing it is a change in
-//!    the checker's table rather than in this walk.
-//!    — owner: unowned
-//! 2. **Reading a class constant is no occurrence of it.**
-//!    [`crate::definition::Target`] names a type, a method and a property and
-//!    has no constant among them, so `self::GREETING` resolves to nothing this
-//!    walk can record and the declaration counts no uses however many sites
-//!    read it. The missing variant is that module's to add.
-//!    — owner: unowned
+//! `Status::Draft` and `Cart::LIMIT` each write two names against one recorded
+//! resolution. The occurrence is the case or the constant, at its own name,
+//! because that is what the checker resolved. The qualifier is recorded as a
+//! second occurrence only where the entry *proves* what it says — an enum case,
+//! since no enum extends another ([`case_qualifier`]) — and never for a class
+//! constant, whose entry carries the class that declares it and so cannot say
+//! whether `Cart::LIMIT` wrote `Cart` or the `Limits` it inherits from. That
+//! keeps a reference list a list of sites that resolved to the symbol asked
+//! about rather than a text search for its name.
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -80,6 +77,7 @@ use nvs_diagnostics::{BytePos, SourceFile, Span, canonical_key};
 use nvs_hir::{Loaded, QName, SymbolKind};
 use nvs_syntax::ast::{ClassMember, ClassMemberKind, Modifier, Stmt, StmtKind};
 use nvs_syntax::walk;
+use nvs_types::ExprInfo;
 
 use crate::definition::{Target, declared_type, named_at, target_of, text_of};
 use crate::document::{Analysed, Documents, analyse_file};
@@ -797,6 +795,7 @@ fn occurrences(analysed: &Analysed, loaded: &Loaded, path: &Path) -> Vec<Occurre
                 symbol: symbol_of(&target),
                 site: site(path, named(node)),
             });
+            found.extend(case_qualifier(info, node, path));
         }
     }
 
@@ -871,12 +870,39 @@ fn clause_uses(written: &[Span], resolved: &[QName], path: &Path, found: &mut Ve
     }
 }
 
+/// The enum an `Enum::Case` read writes in front of the case, as a use of the
+/// enum itself — and `None` for every other recorded expression.
+///
+/// The one production that leaves two occurrences, because it is the one that
+/// writes two names this walk can key both of: the case is what the read
+/// resolved to, and no enum extends another, so the name in front of it is
+/// necessarily the enum the entry already carries. `Cart::LIMIT` writes two
+/// names as well and only the constant's is proven — the class written may be a
+/// subclass of the one that declares it — so the qualifier is left alone there
+/// rather than keyed under a name the source did not write.
+///
+/// This is the index's side alone. A **cursor** anywhere in the production, the
+/// qualifier included, asks about what the production resolved to, because
+/// [`crate::definition::named_at`] answers the innermost node the checker
+/// recorded an entry for and the qualifier is not one.
+fn case_qualifier(info: &ExprInfo, node: &walk::Node, path: &Path) -> Option<Occurrence> {
+    let ExprInfo::EnumCase { enum_, .. } = info else {
+        return None;
+    };
+    let written = node.children.first()?;
+    Some(Occurrence {
+        symbol: enum_.to_string(),
+        site: site(path, written.name.unwrap_or(written.span)),
+    })
+}
+
 /// What one resolved use names, spelled the module doc's way.
 fn symbol_of(target: &Target<'_>) -> String {
     match target {
         Target::Type(qname) => qname.to_string(),
         Target::Method(call) => format!("{}::{}", call.class, call.method),
         Target::Property { class, name } => format!("{class}::${name}"),
+        Target::Constant { class, name } => format!("{class}::{name}"),
     }
 }
 
@@ -884,18 +910,17 @@ fn symbol_of(target: &Target<'_>) -> String {
 ///
 /// [`nvs_syntax::walk::Node::name`] is the production's own name, and that is
 /// the answer wherever the name written and the symbol resolved are the same
-/// one: a call resolves to its method, an access to its property, a `new` to
-/// its class. Two productions resolve to a name written on their **class**
-/// side instead — an enum case read, which `# Known gaps` 1 records against
-/// its enum, and an `instanceof` — and one to a name on its **callee** side,
-/// so each answers the child node that holds it.
+/// one: a call resolves to its method, an access to its property, a
+/// `Class::CONST` and a `Enum::Case` to the constant each names, a `new` to its
+/// class. An `instanceof` resolves to a name written on its **right-hand** side
+/// and a call through a callable to one on its **callee** side, so each answers
+/// the child node that holds it.
 ///
 /// A production that wrote no name at all — `new $class()`, `$u->{$name}` —
 /// answers the whole expression, which is the widest true thing there is to
 /// say about where it was written.
 fn named(node: &walk::Node) -> Span {
     let written = match node.kind {
-        "ClassConstAccess" => node.children.first(),
         "InstanceOf" => node.children.get(1),
         "Call" => node.children.first(),
         _ => None,

@@ -78,6 +78,7 @@ use lsp_types::{
     ParameterLabel, SignatureHelp, SignatureInformation,
 };
 use nvs_diagnostics::{BytePos, PositionEncoding};
+use nvs_hir::SymbolKind;
 use nvs_stdlib::registry::{self, CoreMethod, MethodDoc};
 use nvs_syntax::ast::DocComment;
 use nvs_syntax::{DOC_MARKER, IndexNode};
@@ -97,7 +98,11 @@ pub fn at(analysed: &Analysed, offset: BytePos, encoding: PositionEncoding) -> O
     let (value, node) = analysed.index.at(offset).nodes().iter().find_map(|node| {
         let info = analysed.exprs.lookup(node.span)?;
         let value = target_of(info)
-            .and_then(|target| core(analysed, &target).or_else(|| run(analysed, &target)))
+            .and_then(|target| {
+                core(analysed, &target)
+                    .or_else(|| run(analysed, &target))
+                    .or_else(|| enclosing_run(analysed, &target))
+            })
             .or_else(|| declared(analysed, info))?;
         Some((value, node.span))
     })?;
@@ -267,6 +272,27 @@ fn registry_row(call: &ResolvedCall) -> Option<&'static CoreMethod> {
 /// UTF-16 and there is nothing about them to negotiate.
 fn utf16_len(text: &str) -> u32 {
     u32::try_from(text.chars().map(char::len_utf16).sum::<usize>()).unwrap_or(u32::MAX)
+}
+
+/// The `///` run above the **enum** an undocumented case belongs to, as
+/// Markdown, and `None` for every other target.
+///
+/// A case is where `rule:enums/no-class-machinery` puts a name and the enum is
+/// where a program documents what the names mean — "`Draft` is written but not
+/// visible" is a sentence about a case that has nowhere else to live, since a
+/// case is one word and a value. So a case carrying its own run answers with
+/// it, and one carrying none answers with its enum's rather than with nothing.
+/// A class constant takes no such fallback: its declaration is a place a `///`
+/// can be written, and the class's card is about the class.
+fn enclosing_run(analysed: &Analysed, target: &Target<'_>) -> Option<String> {
+    let Target::Constant { class, .. } = target else {
+        return None;
+    };
+    let symbol = analysed.module.symbols.get(class)?;
+    if symbol.kind != SymbolKind::Enum {
+        return None;
+    }
+    run(analysed, &Target::Type(class))
 }
 
 /// The `///` run above the declaration `target` resolves to, as Markdown.

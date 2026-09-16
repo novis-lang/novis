@@ -1,0 +1,16 @@
+--TEST--
+a case declaration highlights the read of that case and not the reads of its siblings, the case being the symbol the read resolved to, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+enum Status: int
+{
+    case Dr<|>aft = 1;
+    case Live = 2;
+}
+
+var $s = Status::Draft;
+var $t = Status::Live;
+--REQUEST--
+documentHighlight
+--EXPECT--
+case.nvs:8:18

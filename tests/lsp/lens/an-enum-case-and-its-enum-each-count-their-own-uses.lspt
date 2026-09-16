@@ -1,0 +1,15 @@
+--TEST--
+a case's read is counted above the case and the enum written in front of it above the enum, so one read raises two counts and the case nothing reads says so, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+enum Suit {
+    case Hearts;
+    case Spades;
+}
+var $s = Suit::Hearts;
+--REQUEST--
+codeLens
+--EXPECT--
+2:6 1 reference
+3:10 1 reference
+4:10 no references

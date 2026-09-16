@@ -883,9 +883,9 @@ const fn symbol_kind(kind: DeclKind) -> SymbolKind {
 /// id would be an error message in the other client
 /// (`rule:ide/one-server-two-thin-clients`).
 ///
-/// An enum case gets no lens. Its uses are recorded against the enum rather
-/// than against the case ([`crate::index`]'s known gap), so the only count
-/// available for one would read `no references` above a case the program uses.
+/// **Every declaration the index holds gets one**, an enum case included: a
+/// case's reads are recorded against the case, so the count above one is the
+/// count of the sites that read it.
 fn code_lens(
     documents: &Documents,
     index: &SymbolIndex,
@@ -909,7 +909,6 @@ fn code_lens(
         index
             .declarations_in(&path)
             .iter()
-            .filter(|declared| declared.kind != DeclKind::EnumCase)
             .map(|declared| CodeLens {
                 range: range_of(file, declared.site.start, declared.site.end, encoding),
                 command: Some(Command {

@@ -1,0 +1,14 @@
+--TEST--
+a class constant's own declaration highlights the read of it three lines below, and not itself, which is what makes an unread constant answer nothing here, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+class Cart
+{
+    public const int LI<|>MIT = 10;
+}
+
+echo Cart::LIMIT;
+--REQUEST--
+documentHighlight
+--EXPECT--
+case.nvs:7:12

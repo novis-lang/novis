@@ -1,0 +1,15 @@
+--TEST--
+reading an enum case highlights the case's own name wherever in the production the cursor sits, the enum written in front of it being a use of the enum and no use of the case, `rule:ide/five-features-are-one-reference-index`
+--FILE--
+<?nvs
+enum Status: int
+{
+    case Draft = 1;
+    case Live = 2;
+}
+
+var $s = Sta<|>tus::Draft;
+--REQUEST--
+documentHighlight
+--EXPECT--
+case.nvs:8:18
