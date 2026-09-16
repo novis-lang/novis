@@ -153,7 +153,14 @@ pub(crate) fn infer_class_const(
             let constant = span_text(env.src, name).to_owned();
             match crate::core_lib::constant(&qname, &constant, env.interner) {
                 Some((ty, value)) => {
-                    env.exprs.record(expr.span, ExprInfo::CoreConst { value });
+                    env.exprs.record(
+                        expr.span,
+                        ExprInfo::ClassConst {
+                            class: qname.clone(),
+                            name: constant.clone(),
+                            value,
+                        },
+                    );
                     ty
                 }
                 None => {
@@ -175,14 +182,25 @@ pub(crate) fn infer_class_const(
         // site, so `nvs-ir` has no storage to read it back from.
         Some(qname) => {
             let constant = span_text(env.src, name).to_owned();
-            let found =
-                crate::signatures::resolve_const(&qname, &constant, env.signatures, env.graph)
-                    .cloned();
+            let found = crate::signatures::resolve_const_owned(
+                &qname,
+                &constant,
+                env.signatures,
+                env.graph,
+            )
+            .map(|(owner, sig)| (owner, sig.clone()));
             match found {
-                Some(sig) => {
+                Some((owner, sig)) => {
                     match sig.value {
                         Some(value) => {
-                            env.exprs.record(expr.span, ExprInfo::CoreConst { value });
+                            env.exprs.record(
+                                expr.span,
+                                ExprInfo::ClassConst {
+                                    class: owner,
+                                    name: constant.clone(),
+                                    value,
+                                },
+                            );
                         }
                         // A declaration the constant folder could not reduce.
                         // Refused *here* rather than at the declaration

@@ -293,7 +293,7 @@ impl<'a> Lowering<'a> {
             // auto-increment rule for one, `nvs_stdlib::registry`'s own row
             // for the other, `nvs_types::signatures::ConstSig` for a
             // user-declared class's — into
-            // `ExprInfo::EnumCase`/`ExprInfo::CoreConst`.
+            // `ExprInfo::EnumCase`/`ExprInfo::ClassConst`.
             ExprKind::ClassConstAccess { .. } => match self.exprs.lookup(expr.span) {
                 Some(ExprInfo::EnumCase { value, .. }) => match value {
                     nvs_types::EnumValue::Int(n) => {
@@ -305,8 +305,10 @@ impl<'a> Lowering<'a> {
                 },
                 // The same `ConstArg` an omitted parameter default is
                 // materialized from, through the same emitter — a constant is
-                // a constant whichever side of the call it was written on.
-                Some(ExprInfo::CoreConst { value }) => {
+                // a constant whichever side of the call it was written on. The
+                // class and the name the entry carries beside it are the
+                // editor's question, not this one's.
+                Some(ExprInfo::ClassConst { value, .. }) => {
                     let value = value.clone();
                     self.emit_const_arg(&value, env, *cur)
                 }

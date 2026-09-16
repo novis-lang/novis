@@ -1438,6 +1438,23 @@ pub fn resolve_const<'t>(
     table: &'t SignatureTable,
     graph: &ClassGraph,
 ) -> Option<&'t ConstSig> {
+    resolve_const_owned(qname, name, table, graph).map(|(_, sig)| sig)
+}
+
+/// [`resolve_const`]'s walk with the class it stopped at, which is the class
+/// that **declares** the constant and not the one the read was written on.
+///
+/// The distinction is [`resolve_property_owned`]'s: a name is what an
+/// occurrence of a member is keyed by, and `Child::LIMIT` and `Parent::LIMIT`
+/// are one declaration read two ways, so recording the written class would key
+/// the read under a symbol nothing declares.
+#[must_use]
+pub fn resolve_const_owned<'t>(
+    qname: &QName,
+    name: &str,
+    table: &'t SignatureTable,
+    graph: &ClassGraph,
+) -> Option<(QName, &'t ConstSig)> {
     let mut seen = FxHashSet::default();
     resolve_const_rec(qname, name, table, graph, &mut seen)
 }
@@ -1448,14 +1465,14 @@ fn resolve_const_rec<'t>(
     table: &'t SignatureTable,
     graph: &ClassGraph,
     seen: &mut FxHashSet<QName>,
-) -> Option<&'t ConstSig> {
+) -> Option<(QName, &'t ConstSig)> {
     if !seen.insert(qname.clone()) {
         return None;
     }
     if let Some(sig) = table.get(qname)
         && let Some(found) = sig.constants.get(name)
     {
-        return Some(found);
+        return Some((qname.clone(), found));
     }
     let links = graph.get(qname)?;
     links

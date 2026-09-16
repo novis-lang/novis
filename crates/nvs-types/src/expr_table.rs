@@ -862,7 +862,7 @@ pub enum ExprInfo {
     /// whole declaration in view.
     ///
     /// Never recorded for an ordinary `Class::CONST`, whose value travels in
-    /// [`ExprInfo::CoreConst`] instead.
+    /// [`ExprInfo::ClassConst`] instead.
     /// The enum and the case are carried beside the value for
     /// [`ExprInfo::InstanceOf`]'s reason a second time: `rule:types/literal-types`'s guard
     /// row narrows a local to the case's own `Ty::EnumCase`, and *which* case
@@ -878,24 +878,48 @@ pub enum ExprInfo {
         /// The case's own name.
         case: String,
     },
-    /// `Core\Class::CONSTANT`, keyed by the whole access's own span.
+    /// A value the checker folded at a site that named **no constant of its
+    /// own**: a `Foo::class`, an attribute retrieval
+    /// (`rule:attributes/structural-retrieval`), a static call settled while
+    /// checking. It carries the value for [`ExprInfo::EnumCase`]'s reason
+    /// exactly: the answer is inlined at the use site, so there is no storage
+    /// a consumer could read it back from, and the [`ConstArg`] here is the
+    /// same shape a parameter default already lowers through.
     ///
-    /// `rule:classes/no-free-functions-or-constants`'s
-    /// class constant, which `Core\Math::PI` is the first of. It carries the
-    /// value for [`ExprInfo::EnumCase`]'s reason exactly: a constant is
-    /// inlined at every use site, so there is no storage a consumer could read
-    /// it back from, and the [`ConstArg`] here is the same shape a parameter
-    /// default already lowers through.
-    ///
-    /// A **user-declared** class's constant travels in this variant too, and
-    /// `Foo::class` in the third of the three spellings that reach it: what
-    /// the name means is that the value came from a declaration rather than
-    /// from an enum's auto-increment rule, not that the declaration was
-    /// `Core`'s. `crate::signatures::ConstSig` is where a user constant's
-    /// value is placed in its declared type; the one shape that records
-    /// nothing here is a value with no constant form at all
-    /// (`public const array<int> ROWS = [1, 2];`).
+    /// A written `Class::CONST` is [`Self::ClassConst`] instead, which carries
+    /// the same value beside the two names the site wrote.
     CoreConst {
+        /// The folded value, in the type the site was checked at.
+        value: ConstArg,
+    },
+    /// `Class::CONST` as a program wrote it, keyed by the whole access's own
+    /// span.
+    ///
+    /// `rule:classes/no-free-functions-or-constants`'s class constant, on a
+    /// `Core` class and a user-declared one alike — `Core\Math::PI` and
+    /// `Limits::MAX` are one shape here, since what the value came from is not
+    /// a question a consumer of this entry asks. `crate::signatures::ConstSig`
+    /// is where a user constant's value is placed in its declared type; the
+    /// one shape that records nothing at all is a value with no constant form
+    /// (`public const array<int> ROWS = [1, 2];`).
+    ///
+    /// The class and the name travel beside the value because the site that
+    /// wrote them is the only place they survive: the constant is inlined, so
+    /// a consumer reading this back has no declaration in hand to recover them
+    /// from. `nvs_lsp::index` is who asks — a read is an occurrence of the
+    /// constant it names, and a name is what an occurrence is keyed by. What
+    /// it spends is one [`QName`] and one [`String`] per class-constant read,
+    /// in the checked unit's table, released with the unit and nothing per
+    /// request (`rule:programs/memory-priority`).
+    ClassConst {
+        /// The class that **declares** the constant, which is where an
+        /// inherited one is reached from rather than the class the read wrote
+        /// — [`crate::signatures::resolve_const_owned`]'s answer, and
+        /// [`ExprInfo::Property`]'s rule for the same question.
+        class: QName,
+        /// The constant's own name, with no sigil, which is how `C::NAME` is
+        /// told from the property `C::$name`.
+        name: String,
         /// The constant's value, in its declared type.
         value: ConstArg,
     },
