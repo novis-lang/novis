@@ -184,6 +184,7 @@ Conventions the whole file uses:
 | [`Core\Cache\SecretEntry`](#core-core-cache-secretentry) |  |
 | [`Core\RateLimit`](#core-core-ratelimit) |  |
 | [`Core\RateLimit\Decision`](#core-core-ratelimit-decision) |  |
+| [`Core\Metrics`](#core-core-metrics) |  |
 | [`Core\Reflect`](#core-core-reflect) |  |
 | [`Core\Reflect\ClassInfo`](#core-core-reflect-classinfo) |  |
 | [`Core\Reflect\MethodInfo`](#core-core-reflect-methodinfo) |  |
@@ -22203,6 +22204,74 @@ $decision->retryAfter(): ?Core\Time\Duration
 How long until this arrival would be admitted — the exact wait, computed from the store's own clock rather than estimated.
 
 **Returns** `?Core\Time\Duration` — `null` exactly when the decision is allowed, and otherwise the `Core\Time\Duration` until the theoretical arrival time; a `Retry-After` header built from it tells the client when to come back rather than when the window turns over, which is what stops every refused client retrying in the same instant.
+
+<a id="core-core-metrics"></a>
+### `Core\Metrics`
+
+Keywords: increment, observe, gauge
+
+| Member | Signature |
+|---|---|
+| [`Core\Metrics::increment`](#core-core-metrics-increment) | `increment(string $name, {by?: uint, labels?: array<string>}): void` |
+| [`Core\Metrics::observe`](#core-core-metrics-observe) | `observe(string $name, float $value, {labels?: array<string>}): void` |
+| [`Core\Metrics::gauge`](#core-core-metrics-gauge) | `gauge(string $name, float $value, {labels?: array<string>}): void` |
+
+<a id="core-core-metrics-increment"></a>
+#### `Core\Metrics::increment`
+
+```nvs skip
+Core\Metrics::increment(string $name, {by?: uint, labels?: array<string>}): void
+```
+
+Adds to a counter, fixing `$name` to a counter on its first use — the replacement for every hand-rolled `$GLOBALS` tally and for a `statsd` client's `increment`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (sink) | The series name, `[a-z][a-z0-9_]*`. A literal outside that grammar is a compile error, and a `tainted` name is refused wherever it was written. |
+| `{by: …}` | `uint` (default `1`) | How much to add; one by default, and never negative, since a counter that went backwards would read as a process restart. |
+| `{labels: …}` | `array<string>` (default `[]`) | The label values this series is written under, keyed by label name. A `tainted` or `secret` value is refused: label by an enum case, an `as`-converted scalar or a route name. |
+
+**Returns** `void` — Nothing. No program can read a metric back: the values are per-core aggregates a scrape merges, and the only reader is outside every request.
+
+**Throws** `LogicError` — The name is already fixed to another kind or to another set of label names. The message gives both the call that fixed it and this one. A new series past the core's `max_series` is **not** an error: it is dropped and counted, and the call answers normally.
+
+<a id="core-core-metrics-observe"></a>
+#### `Core\Metrics::observe`
+
+```nvs skip
+Core\Metrics::observe(string $name, float $value, {labels?: array<string>}): void
+```
+
+Records one observation into a histogram, fixing `$name` to a histogram on its first use — a duration, a payload size, a queue depth at the moment it was measured.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (sink) | The series name, `[a-z][a-z0-9_]*`. A literal outside that grammar is a compile error, and a `tainted` name is refused wherever it was written. |
+| `$value` | `float` | The observation, in the series' own unit — seconds for a `_seconds` name, bytes for a `_bytes` one. |
+| `{labels: …}` | `array<string>` (default `[]`) | The label values this series is written under, keyed by label name. A `tainted` or `secret` value is refused: label by an enum case, an `as`-converted scalar or a route name. |
+
+**Returns** `void` — Nothing, as `increment`.
+
+**Throws** `LogicError` — The name is already fixed to another kind or to another set of label names. The message gives both the call that fixed it and this one. A new series past the core's `max_series` is **not** an error: it is dropped and counted, and the call answers normally.
+
+<a id="core-core-metrics-gauge"></a>
+#### `Core\Metrics::gauge`
+
+```nvs skip
+Core\Metrics::gauge(string $name, float $value, {labels?: array<string>}): void
+```
+
+Sets a gauge to `$value`, fixing `$name` to a gauge on its first use — a level that goes up and down, such as the number of items waiting or the bytes a pool holds.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (sink) | The series name, `[a-z][a-z0-9_]*`. A literal outside that grammar is a compile error, and a `tainted` name is refused wherever it was written. |
+| `$value` | `float` | What the gauge now reads. The last write before a scrape is the one reported. |
+| `{labels: …}` | `array<string>` (default `[]`) | The label values this series is written under, keyed by label name. A `tainted` or `secret` value is refused: label by an enum case, an `as`-converted scalar or a route name. |
+
+**Returns** `void` — Nothing, as `increment`.
+
+**Throws** `LogicError` — The name is already fixed to another kind or to another set of label names. The message gives both the call that fixed it and this one. A new series past the core's `max_series` is **not** an error: it is dropped and counted, and the call answers normally.
 
 <a id="core-core-reflect"></a>
 ### `Core\Reflect`
