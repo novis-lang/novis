@@ -2223,6 +2223,7 @@ dependencies = [
  "cranelift-module",
  "cranelift-native",
  "cranelift-object",
+ "memmap2",
  "nvs-diagnostics",
  "nvs-hir",
  "nvs-ir",
@@ -2233,6 +2234,7 @@ dependencies = [
  "object",
  "rustc-hash",
  "thiserror 2.0.20",
+ "wasmtime-internal-jit-icache-coherence",
 ]
 
 [[package]]

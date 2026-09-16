@@ -209,9 +209,11 @@ use cranelift::prelude::*;
 use cranelift_jit::{JITBuilder, JITModule};
 use cranelift_module::{Linkage, Module, ModuleError};
 use cranelift_object::{ObjectBuilder, ObjectModule};
+use memmap2::{Mmap, MmapMut};
 use nvs_ir::Program;
 use nvs_runtime::NvsFn;
 use rustc_hash::FxHashMap;
+use wasmtime_internal_jit_icache_coherence as icache;
 
 pub use ty::clif_ty;
 
@@ -399,6 +401,57 @@ pub trait Placed: Send + Sync {
     /// payload defines no such function — which § 3 makes a skipped method row
     /// rather than an error, exactly as the JIT path skips an undefined one.
     fn address_of(&self, symbol: &str) -> Option<*const u8>;
+}
+
+/// Publishes a mapping of freshly written bytes as code, and is the one place
+/// Novis does it.
+///
+/// Changing the protection is not the whole step. On a machine whose
+/// instruction cache is not coherent with its data cache — every aarch64 one —
+/// the bytes just written sit in the D-cache while the I-cache may still hold
+/// whatever was at those addresses before, so a core that jumps there fetches
+/// the stale line and executes it. The architecture's answer is to invalidate
+/// those lines and then serialize the fetch pipeline on **every** core that
+/// might run the code, and a memory-protection call implies neither half. On a
+/// coherent machine both are nothing, which is why the step is so easy to get
+/// wrong in a second place and never notice.
+///
+/// It lives in this crate because there are two ways Novis publishes code and
+/// they must not drift apart: `cranelift-jit` performs this sequence inside the
+/// `finalize_definitions` that ends [`UnitBuilder`]'s JIT path, out of the same
+/// implementation this calls, and
+/// `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable`'s
+/// loader in `nvs-cli` reaches it through here for the pages it placed a cached
+/// payload into. One sequence, one place it can be got wrong.
+///
+/// The multi-core flush is not optional for Novis. A [`Unit`] crosses cores by
+/// construction — that is what [`Placed`]'s `Send + Sync` states — so the core
+/// that runs this code is generally not the core that wrote it.
+///
+/// Consuming the `MmapMut` is what makes W^X hold: the writable view is gone at
+/// the call, so nothing can hold both.
+///
+/// # Errors
+///
+/// The platform refused to invalidate the cache, or refused to change the
+/// mapping's protection. The caller is left holding a mapping it cannot
+/// publish; on the loader's path that is a cache miss, on the JIT's it is
+/// fatal.
+pub fn make_executable(pages: MmapMut) -> std::io::Result<Mmap> {
+    #[expect(
+        unsafe_code,
+        reason = "invalidating a cache line is an instruction with no safe spelling. The region \
+                  named is this call's own live mapping — a pointer taken from it and a length \
+                  read from it, both valid for the whole call because `pages` owns them — which \
+                  is the entirety of what the call requires"
+    )]
+    // SAFETY: `pages` owns the mapping for the length of this call, so
+    // `[as_ptr(), as_ptr() + len())` is one live region nothing else holds.
+    unsafe { icache::clear_cache(pages.as_ptr().cast(), pages.len()) }
+        .map_err(|source| std::io::Error::other(format!("{source:?}")))?;
+    let pages = pages.make_exec()?;
+    icache::pipeline_flush_mt().map_err(|source| std::io::Error::other(format!("{source:?}")))?;
+    Ok(pages)
 }
 
 /// A unit is `Send` and `Sync` because one compiled unit serves every core.
@@ -2054,6 +2107,11 @@ impl UnitBuilder<JITModule> {
     /// reason it is not on the shared impl: `finalize_definitions` resolves
     /// every relocation against an address in *this* process, which is exactly
     /// what an object file must not do.
+    ///
+    /// Publishing the pages is [`make_executable`]'s step, and `cranelift-jit`
+    /// takes it from inside that same call out of the same implementation — so
+    /// this path and the loader's are one sequence, not two, and that function
+    /// is where it is stated.
     fn finish(mut self) -> Result<Unit, CodegenError> {
         self.module
             .finalize_definitions()

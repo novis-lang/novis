@@ -17,8 +17,10 @@ cranelift-jit.workspace = true
 cranelift-module.workspace = true
 cranelift-native.workspace = true
 cranelift-object.workspace = true
+memmap2.workspace = true
 rustc-hash.workspace = true
 thiserror.workspace = true
+wasmtime-internal-jit-icache-coherence.workspace = true
 
 [dev-dependencies]
 object.workspace = true

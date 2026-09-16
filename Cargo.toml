@@ -369,6 +369,18 @@ brainsort = "0.5"
 # § *Pure-Rust dependencies by default* has nothing to spend here.
 memmap2 = "0.9"
 
+# --- Instruction-cache maintenance for freshly written code (ADR 0042 § 3) ---
+# The aarch64 half of `nvs_codegen::make_executable`: invalidating the cache
+# lines under bytes that were data a moment ago, and serializing the fetch
+# pipeline on every core that might run them. `cranelift-jit` already runs this
+# same crate inside `finalize_definitions`, so both of the ways Novis publishes
+# code go through one implementation rather than two spellings of a sequence
+# whose failure mode is executing a stale line. It is already in the tree as
+# that crate's own dependency, so naming it here adds no crate and no C.
+# Upstream marks it internal to wasmtime and unsupported elsewhere; the pin is
+# what answers that, and `nvs_codegen::make_executable` is the one call site.
+wasmtime-internal-jit-icache-coherence = "48"
+
 # --- Unicode text segmentation (ADR 0009 § 2's grapheme granularity) ---
 # UAX #29 extended grapheme cluster boundaries, which `string`'s default
 # length/indexing unit is defined by. Pure Rust, no build script, no C.
