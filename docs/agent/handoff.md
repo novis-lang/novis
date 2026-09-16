@@ -2,44 +2,56 @@
 
 ## State
 
-**Goal `unowned-closures`, stage 2.** `crates/nvs-ir/src/lib.rs` gap 11 is closed and struck: a `secret`
-compared against a `mixed` now takes `ir::Helper::SecretEq` instead of the short-circuiting
-`Helper::Identical`. `nvs_secret_eq` reads the tag it is handed — a `string`/`bytes` payload of the other
-side's own tag compares with `subtle`, every other tag answers `false`, which is
-`nvs_runtime::value_identical`'s own answer for that pair.
-`rule:security/secret-comparison-is-constant-time` states it and gains a second guard,
-`tests/conformance/lang/a-secret-compared-against-a-mixed-is-constant-time.nvst`.
+**Goal `unowned-closures`, stage 2.** Two gaps closed and struck.
 
-Stage 1's floor is goal `m8-stdlib-depth`'s whole list, carried and untouched. Nothing is blocked, and
-stage 2's other two items are untaken.
+`crates/nvs-runtime/src/budget.rs` gap 1: `nvs_runtime::affordable` — the one seam every count-shaped
+`Core` argument passes through — asks `budget::affords` in front of the allocation, so no single
+operation takes a request past its ceiling before a poll sees it. Two tiers, and they are not the same:
+a size no process could hold is still a catchable throw, and one *this request* cannot hold is
+`rule:errors/on-limit`'s FATAL, because `affords` has recorded the breach by the time it is worded.
+`crates/nvs-runtime/tests/refusal.rs` guards both.
+
+`crates/nvs-ir/src/lib.rs` gap 21: an erased read runs the property's `get` hook.
+`read_erased_property_hinted` takes the `Ctx` its callers already hold and asks `ClassDesc::hook_row`
+before it reaches a slot, which `write_erased_property` already did for the `set`, so
+`rule:types/erased-member-access`'s last clause now holds for every spelling of the read.
+`crates/nvs-codegen/tests/property_hooks.rs` guards both directions.
+
+Stage 2's `cargo-named` check also names
+`a_secret_compared_against_a_mixed_string_takes_the_constant_time_helper`, which existed under a
+near-miss name and is renamed — both of the check's tests exist now.
+
+Stage 1's floor is goal `m8-stdlib-depth`'s whole list, carried and untouched. Nothing is blocked.
 
 ## Next group
 
-**Stage 2: the lowering and the runtime, security first** — one file set: `crates/nvs-runtime/src/`,
-with `crates/nvs-stdlib/src/` read-only for the `.expect` sweep the first item needs.
+**Stage 2: the runtime's own `Decided` list** — one file set: `crates/nvs-runtime/src/`.
 
-- [ ] **One allocation past the budget, to its decision** — `crates/nvs-runtime/src/budget.rs:115`'s gap 1,
-      whose `Decided:` sentence is "route input-sized allocations in helpers through `affords`". The seam
-      already exists and is already threaded through every one of them: `crates/nvs-runtime/src/abi.rs:255`
-      `affordable` is what `crates/nvs-stdlib/src/bytes.rs:1011`, `:1033`, `crates/nvs-stdlib/src/str.rs:3237`,
-      `crates/nvs-stdlib/src/arr.rs:2803` and some fifty more already call — and it refuses **only** a size
-      past `isize::MAX`, never asking `crates/nvs-runtime/src/budget.rs:665`'s `affords`. So the build is
-      one function, not an audit of the call sites. Two things it has to settle rather than assume: a
-      `false` from `affords` has already recorded the breach, so the refusal is `rule:errors/on-limit`'s
-      FATAL and not the catchable `Fault::Thrown` `affordable` returns today; and roughly fifteen callers
-      spell it `.expect("nothing is unaffordable here")`
-      (`crates/nvs-stdlib/src/cache.rs:4175`, `crates/nvs-stdlib/src/session.rs:1903`,
-      `crates/nvs-stdlib/src/signed_cookie.rs:350`, `crates/nvs-stdlib/src/csrf.rs:401`),
-      each of which becomes a contained panic the day the seam can refuse for a second reason.
-      `crates/nvs-runtime/src/array.rs:1032`'s comment states the present behaviour and is rewritten with it.
-- [ ] **A hooked property is reached through an erased key** — `crates/nvs-runtime/src/object.rs:3403`,
-      the descriptor's property row gaining a hook marker that `nvs_object_key_get` and the erased write
-      both read (goal `unowned-closures` § *Stage 2*, third bullet).
+- [ ] **A command's union-typed capture reads the union's members** —
+      `crates/nvs-runtime/src/commands.rs:57`'s gap 1, whose `Decided:` sentence is "support it: read
+      the union's members in the command table". `nvs_types::routes::closed_set` answers `None` for a
+      union and is deliberately left that way — it also serves
+      `rule:routing/a-capture-narrows-to-a-closed-set`'s route captures, whose spelling is
+      `Core\Router::match`'s and out of this goal — so the members are read here, where the command
+      table owns the spelling, rather than by widening that function under a second caller.
+- [ ] **An array header's element-type descriptor** — `crates/nvs-runtime/src/array.rs:221`'s gap 1,
+      whose `Decided:` sentence is "add it with the first reader". Nothing builds an array from `mixed`,
+      `json_decode` or an isolate boundary yet, so the item is to settle whether that reader exists
+      today: if it does not, the goal's § *Standing decisions* "state it as a bound" answer strikes the
+      gap as a bound in `ArrayHeader`'s own prose rather than leaving it open, and `rule:types/arrays`
+      is what the bound is written against.
+- [ ] **The route walk's linear scan** — `crates/nvs-runtime/src/routes.rs:88`'s gap 1, whose `Decided:`
+      sentence is "measure on benches/serve-proxied.json first, build only if it shows". The measurement
+      comes before any build, and `Routes::match_request` is the one function a trie would replace —
+      `rule:routing/path-grammar`.
 
 ## Backlog
 
-- Stage 2's remaining **Decided** list — `crates/nvs-runtime/src/lib.rs` gaps 1, 2, 6, 7;
-  `array.rs`, `commands.rs`, `decimal.rs`, `graph.rs`, `routes.rs` — `docs/agent/loop-goal.md` § *Stage 2*.
-- Stage 2's **no choice left** builds: `crates/nvs-ir/src/lib.rs` gaps 1 and 2, unless goal `m4-refusals`
-  already closed them as refusal sites — check first, per the same stage.
+- Stage 2's remaining runtime `Decided` items: `crates/nvs-runtime/src/lib.rs` gaps 1, 2, 6, 7, plus
+  `decimal.rs` and `graph.rs` — `docs/agent/loop-goal.md` § *Stage 2*.
+- `crates/nvs-ir/src/lib.rs` gap 2 (a fresh value leaking on the throw path) is the stage's "no choice
+  left" work on its own now — `crates/nvs-ir/src/lower/mod.rs:2223` `landing_block` is the boundary, and
+  gap 1 was struck by an earlier goal.
+- `crates/nvs-ir/src/lib.rs` gap 18 (a throw escaping an abandoned generator's `finally`) is
+  `nvs-runtime`'s build, not the lowering's — `Ctx::with_pending_set_aside` and `object::dismantle`.
 - `crates/nvs-ir/src/lib.rs` gap 14 is stage 6's, retagged `M10` rather than built — `docs/plan/m10.md`.
