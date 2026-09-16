@@ -58,15 +58,7 @@
 //!
 //! # Known gaps
 //!
-//! 1. **A closure is recognized by its class's `invoke` method** — the same
-//!    test [`crate::closure::call_closure`] makes — so a user class that
-//!    declares an `invoke` of its own is refused as one. `rule:types/declaration` makes this a
-//!    compile-time rejection at nearly every copy site; the runtime check is
-//!    for a `mixed` carrying one.
-//!    Decided: A closure bit on the class descriptor — Exact and one bit, but a representation change
-//!    that call_closure and graph copying both have to adopt.
-//!    — owner: unowned-closures
-//! 2. **`decode` resolves a class through the *program's* table only**, so an
+//! 1. **`decode` resolves a class through the *program's* table only**, so an
 //!    encoded `Core` instance (a `Core\Time\Instant`, say) is refused as
 //!    unresolvable on the way back in rather than rebuilt. Closing it means a
 //!    resolver that asks `nvs_stdlib::instance`'s table too, which is that
@@ -74,7 +66,7 @@
 //!    Decided: Install a Core-class resolver on Ctx at boot — Full round-trip, at the cost of one more
 //!    table installed the way routes and commands are.
 //!    — owner: unowned-closures
-//! 3. **An object holding a host handle is not refused**, which is the one of
+//! 2. **An object holding a host handle is not refused**, which is the one of
 //!    § 2's three refusals nothing here implements: a `Core` instance whose
 //!    slot carries a key into a request's own table — a `Core\Http\Socket`, a
 //!    `Core\Http\Stream`, a `Core\Db\Connection` — crosses as an ordinary
@@ -85,9 +77,10 @@
 //!    addresses the *receiving* side's table at that index, so it reads
 //!    whatever that side opened rather than nothing. What the walk has to see
 //!    is that a class holds one, and a [`ClassDesc`] carries no such mark;
-//!    where it lives — a bit on the descriptor, as gap 1 wants for a closure,
-//!    or the declared type at the copy site — is the decision, and it answers
-//!    for every `Core` class at once rather than for the one that found it.
+//!    where it lives — a bit on the descriptor, the way
+//!    [`ClassDesc::is_closure()`] marks a closure, or the declared type at the
+//!    copy site — is the decision, and it answers for every `Core` class at
+//!    once rather than for the one that found it.
 //!    — owner: unowned
 
 use std::collections::HashMap;
@@ -368,8 +361,12 @@ fn walk<C: Carrier>(
 
 /// § 2's "refuses what has no meaning on the other side", for the shapes that
 /// arrive wearing [`Tag::Object`].
+///
+/// A closure is its class's [`ClassDesc::is_closure()`] bit and nothing else —
+/// a declared `invoke` is a method name a program may use, and refusing on it
+/// would make a user class uncopyable for spelling it.
 fn refusable(class: &ClassDesc) -> Result<(), GraphError> {
-    if class.method(crate::closure::CLOSURE_INVOKE).is_some() {
+    if class.is_closure() {
         return Err(GraphError(
             "a closure captures a heap and a scope, so it has no meaning on the \
              other side of a copy boundary"
@@ -1058,7 +1055,8 @@ mod tests {
     /// its own line.
     #[test]
     fn the_boundary_copy_and_serialize_share_one_walk() {
-        // A closure, spelled the way `refusable` recognizes one.
+        // A closure, spelled the way `refusable` recognizes one: the bit, not
+        // the `invoke`.
         let mut closures = ClassTable::new();
         let id = closures.define("Closure", &["arity"], &[]);
         closures.set_methods(
@@ -1073,6 +1071,7 @@ mod tests {
                 native: false,
             }],
         );
+        closures.set_closure(id);
         #[expect(unsafe_code, reason = "the table outlives the object")]
         let closure = Value::object(unsafe { NvsObj::new(closures.desc(id)) });
 
@@ -1100,6 +1099,43 @@ mod tests {
             );
             release(subject);
         }
+    }
+
+    /// § 2's refusal is about what a value *is*, so a class a program declared
+    /// crosses both carriers however it spelled its method names — the
+    /// [`ClassDesc::is_closure()`] bit is the whole test, and `invoke` is a
+    /// name a program may use.
+    #[test]
+    fn a_class_declaring_invoke_is_not_a_closure() {
+        let mut table = ClassTable::new();
+        let id = table.define("Command", &["code"], &[]);
+        table.set_methods(
+            id,
+            vec![MethodRow {
+                name: crate::closure::CLOSURE_INVOKE.to_owned(),
+                code: std::ptr::dangling(),
+                arity: 0,
+                param_tags: 0,
+                param_names: Vec::new(),
+                public: true,
+                native: false,
+            }],
+        );
+        #[expect(unsafe_code, reason = "the table outlives the object")]
+        let command = Value::object(unsafe { NvsObj::new(table.desc(id)) });
+        borrow_object(command).set_field(0, Value::int(7));
+
+        retain(command);
+        let copied = copy_graph(command).expect("a declared `invoke` is not a closure");
+        assert_eq!(borrow_object(copied).field(0).as_int(), Some(7));
+        release(copied);
+
+        retain(command);
+        let bytes = encode(command).expect("both carriers answer the same question");
+        let back = decode(&bytes, &resolver(&table)).expect("and it decodes back");
+        assert_eq!(borrow_object(back).field(0).as_int(), Some(7));
+        release(back);
+        release(command);
     }
 
     /// § 2's move: at refcount 1 the allocation is *reused*, which is the

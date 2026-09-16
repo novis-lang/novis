@@ -504,6 +504,24 @@ pub struct ClassDesc {
     /// answered once per class at [`ClassTable::set_methods`] time. **Cost:**
     /// one pointer per class, once per process, not per instance.
     unwind: *const u8,
+    /// Whether an instance of this class is a
+    /// `rule:types/callable-is-a-closure` closure — its
+    /// [`crate::closure::CLOSURE_INVOKE`] the compiled body of a closure
+    /// literal and its fields that literal's captures — rather than an object
+    /// of a class a program declared.
+    ///
+    /// Carried rather than asked of the method table, because the structural
+    /// test is "does this class declare an `invoke`" and a program is free to
+    /// declare one: that name decides whether
+    /// [`crate::closure::call_closure`] jumps into a value's code at all, and
+    /// whether `rule:classes/graph-copy`'s walk refuses the value as a
+    /// closure, so a user class spelling it would be both called through and
+    /// refused. `nvs_ir::lower` mints a closure's environment class,
+    /// `nvs_ir::ir::Class::is_closure` carries the bit down and `nvs-codegen`
+    /// hands it to [`ClassTable::set_closure`] — which is also what native
+    /// code building a closure for a `Core` member to call answers. **Cost:**
+    /// one `bool` per class, once per process, not per instance.
+    is_closure: bool,
 }
 
 /// One row of a [`ClassDesc`]'s method table: a name, the compiled address it
@@ -966,6 +984,19 @@ impl ClassDesc {
     #[must_use]
     pub fn is_shape(&self) -> bool {
         self.name.starts_with("$shape{")
+    }
+
+    /// Whether an instance of this class is a closure rather than an object of
+    /// a declared class — the bit [`ClassTable::set_closure`] writes, and the
+    /// one answer [`crate::closure::call_closure`] and
+    /// `rule:classes/graph-copy`'s walk both ask.
+    ///
+    /// Not a question about the method table: the field's own docs say why a
+    /// declared `invoke` is the wrong test, and a class carrying this bit is
+    /// the only kind either reader treats as callable.
+    #[must_use]
+    pub fn is_closure(&self) -> bool {
+        self.is_closure
     }
 
     /// How many [`Value`] slots an instance of this class has, including every
@@ -1441,8 +1472,30 @@ impl ClassTable {
             render: std::ptr::null(),
             compare: std::ptr::null(),
             unwind: std::ptr::null(),
+            is_closure: false,
         }));
         id
+    }
+
+    /// Marks `id` as a closure's environment class — see
+    /// [`ClassDesc::is_closure()`].
+    ///
+    /// A setter rather than a [`ClassTable::define`] parameter because the
+    /// answer is `false` for every class a program declares and every `Core`
+    /// class, and a parameter would make each of those call sites say so. What
+    /// calls this is `nvs-codegen`, for a class `nvs_ir::lower` minted from a
+    /// closure literal, and native code hand-building a closure for a `Core`
+    /// member to call back into.
+    ///
+    /// # Panics
+    ///
+    /// If `id` does not belong to this table.
+    pub fn set_closure(&mut self, id: ClassId) {
+        let desc = self
+            .classes
+            .get_mut(id.0)
+            .expect("a class id always belongs to the table that handed it out");
+        desc.is_closure = true;
     }
 
     /// Fills in `id`'s per-slot declared tags — see [`ClassDesc::field_tags`].

@@ -1414,6 +1414,14 @@ impl Classes {
             }
         }
         let id = self.table.define(&class.label, &class.fields, &parents);
+        // `rule:types/callable-is-a-closure`'s bit, carried down rather than
+        // recomputed: `nvs_runtime::ClassDesc::is_closure` is what decides
+        // whether a value may be called as a `callable` and whether
+        // `rule:classes/graph-copy`'s walk refuses it, and the `invoke` in the
+        // method table is a name a program is free to declare.
+        if class.is_closure {
+            self.table.set_closure(id);
+        }
         if !class.defaults.is_empty() {
             self.table.set_defaults(id, class.defaults.clone());
         }

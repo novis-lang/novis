@@ -1020,9 +1020,10 @@ mod tests {
     /// A `callable` whose `invoke` is `invoke` and which declares one
     /// parameter — the `$tx` § 7 hands its closure.
     ///
-    /// `nvs_runtime::call_closure` reads exactly two things off a closure
-    /// value, so this is a whole one: the arity in its own slot, and the
-    /// address in the class's `CLOSURE_INVOKE` row. The table is leaked
+    /// `nvs_runtime::call_closure` reads exactly three things off a closure
+    /// value, so this is a whole one: its class's closure bit, the arity in
+    /// its own slot, and the address in the class's `CLOSURE_INVOKE` row —
+    /// see `nvs_runtime::ClassDesc::is_closure`. The table is leaked
     /// because a descriptor's *address* is its identity and it must outlive
     /// every instance made from it, which is `crate::instance`'s own rule; the
     /// test process exiting is what reclaims it.
@@ -1043,6 +1044,7 @@ mod tests {
                 native: false,
             }],
         );
+        table.set_closure(id);
         let table: &'static nvs_runtime::ClassTable = Box::leak(Box::new(table));
         #[expect(
             unsafe_code,

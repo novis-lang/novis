@@ -321,6 +321,11 @@ pub(crate) fn lower_closure(
             db_codec: Vec::new(),
             ctor_arity: 0,
             defaults: Vec::new(),
+            // What `nvs_runtime::ClassDesc::is_closure` answers with, and the
+            // one test `call_closure` and `rule:classes/graph-copy`'s walk
+            // make: the `invoke` above is a method name a program may also
+            // declare, so neither reader may look for it.
+            is_closure: true,
         })
         .chain(shapes)
         .collect(),
@@ -788,6 +793,9 @@ pub(crate) fn lower_callable(
             db_codec: Vec::new(),
             ctor_arity: 0,
             defaults: Vec::new(),
+            // A first-class callable is a closure over its target, so it
+            // carries the bit a written literal's class carries.
+            is_closure: true,
         },
     )
 }

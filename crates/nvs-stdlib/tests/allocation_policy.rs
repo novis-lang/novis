@@ -268,10 +268,12 @@ fn list_of(count: usize) -> nvs_runtime::Value {
 
 /// A closure value whose `invoke` is a plain Rust function.
 ///
-/// `nvs_runtime::call_closure` reads exactly three things off a closure — slot
-/// `CLOSURE_ARITY_SLOT`, slot `CLOSURE_PARAM_TAGS_SLOT`, and the
-/// `CLOSURE_INVOKE` method's address in its class — so a test in this crate
-/// can hand a `Core` member a `callable` without a compiler in front of it.
+/// `nvs_runtime::call_closure` reads exactly four things off a closure — its
+/// class's `ClassTable::set_closure` bit, which is what makes the value a
+/// closure at all, slot `CLOSURE_ARITY_SLOT`, slot `CLOSURE_PARAM_TAGS_SLOT`,
+/// and the `CLOSURE_INVOKE` method's address in its class — so a test in this
+/// crate can hand a `Core` member a `callable` without a compiler in front of
+/// it.
 /// Everything else in `nvs_ir::lower::lower_closure`'s representation is
 /// captured state, and a native callback captures nothing.
 ///
@@ -303,6 +305,7 @@ fn closure_of(arity: usize, invoke: nvs_runtime::NvsFn) -> nvs_runtime::Value {
             native: false,
         }],
     );
+    table.set_closure(id);
     let table: &'static nvs_runtime::ClassTable = Box::leak(Box::new(table));
     #[expect(
         unsafe_code,

@@ -246,6 +246,23 @@ pub struct Class {
     /// which owns why it is carried beside the field list rather than derived
     /// from it. Zero for a class with no codec.
     pub ctor_arity: usize,
+    /// Whether this class is a closure literal's environment class — the one
+    /// `crate::lower::closure` mints for a `fn (...) { ... }` or a `(...)`
+    /// first-class callable, carrying that literal's captures as its fields
+    /// and its compiled body as the `invoke` method.
+    ///
+    /// `nvs-codegen` hands it to `nvs_runtime::ClassTable::set_closure`, and
+    /// `nvs_runtime::ClassDesc::is_closure` owns why the runtime carries the
+    /// answer rather than testing for the `invoke` in the method table. It is
+    /// the same fact `crate::lower::CLOSURE_MARKER` puts in
+    /// [`Self::conforms`], reaching the runtime by the one route a descriptor
+    /// walk cannot: `instanceof` compares descriptor *addresses*, so the
+    /// marker answers `$x is callable` inside the unit that emitted it, while
+    /// native code holding a closure from any unit at all asks this bit.
+    ///
+    /// **Cost:** one `bool` per class per compiled unit, once per unit, not
+    /// per request.
+    pub is_closure: bool,
 }
 
 /// One lowered method or function.

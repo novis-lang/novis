@@ -1450,8 +1450,8 @@ mod tests {
     }
 
     /// A closure, spelled the way `nvs_runtime::graph`'s walk recognizes one:
-    /// a class carrying the `invoke` method. Leaked, because a descriptor's
-    /// address is its identity.
+    /// a class carrying `ClassTable::set_closure`'s bit. Leaked, because a
+    /// descriptor's address is its identity.
     fn closure_value() -> Value {
         let mut table = ClassTable::new();
         let id = table.define("Closure", &["arity"], &[]);
@@ -1467,6 +1467,7 @@ mod tests {
                 native: false,
             }],
         );
+        table.set_closure(id);
         let table: &'static ClassTable = Box::leak(Box::new(table));
         #[expect(unsafe_code, reason = "the leaked table outlives the object")]
         // SAFETY: the table is leaked, so the descriptor outlives every value.

@@ -2,55 +2,51 @@
 
 ## State
 
-**Goal `unowned-closures`, stage 2.** Two gaps closed and struck; a third left for its own session
-because it needs a different file set.
+**Goal `unowned-closures`, stage 2.** One gap closed and struck; the rest of the runtime's own
+`Decided` list is untouched, and nothing is blocked.
 
-`crates/nvs-runtime/src/commands.rs` gap 1: an argument declared at a subset of an enum's cases —
-§ 3's `Level::Warn|Level::Error` — converts by the case's own name, exactly as the whole enum does.
-`nvs_types::commands::conversion_of` filters `cases_of`'s pairs through
-`nvs_types::routes::admitted_cases`, now `pub(crate)` and the one home of *which cases does this
-type admit* for a route capture and a command word alike; the two still disagree about spelling and
-that stays in their own rules. A union spanning **two** enums leaves no enum for a word to be a
-case of and is refused where it is written, so `ArgConv::Unconverted` now means a positional
-parameter at a type § 6 does not admit — see the new playbook bullet for why that arm survives.
+`crates/nvs-runtime/src/graph.rs` gap 1: a closure is its class's `ClassDesc::is_closure` bit, never
+a declared `invoke`. `nvs_ir::ir::Class::is_closure` carries it from the two literals
+`nvs_ir::lower::closure` mints, `nvs-codegen` hands it to `ClassTable::set_closure`, and both readers
+ask the bit — `call_closure`'s `invoke_address` and `graph::refusable`. Native code hand-building a
+closure for a `Core` member to call back into sets it at each of its sites. Before this, a class
+declaring an `invoke` of its own was refused by `Core\Serialize::encode` as a closure;
+`tests/conformance/core/serialize-a-class-declaring-invoke-is-not-a-closure.nvst` pins the bound from
+both sides. `rule:types/callable-is-a-closure`'s *There is no `__invoke`* paragraph already promised
+this, so the runtime was behind a rule rather than ahead of one and no fragment changed.
 
-`crates/nvs-runtime/src/array.rs` gap 1: the element-type descriptor is written as the bound it is.
-Nothing reads one back — a write through `mixed` is checked against the target array's element type,
-and `as array<U>` restamps at O(n) against `U` — so `ArrayHeader` carries none, and
-`rule:types/arrays` is amended to promise the pointer *where something reads one*. The first real
-reader is `crate::object`'s tag list, where a `Tag::Array` answers for every `array<T>`.
-
-Stage 1's floor is goal `m8-stdlib-depth`'s whole list, carried and untouched. Nothing is blocked.
+Stage 1's floor is goal `m8-stdlib-depth`'s whole list, carried and untouched.
 
 ## Next group
 
-**Stage 2: the runtime's own `Decided` list** — one file set: `crates/nvs-runtime/src/graph.rs`
-with the two files its gaps reach into.
+**Stage 2: the runtime's own `Decided` list** — one file set: `crates/nvs-runtime/src/ctx/` and the
+two crates that install into it.
 
-- [ ] **A closure bit on the class descriptor** — `crates/nvs-runtime/src/graph.rs:61`'s gap 1,
-      whose `Decided:` sentence is "a closure bit on the class descriptor". A closure is recognized
-      today by its class declaring an `invoke`, so a user class declaring one of its own is copied
-      as a closure and refused; `rule:classes/graph-copy` is the walk's rule and `rule:types/declaration`
-      is what makes the confusion a compile error nearly everywhere else. The bit goes on
-      `crates/nvs-runtime/src/object.rs:290`'s `ClassDesc`, and both readers adopt it —
-      the copy walk and `crates/nvs-runtime/src/closure.rs:186`'s `call_closure`.
-- [ ] **`decode` rebuilds a `Core` instance rather than refusing it** —
-      `crates/nvs-runtime/src/graph.rs:69`'s gap 2, whose `Decided:` sentence is "install a
-      Core-class resolver on Ctx at boot". `rule:classes/serialize-is-a-closed-format` is the format;
-      the resolver is installed the way the route and command tables are, and
-      `nvs_stdlib::instance`'s table is what it asks.
+- [ ] **`Ctx` carries a `Core`-class resolver, installed at boot** — the plumbing half of
+      `crates/nvs-runtime/src/graph.rs:61`'s gap 1, whose `Decided:` sentence is "install a
+      Core-class resolver on Ctx at boot ... one more table installed the way routes and commands
+      are". Mirror `crates/nvs-runtime/src/ctx/wiring.rs:413`'s `set_commands`, and fall back to it
+      in `crates/nvs-runtime/src/ctx/error.rs:252`'s `class_desc`, which is the one route every
+      `decode` call site already goes through (`crates/nvs-stdlib/src/serialize.rs:162`,
+      `crates/nvs-stdlib/src/cache.rs:2500`, `crates/nvs-stdlib/src/session.rs:1010`). The table to
+      resolve against is `crates/nvs-stdlib/src/instance.rs`'s leaked process-wide one, so a plain
+      `fn` pointer costs nothing per request. Every boot site installs it:
+      `crates/nvs-cli/src/main.rs:2175`, `crates/nvs-cli/src/runner.rs:596`,
+      `crates/nvs-cli/src/runner.rs:1503`, `crates/nvs-cli/src/script.rs:772` — a missed one is a
+      `Core` class that round-trips under `nvs run` and not under `nvs serve`, so count them.
+- [ ] **`decode` rebuilds a `Core` instance rather than refusing it** — the behaviour half, and what
+      strikes `crates/nvs-runtime/src/graph.rs:61`'s gap 1. `rule:classes/graph-copy`'s "an object
+      whose class the receiving side cannot resolve is refused by name" stays true; what changes is
+      which side can resolve. A conformance case beside
+      `tests/conformance/core/serialize-round-trips-every-shape-the-walk-reaches.nvst` round-trips a
+      `Core\Time\Instant`.
 
 ## Backlog
 
-- The route walk's linear scan, `crates/nvs-runtime/src/routes.rs:88` gap 1 — its `Decided:` is
-  *measure on `benches/serve-proxied.json` first*, so it needs a large-table bench arm and a release
-  run: its own session, and a file set of `benches/` and `docs/perf/`.
-- `crates/nvs-runtime/src/record.rs:36` gap 1 — refusing a `secret` into an array element or shape
-  field is a compile-time check in `nvs-types`, not a change to the dump.
-- `crates/nvs-runtime/src/record.rs:55` gap 2 — the `Decided:` keeps the rule, so it is a prose
-  strike stating the bound, like `array.rs`'s above.
-- `crates/nvs-runtime/src/lib.rs:205`–`:252` — five owned gaps in one module doc.
-- `crates/nvs-runtime/src/metrics.rs:110` and `crates/nvs-runtime/src/decimal.rs:54` — one each.
-- `crates/nvs-cli/src/service.rs:784`'s `Notify::install` is a process-global `OnceLock`, which made
-  the `sd_notify` case fail once under load here and pass on the re-run; the playbook bullet is the
-  trap, and scoping the sink per case is unowned work.
+- `crates/nvs-runtime/src/lib.rs:199` gap 1 — delete `Tag::Closure` and `Tag::Resource`; same file
+  set this session already opened (`value.rs`, `graph.rs:362`'s arm).
+- `crates/nvs-runtime/src/lib.rs:206` gap 2 — `concat`/`concat_n` reuse a solely-owned left operand.
+- `crates/nvs-runtime/src/record.rs:54`, `metrics.rs:110`, `routes.rs:90`, `decimal.rs:54` — stage
+  2's remaining runtime gaps, each its own file set.
+- `crates/nvs-runtime/src/graph.rs:69` gap 2 (an object holding a host handle) is `owner: unowned`,
+  not this goal's.

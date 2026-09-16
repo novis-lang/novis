@@ -566,6 +566,10 @@ pub(crate) fn lower_generator(
         db_codec: Vec::new(),
         ctor_arity: 0,
         defaults: Vec::new(),
+        // Synthesized, but not a closure: a generator's state is resumed
+        // through `GENERATOR_UNWIND_METHOD` and its own advance entry point,
+        // never called as a `callable`.
+        is_closure: false,
     });
     (functions, classes)
 }

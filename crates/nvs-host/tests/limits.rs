@@ -309,6 +309,7 @@ fn closure_taking(invoke: nvs_runtime::NvsFn, arity: i64) -> Value {
             native: false,
         }],
     );
+    table.set_closure(id);
     let table: &'static nvs_runtime::ClassTable = Box::leak(Box::new(table));
     #[expect(
         unsafe_code,

@@ -799,6 +799,7 @@ pub fn lower_program(
                 // the name is skipped rather than mis-indexed, for the same reason
                 // the codec above skips one.
                 defaults: property_defaults(label, layout, exprs),
+                is_closure: false,
             }
         })
         .collect();
@@ -827,6 +828,9 @@ pub fn lower_program(
         db_codec: Vec::new(),
         ctor_arity: 0,
         defaults: Vec::new(),
+        // The marker every closure conforms to is not itself a closure:
+        // nothing is ever an instance of it.
+        is_closure: false,
     });
     // One marker supertype per written `callable(...)` signature some `is` in
     // this program tested, each carrying no field and no method for
@@ -851,6 +855,7 @@ pub fn lower_program(
         db_codec: Vec::new(),
         ctor_arity: 0,
         defaults: Vec::new(),
+        is_closure: false,
     }));
     // A shape reached as a *field* has no call site to be lowered at, so the
     // class it decodes into is collected off the derived codecs here. A label a
@@ -1976,6 +1981,7 @@ impl<'a> Lowering<'a> {
             db_codec: Vec::new(),
             ctor_arity: 0,
             defaults: Vec::new(),
+            is_closure: false,
         });
     }
     pub(crate) fn new_block(&mut self) -> BlockId {
@@ -3470,6 +3476,7 @@ fn nested_shapes(
             db_codec: Vec::new(),
             ctor_arity: 0,
             defaults: Vec::new(),
+            is_closure: false,
         });
         codecs.push(crate::ir::ShapeCodec {
             key: shape_codec_key(&fields),

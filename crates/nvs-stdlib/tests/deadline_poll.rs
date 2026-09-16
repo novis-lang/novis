@@ -49,10 +49,11 @@ fn list_of(count: usize) -> Value {
 
 /// A closure value whose `invoke` is a plain Rust function.
 ///
-/// `nvs_runtime::call_closure` reads exactly three things off a closure — slot
-/// `CLOSURE_ARITY_SLOT`, slot `CLOSURE_PARAM_TAGS_SLOT`, and the
-/// `CLOSURE_INVOKE` method's address in its class — so a test in this crate can
-/// hand a `Core` member a `callable` without a compiler in front of it. The
+/// `nvs_runtime::call_closure` reads exactly four things off a closure — its
+/// class's `ClassTable::set_closure` bit, slot `CLOSURE_ARITY_SLOT`, slot
+/// `CLOSURE_PARAM_TAGS_SLOT`, and the `CLOSURE_INVOKE` method's address in its
+/// class — so a test in this crate can hand a `Core` member a `callable`
+/// without a compiler in front of it. The
 /// table is leaked because a descriptor's *address* is its identity and it must
 /// outlive every instance made from it.
 fn closure_of(arity: usize, invoke: nvs_runtime::NvsFn) -> Value {
@@ -70,6 +71,7 @@ fn closure_of(arity: usize, invoke: nvs_runtime::NvsFn) -> Value {
             native: false,
         }],
     );
+    table.set_closure(id);
     let table: &'static nvs_runtime::ClassTable = Box::leak(Box::new(table));
     #[expect(
         unsafe_code,

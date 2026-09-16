@@ -713,6 +713,14 @@ pub(crate) fn check_param_tags(callee: &str, word: u64, args: &mut [Value]) -> R
 
 /// The compiled address of `closure`'s [`CLOSURE_INVOKE`], or a [`Fault`]
 /// naming what was passed instead.
+///
+/// What makes a value a closure is its class's
+/// [`ClassDesc::is_closure()`] bit, not the `invoke` in its method table: an
+/// ordinary class may declare that name, and calling into one would jump
+/// through a method the caller never type-checked against
+/// `rule:types/callable-is-a-closure`'s literal. The method lookup that
+/// follows the bit can therefore only fail on a descriptor built wrong, which
+/// is why it reports an internal error rather than a mismatch.
 fn invoke_address(closure: Value) -> Result<*const u8, Fault> {
     let ptr = closure.obj_ptr().ok_or_else(|| {
         Fault::fatal(format!(
@@ -736,17 +744,17 @@ fn invoke_address(closure: Value) -> Result<*const u8, Fault> {
         reason = "just checked the descriptor is non-null, and it is owned by \
                   the compiled unit's class table for that unit's whole life"
     )]
-    let found = unsafe { &*desc }.method(CLOSURE_INVOKE);
-    found.ok_or_else(|| {
-        #[expect(
-            unsafe_code,
-            reason = "same descriptor, still live — read only to name what was \
-                      passed"
-        )]
-        let name = unsafe { &*desc }.name().to_owned();
+    let class = unsafe { &*desc };
+    if !class.is_closure() {
+        return Err(Fault::fatal(format!(
+            "internal error: `{}` was passed where a `callable` was expected, and is not a closure",
+            class.name()
+        )));
+    }
+    class.method(CLOSURE_INVOKE).ok_or_else(|| {
         Fault::fatal(format!(
-            "internal error: `{name}` was passed where a `callable` was expected, and declares \
-             no `{CLOSURE_INVOKE}`"
+            "internal error: `{}` is marked a closure and declares no `{CLOSURE_INVOKE}`",
+            class.name()
         ))
     })
 }

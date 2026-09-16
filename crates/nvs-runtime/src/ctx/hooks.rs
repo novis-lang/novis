@@ -768,6 +768,7 @@ mod tests {
                 native: false,
             }],
         );
+        table.set_closure(id);
         let table: &'static ClassTable = Box::leak(Box::new(table));
         #[expect(
             unsafe_code,
