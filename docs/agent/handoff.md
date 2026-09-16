@@ -2,44 +2,50 @@
 
 ## State
 
-Goal `m8-stdlib-depth`. **Stage 14's `-p nvs-types` check is closed** —
-`every_literal_regex_pattern_in_the_suite_has_its_tier_recorded` is at
-`crates/nvs-types/tests/intrinsics.rs:471` and green, over the committed record
-`tests/conformance/core/regex-literal-tiers.txt`: 45 patterns, three of them backtracking and two
-refused by both engines on purpose.
+**Goal `m8-stdlib-depth` is met.** `python tools/loop.py --goal-only` ends `GOAL REACHED: every
+acceptance check passes` (787 checks), and `python tools/verify.py --doc` resolves every link — the gate
+a goal meets only at its end. Stage 14's last open item is struck and stage 15's three rules report
+`shipped`.
 
-The record covers the whole suite rather than the folded part of it. The intrinsic roster carries
-`Core\Regex::compile` alone, so the test finds each pattern argument through `nvs_syntax::walk` and
-`nvs_stdlib::regex::CLASS`'s rows, then settles its tier by handing the literal to `compile` — one
-implementation throughout, per `rule:expressions/preparation-preserves-behaviour`. A per-case count of
-the calls the walk reached against the calls the case's text shows is what keeps a missed call loud.
-`ExprTypeTable::regex_tier_sites` is new and is what the fold's own settlements are cross-checked
-through; `check_src_table_allowing_errors` is its `tests/common/mod.rs` sibling, for source the caller
-did not write.
+Stage 14 item 3 — ADR 0057's cache bullet — is **struck rather than tested**, because a prepared artifact
+has no address of its own: the cache holds one file per compiled unit, a prepared entry rides in that
+unit's payload, and nothing is prepared at all until `crates/nvs-types/src/intrinsics.rs:57` gap 2's
+checker-to-IR channel is built. So `crates/nvs-cli/src/cache.rs:2511`, where a foreign compiler build
+misses on the address and again on the header, is the bullet's test, and it is now
+`rule:expressions/preparation-preserves-behaviour`'s guard.
 
-Stage 14's remainder is item 3 of the goal prose alone. Nothing is blocked.
+Stage 15: `core-classes/process-spawn`, `observability/metrics-three-members` and
+`observability/the-exporter-is-a-feature-and-core-metrics-is-not` are `shipped`, each naming the guards
+stages 12 and 13 landed. `errors/record-producers` stays `designed` on purpose — two of its five producers
+are M10's and `nvs-render`'s.
+
+Two carried floor entries named artifacts this goal's own stage-5 JSON-wire slice renamed: the test
+`json_decode_into_a_decimal_field_round_trips_25_significant_digits`, now
+`decode_as_fills_a_decimal_field_from_the_numbers_own_digits` (`crates/nvs-stdlib/src/json.rs:2877`), and
+the case `json-decode-as-a-decimal-field-keeps-25-significant-digits.nvst`, now
+`tests/conformance/core/json-decode-as-round-trips-a-25-digit-decimal-exactly.nvst`. Both toml copies name
+the live ones, and each claim is the same 25 digits. No Rust behaviour changed this session. Nothing is
+blocked.
 
 ## Next group
 
-**Stage 14: the last item** — one file set: `crates/nvs-cli/src/cache.rs` and the goal file's own
-stage-14 block.
+**Goal `unowned-closures` stage 2: the lowering and the runtime, security first** — one file set:
+`crates/nvs-ir/src/lower/` and `crates/nvs-runtime/src/`. A goal switch reseeds this file from
+`docs/agent/goals/60-unowned-closures.handoff.md`, so the trio is repeated here only so that a refused
+DONE does not lose it. Each item's answer is the `Decided:` sentence already on disk under its gap; build
+to it and never re-open it.
 
-- [ ] **The cache bullet is struck with evidence or becomes a test** — goal prose stage 14 item 3, over
-      `rule:expressions/preparation-preserves-behaviour`'s third paragraph, which keys a prepared
-      artifact on the compiler-environment component so a different build is a miss rather than a
-      mismatch. `crates/nvs-cli/src/cache.rs:2505` proves it for the whole payload; the question is
-      whether prepared entries ride inside that payload, and if they do the bullet is struck with that
-      evidence and owes no test. The reasoning is `docs/decisions/0057.md`'s cache bullet.
-- [ ] **Stage 14's two sibling checks re-run green** — `docs/agent/loop-goal.toml:11126` and `:11142`
-      name them (`-p nvs-stdlib`'s three tests, `-p nvs-codegen`'s one). They landed in earlier
-      sessions and the driver has not reported them since; confirm rather than rebuild.
+- [ ] **A `secret` compared against a `mixed` is constant-time** —
+      `crates/nvs-ir/src/lower/operator.rs:896`, with the type side at `crates/nvs-ir/src/lib.rs:405`.
+- [ ] **One allocation past the budget, to its decision** — `crates/nvs-runtime/src/budget.rs:89`.
+- [ ] **A hooked property is reached through an erased key** — `crates/nvs-runtime/src/object.rs:3403`.
 
 ## Backlog
 
-- A malformed literal pattern at `matches`/`split`/`replace` is a run-time throw, not a compile error,
-  which `rule:core-classes/regex-literal-tiering`'s first paragraph reads as covering — the division is
-  pinned by `tests/conformance/core/regex-compile-answers-a-pattern-every-member-reads-as-its-source-string.nvst:98`
-  and is a roster change with its own fixture, not this goal's.
-- `crates/nvs-types/src/derive.rs:72-83` gap 2 and `crates/nvs-cli/src/worker.rs:101` — goal `m8-db-queue`.
-- `crates/nvs-stdlib/src/ast.rs:52` gap 2 and `crates/nvs-stdlib/src/json.rs` gaps 2–5 — goal `unowned-closures`.
-- The M6-tagged `crates/nvs-stdlib/src/regex.rs:77` and `:91` gaps — goal `unowned-closures`.
+- The rest of stage 2's decided items — `crates/nvs-runtime/src/lib.rs:199`.
+- Stage 3, the checker and front end — `crates/nvs-hir/src/requires.rs:84` first.
+- Stage 4, the library — `crates/nvs-stdlib/src/compress.rs:47` first.
+- Stage 5, server/config/cache/schema — `crates/nvs-config/src/cache.rs:51` first.
+- The preparation channel itself, which is what would make ADR 0057 § 4 testable end to end —
+  `crates/nvs-types/src/intrinsics.rs:57` gap 2, owner `unowned-closures`.
+- What must survive the goal switch is `docs/agent/carried-gaps.md`, not this file.

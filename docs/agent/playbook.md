@@ -2201,6 +2201,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   "the reader broke"; the files are how the next spec section is walked and `owner_problem`'s own
   cases already exercise the arithmetic. Assert the empty file still holds its header instead of
   taking either branch. [until: gone crates/nvs-stdlib/tests/spec_registry_coverage.rs:RATCHETS]
+- **`loop.py --goal-only` names one red check at a time, so one stale carried-floor entry hides the
+  next and each sweep costs minutes.** A rename inside the goal's own work breaks that goal's own
+  floor: a `cargo-named` check matches a test's name and an `nvs-suite` check a case's path, so
+  stage 5 renaming both halves of the 25-digit decimal claim left `did not run` and, one sweep
+  later, `is not written yet`. Check every name in the goal file at once before re-running it —
+  each `cases` path against the disk, each `tests` name as a *prefix* of some `fn` in the tree,
+  since `cargo test` matches by substring. [until: reviewed 2026-09-16]
 
 ## Running things
 
