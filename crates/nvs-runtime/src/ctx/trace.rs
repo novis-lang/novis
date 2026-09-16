@@ -73,8 +73,9 @@ pub enum TraceKind {
     /// A cycle-collector pause — `rule:observability/gc-pause-is-its-own-event`. The collector's run routine
     /// does not record one yet.
     Gc,
-    /// An isolate spawn or join — `rule:observability/spawn-is-its-own-event`, and unrecorded for the same
-    /// reason as [`TraceKind::Gc`].
+    /// A spawned child's start, filled in at its join —
+    /// `rule:observability/spawn-is-its-own-event`, opened by [`Ctx::open_spawn`]
+    /// and completed by [`Ctx::close_spawn`], for each of [`SpawnForm`]'s forms.
     Spawn,
     /// One statement, filed from inside a driver's own statement routine —
     /// `rule:observability/trace-events-carry-a-kind` and `rule:observability/a-query-is-a-trace-event`.
@@ -110,13 +111,14 @@ pub struct TraceEvent {
     pub status: Option<i32>,
 }
 
-/// Which of `rule:observability/spawn-is-its-own-event`'s three constructs a
+/// Which of `rule:observability/spawn-is-its-own-event`'s constructs a
 /// [`TraceKind::Spawn`] event is of.
 ///
 /// The tag is the rule's own spelling and carries nothing else, because the
-/// three differ in where the child runs and in nothing this event records:
+/// forms differ in where the child runs and in nothing this event records:
 /// `spawn` is a `Core\Task` child over the parent's heap, `spawn script` an
-/// isolate on this core, and `spawn worker` an isolate started on another.
+/// isolate on this core, `spawn worker` an isolate started on another, and
+/// `Core\Process::spawn` a child of the operating system's.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SpawnForm {
     /// `spawn` — a `Core\Task` child, a task on this core.
@@ -125,6 +127,13 @@ pub enum SpawnForm {
     Worker,
     /// `spawn script` — an isolate on this core.
     Script,
+    /// `Core\Process::spawn` — a child process, which the operating system
+    /// starts rather than the runtime.
+    ///
+    /// It reports no wall time of its own, so its join carries the
+    /// parent-observed wall alone where an isolate's carries the split, and
+    /// its join is the handle's `wait` (`rule:core-classes/process-spawn`).
+    Process,
 }
 
 impl SpawnForm {
@@ -136,6 +145,7 @@ impl SpawnForm {
             Self::Task => "spawn",
             Self::Worker => "spawn worker",
             Self::Script => "spawn script",
+            Self::Process => r"Core\Process::spawn",
         }
     }
 }

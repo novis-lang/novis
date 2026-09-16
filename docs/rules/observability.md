@@ -319,8 +319,9 @@ Every trace event carries a `kind` tag, and the tag is one of exactly five: `cal
 `query`, `http`. A `call` event is [`testing/debug-probes`](testing.md#testing-debug-probes)'s probe pair unchanged — callee,
 arguments, entry and exit timestamp, checked-return status, result. The other kinds are emitted from
 routines of their own, not from the per-statement or per-call probe: a `gc` from the collector's run
-routine ([`observability/gc-pause-is-its-own-event`](observability.md#observability-gc-pause-is-its-own-event)), a `spawn` from the three isolate-spawn
-routines ([`observability/spawn-is-its-own-event`](observability.md#observability-spawn-is-its-own-event)), a `query` from inside `Core\Db`'s own
+routine ([`observability/gc-pause-is-its-own-event`](observability.md#observability-gc-pause-is-its-own-event)), a `spawn` from each routine that starts a
+child — the three isolate ones and `Core\Process::spawn`
+([`observability/spawn-is-its-own-event`](observability.md#observability-spawn-is-its-own-event)), a `query` from inside `Core\Db`'s own
 statement routine, and an `http` from `Core\Http\Client`'s transport, filed once per call whatever
 its attempt count.
 
@@ -409,16 +410,24 @@ telemetry it becomes a metric rather than a span ([`observability/a-call-never-b
 
 <a id="observability-spawn-is-its-own-event"></a>
 
-## An isolate spawn and its join are one `spawn` event naming which of the three forms it was, with an overhead split, and a child's own stream never crosses live
+## A spawn and its join are one `spawn` event naming the form it was, with an overhead split where the child reports its own time, and a child's own stream never crosses live
 
 `rule:observability/spawn-is-its-own-event`
 
-Each of the three spawn constructs — `spawn`, `spawn worker`, `spawn script` — emits a `kind: spawn`
-event from its own runtime routine, and its join or result point closes it, gated by the same
-`TRACE`/`PROFILE` bits. The event records the start timestamp, which of the three forms it was, the
-join timestamp, and a computed overhead split: the parent-observed wall time minus the child-reported
-wall time that arrives with the child's answer. That gives "real child compute" and "isolate
-scheduling and copy-out cost" as two numbers instead of one opaque total.
+Each spawn construct — `spawn`, `spawn worker`, `spawn script`, and `Core\Process::spawn`, whose child
+is the operating system's rather than an isolate — emits a `kind: spawn` event from its own runtime
+routine, and its join or result point closes it, gated by the same `TRACE`/`PROFILE` bits. The event
+records the start timestamp, which form it was, the join timestamp, and a computed overhead split: the
+parent-observed wall time minus the child-reported wall time that arrives with the child's answer. That
+gives "real child compute" and "isolate scheduling and copy-out cost" as two numbers instead of one
+opaque total.
+
+A child process reports no wall time of its own, so its event carries the parent-observed wall alone
+and no split, and its result point is the handle's `wait` ([`core-classes/process-spawn`](core-classes.md#core-classes-process-spawn)) — a
+handle the program stops reading from is killed with its task and leaves the event unjoined, which is
+what a cancelled child reads as either way. The histogram [`observability/default-series`](observability.md#observability-default-series) names is
+the three isolate kinds and is not widened by this: a child process's cost is the child's, and the
+series answers what spawning an isolate costs this runtime.
 
 The form is what the source line *did*, not what it was written as: the same `spawn script … on:
 "worker"` is a `spawn worker` when it starts the child on another core

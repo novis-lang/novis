@@ -73,6 +73,28 @@
 //! now bounded rather than trusted — plus one object allocation of three slots,
 //! charged to the request that asked, and one OS thread for the child's
 //! lifetime that [`drain`] explains.
+//!
+//! # Decision: a `spawn` files a trace event and a `run` does not
+//!
+//! A child process is a unit of work in the request's causal graph, which is
+//! what `rule:observability/four-kinds-become-a-span` admits a span for, so
+//! [`nvs_core_process_spawn`] opens `rule:observability/spawn-is-its-own-event`
+//! 's event where the child starts and [`nvs_core_process_handle_wait`] closes
+//! it where the child is joined. `run` opens none: it starts and joins inside
+//! one call the call probe already brackets, and a second event over that same
+//! interval is one interval every consumer would then count twice.
+//!
+//! The event carries the form and the two timestamps, and never the path or an
+//! argument — a trace is a `secret` sink
+//! (`rule:observability/trace-events-carry-a-kind`), and a target is the
+//! request's business rather than the exporter's. A handle the program never
+//! waits on leaves the event unjoined, which is exactly what a child killed
+//! with its task is.
+//!
+//! **What it spends:** one trace event per `spawn` while `TRACE` or `PROFILE`
+//! is on, charged to the request and released with it, and one `Option` per
+//! held child; a flag test and a predicted-not-taken branch when both bits are
+//! off.
 
 use std::io::{Read, Write};
 use std::path::Path;
@@ -781,8 +803,9 @@ nvs_runtime::nvs_helper! {
     /// `Core\Process::spawn(string $path, array<string> $argv): Core\Process\Handle`
     /// — replacing `proc_open` and `passthru`.
     ///
-    /// [`nvs_core_process_run`]'s first three lines exactly, and then the one
-    /// difference: nothing is waited for. The door is the same
+    /// [`nvs_core_process_run`]'s first three lines exactly, and then the
+    /// difference: nothing is waited for, and the child's own span is opened
+    /// here for [`nvs_core_process_handle_wait`] to close. The door is the same
     /// [`nvs_runtime::capability::exec`], asked the same way and piping the
     /// same three streams, so a target this member starts is one `run` would
     /// have started and a target it refuses is one `run` refuses.
@@ -792,7 +815,9 @@ nvs_runtime::nvs_helper! {
         let borrowed: Vec<&str> = argv.iter().map(String::as_str).collect();
         let path = Path::new(program);
         let child = nvs_runtime::capability::exec(ctx, path, &borrowed, SPAWN_MEMBER)?;
-        let key = ctx.hold_spawned_child(HeldChild::new(child));
+        let mut held = HeldChild::new(child);
+        held.spawn_event = ctx.open_spawn(nvs_runtime::SpawnForm::Process);
+        let key = ctx.hold_spawned_child(held);
         #[expect(
             unsafe_code,
             reason = "the path is owned by the caller's argument, which outlives \
@@ -996,14 +1021,19 @@ nvs_runtime::nvs_helper! {
     /// one stream and forgot the other. [`drain`]'s two readers, for its reason,
     /// and [`nvs_runtime::Ctx::intake_bound`] is the ceiling both are held to —
     /// `rule:core-classes/process-run`'s, since what this answers is a capture.
+    ///
+    /// This is also the join `rule:observability/spawn-is-its-own-event` closes
+    /// the child's event at, which is why the event travels in the
+    /// [`nvs_runtime::HeldChild`] rather than in the handle the program holds.
     fn nvs_core_process_handle_wait(ctx, args: [1]) {
         let (key, path) = handle_of(args[0], "wait")?;
         let bound = ctx.intake_bound();
-        let Some(held) = ctx.take_spawned_child(key) else {
+        let Some(mut held) = ctx.take_spawned_child(key) else {
             return Err(Fault::fatal(format!(
                 "{HANDLE_NAME}::wait was asked of a child this task does not hold"
             )));
         };
+        let open = held.spawn_event.take();
         let (held, stdout, stderr, status) = nvs_host::blocking::run(move || {
             let mut held = held;
             drop(held.stdin.take());
@@ -1018,6 +1048,13 @@ nvs_runtime::nvs_helper! {
             (held, stdout, stderr, status)
         });
         ctx.restore_spawned_child(key, held);
+        if let Some(open) = open {
+            // A child process reports no wall time of its own, so the join
+            // carries the parent-observed wall and no split. It is closed
+            // before the three refusals below, since a wait that throws on
+            // what the child wrote has still joined it.
+            ctx.close_spawn(open, None);
+        }
 
         let status = status.map_err(|err| failed("wait", &path, &err))?;
         let stdout = stdout.map_err(|err| failed("wait", &path, &err))?;
@@ -1057,7 +1094,9 @@ mod tests {
     use nvs_host::blocking::pool_size;
     use nvs_host::reactor::install;
     use nvs_host::{Reactor, Scheduler, run_until_idle};
-    use nvs_runtime::{Ctx, Fault, NvsArray, NvsStr, TaskRoot, ThrownClass, Value};
+    use nvs_runtime::{
+        Ctx, DebugFlags, Fault, NvsArray, NvsStr, TaskRoot, ThrownClass, TraceKind, Value,
+    };
 
     use crate::tests::granting;
 
@@ -1332,6 +1371,58 @@ mod tests {
             0,
             "the child answered the status of a program that ran to its own end, so either the \
              kill reached nothing or the wait reaped something else"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "this scope owns the handle `spawn` built and the result `wait` \
+                      answered with"
+        )]
+        unsafe {
+            result.release();
+            handle.release();
+        }
+    }
+
+    /// `rule:observability/four-kinds-become-a-span`'s `spawn`, over the member that starts a child
+    /// process: one event for the spawn, and one that reads as joined once the `wait` joining the
+    /// child has answered.
+    ///
+    /// Counted off the whole trace rather than read at an index, which is what makes this an
+    /// assertion about the member rather than about the test's own arithmetic: a member that filed
+    /// its event twice — once where the child starts and once where it is joined — prints
+    /// plausibly at index zero and fails here.
+    #[test]
+    fn a_spawn_produces_exactly_one_span() {
+        let mut ctx = Ctx::buffered();
+        ctx.set_config(granting("[capabilities.process]\nexec = true\n"));
+        ctx.set_debug_flags(DebugFlags::TRACE);
+        let handle = spawn_on(&mut ctx, SLEEPER);
+        nvs_runtime::call(super::nvs_core_process_handle_kill, &mut ctx, &[handle])
+            .expect("a live child is one the operating system will end");
+        let result = nvs_runtime::call(super::nvs_core_process_handle_wait, &mut ctx, &[handle])
+            .expect("a killed child is still one to be waited for");
+
+        let spans: Vec<&str> = ctx
+            .trace()
+            .iter()
+            .filter(|event| event.kind == TraceKind::Spawn)
+            .map(|event| event.callee.as_str())
+            .collect();
+        assert_eq!(
+            spans.len(),
+            1,
+            "a spawn and the wait that joined it are one event, and the request recorded {spans:?}"
+        );
+        assert!(
+            spans[0].starts_with(r"Core\Process::spawn"),
+            "the event does not name the form that filed it: {}",
+            spans[0]
+        );
+        assert!(
+            !spans[0].ends_with("unjoined"),
+            "a child that has been reaped is a child whose event has been closed: {}",
+            spans[0]
         );
 
         #[expect(

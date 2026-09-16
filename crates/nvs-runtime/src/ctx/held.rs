@@ -138,6 +138,12 @@ pub struct HeldChild {
     pub stdout: Option<std::process::ChildStdout>,
     /// The child's standard error, on [`HeldChild::stdout`]'s terms.
     pub stderr: Option<std::process::ChildStderr>,
+    /// `rule:observability/spawn-is-its-own-event`'s event the spawn opened,
+    /// travelling with the child because the `wait` that joins it is the one
+    /// place that still knows which child it was. `None` for a child started
+    /// while neither trace bit was on, and `None` again once a wait has taken
+    /// it — so a second wait closes nothing twice.
+    pub spawn_event: Option<crate::OpenSpawn>,
 }
 
 impl HeldChild {
@@ -150,6 +156,7 @@ impl HeldChild {
             stdout: child.stdout.take(),
             stderr: child.stderr.take(),
             exited: None,
+            spawn_event: None,
             child: Some(child),
         }
     }
