@@ -3140,6 +3140,56 @@ mod tests {
         drop(held);
     }
 
+    /// `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent`: an
+    /// entry written on one core is absent on every other, asserted rather than
+    /// left to [`ENTRIES`]' `thread_local` to imply — the contract is what a
+    /// program may rely on, and a representation is not a test of one.
+    ///
+    /// Both directions, and a control on each core. Absence is asserted each way
+    /// round, so a tier that leaked in only one of them still fails; and each
+    /// core reads its **own** write back, without which a `put` that stored
+    /// nothing would pass here as perfect isolation. No `TIER` lock, because
+    /// this is the one tier a second case on another thread cannot reach.
+    /// [`process_tier_is_one_map_every_core_reads`] is the same pair of writes
+    /// against the tier that does have to answer.
+    #[test]
+    fn a_local_tier_value_written_on_one_core_is_absent_on_another() {
+        let mine = nvs_runtime::encode(Value::int(11)).expect("an `int` crosses any boundary");
+        store_put(b"per-core-mine", mine.clone(), Lifetime::Forever, None);
+        assert_eq!(
+            store_get(b"per-core-mine"),
+            Some(mine),
+            "this core did not read its own write, so the absence below says nothing"
+        );
+
+        let (read_there, read_its_own, written_there) = std::thread::spawn(|| {
+            let theirs =
+                nvs_runtime::encode(Value::int(13)).expect("an `int` crosses any boundary");
+            store_put(b"per-core-theirs", theirs.clone(), Lifetime::Forever, None);
+            (
+                store_get(b"per-core-mine"),
+                store_get(b"per-core-theirs"),
+                theirs,
+            )
+        })
+        .join()
+        .expect("the second core's thread runs to completion");
+        assert_eq!(
+            read_there, None,
+            "a second core read an entry the local tier holds for this one"
+        );
+        assert_eq!(
+            read_its_own,
+            Some(written_there),
+            "the second core did not read its own write either, so it wrote nothing at all"
+        );
+        assert_eq!(
+            store_get(b"per-core-theirs"),
+            None,
+            "this core read an entry a second core wrote, so the tier is not per core"
+        );
+    }
+
     /// `rule:concurrency/the-process-tier-is-one-store-per-process`: an entry's
     /// real key carries the `[[app]]` it was written for and the configuration
     /// generation it was written under.
