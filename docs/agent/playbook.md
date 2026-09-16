@@ -3356,12 +3356,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   So a table whose rows are an `int`, a `float`, an array and an object is parallel arrays
   (`array<string> $labels`, `array<mixed> $lefts`, `array<mixed> $rights`) plus a counter and a
   `public static function` that asks the members about one row. [until: reviewed 2026-09-06]
-- **A closure is an object of a compiler-synthesized class, so `shown`'s `a closure` arm is
-  unreachable from source.** `rule:types/closure-literal` makes a literal an object with one field
-  per capture, so `Core\Test::assertSame($f, $g)` over two `callable`s prints ``a `Script$fn0` ``
-  and ``a `Script$fn1` `` — a name no rule owns. Keep a `callable` out of a case about how a value
-  renders; the same goes for `Tag::Resource` and `Tag::Unset`, which no file-scope expression
-  produces at all. [until: reviewed 2026-09-06]
+- **A closure is an object of a compiler-synthesized class, so it renders as that class's name.**
+  `rule:types/closure-literal` makes a literal an object with one field per capture, so
+  `Core\Test::assertSame($f, $g)` over two `callable`s prints ``a `Script$fn0` `` and
+  ``a `Script$fn1` `` — a name no rule owns. Keep a `callable` out of a case about how a value
+  renders; the same goes for `Tag::Unset`, which no file-scope expression produces at all.
+  [until: reviewed 2026-09-06]
 - **A `Core` member's numeric parameter is often `uint`, and a helper factoring a sweep has to
   declare it that way.** A literal `64` places as `uint` at the call site, so
   `Core\Str::repeat("36", 64)` compiles and hides the rule, but a count arriving through a helper

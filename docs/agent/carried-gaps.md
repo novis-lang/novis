@@ -170,11 +170,8 @@ where taking it is the work and the code that follows it is not.
   decided is which goal reopens the crate — item 901 named one, `typed-callable`, and it retired
   without closing a site. `crates/nvs-ir/src/lib.rs` § *Known gaps* carries the tags.
   [until: gone crates/nvs-ir/src/lib.rs:owner: unowned]
-- **`nvs-runtime`'s three missing representations, which nothing on the chain asks for.**
-  `Tag::Closure` and `Tag::Resource` are rows of the roster the plan's § *Value representation*
-  names and nothing constructs one: a closure is an ordinary object today, and whether Novis has a
-  `resource` value **at all** is the decision, not the implementation of one. Beside them, every
-  string producer but `nvs_str_append`'s in-place path allocates its result, so what has to be
+- **`nvs-runtime`'s missing representations, which nothing on the chain asks for.**
+  Every string producer but `nvs_str_append`'s in-place path allocates its result, so what has to be
   decided there is whether each gains the sole-ownership check `NvsArray`'s copy-on-write already
   pays for; and an exception this crate raises carries a message and no backtrace, where the
   decision is whether a raise captures one at all — `rule:errors/throw-is-not-slower` prices a

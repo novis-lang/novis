@@ -2,51 +2,49 @@
 
 ## State
 
-**Goal `unowned-closures`, stage 2.** Two gaps closed and struck; the rest of the runtime's own
+**Goal `unowned-closures`, stage 2.** Three gaps closed and struck; the rest of the runtime's own
 `Decided` list is untouched, and nothing is blocked.
 
-A `Ctx` now carries a `Core`-class resolver. `Ctx::class_desc` asks the compiled unit's class table
-first and that resolver second, so a payload naming a `Core` class resolves instead of being refused:
-`Core\Serialize::decode` rebuilds a `Core\Time\Date` with its slots intact
-(`tests/conformance/core/serialize-a-core-class-resolves-on-the-way-back.nvst`). The resolver is a
-plain `fn` over `nvs_stdlib::instance`'s leaked process-wide descriptors — one word per context,
-nothing per request — and it is installed in `nvs_codegen::Unit::install_in`, the call every embedder
-already makes, rather than beside each `set_routes`; a derived context copies the word wherever it
-copies the program's error class. `crates/nvs-runtime/src/graph.rs`'s gap 1 is struck and its gap 2
-is the half that is left: a program still cannot **name** the class it got back, because `instanceof`
-on a `Core` class is `E0496` and `as` is `E0711`. Both refusals are `nvs-types`'.
+`nvs_runtime::Tag` no longer carries `Closure` or `Resource`. A closure is an ordinary object — one
+field per capture, one `invoke` method (`rule:types/callable-is-a-closure`) — and an engine-owned
+handle is a `Core` class holding a key into its own context's table, so neither shape ever needed a
+row: nothing constructed either tag, and every arm that named one now names the shape instead.
+Discriminants 8 and 9 are left as **holes** rather than closed up, which is the one judgement call in
+the slice: `nvs_ir::lower::param_tag_nibble` writes 10 and 11 down in a crate that cannot name `Tag`
+(they are held together only by `nvs-codegen`'s `param_tag_nibbles_are_the_runtime_tag_bytes`), and
+compiled code embeds a tag byte, so a discriminant that moves moves in two crates at once and in
+every artifact already built against the old one. `crates/nvs-runtime/src/lib.rs`'s gap 1 is struck,
+and the plan's § *Value representation* (`docs/plan/design.md:269`) now states the roster the code
+has rather than the one it was drafted with.
 
 Stage 1's floor is goal `m8-stdlib-depth`'s whole list, carried and untouched.
 
 ## Next group
 
 **Stage 2: the runtime's own `Decided` list, continued** — one file set:
-`crates/nvs-runtime/src/lib.rs` and the two representation modules its gaps name.
+`crates/nvs-runtime/src/throwable.rs`, the crate doc's gap 6, the rule it amends and the guard that
+prices it.
 
-- [ ] **Delete `Tag::Closure` and `Tag::Resource`** — `crates/nvs-runtime/src/lib.rs:199`'s gap 1,
-      whose `Decided:` sentence is "Delete both tags — closures stay objects, handles stay `Core`
-      classes, and the tag roster shrinks". The two rows are
-      `crates/nvs-runtime/src/value.rs:67` and `:69`; nothing constructs either, and the arms that
-      name them are the ones to delete with them — `rule:types/callable-is-a-closure` is why a
-      closure needs no tag of its own, and `crates/nvs-runtime/src/graph.rs:61`'s gap 1 is why a
-      host handle is a `Core` class rather than a `Resource`. The roster is a discriminant list, so
-      check whether any of the remaining values is written down anywhere outside this crate before
-      renumbering rather than leaving holes.
-- [ ] **A runtime-raised exception captures a full backtrace** —
-      `crates/nvs-runtime/src/lib.rs:223`'s gap 6, built at `crates/nvs-runtime/src/throwable.rs:413`
-      where `Thrown::new` fills `message` and empties `backtrace`. The goal's § *Standing decisions*
-      pre-authorizes this one against the sheet's recommendation, so it lands **with**
-      `rule:errors/throw-is-not-slower` amended in the same slice to state what a raise now costs —
-      that rule's guard is `benches/abi-probe/tests/perf_guards.rs`, and its 0.85 ns figure is about
-      the propagation check rather than the raise, so read which of the two the guard measures before
-      changing a number in the fragment.
+- [ ] **A runtime-raised exception captures a full backtrace** — `crates/nvs-runtime/src/lib.rs:216`'s
+      gap 6, whose `Decided:` sentence is "Capture a full backtrace at every raise". `Thrown` is
+      `crates/nvs-runtime/src/throwable.rs:389` and the raise it is reached from is
+      `crates/nvs-runtime/src/throwable.rs:902`; the frames to capture are the ones
+      `nvs_trace_push` already pushes (exported at `crates/nvs-runtime/src/lib.rs:386`), not an OS
+      backtrace, so what has to be decided is only where the copy is taken and what it holds.
+      `rule:errors/throw-is-not-slower` is the rule it contradicts.
+- [ ] **The rule and the guard are re-priced in the same slice** —
+      `rule:errors/throw-is-not-slower` says a throw allocates nothing, and the goal's § *Standing
+      decisions* already overrides it for a runtime-raised exception, so the fragment states what a
+      raise now costs; `benches/abi-probe/tests/perf_guards.rs:118`'s throw/return ratio is the
+      assertion that fails first if it is not.
 
 ## Backlog
 
-- `tests/conformance/core/jwt-a-token-verifies-for-its-whole-lifetime-and-not-one-second-past-it.nvst`
-  flakes on the second boundary — the playbook bullet under *Writing a test case* has the fix.
-- `crates/nvs-runtime/src/graph.rs:77`'s gap 2 (a decoded `Core` instance cannot be narrowed) is
-  `nvs-types`' and is nobody's yet; it is what makes the round trip usable from a program.
-- `crates/nvs-runtime/src/graph.rs:61`'s gap 1, an object holding a host handle, is still unowned.
-- `crates/nvs-runtime/src/lib.rs:216` and `:236` both decide the same near-ceiling collector, so
-  they are one slice whenever they are taken.
+- `crates/nvs-runtime/src/lib.rs:199` gap 2 — `nvs_str_concat`/`concat_n` reuse a solely-owned left
+  operand, with the ownership hand-off in `nvs-ir`'s lowering for those two calls.
+- `crates/nvs-runtime/src/lib.rs:209` gap 5 and `:229` gap 7 — one decision, "a collector that runs
+  only near the memory ceiling", so they are one build and not two.
+- Stage 3's failing acceptance check (`nvs-hir`'s require-path decode and the autoload probe's unit
+  key) is an artefact nothing has written yet, not a regression.
+- `docs/agent/carried-gaps.md`'s `nvs-runtime` bullet now covers the string and backtrace halves
+  only; its `[until:]` trailer still holds while gaps 2, 6 and 7 name this goal.
