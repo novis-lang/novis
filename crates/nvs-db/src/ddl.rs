@@ -81,35 +81,20 @@
 //!   [`crate::sqlite`] where `DECIMAL`'s already is, and not by choosing a
 //!   different declared type here, which would only move the cost into § 5's
 //!   normalisation (`crate::plan`'s `stored_as`).
-//!
-//! # Known gaps
-//!
-//! 1. **A SQL Server default is a separate named constraint, so a change to
-//!    one is not emitted.** `ALTER COLUMN` carries a type and a nullability
-//!    there and nothing else; replacing a default means dropping the
-//!    constraint holding it, by the name the server generated, and neither
-//!    [`Change`] nor [`crate::catalog`]'s reads carry that name. A SQL Server
-//!    default change is therefore a step whose SQL brings the type and the
-//!    nullability across and leaves the default alone.
-//!    Decided: Look the name up at apply time (sys.default_constraints) in the emitted batch — Works on
-//!    any existing database with no vocabulary change; the SQL Server step becomes dynamic SQL.
-//!    — owner: unowned-closures
+//! - **A SQL Server default is a constraint with a name of the server's own**,
+//!   so a change to one is not an `ALTER COLUMN` — that carries a type and a
+//!   nullability there and nothing else. The name is generated when the default
+//!   is written and nothing this crate holds carries it, so the step looks it up
+//!   in `sys.default_constraints` in the statement that drops it.
+//!   [`drop_default_constraint`] is the one statement here whose own text a
+//!   server completes, and its doc says what that costs and why it is still one
+//!   statement.
 
 use crate::plan::{Change, Grade, KeyKind, Step};
 use crate::schema::{
     Column, ColumnDefault, FloatWidth, Ident, IntWidth, Key, ScalarType, Schema, Table,
 };
 use crate::sql::Dialect;
-
-/// How many leading bytes of an unbounded text or bytes column MySQL indexes.
-///
-/// MySQL cannot index a `LONGTEXT` or `LONGBLOB` without a prefix length, and
-/// 255 is what fits InnoDB's 3,072-byte key limit at `utf8mb4`'s four bytes a
-/// character with room for a second column beside it —
-/// `crates/nvs-stdlib/src/queue.rs`'s own DDL picked the same number for the
-/// same reason. A prefix key is **stricter** than the constraint asked for, not
-/// weaker: it refuses two distinct values sharing their first 255 bytes.
-const TEXT_KEY_PREFIX: u32 = 255;
 
 /// The statements that create every table in `schema`, in the schema's order.
 #[must_use]
@@ -180,7 +165,7 @@ fn create_table_statement(name: &str, table: &Table, dialect: Dialect) -> String
     if rowid.is_none() && !table.primary_key_columns().is_empty() {
         clauses.push(format!(
             "PRIMARY KEY ({})",
-            key_columns(table, table.primary_key_columns(), dialect)
+            key_columns(table.primary_key_columns(), dialect)
         ));
     }
     for key in table.unique_keys() {
@@ -190,7 +175,7 @@ fn create_table_statement(name: &str, table: &Table, dialect: Dialect) -> String
             clauses.push(format!(
                 "CONSTRAINT {} UNIQUE ({})",
                 delimited(key.name().as_str(), dialect),
-                key_columns(table, key.columns(), dialect)
+                key_columns(key.columns(), dialect)
             ));
         }
     }
@@ -199,7 +184,7 @@ fn create_table_statement(name: &str, table: &Table, dialect: Dialect) -> String
             clauses.push(format!(
                 "INDEX {} ({})",
                 delimited(key.name().as_str(), dialect),
-                key_columns(table, key.columns(), dialect)
+                key_columns(key.columns(), dialect)
             ));
         }
     }
@@ -225,7 +210,7 @@ fn filtered_unique_index(table: &Table, key: &Key, dialect: Dialect) -> Option<S
         "CREATE UNIQUE INDEX {} ON {} ({}) WHERE {predicate};",
         delimited(key.name().as_str(), dialect),
         delimited(table.name().as_str(), dialect),
-        key_columns(table, key.columns(), dialect)
+        key_columns(key.columns(), dialect)
     ))
 }
 
@@ -258,7 +243,7 @@ fn create_index(table: &Table, key: &Key, dialect: Dialect) -> String {
         "CREATE INDEX {} ON {} ({});",
         delimited(key.name().as_str(), dialect),
         delimited(table.name().as_str(), dialect),
-        key_columns(table, key.columns(), dialect)
+        key_columns(key.columns(), dialect)
     )
 }
 
@@ -460,24 +445,16 @@ fn unsigned_check(column: &Column, dialect: Dialect) -> Option<String> {
     ))
 }
 
-/// The columns of a key, with MySQL's prefix length where it needs one.
-fn key_columns(table: &Table, columns: &[Ident], dialect: Dialect) -> String {
+/// The columns of a key, each delimited for `dialect`.
+///
+/// No length or prefix qualifies a name here, because the only column that
+/// would need one — a backend's unbounded text or blob — is what
+/// [`crate::schema::SchemaError::UnboundedInKey`] refuses, so no [`Table`] this
+/// is handed can name one.
+fn key_columns(columns: &[Ident], dialect: Dialect) -> String {
     columns
         .iter()
-        .map(|name| {
-            let unbounded = table.column(name).is_some_and(|column| {
-                matches!(
-                    column.ty(),
-                    ScalarType::Text { max: None } | ScalarType::Bytes { max: None }
-                )
-            });
-            let written = delimited(name.as_str(), dialect);
-            if dialect == Dialect::MySql && unbounded {
-                format!("{written}({TEXT_KEY_PREFIX})")
-            } else {
-                written
-            }
-        })
+        .map(|name| delimited(name.as_str(), dialect))
         .collect::<Vec<String>>()
         .join(", ")
 }
@@ -679,11 +656,13 @@ fn sqlite_can_add(column: &Column) -> bool {
 /// A column's type, nullability and default brought to `to`.
 ///
 /// Three shapes for four dialects. MySQL restates the whole definition in one
-/// `MODIFY COLUMN`, so nothing has to be compared; SQL Server restates the
-/// type and the nullability together and keeps its default in a separate named
-/// constraint; PostgreSQL spells each property in its own statement, and gets
-/// only the ones that changed — a `TYPE` alter it did not need is a full table
-/// rewrite. SQLite has no spelling for any of it and rebuilds.
+/// `MODIFY COLUMN`, so nothing has to be compared; SQL Server restates the type
+/// and the nullability together and, because its default is a constraint of its
+/// own rather than a column property, reaches it through
+/// [`drop_default_constraint`] and an `ADD DEFAULT` beside it; PostgreSQL
+/// spells each property in its own statement, and gets only the ones that
+/// changed — a `TYPE` alter it did not need is a full table rewrite. SQLite has
+/// no spelling for any of it and rebuilds.
 fn change_column(table: &Table, from: &Column, to: &Column, dialect: Dialect) -> Vec<String> {
     let name = delimited(table.name().as_str(), dialect);
     let column = delimited(to.name().as_str(), dialect);
@@ -693,11 +672,23 @@ fn change_column(table: &Table, from: &Column, to: &Column, dialect: Dialect) ->
             "ALTER TABLE {name} MODIFY COLUMN {};",
             column_clause(to, dialect, false)
         )],
-        Dialect::SqlServer => vec![format!(
-            "ALTER TABLE {name} ALTER COLUMN {column} {} {};",
-            column_type(to.ty(), dialect),
-            if to.is_nullable() { "NULL" } else { "NOT NULL" }
-        )],
+        Dialect::SqlServer => {
+            let mut statements = vec![format!(
+                "ALTER TABLE {name} ALTER COLUMN {column} {} {};",
+                column_type(to.ty(), dialect),
+                if to.is_nullable() { "NULL" } else { "NOT NULL" }
+            )];
+            if from.default_value() != to.default_value() {
+                statements.push(drop_default_constraint(table, to, dialect));
+                if let Some(default) = to.default_value() {
+                    statements.push(format!(
+                        "ALTER TABLE {name} ADD DEFAULT ({}) FOR {column};",
+                        literal(default, to.ty(), dialect)
+                    ));
+                }
+            }
+            statements
+        }
         Dialect::PostgreSql => {
             let retype = format!(
                 "ALTER TABLE {name} ALTER COLUMN {column} TYPE {};",
@@ -735,6 +726,40 @@ fn change_column(table: &Table, from: &Column, to: &Column, dialect: Dialect) ->
     }
 }
 
+/// SQL Server's drop of whatever default constraint `column` carries today.
+///
+/// A default is a named constraint there, and the name is the server's own —
+/// generated when the default was written, and carried by neither a [`Change`]
+/// nor a [`crate::catalog`] read. So it is read out of `sys.default_constraints`
+/// by the statement that drops it, which makes this the one statement this
+/// module emits whose own text a server completes: everything else here is SQL
+/// as it will run.
+///
+/// **Still one statement**, because that is what a driver takes
+/// (`crate::direct`'s `run`): an `IF EXISTS` guarding an `EXEC`, rather than the
+/// `DECLARE` and the `IF` that would say the same thing in two. The guard is
+/// what makes the same statement right for a default being added, replaced or
+/// dropped — a column that has none matches nothing and the statement does
+/// nothing — and it is why the lookup is written twice rather than held in a
+/// variable.
+///
+/// The column is found by object and column id rather than by matching name
+/// text, so a table whose name needs delimiting is found exactly as one that
+/// does not is, and the name that comes back reaches the statement it is
+/// spliced into through `QUOTENAME` rather than raw.
+fn drop_default_constraint(table: &Table, column: &Column, dialect: Dialect) -> String {
+    let name = delimited(table.name().as_str(), dialect);
+    let carrying = format!(
+        "FROM sys.default_constraints WHERE parent_object_id = OBJECT_ID(N'{name}') \
+         AND parent_column_id = COLUMNPROPERTY(OBJECT_ID(N'{name}'), N'{}', 'ColumnId')",
+        column.name().as_str()
+    );
+    format!(
+        "IF EXISTS (SELECT 1 {carrying}) \
+         EXEC(N'ALTER TABLE {name} DROP CONSTRAINT ' + (SELECT QUOTENAME([name]) {carrying}));"
+    )
+}
+
 /// One `CREATE INDEX` or one `ADD CONSTRAINT … UNIQUE`.
 ///
 /// Two dialects say a unique key as an index instead, for two unrelated
@@ -751,14 +776,14 @@ fn add_key(table: &Table, key: &Key, kind: KeyKind, dialect: Dialect) -> String 
             "CREATE UNIQUE INDEX {} ON {} ({});",
             delimited(key.name().as_str(), dialect),
             delimited(table.name().as_str(), dialect),
-            key_columns(table, key.columns(), dialect)
+            key_columns(key.columns(), dialect)
         ),
         (KeyKind::Unique, _) => filtered_unique_index(table, key, dialect).unwrap_or_else(|| {
             format!(
                 "ALTER TABLE {} ADD CONSTRAINT {} UNIQUE ({});",
                 delimited(table.name().as_str(), dialect),
                 delimited(key.name().as_str(), dialect),
-                key_columns(table, key.columns(), dialect)
+                key_columns(key.columns(), dialect)
             )
         }),
     }
@@ -1182,7 +1207,7 @@ mod tests {
         .unwrap()
         .unique("wide_label_key", &["label"])
         .unwrap()
-        .index("wide_body_idx", &["body"])
+        .index("wide_token_idx", &["token"])
         .unwrap()
         .index("wide_day_clock_idx", &["day", "clock"])
         .unwrap();
@@ -1475,7 +1500,7 @@ mod tests {
         let mysql = create_schema(&schema, Dialect::MySql);
 
         assert_eq!(mysql.len(), 2, "one statement per table");
-        assert!(mysql[0].contains("INDEX `wide_body_idx` ("));
+        assert!(mysql[0].contains("INDEX `wide_token_idx` (`token`)"));
         assert!(mysql[0].contains("INDEX `wide_day_clock_idx` (`day`, `clock`)"));
         assert!(
             !mysql
@@ -1497,9 +1522,9 @@ mod tests {
                     *statement
                         == format!(
                             "CREATE INDEX {} ON {} ({});",
-                            as_written("wide_body_idx", dialect),
+                            as_written("wide_token_idx", dialect),
                             as_written("wide", dialect),
-                            as_written("body", dialect)
+                            as_written("token", dialect)
                         )
                 }),
                 "{dialect:?} declares an index of its own"
@@ -1507,36 +1532,38 @@ mod tests {
         }
     }
 
-    /// `rule:core-classes/schema-plan`: another of MySQL's departures — an indexed unbounded
-    /// text column carries a prefix length.
+    /// `rule:core-classes/schema-plan`: an unbounded column is written once, in
+    /// its own declaration, and no key on any dialect names it.
     ///
-    /// A **bound asserted on both sides**: the `LONGTEXT` column takes the
-    /// prefix and the `VARCHAR(200)` beside it does not, so an emitter that
-    /// wrote one on every text column would fail here while still looking right
-    /// on the line that matters.
+    /// This is what [`key_columns`] having no length to write rests on. MySQL
+    /// is the dialect that would need one — it cannot index a `LONGTEXT`
+    /// whole — and the reason it never writes one is that a key naming such a
+    /// column is [`crate::schema::SchemaError::UnboundedInKey`] before an
+    /// emitter is reached. Counted rather than searched for, because a key
+    /// naming `body` would put its name in the statement a second time however
+    /// that key were spelled, and the `VARCHAR(200)` beside it stays indexable.
     #[test]
-    fn mysql_gives_an_indexed_text_column_a_prefix_length() {
+    fn an_unbounded_column_is_named_once_and_by_no_key() {
         let schema = every_construct();
-        let mysql = create_schema(&schema, Dialect::MySql);
-
-        assert!(
-            mysql[0].contains(&format!(
-                "INDEX `wide_body_idx` (`body`({TEXT_KEY_PREFIX}))"
-            )),
-            "MySQL cannot index a LONGTEXT column whole"
-        );
-        assert!(
-            mysql[0].contains("CONSTRAINT `wide_label_key` UNIQUE (`label`)"),
-            "a VARCHAR(200) is indexable as it stands"
-        );
-
-        for dialect in [Dialect::PostgreSql, Dialect::Sqlite, Dialect::SqlServer] {
+        for dialect in DIALECTS {
+            let statements = create_schema(&schema, dialect);
+            for unbounded in ["body", "payload"] {
+                let written = as_written(unbounded, dialect);
+                let named: usize = statements
+                    .iter()
+                    .map(|statement| statement.matches(&written).count())
+                    .sum();
+                assert_eq!(
+                    named, 1,
+                    "{dialect:?} wrote `{unbounded}` somewhere other than its own declaration"
+                );
+            }
             assert!(
-                !create_schema(&schema, dialect)
+                statements
                     .iter()
                     .any(|statement| statement
-                        .contains(&format!("{}(", as_written("body", dialect)))),
-                "{dialect:?} indexes a text column whole"
+                        .contains(&format!("({})", as_written("label", dialect)))),
+                "{dialect:?} dropped the key over the bounded text column beside it"
             );
         }
     }
@@ -1675,7 +1702,7 @@ mod tests {
             .unwrap()
             .unique("wide_label_key", &["label"])
             .unwrap()
-            .index("wide_body_idx", &["body"])
+            .index("wide_token_idx", &["token"])
             .unwrap()
             .index("wide_day_clock_idx", &["day", "clock"])
             .unwrap()
@@ -1803,6 +1830,21 @@ mod tests {
                         1,
                         "{where_}: `{statement}` is more than one statement in one string"
                     );
+                    // The one statement that does not open with a DDL verb, and
+                    // it is named rather than excused: SQL Server's default
+                    // constraint has a name only the server knows, so
+                    // [`drop_default_constraint`] looks it up in the statement
+                    // that drops it. Everything else is DDL a reader can check
+                    // by eye.
+                    if statement.starts_with("IF EXISTS ") {
+                        assert_eq!(dialect, Dialect::SqlServer, "{where_}: a lookup elsewhere");
+                        assert!(
+                            statement.contains("sys.default_constraints")
+                                && statement.contains("QUOTENAME([name])"),
+                            "{where_}: `{statement}` looks something else up"
+                        );
+                        continue;
+                    }
                     assert!(
                         statement.starts_with("CREATE ")
                             || statement.starts_with("ALTER ")
@@ -2007,6 +2049,83 @@ mod tests {
                 "{dialect:?} rebuilt the table for a column every row already has"
             );
         }
+    }
+
+    /// `rule:core-classes/schema-plan`: a SQL Server default change reaches the
+    /// constraint that holds it, by the name the server gave that constraint.
+    ///
+    /// All three directions, because the batch is the same statement for each
+    /// and only the `ADD DEFAULT` after it varies: an emitter that wrote the
+    /// drop alone would converge on the direction that drops a default and
+    /// leave the other two applying nothing, which is the failure this dialect's
+    /// `ALTER COLUMN` has on its own. The last case is the bound from the other
+    /// side — a change that does not touch the default writes no batch, so the
+    /// step is not a constraint drop every widening pays for.
+    #[test]
+    fn a_sql_server_default_change_drops_the_constraint_the_server_named() {
+        let table = wide_after(None, None);
+        let plain = Column::new("label", ScalarType::Text { max: Some(200) }).unwrap();
+        let defaulted = |text: &str| {
+            Column::new("label", ScalarType::Text { max: Some(200) })
+                .unwrap()
+                .default(ColumnDefault::Text(text.to_owned()))
+                .unwrap()
+        };
+        let (first, second) = (defaulted("one"), defaulted("two"));
+        for (from, to, adds) in [
+            (plain.clone(), first.clone(), true),
+            (first.clone(), second.clone(), true),
+            (second.clone(), plain.clone(), false),
+        ] {
+            let taken = step(
+                Change::ChangeColumn {
+                    table: table.clone(),
+                    from,
+                    to,
+                },
+                Dialect::SqlServer,
+            );
+            let sql = taken.sql();
+            assert_eq!(
+                sql.len(),
+                usize::from(adds) + 2,
+                "{} wrote {sql:?}",
+                taken.change()
+            );
+            assert!(sql[0].starts_with("ALTER TABLE [wide] ALTER COLUMN [label] "));
+            assert!(
+                sql[1].starts_with("IF EXISTS (SELECT 1 FROM sys.default_constraints")
+                    && sql[1].contains("EXEC(N'ALTER TABLE [wide] DROP CONSTRAINT '")
+                    && sql[1].contains("OBJECT_ID(N'[wide]')")
+                    && sql[1].contains("N'label', 'ColumnId'"),
+                "{} looked the constraint up as {}",
+                taken.change(),
+                sql[1]
+            );
+            if adds {
+                assert!(
+                    sql[2].starts_with("ALTER TABLE [wide] ADD DEFAULT (")
+                        && sql[2].ends_with(") FOR [label];"),
+                    "{} wrote the new default as {}",
+                    taken.change(),
+                    sql[2]
+                );
+            }
+        }
+
+        let widened = step(
+            Change::ChangeColumn {
+                table,
+                from: plain,
+                to: Column::new("label", ScalarType::Text { max: Some(400) }).unwrap(),
+            },
+            Dialect::SqlServer,
+        );
+        assert_eq!(
+            widened.sql().len(),
+            1,
+            "a change that left the default alone dropped its constraint anyway"
+        );
     }
 
     /// § 6's `Locking`, at the case that gives the grade its name: a unique key
