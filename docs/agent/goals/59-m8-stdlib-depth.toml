@@ -10886,7 +10886,7 @@ kind = "cargo-named"
 stage = "5 the json wire"
 name = "a decimal, Instant or shape field no longer erases to Opaque"
 args = ["test", "-p", "nvs-types"]
-tests = ["a_decimal_instant_or_shape_field_erases_to_a_codec_it_can_decode"]
+tests = ["a_decimal_an_instant_and_bytes_field_erase_to_their_own_codec_type"]
 
 [[check]]
 kind = "nvs-suite"

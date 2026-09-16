@@ -853,7 +853,7 @@ class Rowsource {{
 /// at all (`rule:core-classes/db-column-types`) and a `#[Db\Derive]` refuses one
 /// at the declaration.
 #[test]
-fn a_decimal_instant_or_shape_field_erases_to_a_codec_it_can_decode() {
+fn a_decimal_an_instant_and_bytes_field_erase_to_their_own_codec_type() {
     let (diags, exprs) = check_src_table(
         "<?nvs
 #[Core\\Db\\Derive]
