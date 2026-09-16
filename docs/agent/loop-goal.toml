@@ -125,6 +125,8 @@ modules = [
   "crates/nvs-server/src/schedule.rs",
   "crates/nvs-server/src/trace.rs",
   "crates/nvs-db/src/catalog.rs",
+  "crates/nvs-db/src/schema.rs",
+  "crates/nvs-db/src/ddl.rs",
 ]
 
 rules = [
