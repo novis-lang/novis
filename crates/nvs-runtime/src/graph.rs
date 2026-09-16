@@ -49,6 +49,19 @@
 //!
 //! [`Encode`] never adopts: bytes are always built.
 //!
+//! # Decision: a refusal is a bit on the class, never a shape it happens to have
+//!
+//! § 2's refusals are about what a value *is*, and the two an object can still
+//! carry into the walk are both marks on its [`ClassDesc`]:
+//! [`ClassDesc::is_closure()`] and [`ClassDesc::holds_host_handle()`]. Neither
+//! is inferred from the instance in front of [`refusable`] — a declared
+//! `invoke` is a method name a program may use, and the slot holding a host
+//! handle is a `uint` like every other — so the crate that knows is the one
+//! that says so: `nvs_stdlib::instance` marks every `Core` class whose slot
+//! carries a key into a request's own table, and a class a program declares
+//! carries neither mark. The third refusal, an `inout` binding, reaches no
+//! value here at all: it is a frame alias the checker refuses at the copy site.
+//!
 //! # What it spends
 //!
 //! One [`HashMap`] entry per distinct object reached, for the length of one
@@ -58,23 +71,7 @@
 //!
 //! # Known gaps
 //!
-//! 1. **An object holding a host handle is not refused**, which is the one of
-//!    § 2's three refusals nothing here implements: a `Core` instance whose
-//!    slot carries a key into a request's own table — a `Core\Http\Socket`, a
-//!    `Core\Http\Stream`, a `Core\Db\Connection` — crosses as an ordinary
-//!    object, and [`Live`] rebuilds it on the far side with every slot intact.
-//!    No handle is shared by that, because a table belongs to one
-//!    [`crate::Ctx`] and a key is an index into it
-//!    ([`crate::Ctx::hold_open_socket`]) — which is the worse half: the copy
-//!    addresses the *receiving* side's table at that index, so it reads
-//!    whatever that side opened rather than nothing. What the walk has to see
-//!    is that a class holds one, and a [`ClassDesc`] carries no such mark;
-//!    where it lives — a bit on the descriptor, the way
-//!    [`ClassDesc::is_closure()`] marks a closure, or the declared type at the
-//!    copy site — is the decision, and it answers for every `Core` class at
-//!    once rather than for the one that found it.
-//!    — owner: unowned
-//! 2. **A decoded `Core` instance is a `mixed` a program cannot narrow.** The
+//! 1. **A decoded `Core` instance is a `mixed` a program cannot narrow.** The
 //!    value itself is rebuilt under its own descriptor — a `Core\Time\Date`
 //!    arrives back as one, slots intact, because [`crate::Ctx::class_desc`]
 //!    asks the `Core` resolver after the program's table — but the checker
@@ -371,9 +368,15 @@ fn walk<C: Carrier>(
 /// § 2's "refuses what has no meaning on the other side", for the shapes that
 /// arrive wearing [`Tag::Object`].
 ///
-/// A closure is its class's [`ClassDesc::is_closure()`] bit and nothing else —
-/// a declared `invoke` is a method name a program may use, and refusing on it
-/// would make a user class uncopyable for spelling it.
+/// Both refusals are a bit on the class and nothing structural. A closure is
+/// [`ClassDesc::is_closure()`] and not a declared `invoke`, which is a method
+/// name a program may use and refusing on it would make a user class
+/// uncopyable for spelling it. A host handle is
+/// [`ClassDesc::holds_host_handle()`] and not the shape of the slot, which is a
+/// `uint` like every other: the key indexes the table of the [`crate::Ctx`]
+/// that opened it ([`crate::Ctx::hold_open_socket`]), so a copy that crossed
+/// would address the *receiving* side's table at that index and read whatever
+/// that side has open there.
 fn refusable(class: &ClassDesc) -> Result<(), GraphError> {
     if class.is_closure() {
         return Err(GraphError(
@@ -381,6 +384,14 @@ fn refusable(class: &ClassDesc) -> Result<(), GraphError> {
              other side of a copy boundary"
                 .to_owned(),
         ));
+    }
+    if class.holds_host_handle() {
+        return Err(GraphError(format!(
+            "a {} holds a handle onto something this side of the boundary \
+             opened, so it has no meaning on the other side of a copy boundary \
+             — pass what identifies the resource and open it there",
+            class.name()
+        )));
     }
     Ok(())
 }
@@ -1096,9 +1107,19 @@ mod tests {
         #[expect(unsafe_code, reason = "the table outlives the object")]
         let wallet = Value::object(unsafe { NvsObj::new(wallets.desc(id)) });
 
+        // A host handle, spelled the way `refusable` recognizes one: the bit,
+        // not the `uint` slot the key sits in.
+        let mut sockets = ClassTable::new();
+        let id = sockets.define(r"Core\Http\Socket", &["held"], &[]);
+        sockets.set_host_handle(id);
+        #[expect(unsafe_code, reason = "the table outlives the object")]
+        let socket = Value::object(unsafe { NvsObj::new(sockets.desc(id)) });
+        borrow_object(socket).set_field(0, Value::uint(3));
+
         for (what, subject, refused) in [
             ("a closure", closure, true),
             ("a secret property", wallet, true),
+            ("a host handle", socket, true),
             ("an int", Value::int(7), false),
         ] {
             retain(subject);
@@ -1150,6 +1171,41 @@ mod tests {
         assert_eq!(borrow_object(back).field(0).as_int(), Some(7));
         release(back);
         release(command);
+    }
+
+    /// § 2's third refusal, `rule:security/isolate-values-cross-by-copy`'s "an
+    /// object holding a host handle is owned by this process": the mark is the
+    /// class's bit, so the refusal names the class, and a `uint` slot on a
+    /// class carrying no bit is an ordinary number that crosses.
+    #[test]
+    fn an_object_holding_a_host_handle_is_refused_by_name() {
+        let mut table = ClassTable::new();
+        let opened = table.define(r"Core\Db\Connection", &["handle", "name"], &[]);
+        table.set_host_handle(opened);
+        let counter = table.define("Counter", &["ticks"], &[]);
+
+        #[expect(unsafe_code, reason = "the table outlives the object")]
+        let connection = Value::object(unsafe { NvsObj::new(table.desc(opened)) });
+        borrow_object(connection).set_field(0, Value::uint(1));
+        retain(connection);
+        let why = copy_graph(connection).expect_err("a held connection does not cross");
+        assert!(
+            why.0.contains(r"Core\Db\Connection"),
+            "the refusal names the offending value's class: {}",
+            why.0
+        );
+        release(connection);
+
+        // The bit and nothing else: the same slot on a class nothing marked is
+        // a number, and the walk has no reason to look at it twice.
+        #[expect(unsafe_code, reason = "the table outlives the object")]
+        let ticks = Value::object(unsafe { NvsObj::new(table.desc(counter)) });
+        borrow_object(ticks).set_field(0, Value::uint(1));
+        retain(ticks);
+        let copied = copy_graph(ticks).expect("an unmarked class crosses with its `uint` intact");
+        assert_eq!(borrow_object(copied).field(0).as_uint(), Some(1));
+        release(copied);
+        release(ticks);
     }
 
     /// § 2's move: at refcount 1 the allocation is *reused*, which is the

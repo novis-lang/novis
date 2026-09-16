@@ -1,0 +1,32 @@
+--TEST--
+`Core\Serialize` refuses an object holding a host handle, naming the class it refused — `rule:classes/graph-copy`, `rule:security/isolate-values-cross-by-copy`
+--FILE--
+<?nvs
+// § 2's third refusal, and the one with teeth: an open descriptor belongs to
+// the context that opened it, and the handle carries a *key* into that
+// context's own table. A copy would hand the other side a key into **its**
+// table at the same index, so what crossed would read whatever that side has
+// open there. The walk refuses it naming the class instead.
+var $file = Core\IO::open('./data/note.txt', Core\IO\FileMode::Read);
+try {
+    Core\Serialize::encode($file);
+    echo "encoded an open file\n";
+} catch (LogicError $refused) {
+    echo $refused->message, "\n";
+}
+$file->close();
+
+// The refusal is a mark on the class and never the shape of a slot: a key is a
+// `uint` like every other number, and a value that is nothing but its own state
+// crosses like any other. `Core\IO\Lines` holds the lines themselves.
+Core\Serialize::encode(Core\IO::lines('./data/note.txt'));
+echo "a walk holding its own lines crosses\n";
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["./data"]
+--FILE data/note.txt--
+one
+two
+--EXPECT--
+Core\Serialize::encode(): a Core\IO\File holds a handle onto something this side of the boundary opened, so it has no meaning on the other side of a copy boundary — pass what identifies the resource and open it there
+a walk holding its own lines crosses

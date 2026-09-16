@@ -123,6 +123,47 @@ use crate::registry::{self, CoreClass};
 /// own instead, chained in [`descriptors`] where this one is.
 const INTERNAL_CLASSES: &[&CoreClass] = &[&crate::cursor::CLASS];
 
+/// Every `Core` class whose instance holds a **host handle** — the roster
+/// behind [`ClassDesc::holds_host_handle`], which is what
+/// `rule:security/isolate-values-cross-by-copy` refuses at a copy boundary and
+/// `nvs_runtime::graph`'s walk reads off the descriptor.
+///
+/// **A class belongs here when one of its slots carries a key filed by a
+/// `nvs_runtime::Ctx::hold_*` member**, because that key indexes the table of
+/// the context that opened it and means something else entirely in another
+/// one. `Core\Socket` is the one entry that carries no such slot and belongs
+/// for the same reason twice over: its whole state is its isolate's, so the
+/// value *is* the handle ([`crate::socket::CLASS`]).
+///
+/// It is a roster rather than a question asked of the slots because a key is a
+/// `uint` like every other — `Core\Net\Message`'s port is one, and it crosses
+/// — so the module that opens the resource is what knows, and this is where
+/// the crate that holds all of them says so. A class added beside a new
+/// `hold_*` call adds its line here.
+const HOST_HANDLE_CLASSES: &[&CoreClass] = &[
+    &crate::io::FILE,
+    &crate::csv::ROWS,
+    &crate::process::HANDLE,
+    &crate::script::HANDLE,
+    &crate::socket::CLASS,
+    &crate::http::socket::SOCKET,
+    &crate::http::stream::STREAM,
+    // The three walks over a stream's body, which take the reader's key out of
+    // the stream's own slot and carry it from there — `crate::http::stream`'s
+    // `consumed` is why the key moves rather than being shared.
+    &crate::http::stream::EVENTS,
+    &crate::http::stream::LINES,
+    &crate::http::stream::CHUNKS,
+    &crate::net::STREAM,
+    &crate::net::LISTENER,
+    &crate::net::DATAGRAM,
+    &crate::db::CONNECTION,
+    &crate::db::TRANSACTION,
+    // A streamed result set holds the connection's key to pull the next row;
+    // `Core\Db\Rows` holds the rows themselves and crosses.
+    &crate::db::STREAM,
+];
+
 /// Every member compiled code reaches on a `Core` instance **by name** — one
 /// row per class, `(member, symbol)`.
 ///
@@ -381,6 +422,16 @@ fn descriptors() -> &'static ClassTable {
             // `instanceof` on one answers only for itself.
             let id = table.define(class.name, class.slots, &[]);
             table.set_methods(id, dispatch_table(class.name));
+            // `rule:security/isolate-values-cross-by-copy`'s third refusal,
+            // written at the one place that can know it: the walk at a copy
+            // boundary sees a descriptor and nothing else, and [`HOST_HANDLE_CLASSES`]
+            // is this crate's answer to which of them may not cross.
+            if HOST_HANDLE_CLASSES
+                .iter()
+                .any(|held| held.name == class.name)
+            {
+                table.set_host_handle(id);
+            }
             // `rule:classes/stringable`'s one rendering member, which is *not* a
             // `DISPATCH_ROSTER` row: it has its own descriptor field because
             // it keeps the ordinary `Core` convention of borrowing its
@@ -716,6 +767,37 @@ mod tests {
             assert_eq!(desc.name(), class.name);
             assert_eq!(desc.field_count(), class.slots.len());
         }
+    }
+
+    /// `rule:security/isolate-values-cross-by-copy`'s refusal is read off the
+    /// descriptor, so every [`HOST_HANDLE_CLASSES`] entry has to reach one
+    /// carrying the bit: a roster line naming a class this crate no longer
+    /// registers would otherwise leave that handle crossing and say nothing.
+    #[test]
+    fn every_class_on_the_handle_roster_carries_the_bit() {
+        for class in HOST_HANDLE_CLASSES {
+            #[expect(
+                unsafe_code,
+                reason = "the leaked table owns the descriptor for the whole \
+                          process, so this borrow is sound for any lifetime"
+            )]
+            let desc = unsafe { &*descriptor(class) };
+            assert!(
+                desc.holds_host_handle(),
+                "{} is on the handle roster and its descriptor does not say so",
+                class.name
+            );
+        }
+
+        // And it is the roster's bit, not every `Core` class's: a value that is
+        // nothing but its own state crosses a boundary like any other.
+        #[expect(
+            unsafe_code,
+            reason = "the leaked table owns the descriptor for the whole \
+                      process, so this borrow is sound for any lifetime"
+        )]
+        let date = unsafe { &*descriptor(&crate::time::DATE) };
+        assert!(!date.holds_host_handle());
     }
 
     /// A second core answers with the *same* descriptor address, for a class

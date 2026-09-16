@@ -522,6 +522,21 @@ pub struct ClassDesc {
     /// code building a closure for a `Core` member to call answers. **Cost:**
     /// one `bool` per class, once per process, not per instance.
     is_closure: bool,
+    /// Whether an instance of this class holds a **host handle** — a key into
+    /// one [`Ctx`]'s own table of the open files, sockets, readers, database
+    /// connections and children that request opened, which is what
+    /// `rule:security/isolate-values-cross-by-copy` refuses at a copy boundary.
+    ///
+    /// Carried for [`Self::is_closure`]'s reason and one of its own: a key is a
+    /// `uint` slot like every other, so nothing about the value says it
+    /// addresses a table, and the table it addresses belongs to the side that
+    /// opened it. `nvs_stdlib::instance` writes it through
+    /// [`ClassTable::set_host_handle`] for every `Core` class whose slot
+    /// carries one, and it is `false` for every class a program declares:
+    /// `rule:types/grammar`'s "there is no `resource` type" leaves a handle
+    /// reachable only as one of those `Core` instances. **Cost:** one `bool`
+    /// per class, once per process, not per instance.
+    holds_host_handle: bool,
 }
 
 /// One row of a [`ClassDesc`]'s method table: a name, the compiled address it
@@ -1093,6 +1108,14 @@ impl ClassDesc {
         self.is_closure
     }
 
+    /// Whether an instance of this class holds a host handle — the bit
+    /// [`ClassTable::set_host_handle`] writes, and the second of the two marks
+    /// `rule:classes/graph-copy`'s walk refuses a value on.
+    #[must_use]
+    pub fn holds_host_handle(&self) -> bool {
+        self.holds_host_handle
+    }
+
     /// How many [`Value`] slots an instance of this class has, including every
     /// ancestor's.
     #[must_use]
@@ -1567,6 +1590,7 @@ impl ClassTable {
             compare: std::ptr::null(),
             unwind: std::ptr::null(),
             is_closure: false,
+            holds_host_handle: false,
         }));
         id
     }
@@ -1590,6 +1614,26 @@ impl ClassTable {
             .get_mut(id.0)
             .expect("a class id always belongs to the table that handed it out");
         desc.is_closure = true;
+    }
+
+    /// Marks `id` as a class whose instances hold a host handle — see
+    /// [`ClassDesc::holds_host_handle()`].
+    ///
+    /// A setter on [`ClassTable::set_closure`]'s exact terms, and the one
+    /// caller is `nvs_stdlib::instance`: it builds the process's `Core`
+    /// descriptors, and its crate is the only one that knows which slot of
+    /// which class carries a key filed by [`Ctx::hold_open_file`] and its
+    /// siblings.
+    ///
+    /// # Panics
+    ///
+    /// If `id` does not belong to this table.
+    pub fn set_host_handle(&mut self, id: ClassId) {
+        let desc = self
+            .classes
+            .get_mut(id.0)
+            .expect("a class id always belongs to the table that handed it out");
+        desc.holds_host_handle = true;
     }
 
     /// Fills in `id`'s per-slot declared tags — see [`ClassDesc::field_tags`].
