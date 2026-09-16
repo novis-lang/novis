@@ -73,6 +73,19 @@
 //! dynamic fallback. That is inherent to running from a source with no path — a
 //! REPL line, `stdin` — rather than a limitation to fix.
 //!
+//! **The name harvest is an over-approximation, and every AST variant it
+//! walks is named.** Each `match` over an `nvs_syntax::ast` enum here — types
+//! and type atoms, statements, class members, destructuring elements, `new`
+//! targets, member names and expressions — lists every variant that enum
+//! declares, so a position holding nothing to harvest says so rather than
+//! falling off the end of the walk, and a position that nests a type or an
+//! expression is reached. The wildcard arm each of those matches still
+//! carries is what `#[non_exhaustive]` requires of a cross-crate `match`, and
+//! a variant added to the AST lands there until it is named: that is the one
+//! way a name can still be missed. The cost of missing one is a class that
+//! fails to autoload (`rule:programs/autoload`), so the direction to widen in
+//! is always "harvest more", never "filter harder".
+//!
 //! **Known gaps:**
 //! - Only a plain `'...'`/`"..."` string literal (with no interpolation) is
 //!   recognised as statically known. Heredoc/nowdoc and any expression built
@@ -83,13 +96,7 @@
 //!   Decided: Fold literal concatenations and consts before the graph walk — More requires are resolved
 //!   and bundled at build time, at the cost of a small constant folder that runs before the checker's.
 //!   — owner: unowned-closures
-//! - The name harvest is an over-approximation on purpose, and it reaches
-//!   every declaration site's `#[...]` groups as well as its types and its
-//!   bodies ([`walk_attributes`]) — but a `Name` in a still-unwalked corner
-//!   of the AST would reach nobody. A missed name costs a class that fails
-//!   to autoload, so the direction to widen in is always "harvest more",
-//!   never "filter harder".
-//!   — owner: unowned
+
 //! - `rule:packaging/autoload-probes-fold-into-the-cache-key`'s probe trace is
 //!   recorded and handed back ([`crate::autoload::ProbeTrace`], on the
 //!   [`AutoloadMap`] this walk returns) and read by nobody yet. What is left is
@@ -104,9 +111,9 @@ use std::path::{Path, PathBuf};
 use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, SourceId, SourceMap, Span, code};
 use nvs_syntax::ast::{
     Arg, ArrayItem, AttributeGroup, AutoloadDecl, AutoloadKind, Block, CallArgs, ClassMember,
-    ClassMemberKind, DestructureElement, DestructureTarget, Expr, ExprKind, FnBody,
-    ImplementsClause, MemberName, Name, NamespaceDecl, NewTarget, Param, PropertyHook,
-    PropertyHookBody, Stmt, StmtKind, StringPart, Type, TypeAtom, TypeKind,
+    ClassMemberKind, ConstMember, DestructureElement, DestructureTarget, Expr, ExprKind, FnBody,
+    ImplementsClause, MemberName, MethodMember, Name, NamespaceDecl, NewTarget, Param,
+    PropertyHook, PropertyHookBody, Stmt, StmtKind, StringPart, Type, TypeAtom, TypeKind,
 };
 use nvs_syntax::{check_declarations, parse_file};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -671,7 +678,9 @@ fn walk_type(ty: &Type, src: &SourceFile, out: &mut Harvest) {
             }
         }
         TypeKind::Atom(atom) => match atom {
-            TypeAtom::Array(Some(inner)) | TypeAtom::ClassRef(inner) => {
+            TypeAtom::Array(Some(inner))
+            | TypeAtom::ClassRef(inner)
+            | TypeAtom::PropertyKey(inner) => {
                 walk_type(inner, src, out);
             }
             TypeAtom::Shape(fields) => {
@@ -696,8 +705,44 @@ fn walk_type(ty: &Type, src: &SourceFile, out: &mut Harvest) {
                     walk_type(arg, src, out);
                 }
             }
+            // Every remaining atom is a keyword or a literal: it nests no
+            // type and spells no name, so there is nothing under it to reach.
+            TypeAtom::Null
+            | TypeAtom::Bool
+            | TypeAtom::Int
+            | TypeAtom::Uint
+            | TypeAtom::Float
+            | TypeAtom::Decimal
+            | TypeAtom::String
+            | TypeAtom::Bytes
+            | TypeAtom::TaintedString
+            | TypeAtom::TaintedBytes
+            | TypeAtom::SecretString
+            | TypeAtom::SecretBytes
+            | TypeAtom::SecretTaintedString
+            | TypeAtom::SecretTaintedBytes
+            | TypeAtom::Array(None)
+            | TypeAtom::Object
+            | TypeAtom::Mixed
+            | TypeAtom::Void
+            | TypeAtom::Never
+            | TypeAtom::True
+            | TypeAtom::False
+            | TypeAtom::StringLiteral(_)
+            | TypeAtom::IntLiteral(_)
+            | TypeAtom::Iterable
+            | TypeAtom::Callable
+            | TypeAtom::SelfTy
+            | TypeAtom::StaticTy
+            | TypeAtom::Parent => {}
+            // `TypeAtom` is `#[non_exhaustive]`, so this arm is what the
+            // compiler requires of a cross-crate `match`, not an atom the
+            // walk declines: one added in `nvs-syntax` lands here until it is
+            // named above.
             _ => {}
         },
+        // Every `TypeKind` is named above; this is the same `#[non_exhaustive]`
+        // arm.
         _ => {}
     }
 }
@@ -903,6 +948,30 @@ fn walk_stmt(stmt: &Stmt, src: &SourceFile, out: &mut Harvest) {
             }
         }
         StmtKind::AutoloadDecl(decl) => record_autoload(decl, src, out),
+        // `rule:classes/no-free-functions-or-constants` refuses both of these
+        // and the parser keeps what it refused, so a name written inside one
+        // is still a name this file uses and is harvested exactly as the
+        // class-body form is.
+        StmtKind::TopLevelFunction(method) => walk_method(method, src, out),
+        StmtKind::TopLevelConst(constants) => {
+            for constant in constants {
+                walk_const(constant, src, out);
+            }
+        }
+        // Nothing under these spells a name: a bare `;`, the literal text
+        // between `?>` and `<?nvs`, `global`'s and `goto`'s bare identifiers,
+        // a valueless `return`/`break`/`continue`, and a recovery placeholder.
+        StmtKind::Empty
+        | StmtKind::InlineHtml(_)
+        | StmtKind::Global(_)
+        | StmtKind::Goto(_)
+        | StmtKind::Return(None)
+        | StmtKind::Break(None)
+        | StmtKind::Continue(None)
+        | StmtKind::Error => {}
+        // `StmtKind` is `#[non_exhaustive]`, so this arm is what the compiler
+        // requires of a cross-crate `match`, not a statement the walk
+        // declines.
         _ => {}
     }
 }
@@ -937,26 +1006,39 @@ fn record_autoload(decl: &AutoloadDecl, src: &SourceFile, out: &mut Harvest) {
     out.autoloads.push((kind, decl.span));
 }
 
+/// Records every name a method declaration mentions: its attribute groups,
+/// its parameters, its return type and its body.
+///
+/// A rejected top-level `function` is this same [`MethodMember`], so the
+/// declaration inside a class body and the one at file scope are harvested by
+/// one walk rather than by two that can drift apart.
+fn walk_method(method: &MethodMember, src: &SourceFile, out: &mut Harvest) {
+    walk_attributes(&method.attributes, src, out);
+    walk_params(&method.params, src, out);
+    if let Some(ty) = &method.return_type {
+        walk_type(ty, src, out);
+    }
+    if let Some(body) = &method.body {
+        find_require_literals(&body.stmts, src, out);
+    }
+}
+
+/// Records every name a constant declaration mentions: its attribute groups,
+/// its written type and its value. A rejected top-level `const` is this same
+/// [`ConstMember`], for the reason [`walk_method`] gives.
+fn walk_const(constant: &ConstMember, src: &SourceFile, out: &mut Harvest) {
+    walk_attributes(&constant.attributes, src, out);
+    if let Some(ty) = &constant.ty {
+        walk_type(ty, src, out);
+    }
+    walk_expr(&constant.value, src, out);
+}
+
 fn walk_class_members(members: &[ClassMember], src: &SourceFile, out: &mut Harvest) {
     for member in members {
         match &member.kind {
-            ClassMemberKind::Method(m) => {
-                walk_attributes(&m.attributes, src, out);
-                walk_params(&m.params, src, out);
-                if let Some(ty) = &m.return_type {
-                    walk_type(ty, src, out);
-                }
-                if let Some(body) = &m.body {
-                    find_require_literals(&body.stmts, src, out);
-                }
-            }
-            ClassMemberKind::Const(c) => {
-                walk_attributes(&c.attributes, src, out);
-                if let Some(ty) = &c.ty {
-                    walk_type(ty, src, out);
-                }
-                walk_expr(&c.value, src, out);
-            }
+            ClassMemberKind::Method(m) => walk_method(m, src, out),
+            ClassMemberKind::Const(c) => walk_const(c, src, out),
             ClassMemberKind::Property(p) => {
                 walk_attributes(&p.attributes, src, out);
                 walk_type(&p.ty, src, out);
@@ -967,7 +1049,12 @@ fn walk_class_members(members: &[ClassMember], src: &SourceFile, out: &mut Harve
                     walk_property_hook(hook, src, out);
                 }
             }
+            // A recovery placeholder stands in for a member that was refused
+            // or never written, and carries nothing to walk.
             ClassMemberKind::Error => {}
+            // `ClassMemberKind` is `#[non_exhaustive]`, so this arm is what
+            // the compiler requires of a cross-crate `match`, not a member
+            // the walk declines.
             _ => {}
         }
     }
@@ -1004,21 +1091,43 @@ fn walk_property_hook(hook: &PropertyHook, src: &SourceFile, out: &mut Harvest) 
 fn walk_destructure_target(target: &DestructureTarget, src: &SourceFile, out: &mut Harvest) {
     for element in &target.elements {
         match element {
-            DestructureElement::Leaf { key: Some(key), .. } => walk_expr(key, src, out),
+            // A leaf's declared type is an ordinary type position, and it is
+            // the only place `[Framework\Row $row] = $pair;` writes `Row` —
+            // so both halves of a leaf are walked, not just its key.
+            DestructureElement::Leaf { key, ty, .. } => {
+                if let Some(key) = key {
+                    walk_expr(key, src, out);
+                }
+                if let Some(ty) = ty {
+                    walk_type(ty, src, out);
+                }
+            }
             DestructureElement::Nested { key, target, .. } => {
                 if let Some(key) = key {
                     walk_expr(key, src, out);
                 }
                 walk_destructure_target(target, src, out);
             }
+            // An empty slot binds nothing.
+            DestructureElement::Skip => {}
+            // `DestructureElement` is `#[non_exhaustive]`, so this arm is what
+            // the compiler requires of a cross-crate `match`, not an element
+            // the walk declines.
             _ => {}
         }
     }
 }
 
 fn walk_member_name(member: &MemberName, src: &SourceFile, out: &mut Harvest) {
-    if let MemberName::Variable(e) | MemberName::Expr(e) = member {
-        walk_expr(e, src, out);
+    match member {
+        MemberName::Variable(e) | MemberName::Expr(e) => walk_expr(e, src, out),
+        // A written identifier and one the parser invented in its place are
+        // both plain member names, and neither can name a class.
+        MemberName::Ident(_) | MemberName::Missing(_) => {}
+        // `MemberName` is `#[non_exhaustive]`, so this arm is what the
+        // compiler requires of a cross-crate `match`, not a spelling the walk
+        // declines.
+        _ => {}
     }
 }
 
@@ -1076,7 +1185,10 @@ fn walk_expr(expr: &Expr, src: &SourceFile, out: &mut Harvest) {
             // arm still worth statically pulling in) — that generality isn't
             // needed yet, so this stops at the top-level path expression.
         }
-        ExprKind::Interpolated(parts) => {
+        // `rule:core-classes/html-literal`'s markup literal carries the same
+        // parts an interpolated string does, and a hole in either is an
+        // ordinary expression.
+        ExprKind::Interpolated(parts) | ExprKind::Markup(parts) => {
             for part in parts {
                 if let StringPart::Expr(x) = part {
                     e!(x);
@@ -1184,6 +1296,12 @@ fn walk_expr(expr: &Expr, src: &SourceFile, out: &mut Harvest) {
                     record_names(&decl.implements, src, out);
                     walk_class_members(&decl.members, src, out);
                 }
+                // `self`, `static` and `parent` each name the enclosing
+                // class, which the file that wrote them already declares.
+                NewTarget::SelfTy | NewTarget::StaticTy | NewTarget::ParentTy => {}
+                // `NewTarget` is `#[non_exhaustive]`, so this arm is what the
+                // compiler requires of a cross-crate `match`, not a target
+                // the walk declines.
                 _ => {}
             }
             walk_types(type_args, src, out);
@@ -1238,6 +1356,28 @@ fn walk_expr(expr: &Expr, src: &SourceFile, out: &mut Harvest) {
             }
         }
         ExprKind::Await(inner) => e!(inner),
+        ExprKind::ObjectLiteral(fields) => {
+            for field in fields {
+                e!(&field.value);
+            }
+        }
+        // A scalar literal, a variable, the three class keywords, a valueless
+        // `exit` and a recovery placeholder each name nothing.
+        ExprKind::Null
+        | ExprKind::Bool(_)
+        | ExprKind::Int(_)
+        | ExprKind::Float(_)
+        | ExprKind::Duration(_)
+        | ExprKind::Str(_)
+        | ExprKind::Variable(_)
+        | ExprKind::SelfExpr
+        | ExprKind::StaticExpr
+        | ExprKind::ParentExpr
+        | ExprKind::Exit(None)
+        | ExprKind::Error(_) => {}
+        // `ExprKind` is `#[non_exhaustive]`, so this arm is what the compiler
+        // requires of a cross-crate `match`, not an expression the walk
+        // declines.
         _ => {}
     }
 }
@@ -1723,6 +1863,27 @@ class Unreached {}
         let (module, diags) = resolve_entry(&dir, "main.nvs");
         assert!(!diags.has_errors(), "{diags:?}");
         assert!(module.symbols.contains(&QName::parse(r"Framework\Core")));
+    }
+
+    /// The name a destructuring leaf's declared type writes is a class
+    /// reference like any other, and a pattern is the one place it can be the
+    /// *only* mention in the file — `$pair` says nothing about what is in it.
+    #[test]
+    fn a_destructuring_leafs_declared_type_is_autoloaded() {
+        let dir = TempDir::new("autoload-destructure-leaf");
+        fs::create_dir_all(dir.path.join("src")).expect("create root");
+        dir.write(
+            "Bootstrap.nvs",
+            "<?nvs\nautoload 'Framework' from './src';\n",
+        );
+        dir.write("src/Row.nvs", "<?nvs\nnamespace Framework;\nclass Row {}\n");
+        dir.write(
+            "main.nvs",
+            "<?nvs\nrequire './Bootstrap.nvs';\nvar $pair = [];\n[Framework\\Row $row] = $pair;\n",
+        );
+
+        let (module, _diags) = resolve_entry(&dir, "main.nvs");
+        assert!(module.symbols.contains(&QName::parse(r"Framework\Row")));
     }
 
     /// `rule:packaging/autoload-probes-fold-into-the-cache-key`'s shadowing
