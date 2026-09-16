@@ -76,10 +76,9 @@ One file set: `crates/nvs-stdlib/src/`.
 
 - **Builds**: `compress.rs` gap 1 (`Core\Compress\Stream`, shaped like `crates/nvs-stdlib/src/hash.rs:434`,
   one `Bound` per inflating stream); `task.rs` gap 1 (the result shape's per-slot representations recorded
-  at the call site, `crates/nvs-ir/src/lower/mod.rs:3352-3363`); `regex.rs` gap 3 (`matchAll` positions in
-  O(n), with a cluster spanning a match boundary tested).
+  at the call site, `crates/nvs-ir/src/lower/mod.rs:3352-3363`).
 - **M6's two, which no goal on the chain had taken** (tagged `M6`): `regex.rs` gap 2 — the step budget
-  becomes a `[limits]` directive with today's constant as its default; gap 4 — the per-core
+  becomes a `[limits]` directive with today's constant as its default; gap 3 — the per-core
   compiled-pattern cache is charged to an accounting bracket, or replaced by the prepared-pattern
   channel if stage 3 builds it for regex literals too. Both are retagged to this goal in stage 0.
 - **Decided**: `cli.rs` gap 1; `command.rs` gap 1; `db/mod.rs` gaps 1–2; `debug.rs` gaps 1–2; `json.rs`

@@ -345,13 +345,7 @@ where taking it is the work and the code that follows it is not.
   `Qual` slot at all: without one a union that ever wanted `Qual::Launder` has nowhere to hold it,
   which is a registry-shape question and not a `Core\Regex` one.
   `crates/nvs-stdlib/src/regex.rs` gap 1. [until: reviewed 2026-09-10]
-- **`Core\Regex::matchAll` reports positions in O(n·k)** over an *n*-byte subject with *k* matches,
-  because `crate::granularity::Unit::index_of_byte` counts from the start for each one. The matches
-  arrive in increasing order, so the fix is a cursor counting only the gap since the previous match
-  and it is one function. What has to be decided is what a position means when a cluster spans a
-  match boundary — the case that makes the cursor's answer differ from the restart's — and no
-  milestone claims a stdlib member's complexity curve, M12 being the JIT tier.
-  `crates/nvs-stdlib/src/regex.rs` gap 3. [until: reviewed 2026-09-10]
+
 - **`Core\Cli::arguments` is empty inside a served request**, because it answers whatever the launcher
   wrote with `nvs_runtime::Ctx::set_command_line` and only `nvs-cli` writes one. Empty is not wrong —
   a request has no command line — but the member is rostered for every program rather than for a CLI
