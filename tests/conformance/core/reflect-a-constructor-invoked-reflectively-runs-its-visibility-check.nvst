@@ -1,0 +1,71 @@
+--TEST--
+A constructor invoked reflectively faces the check the `new` at that call site faces, so a `private` one builds from inside the class and is refused from outside — `rule:security/reflection-enforces-visibility`
+--FILE--
+<?nvs
+// `rule:security/reflection-enforces-visibility`: acting on a member runs
+// through exactly the check ordinary code *at that call site* would face, and
+// a constructor is a member like any other, reached through the same
+// `Core\Reflect\ClassInfo` a property read is reached through. So the same
+// `private` constructor is asked for from two sites and both answers are
+// printed — a door that
+// simply refused every `private` constructor would look right on the refusal
+// alone.
+class Ledger {
+    public int $opening;
+
+    private function constructor(int $opening) {
+        $this->opening = $opening;
+    }
+
+    // `new Ledger(5)` compiles here, so the reflective construction written
+    // here reaches the same constructor: this is the singleton door `private`
+    // was written for, and reflection neither opens nor closes it.
+    public static function open(int $opening): mixed {
+        var $described = Core\Reflect::forClass("Ledger");
+        if ($described == null) {
+            return null;
+        }
+        return $described->construct([$opening]);
+    }
+}
+
+// A `public` constructor, so the refusal below is a visibility answer rather
+// than this door being shut to every class alike.
+class Tally {
+    public int $total;
+
+    public function constructor(int $total) {
+        $this->total = $total;
+    }
+}
+
+var $tally = Core\Reflect::forClass("Tally");
+var $ledger = Core\Reflect::forClass("Ledger");
+if ($tally == null) {
+    echo "unreachable", "\n";
+} else if ($ledger == null) {
+    echo "unreachable", "\n";
+} else {
+    // Built, and built with what it was given: the instance is read back
+    // through the description that made it.
+    mixed $counted = $tally->construct([7]);
+    echo "public built: ", $tally->get($counted, "total"), "\n";
+
+    // Out here `new Ledger(1)` is `E0471` at the checker. The reflective one
+    // is refused too, at run time, because this door resolves its class by
+    // name — and in the erased call's own words, since it is that check.
+    try {
+        mixed $sealed = $ledger->construct([1]);
+        echo "outside built", "\n";
+    } catch (LogicError $refused) {
+        echo "outside refused: ", $refused->message, "\n";
+    }
+
+    // And from inside the class, where the ordinary `new` is allowed.
+    mixed $opened = Ledger::open(5);
+    echo "inside built: ", $ledger->get($opened, "opening"), "\n";
+}
+--EXPECT--
+public built: 7
+outside refused: `Ledger::constructor` is not public, and a `mixed` receiver is outside every class
+inside built: 5

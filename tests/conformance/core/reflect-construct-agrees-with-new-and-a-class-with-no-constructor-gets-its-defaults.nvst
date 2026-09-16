@@ -1,0 +1,63 @@
+--TEST--
+`Core\Reflect\ClassInfo::construct` binds `$arguments` to the declared parameters in order, agreeing property for property with the `new` beside it, and a class declaring no constructor is built from its armed defaults — `rule:core-classes/reflect`
+--FILE--
+<?nvs
+// What one `Core\Reflect\ClassInfo` builds is asked about here, not who is
+// allowed to build it. The question is what the constructed instance *is*, as an
+// agreement between the two doors rather than as one right-looking answer: an
+// argument list bound in the wrong order, or a constructor body skipped, prints
+// plausibly on its own and fails against the `new` written beside it.
+class Crate {
+    public string $label;
+    public int $size;
+    public string $stamp;
+
+    public function constructor(string $label, int $size) {
+        $this->label = $label;
+        $this->size = $size;
+        // Derived in the body, so a door that allocated and armed the defaults
+        // without running the constructor answers the empty string here.
+        $this->stamp = $label . "/" . ($size as string);
+    }
+}
+
+// `rule:classes/definite-property-initialization` gives this class nothing to
+// run, so the allocation with its declared defaults is the whole of its
+// construction — and `$arguments` is still written, as `[]`.
+class Marker {
+    public int $count = 9;
+    public string $note = "unset";
+}
+
+var $crate = Core\Reflect::forClass("Crate");
+if ($crate == null) {
+    echo "unreachable", "\n";
+} else {
+    mixed $reflective = $crate->construct(["disk", 3]);
+    var $ordinary = new Crate("disk", 3);
+
+    echo $crate->get($reflective, "label") == $ordinary->label ? "label agrees" : "label differs", "\n";
+    echo $crate->get($reflective, "size") == $ordinary->size ? "size agrees" : "size differs", "\n";
+    echo $crate->get($reflective, "stamp") == $ordinary->stamp ? "stamp agrees" : "stamp differs", "\n";
+    echo "stamp: ", $crate->get($reflective, "stamp"), "\n";
+
+    // The two are separate instances, not one object answered twice: a write
+    // through one is not readable through the other.
+    $crate->set($reflective, "label", "tape");
+    echo $crate->get($reflective, "label"), " ", $ordinary->label, "\n";
+}
+
+var $marker = Core\Reflect::forClass("Marker");
+if ($marker == null) {
+    echo "unreachable", "\n";
+} else {
+    mixed $blank = $marker->construct([]);
+    echo $marker->get($blank, "count"), " ", $marker->get($blank, "note"), "\n";
+}
+--EXPECT--
+label agrees
+size agrees
+stamp agrees
+stamp: disk/3
+tape disk
+9 unset

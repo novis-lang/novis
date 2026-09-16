@@ -1,0 +1,77 @@
+--TEST--
+`Core\Reflect\ClassInfo::construct` judges `$arguments` against the constructor's declared parameters — both sides of the arity bound, and a type a parameter does not accept — `rule:security/reflection-enforces-visibility`
+--FILE--
+<?nvs
+// The check `Core\Reflect\ClassInfo` makes here is the ordinary erased call's,
+// so what the list is
+// judged against is the *constructor's* shape and never the array's. Both
+// sides of each bound are named: a door that stopped one entry early would
+// print plausibly against either half alone.
+class Box {
+    public string $kind;
+    public int $depth;
+
+    public function constructor(string $kind, int $depth) {
+        $this->kind = $kind;
+        $this->depth = $depth;
+    }
+}
+
+// A constructor declaring nothing, which `[]` is the only spelling for:
+// `$arguments` is required because the registry has no array default to give
+// it, and `crate::reflect`'s row says so.
+class Sealed {
+    public int $at = 0;
+
+    public function constructor() {
+        $this->at = 1;
+    }
+}
+
+var $box = Core\Reflect::forClass("Box");
+if ($box == null) {
+    echo "unreachable", "\n";
+} else {
+    // Exactly the declared count, in declaration order.
+    mixed $exact = $box->construct(["crate", 2]);
+    echo $box->get($exact, "kind"), " ", $box->get($exact, "depth"), "\n";
+
+    // One short is refused — the first list the constructor cannot be entered
+    // with, and nothing is built.
+    try {
+        mixed $short = $box->construct(["crate"]);
+        echo "short built", "\n";
+    } catch (LogicError $tooFew) {
+        echo "too few", "\n";
+    }
+
+    // One over is not: an argument nothing declares has no parameter to be
+    // checked against, so the list is trimmed to the arity exactly as an
+    // ordinary erased call trims it. This is the accepted side of that bound.
+    mixed $over = $box->construct(["crate", 4, "ignored"]);
+    echo $box->get($over, "depth"), "\n";
+
+    // An entry whose type the parameter does not accept is refused at the same
+    // check, before anything is constructed — reflection never widens what an
+    // ordinary `new` would not.
+    try {
+        mixed $wrong = $box->construct(["crate", "2"]);
+        echo "mistyped built", "\n";
+    } catch (LogicError $refused) {
+        echo "wrong type", "\n";
+    }
+}
+
+var $sealed = Core\Reflect::forClass("Sealed");
+if ($sealed == null) {
+    echo "unreachable", "\n";
+} else {
+    mixed $none = $sealed->construct([]);
+    echo $sealed->get($none, "at"), "\n";
+}
+--EXPECT--
+crate 2
+too few
+4
+wrong type
+1
