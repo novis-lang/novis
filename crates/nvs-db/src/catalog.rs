@@ -75,24 +75,7 @@
 //!
 //! # Known gaps
 //!
-//! 1. **SQL Server's type spelling is assembled out of the catalog's separate
-//!    columns and covers lengths and `decimal` only.** `DATETIME_PRECISION` is
-//!    not folded in, so a `datetime2(7)` reads back as `datetime2`. That is
-//!    § 5's normalisation to own rather than this module's, since the write
-//!    direction in [`crate::ddl`] emits one precision for every instant column.
-//!    Decided: One normalisation pass that folds both sides through the dialect's map before the diff —
-//!    One function that owns every lossy case; the diff stays a plain equality.
-//!    — owner: unowned-closures
-//! 2. **[`scalar_type`] is a choice function, and § 5 owes the other half.**
-//!    The map back is not injective — a dialect with no unsigned integer
-//!    spells one as the width above it — so a column
-//!    written as `uint32` reads back as `int64` and the plan is empty only
-//!    once § 5 normalises the *declared* side the same way. Every case is
-//!    named in that function's own doc; nothing here hides one.
-//!    Decided: One normalisation pass that folds both sides through the dialect's map before the diff —
-//!    One function that owns every lossy case; the diff stays a plain equality.
-//!    — owner: unowned-closures
-//! 3. **An unquoted spelling on a text column is read as that text.**
+//! 1. **An unquoted spelling on a text column is read as that text.**
 //!    [`unquote`] falls back to the whole string where a server printed no
 //!    quotes, because MySQL's `information_schema` prints a literal that way —
 //!    but PostgreSQL, SQL Server and SQLite always quote a string default, so
@@ -309,9 +292,18 @@ ORDER BY s.table_name, s.index_name, s.seq_in_index";
 ///
 /// The declared spelling has to be rebuilt here because SQL Server has no
 /// `column_type` of its own: a `-1` length is the `(max)` form, any other
-/// length is written in parentheses, and `decimal` and `numeric` take their
-/// precision and scale. `COLUMNPROPERTY` is how an identity is asked for
-/// without leaving `INFORMATION_SCHEMA` for `sys.columns`.
+/// length is written in parentheses, `decimal` and `numeric` take their
+/// precision and scale, and `time`, `datetime2` and `datetimeoffset` take the
+/// fractional-seconds precision `DATETIME_PRECISION` reports.
+/// `COLUMNPROPERTY` is how an identity is asked for without leaving
+/// `INFORMATION_SCHEMA` for `sys.columns`.
+///
+/// Those three are the whole of the time branch, and the list is a list rather
+/// than a test for a non-null `DATETIME_PRECISION` because `date` and
+/// `datetime` report one too — `0` and `3` — without taking one in a
+/// declaration. `date(0)` is not a type that catalog could have been given, and
+/// writing it would make every `date` column unreadable rather than better
+/// described.
 const SQLSERVER_COLUMNS: &str = r"SELECT c.TABLE_NAME AS nvs_table,
        c.COLUMN_NAME AS nvs_column,
        c.ORDINAL_POSITION AS nvs_ordinal,
@@ -322,6 +314,8 @@ const SQLSERVER_COLUMNS: &str = r"SELECT c.TABLE_NAME AS nvs_table,
          WHEN c.DATA_TYPE IN ('decimal', 'numeric')
            THEN c.DATA_TYPE + '(' + CAST(c.NUMERIC_PRECISION AS varchar(11))
                 + ',' + CAST(c.NUMERIC_SCALE AS varchar(11)) + ')'
+         WHEN c.DATA_TYPE IN ('time', 'datetime2', 'datetimeoffset')
+           THEN c.DATA_TYPE + '(' + CAST(c.DATETIME_PRECISION AS varchar(11)) + ')'
          ELSE c.DATA_TYPE
        END AS nvs_type,
        CASE WHEN c.IS_NULLABLE = 'YES' THEN 1 ELSE 0 END AS nvs_nullable,
@@ -455,22 +449,26 @@ ORDER BY 1, 2, 4"#;
 /// and a single parenthesised group lifted out of wherever it sits — so
 /// `timestamp(3) without time zone` is the head `timestamp without time zone`
 /// with an argument, and a precision the vocabulary cannot hold is dropped
-/// rather than refused, which is gap 2 of this module's doc in the other
-/// direction. Nothing here parses SQL: it is a closed table of names per
-/// dialect, exactly as [`ScalarType::from_spelling`] is a closed table over
-/// the canonical ones, and § 4 refuses the alternative at every tier.
+/// rather than refused — harmless because the declared side is folded through
+/// this same map before the diff (`crate::plan`'s `stored_as`), so a precision
+/// neither side can hold is missing from both. Nothing here parses SQL: it is
+/// a closed table of names per dialect, exactly as
+/// [`ScalarType::from_spelling`] is a closed table over the canonical ones,
+/// and § 4 refuses the alternative at every tier.
 ///
 /// # The map is not injective, and these are the choices it makes
 ///
 /// The emitter writes one spelling for two types in the places below, so
-/// reading is a choice and each one costs a normalisation § 5 must make on the
-/// declared side for the round trip to be empty:
+/// reading is a choice — and every one of them is normalised out of § 5's
+/// comparison by `crate::plan`'s `stored_as`, which folds the *declared* side
+/// through [`crate::ddl::column_type`] and this function before the diff. The
+/// choices are therefore what a round trip settles on rather than a loss:
 ///
 /// - **`INTEGER`/`INT` is [`IntWidth::Normal`] signed, and `BIGINT` is
 ///   [`IntWidth::Big`] signed**, on the dialects with no unsigned integer. A
 ///   `uint16` reads back as `int32` and a `uint32` as `int64` —
 ///   the server genuinely holds the wider column, so the *reading* is right
-///   and it is the declared side that has to be widened before the diff.
+///   and the declared side is what the normalisation widens.
 /// - **`NUMERIC(20, 0)`/`DECIMAL(20, 0)` is a [`ScalarType::Decimal`]**, never
 ///   a `uint64`, on PostgreSQL and SQL Server. Decimal is the general answer
 ///   and `uint64` the case only MySQL has a type for. SQLite is the exception
@@ -1378,6 +1376,55 @@ mod tests {
         }
     }
 
+    /// `rule:core-classes/schema-introspection`: SQL Server's assembled
+    /// spelling carries the fractional-seconds precision, and carries it for
+    /// exactly the three types that take one.
+    ///
+    /// The two halves are one case because they are one failure: a branch that
+    /// assembled `date(0)` — which `INFORMATION_SCHEMA` has every right to
+    /// suggest, reporting a `DATETIME_PRECISION` for `date` and `datetime`
+    /// alike — would not merely describe a column oddly, it would make every
+    /// `date` column on that server a [`SchemaError::UnknownType`] and fail the
+    /// whole read.
+    #[test]
+    fn sqlserver_assembles_the_precision_of_the_three_types_that_take_one() {
+        let sql = query(Read::Columns, Dialect::SqlServer);
+        assert!(
+            sql.contains("c.DATETIME_PRECISION"),
+            "the assembled spelling drops the fractional-seconds precision"
+        );
+        for (ty, declared) in [
+            (ScalarType::Time, "time"),
+            (ScalarType::DateTime, "datetime2"),
+            (ScalarType::Instant, "datetimeoffset"),
+        ] {
+            assert_eq!(
+                ddl::column_type(&ty, Dialect::SqlServer).to_ascii_lowercase(),
+                declared,
+                "the emitter no longer writes the type this branch assembles for"
+            );
+            assert!(
+                sql.contains(&format!("'{declared}'")),
+                "the time branch does not name `{declared}`"
+            );
+            // Every precision the server will report for a column it was given
+            // that bare spelling, including the default it substitutes.
+            for precision in 0..=7 {
+                assert_eq!(
+                    scalar_type(&format!("{declared}({precision})"), Dialect::SqlServer),
+                    Some(ty.clone()),
+                    "`{declared}({precision})` is a spelling that catalog now answers"
+                );
+            }
+        }
+        for bare in ["date", "datetime"] {
+            assert!(
+                !sql.contains(&format!("'{bare}'")),
+                "`{bare}` reports a precision no declaration of it can carry"
+            );
+        }
+    }
+
     /// The vocabulary's own family name for a type, by a match with no
     /// wildcard: a variant added to [`ScalarType`] stops this compiling, so
     /// the sweep below cannot quietly stop covering one.
@@ -1471,6 +1518,51 @@ mod tests {
                 assert!(
                     ScalarType::from_spelling(&sql).is_err(),
                     "`{sql}` is also a canonical name, so the two readers overlap"
+                );
+            }
+        }
+    }
+
+    /// `rule:core-classes/schema-introspection`: every type in the vocabulary,
+    /// applied to a dialect and read straight back off it, is an **empty
+    /// plan** — the declared side folded through the same map as the read one.
+    ///
+    /// The server is left out and nothing is lost by that: what a server can
+    /// answer for a column is what [`scalar_type`] makes of the string
+    /// [`ddl::column_type`] wrote, so this composition is the round trip
+    /// itself. It is the half of § 5's acceptance criterion that needs no
+    /// container, and the one that covers every type rather than a fixture's
+    /// selection; that a server really does answer these words back is
+    /// [`an_applied_schema_introspects_back_to_an_empty_plan_on_sqlite`] and
+    /// the matrix cases beside it.
+    #[test]
+    fn every_type_read_back_off_its_own_emitter_is_an_empty_plan() {
+        let one_column = |ty: &ScalarType| {
+            Schema::new(vec![
+                Table::new(
+                    "wide",
+                    vec![
+                        Column::new("id", ScalarType::Int(IntWidth::Big)).unwrap(),
+                        Column::new("value", ty.clone()).unwrap(),
+                    ],
+                )
+                .unwrap()
+                .primary_key(&["id"])
+                .unwrap(),
+            ])
+            .unwrap()
+        };
+
+        for dialect in DIALECTS {
+            for ty in every_type() {
+                let sql = ddl::column_type(&ty, dialect);
+                let read = scalar_type(&sql, dialect)
+                    .unwrap_or_else(|| panic!("{dialect:?} cannot read `{sql}` back at all"));
+                let plan = crate::plan::diff(&one_column(&ty), &one_column(&read), dialect);
+                assert!(
+                    plan.is_empty(),
+                    "{dialect:?} wrote {ty:?} as `{sql}`, read it as {read:?} \
+                     and plans a step for the difference:\n{plan}"
                 );
             }
         }
@@ -1814,11 +1906,14 @@ mod tests {
     /// identity primary key, a composite one, a unique constraint, a plain
     /// index, a nullable column and both kinds of default.
     ///
-    /// It carries **no `uint` and no bounded `bytes`**, the families where
-    /// what comes back depends on which server answered —
-    /// `scalar_type`'s own doc names every case, and § 5 owes the declared
-    /// side the same normalisation. A fixture carrying one would be asserting
-    /// that gap closed rather than that the assembly is one function.
+    /// It carries **no `uint` and no bounded `bytes`**, the families where what
+    /// comes back depends on which server answered. Those are § 5's
+    /// normalisation to absorb rather than this fixture's to demonstrate, and
+    /// they are asserted where the normalisation is: over every dialect by
+    /// [`every_type_read_back_off_its_own_emitter_is_an_empty_plan`] and
+    /// against a real server by
+    /// [`a_uint_and_a_bounded_bytes_applied_to_sqlite_are_still_an_empty_plan`].
+    /// What this value is for is that the assembly is one function.
     ///
     /// Two of its names are load-bearing, because
     /// [`introspects_back_to_an_empty_plan`] applies this value to four real
@@ -2227,6 +2322,54 @@ mod tests {
         assert!(
             plan.is_empty(),
             "the schema this server was given is not the schema it answers:\n{plan}"
+        );
+    }
+
+    /// The two families [`assembled_fixture`] leaves out, against the one
+    /// server that is a file: a `uint` and a bounded `bytes` applied to SQLite
+    /// read back as an `int64` and an unbounded `bytes`, and the plan between
+    /// what was applied and what came back is still **empty**.
+    ///
+    /// The second half of the case is what makes the first half mean anything.
+    /// A plan is empty either because the normalisation worked or because
+    /// nothing was lost in the first place, and only reading the types out of
+    /// the value tells those apart.
+    #[test]
+    fn a_uint_and_a_bounded_bytes_applied_to_sqlite_are_still_an_empty_plan() {
+        let applied = Schema::new(vec![
+            Table::new(
+                "lossy",
+                vec![
+                    Column::new("id", ScalarType::Int(IntWidth::Big))
+                        .unwrap()
+                        .identity()
+                        .unwrap(),
+                    Column::new("size", ScalarType::Uint(IntWidth::Normal)).unwrap(),
+                    Column::new("body", ScalarType::Bytes { max: Some(64) }).unwrap(),
+                ],
+            )
+            .unwrap()
+            .primary_key(&["id"])
+            .unwrap(),
+        ])
+        .unwrap();
+        let read = applied_and_read(&applied);
+        let plan = crate::plan::diff(&applied, &read, Dialect::Sqlite);
+        assert!(
+            plan.is_empty(),
+            "the schema this server was given is not the schema it answers:\n{plan}"
+        );
+
+        let lossy = read.table(&Ident::new("lossy").unwrap()).unwrap();
+        assert_eq!(
+            lossy.column(&Ident::new("size").unwrap()).unwrap().ty(),
+            &ScalarType::Int(IntWidth::Big),
+            "SQLite has an unsigned integer after all, so this proves nothing"
+        );
+        assert_eq!(
+            lossy.column(&Ident::new("body").unwrap()).unwrap().ty(),
+            &ScalarType::Bytes { max: None },
+            "SQLite kept a declared length for binary, so this proves nothing"
         );
     }
 
