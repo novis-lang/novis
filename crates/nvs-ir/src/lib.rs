@@ -182,42 +182,25 @@
 //!   distinct written shape in the program, O(distinct types) like every other
 //!   interned descriptor and never O(requests served).
 //!
-//! # Known gaps
+//! # What each area lowers, and the limit it holds within
 //!
-//! Each panics naming itself rather than miscompiling, in one of two spellings,
-//! and **the spelling is the claim**.
+//! One bullet per area, read whole: what reaches the IR, which instruction or
+//! [`ir::Helper`] carries it, and where the boundary is. A limit stated here is
+//! a decision rather than a hole — `# Known gaps` at the foot of this file is
+//! that register — and the doc comment each bullet names is the home of the
+//! detail it points at.
 //!
-//! A plain `panic!` naming the shape it does not take — "only lowers", "has no
-//! arm for" — is a gap still open: the program type-checks and stops working
-//! here anyway. That is what `tools/holes.py` counts and what
-//! `crates/nvs-ir/tests/refusals.rs` ratchets down, so it is owed a lowering or
-//! a diagnostic, and rewording it past that recognizer is not a close.
-//!
-//! `lower::guarded_by!(code::E_…, …)` is the other close: the shape never
-//! arrives, because the front end refuses it where it is written with the code
-//! the macro names, and that name is held to a conformance case expecting it.
-//! It is a guarantee this crate leans on, written down where it is leaned on —
-//! not a hole, and not counted as one. An engine invariant no front-end
-//! diagnostic guards keeps its bare `panic!` or `unreachable!`, because there
-//! is no code for it to name.
-//!
-//! **A number here is a stable identifier**, cited from `docs/agent/loop-goal.md`
-//! and `docs/agent/playbook.md`. A closed gap is deleted and leaves a hole
-//! rather than renumbering the ones below it — the same rule the diagnostic
-//! registry states for a retired `E`-code, and for the same reason.
-//!
-//! 2. **A value fresh on the throw path can still leak.** A landing block
-//!    sweeps the frame's owned-temporaries stack as well as its locals, so a
-//!    call's arguments and receiver, and the operands of `.`, an
-//!    interpolation and an `echo`, are released on both edges. A producer
-//!    that still releases its fresh value inline — a normalized subscript key,
-//!    a `match` subject — is not on that stack yet and leaks.
-//!    [`lower::Lowering::landing_block`] states the boundary and
-//!    `lower::Lowering`'s own field doc states the one hole shaped differently
-//!    (an argument being *transferred* when a later one throws).
-//!    — owner: unowned
-//! 3. **A tagged value is built, carried, narrowed and dispatched on, on
-//!    every path this entry names.** [`ty::Ty::Tagged`] is the one representation `mixed`,
+//! 1. **A fresh value is staged before anything that can throw, never released
+//!    inline.** A landing block sweeps the frame's owned-temporaries stack as
+//!    well as its locals, so a call's arguments and receiver, the operands of
+//!    `.`, an interpolation and an `echo`, a `match` subject and a rendered
+//!    subscript key ([`lower::Lowering::lower_array_key`]) are released on both
+//!    edges. [`lower::Lowering::landing_block`] states the boundary and
+//!    `lower::Lowering`'s own field doc the one asymmetry: a *transferred*
+//!    argument is released on the error edge and forgotten on the normal one,
+//!    the callee owning it from the instruction that reaches it.
+//! 2. **A tagged value is built, carried, narrowed and dispatched on, on
+//!    every path this bullet names.** [`ty::Ty::Tagged`] is the one representation `mixed`,
 //!    `?T` and every other union erase to, and its own doc comment owns the
 //!    decision and what it spends. What lowers today: a `?T` local, parameter,
 //!    property, return value and call argument; the literal `null`;
@@ -228,7 +211,7 @@
 //!    `rule:expressions/nullable-conversion`'s `as ?T` ([`lower::Lowering::convert_or_null`]) *reads* a
 //!    tag instead — its helper dispatches on the
 //!    operand's, which is what a `mixed` source costs, and is the shape the
-//!    rest of this gap closes in. `.` and `echo` read one the same way
+//!    rest of this bullet describes. `.` and `echo` read one the same way
 //!    ([`ir::Helper::TaggedToString`]). `?->` reads one only to *test* it
 //!    ([`lower::Lowering::open_nullsafe`]), as does `== null`/`!= null`,
 //!    which is one [`ir::InstKind::IsNull`] rather than a comparison against
@@ -257,15 +240,16 @@
 //!    decision's home — one helper per operator dispatching on the pair of
 //!    tags, each carrying the error edge a closed table needs, and no second
 //!    representation anywhere.
-//!    — owner: unowned
-//! 4. **One conversion row is missing.**
+//! 3. **Every conversion row lowers, in both spellings.**
 //!    `rule:types/conversion`'s free, total and checked scalar rows all lower, in both
 //!    the throwing form ([`lower::Lowering::convert`]) and `rule:expressions/nullable-conversion`'s
-//!    non-throwing `as ?T` ([`lower::Lowering::convert_or_null`]). The row
-//!    still absent is `rule:types/conversion`'s integer *into* an enum, in either form:
-//!    it throws on a value no case names, which needs the declaration's case
-//!    set carried to the check, and nothing here expresses one. `EnumName` ↔
-//!    `string` is not a gap — `rule:types/conversion` leaves it out of the language.
+//!    non-throwing `as ?T` ([`lower::Lowering::convert_or_null`]). The integer
+//!    *into* an enum row runs the declaration's own case set
+//!    ([`lower::convert::whole_enum_set`]) through the membership chain the
+//!    last bullet below describes, and the `?` spelling runs that chain with a
+//!    `null` miss arm (`lower::Lowering`'s `lower_nullable_membership`).
+//!    `EnumName` ↔
+//!    `string` is not a row — `rule:types/conversion` leaves it out of the language.
 //!    `rule:expressions/nullable-conversion-availability`'s own refusals are all `nvs_types`' and none reaches here:
 //!    a conversion that cannot fail (`$i as ?string`) is
 //!    `nvs_diagnostics::code::E_NULLABLE_CONVERSION_CANNOT_FAIL` and one that
@@ -287,19 +271,19 @@
 //!    `nvs_diagnostics::code::E_CLASS_CONVERSION_TARGET`, and it is absolute,
 //!    so no class reaches this crate through `as` at all: `Core\Uri::tryParse`
 //!    is an ordinary member call.
-//!    — owner: unowned
-//! 5. **A ternary — or a `match` — whose branches lower to two different
-//!    [`ty::Ty`] representations panics.** Neither has a recorded result type
-//!    to widen its arms to, which is the one thing
-//!    `nvs_types::expr_table::ExprInfo::Coalesce` supplies for `??` — so
-//!    closing it is that same recording, plus [`lower::Lowering::coerce`] on
-//!    each arm. *Where* a short-circuit may
+//! 4. **A ternary — or a `match` — whose branches lower to two different
+//!    [`ty::Ty`] representations joins at [`ty::Ty::Tagged`].**
+//!    [`lower::Lowering::join_representations`] widens each branch in its own
+//!    block through [`lower::Lowering::coerce`], and owns why it does not reach
+//!    for `rule:types/arithmetic`'s promotion rows: the checker has already
+//!    typed the whole expression as the *union* of its branches, so
+//!    `$c ? 1 : 2.5` keeps PHP's `int` on the truthy path and a `float`
+//!    binding widens once, at the binding. *Where* a short-circuit may
 //!    appear is not a restriction: [`lower::Lowering::lower_expr`] owns
 //!    a `&mut BlockId` and lowers its own sub-expressions through itself, so
 //!    `&&`/`||`/`!`/ternary/`??` compose inside a call argument, an array
 //!    element, a `.` operand or an `echo` operand alike.
-//!    — owner: unowned
-//! 6. **Array access is compile-time-known-target-only, and `nvs_types` is
+//! 5. **Array access is compile-time-known-target-only, and `nvs_types` is
 //!    what says so rather than this crate; property access is not
 //!    compile-time-known-target-only.** A subscript whose base
 //!    declares no element type — a `mixed`, a scalar, a `?array<T>` no test
@@ -352,29 +336,8 @@
 //!    11), which is the *read* side's answer to the same question this
 //!    vivifying descent asks; [`ir::InstKind::ArraySet`] models no absent key
 //!    at all, because a write is what makes one present.
-//!    — owner: unowned
-//! 7. **Virtual dispatch resolves by name, not by slot.** An instance call
-//!    lowers to [`ir::InstKind::Call`] — bound to the statically resolved
-//!    label — only when nothing in the program overrides that declaration;
-//!    `nvs_types` answers that whole-program question once, per call, as
-//!    `nvs_types::expr_table::ResolvedCall::overridden`. When something does,
-//!    and for the two shapes with no static answer at all (`static::`/`new
-//!    static`, and a call resolving to a body-less declaration), the call
-//!    goes through [`ir::InstKind::CallVirtual`]/[`ir::InstKind::NewDynamic`]
-//!    over [`ty::Ty::ClassDesc`], which looks the name up in the per-class
-//!    method table [`ir::Class::methods`] carries. A real vtable would index
-//!    that table by slot instead, which is the remaining half — a lookup
-//!    cost, not a correctness gap. A **`mixed`** receiver names no class for
-//!    either instruction, so `rule:types/erased-member-access`'s deferral covers the call too: it
-//!    is one [`ir::Helper::CallErasedMethod`]
-//!    ([`lower::Lowering::lower_erased_method_call`]), the receiver still
-//!    tagged, the member name an immortal constant and every argument packed
-//!    into one array — and what checks the arguments is the callee's own
-//!    method row, through the one `nvs_runtime::closure`'s `check_param_tags`
-//!    implementation item 9's `callable` path already goes through.
-//!    — owner: M12
-//! 9. **A closure literal lowers, and so does `$f(...)`; what nothing checks
-//!    is the argument *types*.** The call is one [`ir::Helper::CallClosure`]
+//! 6. **A closure literal lowers, and so does `$f(...)`, and what an argument
+//!    is checked against travels on the closure object.** The call is one [`ir::Helper::CallClosure`]
 //!    — `nvs_runtime::call_closure`, the same entry point native `Core` code
 //!    reaches a callback through, so there is one body and not a second
 //!    convention beside it ([`lower::Lowering::lower_closure_call`]). `rule:types/closure-self-name`'s self-name lowers too, and lowers to nothing: the closure it names
@@ -392,12 +355,17 @@
 //!    `$f(...)` that makes no call: `rule:types/callable-is-a-closure` gives
 //!    `callable` a single inhabitant, so the site answers the closure `$f`
 //!    already holds — PHP's own answer, retained once so the value leaves as a
-//!    fresh owner. The type gap is **not** this
-//!    crate's to close — a `callable` carries
-//!    no parameter list (§ 1), so a closure declaring `string $s` reads a
-//!    caller's `int` payload as a pointer whether that caller is `$f(1)` or
-//!    `Core\Arr::map` over an `array<int>`; `nvs_runtime::closure`'s module
-//!    doc owns it and states what closing it costs. Neither half of `inout $x` is
+//!    fresh owner. A `callable` carries
+//!    no parameter list (§ 1), so no checker can compare a call site against
+//!    the body it will reach: this crate packs the declared representations
+//!    into the closure object's own `FN_PARAM_TAGS` word at the literal
+//!    ([`lower::closure::param_tags_word`]), and
+//!    `nvs_runtime::closure`'s `check_param_tags` compares one per argument
+//!    inside `call_closure` — the one path a `Core` member's callback and
+//!    `$f(1)` both take, so neither caller is left holding it. A site whose
+//!    callee carries `rule:types/callable-signature`'s written signature was
+//!    proven where it was written and pays nothing per argument, which is the
+//!    only difference between the two. Neither half of `inout $x` is
 //!    a gap: a closure *capturing* an enclosing `inout $x` parameter takes
 //!    § 2's by-value snapshot of the cell — one [`ir::InstKind::RefLoad`] at
 //!    the literal, at the pointee type, retained like any other captured
@@ -405,96 +373,64 @@
 //!    cell — and an `inout $x` parameter on the closure *itself* is `E0493`,
 //!    `callable` carrying no parameter list for a call site to stage a cell
 //!    against.
-//!    — owner: unowned
-//! 14. **Not every safepoint flag is acted on.**
-//!     [`ir::InstKind::Safepoint`] is emitted at function entry and every loop
-//!     back edge, and `nvs-codegen` lowers it to a real poll: `CPU_LIMIT` and
-//!     `CANCEL` stop the request, and the function-entry site also carries
-//!     `rule:errors/on-limit`'s call-stack compare. `COLLECT` and `DEBUG_BREAK` are
-//!     cleared and otherwise ignored — there is no collector and no debugger
-//!     to hand the frame to. Nothing in this crate is what is missing; see
-//!     `nvs_runtime::nvs_safepoint`.
-//!     Decided: Collector that runs only near the memory ceiling — Pays nothing on the normal request
-//!     path and turns 'hit the ceiling' into 'collect, then continue', at the cost of building the
-//!     collector.
-//!     — owner: unowned-closures
-//! 15. **`decimal` lowers, but `<=>` over one does not.** `rule:types/decimal`'s scalar
-//!     has a representation — [`ty::Ty::Decimal`], the same register pair
-//!     [`ty::Ty::Tagged`] travels in, whose own doc comment owns the decision —
-//!     and every row of that ADR's §§ 3-4 is an [`ir::Helper`]: the
-//!     arithmetic operators, negation, the comparisons that
-//!     [`lower::Lowering::lower_decimal_binary`] rewrites into the rest,
-//!     truthiness, and both directions of every conversion. What is left is the
-//!     spaceship operator, which has no `decimal` row here and no `int` one
-//!     either — `<=>` reaches [`lower::Lowering::lower_expr`]'s panic for every
-//!     scalar operand, and only `rule:classes/comparable`'s *object* form lowers. `**` is not a
-//!     gap: `rule:types/arithmetic` makes a `decimal` base a compile error, and
-//!     `nvs_types` reports it.
-//!     — owner: unowned
-//! 16. **A compound assignment inherits whatever its binary form is missing,
-//!     which today is `**=` and nothing else.**
-//!     [`lower::Lowering::lower_compound_assignment`] rewrites
-//!     `$x op= e` into the `$x = $x op e` it means, so an operator gains its
-//!     compound form exactly when its binary form lowers (`.=` on a plain
-//!     `string` local is the one exception, and it takes
-//!     [`ir::InstKind::StrAppend`] instead). The bitwise operators come that
-//!     way rather than one at a time — `&`, `|`, `^`, `<<`, `>>` and unary `~`
-//!     have their [`ir::BinOp`]/[`ir::UnOp`] variants, so `&=`, `|=`, `^=`,
-//!     `<<=` and `>>=` cost nothing — which leaves `**=` out for the same
-//!     reason `**` itself is: [`ir::BinOp`] has no row for it, so
-//!     [`lower::Lowering::lower_expr`] panics naming the operator. `$x++` and
-//!     `--$x` lower through that same rewrite, because the target's **address**
-//!     is computed before the rewrite is built
-//!     ([`lower::Lowering::stage_target_address`]): staging is what makes a
-//!     target re-readable, and it is also what gives the implicit `1` a
-//!     representation to be emitted at, that `1` having no source span to
-//!     build an [`nvs_syntax::ast::ExprKind::Int`] from. So
-//!     `Box::make()->count += 1` calls `make()` once, and
-//!     [`lower::Lowering::lower_read_modify_write`]'s own assertion has no
-//!     reachable target left at all — its doc comment carries that proof, and
-//!     `tests/conformance/lang/a-compound-assignments-target-is-evaluated-once.nvst`
-//!     the observable half.
+//! 7. **`decimal` lowers, and so does `<=>`.** `rule:types/decimal`'s scalar
+//!    has a representation — [`ty::Ty::Decimal`], the same register pair
+//!    [`ty::Ty::Tagged`] travels in, whose own doc comment owns the decision —
+//!    and every row of that ADR's §§ 3-4 is an [`ir::Helper`]: the
+//!    arithmetic operators, negation, the comparisons that
+//!    [`lower::Lowering::lower_decimal_binary`] rewrites into the rest,
+//!    truthiness, and both directions of every conversion. The spaceship
+//!    operator answers at each of them: [`ir::Helper::DecimalCmp`] for a
+//!    `decimal` pair, [`ir::BinOp::Cmp`] for a matched scalar one,
+//!    [`ir::Helper::NumericCmp`] for a mixed numeric one, and
+//!    `rule:classes/comparable`'s `compareTo` call for two objects. `**` over
+//!    a `decimal` base is not a row at all: `rule:types/arithmetic` makes it a
+//!    compile error, and `nvs_types` reports it.
+//! 8. **A compound assignment is its binary form plus a staged target, so it
+//!    gains an operator exactly when that form does.**
+//!    [`lower::Lowering::lower_compound_assignment`] rewrites
+//!    `$x op= e` into the `$x = $x op e` it means, so an operator gains its
+//!    compound form exactly when its binary form lowers (`.=` on a plain
+//!    `string` local is the one exception, and it takes
+//!    [`ir::InstKind::StrAppend`] instead). The bitwise operators come that
+//!    way rather than one at a time — `&`, `|`, `^`, `<<`, `>>` and unary `~`
+//!    have their [`ir::BinOp`]/[`ir::UnOp`] variants, so `&=`, `|=`, `^=`,
+//!    `<<=` and `>>=` cost nothing — and `**=` comes with
+//!    [`ir::BinOp::Pow`], whose own doc comment states the one thing that
+//!    operator does not share with the rest: an integer pair is a loop and a
+//!    `float` one is a call. `$x++` and
+//!    `--$x` lower through that same rewrite, because the target's **address**
+//!    is computed before the rewrite is built
+//!    ([`lower::Lowering::stage_target_address`]): staging is what makes a
+//!    target re-readable, and it is also what gives the implicit `1` a
+//!    representation to be emitted at, that `1` having no source span to
+//!    build an [`nvs_syntax::ast::ExprKind::Int`] from. So
+//!    `Box::make()->count += 1` calls `make()` once, and
+//!    [`lower::Lowering::lower_read_modify_write`]'s own assertion has no
+//!    reachable target left at all — its doc comment carries that proof, and
+//!    `tests/conformance/lang/a-compound-assignments-target-is-evaluated-once.nvst`
+//!    the observable half.
 //!
-//!     The same staging reaches one level further down. An element write whose
-//!     root is a *property* would otherwise lower that property's receiver
-//!     twice, once to read the array and once in
-//!     [`lower::Lowering::write_back_array`] to store the separated copy back,
-//!     so `$b->self()->rows["k"] = "z"` and
-//!     `$b->self()->grid["r"]["k"] .= "b"` would run `self()` more often than
-//!     PHP's once. [`lower::Lowering::lower_store`]'s element arm stages the
-//!     root's address itself, and `stage_address_of` descends a property or
-//!     element level rather than staging the level's *value*, which is what
-//!     leaves the slot visible to the write-back at all. Pinned by
-//!     `tests/conformance/lang/an-element-writes-holder-is-evaluated-once.nvst`.
-//!     — owner: unowned
-//! 17. **The environment is one flat, function-wide map**, so a nested block
-//!     declaring a local that shadows an outer one is not distinguished from a
-//!     reassignment. Not observable for any program in scope today, but worth
-//!     knowing before trusting `Env` further.
-//!     — owner: unowned
-//! 18. **An abandoned generator's `finally` runs; a throw escaping one is
-//!     dropped.** `{name}$gen::gen#unwind` is on every generator's state class
-//!     and in its method table, and `nvs_runtime::object::dismantle` calls it
-//!     on the way past: it raises the `gen#unwind` flag and re-enters
-//!     `advance()`, whose resume block for a suspension inside a
-//!     `finally`-owning region takes the unwind arm and runs exactly what
-//!     `return;` runs at that point. [`lower::generator::lower_generator`]
-//!     § *An abandoned generator runs its `finally`* owns the mechanism, and
-//!     `rule:classes/no-destructors` records why it is not the destructor Novis does not have. What is
-//!     left is one divergence, and it is the runtime's: a release has no error
-//!     edge, so an exception a `finally` raises on that path is discarded
-//!     where PHP reports it uncaught —
-//!     `nvs_runtime::Ctx::with_pending_set_aside` argues why losing it beats
-//!     replacing the exception actually in flight, and surfacing it wants ADR
-//!     0020's ladder. `tests/conformance/iter/an-abandoned-generator-runs-the-finally-it-is-suspended-inside.nvst`
-//!     and `tests/differential/iter/an-abandoned-generators-finally-matches-phps.nvst`
-//!     pin the rest.
-//!     Decided: Report it through the escalation ladder, without replacing anything — The error is
-//!     logged and visible the way an uncaught one is, the exception already in flight is left alone,
-//!     and it needs a hook from object dismantling into the ladder.
-//!     — owner: unowned-closures
-//! 19. **`rule:expressions/one-equality-operator` is built; what a cross-representation pair still cannot do
-//!     is *arithmetic*.** Every row of §§ 2, 3 and 5 lowers: `===`/`!==` do
+//!    The same staging reaches one level further down. An element write whose
+//!    root is a *property* would otherwise lower that property's receiver
+//!    twice, once to read the array and once in
+//!    [`lower::Lowering::write_back_array`] to store the separated copy back,
+//!    so `$b->self()->rows["k"] = "z"` and
+//!    `$b->self()->grid["r"]["k"] .= "b"` would run `self()` more often than
+//!    PHP's once. [`lower::Lowering::lower_store`]'s element arm stages the
+//!    root's address itself, and `stage_address_of` descends a property or
+//!    element level rather than staging the level's *value*, which is what
+//!    leaves the slot visible to the write-back at all. Pinned by
+//!    `tests/conformance/lang/an-element-writes-holder-is-evaluated-once.nvst`.
+//! 9. **The environment is one flat, function-wide map**, which is the whole of
+//!    the scoping rule rather than a simplification of it: a binding is
+//!    declared once, declaration is function-scoped as in PHP, and there is no
+//!    shadowing (`rule:types/declaration`), so a nested block's declaration
+//!    *is* the enclosing frame's. [`lower::Lowering::declared_tys`] is where a
+//!    declaration with no value to bind still records its representation.
+//! 10. **`rule:expressions/one-equality-operator` is built, and a
+//!     cross-representation pair splits between arithmetic and ordering.**
+//!     Every row of §§ 2, 3 and 5 lowers: `===`/`!==` do
 //!     not lex, `== null` takes
 //!     [`lower::Lowering::lower_null_identity`]'s tag test, a same-
 //!     representation pair is [`ir::BinOp::Eq`]/[`ir::BinOp::NotEq`], a
@@ -527,9 +463,8 @@
 //!     Nothing of this reached [`lower::Lowering::coerce`], whose rows
 //!     reconcile [`ty::Ty::Tagged`] and emit nothing that can fail; a
 //!     conversion carrying `rule:errors/propagation`'s error edge does not belong in one.
-//!     — owner: unowned
 //!
-//! 20. **`rule:types/literal-types`, `rule:types/conversion` and `rule:types/conversion`'s scalar rows all run
+//! 11. **`rule:types/literal-types`, `rule:types/conversion` and `rule:types/conversion`'s scalar rows all run
 //!     whole, a `mixed` source included, and so do § 2's
 //!     *non-scalar* rows.** A union whose members all erase to one representation
 //!     is that representation ([`lower::erase_checked_ty`]), so `"a"|"b"` is a
@@ -634,11 +569,93 @@
 //!
 //!     A statically settled operand needs no check, since
 //!     `nvs_types` refuses `E0470` before lowering ever sees it. `as ?"a"`
-//!     (`rule:expressions/nullable-conversion`'s
-//!     non-throwing form) runs no membership test either: its yield-`null`
-//!     miss arm has no shared representation with its hit arm, so it needs a
-//!     merge the throwing form does not.
-//!     — owner: unowned
+//!     (`rule:expressions/nullable-conversion`'s non-throwing form) runs the
+//!     same chain with a miss arm that yields `null`, which is the one merge
+//!     block the throwing form does not need — except where the target is
+//!     *written* as a union carrying `null`, which is gap 21 below.
+//!
+//! # Known gaps
+//!
+//! What this crate still owes, one numbered item each, and none of them is a
+//! refusal site: `python tools/holes.py` counts a `panic!` naming a shape the
+//! lowering does not take, and this crate has none left. Every `panic!` here is
+//! an engine invariant, or `lower::guarded_by!(code::E_…, …)`, which names the
+//! diagnostic the front end raises where the shape is written — a guarantee
+//! this crate leans on, written down where it is leaned on, rather than a hole.
+//!
+//! **A number here is a stable identifier**, cited from `docs/agent/loop-goal.md`
+//! and `docs/agent/playbook.md`. A closed gap is deleted and leaves a hole
+//! rather than renumbering the ones below it — the same rule the diagnostic
+//! registry states for a retired `E`-code, and for the same reason.
+//!
+//! 7. **Virtual dispatch resolves by name, not by slot.** An instance call
+//!    lowers to [`ir::InstKind::Call`] — bound to the statically resolved
+//!    label — only when nothing in the program overrides that declaration;
+//!    `nvs_types` answers that whole-program question once, per call, as
+//!    `nvs_types::expr_table::ResolvedCall::overridden`. When something does,
+//!    and for the two shapes with no static answer at all (`static::`/`new
+//!    static`, and a call resolving to a body-less declaration), the call
+//!    goes through [`ir::InstKind::CallVirtual`]/[`ir::InstKind::NewDynamic`]
+//!    over [`ty::Ty::ClassDesc`], which looks the name up in the per-class
+//!    method table [`ir::Class::methods`] carries. A real vtable would index
+//!    that table by slot instead, which is the remaining half — a lookup
+//!    cost, not a correctness gap. A **`mixed`** receiver names no class for
+//!    either instruction, so `rule:types/erased-member-access`'s deferral covers the call too: it
+//!    is one [`ir::Helper::CallErasedMethod`]
+//!    ([`lower::Lowering::lower_erased_method_call`]), the receiver still
+//!    tagged, the member name an immortal constant and every argument packed
+//!    into one array — and what checks the arguments is the callee's own
+//!    method row, through the one `nvs_runtime::closure`'s `check_param_tags`
+//!    implementation the `callable` bullet above already goes through.
+//!    — owner: M12
+//! 14. **Not every safepoint flag is acted on.**
+//!     [`ir::InstKind::Safepoint`] is emitted at function entry and every loop
+//!     back edge, and `nvs-codegen` lowers it to a real poll: `CPU_LIMIT` and
+//!     `CANCEL` stop the request, and the function-entry site also carries
+//!     `rule:errors/on-limit`'s call-stack compare. `COLLECT` and `DEBUG_BREAK` are
+//!     cleared and otherwise ignored — there is no collector and no debugger
+//!     to hand the frame to. Nothing in this crate is what is missing; see
+//!     `nvs_runtime::nvs_safepoint`.
+//!     Decided: Collector that runs only near the memory ceiling — Pays nothing on the normal request
+//!     path and turns 'hit the ceiling' into 'collect, then continue', at the cost of building the
+//!     collector.
+//!     — owner: unowned-closures
+//! 18. **An abandoned generator's `finally` runs; a throw escaping one is
+//!     dropped.** `{name}$gen::gen#unwind` is on every generator's state class
+//!     and in its method table, and `nvs_runtime::object::dismantle` calls it
+//!     on the way past: it raises the `gen#unwind` flag and re-enters
+//!     `advance()`, whose resume block for a suspension inside a
+//!     `finally`-owning region takes the unwind arm and runs exactly what
+//!     `return;` runs at that point. [`lower::generator::lower_generator`]
+//!     § *An abandoned generator runs its `finally`* owns the mechanism, and
+//!     `rule:classes/no-destructors` records why it is not the destructor Novis does not have. What is
+//!     left is one divergence, and it is the runtime's: a release has no error
+//!     edge, so an exception a `finally` raises on that path is discarded
+//!     where PHP reports it uncaught —
+//!     `nvs_runtime::Ctx::with_pending_set_aside` argues why losing it beats
+//!     replacing the exception actually in flight, and surfacing it wants ADR
+//!     0020's ladder. `tests/conformance/iter/an-abandoned-generator-runs-the-finally-it-is-suspended-inside.nvst`
+//!     and `tests/differential/iter/an-abandoned-generators-finally-matches-phps.nvst`
+//!     pin the rest.
+//!     Decided: Report it through the escalation ladder, without replacing anything — The error is
+//!     logged and visible the way an uncaught one is, the exception already in flight is left alone,
+//!     and it needs a hook from object dismantling into the ladder.
+//!     — owner: unowned-closures
+//! 21. **A conversion whose target is a union carrying `null` skips the
+//!     membership test and answers the operand.** `$s as ?"a"` runs the chain
+//!     the bullet above describes, but `$s as ?"a"|"b"` parses as a
+//!     `nvs_syntax::ast::TypeKind::Union` whose first member carries the `?`,
+//!     and `lower::convert`'s `nullable_target` reads the annotation's own
+//!     kind — so neither that spelling nor the `"a"|"b"|null` the checker
+//!     interns it as reaches the chain at all, and `"z" as ?"a"|"b"` answers
+//!     `"z"` where `rule:expressions/nullable-conversion` answers `null`. The
+//!     conversion lowers to nothing, so nothing panics and no diagnostic is
+//!     raised: `nvs_types` accepts both spellings.
+//!     Decided: read the annotation through its union — a target whose atoms
+//!     include `null` is an `as ?T` over the rest, which is what
+//!     `lower::Lowering`'s `nullable_target_atoms` already computes from the
+//!     checker's own interning of `?T` as `T|null`.
+//!     — owner: unowned-closures
 
 pub mod ids;
 pub mod ir;
