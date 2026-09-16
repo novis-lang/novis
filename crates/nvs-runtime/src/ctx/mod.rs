@@ -62,16 +62,23 @@
 //! decides which of the two it is. [`Ctx::arm_stack_limit`] is the one place
 //! the pair is computed, so they cannot be written inconsistently.
 //!
-//! **Known gap: the ceiling is asserted, not discovered.** [`Ctx::new`] arms
-//! from the stack pointer at construction and [`STACK_CEILING`], which is
-//! correct on a stack at least that deep and permissive on a shallower one,
-//! where the guard page is still reached first and `nvs-codegen`'s
-//! `enable_probestack` still turns that into a clean crash rather than a stack
-//! clash. Reading a thread's true bounds needs a platform call this crate has
-//! no dependency for; the request's stack becomes Novis's own to size at M6,
-//! and until then an embedder that knows its bounds calls
-//! [`Ctx::arm_stack_limit`] with them.
-//! — owner: unowned
+//! The pair is armed twice, and the second arming is the one a program runs
+//! under. [`Ctx::new`] arms from the stack pointer at construction and
+//! [`STACK_CEILING`]; the scheduler re-arms from the base and size of the
+//! coroutine stack it hands the task, at the one place a task's coroutine is
+//! built (`nvs_host::stack::bounds`). That second pair is
+//! `rule:concurrency/a-tasks-recursion-limit-comes-from-its-own-stack`'s — the
+//! host allocated that stack and knows its bounds exactly — and every program
+//! reaches it, because `nvs run`, `nvs serve`, a queue worker and a test suite
+//! all start their work through `nvs_host::Scheduler::spawn`.
+//!
+//! So the constructed pair bounds a context driven directly on a thread's own
+//! stack, which is an embedder's case and no request's. It is correct on a
+//! thread stack at least [`STACK_CEILING`] deep and permissive on a shallower
+//! one, where the guard page is reached first and `nvs-codegen`'s
+//! `enable_probestack` turns that into a clean crash rather than a stack
+//! clash; an embedder that knows its bounds calls [`Ctx::arm_stack_limit`]
+//! with them.
 //!
 //! # The request's deadline
 //!
@@ -1604,16 +1611,17 @@ pub const HOT_LINE_BYTES: usize = 64;
 /// module docs' *Static properties are request-scoped* section.
 pub const STATICS_OFFSET: usize = std::mem::offset_of!(Ctx, statics);
 
-/// `rule:errors/on-limit`'s
-/// call-stack ceiling: **8 MiB of reserved address space per request**, of
-/// which only the touched pages are ever resident.
+/// The depth [`Ctx::new`] asserts for a context nothing has put on a task
+/// yet: **8 MiB of reserved address space**, the default Linux thread stack,
+/// of which only the touched pages are ever resident.
 ///
-/// About 65,000 frames — the same order as what PHP permits, and the default
-/// Linux thread stack. Stated as
-/// `rule:programs/memory-priority` requires: what
-/// the number buys is how deep a program may recurse and how much one runaway
-/// commits before it is stopped, and at `benches/abi-probe`'s per-call cost
-/// that depth is microseconds of work either way.
+/// A request never runs under it — `nvs-host` re-arms every task from the
+/// coroutine stack it handed out, so `rule:errors/on-limit`'s call-stack
+/// ceiling for a program is `nvs_host::stack::TASK_STACK_SIZE` and this number
+/// bounds an embedder driving a [`Ctx`] on a thread's own stack. Stated as
+/// `rule:programs/memory-priority` requires: address space and not resident
+/// memory, and what it buys is a soft limit a deep recursion reaches before
+/// the guard page rather than one sitting under the stack's own floor.
 pub const STACK_CEILING: usize = 8 << 20;
 
 /// The slice between [`Ctx::arm_stack_limit`]'s soft address and its hard one.
