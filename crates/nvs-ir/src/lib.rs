@@ -571,8 +571,11 @@
 //!     `nvs_types` refuses `E0470` before lowering ever sees it. `as ?"a"`
 //!     (`rule:expressions/nullable-conversion`'s non-throwing form) runs the
 //!     same chain with a miss arm that yields `null`, which is the one merge
-//!     block the throwing form does not need — except where the target is
-//!     *written* as a union carrying `null`, which is gap 21 below.
+//!     block the throwing form does not need. The `?` is found wherever the
+//!     annotation writes it — on the whole of it as `?("a"|"b")`, on a union
+//!     member as `?"a"|"b"`, or spelled out as `"a"|"b"|null` — and all three
+//!     run that one chain, because the checker interns them as a single flat
+//!     union and the target is what is left once `null` is dropped.
 //!
 //! # Known gaps
 //!
@@ -640,21 +643,6 @@
 //!     Decided: Report it through the escalation ladder, without replacing anything — The error is
 //!     logged and visible the way an uncaught one is, the exception already in flight is left alone,
 //!     and it needs a hook from object dismantling into the ladder.
-//!     — owner: unowned-closures
-//! 21. **A conversion whose target is a union carrying `null` skips the
-//!     membership test and answers the operand.** `$s as ?"a"` runs the chain
-//!     the bullet above describes, but `$s as ?"a"|"b"` parses as a
-//!     `nvs_syntax::ast::TypeKind::Union` whose first member carries the `?`,
-//!     and `lower::convert`'s `nullable_target` reads the annotation's own
-//!     kind — so neither that spelling nor the `"a"|"b"|null` the checker
-//!     interns it as reaches the chain at all, and `"z" as ?"a"|"b"` answers
-//!     `"z"` where `rule:expressions/nullable-conversion` answers `null`. The
-//!     conversion lowers to nothing, so nothing panics and no diagnostic is
-//!     raised: `nvs_types` accepts both spellings.
-//!     Decided: read the annotation through its union — a target whose atoms
-//!     include `null` is an `as ?T` over the rest, which is what
-//!     `lower::Lowering`'s `nullable_target_atoms` already computes from the
-//!     checker's own interning of `?T` as `T|null`.
 //!     — owner: unowned-closures
 
 pub mod ids;

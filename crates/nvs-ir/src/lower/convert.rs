@@ -753,7 +753,20 @@ impl<'a> Lowering<'a> {
                 // exists: see `Self::nullable_target_atoms` for why the `T`
                 // node's own span answers nothing.
                 let Some(atoms) = self.nullable_target_atoms(ty) else {
-                    let to = lower_decl_type(target, self.exprs, self.checked_types);
+                    // The checker recorded nothing for the annotation, which is
+                    // the one shape [`Self::nullable_target_atoms`] answers
+                    // `None` for. A `?T` still names its target with a node of
+                    // its own; a union spelling names it with the members that
+                    // went missing with that answer, so the whole annotation is
+                    // what is left to lower from the AST.
+                    let to = match target {
+                        NullableTarget::Node(node) => {
+                            lower_decl_type(node, self.exprs, self.checked_types)
+                        }
+                        NullableTarget::Members => {
+                            lower_decl_type(ty, self.exprs, self.checked_types)
+                        }
+                    };
                     return self.convert_or_null(v, from, to, inner, env, *cur);
                 };
                 let to = shared_repr(&atoms, self.checked_types);
@@ -2044,10 +2057,48 @@ fn conversion_can_fail(from: Ty, to: Ty) -> bool {
     )
 }
 
-fn nullable_target(ty: &Type) -> Option<&Type> {
+/// What an `as ?T` annotation names as its target — [`nullable_target`]'s
+/// answer, and `None` there where the annotation is not nullable at all.
+enum NullableTarget<'a> {
+    /// The `T` of a `?T`: the annotation minus its `?`, which is one node.
+    Node(&'a Type),
+    /// A union that carries the `null`. No node is the target — it is the
+    /// union's members minus `null`, which is
+    /// [`Lowering::nullable_target_atoms`]'s answer and not an AST node.
+    Members,
+}
+
+/// `as ?T`'s target, as the annotation writes it.
+///
+/// The `?` reaches a target three ways and all three are one type
+/// (`rule:expressions/nullable-conversion`): `?T` carries it on the whole
+/// annotation; `?A|B` carries it on a union member, because `?` binds the atom
+/// and not the union, so the annotation parses as `Union[Nullable(A), B]`; and
+/// `A|B|null` writes the `null` member out. The checker interns all three as one
+/// flat union — `Interner::make_union` splices a nested union's members into the
+/// outer one — so the three spellings differ only here, in the AST.
+fn nullable_target(ty: &Type) -> Option<NullableTarget<'_>> {
     match &ty.kind {
-        TypeKind::Nullable(inner) => Some(inner),
+        TypeKind::Nullable(inner) => Some(NullableTarget::Node(inner)),
         TypeKind::Paren(inner) => nullable_target(inner),
+        TypeKind::Union(members) => members
+            .iter()
+            .any(union_member_is_null)
+            .then_some(NullableTarget::Members),
         _ => None,
+    }
+}
+
+/// Whether a union member is the `null` that makes the union nullable —
+/// written out as `null`, or carried on an atom as `?A`.
+///
+/// Asked of a member and never of a whole annotation: a bare `as null` names a
+/// target rather than a nullability, and has no `T` left once the `null` is
+/// dropped.
+fn union_member_is_null(ty: &Type) -> bool {
+    match &ty.kind {
+        TypeKind::Nullable(_) | TypeKind::Atom(TypeAtom::Null) => true,
+        TypeKind::Paren(inner) => union_member_is_null(inner),
+        _ => false,
     }
 }
