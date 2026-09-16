@@ -174,20 +174,31 @@
 //! `LogicError` stays under it on the same terms — the backstop for a
 //! descriptor built by hand, which no call site named.
 //!
+//! **A class that wrote `fromJson` is decoded through that member**, which is
+//! `rule:core-classes/derive-generates-what-is-missing` at run time: the derive
+//! fills in the half a class does not write, so where the class wrote the
+//! decoding half the decode **is** that member — and a field list recorded
+//! beside it, the class carrying the attribute as well, is the encoder's alone.
+//! [`hand_written`] is that call, and every decode reaches it —
+//! the class a call site named, each element of an `array<T>` of one, and a
+//! field or a list element typed as one, since a document is a tree and a door
+//! at its root only is not a door. What the member is handed is the value as it
+//! arrived, § 6 declaring it over `mixed`, so this door reads a document the
+//! field walk would refuse for not being an object. The encoding half is not
+//! consulted yet, which is this module's own gap 1.
+//!
 //! # Known gaps
 //!
-//! 1. **A hand-written `Core\Json\Codec` is not consulted, in either
-//!    direction.** `rule:core-classes/derive-generates-what-is-missing` lets a
-//!    class write one half and take the other from the attribute; today only
-//!    the derived field list is read, so a class with a hand-written encoder
-//!    and no attribute still refuses to write. The decoding half is the one a
-//!    program now reaches: `nvs_types::derive`'s `check_json_sites` lets a call
-//!    name a class that declared `fromJson` itself, since that is the second
-//!    door into participation and a door has to be one at both ends, so such a
-//!    call compiles and then meets [`check_codec`]'s refusal. Closing it is a
-//!    `ClassDesc::method` lookup per half and a call back into compiled code
-//!    from the native walk, or it is nothing to write at all once that walk is
-//!    the emitted code gap 2 asks about.
+//! 1. **A hand-written `toJson` is not consulted.**
+//!    `rule:core-classes/derive-generates-what-is-missing` lets a class write
+//!    one half and take the other from the attribute, and the decoding half is
+//!    the one [`hand_written`] now reaches; the encoder still reads the derived
+//!    field list alone, so a class writing `toJson` and carrying no attribute
+//!    refuses to encode, and one carrying both writes the derived fields rather
+//!    than what its member returns. Closing it is the `ClassDesc::method`
+//!    lookup above made at [`Encodable`]'s class arm and a call back into
+//!    compiled code from the native walk, or it is nothing to write at all once
+//!    that walk is the emitted code gap 2 asks about.
 //!    Decided: Keep the descriptor and widen it (default constants on CodecField, a ClassDesc method
 //!    lookup for toJson); amend the rule — One native walker and small, local changes; costs one loop
 //!    and a string compare per field.
@@ -1466,6 +1477,22 @@ impl<'a> Contract<'a> {
     const fn is_shape(&self) -> bool {
         self.shape.is_some()
     }
+
+    /// Whether the class wrote [`DECODE`] itself, which is the door a decode
+    /// takes instead of the field list —
+    /// `rule:core-classes/derive-generates-what-is-missing`'s "only the half
+    /// the class does not write", read at the one place the two doors part.
+    ///
+    /// Asked of a class only: an inline shape is a wire contract and has no
+    /// declaration a member could have been written on. Asked of the *whole*
+    /// chain, [`nvs_runtime::ClassDesc::method`] answering with the nearest
+    /// ancestor's body where the class declares no override, so a class
+    /// inheriting the member is decoded through it and builds itself —
+    /// `call_static_on` fills the called class, which is what `static` means
+    /// in the return the member declares.
+    fn writes_decoder(&self) -> bool {
+        self.shape.is_none() && self.desc.method(DECODE).is_some()
+    }
 }
 
 /// The questions `class` answers about itself before a document is read, for
@@ -1476,16 +1503,21 @@ impl<'a> Contract<'a> {
 /// here before it claims the request body, so a class that could never have
 /// been built refuses without spending a reading on it.
 ///
+/// A class that wrote [`DECODE`] itself answers none of them: that member is
+/// the decoder, so there is no field list under this call to have questions
+/// about, and [`hand_written`] is where the value goes instead.
+///
 /// # Safety
 ///
 /// As [`decode_as`]'s.
 ///
 /// # Errors
 ///
-/// `LogicError` where `class` carries no derived codec at all, which is a
-/// defect in the program — `nvs_types::derive`'s `check_json_sites` says the
-/// same thing as `E0821` while compiling, so what is left here is the backstop
-/// for a descriptor built by hand, which no call site named.
+/// `LogicError` where `class` carries no codec at all — neither a derived field
+/// list nor a written [`DECODE`] — which is a defect in the program.
+/// `nvs_types::derive`'s `check_json_sites` says the same thing as `E0821`
+/// while compiling, so what is left here is the backstop for a descriptor built
+/// by hand, which no call site named.
 #[expect(
     unsafe_code,
     reason = "the caller owes the liveness of a descriptor no signature can express"
@@ -1500,16 +1532,20 @@ pub(crate) unsafe fn check_codec(
         reason = "the caller guarantees the descriptor and the contract are live"
     )]
     let contract = unsafe { Contract::new(class, shape) };
+    if contract.writes_decoder() {
+        return Ok(());
+    }
     let fields = contract.fields();
     // Asked of a class only. An inline shape *is* a wire contract — there is no
     // declaration it could have opted in on and nothing for this to send the
-    // reader to write, which is why the message names the attribute.
+    // reader to write, which is why the message names the two spellings a
+    // declaration has.
     if fields.is_empty() && !contract.is_shape() {
         return Err(Fault::thrown_as(
             ThrownClass::Logic,
             format!(
                 "{member}(): `{}` has no JSON codec — a class participates by \
-                 carrying `#[Json\\Derive]`",
+                 carrying `#[Json\\Derive]` or by writing `{DECODE}` itself",
                 contract.name()
             ),
         ));
@@ -1547,6 +1583,61 @@ pub(crate) unsafe fn check_codec(
 /// hand rather than a decoder this crate still owes.
 const fn undecoded(ty: CodecTy) -> bool {
     matches!(ty, CodecTy::Opaque | CodecTy::Bytes)
+}
+
+/// The decoding half of spec § 6's `Core\Json\Codec` —
+/// `static fromJson(mixed $value): static`. `nvs_types::derive` owns the
+/// spelling as the half a `#[Json\Derive]` generates where the class does not
+/// write it, and `E0757` refuses an attribute on a class that wrote both.
+const DECODE: &str = "fromJson";
+
+/// The other door out of [`decode_object`]: the value handed to the [`DECODE`]
+/// the class wrote itself, and whatever that member built is the instance.
+///
+/// **The value goes over as it arrived.** § 6 declares the member over `mixed`,
+/// so a document this door reads is not required to be a JSON object the way a
+/// field walk's is — what a `"1.2"` or a `[1, 2]` means to the class is the
+/// class's own business. The reference is borrowed rather than owned:
+/// [`nvs_runtime::call_static_on`] retains every argument it passes, so the
+/// callee's reference is its own and the reader that owns this one still
+/// releases it.
+///
+/// # Safety
+///
+/// As [`decode_as`]'s, and `value` must be a reference this frame's caller
+/// keeps alive across the call.
+///
+/// # Errors
+///
+/// [`Fault::Pending`] where the member itself threw, and a fatal where the
+/// descriptor answered [`DECODE`] at [`Contract::writes_decoder`] and not at
+/// the call, which is one method table read two ways.
+#[expect(
+    unsafe_code,
+    reason = "the caller owes the liveness of a descriptor no signature can express"
+)]
+unsafe fn hand_written(
+    ctx: &mut nvs_runtime::Ctx,
+    contract: Contract<'_>,
+    value: Value,
+    member: &str,
+) -> Result<Value, Fault> {
+    #[expect(
+        unsafe_code,
+        reason = "the caller vouched for the descriptor, and the value is a \
+                  reference that caller holds across this call"
+    )]
+    let called = unsafe { nvs_runtime::call_static_on(ctx, contract.class(), DECODE, &[value])? };
+    // Unreachable from source with no diagnostic to name: `None` is the answer
+    // for a class with no such method, and [`Contract::writes_decoder`] read
+    // that same method table one condition earlier to reach this door at all.
+    called.ok_or_else(|| {
+        Fault::fatal(format!(
+            "internal error: `{}` answers `{DECODE}` where `{member}` asked its class table and \
+             not where it called",
+            contract.name()
+        ))
+    })
 }
 
 /// One instance of `class` out of a document already read — or, for `list`, one
@@ -1700,6 +1791,18 @@ unsafe fn decode_object(
     at: Option<usize>,
     member: &str,
 ) -> Result<Value, Fault> {
+    // `rule:core-classes/derive-generates-what-is-missing`'s written half,
+    // asked before the object test below because that test is the field walk's
+    // question: [`DECODE`] takes a `mixed`, and a list decode reaches here once
+    // per element, so each element goes over on its own.
+    if contract.writes_decoder() {
+        #[expect(
+            unsafe_code,
+            reason = "the same live descriptor, and the caller's own reference \
+                      to the value"
+        )]
+        return unsafe { hand_written(ctx, contract, document, member) };
+    }
     let prefix = match at {
         None => String::new(),
         Some(index) => format!("{index}."),
@@ -2189,16 +2292,26 @@ unsafe fn decode_nested(
     // The reading carries down: what the values are is a property of the door
     // the whole call came through, not of how deep the field sits.
     let nested = unsafe { Contract::new(class, contract.shape_at(index)) }.over(contract.reading);
+    // A document is a tree, so the written half is a door at every level of it
+    // and not only at the one the call site named: a field typed as a class
+    // that wrote [`DECODE`] hands that member the value this key holds, whole.
+    if nested.writes_decoder() {
+        #[expect(
+            unsafe_code,
+            reason = "the resolved descriptor, and the document's own value"
+        )]
+        return unsafe { hand_written(ctx, nested, found, "Core\\Json::decodeAs") }
+            .map_err(DecodeFailure::Fault);
+    }
     // Asked of a class only, on [`check_codec`]'s terms: an inline shape *is* a
     // wire contract, and `{}` is an empty one rather than a missing one. A
-    // field typed as a class carrying no codec is unreachable from source —
-    // `E0756` refuses that declaration — so this is the backstop for a
+    // field typed as a class that took neither door is unreachable from source
+    // — `E0756` refuses that declaration — so this is the backstop for a
     // descriptor built by hand.
     if nested.fields().is_empty() && !nested.is_shape() {
         return Err(DecodeFailure::Fault(Fault::fatal(format!(
             "Core\\Json::decodeAs(): `{}`'s `{}` field decodes into `{}`, which carries no \
-             derived codec — `rule:core-classes/derive-generates-what-is-missing`'s hand-written half is `nvs_stdlib::json`'s own \
-             known gap",
+             `#[Json\\Derive]` and declares no `{DECODE}`",
             contract.name(),
             field.key,
             nested.name()
@@ -2607,13 +2720,24 @@ unsafe fn decode_element(
     // is and the contract holding that shape's field types is resolved beside
     // the class at the same index.
     let element = unsafe { Contract::new(class, contract.shape_at(index)) }.over(contract.reading);
-    // [`decode_nested`]'s judgement too: an element class carrying no codec is
-    // unreachable from source, `E0756` refusing that declaration, so this is
-    // the backstop for a descriptor built by hand.
+    // [`decode_nested`]'s written half too, for a list's element class: the
+    // member is handed one element at a time, as the enclosing walk hands it
+    // one key's value.
+    if element.writes_decoder() {
+        #[expect(
+            unsafe_code,
+            reason = "the resolved descriptor, and the document's own element"
+        )]
+        return unsafe { hand_written(ctx, element, item, "Core\\Json::decodeAs") }
+            .map_err(DecodeFailure::Fault);
+    }
+    // [`decode_nested`]'s judgement too: an element class that took neither
+    // door is unreachable from source, `E0756` refusing that declaration, so
+    // this is the backstop for a descriptor built by hand.
     if element.fields().is_empty() && !element.is_shape() {
         return Err(DecodeFailure::Fault(Fault::fatal(format!(
-            "Core\\Json::decodeAs(): `{}`'s `{}` field holds `{}`, which carries no derived \
-             codec — `rule:core-classes/derive-generates-what-is-missing`'s hand-written half is `nvs_stdlib::json`'s own known gap",
+            "Core\\Json::decodeAs(): `{}`'s `{}` field holds `{}`, which carries no \
+             `#[Json\\Derive]` and declares no `{DECODE}`",
             contract.name(),
             field.key,
             element.name()

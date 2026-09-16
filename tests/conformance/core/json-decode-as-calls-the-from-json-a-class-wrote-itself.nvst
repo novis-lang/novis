@@ -1,0 +1,96 @@
+--TEST--
+A class that writes `Core\Json\Codec`'s `fromJson` and carries no `#[Json\Derive]` is decoded through the member it wrote, at every door and at every level of the document — `rule:core-classes/derive-generates-what-is-missing`, `rule:core-classes/derive-attribute`, spec § 6
+--FILE--
+<?nvs
+// `rule:core-classes/derive-generates-what-is-missing`: the derive fills in the
+// half a class does not write, so writing the decoding half is the opt-in as
+// squarely as the attribute is — `nvs_types::derive`'s `check_json_sites`
+// admits a call naming a class that records no field list but declares this
+// member, and `nvs_stdlib::json`'s `hand_written` dispatches to it.
+//
+// § 6 declares the member over `mixed`, so what it is handed is the value the
+// document held and not an object the field walk agreed to first. Re-encoding
+// that value is the one reading that shows what arrived without this class
+// claiming any shape of its own: a decode that quietly walked a field list
+// instead, or that handed the member anything but the value at that position,
+// fails every line below rather than printing plausibly.
+class Version {
+    public string $text;
+
+    public function constructor(string $text)
+    {
+        $this->text = $text;
+    }
+
+    public static function fromJson(mixed $value): static
+    {
+        return new static(Core\Json::encode($value));
+    }
+}
+
+// The class the call site named, whose document is an object — the shape the
+// derived walk also takes, so this line alone does not tell the two doors
+// apart.
+echo "object=", Core\Json::decodeAs<Version>("{\"n\":1,\"name\":\"ada\"}")->text, "\n";
+
+// The shape that does tell them apart: a derived walk refuses a document that
+// is not a JSON object, and this door has no such question to ask.
+echo "scalar=", Core\Json::decodeAs<Version>("\"plain\"")->text,
+     " ", Core\Json::decodeAs<Version>("12")->text, "\n";
+
+// `array<T>` is that decode run once per element, so the member is handed each
+// element rather than the array — counted as well as printed, since a door
+// that handed over the whole array once would still print a plausible line.
+var $versions = Core\Json::decodeAs<array<Version>>("[1,\"two\",{\"three\":3}]");
+string $listed = "";
+int $elements = 0;
+foreach ($versions as Version $one) {
+    $listed = $listed . $one->text . "|";
+    $elements = $elements + 1;
+}
+echo "list=", $listed, " count=", $elements, "\n";
+
+// A document is a tree, so the door is at every level of it: a deriving class
+// whose field is typed as the written one nests into that member, and so does
+// each element of a list field.
+#[Core\Json\Derive]
+class Manifest {
+    public Version $head;
+    public array<Version> $rest;
+
+    public function constructor(Version $head, array<Version> $rest)
+    {
+        $this->head = $head;
+        $this->rest = $rest;
+    }
+}
+
+var $manifest = Core\Json::decodeAs<Manifest>("{\"head\":{\"a\":1},\"rest\":[2,3]}");
+string $tail = "";
+foreach ($manifest->rest as Version $part) {
+    $tail = $tail . $part->text . "|";
+}
+echo "nested=", $manifest->head->text, " rest=", $tail, "\n";
+
+// The loose-values door reaches the same member with the array a program
+// built, `Core\Arr::shapeAs` asking the class the same participation question
+// `decodeAs` asks and answering it with the same dispatch.
+echo "values=", Core\Arr::shapeAs<Version>(["n" => 1])->text, "\n";
+
+// One written half is one direction. The encoding half is not consulted yet —
+// `nvs_stdlib::json`'s own gap 1 — and this class carries no attribute for a
+// derived encoder either, so writing one is still refused.
+bool $encodes = true;
+try {
+    Core\Json::encode(new Version("x"));
+} catch (LogicError $noEncoder) {
+    $encodes = false;
+}
+echo "encodes=", ($encodes ? "yes" : "no"), "\n";
+--EXPECT--
+object={"n":1,"name":"ada"}
+scalar="plain" 12
+list=1|"two"|{"three":3}| count=3
+nested={"a":1} rest=2|3|
+values={"n":1}
+encodes=no
