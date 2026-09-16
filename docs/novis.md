@@ -73,6 +73,7 @@ Conventions the whole file uses:
 | [`Core\IO\Metadata`](#core-core-io-metadata) |  |
 | [`Core\Process`](#core-core-process) |  |
 | [`Core\Process\Result`](#core-core-process-result) |  |
+| [`Core\Process\Handle`](#core-core-process-handle) |  |
 | [`Core\Time`](#core-core-time) | the clock and the constructors — an absolute `Instant`, or a civil `DateTime` built in a named `Zone` |
 | [`Core\Time\Instant`](#core-core-time-instant) | an absolute point on the timeline, to the nanosecond, with no zone |
 | [`Core\Time\DateTime`](#core-core-time-datetime) | a civil date and time in a zone — calendar arithmetic and CLDR formatting |
@@ -11386,11 +11387,12 @@ Whether the path was a directory — the other half of the partition `isFile` de
 <a id="core-core-process"></a>
 ### `Core\Process`
 
-Keywords: run
+Keywords: run, spawn
 
 | Member | Signature |
 |---|---|
 | [`Core\Process::run`](#core-core-process-run) | `run(string $path, array<string> $argv): Core\Process\Result` |
+| [`Core\Process::spawn`](#core-core-process-spawn) | `spawn(string $path, array<string> $argv): Core\Process\Handle` |
 
 <a id="core-core-process-run"></a>
 #### `Core\Process::run`
@@ -11409,6 +11411,24 @@ Runs `$path` with `$argv`, waits for it to exit, and answers what it did — PHP
 **Returns** `Core\Process\Result` — A `Core\Process\Result` carrying the exit code and both captured streams. The child inherits none of this process's own standard streams — all three are piped — so a program that runs a child cannot have its own output interleaved with it.
 
 **Throws** `RuntimeError` — The configuration does not grant `process.exec` for this target, or the target is a `.bat`, `.cmd` or `.ps1` file, which this API refuses on every platform because starting one hands the argv it just built to a second parser. Or the child wrote more than `[limits] max_output` across the two streams, in which case it is killed and nothing is captured: the ceiling on a response is the ceiling on one capture too.; `IOError` — The capability allowed it and the operating system did not — nothing is at the path, it is not executable, or the child could not be waited for.
+
+<a id="core-core-process-spawn"></a>
+#### `Core\Process::spawn`
+
+```nvs skip
+Core\Process::spawn(string $path, array<string> $argv): Core\Process\Handle
+```
+
+Starts `$path` with `$argv` and answers a handle instead of waiting — PHP's `proc_open` and `passthru`, which differ only in which members their caller happens to use. The child's three streams are pipes the handle reads and writes; there is no command-line form of this member either. Needs the `process.exec` capability for the target.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$path` | `string` (sink) | The program to start, on `run`'s terms: directly, never through a shell, so a `PATH` lookup is the caller's own to make. |
+| `$argv` | `array<string>` | The arguments, one element each, on `run`'s terms. |
+
+**Returns** `Core\Process\Handle` — A `Core\Process\Handle` whose reads and writes suspend the calling coroutine. The child is killed when the task that spawned it ends, so nothing it started outlives the request that asked for it.
+
+**Throws** `RuntimeError` — The configuration does not grant `process.exec` for this target, or the target is a `.bat`, `.cmd` or `.ps1` file, which this API refuses on every platform because starting one hands the argv it just built to a second parser.; `IOError` — The capability allowed it and the operating system did not — nothing is at the path, or it is not executable.
 
 <a id="core-core-process-result"></a>
 ### `Core\Process\Result`
@@ -11453,6 +11473,88 @@ $result->stderr(): bytes
 Everything the child wrote to its standard error, captured whole and kept separate from `stdout` — the stream PHP's `exec` discards and `shell_exec` merges.
 
 **Returns** `bytes` — The octets, as `bytes`, for the reason `stdout` states.
+
+<a id="core-core-process-handle"></a>
+### `Core\Process\Handle`
+
+Keywords: readStdout, readStderr, writeStdin, wait, kill
+
+| Member | Signature |
+|---|---|
+| [`Core\Process\Handle->readStdout`](#core-core-process-handle-readstdout) | `readStdout(): ?bytes` |
+| [`Core\Process\Handle->readStderr`](#core-core-process-handle-readstderr) | `readStderr(): ?bytes` |
+| [`Core\Process\Handle->writeStdin`](#core-core-process-handle-writestdin) | `writeStdin(bytes $data): void` |
+| [`Core\Process\Handle->wait`](#core-core-process-handle-wait) | `wait(): Core\Process\Result` |
+| [`Core\Process\Handle->kill`](#core-core-process-handle-kill) | `kill(): void` |
+
+<a id="core-core-process-handle-readstdout"></a>
+#### `Core\Process\Handle->readStdout`
+
+```nvs skip
+$handle->readStdout(): ?bytes
+```
+
+Waits for the child to write something to its standard output and answers it — the read half of `proc_open`'s pipes, and the whole of `passthru` when what a program does with each chunk is write it to the response. The wait suspends this coroutine and hands the core back, so other requests on it keep running.
+
+**Returns** `?bytes` — The octets the child wrote, as `bytes` for the reason `Core\Process\Result::stdout` states, or `null` once the stream has ended. A chunk is whatever had arrived, never a line and never the whole output: a program that wants all of it calls `run` instead.
+
+**Throws** `IOError` — The operating system failed the read. The stream is closed afterwards, so a later call answers `null` rather than failing again.
+
+<a id="core-core-process-handle-readstderr"></a>
+#### `Core\Process\Handle->readStderr`
+
+```nvs skip
+$handle->readStderr(): ?bytes
+```
+
+`readStdout` on the other stream, kept separate from it exactly as a completed run's two captures are.
+
+**Returns** `?bytes` — The octets the child wrote to its standard error, or `null` once that stream has ended.
+
+**Throws** `IOError` — The operating system failed the read, on `readStdout`'s terms.
+
+<a id="core-core-process-handle-writestdin"></a>
+#### `Core\Process\Handle->writeStdin`
+
+```nvs skip
+$handle->writeStdin(bytes $data): void
+```
+
+Writes `$data` to the child's standard input, suspending this coroutine until the child has taken it. A `tainted` value is accepted here and nowhere else in this class: standard input is data the child reads, where a path and an argument are a command this process builds.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$data` | `bytes` (neutral) | The octets to write, whole. A `string` converts on the way in. |
+
+**Returns** `void` — Nothing. The child's input stays open for the next write and is closed by `wait`, which is what lets a child reading to the end of its input ever see one.
+
+**Throws** `IOError` — The operating system failed the write — most often a child that has already exited, which closes the pipe this end was writing into.
+
+<a id="core-core-process-handle-wait"></a>
+#### `Core\Process\Handle->wait`
+
+```nvs skip
+$handle->wait(): Core\Process\Result
+```
+
+Closes the child's standard input, waits for it to exit, and answers what it did — `proc_close`, without the caller having to remember that closing the pipes comes first. The wait suspends this coroutine exactly as `run`'s does.
+
+**Returns** `Core\Process\Result` — A `Core\Process\Result` carrying the exit status and whatever neither `readStdout` nor `readStderr` had already taken. A program that streamed the whole output gets two empty captures, which is the answer and not a loss.
+
+**Throws** `RuntimeError` — What the child had left to write is more than `[limits] max_output`, on `Core\Process::run`'s terms — the ceiling on a response is the ceiling on one capture too.; `IOError` — The operating system failed to drain a pipe or to reap the child.
+
+<a id="core-core-process-handle-kill"></a>
+#### `Core\Process\Handle->kill`
+
+```nvs skip
+$handle->kill(): void
+```
+
+Ends the child now, whatever it was doing. Answers without complaint for a child that has already exited, so a program that kills what it no longer needs does not have to ask first — and a child nobody kills is ended anyway when the task that spawned it does.
+
+**Returns** `void` — Nothing. `wait` is still how the status is collected, and it answers the kill's own.
+
+**Throws** `IOError` — The operating system refused the signal.
 
 <a id="core-core-time"></a>
 ### `Core\Time`
@@ -26800,6 +26902,8 @@ One row per PHP built-in. *member*: a `Core` member in Part B does the job. *lan
 | `shell_exec` | member | `Core\Process::run`. The backtick operator goes with it: there is no shell |
 | `escapeshellarg` | dropped | **nothing to escape.** A command is a program plus an argument vector, so the quoting rules this function encodes — different on Windows, different again inside `cmd.exe` — have no input |
 | `escapeshellcmd` | dropped | same, and worse: it escapes a whole command line, which is the construct `rule:core-classes/process-is-argv-only` exists to remove |
+| `proc_open` | member | `Core\Process::spawn`, which answers with a handle rather than an array of pipes indexed by a descriptor spec |
+| `popen` | member | `Core\Process::spawn`, whose pipes are on the handle. `popen`'s argument is a shell command line, which is the half that does not survive |
 | `proc_nice` | dropped | scheduling priority is the operator's, set where the process is started. A request that can renice its own runtime can starve every other request on the core |
 | `getmypid` | member | `Core\Os::pid` |
 | `getmyuid` | dropped | the account the process runs as is a deployment fact, and a program that branches on it is configuring itself from the environment instead of from `nvs.toml` |

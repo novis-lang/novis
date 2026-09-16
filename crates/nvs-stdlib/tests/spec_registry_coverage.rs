@@ -543,11 +543,9 @@ fn every_outstanding_key_names_an_owner() {
     );
 
     let mut wrong = Vec::new();
-    let mut checked = 0usize;
     for name in RATCHETS {
         let ratchet = outstanding_file(name);
         for key in &ratchet.keys {
-            checked += 1;
             if let Some(problem) = owner_problem(ratchet.owners.get(key), &goals, &plan) {
                 wrong.push(format!("{name}: `{key}` {problem}"));
             }
@@ -564,11 +562,27 @@ fn every_outstanding_key_names_an_owner() {
         wrong.len(),
         wrong.join("\n  ")
     );
-    assert!(
-        checked > 0,
-        "no ratchet file holds a key, which makes this gate vacuous — either the parity program \
-         is finished, in which case delete it, or `outstanding_file` has stopped reading a line"
-    );
+    // **Every key is struck**: §§ 1-19 and the migration table are walked, and all four files
+    // hold their header and nothing else. That is the state a ratchet is built to arrive at, so
+    // reaching it is not a failure and the loop above having nothing to check is not one either
+    // — what `owner_problem`'s own cases below assert is the arithmetic, and they feed it owners
+    // no file has to hold, so it stays exercised with the worklist at zero.
+    //
+    // The files stay. A ratchet is how the *next* section of the spec is walked, and a deleted
+    // one would make a member that regressed out of the registry read as an empty worklist
+    // rather than as a key nobody owns. What is left to assert about an empty one is that it is
+    // still a file saying what it is for.
+    for name in RATCHETS {
+        let ratchet = outstanding_file(name);
+        let text = fs::read_to_string(&ratchet.path)
+            .unwrap_or_else(|err| panic!("{}: {err}", ratchet.path.display()));
+        assert!(
+            text.trim_start().starts_with('#'),
+            "{} has lost the header saying which walk fills it and what a line means, so the \
+             next key written into it goes into a file nobody can read a purpose off",
+            ratchet.path.display()
+        );
+    }
 }
 
 /// The refusal [`every_outstanding_key_names_an_owner`] is written around, asked

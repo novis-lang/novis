@@ -2,54 +2,57 @@
 
 ## State
 
-Goal `m8-stdlib-depth`. **Stage 12 is closed.** `Core\Metrics` is registered with three verbs and no
-reader, a literal name outside `[a-z][a-z0-9_]*` and a `tainted` label value are compile-time
-diagnostics on all three verbs, and the three Rust tests the stage's acceptance names all exist and
-pass under `-p nvs-stdlib`. Its `.nvst` cases are on disk.
+Goal `m8-stdlib-depth`. **Stage 13 is most of the way in.** `Core\Process::spawn` is registered and
+built: it answers `Core\Process\Handle` with `readStdout`, `readStderr`, `writeStdin`, `wait` and
+`kill`, every read and write goes off the core through `nvs_host::blocking::run`, and a child is
+killed and reaped when its task's `Ctx` drops (`nvs_runtime::HeldChild`). Four of the stage's five
+Rust tests exist and pass; three `.nvst` cases are on disk, including the acceptance's
+`process-spawn-streams-a-childs-output-into-the-program.nvst`.
 
-Stages 0–12 are closed; stage 13 (`Core\Process::spawn`) is the next one and is unstarted — the class
-today has `run` alone (`crates/nvs-stdlib/src/process.rs:95`) and none of its five acceptance tests
-exists. Nothing is blocked.
+**Two acceptance items are open:** `a_spawn_produces_exactly_one_span` (no span is emitted anywhere
+in `Core\Process` yet) and the two remaining acceptance artefacts — the concurrent-spawn perf guard
+and the tainted-path/argv reject case. `rule:core-classes/process-spawn` is flipped to `shipped`.
+
+Striking `Core\Process::spawn` emptied the last of the four spec-parity ratchets, so the whole
+parity program is now at zero; the files stay for the next walk and
+`every_outstanding_key_names_an_owner` no longer treats that as vacuity.
 
 ## Next group
 
-**Stage 13: `Core\Process::spawn`** — one file set: `crates/nvs-stdlib/src/process.rs` (the registry
-row at `:95`, the bounded drain at `:420`, the scheduler test at `:734`, the tests module at `:516`),
-plus the handle class's registration in `crates/nvs-stdlib/src/registry.rs`.
+**Stage 13, the tail: the span, the guard and the reject case** — one file set:
+`crates/nvs-stdlib/src/process.rs` (the `spawn` helper at `crates/nvs-stdlib/src/process.rs:789`,
+the tests module at `crates/nvs-stdlib/src/process.rs:1140`), plus
+`benches/abi-probe/tests/perf_guards.rs:436` and one new file under `tests/conformance/reject/`.
 
-- [ ] **`spawn` and its handle class are registered** — a second `CoreMethod` beside `run`'s at
-      `crates/nvs-stdlib/src/process.rs:95`, answering the handle as a `CoreTy::Instance`, with the
-      handle's own instance members and reference cards. `rule:core-classes/process-spawn` is the
-      rule (`python tools/rules.py --show core-classes/process-spawn`) and
-      `rule:core-classes/process-is-argv-only` keeps the argv-only shape —
-      `there_is_no_shell_string_form_of_run_or_spawn` at
-      `crates/nvs-stdlib/src/process.rs:547` already asserts it over the whole roster, so a `spawn`
-      with a second text parameter fails there. The goal's § *Standing decisions* fixes the spelling
-      under the verb lexicon. Closes `process_spawn_is_a_registered_member`.
-- [ ] **A handle's reads suspend and the child never outlives its task** — the reads reuse the
-      bounded pipe reader at `crates/nvs-stdlib/src/process.rs:420` and suspend the way
-      `a_process_wait_suspends_its_coroutine_through_the_blocking_pool`
-      (`crates/nvs-stdlib/src/process.rs:734`) already shows, with the kill on task end that the
-      goal's standing decisions require so memory stays O(in-flight). Closes
-      `a_spawned_childs_reads_suspend_the_coroutine_and_free_the_core`,
-      `killing_a_spawned_child_ends_it_and_wait_answers_its_status` and
-      `a_spawned_child_is_killed_when_its_task_ends` under `-p nvs-stdlib`.
-- [ ] **One span per spawn, and the child's output reaches the program** —
-      `a_spawn_produces_exactly_one_span` joins the tests module at
-      `crates/nvs-stdlib/src/process.rs:516`. The shape to follow is `Core\Http`'s, which files one
-      trace event per call whatever its attempts through `ctx.record_http` at
-      `crates/nvs-stdlib/src/http.rs:3806`, behind the `TRACE` debug flag —
-      `rule:observability/trace-events-carry-a-kind` is the rule. Then the conformance case
-      `tests/conformance/core/process-spawn-streams-a-childs-output-into-the-program.nvst` the
-      stage's `nvs-suite` check names.
+- [ ] **A `spawn` produces exactly one span** — `docs/decisions/0076.md:372-373` puts a `spawn`
+      beside a `query` and an outbound call; find what a `query` emits and emit the same thing once
+      from `nvs_core_process_spawn` at `crates/nvs-stdlib/src/process.rs:789`, counted off the
+      trace buffer in a Rust test named `a_spawn_produces_exactly_one_span` beside the four that
+      landed at `crates/nvs-stdlib/src/process.rs:1140`. `rule:core-classes/process-spawn` is the
+      member; the span model is whichever rule `python tools/brief.py --where span` routes to, and
+      the goal's `[context] rules` does not carry it.
+- [ ] **The concurrent-spawn scheduler guard** — `benches/abi-probe/tests/perf_guards.rs:436`
+      measures one spawn and never several at once; add
+      `concurrent_spawns_leave_the_scheduler_serving_other_tasks` beside it, on the shape
+      `a_spawned_childs_reads_suspend_the_coroutine_and_free_the_core` at
+      `crates/nvs-stdlib/src/process.rs:1257` uses — a neighbour task that must still run while
+      several children are in flight. `rule:core-classes/process-spawn`.
+- [ ] **A tainted `$path` or `$argv` element is refused where it is written** —
+      `rule:core-classes/process-is-argv-only` says both are refused at the call site and only the
+      shell-string half is pinned today
+      (`tests/conformance/reject/there-is-no-shell-string-form-of-process-run.nvst`). One
+      `--EXPECTF-ERROR--` case under `tests/conformance/reject/` named
+      `process-run-refuses-a-tainted-path-and-a-tainted-argv-element.nvst`, asked of both members,
+      since `spawn`'s row at `crates/nvs-stdlib/src/process.rs:130` carries the same `Qual::Sink`.
 
 ## Backlog
 
-- The release guard `concurrent_spawns_leave_the_scheduler_serving_other_tasks` —
-  `benches/abi-probe/tests/perf_guards.rs:436`, run under `--release -p nvs-abi-probe`, is stage 13's
-  second check and lands after the three slices above.
-- Stages 14–15, the verification remainder and the `shipped` flips — the `[[check]]` blocks tagged
-  `14 verification remainder` and `15 the rulebook` in `docs/agent/loop-goal.toml`.
-- `rule:observability/metrics-three-members` spells the bag `array<string, string>` while the row
-  declares `array<string>` (`crates/nvs-stdlib/src/metrics.rs:116`). One of the two is wrong; stage
-  15's rulebook pass is where it is settled.
+- `ProcessOptions` (cwd, env, timeout) lands on `run` and `spawn` together and is on neither —
+  `rule:core-classes/process-options`, still `designed`.
+- A second `wait` on a reaped handle answers the same status with empty captures, the first having
+  taken the output — stated in `HANDLE_WAIT_DOC`, no case pins it.
+- `crates/nvs-runtime/src/ctx/` is outside the goal's `[context] modules`, and this stage edited it
+  (`held.rs`, `mod.rs`, `wiring.rs`); add `nvs-runtime/src/ctx/*` to the manifest.
+- The parity ratchets are all at zero; whether the four files and their gates are retired is a
+  decision nothing schedules — `crates/nvs-stdlib/tests/spec_registry_coverage.rs:326`.
+- Stage 14's list of M8 verification items is unstarted — `docs/agent/loop-goal.md:235`.

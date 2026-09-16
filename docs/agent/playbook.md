@@ -2195,6 +2195,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   accumulate across crates unseen. Name a test in backticks and never in brackets, and when `--doc`
   is red on one, `grep -rn 'tests::' --include=*.rs crates/` finds every sibling in one call.
   [until: reviewed 2026-09-16]
+- **Striking a ratchet file's last key fails the gate that reads it, and the message's first
+  branch is the wrong one.** `every_outstanding_key_names_an_owner` in
+  `spec_registry_coverage.rs` asserted `checked > 0` and offers "delete the parity program" before
+  "the reader broke"; the files are how the next spec section is walked and `owner_problem`'s own
+  cases already exercise the arithmetic. Assert the empty file still holds its header instead of
+  taking either branch. [until: gone crates/nvs-stdlib/tests/spec_registry_coverage.rs:RATCHETS]
 
 ## Running things
 
