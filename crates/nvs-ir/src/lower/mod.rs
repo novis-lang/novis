@@ -338,8 +338,12 @@ fn property_defaults(
 }
 
 /// One evaluated constant, as the runtime's own smaller vocabulary spells it —
-/// `None` for a variant a written property declaration cannot reach, which is
-/// unreachable rather than lossy for [`property_defaults`]' own reason.
+/// `None` for a variant neither a written property declaration nor a written
+/// parameter default can reach, which is unreachable rather than lossy for
+/// [`property_defaults`]' reason and for [`codec_fields`]'. They are one
+/// reason twice: `nvs_types::defaults` accepts a literal of the declared type
+/// and nothing else, and the two literal sets differ only by the `= []` and the
+/// folded named constant a property may additionally write.
 fn field_default(value: &nvs_types::ConstArg) -> Option<nvs_types::FieldDefault> {
     use nvs_types::{ConstArg, FieldDefault};
 
@@ -478,6 +482,11 @@ fn codec_fields(
                     // computes says nothing about it, so it rides down
                     // untouched like the two above.
                     required: field.required,
+                    // And the constant that default evaluates to, in the
+                    // runtime's own vocabulary: the door
+                    // `nvs_runtime::CodecField::default` opens is a decoder
+                    // with no call site to emit it from.
+                    default: field.default.as_ref().and_then(field_default),
                 })
             })
             .collect()
@@ -3488,6 +3497,9 @@ fn shape_codec_fields(codec: &nvs_types::derive::DerivedCodec) -> Vec<nvs_types:
             shape: nested_shape_key(field),
             nullable: field.nullable,
             required: field.required,
+            // A shape declares no constructor, so there is no default to carry
+            // — `nvs_runtime::CodecField::default`.
+            default: None,
         })
         .collect()
 }

@@ -392,6 +392,16 @@ pub struct DerivedField {
     /// when the class declares no matching parameter — which
     /// [`check_constructor_parameter`] has already reported.
     pub param: Option<usize>,
+    /// The constant that parameter's written `= <literal>` default evaluates
+    /// to — what a call site omitting the argument would emit, carried down so
+    /// that a decoder, which is not a call site, can emit it instead
+    /// (`nvs_stdlib::CodecField::default`).
+    ///
+    /// `Some` exactly where [`Self::required`] is `false`, since a parameter
+    /// default is a literal of the declared type and nothing else
+    /// (`crate::defaults::literal_default`), and `None` for a shape field,
+    /// which has no constructor to declare one.
+    pub default: Option<crate::defaults::ConstArg>,
 }
 
 /// The inline shape `declared` names, read as a codec — the door
@@ -449,6 +459,10 @@ pub fn shape_codec(
                 nullable,
                 required: field.required,
                 param: Some(param),
+                // A shape declares no constructor and so no default: its
+                // optional field is `rule:types/shape-type`'s `?`, and what
+                // fills an absent one is the never-written marker.
+                default: None,
             }
         })
         .collect();
@@ -1582,10 +1596,11 @@ fn codec_field(
         return FieldOutcome::Refused;
     }
     let resolved = check_constructor_parameter(p.name, &name, declared, format, params, ctx, env);
-    let param = resolved.map(|(index, _)| index);
+    let param = resolved.as_ref().map(|bound| bound.index);
     // A refused declaration reads as required rather than as optional: the
     // parameter that would have said otherwise is the one that is missing.
-    let required = resolved.is_none_or(|(_, required)| required);
+    let required = resolved.as_ref().is_none_or(|bound| bound.required);
+    let default = resolved.and_then(|bound| bound.default);
     let nullable = env.interner.is_nullable(declared);
     // The `null` arm is what nullability *is*, so the decode target is the
     // rest of the union — `?int` decodes an `int` or a JSON null, never a
@@ -1617,14 +1632,16 @@ fn codec_field(
         nullable,
         required,
         param,
+        default,
     })
 }
 
 /// `rule:core-classes/derive-field-list`'s "every non-skipped field must also be a constructor
 /// parameter of the same name and the same type".
 ///
-/// Reports and returns the parameter's *position*, which is what a generated
-/// decoder fills, and whether that parameter makes the field **required** —
+/// Reports and returns a [`FieldParam`]: the parameter's *position*, which is
+/// what a generated decoder fills, and the default it declares, which says both
+/// whether the field is **required** and what fills it when it is not —
 /// `rule:core-api/required-optional-and-nullable` puts optionality on the
 /// default, and the parameter list is the one declaration that carries one.
 /// The field is recorded either way, so one bad property does not silently
@@ -1644,7 +1661,7 @@ fn check_constructor_parameter(
     params: Option<&[Param]>,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
-) -> Option<(usize, bool)> {
+) -> Option<FieldParam> {
     // A class with no written constructor has no parameter list to disagree
     // with, and `nvs_types::ctor_init` has already reported that its properties
     // are not definitely assigned (`rule:classes/definite-property-initialization`) — a second diagnostic here would
@@ -1672,11 +1689,21 @@ fn check_constructor_parameter(
     };
     // `rule:core-api/required-optional-and-nullable`: the default is where
     // optionality is written, so it is read here — beside the parameter — and
-    // not from the property, which has no default of its own to carry.
-    let required = param.default.is_none();
+    // not from the property, which has no default of its own to carry. The
+    // constant comes back with it, through the evaluator that reports nothing:
+    // a default that is not a literal of its declared type is
+    // `crate::signatures`' diagnostic to make, over the same expression.
     let param_ty = crate::lower::lower_optional_type(param.ty.as_ref(), ctx, env);
+    let bound = FieldParam {
+        index,
+        required: param.default.is_none(),
+        default: param
+            .default
+            .as_ref()
+            .and_then(|expr| crate::defaults::literal_default(expr, param_ty, env)),
+    };
     if param_ty == declared {
-        return Some((index, required));
+        return Some(bound);
     }
     let want = env.interner.describe(declared);
     let got = env.interner.describe(param_ty);
@@ -1692,7 +1719,19 @@ fn check_constructor_parameter(
              it to the constructor, so the two have to agree",
         ),
     );
-    Some((index, required))
+    Some(bound)
+}
+
+/// The constructor parameter a derived field decodes into, as
+/// [`check_constructor_parameter`] resolved it: one struct because the three
+/// answers are one reading of one declaration.
+struct FieldParam {
+    /// Its position — [`DerivedField::param`].
+    index: usize,
+    /// Whether it declares no default — [`DerivedField::required`].
+    required: bool,
+    /// The constant that default evaluates to — [`DerivedField::default`].
+    default: Option<crate::defaults::ConstArg>,
 }
 
 /// Whether `ty` carries `rule:security/secret-qualifier`'s `secret` qualifier.

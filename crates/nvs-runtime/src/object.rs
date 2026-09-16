@@ -699,8 +699,13 @@ pub enum FieldDefault {
 impl FieldDefault {
     /// A fresh [`Value`] for this default, owning one reference to whatever it
     /// allocated.
+    ///
+    /// Reachable outside this crate because a decoder is the second reader:
+    /// [`CodecField::default`] is this same recipe carried to a door with no
+    /// call site to emit the constant at, and `nvs_stdlib::json` materializes
+    /// it there.
     #[must_use]
-    pub(crate) fn materialize(&self) -> Value {
+    pub fn materialize(&self) -> Value {
         match self {
             Self::Bool(v) => Value::bool(*v),
             Self::Int(v) => Value::int(*v),
@@ -964,6 +969,24 @@ pub struct CodecField {
     /// through one column rather than through a branch on which of them built
     /// the descriptor.
     pub required: bool,
+    /// The constant the constructor parameter's own `= <literal>` default
+    /// evaluates to, which is what fills [`Self::key`] when a document does not
+    /// carry it — `rule:core-api/required-optional-and-nullable`'s
+    /// default-bearing rows, answered at a door that is not a call site.
+    ///
+    /// `Some` exactly where a derived field's parameter declares a default, so
+    /// it is `None` for every required field, for every shape field — a shape
+    /// declares no constructor, and an absent optional key of one is the
+    /// never-written marker rather than a value — and for a field whose
+    /// declaration named no parameter at all, which `nvs_types::derive` has
+    /// already refused.
+    ///
+    /// **What it spends**, per `rule:programs/memory-priority`: one
+    /// [`FieldDefault`] per defaulted field in the unit's own descriptor —
+    /// O(declarations in the program), never per request — plus, where the
+    /// constant is a string, the one allocation per decode the omitted
+    /// argument would itself have made.
+    pub default: Option<FieldDefault>,
 }
 
 /// The wire contract of one **inline shape** written as a type argument —
@@ -4471,6 +4494,7 @@ mod tests {
             shape: None,
             nullable: false,
             required: true,
+            default: None,
         }
     }
 

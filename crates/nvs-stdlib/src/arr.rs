@@ -6050,6 +6050,9 @@ mod tests {
                 shape: None,
                 nullable: *nullable,
                 required: *required,
+                // A shape declares no constructor, so an absent optional key is
+                // the never-written marker rather than a default.
+                default: None,
             })
             .collect();
         // One entry per field, null throughout: none of these names a class or

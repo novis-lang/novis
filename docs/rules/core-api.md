@@ -770,9 +770,14 @@ emitted, including a `null` one. There is no omit-when-null option, because an a
 round-trip bug that only shows up in the value that happens to be absent — and adding one later, conditioned
 on the field having a default, is purely additive.
 
-**Designed, not shipped.** `crates/nvs-stdlib/src/json.rs` records that the two default-bearing rows are
-unimplemented: an absent key is always *required field missing*, because a default is evaluated into a
-constant the *call site* emits and a native decoder is not a call site.
+**One row is designed, not shipped.** `?T $x = null` needs a written `= null` parameter default, which
+the checker still refuses — `crates/nvs-types/src/defaults.rs`'s own gap, not this table's. The other
+three are answered at every door that reads a derived codec, a row's columns included: the default is
+evaluated while compiling into a constant that rides on the field itself
+(`nvs_runtime::CodecField::default`), so a decoder fills an absent optional key without being the call
+site that would otherwise emit one. What stays unfilled is a constructor position **no field names** —
+a property `skip: true` removed from the contract — which `crates/nvs-stdlib/src/json.rs` records as
+its own gap.
 
 <sub>See also [`core-api/written-participation`](core-api.md#core-api-written-participation), [`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null), [`core-api/the-marker-never-reaches-a-program`](core-api.md#core-api-the-marker-never-reaches-a-program), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0071](../decisions/0071.md), [0063](../decisions/0063.md).</sub>
 

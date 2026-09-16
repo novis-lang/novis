@@ -276,11 +276,13 @@
 //!    erasure gave no wire type; and a mapping that fills fewer parameters than
 //!    the constructor declares. The run-time refusals stay under the compiling
 //!    pass as the backstop for a class built by hand, and each says so. What is
-//!    left is the skipped field itself: its default is a constant the *call
-//!    site* emits and a hydration has no call site, so [`hydrate`] is loud
-//!    rather than filling a `null` that would be right for one declaration in
-//!    ten. Where that constant has to ride so a decoder with no call site can
-//!    reach it is `crate::json`'s gap 1, the same knot at the other door.
+//!    left is the skipped field itself. A field the mapping *carries* now
+//!    brings its own constant — `nvs_runtime::CodecField::default`, which is
+//!    what fills an absent column for a parameter that declares a default — but
+//!    a `skip: true` leaves a parameter no field names, and a constant carried
+//!    on a field cannot be read for a position that has none. Only that second
+//!    carrier is owed, and it is `crate::json`'s gap 1: the same knot at the
+//!    other door.
 //!    — owner: m8-stdlib-depth
 
 use std::net::{SocketAddr, ToSocketAddrs as _};

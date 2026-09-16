@@ -1,5 +1,5 @@
 --TEST--
-A decoded field's key being absent reports which column it sits in — required, or optional and unfilled — because required and nullable are separate questions — `rule:core-api/required-optional-and-nullable` and `rule:core-classes/derive-reports-every-field`
+A decoded field's key being absent reports which column it sits in — required, or optional and filled from its default — because required and nullable are separate questions — `rule:core-api/required-optional-and-nullable` and `rule:core-classes/derive-reports-every-field`
 --FILE--
 <?nvs
 use Core\Json;
@@ -33,11 +33,10 @@ echo "nulled=", $nulled->note ?? "<none>", "\n";
 
 // The first column, asserted on both sides in one report:
 // `rule:core-classes/derive-reports-every-field` accumulates, so one throw
-// carries the required keys' absence and the optional key's side by side, and
-// they do not read the same. `$note` sits with `$name` rather than with `$age`,
-// which is the assertion nullability does not decide this. Filling an optional
-// key from its declared default is `nvs_stdlib::json`'s own known gap, and its
-// message names that rather than borrowing the required wording.
+// carries both required keys' absence — and carries nothing for the optional
+// key, whose absence was filled rather than reported. `$note` sits with `$name`
+// rather than with `$age`, which is the assertion nullability does not decide
+// this.
 try {
     Core\Json::decodeAs<Note>("{}");
     echo "not reached\n";
@@ -45,12 +44,17 @@ try {
     echo "issues=", Core\Arr::count($missing->issues) as string, "\n";
     echo "  ", $missing->issues["0"]->path, ": ", $missing->issues["0"]->message, "\n";
     echo "  ", $missing->issues["1"]->path, ": ", $missing->issues["1"]->message, "\n";
-    echo "  ", $missing->issues["2"]->path, ": ", $missing->issues["2"]->message, "\n";
 }
+
+// The other side of that bound: with both required keys written, the optional
+// one's absence is no issue at all and the field holds the constant its own
+// constructor parameter declares.
+var $filled = Core\Json::decodeAs<Note>("{\"name\":\"ada\",\"note\":null}");
+echo "filled=", $filled->age as string, "\n";
 --EXPECT--
 name=ada note=hi age=36
 nulled=<none>
-issues=3
+issues=2
   name: required field missing
   note: required field missing
-  age: optional field missing, and filling one from its constructor default is `nvs_stdlib::json`'s own known gap
+filled=0

@@ -6093,6 +6093,7 @@ mod tests {
                 shape: None,
                 nullable: false,
                 required: true,
+                default: None,
             }],
             1,
             vec![std::ptr::null()],
@@ -6534,6 +6535,7 @@ mod tests {
                 shape: None,
                 nullable: false,
                 required: true,
+                default: None,
             },
             CodecField {
                 key: "title".to_owned(),
@@ -6546,6 +6548,7 @@ mod tests {
                 shape: None,
                 nullable: false,
                 required: true,
+                default: None,
             },
         ];
         // One entry per field, null throughout: neither of these names a class

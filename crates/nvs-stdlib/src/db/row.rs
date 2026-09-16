@@ -146,21 +146,27 @@ pub(super) unsafe fn hydrate(
     let mut filled = vec![false; desc.ctor_arity()];
     let mut issues: Vec<(String, String)> = Vec::new();
     for field in fields {
-        let Some(held) = row.get(field.key.as_bytes()) else {
-            issues.push((
-                field.key.clone(),
-                format!(
+        let outcome = match row.get(field.key.as_bytes()) {
+            Some(held) => hydrated(field, held).map(owned),
+            // A column the result does not carry is this door's absent key, and
+            // `rule:core-api/required-optional-and-nullable` answers it here as
+            // `crate::json` answers it at the other one: a field whose
+            // constructor parameter declares a default is filled from that
+            // constant, which rides on the field because a hydration is not the
+            // call site that would otherwise emit it.
+            None => match &field.default {
+                Some(default) => Ok(default.materialize()),
+                None => Err(format!(
                     "the result has no column `{}` — a `#[Db\\Field(name: \"…\")]` is how a field \
                      reads one under another name",
                     field.key
-                ),
-            ));
-            continue;
+                )),
+            },
         };
-        match hydrated(field, held) {
+        match outcome {
             Ok(value) => match ctor_args.get_mut(field.param) {
                 Some(slot) => {
-                    *slot = owned(value);
+                    *slot = value;
                     filled[field.param] = true;
                 }
                 None => {
@@ -198,10 +204,13 @@ pub(super) unsafe fn hydrate(
             ),
         ));
     }
-    // `rule:core-classes/derive-field-list`'s skipped field with a constructor default, exactly as
-    // `Core\Json::decodeAs` meets it: the default is a constant the *call site*
-    // emits and there is no call site here, so this is loud rather than a
-    // `null` that would be right for one declaration in ten.
+    // `rule:core-classes/derive-field-list`'s skipped field, exactly as
+    // `Core\Json::decodeAs` meets it: a field the mapping carries is filled from
+    // its own default above, and a property `skip: true` removed from the
+    // mapping leaves a parameter no field names, so there is no field here to
+    // read a constant off. `nvs_types::derive`'s `check_row_sites` refuses a
+    // `queryAs<T>` naming such a class while compiling; this stays as the
+    // backstop for a class built by hand.
     if let Some(index) = filled.iter().position(|done| !done) {
         release_all(&ctor_args);
         return Err(Fault::fatal(format!(
@@ -1494,6 +1503,7 @@ mod tests {
             shape: None,
             nullable: false,
             required: true,
+            default: None,
         }
     }
 
@@ -1592,6 +1602,79 @@ mod tests {
             })
             .collect();
         assert_eq!(paths, ["id", "name", "at"]);
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the reference the throw handed over"
+        )]
+        unsafe {
+            issues.release();
+        }
+    }
+
+    /// `rule:core-api/required-optional-and-nullable`'s first column at the row
+    /// door: a column the result does not carry is an issue only where the
+    /// field's constructor parameter declares no default, and a field that
+    /// declares one is filled from the constant
+    /// [`nvs_runtime::CodecField::default`] carries.
+    ///
+    /// Asked of one row in which **both** columns are absent, and asserted as a
+    /// count: a hydration reading presence off the row alone reports two, and
+    /// one reading it off the type — as a `?T` would — reports two as well,
+    /// while either still looks right on whichever field is asked about on its
+    /// own.
+    #[test]
+    fn an_absent_column_is_an_issue_only_where_the_parameter_declares_no_default() {
+        use nvs_runtime::{CodecTy, FieldDefault};
+
+        // Leaked for the sibling case's reason: a descriptor is identified by
+        // its address, so the table outlives the test rather than moving.
+        let table: &'static mut nvs_runtime::ClassTable =
+            Box::leak(Box::new(nvs_runtime::ClassTable::new()));
+        let id = table.define("Account", &["id", "name"], &[]);
+        let mut defaulted = codec_field("name", 1, CodecTy::Str);
+        defaulted.required = false;
+        defaulted.default = Some(FieldDefault::Str("anon".to_owned()));
+        table.set_db_codec(
+            id,
+            vec![codec_field("id", 0, CodecTy::Int), defaulted],
+            2,
+            vec![std::ptr::null(); 2],
+        );
+        let class = table.desc(id);
+
+        let row = NvsArray::new();
+        #[expect(unsafe_code, reason = "the leaked table keeps the descriptor live")]
+        let refused = unsafe {
+            hydrate(&mut Ctx::new(OutputSink::Sink), class, &row)
+                .expect_err("`id` declares no default, so its column cannot be missing")
+        };
+
+        let Fault::ThrownWithSlots(ThrownClass::Parse, message, slots) = refused else {
+            panic!("a missing required column is § 6's `ParseError` carrying `issues`")
+        };
+        assert!(
+            message.contains("1 column(s) of `Account`"),
+            "`name` filled and `id` did not: {message}"
+        );
+        let [(_, issues)] = *slots else {
+            panic!("one slot, and it is `issues`")
+        };
+        let list = crate::arr::borrowed(issues.array_ptr().expect("`issues` is an `array<Issue>`"));
+        assert_eq!(
+            list.count(),
+            1,
+            "the absent defaulted column is filled rather than reported, and the \
+             absent required one is reported rather than filled"
+        );
+        let issue = list.get_index(0).expect("the one issue");
+        let object = issue.obj_ptr().expect("an issue is a shape value");
+        let path = crate::instance::slot(object, 1);
+        assert_eq!(
+            path.as_str_bytes().expect("`path` is a string"),
+            b"id",
+            "the column named is the one with no default"
+        );
 
         #[expect(
             unsafe_code,

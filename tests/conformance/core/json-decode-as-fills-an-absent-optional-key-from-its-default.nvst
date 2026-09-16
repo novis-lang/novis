@@ -1,0 +1,61 @@
+--TEST--
+`Core\Json::decodeAs<T>` fills an absent optional key from its constructor parameter's default, and the presence column stays independent of the type — `rule:core-api/required-optional-and-nullable` and `rule:core-classes/derive-field-list`
+--FILE--
+<?nvs
+// Optionality is a property of the constructor parameter's default, so one
+// class carries every literal a default can be written as: the decoder has to
+// materialize each of them without a call site to emit it from.
+#[Core\Json\Derive]
+class Settings {
+    public function constructor(
+        public string $host,
+        public uint $port = 8080,
+        public bool $secure = true,
+        public float $ratio = 0.5,
+        public int $backoff = -3,
+        public string $realm = "novis",
+    ) {}
+}
+
+// Row 3 of the table, once per default-bearing type: the key is absent and the
+// declaration's own constant is what the field holds.
+var $s = Core\Json::decodeAs<Settings>("{\"host\":\"a\"}");
+echo "port=", $s->port, " secure=", $s->secure, " ratio=", $s->ratio, "\n";
+echo "backoff=", $s->backoff, " realm=", $s->realm, "\n";
+
+// Encoding is the plain inverse and has no omit-when-defaulted option, so a
+// filled field is emitted exactly as a written one is.
+echo "round=", Core\Json::encode($s), "\n";
+
+// A written key wins over the default, including one that decodes to the
+// type's own empty value — filling is what an *absent* key gets.
+var $w = Core\Json::decodeAs<Settings>("{\"host\":\"b\",\"port\":443,\"realm\":\"\"}");
+echo "port=", $w->port, " realm=[", $w->realm, "]\n";
+
+// The first column is the parameter's and not the type's: `host` declares no
+// default, so its absence is still an issue while every other field fills.
+try {
+    Core\Json::decodeAs<Settings>("{\"port\":1}");
+    echo "not reached\n";
+} catch (ParseError $bad) {
+    echo "issues=", Core\Arr::count($bad->issues), "\n";
+    echo "  ", $bad->issues["0"]->path, ": ", $bad->issues["0"]->message, "\n";
+}
+
+// And the second column is unmoved by the first: a default makes the key
+// optional, never the value nullable, so a written `null` is refused for the
+// very field an absent key would have filled.
+try {
+    Core\Json::decodeAs<Settings>("{\"host\":\"a\",\"port\":null}");
+    echo "not reached\n";
+} catch (ParseError $null) {
+    echo "  ", $null->issues["0"]->path, ": ", $null->issues["0"]->message, "\n";
+}
+--EXPECT--
+port=8080 secure=1 ratio=0.5
+backoff=-3 realm=novis
+round={"host":"a","port":8080,"secure":true,"ratio":0.5,"backoff":-3,"realm":"novis"}
+port=443 realm=[]
+issues=1
+  host: required field missing
+  port: null is not permitted

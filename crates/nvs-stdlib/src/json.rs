@@ -97,10 +97,10 @@
 //!
 //! Two answers differ, and each is the shape's own type saying so rather than a
 //! second convention: a shape is built slot by slot ([`build_shape`]), because
-//! it declares no constructor to run, and both of
-//! `rule:core-api/required-optional-and-nullable`'s columns are answered here
-//! rather than deferred to a default nothing can materialize —
-//! [`decode_field`]'s own doc comment owns which and why.
+//! it declares no constructor to run, and an absent optional key of one is
+//! `rule:core-api/a-nullable-field-omits-as-the-never-written-marker`'s marker
+//! rather than the constructor default there is no constructor to have
+//! declared — [`decode_field`]'s own doc comment owns which and why.
 //!
 //! # An issue's `path` is the wire key, under every nesting that encloses it
 //!
@@ -148,21 +148,22 @@
 //!
 //! # Known gaps
 //!
-//! 1. **A parameter default does not make a key optional.** `rule:core-api/required-optional-and-nullable`'s
-//!    two default-bearing rows are unimplemented: an absent key fails whether
-//!    or not the field is optional, and a `#[Json\Field(skip: true)]` property
-//!    that is also a constructor parameter leaves a position nothing fills,
-//!    which [`decode_fields`] reports as an engine fault rather than passing
-//!    `null`. What is no longer missing is the *distinction* —
-//!    `nvs_runtime::CodecField::required` carries it, so the two absences read
-//!    apart and only the filling is owed. `nvs_types::defaults` evaluates a
-//!    default into a constant the *call site* emits, and a native decoder is
-//!    not a call site — closing this means carrying the constant onto
-//!    `nvs_runtime::CodecField` beside that bit, or emitting the decoder as
-//!    code, which is gap 3's question. A **shape** is not in this
-//!    gap and never will be: it declares no constructor, so there is no default
-//!    to be missing, and [`decode_field`] answers an absent optional key with
-//!    the never-written marker instead.
+//! 1. **A skipped property that stayed a constructor parameter has nothing to
+//!    fill it.** `nvs_runtime::CodecField::default` carries the parameter's own
+//!    constant beside `required`, so `rule:core-api/required-optional-and-nullable`'s
+//!    `T $x = <default>` row is answered here: an absent optional key is filled
+//!    rather than reported missing. A position **no field names** is what is
+//!    left — a property `#[Json\Field(skip: true)]` took off the contract while
+//!    its constructor parameter stayed — and [`decode_fields`] reports it as an
+//!    engine fault, because a constant carried on a field cannot be read for a
+//!    position that has no field. Closing it is a second carrier keyed on the
+//!    constructor position, or emitting the decoder as code, which is gap 3's
+//!    question. The table's `?T $x = null` row is a different door's: a written
+//!    `= null` parameter default is refused while checking, which is
+//!    `nvs_types::defaults`' own gap. A **shape** is in neither and never will
+//!    be: it declares no constructor, so there is no default to be missing, and
+//!    [`decode_field`] answers an absent optional key with the never-written
+//!    marker instead.
 //!    Decided: Keep the descriptor and widen it (default constants on CodecField, a ClassDesc method
 //!    lookup for toJson); amend the rule — One native walker and small, local changes; costs one loop
 //!    and a string compare per field.
@@ -1833,14 +1834,14 @@ unsafe fn decode_fields(
         release_all(&ctor_args);
         return Err(DecodeFailure::Issues(issues));
     }
-    // `rule:core-classes/derive-field-list`'s skipped field with a constructor default is the one shape
-    // that leaves a position unfilled, and this crate has no way to
-    // materialize that default — `nvs_types::defaults` evaluates it into a
-    // constant the *call site* emits, and there is no call site here. Loud
-    // rather than passing `null`, which would be right for `?T $x = null` and
-    // silently wrong for everything else. A shape reaches this with every
-    // position filled, an absent optional key included: what fills that one is
-    // the never-written marker, not a default.
+    // `rule:core-classes/derive-field-list`'s skipped field is the one shape
+    // that leaves a position unfilled: a field the contract carries took its
+    // own default above, and a property `skip: true` removed from the contract
+    // leaves a parameter no field names, so there is no field here to read a
+    // constant off — the module's own gap 1. Loud rather than passing `null`,
+    // which would be right for `?T $x = null` and silently wrong for everything
+    // else. A shape reaches this with every position filled, an absent optional
+    // key included: what fills that one is the never-written marker.
     if let Some(index) = filled.iter().position(|done| !done) {
         release_all(&ctor_args);
         return Err(DecodeFailure::Fault(Fault::fatal(format!(
@@ -1923,13 +1924,14 @@ unsafe fn build_shape(
 /// `rule:core-api/required-optional-and-nullable`'s table, and which of its
 /// rows are answered here is the one place the two contracts part.
 ///
-/// A **class** gets the table minus its two default-bearing rows: a parameter
-/// default is `nvs_types::defaults`' constant and no call site emits one here,
-/// so an absent key still fails whichever column it sits in. What it no longer
-/// does is *misreport* which — `nvs_runtime::CodecField::required` carries that
-/// rule's first column down from the declaration, so an optional key's absence
-/// names the gap that stops it being filled instead of claiming the field was
-/// required.
+/// A **class** gets every row a program can write. An absent key is that rule's
+/// first column alone — `nvs_runtime::CodecField::required` carries it down
+/// from the declaration — and an absent *optional* key is filled from
+/// `nvs_runtime::CodecField::default`, the constant beside it, which is the
+/// constructor parameter's own default carried here because this decoder is not
+/// the call site that would otherwise emit it. The row left out is
+/// `?T $x = null`, which no program can write: a written `= null` parameter
+/// default is refused while checking (`nvs_types::defaults`).
 ///
 /// A **shape** has no constructor and therefore no default to be missing, so
 /// both columns are answered rather than deferred:
@@ -1976,12 +1978,22 @@ unsafe fn decode_field(
         if field.required {
             return Err(issue("required field missing".to_owned()));
         }
+        // An optional key is filled by the declaration that made it optional —
+        // the constructor parameter's default, evaluated while compiling and
+        // carried onto the field because this decoder is not a call site.
+        if let Some(default) = &field.default {
+            return Ok(default.materialize());
+        }
         if contract.is_shape() {
             return Ok(Value::unset());
         }
+        // A class field is optional exactly when its parameter declares a
+        // default, so a descriptor reaching this is one built by hand rather
+        // than by `nvs_types::derive` — or the module's own gap 1, a position a
+        // `skip: true` left with no field to carry a constant on.
         return Err(issue(
-            "optional field missing, and filling one from its constructor default is \
-             `nvs_stdlib::json`'s own known gap"
+            "optional field missing, and its constructor parameter carries no constant \
+             to fill it with"
                 .to_owned(),
         ));
     };
@@ -2827,6 +2839,7 @@ mod tests {
                 shape: None,
                 nullable: true,
                 required: true,
+                default: None,
             })
             .collect();
         // One entry per field, null throughout: the encoder reads a field's key
@@ -2865,6 +2878,7 @@ mod tests {
             shape: None,
             nullable: false,
             required: true,
+            default: None,
         };
         let mut table = ClassTable::new();
         let id = table.define(name, &[key], &[]);
@@ -2909,6 +2923,7 @@ mod tests {
             shape: shape.map(str::to_owned),
             nullable: false,
             required: true,
+            default: None,
         };
         let mut table = ClassTable::new();
         let inner_id = table.define("$shape{n}", &["n"], &[]);
