@@ -278,15 +278,17 @@ nvs_runtime::nvs_helper! {
             Ok(row) => row,
             Err(page) => return usage(ctx, &page),
         };
-        // Asked once, before a word is matched, so that the gap answers as what
-        // it is — a program declaring a command this runtime cannot yet call —
-        // rather than as a complaint about the argument that reached it.
+        // Asked once, before a word is matched, so that a row the compiler
+        // could not choose a conversion for answers as what it is — a
+        // declaration that was refused where it was written
+        // (`nvs_runtime::commands::ArgConv::Unconverted`) — rather than as a
+        // complaint about the argument that happened to reach it.
         if let Some(arg) = row.args.iter().find(|arg| arg.conv == ArgConv::Unconverted) {
             return Err(Fault::thrown_as(
                 ThrownClass::Logic,
                 format!(
-                    "`Core\\Command::run` cannot convert an argument into the type `{}`'s `{}` \
-                     is declared at yet",
+                    "`Core\\Command::run` has no conversion into the type `{}`'s `{}` is \
+                     declared at",
                     row.name, arg.param
                 ),
             ));

@@ -1930,8 +1930,18 @@ fn enum_capture(ty: crate::ty::TypeId, span: Span, env: &mut Env<'_>) -> Option<
 }
 
 /// Every case `ty` admits, and the enum they are cases of — a whole enum, one
-/// case, or a union of cases of one and the same enum.
-fn admitted_cases(ty: crate::ty::TypeId, env: &Env<'_>) -> Option<(QName, Vec<String>)> {
+/// case, or a union of cases of one and the same enum. `None` for anything
+/// else, and that includes a union whose members are cases of two different
+/// enums: there is no single enum for the admitted words to be cases *of*.
+///
+/// **The one home of that test**, read by [`enum_capture`] for a route segment
+/// and by `crate::commands::conversion_of` for a command-line word. The two
+/// callers disagree about how an admitted case is *spelled* —
+/// `rule:routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name`
+/// against `crate::commands::ArgConv::Enum`'s case name always — and agree
+/// exactly here, about which cases a type admits at all, which is a question
+/// about the type and not about either spelling.
+pub(crate) fn admitted_cases(ty: crate::ty::TypeId, env: &Env<'_>) -> Option<(QName, Vec<String>)> {
     match env.interner.get(ty) {
         crate::ty::Ty::Enum(name, _) => {
             let info = env.enums.get(name)?;

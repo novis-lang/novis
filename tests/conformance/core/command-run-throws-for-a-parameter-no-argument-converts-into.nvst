@@ -1,12 +1,15 @@
 --TEST--
-`Core\Command::run` throws for a `#[Command]` parameter no argument's text is converted into yet, rather than guessing — `rule:tooling/commands-are-compiled`
+`Core\Command::run` throws for a `#[Command]` parameter no argument's text converts into, rather than guessing — `rule:tooling/commands-are-compiled`
 --FILE--
 <?nvs
-// § 6 admits a *subset* of an enum's cases among the types an argument may be
-// given at, and this runtime does not convert one yet: `nvs_runtime::commands`'s
-// gap 1 is that subset, and nothing else — the whole enum beside it converts by
-// its case name (`command-run-converts-an-enum-argument-by-its-case-name`), so
-// what is left is a filter over those same pairs rather than an open question.
+// § 6's roster admits a subset of **one** enum's cases, and cases of two
+// different enums are not that: there is no enum for an admitted word to be a
+// case of, so no conversion can be chosen and
+// `nvs_types::commands::ArgConv::Unconverted` is the honest row. An `#[Option]`
+// declared at one is refused where it is written; a positional argument is the
+// spelling that reaches a running program, because that compile error follows
+// the marker rather than the type.
+//
 // The two wrong answers are a plausible first case and a usage error blaming
 // the command line, so it is neither: a `LogicError`, which is what a mistake
 // in the *program* is, since the table is fixed at compile time and no input
@@ -16,9 +19,14 @@ enum Level {
     Loud,
 }
 
+enum Mode {
+    Fast,
+    Slow,
+}
+
 class Radio {
     #[Core\Command(name: "tune")]
-    public static function tune(Level::Quiet|Level::Loud $level): uint {
+    public static function tune(Level::Loud|Mode::Fast $level): uint {
         echo "tune ran\n";
         return 0;
     }
@@ -34,4 +42,4 @@ try {
 tune
 Loud
 --EXPECT--
-`Core\Command::run` cannot convert an argument into the type `tune`'s `level` is declared at yet
+`Core\Command::run` has no conversion into the type `tune`'s `level` is declared at

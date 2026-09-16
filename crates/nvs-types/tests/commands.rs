@@ -18,6 +18,7 @@ mod common;
 use common::{check_src, check_src_table};
 use nvs_diagnostics::code;
 use nvs_types::commands::ArgConv;
+use nvs_types::enums::EnumValue;
 
 /// A user class implementing `Parses`, in the shape
 /// `nvs_hir::interfaces::PARSES` spells the contract: one required
@@ -464,6 +465,99 @@ fn a_user_class_implementing_parses_may_be_a_command_argument() {
          public static function deploy(#[Core\\Option] Plain $from): void {{}}\n}}\n"
     ));
     assert!(diags.has_errors(), "{diags:?}");
+}
+
+#[test]
+fn a_subset_of_an_enums_cases_converts_by_the_same_words_the_whole_enum_does() {
+    // § 3's union of enum cases, which § 6 admits wherever it admits the enum
+    // itself. The row is `ArgConv::Enum` with the cases the union did not name
+    // dropped — a filter over one roster rather than a second reading of it —
+    // so the word a command line writes and the value it becomes are decided in
+    // one place for `Level` and for a subset of `Level` alike.
+    let src = |declared: &str| {
+        format!(
+            "<?nvs\nenum Level: uint {{\n  Quiet = 1,\n  Warn = 10,\n  Error = 20,\n}}\n\
+             class Logs {{\n  #[Core\\Command(name: \"emit\")]\n  \
+             public static function emit({declared} $level): void {{}}\n}}\n"
+        )
+    };
+    let (diags, exprs) = check_src_table(&src("Level::Error|Level::Warn"));
+    assert!(!diags.has_errors(), "{diags:?}");
+    let emit = exprs.commands().named("emit").expect("the named command");
+    assert_eq!(
+        emit.args[0].conv,
+        ArgConv::Enum {
+            class: "Level".to_owned(),
+            // Ascending by value and not in the order the union wrote them:
+            // a set the compiler renders into a usage line or a refusal has to
+            // read the same on two builds, which is the whole enum's rule read
+            // through the filter rather than a second one.
+            cases: vec![
+                ("Warn".to_owned(), EnumValue::Uint(10)),
+                ("Error".to_owned(), EnumValue::Uint(20)),
+            ],
+        }
+    );
+
+    // One case on its own is that subset written with one member, which is the
+    // arrangement a lone literal type already has beside a union of them.
+    let (diags, exprs) = check_src_table(&src("Level::Quiet"));
+    assert!(!diags.has_errors(), "{diags:?}");
+    let emit = exprs.commands().named("emit").expect("the named command");
+    assert_eq!(
+        emit.args[0].conv,
+        ArgConv::Enum {
+            class: "Level".to_owned(),
+            cases: vec![("Quiet".to_owned(), EnumValue::Uint(1))],
+        }
+    );
+
+    // The whole enum is the same row with nothing filtered out, asserted here
+    // beside the subset because "they cannot disagree" is the claim the filter
+    // is shaped to make true.
+    let (diags, exprs) = check_src_table(&src("Level"));
+    assert!(!diags.has_errors(), "{diags:?}");
+    let emit = exprs.commands().named("emit").expect("the named command");
+    assert_eq!(
+        emit.args[0].conv,
+        ArgConv::Enum {
+            class: "Level".to_owned(),
+            cases: vec![
+                ("Quiet".to_owned(), EnumValue::Uint(1)),
+                ("Warn".to_owned(), EnumValue::Uint(10)),
+                ("Error".to_owned(), EnumValue::Uint(20)),
+            ],
+        }
+    );
+}
+
+#[test]
+fn an_option_declared_at_cases_of_two_enums_is_a_diagnostic() {
+    // § 6 admits a subset of *one* enum's cases: a union spanning two leaves no
+    // enum for an admitted word to be a case of, so there is no conversion to
+    // choose and it is refused where it is written rather than at the moment
+    // the command is run. `nvs_types::routes::admitted_cases` is the one home
+    // of that test, and a route capture declared at such a union is refused by
+    // the same answer read through `enum_capture`.
+    let two = "enum Level {\n  Quiet,\n  Loud,\n}\nenum Mode {\n  Fast,\n  Slow,\n}\n";
+    let diags = check_src(&format!(
+        "<?nvs\n{two}class Radio {{\n  #[Core\\Command(name: \"tune\")]\n  \
+         public static function tune(#[Core\\Option] Level::Loud|Mode::Fast $level): void {{}}\n}}\n"
+    ));
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_OPTION_TYPE_HAS_NO_CONVERSION)),
+        "{diags:?}"
+    );
+
+    // Cases of one enum in the same position are the conversion above, so what
+    // the refusal answers is the span of the union and not the spelling.
+    let diags = check_src(&format!(
+        "<?nvs\n{two}class Radio {{\n  #[Core\\Command(name: \"tune\")]\n  \
+         public static function tune(#[Core\\Option] Level::Loud|Level::Quiet $level): void {{}}\n}}\n"
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
 }
 
 #[test]

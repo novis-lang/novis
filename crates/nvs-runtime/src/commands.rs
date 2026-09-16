@@ -36,27 +36,18 @@
 //! requests), per
 //! `rule:programs/memory-priority`.
 //!
-//! # Known gaps
+//! # Every conversion § 6 admits is on the table
 //!
-//! 1. **One of § 6's conversions is [`ArgConv::Unconverted`]: a *subset* of an
-//!    enum's cases.** `Log\Level` converts ([`ArgConv::Enum`]); the
-//!    `Log\Level::Warn|Log\Level::Error` § 3 also admits does not, so a command
-//!    declaring one compiles and refuses at the moment it is *run* rather than
-//!    at the moment it is written.
-//!
-//!    What is left is narrow, and it is a *filter* rather than a decision. The
-//!    two questions that kept the whole enum out of reach are both answered on
-//!    [`ArgConv::Enum`] — the word is the case name, and the value is the
-//!    backing integer — so a subset is those same pairs with the members the
-//!    union did not name dropped. `nvs_types::routes::closed_set` still answers
-//!    `None` for one, which is that function's own decision to keep: it serves
-//!    `rule:routing/a-capture-narrows-to-a-closed-set`'s route captures as well, where the spelling is
-//!    `Core\Router::match`'s to decide and is out of this goal's scope. So
-//!    closing this means reading the union's members here, where § 6 owns the
-//!    spelling, rather than widening that function underneath a second caller.
-//!    Decided: Support it: read the union's members in the command table — The type the spec already
-//!    admits works, via a filter over the pairs ArgConv::Enum already has.
-//!    — owner: unowned-closures
+//! Including the one § 3 spells as a union: `Log\Level::Warn|Log\Level::Error`
+//! crosses as [`ArgConv::Enum`] carrying those two cases, because the two
+//! questions a subset raises — which word, and what it becomes — are the ones
+//! that arm already answers for a whole enum, so a subset is those same pairs
+//! with the cases the union did not name dropped. The filter is
+//! `nvs_types::commands`'s, where § 6 owns the spelling;
+//! `nvs_types::routes::closed_set` still answers `None` for such a union on
+//! purpose, since it also serves
+//! `rule:routing/a-capture-narrows-to-a-closed-set`'s route captures, whose
+//! spelling is `Core\Router::match`'s to decide.
 
 /// What an argument's text becomes before the handler is called.
 ///
@@ -135,9 +126,10 @@ pub enum ArgConv {
     /// the two tables rather than two answers that could come to disagree; ADR
     /// 0086 § 6 and `rule:routing/a-capture-narrows-to-a-closed-set` are the one home of the rule both read.
     OneOf(Vec<String>),
-    /// An enum: every case as the word a command line writes it with and the
-    /// value that word becomes, ascending by value, with the enum's own name
-    /// beside them.
+    /// An enum, or the subset of one § 3 spells as a union of its cases: every
+    /// admitted case as the word a command line writes it with and the value
+    /// that word becomes, ascending by value, with the enum's own name beside
+    /// them.
     ///
     /// **The word is the case name and the value is the case's backing
     /// integer**, both decided in `nvs_types::commands::ArgConv::Enum`, which is
@@ -158,7 +150,16 @@ pub enum ArgConv {
         /// order and a message has to read the same on two builds.
         cases: Vec<(String, CaseValue)>,
     },
-    /// A type § 6 admits and [`crate::commands`]'s gap 1 does not convert yet.
+    /// A parameter whose declared type reaches no conversion — a type § 6 does
+    /// not admit, or a union naming cases of two different enums, which leaves
+    /// no enum for a word to be a case of.
+    ///
+    /// An `#[Option]` declared at one is refused where it is written, so what
+    /// crosses here is a *positional* argument's: § 6's compile error follows
+    /// the marker, and `nvs_types::commands::ArgConv::Unconverted` is the home
+    /// of that split. `Core\Command::run` answers such a row as a `LogicError`
+    /// naming the parameter, which is what a mistake in the *program* is — the
+    /// table is fixed when it is compiled and no command line can change it.
     Unconverted,
 }
 

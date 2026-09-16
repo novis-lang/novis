@@ -1,0 +1,34 @@
+--TEST--
+`Core\Command::run` refuses a case the union did not name, even though its enum declares it — `rule:tooling/commands-are-compiled`
+--FILE--
+<?nvs
+// The subset is a bound and not decoration. `Quiet` is a case of the same enum
+// and spells a word the whole-enum conversion takes
+// (`command-run-converts-an-enum-argument-by-its-case-name`), so a filter that
+// kept every pair would answer this line identically while quietly handing the
+// handler a value outside its declared type — which is the one thing the
+// conversion exists to make unwritable.
+//
+// `run` prints its usage page to standard error, which a case does not read, so
+// the refusal is asserted as § 6's usage status and by the handler never
+// running: a converted `Quiet` would have printed a line before `run` returned.
+enum Level: uint {
+    Quiet = 1,
+    Warn = 10,
+    Error = 20,
+}
+
+class Logs {
+    #[Core\Command(name: "emit", about: "Write one line at a level")]
+    public static function emit(Level::Warn|Level::Error $level): uint {
+        echo "level: ", $level as uint, "\n";
+        return 0;
+    }
+}
+
+echo "status: ", Core\Command::run(), "\n";
+--ARGS--
+emit
+Quiet
+--EXPECT--
+status: 2

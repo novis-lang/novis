@@ -188,8 +188,15 @@ pub enum ArgConv {
     /// line supplies and a segment a route matches are admitted by one grammar,
     /// which is the arrangement `decimal` and `Core\Uuid` already have.
     OneOf(Vec<String>),
-    /// An enum: every case as the word a command line writes it with, the value
-    /// that word becomes, and the enum's own name beside them.
+    /// An enum, or the subset of one a union of its cases names: every admitted
+    /// case as the word a command line writes it with, the value that word
+    /// becomes, and the enum's own name beside them.
+    ///
+    /// **A subset is this same row with the cases the union did not name
+    /// dropped** ([`subset_of`]), because both questions a subset could have
+    /// raised are already answered here — which word, and what it becomes — so
+    /// `Log\Level` and `Log\Level::Warn|Log\Level::Error` are one conversion
+    /// read twice rather than two that could come to disagree about `Warn`.
     ///
     /// **The word is the case name.** That is the decision
     /// [`crate::routes::closed_set`] answers for neither caller, and
@@ -224,8 +231,24 @@ pub enum ArgConv {
         /// message has to read the same on two builds.
         cases: Vec<(String, crate::enums::EnumValue)>,
     },
-    /// A type § 6 admits whose conversion is not written yet —
-    /// `nvs_runtime::commands`'s own gap 1, which is where it is refused.
+    /// A parameter whose declared type reaches no conversion at all: a type
+    /// § 6 does not admit, a union of cases of two different enums — which
+    /// leaves no enum for a word to be a case *of*
+    /// (`crate::routes::admitted_cases`) — or an enum name the program declares
+    /// nothing for.
+    ///
+    /// **Where the parameter carries `#[Option]` this row never reaches a
+    /// running program**: § 6's third compile error is [`check_convertible`],
+    /// asked of the same [`converts_from_string`] that decides this arm, so the
+    /// declaration is refused where it is written. A *positional* parameter is
+    /// the one that crosses, because that error follows the marker rather than
+    /// the type, and `Core\Command::run` answers it as a `LogicError` naming
+    /// the parameter — a mistake in the program, since no command line can
+    /// change what the row declares.
+    ///
+    /// [`conversion_of`] is total rather than fallible so those two questions —
+    /// *is this type admitted* and *what does its text become* — stay
+    /// independent, and one mistake is reported once.
     Unconverted,
 }
 
@@ -248,18 +271,22 @@ fn conversion_of(ty: TypeId, env: &Env<'_>) -> ArgConv {
         // admits a class with — two readings of one contract, so they cannot
         // come to disagree about which classes § 6 means.
         Ty::Class(name, _) if reaches_parses(name, env) => ArgConv::Parses(name.to_string()),
-        // § 3's union, narrowed to the words its members admit by the same
-        // computation the route table's captures use. `None` is a union of
-        // *enum cases*, which that function answers for neither caller because
-        // the two spell one differently — the arm below is this caller's answer,
-        // and `crate::routes::enum_capture` is the route's.
+        // § 3's two unions, told apart by what they are made of. A union of
+        // literal types is the words its members admit, by the same computation
+        // the route table's captures use; a union of *enum cases* is
+        // [`subset_of`], which that function answers `None` for because the two
+        // callers spell a case differently and `crate::routes::enum_capture` is
+        // the route's answer to the same question.
         Ty::Union(_) => {
-            crate::routes::closed_set(ty, env).map_or(ArgConv::Unconverted, ArgConv::OneOf)
+            crate::routes::closed_set(ty, env).map_or_else(|| subset_of(ty, env), ArgConv::OneOf)
         }
-        // The other closed set, and the one that function answers `None` for: an
-        // enum *names* its members, so the words come off the declaration rather
-        // than off the type. [`ArgConv::Enum`] owns both decisions that took —
-        // which word, and what it becomes.
+        // One case on its own, which is that subset written with one member —
+        // the arrangement [`crate::routes::closed_set`] already gives a lone
+        // literal type.
+        Ty::EnumCase(..) => subset_of(ty, env),
+        // The other closed set: an enum *names* its members, so the words come
+        // off the declaration rather than off the type. [`ArgConv::Enum`] owns
+        // both decisions that took — which word, and what it becomes.
         Ty::Enum(name, _) => cases_of(name, env),
         _ => ArgConv::Unconverted,
     }
@@ -288,6 +315,30 @@ fn cases_of(name: &QName, env: &Env<'_>) -> ArgConv {
         class: name.to_string(),
         cases,
     }
+}
+
+/// The cases `ty` admits of one enum, as the row [`ArgConv::Enum`] carries them
+/// — § 3's `Log\Level::Warn|Log\Level::Error`, and the lone case that is the
+/// same subset written with one member.
+///
+/// A **filter over [`cases_of`]** rather than a second reading of the roster:
+/// which word a case is written as, what it becomes, and the ascending order a
+/// message renders them in are decided once, for a whole enum and a subset of
+/// one alike, so the two can never come to differ about a case they both admit.
+///
+/// [`ArgConv::Unconverted`] where `crate::routes::admitted_cases` finds no one
+/// enum — a union of cases of two — which is the same answer as for an enum
+/// this program does not declare, and both are refused where the parameter is
+/// written ([`converts_from_string`]).
+fn subset_of(ty: TypeId, env: &Env<'_>) -> ArgConv {
+    let Some((name, admitted)) = crate::routes::admitted_cases(ty, env) else {
+        return ArgConv::Unconverted;
+    };
+    let ArgConv::Enum { class, mut cases } = cases_of(&name, env) else {
+        return ArgConv::Unconverted;
+    };
+    cases.retain(|(case, _)| admitted.contains(case));
+    ArgConv::Enum { class, cases }
 }
 
 /// One row of `rule:tooling/commands-are-compiled`'s table: a `#[Command]` that named the one field a
@@ -803,15 +854,20 @@ pub(crate) fn converts_from_string(ty: TypeId, env: &Env<'_>) -> bool {
         // that declares the same thing.
         Ty::Class(name, _) => reaches_parses(name, env),
         // § 3 admits a union of `string` or `int` literal types and a subset of
-        // an enum's cases, and nothing wider: a `string|int` would make the
+        // **one** enum's cases, and nothing wider: a `string|int` would make the
         // conversion itself ambiguous, which is the question `rule:errors/ambiguous-input-refused` refuses
-        // to answer by guessing.
-        Ty::Union(members) => members.iter().all(|member| {
-            matches!(
-                env.interner.get(*member),
-                Ty::StringLiteral(_) | Ty::IntLiteral(_) | Ty::EnumCase(..)
-            )
-        }),
+        // to answer by guessing, and cases of two different enums leave no enum
+        // for an admitted word to be a case of — `crate::routes::admitted_cases`
+        // is the one home of that test, and [`conversion_of`] reads the same
+        // answer to build the row.
+        Ty::Union(members) => {
+            members.iter().all(|member| {
+                matches!(
+                    env.interner.get(*member),
+                    Ty::StringLiteral(_) | Ty::IntLiteral(_)
+                )
+            }) || crate::routes::admitted_cases(ty, env).is_some()
+        }
         _ => false,
     }
 }
