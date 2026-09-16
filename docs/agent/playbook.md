@@ -5049,13 +5049,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `int` reaching one is `E0401 expected uint, found int` at the call rather than a widening, so a
   bounds sweep declared `array<int>` compiles everywhere except the line that matters. Declare the
   table `array<uint>` and the loop variable `uint`. [until: reviewed 2026-09-12]
-- **A claim that is a JSON object decodes into a deriving class and into nothing else.**
-  `Core\Json::decodeAs` and `Core\Jwt::verifyIssued` share one decoder, so a written type whose field
-  is an inline shape is a `FATAL` naming `rule:core-classes/derive-field-list`'s wider
-  codec-reachable set, and writing that field `array<string>` instead answers `1 field(s) … did not
-  match`, because an `array<T>` field reads a JSON array and never an object. Write the nested claim
-  as a `#[Core\Json\Derive]` class, whose own `tainted` text fields are what the call site owes under
-  `rule:security/derived-codec-qualifiers` anyway. [until: gone crates/nvs-stdlib/src/json.rs:has no case for yet]
 - **A line in `--EXPECT--` that begins with `--` is read as a section header, and the case fails as
   *"not a valid case: unknown section"* rather than as a mismatch.** The `.nvst` reader splits on
   `--NAME--` before it compares anything, so a frozen multipart body or a diff-shaped expectation
@@ -7412,6 +7405,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   compile error names `and_then` or a trait bound rather than the cycle. Move the shared routine down to
   `nvs-syntax`, which `nvs-hir`, `nvs-types` and `nvs-ir` all already depend on, and leave a `pub use`
   where it was so no call site moves. [until: gone crates/nvs-types/Cargo.toml:nvs-hir.workspace]
+- **A module doc's gap *number* is not a stable anchor, so a comment citing one drifts silently.**
+  Striking a gap renumbers every item after it, and the citations elsewhere in the same file keep
+  pointing at the old position — `crates/nvs-stdlib/src/json.rs` held five "this module's gap 1" that
+  meant three different things. Cite the owning `# ` section by its title instead, and when you do
+  strike a gap, grep the file and `docs/agent/carried-gaps.md` for `gap [0-9]`.
+  [until: reviewed 2026-09-16]
 
 ## Divergences and refusals already pinned
 

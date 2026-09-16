@@ -239,7 +239,7 @@ where taking it is the work and the code that follows it is not.
   `nvs_types::defaults` evaluates at a *call site*, which a native decoder is not, and a hand-written
   `toJson()` needs a `ClassDesc::method` lookup back into compiled code. Both are free in emitted
   code and both a widening of the descriptor otherwise, so the decision is one and the code that
-  follows it is two. `crates/nvs-stdlib/src/json.rs` gaps 2, 3 and 4.
+  follows it is two. `crates/nvs-stdlib/src/json.rs` gaps 1, 2 and 3.
   [until: gone crates/nvs-stdlib/src/json.rs:rather than straight-line]
 - **`Core\Json::encode`'s real bound is the native stack rather than its own `DEPTH_CEILING`**, so a
   document that is legal and merely very deep aborts the process where every other refusal throws.
@@ -247,7 +247,7 @@ where taking it is the work and the code that follows it is not.
   has to be decided is whether the walk carries an explicit stack, which makes the bound an
   allocation the request is charged for, or the ceiling is read from the space
   `rule:concurrency/a-task-stack-is-reserved-wide-and-pooled` reserves.
-  `crates/nvs-stdlib/src/json.rs` gap 5.
+  `crates/nvs-stdlib/src/json.rs` gap 4.
   [until: gone crates/nvs-stdlib/src/json.rs:The encoder's real bound is the native stack]
 - **The queue's two tables are the runtime's own, and two questions about what they carry are open.**
   `nvs_jobs` gets its dedupe guarantee from a plain unique key over `dedupe_pending`, which
