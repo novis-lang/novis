@@ -437,6 +437,84 @@ pub fn call_erased_method_from(
     call_at(ctx, receiver, row.code, &passed)
 }
 
+/// A fresh instance of `class`, built by running its own
+/// [`crate::object::CONSTRUCTOR`] with `args` under the visibility check code
+/// written inside `site` would face — `Core\Reflect\ClassInfo`'s constructing
+/// member, and nothing else reaches this.
+///
+/// **The check is [`call_erased_method_from`]'s**, not a second one written
+/// here, because a constructor is a method of the class and
+/// `rule:security/reflection-enforces-visibility` asks for the *same* check
+/// rather than one that agrees: a `private` constructor is reached from its own
+/// class's bodies, which is what leaves a singleton's own `load()` working, and
+/// refused from every other site the way the `new` written there is refused.
+/// The argument list is judged against the constructor's declared parameters by
+/// that same path, so `$arguments` meets one arity rule and one tag rule across
+/// both doors. A refusal therefore arrives in that path's own words, including
+/// its reading of a `None` site: the erased door has one sentence for a call
+/// that is outside every class, and a second one written for this caller would
+/// be the second visibility rule this reuse exists to avoid.
+///
+/// The allocation is made ahead of the check rather than behind it, which costs
+/// one object on the refusing edge and buys the single check: every failing
+/// path below releases the one reference this frame holds, so nothing is
+/// abandoned. A class declaring no constructor carries no row for one —
+/// `nvs_ir` lowers such a `new` with no target — so the allocation with its
+/// armed defaults *is* the instance, and there is no member whose visibility
+/// could be asked about.
+///
+/// # Errors
+///
+/// [`call_erased_method`]'s, whose doc comment lists them, raised against the
+/// constructor as the callee.
+///
+/// # Safety
+///
+/// `class` must refer to a live descriptor whose method table `nvs-codegen`
+/// has already filled.
+#[expect(
+    unsafe_code,
+    reason = "the caller owes the liveness of a descriptor no signature can express"
+)]
+pub unsafe fn construct_erased_from(
+    ctx: &mut Ctx,
+    class: *const ClassDesc,
+    args: &[Value],
+    site: Option<&str>,
+) -> Result<Value, Fault> {
+    #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
+    let desc = unsafe { &*class };
+    #[expect(unsafe_code, reason = "the caller guarantees the descriptor is live")]
+    let receiver = Value::object(unsafe { NvsObj::new(class) });
+    if desc.method_row(crate::object::CONSTRUCTOR).is_none() {
+        return Ok(receiver);
+    }
+    match call_erased_method_from(ctx, receiver, crate::object::CONSTRUCTOR, args, site) {
+        Ok(returned) => {
+            #[expect(
+                unsafe_code,
+                reason = "a constructor returns `void`, so this is the `null` the \
+                          call handed back as a fresh reference nothing will read"
+            )]
+            unsafe {
+                returned.release();
+            }
+            Ok(receiver)
+        }
+        Err(fault) => {
+            #[expect(
+                unsafe_code,
+                reason = "this frame holds the one reference the allocation was \
+                          made with, and the instance is now unreachable"
+            )]
+            unsafe {
+                receiver.release();
+            }
+            Err(fault)
+        }
+    }
+}
+
 /// Renders `receiver` through the **native** renderer its class carries, or
 /// answers `None` when its class carries none — which is every class a program
 /// declares.

@@ -140,9 +140,8 @@
 //!    [`nvs_runtime::ClassDesc::field_is_public`] answers; until then the
 //!    narrower answer is the one that refuses rather than the one that leaks.
 //!    — owner: M8
-//! 3. Invoking a constructor reflectively — the third acting member § 2 names,
-//!    after the read and the write that are both here now — is not. What the
-//!    write does *not* do is run a per-property `set` hook (`rule:classes/property-hooks`): it
+//! 3. A reflective write does not run a per-property `set` hook
+//!    (`rule:classes/property-hooks`): [`nvs_core_reflect_class_info_set`]
 //!    reaches storage through [`nvs_runtime::write_erased_property`], which is
 //!    the erased store and not the hook call a known class's write lowers to,
 //!    so a hooked property is written past its own hook and its observer is
@@ -454,6 +453,20 @@ pub(crate) const CLASS_INFO: CoreClass = CoreClass {
             symbol: "nvs_core_reflect_class_info_call",
             doc: Some(&CALL_DOC),
         },
+        CoreMethod {
+            name: "construct",
+            names: &["arguments"],
+            params: &[CoreTy::Array(&CoreTy::Mixed)],
+            // Required rather than defaulted to `[]` for the row above's
+            // reason: `registry::Const` has no array variant.
+            defaults: &[],
+            // `mixed`, and not `CoreTy::Instance` of anything: the class being
+            // built is named by the description at run time, so what comes back
+            // has no type at the site the call is written.
+            return_ty: CoreTy::Mixed,
+            symbol: "nvs_core_reflect_class_info_construct",
+            doc: Some(&CONSTRUCT_DOC),
+        },
     ],
     slots: &["name", "properties", "methods", "allProperties"],
     constants: &[],
@@ -706,14 +719,38 @@ const CALL_DOC: MethodDoc = MethodDoc {
     ],
 };
 
+/// `Core\Reflect\ClassInfo::construct`'s reference card — `rule:core-api/reference-card`.
+const CONSTRUCT_DOC: MethodDoc = MethodDoc {
+    short: "Builds an instance of the described class, running its constructor with `$arguments` \
+            under exactly the visibility a `new` written at this call site would face. Replaces \
+            `ReflectionClass::newInstanceArgs`, and there is no `setAccessible` to lift the check \
+            with.",
+    params: &[ParamDoc {
+        name: "arguments",
+        desc: "One entry per declared constructor parameter, in order, keys ignored. Required \
+               even where the class declares no constructor, which is then `[]`.",
+        shape: &[],
+    }],
+    ret: "The new instance, with its own class erased to `mixed`. A class declaring no \
+          constructor answers with the allocation its declared defaults armed.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The constructor is not `public` and this call site is outside the class; or \
+               `$arguments` has fewer entries than it declares, or an entry whose type a \
+               parameter does not accept; or the described class is not one this program \
+               declares. Each is the refusal the ordinary door meets, raised by that same check.",
+    }],
+};
+
 /// `Core\Reflect\MethodInfo` — one row of [`CLASS_INFO`]'s roster: a method's
 /// name, its visibility and how many parameters it declares.
 ///
 /// Every member is a reader over a slot the description was built with, for
 /// [`CLASS_INFO`]'s own reason: what it carries is answers, not a way back into
-/// the class it came from. Nothing here acts —
-/// [`nvs_core_reflect_class_info_call`] is the one door onto an invocation, and
-/// it is where § 2's check is made.
+/// the class it came from. Nothing here acts — the doors onto an invocation are
+/// [`nvs_core_reflect_class_info_call`] and
+/// [`nvs_core_reflect_class_info_construct`], and each is where § 2's check is
+/// made.
 pub(crate) const METHOD_INFO: CoreClass = CoreClass {
     name: METHOD_INFO_NAME,
     methods: &[],
@@ -918,6 +955,9 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_reflect_class_info_set" => (nvs_core_reflect_class_info_set as *const ()).cast(),
         "nvs_core_reflect_class_info_call" => {
             (nvs_core_reflect_class_info_call as *const ()).cast()
+        }
+        "nvs_core_reflect_class_info_construct" => {
+            (nvs_core_reflect_class_info_construct as *const ()).cast()
         }
         _ => return None,
     })
@@ -1318,6 +1358,83 @@ nvs_runtime::nvs_helper! {
             passed.push(list.value_at(live).expect("a live slot has a value"));
         }
         nvs_runtime::call_erased_method_from(ctx, args[1], name, &passed, site.as_deref())
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Reflect\ClassInfo::construct(array<mixed> $arguments): mixed` —
+    /// ADR 0019 § 2's third acting member, invoking a reflected constructor.
+    ///
+    /// **No visibility rule is written here either**, for
+    /// [`nvs_core_reflect_class_info_call`]'s reason and by the same route: past
+    /// resolving the described name to a class this program declares, the work
+    /// is [`nvs_runtime::construct_erased_from`]'s, which allocates and then
+    /// hands the constructor to the erased call's own check with this site as
+    /// the class the call is written inside. So a `private` constructor is
+    /// reached from its own class's bodies — the singleton's `load()` keeps
+    /// working through this door as through the ordinary one — and refused
+    /// everywhere else, and `$arguments` is judged against the constructor's
+    /// declared parameters rather than against its own length.
+    ///
+    /// The class is reached by **name**, because that is what a description
+    /// holds: the module doc's first decision keeps a descriptor out of every
+    /// slot, so the name goes back through [`nvs_runtime::Ctx::class_desc`] the
+    /// way `forClass` first found it. A description of a `Core`-owned class has
+    /// no entry there and is refused, which is the same answer `forClass` gives
+    /// such a name.
+    ///
+    /// Ownership is the constructing path's: the entries are this frame's
+    /// borrowed slots and the callee retains what it keeps, and the instance
+    /// handed back is one fresh reference.
+    fn nvs_core_reflect_class_info_construct(ctx, args: [3]) {
+        let member = "construct";
+        let receiver = crate::instance::receiver(args[0], &CLASS_INFO, member)?;
+        let held = crate::instance::slot(receiver, NAME_SLOT);
+        let Some(described) = held.as_text() else {
+            return Err(Fault::fatal(format!(
+                "{CLASS_INFO_NAME}::{member} expected {:?} in its name slot, got tag {}",
+                Tag::Str,
+                held.tag_byte()
+            )));
+        };
+        let Some(desc) = ctx.class_desc(described) else {
+            return Err(Fault::thrown_as(
+                ThrownClass::Logic,
+                format!(
+                    "{CLASS_INFO_NAME}::{member}(): `{described}` is not a class this program \
+                     declares, so there is nothing to construct"
+                ),
+            ));
+        };
+        let site = site_class(args[2]);
+        // `crate::arr`'s terms are `call`'s: parameter 1 is `array<mixed>` in
+        // `CLASS_INFO` above, so a non-container argument is `E0401` at the
+        // checker and this is what makes `array_ptr`'s answer safe to unwrap.
+        let list = args[1].array_ptr().ok_or_else(|| {
+            Fault::fatal(format!(
+                "{CLASS_INFO_NAME}::construct expected {:?}, got tag {}",
+                Tag::Array,
+                args[1].tag_byte()
+            ))
+        })?;
+        // In slot order, keys ignored, exactly as `call` reads its own list: a
+        // parameter list is positional, and the count it is judged against is
+        // the constructor's own.
+        let list = crate::arr::borrowed(list);
+        let mut passed = Vec::with_capacity(list.count());
+        let mut slot = 0;
+        while let Some(live) = list.next_slot(slot) {
+            slot = live + 1;
+            passed.push(list.value_at(live).expect("a live slot has a value"));
+        }
+        #[expect(
+            unsafe_code,
+            reason = "`class_desc` answers with a pointer into the compiled unit's class table, which outlives this context and is never rewritten while a member of it is running"
+        )]
+        let built = unsafe {
+            nvs_runtime::construct_erased_from(ctx, desc, &passed, site.as_deref())
+        };
+        built
     }
 }
 

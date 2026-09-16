@@ -2988,6 +2988,7 @@ pub const CALL_SITE_MEMBERS: &[(&str, &str)] = &[
     (crate::reflect::CLASS_INFO_NAME, "get"),
     (crate::reflect::CLASS_INFO_NAME, "set"),
     (crate::reflect::CLASS_INFO_NAME, "call"),
+    (crate::reflect::CLASS_INFO_NAME, "construct"),
 ];
 
 /// Whether `class::method` is one of [`CALL_SITE_MEMBERS`].
