@@ -298,6 +298,7 @@ fn closure_of(arity: usize, invoke: nvs_runtime::NvsFn) -> nvs_runtime::Value {
             // than off this row — see `nvs_runtime::MethodRow`.
             arity: 0,
             param_tags: 0,
+            param_names: Vec::new(),
             public: true,
             native: false,
         }],

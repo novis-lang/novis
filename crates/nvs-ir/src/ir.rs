@@ -177,15 +177,21 @@ pub struct Class {
     /// transitively, as labels. Excludes the class itself.
     pub conforms: Vec<String>,
     /// Every method an instance of this class answers, as `(method name,
-    /// declaring class label, is `public`)` — a straight copy of
-    /// `nvs_types::layout::ClassLayout::methods`, which owns the precedence
-    /// rule and the visibility bit. `nvs-codegen` turns each row into the
-    /// `nvs_runtime::MethodRow` the runtime descriptor's method table holds,
-    /// which is what [`InstKind::CallVirtual`] dispatches through, joining the
-    /// compiled address and the callee's declared shape onto it — neither of
-    /// which exists until a function has been compiled, which is why only the
-    /// bit that has no source below the front end travels here.
-    pub methods: Vec<(String, String, bool)>,
+    /// declaring class label, is `public`, parameter names)` — a straight copy
+    /// of `nvs_types::layout::ClassLayout::methods`, which owns the precedence
+    /// rule, the visibility bit and what an empty name list means.
+    /// `nvs-codegen` turns each row into the `nvs_runtime::MethodRow` the
+    /// runtime descriptor's method table holds, which is what
+    /// [`InstKind::CallVirtual`] dispatches through, joining the compiled
+    /// address and the callee's declared shape onto it — neither of which
+    /// exists until a function has been compiled, which is why only what has
+    /// no source below the front end travels here. A parameter's *name* is
+    /// exactly that: [`Function::params`] carries one representation per slot
+    /// and no spelling for any of them.
+    ///
+    /// **Cost:** one `String` per declared parameter per method per class,
+    /// once per compiled unit, not per request.
+    pub methods: Vec<(String, String, bool, Vec<String>)>,
     /// Every property hook an instance of this class answers, as `(property
     /// name, hook label, is the `set` accessor)` — a straight copy of
     /// `nvs_types::layout::ClassLayout::hooks`, which owns the precedence rule

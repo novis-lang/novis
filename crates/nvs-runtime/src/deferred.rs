@@ -439,6 +439,7 @@ mod tests {
                 // row — `crate::call_closure` says so.
                 arity: 0,
                 param_tags: 0,
+                param_names: Vec::new(),
                 public: true,
                 native: false,
             }],

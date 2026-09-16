@@ -1646,6 +1646,7 @@ mod tests {
                 // `nvs_runtime::call_static_bound`'s tag comparison is for the
                 // other caller, whose list came out of a program's own map.
                 param_tags: 0,
+                param_names: Vec::new(),
                 public: true,
                 native: false,
             }],

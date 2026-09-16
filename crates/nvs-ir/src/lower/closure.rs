@@ -309,7 +309,10 @@ pub(crate) fn lower_closure(
                 .collect(),
             // Public: a closure's environment class is unspellable, so nothing
             // can name this member at all except the runtime's own call path.
-            methods: vec![(FN_INVOKE.to_owned(), class.clone(), true)],
+            // No parameter names either: the body is the literal's, and the
+            // row is synthesized — `nvs_types::layout::ClassLayout::methods`'
+            // empty case.
+            methods: vec![(FN_INVOKE.to_owned(), class.clone(), true, Vec::new())],
             // Nor a property to hook: every slot is a capture.
             hooks: Vec::new(),
             // A closure is not a declaration and carries no attribute, and
@@ -778,7 +781,7 @@ pub(crate) fn lower_callable(
             conforms: std::iter::once(super::CLOSURE_MARKER.to_owned())
                 .chain(exprs.callable_markers_at(*span).iter().cloned())
                 .collect(),
-            methods: vec![(FN_INVOKE.to_owned(), class.clone(), true)],
+            methods: vec![(FN_INVOKE.to_owned(), class.clone(), true, Vec::new())],
             // Nor a property to hook: every slot is a capture.
             hooks: Vec::new(),
             codec: Vec::new(),

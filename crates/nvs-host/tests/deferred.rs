@@ -75,6 +75,7 @@ fn closure_of(invoke: nvs_runtime::NvsFn) -> Value {
             // Read off the object's own slots below, never off this row.
             arity: 0,
             param_tags: 0,
+            param_names: Vec::new(),
             public: true,
             native: false,
         }],

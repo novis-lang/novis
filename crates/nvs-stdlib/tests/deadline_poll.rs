@@ -65,6 +65,7 @@ fn closure_of(arity: usize, invoke: nvs_runtime::NvsFn) -> Value {
             code: invoke as *const u8,
             arity: 0,
             param_tags: 0,
+            param_names: Vec::new(),
             public: true,
             native: false,
         }],

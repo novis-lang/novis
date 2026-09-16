@@ -971,7 +971,7 @@ impl Descriptors {
             let methods = entry
                 .methods
                 .iter()
-                .filter_map(|(method, declaring, public)| {
+                .filter_map(|(method, declaring, public, params)| {
                     let label = format!("{declaring}::{method}");
                     let (symbol, shape) = functions.get(&label)?;
                     Some(nvs_runtime::MethodRow {
@@ -979,6 +979,10 @@ impl Descriptors {
                         code: code.address_of(symbol)?,
                         arity: shape.arity,
                         param_tags: shape.param_tags,
+                        // The spellings beside the shape, from the one layer
+                        // that saw the declaration — `nvs_types::layout` owns
+                        // what an empty list means.
+                        param_names: params.clone(),
                         public: *public,
                         // Every row here is a compiled Novis function, for the
                         // reason its JIT counterpart gives.
@@ -1199,12 +1203,12 @@ struct ClassEntry {
     /// declaring class is valid for every subclass.
     slots: FxHashMap<String, usize>,
     /// This class's own id in `Classes::table`, and every method it answers as
-    /// `(method name, declaring class label, is `public`)` — kept until
-    /// [`UnitBuilder::finish`], which is the first moment a compiled function has an
-    /// address to put in the runtime descriptor's method table. See
-    /// `nvs_runtime::ClassTable::set_methods`.
+    /// `(method name, declaring class label, is `public`, parameter names)` —
+    /// kept until [`UnitBuilder::finish`], which is the first moment a compiled
+    /// function has an address to put in the runtime descriptor's method table.
+    /// See `nvs_runtime::ClassTable::set_methods`.
     id: nvs_runtime::ClassId,
-    methods: Vec<(String, String, bool)>,
+    methods: Vec<(String, String, bool, Vec<String>)>,
     /// Every property hook it answers as `(property name, hook label, is the
     /// `set` accessor)`, kept for [`Self::methods`]' reason and spent at the
     /// same moment — see `nvs_runtime::ClassTable::set_hooks`. The label is
@@ -2065,7 +2069,7 @@ impl UnitBuilder<JITModule> {
             let methods = entry
                 .methods
                 .iter()
-                .filter_map(|(method, declaring, public)| {
+                .filter_map(|(method, declaring, public, params)| {
                     let label = format!("{declaring}::{method}");
                     let id = self.functions.get(&label)?;
                     // The shape is recorded under the very label the address
@@ -2077,6 +2081,8 @@ impl UnitBuilder<JITModule> {
                         code: self.module.get_finalized_function(*id),
                         arity: shape.arity,
                         param_tags: shape.param_tags,
+                        // The AOT binder's join exactly, off the same roster.
+                        param_names: params.clone(),
                         public: *public,
                         // Every row here is a compiled Novis function, which
                         // owns its parameters — `nvs-stdlib` is the only

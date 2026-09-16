@@ -898,7 +898,7 @@ pub fn lower_program(
         if class
             .methods
             .iter()
-            .any(|(name, _, _)| *name == delegation.method)
+            .any(|(name, _, _, _)| *name == delegation.method)
         {
             continue;
         }
@@ -911,10 +911,17 @@ pub fn lower_program(
             continue;
         };
         // Public: § 4 synthesizes a forward for an *interface* member, and an
-        // interface has no other visibility to inherit.
-        class
-            .methods
-            .push((delegation.method.clone(), delegation.class.clone(), true));
+        // interface has no other visibility to inherit. No parameter names,
+        // which is `nvs_types::layout::ClassLayout::methods`' empty case:
+        // `nvs_types::Delegation` carries the forwarded member's parameter
+        // *types* positionally, and nothing anywhere spells them — the forward
+        // is written by no one.
+        class.methods.push((
+            delegation.method.clone(),
+            delegation.class.clone(),
+            true,
+            Vec::new(),
+        ));
         functions.push(function);
     }
 

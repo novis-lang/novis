@@ -271,8 +271,8 @@ const DISPATCH_ROSTER: &[(&str, &[(&str, &str)])] = &[
 /// Every row here is `native`, which is the whole of what
 /// `nvs_runtime::MethodRow` can say about one: these addresses are `rule:errors/propagation`
 /// helpers that **borrow** argument 0, and this crate holds no signature for
-/// them, so the arity and the parameter tags a compiled method's row carries
-/// are left at zero rather than guessed. That field is what a caller with no
+/// them, so the arity, the parameter tags and the parameter names a compiled
+/// method's row carries are left empty rather than guessed. That field is what a caller with no
 /// class in hand refuses on; the callers that reach these rows today —
 /// `foreach` over a cursor, `crate::sequence` — name the member statically and
 /// know the convention because they wrote it.
@@ -288,6 +288,7 @@ fn dispatch_table(class: &str) -> Vec<nvs_runtime::MethodRow> {
                     code: crate::address_of(symbol),
                     arity: 0,
                     param_tags: 0,
+                    param_names: Vec::new(),
                     public: true,
                     native: true,
                 })

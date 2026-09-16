@@ -373,6 +373,59 @@ echo (new Item(\"n\"))->tags[0];
     assert_eq!(thrown.field_type(0), None);
 }
 
+/// `rule:core-classes/reflect`'s method half, at the layer that carries it: a
+/// parameter's *name* is spelled where the declaration is and reaches the
+/// runtime descriptor, because `nvs_runtime::MethodRow`'s other two parameter
+/// facts count and type the parameters without naming one.
+///
+/// The names are read against the arity they ride with rather than alone: a
+/// roster that took the receiver in would still answer plausibly on its own
+/// line.
+#[test]
+fn a_methods_parameter_names_reach_its_descriptor_in_declaration_order() {
+    let unit = compile(
+        "<?nvs
+class Greeter {
+    public function greet(string $who, int $times): string { return $who; }
+}
+class Loud extends Greeter {
+    public function constructor(private string $mark) {}
+    public function shout(string $what): string { return $what; }
+}
+echo (new Loud(\"!\"))->greet(\"a\", 1);
+",
+    )
+    .expect("the fixture compiles");
+
+    let loud = unit.class_desc("Loud").expect("the class is declared");
+    let shout = loud.method_row("shout").expect("its own method");
+    assert_eq!(shout.param_names, ["what"]);
+    // The receiver is excluded from both, which is the agreement that makes
+    // the names readable as the arity's own list.
+    assert_eq!(shout.param_names.len(), shout.arity as usize);
+    // The promoted parameter is a parameter, standing where it is written.
+    let constructor = loud.method_row("constructor").expect("it declares one");
+    assert_eq!(constructor.param_names, ["mark"]);
+    // An inherited method arrives with the spellings of the declaration it
+    // came from, not of the class that answers it.
+    let greet = loud.method_row("greet").expect("inherited from Greeter");
+    assert_eq!(greet.param_names, ["who", "times"]);
+
+    // A row no declaration was read for reports the absence rather than a
+    // guess: the exception tree's constructor is synthesized, and
+    // `nvs_types::error_lib` spells its signature in the call site's currency.
+    let thrown = unit
+        .class_desc("LogicError")
+        .expect("the exception tree is always defined");
+    assert!(
+        thrown
+            .method_row("constructor")
+            .expect("the tree declares one")
+            .param_names
+            .is_empty()
+    );
+}
+
 #[test]
 fn a_throw_out_of_a_frame_holding_an_object_releases_it() {
     // The landing block's cleanup, for an object rather than a string: the

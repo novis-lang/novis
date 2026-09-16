@@ -1038,6 +1038,7 @@ mod tests {
                 // row — see `nvs_runtime::MethodRow`.
                 arity: 0,
                 param_tags: 0,
+                param_names: Vec::new(),
                 public: true,
                 native: false,
             }],

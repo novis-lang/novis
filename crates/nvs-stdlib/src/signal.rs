@@ -233,6 +233,7 @@ mod tests {
                 code: records_what_it_saw as *const u8,
                 arity: 0,
                 param_tags: 0,
+                param_names: Vec::new(),
                 public: true,
                 native: false,
             }],

@@ -509,9 +509,11 @@ pub struct ClassDesc {
 /// project start* owns why this rides on the descriptor rather than on a
 /// per-method thunk.
 ///
-/// **Cost:** the two words and the `bool` are 16 bytes per method per class,
-/// once per process and not per instance — the whole of what the thunk this
-/// replaces would have spent a compiled function each on.
+/// **Cost:** the two words, the `bool` and the name vector's header are 40
+/// bytes per method per class, plus one `String` per parameter a source
+/// declaration spelled — once per process and not per instance, and still
+/// short of what the thunk this replaces would have spent a compiled function
+/// each on.
 #[derive(Clone, Debug)]
 pub struct MethodRow {
     /// The method name, as written. The table is sorted on this.
@@ -531,6 +533,18 @@ pub struct MethodRow {
     /// declaring more is refused rather than passed an argument nothing
     /// checked, which is [`crate::closure`]'s own rule.
     pub param_tags: u64,
+    /// What each declared parameter is *called*, in the same order and with
+    /// the receiver excluded the same way — the `$` sigil not included.
+    ///
+    /// Either [`Self::arity`] names long or **empty**, on
+    /// `nvs_types::layout::ClassLayout::methods`' terms exactly, where empty
+    /// reads as "no declaration was read for this row" rather than "the method
+    /// takes nothing": a synthesized member and a native row are the rows
+    /// nothing spelled. It is carried because it is the one parameter fact
+    /// with no source below the front end — [`Self::arity`] counts parameters
+    /// and [`Self::param_tags`] types them, and neither can name one — and
+    /// `Core\Reflect\MethodInfo::parameters` is what asks for it.
+    pub param_names: Vec<String>,
     /// Whether the member is `public` — the one visibility question a receiver
     /// that names no class can ask, since such a site is outside every class
     /// by construction. Answered at the declaration by `nvs_types::layout` and
@@ -4232,6 +4246,7 @@ mod tests {
             code,
             arity: 0,
             param_tags: 0,
+            param_names: Vec::new(),
             public: true,
             native: false,
         }
@@ -4485,6 +4500,7 @@ mod tests {
                     arity: 2,
                     // `string` then `int`, parameter 0 in the low nibble.
                     param_tags: 0x25,
+                    param_names: Vec::new(),
                     public: true,
                     native: false,
                 },
@@ -4495,6 +4511,7 @@ mod tests {
                     code: inherited,
                     arity: 0,
                     param_tags: 0,
+                    param_names: Vec::new(),
                     public: false,
                     native: false,
                 },
@@ -4503,6 +4520,7 @@ mod tests {
                     code: inherited,
                     arity: 0,
                     param_tags: 0,
+                    param_names: Vec::new(),
                     public: false,
                     native: false,
                 },

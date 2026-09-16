@@ -1068,6 +1068,7 @@ mod tests {
                 code: std::ptr::dangling(),
                 arity: 0,
                 param_tags: 0,
+                param_names: Vec::new(),
                 public: true,
                 native: false,
             }],

@@ -99,9 +99,10 @@ pub struct ClassLayout {
     /// separately (`nvs_runtime::ClassDesc::conforms_to`).
     pub conforms: Vec<String>,
     /// Every method callable on an instance of this class, as `(method name,
-    /// declaring class label, is `public`)` — its own first, then the nearest
-    /// ancestor declaring each name it does not. Only methods with a *body*:
-    /// an abstract or bodiless interface method has no code to name.
+    /// declaring class label, is `public`, parameter names)` — its own first,
+    /// then the nearest ancestor declaring each name it does not. Only methods
+    /// with a *body*: an abstract or bodiless interface method has no code to
+    /// name.
     ///
     /// This is what `nvs_runtime::ClassDesc::method` answers a
     /// `static::method(...)` dispatch from, so the precedence has to be the
@@ -115,7 +116,22 @@ pub struct ClassLayout {
     /// far end of this table — answers a non-`public` member with a throw
     /// rather than with the address. Every other visibility question is
     /// answered where the call is written, against the signature table.
-    pub methods: Vec<(String, String, bool)>,
+    ///
+    /// The parameter names ride with the row for that bit's reason one step
+    /// further, and they are [`Self::field_types`]' reason exactly: a
+    /// parameter's spelling exists only where its declaration does, and
+    /// `nvs_runtime::MethodRow::arity` — the one other parameter fact the
+    /// runtime carries — counts them without naming one. The `$` sigil is not
+    /// included and the receiver is excluded, so the list is either that
+    /// arity long or **empty**, which reads as "no declaration was read for
+    /// this row" rather than "the method takes nothing": a synthesized
+    /// exception constructor and a `rule:classes/delegation-by-field` forward
+    /// are the two such rows, and neither has written parameters to spell.
+    /// `Core\Reflect\MethodInfo::parameters` is what reads them back.
+    ///
+    /// **Cost:** one `String` per declared parameter per method per class,
+    /// once per compiled unit, never per request.
+    pub methods: Vec<(String, String, bool, Vec<String>)>,
     /// Every property hook an instance of this class answers, as `(property
     /// name, hook label, is the `set` accessor)` — its own first, then the
     /// nearest ancestor declaring each `(property, accessor)` pair it does
@@ -188,6 +204,12 @@ impl ClassLayoutTable {
     }
 }
 
+/// What one declaration says about its own methods, keyed by the class that
+/// wrote them: `(method name, is `public`, parameter names)` per entry, which
+/// is [`own_methods`]' answer before [`flatten_methods`] walks a chain of them
+/// into [`ClassLayout::methods`].
+type OwnMethods = FxHashMap<QName, Vec<(String, bool, Vec<String>)>>;
+
 /// Builds the layout of every class and interface declared in any file of
 /// `files`, plus the two rosters no source declares — `nvs_hir::errors`'
 /// exception tree and `nvs_hir::interfaces`' global interfaces.
@@ -212,7 +234,7 @@ pub fn build_class_layouts(
     graph: &ClassGraph,
 ) -> ClassLayoutTable {
     let mut own: FxHashMap<QName, Vec<(String, bool, String)>> = FxHashMap::default();
-    let mut own_methods: FxHashMap<QName, Vec<(String, bool)>> = FxHashMap::default();
+    let mut own_methods: OwnMethods = FxHashMap::default();
     let mut own_hooks: FxHashMap<QName, Vec<(String, String, bool)>> = FxHashMap::default();
     // The exception tree first: it has no source declaration to collect from
     // (`nvs_hir::errors`), and a user class extending it needs its four slots
@@ -235,8 +257,12 @@ pub fn build_class_layouts(
         let methods = if nvs_hir::errors::declares_constructor(name) {
             // Public: spec § 10's tree is constructed by every program that
             // throws, and a synthesized member writes no modifier — see
-            // `own_methods` on why absent reads as `public`.
-            vec![("constructor".to_owned(), true)]
+            // `own_methods` on why absent reads as `public`. No parameter
+            // names, which is `ClassLayout::methods`' empty case: `crate::error_lib`
+            // seeds this constructor in the call site's currency — a message
+            // and an options bag — while the lowered body takes the flattened
+            // values, so no one declaration spells its parameters.
+            vec![("constructor".to_owned(), true, Vec::new())]
         } else {
             Vec::new()
         };
@@ -317,7 +343,7 @@ fn collect_own(
     src: &SourceFile,
     namespace: &[String],
     out: &mut FxHashMap<QName, Vec<(String, bool, String)>>,
-    methods: &mut FxHashMap<QName, Vec<(String, bool)>>,
+    methods: &mut OwnMethods,
     hooks: &mut FxHashMap<QName, Vec<(String, String, bool)>>,
 ) {
     let mut current = namespace.to_vec();
@@ -358,9 +384,16 @@ fn collect_own(
     }
 }
 
-/// One declaration's own method names, each with whether it is `public` — only
-/// those with a body, since a bodiless one has no compiled code for a
-/// descriptor to point at.
+/// One declaration's own method names, each with whether it is `public` and
+/// the names of the parameters it declares — only those with a body, since a
+/// bodiless one has no compiled code for a descriptor to point at.
+///
+/// The parameters are read here for [`own_properties`]' reason: the spelling
+/// is a keyword's neighbour and lives exactly as long. A promoted one is a
+/// parameter like any other and keeps its place in the list, where
+/// [`own_properties`] also claims a slot for it, and the receiver is not among
+/// them — `nvs_runtime::MethodRow::arity`, which this list is read against,
+/// counts what the source wrote.
 ///
 /// A declaration that wrote no visibility keyword at all counts as `public`,
 /// which is `nvs_syntax::check_declarations`' `E_MISSING_VISIBILITY` already
@@ -368,13 +401,21 @@ fn collect_own(
 /// that is being refused anyway, and the same reading is what keeps a
 /// synthesized method — an exception constructor, `rule:iteration/generators`'s state machine
 /// — callable, none of them writing a modifier.
-fn own_methods(members: &[nvs_syntax::ast::ClassMember], src: &SourceFile) -> Vec<(String, bool)> {
+fn own_methods(
+    members: &[nvs_syntax::ast::ClassMember],
+    src: &SourceFile,
+) -> Vec<(String, bool, Vec<String>)> {
     members
         .iter()
         .filter_map(|member| match &member.kind {
-            ClassMemberKind::Method(m) if m.body.is_some() => {
-                Some((span_text(src, m.name).to_owned(), is_public(&m.modifiers)))
-            }
+            ClassMemberKind::Method(m) if m.body.is_some() => Some((
+                span_text(src, m.name).to_owned(),
+                is_public(&m.modifiers),
+                m.params
+                    .iter()
+                    .map(|p| crate::strip_sigil(span_text(src, p.name)).to_owned())
+                    .collect(),
+            )),
             _ => None,
         })
         .collect()
@@ -541,18 +582,19 @@ fn flatten_fields(
 }
 
 /// Appends every method `qname` answers to `methods`, as `(name, declaring
-/// class label, is `public`)` — its own first, then its superclass chain's,
-/// then any interface default it inherits. The first entry for a name wins,
-/// which is what makes an override beat the declaration it overrides, and it
-/// carries that declaration's own visibility with it.
+/// class label, is `public`, parameter names)` — its own first, then its
+/// superclass chain's, then any interface default it inherits. The first entry
+/// for a name wins, which is what makes an override beat the declaration it
+/// overrides, and it carries that declaration's own visibility and parameter
+/// spellings with it.
 ///
 /// `walked` guards the cyclic `extends` the hierarchy pass has already
 /// diagnosed, exactly like [`flatten_fields`]' own `seen`.
 fn flatten_methods(
     qname: &QName,
     graph: &ClassGraph,
-    own: &FxHashMap<QName, Vec<(String, bool)>>,
-    methods: &mut Vec<(String, String, bool)>,
+    own: &OwnMethods,
+    methods: &mut Vec<(String, String, bool, Vec<String>)>,
     walked: &mut Vec<QName>,
 ) {
     if walked.contains(qname) {
@@ -561,9 +603,9 @@ fn flatten_methods(
     walked.push(qname.clone());
     let label = qname.to_string();
     if let Some(names) = own.get(qname) {
-        for (name, public) in names {
-            if !methods.iter().any(|(have, _, _)| have == name) {
-                methods.push((name.clone(), label.clone(), *public));
+        for (name, public, params) in names {
+            if !methods.iter().any(|(have, _, _, _)| have == name) {
+                methods.push((name.clone(), label.clone(), *public, params.clone()));
             }
         }
     }

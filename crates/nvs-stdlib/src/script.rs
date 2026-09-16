@@ -1758,6 +1758,7 @@ mod tests {
                 code: invoke as *const u8,
                 arity: 0,
                 param_tags: 0,
+                param_names: Vec::new(),
                 public: true,
                 native: false,
             }],
