@@ -2,61 +2,64 @@
 
 ## State
 
-**Goal `unowned-closures`, stage 2.** Gap 6's compiled-code half is closed: **both** raises compiled
-code makes now carry the site they happened at, and only a helper's raise still carries none.
+**Goal `unowned-closures`, stage 2 closed.** Gap 6 is struck: every raise now names the frame it
+happened in. The helper half took build (b) of the two the last handoff priced — a seed on the
+caught edge, not an operand on the helper ABI — because the ABI operand materializes a blob on the
+path where the call *succeeds*, which is the one thing `rule:errors/throw-is-not-slower` prices.
 
-`nvs_raise_new` (`crates/nvs-runtime/src/throwable.rs:987`) takes a fifth operand — the raising
-statement's carrier — and decodes it through `Thrown::capture_site` exactly as `nvs_raise` does, so a
-`catch` beside a checked operator reads `Ratio::of() at file:line` and a matching `location` instead
-of an empty trace. The channel is `Inst::raise_site` (`crates/nvs-ir/src/ir.rs:450`), set only by
-`Lowering::emit_raising` (`crates/nvs-ir/src/lower/mod.rs:2201`) on the checked arithmetic rows, off
-the same `Lowering::source` a `throw` in that statement takes. It carries the **datum**, not a
-`SourceConst` operand: `nvs-codegen` bakes the blob in the cold block it already raises from
-(`crates/nvs-codegen/src/emit.rs:2076`), so the path that does not overflow spends no instruction on
-it and `rule:errors/throw-is-not-slower` — amended, rendered, mirrored to `website/src` — still holds.
-A site-less raise takes `Ctx::raise` unchanged.
+`InstKind::SeedRaiseSite` (`crates/nvs-ir/src/ir.rs:1226`) carries the failing statement's site in
+`Inst::raise_site` and is emitted by `Lowering::landing_block`
+(`crates/nvs-ir/src/lower/mod.rs:2291`) into the `caught` block alone — the catchable exit of
+`Terminator::Catch`, the one exception edge that pushes no frame label. `nvs-codegen` bakes the blob
+there (`crates/nvs-codegen/src/emit.rs:1021`) and calls `nvs_raise_site`, whose body is
+`Ctx::seed_raise_site` (`crates/nvs-runtime/src/ctx/error.rs:412`): it promotes a pending message
+the way `push_frame` does and renders the frame only where `Thrown::has_frame` is false, so a
+`throw` caught beside itself and an exception arriving from a callee both pass through untouched.
+The frame is provisional, so a clause matching nothing still has its label replaced rather than
+doubled.
 
-Nothing is blocked. `python tools/rules.py --check` is red tree-wide on a goal file that cites the
-rule its own acceptance check exists to create (`docs/agent/goals/61-class-scoped-types.toml:237`
-passes a `types/class-scoped-alias` citation to `peek.py` as the check's own argument), so
-`session.py --wrap` refuses every wrap while that goal is queued; this session's commits were made by
-hand for that reason, as the last one's were. Stage 1's floor is goal `m8-stdlib-depth`'s whole list,
-carried and untouched.
+**The bound, written rather than built**: a helper's fault that *propagates* out of the frame it was
+raised in opens its trace at that frame's label as before and its `location` stays empty — a pushed
+label is a rendering, not the datum a `location` is read back from. Its home is
+`crates/nvs-runtime/src/throwable.rs`'s module header, and `rule:errors/throw-is-not-slower` states
+it too (fragment amended, rendered, mirrored to `website/src`).
+
+Nothing is blocked. `python tools/rules.py --check` is still red tree-wide on
+`docs/agent/goals/61-class-scoped-types.toml:237`, which passes a `types/class-scoped-alias`
+citation to `peek.py` as its own check argument while the rule that check exists to create does not
+exist yet; `session.py --wrap` refuses every wrap while that goal is queued, so this session's
+commits were made by hand, as the last two were. Stage 1's floor is goal `m8-stdlib-depth`'s whole
+list, carried and untouched.
 
 ## Next group
 
-**Stage 2: the helper half of gap 6 — one design call, then the case that pins it** — one file set:
-`crates/nvs-runtime/src/ctx/error.rs`, `crates/nvs-runtime/src/throwable.rs`,
-`crates/nvs-ir/src/lower/mod.rs` and `crates/nvs-codegen/src/emit.rs`.
+**Stage 3: the builds that needed no decision — `require`'s cooker and the autoload probe trace** —
+one file set: `crates/nvs-hir/src/requires.rs`, `crates/nvs-types/src/string_lit.rs`,
+`crates/nvs-hir/src/autoload.rs` and `crates/nvs-config/src/cache.rs`.
 
-- [ ] **A helper's raise is given a site, or the bound is written** — `Fault` and
-      `crates/nvs-runtime/src/ctx/error.rs:394`'s `raise_with_slots` build an exception with none,
-      and the carrier a producer *is* handed (`crates/nvs-runtime/src/source.rs:138`'s `of_operand`)
-      reaches only `nvs_stdlib::registry`'s `SOURCE_MEMBERS` rows. Two builds, and the cheaper one is
-      **not** the ABI change: (a) a site operand on the helper ABI (`rule:errors/helper-abi`) is every
-      helper's signature, every `HelperCall` lowering, and a blob per fallible call site in the data
-      section; (b) seeding it in the landing block that *catches in frame* — the one place no label is
-      ever pushed, `crates/nvs-ir/src/ir.rs:2740`'s `Terminator::Catch` — is one new primitive called
-      on an error path that already exists, nothing per propagating frame, and reuses
-      `Inst::raise_site` (`crates/nvs-ir/src/ir.rs:450`) as the channel. Weigh them against
-      `rule:errors/throw-is-not-slower`, build one, and strike gap 6 at
-      `crates/nvs-runtime/src/lib.rs:216` either way — the goal's § *Standing decisions* admits a
-      bound but not a silence.
-- [ ] **The rule's own conformance case reads the arithmetic raise too** —
-      `tests/conformance/core/a-record-names-the-member-it-was-produced-in.nvst:23` already pins
-      `$e->location` for a `throw`; the checked operator is the second producer of that one datum
-      (`rule:errors/a-record-names-where-it-was-produced`), and the Rust half is landed at
-      `crates/nvs-codegen/tests/throwing.rs:216`.
+- [ ] **A `require` path decodes every escape its string does** —
+      `crates/nvs-hir/src/requires.rs:1271`'s `cook_quoted` recognises a practical subset and leaves
+      octal, hex and unicode escapes un-cooked, so a `require` and an ordinary string literal
+      disagree about the same bytes. The gap at `crates/nvs-hir/src/requires.rs:86` defers this to
+      "once something besides this module needs it" — and that cooker now exists at
+      `crates/nvs-types/src/string_lit.rs:601`, so the code is ahead of the deferral and the build
+      is routing `cook_quoted` through it. The check names the test:
+      `a_require_path_decodes_every_escape_its_string_does`, under `-p nvs-hir`.
+- [ ] **A file created where autoload probed invalidates the unit** —
+      `rule:packaging/autoload-probes-fold-into-the-cache-key`'s trace is produced and dropped
+      (`crates/nvs-hir/src/requires.rs:101`, the trace being
+      `crates/nvs-hir/src/autoload.rs:146`'s `Probe`), so a class that failed to autoload stays
+      failed after the file that would have satisfied it appears. The key it folds into is
+      `crates/nvs-config/src/cache.rs:140`'s `env_hash`. Test:
+      `a_file_created_where_autoload_probed_invalidates_the_unit`.
 
 ## Backlog
 
-- `crates/nvs-runtime/src/lib.rs:199` gap 2 — `nvs_str_concat`/`concat_n` reuse a solely-owned left
-  operand, with the ownership hand-off in `nvs-ir`'s lowering for those two calls.
-- `crates/nvs-runtime/src/lib.rs:209` gap 5 and `:234` gap 7 — one decision, "a collector that runs
-  only near the memory ceiling", so they are one build and not two.
-- Stage 3's failing acceptance check (`nvs-hir`'s require-path decode and the autoload probe's unit
-  key) is an artefact nothing has written yet, not a regression.
-- `docs/agent/carried-gaps.md`'s `nvs-runtime` bullet now covers the string and backtrace halves
-  only; its `[until:]` trailer still holds while gaps 2, 6 and 7 name this goal.
-- The website mirror is `node scripts/sync-rules.mjs`, run from `website/`, and a rule edit needs it:
-  the page holds a verbatim copy of the fragment.
+- `crates/nvs-hir/src/requires.rs:77`'s first gap — folding literal concatenations and `const`s
+  before the graph walk — is `Decided:` and owned by this goal, and no stage-3 check names it yet.
+- A propagating helper fault still names no `location`; closing it is the helper-ABI operand, priced
+  in `crates/nvs-runtime/src/throwable.rs`'s module header.
+- `previous` cannot be set at all yet — owned by `nvs_types::error_lib`, which is why the
+  synthesized constructor takes only a message.
+- `docs/agent/goals/61-class-scoped-types.toml:237` keeps `rules.py --check` red tree-wide, so every
+  wrap has to be applied by hand until that goal is reached.
