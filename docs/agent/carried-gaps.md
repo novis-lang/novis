@@ -618,13 +618,6 @@ where taking it is the work and the code that follows it is not.
   deploy script would use as much as a case would, and which is a surface addition nothing has asked
   the user for yet. `crates/nvs-stdlib/src/queue.rs`'s `schema`.
   [until: gone tests/conformance/core/queue-cancel-releases-a-dedupe-key-on-sqlite.nvst:create table nvs_jobs]
-- **A use of an enum case is indexed against the enum, never against the case**, because
-  `nvs_types::ExprInfo::EnumCase` is what the checker recorded and it names the enum — so the symbol
-  index declares `Suit::Hearts` and can never answer a reference about it, which is the one place its
-  two sides do not meet. What has to be decided is whether that table carries the case as well, and
-  the cost of deciding it is not the walk: `definition` and `hover` answer a cursor on `Suit::Hearts`
-  by jumping to the enum today, and a table that named the case would move both of those answers.
-  `crates/nvs-lsp/src/index.rs` gap 1. [until: reviewed 2026-09-11]
 - **A parameter hint is drawn only for the call variant that carries parameter names**, because
   `nvs_types::ResolvedCall::param_names` is reached through `ExprInfo::Call` and a `new`, a call
   through a `callable` signature and an erased call on a `mixed` receiver each record a different
