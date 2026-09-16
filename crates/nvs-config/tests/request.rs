@@ -473,6 +473,28 @@ fn the_mode_table_is_exactly_the_five_directives_the_adr_lists() {
     }
 }
 
+/// Each of those five rows is a **directive**, and `nvs_config::directive` is where a directive says
+/// who may set it and what applying it costs.
+///
+/// A mode selects a *default*, so a row whose key the registry does not hold is a default for a
+/// directive nobody spelled: a flip would write the key into the same overlay `Core\Config::set`
+/// refuses to write it into, and the two would be answering about one name. `debug.inline` was
+/// exactly that until `rule:errors/debug-dump`'s row landed, which is why the assertion is the key
+/// set of one table read through the other rather than a count.
+#[test]
+fn every_derived_default_names_a_directive_the_registry_holds() {
+    for row in nvs_config::mode::DERIVED {
+        let held = nvs_config::directive::lookup(row.key)
+            .unwrap_or_else(|| panic!("`{}` is a default for a directive nobody spelled", row.key));
+        assert!(
+            held.class.settable_by_a_request(),
+            "`{}` is derived per request, so a `System` row would make the mode's own default \
+             unreachable",
+            row.key
+        );
+    }
+}
+
 /// `rule:config/a-program-may-read-and-flip-its-mode` and `rule:http-server/the-mode-ceiling-defaults-to-the-startup-mode` through the API a program actually holds: the flip is bounded by the ceiling, it
 /// carries § 3's rows with it, and it is request-local like every other `set`.
 ///

@@ -424,6 +424,19 @@ pub struct Debug {
     ///
     /// [unread: the probes are compiled into every unit and `nvs_runtime`'s `DebugFlags` arms them, but nothing turns a bit on from the file and the directive registry carries no row for this key, so a value written here starts no coverage run and narrows nothing. owner: rule:testing/debug-mode-directive]
     pub mode: Option<Vec<String>>,
+    /// `rule:errors/debug-dump` — `true` and a `Core\Debug::dump` made while a request writes an
+    /// HTML body is appended to that body as a collapsible block as well as written as a record;
+    /// `false` and the record is all there is. A JSON body is never modified either way, in either
+    /// mode. `RuntimeTighten`, so a request may turn its own inline output off and can never turn
+    /// it on, which leaves the run mode's default (`crate::mode::DERIVED`, whose first row this is)
+    /// as the only thing that enables it — and a host that wrote no configuration starts in
+    /// `production`, where it is off.
+    ///
+    /// A mode flip derives this key and `Core\Config` answers it, so it is not an unread one; what
+    /// is still owed is the reader that puts the block in the body, and `nvs_stdlib::debug`'s own
+    /// known gap is where that is written down. The rendering such a block would take is already
+    /// decided by the sink its bytes leave through.
+    pub inline: Option<bool>,
     /// `rule:core-classes/temporary-dir-sweep` — `true` and the end-of-script sweep logs each path it would have deleted
     /// instead of deleting it, so the absence of cleanup is deliberate and visible rather than a
     /// silent leak. `System` and reloadable per `crate::directive`, which is what lets an operator

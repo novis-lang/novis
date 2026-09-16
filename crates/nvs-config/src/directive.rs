@@ -203,6 +203,14 @@ pub const DIRECTIVES: &[Directive] = &[
     // refuses — and `Reload` because it is read by the next script that ends and applying it
     // re-creates nothing, which is what lets it be flipped on around one problematic request.
     Directive { key: "debug.keep_temporary", class: Class::System, apply: Apply::Reload },
+    // `rule:errors/debug-dump`. `RuntimeTighten` because that rule gives the key one direction: a
+    // request may turn its own inline dumps off and can never turn them on, so the run mode's
+    // default is the only thing that enables it and a request talked into setting it cannot talk
+    // itself into disclosing a dump. `Reload` because it is read by the next request and applying it
+    // re-creates nothing. Without this row `crate::mode::DERIVED`'s first table entry would be a
+    // default for a key `lookup` answers `None` for, which is the drift
+    // `every_derived_default_names_a_directive_the_registry_holds` stands in the way of.
+    Directive { key: "debug.inline", class: Class::RuntimeTighten, apply: Apply::Reload },
     Directive { key: "server", class: Class::System, apply: Apply::Boot },
     // `System` and `Reload` together: the pairing `rule:config/reloadability-is-its-own-field` exists to make expressible.
     Directive { key: "opcache", class: Class::System, apply: Apply::Reload },

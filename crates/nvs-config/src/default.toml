@@ -222,7 +222,7 @@
 
 
 # ----------------------------------------------------------------------------------------------
-# [debug] — the probe set and the temporary-file switch.
+# [debug] — the probe set, the inline-dump switch and the temporary-file switch.
 # ----------------------------------------------------------------------------------------------
 
 #[debug]
@@ -233,6 +233,12 @@
 # `[]` is off; otherwise any subset of `coverage`, `branch`, `trace`, `profile`. `RuntimeTighten`, so
 # a request may narrow this and can never turn a bit on.
 #mode = ["coverage"]
+
+# `true` and a `Core\Debug::dump` made while a request writes an HTML body is appended to that body
+# as a collapsible block as well as written as a record. A JSON body is never modified either way.
+# `RuntimeTighten`, so a request may turn its own inline output off and can never turn it on: the run
+# mode's default is the only thing that enables it, and `mode = "development"` is what sets it.
+#inline = true
 
 # `true` and the end-of-script sweep logs each path it would have deleted instead of deleting it, so
 # that absent cleanup is deliberate and visible rather than a silent leak. `System` and reloadable,
