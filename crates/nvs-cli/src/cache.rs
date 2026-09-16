@@ -163,23 +163,16 @@
 //!
 //! # Known gaps
 //!
-//! * **`aarch64` is not loaded, deliberately.** Making freshly written bytes executable there needs
-//!   instruction-cache maintenance that `mprotect` does not imply, and this module has no home for
-//!   it; [`HOST_ARCH`] is [`Architecture::Unknown`] off x86-64, so every artifact is a miss there and
-//!   every run compiles.
-//!   Decided: One shared 'make executable' function in nvs-codegen, used by the JIT and the loader —
-//!   One home for a subtle, platform-specific correctness step; the loader takes a dependency on that
-//!   function.
-//!   — owner: unowned-closures
-//! * **Mach-O's leading underscore is not accounted for**, which is latent rather than live: CI's
-//!   Mach-O host is `aarch64`, where the item above refuses the payload before a symbol is
-//!   read. On an x86-64 Mac every undefined name would arrive here as `_nvs_echo_str`, `resolve`
-//!   would answer [`None`] for it, and the artifact would be a miss on every run — slow, never wrong.
-//!   Stripping the prefix belongs with whatever makes `aarch64` load, since neither is worth a format
-//!   branch on its own.
-//!   Decided: One shared 'make executable' function in nvs-codegen, used by the JIT and the loader —
-//!   One home for a subtle, platform-specific correctness step; the loader takes a dependency on that
-//!   function.
+//! * **`aarch64` is not loaded: this loader does not speak its relocations.** Publishing the pages
+//!   there is answered — [`nvs_codegen::make_executable`] is that step's one home and every page
+//!   this module maps goes through it — but reaching a symbol is not. An aarch64 payload gets at a
+//!   literal through an `ADR_PREL_PG_HI21`/`…_LO12` instruction pair and at a call through a
+//!   `CALL26`, and each of those is a bit range inside a fixed-width instruction rather than the
+//!   flat little-endian field [`Layout::apply`] writes; `object` reports a `CALL26` as 26 bits
+//!   wide, which is the shape of the difference. Until that vocabulary is written [`HOST_ARCH`] is
+//!   [`Architecture::Unknown`] off x86-64, so an aarch64 artifact is a miss and every run
+//!   compiles — slow, never wrong, which is the direction a refusal should point while the answer
+//!   would be a guess.
 //!   — owner: unowned-closures
 //!
 
@@ -201,8 +194,8 @@ use nvs_config::cache::{Digest, EnvHash, artifact_key, content_hash, env_hash};
 use nvs_config::trust::{self, Untrusted};
 use object::read::{Object, ObjectSection, ObjectSymbol};
 use object::{
-    Architecture, RelocationKind, RelocationTarget, SectionKind, SymbolIndex, SymbolKind,
-    SymbolSection,
+    Architecture, BinaryFormat, RelocationKind, RelocationTarget, SectionKind, SymbolIndex,
+    SymbolKind, SymbolSection,
 };
 use rand::RngExt;
 
@@ -399,7 +392,7 @@ impl Verified {
             else {
                 continue;
             };
-            functions.insert(name.to_owned(), offset);
+            functions.insert(linkage_name(layout.format, name).to_owned(), offset);
         }
         let entry = *functions
             .iter()
@@ -410,9 +403,11 @@ impl Verified {
             .ok_or(Unloadable::NoEntry)?;
 
         // W^X, one way and once: nothing holds a writable view of these bytes after this line,
-        // because `make_exec` consumes the `MmapMut` that was the only one.
-        let pages = pages
-            .make_exec()
+        // because [`nvs_codegen::make_executable`] consumes the `MmapMut` that was the only one.
+        // That function rather than `make_exec` directly — publishing written bytes as code has a
+        // platform-specific half that a protection change does not imply, and it has one home for
+        // both of the ways Novis publishes code.
+        let pages = nvs_codegen::make_executable(pages)
             .map_err(|source| Unloadable::Mapping(source.to_string()))?;
         Ok(Loaded {
             pages,
@@ -427,9 +422,9 @@ impl Verified {
 ///
 /// A payload's architecture is already in `env_hash` and therefore in its path, so this can only
 /// disagree with the file for a hand-placed one — but the check is also what keeps the loader off
-/// a host it has no answer for. **`aarch64` is deliberately not here**: making written bytes
-/// executable there needs instruction-cache maintenance that `mprotect` does not imply, and the
-/// module doc's *Known gaps* owns that.
+/// a host it has no answer for. **`aarch64` is deliberately not here**: its relocations are encoded
+/// into instruction bit fields that [`Layout::apply`] cannot write, and the module doc's
+/// *Known gaps* owns that.
 #[cfg(target_arch = "x86_64")]
 const HOST_ARCH: Architecture = Architecture::X86_64;
 #[cfg(not(target_arch = "x86_64"))]
@@ -500,6 +495,9 @@ struct Layout {
     landings: BTreeMap<(usize, Landing), usize>,
     /// Total bytes to map.
     len: usize,
+    /// The payload's own container format, which is all [`linkage_name`] needs to know to undo the
+    /// spelling that format gave a symbol.
+    format: BinaryFormat,
 }
 
 impl Layout {
@@ -510,6 +508,7 @@ impl Layout {
             sections: BTreeMap::new(),
             landings: BTreeMap::new(),
             len: 0,
+            format: object.format(),
         };
         for section in object.sections() {
             if !allocatable(section.kind()) {
@@ -531,7 +530,10 @@ impl Layout {
                 let symbol = object
                     .symbol_by_index(index)
                     .map_err(|_| Unloadable::Unreadable)?;
-                let name = symbol.name().map_err(|_| Unloadable::Unreadable)?;
+                let name = linkage_name(
+                    layout.format,
+                    symbol.name().map_err(|_| Unloadable::Unreadable)?,
+                );
                 let Some(landing) = landing_for(
                     relocation.kind(),
                     symbol.kind(),
@@ -579,7 +581,10 @@ impl Layout {
                 .symbol_by_index(SymbolIndex(*index))
                 .map_err(|_| Unloadable::Unreadable)?;
             let address = if symbol.is_undefined() {
-                let name = symbol.name().map_err(|_| Unloadable::Unreadable)?;
+                let name = linkage_name(
+                    self.format,
+                    symbol.name().map_err(|_| Unloadable::Unreadable)?,
+                );
                 resolve(name)
                     .ok_or_else(|| Unloadable::Unresolved(name.to_owned()))?
                     .expose_provenance()
@@ -633,7 +638,10 @@ impl Layout {
                     .symbol_by_index(index)
                     .map_err(|_| Unloadable::Unreadable)?;
                 let defined = !symbol.is_undefined();
-                let name = symbol.name().map_err(|_| Unloadable::Unreadable)?;
+                let name = linkage_name(
+                    self.format,
+                    symbol.name().map_err(|_| Unloadable::Unreadable)?,
+                );
                 // The same question [`Layout::of`] asked, asked again rather than remembered: the
                 // landing a *field* wants is decided by that field's own kind, so a symbol reached
                 // both ways cannot be handed the other one's.
@@ -696,6 +704,27 @@ impl Layout {
         let start = *self.sections.get(&index.0)?;
         let within = symbol.address().checked_sub(section.address())?;
         start.checked_add(usize::try_from(within).ok()?)
+    }
+}
+
+/// The name `nvs-codegen` emitted a symbol under, out of the name this container format spells it
+/// with.
+///
+/// Mach-O prefixes every global symbol with an underscore, so a payload in that format defines
+/// `_nvs_fn_…` and leaves `_nvs_helper_throw` undefined where ELF and COFF carry the bare name.
+/// Both of this loader's ends speak the bare form and neither can be taught otherwise: `resolve`
+/// answers for [`nvs_runtime::symbols`]' own spellings and for the descriptor names
+/// [`nvs_codegen::class_desc_symbol`] mints, and the [`Loaded::functions`] map is read back by
+/// [`nvs_codegen::Placed::address_of`] under the label that crate derived. So the prefix comes off
+/// here, at each of the few places a name is *read*, and nothing downstream has to know the format.
+///
+/// The question is asked of the **file**, not of the host. A payload is the host's format by
+/// construction — `env_hash` covers the target triple — but a loader that reads the object it is
+/// actually holding cannot disagree with it, and this is one comparison.
+fn linkage_name(format: BinaryFormat, name: &str) -> &str {
+    match format {
+        BinaryFormat::MachO => name.strip_prefix('_').unwrap_or(name),
+        _ => name,
     }
 }
 
@@ -2663,5 +2692,36 @@ mod tests {
         );
 
         drop(fs::remove_dir_all(&dir));
+    }
+
+    /// The one thing about [`linkage_name`] a non-Mach-O host can still assert: that it undoes
+    /// exactly the prefix that format adds and leaves every other format's name alone.
+    ///
+    /// Asserted rather than left to the Mach-O host because the branch is unreachable here — this
+    /// tree's own tests place COFF and ELF payloads — so nothing else in the suite would notice it
+    /// stripping a character off a name that never had one.
+    #[test]
+    fn a_macho_name_loses_its_underscore_and_no_other_format_s_does() {
+        assert_eq!(
+            linkage_name(BinaryFormat::MachO, "_nvs_helper_throw"),
+            "nvs_helper_throw"
+        );
+        assert_eq!(
+            linkage_name(BinaryFormat::Elf, "nvs_helper_throw"),
+            "nvs_helper_throw"
+        );
+        assert_eq!(
+            linkage_name(BinaryFormat::Coff, "nvs_helper_throw"),
+            "nvs_helper_throw"
+        );
+        // A bare name under Mach-O keeps every character: the prefix is stripped when it is there,
+        // never one character unconditionally.
+        assert_eq!(
+            linkage_name(BinaryFormat::MachO, "nvs_helper_throw"),
+            "nvs_helper_throw"
+        );
+        // And only the first one. A label `nvs-codegen` minted with its own leading underscore
+        // would come back with it.
+        assert_eq!(linkage_name(BinaryFormat::MachO, "__nvs_fn_0"), "_nvs_fn_0");
     }
 }
