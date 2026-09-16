@@ -542,4 +542,214 @@ mod tests {
             );
         }
     }
+
+    /// `held` as a `string` [`nvs_runtime::Value`] — every argument the members
+    /// below take except `Core\Regex::compile`'s four option slots and
+    /// `Core\Time::parse`'s zone.
+    fn text(held: &str) -> nvs_runtime::Value {
+        nvs_runtime::Value::str(nvs_runtime::NvsStr::new(held.as_bytes()))
+    }
+
+    /// Runs `member` at the `rule:errors/propagation` boundary compiled code
+    /// reaches it at, over the `strings` built and released here followed by
+    /// `rest`, which stays the caller's — and answers the sentence a `catch`
+    /// would read, since the verdict and its words are what these cases
+    /// compare rather than the object.
+    fn ran(
+        ctx: &mut nvs_runtime::Ctx,
+        member: nvs_runtime::NvsFn,
+        strings: &[&str],
+        rest: &[nvs_runtime::Value],
+    ) -> Result<(), String> {
+        let mut args: Vec<nvs_runtime::Value> = strings.iter().copied().map(text).collect();
+        args.extend_from_slice(rest);
+        let answer = nvs_runtime::call(member, ctx, &args);
+        #[expect(
+            unsafe_code,
+            reason = "this frame built the `string` arguments and owns whatever the \
+                      member answered with, and every member here borrows rather \
+                      than consumes"
+        )]
+        unsafe {
+            for held in &args[..strings.len()] {
+                held.release();
+            }
+            if let Ok(value) = answer {
+                value.release();
+            }
+        }
+        answer.map(|_| ()).map_err(|_| {
+            ctx.take_pending()
+                .map(std::borrow::Cow::into_owned)
+                .unwrap_or_default()
+        })
+    }
+
+    /// `rule:expressions/preparation-preserves-behaviour` over all four
+    /// grammars the checker prepares — the format template, the regex pattern,
+    /// the URI and the CLDR date pattern — each asserted where the two paths
+    /// could actually diverge: the entry point `nvs_types::intrinsics` calls,
+    /// beside the member a request reaches.
+    ///
+    /// Asserted by **agreement**, not against a second list of expected
+    /// refusals, which would pass while both halves drifted together. A
+    /// malformed literal is refused on both sides in the same words, the
+    /// runtime's carrying only the `Core\Class::member(): ` prefix a throw adds
+    /// and a diagnostic does not; a well-formed one is accepted on both, and
+    /// the regex half also pins the [`regex::Tier`] the fold records, which is
+    /// the one prepared artifact a later stage reads back.
+    /// [`format`]'s own `a_prepared_literal_and_its_runtime_twin_share_one_implementation`
+    /// is this taken deeper on the one grammar read against the call's other
+    /// arguments.
+    ///
+    /// Two asymmetries are asserted as what they are rather than smoothed over.
+    /// `Core\Regex::compile`'s options are not folded, so a flagged call's
+    /// *verdict* is compared and its wording is not: the flags reach the engine
+    /// as a balanced `(?ims:…)` wrapper, which moves no pattern across the
+    /// accept boundary but does move what the second engine's own error quotes.
+    /// And `Core\Time::parse` refuses a zonal field a well-formed pattern may
+    /// carry, which is a rule about that member rather than about the grammar
+    /// (`nvs_types::intrinsics`' gap 3), so civil patterns are what the
+    /// accepted half offers it.
+    #[test]
+    fn every_intrinsic_literal_prepares_the_artifact_the_runtime_builds() {
+        use nvs_runtime::{Ctx, Fault, Value};
+
+        let mut ctx = Ctx::buffered();
+
+        // The format template, whose runtime half is a plain call rather than a
+        // member: the renderer and `placeholders` walk one template parser.
+        for template in ["%q", "%1$", "%'"] {
+            let checked = format::placeholders(template).expect_err("a refusal");
+            let Fault::Thrown(_, thrown) = format::format(template, &[]).expect_err("a refusal")
+            else {
+                panic!("`{template}` refused as something other than a throw");
+            };
+            assert_eq!(checked, thrown, "for `{template}`");
+        }
+        for (template, arity) in [("%s", 1), ("%2$s %1$s", 2), ("100%% of %d", 1)] {
+            format::placeholders(template).expect("a template");
+            let given: Vec<Value> = (0..arity).map(|_| Value::int(1)).collect();
+            format::format(template, &given).expect("a rendering");
+        }
+
+        // The regex pattern, under each option the member carries as well as
+        // under none, which is what the fold reads.
+        const OPTIONS: [[bool; 4]; 5] = [
+            [false, false, false, false],
+            [true, false, false, false],
+            [false, true, false, false],
+            [false, false, true, false],
+            [false, false, false, true],
+        ];
+        for pattern in ["(", "[a-", "*"] {
+            let checked = regex::validate(pattern).expect_err("a refusal");
+            for options in OPTIONS {
+                let thrown = ran(
+                    &mut ctx,
+                    regex::nvs_core_regex_compile,
+                    &[pattern],
+                    &options.map(Value::bool),
+                )
+                .expect_err("a refusal");
+                if options == OPTIONS[0] {
+                    assert_eq!(
+                        thrown,
+                        format!("Core\\Regex::compile(): {checked}"),
+                        "for `{pattern}`"
+                    );
+                }
+            }
+        }
+        for (pattern, tier) in [
+            (r"^\d+$", regex::Tier::Linear),
+            (r"(?<=a)b", regex::Tier::Backtracking),
+        ] {
+            assert_eq!(
+                regex::validate(pattern).expect("a pattern"),
+                tier,
+                "for `{pattern}`"
+            );
+            for options in OPTIONS {
+                ran(
+                    &mut ctx,
+                    regex::nvs_core_regex_compile,
+                    &[pattern],
+                    &options.map(Value::bool),
+                )
+                .expect("the runtime compiles what the checker prepared");
+            }
+        }
+
+        // The URI, both of whose throwing steps the fold runs: the grammar and
+        // the port's range.
+        for written in [
+            "http://[::1/",
+            "http://example.com:70000/",
+            "http://exa mple.com/",
+        ] {
+            let checked = uri::validate(written).expect_err("a refusal");
+            let thrown =
+                ran(&mut ctx, uri::nvs_core_uri_parse, &[written], &[]).expect_err("a refusal");
+            assert_eq!(
+                thrown,
+                format!("Core\\Uri::parse(): {checked}"),
+                "for `{written}`"
+            );
+        }
+        for written in [
+            "https://example.com/a?b=c#d",
+            "mailto:novis@example.com",
+            "/relative/path",
+        ] {
+            uri::validate(written).expect("a URI reference");
+            ran(&mut ctx, uri::nvs_core_uri_parse, &[written], &[])
+                .expect("the runtime parses what the checker prepared");
+        }
+
+        // The CLDR pattern, through the member that takes one as a `string`
+        // beside the text it reads.
+        let named = text("UTC");
+        let zone = nvs_runtime::call(time::nvs_core_time_zone_of, &mut ctx, &[named])
+            .expect("`UTC` is an identifier the zone database carries");
+        #[expect(
+            unsafe_code,
+            reason = "this frame built the identifier the zone was named by"
+        )]
+        unsafe {
+            named.release();
+        }
+        for pattern in ["j", "'abc", "V"] {
+            let checked = cldr::validate(pattern).expect_err("a refusal");
+            let thrown = ran(
+                &mut ctx,
+                time::nvs_core_time_parse,
+                &["2026-09-16 10:30:00", pattern],
+                &[zone],
+            )
+            .expect_err("a refusal");
+            assert_eq!(
+                thrown,
+                format!("Core\\Time::parse(): {checked}"),
+                "for `{pattern}`"
+            );
+        }
+        for (pattern, subject) in [
+            ("yyyy-MM-dd HH:mm:ss", "2026-09-16 10:30:00"),
+            ("yyyy-MM-dd'T'HH:mm:ss", "2026-09-16T10:30:00"),
+        ] {
+            cldr::validate(pattern).expect("a pattern");
+            ran(
+                &mut ctx,
+                time::nvs_core_time_parse,
+                &[subject, pattern],
+                &[zone],
+            )
+            .expect("the runtime reads what the checker prepared");
+        }
+        #[expect(unsafe_code, reason = "this frame owns the zone the cases shared")]
+        unsafe {
+            zone.release();
+        }
+    }
 }
