@@ -5299,6 +5299,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   subtraction and `Core\Math::intDiv($a, $b)` for the division, and run
   `target/debug/nvs.exe test <one case>` before believing either shape.
   [until: reviewed 2026-09-16]
+- **A conformance case can quote a known gap's own refusal message, so closing the gap fails a case
+  whose name says nothing about it.** A gap's message is observable behaviour while the gap stands,
+  so pinning it was right — `json-an-absent-optional-field-reads-apart-from-an-absent-required-one`
+  carried "…is `nvs_stdlib::json`'s own known gap" in its `--EXPECT--`. Before verifying a gap
+  closure, grep `tests/` for a phrase of the message you are deleting, and rewrite the case holding
+  it to assert the new behaviour. [until: reviewed 2026-09-16]
 
 ## Splitting a file that got too big
 

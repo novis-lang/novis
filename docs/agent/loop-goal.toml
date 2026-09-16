@@ -166,6 +166,13 @@ rules = ["classes/no-free-functions-or-constants"]
 shapes = ["A `.nvst` test case"]
 
 [context.stage.4]
+# The two doors' own rules: what a wire contract owes a key, and which half of a codec the attribute
+# generates when the class wrote the other one itself.
+rules = [
+  "core-api/required-optional-and-nullable",
+  "core-classes/derive-field-list",
+  "core-classes/derive-generates-what-is-missing",
+]
 shapes = ["A `Core` member", "A `.nvst` test case"]
 
 [context.stage.6]
