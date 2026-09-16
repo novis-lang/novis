@@ -1,0 +1,102 @@
+--TEST--
+`Core\Process\Handle::kill` ends a child that was still reading, `wait` answers the status that killing it produced, and the handle afterwards refuses a write and reads its stream as ended — `rule:core-classes/process-spawn`
+--FILE--
+<?nvs
+// The other side of a handle from the streaming case: a program that decides it
+// does not want the rest of what a child would have said. Three things have to
+// hold together for `kill` to be worth having, and asserting one of them alone
+// passes against a member that only pretended — a `kill` that signalled nothing
+// would still leave `wait` answering *a* status, and a `wait` that never reaped
+// would still let the two reads below answer `null`.
+//
+// The status itself is deliberately not named. A signal has no exit code on the
+// platforms that have signals, so the child answers `-1` there and the number
+// the system chose for a terminated process elsewhere; what is common to both,
+// and what a caller actually asks, is that it is not the `0` a child that
+// finished its work would have reported.
+
+int $started = 0;
+int $absent = 0;
+int $killed = 0;
+string $wrote = "<nothing ran>";
+string $ended = "<nothing ran>";
+
+try {
+    // A child that reads to the end of its input, started and then never given
+    // one: without the kill it would sit there until `wait` closed its stdin.
+    Core\Process\Handle $child = Core\Process::spawn("/bin/sh", ["-c", "cat"]);
+    $started += 1;
+    $child->writeStdin("never answered" as bytes);
+    $child->kill();
+    Core\Process\Result $done = $child->wait();
+    if ($done->exitCode() != 0) {
+        $killed += 1;
+    }
+
+    // A write into a child that is gone is the operating system's refusal and
+    // not a silent success: `wait` closed this end, so there is nothing left
+    // for the octets to go into.
+    try {
+        $child->writeStdin("too late" as bytes);
+        $wrote = "accepted";
+    } catch (IOError $gone) {
+        $wrote = "refused";
+    }
+
+    // And *both* streams read as ended rather than as an error, which is the
+    // one answer a read gives that is neither data nor a failure. Both,
+    // because `wait` drained them separately and a member that left one of
+    // them behind would answer a chunk here on the one it forgot.
+    ?bytes $afterOut = $child->readStdout();
+    ?bytes $afterErr = $child->readStderr();
+    $ended = "more";
+    if ($afterOut == null && $afterErr == null) {
+        $ended = "end";
+    }
+} catch (IOError $notAUnix) {
+    $absent += 1;
+}
+
+try {
+    Core\Process\Handle $childOnWindows = Core\Process::spawn("C:\\Windows\\System32\\cmd.exe", ["/c", "sort"]);
+    $started += 1;
+    $childOnWindows->writeStdin("never answered" as bytes);
+    $childOnWindows->kill();
+    Core\Process\Result $doneOnWindows = $childOnWindows->wait();
+    if ($doneOnWindows->exitCode() != 0) {
+        $killed += 1;
+    }
+
+    try {
+        $childOnWindows->writeStdin("too late" as bytes);
+        $wrote = "accepted";
+    } catch (IOError $goneOnWindows) {
+        $wrote = "refused";
+    }
+
+    ?bytes $afterOutOnWindows = $childOnWindows->readStdout();
+    ?bytes $afterErrOnWindows = $childOnWindows->readStderr();
+    $ended = "more";
+    if ($afterOutOnWindows == null && $afterErrOnWindows == null) {
+        $ended = "end";
+    }
+} catch (IOError $notWindows) {
+    $absent += 1;
+}
+
+echo "started=", $started, "\n";
+echo "absent=", $absent, "\n";
+echo "killed=", $killed, "\n";
+echo "write after=", $wrote, "\n";
+echo "read after=", $ended, "\n";
+--FILE nvs.toml--
+# `true`, not a list of roots, for the reason
+# `process-spawn-streams-a-childs-output-into-the-program.nvst` states.
+[capabilities.process]
+exec = true
+--EXPECT--
+started=1
+absent=1
+killed=1
+write after=refused
+read after=end

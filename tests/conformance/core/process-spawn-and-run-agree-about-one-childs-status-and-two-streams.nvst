@@ -1,0 +1,116 @@
+--TEST--
+One child started twice answers the same status and the same two streams through `Core\Process::run`'s captures and through a handle's reads, so neither member has grown a reading of a child the other does not share — `rule:core-classes/process-spawn`
+--FILE--
+<?nvs
+// The agreement question, and the one shape neither member can be asked alone.
+// `spawn` and `run` are the same door onto the same operating system and differ
+// only in whether the caller waits, so a handle that dropped a stream, merged
+// the two, or lost a non-zero status would still print plausibly on its own —
+// it is the second answer beside it that has nothing to hide behind.
+//
+// The child writes a distinct word to each stream and then exits with a status
+// nothing but a child can have chosen, so all three claims are carried by one
+// program run twice.
+
+int $started = 0;
+int $absent = 0;
+int $spawnStatus = -2;
+int $runStatus = -2;
+string $out = "<nothing ran>";
+string $err = "<nothing ran>";
+string $ranOut = "<nothing ran>";
+string $ranErr = "<nothing ran>";
+
+try {
+    Core\Process\Handle $child = Core\Process::spawn("/bin/sh", ["-c", "echo out; echo err 1>&2; exit 3"]);
+    $started += 1;
+    string $seen = "";
+    ?bytes $chunk = $child->readStdout();
+    while ($chunk != null) {
+        $seen = $seen . ($chunk as string);
+        $chunk = $child->readStdout();
+    }
+    $out = $seen;
+
+    string $seenErr = "";
+    ?bytes $errChunk = $child->readStderr();
+    while ($errChunk != null) {
+        $seenErr = $seenErr . ($errChunk as string);
+        $errChunk = $child->readStderr();
+    }
+    $err = $seenErr;
+    $spawnStatus = $child->wait()->exitCode();
+
+    Core\Process\Result $ran = Core\Process::run("/bin/sh", ["-c", "echo out; echo err 1>&2; exit 3"]);
+    $ranOut = $ran->stdout() as string;
+    $ranErr = $ran->stderr() as string;
+    $runStatus = $ran->exitCode();
+
+    // A third child, started only to be abandoned: what it is here for is that
+    // a handle is a thing a program may simply stop wanting. The write goes
+    // into a pipe a live child is reading, and the kill ends it without a
+    // status ever being collected — which is the case
+    // `a_spawned_child_is_killed_when_its_task_ends` covers from the other end.
+    Core\Process\Handle $sink = Core\Process::spawn("/bin/sh", ["-c", "cat"]);
+    $sink->writeStdin("dropped" as bytes);
+    $sink->kill();
+} catch (IOError $notAUnix) {
+    $absent += 1;
+}
+
+try {
+    Core\Process\Handle $childOnWindows = Core\Process::spawn("C:\\Windows\\System32\\cmd.exe", ["/c", "echo out&echo err 1>&2&exit 3"]);
+    $started += 1;
+    string $seenOnWindows = "";
+    ?bytes $chunkOnWindows = $childOnWindows->readStdout();
+    while ($chunkOnWindows != null) {
+        $seenOnWindows = $seenOnWindows . ($chunkOnWindows as string);
+        $chunkOnWindows = $childOnWindows->readStdout();
+    }
+    $out = $seenOnWindows;
+
+    string $seenErrOnWindows = "";
+    ?bytes $errChunkOnWindows = $childOnWindows->readStderr();
+    while ($errChunkOnWindows != null) {
+        $seenErrOnWindows = $seenErrOnWindows . ($errChunkOnWindows as string);
+        $errChunkOnWindows = $childOnWindows->readStderr();
+    }
+    $err = $seenErrOnWindows;
+    $spawnStatus = $childOnWindows->wait()->exitCode();
+
+    Core\Process\Result $ranOnWindows = Core\Process::run("C:\\Windows\\System32\\cmd.exe", ["/c", "echo out&echo err 1>&2&exit 3"]);
+    $ranOut = $ranOnWindows->stdout() as string;
+    $ranErr = $ranOnWindows->stderr() as string;
+    $runStatus = $ranOnWindows->exitCode();
+
+    Core\Process\Handle $sinkOnWindows = Core\Process::spawn("C:\\Windows\\System32\\cmd.exe", ["/c", "sort"]);
+    $sinkOnWindows->writeStdin("dropped" as bytes);
+    $sinkOnWindows->kill();
+} catch (IOError $notWindows) {
+    $absent += 1;
+}
+
+echo "started=", $started, "\n";
+echo "absent=", $absent, "\n";
+// The statuses are named rather than only compared: two members that both
+// answered `0` would agree with each other and with nothing else.
+echo "spawn status=", $spawnStatus, "\n";
+echo "run status=", $runStatus, "\n";
+// Each stream carries its own word and not the other's, through both members —
+// the assertion a merged capture fails and a dropped one fails differently.
+echo "spawn apart=|", (Core\Str::contains($out, "out") && Core\Str::contains($err, "err")) as string, "|",
+     (Core\Str::contains($out, "err") || Core\Str::contains($err, "out")) as string, "|\n";
+echo "run apart=|", (Core\Str::contains($ranOut, "out") && Core\Str::contains($ranErr, "err")) as string, "|",
+     (Core\Str::contains($ranOut, "err") || Core\Str::contains($ranErr, "out")) as string, "|\n";
+--FILE nvs.toml--
+# `true`, not a list of roots, for the reason
+# `process-spawn-streams-a-childs-output-into-the-program.nvst` states.
+[capabilities.process]
+exec = true
+--EXPECT--
+started=1
+absent=1
+spawn status=3
+run status=3
+spawn apart=|1||
+run apart=|1||
