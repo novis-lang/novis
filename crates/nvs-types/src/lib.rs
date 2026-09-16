@@ -226,8 +226,18 @@ pub use nvs_stdlib::html::{
     MARKUP_NAME as CORE_HTML_MARKUP_CLASS, MARKUP_SYMBOL as CORE_HTML_MARKUP,
     MARKUP_TEXT_SYMBOL as CORE_HTML_MARKUP_TEXT,
 };
+/// `Core\Regex`'s two engines as `nvs_stdlib::regex::PREPARED_NONE` documents
+/// them, and the zero word beside them — the encoding
+/// `nvs_stdlib::registry::PREPARED_MEMBERS`' argument 0 carries, reached from
+/// `nvs-ir` through this crate exactly as every other `Core` symbol below is.
+pub use nvs_stdlib::regex::{
+    PREPARED_BACKTRACKING as CORE_REGEX_PREPARED_BACKTRACKING,
+    PREPARED_LINEAR as CORE_REGEX_PREPARED_LINEAR, PREPARED_NONE as CORE_REGEX_PREPARED_NONE,
+    Tier as RegexTier,
+};
 pub use nvs_stdlib::registry::constructor_symbol as core_constructor_symbol;
 pub use nvs_stdlib::registry::takes_call_site as core_takes_call_site;
+pub use nvs_stdlib::registry::takes_prepared as core_takes_prepared;
 pub use nvs_stdlib::registry::takes_source as core_takes_source;
 pub use nvs_stdlib::registry::takes_written_class as core_takes_written_class;
 pub use nvs_stdlib::router::link::{

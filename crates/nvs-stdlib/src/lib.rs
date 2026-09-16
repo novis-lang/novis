@@ -558,17 +558,23 @@ mod tests {
     }
 
     /// Runs `member` at the `rule:errors/propagation` boundary compiled code
-    /// reaches it at, over the `strings` built and released here followed by
-    /// `rest`, which stays the caller's — and answers the sentence a `catch`
-    /// would read, since the verdict and its words are what these cases
-    /// compare rather than the object.
+    /// reaches it at, over `leading` and then the `strings` built and released
+    /// here and then `rest`, both of which stay the caller's — and answers the
+    /// sentence a `catch` would read, since the verdict and its words are what
+    /// these cases compare rather than the object.
+    ///
+    /// `leading` is what a roster puts ahead of everything a call site wrote:
+    /// [`registry::PREPARED_MEMBERS`]' word is the one these cases pass, and it
+    /// is empty for a member on no roster at all.
     fn ran(
         ctx: &mut nvs_runtime::Ctx,
         member: nvs_runtime::NvsFn,
+        leading: &[nvs_runtime::Value],
         strings: &[&str],
         rest: &[nvs_runtime::Value],
     ) -> Result<(), String> {
-        let mut args: Vec<nvs_runtime::Value> = strings.iter().copied().map(text).collect();
+        let mut args: Vec<nvs_runtime::Value> = leading.to_vec();
+        args.extend(strings.iter().copied().map(text));
         args.extend_from_slice(rest);
         let answer = nvs_runtime::call(member, ctx, &args);
         #[expect(
@@ -578,7 +584,7 @@ mod tests {
                       than consumes"
         )]
         unsafe {
-            for held in &args[..strings.len()] {
+            for held in &args[leading.len()..leading.len() + strings.len()] {
                 held.release();
             }
             if let Ok(value) = answer {
@@ -655,6 +661,9 @@ mod tests {
                 let thrown = ran(
                     &mut ctx,
                     regex::nvs_core_regex_compile,
+                    // A refused literal prepared nothing, which is the word a
+                    // call site whose pattern never folded carries too.
+                    &[Value::int(regex::PREPARED_NONE)],
                     &[pattern],
                     &options.map(Value::bool),
                 )
@@ -681,6 +690,11 @@ mod tests {
                 ran(
                     &mut ctx,
                     regex::nvs_core_regex_compile,
+                    // Told what the fold settled, which is the whole of what
+                    // `registry::PREPARED_MEMBERS` carries: the runtime half is
+                    // asserted against the *prepared* call and not only against
+                    // the untold one.
+                    &[Value::int(tier.prepared_code())],
                     &[pattern],
                     &options.map(Value::bool),
                 )
@@ -696,8 +710,8 @@ mod tests {
             "http://exa mple.com/",
         ] {
             let checked = uri::validate(written).expect_err("a refusal");
-            let thrown =
-                ran(&mut ctx, uri::nvs_core_uri_parse, &[written], &[]).expect_err("a refusal");
+            let thrown = ran(&mut ctx, uri::nvs_core_uri_parse, &[], &[written], &[])
+                .expect_err("a refusal");
             assert_eq!(
                 thrown,
                 format!("Core\\Uri::parse(): {checked}"),
@@ -710,7 +724,7 @@ mod tests {
             "/relative/path",
         ] {
             uri::validate(written).expect("a URI reference");
-            ran(&mut ctx, uri::nvs_core_uri_parse, &[written], &[])
+            ran(&mut ctx, uri::nvs_core_uri_parse, &[], &[written], &[])
                 .expect("the runtime parses what the checker prepared");
         }
 
@@ -731,6 +745,7 @@ mod tests {
             let thrown = ran(
                 &mut ctx,
                 time::nvs_core_time_parse,
+                &[],
                 &["2026-09-16 10:30:00", pattern],
                 &[zone],
             )
@@ -749,6 +764,7 @@ mod tests {
             ran(
                 &mut ctx,
                 time::nvs_core_time_parse,
+                &[],
                 &[subject, pattern],
                 &[zone],
             )

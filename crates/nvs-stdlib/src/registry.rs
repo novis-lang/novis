@@ -3053,6 +3053,48 @@ pub fn takes_call_site(class: &str, method: &str) -> bool {
         .any(|(owner, name)| *owner == class && *name == method)
 }
 
+/// The closed roster of members whose helper is handed **what the compiler
+/// prepared out of the literal it was written with**, as an extra leading
+/// argument — `rule:expressions/intrinsic-list-is-closed`'s roster reaching the
+/// runtime, and the one channel it has.
+///
+/// `nvs_types::intrinsics` reads a written literal against its member's grammar
+/// while checking, and preparation is what that read leaves behind:
+/// `nvs_stdlib::regex::Tier` for a pattern, a parsed plan for the grammars that
+/// do not travel this yet. A member on this roster is handed that answer instead
+/// of deriving it again at the first call, which is the *second* effect
+/// `rule:expressions/preparation-preserves-behaviour` asks for — the first,
+/// refusing a malformed literal while compiling, needs no channel at all.
+///
+/// **What travels is the durable fact, never the object.** A compiled regex is
+/// an `Rc` on one core's thread-local cache and an artifact cannot hold one, so
+/// what the constant carries is the word the fact encodes to — the tier, here —
+/// and the runtime spends what is left. That bound is why this is a roster of
+/// members rather than a table of automata, and `nvs_ir::ir::Prepared` is the
+/// closed set of facts a word can be.
+///
+/// **Argument 0, ahead of everything, and it is there for every call site.** A
+/// member on this roster whose pattern the program computed is handed
+/// `nvs_stdlib::regex::PREPARED_NONE`, exactly as [`WRITTEN_CLASS_MEMBERS`]'
+/// third slot is written either way: a helper reads one ABI rather than
+/// branching on what its call site wrote, and a slot nothing wrote is what
+/// `nvs_ir::lower::Lowering::prepared_constant` exists to prevent. The helper's
+/// `args: [N]` therefore counts **one** more than [`CoreMethod::params`] does.
+///
+/// [`SOURCE_MEMBERS`] names the same position, and no member is on both rosters:
+/// what a producer is handed is where it was *called*, and what a prepared
+/// member is handed is what its own argument said. A member that ever wanted
+/// each would take this word first, which is the order `nvs-ir` emits them in.
+pub const PREPARED_MEMBERS: &[(&str, &str)] = &[(crate::regex::NAME, "compile")];
+
+/// Whether `class::method` is one of [`PREPARED_MEMBERS`].
+#[must_use]
+pub fn takes_prepared(class: &str, method: &str) -> bool {
+    PREPARED_MEMBERS
+        .iter()
+        .any(|(owner, name)| *owner == class && *name == method)
+}
+
 /// The closed roster of `Core`-owned **generic** classes, each with the type
 /// parameters it declares, in order — spec § 9's three collections.
 ///

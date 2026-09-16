@@ -136,7 +136,7 @@ pub(crate) fn infer_method_call(
     // is the shape that reaches it here. See [`crate::intrinsics`], which
     // reports and replaces nothing.
     if let Some((owner, name, _)) = &resolved {
-        crate::intrinsics::check_call(owner, name, args, &arg_types, &slots, env);
+        crate::intrinsics::check_call(owner, name, expr.span, args, &arg_types, &slots, env);
         // `rule:core-classes/html-to-source`'s written reason, at the same point and matched the same
         // way — the one pass that refuses an argument *for* being dynamic. See
         // [`crate::reasons`], whose module doc owns why that is not the rule
@@ -407,7 +407,7 @@ pub(crate) fn infer_static_call(
         // `rule:expressions/intrinsic-list-is-closed`'s closed list — [`infer_method_call`]'s arm of the same
         // hook, for the `Core\Str::format(…)` / `Core\Regex::compile(…)` half
         // of the roster. See [`crate::intrinsics`].
-        crate::intrinsics::check_call(owner, name, args, &arg_types, &slots, env);
+        crate::intrinsics::check_call(owner, name, expr.span, args, &arg_types, &slots, env);
         // `rule:core-classes/html-to-source`'s written reason — `Core\Html::toSource` is a static
         // call, so this is the arm that actually reports it. See
         // [`crate::reasons`].

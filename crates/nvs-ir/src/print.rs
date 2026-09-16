@@ -190,6 +190,13 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
             Some(key) => format!("shape.codec {key}"),
             None => "shape.codec none".to_owned(),
         },
+        InstKind::PreparedConst { fact } => match fact {
+            Some(crate::ir::Prepared::RegexLinear) => "prepared regex.linear".to_owned(),
+            Some(crate::ir::Prepared::RegexBacktracking) => {
+                "prepared regex.backtracking".to_owned()
+            }
+            None => "prepared none".to_owned(),
+        },
         InstKind::SourceConst { source } => match source {
             Some(source) => match &source.member {
                 Some(member) => format!("source {}:{} {member}", source.file, source.line),

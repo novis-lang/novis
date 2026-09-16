@@ -1122,6 +1122,46 @@ pub enum ForeachDrive {
     Cursor,
 }
 
+/// What [`crate::intrinsics`]'s fold prepared at one call site, and where the
+/// literal it read was written.
+///
+/// The two halves answer two different readers. `nvs-ir` reads [`Self::fact`]
+/// and hands it to the member as `nvs_stdlib::registry::PREPARED_MEMBERS`'
+/// constant; a test or a record reads [`Self::literal`] and slices the source
+/// at it to name the pattern. Keeping the second span here rather than making
+/// it the table's key is what lets the first reader look the entry up by the
+/// only address it holds, which is the call's own span.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Prepared {
+    /// The span of the literal preparation read — the pattern as it was
+    /// written, quotes and escapes included.
+    pub literal: Span,
+    /// What reading it produced.
+    pub fact: PreparedFact,
+}
+
+/// One preparation's durable answer — the closed set of facts a call site can
+/// carry into the runtime.
+///
+/// A variant per *answer*, not per grammar row: what a member is handed is the
+/// result of reading its literal, and two members reading one pattern language
+/// hand over the same kind of thing. The set is closed for
+/// `rule:expressions/intrinsic-list-is-closed`'s reason — an answer no roster
+/// row produces is an answer no helper can be handed — and
+/// `nvs_ir::ir::Prepared` is its twin on the other side of the channel.
+///
+/// **A fact, never an object.** A compiled regex is an `Rc` on one core's
+/// thread-local cache, so what crosses is the tier it settled in and the
+/// runtime spends what is left: `nvs_stdlib::registry::PREPARED_MEMBERS` owns
+/// that bound in full.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum PreparedFact {
+    /// Which of `rule:core-classes/regex-two-tiers`'s two engines a literal
+    /// pattern compiles on, settled by the same `nvs_stdlib::regex::validate`
+    /// the refusal above it came from.
+    RegexTier(nvs_stdlib::regex::Tier),
+}
+
 /// Every [`ExprInfo`] [`crate::check::check_program`] recorded this run,
 /// looked up by the source span of the expression it describes. See the
 /// module docs for the full design and why a span is the lookup key.
@@ -1145,7 +1185,7 @@ pub struct ExprTypeTable {
     static_properties: FxHashMap<String, Vec<(String, Option<crate::defaults::ConstArg>)>>,
     to_string: FxHashMap<Span, ResolvedCall>,
     require_targets: FxHashMap<Span, nvs_diagnostics::SourceId>,
-    regex_tiers: FxHashMap<Span, nvs_stdlib::regex::Tier>,
+    prepared: FxHashMap<Span, Prepared>,
     delegations: Vec<Delegation>,
     locals: Vec<(Span, Vec<LocalBinding>)>,
     routes: crate::routes::RouteTable,
@@ -1744,34 +1784,41 @@ impl ExprTypeTable {
         self.require_targets.insert(span, target);
     }
 
-    /// Records which of `rule:core-classes/regex-two-tiers`'s two engines the literal pattern at `span`
-    /// compiles on — [`crate::intrinsics`]'s fold settling § 3's second
-    /// effect while checking, rather than leaving the first call to discover
-    /// it.
+    /// Records what [`crate::intrinsics`]'s fold prepared out of the literal a
+    /// call at `call` was written with — § 3's second effect settled while
+    /// checking, rather than left for the first call to discover.
     ///
     /// [`Self::record_require_target`]'s reason for riding here, with one
-    /// addition of its own: a tier is a property of the pattern text and not
-    /// of the machine, so recording it once is not a cache that can go stale
-    /// between this run and the run that reads it. `nvs-ir` is the only
-    /// consumer, and a site with no entry is one whose pattern was not a
+    /// addition of its own: what preparation answers is a property of the text
+    /// and not of the machine, so recording it once is not a cache that can go
+    /// stale between this run and the run that reads it. `nvs-ir` is the only
+    /// consumer, and a call with no entry is one whose argument was not a
     /// literal — § 2's rule that nothing is refused for being dynamic applies
     /// to what is *recorded* just as it does to what is refused.
-    pub(crate) fn record_regex_tier(&mut self, span: Span, tier: nvs_stdlib::regex::Tier) {
-        self.regex_tiers.insert(span, tier);
+    ///
+    /// **Filed under the call, and naming the literal.** The address is the
+    /// call's own span because that is what `nvs-ir` holds when it lowers one
+    /// (`nvs_stdlib::registry::PREPARED_MEMBERS`); [`Prepared::literal`] is the
+    /// pattern's own span, which is what a reader of the record slices the
+    /// source at.
+    pub(crate) fn record_prepared(&mut self, call: Span, prepared: Prepared) {
+        self.prepared.insert(call, prepared);
     }
 
-    /// The tier the literal pattern at `span` compiles on, or `None` for a
-    /// site the fold did not read — a dynamic argument, an argument moved out
-    /// of position by a `name:` or a `...`, or a pattern already refused.
+    /// What the fold prepared for the call at `call`, or `None` for one it did
+    /// not read — a dynamic argument, an argument moved out of position by a
+    /// `...`, or a literal already refused.
     #[must_use]
-    pub fn regex_tier(&self, span: Span) -> Option<nvs_stdlib::regex::Tier> {
-        self.regex_tiers.get(&span).copied()
+    pub fn prepared(&self, call: Span) -> Option<Prepared> {
+        self.prepared.get(&call).copied()
     }
 
     /// Every pattern this run settled a tier for, in no particular order —
     /// for a caller counting them rather than asking about one site.
     pub fn regex_tiers(&self) -> impl Iterator<Item = nvs_stdlib::regex::Tier> + '_ {
-        self.regex_tiers.values().copied()
+        self.prepared.values().map(|prepared| match prepared.fact {
+            PreparedFact::RegexTier(tier) => tier,
+        })
     }
 
     /// The same settlements carrying the span each was read from, for a caller
@@ -1779,7 +1826,9 @@ impl ExprTypeTable {
     /// them — the span is the literal's own, so slicing the source at it gives
     /// the pattern back as it was written.
     pub fn regex_tier_sites(&self) -> impl Iterator<Item = (Span, nvs_stdlib::regex::Tier)> + '_ {
-        self.regex_tiers.iter().map(|(span, tier)| (*span, *tier))
+        self.prepared.values().map(|prepared| match prepared.fact {
+            PreparedFact::RegexTier(tier) => (prepared.literal, tier),
+        })
     }
 
     /// Records one synthesized `by $field` forward — see [`Delegation`], whose

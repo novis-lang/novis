@@ -697,6 +697,26 @@ pub enum InstKind {
         /// The datum, exactly as `lower::Lowering::source` built it.
         source: Option<Source>,
     },
+    /// What the checker prepared out of the literal a call on
+    /// `nvs_stdlib::registry::PREPARED_MEMBERS`' roster was written with,
+    /// carried to the member as that roster's argument 0.
+    ///
+    /// One `iconst` of [`Prepared::code`]'s word, produced at
+    /// [`crate::ty::Ty::Int`] because the word *is* the datum: unlike the two
+    /// constants above, nothing is baked into the unit's data and no address is
+    /// handed over. That is the channel's bound rather than an optimization —
+    /// what preparation leaves behind is a fact about the text, and a compiled
+    /// automaton belongs to the core that built it.
+    ///
+    /// `None` is a call whose argument was not a literal, and it emits
+    /// `nvs_types::CORE_REGEX_PREPARED_NONE`. The slot is there either way, so
+    /// one member reads one ABI rather than branching on what its call site
+    /// happened to write — [`InstKind::ShapeCodecConst`]'s own `None` for the
+    /// same reason.
+    PreparedConst {
+        /// The fact, or `None` for the zero word.
+        fact: Option<Prepared>,
+    },
     /// The [`Ty::ClassDesc`] of the class `object` is actually an instance of
     /// — one load at `nvs_runtime::OBJ_CLASS_OFFSET`, retaining nothing (a
     /// descriptor is owned by the unit, not reference counted).
@@ -1806,6 +1826,53 @@ pub enum TestedClass {
     /// by address. Never a null descriptor: `as` is a class reference's only
     /// source and throws rather than yielding one ([`InstKind::ClassDescIn`]).
     Descriptor(ValueId),
+}
+
+/// What the checker prepared out of one written literal, as
+/// [`InstKind::PreparedConst`] carries it — the closed set of facts a member on
+/// `nvs_stdlib::registry::PREPARED_MEMBERS`' roster can be handed.
+///
+/// This crate's twin of `nvs_types::expr_table::PreparedFact`, and it is a
+/// second enum for [`ShapeCodec`]'s reason: what the checker recorded is its
+/// own vocabulary, and what a unit emits is this one. [`Self::code`] is the
+/// only place the two meet, and the words it answers with live once, beside
+/// the runtime that decodes them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Prepared {
+    /// A literal pattern the linear engine expresses —
+    /// `rule:core-classes/regex-two-tiers`'s first tier.
+    RegexLinear,
+    /// A literal pattern only the backtracking engine expresses. The word that
+    /// saves a call: the linear engine's parser has already refused this text
+    /// once, while checking.
+    RegexBacktracking,
+}
+
+impl Prepared {
+    /// This fact as `nvs_stdlib::registry::PREPARED_MEMBERS`' argument 0
+    /// carries it.
+    #[must_use]
+    pub const fn code(self) -> i64 {
+        match self {
+            Self::RegexLinear => nvs_types::CORE_REGEX_PREPARED_LINEAR,
+            Self::RegexBacktracking => nvs_types::CORE_REGEX_PREPARED_BACKTRACKING,
+        }
+    }
+}
+
+/// [`Prepared::code`] over the absence too — the whole of what
+/// [`InstKind::PreparedConst`] encodes to, for the emitter that holds the
+/// `Option` rather than the fact.
+///
+/// It lives here rather than in `nvs-codegen` because the zero word is part of
+/// the same encoding the variants are, and an emitter spelling it itself would
+/// be a second opinion about an ABI.
+#[must_use]
+pub const fn prepared_code(fact: Option<Prepared>) -> i64 {
+    match fact {
+        Some(fact) => fact.code(),
+        None => nvs_types::CORE_REGEX_PREPARED_NONE,
+    }
 }
 
 /// What an [`InstKind::ArrayGet`] or an [`InstKind::SlotGet`] answers when the

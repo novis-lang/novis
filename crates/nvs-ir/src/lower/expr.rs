@@ -3587,6 +3587,12 @@ impl<'a> Lowering<'a> {
             // is opened, and pushed last below.
             let site = nvs_types::core_takes_call_site(&call.class.to_string(), &call.method)
                 .then(|| self.call_site(*cur));
+            // A member on `nvs_stdlib::registry::PREPARED_MEMBERS` is handed
+            // what the checker prepared out of its written literal, as argument
+            // 0 — `Lowering::prepared_constant` owns the position, the lookup
+            // and why the slot is written for a call that prepared nothing.
+            let prepared = nvs_types::core_takes_prepared(&call.class.to_string(), &call.method)
+                .then(|| self.prepared_constant(*cur, expr.span));
             let mark = self.temporaries_mark();
             let (object_v, receiver_ty, guard) =
                 self.open_nullsafe(object, nullsafe, ReceiverProof::Proven, env, cur);
@@ -3603,7 +3609,8 @@ impl<'a> Lowering<'a> {
             }
             let LoweredArgs { values } =
                 self.lower_call_args(args, &sig, checked_types, ArgOwnership::Borrowed, env, cur);
-            let mut arg_values = Vec::with_capacity(values.len() + 5);
+            let mut arg_values = Vec::with_capacity(values.len() + 6);
+            arg_values.extend(prepared);
             arg_values.extend(source);
             arg_values.extend(written_class.into_iter().flatten());
             arg_values.push(object_v);
@@ -3821,11 +3828,17 @@ impl<'a> Lowering<'a> {
             // decided about which of the two paths reached it.
             let site = nvs_types::core_takes_call_site(&call.class.to_string(), &call.method)
                 .then(|| self.call_site(*cur));
+            // `nvs_stdlib::registry::PREPARED_MEMBERS`' leading constant, which
+            // that roster owns — `Core\Regex::compile("…")` is the shape it is
+            // here for, and `Lowering::prepared_constant` owns the lookup.
+            let prepared = nvs_types::core_takes_prepared(&call.class.to_string(), &call.method)
+                .then(|| self.prepared_constant(*cur, expr.span));
             let mark = self.temporaries_mark();
             let lowered =
                 self.lower_call_args(args, &sig, checked_types, ArgOwnership::Borrowed, env, cur);
-            let arg_values = source
+            let arg_values = prepared
                 .into_iter()
+                .chain(source)
                 .chain(written_class.into_iter().flatten())
                 .chain(lowered.values)
                 .chain(site)

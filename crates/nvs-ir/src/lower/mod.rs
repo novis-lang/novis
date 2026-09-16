@@ -85,7 +85,8 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::ids::{BlockId, EdgeId, IdGen, ValueId};
 use crate::ir::{
-    AbsentKey, BasicBlock, BinOp, Function, Helper, Inst, InstKind, Terminator, TestedClass, UnOp,
+    AbsentKey, BasicBlock, BinOp, Function, Helper, Inst, InstKind, Prepared, Terminator,
+    TestedClass, UnOp,
 };
 use crate::ty::{EnumRepr, Ty};
 use crate::{span_text, strip_sigil};
@@ -2216,6 +2217,36 @@ impl<'a> Lowering<'a> {
     /// [`Self::producer_source`]'s reasons exactly.
     pub(crate) fn call_site(&mut self, b: BlockId) -> ValueId {
         self.producer_source(b)
+    }
+
+    /// The constant a member on `nvs_stdlib::registry::PREPARED_MEMBERS` takes
+    /// as its argument 0: what the checker prepared out of the literal the call
+    /// at `span` was written with, as [`InstKind::PreparedConst`] carries it.
+    ///
+    /// The whole of this crate's half of that channel. `nvs_types` files what
+    /// it prepared under the **call's** span — which is the only address this
+    /// frame holds — and the fact is read out of the same table every other
+    /// resolved fact about the call comes from, so a checking run and a lowering
+    /// run cannot disagree about which pattern was prepared.
+    ///
+    /// A call the fold did not read emits the zero word rather than no
+    /// instruction: the slot is part of the member's ABI, and a path that
+    /// skipped it would leave the helper reading past its own arguments.
+    /// Emitted before the receiver is opened and not refcounted, for
+    /// [`Self::producer_source`]'s reasons exactly.
+    pub(crate) fn prepared_constant(&mut self, b: BlockId, span: nvs_diagnostics::Span) -> ValueId {
+        let fact = self
+            .exprs
+            .prepared(span)
+            .map(|prepared| match prepared.fact {
+                nvs_types::expr_table::PreparedFact::RegexTier(nvs_types::RegexTier::Linear) => {
+                    Prepared::RegexLinear
+                }
+                nvs_types::expr_table::PreparedFact::RegexTier(
+                    nvs_types::RegexTier::Backtracking,
+                ) => Prepared::RegexBacktracking,
+            });
+        self.emit(b, Ty::Int, InstKind::PreparedConst { fact }).0
     }
     pub(crate) fn emit(&mut self, b: BlockId, ty: Ty, kind: InstKind) -> (ValueId, Ty) {
         let v = self.ids.next_value();

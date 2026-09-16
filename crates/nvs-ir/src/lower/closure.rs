@@ -669,8 +669,20 @@ pub(crate) fn lower_callable(
                 low.emit(cur, Ty::ClassDesc, InstKind::SourceConst { source: None })
                     .0
             });
-        let args = source
+        // A member on `nvs_stdlib::registry::PREPARED_MEMBERS` reached through a
+        // callable reference prepared nothing: the thunk's own arguments arrive
+        // when the callable is later invoked, so there is no written literal
+        // here to have read. The zero word is the answer for a computed pattern
+        // either way, which is what makes this the ordinary case rather than a
+        // hole — `Lowering::prepared_constant` owns why the slot is written.
+        let prepared =
+            nvs_types::core_takes_prepared(&call.class.to_string(), &call.method).then(|| {
+                low.emit(cur, Ty::Int, InstKind::PreparedConst { fact: None })
+                    .0
+            });
+        let args = prepared
             .into_iter()
+            .chain(source)
             .chain(written.into_iter().flatten())
             .chain(receiver)
             .chain(args)

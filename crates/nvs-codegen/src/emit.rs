@@ -642,6 +642,16 @@ impl Emitter<'_, '_> {
                 let codec = self.shape_codec_const(shape.as_deref())?;
                 self.define(inst, codec)?;
             }
+            InstKind::PreparedConst { fact } => {
+                // The word itself, with nothing baked into the unit beside it:
+                // what the checker prepared is a fact about the text, so it
+                // fits in the slot rather than being pointed at from it. The
+                // zero word for a call site that prepared nothing, which is
+                // `Self::shape_codec_const`'s answer to the same question.
+                let word = nvs_ir::ir::prepared_code(*fact);
+                let word = self.b.ins().iconst(types::I64, word);
+                self.define(inst, word)?;
+            }
             InstKind::SourceConst { source } => {
                 // One address and no length beside it: the blob
                 // `nvs_runtime::source` lays out carries its own, so a producer

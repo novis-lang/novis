@@ -88,15 +88,22 @@
 //!   has no column to point at — which spellings can answer is
 //!   `nvs_syntax::string_lit`'s own doc.
 //!
+//! * **What preparation leaves behind reaches the member, as a fact and never
+//!   as an object.** § 3's second effect is a channel rather than a store:
+//!   [`crate::expr_table::Prepared`] files what a row's grammar answered under
+//!   the *call's* span, `nvs-ir` reads it there and hands it over as
+//!   `nvs_stdlib::registry::PREPARED_MEMBERS`' argument 0, and the word rides in
+//!   the unit's own code — so
+//!   `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s
+//!   artifact carries it with nothing to serialize. The bound is what a word
+//!   can be: a compiled automaton belongs to the core that built it, so
+//!   `Core\Regex::compile` is handed the **tier** its pattern settled in and
+//!   spends the compile itself. Every other row prepares by validating alone —
+//!   the answer a parsed CLDR pattern or a bound SQL statement would carry is
+//!   built at each call, and joining the roster is what would change that.
+//!
 //! # Known gaps
 //!
-//! 2. **Nothing is prepared yet.** § 3's second effect — the compiled pattern
-//!    and the parsed plan stored in `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s artifact cache — needs a
-//!    channel from here to `nvs-ir`; validation is the half that pays for
-//!    itself without one, and is what `nvs check` reports.
-//!    Decided: Build the checker-to-IR channel; store prepared patterns in the artifact — No per-call
-//!    compile, and one new channel through the lowering.
-//!    — owner: unowned-closures
 //! 3. **`rule:core-classes/db-literal-query-checking`'s unterminated string literal is not refused**, and the
 //!    reason is a disagreement rather than an absence: `nvs_db::sql`'s own
 //!    module doc declines it in the other direction, because an unterminated
@@ -110,14 +117,14 @@
 //!    — owner: unowned-closures
 
 use nvs_config::capability::Cap;
-use nvs_diagnostics::{Diagnostic, SourceFile, code};
+use nvs_diagnostics::{Diagnostic, SourceFile, Span, code};
 use nvs_hir::QName;
 use nvs_syntax::ast::{Arg, CallArgs, Expr, ExprKind};
 
 use crate::Env;
 use crate::defaults::ConstArg;
 use crate::expr::args::argument_filling;
-use crate::expr_table::ArgSlot;
+use crate::expr_table::{ArgSlot, Prepared, PreparedFact};
 use crate::ty::{Ty, TypeId};
 
 /// What kind of small program a folded argument is, and therefore which
@@ -464,9 +471,14 @@ fn row(owner: &QName, member: &str) -> Option<&'static Intrinsic> {
 /// receiver is not in it and neither is a default the site did not write.
 /// Reports nothing at all for a call whose argument does not fold, which is
 /// § 2's rule: nothing is refused for being dynamic.
+///
+/// `call_span` is the whole call's, and it is the address anything *prepared*
+/// is filed under — [`crate::expr_table::Prepared`] says why that rather than
+/// the literal's own span, which every refusal below still underlines.
 pub(crate) fn check_call(
     owner: &QName,
     member: &str,
+    call_span: Span,
     args: &CallArgs,
     arg_types: &[TypeId],
     slots: &[ArgSlot],
@@ -520,7 +532,13 @@ pub(crate) fn check_call(
         // text, decided by which engine's parser refused a construct, so a
         // checking run and a request cannot disagree about it.
         Grammar::Regex => match nvs_stdlib::regex::validate(&text) {
-            Ok(tier) => env.exprs.record_regex_tier(span, tier),
+            Ok(tier) => env.exprs.record_prepared(
+                call_span,
+                Prepared {
+                    literal: span,
+                    fact: PreparedFact::RegexTier(tier),
+                },
+            ),
             Err(message) => report_malformed(span, &message, env),
         },
         // Both of `Core\Uri::parse`'s throwing steps, which is the rule its

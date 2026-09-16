@@ -33,9 +33,13 @@
 //! the linear engine is offered the pattern first and the backtracking engine
 //! gets it only if the linear engine's *parser* refused a construct, which is
 //! [`build`]'s routing rule and the one place that decision lives. Both paths
-//! answer the same tier for the same text. What is missing is the *reporting*
-//! of the recorded tier past the checker, and `[regex] backtracking = "deny"`,
-//! which has no `[regex]` block to live in — gap 2 below.
+//! answer the same tier for the same text, and the checker's answer reaches the
+//! call it was settled at: [`crate::registry::PREPARED_MEMBERS`] hands
+//! `compile` the tier as a constant argument, so the first
+//! compile of a backtracking pattern in a process goes straight to the engine
+//! that can express it instead of deriving the routing a second time. What is
+//! missing is `[regex] backtracking = "deny"`, which has no `[regex]` block to
+//! live in — gap 2 below wants a key in the same absent block.
 //!
 //! # What a compiled pattern costs, and where it is held
 //!
@@ -112,12 +116,16 @@ use crate::registry::{
 // Registration — this class's rows, and where its symbols live
 // ============================================================================
 
+/// This class's own name, for the rosters keyed on one — spec § 5's
+/// `Core\Regex`.
+pub const NAME: &str = r"Core\Regex";
+
 /// `Core\Regex`'s registry rows, in the spec's own order.
 ///
 /// All eight of them. The four members that section states on a `Match` are
 /// [`MATCH`]'s own roster, not this one.
 pub const CLASS: CoreClass = CoreClass {
-    name: r"Core\Regex",
+    name: NAME,
     methods: &[
         CoreMethod {
             name: "compile",
@@ -882,6 +890,23 @@ fn effective(pattern: &str, flags: u8) -> Cow<'_, str> {
 /// fit under its own size limit; [`build`]'s routing rule says why that is a
 /// throw rather than a quiet move to the second tier.
 fn compiled(pattern: &str, flags: u8, member: &str) -> Result<Rc<Compiled>, Fault> {
+    compiled_prepared(pattern, flags, member, None)
+}
+
+/// [`compiled`], for the one member whose call site carries
+/// [`crate::registry::PREPARED_MEMBERS`]' tier: the same cache, and [`build`]
+/// told which engine the compiler already routed this text to.
+///
+/// # Errors
+///
+/// [`compiled`]'s, unchanged — a prepared tier picks the engine that compiles
+/// the pattern and never whether one does.
+fn compiled_prepared(
+    pattern: &str,
+    flags: u8,
+    member: &str,
+    prepared: Option<Tier>,
+) -> Result<Rc<Compiled>, Fault> {
     if let Some(hit) = CACHE.with_borrow(|cache| {
         cache
             .iter()
@@ -891,7 +916,7 @@ fn compiled(pattern: &str, flags: u8, member: &str) -> Result<Rc<Compiled>, Faul
         return Ok(hit);
     }
 
-    let built = build(pattern, flags)
+    let built = build(pattern, flags, prepared)
         .map_err(|why| Fault::thrown(format!("Core\\Regex::{member}(): {why}")))?;
 
     let built = Rc::new(built);
@@ -933,26 +958,59 @@ fn compiled(pattern: &str, flags: u8, member: &str) -> Result<Rc<Compiled>, Faul
 ///
 /// # Errors
 ///
+/// # What a prepared tier changes, and what it cannot
+///
+/// `prepared` is the tier the compiler settled for a literal pattern
+/// ([`crate::registry::PREPARED_MEMBERS`]), and [`Tier::Backtracking`] is the
+/// only value that changes anything: the linear engine's parser has already
+/// refused this text once, while checking, so offering it again would buy the
+/// same refusal a second time. The routing rule above is unchanged by it —
+/// a prepared tier skips a step whose answer is known, and never routes a
+/// pattern anywhere the rule would not have.
+///
+/// A wrong or stale word is therefore a performance question and not a semantic
+/// one: [`Tier::Linear`] is what the untold path does anyway, and a spurious
+/// [`Tier::Backtracking`] compiles on an engine that expresses every pattern the
+/// linear one does.
+///
+/// # Errors
+///
 /// The sentence [`compiled`] throws, without the member prefix a call site
 /// adds: the caller that has one is the runtime, and the caller that does not
 /// is [`validate`].
-fn build(pattern: &str, flags: u8) -> Result<Compiled, String> {
+fn build(pattern: &str, flags: u8, prepared: Option<Tier>) -> Result<Compiled, String> {
     let spelled = effective(pattern, flags);
+    if prepared == Some(Tier::Backtracking) {
+        return backtracking(pattern, &spelled);
+    }
     match regex::Regex::new(&spelled) {
         Ok(linear) => Ok(Compiled::Linear(linear)),
-        Err(regex::Error::Syntax(_)) => Ok(Compiled::Backtracking(
-            fancy_regex::RegexBuilder::new(&spelled)
-                .backtrack_limit(BACKTRACK_BUDGET)
-                .build()
-                .map_err(|err| {
-                    format!("`{pattern}` is not a pattern either engine can compile: {err}")
-                })?,
-        )),
+        Err(regex::Error::Syntax(_)) => backtracking(pattern, &spelled),
         Err(limit) => Err(format!(
             "`{pattern}` is a pattern the linear engine expresses but is too large for it \
              to build: {limit}"
         )),
     }
+}
+
+/// `spelled` on `rule:core-classes/regex-two-tiers`'s second tier, with § 2's
+/// step budget on it — [`build`]'s second arm and its prepared shortcut reach
+/// the same two lines rather than spelling them twice.
+///
+/// # Errors
+///
+/// The sentence [`build`] answers with for a pattern neither engine compiles;
+/// it quotes `pattern` as the program wrote it rather than [`effective`]'s
+/// flag-wrapped form.
+fn backtracking(pattern: &str, spelled: &str) -> Result<Compiled, String> {
+    Ok(Compiled::Backtracking(
+        fancy_regex::RegexBuilder::new(spelled)
+            .backtrack_limit(BACKTRACK_BUDGET)
+            .build()
+            .map_err(|err| {
+                format!("`{pattern}` is not a pattern either engine can compile: {err}")
+            })?,
+    ))
 }
 
 /// Which tier `pattern` compiles on, or the refusal — for a caller that wants
@@ -979,7 +1037,7 @@ fn build(pattern: &str, flags: u8) -> Result<Compiled, String> {
 /// backtracking = "deny"`, which refuses the second tier outright rather than
 /// re-routing anything into it, and which this fold does not read.
 pub fn validate(pattern: &str) -> Result<Tier, String> {
-    build(pattern, NO_FLAGS).map(|compiled| match compiled {
+    build(pattern, NO_FLAGS, None).map(|compiled| match compiled {
         Compiled::Linear(_) => Tier::Linear,
         Compiled::Backtracking(_) => Tier::Backtracking,
     })
@@ -1003,6 +1061,49 @@ pub enum Tier {
     /// engine could not express this pattern — a lookaround or a
     /// backreference — and never because a program was large.
     Backtracking,
+}
+
+impl Tier {
+    /// This tier as the word [`PREPARED_NONE`] documents.
+    #[must_use]
+    pub const fn prepared_code(self) -> i64 {
+        match self {
+            Self::Linear => PREPARED_LINEAR,
+            Self::Backtracking => PREPARED_BACKTRACKING,
+        }
+    }
+}
+
+/// The word [`crate::registry::PREPARED_MEMBERS`]' argument 0 carries when the
+/// call site prepared nothing.
+///
+/// That slot is an ABI between two crates that cannot name each other's types —
+/// `nvs_ir::ir::Prepared` encodes, [`prepared_tier`] decodes — so the mapping
+/// lives here, beside the decoder, rather than being spelled at both ends.
+/// Nothing prepared is the ordinary answer for a pattern the program computed:
+/// that roster's own docs say why the slot is there for such a call anyway.
+pub const PREPARED_NONE: i64 = 0;
+/// [`Tier::Linear`]'s word — see [`PREPARED_NONE`].
+pub const PREPARED_LINEAR: i64 = 1;
+/// [`Tier::Backtracking`]'s word — see [`PREPARED_NONE`].
+pub const PREPARED_BACKTRACKING: i64 = 2;
+
+/// The tier `code` names, and `None` for [`PREPARED_NONE`] or a word this build
+/// does not know.
+///
+/// **An unknown word is read as "nothing was prepared" rather than refused.**
+/// What it costs is one routing decision made the ordinary way, while a helper
+/// that threw over an ABI word would turn a version skew into a failed request;
+/// and `rule:packaging/an-artifact-is-one-immutable-content-addressed-file` puts
+/// the compiler build in the artifact's own address, so a cached unit cannot
+/// hand this process a word another compiler minted.
+#[must_use]
+pub fn prepared_tier(code: i64) -> Option<Tier> {
+    match code {
+        PREPARED_LINEAR => Some(Tier::Linear),
+        PREPARED_BACKTRACKING => Some(Tier::Backtracking),
+        _ => None,
+    }
 }
 
 /// `rule:core-classes/regex-two-tiers`'s throw: the backtracking tier ran out of steps.
@@ -1146,20 +1247,29 @@ nvs_runtime::nvs_helper! {
     /// mistake at a line that did not make it. The compiled program goes
     /// straight into this core's cache under the pair the returned [`PATTERN`]
     /// carries, so the first match against it is already a hit.
-    fn nvs_core_regex_compile(_ctx, args: [5]) {
-        let pattern = text(&args[0], "compile", "the pattern")?;
+    ///
+    /// **Argument 0 is [`crate::registry::PREPARED_MEMBERS`]' word**, ahead of
+    /// the pattern: the tier the compiler settled for a literal, and
+    /// [`PREPARED_NONE`] for a pattern the program computed. It is read only on
+    /// a cache miss and decides only which engine is offered the text first,
+    /// which is [`build`]'s own account of what a prepared tier can change. A
+    /// word this build does not know is [`prepared_tier`]'s `None` and costs
+    /// nothing but the routing it would have derived anyway.
+    fn nvs_core_regex_compile(_ctx, args: [6]) {
+        let prepared = prepared_tier(args[0].as_int().unwrap_or(PREPARED_NONE));
+        let pattern = text(&args[1], "compile", "the pattern")?;
         let mut flags = NO_FLAGS;
         for (slot, option, flag) in [
-            (1, "the `caseInsensitive` option", FLAG_CASE_INSENSITIVE),
-            (2, "the `multiline` option", FLAG_MULTILINE),
-            (3, "the `dotAll` option", FLAG_DOT_ALL),
-            (4, "the `ungreedy` option", FLAG_UNGREEDY),
+            (2, "the `caseInsensitive` option", FLAG_CASE_INSENSITIVE),
+            (3, "the `multiline` option", FLAG_MULTILINE),
+            (4, "the `dotAll` option", FLAG_DOT_ALL),
+            (5, "the `ungreedy` option", FLAG_UNGREEDY),
         ] {
             if boolean(&args[slot], "compile", option)? {
                 flags |= flag;
             }
         }
-        compiled(pattern, flags, "compile")?;
+        compiled_prepared(pattern, flags, "compile", prepared)?;
         Ok(crate::instance::build(
             &PATTERN,
             [
@@ -1832,7 +1942,7 @@ mod tests {
                 .copied()
                 .filter(|pattern| {
                     !matches!(
-                        build(pattern, flags).expect("a linear pattern compiles"),
+                        build(pattern, flags, None).expect("a linear pattern compiles"),
                         Compiled::Linear(_)
                     )
                 })
@@ -1848,7 +1958,7 @@ mod tests {
             .copied()
             .filter(|pattern| {
                 !matches!(
-                    build(pattern, NO_FLAGS).expect("the second tier compiles it"),
+                    build(pattern, NO_FLAGS, None).expect("the second tier compiles it"),
                     Compiled::Backtracking(_)
                 )
             })
@@ -1865,9 +1975,47 @@ mod tests {
         // function of how large its automaton happens to be, which nothing in
         // the source says and no reader could predict.
         let too_big = r"\p{L}".repeat(5_000);
-        let refused =
-            build(&too_big, NO_FLAGS).expect_err("5,000 unicode classes is past the size limit");
+        let refused = build(&too_big, NO_FLAGS, None)
+            .expect_err("5,000 unicode classes is past the size limit");
         assert!(refused.contains("too large for it to build"), "{refused}");
+    }
+
+    /// `crate::registry::PREPARED_MEMBERS`' word, both halves of it: it
+    /// round-trips, and what it changes in [`build`] is which engine is offered
+    /// the text first and nothing else.
+    #[test]
+    fn a_prepared_tier_routes_and_decides_nothing() {
+        assert_eq!(
+            prepared_tier(Tier::Linear.prepared_code()),
+            Some(Tier::Linear)
+        );
+        assert_eq!(
+            prepared_tier(Tier::Backtracking.prepared_code()),
+            Some(Tier::Backtracking)
+        );
+        // The zero word and a word this build does not know are one answer, so
+        // a compiler-version skew costs a routing decision rather than a
+        // request — the reason `prepared_tier` states.
+        assert_eq!(prepared_tier(PREPARED_NONE), None);
+        assert_eq!(prepared_tier(i64::MAX), None);
+
+        // A lookbehind told what it is goes straight to the engine that
+        // expresses it, landing where the untold path lands.
+        assert!(matches!(
+            build(r"(?<=USD )\d+", NO_FLAGS, Some(Tier::Backtracking))
+                .expect("the second tier compiles a lookbehind"),
+            Compiled::Backtracking(_)
+        ));
+
+        // And a word that disagrees with the text is a routing question rather
+        // than a semantic one: the backtracker expresses every pattern the
+        // linear engine does, so a pattern wrongly claimed for it still
+        // compiles and still matches.
+        assert!(matches!(
+            build("[a-z]+", NO_FLAGS, Some(Tier::Backtracking))
+                .expect("the backtracker expresses a character class too"),
+            Compiled::Backtracking(_)
+        ));
     }
 
     /// A pattern neither engine can compile throws rather than matching
