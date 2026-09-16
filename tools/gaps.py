@@ -90,10 +90,42 @@ SYMBOL_RE = re.compile(r'symbol:\s*"([^"]+)"')
 #: the 20 classes on the tree and silently shortened every list in this file to those 7.
 CLASS_RE = re.compile(r'CoreClass\s*\{\s*name:\s*(?:r"([^"]+)"|([A-Za-z_][A-Za-z0-9_]*))')
 
-#: `pub(crate) const NAME: &str = r"Core\Csv";` -- what the second spelling above resolves against.
-#: A const this does not match (`cli.rs` forwards one out of `nvs_runtime`) leaves its class
-#: unnamed, which suppresses that class's members rather than handing them to the class above it.
-NAME_CONST_RE = re.compile(r'const\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*&str\s*=\s*r"([^"]+)"')
+#: `pub(crate) const NAME: &str = r"Core\Csv";` -- what the second spelling above resolves against,
+#: in either of the two ways a file spells it: the raw string, or the plain one with its backslash
+#: doubled (`"Core\\Signal"`). A const this does not match (`cli.rs` forwards one out of
+#: `nvs_runtime`) leaves its class unnamed, which suppresses that class's members rather than
+#: handing them to the class above it.
+NAME_CONST_RE = re.compile(r'const\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*&str\s*=\s*'
+                           r'(?:r"([^"]+)"|"((?:[^"\\]|\\.)*)")')
+
+
+def name_consts(text: str) -> dict[str, str]:
+    """`{const name: the class name it holds}` for one file, both spellings unescaped."""
+    return {m.group(1): m.group(2) if m.group(2) is not None else m.group(3).replace("\\\\", "\\")
+            for m in NAME_CONST_RE.finditer(text)}
+
+
+_tree_consts: dict[str, str] | None = None
+
+
+def class_consts(text: str) -> dict[str, str]:
+    """The name consts a `CoreClass` literal in `text` may spell its `name:` with.
+
+    A file's own consts win, and behind them sit the tree's *unambiguous* ones: `db/row.rs` opens
+    its class as `name: ROW_NAME` with the const declared in `db/mod.rs`, and reading only the
+    literal's own file left every `Core\\Db` class unnamed. A name declared in more than one file
+    with different values -- `NAME`, which nearly every file declares -- is left out of the tree's
+    map, because a literal spelling `name: NAME` for a const it imports from `super` would
+    otherwise resolve to whichever file sorts last and credit its members to that class.
+    """
+    global _tree_consts
+    if _tree_consts is None:
+        seen: dict[str, set[str]] = {}
+        for path in sorted(STDLIB.rglob("*.rs")):
+            for name, value in name_consts(read(path)).items():
+                seen.setdefault(name, set()).add(value)
+        _tree_consts = {name: next(iter(v)) for name, v in seen.items() if len(v) == 1}
+    return {**_tree_consts, **name_consts(text)}
 
 
 def registry() -> dict[tuple[str, str], tuple[Path, int, str]]:
@@ -110,7 +142,7 @@ def registry() -> dict[tuple[str, str], tuple[Path, int, str]]:
     found: dict[tuple[str, str], tuple[Path, int, str]] = {}
     for path in sorted(STDLIB.rglob("*.rs")):
         text = read(path)
-        consts = dict(NAME_CONST_RE.findall(text))
+        consts = class_consts(text)
         starts = [(m.start(), m.group(1) or consts.get(m.group(2), ""))
                   for m in CLASS_RE.finditer(text)]
         if not starts:
@@ -155,7 +187,7 @@ def producers() -> dict[tuple[str, str], str]:
     found: dict[tuple[str, str], str] = {}
     for path in sorted(STDLIB.rglob("*.rs")):
         text = read(path)
-        consts = dict(NAME_CONST_RE.findall(text))
+        consts = class_consts(text)
         starts = [(m.start(), m.group(1) or consts.get(m.group(2), ""))
                   for m in CLASS_RE.finditer(text)]
         if not starts:
