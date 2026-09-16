@@ -15,8 +15,9 @@
 //! property's obligation has nothing to do with construction), a fresh walk
 //! of [`walk_stmts`] starting with none of the class's own `lateinit`
 //! properties ([`crate::signatures::own_lateinit_properties`]) in the
-//! "written" set. [`scan_expr`] threads that set through the same handful of
-//! composite expression forms [`crate::ctor_init::scan_expr`] does, plus a
+//! "written" set. [`scan_expr`] threads that set through every expression an
+//! expression evaluates ([`nvs_syntax::visit::each_child_expr`], the one match
+//! over the productions [`nvs_syntax::ast::ExprKind`] holds), plus a
 //! `PropertyAccess` arm (a plain read of `$this->prop` — the shape
 //! `ctor_init` never needed, since it only ever looks for an *assignment*
 //! target) that reports [`code::E_LATEINIT_READ_BEFORE_WRITE_LOCAL`] the
@@ -24,12 +25,25 @@
 //! have written it on this path, then marks it written itself so a repeated
 //! read on the same straight-line path isn't reported twice.
 //!
-//! This module deliberately does not share a walker with `ctor_init`, for
-//! the same reason that module gives for not sharing one with `locals`: the
-//! two passes track different per-path state (a set of "written" property
+//! What this module shares with `ctor_init` is the descent and nothing else.
+//! The two passes track different per-path state (a set of "written" property
 //! names here, versus `ctor_init`'s pair of "assigned" set and
-//! "parent-called" flag) and run over a different scope (every method here,
-//! only the constructor there).
+//! "parent-called" flag), run over a different scope (every method here, only
+//! the constructor there), and — the difference that shows in the walk itself —
+//! want opposite things from a branch. `ctor_init` joins a ternary, a `match`
+//! and an expression `catch` by intersection, because an assignment made on
+//! one branch is not made on every path; this pass threads one set straight
+//! through them, because a write seen on *any* branch suppressing a later
+//! read is exactly the silence `rule:classes/lateinit-read-before-write`
+//! asks for. One walk over the grammar, two answers to what an unrun operand
+//! is worth.
+//!
+//! **A closure's body is not walked into** — `each_child_expr` stops at one,
+//! and this pass never reaches one as a body of its own either, since it walks
+//! the methods a class declares. A read written inside a closure is checked by
+//! nothing here and falls through to `rule:classes/lateinit`'s runtime throw,
+//! which is the sound direction: the closure runs when it is called, so no
+//! walk of the method holding it can say what has been written by then.
 //!
 //! **Known gaps**, deliberately out of scope for this slice, same standard
 //! as every other gap in this crate — reject or stay silent, never wrongly
@@ -45,12 +59,6 @@
 //!   Decided: Keep own-class only; the runtime throw covers subclasses — Simple and consistent with the
 //!   sibling pass, and `lateinit` is by definition checked at run time anyway.
 //!   — owner: unowned-closures
-//! - [`scan_expr`] only descends into the same handful of common composite
-//!   expression forms `crate::ctor_init::scan_expr` does. A read buried
-//!   inside a closure body, a `match` arm, or another form this module
-//!   doesn't descend into is silently not checked — safe, since a missed
-//!   diagnostic is never a false positive.
-//!   — owner: unowned
 //! - A `set`-hooked `lateinit` property is not modeled specially here either
 //!   (mirroring `crate::ctor_init`'s identical gap for a hooked required
 //!   property) — see `rule:classes/lateinit`'s own *Revisiting* section, which defers this
@@ -62,8 +70,9 @@
 use nvs_diagnostics::{Diagnostic, code};
 use nvs_hir::QName;
 use nvs_syntax::ast::{
-    AssignOp, CallArgs, ClassDecl, ClassMemberKind, Expr, ExprKind, MemberName, Stmt, StmtKind,
+    AssignOp, ClassDecl, ClassMemberKind, Expr, ExprKind, MemberName, Stmt, StmtKind,
 };
+use nvs_syntax::visit::each_child_expr;
 use rustc_hash::FxHashSet;
 
 use crate::expr::is_this_receiver;
@@ -278,10 +287,14 @@ fn walk_stmt(
 }
 
 /// Looks for a `$this->prop` read or a `$this->prop = ...` write anywhere
-/// `e` directly nests one of a handful of common composite forms — see the
-/// module docs' known gaps for what this does not descend into. Any call
-/// (`Call`/`MethodCall`/`StaticCall`) conservatively marks *every* tracked
-/// property written, per `rule:classes/lateinit-read-before-write`.
+/// inside `e`, descending through [`each_child_expr`] so no composite form
+/// hides one. A call — `new` included — conservatively marks *every* tracked
+/// property written once its own operands are scanned, per
+/// `rule:classes/lateinit-read-before-write`.
+///
+/// A write and a plain read are the two shapes read off the node itself, so
+/// they are matched here and take their own descent; every other form is
+/// carried by the generic one.
 fn scan_expr(
     e: &Expr,
     written: &mut FxHashSet<String>,
@@ -325,6 +338,7 @@ fn scan_expr(
                     written.insert(strip_sigil(span_text(env.src, *name_span)).to_owned());
                 }
             }
+            return;
         }
         ExprKind::PropertyAccess {
             object,
@@ -354,72 +368,26 @@ fn scan_expr(
                     written.insert(name);
                 }
             }
-        }
-        ExprKind::StaticCall { class, args, .. } => {
-            scan_expr(class, written, tracked, env);
-            scan_call_args(args, written, tracked, env);
-            written.extend(tracked.iter().cloned());
-        }
-        ExprKind::MethodCall { object, args, .. } => {
-            scan_expr(object, written, tracked, env);
-            scan_call_args(args, written, tracked, env);
-            written.extend(tracked.iter().cloned());
-        }
-        ExprKind::Call { callee, args } => {
-            scan_expr(callee, written, tracked, env);
-            scan_call_args(args, written, tracked, env);
-            written.extend(tracked.iter().cloned());
-        }
-        ExprKind::Binary { lhs, rhs, .. } => {
-            scan_expr(lhs, written, tracked, env);
-            scan_expr(rhs, written, tracked, env);
-        }
-        ExprKind::Catch { guarded, arms } => {
-            scan_expr(guarded, written, tracked, env);
-            for arm in arms {
-                scan_expr(&arm.body, written, tracked, env);
-            }
-        }
-        ExprKind::Ternary { cond, then, else_ } => {
-            scan_expr(cond, written, tracked, env);
-            if let Some(then) = then {
-                scan_expr(then, written, tracked, env);
-            }
-            scan_expr(else_, written, tracked, env);
-        }
-        ExprKind::Unary { expr: inner, .. }
-        | ExprKind::PreIncDec { expr: inner, .. }
-        | ExprKind::PostIncDec { expr: inner, .. }
-        | ExprKind::Conversion { expr: inner, .. }
-        | ExprKind::TypeTest { expr: inner, .. } => {
-            scan_expr(inner, written, tracked, env);
-        }
-        ExprKind::InstanceOf { expr: inner, class } => {
-            scan_expr(inner, written, tracked, env);
-            scan_expr(class, written, tracked, env);
-        }
-        ExprKind::ArrayLiteral(items) => {
-            for item in items {
-                if let Some(key) = &item.key {
-                    scan_expr(key, written, tracked, env);
-                }
-                scan_expr(&item.value, written, tracked, env);
-            }
+            return;
         }
         _ => {}
     }
-}
 
-fn scan_call_args(
-    args: &CallArgs,
-    written: &mut FxHashSet<String>,
-    tracked: &FxHashSet<String>,
-    env: &mut Env<'_>,
-) {
-    if let CallArgs::List(list) = args {
-        for arg in list {
-            scan_expr(&arg.value, written, tracked, env);
-        }
+    each_child_expr(e, &mut |child| scan_expr(child, written, tracked, env));
+
+    if matches!(
+        &e.kind,
+        ExprKind::Call { .. }
+            | ExprKind::MethodCall { .. }
+            | ExprKind::StaticCall { .. }
+            | ExprKind::New { .. }
+    ) {
+        // `rule:classes/lateinit-read-before-write`: a call is opaque, so every
+        // tracked property becomes "assumed written" the moment one is made —
+        // after its own operands are scanned, which are read before it runs. A
+        // `new` is a call like any other: the constructor it reaches is handed
+        // whatever the arguments name.
+        written.extend(tracked.iter().cloned());
     }
 }
 
@@ -498,6 +466,44 @@ mod tests {
                 .any(|d| d.code == Some(code::E_LATEINIT_READ_BEFORE_WRITE_LOCAL)),
             "{diags:?}"
         );
+    }
+
+    /// The descent is total over the grammar, so a read inside a `match` arm
+    /// is a read like any other.
+    #[test]
+    fn a_read_inside_a_match_arm_is_diagnosed() {
+        let diags = check_src(
+            "<?nvs\nclass Logger {}\nclass Widget {\n  public lateinit Logger $logger;\n  function boom(int $x): void {\n    Logger $l = match ($x) { default => $this->logger };\n  }\n}\n",
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_LATEINIT_READ_BEFORE_WRITE_LOCAL)),
+            "{diags:?}"
+        );
+    }
+
+    /// A closure's body is not this method's path: it runs when the closure is
+    /// called, so nothing here can say what has been written by then and the
+    /// read falls through to `rule:classes/lateinit`'s runtime throw.
+    #[test]
+    fn a_read_inside_a_closure_body_is_not_checked() {
+        let diags = check_src(
+            "<?nvs\nclass Logger {}\nclass Widget {\n  public lateinit Logger $logger;\n  function boom(): void {\n    var $later = fn (): Logger => $this->logger;\n  }\n}\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+    }
+
+    /// The asymmetry with `crate::ctor_init`: a write on one branch of a
+    /// ternary is threaded straight through rather than joined, because
+    /// `rule:classes/lateinit-read-before-write` would rather say nothing than
+    /// flag a read some path has already written.
+    #[test]
+    fn a_write_on_one_ternary_branch_silences_a_later_read() {
+        let diags = check_src(
+            "<?nvs\nclass Logger {}\nclass Widget {\n  public lateinit Logger $logger;\n  function boom(bool $flag): void {\n    Logger $l = $flag ? ($this->logger = new Logger()) : new Logger();\n    $this->logger;\n  }\n}\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
     }
 
     #[test]
