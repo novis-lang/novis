@@ -5199,6 +5199,18 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   case plainly asks. Write the class's own name in, which a `foreach (… as Core\Reflect\MethodInfo
   $row)` binding already does.
   [until: gone crates/nvs-stdlib/tests/corpus/mod.rs:CoreTy::Instance(made)]
+- **Two `== null` tests joined by `||` narrow neither receiver, and the `else` is where it bites.**
+  `if ($a == null || $b == null) { … } else { $a->member(); }` is four `E0459`s — the narrowing runs
+  per test, so only a nested `else if ($b == null)` leaves both receivers non-nullable in the final
+  arm. Two descriptions from `Core\Reflect::forClass` in one case is the shape that meets it, and the
+  nested spelling is what every such case is written in. [until: reviewed 2026-09-16]
+
+- **A case that reaches an instance only through a `?T`-returning member counts as asking that class
+  nothing.** `Attribution::holders` takes the top-level return type alone, so a case whose only door
+  is `Core\Reflect::forClass` (which answers `?Core\Reflect\ClassInfo`) holds no class, every `->member(`
+  in it attributes to nobody, and a new member reads as `asked by 0 case(s)` however many cases call
+  it. Name the class in a comment — or reach it through a member returning the bare `Instance` — and
+  the same cases count. [until: gone crates/nvs-stdlib/tests/corpus/mod.rs:holders]
 
 ## Splitting a file that got too big
 

@@ -22220,7 +22220,7 @@ Which of the language's representations `$value` currently holds. The single rep
 <a id="core-core-reflect-classinfo"></a>
 ### `Core\Reflect\ClassInfo`
 
-Keywords: name, properties, methods, hasMethod, get, set, call
+Keywords: name, properties, methods, hasMethod, get, set, call, construct
 
 | Member | Signature |
 |---|---|
@@ -22231,6 +22231,7 @@ Keywords: name, properties, methods, hasMethod, get, set, call
 | [`Core\Reflect\ClassInfo->get`](#core-core-reflect-classinfo-get) | `get(mixed $object, string $name): mixed` |
 | [`Core\Reflect\ClassInfo->set`](#core-core-reflect-classinfo-set) | `set(mixed $object, string $name, mixed $value): void` |
 | [`Core\Reflect\ClassInfo->call`](#core-core-reflect-classinfo-call) | `call(mixed $object, string $name, array<mixed> $arguments): mixed` |
+| [`Core\Reflect\ClassInfo->construct`](#core-core-reflect-classinfo-construct) | `construct(array<mixed> $arguments): mixed` |
 
 <a id="core-core-reflect-classinfo-name"></a>
 #### `Core\Reflect\ClassInfo->name`
@@ -22335,6 +22336,23 @@ Calls `$object`'s `$name` method with `$arguments`, under exactly the visibility
 **Returns** `mixed` — Whatever the method returned, with its own declared type erased to `mixed`.
 
 **Throws** `LogicError` — `$name` is not `public`, names no method of the class, or names a `Core` member; or `$arguments` has fewer entries than the method declares, or an entry whose type the parameter does not accept. Every one of these is the refusal an ordinary call through an erased receiver meets, raised by that same check rather than by a second one written here.; `RuntimeError` — `$object` is not an object at all. A `$object` that is an object but not an instance of the described class is the `LogicError` above.
+
+<a id="core-core-reflect-classinfo-construct"></a>
+#### `Core\Reflect\ClassInfo->construct`
+
+```nvs skip
+$classInfo->construct(array<mixed> $arguments): mixed
+```
+
+Builds an instance of the described class, running its constructor with `$arguments` under exactly the visibility a `new` written at this call site would face. Replaces `ReflectionClass::newInstanceArgs`, and there is no `setAccessible` to lift the check with.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$arguments` | `array<mixed>` | One entry per declared constructor parameter, in order, keys ignored. Required even where the class declares no constructor, which is then `[]`. |
+
+**Returns** `mixed` — The new instance, with its own class erased to `mixed`. A class declaring no constructor answers with the allocation its declared defaults armed.
+
+**Throws** `LogicError` — The constructor is not `public` and this call site is outside the class; or `$arguments` has fewer entries than it declares, or an entry whose type a parameter does not accept; or the described class is not one this program declares. Each is the refusal the ordinary door meets, raised by that same check.
 
 <a id="core-core-reflect-methodinfo"></a>
 ### `Core\Reflect\MethodInfo`
