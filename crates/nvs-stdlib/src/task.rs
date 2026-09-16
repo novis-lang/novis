@@ -46,20 +46,19 @@
 //! as a Rust `String` rather than as a [`Value`] precisely so that dropping the
 //! job releases it with no `Drop` of our own to remember.
 //!
-//! **Known gap: a write to a field of `all`'s result is checked against the
-//! wrong tag.** The result is built with the argument's own class descriptor,
-//! because `rule:types/object-top`'s shape class is named for its field names alone
-//! (`nvs_ir::lower::shape_class_label`) and those are identical on both sides —
-//! but that descriptor's per-slot tags come from the *literal*, where every
-//! field is a closure. Reading is unaffected (`SlotGet` keys on the name);
-//! `$page->count = 5` on a result whose `count` field came from
-//! `fn (): int` is refused with a message naming `object`. The fix is for
-//! `nvs-ir` to record the *result* shape's representations at the call site,
-//! which degrades the shared class's tags to unchecked exactly as two
-//! disagreeing literals of the same shape already do —
-//! `nvs_runtime::object`'s module doc § *What a shape write checks* owns that
-//! mechanism and its other known gaps.
-//! — owner: unowned
+//! **`all`'s result is the argument's own class, and the tags it promises are
+//! the result's.** Step 3 builds the answer from the argument's class
+//! descriptor, because `rule:types/object-top`'s shape class is named for its
+//! field names alone (`nvs_ir::lower::shape_class_label`) and those are
+//! identical on both sides. That descriptor's per-slot tags would otherwise be
+//! the *literal's*, where every field holds a closure, and `$page->count = 5`
+//! on a field declared `fn (): int` would be refused for writing an `int` to a
+//! slot promising `object`. So the call site records the **result** shape's
+//! representations against that same label
+//! (`nvs_ir::lower::Lowering::record_core_result_shape`), which degrades every
+//! slot the two spell differently to unchecked, exactly as two disagreeing
+//! literals of one shape already do — `nvs_runtime::object`'s module doc
+//! § *What a shape write checks*, case 4.
 //!
 //! # `{limit, deadline}` is the only optioned spelling
 //!

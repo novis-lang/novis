@@ -179,10 +179,14 @@
 //! 3. **A field whose declared type admits several tags** — a union, a `?T`,
 //!    a `mixed` — is unchecked entirely, because there is no one tag to
 //!    compare against and the check must not reject a legal write.
-//! 4. **Two literals that share their field names but not their types** fall
-//!    back to case 3 for the slots they disagree on;
+//! 4. **Two records of one shape that share their field names but not their
+//!    types** fall back to case 3 for the slots they disagree on;
 //!    `nvs_ir::lower::Lowering::record_shape_class` degrades the tag rather
-//!    than picking whichever literal it saw first.
+//!    than picking whichever record it saw first, and `nvs_ir::lower::lower_file`
+//!    merges the same way across frames. Two literals are one such pair;
+//!    `Core\Task::all`'s argument and its result are the other, the result's
+//!    own representations being recorded at the call site
+//!    (`nvs_ir::lower::Lowering::record_core_result_shape`).
 //! 5. **A class with no layout of its own** — a closure's environment, a
 //!    generator's state — carries no tags, because nothing declares its slots
 //!    in source for a type to come from. A *named* class does carry them: an

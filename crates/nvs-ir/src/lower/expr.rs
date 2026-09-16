@@ -3559,6 +3559,11 @@ impl<'a> Lowering<'a> {
         if let Some(symbol) = nvs_types::core_symbol_of(&call.class, &call.method) {
             let sig = ArgSig::of_helper(call);
             let return_ty = erase_checked_ty(call.return_ty, self.checked_types);
+            // A member answering a shape hands back an object of the class
+            // that shape's field names name, so the result's own per-slot
+            // representations belong on it — see
+            // `Lowering::record_core_result_shape`.
+            self.record_core_result_shape(call.return_ty);
             let checked_types = self.checked_types;
             // A member on `nvs_stdlib::registry::WRITTEN_CLASS_MEMBERS` is
             // handed what its call site wrote as a type argument — and that
@@ -3790,6 +3795,13 @@ impl<'a> Lowering<'a> {
             }
             let sig = ArgSig::of_helper(call);
             let return_ty = erase_checked_ty(call.return_ty, self.checked_types);
+            // `rule:concurrency/all-answers-a-typed-shape`'s `Core\Task::all`
+            // is the member this is here for: its result is an object of the
+            // class its argument's field names name, and the tags that class
+            // promises have to admit what each field's callable *answers*
+            // rather than the callable itself — see
+            // `Lowering::record_core_result_shape`.
+            self.record_core_result_shape(call.return_ty);
             let checked_types = self.checked_types;
             // A member on `nvs_stdlib::registry::WRITTEN_CLASS_MEMBERS` is
             // handed what its call site wrote as a type argument, as arguments

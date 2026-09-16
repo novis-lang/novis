@@ -892,7 +892,26 @@ pub fn lower_program(
     // — see `shape_class_label` — so two bodies both writing `{x: 1, y: 2}`
     // each record one. Nothing else here can repeat a label: `layouts` is a
     // map, and a closure's and a generator's class are named for the site.
-    classes.dedup_by(|a, b| a.label == b.label);
+    //
+    // Collapsing the repeats **merges** their slot representations on
+    // `Lowering::record_shape_class`'s terms, rather than keeping whichever
+    // one sorted first: that function already merges the records one frame
+    // makes, and a label is program-wide, so two frames writing `{x: 1}` and
+    // `{x: "s"}` have to reach the same degraded tag that one frame writing
+    // both does. Keeping the first instead would let the frame a class was
+    // sorted out of decide what every other frame's writes are checked
+    // against.
+    classes.dedup_by(|a, b| {
+        if a.label != b.label {
+            return false;
+        }
+        for (have, found) in b.field_reprs.iter_mut().zip(&a.field_reprs) {
+            if *have != *found {
+                *have = Ty::Tagged;
+            }
+        }
+        true
+    });
     // `rule:classes/delegation-by-field`'s `implements I by $field;` forwards: one synthesized
     // method each, and one row each in the delegating class's method table,
     // which is what a receiver typed as the *interface* dispatches through.
@@ -1992,6 +2011,42 @@ impl<'a> Lowering<'a> {
             defaults: Vec::new(),
             is_closure: false,
         });
+    }
+    /// The synthesized class a `Core` member answering a shape returns,
+    /// recorded with the **result** shape's per-slot representations.
+    ///
+    /// `rule:concurrency/all-answers-a-typed-shape`'s `Core\Task::all` is why
+    /// this exists. Its result carries the argument literal's own descriptor,
+    /// because a shape class is named for its field names alone
+    /// ([`shape_class_label`]) and both sides spell the same ones — but the
+    /// literal's slots each hold a *closure*, so a class recorded from it
+    /// alone promises [`Ty::Object`] on every slot and refuses the awaited
+    /// `int` the field is declared to answer with. Recording the result's own
+    /// representations against that same label **merges**
+    /// ([`Self::record_shape_class`]): a slot the two spell differently
+    /// degrades to [`Ty::Tagged`], which is "no fixed tag, do not check", and
+    /// one they agree on keeps its tag. `nvs_runtime::object`'s module doc
+    /// § *What a shape write checks* owns the mechanism, as case 4.
+    ///
+    /// A member answering anything else records nothing, so the ordinary
+    /// `Core` call path pays one interner read.
+    pub(crate) fn record_core_result_shape(&mut self, return_ty: TypeId) {
+        // Copied out first: the fields below borrow the interner for as long
+        // as they are read, and `record_shape_class` needs `self`.
+        let checked_types = self.checked_types;
+        let CheckedTy::Shape(fields) = checked_types.get(return_ty) else {
+            return;
+        };
+        // `nvs_types::ty::TypeInterner::shape` interns a shape's fields in
+        // sorted name order, which is the order the class's slots count
+        // through — [`Self::lower_object_literal`] owns why the two sides have
+        // to agree.
+        let names: Vec<String> = fields.iter().map(|field| field.name.clone()).collect();
+        let reprs: Vec<Ty> = fields
+            .iter()
+            .map(|field| erase_checked_ty(field.ty, checked_types))
+            .collect();
+        self.record_shape_class(shape_class_label(&names), names, reprs);
     }
     pub(crate) fn new_block(&mut self) -> BlockId {
         let id = self.ids.next_block();
