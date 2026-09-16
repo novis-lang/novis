@@ -2245,6 +2245,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   before building it, and where it is already closed strike the item and state the contract in the
   doc that now holds it, which is `AGENTS.md`'s *tested code ahead of a record wins* applied to a
   gap. [until: reviewed 2026-09-17]
+- **A `# Known gaps` item can be prose the code has already closed.** `crates/nvs-cli/src/openapi.rs`
+  gap 5 said an enum capture reaches the document as *any* while `RouteParam::admits` had been handing
+  `schema` the case spellings under a guard test. Nothing recompiles a gap's sentence when the code under
+  it moves, so the item is the one part of a module doc that is not evidence. Read the path an item names
+  and the test beside it before deciding its owner, and strike the item where the code is ahead of it.
+  [until: reviewed 2026-09-17]
 
 ## Running things
 

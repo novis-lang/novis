@@ -195,7 +195,11 @@ rules = [
 ]
 
 [context.stage.6]
-milestones = ["M10:lead"]
+# A deferral is read against the plan file that has to have scoped it, so the candidate milestones are
+# printed rather than fetched one at a time; 0184's two sections are what the `nvs-host` placement
+# items are owed against.
+milestones = ["M10:lead", "M15:lead", "M9:lead"]
+adrs = ["0184 §2", "0184 §5"]
 
 # A constant-time compare and a hook marker are both refcount-neutral; the decided items each state
 # what they spend in their own module doc.

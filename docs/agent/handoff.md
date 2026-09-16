@@ -2,50 +2,43 @@
 
 ## State
 
-**Goal `unowned-closures`, stage 5 is closed.** No goal-owned module-doc gap is left in it: the
-artifact loader's aarch64 half is built and the last `docs/agent/carried-gaps.md` row goal
-`m7-server-surface` left behind is struck. `python tools/owners.py` reads 81 items, `--deferrals`
-green; `unowned: 15` is stage 6 and is now the whole of what the goal still owes.
+**Goal `unowned-closures`, stage 6 (the register).** `python tools/owners.py` reads 80 items with
+`unowned: 9`, `untagged: 0`, `broken-tag: 0`, `unreasoned: 0`, and `--deferrals` green. The nine left are
+in `nvs-host` (three), `nvs-db`, `nvs-runtime` and `nvs-stdlib` (two each).
 
-**The artifact loader relocates an aarch64 payload.** `nvs_cli::cache`'s `Form` is the one place
-the two architectures differ — x86-64's flat little-endian field beside a `CALL26`, an `ADRP` page
-and a scaled 12-bit page offset, each a bit range inside one instruction — and `form_of` is the one
-place either container format's aarch64 relocation numbering is read. `HOST_ARCH` names both
-architectures; `HOST_PUBLISHES` is its answer asked of the host, so a COFF aarch64 target, which
-the object backend has no aarch64 relocation spelled for, writes no artifact instead of paying a
-second Cranelift walk for a file nothing reads.
+**`nvs-cli`'s whole share of the register is settled.** The generated API document's gaps 1–3 — a class
+response body, a request body, `components.securitySchemes` — are M10's, with `docs/plan/m10.md` now
+stating that scope and naming the file; `info.version` is M15's, because a version is what a
+`package.toml` publishes and not a deployment key the emitter would quote back; and the enum-case gap is
+**struck**, since `RouteParam::admits` has been handing the spellings to `schema` since goal
+`m7-server-surface` under a guard test. The test runner's serial suite is M10's too, where `--coverage`
+and `--mutate` turn one suite run into many. Both `docs/agent/carried-gaps.md` § *Unowned* bullets for
+this crate are gone with them.
 
-**The aarch64 halves of those `#[cfg]`s are not compiled here** — the playbook's *Running things*
-bullet says why — so the field writers are asserted as whole instruction words against what an
-assembler produces, which is a check any host can make.
+**`docs/agent/loop-goal.toml`'s `[context.stage.6]` was thin** — it printed `M10:lead` alone, so a
+deferral's plan file and ADR 0184's two sections cost a call each. It now names `M15:lead`, `M9:lead` and
+`0184 §2`/`§5`.
 
 ## Next group
 
-**Stage 6: the register** — one file set: `crates/nvs-cli/src/openapi.rs`, then
-`crates/nvs-cli/src/runner.rs`. Each item is a scheduling question, so the slice is a decision
-written into the gap's own `— owner:` line: a goal slug on the chain, or an M9+ deferral whose
-plan states the scope. `python tools/owners.py --deferrals` is the gate on the second kind.
+**Stage 6: the register** — one file set: `crates/nvs-host/src/`. Both items are the same seam, `on:
+"worker"`'s destination, and each is a scheduling decision written into the gap's own `— owner:` line: a
+goal slug on the chain, or an M9+ deferral whose plan states the scope (`python tools/owners.py
+--deferrals` is the gate on the second kind).
 
-- [ ] **The three openapi gaps that wait on something outside the emitter** —
-      `crates/nvs-cli/src/openapi.rs:32` gaps 1 to 3, whose rule is
-      `rule:routing/api-document-is-generated-from-the-route-table`. A response or request body
-      that is a class waits on `rule:core-classes/derive-attribute`'s codec roster reaching the
-      route row, and `components.securitySchemes` waits on a scheme having a home at all.
-- [ ] **The two that wait on a configuration key or a capture's set** —
-      `crates/nvs-cli/src/openapi.rs:55` gaps 4 and 5, same rule: `info.version` wants an
-      `nvs.toml` key, and an enum-case subset wants `nvs_types::routes`' `closed_set` to answer
-      for a capture declared at a case.
-- [ ] **The suite is not run in parallel** — `crates/nvs-cli/src/runner.rs:85` gap 1, whose
-      reasoning is `docs/decisions/0079.md:158` with that record's milestone table at
-      `docs/decisions/0079.md:872`. Every test already runs in an isolate of its own, so this is a
-      scheduling question and not an isolation one.
+- [ ] **A path entry is not placed on another core** — `crates/nvs-host/src/placed.rs:33` gap 1, which is
+      that gap's one home, and `crates/nvs-host/src/group.rs:90` gap 1, which states it a second time and
+      moves with it. `rule:concurrency/on-worker-runs-the-child-on-another-core`, reasoning in ADR 0184
+      § 2. Closing it is a resolver a worker core can reach, so the question is which seam owns the unit
+      cache — not the crossing, which is built.
+- [ ] **A serving core registers no inbox** — `crates/nvs-host/src/worker.rs:98` gap 1. ADR 0184 § 5
+      decides the destination set and its *Revisiting* names the fallback the code took; the question is
+      `nvs serve`'s boot order, and `docs/agent/carried-gaps.md` § *Unowned* holds its reason.
 
 ## Backlog
 
-- The remaining nine unowned items, by file set: `crates/nvs-host/src/{group,placed,worker}.rs`
-  (placement), then `nvs-db/src/span.rs`, `nvs-db/src/tds/mod.rs`, `nvs-runtime/src/ctx/mod.rs`,
-  `nvs-runtime/src/graph.rs`, `nvs-stdlib/src/cache.rs`, `nvs-stdlib/src/response.rs`.
-- `crates/nvs-db/src/span.rs` gap 1 stands and is still unowned: the `debug.trace` grant reaches no
-  `DebugFlags` bit, and sampling answers neither half of it.
-- Eight items defer to a milestone the program has already passed, which `owners.py` reports as a
-  finding rather than a failure — `docs/agent/carried-gaps.md` is where each would be re-homed.
+- `crates/nvs-db/src/span.rs:65` and `crates/nvs-db/src/tds/mod.rs:88` — the `nvs-db` pair, one file set.
+- `crates/nvs-runtime/src/ctx/mod.rs:65` and `crates/nvs-runtime/src/graph.rs:74`.
+- `crates/nvs-stdlib/src/cache.rs:155` and `crates/nvs-stdlib/src/response.rs:199`.
+- `past-milestone: 8` — items deferred to a milestone behind the program, which goal `gap-zero` makes
+  fatal and this goal has not touched.
