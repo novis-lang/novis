@@ -74,7 +74,6 @@ fn node_of(value: Value, at: &str) -> Result<nvs_db::schema::Node, Fault> {
         None | Some(Tag::Null | Tag::Unset) => Err(refused(
             "`null`, where a key a schema does not set is left out instead",
         )),
-        Some(Tag::Closure | Tag::Resource) => Err(refused("a value with no representation")),
     }
 }
 

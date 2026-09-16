@@ -29,9 +29,12 @@ use crate::string::{NvsStr, StrHeader};
 
 /// Which of the runtime's representations a [`Value`]'s payload is.
 ///
-/// The roster is the plan's § *Value representation*. Some of its entries have
-/// no representation behind them yet — see the crate docs' known gap 1 — but
-/// they are numbered anyway so the discriminants never have to move.
+/// The roster is the plan's § *Value representation*, and every entry on it
+/// has a representation behind it. Discriminants 8 and 9 are holes, left open
+/// rather than closed up: `nvs_ir::lower::param_tag_nibble` writes these
+/// numbers down in a crate that cannot name this type, and compiled code
+/// embeds them, so a discriminant that moves moves in two crates at once and
+/// in every artifact already built against the old one.
 /// [`Self::Unset`] is not on that roster at all: it is a storage
 /// state rather than a value, and its own doc comment says why it lives here.
 #[repr(u8)]
@@ -52,21 +55,21 @@ pub enum Tag {
     /// is a tag of its own anyway — the crate docs' § *`bytes` is a tag, not a
     /// second heap shape* says why.
     Str = 5,
-    /// `array<T>`; no representation exists yet.
+    /// `array<T>`; the payload is an [`ArrayHeader`] pointer and the value owns
+    /// one reference to it.
     Array = 6,
     /// A class instance; the payload is an [`ObjHeader`] pointer and the value
     /// owns one reference to it.
+    ///
+    /// A `rule:types/callable-is-a-closure` closure is one of these — one field
+    /// per capture, one `invoke` method — so it needs no tag of its own;
+    /// `nvs_ir::lower::lower_closure` owns that decision and says why it reuses
+    /// the object machinery rather than adding a second heap shape, and
+    /// [`crate::closure`] is what reads a closure back out of an object value.
+    /// An engine-owned handle is a `Core` class holding a key into its own
+    /// context's table, for the reason `nvs_stdlib::instance`'s module doc
+    /// gives, so neither shape is a row of its own here.
     Object = 7,
-    /// Reserved, and unused: an
-    /// `rule:types/closure-literal`
-    /// closure is an ordinary object — one field per capture, one `invoke`
-    /// method — so it carries [`Self::Object`]. `nvs_ir::lower::lower_closure`
-    /// owns that decision and says why it reuses the object machinery rather
-    /// than adding a second heap shape; `crate::closure` is what reads a
-    /// closure back out of an object value.
-    Closure = 8,
-    /// An engine-owned resource handle; no representation exists yet.
-    Resource = 9,
     /// `decimal` — `rule:types/decimal`'s
     /// scalar, and the one tag whose value does **not** fit in the payload
     /// alone: its 96-bit mantissa spans the padding bytes too, so a `decimal`
@@ -121,8 +124,7 @@ impl Tag {
             5 => Self::Str,
             6 => Self::Array,
             7 => Self::Object,
-            8 => Self::Closure,
-            9 => Self::Resource,
+            // 8 and 9 are the roster's holes — see [`Tag`]'s own docs.
             10 => Self::Decimal,
             11 => Self::Bytes,
             12 => Self::Unset,
@@ -149,8 +151,6 @@ impl Tag {
             Self::Str => "string",
             Self::Array => "array",
             Self::Object => "object",
-            Self::Closure => "callable",
-            Self::Resource => "resource",
             Self::Decimal => "decimal",
             Self::Bytes => "bytes",
             // The one entry that is not a Novis type name, because the
@@ -164,10 +164,7 @@ impl Tag {
     /// Whether a payload with this tag owns a reference that must be released.
     #[must_use]
     pub const fn is_refcounted(self) -> bool {
-        matches!(
-            self,
-            Self::Str | Self::Bytes | Self::Array | Self::Object | Self::Closure
-        )
+        matches!(self, Self::Str | Self::Bytes | Self::Array | Self::Object)
     }
 }
 
@@ -683,9 +680,7 @@ impl Value {
     /// Drops the reference a refcounted payload owns —
     /// `nvs_ir::InstKind::Release`.
     ///
-    /// A non-refcounted value is left alone, and so is a `Closure`/`Resource`
-    /// payload: neither representation exists yet, so nothing can construct
-    /// one to leak (crate docs, known gap 1). Everything else goes through
+    /// A non-refcounted value is left alone. Everything else goes through
     /// [`crate::release`]'s one worklist, which is why an array of objects of
     /// arrays frees without recursing.
     ///

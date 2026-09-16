@@ -357,10 +357,14 @@ fn walk<C: Carrier>(
             }
             Ok(holder)
         }
-        Tag::Closure | Tag::Resource | Tag::Unset => Err(GraphError(format!(
-            "a {} has no meaning on the other side of a copy boundary",
-            tag.describe()
-        ))),
+        // A closure is refused as the object it is ([`refusable`]), so the one
+        // tag left here is the never-written storage state, whose own name is
+        // what the message has to say rather than a type spelling.
+        Tag::Unset => Err(GraphError(
+            "a never-written property has no meaning on the other side of a \
+             copy boundary"
+                .to_owned(),
+        )),
     }
 }
 

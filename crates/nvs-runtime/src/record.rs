@@ -131,11 +131,6 @@ fn node_of(value: Value, caps: &Caps, depth: usize, seen: &mut Seen) -> Node {
         Some(Tag::Bytes) => bytes_node(value.as_bytes().unwrap_or_default(), caps),
         Some(Tag::Array) => array_node(value, caps, depth, seen),
         Some(Tag::Object) => object_node(value, caps, depth, seen),
-        // Neither tag has a representation behind it — [`Tag`]'s own known gap
-        // 1 — so nothing can hold one and this is unreachable rather than
-        // unhandled. It renders as a redaction rather than as a wrong value,
-        // which is the direction a diagnostic should fail in.
-        Some(Tag::Closure | Tag::Resource) => Node::Redacted,
     }
 }
 

@@ -2847,8 +2847,6 @@ fn shown(value: Value) -> String {
             || "an object".to_owned(),
             |ptr| format!("a `{}`", handle(ptr).class_name()),
         ),
-        Some(Tag::Closure) => "a closure".to_owned(),
-        Some(Tag::Resource) => "a resource".to_owned(),
     }
 }
 

@@ -1112,14 +1112,11 @@ fn describe(desc: &ClassDesc) -> Value {
 
 /// The [`TYPE_KIND`] case a tag is, or `None` for a tag no value carries.
 ///
-/// The three `None`s are the whole of what [`TYPE_KIND`] leaves out, and each
-/// is unreachable for its own reason rather than by omission:
-/// [`Tag::Closure`] is reserved and unused, since `rule:types/closure-literal`'s closure carries
-/// [`Tag::Object`]; [`Tag::Resource`] has no representation behind it yet; and
-/// [`Tag::Unset`] is a storage state that every read turns into a throw before
-/// a member can see one. A fourth tag arriving here would be a new
-/// representation, and answering it *some* case would be worse than the fatal
-/// [`nvs_core_reflect_type_of`] gives it.
+/// The one `None` is the whole of what [`TYPE_KIND`] leaves out, and it is
+/// unreachable rather than omitted: [`Tag::Unset`] is a storage state that
+/// every read turns into a throw before a member can see one. A second tag
+/// arriving here would be a new representation, and answering it *some* case
+/// would be worse than the fatal [`nvs_core_reflect_type_of`] gives it.
 fn kind_of(tag: Tag) -> Option<i64> {
     Some(match tag {
         Tag::Null => 0,
@@ -1132,7 +1129,7 @@ fn kind_of(tag: Tag) -> Option<i64> {
         Tag::Bytes => 7,
         Tag::Array => 8,
         Tag::Object => 9,
-        Tag::Closure | Tag::Resource | Tag::Unset => return None,
+        Tag::Unset => return None,
     })
 }
 
@@ -2208,7 +2205,7 @@ mod tests {
     /// properties of the roster rather than on any one answer: every
     /// representation a value can be in has a case, and no two share one. The
     /// sweep is over the runtime's own tag roster rather than over a list
-    /// written here, so a thirteenth tag fails this rather than silently
+    /// written here, so a new tag fails this rather than silently
     /// answering `Object`.
     #[test]
     fn type_of_is_the_single_replacement_for_the_is_predicates() {
@@ -2224,11 +2221,11 @@ mod tests {
             }
         }
 
-        // The three the enum leaves out, named rather than counted: each is a
-        // tag no value carries, and `kind_of`'s own doc says why per tag.
+        // The one the enum leaves out, named rather than counted: it is the
+        // tag no value carries, and `kind_of`'s own doc says why.
         assert_eq!(
             unrepresented,
-            [Tag::Closure, Tag::Resource, Tag::Unset],
+            [Tag::Unset],
             "every other tag is a value's, so every other tag owes a case"
         );
 

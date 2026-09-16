@@ -196,13 +196,6 @@
 //! Each is a missing *representation*, not a missing decision, and each is
 //! named at the item it blocks:
 //!
-//! 1. **`Closure` and `Resource` have no runtime representation yet**, so
-//!    [`Value::release`] ignores those two tags rather than decrementing
-//!    anything. They exist in [`Tag`] because the plan's § *Value
-//!    representation* names them; nothing constructs one.
-//!    Decided: Delete both tags — Simplest and honest: closures stay objects, handles stay Core
-//!    classes, and the tag roster shrinks.
-//!    — owner: unowned-closures
 //! 2. **Appending is the only string operation with an in-place fast path.**
 //!    [`nvs_str_append`] writes into its target's spare capacity at a
 //!    `refcount == 1`, so `$out .= $piece` is linear; every other producer —

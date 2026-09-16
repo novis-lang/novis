@@ -565,9 +565,9 @@ fn value_ordering(left: Value, right: Value) -> Result<Option<std::cmp::Ordering
 ///
 /// Shared by every refusal a tag-dispatched row makes — [`no_ordering`] and
 /// [`no_arithmetic`] — so that "a `string` against an `array<T>`" reads the
-/// same whichever operator asked. `Tag::Closure` renders as `object` because a
-/// closure *is* one (`rule:types/closure-literal`), and the fallback covers the tags no source
-/// value carries.
+/// same whichever operator asked. A closure renders as `object` because it *is*
+/// one (`rule:types/callable-is-a-closure`), and the fallback covers the tags
+/// no source value carries.
 fn tag_name(value: Value) -> &'static str {
     match value.tag() {
         Some(Tag::Null) => "null",
@@ -577,7 +577,7 @@ fn tag_name(value: Value) -> &'static str {
         Some(Tag::Float) => "float",
         Some(Tag::Str) => "string",
         Some(Tag::Array) => "array<T>",
-        Some(Tag::Object | Tag::Closure) => "object",
+        Some(Tag::Object) => "object",
         Some(Tag::Decimal) => "decimal",
         Some(Tag::Bytes) => "bytes",
         _ => "value",
@@ -593,7 +593,7 @@ fn no_ordering(left: Value, right: Value) -> Fault {
         (Some(Tag::Str), Some(Tag::Str)) => {
             " — `Core\\Str::compare` is the ordering two strings have"
         }
-        (Some(Tag::Object | Tag::Closure), Some(Tag::Object | Tag::Closure)) => {
+        (Some(Tag::Object), Some(Tag::Object)) => {
             " — ordering two objects needs the `Comparable` class named where the comparison is \
              written (`rule:classes/comparable`)"
         }
@@ -1785,8 +1785,6 @@ pub fn value_to_string(value: Value) -> Result<Value, Fault> {
             }
             Ok(carried)
         }
-        Some(Tag::Closure) => Err(refused("a closure")),
-        Some(Tag::Resource) => Err(refused("a resource")),
         // Not a row: `Tag::Unset` is `rule:classes/an-unwritten-property-read-throws`'s storage state and never a
         // value, every read that could hand one out turning it into a throw
         // first (`crate::nvs_object_slot_get`, and `nvs_ir::lower`'s guard on
@@ -2773,7 +2771,7 @@ pub fn value_truthy(value: Value) -> bool {
             let count = unsafe { crate::array::nvs_array_count(array) };
             count != 0
         }),
-        Some(Tag::Object | Tag::Closure | Tag::Resource) => true,
+        Some(Tag::Object) => true,
         // `rule:classes/an-unwritten-property-read-throws`'s storage state, which is not a value and cannot be
         // tested for truth — see `value_to_string`'s own arm for why an
         // arrival is a compiler bug. This function has no error channel, so

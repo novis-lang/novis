@@ -17,9 +17,11 @@
 //! keep that state somewhere else — for `Core\Regex` that is the pattern text
 //! plus [`crate::regex`]'s per-core compiled-pattern cache, which is a lookup
 //! rather than a second representation. The rejected alternative was a
-//! `Tag::Resource` handle into a per-request table: it buys native state
-//! directly and costs a second heap shape, a second release path, and a
-//! liveness rule every future `Core` class would have to restate. `rule:security/closed-doors`'s
+//! `resource` tag of its own, a handle into a per-request table: it buys
+//! native state directly and costs a second heap shape, a second release path,
+//! and a liveness rule every future `Core` class would have to restate — and
+//! `nvs_runtime::Tag` carries no such row, which is where that refusal now
+//! reads. `rule:security/closed-doors`'s
 //! closed door on stream wrappers is the same instinct — an engine-owned
 //! handle is a thing a program can hold and nothing can check.
 //!

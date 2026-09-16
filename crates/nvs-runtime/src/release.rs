@@ -137,8 +137,8 @@ pub(crate) unsafe fn step_field(value: Value) -> Option<Dying> {
             }
             None
         }
-        // `Closure` and `Resource` have no representation yet — see the crate
-        // docs' known gap 1 — so nothing can construct one to leak.
+        // Every remaining tag is a scalar whose payload is its own bits, plus
+        // `Tag::Unset`, which is not refcounted either: nothing to drop.
         _ => None,
     }
 }
