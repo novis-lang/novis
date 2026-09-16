@@ -283,7 +283,8 @@
         "expressions/intrinsic-list-is-closed"
       ],
       "guardedBy": [
-        "tests/conformance/core/a-literal-intrinsic-is-validated-while-checking.nvst"
+        "tests/conformance/core/a-literal-intrinsic-is-validated-while-checking.nvst",
+        "crates/nvs-cli/src/cache.rs"
       ]
     },
     {

@@ -242,9 +242,12 @@ first and strikes one that has landed, citing the evidence.
    (`crates/nvs-stdlib/src/format.rs:835`); the pattern, URI and date-format halves do not.
 2. **ADR 0057 § 5, coverage.** A statement holding a folded intrinsic call is still reported covered.
    None of `crates/nvs-codegen/tests/probes.rs`'s coverage tests (`:140`, `:206`) holds one.
-3. **ADR 0057's cache bullet.** A prepared entry from another compiler build is a miss.
-   `crates/nvs-cli/src/cache.rs:2505` proves this for the whole payload. If prepared entries ride inside
-   that payload, the bullet is struck with that evidence and needs no test.
+3. **ADR 0057's cache bullet — struck.** A prepared artifact has no address of its own: the cache holds
+   one file per compiled unit, and a prepared entry rides in that unit's payload
+   (`crates/nvs-types/src/intrinsics.rs:57` gap 2 is the channel down to `nvs-ir`, and until it is built
+   nothing is prepared at all). So `crates/nvs-cli/src/cache.rs:2511`, where a foreign build misses on
+   the address and again on the header, is the bullet's test; it is now
+   `rule:expressions/preparation-preserves-behaviour`'s guard and no check is owed.
 4. **ADR 0056's per-pattern tier record.** Every literal pattern in the regex suite has its tier written
    to a committed file, so an engine change that moves a pattern shows up in a diff
    (`docs/decisions/0056.md:144-145`). `crates/nvs-types/tests/intrinsics.rs:206` settles one pattern's

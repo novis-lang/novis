@@ -2506,6 +2506,14 @@ mod tests {
     /// artifact cost one failed `open` instead of an open-then-reject; the header is the defence
     /// in depth for a file that reached this key's path some other way, and being foreign rather
     /// than broken it survives being read.
+    ///
+    /// **This is `rule:expressions/preparation-preserves-behaviour`'s cache bullet too**, which
+    /// therefore owes no test of its own. A prepared pattern or format plan has no address here:
+    /// the cache holds one file per compiled unit, and a prepared artifact is stored in that
+    /// unit's payload — `crates/nvs-types/src/intrinsics.rs` gap 2 is the channel that carries one
+    /// down to `nvs-ir`, and until it is built nothing is prepared at all. So the compiler build a
+    /// prepared entry came from is in the key exactly as the payload's is, and a foreign one misses
+    /// on both checks below rather than being read as a mismatch.
     #[test]
     #[cfg(target_arch = "x86_64")] // A warm hit is x86-64's; see `a_payload_is_a_miss_elsewhere`.
     fn a_payload_written_by_a_different_toolchain_is_a_miss() {
