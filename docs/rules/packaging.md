@@ -297,8 +297,11 @@ window for N listed directories — tens, not thousands — and exactly zero und
 which is what production runs. For a compiled build and the wasm target the question does not
 arise; resolution happens once, at build time.
 
-**Not on disk.** The resolver produces the probe trace and then drops it: the revalidation table the
-key needs does not exist yet, so neither the trace nor the listed directories reach a cache key.
+**Half on disk.** The resolver records the trace — every path probed, in order, misses included — and
+hands it back with the `autoload` map it already returns (`nvs_hir::autoload::ProbeTrace`). Nothing
+reads it yet: turning a probed miss into a negative path entry, and folding the trace's digest in
+beside the content hash, is the revalidation table's own half. A discovery query's listed directories
+are not collected at all.
 
 <sub>See also [`programs/autoload`](programs.md#programs-autoload), [`programs/implementing`](programs.md#programs-implementing), [`config/an-edit-reaches-the-next-request-without-a-restart`](config.md#config-an-edit-reaches-the-next-request-without-a-restart), [`config/opcache-revalidation-is-system-class`](config.md#config-opcache-revalidation-is-system-class), [`config/the-extension-set-is-in-every-unit-key`](config.md#config-the-extension-set-is-in-every-unit-key), [`packaging/an-artifact-is-one-immutable-content-addressed-file`](packaging.md#packaging-an-artifact-is-one-immutable-content-addressed-file). Decided in [0061](../decisions/0061.md), [0042](../decisions/0042.md).</sub>
 

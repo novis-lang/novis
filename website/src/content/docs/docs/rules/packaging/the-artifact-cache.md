@@ -377,8 +377,11 @@ window for N listed directories — tens, not thousands — and exactly zero und
 which is what production runs. For a compiled build and the wasm target the question does not
 arise; resolution happens once, at build time.
 
-**Not on disk.** The resolver produces the probe trace and then drops it: the revalidation table the
-key needs does not exist yet, so neither the trace nor the listed directories reach a cache key.
+**Half on disk.** The resolver records the trace — every path probed, in order, misses included — and
+hands it back with the `autoload` map it already returns (`nvs_hir::autoload::ProbeTrace`). Nothing
+reads it yet: turning a probed miss into a negative path entry, and folding the trace's digest in
+beside the content hash, is the revalidation table's own half. A discovery query's listed directories
+are not collected at all.
 
 <aside class="nv-rule-diverges">
 <p class="nv-rule-diverges-label">Where this differs from PHP</p>
