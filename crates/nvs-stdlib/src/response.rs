@@ -1624,13 +1624,7 @@ nvs_runtime::nvs_helper! {
     /// `text`'s: an unencodable value throws with nothing written, so there is
     /// no body for a `Content-Type` to have described.
     fn nvs_core_response_json(ctx, args: [1]) {
-        let subject = crate::json::Encodable::document(args[0]);
-        let written = serde_json::to_string(&subject).map_err(|why| {
-            Fault::thrown_as(
-                nvs_runtime::ThrownClass::Logic,
-                format!("Core\\Response::json(): {why}"),
-            )
-        })?;
+        let written = crate::json::written(ctx, args[0], "Core\\Response::json")?;
         ctx.declare_content_type(JSON_MEDIA_TYPE);
         // Unreachable from source, on `text`'s reasoning: `OutputSink::Buffer`
         // and `Sink` never fail, which `Ctx::write_output`'s own `# Errors`

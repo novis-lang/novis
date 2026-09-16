@@ -3241,11 +3241,11 @@ fn given_url(args: &[Value], member: &str) -> Result<String, Fault> {
 /// refuses, [`nvs_runtime::capability::open_read`]'s refusal and `IOError` for a
 /// file part, and a thrown `RuntimeError` for a field name or filename that
 /// could end a header line early.
-fn body_of(ctx: &Ctx, args: &[Value], member: &str) -> Result<Option<transport::Body>, Fault> {
+fn body_of(ctx: &mut Ctx, args: &[Value], member: &str) -> Result<Option<transport::Body>, Fault> {
     if !matches!(args[JSON].tag(), Some(Tag::Unset)) {
         // `Tag::Unset` and not `Tag::Null`: the document `null` is a body a
         // program may mean, which is what [`OPTIONS`]' `json` row states.
-        let document = crate::json::written(args[JSON], member)?;
+        let document = crate::json::written(ctx, args[JSON], member)?;
         return Ok(Some(held(
             Some("application/json".to_owned()),
             document.into_bytes(),

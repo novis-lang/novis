@@ -2966,13 +2966,14 @@ pub fn narrowing(
 ///
 /// A thrown `RuntimeError` for a payload JSON cannot hold, which is what the encoder refuses: an
 /// infinite `float`, or nesting past its depth bound.
-fn payload_of(args: &[Value]) -> Result<Option<String>, Fault> {
+fn payload_of(ctx: &mut nvs_runtime::Ctx, args: &[Value]) -> Result<Option<String>, Fault> {
     if matches!(args[ARGS_ARG].tag(), Some(Tag::Null | Tag::Unset)) {
         return Ok(None);
     }
-    serde_json::to_string(&crate::json::Encodable::document(args[ARGS_ARG]))
-        .map(Some)
-        .map_err(|refused| Fault::thrown(format!("{PUSH}: `args` cannot be stored: {refused}")))
+    crate::json::document(ctx, args[ARGS_ARG], |refused| {
+        Fault::thrown(format!("{PUSH}: `args` cannot be stored: {refused}"))
+    })
+    .map(Some)
 }
 
 /// The other half of [`payload_of`]: the `args` column of a claimed row, as the value the job's
@@ -3210,7 +3211,7 @@ nvs_runtime::nvs_helper! {
             .to_owned();
         let key = args[KEY_ARG].as_text().map(str::to_owned);
         let tag = args[TAG_ARG].as_text().map(str::to_owned);
-        let payload = payload_of(args)?;
+        let payload = payload_of(ctx, args)?;
         let run_at = run_at_of(args)?;
         let backoff = backoff_of(args)?;
 

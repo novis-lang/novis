@@ -85,4 +85,4 @@ Core\Sse::send(): an event needs a payload: a client dispatches nothing for an e
 Core\Sse::send(): an event name cannot carry a line break or a NUL: a client dispatches on this name, and either byte would end the event early
 Core\Sse::send(): an event id cannot carry a line break or a NUL: either byte would end the event early, and a client discards an id containing a NUL outright
 Core\Sse::stream(): this request set the status `404` and an event stream is `200` by protocol, so the two cannot both be answered
-Core\Sse::send(): the payload cannot be encoded: an instance of `Ticket` has no JSON encoding — a class participates by carrying `#[Json\Derive]`
+Core\Sse::send(): the payload cannot be encoded: an instance of `Ticket` has no JSON encoding — a class participates by carrying `#[Json\Derive]` or by writing `toJson` itself

@@ -1584,7 +1584,7 @@ nvs_runtime::nvs_helper! {
         let encoded = if matches!(args[2].tag(), Some(Tag::Unset)) {
             None
         } else {
-            Some(crate::json::written(args[2], member)?)
+            Some(crate::json::written(ctx, args[2], member)?)
         };
         if written && encoded.is_some() {
             return Err(Fault::thrown_as(

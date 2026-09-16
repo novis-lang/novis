@@ -184,39 +184,49 @@
 //! field or a list element typed as one, since a document is a tree and a door
 //! at its root only is not a door. What the member is handed is the value as it
 //! arrived, § 6 declaring it over `mixed`, so this door reads a document the
-//! field walk would refuse for not being an object. The encoding half is not
-//! consulted yet, which is this module's own gap 1.
+//! field walk would refuse for not being an object.
+//!
+//! **The encoding half parts at the same place, one condition ahead of the
+//! field list.** [`Encodable::serialize_object`] asks the class table for
+//! [`ENCODE`] before it reads the derived codec, so a class that wrote `toJson`
+//! encodes as that member answers, and one carrying `#[Json\Derive]` as well
+//! keeps its own encoder while the derived field list stays the decoder's. What
+//! the member answers with is written at the value's own position by this same
+//! walk, so a member answering with an object that wrote one of its own is one
+//! more level of the same descent — counted against [`DEPTH_CEILING`], and a
+//! member answering with the object it was called on is the cycle
+//! `rule:classes/an-encoder-ends-a-cycle-by-identity` already ends.
+//!
+//! **That call is the one place this walk runs compiled code, and the walk is
+//! held still across it.** [`Encodable`] descends through borrowed handles that
+//! take no reference of their own, so a member free to reassign the static
+//! property the document was reached through, or to write to a container the
+//! walk is inside, would otherwise leave a handle over freed memory. [`Standing`]
+//! retains every value the walk is standing on — this value and each of its
+//! ancestors — for the length of the call and releases them after. A retained
+//! array is a shared one, so a write a member makes to a container above it
+//! takes the copy-on-write path and the document stays the snapshot the encode
+//! began on. What that spends is a refcount pair per level per hand-written
+//! member, and nothing at all on a document with none. The [`Fault`] such a
+//! member raises travels out on [`Reentry`] rather than as `serde`'s own error,
+//! which is a string and would lose the class a `catch` names.
 //!
 //! # Known gaps
 //!
-//! 1. **A hand-written `toJson` is not consulted.**
-//!    `rule:core-classes/derive-generates-what-is-missing` lets a class write
-//!    one half and take the other from the attribute, and the decoding half is
-//!    the one [`hand_written`] now reaches; the encoder still reads the derived
-//!    field list alone, so a class writing `toJson` and carrying no attribute
-//!    refuses to encode, and one carrying both writes the derived fields rather
-//!    than what its member returns. Closing it is the `ClassDesc::method`
-//!    lookup above made at [`Encodable`]'s class arm and a call back into
-//!    compiled code from the native walk, or it is nothing to write at all once
-//!    that walk is the emitted code gap 2 asks about.
-//!    Decided: Keep the descriptor and widen it (default constants on CodecField, a ClassDesc method
-//!    lookup for toJson); amend the rule — One native walker and small, local changes; costs one loop
-//!    and a string compare per field.
-//!    — owner: unowned-closures
-//! 2. **Both halves walk a per-class field list rather than straight-line
+//! 1. **Both halves walk a per-class field list rather than straight-line
 //!    code.** `rule:core-classes/derive-generates-what-is-missing` asks for IR emitted per derived class; what is built
 //!    is one compile-time-built descriptor per class, read by native Rust. No
 //!    reflection and nothing per object either way — the difference is one
 //!    bounded loop and one `String` compare per field, against a table that is
 //!    O(derived classes) in the artifact. What has to be decided is which of
-//!    the two the machinery stays, and gap 1 waits on that one answer: a
-//!    `toJson` lookup is cheap in emitted code and a widening of the descriptor
-//!    otherwise.
+//!    the two the machinery stays; the descriptor is what the hand-written half
+//!    above is built against, its lookup being one more read of the class table
+//!    the walk is already holding.
 //!    Decided: Keep the descriptor and widen it (default constants on CodecField, a ClassDesc method
 //!    lookup for toJson); amend the rule — One native walker and small, local changes; costs one loop
 //!    and a string compare per field.
 //!    — owner: unowned-closures
-//! 3. **The encoder's real bound is the native stack, not [`DEPTH_CEILING`].**
+//! 2. **The encoder's real bound is the native stack, not [`DEPTH_CEILING`].**
 //!    [`Encodable`] recurses through `serde_json`'s serializer, and a document
 //!    nested deeply enough runs the thread's stack out well before the ceiling
 //!    is reached — an abort, not a throw. What the refusal above took away is
@@ -543,6 +553,68 @@ pub(crate) fn max_depth(value: &Value, who: &str) -> Result<u32, Fault> {
 // Encoding
 // ============================================================================
 
+/// The encoding half of spec § 6's `Core\Json\Codec` — `toJson(): mixed`.
+/// `nvs_types::derive` owns the spelling as the half a `#[Json\Derive]`
+/// generates where the class does not write it, and `E0757` refuses an
+/// attribute on a class that wrote both. [`DECODE`] is its twin, and the two
+/// doors are read the same way: off the flattened method table, so a class
+/// inheriting the member is encoded through it.
+const ENCODE: &str = "toJson";
+
+/// The walk's door back into compiled code, and the way a [`Fault`] raised
+/// behind it gets out.
+///
+/// Two things a `serde::Serialize` cannot hold for itself. The context is a
+/// **pointer** because `Serialize::serialize` takes `&self` and every
+/// [`Encodable`] on the walk is a `Copy` value of one, so there is no `&mut` to
+/// thread down; it is re-derived for exactly the length of one call and never
+/// held across a nested walk, which is the same shape every helper's own ABI
+/// boundary gives a `Ctx`. The fault is behind a cell because `S::Error` is a
+/// string and a thrown class is not: the walk stops with an ordinary `serde`
+/// error and the [`Fault`] — a [`Fault::Pending`] whose exception object is
+/// already recorded on the context — is picked up by [`rendered`] on the way
+/// out.
+#[derive(Debug)]
+pub(crate) struct Reentry {
+    /// The context the member that is encoding holds.
+    ///
+    /// A reference is built from it for the length of one call into compiled
+    /// code and no longer, which is what makes a
+    /// [`Core\Json::encode`](nvs_core_json_encode) reached from inside a
+    /// `toJson` an ordinary nested walk rather than an alias: this walk is not
+    /// holding a reference of its own while that one runs.
+    ctx: *mut nvs_runtime::Ctx,
+    /// What a hand-written [`ENCODE`] raised, where that is what stopped the
+    /// walk, and `None` where the refusal was this encoder's own.
+    raised: std::cell::RefCell<Option<Fault>>,
+}
+
+impl Reentry {
+    /// The door, opened on the context of the member that is encoding.
+    fn new(ctx: &mut nvs_runtime::Ctx) -> Self {
+        Self {
+            ctx: std::ptr::from_mut(ctx),
+            raised: std::cell::RefCell::new(None),
+        }
+    }
+
+    /// Records `fault` and answers the `serde` error that stops the walk.
+    ///
+    /// The message is what a caller that never asks [`Self::raised`] would
+    /// render, so it names the member rather than describing the machinery;
+    /// every caller in this crate asks, and gets the class the member threw.
+    fn stopped_by<E: serde::ser::Error>(&self, fault: Fault, class: &str) -> E {
+        *self.raised.borrow_mut() = Some(fault);
+        E::custom(format!("`{class}::{ENCODE}()` did not answer a document"))
+    }
+
+    /// The fault a member raised, taken, and `None` where the walk stopped on
+    /// something this encoder itself refused.
+    fn raised(&self) -> Option<Fault> {
+        self.raised.take()
+    }
+}
+
 /// One Novis value being written as JSON, at a known nesting level and inside
 /// a known chain of ancestors.
 ///
@@ -553,6 +625,10 @@ pub(crate) fn max_depth(value: &Value, who: &str) -> Result<u32, Fault> {
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Encodable<'a> {
     value: Value,
+    /// The door a class that wrote [`ENCODE`] is encoded through. Borrowed
+    /// rather than held, so every level of one walk shares the one context and
+    /// the one place a raised fault lands.
+    walk: &'a Reentry,
     /// This value's own nesting level, counted as [`DEFAULT_MAX_DEPTH`]
     /// counts: the document is 1.
     depth: u32,
@@ -578,6 +654,9 @@ struct Ancestor<'a> {
     /// The allocation's address, which is a live value's identity. An object
     /// and an array are distinct allocations, so one `usize` answers for both.
     id: usize,
+    /// The same allocation as the value that holds a reference to it, which is
+    /// what [`Standing`] retains before a hand-written member runs.
+    value: Value,
     /// The step that reached this frame, and `None` for the document.
     step: Option<Step<'a>>,
     /// The frame one level further out.
@@ -608,9 +687,10 @@ impl<'a> Encodable<'a> {
     /// a `fields` bag that is a document exactly as `Core\Json::encode`'s
     /// argument is. One encoder, so a `float` or a nested array cannot be
     /// spelled two ways depending on which member wrote it.
-    pub(crate) fn document(value: Value) -> Self {
+    pub(crate) fn document(walk: &'a Reentry, value: Value) -> Self {
         Self {
             value,
+            walk,
             depth: 1,
             step: None,
             ancestors: None,
@@ -621,8 +701,28 @@ impl<'a> Encodable<'a> {
     fn child(self, inside: &'a Ancestor<'a>, step: Step<'a>, value: Value) -> Self {
         Self {
             value,
+            walk: self.walk,
             depth: self.depth + 1,
             step: Some(step),
+            ancestors: Some(inside),
+        }
+    }
+
+    /// What this value's own [`ENCODE`] answered, at this value's position.
+    ///
+    /// One level deeper and one frame further in, exactly as an element is, so
+    /// a member answering with the object it was called on is the cycle
+    /// [`Self::cycle`] already ends and a chain of them is bounded by
+    /// [`DEPTH_CEILING`] rather than by the native stack. It contributes **no**
+    /// path segment: the document holds this value where the object was, so a
+    /// message naming a value inside it names the object's own path and not a
+    /// step no key spells.
+    fn returned(self, inside: &'a Ancestor<'a>, value: Value) -> Self {
+        Self {
+            value,
+            walk: self.walk,
+            depth: self.depth + 1,
+            step: None,
             ancestors: Some(inside),
         }
     }
@@ -632,9 +732,22 @@ impl<'a> Encodable<'a> {
     fn frame(self, id: usize) -> Ancestor<'a> {
         Ancestor {
             id,
+            value: self.value,
             step: self.step,
             outer: self.ancestors,
         }
+    }
+
+    /// Every value the walk is standing on, innermost first: this one, then
+    /// each container it is inside up to the document.
+    ///
+    /// The chain is the path and not everything already written, so this is as
+    /// long as the nesting level and no longer — [`DEPTH_CEILING`], which the
+    /// arms check before they descend.
+    fn standing_on(self) -> impl Iterator<Item = Value> + 'a {
+        std::iter::once(self.value).chain(
+            std::iter::successors(self.ancestors, |frame| frame.outer).map(|frame| frame.value),
+        )
     }
 
     /// The refusal `rule:classes/an-encoder-ends-a-cycle-by-identity` asks for
@@ -651,10 +764,19 @@ impl<'a> Encodable<'a> {
         let mut outer = self.ancestors;
         while let Some(frame) = outer {
             if frame.id == id {
+                // The document itself where there is no path to name, which is
+                // the value a hand-written [`ENCODE`] answered with at the top
+                // level: [`Self::returned`] contributes no segment, so the
+                // whole chain to it can be empty where an element's never is.
+                let path = self.path();
+                let at = if path.is_empty() {
+                    "the document".to_owned()
+                } else {
+                    format!("`{path}`")
+                };
                 return Some(E::custom(format!(
-                    "a value that holds itself has no JSON encoding — `{}` is a value \
-                     it is already inside",
-                    self.path()
+                    "a value that holds itself has no JSON encoding — {at} is a value \
+                     it is already inside"
                 )));
             }
             outer = frame.outer;
@@ -686,6 +808,56 @@ impl<'a> Encodable<'a> {
             }
         }
         path
+    }
+}
+
+/// Every value the walk is standing on, held for the length of one call into
+/// compiled code.
+///
+/// What the walk is still reading through, at every level, is a *borrowed*
+/// handle over an allocation and a cursor into it — [`crate::arr::borrowed`]
+/// and the `ManuallyDrop<NvsObj>` beside it, neither of which takes a reference
+/// of its own. A member free to run any code at all can drop the last reference
+/// to any of them: a static property reassigned, a property overwritten, a
+/// local released. So each is retained before the call and released after, and
+/// a retained array is a **shared** one, which sends a write the member makes
+/// to a container the walk is inside down the copy-on-write path and leaves
+/// this walk's own allocation alone.
+///
+/// A guard rather than two loops around the call site, so an unwind releases
+/// exactly what it took.
+struct Standing<'a>(Encodable<'a>);
+
+impl<'a> Standing<'a> {
+    /// The path under `node`, retained — `node`'s own value included, since the
+    /// member is about to be called on it.
+    fn under(node: Encodable<'a>) -> Self {
+        for value in node.standing_on() {
+            #[expect(
+                unsafe_code,
+                reason = "every value on the path is live where this walk reached \
+                          it, and the reference taken here is dropped in `drop`"
+            )]
+            unsafe {
+                value.retain();
+            }
+        }
+        Self(node)
+    }
+}
+
+impl Drop for Standing<'_> {
+    fn drop(&mut self) {
+        for value in self.0.standing_on() {
+            #[expect(
+                unsafe_code,
+                reason = "exactly the references `under` took, dropped once: the \
+                          chain is a borrowed cons list nothing on the walk edits"
+            )]
+            unsafe {
+                value.release();
+            }
+        }
     }
 }
 
@@ -758,19 +930,21 @@ impl Encodable<'_> {
             .ok_or_else(|| E::custom("a `Tag::Str` value always has text"))
     }
 
-    /// An object, as the document its class's
-    /// `rule:core-classes/derive-attribute` derived codec
-    /// declares: one entry per field, in declaration order, under the field's
-    /// own wire key.
+    /// An object, as the document its class declares: the [`ENCODE`] it wrote
+    /// itself, and where it wrote none its
+    /// `rule:core-classes/derive-attribute` derived codec — one entry per
+    /// field, in declaration order, under the field's own wire key.
     ///
     /// The field list is compiled in — `nvs_runtime::ClassDesc::codec`, filled
     /// by `nvs-codegen` from what `nvs_types::derive` read off the declaration
-    /// — so nothing here asks the program a question at run time. An empty
-    /// list means the class carries no `#[Json\Derive]`, which is the refusal
-    /// [ADR 0063](/docs/decisions/0063.md) § 4 asks
+    /// — so the one question this asks the program at run time is the one a
+    /// class that wrote its own encoder answers, and [`Self::answered`] is
+    /// where that goes. Neither a member nor a field list means the class
+    /// carries no `#[Json\Derive]` and wrote nothing either, which is the
+    /// refusal [ADR 0063](/docs/decisions/0063.md) § 4 asks
     /// for: participation in a wire format is written, never inferred.
     ///
-    /// Two instances are not declared classes and answer before that list is
+    /// Two instances are not declared classes and answer before either is
     /// read. An `rule:types/object-literal` shape encodes as a JSON object
     /// keyed by its own field names, and a `Core\Time\Instant` as the RFC 3339
     /// string this module's § *A value type crosses as text* fixes it at;
@@ -857,11 +1031,34 @@ impl Encodable<'_> {
             })?;
             return ser.serialize_str(&text);
         }
+        // `rule:core-classes/derive-generates-what-is-missing` read at the one
+        // place the two encoders part, and read first: the derive fills in the
+        // half the class does not write, so where the class wrote this half the
+        // encoding **is** that member, and a field list recorded beside it —
+        // the class carrying the attribute as well — is the decoder's alone.
+        // The table is the flattened chain, so a class inheriting the member
+        // encodes through it.
+        if desc.method(ENCODE).is_some() {
+            let produced = self.answered(desc.name())?;
+            let written = Serialize::serialize(&self.returned(&inside, produced), ser);
+            // The member's answer is a reference this frame owns and the walk
+            // above kept none of it, so it is released here whether that walk
+            // wrote a document or refused one.
+            #[expect(
+                unsafe_code,
+                reason = "`call_method` hands back a fresh reference this frame \
+                          owns, and nothing else released it"
+            )]
+            unsafe {
+                produced.release();
+            }
+            return written;
+        }
         let fields = desc.codec();
         if fields.is_empty() {
             return Err(S::Error::custom(format!(
                 "an instance of `{}` has no JSON encoding — a class participates by \
-                 carrying `#[Json\\Derive]`",
+                 carrying `#[Json\\Derive]` or by writing `{ENCODE}` itself",
                 desc.name()
             )));
         }
@@ -876,6 +1073,48 @@ impl Encodable<'_> {
             )?;
         }
         map.end()
+    }
+
+    /// What this value's class answers for it through the [`ENCODE`] it wrote
+    /// itself.
+    ///
+    /// The receiver goes over **borrowed**: `nvs_runtime::call_method` retains
+    /// it and every argument before it calls, because a compiled function
+    /// releases its parameters, and what comes back is a fresh reference this
+    /// frame owns. The walk is held still across the call ([`Standing`]),
+    /// because the member runs while every handle above it is still being read
+    /// through.
+    ///
+    /// # Errors
+    ///
+    /// The `serde` error that stops the walk, with the member's own [`Fault`]
+    /// left on [`Reentry`] for [`rendered`] to answer with — so a `LogicError` a
+    /// `toJson` threw reaches the program as that class rather than as this
+    /// encoder's refusal.
+    fn answered<E: serde::ser::Error>(self, class: &str) -> Result<Value, E> {
+        let standing = Standing::under(self);
+        let called = {
+            #[expect(
+                unsafe_code,
+                reason = "the pointer is the `&mut Ctx` the encoding member holds \
+                          for the whole walk, and this walk holds no reference of \
+                          its own: the one built here lives for this call alone"
+            )]
+            let ctx = unsafe { &mut *self.walk.ctx };
+            nvs_runtime::call_method(ctx, self.value, ENCODE, &[], "Core\\Json::encode")
+        };
+        drop(standing);
+        match called {
+            Ok(Some(value)) => Ok(value),
+            // Unreachable from source with no diagnostic to name: `None` is the
+            // answer for a class with no such method, and the arm that reached
+            // this door read that same method table one condition earlier.
+            Ok(None) => Err(E::custom(format!(
+                "internal error: `{class}` answers `{ENCODE}` where the encoder asked its \
+                 class table and not where it called"
+            ))),
+            Err(fault) => Err(self.walk.stopped_by(fault, class)),
+        }
     }
 
     /// An array, as a JSON array if its keys are `0, 1, …, n-1` and a JSON
@@ -1009,10 +1248,61 @@ fn escape_non_ascii(text: &str) -> String {
 /// # Errors
 ///
 /// A `LogicError`, named after `member`, for a value this encoder refuses —
-/// the program built it, so an unencodable one is a bug in the program.
-pub(crate) fn written(value: Value, member: &str) -> Result<String, Fault> {
-    serde_json::to_string(&Encodable::document(value))
-        .map_err(|why| Fault::thrown_as(ThrownClass::Logic, format!("{member}(): {why}")))
+/// the program built it, so an unencodable one is a bug in the program. What a
+/// hand-written [`ENCODE`] raised instead travels out unchanged, so the class a
+/// `catch` names is the one that member threw.
+pub(crate) fn written(
+    ctx: &mut nvs_runtime::Ctx,
+    value: Value,
+    member: &str,
+) -> Result<String, Fault> {
+    document(ctx, value, |why| {
+        Fault::thrown_as(ThrownClass::Logic, format!("{member}(): {why}"))
+    })
+}
+
+/// [`written`] for a caller that words its own refusal — the members that write
+/// a document into something of their own (a claims payload, a job's `args`, an
+/// event's `data`) and say so in the message.
+///
+/// # Errors
+///
+/// `refused`'s fault for a value this encoder refuses, and whatever a
+/// hand-written [`ENCODE`] raised where that is what stopped the walk.
+pub(crate) fn document(
+    ctx: &mut nvs_runtime::Ctx,
+    value: Value,
+    refused: impl FnOnce(&serde_json::Error) -> Fault,
+) -> Result<String, Fault> {
+    rendered(ctx, value, false, refused)
+}
+
+/// The whole encoding half in one call: the walk, the option that frames it,
+/// and the one place a [`Fault`] a member raised is preferred to `serde`'s
+/// error.
+///
+/// Every door into this encoder comes through here, which is what makes the
+/// module's "one encoder" claim true of the hand-written half as well: a class
+/// that wrote `toJson` is called wherever a document is written, not only where
+/// `Core\Json::encode` wrote it.
+///
+/// # Errors
+///
+/// As [`document`]'s.
+fn rendered(
+    ctx: &mut nvs_runtime::Ctx,
+    value: Value,
+    pretty: bool,
+    refused: impl FnOnce(&serde_json::Error) -> Fault,
+) -> Result<String, Fault> {
+    let walk = Reentry::new(ctx);
+    let subject = Encodable::document(&walk, value);
+    let written = if pretty {
+        serde_json::to_string_pretty(&subject)
+    } else {
+        serde_json::to_string(&subject)
+    };
+    written.map_err(|why| walk.raised().unwrap_or_else(|| refused(&why)))
 }
 
 nvs_runtime::nvs_helper! {
@@ -1022,16 +1312,10 @@ nvs_runtime::nvs_helper! {
     /// Anything it cannot write throws a `LogicError`: the value was built by
     /// the program, so an unencodable one is a bug in it rather than something
     /// the world did. This module's own docs list what those are.
-    fn nvs_core_json_encode(_ctx, args: [3]) {
+    fn nvs_core_json_encode(ctx, args: [3]) {
         let pretty = flag(&args[1], "pretty")?;
         let escape = flag(&args[2], "escapeUnicode")?;
-        let subject = Encodable::document(args[0]);
-        let written = if pretty {
-            serde_json::to_string_pretty(&subject)
-        } else {
-            serde_json::to_string(&subject)
-        }
-        .map_err(|why| Fault::thrown_as(
+        let written = rendered(ctx, args[0], pretty, |why| Fault::thrown_as(
             ThrownClass::Logic,
             format!("Core\\Json::encode(): {why}"),
         ))?;
@@ -2960,7 +3244,9 @@ mod tests {
     /// with the member's option bag and `Fault` wrapping left out: what these
     /// tests ask about is the walk and the message it produces.
     fn encoded(value: Value) -> Result<String, String> {
-        serde_json::to_string(&Encodable::document(value)).map_err(|why| why.to_string())
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let walk = Reentry::new(&mut ctx);
+        serde_json::to_string(&Encodable::document(&walk, value)).map_err(|why| why.to_string())
     }
 
     /// A class whose slots are `fields`, each carrying a `mixed` wire key of
@@ -2972,6 +3258,43 @@ mod tests {
     /// and has to outlive every instance made from it; `crate::request`'s
     /// `reading_class` leaks its own for that reason.
     fn holder_class(name: &str, fields: &[&str]) -> *const ClassDesc {
+        declared(name, fields, Vec::new())
+    }
+
+    /// [`holder_class`]'s class with a `toJson` of its own, whose body is
+    /// `code` — the smallest thing the encoder's hand-written door will call.
+    ///
+    /// The derived field list is recorded beside it exactly as
+    /// [`holder_class`]'s is, because a class carrying `#[Json\Derive]` *and*
+    /// writing this half is the case the precedence is about: the member is
+    /// read first and that list is never reached.
+    fn writing_class(name: &str, fields: &[&str], code: nvs_runtime::NvsFn) -> *const ClassDesc {
+        declared(
+            name,
+            fields,
+            vec![nvs_runtime::MethodRow {
+                name: ENCODE.to_owned(),
+                code: (code as *const ()).cast::<u8>(),
+                // The receiver is slot 0 and is not a declared parameter, so a
+                // nullary member declares none — `nvs_runtime::MethodRow`'s
+                // own terms, and what `toJson(): mixed` is.
+                arity: 0,
+                param_tags: 0,
+                param_names: Vec::new(),
+                public: true,
+                native: false,
+            }],
+        )
+    }
+
+    /// The class both of those are: `fields` as the object's slots and as its
+    /// derived codec, `methods` as its method table, leaked for the reason
+    /// below.
+    fn declared(
+        name: &str,
+        fields: &[&str],
+        methods: Vec<nvs_runtime::MethodRow>,
+    ) -> *const ClassDesc {
         let mut table = ClassTable::new();
         let id = table.define(name, fields, &[]);
         let codec: Vec<CodecField> = fields
@@ -2997,8 +3320,106 @@ mod tests {
         let classes = vec![std::ptr::null(); codec.len()];
         let shapes = vec![std::ptr::null(); codec.len()];
         table.set_codec(id, codec, fields.len(), classes, shapes);
+        table.set_methods(id, methods);
         let table: &'static ClassTable = Box::leak(Box::new(table));
         table.desc(id)
+    }
+
+    /// A method body in the shape `nvs-codegen` emits one: slot 0 is the
+    /// receiver, a compiled function **owns** its parameters — so this releases
+    /// the reference it was handed, exactly as an emitted epilogue would — and
+    /// what it writes to `out` is a reference the caller owns.
+    #[expect(
+        unsafe_code,
+        reason = "a method body's signature is `nvs_runtime::NvsFn`, whose pointer \
+                  contract cannot be expressed in the type"
+    )]
+    unsafe extern "C" fn answers_a_number(
+        _ctx: *mut nvs_runtime::Ctx,
+        args: *const Value,
+        out: *mut Value,
+    ) -> i32 {
+        #[expect(
+            unsafe_code,
+            reason = "`call_at` passes one live slot and a writable out-pointer"
+        )]
+        unsafe {
+            (*args).release();
+            *out = Value::int(7);
+        }
+        nvs_runtime::OK
+    }
+
+    /// The same shape, answering with the receiver itself — so the reference it
+    /// arrived with is the one that leaves and nothing is released here.
+    #[expect(unsafe_code, reason = "as `answers_a_number`'s")]
+    unsafe extern "C" fn answers_its_receiver(
+        _ctx: *mut nvs_runtime::Ctx,
+        args: *const Value,
+        out: *mut Value,
+    ) -> i32 {
+        #[expect(
+            unsafe_code,
+            reason = "`call_at` passes one live slot and a writable out-pointer"
+        )]
+        unsafe {
+            *out = *args;
+        }
+        nvs_runtime::OK
+    }
+
+    /// `rule:core-classes/derive-generates-what-is-missing`'s encoding half at
+    /// run time: a class that wrote `toJson` is written as that member answers,
+    /// and what it answers with is spelled by this same walk — a `7` and not a
+    /// `{"n": …}` the field list would have produced.
+    #[test]
+    fn a_class_that_wrote_the_encoder_is_written_through_that_member() {
+        let value = instance(writing_class("Ticket", &["n"], answers_a_number));
+        assert_eq!(
+            encoded(value).expect("a class that wrote the encoder encodes"),
+            "7"
+        );
+        #[expect(unsafe_code, reason = "this frame holds the only reference")]
+        unsafe {
+            value.release();
+        }
+    }
+
+    /// The precedence, asserted where the two answers differ: the class carries
+    /// a derived field list **and** the member, the slot behind that list holds
+    /// a value the document would show, and the document is the member's answer
+    /// — so a walk that read the list first fails here while still looking
+    /// right on a class that has only one of the two.
+    #[test]
+    fn a_written_encoder_is_read_before_the_derived_field_list() {
+        let value = instance(writing_class("Row", &["n"], answers_a_number));
+        set_property(value, 0, Value::int(3));
+        let document = encoded(value).expect("a class that wrote the encoder encodes");
+        assert_eq!(
+            document, "7",
+            "the derived field list would have written `n`"
+        );
+        #[expect(unsafe_code, reason = "this frame holds the only reference")]
+        unsafe {
+            value.release();
+        }
+    }
+
+    /// A member answering with the object it was called on is the cycle
+    /// `rule:classes/an-encoder-ends-a-cycle-by-identity` already ends, because
+    /// the answer is walked as a *child* of the value it came from. What this
+    /// pins is that the walk ends at all: the alternative is a descent with no
+    /// bottom, which is the native stack and not a refusal.
+    #[test]
+    fn a_member_answering_with_its_own_receiver_ends_at_the_cycle() {
+        let value = instance(writing_class("Loop", &["n"], answers_its_receiver));
+        let why = encoded(value).expect_err("a member answering with its receiver has no encoding");
+        assert!(why.contains("the document"), "{why}");
+        assert!(why.contains("already inside"), "{why}");
+        #[expect(unsafe_code, reason = "this frame holds the only reference")]
+        unsafe {
+            value.release();
+        }
     }
 
     /// A class of one field of wire type `ty`, carrying that field twice: as

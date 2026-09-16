@@ -1201,17 +1201,21 @@ fn registered_pair(
 /// A `LogicError` for a claims object with no JSON encoding and for one
 /// carrying `iat` or `exp`, and a [`Fault::fatal`] for encoder output that is
 /// not a JSON object.
-fn object_payload_of(claims: Value, now: i64, exp: i64) -> Result<String, Fault> {
-    let written =
-        serde_json::to_string(&crate::json::Encodable::document(claims)).map_err(|why| {
-            Fault::thrown_as(
-                ThrownClass::Logic,
-                format!(
-                    "{NAME}::signObject(): $claims is written as `Core\\Json::encode` writes it, \
-                     and {why}."
-                ),
-            )
-        })?;
+fn object_payload_of(
+    ctx: &mut nvs_runtime::Ctx,
+    claims: Value,
+    now: i64,
+    exp: i64,
+) -> Result<String, Fault> {
+    let written = crate::json::document(ctx, claims, |why| {
+        Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "{NAME}::signObject(): $claims is written as `Core\\Json::encode` writes it, \
+                 and {why}."
+            ),
+        )
+    })?;
     // Unreachable from source: `object` admits a class instance and a shape and
     // nothing else, and `Core\Json`'s encoder writes each of those as a JSON
     // object or refuses it above.
@@ -1446,7 +1450,7 @@ nvs_runtime::nvs_helper! {
         };
         let header = header_of(alg, jwk.as_deref(), kid, typ);
         let (now, exp) = registered_pair(ctx, lifetime, "signObject")?;
-        let payload = object_payload_of(claims, now, exp)?;
+        let payload = object_payload_of(ctx, claims, now, exp)?;
 
         let signing_input = format!(
             "{}.{}",

@@ -1,0 +1,44 @@
+--TEST--
+A class that wrote `toJson` is encoded through that member, carrying no attribute, at the document's root and at every level under it — `rule:core-classes/derive-generates-what-is-missing`, `rule:core-classes/derive-attribute`
+--FILE--
+<?nvs
+use Core\Json;
+
+// `rule:core-classes/derive-generates-what-is-missing`: the derive generates
+// only the half a class does not write, so writing the encoding half *is*
+// participation and `Money` needs no `#[Json\Derive]` to be encodable. What
+// the member answers with is spelled by the same walk that would have spelled
+// the fields, so the representation is the class's own and the encoder's
+// framing of it is still one framing.
+class Money {
+    public int $cents;
+
+    public function constructor(int $cents) {
+        $this->cents = $cents;
+    }
+
+    // § 6's `Core\Json\Codec` declares this half as `toJson(): mixed`.
+    public function toJson(): mixed {
+        return $this->cents;
+    }
+}
+
+// The member is read off the *flattened* method table, so a class that
+// inherits it is encoded through it and never falls back to the refusal a
+// class with no codec gets.
+class Fee extends Money {
+}
+
+echo "root=", Json::encode(new Money(150)), "\n";
+echo "inherited=", Json::encode(new Fee(20)), "\n";
+
+// A document is a tree, and a door at its root only is not a door: the walk
+// reaches the member wherever it meets one.
+array<Money> $list = [new Money(1), new Money(2)];
+echo "list=", Json::encode($list), "\n";
+echo "nested=", Json::encode({items: $list, note: "each"}), "\n";
+--EXPECT--
+root=150
+inherited=20
+list=[1,2]
+nested={"items":[1,2],"note":"each"}

@@ -60,7 +60,7 @@ try {
     echo $tooShort->message, "\n";
 }
 --EXPECT--
-Core\Jwt::signObject(): $claims is written as `Core\Json::encode` writes it, and an instance of `Plain` has no JSON encoding — a class participates by carrying `#[Json\Derive]`.
+Core\Jwt::signObject(): $claims is written as `Core\Json::encode` writes it, and an instance of `Plain` has no JSON encoding — a class participates by carrying `#[Json\Derive]` or by writing `toJson` itself.
 Core\Jwt::signObject(): $claims carries a field named `exp`, which this member writes from $lifetime — the clock is not the caller's to set, so that a token this member produces always carries an expiry it will accept.
 Core\Jwt::signObject(): $claims carries a field named `iat`, which this member writes from $lifetime — the clock is not the caller's to set, so that a token this member produces always carries an expiry it will accept.
 Core\Jwt::signObject(): $lifetime is 500000000ns, and a token has to be valid for at least one whole second — `exp` counts seconds (RFC 7519 § 4.1.4), so anything shorter signs a token that is already past it.

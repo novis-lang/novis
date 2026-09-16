@@ -1,0 +1,42 @@
+--TEST--
+A class carrying `#[Json\Derive]` and writing `toJson` encodes through its member and decodes through the derived field list — `rule:core-classes/derive-generates-what-is-missing`
+--FILE--
+<?nvs
+use Core\Json;
+
+// The two halves part here. The attribute generates only what the class does
+// not write, so the derived field list is the *decoder's* alone and the
+// encoding is whatever the member answers with; `E0757` is what refuses the
+// class that writes both halves and carries the attribute anyway.
+#[Core\Json\Derive]
+class Point {
+    public int $x;
+    public int $y;
+
+    public function constructor(int $x, int $y) {
+        $this->x = $x;
+        $this->y = $y;
+    }
+
+    // A representation the derived field list could not produce — a list, in
+    // the other order — so a walk that read that list first fails here rather
+    // than agreeing with the member by accident.
+    public function toJson(): mixed {
+        return [$this->y, $this->x];
+    }
+}
+
+var $point = new Point(1, 2);
+echo "encoded=", Json::encode($point), "\n";
+
+// The other half is still the derive's, because the class did not write one.
+var $read = Core\Json::decodeAs<Point>('{"x":7,"y":9}');
+echo "decoded=", $read->x, ",", $read->y, "\n";
+
+// Deliberately not a round trip: the member's representation is the class's
+// own, and the derive was never asked to invert it.
+echo "round=", Json::encode($read), "\n";
+--EXPECT--
+encoded=[2,1]
+decoded=7,9
+round=[9,7]

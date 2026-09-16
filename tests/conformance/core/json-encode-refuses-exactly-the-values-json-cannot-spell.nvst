@@ -139,7 +139,7 @@ wrapped=5
 class=logic
 Core\Json::encode(): `NAN` has no JSON spelling — JSON has no `NaN` and no `Infinity`
 Core\Json::encode(): a `bytes` value has no JSON encoding
-Core\Json::encode(): an instance of `Plain` has no JSON encoding — a class participates by carrying `#[Json\Derive]`
+Core\Json::encode(): an instance of `Plain` has no JSON encoding — a class participates by carrying `#[Json\Derive]` or by writing `toJson` itself
 finite=8.218407461554972e+307
 over=refused
 text="text"

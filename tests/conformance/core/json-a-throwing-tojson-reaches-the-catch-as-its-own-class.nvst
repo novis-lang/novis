@@ -1,0 +1,43 @@
+--TEST--
+An exception a hand-written `toJson` throws reaches the `catch` as its own class rather than as the encoder's refusal — `rule:core-classes/derive-generates-what-is-missing`, `rule:errors/propagation`
+--FILE--
+<?nvs
+use Core\Json;
+
+class Refuses {
+    public int $n;
+
+    public function constructor(int $n) {
+        $this->n = $n;
+    }
+
+    // The member runs inside the encoder's own walk, so what it throws has to
+    // travel out past an error that is only a string. The class a `catch`
+    // names is the one thrown here, and never the `LogicError` the encoder
+    // raises for a value it cannot spell itself.
+    public function toJson(): mixed {
+        throw new RuntimeError("this one is not for the wire");
+    }
+}
+
+try {
+    var $written = Json::encode(new Refuses(1));
+    echo "not refused=", $written, "\n";
+} catch (LogicError $wrong) {
+    echo "class=logic: ", $wrong->message, "\n";
+} catch (RuntimeError $raised) {
+    echo "class=runtime: ", $raised->message, "\n";
+}
+
+// The same member one level down, where the walk is standing inside a
+// container when the member runs: the throw still arrives as itself, and the
+// encode wrote nothing.
+try {
+    var $inner = Json::encode({held: new Refuses(2)});
+    echo "not refused=", $inner, "\n";
+} catch (RuntimeError $nested) {
+    echo "nested=", $nested->message, "\n";
+}
+--EXPECT--
+class=runtime: this one is not for the wire
+nested=this one is not for the wire

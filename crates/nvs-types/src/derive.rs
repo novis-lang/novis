@@ -1118,7 +1118,9 @@ pub(crate) fn check_json_sites(
 /// here: it is the decoder this call needs, and a class writing only that one
 /// takes the same door `rule:core-classes/derive-generates-what-is-missing`'s
 /// "the generated decoder and keeps its encoder" class takes from the other
-/// side. `nvs_stdlib::json`'s own gap 1 is what still owes the dispatch to it.
+/// side. Where that half is *dispatched* is the encoder's own class arm in
+/// `nvs_stdlib::json`, which is why a class writing only it encodes and is
+/// refused here all the same: what this call needs is the door in.
 ///
 /// The root only. A field naming a class with no codec is refused at the
 /// declaration that wrote it, which is [`resolve_field_types`], so asking again

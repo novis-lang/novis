@@ -689,13 +689,12 @@ nvs_runtime::nvs_helper! {
                 // [`crate::json::Encodable`]: one serializer is what makes the
                 // module doc's claim about a `tainted` payload true, since a
                 // second one could frame a string differently.
-                encoded = serde_json::to_string(&crate::json::Encodable::document(args[1]))
-                    .map_err(|why| {
-                        Fault::thrown_as(
-                            ThrownClass::Logic,
-                            format!("Core\\Sse::send(): the payload cannot be encoded: {why}"),
-                        )
-                    })?;
+                encoded = crate::json::document(ctx, args[1], |why| {
+                    Fault::thrown_as(
+                        ThrownClass::Logic,
+                        format!("Core\\Sse::send(): the payload cannot be encoded: {why}"),
+                    )
+                })?;
                 encoded.as_bytes()
             }
         };
