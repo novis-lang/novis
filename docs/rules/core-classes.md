@@ -3,7 +3,7 @@
 
 # The Core classes
 
-*23 of 86 rules below are **designed** rather than shipped, and are marked where they appear.*
+*22 of 86 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="core-classes-cli-arguments"></a>
 
@@ -136,7 +136,7 @@ directory the other does not.
 
 <a id="core-classes-process-spawn"></a>
 
-## `spawn` answers a handle whose reads and writes suspend, covering `proc_open` and `passthru` in one type  *(designed — not yet in the compiler)*
+## `spawn` answers a handle whose reads and writes suspend, covering `proc_open` and `passthru` in one type
 
 `rule:core-classes/process-spawn`
 

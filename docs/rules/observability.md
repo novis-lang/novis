@@ -3,7 +3,7 @@
 
 # Observability
 
-*8 of 32 rules below are **designed** rather than shipped, and are marked where they appear.*
+*6 of 32 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="observability-the-runtime-exports-what-it-already-measures"></a>
 
@@ -79,7 +79,7 @@ log line to the trace that produced it — the single highest-value thing an obs
 
 <a id="observability-metrics-three-members"></a>
 
-## `Core\Metrics` is three verbs for three kinds, always present, and accumulates whether or not an exporter is built  *(designed — not yet in the compiler)*
+## `Core\Metrics` is three verbs for three kinds, always present, and accumulates whether or not an exporter is built
 
 `rule:observability/metrics-three-members`
 
@@ -508,7 +508,7 @@ a buffering exporter, and is deliberately not built.
 
 <a id="observability-the-exporter-is-a-feature-and-core-metrics-is-not"></a>
 
-## The exporter is a feature-gated Native subsystem, and `Core\Metrics` is Tier 0 in every build  *(designed — not yet in the compiler)*
+## The exporter is a feature-gated Native subsystem, and `Core\Metrics` is Tier 0 in every build
 
 `rule:observability/the-exporter-is-a-feature-and-core-metrics-is-not`
 

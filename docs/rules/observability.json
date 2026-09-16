@@ -68,7 +68,7 @@
     {
       "id": "observability/metrics-three-members",
       "title": "`Core\\Metrics` is three verbs for three kinds, always present, and accumulates whether or not an exporter is built",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0076",
         "0051"
@@ -81,7 +81,11 @@
         "core-api/core-means-always-present",
         "security/secret-sinks-refuse"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-stdlib/src/metrics.rs",
+        "crates/nvs-types/tests/intrinsics.rs",
+        "tests/conformance/core/metrics-increment-observe-and-gauge-accumulate.nvst"
+      ]
     },
     {
       "id": "observability/default-series",
@@ -399,7 +403,7 @@
     {
       "id": "observability/the-exporter-is-a-feature-and-core-metrics-is-not",
       "title": "The exporter is a feature-gated Native subsystem, and `Core\\Metrics` is Tier 0 in every build",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0076",
         "0051",
@@ -412,7 +416,10 @@
         "observability/metrics-three-members",
         "observability/the-exporters-are-crates"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-stdlib/src/metrics.rs",
+        "crates/nvs-server/src/metrics.rs"
+      ]
     },
     {
       "id": "observability/the-exporters-are-crates",
