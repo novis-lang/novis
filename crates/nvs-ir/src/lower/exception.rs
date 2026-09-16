@@ -979,12 +979,14 @@ fn exception_constructor(class: &str, extra: &[(&str, ExtraInit)]) -> Function {
         ty: None,
         kind,
         on_error: None,
+        raise_site: None,
     };
     let defines = |result: ValueId, ty: Ty, kind: InstKind| Inst {
         result: Some(result),
         ty: Some(ty),
         kind,
         on_error: None,
+        raise_site: None,
     };
     // Every store names `class` rather than the declaring one: a slot is
     // resolved against the *layout* of the label written here, and a subclass's

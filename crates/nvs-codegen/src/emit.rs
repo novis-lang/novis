@@ -2064,13 +2064,26 @@ impl Emitter<'_, '_> {
     /// exception is built by [`nvs_runtime::nvs_raise_new`] from a descriptor
     /// address relocated in, see [`crate::Classes`].
     ///
+    /// Where it says it happened is [`nvs_ir::ir::Inst::raise_site`], baked
+    /// here — in the cold block, beside the message bytes — rather than
+    /// materialized beside the arithmetic itself, so the path that does not
+    /// throw spends no instruction on it
+    /// (`rule:errors/throw-is-not-slower`) and the exception still names its
+    /// site (`rule:errors/a-record-names-where-it-was-produced`).
+    ///
     /// The caller has already switched to the block this terminates, and must
     /// switch to its own continuation afterwards.
     fn raise_arithmetic_error(&mut self, inst: &Inst, message: &[u8]) -> Result<(), CodegenError> {
         let desc = self.class_desc_const("ArithmeticError")?;
         let (text, len) = self.emit_bytes(message)?;
+        let site = match &inst.raise_site {
+            Some(source) => self.emit_bytes(&nvs_runtime::source::encode(source))?.0,
+            None => self.b.ins().iconst(types::I64, 0),
+        };
         let callee = self.runtime_ref("nvs_raise_new", RuntimeSig::RaiseNew)?;
-        self.b.ins().call(callee, &[self.ctx_p, desc, text, len]);
+        self.b
+            .ins()
+            .call(callee, &[self.ctx_p, desc, text, len, site]);
         let status = self.b.ins().iconst(types::I32, i64::from(THROWN));
         match inst.on_error {
             Some(landing) => {

@@ -463,11 +463,13 @@ impl<'a> Lowering<'a> {
         // `-$u` no `uint` for any non-zero `$u`, so `ineg` would answer with a
         // wrapped value rather than with the `ArithmeticError` the ADR names.
         // `nvs-codegen`'s `emit_checked_int_arith` raises it inline, so this
-        // needs `rule:errors/propagation`'s error edge exactly as `%` and `/` do. `!` over a
-        // `bool` and `-` over a `float`/`decimal` cannot fail and do not take
-        // one — see `Inst::on_error`.
+        // needs `rule:errors/propagation`'s error edge exactly as `%` and `/` do — and, because
+        // the raise is this instruction's own rather than a callee's, the site
+        // it renders that frame from. `Self::emit_raising` attaches both. `!`
+        // over a `bool` and `-` over a `float`/`decimal` cannot fail and take
+        // neither — see `Inst::on_error`.
         if matches!(uop, UnOp::Neg) && matches!(ty, Ty::Int | Ty::Uint) {
-            return self.emit_fallible(*cur, ty, kind, env);
+            return self.emit_raising(*cur, ty, kind, env);
         }
         self.emit(*cur, ty, kind)
     }
@@ -1160,8 +1162,10 @@ impl<'a> Lowering<'a> {
         // is why: `+`, `-`, `*` and `**` throw `ArithmeticError` on overflow
         // rather than wrapping, `%` and `/` throw it on a zero divisor, and
         // `**` throws it on a negative exponent as well.
-        // `nvs-codegen` raises them inline rather than through a helper,
-        // so each needs an error edge exactly the way a call does.
+        // `nvs-codegen` raises them inline rather than through a helper, so
+        // each needs an error edge exactly the way a call does, and — having no
+        // callee to carry one — the site to name in what it raises.
+        // `Self::emit_raising` is where the two travel together.
         //
         // `/` is the one that is not an integer row: § 4 refuses the zero
         // divisor *before* the operand types are consulted, so the float row
@@ -1187,7 +1191,7 @@ impl<'a> Lowering<'a> {
             _ => false,
         };
         let result = if fallible {
-            self.emit_fallible(*cur, ty, inst, env)
+            self.emit_raising(*cur, ty, inst, env)
         } else {
             self.emit(*cur, ty, inst)
         };

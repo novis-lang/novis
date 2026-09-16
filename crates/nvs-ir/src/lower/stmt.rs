@@ -79,6 +79,7 @@ impl<'a> Lowering<'a> {
             ty: None,
             kind: InstKind::StmtMarker(stmt_id),
             on_error: None,
+            raise_site: None,
         });
         match &stmt.kind {
             StmtKind::LocalDecl {

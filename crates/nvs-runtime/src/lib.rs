@@ -213,20 +213,20 @@
 //!    path and turns 'hit the ceiling' into 'collect, then continue', at the cost of building the
 //!    collector.
 //!    — owner: unowned-closures
-//! 6. **A raise *this crate* makes for itself carries no site, and so no
-//!    frame.** Novis's own `throw` is done: [`nvs_raise`] is handed the site
-//!    the `throw` was compiled with and [`Thrown::capture_site`] renders the
-//!    raising frame from it, so an exception caught beside its own `throw`
-//!    carries that frame. [`nvs_raise_new`] — the cold block of a checked
-//!    integer operator — and a helper's bare-message [`Fault`] are handed no
-//!    site at all, so both still begin their trace at the first compiled frame
-//!    they unwind out of, and a `catch` in the frame the operator or the helper
-//!    was called from sees an empty one. Closing it is an operand: the
-//!    `nvs_ir::ir::InstKind::SourceConst` a `throw` already materializes, on
-//!    the raise the arithmetic lowering emits and on the helper ABI's own
-//!    signature. That `previous` cannot be set *at all* yet is a different gap,
-//!    owned by `nvs_types::error_lib`, which explains why the synthesized
-//!    constructor takes only a message.
+//! 6. **A helper's raise carries no site, and so no frame.** The two raises
+//!    compiled code makes are done: [`nvs_raise`] is handed the site the
+//!    `throw` was compiled with and [`nvs_raise_new`] the site of the
+//!    statement a checked operator overflowed in, and
+//!    [`Thrown::capture_site`] renders the raising frame from either, so an
+//!    exception caught beside the throw or beside the arithmetic carries that
+//!    frame. A helper's bare-message [`Fault`] is handed no site at all, so it
+//!    still begins its trace at the first compiled frame it unwinds out of,
+//!    and a `catch` in the frame the helper was called from sees an empty one.
+//!    Closing it is an operand on the helper ABI's own signature, carrying
+//!    what `nvs_ir::ir::Inst::raise_site` already carries for the operators.
+//!    That `previous` cannot be set *at all* yet is a different gap, owned by
+//!    `nvs_types::error_lib`, which explains why the synthesized constructor
+//!    takes only a message.
 //!    Decided: Capture a full backtrace at every raise — Best for debugging, but it allocates on every
 //!    throw, which breaks the rule that a throw costs no more than a return.
 //!    — owner: unowned-closures

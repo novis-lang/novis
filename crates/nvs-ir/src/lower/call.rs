@@ -1267,12 +1267,14 @@ pub(crate) fn delegation_forward(
         ty: None,
         kind,
         on_error: None,
+        raise_site: None,
     };
     let defines = |result: ValueId, ty: Ty, kind: InstKind| Inst {
         result: Some(result),
         ty: Some(ty),
         kind,
         on_error: None,
+        raise_site: None,
     };
 
     let mut entry_block = entry;
@@ -1357,6 +1359,7 @@ pub(crate) fn delegation_forward(
                 args: vec![message, tagged],
             },
             on_error: Some(landing),
+            raise_site: None,
         });
         let unset_edge = ids.next_edge(delegation.span);
         let body_edge = ids.next_edge(delegation.span);
@@ -1406,6 +1409,7 @@ pub(crate) fn delegation_forward(
             args,
         },
         on_error: Some(landing),
+        raise_site: None,
     });
     insts.push(plain(InstKind::Release { operand: this }));
 

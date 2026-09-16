@@ -337,10 +337,11 @@ impl Ctx {
     /// Records an already-built exception as the pending `THROWN`, taking
     /// ownership of the reference it was handed.
     ///
-    /// The exception is one nothing rendered a raise site for — what
-    /// [`crate::nvs_raise_new`] and a helper's [`crate::Fault`] produce — so
-    /// any frame [`Self::raise_sited`] marked as provisional belongs to a
-    /// failure this one replaces, and the mark goes with it.
+    /// The exception is one nothing rendered a raise site for — what a
+    /// helper's [`crate::Fault`] produces, and what [`crate::nvs_raise_new`]
+    /// falls back to when it is handed no site — so any frame
+    /// [`Self::raise_sited`] marked as provisional belongs to a failure this
+    /// one replaces, and the mark goes with it.
     pub fn raise(&mut self, thrown: Thrown) {
         self.pending = Some(Pending::Thrown(thrown));
         self.site_frame_pending = false;

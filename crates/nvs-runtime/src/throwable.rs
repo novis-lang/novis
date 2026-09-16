@@ -52,9 +52,11 @@
 //!
 //! What no raise can produce is the frames *below* it: PHP snapshots the whole
 //! stack at construction, and matching that needs a walk of Novis's own frame
-//! chain. An exception the runtime raises for itself ([`nvs_raise_new`], a
-//! helper's [`crate::Fault`]) is handed no site at all, so its own trace begins
-//! at the first compiled frame it unwinds out of.
+//! chain. A checked operator's inline raise ([`nvs_raise_new`]) carries the
+//! site of the statement it was compiled in and renders that frame like any
+//! other throw; an exception a helper raises out of its own [`crate::Fault`]
+//! is handed none, so that trace still begins at the first compiled frame it
+//! unwinds out of.
 
 use crate::ctx::Ctx;
 use crate::object::{ClassDesc, NvsObj, ObjHeader};
@@ -962,16 +964,24 @@ pub unsafe extern "C" fn nvs_raise(ctx: *mut Ctx, thrown: *mut ObjHeader, source
 /// behind it, exactly as [`Thrown::new`] documents; the status the caller
 /// returns is unaffected.
 ///
+/// `source` is that operator's own site, as `nvs_ir::ir::Inst::raise_site`
+/// carries it and [`nvs_raise`]'s third operand carries a `throw`'s, and it
+/// fills the object's `location` and its innermost backtrace frame through
+/// [`Thrown::capture_site`] — so a `catch` beside the arithmetic reads the
+/// frame it happened in rather than an empty trace. The zero word is a raise
+/// with no site of its own, which is [`Ctx::raise`]'s case unchanged.
+///
 /// # Safety
 ///
 /// `ctx` must be non-null, aligned and valid for the duration of the call;
 /// `class` must be null or refer to a live class descriptor that outlives the
-/// instance made from it; and `message` must be valid for reads of `len`
-/// bytes, or `len` must be zero.
+/// instance made from it; `message` must be valid for reads of `len` bytes, or
+/// `len` must be zero; and `source` must be null or an address
+/// [`crate::source::encode`]'s bytes were baked at.
 #[expect(
     unsafe_code,
     reason = "compiled code passes the context and descriptor pointers plus a \
-              pointer and a length into its own data section"
+              pointer, a length and a site carrier into its own data section"
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_raise_new(
@@ -979,6 +989,7 @@ pub unsafe extern "C" fn nvs_raise_new(
     class: *const ClassDesc,
     message: *const u8,
     len: usize,
+    source: *const u8,
 ) {
     #[expect(
         unsafe_code,
@@ -999,9 +1010,22 @@ pub unsafe extern "C" fn nvs_raise_new(
         reason = "the caller guarantees the descriptor outlives the instance"
     )]
     let thrown = unsafe { Thrown::new(class, &text) };
-    #[expect(unsafe_code, reason = "the caller guarantees `ctx` is valid")]
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees `ctx` is valid and that `source` is \
+                  null or bytes a compiled unit baked"
+    )]
     unsafe {
-        (*ctx).raise(thrown);
+        // One decode, two readers — the `location` property and the label the
+        // backtrace opens with
+        // (`rule:errors/a-record-names-where-it-was-produced`). A raise handed
+        // no site renders neither and takes [`Ctx::raise`], so the provisional
+        // mark left by whatever failed before it goes with that failure.
+        if thrown.capture_site(source) {
+            (*ctx).raise_sited(thrown, true);
+        } else {
+            (*ctx).raise(thrown);
+        }
     }
 }
 

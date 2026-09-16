@@ -144,6 +144,7 @@ impl<'a> Lowering<'a> {
                     incoming: vec![(pre_block, pre_v)],
                 },
                 on_error: None,
+                raise_site: None,
             });
             header_env.insert(name.clone(), (phi_v, ty));
             phi_slots.push((name.clone(), inst_index));
@@ -314,6 +315,7 @@ impl<'a> Lowering<'a> {
                     incoming: vec![(pre_block, pre_v)],
                 },
                 on_error: None,
+                raise_site: None,
             });
             header_env.insert(name.clone(), (phi_v, ty));
             phi_slots.push((name.clone(), inst_index));
@@ -509,6 +511,7 @@ impl<'a> Lowering<'a> {
                     incoming: vec![(pre_block, pre_v)],
                 },
                 on_error: None,
+                raise_site: None,
             });
             header_env.insert(name.clone(), (phi_v, ty));
             phi_slots.push((name.clone(), inst_index));
@@ -1084,6 +1087,7 @@ impl<'a> Lowering<'a> {
                     incoming: vec![(pre_block, pre_v)],
                 },
                 on_error: None,
+                raise_site: None,
             });
             header_env.insert(name.clone(), (phi_v, ty));
             phi_slots.push((name.clone(), inst_index));
@@ -1471,6 +1475,7 @@ impl<'a> Lowering<'a> {
                     incoming: vec![(pre_block, pre_v)],
                 },
                 on_error: None,
+                raise_site: None,
             });
             header_env.insert(name.clone(), (phi_v, ty));
             phi_slots.push((name.clone(), inst_index));

@@ -1619,8 +1619,10 @@ struct Signatures {
     /// site's own carrier, or the zero word where the raise is no site of its
     /// own. See `nvs_runtime::nvs_raise`.
     raise: Signature,
-    /// `nvs_raise_new(ctx, class, message, len)` — the throw compiled code
-    /// raises by itself, with no Novis `new` behind it. See
+    /// `nvs_raise_new(ctx, class, message, len, source)` — the throw compiled
+    /// code raises by itself, with no Novis `new` behind it. The last operand
+    /// is the raising statement's own carrier, or the zero word where the
+    /// instruction carries no site, exactly as `raise`'s third is. See
     /// `nvs_runtime::nvs_raise_new`.
     raise_new: Signature,
     /// `nvs_object_instanceof(object, desc) -> bool` — `I8`, the width a
@@ -2208,6 +2210,7 @@ impl Signatures {
         raise_new.params.push(AbiParam::new(ptr)); // class descriptor
         raise_new.params.push(AbiParam::new(ptr)); // message bytes
         raise_new.params.push(AbiParam::new(ptr)); // message length
+        raise_new.params.push(AbiParam::new(ptr)); // the raise's own carrier, or zero
 
         let mut instanceof = module.make_signature();
         instanceof.params.push(AbiParam::new(ptr)); // object

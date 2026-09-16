@@ -425,6 +425,29 @@ pub struct Inst {
     /// handler's phis get a distinct predecessor per site; see
     /// `crate::lower::Lowering::landing_block`.
     pub on_error: Option<BlockId>,
+    /// Where a raise this instruction makes **by itself** says it happened:
+    /// the datum `nvs-codegen` bakes into the cold block it raises from, and
+    /// the one `nvs_runtime::nvs_raise_new` decodes into both the exception's
+    /// `location` and the innermost frame of its backtrace
+    /// (`rule:errors/a-record-names-where-it-was-produced`).
+    ///
+    /// `Some` on the checked arithmetic rows, whose failure is raised inline
+    /// rather than returned by a callee. `crate::lower::Lowering::emit_raising`
+    /// is the only thing that sets it, off the same `Lowering::source` a
+    /// `throw` in that statement would take for its own
+    /// [`InstKind::SourceConst`], so the two spellings of *where* come from one
+    /// datum. `None` everywhere else: an instruction that fails by a callee's
+    /// status names its site in that callee's own arguments where it names one
+    /// at all, and the loop-counter increment `crate::lower` synthesizes for a
+    /// `foreach` has no statement of the program's own to name.
+    ///
+    /// **The datum, not an operand.** A [`InstKind::SourceConst`] beside the
+    /// arithmetic would put a relocated address in the block that *does* the
+    /// arithmetic — an instruction spent on the path where nothing throws, and
+    /// `rule:errors/throw-is-not-slower` is what prices that path. Carried
+    /// here, the blob is baked where the raise is, beside the message bytes
+    /// that cold block already bakes.
+    pub raise_site: Option<Source>,
 }
 
 /// What one [`Inst`] does.

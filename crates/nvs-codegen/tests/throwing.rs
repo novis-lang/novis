@@ -214,6 +214,37 @@ try {
 }
 
 #[test]
+fn an_arithmetic_raise_names_the_frame_and_the_line_it_happened_in() {
+    // A checked operator raises inline rather than through a `throw`, and is
+    // handed the site of the statement it is in (`nvs_ir::ir::Inst::raise_site`)
+    // — so a `catch` beside the arithmetic reads the frame it happened in, on
+    // the same terms the `throw` above does.
+    let out = output_of(
+        "<?nvs
+class Ratio {
+    public static function of(int $a, int $b): string {
+        try {
+            return ($a % $b) as string;
+        } catch (Throwable $e) {
+            foreach ($e->backtrace as string $frame) { echo $frame; }
+            echo \"|\";
+            return $e->location;
+        }
+    }
+}
+echo Ratio::of(1, 0);
+",
+    );
+    assert_eq!(out.lines().count(), 1, "{out}");
+    let (frame, location) = out.split_once('|').unwrap_or_else(|| panic!("{out}"));
+    assert!(frame.starts_with("Ratio::of() at "), "{out}");
+    // The property and the label are two readings of one datum, which is what
+    // `rule:errors/a-record-names-where-it-was-produced` asks of a raise: the
+    // label is the member's name followed by exactly what `location` holds.
+    assert_eq!(frame, format!("Ratio::of() at {location}"), "{out}");
+}
+
+#[test]
 fn a_fatal_is_never_caught() {
     // ADR 0020: a resource-limit stop is not a `Throwable`, so the `catch`
     // this program wraps around it does not run and the status travels on out.

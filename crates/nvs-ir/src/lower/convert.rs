@@ -1852,6 +1852,7 @@ impl<'a> Lowering<'a> {
                 args: vec![value, listed],
             },
             on_error: Some(landing),
+            raise_site: None,
         });
         // No release for `listed`: `Helper::LiteralMismatch` owns it, for the
         // reason that variant states — one emitted here would sit in the

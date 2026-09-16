@@ -2160,6 +2160,7 @@ impl<'a> Lowering<'a> {
             ty: Some(ty),
             kind,
             on_error: None,
+            raise_site: None,
         });
         (v, ty)
     }
@@ -2183,6 +2184,36 @@ impl<'a> Lowering<'a> {
             ty: Some(ty),
             kind,
             on_error: Some(landing),
+            raise_site: None,
+        });
+        (v, ty)
+    }
+    /// [`Self::emit_fallible`] for an instruction `nvs-codegen` raises
+    /// **inline** rather than through a callee: the same error edge, and
+    /// beside it the site that raise renders itself from
+    /// ([`crate::ir::Inst::raise_site`]).
+    ///
+    /// The checked arithmetic rows are the whole of what comes through here,
+    /// and the site is [`Self::source`] — the very datum a `throw` in this
+    /// statement would be compiled with, so whichever of the two raises, the
+    /// exception names the same place
+    /// (`rule:errors/a-record-names-where-it-was-produced`).
+    pub(crate) fn emit_raising(
+        &mut self,
+        b: BlockId,
+        ty: Ty,
+        kind: InstKind,
+        env: &Env,
+    ) -> (ValueId, Ty) {
+        let landing = self.landing_block(env);
+        let site = self.source();
+        let v = self.ids.next_value();
+        self.block_insts[b.index() as usize].push(Inst {
+            result: Some(v),
+            ty: Some(ty),
+            kind,
+            on_error: Some(landing),
+            raise_site: Some(site),
         });
         (v, ty)
     }
@@ -2334,6 +2365,7 @@ impl<'a> Lowering<'a> {
             ty: None,
             kind: InstKind::Safepoint,
             on_error: None,
+            raise_site: None,
         });
     }
     /// Appends an [`InstKind::Retain`] on `v` to `b` — see the module docs'
@@ -2346,6 +2378,7 @@ impl<'a> Lowering<'a> {
             ty: None,
             kind: InstKind::Retain { operand: v },
             on_error: None,
+            raise_site: None,
         });
     }
     /// Appends an [`InstKind::Release`] on `v` to `b` — see [`Self::emit_retain`].
@@ -2355,6 +2388,7 @@ impl<'a> Lowering<'a> {
             ty: None,
             kind: InstKind::Release { operand: v },
             on_error: None,
+            raise_site: None,
         });
     }
     /// Reconciles the representation an expression produced with the one the
@@ -2477,6 +2511,7 @@ impl<'a> Lowering<'a> {
             ty: None,
             kind: InstKind::RefStore { slot, value },
             on_error: None,
+            raise_site: None,
         });
     }
     /// Appends an [`InstKind::FieldSet`] to `b` — see
@@ -2500,6 +2535,7 @@ impl<'a> Lowering<'a> {
                 value,
             },
             on_error: None,
+            raise_site: None,
         });
     }
     /// Appends an [`InstKind::StaticSet`] to `b` — see
@@ -2518,6 +2554,7 @@ impl<'a> Lowering<'a> {
             ty: None,
             kind: InstKind::StaticSet { class, name, value },
             on_error: None,
+            raise_site: None,
         });
     }
     /// Appends an [`InstKind::ArraySet`] to `b`, yielding the array that now

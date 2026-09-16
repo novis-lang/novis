@@ -117,8 +117,11 @@ exception carries the frame it was raised in, rendered from the site the `throw`
 so a `catch` beside the `throw` — the one place no frame is ever unwound out of — reads a backtrace
 naming that frame instead of an empty one. It is spent **once per raise and never per frame**, which
 is what leaves the slope above untouched, and the label the frame pushes as the throw leaves
-replaces that rendering rather than following it, so no frame is named twice. A raise the runtime
-makes for itself is handed no site and renders nothing.
+replaces that rendering rather than following it, so no frame is named twice. **A checked operator
+is handed its statement's site on the same terms**: the blob is baked in the cold block it already
+raises from, beside the message bytes, so the arithmetic that does not overflow spends no
+instruction on it. A raise a helper makes out of its own fault is handed no site and renders
+nothing.
 
 <aside class="nv-rule-diverges">
 <p class="nv-rule-diverges-label">Where this differs from PHP</p>

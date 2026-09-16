@@ -639,6 +639,7 @@ impl<'a> Lowering<'a> {
                 args: vec![v],
             },
             on_error: Some(landing),
+            raise_site: None,
         });
     }
     /// `echo html`…`;` — `rule:core-classes/html-literal`'s **sink** position,
@@ -777,6 +778,7 @@ impl<'a> Lowering<'a> {
                             args: vec![v],
                         },
                         on_error: Some(landing),
+                        raise_site: None,
                     });
                     self.emit(*cur, Ty::Int, InstKind::ConstInt(0)).0
                 } else {
@@ -793,6 +795,7 @@ impl<'a> Lowering<'a> {
                 args: vec![code],
             },
             on_error: Some(landing),
+            raise_site: None,
         });
         self.release_temporaries_since(mark, *cur);
         let (zero, _) = self.emit(*cur, Ty::Int, InstKind::ConstInt(0));
@@ -5424,6 +5427,7 @@ impl<'a> Lowering<'a> {
                 incoming: vec![(entry, start)],
             },
             on_error: None,
+            raise_site: None,
         });
         let (slot, _) = self.emit(
             header,
@@ -5797,6 +5801,7 @@ impl<'a> Lowering<'a> {
                 args: vec![v],
             },
             on_error: Some(landing),
+            raise_site: None,
         });
         // `Helper::CloneOperandNotAnObject` never returns normally, so this jump
         // is unreachable — written anyway because a block still owes a
