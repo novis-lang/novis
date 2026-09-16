@@ -1,0 +1,47 @@
+--TEST--
+Every method a class declares answers as many `Core\Reflect\ParameterInfo` rows as `parameterCount` says, asserted by counting the agreements rather than by reading one line — `rule:core-classes/reflect`
+--FILE--
+<?nvs
+// The invariant over the whole roster: a member that grew its own idea of what
+// a parameter is would still print plausibly on its own line, so what is
+// asserted is the number of rows that agree, against the number of rows there
+// are.
+class Shipping {
+    public function constructor(private string $carrier, private int $zone) {}
+
+    public function rate(int $weight): int {
+        return $weight + $this->zone;
+    }
+
+    public function quote(string $to, int $weight, bool $express): int {
+        return $weight;
+    }
+
+    private function audit(): string {
+        return $this->carrier;
+    }
+}
+
+var $described = Core\Reflect::forObject(new Shipping("post", 2));
+var $roster = $described->methods();
+var $agree = 0;
+foreach ($roster as Core\Reflect\MethodInfo $method) {
+    if (Core\Arr::count($method->parameters()) == $method->parameterCount()) {
+        $agree = $agree + 1;
+    }
+}
+echo $agree, " of ", Core\Arr::count($roster), "\n";
+
+// And the names are the declaration's own, read back through the roster the
+// count was taken from — a member answering the right *number* of rows with
+// the wrong spellings passes the line above and fails this one.
+var $names = "";
+foreach ($roster as Core\Reflect\MethodInfo $method) {
+    foreach ($method->parameters() as Core\Reflect\ParameterInfo $parameter) {
+        $names = $names . " " . $parameter->name();
+    }
+}
+echo $names, "\n";
+--EXPECT--
+4 of 4
+ carrier zone to weight express weight

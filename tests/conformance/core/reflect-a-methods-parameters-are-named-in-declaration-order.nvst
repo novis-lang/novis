@@ -1,0 +1,36 @@
+--TEST--
+`Core\Reflect\MethodInfo::parameters` answers one `Core\Reflect\ParameterInfo` per declared parameter, in the order the declaration writes them — `rule:core-classes/reflect`
+--FILE--
+<?nvs
+// `rule:core-classes/reflect`: a parameter's name is part of the program's
+// shape, so it is introspection and always available — a `private` method
+// publishes its parameter names exactly as a `public` one does, and neither
+// answer reaches a value.
+class Mailer {
+    public function constructor(private string $from) {}
+
+    public function send(string $to, string $subject, int $retries): string {
+        return $to;
+    }
+
+    private function trace(string $note): string {
+        return $note;
+    }
+}
+
+var $described = Core\Reflect::forObject(new Mailer("clerk@example.test"));
+
+// Name order for the methods, declaration order within each one. The promoted
+// constructor parameter is a parameter like any other and answers under the
+// name its property carries.
+foreach ($described->methods() as Core\Reflect\MethodInfo $method) {
+    echo $method->name(), ":";
+    foreach ($method->parameters() as Core\Reflect\ParameterInfo $parameter) {
+        echo " ", $parameter->name();
+    }
+    echo "\n";
+}
+--EXPECT--
+constructor: from
+send: to subject retries
+trace: note

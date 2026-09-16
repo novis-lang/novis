@@ -187,6 +187,7 @@ Conventions the whole file uses:
 | [`Core\Reflect\ClassInfo`](#core-core-reflect-classinfo) |  |
 | [`Core\Reflect\MethodInfo`](#core-core-reflect-methodinfo) |  |
 | [`Core\Reflect\PropertyInfo`](#core-core-reflect-propertyinfo) |  |
+| [`Core\Reflect\ParameterInfo`](#core-core-reflect-parameterinfo) |  |
 | [`Core\Ast`](#core-core-ast) |  |
 | [`Core\Ast\Node`](#core-core-ast-node) |  |
 | [`Core\Db`](#core-core-db) |  |
@@ -22386,13 +22387,14 @@ Builds an instance of the described class, running its constructor with `$argume
 <a id="core-core-reflect-methodinfo"></a>
 ### `Core\Reflect\MethodInfo`
 
-Keywords: name, isPublic, parameterCount
+Keywords: name, isPublic, parameterCount, parameters
 
 | Member | Signature |
 |---|---|
 | [`Core\Reflect\MethodInfo->name`](#core-core-reflect-methodinfo-name) | `name(): string` |
 | [`Core\Reflect\MethodInfo->isPublic`](#core-core-reflect-methodinfo-ispublic) | `isPublic(): bool` |
 | [`Core\Reflect\MethodInfo->parameterCount`](#core-core-reflect-methodinfo-parametercount) | `parameterCount(): uint` |
+| [`Core\Reflect\MethodInfo->parameters`](#core-core-reflect-methodinfo-parameters) | `parameters(): array<Core\Reflect\ParameterInfo>` |
 
 <a id="core-core-reflect-methodinfo-name"></a>
 #### `Core\Reflect\MethodInfo->name`
@@ -22426,6 +22428,17 @@ $methodInfo->parameterCount(): uint
 How many parameters the method declares, excluding the implicit receiver.
 
 **Returns** `uint` — The count an argument list is judged against — the same number a call through `Core\Reflect\ClassInfo::call` must supply.
+
+<a id="core-core-reflect-methodinfo-parameters"></a>
+#### `Core\Reflect\MethodInfo->parameters`
+
+```nvs skip
+$methodInfo->parameters(): array<Core\Reflect\ParameterInfo>
+```
+
+The parameters the method declares, in the order they are written, each carrying the name its declaration spells. Replaces `ReflectionMethod::getParameters`.
+
+**Returns** `array<Core\Reflect\ParameterInfo>` — One `Core\Reflect\ParameterInfo` per declared parameter, the implicit receiver excluded — or an empty array for a method no source declared, which is a compiler-synthesized member and a `Core` class's own. `parameterCount` still answers how many arguments such a method takes: the count travels with the compiled code, and only a written declaration spells a name.
 
 <a id="core-core-reflect-propertyinfo"></a>
 ### `Core\Reflect\PropertyInfo`
@@ -22470,6 +22483,26 @@ $propertyInfo->type(): ?string
 The type the property is declared with, spelled as the declaration spells it.
 
 **Returns** `?string` — The written type — `int`, `?int`, `array<string>`, `App\User` — or `null` for a slot no declaration named one for, which is a compiler-synthesized class or a member of the built-in exception tree. A name rather than a value to compare: what a type *is* is `Core\Reflect::typeOf`'s question, asked of a value.
+
+<a id="core-core-reflect-parameterinfo"></a>
+### `Core\Reflect\ParameterInfo`
+
+Keywords: name
+
+| Member | Signature |
+|---|---|
+| [`Core\Reflect\ParameterInfo->name`](#core-core-reflect-parameterinfo-name) | `name(): string` |
+
+<a id="core-core-reflect-parameterinfo-name"></a>
+#### `Core\Reflect\ParameterInfo->name`
+
+```nvs skip
+$parameterInfo->name(): string
+```
+
+The parameter's name, as the declaring method writes it.
+
+**Returns** `string` — The name with no `$` sigil — what a named argument at a call site writes. A promoted constructor parameter answers here under the same name its property carries.
 
 <a id="core-core-ast"></a>
 ### `Core\Ast`

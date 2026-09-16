@@ -2,60 +2,52 @@
 
 ## State
 
-Goal `m8-stdlib-depth`. **Stages 0, 2, 3, 4 and 5 are done, and stage 6 is open on `Core\Reflect`.**
-Both of stage 6's checks are green: the five named `.nvst` cases, and
-`every_reflect_info_class_the_record_names_is_registered`, which reads ADR 0019 § 1's `*Info` roster
-out of the record and holds every name on it against `registry::CLASSES`.
+Goal `m8-stdlib-depth`. **Stages 0, 2, 3, 4, 5 and 6 are done; stage 7 (`Core\Ast`) is open** and is
+the driver's failing acceptance check.
 
-`Core\Reflect\PropertyInfo` is registered and carries a property's name, its visibility bit and the
-type its declaration spells. **The surface call is made and recorded**: `ClassInfo::properties` is now
-the complete roster, `methods`' symmetric twin, and the scope-sensitive walk keeps its own behaviour
-under `readableProperties`, which is the member on `registry::CALL_SITE_MEMBERS`. `hasProperty` lands
-beside `hasMethod`. `crates/nvs-stdlib/src/reflect.rs:46` § *both rosters are complete* is the home of
-why two members rather than one — spec § 13's row replaces `property_exists` and `get_object_vars`
-alike, and those are two answers.
+A method's parameter names now travel `field_types`' road: `nvs_types::layout::ClassLayout::methods`
+carries them as a fourth tuple element, `nvs_ir::ir::Class::methods` copies it down, both codegen
+binders join it onto `nvs_runtime::MethodRow::param_names`, and `Core\Reflect\MethodInfo::parameters`
+answers `array<Core\Reflect\ParameterInfo>` off it. An **empty** list reads as "no declaration was
+read for this row" — a synthesized member (exception constructor, delegation forward, closure and
+generator class) and every native row — never "takes nothing", and `parameterCount` is what still
+answers for one. `crates/nvs-types/src/layout.rs:101` is the home of that reading.
 
-`NOT_YET_BUILT` (`crates/nvs-stdlib/src/reflect.rs:2175`) is the roster's remaining four, and it is
-two-sided: registering one of them fails the gate until its line is deleted. Nothing is blocked.
+`Core\Reflect\ParameterInfo` is registered and carries the name alone: a parameter's declared *type*
+has no road to the descriptor yet. `NOT_YET_BUILT` (`crates/nvs-stdlib/src/reflect.rs:2237`) is down
+to `ConstantInfo`, `AttributeInfo`, `EnumInfo`, and is still two-sided — registering one fails the
+gate until its line is deleted. Nothing is blocked.
 
 ## Next group
 
-**Stage 6: `Core\Reflect\ParameterInfo`, over descriptor data no crate carries yet** — one file set:
-`crates/nvs-types/src/layout.rs`, `crates/nvs-ir/src/ir.rs`, `crates/nvs-codegen/src/lib.rs`,
-`crates/nvs-runtime/src/object.rs` and `crates/nvs-stdlib/src/reflect.rs`. The road is the one
-`field_types` took: layout spells it, IR copies it down, codegen hands it to the class table, the
-descriptor answers it. `rule:core-classes/reflect` is the rule and ADR 0019 § 1's roster the record;
-the goal's § *Standing decisions* pre-authorizes the shape.
+**Stage 7: `Core\Ast` — the typed roster, the two cases and the fuzz target** — one file set:
+`crates/nvs-stdlib/src/ast.rs`, `crates/nvs-syntax/src/walk.rs`, `tests/conformance/core/` and
+`fuzz/`. `rule:core-classes/ast-is-inert` is the rule; ADR 0019 § 3 the record; the goal's
+§ *Standing decisions* pre-authorizes the shape.
 
-- [ ] **A method's parameter names reach the runtime descriptor** — `nvs_runtime::MethodRow`
-      (`crates/nvs-runtime/src/object.rs:516`) carries a name, an arity and `param_tags`, and no
-      spelling for any parameter. Fill it on `field_types`' own road:
-      `crates/nvs-types/src/layout.rs:303` is where the layout spells what it knows,
-      `crates/nvs-ir/src/ir.rs:175` is the copy-down beside `Class::field_types`, and
-      `crates/nvs-codegen/src/lib.rs:1452` is the `set_field_types` call a `MethodRow` twin sits
-      next to. Carry the names per method row rather than per class: an arity already lives there, and
-      a second class-wide vector would have no slot order to align to.
-- [ ] **`Core\Reflect\ParameterInfo` registered, and `MethodInfo::parameters` beside it** —
-      `crates/nvs-stdlib/src/reflect.rs:880` is the template (`PROPERTY_INFO`: three readers over
-      three slots, one card each, built in `describe`), and `crates/nvs-stdlib/src/reflect.rs:2175` is
-      the `NOT_YET_BUILT` line the slice deletes. A row carries a name and its declared type where
-      `param_tags` can spell one; `parameterCount` stays, because a count is not a list.
-- [ ] **Three `.nvst` cases per new member** — `tests/conformance/core/`, on the shape
-      `tests/conformance/core/reflect-property-info-lists-a-classs-properties-with-their-visibility.nvst:19`
-      walks a roster with. The trap the playbook's *Writing a test case* names applies: a case must
-      spell `Core\Reflect\ParameterInfo` for its members to be counted at all.
+- [ ] **A typed class per production, replacing the one untyped node** — `crates/nvs-stdlib/src/ast.rs:127`
+      is `NODE`, whose `kind()` names the production rather than being one, and gap 1 at
+      `crates/nvs-stdlib/src/ast.rs:46` owns why. The roster is generated from
+      `nvs_syntax::walk`'s production table — `crates/nvs-syntax/src/walk.rs:99` is `Node`,
+      `crates/nvs-syntax/src/walk.rs:175` the entry point — and the acceptance's
+      `every_production_the_walk_names_has_a_typed_ast_class` (new, `cargo test -p nvs-stdlib`) is
+      what holds the two together.
+- [ ] **The two `.nvst` cases the acceptance names** —
+      `tests/conformance/core/ast-parse-answers-a-typed-node-per-production.nvst` and
+      `tests/conformance/core/ast-parse-file-reads-through-the-io-door-under-fs-read.nvst`. Gap 3's
+      `Decided:` sentence at `crates/nvs-stdlib/src/ast.rs:62` **strikes** the spec § 3 `parseFile`
+      row, so the second case composes `Core\IO::read` with `parse` under `fs.read` rather than
+      calling a capability-bearing member; striking the spec row is part of that slice.
+- [ ] **The `ast` fuzz target and the seed replay beside it** — `fuzz/Cargo.toml:45` is the last
+      `[[bin]]` block and `fuzz/fuzz_targets/parse.rs` the model. The acceptance runs `cargo
+      metadata` over the manifest, never nightly, and
+      `core_ast_parse_gives_the_compilers_verdict_on_every_parse_seed` (new, `-p nvs-stdlib`) replays
+      the seeds on stable through `Core\Ast::parse`.
 
 ## Backlog
 
-- An erased **read** still goes past a `get` hook — `crates/nvs-runtime/src/object.rs:3735` owns the
-  gap; closing it needs a `Ctx` threaded through `read_erased_property_hinted`, which today has none.
-- `ConstantInfo`, `AttributeInfo` and `EnumInfo` are the far three: a descriptor carries no constants,
-  attributes or enum cases at all — `crates/nvs-stdlib/src/reflect.rs:116` gap 1.
-- A `protected` member is reached reflectively from the declaring class alone, not from a subclass —
-  `crates/nvs-stdlib/src/reflect.rs` gap 2, which fails closed.
-- The exception tree's slots carry no declared type *text* — `nvs_types::error_lib` types them as
-  interned ids, so `ClassDesc::field_type` answers `None` for every `Throwable` slot and a
-  `PropertyInfo` over a caught error shows it as `null`.
-- `docs/decisions/0126.md:75` names `ClassInfo::properties` for a *visibility-filtered* set, which is
-  `readableProperties` now. The record is frozen rationale; the shape-key slice takes the member from
-  `rule:security/reflection-enforces-visibility` rather than from that sentence.
+- A parameter's declared type and its default have no road to the descriptor; `ParameterInfo` would
+  read them where it reads the name (ADR 0019 § 1, `crates/nvs-types/src/layout.rs:101`).
+- `Core\Reflect`'s remaining roster classes — `ConstantInfo`, `AttributeInfo`, `EnumInfo` — are
+  listed in `NOT_YET_BUILT` and owned by ADR 0019 § 1 and § 4.
+- Stage 8 and later of this goal are untouched; `docs/agent/loop-goal.toml` is the list.
