@@ -58,15 +58,7 @@
 //!
 //! # Known gaps
 //!
-//! 1. **`decode` resolves a class through the *program's* table only**, so an
-//!    encoded `Core` instance (a `Core\Time\Instant`, say) is refused as
-//!    unresolvable on the way back in rather than rebuilt. Closing it means a
-//!    resolver that asks `nvs_stdlib::instance`'s table too, which is that
-//!    crate's to hand over.
-//!    Decided: Install a Core-class resolver on Ctx at boot — Full round-trip, at the cost of one more
-//!    table installed the way routes and commands are.
-//!    — owner: unowned-closures
-//! 2. **An object holding a host handle is not refused**, which is the one of
+//! 1. **An object holding a host handle is not refused**, which is the one of
 //!    § 2's three refusals nothing here implements: a `Core` instance whose
 //!    slot carries a key into a request's own table — a `Core\Http\Socket`, a
 //!    `Core\Http\Stream`, a `Core\Db\Connection` — crosses as an ordinary
@@ -81,6 +73,19 @@
 //!    [`ClassDesc::is_closure()`] marks a closure, or the declared type at the
 //!    copy site — is the decision, and it answers for every `Core` class at
 //!    once rather than for the one that found it.
+//!    — owner: unowned
+//! 2. **A decoded `Core` instance is a `mixed` a program cannot narrow.** The
+//!    value itself is rebuilt under its own descriptor — a `Core\Time\Date`
+//!    arrives back as one, slots intact, because [`crate::Ctx::class_desc`]
+//!    asks the `Core` resolver after the program's table — but the checker
+//!    refuses both ways of binding it to that class: `E0496`, since
+//!    `instanceof` finds no descriptor to walk, and `E0711`, since
+//!    `rule:types/conversion` tabulates no conversion into one. So the round
+//!    trip is reachable through `Core\Debug` and through anything taking a
+//!    `mixed`, and not yet by naming the class. Both refusals are
+//!    `nvs-types`', and the address `instanceof` would test against is the one
+//!    `nvs_stdlib::class_descriptors` already hands the backend for a folded
+//!    `` html`…` `` constant.
 //!    — owner: unowned
 
 use std::collections::HashMap;
@@ -855,12 +860,16 @@ impl Reader<'_> {
                     .map_err(|_| GraphError("a property name is not UTF-8".to_owned()))?,
             );
         }
-        let desc = (self.resolve)(&name)
-            .ok_or_else(|| GraphError(format!("`{name}` is not a class this program declares")))?;
+        let desc = (self.resolve)(&name).ok_or_else(|| {
+            GraphError(format!(
+                "`{name}` is not a class this program declares or `Core` owns"
+            ))
+        })?;
         #[expect(
             unsafe_code,
-            reason = "the resolver answers with a descriptor from the program's \
-                      own class table, which outlives this decode"
+            reason = "the resolver answers with a descriptor from the compiled \
+                      unit's class table or from the process's leaked `Core` \
+                      one, and both outlive this decode"
         )]
         let class: &ClassDesc = unsafe { &*desc };
         if class.field_count() != recorded.len() {
@@ -883,8 +892,8 @@ impl Reader<'_> {
         // recursing forever" on this side.
         #[expect(
             unsafe_code,
-            reason = "the descriptor came from the program's class table, which \
-                      outlives every instance made from it"
+            reason = "the descriptor came from a class table that outlives every \
+                      instance made from it — the unit's, or the leaked `Core` one"
         )]
         let object = unsafe { NvsObj::new(desc) };
         let value = Value::object(object);
@@ -900,9 +909,10 @@ impl Reader<'_> {
 
 /// § 3's `Core\Serialize::decode`: the closed format read back, or a refusal.
 ///
-/// `resolve` answers with the *program's* descriptor for a class name — the
-/// module docs' known gap about resolving an encoded `Core` instance is what
-/// that leaves out.
+/// `resolve` answers with the descriptor for a class name, from whichever table
+/// holds it: [`crate::Ctx::class_desc`] is the resolver every call site passes,
+/// and it asks the compiled unit's own classes first and the `Core` library's
+/// second.
 ///
 /// # Errors
 ///
