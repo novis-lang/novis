@@ -165,6 +165,9 @@ pub(crate) const METHOD_INFO_NAME: &str = "Core\\Reflect\\MethodInfo";
 /// One described property's own name, as a program writes it.
 pub(crate) const PROPERTY_INFO_NAME: &str = "Core\\Reflect\\PropertyInfo";
 
+/// One described parameter's own name, as a program writes it.
+pub(crate) const PARAMETER_INFO_NAME: &str = "Core\\Reflect\\ParameterInfo";
+
 /// [`CLASS_INFO`]'s slot holding the described class's name.
 const NAME_SLOT: usize = 0;
 
@@ -191,7 +194,15 @@ const METHOD_NAME_SLOT: usize = 0;
 const METHOD_PUBLIC_SLOT: usize = 1;
 
 /// [`METHOD_INFO`]'s slot holding how many parameters the method declares.
-const METHOD_PARAMETERS_SLOT: usize = 2;
+const METHOD_PARAMETER_COUNT_SLOT: usize = 2;
+
+/// [`METHOD_INFO`]'s slot holding one [`PARAMETER_INFO`] per parameter a
+/// declaration spelled — empty where none did, which is not the same answer as
+/// [`METHOD_PARAMETER_COUNT_SLOT`]'s zero.
+const METHOD_PARAMETERS_SLOT: usize = 3;
+
+/// [`PARAMETER_INFO`]'s slot holding the parameter's name.
+const PARAMETER_NAME_SLOT: usize = 0;
 
 /// `Core\Reflect` — the door onto a description, and nothing that acts.
 pub(crate) const CLASS: CoreClass = CoreClass {
@@ -837,8 +848,17 @@ pub(crate) const METHOD_INFO: CoreClass = CoreClass {
             symbol: "nvs_core_reflect_method_info_parameter_count",
             doc: Some(&PARAMETER_COUNT_DOC),
         },
+        CoreMethod {
+            name: "parameters",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Instance(PARAMETER_INFO_NAME)),
+            symbol: "nvs_core_reflect_method_info_parameters",
+            doc: Some(&METHOD_PARAMETERS_DOC),
+        },
     ],
-    slots: &["name", "public", "parameterCount"],
+    slots: &["name", "public", "parameterCount", "parameters"],
     constants: &[],
 };
 
@@ -866,6 +886,53 @@ const PARAMETER_COUNT_DOC: MethodDoc = MethodDoc {
     params: &[],
     ret: "The count an argument list is judged against — the same number a call through \
           `Core\\Reflect\\ClassInfo::call` must supply.",
+    errors: &[],
+};
+
+/// `Core\Reflect\MethodInfo::parameters`'s reference card — `rule:core-api/reference-card`.
+const METHOD_PARAMETERS_DOC: MethodDoc = MethodDoc {
+    short: "The parameters the method declares, in the order they are written, each carrying the \
+            name its declaration spells. Replaces `ReflectionMethod::getParameters`.",
+    params: &[],
+    ret: "One `Core\\Reflect\\ParameterInfo` per declared parameter, the implicit receiver \
+          excluded — or an empty array for a method no source declared, which is a \
+          compiler-synthesized member and a `Core` class's own. `parameterCount` still answers \
+          how many arguments such a method takes: the count travels with the compiled code, and \
+          only a written declaration spells a name.",
+    errors: &[],
+};
+
+/// `Core\Reflect\ParameterInfo` — one row of [`METHOD_INFO`]'s roster: the name
+/// a parameter is declared under.
+///
+/// A class rather than the bare `array<string>` of names it currently answers,
+/// on [`METHOD_INFO`]'s own terms: the roster ADR 0019 § 1 names is a family of
+/// descriptions, and a description is what the next question hangs off — a
+/// parameter's declared type reaches the descriptor along
+/// `nvs_types::layout::ClassLayout::methods`' road or not at all, and arriving
+/// there it is a member here rather than a second roster beside this one.
+pub(crate) const PARAMETER_INFO: CoreClass = CoreClass {
+    name: PARAMETER_INFO_NAME,
+    methods: &[],
+    instance: &[CoreMethod {
+        name: "name",
+        names: &[],
+        params: &[],
+        defaults: &[],
+        return_ty: CoreTy::Str,
+        symbol: "nvs_core_reflect_parameter_info_name",
+        doc: Some(&PARAMETER_NAME_DOC),
+    }],
+    slots: &["name"],
+    constants: &[],
+};
+
+/// `Core\Reflect\ParameterInfo::name`'s reference card — `rule:core-api/reference-card`.
+const PARAMETER_NAME_DOC: MethodDoc = MethodDoc {
+    short: "The parameter's name, as the declaring method writes it.",
+    params: &[],
+    ret: "The name with no `$` sigil — what a named argument at a call site writes. A promoted \
+          constructor parameter answers here under the same name its property carries.",
     errors: &[],
 };
 
@@ -984,7 +1051,11 @@ fn text_of<'a>(value: &'a Value, member: &str) -> Result<&'a str, Fault> {
 /// naming one would be naming a rewriting rather than a declaration. A property
 /// slot the descriptor cannot name is skipped for the reason above; a slot it
 /// can name but whose type no declaration spelled keeps its row, with
-/// [`PROPERTY_TYPE_SLOT`] holding `null`.
+/// [`PROPERTY_TYPE_SLOT`] holding `null`. A method row carries one
+/// [`PARAMETER_INFO`] per name [`nvs_runtime::MethodRow::param_names`] holds,
+/// so a member nothing declared in source keeps its row with that roster empty
+/// while [`METHOD_PARAMETER_COUNT_SLOT`] still answers what the compiled code
+/// takes — that field's own doc comment owns which rows those are.
 fn describe(desc: &ClassDesc) -> Value {
     let mut properties = NvsArray::new();
     for slot in 0..desc.field_count() {
@@ -1012,12 +1083,20 @@ fn describe(desc: &ClassDesc) -> Value {
         if row.name.contains('#') {
             continue;
         }
+        let mut parameters = NvsArray::new();
+        for name in &row.param_names {
+            parameters.append(crate::instance::build(
+                &PARAMETER_INFO,
+                [Value::str(NvsStr::new(name.as_bytes()))],
+            ));
+        }
         methods.append(crate::instance::build(
             &METHOD_INFO,
             [
                 Value::str(NvsStr::new(row.name.as_bytes())),
                 Value::bool(row.public),
                 Value::uint(u64::from(row.arity)),
+                Value::array(parameters),
             ],
         ));
     }
@@ -1099,6 +1178,12 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         }
         "nvs_core_reflect_method_info_parameter_count" => {
             (nvs_core_reflect_method_info_parameter_count as *const ()).cast()
+        }
+        "nvs_core_reflect_method_info_parameters" => {
+            (nvs_core_reflect_method_info_parameters as *const ()).cast()
+        }
+        "nvs_core_reflect_parameter_info_name" => {
+            (nvs_core_reflect_parameter_info_name as *const ()).cast()
         }
         "nvs_core_reflect_class_info_get" => (nvs_core_reflect_class_info_get as *const ()).cast(),
         "nvs_core_reflect_class_info_set" => (nvs_core_reflect_class_info_set as *const ()).cast(),
@@ -1402,7 +1487,31 @@ nvs_runtime::nvs_helper! {
     /// `Core\Reflect\MethodInfo::parameterCount(): uint` — the declared
     /// parameter count, receiver excluded.
     fn nvs_core_reflect_method_info_parameter_count(_ctx, args: [1]) {
-        slot_of(args, &METHOD_INFO, METHOD_PARAMETERS_SLOT, "parameterCount")
+        slot_of(args, &METHOD_INFO, METHOD_PARAMETER_COUNT_SLOT, "parameterCount")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Reflect\MethodInfo::parameters(): array<Core\Reflect\ParameterInfo>`
+    /// — ADR 0019 § 1's parameter roster, off the names
+    /// [`nvs_runtime::MethodRow::param_names`] carried down from the
+    /// declaration.
+    ///
+    /// Answered off the slot [`describe`] filled, on
+    /// [`nvs_core_reflect_class_info_methods`]' terms exactly. The roster is
+    /// empty rather than invented for a method no source wrote, and
+    /// [`nvs_core_reflect_method_info_parameter_count`] is the member that
+    /// still answers for one.
+    fn nvs_core_reflect_method_info_parameters(_ctx, args: [1]) {
+        slot_of(args, &METHOD_INFO, METHOD_PARAMETERS_SLOT, "parameters")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Reflect\ParameterInfo::name(): string` — the parameter's own name,
+    /// `$`-sigil excluded.
+    fn nvs_core_reflect_parameter_info_name(_ctx, args: [1]) {
+        slot_of(args, &PARAMETER_INFO, PARAMETER_NAME_SLOT, "name")
     }
 }
 
@@ -1760,6 +1869,7 @@ mod tests {
             code: (vault_open as NvsFn) as *const u8,
             arity: 0,
             param_tags: 0,
+            param_names: Vec::new(),
             public,
             native: false,
         };
@@ -1940,6 +2050,7 @@ mod tests {
                     // expected, so a tag rule written here would be a second
                     // opinion about a signature this test declares.
                     param_tags: 0xff,
+                    param_names: Vec::new(),
                     public: true,
                     native: false,
                 }],
@@ -2172,7 +2283,7 @@ mod tests {
     /// landing a class deletes its line in the same slice. Nothing is added
     /// without deleting this sentence — a roster the record names and this file
     /// silently omits is exactly the drift the gate exists for.
-    const NOT_YET_BUILT: &[&str] = &["ParameterInfo", "ConstantInfo", "AttributeInfo", "EnumInfo"];
+    const NOT_YET_BUILT: &[&str] = &["ConstantInfo", "AttributeInfo", "EnumInfo"];
 
     /// Every `*Info` class ADR 0019 § 1 names is a registered class, or is one
     /// of [`NOT_YET_BUILT`].

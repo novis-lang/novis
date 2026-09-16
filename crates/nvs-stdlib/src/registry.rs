@@ -2021,6 +2021,10 @@ pub const CLASSES: &[CoreClass] = &[
     // past its name and its bit differs: a parameter count on one side, a
     // declared type on the other.
     crate::reflect::PROPERTY_INFO,
+    // One row of a method row's own roster, hanging off `MethodInfo` rather
+    // than off the description: a parameter belongs to the member that declares
+    // it, and a class-wide list would have nothing to align to.
+    crate::reflect::PARAMETER_INFO,
     // § 3's other half of the same ADR: the compiler's own parser, reached at
     // run time. One member, because parsing is one question.
     crate::ast::CLASS,
