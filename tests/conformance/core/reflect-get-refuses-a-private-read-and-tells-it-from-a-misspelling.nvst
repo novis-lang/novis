@@ -16,7 +16,7 @@ echo $described->name(), "\n";
 // The walk and the read agree: every name `properties()` hands back is one
 // `get` opens, which is the property that would break if either half learned
 // its own answer to the visibility question.
-foreach ($described->properties() as string $property) {
+foreach ($described->readableProperties() as string $property) {
     echo $described->get($account, $property), "\n";
 }
 

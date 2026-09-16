@@ -17,7 +17,7 @@ echo $described->name(), "\n";
 // `private` slot is not one of the three it could have named. Asserted as a
 // count *and* as the names, because a walk that dropped the wrong one counts
 // two either way.
-var $properties = $described->properties();
+var $properties = $described->readableProperties();
 echo Core\Arr::count($properties), "\n";
 foreach ($properties as string $property) {
     echo $property, "\n";
@@ -32,7 +32,7 @@ class Origin extends Point {
 var $origin = new Origin();
 var $sub = Core\Reflect::forObject($origin);
 echo $sub->name(), "\n";
-foreach ($sub->properties() as string $property) {
+foreach ($sub->readableProperties() as string $property) {
     echo $property, "\n";
 }
 

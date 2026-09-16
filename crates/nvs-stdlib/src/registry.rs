@@ -2015,6 +2015,12 @@ pub const CLASSES: &[CoreClass] = &[
     // next question off and the roster ADR 0019 § 1 names is a family of
     // descriptions, not of records.
     crate::reflect::METHOD_INFO,
+    // The same row one member over, for the description's other roster. Its
+    // own class for [`crate::reflect::METHOD_INFO`]'s reason, and the two are
+    // separate classes rather than one `MemberInfo` because what a row carries
+    // past its name and its bit differs: a parameter count on one side, a
+    // declared type on the other.
+    crate::reflect::PROPERTY_INFO,
     // § 3's other half of the same ADR: the compiler's own parser, reached at
     // run time. One member, because parsing is one question.
     crate::ast::CLASS,
@@ -2984,7 +2990,7 @@ pub fn takes_source(class: &str, method: &str) -> bool {
 /// word. A path that skipped it would leave the helper reading the slot past
 /// its own arguments — not a refusal but a slot nothing wrote.
 pub const CALL_SITE_MEMBERS: &[(&str, &str)] = &[
-    (crate::reflect::CLASS_INFO_NAME, "properties"),
+    (crate::reflect::CLASS_INFO_NAME, "readableProperties"),
     (crate::reflect::CLASS_INFO_NAME, "get"),
     (crate::reflect::CLASS_INFO_NAME, "set"),
     (crate::reflect::CLASS_INFO_NAME, "call"),

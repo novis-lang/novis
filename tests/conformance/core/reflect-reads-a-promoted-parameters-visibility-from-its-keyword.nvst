@@ -21,9 +21,9 @@ var $describedWritten = Core\Reflect::forObject($written);
 var $describedPromoted = Core\Reflect::forObject($promoted);
 
 echo $describedWritten->name(), " ", $describedPromoted->name(), "\n";
-echo Core\Arr::count($describedWritten->properties()), " ",
-     Core\Arr::count($describedPromoted->properties()), "\n";
-foreach ($describedPromoted->properties() as string $property) {
+echo Core\Arr::count($describedWritten->readableProperties()), " ",
+     Core\Arr::count($describedPromoted->readableProperties()), "\n";
+foreach ($describedPromoted->readableProperties() as string $property) {
     echo $property, "\n";
 }
 echo $describedPromoted->get($promoted, "amount"), "\n";

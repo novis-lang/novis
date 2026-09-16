@@ -186,6 +186,7 @@ Conventions the whole file uses:
 | [`Core\Reflect`](#core-core-reflect) |  |
 | [`Core\Reflect\ClassInfo`](#core-core-reflect-classinfo) |  |
 | [`Core\Reflect\MethodInfo`](#core-core-reflect-methodinfo) |  |
+| [`Core\Reflect\PropertyInfo`](#core-core-reflect-propertyinfo) |  |
 | [`Core\Ast`](#core-core-ast) |  |
 | [`Core\Ast\Node`](#core-core-ast-node) |  |
 | [`Core\Db`](#core-core-db) |  |
@@ -22220,12 +22221,14 @@ Which of the language's representations `$value` currently holds. The single rep
 <a id="core-core-reflect-classinfo"></a>
 ### `Core\Reflect\ClassInfo`
 
-Keywords: name, properties, methods, hasMethod, get, set, call, construct
+Keywords: name, properties, readableProperties, hasProperty, methods, hasMethod, get, set, call, construct
 
 | Member | Signature |
 |---|---|
 | [`Core\Reflect\ClassInfo->name`](#core-core-reflect-classinfo-name) | `name(): string` |
-| [`Core\Reflect\ClassInfo->properties`](#core-core-reflect-classinfo-properties) | `properties(): array<string>` |
+| [`Core\Reflect\ClassInfo->properties`](#core-core-reflect-classinfo-properties) | `properties(): array<Core\Reflect\PropertyInfo>` |
+| [`Core\Reflect\ClassInfo->readableProperties`](#core-core-reflect-classinfo-readableproperties) | `readableProperties(): array<string>` |
+| [`Core\Reflect\ClassInfo->hasProperty`](#core-core-reflect-classinfo-hasproperty) | `hasProperty(string $name): bool` |
 | [`Core\Reflect\ClassInfo->methods`](#core-core-reflect-classinfo-methods) | `methods(): array<Core\Reflect\MethodInfo>` |
 | [`Core\Reflect\ClassInfo->hasMethod`](#core-core-reflect-classinfo-hasmethod) | `hasMethod(string $name): bool` |
 | [`Core\Reflect\ClassInfo->get`](#core-core-reflect-classinfo-get) | `get(mixed $object, string $name): mixed` |
@@ -22248,12 +22251,38 @@ The described class's name, namespace included, spelled as the declaration write
 #### `Core\Reflect\ClassInfo->properties`
 
 ```nvs skip
-$classInfo->properties(): array<string>
+$classInfo->properties(): array<Core\Reflect\PropertyInfo>
 ```
 
-The described class's property names, in slot order — every ancestor's first, then its own.
+The described class's properties — its own and every inherited one — each with its name, its visibility and the type its declaration spells. Replaces `ReflectionClass::getProperties`.
 
-**Returns** `array<string>` — One name per property code outside the class may read, `$`-sigil excluded. A `private` or `protected` property is not among them: reflection has the visibility ordinary code has, and no way to widen it.
+**Returns** `array<Core\Reflect\PropertyInfo>` — One `Core\Reflect\PropertyInfo` per declared property, in slot order: every ancestor's first, then the class's own. A `private` or `protected` property is among them, carrying the bit that says so — naming a member is introspection of the program's shape, and reading one is `get`'s question, checked there.
+
+<a id="core-core-reflect-classinfo-readableproperties"></a>
+#### `Core\Reflect\ClassInfo->readableProperties`
+
+```nvs skip
+$classInfo->readableProperties(): array<string>
+```
+
+The property names a read written at this call site may make, in slot order. Replaces `get_object_vars`, whose answer is scope-sensitive in the same way.
+
+**Returns** `array<string>` — One name per property this site may read, `$`-sigil excluded: every declared property where the call is written inside the described class, and the `public` ones anywhere else. The complete list is `properties`, and the difference between the two answers is exactly what `get` would refuse here.
+
+<a id="core-core-reflect-classinfo-hasproperty"></a>
+#### `Core\Reflect\ClassInfo->hasProperty`
+
+```nvs skip
+$classInfo->hasProperty(string $name): bool
+```
+
+Whether the described class declares a property called `$name`. Replaces `property_exists`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The property's name, `$`-sigil excluded, as the declaration writes it. |
+
+**Returns** `bool` — `true` for a `private` or `protected` property as well as a `public` one, which is what tells a refused read from a misspelled name. Whether this site may read it is `properties`' own bit.
 
 <a id="core-core-reflect-classinfo-methods"></a>
 #### `Core\Reflect\ClassInfo->methods`
@@ -22397,6 +22426,50 @@ $methodInfo->parameterCount(): uint
 How many parameters the method declares, excluding the implicit receiver.
 
 **Returns** `uint` — The count an argument list is judged against — the same number a call through `Core\Reflect\ClassInfo::call` must supply.
+
+<a id="core-core-reflect-propertyinfo"></a>
+### `Core\Reflect\PropertyInfo`
+
+Keywords: name, isPublic, type
+
+| Member | Signature |
+|---|---|
+| [`Core\Reflect\PropertyInfo->name`](#core-core-reflect-propertyinfo-name) | `name(): string` |
+| [`Core\Reflect\PropertyInfo->isPublic`](#core-core-reflect-propertyinfo-ispublic) | `isPublic(): bool` |
+| [`Core\Reflect\PropertyInfo->type`](#core-core-reflect-propertyinfo-type) | `type(): ?string` |
+
+<a id="core-core-reflect-propertyinfo-name"></a>
+#### `Core\Reflect\PropertyInfo->name`
+
+```nvs skip
+$propertyInfo->name(): string
+```
+
+The property's name, as the declaring class writes it.
+
+**Returns** `string` — The name with no `$` sigil and no class qualifier — what `hasProperty`, `get` and `set` take.
+
+<a id="core-core-reflect-propertyinfo-ispublic"></a>
+#### `Core\Reflect\PropertyInfo->isPublic`
+
+```nvs skip
+$propertyInfo->isPublic(): bool
+```
+
+Whether code outside the declaring class may read and write the property.
+
+**Returns** `bool` — `false` for a `private` or `protected` property, which is still listed: knowing that a property exists and may not be reached from here is what tells a refusal from a misspelling, and the name and the type are what the declaration already published.
+
+<a id="core-core-reflect-propertyinfo-type"></a>
+#### `Core\Reflect\PropertyInfo->type`
+
+```nvs skip
+$propertyInfo->type(): ?string
+```
+
+The type the property is declared with, spelled as the declaration spells it.
+
+**Returns** `?string` — The written type — `int`, `?int`, `array<string>`, `App\User` — or `null` for a slot no declaration named one for, which is a compiler-synthesized class or a member of the built-in exception tree. A name rather than a value to compare: what a type *is* is `Core\Reflect::typeOf`'s question, asked of a value.
 
 <a id="core-core-ast"></a>
 ### `Core\Ast`

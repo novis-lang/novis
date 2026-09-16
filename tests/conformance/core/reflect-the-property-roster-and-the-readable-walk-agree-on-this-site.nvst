@@ -1,0 +1,58 @@
+--TEST--
+Every row `Core\Reflect\ClassInfo::properties` names is one `readableProperties` names exactly when this call site may read it — `rule:security/reflection-enforces-visibility` and `rule:core-classes/reflect`
+--FILE--
+<?nvs
+// `rule:security/reflection-enforces-visibility` divides one question in two: the roster is
+// metadata and names every property the class declares, and the readable walk
+// is the list a `get` is about to be made against. Asked as an agreement —
+// every row of the roster is put to both members — so a member that grew its
+// own idea of visibility fails here while still printing plausibly alone.
+class Vault {
+    public string $label = "v";
+    protected int $depth = 2;
+    private int $code = 9;
+
+    // From inside the class an ordinary body reads every slot, so the walk
+    // asked here names all three and the bit each row carries is not what
+    // decides it.
+    public function fromInside(): void {
+        var $described = Core\Reflect::forObject($this);
+        var $readable = $described->readableProperties();
+        echo "inside ", Core\Arr::count($described->properties()), " ",
+             Core\Arr::count($readable), "\n";
+        foreach ($described->properties() as Core\Reflect\PropertyInfo $property) {
+            echo " ", $property->name(), "=",
+                 Core\Arr::contains($readable, $property->name()) ? "readable" : "hidden";
+        }
+        echo "\n";
+    }
+}
+
+var $vault = new Vault();
+$vault->fromInside();
+
+// The same description asked from out here: the roster does not move, and the
+// walk names the `public` one alone. Each row asserts the *agreement* of its
+// own bit with the walk rather than either answer on its own.
+var $described = Core\Reflect::forObject($vault);
+var $readable = $described->readableProperties();
+echo "outside ", Core\Arr::count($described->properties()), " ",
+     Core\Arr::count($readable), "\n";
+foreach ($described->properties() as Core\Reflect\PropertyInfo $property) {
+    echo " ", $property->name(), " ", $property->type() ?? "none", " ",
+         ($property->isPublic() == Core\Arr::contains($readable, $property->name()))
+             ? "agrees" : "differs";
+}
+echo "\n";
+
+// And the roster names what the walk out here does not, which is what tells a
+// refused read from a misspelled name.
+echo $described->hasProperty("code") ? "declared" : "absent", "\n";
+echo $described->hasProperty("ledger") ? "declared" : "absent", "\n";
+--EXPECT--
+inside 3 3
+ label=readable depth=readable code=readable
+outside 3 1
+ label string agrees depth int agrees code int agrees
+declared
+absent

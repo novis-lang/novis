@@ -31,34 +31,43 @@
 //! valid. Holding the answers instead makes the description exactly as inert as
 //! § 1 says it is: nothing it carries can be dereferenced back into the program.
 //!
-//! **What it spends:** per `forClass` or `forObject` call, two arrays of one
-//! string per property — the public names and every name, which § *the call
-//! site arrives as a constant* is why — plus one array and one [`METHOD_INFO`]
-//! of three slots per declared method, charged to the request that asked and
-//! released with the description. A program that describes the same class in a
-//! loop pays per call; the alternative is a per-core cache keyed by descriptor
-//! address, which nothing yet needs. The roster is built eagerly rather than on
-//! the first `methods` call because the alternative is a slot holding the
-//! descriptor, which the decision above rules out for every slot alike. An
-//! acting call spends one decoded [`nvs_render::Source`] on top, which is two
-//! short strings read out of the unit's own data section.
+//! **What it spends:** per `forClass` or `forObject` call, one array and one
+//! [`PROPERTY_INFO`] of three slots per declared property, plus one array and
+//! one [`METHOD_INFO`] of three slots per declared method, charged to the
+//! request that asked and released with the description. A program that
+//! describes the same class in a loop pays per call; the alternative is a
+//! per-core cache keyed by descriptor address, which nothing yet needs. Both
+//! rosters are built eagerly rather than on the first `properties` or `methods`
+//! call because the alternative is a slot holding the descriptor, which the
+//! decision above rules out for every slot alike.
+//! [`nvs_core_reflect_class_info_readable_properties`] spends one array of one
+//! string per name it hands back, per call, because what it answers is a
+//! property of the asking site rather than of the description. An acting call
+//! spends one decoded [`nvs_render::Source`] on top, which is two short strings
+//! read out of the unit's own data section.
 //!
-//! # Decision: the method roster is complete, and each row carries its own
-//! visibility
+//! # Decision: both rosters are complete, and the readable walk is a member of
+//! its own
 //!
-//! [`CLASS_INFO`]'s property walk names only what the calling site may read,
-//! and its method roster names every method with [`METHOD_INFO`]'s bit saying
-//! which may be called. That is not two answers to one question: § 2 divides
-//! *reading metadata*, which is always available, from *acting on a member*,
-//! which faces the ordinary check — and a roster is metadata, while a property
-//! walk is the list a `get` is about to be made against.
+//! [`CLASS_INFO`]'s `properties` and its `methods` answer the same shape: every
+//! member the class declares, each row carrying the bit saying whether this
+//! call site may act on it. `readableProperties` is the other question — the
+//! list a `get` is about to be made against — and it has a spelling of its own
+//! because it has an answer of its own, which depends on where the call is
+//! written. § 2 is what divides them: *reading metadata* is always available,
+//! *acting on a member* faces the ordinary check, and a member named for one of
+//! those must not quietly answer the other. That division is `docs/spec/01-core-library.md`
+//! § 13's own: `property_exists` and `get_class_methods` are complete in PHP
+//! and `get_object_vars` is scope-sensitive, and this class replaces all three.
 //!
-//! `rule:core-classes/reflect` is what forces the complete list: a refusal has
-//! to be distinguishable from a misspelling, and a roster that dropped the
-//! `private` methods would make `hasMethod` answer `false` to both. Nothing
-//! leaks by it — a name, a visibility bit and a parameter count are what the
-//! declaration already published to the checker, and no state of any instance
-//! is reachable through them. Acting is still
+//! `rule:core-classes/reflect` is what forces both rosters to be complete: a
+//! refusal has to be distinguishable from a misspelling, and a roster that
+//! dropped the `private` members would make [`nvs_core_reflect_class_info_has_property`]
+//! and its `hasMethod` twin answer `false` to a declared name and to a typo
+//! alike. Nothing leaks by it — a name, a visibility bit, a declared type and a
+//! parameter count are what the declaration already published to the checker,
+//! and no state of any instance is reachable through them. Acting is still
+//! [`nvs_core_reflect_class_info_get`]'s and
 //! [`nvs_core_reflect_class_info_call`]'s, which is where § 2's check is made.
 //!
 //! # Decision: a description reads its own class's instances, and says so
@@ -85,13 +94,14 @@
 //! as the zero word and is treated as outside, which is the answer that fails
 //! closed.
 //!
-//! That is what makes [`nvs_core_reflect_class_info_properties`] answer two
-//! ways off one description. A walk is the list a `get` is about to be made
-//! against, so it names what *this* site may read: every declared property from
-//! inside the class, the public ones from anywhere else — the two lists
-//! [`describe`] fills. The method roster is the other half of the same rule and
-//! does not move: naming a method is metadata, which § 2 makes always
-//! available, and the bit each row carries is what a caller reads instead.
+//! That is what makes [`nvs_core_reflect_class_info_readable_properties`]
+//! answer two ways off one description. A readable walk is the list a `get` is
+//! about to be made against, so it names what *this* site may read: every
+//! declared property from inside the class, the `public` ones from anywhere
+//! else, filtered out of the roster [`describe`] built. The rosters are the
+//! other half of the same rule and do not move: naming a member is metadata,
+//! which § 2 makes always available, and the bit each row carries is what a
+//! caller reads instead.
 //!
 //! # Decision: `TypeKind` is one case per representation, and no case is a
 //! question about a value
@@ -113,21 +123,14 @@
 //!
 //! # Known gaps
 //!
-//! 1. § 1's roster is short of five of the classes it names. [`METHOD_INFO`] is
-//!    here, so `get_class_methods` and `method_exists` have their answers; the
-//!    spec's roster row (`docs/spec/01-core-library.md` § 13) is the home of the
-//!    full list, and each of the five is waiting on descriptor data no crate
-//!    carries yet rather than on a decision. `PropertyInfo` is the nearest: a
-//!    slot's declared type is on the descriptor now
-//!    ([`nvs_runtime::ClassDesc::field_type`]), beside its name and its
-//!    visibility bit, so what is left is the class itself. It re-asks the
-//!    decision below for the walk that already exists:
-//!    [`nvs_core_reflect_class_info_properties`] names only what the calling
-//!    site may read, where the method roster names everything, and a row
-//!    carrying its own bit is what would let the two answer alike.
-//!    `ParameterInfo` is one step behind it — a parameter's *name* is in no
-//!    descriptor at all, [`nvs_runtime::MethodRow`] carrying an arity and a tag
-//!    per slot and no spelling.
+//! 1. § 1's roster is short of four of the classes it names. [`METHOD_INFO`]
+//!    and [`PROPERTY_INFO`] are here, so `get_class_methods`, `method_exists`,
+//!    `get_object_vars` and `property_exists` all have their answers; the spec's
+//!    roster row (`docs/spec/01-core-library.md` § 13) is the home of the full
+//!    list, and each of the four is waiting on descriptor data no crate carries
+//!    yet rather than on a decision. `ParameterInfo` is the nearest — a
+//!    parameter's *name* is in no descriptor at all, [`nvs_runtime::MethodRow`]
+//!    carrying an arity and a tag per slot and no spelling.
 //!    `ConstantInfo`,
 //!    `AttributeInfo` and `EnumInfo` are the far three: a descriptor carries no
 //!    constants, no attributes and no enum cases at all, so each is a join from
@@ -159,20 +162,27 @@ pub(crate) const CLASS_INFO_NAME: &str = "Core\\Reflect\\ClassInfo";
 /// One described method's own name, as a program writes it.
 pub(crate) const METHOD_INFO_NAME: &str = "Core\\Reflect\\MethodInfo";
 
+/// One described property's own name, as a program writes it.
+pub(crate) const PROPERTY_INFO_NAME: &str = "Core\\Reflect\\PropertyInfo";
+
 /// [`CLASS_INFO`]'s slot holding the described class's name.
 const NAME_SLOT: usize = 0;
 
-/// [`CLASS_INFO`]'s slot holding the property names a call site outside the
-/// described class may read.
+/// [`CLASS_INFO`]'s slot holding one [`PROPERTY_INFO`] per declared property.
 const PROPERTIES_SLOT: usize = 1;
 
 /// [`CLASS_INFO`]'s slot holding one [`METHOD_INFO`] per declared method.
 const METHODS_SLOT: usize = 2;
 
-/// [`CLASS_INFO`]'s slot holding every declared property name — the answer a
-/// call site *inside* the described class gets, where its own bodies reach
-/// every slot the declaration wrote.
-const ALL_PROPERTIES_SLOT: usize = 3;
+/// [`PROPERTY_INFO`]'s slot holding the property's name.
+const PROPERTY_NAME_SLOT: usize = 0;
+
+/// [`PROPERTY_INFO`]'s slot holding whether the property is `public`.
+const PROPERTY_PUBLIC_SLOT: usize = 1;
+
+/// [`PROPERTY_INFO`]'s slot holding the type the declaration spells, or `null`
+/// where it named none.
+const PROPERTY_TYPE_SLOT: usize = 2;
 
 /// [`METHOD_INFO`]'s slot holding the method's name.
 const METHOD_NAME_SLOT: usize = 0;
@@ -383,9 +393,27 @@ pub(crate) const CLASS_INFO: CoreClass = CoreClass {
             names: &[],
             params: &[],
             defaults: &[],
-            return_ty: CoreTy::Array(&CoreTy::Str),
+            return_ty: CoreTy::Array(&CoreTy::Instance(PROPERTY_INFO_NAME)),
             symbol: "nvs_core_reflect_class_info_properties",
             doc: Some(&PROPERTIES_DOC),
+        },
+        CoreMethod {
+            name: "readableProperties",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Str),
+            symbol: "nvs_core_reflect_class_info_readable_properties",
+            doc: Some(&READABLE_PROPERTIES_DOC),
+        },
+        CoreMethod {
+            name: "hasProperty",
+            names: &["name"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            symbol: "nvs_core_reflect_class_info_has_property",
+            doc: Some(&HAS_PROPERTY_DOC),
         },
         CoreMethod {
             name: "methods",
@@ -463,7 +491,7 @@ pub(crate) const CLASS_INFO: CoreClass = CoreClass {
             doc: Some(&CONSTRUCT_DOC),
         },
     ],
-    slots: &["name", "properties", "methods", "allProperties"],
+    slots: &["name", "properties", "methods"],
     constants: &[],
 };
 
@@ -478,12 +506,41 @@ const NAME_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Reflect\ClassInfo::properties`'s reference card — `rule:core-api/reference-card`.
 const PROPERTIES_DOC: MethodDoc = MethodDoc {
-    short: "The described class's property names, in slot order — every ancestor's first, then \
-            its own.",
+    short: "The described class's properties — its own and every inherited one — each with its \
+            name, its visibility and the type its declaration spells. Replaces \
+            `ReflectionClass::getProperties`.",
     params: &[],
-    ret: "One name per property code outside the class may read, `$`-sigil excluded. A `private` \
-          or `protected` property is not among them: reflection has the visibility ordinary code \
-          has, and no way to widen it.",
+    ret: "One `Core\\Reflect\\PropertyInfo` per declared property, in slot order: every \
+          ancestor's first, then the class's own. A `private` or `protected` property is among \
+          them, carrying the bit that says so — naming a member is introspection of the \
+          program's shape, and reading one is `get`'s question, checked there.",
+    errors: &[],
+};
+
+/// `Core\Reflect\ClassInfo::readableProperties`'s reference card — `rule:core-api/reference-card`.
+const READABLE_PROPERTIES_DOC: MethodDoc = MethodDoc {
+    short: "The property names a read written at this call site may make, in slot order. Replaces \
+            `get_object_vars`, whose answer is scope-sensitive in the same way.",
+    params: &[],
+    ret: "One name per property this site may read, `$`-sigil excluded: every declared property \
+          where the call is written inside the described class, and the `public` ones anywhere \
+          else. The complete list is `properties`, and the difference between the two answers is \
+          exactly what `get` would refuse here.",
+    errors: &[],
+};
+
+/// `Core\Reflect\ClassInfo::hasProperty`'s reference card — `rule:core-api/reference-card`.
+const HAS_PROPERTY_DOC: MethodDoc = MethodDoc {
+    short: "Whether the described class declares a property called `$name`. Replaces \
+            `property_exists`.",
+    params: &[ParamDoc {
+        name: "name",
+        desc: "The property's name, `$`-sigil excluded, as the declaration writes it.",
+        shape: &[],
+    }],
+    ret: "`true` for a `private` or `protected` property as well as a `public` one, which is what \
+          tells a refused read from a misspelled name. Whether this site may read it is \
+          `properties`' own bit.",
     errors: &[],
 };
 
@@ -812,6 +869,83 @@ const PARAMETER_COUNT_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
+/// `Core\Reflect\PropertyInfo` — one row of [`CLASS_INFO`]'s property roster: a
+/// property's name, its visibility and the type its declaration spells.
+///
+/// [`METHOD_INFO`]'s shape, one member over, and for the same reasons: every
+/// member is a reader over a slot the description was built with, nothing here
+/// acts, and the row exists for a `private` property as much as for a `public`
+/// one. Reading the property is [`nvs_core_reflect_class_info_get`]'s, which is
+/// where § 2's check is made.
+pub(crate) const PROPERTY_INFO: CoreClass = CoreClass {
+    name: PROPERTY_INFO_NAME,
+    methods: &[],
+    instance: &[
+        CoreMethod {
+            name: "name",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "nvs_core_reflect_property_info_name",
+            doc: Some(&PROPERTY_NAME_DOC),
+        },
+        CoreMethod {
+            name: "isPublic",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            symbol: "nvs_core_reflect_property_info_is_public",
+            doc: Some(&PROPERTY_IS_PUBLIC_DOC),
+        },
+        CoreMethod {
+            name: "type",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            // `?string`, and the `null` is an absence rather than an unknown:
+            // [`nvs_runtime::ClassDesc::field_type`]'s own doc comment owns the
+            // two slots no declaration named a type for.
+            return_ty: CoreTy::Nullable(&CoreTy::Str),
+            symbol: "nvs_core_reflect_property_info_type",
+            doc: Some(&PROPERTY_TYPE_DOC),
+        },
+    ],
+    slots: &["name", "public", "type"],
+    constants: &[],
+};
+
+/// `Core\Reflect\PropertyInfo::name`'s reference card — `rule:core-api/reference-card`.
+const PROPERTY_NAME_DOC: MethodDoc = MethodDoc {
+    short: "The property's name, as the declaring class writes it.",
+    params: &[],
+    ret: "The name with no `$` sigil and no class qualifier — what `hasProperty`, `get` and `set` \
+          take.",
+    errors: &[],
+};
+
+/// `Core\Reflect\PropertyInfo::isPublic`'s reference card — `rule:core-api/reference-card`.
+const PROPERTY_IS_PUBLIC_DOC: MethodDoc = MethodDoc {
+    short: "Whether code outside the declaring class may read and write the property.",
+    params: &[],
+    ret: "`false` for a `private` or `protected` property, which is still listed: knowing that a \
+          property exists and may not be reached from here is what tells a refusal from a \
+          misspelling, and the name and the type are what the declaration already published.",
+    errors: &[],
+};
+
+/// `Core\Reflect\PropertyInfo::type`'s reference card — `rule:core-api/reference-card`.
+const PROPERTY_TYPE_DOC: MethodDoc = MethodDoc {
+    short: "The type the property is declared with, spelled as the declaration spells it.",
+    params: &[],
+    ret: "The written type — `int`, `?int`, `array<string>`, `App\\User` — or `null` for a slot \
+          no declaration named one for, which is a compiler-synthesized class or a member of the \
+          built-in exception tree. A name rather than a value to compare: what a type *is* is \
+          `Core\\Reflect::typeOf`'s question, asked of a value.",
+    errors: &[],
+};
+
 /// A `string` argument of `member`, as text.
 ///
 /// A [`Fault::fatal`] for the wrong tag, on `crate::json`'s own `text_of`
@@ -837,32 +971,38 @@ fn text_of<'a>(value: &'a Value, member: &str) -> Result<&'a str, Fault> {
 /// bound already excludes it, and a synthesized class reads as having nothing
 /// visible at all.
 ///
-/// The property walk and the method walk answer the visibility bit differently,
-/// and the module doc's § *the roster is complete* owns why: a property is
-/// named only where it is readable, and a method is named whatever it is, with
-/// [`METHOD_PUBLIC_SLOT`] carrying the answer. The one name skipped is a method
-/// whose name holds a `#`, which no source can spell — `nvs_ir::lower`'s
-/// generator transform mints those, and a roster naming one would be naming a
-/// rewriting rather than a declaration.
+/// Both walks name every member the class declares, each row carrying its own
+/// visibility bit, and the module doc's § *both rosters are complete* owns why.
+/// *Where a property is readable* is a question about the asking site rather
+/// than about the class, so it is not a slot at all:
+/// [`nvs_core_reflect_class_info_readable_properties`] filters this roster per
+/// call, which is the only arrangement that can answer two sites two ways off
+/// one description.
 ///
-/// *Where it is readable* is two answers, so the walk fills two slots: the
-/// public names and every name, of which
-/// [`nvs_core_reflect_class_info_properties`] picks the one its call site is
-/// owed. Both are built here rather than filtered per call because the
-/// descriptor is not reachable from a description — the module doc's § *holds
-/// its answers* is that decision — and building the wider list costs the walk
-/// it is already doing.
+/// The one name skipped is a method whose name holds a `#`, which no source can
+/// spell — `nvs_ir::lower`'s generator transform mints those, and a roster
+/// naming one would be naming a rewriting rather than a declaration. A property
+/// slot the descriptor cannot name is skipped for the reason above; a slot it
+/// can name but whose type no declaration spelled keeps its row, with
+/// [`PROPERTY_TYPE_SLOT`] holding `null`.
 fn describe(desc: &ClassDesc) -> Value {
-    let mut visible = NvsArray::new();
-    let mut declared = NvsArray::new();
+    let mut properties = NvsArray::new();
     for slot in 0..desc.field_count() {
         let Some(name) = desc.field_name(slot) else {
             continue;
         };
-        declared.append(Value::str(NvsStr::new(name.as_bytes())));
-        if desc.field_is_public(slot) {
-            visible.append(Value::str(NvsStr::new(name.as_bytes())));
-        }
+        let ty = match desc.field_type(slot) {
+            Some(ty) => Value::str(NvsStr::new(ty.as_bytes())),
+            None => Value::null(),
+        };
+        properties.append(crate::instance::build(
+            &PROPERTY_INFO,
+            [
+                Value::str(NvsStr::new(name.as_bytes())),
+                Value::bool(desc.field_is_public(slot)),
+                ty,
+            ],
+        ));
     }
     let mut methods = NvsArray::new();
     for index in 0..desc.method_count() {
@@ -885,9 +1025,8 @@ fn describe(desc: &ClassDesc) -> Value {
         &CLASS_INFO,
         [
             Value::str(NvsStr::new(desc.name().as_bytes())),
-            Value::array(visible),
+            Value::array(properties),
             Value::array(methods),
-            Value::array(declared),
         ],
     )
 }
@@ -931,11 +1070,26 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_reflect_class_info_properties" => {
             (nvs_core_reflect_class_info_properties as *const ()).cast()
         }
+        "nvs_core_reflect_class_info_readable_properties" => {
+            (nvs_core_reflect_class_info_readable_properties as *const ()).cast()
+        }
+        "nvs_core_reflect_class_info_has_property" => {
+            (nvs_core_reflect_class_info_has_property as *const ()).cast()
+        }
         "nvs_core_reflect_class_info_methods" => {
             (nvs_core_reflect_class_info_methods as *const ()).cast()
         }
         "nvs_core_reflect_class_info_has_method" => {
             (nvs_core_reflect_class_info_has_method as *const ()).cast()
+        }
+        "nvs_core_reflect_property_info_name" => {
+            (nvs_core_reflect_property_info_name as *const ()).cast()
+        }
+        "nvs_core_reflect_property_info_is_public" => {
+            (nvs_core_reflect_property_info_is_public as *const ()).cast()
+        }
+        "nvs_core_reflect_property_info_type" => {
+            (nvs_core_reflect_property_info_type as *const ()).cast()
         }
         "nvs_core_reflect_method_info_name" => {
             (nvs_core_reflect_method_info_name as *const ()).cast()
@@ -982,6 +1136,37 @@ fn slot_of(args: &[Value], class: &CoreClass, index: usize, member: &str) -> Res
         held.retain();
     }
     Ok(held)
+}
+
+/// One of the receiving description's two rosters, borrowed for a scan.
+///
+/// The three members that walk a roster rather than handing it back share this,
+/// because the refusal is the same one each time: a slot [`describe`] fills
+/// with an array holds an array, so a tag that is not one is this crate's own
+/// mistake and never a program's.
+fn roster_of(
+    receiver: *mut nvs_runtime::ObjHeader,
+    index: usize,
+    member: &str,
+) -> Result<std::mem::ManuallyDrop<NvsArray>, Fault> {
+    let held = crate::instance::slot(receiver, index);
+    let Some(ptr) = held.array_ptr() else {
+        return Err(Fault::fatal(format!(
+            "{CLASS_INFO_NAME}::{member} expected {:?} in its roster slot, got tag {}",
+            Tag::Array,
+            held.tag_byte()
+        )));
+    };
+    Ok(crate::arr::borrowed(ptr))
+}
+
+/// Row `index` of a borrowed roster, as the object its slots are read off.
+///
+/// By slot rather than by key: [`describe`] builds both rosters with `append`
+/// alone and hands them to nobody who can unset an entry, so their slots are
+/// exactly `0..count` and a scan of them names every row once.
+fn row_at(roster: &NvsArray, index: usize) -> Option<*mut nvs_runtime::ObjHeader> {
+    roster.value_at(index)?.obj_ptr()
 }
 
 nvs_runtime::nvs_helper! {
@@ -1077,23 +1262,84 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
-    /// `Core\Reflect\ClassInfo::properties(): array<string>` — `rule:security/reflection-enforces-visibility`'s
-    /// visibility-respecting walk, answered off the slot its **call site** is
-    /// owed.
+    /// `Core\Reflect\ClassInfo::properties(): array<Core\Reflect\PropertyInfo>`
+    /// — ADR 0019 § 1's property roster, replacing
+    /// `ReflectionClass::getProperties`.
     ///
-    /// The rule is stated over the site and not over the description, so the
-    /// same description answers two ways: inside the described class every
+    /// Every declared property, [`METHOD_INFO`]'s roster one member over, and §
+    /// 2 is why the `private` ones are among them: naming a member and reading
+    /// its declared type is the program's *shape*, which is always available,
+    /// while reading the property is acting and goes through
+    /// [`nvs_core_reflect_class_info_get`]'s check. What this call site may read
+    /// is [`nvs_core_reflect_class_info_readable_properties`], which is a
+    /// question about the site rather than about the class.
+    fn nvs_core_reflect_class_info_properties(_ctx, args: [1]) {
+        slot_of(args, &CLASS_INFO, PROPERTIES_SLOT, "properties")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Reflect\ClassInfo::readableProperties(): array<string>` —
+    /// `rule:security/reflection-enforces-visibility`'s visibility-respecting
+    /// walk, replacing `get_object_vars`.
+    ///
+    /// The rule is stated over the **call site** and not over the description,
+    /// so one description answers two ways: inside the described class every
     /// declared name, which is what an ordinary body there reads, and anywhere
-    /// else the public ones alone. [`describe`] filled both slots, and the last
-    /// argument — [`crate::registry::CALL_SITE_MEMBERS`]' constant, which no
-    /// program can write — is what picks between them.
-    fn nvs_core_reflect_class_info_properties(_ctx, args: [2]) {
-        let receiver = crate::instance::receiver(args[0], &CLASS_INFO, "properties")?;
+    /// else the `public` ones alone. The last argument —
+    /// [`crate::registry::CALL_SITE_MEMBERS`]' constant, which no program can
+    /// write — is what picks between them, and a site inside no class at all
+    /// arrives as the zero word and is answered as outside.
+    ///
+    /// Filtered out of the roster rather than held in a slot, because two sites
+    /// asking one description are owed two lists and a slot can hold one. What
+    /// that spends is the module doc's § *what it spends*: one array of one
+    /// string per name, per call.
+    fn nvs_core_reflect_class_info_readable_properties(_ctx, args: [2]) {
+        let member = "readableProperties";
+        let receiver = crate::instance::receiver(args[0], &CLASS_INFO, member)?;
         let described = crate::instance::slot(receiver, NAME_SLOT);
         let described = described.as_text();
         let inside = site_class(args[1]).is_some_and(|site| described == Some(site.as_str()));
-        let slot = if inside { ALL_PROPERTIES_SLOT } else { PROPERTIES_SLOT };
-        slot_of(args, &CLASS_INFO, slot, "properties")
+        let roster = roster_of(receiver, PROPERTIES_SLOT, member)?;
+        let mut names = NvsArray::new();
+        for index in 0..roster.count() {
+            let Some(row) = row_at(&roster, index) else {
+                continue;
+            };
+            if !inside && crate::instance::slot(row, PROPERTY_PUBLIC_SLOT).as_bool() != Some(true) {
+                continue;
+            }
+            let held = crate::instance::slot(row, PROPERTY_NAME_SLOT);
+            let Some(name) = held.as_text() else {
+                continue;
+            };
+            names.append(Value::str(NvsStr::new(name.as_bytes())));
+        }
+        Ok(Value::array(names))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Reflect\ClassInfo::hasProperty(string $name): bool` — replacing
+    /// `property_exists`.
+    ///
+    /// [`nvs_core_reflect_class_info_has_method`]'s scan over the other roster,
+    /// and its doc comment owns the shape. It answers `true` for a `private`
+    /// property, which is the whole point: `rule:core-classes/reflect` asks that
+    /// a refusal be distinguishable from a misspelling, and a site that may not
+    /// read the property learns here that it exists.
+    fn nvs_core_reflect_class_info_has_property(_ctx, args: [2]) {
+        let member = "hasProperty";
+        let receiver = crate::instance::receiver(args[0], &CLASS_INFO, member)?;
+        let name = text_of(&args[1], "Core\\Reflect\\ClassInfo::hasProperty")?;
+        let roster = roster_of(receiver, PROPERTIES_SLOT, member)?;
+        let found = (0..roster.count()).any(|index| {
+            row_at(&roster, index).is_some_and(|row| {
+                crate::instance::slot(row, PROPERTY_NAME_SLOT).as_text() == Some(name)
+            })
+        });
+        Ok(Value::bool(found))
     }
 }
 
@@ -1126,26 +1372,11 @@ nvs_runtime::nvs_helper! {
         let member = "hasMethod";
         let receiver = crate::instance::receiver(args[0], &CLASS_INFO, member)?;
         let name = text_of(&args[1], "Core\\Reflect\\ClassInfo::hasMethod")?;
-        let held = crate::instance::slot(receiver, METHODS_SLOT);
-        let Some(ptr) = held.array_ptr() else {
-            return Err(Fault::fatal(format!(
-                "{CLASS_INFO_NAME}::{member} expected {:?} in its roster slot, got tag {}",
-                Tag::Array,
-                held.tag_byte()
-            )));
-        };
-        let roster = crate::arr::borrowed(ptr);
-        // By slot rather than by key: [`describe`] builds this array with
-        // `append` alone and hands it to nobody who can unset an entry, so its
-        // slots are exactly `0..count` and a scan of them names every row once.
+        let roster = roster_of(receiver, METHODS_SLOT, member)?;
         let found = (0..roster.count()).any(|index| {
-            let Some(row) = roster.value_at(index) else {
-                return false;
-            };
-            let Some(row) = row.obj_ptr() else {
-                return false;
-            };
-            crate::instance::slot(row, METHOD_NAME_SLOT).as_text() == Some(name)
+            row_at(&roster, index).is_some_and(|row| {
+                crate::instance::slot(row, METHOD_NAME_SLOT).as_text() == Some(name)
+            })
         });
         Ok(Value::bool(found))
     }
@@ -1172,6 +1403,36 @@ nvs_runtime::nvs_helper! {
     /// parameter count, receiver excluded.
     fn nvs_core_reflect_method_info_parameter_count(_ctx, args: [1]) {
         slot_of(args, &METHOD_INFO, METHOD_PARAMETERS_SLOT, "parameterCount")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Reflect\PropertyInfo::name(): string` — the property's own name,
+    /// `$`-sigil excluded.
+    fn nvs_core_reflect_property_info_name(_ctx, args: [1]) {
+        slot_of(args, &PROPERTY_INFO, PROPERTY_NAME_SLOT, "name")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Reflect\PropertyInfo::isPublic(): bool` — the visibility bit
+    /// `nvs_types::layout` fixed at the declaration and
+    /// [`nvs_runtime::ClassDesc::field_is_public`] carried down.
+    fn nvs_core_reflect_property_info_is_public(_ctx, args: [1]) {
+        slot_of(args, &PROPERTY_INFO, PROPERTY_PUBLIC_SLOT, "isPublic")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Reflect\PropertyInfo::type(): ?string` — the declared type as its
+    /// declaration spells it, from
+    /// [`nvs_runtime::ClassDesc::field_type`].
+    ///
+    /// `null` is the answer for a slot no declaration named a type for, which
+    /// that method's own doc comment lists: an absence reported as one, rather
+    /// than a guess at what the compiler laid the slot out as.
+    fn nvs_core_reflect_property_info_type(_ctx, args: [1]) {
+        slot_of(args, &PROPERTY_INFO, PROPERTY_TYPE_SLOT, "type")
     }
 }
 
@@ -1900,5 +2161,82 @@ mod tests {
             bytes.release();
             array.release();
         }
+    }
+
+    /// The `*Info` classes of ADR 0019 § 1's roster that this module has not
+    /// built, and the whole of what the module doc's gap 1 owns in prose.
+    ///
+    /// **This list may only shrink**, and the test below is two-sided so that
+    /// it cannot go stale in either direction: a name here that *is* registered
+    /// fails as loudly as one that is registered nowhere and not here, so
+    /// landing a class deletes its line in the same slice. Nothing is added
+    /// without deleting this sentence — a roster the record names and this file
+    /// silently omits is exactly the drift the gate exists for.
+    const NOT_YET_BUILT: &[&str] = &["ParameterInfo", "ConstantInfo", "AttributeInfo", "EnumInfo"];
+
+    /// Every `*Info` class ADR 0019 § 1 names is a registered class, or is one
+    /// of [`NOT_YET_BUILT`].
+    ///
+    /// The roster is **read out of the record** rather than copied here,
+    /// because § 1 is its one home and a copy is a second one that no run
+    /// updates: a class added to the record and to nothing else fails this the
+    /// day it is written. What the section spells is a family of names ending
+    /// `Info`, qualified or not — `Core\Reflect\ClassInfo` and `MethodInfo`
+    /// alike — so the last path segment is what is asked about.
+    #[test]
+    fn every_reflect_info_class_the_record_names_is_registered() {
+        let record =
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/decisions/0019.md");
+        let text = std::fs::read_to_string(&record)
+            .unwrap_or_else(|err| panic!("{}: {err}", record.display()));
+        let section = text
+            .split("### 1. ")
+            .nth(1)
+            .and_then(|rest| rest.split("\n### ").next())
+            .expect("`docs/decisions/0019.md` § 1, which is the roster's home");
+
+        let mut named: std::collections::BTreeSet<&str> = std::collections::BTreeSet::new();
+        for (at, _) in section.match_indices("Info") {
+            let start = section[..at]
+                .rfind(|c: char| !c.is_alphanumeric())
+                .map_or(0, |boundary| boundary + 1);
+            let name = &section[start..at + "Info".len()];
+            if name.len() > "Info".len() {
+                named.insert(name);
+            }
+        }
+        assert!(
+            named.len() > 4,
+            "§ 1 read as {named:?}, which is not a roster — the section moved or was rewritten, \
+             and this test is reading the wrong text rather than finding a gap"
+        );
+
+        let mut missing = Vec::new();
+        let mut landed = Vec::new();
+        for name in named {
+            let spelling = format!("Core\\Reflect\\{name}");
+            let registered = crate::registry::class(&spelling).is_some();
+            let outstanding = NOT_YET_BUILT.contains(&name);
+            if !registered && !outstanding {
+                missing.push(spelling);
+            } else if registered && outstanding {
+                landed.push(spelling);
+            }
+        }
+        assert!(
+            missing.is_empty(),
+            "ADR 0019 § 1 names {} class(es) that `registry::CLASSES` does not hold and \
+             `NOT_YET_BUILT` does not own: {}. Register the class, or add it there with the \
+             descriptor data it waits on written into this module's gap 1.",
+            missing.len(),
+            missing.join(", ")
+        );
+        assert!(
+            landed.is_empty(),
+            "{} `NOT_YET_BUILT` entr(ies) are registered: {}. Delete these lines — the list is \
+             the worklist, and a stale entry is a class nobody will look at again.",
+            landed.len(),
+            landed.join(", ")
+        );
     }
 }

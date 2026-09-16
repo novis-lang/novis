@@ -49,7 +49,7 @@ class Describe {
             echo $name, " absent\n";
             return;
         }
-        echo $info->name(), " ", Core\Arr::count($info->properties()), "\n";
+        echo $info->name(), " ", Core\Arr::count($info->readableProperties()), "\n";
     }
 }
 

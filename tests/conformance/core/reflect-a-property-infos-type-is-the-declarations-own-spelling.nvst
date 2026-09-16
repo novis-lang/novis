@@ -1,0 +1,55 @@
+--TEST--
+`Core\Reflect\PropertyInfo::type` answers the type its declaration wrote, nullable, element type and class name intact, for an inherited slot as much as an own one — `rule:core-classes/reflect`
+--FILE--
+<?nvs
+// `rule:core-classes/reflect` reaches a property's declared type, and a type is reported as
+// the declaration *spells* it rather than as whatever representation the slot
+// was laid out in: a `?int` keeps its `?`, an `array<string>` keeps its element
+// type, and a class-typed slot keeps the class's own name. A member answering a
+// normalized form would read plausibly on every line below and still be unable
+// to tell `?int` from `int`.
+class Book {
+    public function constructor(public string $title) {}
+}
+
+class Shelf {
+    public ?int $slack = null;
+    public array<string> $labels = [];
+    private float $weight = 1.5;
+
+    // A promoted parameter is an ordinary property, so its written type reaches
+    // the row by the same road its visibility keyword does.
+    public function constructor(public Book $spine) {}
+}
+
+var $shelf = Core\Reflect::forObject(new Shelf(new Book("Dune")));
+echo Core\Arr::count($shelf->properties()), "\n";
+foreach ($shelf->properties() as Core\Reflect\PropertyInfo $property) {
+    echo $property->name(), " ", $property->type() ?? "none", " ",
+         $property->isPublic() ? "public" : "closed", "\n";
+}
+
+// Slot order is every ancestor's first, then the class's own, and an inherited
+// row carries the type the *ancestor's* declaration wrote — the description is
+// of a class, and a subclass's description answers for the whole layout.
+class Alcove extends Shelf {
+    public bool $lit = true;
+}
+
+var $alcove = Core\Reflect::forObject(new Alcove(new Book("Dune")));
+foreach ($alcove->properties() as Core\Reflect\PropertyInfo $property) {
+    echo $property->name(), "=", $property->type() ?? "none", " ";
+}
+echo "\n";
+
+// The inherited `private` is declared here too — a subclass's description
+// carries the ancestor's slot whether or not anything may read it.
+echo $alcove->hasProperty("weight") ? "declared" : "absent", "\n";
+--EXPECT--
+4
+slack ?int public
+labels array<string> public
+weight float closed
+spine Book public
+slack=?int labels=array<string> weight=float spine=Book lit=bool
+declared

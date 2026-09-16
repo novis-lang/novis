@@ -19,7 +19,7 @@ class Describe {
             echo $name, " absent\n";
             return;
         }
-        echo $info->name(), " ", Core\Arr::count($info->properties()), "\n";
+        echo $info->name(), " ", Core\Arr::count($info->readableProperties()), "\n";
     }
 }
 
@@ -35,7 +35,7 @@ if ($byName == null) {
     echo "unreachable\n";
 } else {
     echo $byName->name() == $byValue->name() ? "same class\n" : "different class\n";
-    echo Core\Arr::count($byName->properties()) == Core\Arr::count($byValue->properties())
+    echo Core\Arr::count($byName->readableProperties()) == Core\Arr::count($byValue->readableProperties())
         ? "same properties\n"
         : "different properties\n";
     // § 2's visibility check is the description's, not the door's: the

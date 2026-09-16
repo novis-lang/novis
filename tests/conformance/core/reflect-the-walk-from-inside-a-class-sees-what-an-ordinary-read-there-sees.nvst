@@ -18,7 +18,7 @@ class Point {
     // print a smaller count than the declarations above.
     public function fromInside(): void {
         var $described = Core\Reflect::forObject($this);
-        var $names = $described->properties();
+        var $names = $described->readableProperties();
         echo "inside ", Core\Arr::count($names);
         foreach ($names as string $name) {
             echo " ", $name, "=", $described->get($this, $name);
@@ -33,7 +33,7 @@ $point->fromInside();
 // The same description, asked from out here: the `private` slot is not one of
 // the names, and every name that is one still reads.
 var $outside = Core\Reflect::forObject($point);
-var $names = $outside->properties();
+var $names = $outside->readableProperties();
 echo "outside ", Core\Arr::count($names);
 foreach ($names as string $name) {
     echo " ", $name, "=", $outside->get($point, $name);

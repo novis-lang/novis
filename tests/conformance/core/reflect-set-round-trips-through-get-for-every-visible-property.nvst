@@ -17,7 +17,7 @@ var $described = Core\Reflect::forObject($settings);
 
 int $written = 0;
 int $agreed = 0;
-foreach ($described->properties() as string $property) {
+foreach ($described->readableProperties() as string $property) {
     $written = $written + 1;
     $described->set($settings, $property, "rewritten-" . $property);
     if ($described->get($settings, $property) == "rewritten-" . $property) {
