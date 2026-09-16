@@ -64,7 +64,13 @@ impl Exporter {
 }
 
 /// § 6's own `max_series`, for a `[metrics]` block that writes an exporter and not a bound.
-const DEFAULT_MAX_SERIES: u64 = 10_000;
+///
+/// `pub` because a registry can exist without a `[metrics]` block at all: `Core\Metrics` is Tier 0
+/// in every build (`rule:observability/the-exporter-is-a-feature-and-core-metrics-is-not`), so a
+/// `nvs run` that writes a metric accumulates into one this file never described, and
+/// `rule:observability/past-max-series-a-new-series-is-refused` holds it to the same number rather
+/// than to a second one written somewhere else.
+pub const DEFAULT_MAX_SERIES: u64 = 10_000;
 
 /// `rule:observability/metrics-and-trace-blocks-are-system`'s `[metrics]` block, resolved into what one core is asked to build: where its
 /// series ship to, and § 7's bound on how many of them it may hold.
