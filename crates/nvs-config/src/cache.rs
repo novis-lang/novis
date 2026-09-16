@@ -42,23 +42,32 @@
 //! Neither directive is refused at boot yet: an unspelled `validate` falls back to the default,
 //! and [`Validate::of`] is the one place a refusal would read the word.
 //!
+//! **`compiler_version_hash` is the running executable, not the release version.** The package
+//! version alone is the same string for every build of an unreleased tree, so a developer who
+//! rebuilt the compiler would address the artifacts its predecessor emitted — bytes that really are
+//! this version's, with a correct checksum, and emitted by different codegen. [`build_stamp`]
+//! answers with this process's own binary instead: its path, its byte length and its modification
+//! time. Two builds of one version therefore key their units apart. A compiler that cannot examine
+//! its own binary keys apart from every one that can, but not from another that also could not —
+//! that single case is closed a layer up, by [`build_is_identified`], which is what a cache outliving
+//! the process is asked before it opens a directory.
+//!
+//! It is deliberately not a hash of the binary's *contents*, which would be the exact identity and
+//! would cost a pass over tens of megabytes at every process start. A build that can rewrite the
+//! compiler in place while preserving both its length and its modification nanosecond is already
+//! running as the compiler, so the cheaper stamp gives up nothing an attacker did not already have.
+//!
 //! Cost: one BLAKE3 pass over a few dozen bytes plus one per `[[extension]]` entry, per
-//! [`env_hash`] call. It is a snapshot's value, not a unit's — a caller computes it when it
+//! [`env_hash`] call, and one `metadata` call for the whole process — [`build_stamp`] is computed
+//! once and held. The digest is a snapshot's value, not a unit's: a caller computes it when it
 //! publishes a snapshot and carries it into every key built against that snapshot. [`content_hash`]
 //! is one pass over the source, per unit; [`artifact_key`] and [`UnitKey::new`] then read none of
 //! the source at all.
 //!
-//! **Known gap: `compiler_version_hash` is the release version, so two builds of the same version
-//! share it.** A developer who rebuilds the compiler without bumping [`CARGO_PKG_VERSION`](env)
-//! keeps every artifact keyed against the old one; `debug_assertions` separates a debug build from
-//! a release build and nothing separates two debug builds. Closing it needs a build stamp that
-//! moves with the source, which is a `build.rs` this crate does not have yet and which nothing can
-//! use until the caches themselves are on disk.
-//! — owner: unowned
-//!
 
 use std::fmt;
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 use std::time::Duration;
 
 use crate::tree::{Config, Setting};
@@ -138,6 +147,12 @@ impl fmt::Display for ProgramId {
 /// changes one must *not* invalidate the caches.
 ///
 pub fn env_hash(config: &Config) -> EnvHash {
+    env_hash_of(config, build_stamp())
+}
+
+/// [`env_hash`] with the compiler build named rather than read, which is the seam a test drives:
+/// two stamps are two builds, and [`None`] is a compiler that could not examine its own binary.
+fn env_hash_of(config: &Config, build: Option<Digest>) -> EnvHash {
     let mut hasher = blake3::Hasher::new();
     // The triple, spelled from what the process can actually read. `rustc`'s own target string
     // needs a build script to reach, and the fields below distinguish the same set of hosts.
@@ -147,8 +162,55 @@ pub fn env_hash(config: &Config) -> EnvHash {
     hasher.update(&cpu_feature_bitset().to_le_bytes());
     feed(&mut hasher, env!("CARGO_PKG_VERSION").as_bytes());
     hasher.update(&[u8::from(cfg!(debug_assertions))]);
+    // One discriminant byte, so an unstamped build is a different environment from any stamped one
+    // rather than a prefix of it.
+    match build {
+        Some(stamp) => {
+            hasher.update(&[1]);
+            hasher.update(stamp.as_bytes());
+        }
+        None => {
+            hasher.update(&[0]);
+        }
+    }
     hasher.update(extension_set_hash(config).as_bytes());
     EnvHash(Digest(*hasher.finalize().as_bytes()))
+}
+
+/// Whether this process could identify its own build, which is what an on-disk cache is asked
+/// before it opens a directory at all.
+///
+/// Every unstamped build shares one environment, so artifacts one of them wrote are addressable by
+/// the next — the single case the stamp does not separate. A cache that outlives the process
+/// therefore does not open: `nvs_cli::cache::from_config` reads this and answers with no cache,
+/// which is the same cold-compile fallback every miss there already takes. The in-memory table is
+/// unaffected, since nothing in one process's memory outlives that process.
+pub fn build_is_identified() -> bool {
+    build_stamp().is_some()
+}
+
+/// This compiler build, as one digest: the running executable's path, byte length and modification
+/// time.
+///
+/// Held for the life of the process, so the `metadata` call happens once however many snapshots are
+/// published. [`None`] when the binary cannot be named or examined — the module header says why
+/// that keys apart from every build that can name itself rather than falling back to the version.
+fn build_stamp() -> Option<Digest> {
+    static STAMP: OnceLock<Option<Digest>> = OnceLock::new();
+    *STAMP.get_or_init(|| {
+        let exe = std::env::current_exe().ok()?;
+        let meta = std::fs::metadata(&exe).ok()?;
+        let mut hasher = blake3::Hasher::new();
+        feed(&mut hasher, exe.as_os_str().to_string_lossy().as_bytes());
+        hasher.update(&meta.len().to_le_bytes());
+        let modified = meta
+            .modified()
+            .ok()
+            .and_then(|at| at.duration_since(std::time::UNIX_EPOCH).ok())
+            .map_or(0, |since| since.as_nanos());
+        hasher.update(&modified.to_le_bytes());
+        Some(Digest(*hasher.finalize().as_bytes()))
+    })
 }
 
 /// `BLAKE3(source)` — the one pass over a unit's bytes, which both cache keys are then built from.
@@ -509,6 +571,38 @@ mod tests {
 
     fn env(seed: u8) -> EnvHash {
         EnvHash(unit(seed))
+    }
+
+    #[test]
+    fn two_builds_of_one_release_version_key_their_units_apart() {
+        let config = Config::default();
+        // Everything but the build stamp is this process's: one version, one target, one extension
+        // set. Only the compiler binary differs, which is the case the package version misses.
+        assert_ne!(
+            env_hash_of(&config, Some(unit(1))),
+            env_hash_of(&config, Some(unit(2))),
+        );
+        assert_eq!(
+            env_hash_of(&config, Some(unit(1))),
+            env_hash_of(&config, Some(unit(1))),
+        );
+        assert_ne!(
+            env_hash_of(&config, None),
+            env_hash_of(&config, Some(unit(1)))
+        );
+    }
+
+    #[test]
+    fn the_running_build_stamps_itself_once() {
+        let first = build_stamp().expect("a test binary can name and examine itself");
+        assert_eq!(
+            first,
+            build_stamp().expect("the stamp is held, not recomputed")
+        );
+        assert_eq!(
+            env_hash(&Config::default()),
+            env_hash_of(&Config::default(), Some(first))
+        );
     }
 
     #[test]
