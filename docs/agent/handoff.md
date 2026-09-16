@@ -2,52 +2,48 @@
 
 ## State
 
-**Goal `unowned-closures`, and the register is at `unowned: 17`.** `python tools/owners.py` reports
-`unowned: 17`, `milestone-owned: 18`, `past-milestone: 8`, `untagged: 0`, `broken-tag: 0`,
-`unreasoned: 0` and `sections outside Known gaps: 0` over 107 items; `python tools/owners.py
+**Goal `unowned-closures`, and the register is at `unowned: 16`.** `python tools/owners.py` reports
+`unowned: 16`, `milestone-owned: 18`, `past-milestone: 8`, `untagged: 0`, `broken-tag: 0`,
+`unreasoned: 0` and `sections outside Known gaps: 0` over 106 items; `python tools/owners.py
 --deferrals` is green.
 
-**`regex.rs` gap 3 is closed: a run of match positions converts with one cursor.**
-`crate::granularity::Unit::cursor` walks a subject once for a whole run of non-decreasing byte
-offsets, so `matchAll` and `replaceWith` report *k* matches over *n* bytes in O(n) rather than
-O(n·k). The edge that had held it back is the cluster spanning a match's first byte: the cursor
-holds that unit rather than consuming it, which is exactly what counting the prefix on its own
-answers — `Cursor::index_of_byte`'s own doc is the home of that, and
-`a_cursor_answers_what_counting_each_prefix_answers` sweeps every character boundary of seven
-subjects in both units.
+**`task.rs` gap 1 is closed: a write to a field of `Core\Task::all`'s result is checked against the
+result's own tags.** The call site records the result shape's per-slot representations against the
+class its field names name (`nvs_ir::lower::Lowering::record_core_result_shape`), which merges with
+the argument literal's record and degrades every slot the two spell differently to unchecked —
+`nvs_runtime::object`'s module doc § *What a shape write checks*, case 4, is the home. The
+program-level collapse in `nvs_ir::lower::lower_file` merges the same way now instead of keeping
+whichever record sorted first, so the label's tags are one answer across frames rather than one
+frame's.
 
-**Three of the 17 are the goal's own work, and 14 are the user's sheet.** Left: `task.rs` gap 1
-(stage 4, below), `requires.rs` gap 2 (stage 3), and `graph.rs` gap 1, which no stage list names and
-whose decision is open. The other 14 need answers only the user can give, so `unowned: 0` becomes a
-`BLOCKED` once those three are closed, not more session work.
+**Two of the 16 are the goal's own work, and 14 are the user's sheet.** Left: `requires.rs` gap 2
+(stage 3, below) and `graph.rs` gap 1, which no stage list names and whose decision is open. The
+other 14 need answers only the user can give, so `unowned: 0` becomes a `BLOCKED` once those two are
+settled, not more session work.
 
-**The goal's stage lists number gaps as the module docs stood when they were written**, and closing
-one renumbers every gap after it. `docs/agent/goals/60-unowned-closures.md` and its `loop-goal.md`
-copy are corrected again here: stage 4's **Builds** loses `regex.rs` gap 3, and the M6 bullet's
-`regex.rs` gap 4 — the compiled-pattern cache — is now gap 3.
+**Stage 4's **Builds** row is empty and struck.** Both its items are closed — `compress.rs` has no
+`# Known gaps` block at all — so `docs/agent/goals/60-unowned-closures.md` and its `loop-goal.md`
+copy carry only the M6 pair and the `Decided:` list for that stage now.
 
 ## Next group
 
-**Stage 4: the library, the tag `all`'s result carries** — one file set:
-`crates/nvs-ir/src/lower/mod.rs` and `crates/nvs-stdlib/src/task.rs`.
+**Stage 3: the checker and the front end** — one file set: `crates/nvs-hir/src/requires.rs` and
+`crates/nvs-types/src/{ctor_init.rs,lateinit.rs}`.
 
-- [ ] **`all`'s result records the *result* shape's per-slot representations** —
-      `crates/nvs-ir/src/lower/mod.rs:3352-3363` builds the result with the argument's own shape
-      class, because `rule:types/object-top`'s shape class is named for its field names alone and
-      those match on both sides — but that descriptor's per-slot tags come from the literal, where
-      every field is a closure, so `$page->count = 5` is refused with a message naming `object`
-      (`crates/nvs-stdlib/src/task.rs:49`). Degrading the shared class's tags to unchecked is the
-      mechanism two disagreeing literals of one shape already take; `nvs_runtime::object`'s module
-      doc § *What a shape write checks* owns it.
-- [ ] **A `.nvst` case writes to a field of `all`'s result and reads it back** — the refusal above is
-      invisible to every case that only reads, so the case has to write one field per representation
-      the literal disagreed on and count the writes that stood, not read one off a line
-      (`crates/nvs-stdlib/src/task.rs:49`). Strike the gap block once it passes.
+- [ ] **The require harvest's wildcard arms are made exhaustive** — `requires.rs` gap 2 is an
+      over-approximation whose cost is a missed name, and the arms that could miss one are
+      `crates/nvs-hir/src/requires.rs:703`, `:705`, `:910`, `:975`, `:1018`, `:1191` and `:1245`.
+      `rule:programs/autoload` is what a missed name breaks — a class that fails to autoload — so
+      the direction is always "harvest more"; the gap's own bullet says so and is what the slice
+      rewrites once the arms name every variant.
+- [ ] **`ctor_init.rs` gap 2 and `lateinit.rs` gap 2 — both `scan_expr` walks made exhaustive** —
+      the same shape one file over, closure bodies deliberately not counted —
+      `crates/nvs-types/src/ctor_init.rs:434` and `crates/nvs-types/src/lateinit.rs:298`.
+      `rule:classes/definite-property-initialization` and
+      `rule:classes/lateinit-read-before-write` are what each walk answers.
 
 ## Backlog
 
-- `requires.rs` gap 2 — stage 3's own file set, `crates/nvs-hir/src/requires.rs`.
-- `graph.rs` gap 1 — no stage list names it and its decision is open; a `BLOCKED` candidate once
-  stage 4 is clear. `docs/agent/goals/60-unowned-closures.md`.
-- The 14 sheet gaps need the user's answers, so the register's last step is a `BLOCKED` rather than
-  a session. `docs/agent/carried-gaps.md` § *Unowned*.
+- `crates/nvs-runtime/src/graph.rs` gap 1 — the goal's own, no stage list names it, decision open.
+- The 14 unowned gaps on the user's sheet — `docs/agent/carried-gaps.md` § *Unowned*.
+- `regex.rs` gaps 2 and 3, `M6`-tagged and retagged to this goal in stage 0 — the goal file's stage 4.

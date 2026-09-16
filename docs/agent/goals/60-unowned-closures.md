@@ -74,9 +74,6 @@ One file set: `crates/nvs-types/src/`, `crates/nvs-hir/src/`, `crates/nvs-syntax
 
 One file set: `crates/nvs-stdlib/src/`.
 
-- **Builds**: `compress.rs` gap 1 (`Core\Compress\Stream`, shaped like `crates/nvs-stdlib/src/hash.rs:434`,
-  one `Bound` per inflating stream); `task.rs` gap 1 (the result shape's per-slot representations recorded
-  at the call site, `crates/nvs-ir/src/lower/mod.rs:3352-3363`).
 - **M6's two, which no goal on the chain had taken** (tagged `M6`): `regex.rs` gap 2 — the step budget
   becomes a `[limits]` directive with today's constant as its default; gap 3 — the per-core
   compiled-pattern cache is charged to an accounting bracket, or replaced by the prepared-pattern
