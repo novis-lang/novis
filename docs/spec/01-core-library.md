@@ -965,6 +965,7 @@ is not.
 |---|---|---|---|
 | `Csv::parse` | `parse(string $text, {separator?, quote?, escape?, header?: bool}): array<array<string>>` | `str_getcsv`, the parsing half of `fgetcsv` | |
 | `Csv::format` | `format(array<array<string>> $rows, {separator?, quote?, header?: array<string>}): string` | `fputcsv`'s formatting half | |
+| `Csv::rows` | `rows(Core\IO\File $file, {separator?, quote?, escape?, header?: bool}): Core\Csv\Rows` | the `while (fgetcsv($handle))` loop | |
 | `Out::capture` | `capture(callable(): mixed $fn, {through?: callable}): Sink` | `ob_start`/`ob_get_clean`, `ob_start($callback)` | |
 
 `Core\Out` has exactly this one member. A buffer is scoped to a closure and nests by call nesting, so
@@ -982,6 +983,13 @@ would escape them a second time. `{through:}` therefore takes and returns that s
 `Csv::parse`'s `{header: true}` consumes the first row as column names and keys every returned row by
 them — the return type is unchanged, because every array key is a `string` already — and the header row is
 not itself returned. `Csv::format`'s `{header: [...]}` writes those names as the first row.
+
+`Csv::rows` is the same read over a file the program has open, a record at a time: it takes the same
+dialect and the same `{header: true}`, keys a record exactly as `parse` does, and holds one record rather
+than the document, so a file larger than memory reads. It reads forward from wherever the handle is and
+is taken once — the walk ends where the file does, and winding the handle back is what reads the document
+twice. Taking a handle rather than a path is `rule:core-api/a-lifetime-is-an-object`'s admitted shape: the
+capability was checked at `IO::open`, and this member neither opens nor closes what it reads.
 
 ## 13. Compiler-facing surfaces
 

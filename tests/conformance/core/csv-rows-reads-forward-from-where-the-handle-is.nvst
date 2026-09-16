@@ -1,0 +1,59 @@
+--TEST--
+A `Core\Csv::rows` walk starts where the handle is, is taken once, and refuses a handle the program has closed — spec § 12's second table, `rule:programs/memory-priority`
+--FILE--
+<?nvs
+Core\IO\File $out = Core\IO::open("ledger.csv", Core\IO\FileMode::Write);
+$out->write("id,amount\n1,10\n2,20\n3,30\n");
+$out->close();
+
+Core\IO\File $in = Core\IO::open("ledger.csv", Core\IO\FileMode::Read);
+// A line taken off the handle first is a line the walk never sees: `rows`
+// reads forward from the position, which is what makes it a read of a file
+// rather than a second reading of a document.
+echo "skipped ", $in->readLine() ?? "<end>", "\n";
+string $seen = "";
+foreach (Core\Csv::rows($in) as array<string> $record) {
+    $seen = $seen . "[" . $record["0"] . ":" . $record["1"] . "]";
+}
+echo "after the header ", $seen, "\n";
+
+// And it is taken once. The walk left the handle at the end of the file, so a
+// second one over the same handle reads nothing at all — the difference from
+// `Core\IO::lines`, which holds its lines and hands them out again.
+uint $again = 0;
+foreach (Core\Csv::rows($in) as array<string> $record) {
+    $again = $again + Core\Arr::count($record);
+}
+echo "second walk ", $again, "\n";
+
+// Winding the handle back is what reads the document twice, and the second
+// reading is free to ask a different question of it than the first did.
+$in->seek(0);
+int $whole = 0;
+string $ids = "";
+foreach (Core\Csv::rows($in, {header: true}) as array<string> $record) {
+    $whole = $whole + 1;
+    $ids = $ids . $record["id"];
+}
+echo "rewound ", $whole, " ids ", $ids, "\n";
+$in->close();
+
+// A handle the program has given up is a mistake in the program rather than a
+// state of the file, so it is reported as one — and reported by the call that
+// asked for the walk rather than by the `foreach` that would have taken it.
+try {
+    Core\Csv::rows($in);
+    echo "not reached\n";
+} catch (RuntimeError $e) {
+    echo "closed: ", $e->message, "\n";
+}
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+skipped id,amount
+after the header [1:10][2:20][3:30]
+second walk 0
+rewound 3 ids 123
+closed: Core\Csv::rows: this handle is closed — ledger.csv

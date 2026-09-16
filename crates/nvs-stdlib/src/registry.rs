@@ -1511,6 +1511,11 @@ pub const CLASSES: &[CoreClass] = &[
     // anything on the class above, because § 1 puts the match on the *request*.
     crate::router::MATCH,
     crate::csv::CLASS,
+    // What `Core\Csv::rows` answers with: § 12's streaming read, as a name a
+    // return type can write. Its own docs say why it carries the iteration trio
+    // itself where `Core\IO\Lines` hands back a cursor — a record that has not
+    // been read yet cannot be in a snapshot.
+    crate::csv::ROWS,
     // `rule:classes/graph-copy`'s externalizing carrier, and no spec § of its own: the walk
     // it reaches is `nvs_runtime::graph`'s, shared with the `spawn` boundary.
     crate::serialize::CLASS,
@@ -3113,6 +3118,11 @@ pub const ITERABLES: &[(&str, &CoreTy)] = &[
         crate::request::FILES_NAME,
         &CoreTy::Instance(crate::request::PART_NAME),
     ),
+    // § 12's `rows(): Core\Csv\Rows`. A concrete element like the `Core\IO`
+    // rows above and for the same reason: a CSV record is an `array<string>`
+    // whatever the document held, keyed by the header's names or by column
+    // index, and neither keying is a type the receiver could be at.
+    (crate::csv::ROWS_NAME, &CoreTy::Array(&CoreTy::Str)),
     // `rule:http-server/a-part-is-consumed-in-one-of-three-ways`'s `content(): Iterable<bytes>`, whose element is the body
     // walk's exactly: a chunk of an upload is a chunk of a request body with a
     // delimiter search in front of it, and `tainted` for the same reason.
@@ -5421,6 +5431,7 @@ mod tests {
             crate::script::HANDLE_NAME,
             crate::io::LINES_NAME,
             crate::io::WALK_NAME,
+            crate::csv::ROWS_NAME,
             crate::http::TARGET_NAME,
             crate::http::IDENTITY_NAME,
             crate::http::PART_NAME,

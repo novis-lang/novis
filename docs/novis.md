@@ -91,6 +91,7 @@ Conventions the whole file uses:
 | [`Core\Router`](#core-core-router) | reverse routing — a link to a route by its declared `name`, as a rooted path or with the configured origin in front — and the verbs a path claims |
 | [`Core\Router\Match`](#core-core-router-match) | the route a request matched — its declared `name` and the captures its path filled, decided once at the door |
 | [`Core\Csv`](#core-core-csv) | RFC 4180 documents read into rows of `string` fields and written back, with an optional header row and dialect |
+| [`Core\Csv\Rows`](#core-core-csv-rows) |  |
 | [`Core\Serialize`](#core-core-serialize) | a value graph — scalars, arrays, objects, cycles included — copied into Novis's own byte format and rebuilt from it |
 | [`Core\Validate`](#core-core-validate) | the format predicates — is this text an email address, a hostname, an IP or MAC address, ASCII, printable — answering `bool` and laundering nothing |
 | [`Core\Out`](#core-core-out) | output buffering scoped to a closure — what it echoes is captured as the sink's carrier instead of reaching the output |
@@ -14604,7 +14605,7 @@ One capture by the parameter name it binds — `params()` read at one key, and t
 <a id="core-core-csv"></a>
 ### `Core\Csv`
 
-Keywords: str_getcsv, fgetcsv, fputcsv, CSV, comma-separated, header row, delimiter, dialect, parse, format
+Keywords: str_getcsv, fgetcsv, fputcsv, CSV, comma-separated, header row, delimiter, dialect, parse, format, rows
 
 `Core\Csv::parse` reads a whole document into `array<array<string>>` — every field is a `string`,
 quoted fields and embedded newlines included. With `{header: true}` the first record is consumed
@@ -14642,6 +14643,7 @@ plum,"a, b"
 |---|---|
 | [`Core\Csv::parse`](#core-core-csv-parse) | `parse(string $text, {separator?: string, quote?: string, escape?: string, header?: bool}): array<array<string>>` |
 | [`Core\Csv::format`](#core-core-csv-format) | `format(array<array<string>> $rows, {separator?: string, quote?: string, header?: array<string>}): string` |
+| [`Core\Csv::rows`](#core-core-csv-rows) | `rows(Core\IO\File $file, {separator?: string, quote?: string, escape?: string, header?: bool}): Core\Csv\Rows` |
 
 <a id="core-core-csv-parse"></a>
 #### `Core\Csv::parse`
@@ -14655,9 +14657,9 @@ Parses the whole CSV document `$text` into its records, as `str_getcsv` and the 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$text` | `string` | The CSV document, whole. |
-| `{separator: …}` | `string` (default `","`) | The single ASCII byte between fields; `,` by default. |
-| `{quote: …}` | `string` (default `"\""`) | The single ASCII byte that quotes a field; `"` by default. |
-| `{escape: …}` | `string` (default `""`) | The single ASCII byte that escapes a quote inside a quoted field, or the empty string for none, which is the default — a doubled quote is the RFC's own escape. |
+| `{separator: …}` | `string` (default `","`, neutral) | The single ASCII byte between fields; `,` by default. |
+| `{quote: …}` | `string` (default `"\""`, neutral) | The single ASCII byte that quotes a field; `"` by default. |
+| `{escape: …}` | `string` (default `""`, neutral) | The single ASCII byte that escapes a quote inside a quoted field, or the empty string for none, which is the default — a doubled quote is the RFC's own escape. |
 | `{header: …}` | `bool` (default `false`) | Consume the first record as column names and key every returned row by them; the default keys each field by its column index. |
 
 **Returns** `array<array<string>>` — One array per record, every field a `string`, keyed by column index or — with `header` — by the header's names, a field past the header's last name keeping its index; the header row itself is not returned. The document itself never fails to parse, and an empty document is the empty array.
@@ -14683,6 +14685,35 @@ Writes `$rows` as a CSV document, as `fputcsv`'s formatting half does over a who
 **Returns** `string` — The document; the empty string for no rows and no header.
 
 **Throws** `RuntimeError` — A dialect option is empty, longer than one ASCII character, or `CR` or `LF`; or `separator` and `quote` name the same byte.
+
+<a id="core-core-csv-rows"></a>
+#### `Core\Csv::rows`
+
+```nvs skip
+Core\Csv::rows(Core\IO\File $file, {separator?: string, quote?: string, escape?: string, header?: bool}): Core\Csv\Rows
+```
+
+Walks an open file one record at a time, as `while ($r = fgetcsv($h))` does, by the same RFC 4180 grammar and the same dialect `parse` reads. The walk holds one record and never the document, so a file larger than memory reads fine; it reads forward from wherever the handle is and is taken once.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$file` | `Core\IO\File` | The open handle to read from, positioned where the walk should start. |
+| `{separator: …}` | `string` (default `","`, neutral) | The single ASCII byte between fields; `,` by default. |
+| `{quote: …}` | `string` (default `"\""`, neutral) | The single ASCII byte that quotes a field; `"` by default. |
+| `{escape: …}` | `string` (default `""`, neutral) | The single ASCII byte that escapes a quote inside a quoted field, or the empty string for none, which is the default — a doubled quote is the RFC's own escape. |
+| `{header: …}` | `bool` (default `false`) | Consume the first record as column names and key every walked record by them; the default keys each field by its column index. |
+
+**Returns** `Core\Csv\Rows` — A walk over the records, each an array of `string` fields keyed as `parse` keys one. Nothing is read until the walk is taken.
+
+**Throws** `RuntimeError` — A dialect option is empty, longer than one ASCII character, or `CR` or `LF`; two of `separator`, `quote` and `escape` name the same byte; or the handle was closed before or during the walk.; `IOError` — The operating system refused a read part way through the walk.
+
+<a id="core-core-csv-rows"></a>
+### `Core\Csv\Rows`
+
+Keywords: 
+
+| Member | Signature |
+|---|---|
 
 <a id="core-core-serialize"></a>
 ### `Core\Serialize`

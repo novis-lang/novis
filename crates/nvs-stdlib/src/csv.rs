@@ -1,12 +1,15 @@
 //! `Core\Csv` — [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
-//! § 12's second table, both members of it: `parse`, replacing PHP's
-//! `str_getcsv` and the parsing half of `fgetcsv`, and `format`, replacing
-//! `fputcsv`'s formatting half. Neither touches a file — a whole CSV document
-//! is a `string` here, and the streaming half belongs to `Core\IO` at § 14.
+//! § 12's second table: `parse`, replacing PHP's `str_getcsv` and the parsing
+//! half of `fgetcsv`; `format`, replacing `fputcsv`'s formatting half; and
+//! `rows`, which walks a file `Core\IO` has open a record at a time and is the
+//! `while (fgetcsv($handle))` loop. `parse` and `format` take and answer a
+//! whole document as a `string`; `rows` is the member here that reads octets
+//! itself, through a handle whose door was passed at `Core\IO::open`.
 //!
 //! # The reader is a dependency and the writer is not
 //!
-//! `csv-core` is bound for [`nvs_core_csv_parse`] and nothing is bound for
+//! `csv-core` is bound for [`nvs_core_csv_parse`] and for the walk
+//! [`nvs_core_csv_rows`] opens, and nothing is bound for
 //! [`nvs_core_csv_format`]. That asymmetry is
 //! [ground-rules.md](/docs/ground-rules.md)'s "an external
 //! specification is a dependency rather than a hand-written parser" applied
@@ -108,6 +111,50 @@
 //! meet a value twice, and a value that is not a field is refused where it
 //! sits rather than descended into.
 //!
+//! # `rows` walks an open handle, and holds one record
+//!
+//! [`nvs_core_csv_rows`] takes the same dialect and the same `{header: true}`
+//! as `parse` and answers a [`ROWS`] the program walks with `foreach`. What it
+//! reads is a `Core\IO\File` — the descriptor stays in the request's own table
+//! where `Core\IO::open` filed it, so this member opens nothing, asks for no
+//! capability of its own, and leaves `$file->tell()` where the walk has got to.
+//! A record is keyed exactly as `parse` keys one, ragged rows and repeated
+//! column names included, because [`row`] is the one function that decides so.
+//!
+//! # Decision: the walk takes the handle, and R14 admits exactly this shape
+//!
+//! `rule:core-api/a-lifetime-is-an-object` refuses the `$link`-first calling
+//! convention — `fread($handle, 8)` as a shape — and this member takes a
+//! handle as parameter 1. What that rule is protecting is named in it: a
+//! handle-first free function has nowhere to enforce a capability and nothing
+//! to hang an API on. Neither applies here. The capability was enforced at the
+//! door this handle came through, and the API hangs on the class that owns the
+//! grammar, because what `rows` knows is CSV and not files.
+//!
+//! The alternative is the one the rule's own reasoning points at, and it is
+//! worse: `Core\IO\File::csvRows()` puts a format's grammar on the class whose
+//! subject is a descriptor, and then every format that can be read
+//! incrementally asks for a member there too. `Core\Csv::rows(string $path)`
+//! is worse still — it would be a second door onto the filesystem beside
+//! `Core\IO::open`, and `rule:security/capability-check-at-the-door` has one.
+//! So the member takes the handle and **neither opens nor closes it**: it
+//! reads forward and leaves the position where it got to, which is the whole
+//! of what it does to something it does not own.
+//!
+//! **A walk is taken once.** Each `advance()` reads forward, so the walk ends
+//! where the file does and a second `foreach` over the same value answers no
+//! records — the difference from `Core\IO::lines`, which holds a list it can
+//! hand out again, and the difference that buys the footprint below. A program
+//! that wants the document twice asks `$file->seek(0)` for a second walk or
+//! reads it with `parse`.
+//!
+//! The parse state a record boundary cannot live without — `csv-core`'s DFA,
+//! the chunk last read, the field in progress — is native, so it is parked on
+//! the request through [`nvs_runtime::Ctx::hold_open_reader`] and the walk's
+//! slot holds the key ([`crate::instance`]'s first decision is why a `Core`
+//! slot cannot hold it directly). It is released when the walk reaches the end
+//! of the file, and with the request otherwise.
+//!
 //! # What it spends
 //!
 //! `parse` holds one output buffer the size of its input for the whole call,
@@ -123,20 +170,21 @@
 //! keys, walking the rows with a borrowed handle apiece rather than retaining
 //! them.
 //!
-//! # Known gaps
-//!
-//! 1. **No streaming.** Both members take and answer a whole document, so a
-//!    file larger than memory has no reader here. That is `fgetcsv`'s other
-//!    half and it lands with `Core\IO`'s file handles at spec § 14, over the
-//!    same `csv-core` reader — this module's parse loop is already written as
-//!    a fed-buffer loop rather than a whole-slice scan, so the incremental
-//!    caller is the same code with a different feeder.
-//!    — owner: M8
+//! `rows` spends [`READ_CHUNK`] plus [`CELL`] bytes per open walk — the chunk
+//! last read off the file and the buffer a field is unescaped into — plus the
+//! header's names, the record being assembled and the one record the walk is
+//! standing on. That is O(1) in the document's size and O(1) in its record
+//! count, charged to the request that opened the walk and released at the end
+//! of the file; a field or a record longer than a buffer costs another pass
+//! and not another buffer. **The document is never held**, which is the whole
+//! difference from composing `Core\IO::read` with `parse`.
+
+use std::io::Read;
 
 use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, Value};
 
 use crate::registry::{
-    Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc,
+    Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
 };
 
 // ============================================================================
@@ -172,9 +220,78 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             symbol: "nvs_core_csv_format",
             doc: Some(&FORMAT_DOC),
         },
+        CoreMethod {
+            name: "rows",
+            names: &["file"],
+            // The subject is the handle — R1 — and the options are `parse`'s
+            // own slice rather than a copy of it, because a dialect that could
+            // differ between the two members would be two grammars for one
+            // format.
+            params: &[
+                CoreTy::Instance(crate::io::FILE_NAME),
+                CoreTy::Options(PARSE_OPTIONS),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Instance(ROWS_NAME),
+            symbol: "nvs_core_csv_rows",
+            doc: Some(&ROWS_DOC),
+        },
     ],
     instance: &[],
     slots: &[],
+    constants: &[],
+};
+
+/// `Core\Csv\Rows`'s fully-qualified name, written once for the reason
+/// [`NAME`] is.
+pub(crate) const ROWS_NAME: &str = r"Core\Csv\Rows";
+
+/// The symbols behind this walk's `iterate()`, `advance()` and `current()`,
+/// reached by name through [`crate::instance`]'s dispatch roster rather than
+/// registered as members — `Core\Db\Stream`'s three, for its reason.
+pub(crate) const ROWS_ITERATE_SYMBOL: &str = "nvs_core_csv_rows_iterate";
+/// See [`ROWS_ITERATE_SYMBOL`].
+pub(crate) const ROWS_ADVANCE_SYMBOL: &str = "nvs_core_csv_rows_advance";
+/// See [`ROWS_ITERATE_SYMBOL`].
+pub(crate) const ROWS_CURRENT_SYMBOL: &str = "nvs_core_csv_rows_current";
+
+/// [`ROWS`]'s first slot: the key [`nvs_runtime::Ctx::hold_open_reader`] filed
+/// this walk's parse state under, and `0` once the walk has reached the end of
+/// the file.
+const ROWS_READER_AT: usize = 0;
+/// [`ROWS`]'s second slot: the path the handle was opened on, so that a read
+/// that fails mid-walk names the file the way the program wrote it —
+/// `Core\IO\File`'s own second slot, for the same reason and at the same cost.
+const ROWS_PATH_AT: usize = 1;
+/// [`ROWS`]'s third slot: the record the last `advance()` read, `null` before
+/// the first one and after the last. This is where the member's promise is
+/// kept — one record, whatever the document's size.
+const ROWS_RECORD_AT: usize = 2;
+
+/// What [`nvs_core_csv_rows`] answers with: spec § 12's streaming read, as a
+/// class a return type can name.
+///
+/// # Why it carries `advance()` and `current()` itself
+///
+/// Every `Core` collection that answers `iterate()` with a [`crate::cursor`]
+/// is walking a snapshot it already holds. A streamed record is not in one —
+/// it does not exist until the file is read that far — so this class *is* its
+/// own iterator, exactly as `Core\Db\Stream` and `Core\Request\BodyStream`
+/// are and for the same reason: naming the walk is not reading it. Nothing is
+/// read by `rows` itself, so a program that names a walk and never takes it
+/// has read no records at all.
+///
+/// # Why it has no members
+///
+/// Everything it does is the iteration trio, dispatched by name — so it is a
+/// *handle* in the sense `registry`'s
+/// `a_class_with_slots_has_instance_members_and_the_reverse` names, beside
+/// `Core\IO\Lines`: its slots are read, just not through a member of its own.
+pub(crate) const ROWS: CoreClass = CoreClass {
+    name: ROWS_NAME,
+    methods: &[],
+    instance: &[],
+    slots: &["reader", "path", "record"],
     constants: &[],
 };
 
@@ -263,24 +380,85 @@ const FORMAT_DOC: MethodDoc = MethodDoc {
     }],
 };
 
-/// `Core\Csv::parse`'s dialect and its one structural option.
+/// `Core\Csv::rows`'s reference card — `rule:core-api/reference-card`.
+const ROWS_DOC: MethodDoc = MethodDoc {
+    short: "Walks an open file one record at a time, as `while ($r = fgetcsv($h))` does, by the \
+            same RFC 4180 grammar and the same dialect `parse` reads. The walk holds one record \
+            and never the document, so a file larger than memory reads fine; it reads forward \
+            from wherever the handle is and is taken once.",
+    params: &[
+        ParamDoc {
+            name: "file",
+            desc: "The open handle to read from, positioned where the walk should start.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "separator",
+            desc: "The single ASCII byte between fields; `,` by default.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "quote",
+            desc: "The single ASCII byte that quotes a field; `\"` by default.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "escape",
+            desc: "The single ASCII byte that escapes a quote inside a quoted field, or the \
+                   empty string for none, which is the default — a doubled quote is the RFC's \
+                   own escape.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "header",
+            desc: "Consume the first record as column names and key every walked record by \
+                   them; the default keys each field by its column index.",
+            shape: &[],
+        },
+    ],
+    ret: "A walk over the records, each an array of `string` fields keyed as `parse` keys one. \
+          Nothing is read until the walk is taken.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "A dialect option is empty, longer than one ASCII character, or `CR` or `LF`; \
+                   two of `separator`, `quote` and `escape` name the same byte; or the handle \
+                   was closed before or during the walk.",
+        },
+        ErrorDoc {
+            error: "IOError",
+            desc: "The operating system refused a read part way through the walk.",
+        },
+    ],
+};
+
+/// The reading dialect and its one structural option, shared by `parse` and
+/// `rows` — one slice rather than two rosters, because the two members read
+/// one grammar and an option either of them did not have would be the other's
+/// document read a second way.
 ///
 /// The three byte options are RFC 4180's defaults; this module's own docs own
 /// why `escape` defaults to *none* rather than to PHP's historical `\`.
+///
+/// Each of them is [`Qual::Neutral`] under
+/// `rule:security/unclassified-parameter-refuses-tainted`: a dialect byte is
+/// compared against the document and never written into what either member
+/// answers, so the records carry the *document's* qualifier and never a
+/// separator's.
 const PARSE_OPTIONS: &[CoreOption] = &[
     CoreOption {
         name: "separator",
-        ty: CoreTy::Str,
+        ty: CoreTy::Text(Qual::Neutral),
         default: Const::Str(","),
     },
     CoreOption {
         name: "quote",
-        ty: CoreTy::Str,
+        ty: CoreTy::Text(Qual::Neutral),
         default: Const::Str("\""),
     },
     CoreOption {
         name: "escape",
-        ty: CoreTy::Str,
+        ty: CoreTy::Text(Qual::Neutral),
         default: Const::Str(""),
     },
     CoreOption {
@@ -323,6 +501,13 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "nvs_core_csv_parse" => (nvs_core_csv_parse as *const ()).cast(),
         "nvs_core_csv_format" => (nvs_core_csv_format as *const ()).cast(),
+        "nvs_core_csv_rows" => (nvs_core_csv_rows as *const ()).cast(),
+        // The walk's three, which no registry row names: they are reached by
+        // name through the dispatch roster, which resolves them through this
+        // same function.
+        ROWS_ITERATE_SYMBOL => (nvs_core_csv_rows_iterate as *const ()).cast(),
+        ROWS_ADVANCE_SYMBOL => (nvs_core_csv_rows_advance as *const ()).cast(),
+        ROWS_CURRENT_SYMBOL => (nvs_core_csv_rows_current as *const ()).cast(),
         _ => return None,
     })
 }
@@ -650,11 +835,385 @@ fn write_field(out: &mut Vec<u8>, field: &[u8], separator: u8, quote: u8) {
     out.push(quote);
 }
 
+// ============================================================================
+// The walk — `rows`, and the three names a `foreach` reaches it by
+// ============================================================================
+
+/// How much of the file one read asks for, and so the most of it a walk holds
+/// at once. A record spanning the end of a chunk costs one more read and
+/// nothing else, so this is a syscall-count choice rather than a limit on what
+/// a document may hold.
+const READ_CHUNK: usize = 8 * 1024;
+
+/// The buffer one field is unescaped through. A field longer than this is read
+/// in several turns — `csv-core` answers `OutputFull` and the bytes already
+/// written are kept — so it bounds the copy and not the field.
+const CELL: usize = 8 * 1024;
+
+/// The parse state one open walk parks on the request: everything a record
+/// boundary needs that outlives a single `advance()` and that a `Core` slot
+/// cannot hold.
+#[derive(Debug)]
+struct RowReader {
+    /// The handle the records are read from, as `Core\IO`'s own table keys it.
+    file: u64,
+    /// `csv-core`'s DFA, left mid-document between two `advance()` calls.
+    reader: csv_core::Reader,
+    /// The chunk last read off the file.
+    pending: Vec<u8>,
+    /// How much of [`RowReader::pending`] the DFA has taken.
+    at: usize,
+    /// The field being unescaped, across as many turns as it takes.
+    field: Vec<u8>,
+    /// The buffer [`RowReader::field`] is unescaped through, [`CELL`] wide.
+    cell: Vec<u8>,
+    /// The record being assembled, one field per column read so far.
+    record: Vec<Vec<u8>>,
+    /// The header's names, where `{header: true}` asked for them.
+    names: Vec<Vec<u8>>,
+    /// Whether the first record is the header rather than a row.
+    header: bool,
+    /// Whether the file has answered a read with nothing.
+    eof: bool,
+    /// Whether the DFA has answered its last record, after which this reader
+    /// holds no buffers at all.
+    done: bool,
+}
+
+/// What one turn of [`RowReader::step`] produced.
+enum Step {
+    /// A whole record, keyed as [`row`] keys one.
+    Record(NvsArray),
+    /// Everything fed so far is taken, and the file has not ended yet.
+    NeedInput,
+    /// The document is over.
+    End,
+}
+
+impl RowReader {
+    /// The next record out of the bytes this reader already holds, or what it
+    /// needs in order to answer one.
+    ///
+    /// A header record is consumed here rather than answered, so the first
+    /// record a `{header: true}` walk hands out is the first data row — which
+    /// is `parse`'s rule, kept in the one place either member decides it.
+    fn step(&mut self) -> Step {
+        loop {
+            if self.done {
+                return Step::End;
+            }
+            if self.at >= self.pending.len() && !self.eof {
+                return Step::NeedInput;
+            }
+            let (result, taken, written) = self
+                .reader
+                .read_field(&self.pending[self.at..], &mut self.cell);
+            self.at += taken;
+            self.field.extend_from_slice(&self.cell[..written]);
+            match result {
+                // The chunk ended mid-field, or the field is longer than the
+                // buffer: keep what has been written and go round for more.
+                // Reading past the end is how the reader is told the document
+                // has ended, which is what closes the final record.
+                csv_core::ReadFieldResult::InputEmpty | csv_core::ReadFieldResult::OutputFull => {}
+                csv_core::ReadFieldResult::Field { record_end } => {
+                    self.record.push(std::mem::take(&mut self.field));
+                    if record_end {
+                        if self.header && self.names.is_empty() {
+                            self.names = std::mem::take(&mut self.record);
+                        } else {
+                            let built = row(&self.record, &self.names);
+                            // Cleared rather than taken, so the next record
+                            // reuses the fields' own allocation.
+                            self.record.clear();
+                            return Step::Record(built);
+                        }
+                    }
+                }
+                csv_core::ReadFieldResult::End => {
+                    self.finish();
+                    return Step::End;
+                }
+            }
+        }
+    }
+
+    /// Takes the bytes just read off the file — or, where `chunk` is empty,
+    /// marks the end of it, which is how `csv-core` is told to flush the record
+    /// it is part way through.
+    fn feed(&mut self, chunk: &[u8]) {
+        self.pending.clear();
+        self.pending.extend_from_slice(chunk);
+        self.at = 0;
+        self.eof = chunk.is_empty();
+    }
+
+    /// Gives up every buffer at the end of the walk, leaving a reader that
+    /// answers [`Step::End`] to anything asked of it.
+    ///
+    /// The entry stays in the request's table rather than being taken out of
+    /// it, so a `foreach` over a drained walk answers no records where a
+    /// missing reader would be a fault. What that costs is the table's own
+    /// `Option<Box<…>>`, which a key that is never reused costs anyway.
+    fn finish(&mut self) {
+        self.done = true;
+        self.pending = Vec::new();
+        self.cell = Vec::new();
+        self.field = Vec::new();
+        self.record = Vec::new();
+        self.names = Vec::new();
+    }
+}
+
+impl nvs_runtime::HeldReader for RowReader {
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+}
+
+/// The catchable `RuntimeError` a walk raises for a handle the program has
+/// given up.
+///
+/// A `RuntimeError` and not an `IOError` for `Core\IO\File`'s own reason:
+/// nothing about the file went wrong, the program asked a question of
+/// something it had already closed.
+fn closed(path: &Value) -> Fault {
+    Fault::thrown(format!(
+        "Core\\Csv::rows: this handle is closed — {}",
+        path.as_text().unwrap_or("?")
+    ))
+}
+
+/// The walk's parked parse state, as the type this module filed it as.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] where the request holds no such reader. No program can
+/// reach it: the key is written by [`nvs_core_csv_rows`] and by nothing else,
+/// and a drained walk keeps its entry rather than giving it up.
+fn reader_at(ctx: &mut nvs_runtime::Ctx, key: u64) -> Result<&mut RowReader, Fault> {
+    ctx.open_reader_mut(key)
+        .and_then(|reader| reader.as_any_mut().downcast_mut::<RowReader>())
+        .ok_or_else(|| {
+            Fault::fatal(format!(
+                "{ROWS_NAME}::{} found no reader under the key in its `{}` slot",
+                nvs_runtime::sequence::ADVANCE,
+                ROWS.slots[ROWS_READER_AT]
+            ))
+        })
+}
+
+/// The next record of `key`'s walk, reading the file wherever the parked state
+/// has run out — `None` at the end of the document.
+///
+/// **The descriptor and the parse state are read in turn and never together**,
+/// because they are two tables of one context: a frame holding both borrows at
+/// once would not compile, and the chunk between them is a stack buffer rather
+/// than a third place either could be copied to.
+///
+/// # Errors
+///
+/// [`closed`]'s `RuntimeError` for a handle given up under the walk, an
+/// `IOError` for a read the operating system refused, and [`reader_at`]'s
+/// fatal for a key no walk filed.
+fn next_record(
+    ctx: &mut nvs_runtime::Ctx,
+    key: u64,
+    path: &Value,
+) -> Result<Option<NvsArray>, Fault> {
+    loop {
+        let reader = reader_at(ctx, key)?;
+        let file = reader.file;
+        match reader.step() {
+            Step::Record(record) => return Ok(Some(record)),
+            Step::End => return Ok(None),
+            Step::NeedInput => {}
+        }
+        let mut buffer = [0_u8; READ_CHUNK];
+        let read = {
+            let open = ctx.open_file_mut(file).ok_or_else(|| closed(path))?;
+            open.read(&mut buffer)
+        }
+        .map_err(|err| {
+            nvs_runtime::capability::io_failure(
+                "Core\\Csv::rows",
+                std::path::Path::new(path.as_text().unwrap_or("?")),
+                &err,
+            )
+        })?;
+        reader_at(ctx, key)?.feed(&buffer[..read]);
+    }
+}
+
+/// One step of the walk: the next record parked into [`ROWS_RECORD_AT`], and
+/// whether there was one.
+///
+/// # Errors
+///
+/// [`next_record`]'s, and a [`Fault::fatal`] for a receiver whose slots hold
+/// the wrong shape — this crate's paste error rather than a program's.
+fn rows_step(ctx: &mut nvs_runtime::Ctx, value: Value) -> Result<Value, Fault> {
+    let member = nvs_runtime::sequence::ADVANCE;
+    let receiver = crate::instance::receiver(value, &ROWS, member)?;
+    let key = crate::instance::slot(receiver, ROWS_READER_AT)
+        .as_uint()
+        .ok_or_else(|| {
+            Fault::fatal(format!(
+                "{ROWS_NAME}::{member} expected {:?} in its `{}` slot",
+                Tag::Uint,
+                ROWS.slots[ROWS_READER_AT]
+            ))
+        })?;
+    let path = crate::instance::slot(receiver, ROWS_PATH_AT);
+    // `set_slot` releases what it displaces, so the record the previous
+    // `advance()` parked is freed right here unless the loop body is still
+    // holding it — and the end of the walk clears the slot rather than leaving
+    // the last record in it, which is what makes the footprint one record
+    // whatever the document held.
+    match next_record(ctx, key, &path)? {
+        None => {
+            crate::instance::set_slot(receiver, ROWS_RECORD_AT, Value::null());
+            Ok(Value::bool(false))
+        }
+        Some(record) => {
+            crate::instance::set_slot(receiver, ROWS_RECORD_AT, Value::array(record));
+            Ok(Value::bool(true))
+        }
+    }
+}
+
+/// The record the last `advance()` read, with a reference of its own: the slot
+/// keeps its until the next step, so a loop body that keeps a record keeps a
+/// value nothing can invalidate.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for a receiver that is not one of this class's
+/// instances, which compiled code cannot produce.
+fn rows_record(value: Value, member: &str) -> Result<Value, Fault> {
+    let receiver = crate::instance::receiver(value, &ROWS, member)?;
+    let held = crate::instance::slot(receiver, ROWS_RECORD_AT);
+    #[expect(
+        unsafe_code,
+        reason = "the slot keeps its reference until the next `advance`, so the \
+                  value handed back needs one of its own"
+    )]
+    unsafe {
+        held.retain();
+    }
+    Ok(held)
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Csv::rows(Core\IO\File $file, {separator?, quote?, escape?,
+    /// header?: bool}): Core\Csv\Rows` — `fgetcsv`'s other half, as a value a
+    /// `foreach` walks.
+    ///
+    /// **Nothing is read here.** The dialect is checked, the parse state is
+    /// parked on the request, and the walk is answered standing on no record —
+    /// so the first read is the first `advance()`, and a program that names a
+    /// walk and never takes it has read nothing. This module's docs own what
+    /// the walk holds, why it is taken once, and why it needs no capability of
+    /// its own: the door is `Core\IO::open`'s and this handle has been through
+    /// it.
+    ///
+    /// # Errors
+    ///
+    /// [`dialect_byte`]'s and [`distinct`]'s, for a dialect that is not
+    /// distinct single ASCII bytes, and [`closed`]'s `RuntimeError` for a
+    /// handle that is already closed.
+    fn nvs_core_csv_rows(ctx, args: [5]) {
+        let (file, path) = crate::io::handle_of(args[0], "rows")?;
+        let separator = dialect_byte(&args[1], "rows", "separator")?;
+        let quote = dialect_byte(&args[2], "rows", "quote")?;
+        let escape = optional_dialect_byte(&args[3], "rows", "escape")?;
+        let header = boolean(&args[4], "rows", "the `header` option")?;
+        distinct(
+            &[Some(separator), Some(quote), escape]
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>(),
+            "rows",
+        )?;
+        // Refused where the program can still see which call was wrong, rather
+        // than at the first `advance()` inside a `foreach` header.
+        if ctx.open_file_mut(file).is_none() {
+            return Err(closed(&path));
+        }
+
+        #[expect(
+            unsafe_code,
+            reason = "the path is borrowed off the handle, which is live for the \
+                      length of this call, and the walk built below owns the \
+                      reference this takes"
+        )]
+        unsafe {
+            path.retain();
+        }
+        let key = ctx.hold_open_reader(Box::new(RowReader {
+            file,
+            reader: csv_core::ReaderBuilder::new()
+                .delimiter(separator)
+                .quote(quote)
+                .escape(escape)
+                .build(),
+            pending: Vec::new(),
+            at: 0,
+            field: Vec::new(),
+            cell: vec![0_u8; CELL],
+            record: Vec::new(),
+            names: Vec::new(),
+            header,
+            eof: false,
+            done: false,
+        }));
+        Ok(crate::instance::build(
+            &ROWS,
+            [Value::uint(key), path, Value::null()],
+        ))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Iterable<array<string>>::iterate(): Iterator<array<string>>` — the walk
+    /// itself, because the next record does not exist when the walk is named.
+    ///
+    /// Not a registered member: it is reached by name through this class's
+    /// method table, so its receiver is **transferred** rather than borrowed,
+    /// and handing that reference straight back out is what makes the cursor
+    /// the open walk rather than a copy of it.
+    fn nvs_core_csv_rows_iterate(_ctx, args: [1]) {
+        crate::instance::receiver(args[0], &ROWS, nvs_runtime::sequence::ITERATE)?;
+        Ok(args[0])
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Iterator<array<string>>::advance(): bool` — reads the next record off
+    /// the file, answering `false` at the end of the document and giving up
+    /// the walk's buffers there.
+    fn nvs_core_csv_rows_advance(ctx, args: [1]) {
+        let stepped = rows_step(ctx, args[0]);
+        crate::cursor::consume(args[0]);
+        stepped
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Iterator<array<string>>::current(): array<string>` — the record the
+    /// last `advance()` read, and the only one this walk is holding.
+    fn nvs_core_csv_rows_current(_ctx, args: [1]) {
+        let read = rows_record(args[0], nvs_runtime::sequence::CURRENT);
+        crate::cursor::consume(args[0]);
+        read
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use nvs_runtime::{Ctx, OutputSink, call};
 
-    use super::{NvsStr, Value, dialect_byte, distinct, write_field};
+    use super::{NvsStr, Tag, Value, dialect_byte, distinct, write_field};
 
     /// Runs one member through the `rule:errors/propagation` boundary compiled code reaches it
     /// at, releasing every value this test built afterwards — the helper
@@ -703,6 +1262,31 @@ mod tests {
         out
     }
 
+    /// One record's key/value pairs, in slot order — the shape both members
+    /// that answer records are read through, so a walked record and a parsed
+    /// one are compared as they are rather than as two shapes.
+    fn cells(record: &Value) -> Vec<(String, String)> {
+        let record = crate::arr::borrowed(record.array_ptr().expect("every record is an array"));
+        let mut out = Vec::new();
+        let mut slot = 0;
+        while let Some(live) = record.next_slot(slot) {
+            slot = live + 1;
+            let key = record.key_at(live).expect("a live slot has a key");
+            let value = record.value_at(live).expect("a live slot has a value");
+            out.push((
+                String::from_utf8(key.as_bytes().to_vec()).expect("a key is text"),
+                String::from_utf8(
+                    value
+                        .as_str_bytes()
+                        .expect("every cell is a string")
+                        .to_vec(),
+                )
+                .expect("a cell is text"),
+            ));
+        }
+        out
+    }
+
     /// Every row of a `parse` answer, as its key/value pairs in order.
     fn read(answer: &Value) -> Vec<Vec<(String, String)>> {
         let rows = crate::arr::borrowed(answer.array_ptr().expect("`parse` answers an array"));
@@ -710,30 +1294,9 @@ mod tests {
         let mut slot = 0;
         while let Some(live) = rows.next_slot(slot) {
             slot = live + 1;
-            let record = crate::arr::borrowed(
-                rows.value_at(live)
-                    .expect("a live slot has a value")
-                    .array_ptr()
-                    .expect("every row is an array"),
-            );
-            let mut cells = Vec::new();
-            let mut inner = 0;
-            while let Some(cell) = record.next_slot(inner) {
-                inner = cell + 1;
-                let key = record.key_at(cell).expect("a live slot has a key");
-                let value = record.value_at(cell).expect("a live slot has a value");
-                cells.push((
-                    String::from_utf8(key.as_bytes().to_vec()).expect("a key is text"),
-                    String::from_utf8(
-                        value
-                            .as_str_bytes()
-                            .expect("every cell is a string")
-                            .to_vec(),
-                    )
-                    .expect("a cell is text"),
-                ));
-            }
-            out.push(cells);
+            out.push(cells(
+                &rows.value_at(live).expect("a live slot has a value"),
+            ));
         }
         out
     }
@@ -840,5 +1403,242 @@ mod tests {
     fn two_dialect_options_naming_one_byte_throw() {
         assert!(distinct(b",,", "parse").is_err());
         assert!(distinct(b",\"\\", "parse").is_ok());
+    }
+
+    /// A path under the host's temporary directory that one case owns, with
+    /// anything a previous run left there removed.
+    fn scratch(name: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join("nvs-csv-rows");
+        std::fs::create_dir_all(&dir).expect("a temporary directory the tests own");
+        let path = dir.join(name);
+        let _ = std::fs::remove_file(&path);
+        path
+    }
+
+    /// A `Core\IO\File` over `path`, filed on `ctx` exactly as `Core\IO::open`
+    /// files one, and the key it went in under.
+    ///
+    /// The door is that member's and not this one's, which is why a case here
+    /// opens a descriptor without a capability: `rows` reads a handle that has
+    /// already been through it.
+    fn handle(ctx: &mut Ctx, path: &std::path::Path) -> (Value, u64) {
+        let file = std::fs::File::open(path).expect("the case wrote this file");
+        let key = ctx.hold_open_file(file);
+        let opened = crate::instance::build(
+            &crate::io::FILE,
+            [Value::uint(key), s(&path.display().to_string())],
+        );
+        (opened, key)
+    }
+
+    /// The walk `rows` answers over an open handle, at the default dialect —
+    /// taking over the handle's reference, as the member's caller does.
+    fn walk(ctx: &mut Ctx, file: Value, header: bool) -> Value {
+        let args = [file, s(","), s("\""), s(""), Value::bool(header)];
+        let answer = call(super::nvs_core_csv_rows, ctx, &args)
+            .expect("the default dialect over an open handle never throws");
+        for arg in &args {
+            #[expect(
+                unsafe_code,
+                reason = "this case owns the one reference it built for each \
+                          argument, and the helper borrowed rather than \
+                          consumed it"
+            )]
+            unsafe {
+                arg.release();
+            }
+        }
+        answer
+    }
+
+    /// One `advance()` of a walk.
+    fn advanced(ctx: &mut Ctx, rows: Value) -> bool {
+        super::rows_step(ctx, rows)
+            .expect("a walk over a readable file answers every step")
+            .as_bool()
+            .expect("`advance` answers a `bool`")
+    }
+
+    /// The record a walk is standing on, with the reference `current()` hands
+    /// its caller.
+    fn standing(rows: Value) -> Value {
+        super::rows_record(rows, nvs_runtime::sequence::CURRENT)
+            .expect("a walk answers the record it is standing on")
+    }
+
+    /// Drops the one reference this frame owns, exactly as a member's caller
+    /// would.
+    fn released(value: Value) {
+        #[expect(
+            unsafe_code,
+            reason = "the reference released here is the one the case owns, and \
+                      every other one is accounted for where it was taken"
+        )]
+        unsafe {
+            value.release();
+        }
+    }
+
+    /// How many owners hold `record` — the case's own reference plus whatever
+    /// the walk is still holding.
+    fn owners(record: &Value) -> usize {
+        let ptr = record.array_ptr().expect("every record is an array");
+        #[expect(
+            unsafe_code,
+            reason = "the case keeps a reference of its own to every record it \
+                      asks about, so each one is live for the whole test"
+        )]
+        unsafe {
+            nvs_runtime::NvsArray::refcount_of(ptr)
+        }
+    }
+
+    /// The walk is a read rather than a parse of something already read:
+    /// naming it takes no octets at all, each `advance()` answers the next
+    /// record, and what it answers is `parse`'s reading of the same document —
+    /// quoted field holding a separator and a terminator included, which is
+    /// what a reader fed a chunk at a time is liable to get wrong.
+    #[test]
+    fn csv_rows_reads_a_file_one_record_at_a_time() {
+        const DOCUMENT: &str = "name,note,qty\nfig,\"a, b\nc\",2\nplum,plain,7\n";
+
+        let path = scratch("orders.csv");
+        std::fs::write(&path, DOCUMENT).expect("the document this case walks");
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let (file, _) = handle(&mut ctx, &path);
+        let rows = walk(&mut ctx, file, true);
+        let receiver = rows.obj_ptr().expect("`rows` answers an object");
+        let key = crate::instance::slot(receiver, super::ROWS_READER_AT)
+            .as_uint()
+            .expect("the walk files its parse state under a key");
+
+        // Nothing is read by `rows` itself: no chunk taken, no end of file
+        // seen, and no header consumed.
+        let parked = super::reader_at(&mut ctx, key).expect("the walk parks its state");
+        assert!(
+            parked.pending.is_empty() && !parked.eof && parked.names.is_empty(),
+            "naming a walk reads no octets — the first read is the first `advance`"
+        );
+
+        let mut seen = Vec::new();
+        while advanced(&mut ctx, rows) {
+            let record = standing(rows);
+            seen.push(cells(&record));
+            released(record);
+        }
+
+        assert_eq!(
+            seen,
+            parse(DOCUMENT, true),
+            "a walked document and a parsed one are one reading of the same bytes"
+        );
+        assert_eq!(seen.len(), 2, "the header is consumed and is not a record");
+        assert_eq!(keys(&seen[0]), ["name", "note", "qty"]);
+        assert_eq!(fields(&seen[0]), ["fig", "a, b\nc", "2"]);
+        assert_eq!(fields(&seen[1]), ["plum", "plain", "7"]);
+
+        assert_eq!(
+            crate::instance::slot(receiver, super::ROWS_RECORD_AT).tag(),
+            Some(Tag::Null),
+            "the end of the walk clears the record rather than leaving the last one in it"
+        );
+        released(rows);
+    }
+
+    /// The member's promise, measured where [`super::rows_step`] keeps it: a
+    /// walk over a document of any size holds one record and a bounded read
+    /// buffer, never the document.
+    ///
+    /// **Asserted by weighing the parked reader after every step and by
+    /// counting the records the walk still owns**, rather than by reading the
+    /// slot: a member that read the file in and parsed it would answer every
+    /// record correctly and fail the first weighing, and one that cleared
+    /// nothing at the end would pass both and fail the line after them. A
+    /// document many reads long, because the number the answer must not depend
+    /// on is the document's size.
+    #[test]
+    fn csv_rows_holds_one_record_and_never_the_document() {
+        const RECORDS: usize = 4_000;
+
+        let mut document = String::from("id,amount\n");
+        for n in 0..RECORDS {
+            document.push_str(&format!("{n},{}\n", n * 3));
+        }
+        assert!(
+            document.len() > super::READ_CHUNK * 4,
+            "the document has to be several reads long for the bound below to mean anything"
+        );
+        let path = scratch("ledger.csv");
+        std::fs::write(&path, &document).expect("the document this case walks");
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let (file, _) = handle(&mut ctx, &path);
+        let rows = walk(&mut ctx, file, true);
+        let receiver = rows.obj_ptr().expect("`rows` answers an object");
+        let key = crate::instance::slot(receiver, super::ROWS_READER_AT)
+            .as_uint()
+            .expect("the walk files its parse state under a key");
+
+        // One reference of the case's own per record, so that a record the
+        // walk has let go of is still live enough to be counted.
+        let mut held: Vec<Value> = Vec::new();
+        let mut heaviest = 0;
+        while advanced(&mut ctx, rows) {
+            let record = standing(rows);
+            assert_eq!(
+                owners(&record),
+                2,
+                "the slot and the caller of `current` are a record's two owners"
+            );
+            if let Some(previous) = held.last() {
+                assert_eq!(
+                    owners(previous),
+                    1,
+                    "parking a record releases the one before it"
+                );
+            }
+            held.push(record);
+
+            let parked = super::reader_at(&mut ctx, key).expect("the walk parks its state");
+            heaviest = heaviest.max(
+                parked.pending.len()
+                    + parked.cell.len()
+                    + parked.field.len()
+                    + parked.record.iter().map(Vec::len).sum::<usize>()
+                    + parked.names.iter().map(Vec::len).sum::<usize>(),
+            );
+        }
+
+        assert_eq!(
+            held.len(),
+            RECORDS,
+            "every record of the document is walked"
+        );
+        assert!(
+            heaviest <= super::READ_CHUNK + super::CELL + 128,
+            "a walk holds one chunk, one field's buffer and one record — it held {heaviest} \
+             bytes over a document of {}",
+            document.len()
+        );
+        assert!(
+            held.iter().all(|record| owners(record) == 1),
+            "the end of the walk holds no record at all"
+        );
+
+        let parked = super::reader_at(&mut ctx, key).expect("the entry outlives the walk");
+        assert!(
+            parked.done && parked.pending.is_empty() && parked.cell.is_empty(),
+            "the end of the walk gives up its buffers rather than holding them for the request"
+        );
+        assert!(
+            !advanced(&mut ctx, rows),
+            "a drained walk answers no records rather than faulting"
+        );
+
+        for record in held {
+            released(record);
+        }
+        released(rows);
     }
 }

@@ -1,0 +1,82 @@
+--TEST--
+A document walked with `Core\Csv::rows` and one read whole with `Core\Csv::parse` divide the same bytes the same way, across a read boundary and every ragged shape — spec § 12's second table
+--FILE--
+<?nvs
+// The agreement, asked of both members over the shapes where a fed-buffer
+// reader and a whole-slice one could part company. Neither answer is written
+// out: what is asserted is that the two *agree*, so a walk that grew its own
+// idea of a record would fail here while still reading plausibly on its own.
+array<string> $docs = [
+    "a,b\n1,2\n3,4\n",
+    "a,b\n1,2,3\n4\n",
+    "x,y\n\"p\nq\",\"r,s\"\n",
+    "a\n\nb\n",
+    "a,b\r\nc,d\r\n",
+    "a,b",
+    "",
+];
+
+int $n = 0;
+int $agree = 0;
+
+foreach ($docs as string $doc) {
+    $n = $n + 1;
+
+    Core\IO\File $out = Core\IO::open("one.csv", Core\IO\FileMode::Write);
+    $out->write($doc);
+    $out->close();
+
+    Core\IO\File $in = Core\IO::open("one.csv", Core\IO\FileMode::Read);
+    string $walked = "";
+    foreach (Core\Csv::rows($in) as array<string> $record) {
+        foreach ($record as string $field) {
+            $walked = $walked . $field . "|";
+        }
+        $walked = $walked . ";";
+    }
+    $in->close();
+
+    string $whole = "";
+    foreach (Core\Csv::parse($doc) as array<string> $record) {
+        foreach ($record as string $field) {
+            $whole = $whole . $field . "|";
+        }
+        $whole = $whole . ";";
+    }
+
+    if ($walked == $whole) {
+        $agree = $agree + 1;
+    }
+}
+
+echo "documents ", $n, "\n";
+echo "agree ", $agree, "\n";
+
+// A document several reads long is the case the agreement above cannot reach
+// with a literal: every record here straddles nothing, but the reader's chunk
+// boundary lands in the middle of one of them, and a field that did not
+// survive it would show up as a record that is not `alpha,beta`.
+string $big = "k,v\n" . Core\Str::repeat("alpha,beta\n", 2000);
+Core\IO\File $sink = Core\IO::open("big.csv", Core\IO\FileMode::Write);
+$sink->write($big);
+$sink->close();
+
+Core\IO\File $source = Core\IO::open("big.csv", Core\IO\FileMode::Read);
+int $long = 0;
+int $intact = 0;
+foreach (Core\Csv::rows($source, {header: true}) as array<string> $record) {
+    $long = $long + 1;
+    if ($record["k"] == "alpha" && $record["v"] == "beta") {
+        $intact = $intact + 1;
+    }
+}
+$source->close();
+echo "long records ", $long, " intact ", $intact, "\n";
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+documents 7
+agree 7
+long records 2000 intact 2000

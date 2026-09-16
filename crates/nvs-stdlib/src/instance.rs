@@ -209,6 +209,19 @@ const DISPATCH_ROSTER: &[(&str, &[(&str, &str)])] = &[
             (sequence::CURRENT, crate::db::STREAM_CURRENT_SYMBOL),
         ],
     ),
+    // And spec § 12's walk over a CSV file's records, which makes the same
+    // argument over a descriptor: a record does not exist until the `advance`
+    // that answers it has read that far. `crate::csv`'s `ROWS` docs are where
+    // it is made, beside why `Core\IO\Lines` — which holds its lines — hands a
+    // [`crate::cursor`] back instead.
+    (
+        crate::csv::ROWS_NAME,
+        &[
+            (sequence::ITERATE, crate::csv::ROWS_ITERATE_SYMBOL),
+            (sequence::ADVANCE, crate::csv::ROWS_ADVANCE_SYMBOL),
+            (sequence::CURRENT, crate::csv::ROWS_CURRENT_SYMBOL),
+        ],
+    ),
     // A streamed reply's three framings, which carry all three names for the
     // reason every walk above does: an event, a line and a chunk are framed off
     // the reply by the `advance` that answers them, so none of them exists when

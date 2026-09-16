@@ -2186,19 +2186,24 @@ fn access_of(value: &Value) -> Result<Access, Fault> {
     }
 }
 
-/// The key and the path a [`FILE`] receiver holds — everything its three
-/// members read out of their receiver, so that none of them spells the slot
-/// indices itself.
+/// The key and the path a [`FILE`] receiver holds — everything a member reads
+/// out of that receiver, so that none of them spells the slot indices itself.
 ///
 /// The path is **borrowed** from the receiver, which the caller owns for the
 /// length of the call.
+///
+/// `pub(crate)` because a handle is an argument as well as a receiver:
+/// [`crate::csv`]'s `rows` opens its walk on a file this class already has
+/// open, and reads the descriptor back through the same table these members do.
+/// A caller outside this module names its own member in `member`, since that is
+/// what the messages below are for.
 ///
 /// # Errors
 ///
 /// A `Fault::fatal` if the receiver is not one of this class's instances or a
 /// slot holds the wrong tag, on [`held_lines`]' reading: both slots are written
 /// by [`nvs_core_io_open`] and by nothing else.
-fn handle_of(value: Value, member: &str) -> Result<(u64, Value), Fault> {
+pub(crate) fn handle_of(value: Value, member: &str) -> Result<(u64, Value), Fault> {
     let receiver = crate::instance::receiver(value, &FILE, member)?;
     let key = crate::instance::slot(receiver, FILE_SLOT)
         .as_uint()

@@ -1,0 +1,44 @@
+--TEST--
+`Core\Csv::rows` walks an open file a record at a time, keying each record by the header and reading nothing until the walk is taken — spec § 12's second table, `rule:core-api/verb-lexicon`
+--FILE--
+<?nvs
+// The document holds the two things a reader fed a chunk at a time has to get
+// right: a quoted field holding the separator, and a quoted field holding a
+// terminator. Either one read as structure would change the record count.
+Core\IO\File $out = Core\IO::open("orders.csv", Core\IO\FileMode::Write);
+$out->write("name,qty,note\nfig,2,ripe\nplum,10,\"a, b\"\ndate,1,\"two\nlines\"\n");
+$out->close();
+
+Core\IO\File $in = Core\IO::open("orders.csv", Core\IO\FileMode::Read);
+// Naming a walk reads nothing — the handle is still at the start of the file,
+// so the first read is the first step of the `foreach` below. That is the
+// difference from `Core\IO::lines`, which has read the whole file by the time
+// it answers.
+var $walk = Core\Csv::rows($in, {header: true});
+echo "at ", $in->tell(), "\n";
+
+int $records = 0;
+string $keyed = "";
+string $notes = "";
+foreach ($walk as array<string> $record) {
+    $records = $records + 1;
+    // Keyed by the header's names, which is what `{header: true}` buys: a
+    // walk over an unkeyed document would answer under "0" and "1" here.
+    $keyed = $keyed . $record["name"] . "=" . $record["qty"] . ";";
+    $notes = $notes . "[" . $record["note"] . "]";
+}
+// Three records and not four: the header is consumed and is not one of them.
+echo "records ", $records, "\n";
+echo "keyed ", $keyed, "\n";
+echo "notes ", $notes, "\n";
+$in->close();
+--FILE nvs.toml--
+[capabilities.fs]
+read = ["."]
+write = ["."]
+--EXPECT--
+at 0
+records 3
+keyed fig=2;plum=10;date=1;
+notes [ripe][a, b][two
+lines]

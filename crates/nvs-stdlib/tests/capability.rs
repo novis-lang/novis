@@ -673,18 +673,30 @@ fn an_open_file_is_an_object_and_never_a_resource() {
     );
 
     // The invariant the sweep is for, and the one a member added later would
-    // break without any single row looking wrong: **nothing anywhere in `Core`
-    // accepts an open file as an argument.** That is `fread($handle, 8)`
-    // refused as a shape, across the whole library rather than at the one place
-    // a reviewer thought to look.
+    // break without any single row looking wrong: **an operation on an open
+    // file is reached through it.** That is `fread($handle, 8)` refused as a
+    // shape, across the whole library rather than at the one place a reviewer
+    // thought to look.
+    //
+    // `rule:core-api/a-lifetime-is-an-object` admits a reader that neither
+    // opens nor closes the handle and lives on the class owning a *grammar*,
+    // and this is the roster of them: `crates/nvs-stdlib/src/csv.rs`'s own
+    // decision section argues the one entry, and a second format that reads
+    // incrementally joins it here rather than growing a member on
+    // `Core\IO\File`. Nothing on this list may open, close or position a
+    // handle — those are members of the object, which is what the rest of this
+    // case pins.
+    const READERS: &[&str] = &[r"Core\Csv::rows"];
+
     let mut takers = Vec::new();
     for class in nvs_stdlib::registry::CLASSES {
         for method in class.methods.iter().chain(class.instance) {
             let takes_a_handle = method.params.iter().any(|param| {
                 matches!(param, nvs_stdlib::registry::CoreTy::Instance(name) if *name == FILE)
             });
-            if takes_a_handle {
-                takers.push(format!("{}::{}", class.name, method.name));
+            let named = format!("{}::{}", class.name, method.name);
+            if takes_a_handle && !READERS.contains(&named.as_str()) {
+                takers.push(named);
             }
         }
     }
