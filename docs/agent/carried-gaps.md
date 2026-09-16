@@ -76,29 +76,15 @@ where taking it is the work and the code that follows it is not.
   the curve is ever the request path's problem at all: a table of tens of rows may never measure, so
   the decision is a measurement on `benches/serve-proxied.json`'s arms and the code that follows it
   is one function. `crates/nvs-runtime/src/routes.rs` gap 1. [until: reviewed 2026-09-10]
-- **A closure is recognized by the `invoke` method on its class**, the same test `call_closure` makes,
-  so a `mixed` carrying a user class that declares an `invoke` of its own is refused as a closure when
-  a graph holding it is copied. `rule:types/declaration` makes that a compile-time rejection at nearly
-  every copy site, so what is left is narrow, and what has to be decided is whether a closure earns a
-  bit of its own on the class descriptor rather than a member-name test — a representation question
-  that answers for both callers at once. `crates/nvs-runtime/src/graph.rs` gap 1.
-  [until: reviewed 2026-09-10]
-- **An encoded `Core` instance does not decode**, because `decode` resolves a class through the
-  program's table only, so a `Core\Time\Instant` that crossed comes back unresolvable rather than
-  rebuilt. The table it would need is `nvs_stdlib::instance`'s, and this crate cannot reach it —
-  `crates/nvs-runtime/Cargo.toml:56` says outright that it cannot call `nvs-stdlib`. What has to be
-  decided is whether that resolver is *installed* on `Ctx` at boot, the way the route and command
-  tables are, or whether a `Core` instance stays outside what `Core\Serialize` round-trips.
-  `crates/nvs-runtime/src/graph.rs` gap 2. [until: reviewed 2026-09-10]
-- **An object holding a host handle crosses the copy**, which `rule:classes/graph-copy` names as one of
-  its three refusals and no carrier makes: a `Core\Http\Socket` passed to `spawn script … with(args:)`
-  arrives in the child with every slot intact, and each `Core` class whose slot holds a key into a
-  request's own table is in the same position. The copied key indexes the *receiving* side's table, so
-  it reads whatever that side opened at that index rather than nothing. What has to be decided is where
-  the mark saying a class holds a handle lives — a bit on the class descriptor, which is the same
-  representation question gap 1 asks for a closure, or the declared type at the copy site — and it
-  answers for every `Core` class at once. `crates/nvs-runtime/src/graph.rs` gap 3.
-  [until: reviewed 2026-09-13]
+- **A decoded `Core` instance is a `mixed` a program cannot narrow**, so the round trip is reachable
+  through `Core\Debug` and through anything taking a `mixed`, and not by naming the class. The value
+  itself comes back under its own descriptor — a `Core\Time\Date` arrives as one, slots intact — and the
+  checker refuses both ways of binding it: `E0496`, since `instanceof` finds no descriptor to walk, and
+  `E0711`, since `rule:types/conversion` tabulates no conversion into one. What has to be decided is
+  whether `instanceof` learns the descriptor address `nvs_stdlib::class_descriptors` already hands the
+  backend for a folded `` html`…` `` constant, or whether naming a `Core` class at a decode site stays
+  refused and `mixed` is the whole surface. `crates/nvs-runtime/src/graph.rs` gap 1.
+  [until: reviewed 2026-09-16]
 - **A division whose intermediate exceeds 128 bits throws where the quotient would have fit**, in the
   one corner where a wide mantissa and a wide scale difference meet: the fold of the two operands'
   scales is a `checked_mul` over `u128` taken before the divide. ADR 0054 § *Consequences* already

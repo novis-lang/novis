@@ -47,16 +47,15 @@ One file set: `crates/nvs-ir/src/lower/`, `crates/nvs-runtime/src/`, `crates/nvs
 - **Decided**: `crates/nvs-runtime/src/lib.rs` gaps 1, 2, 6, 7 (value tags, string reuse, runtime
   exception context, the in-flight collector); `crates/nvs-ir/src/lib.rs` gap 18 (a throw from an
   abandoned generator's `finally`); `crates/nvs-runtime/src/array.rs` gap 1, `commands.rs` gap 1,
-  `decimal.rs` gap 1, `graph.rs` gaps 1–2, `routes.rs` gap 1.
+  `decimal.rs` gap 1, `routes.rs` gap 1.
 
 ## Stage 3 — the checker and the front end
 
 One file set: `crates/nvs-types/src/`, `crates/nvs-hir/src/`, `crates/nvs-syntax/src/`,
 `crates/nvs-diagnostics/src/`.
 
-- **Builds**: `crates/nvs-hir/src/requires.rs` gap 2 (one double-quoted cooker in `nvs-syntax`, shared
-  with `crates/nvs-ir/src/lower/expr.rs:119`), gap 3 (the harvest's wildcard arms made exhaustive,
-  `requires.rs:703`, `:705`, `:910`, `:975`, `:1018`, `:1191`, `:1245`), gap 4 (`Probe::tried` folded into the
+- **Builds**: `crates/nvs-hir/src/requires.rs` gap 2 (the harvest's wildcard arms made exhaustive,
+  `requires.rs:703`, `:705`, `:910`, `:975`, `:1018`, `:1191`, `:1245`), gap 3 (`Probe::tried` folded into the
   unit key, `crates/nvs-config/src/cache.rs:36-37`, `crates/nvs-cli/src/script.rs:164`);
   `crates/nvs-types/src/ctor_init.rs` gap 2 and `lateinit.rs` gap 2 (both `scan_expr` walks exhaustive,
   closure bodies deliberately not counted).
