@@ -1,0 +1,49 @@
+--TEST--
+A reflective write runs the property's `set` hook, the way a write at any other access spelling does — `rule:core-classes/reflect`, `rule:security/reflection-enforces-visibility` and `rule:classes/property-hooks`
+--FILE--
+<?nvs
+// `rule:classes/property-hooks`: a hooked property's write is a call to its
+// `set`, at every access spelling alike — and inside the hook the property
+// names its own backing slot, which is what lets this one transform the value
+// it commits without recursing.
+class Label {
+    public string $shout {
+        set(string $v) { $this->shout = $v . "!"; }
+    }
+    public string $plain;
+
+    public function constructor(string $shout) {
+        $this->shout = $shout;
+        $this->plain = "as written";
+    }
+}
+
+// The constructor's own assignment is a write like any other, so the hook has
+// already run once by the time anything below reads the slot.
+var $label = new Label("start");
+echo $label->shout, "\n";
+
+// An ordinary write, for the answer the reflective one has to match.
+$label->shout = "here";
+echo $label->shout, "\n";
+
+// `rule:core-classes/reflect`: the write through the description reaches the
+// same hook. Writing past it would leave the class's own invariant advisory
+// for anything holding a description, which is exactly what
+// `rule:security/reflection-enforces-visibility` refuses.
+var $described = Core\Reflect::forObject($label);
+$described->set($label, "shout", "there");
+echo $label->shout, "\n";
+echo $described->get($label, "shout"), "\n";
+
+// And a property that declares no hook is still written straight to its slot:
+// the hook branch is the access spelling that had no class to resolve
+// against, not a second way of storing.
+$described->set($label, "plain", "rewritten");
+echo $label->plain, "\n";
+--EXPECT--
+start!
+here!
+there!
+there!
+rewritten

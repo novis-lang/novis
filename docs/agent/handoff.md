@@ -3,58 +3,51 @@
 ## State
 
 Goal `m8-stdlib-depth`. **Stages 0, 2, 3, 4 and 5 are done, and stage 6 is open on `Core\Reflect`.**
-`ClassInfo::construct` is the third acting member ADR 0019 § 2 names and it is on disk: it resolves
-the described class by name through `Ctx::class_desc` and hands it to
-`nvs_runtime::construct_erased_from` (`crates/nvs-runtime/src/dispatch.rs:479`), which allocates and
-then routes the constructor through `call_erased_method_from`'s own check with this call site. So a
-`private` constructor builds from its own class's bodies and is refused everywhere else, in the erased
-door's own sentence, and `$arguments` meets the constructor's arity and tags at that one check.
-`registry.rs:2991` carries its `CALL_SITE_MEMBERS` row. Nothing is blocked.
+Stage 6's five named `.nvst` cases are all on disk and green: a hooked property written reflectively
+now runs its `set` hook, because a class's hooks reach its runtime descriptor.
+`nvs_types::layout::ClassLayout::hooks` collects `(property, hook label, is the `set` accessor)` and
+flattens it on `methods`' precedence, `nvs_ir::ir::Class::hooks` copies it down, both binders join the
+compiled address on, and `nvs_runtime::ClassDesc::hook_row` answers it — which
+`write_erased_property` calls before it ever reaches a slot. Nothing is blocked.
 
-Four of stage 6's five named cases are green; the hooked write is the one left, and **its premise was
-wrong in the last handoff**: a `set` hook is not reachable from a runtime descriptor at all. A hook
-compiles to an ordinary function labelled `Class::$prop::set`
-(`crates/nvs-types/src/signatures.rs:395`), but `ClassLayout::methods`
-(`crates/nvs-types/src/layout.rs:102`) carries methods with a body and nothing else, so no hook has a
-`MethodRow` and `ClassDesc` has no other field holding one. Running the hook on a reflective write is
-therefore a four-crate slice, which is the group below and why this session took one item.
+**A floor regression was the acceptance failure, not unwritten work.** Commit `abdc729b6` had renamed
+the test a carried floor check pins; the name is restored and this goal's own stage-5 check names it.
+The playbook bullet above is the general shape.
 
-`every_reflect_info_class_the_record_names_is_registered` is still deliberately unwritten:
-`crates/nvs-stdlib/src/reflect.rs:116` gap 1 names what each of the five absent classes waits on, and
-it lands with the last of them.
+What stage 6 still owes is `every_reflect_info_class_the_record_names_is_registered`:
+`crates/nvs-stdlib/src/reflect.rs:116` gap 1 names the five absent `*Info` classes and what each waits
+on. The near pair is the group below, and it is the journey this session just built, one datum over.
 
 ## Next group
 
-**Stage 6: the `set` hook, carried down to the descriptor** — one file set:
+**Stage 6: `PropertyInfo` and `ParameterInfo`, carried down the same four crates** — one file set:
 `crates/nvs-types/src/layout.rs`, `crates/nvs-ir/src/ir.rs`, `crates/nvs-codegen/src/lib.rs`,
-`crates/nvs-runtime/src/object.rs` and `tests/conformance/core/`. The goal's § *Standing decisions*
-pre-authorizes it — "a reflective write runs the `set` hook", priority 2 over the erased store's
-simplicity — and `rule:classes/property-hooks` is the rule.
+`crates/nvs-runtime/src/object.rs` and `crates/nvs-stdlib/src/reflect.rs`. `rule:core-classes/reflect`
+is the rule; the goal's § *Standing decisions* pre-authorizes the shape, and
+`crates/nvs-stdlib/src/reflect.rs:116` gap 1 says each of these waits on descriptor data rather than
+on a decision.
 
-- [ ] **A class's hooks reach its runtime descriptor** — a per-class roster of
-      `(property name, hook label)` beside the method one, flattened the same way:
-      `crates/nvs-types/src/layout.rs:102` is where it is built, `crates/nvs-ir/src/ir.rs:174` copies
-      it down, and both binders join the address on — `crates/nvs-codegen/src/lib.rs:956` (the AOT
-      `bind`, which spells the label `{declaring}::{method}`, already exactly
-      `nvs_types::signatures::hook_label`'s format at `crates/nvs-types/src/signatures.rs:395`) and
-      `crates/nvs-codegen/src/lib.rs:2018` (`bind_method_tables`, the JIT one). Keep it off
-      `ClassDesc::method_row`: `rule:classes/property-hooks` makes a hook an accessor and not a
-      method, and `Core\Reflect\ClassInfo::methods` reads that roster.
-- [ ] **A write through an erased receiver runs the `set` hook** — `crates/nvs-runtime/src/object.rs:3897`
-      is `write_erased_property`, whose doc comment states the gap in its own words; the hook call
-      replaces the slot store, and the observer step below it already reads the committed slot back,
-      which is what `rule:classes/property-hooks` asks for. Both callers close at once — the plain
-      erased write and `Core\Reflect\ClassInfo::set` — so `crates/nvs-stdlib/src/reflect.rs:143`
-      gap 3 is struck in the same slice.
-- [ ] **The named case** — `tests/conformance/core/reflect-a-hooked-property-written-reflectively-runs-its-set-hook.nvst`,
-      stage 6's fourth case, asserting the hook's transform through `ClassInfo::set` and through an
-      ordinary erased write beside it. `crates/nvs-stdlib/src/reflect.rs:1290` is `ClassInfo::set`'s
-      body, which needs no edit if the runtime closes it.
+- [ ] **A property's declared type reaches its descriptor as a printable name** — the roster the hook
+      one is now beside: `crates/nvs-types/src/layout.rs:61` builds it,
+      `crates/nvs-ir/src/ir.rs:186` copies it down, `crates/nvs-codegen/src/lib.rs:1213` carries it to
+      `nvs_runtime::ClassTable`, and `crates/nvs-runtime/src/object.rs:290` holds it. A
+      `nvs_runtime::Tag` is not enough — `?int`, `array<string>` and a class are one tag or none.
+- [ ] **`Core\Reflect\PropertyInfo` is registered over it** — the five edits, roster at
+      `crates/nvs-stdlib/src/reflect.rs:373`, beside `METHOD_INFO` at
+      `crates/nvs-stdlib/src/reflect.rs:754`. Its walk answers what the calling site may read, which is
+      `nvs_core_reflect_class_info_properties`' rule at `crates/nvs-stdlib/src/reflect.rs:392`.
+- [ ] **`Core\Reflect\ParameterInfo` beside it** — a parameter's *name* has no home below the front
+      end either, so it travels the first item's road; `crates/nvs-stdlib/src/reflect.rs:116` gap 1 is
+      what it closes half of.
 
 ## Backlog
 
-- The erased **read** bypasses a `get` hook the same way — `crates/nvs-runtime/src/object.rs:3619`.
-- `PropertyInfo` and the four `*Info` classes left — `crates/nvs-stdlib/src/reflect.rs:116` gap 1.
-- A `protected` member reached from a subclass is refused — `crates/nvs-stdlib/src/reflect.rs:133` gap 2.
-- `Core\Reflect\ClassInfo::methods` lists `constructor` like any other row; whether a constructor
-  belongs in a method roster is unasked — `docs/decisions/0019.md` § 1.
+- An erased **read** still goes past a `get` hook — `crates/nvs-runtime/src/object.rs:3735` owns the
+  gap; closing it needs a `Ctx` threaded through `read_erased_property_hinted`, which today has none.
+- `ConstantInfo`, `AttributeInfo` and `EnumInfo` are the far three: a descriptor carries no constants,
+  attributes or enum cases at all — `crates/nvs-stdlib/src/reflect.rs:116` gap 1.
+- A `protected` member is reached reflectively from the declaring class alone, not from a subclass —
+  `crates/nvs-stdlib/src/reflect.rs` gap 2, which fails closed.
+- `[context] modules` names none of `crates/nvs-runtime/src/object.rs`,
+  `crates/nvs-codegen/src/lib.rs` or `crates/nvs-ir/src/ir.rs`, which stage 6's work has now spent
+  three sessions in; the ledger has flagged it each time and it is left for a person to narrow.
