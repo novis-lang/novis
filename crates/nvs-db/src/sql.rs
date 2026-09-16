@@ -50,11 +50,21 @@
 //! question mark, and why that escape is the one piece of syntax this rewriter
 //! adds to SQL rather than removing.
 //!
-//! **Malformed SQL is the server's diagnosis, not ours.** An unterminated quote
-//! or comment ends the scan at the end of the text and the statement goes out to
-//! be rejected by a parser that can say what is actually wrong with it. The
-//! errors below are only the ones about *placeholders and arguments*, which the
-//! server cannot see because it never receives the original spelling.
+//! **A region the text never leaves is this module's own refusal.** A `'…'`, a
+//! `"…"`, a backtick- or bracket-quoted name, a `$tag$…$tag$` body or a `/*…*/`
+//! comment with no closing delimiter makes the scan read every byte after it as
+//! being inside it, so what [`rewrite`] binds is what fits inside an opening
+//! delimiter rather than what was written — and it refuses rather than send a
+//! statement bound against that. `rule:core-classes/db-literal-query-checking`
+//! asks for the same refusal while compiling a literal query, and that one can
+//! be made only because this one is made here. A `--` or `#` comment opens
+//! nothing and ends at the end of the text legitimately.
+//!
+//! **The rest of malformed SQL is the server's diagnosis, not ours.** A text
+//! whose regions all close goes out to be rejected by a parser that can say what
+//! is actually wrong with it. The errors below are otherwise only the ones about
+//! *placeholders and arguments*, which the server cannot see because it never
+//! receives the original spelling.
 
 use std::io;
 
@@ -491,6 +501,9 @@ impl StatementCache<String> {
 /// rather than answers from a server, and this crate builds no fault of its own
 /// (`Cargo.toml` § 1 is the rule):
 ///
+/// - a string literal, a quoted name, a `$tag$` body or a `/*` comment the text
+///   opens and never closes, which leaves every byte after it read as being
+///   inside it;
 /// - the SQL's spelling disagrees with the arguments' — a `:name` against a
 ///   list-keyed array, or a `?` against a string-keyed one;
 /// - a positional statement has more or fewer `?` than arguments;
@@ -516,17 +529,35 @@ pub fn rewrite(sql: &str, params: Params<'_>, dialect: Dialect) -> io::Result<St
 
     while i < bytes.len() {
         match bytes[i] {
-            b'\'' => i = skip_quoted(bytes, i, b'\'', dialect.backslash_escapes()),
-            b'"' => i = skip_quoted(bytes, i, b'"', dialect.backslash_escapes()),
-            b'`' if dialect.backtick_quotes() => i = skip_quoted(bytes, i, b'`', false),
-            b'[' if dialect.bracket_quotes() => i = skip_bracket(bytes, i),
+            b'\'' => {
+                let quoted = skip_quoted(bytes, i, b'\'', dialect.backslash_escapes());
+                i = closed(quoted, "a `'` string literal", i)?;
+            }
+            b'"' => {
+                let quoted = skip_quoted(bytes, i, b'"', dialect.backslash_escapes());
+                i = closed(quoted, "a `\"` quoted region", i)?;
+            }
+            b'`' if dialect.backtick_quotes() => {
+                i = closed(
+                    skip_quoted(bytes, i, b'`', false),
+                    "a backtick-quoted name",
+                    i,
+                )?;
+            }
+            b'[' if dialect.bracket_quotes() => {
+                i = closed(skip_bracket(bytes, i), "a `[` quoted name", i)?;
+            }
             b'-' if bytes.get(i + 1) == Some(&b'-') => i = skip_line(bytes, i),
             b'#' if dialect.hash_comments() => i = skip_line(bytes, i),
             b'/' if bytes.get(i + 1) == Some(&b'*') => {
-                i = skip_block(bytes, i, dialect.nested_block_comments());
+                let comment = skip_block(bytes, i, dialect.nested_block_comments());
+                i = closed(comment, "a `/*` comment", i)?;
             }
             b'$' if dialect.dollar_quotes() => {
-                i = skip_dollar(bytes, i).unwrap_or(i + 1);
+                i = match skip_dollar(bytes, i) {
+                    Some(body) => closed(body, "a `$…$` body", i)?,
+                    None => i + 1,
+                };
             }
             // A cast, not a name. `::` is the reason a `:` alone is not enough
             // to start one.
@@ -635,7 +666,7 @@ pub fn holds_a_second_statement(sql: &str, dialect: Dialect) -> bool {
                 continue;
             }
             b'/' if bytes.get(i + 1) == Some(&b'*') => {
-                i = skip_block(bytes, i, dialect.nested_block_comments());
+                i = skip_block(bytes, i, dialect.nested_block_comments()).or_end(bytes.len());
                 continue;
             }
             b';' => {
@@ -655,13 +686,70 @@ pub fn holds_a_second_statement(sql: &str, dialect: Dialect) -> bool {
             return true;
         }
         i = match bytes[i] {
+            b'\'' => skip_quoted(bytes, i, b'\'', dialect.backslash_escapes()).or_end(bytes.len()),
+            b'"' => skip_quoted(bytes, i, b'"', dialect.backslash_escapes()).or_end(bytes.len()),
+            b'`' if dialect.backtick_quotes() => {
+                skip_quoted(bytes, i, b'`', false).or_end(bytes.len())
+            }
+            b'[' if dialect.bracket_quotes() => skip_bracket(bytes, i).or_end(bytes.len()),
+            b'$' if dialect.dollar_quotes() => match skip_dollar(bytes, i) {
+                Some(body) => body.or_end(bytes.len()),
+                None => i + 1,
+            },
+            _ => i + 1,
+        };
+    }
+    false
+}
+
+/// Whether `sql` opens a region it never closes —
+/// `rule:core-classes/db-literal-query-checking`'s "an unterminated string
+/// literal", as the question [`rewrite`] answers by refusing, asked of a text
+/// with no arguments written beside it.
+///
+/// That is the shape the compile-time half needs: a literal query whose params
+/// array the checker could not read whole has nothing to hand [`rewrite`] as
+/// [`Params`], and the quoting is a fact about the text either way. It enters
+/// the regions that function enters, through the same helpers, so the two agree
+/// by construction rather than by being kept in step.
+#[must_use]
+pub fn holds_an_unterminated_region(sql: &str, dialect: Dialect) -> bool {
+    let bytes = sql.as_bytes();
+    let mut i = 0usize;
+
+    while i < bytes.len() {
+        let region = match bytes[i] {
             b'\'' => skip_quoted(bytes, i, b'\'', dialect.backslash_escapes()),
             b'"' => skip_quoted(bytes, i, b'"', dialect.backslash_escapes()),
             b'`' if dialect.backtick_quotes() => skip_quoted(bytes, i, b'`', false),
             b'[' if dialect.bracket_quotes() => skip_bracket(bytes, i),
-            b'$' if dialect.dollar_quotes() => skip_dollar(bytes, i).unwrap_or(i + 1),
-            _ => i + 1,
+            b'/' if bytes.get(i + 1) == Some(&b'*') => {
+                skip_block(bytes, i, dialect.nested_block_comments())
+            }
+            b'-' if bytes.get(i + 1) == Some(&b'-') => {
+                i = skip_line(bytes, i);
+                continue;
+            }
+            b'#' if dialect.hash_comments() => {
+                i = skip_line(bytes, i);
+                continue;
+            }
+            b'$' if dialect.dollar_quotes() => match skip_dollar(bytes, i) {
+                Some(body) => body,
+                None => {
+                    i += 1;
+                    continue;
+                }
+            },
+            _ => {
+                i += 1;
+                continue;
+            }
         };
+        match region {
+            Region::Ends(end) => i = end,
+            Region::Unterminated => return true,
+        }
     }
     false
 }
@@ -752,6 +840,27 @@ fn unused_name(name: &str) -> io::Error {
     )
 }
 
+/// One past a region the scan entered, or the refusal for a text that never
+/// leaves it.
+fn closed(region: Region, opened: &str, at: usize) -> io::Result<usize> {
+    match region {
+        Region::Ends(end) => Ok(end),
+        Region::Unterminated => Err(unterminated(opened, at)),
+    }
+}
+
+/// A region opened at `at` and closed nowhere.
+fn unterminated(opened: &str, at: usize) -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidInput,
+        format!(
+            "the statement opens {opened} at byte {at} and never closes it: every byte after \
+             that is read as being inside it, so what the statement binds is what fits inside \
+             an opening delimiter rather than what was written"
+        ),
+    )
+}
+
 /// Whether a byte may open a `:name`.
 const fn is_name_start(c: u8) -> bool {
     c.is_ascii_alphabetic() || c == b'_'
@@ -766,11 +875,33 @@ fn name_end(bytes: &[u8], start: usize) -> usize {
     i
 }
 
-/// One past the closing `quote`, or the end of the text if there is none.
+/// Where a region the scan entered ends: the two answers a reader that refuses
+/// an unclosed one has to tell apart.
+#[derive(Debug, Clone, Copy)]
+enum Region {
+    /// One past its closing delimiter.
+    Ends(usize),
+    /// There is none, and the region runs to the end of the text.
+    Unterminated,
+}
+
+impl Region {
+    /// Where a scan that refuses nothing continues: one past the closing
+    /// delimiter, or `end` for a region the text never leaves.
+    fn or_end(self, end: usize) -> usize {
+        match self {
+            Region::Ends(at) => at,
+            Region::Unterminated => end,
+        }
+    }
+}
+
+/// One past the closing `quote`, or [`Region::Unterminated`] where the text
+/// holds none.
 ///
 /// Doubling is the escape everywhere; a backslash is one only where the dialect
 /// says so.
-fn skip_quoted(bytes: &[u8], start: usize, quote: u8, backslash: bool) -> usize {
+fn skip_quoted(bytes: &[u8], start: usize, quote: u8, backslash: bool) -> Region {
     let mut i = start + 1;
     while i < bytes.len() {
         if backslash && bytes[i] == b'\\' {
@@ -779,30 +910,30 @@ fn skip_quoted(bytes: &[u8], start: usize, quote: u8, backslash: bool) -> usize 
             if bytes.get(i + 1) == Some(&quote) {
                 i += 2;
             } else {
-                return i + 1;
+                return Region::Ends(i + 1);
             }
         } else {
             i += 1;
         }
     }
-    bytes.len()
+    Region::Unterminated
 }
 
 /// One past the closing `]`, where `]]` is the escape.
-fn skip_bracket(bytes: &[u8], start: usize) -> usize {
+fn skip_bracket(bytes: &[u8], start: usize) -> Region {
     let mut i = start + 1;
     while i < bytes.len() {
         if bytes[i] == b']' {
             if bytes.get(i + 1) == Some(&b']') {
                 i += 2;
             } else {
-                return i + 1;
+                return Region::Ends(i + 1);
             }
         } else {
             i += 1;
         }
     }
-    bytes.len()
+    Region::Unterminated
 }
 
 /// One past the newline that ends a `--` or `#` comment.
@@ -818,14 +949,14 @@ fn skip_line(bytes: &[u8], start: usize) -> usize {
 
 /// One past the `*/` that closes a block comment, counting depth where the
 /// dialect nests.
-fn skip_block(bytes: &[u8], start: usize, nested: bool) -> usize {
+fn skip_block(bytes: &[u8], start: usize, nested: bool) -> Region {
     let mut depth = 1usize;
     let mut i = start + 2;
     while i + 1 < bytes.len() {
         if bytes[i] == b'*' && bytes[i + 1] == b'/' {
             depth -= 1;
             if depth == 0 {
-                return i + 2;
+                return Region::Ends(i + 2);
             }
             i += 2;
         } else if nested && bytes[i] == b'/' && bytes[i + 1] == b'*' {
@@ -835,12 +966,12 @@ fn skip_block(bytes: &[u8], start: usize, nested: bool) -> usize {
             i += 1;
         }
     }
-    bytes.len()
+    Region::Unterminated
 }
 
-/// One past the closing `$tag$`, or `None` if this `$` opens no body at all —
-/// which is what `$1` and a bare `$` are.
-fn skip_dollar(bytes: &[u8], start: usize) -> Option<usize> {
+/// The `$tag$` body this `$` opens, or `None` if it opens none at all — which
+/// is what `$1` and a bare `$` are.
+fn skip_dollar(bytes: &[u8], start: usize) -> Option<Region> {
     let mut j = start + 1;
     if bytes.get(j).is_some_and(|c| c.is_ascii_digit()) {
         return None;
@@ -855,11 +986,11 @@ fn skip_dollar(bytes: &[u8], start: usize) -> Option<usize> {
     let mut i = j + 1;
     while i + tag.len() <= bytes.len() {
         if &bytes[i..i + tag.len()] == tag {
-            return Some(i + tag.len());
+            return Some(Region::Ends(i + tag.len()));
         }
         i += 1;
     }
-    Some(bytes.len())
+    Some(Region::Unterminated)
 }
 
 /// [ADR 0067 § 9](/docs/decisions/0067.md)'s declared zone for one
@@ -928,7 +1059,7 @@ fn two_digits(field: &str) -> Option<i32> {
 mod tests {
     use super::{
         Binding, DEFAULT_STATEMENT_CACHE, Database, Dialect, Params, Prepared, Source, Statement,
-        StatementCache, rewrite, statement_cache_for, time_zone_for,
+        StatementCache, holds_an_unterminated_region, rewrite, statement_cache_for, time_zone_for,
     };
     use crate::conn::Driver;
 
@@ -1255,12 +1386,70 @@ mod tests {
             .sql,
             r"select 'a\', $1"
         );
-        // On MySQL `\'` is an escape, so the literal is unterminated and there
-        // is no placeholder in the text at all.
+        // On MySQL `\'` is an escape, so the literal is never closed — and an
+        // unterminated one is refused for being one rather than for the
+        // placeholder count it happens to leave behind.
         let message = rewrite(sql, Params::Positional(&[Binding::One]), Dialect::MySql)
-            .expect_err("no placeholder, one argument")
+            .expect_err("the literal is never closed")
             .to_string();
-        assert!(message.contains("0 `?` placeholder(s)"), "{message}");
+        assert!(message.contains("never closes it"), "{message}");
+    }
+
+    #[test]
+    fn a_region_the_text_never_leaves_is_refused_rather_than_bound() {
+        // Every opener, each followed by text that would bind differently read
+        // as quoted than read as SQL. The claim is that the rewriter refuses
+        // all of them rather than sending a statement bound against what fits
+        // inside an opening delimiter.
+        for sql in [
+            "select 'a, ?",
+            "select \"a, ?",
+            "select $tag$ a, ?",
+            "select /* a, ?",
+            "select ?, 'a''b",
+        ] {
+            let message = rewrite(
+                sql,
+                Params::Positional(&[Binding::One]),
+                Dialect::PostgreSql,
+            )
+            .expect_err(sql)
+            .to_string();
+            assert!(message.contains("never closes it"), "{sql}: {message}");
+            assert!(
+                holds_an_unterminated_region(sql, Dialect::PostgreSql),
+                "{sql}"
+            );
+        }
+
+        // What closes is left exactly where it was, the doubled delimiter that
+        // is not a closing one included.
+        for sql in [
+            "select 'a''b', ?",
+            "select $tag$ a $tag$, ?",
+            "select /* a */ ?",
+            "select ? -- and a comment to the end",
+        ] {
+            assert!(
+                !holds_an_unterminated_region(sql, Dialect::PostgreSql),
+                "{sql}"
+            );
+            rewrite(
+                sql,
+                Params::Positional(&[Binding::One]),
+                Dialect::PostgreSql,
+            )
+            .expect(sql);
+        }
+
+        // A region only one dialect enters is one the others are silent about,
+        // which is why the compile-time half asks all four and refuses only
+        // where every one of them does.
+        assert!(holds_an_unterminated_region("select `a, ?", Dialect::MySql));
+        assert!(!holds_an_unterminated_region(
+            "select `a, ?",
+            Dialect::PostgreSql
+        ));
     }
 
     #[test]

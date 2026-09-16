@@ -1,15 +1,55 @@
 //! What a `Core\Db` call's SQL has to satisfy at *compile* time.
 //!
-//! [ADR 0067 § 4](/docs/decisions/0067.md)'s one-statement rule and
-//! § 10's placeholder count are properties of a literal string alone, so a call
-//! that breaks either is refused where it is written and never reaches a
-//! connection. These three items are the whole of that surface and the only
-//! part of this module `nvs-types` calls — which is the edge that puts the
-//! front end above this crate.
+//! [ADR 0067 § 4](/docs/decisions/0067.md)'s one-statement rule, the
+//! closing delimiter every region of a statement owes, and § 10's placeholder
+//! count are properties of a literal string alone, so a call that breaks any of
+//! them is refused where it is written and never reaches a connection. What is
+//! below is the whole of that surface and the only part of this module
+//! `nvs-types` calls — which is the edge that puts the front end above this
+//! crate.
 //!
 //! It imports nothing from the rest of `db`: what it reads is the caller's own
 //! string and [`nvs_db::sql`], which is why the dependency it creates is on
 //! this module and not on a database connection.
+
+/// Whether every region a literal query opens is one it also closes —
+/// `rule:core-classes/db-literal-query-checking`'s "an unterminated string
+/// literal", over [`nvs_db::sql::holds_an_unterminated_region`].
+///
+/// A fact about the text alone, like [`check_single_statement`]'s, so it is
+/// asked of every literal query and not only of one whose params array this
+/// pass could read whole. It is an earlier answer and not a different one in
+/// the way `rule:expressions/preparation-preserves-behaviour` asks for:
+/// [`nvs_db::sql::rewrite`] refuses these same texts when a request runs them,
+/// because a region the text never leaves makes what the statement binds what
+/// fits inside an opening delimiter rather than what was written.
+///
+/// All four dialects, for [`check_literal_query`]'s reason: a backtick opens a
+/// quoted name on MySQL and is ordinary text on PostgreSQL, so a region only
+/// one of them enters is a region this pass says nothing about.
+///
+/// # Errors
+///
+/// One message, since there is only one thing this can find.
+pub fn check_closed_regions(sql: &str) -> Result<(), String> {
+    let unterminated = [
+        nvs_db::sql::Dialect::PostgreSql,
+        nvs_db::sql::Dialect::MySql,
+        nvs_db::sql::Dialect::Sqlite,
+        nvs_db::sql::Dialect::SqlServer,
+    ]
+    .into_iter()
+    .all(|dialect| nvs_db::sql::holds_an_unterminated_region(sql, dialect));
+    if unterminated {
+        return Err(
+            "a string literal, a quoted name or a comment this statement opens is never \
+             closed — every byte after it is read as being inside it, so what the statement \
+             binds is what fits inside an opening delimiter rather than what was written"
+                .to_owned(),
+        );
+    }
+    Ok(())
+}
 
 /// Whether a literal query holds the one statement [ADR 0067
 /// § 1](/docs/decisions/0067.md) prepares — § 10's "a refused second

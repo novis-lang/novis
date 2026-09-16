@@ -163,10 +163,10 @@ mod crypto;
 mod csrf;
 mod csv;
 mod cursor;
-// `pub` for [`db::check_literal_query`], which is `rule:core-classes/db-literal-query-checking`'s half of the
-// intrinsic pass and the only thing `nvs-types` reads here — for `cap`'s reason
-// exactly: the checker's refusal holds no second copy of a grammar this crate
-// already owns.
+// `pub` for [`db::check`]'s three refusals, which are `rule:core-classes/db-literal-query-checking`'s half of
+// the intrinsic pass and the only things `nvs-types` reads here — for `cap`'s
+// reason exactly: the checker's refusal holds no second copy of a grammar this
+// crate already owns.
 pub mod db;
 mod debug;
 mod decimal;

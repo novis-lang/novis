@@ -101,20 +101,6 @@
 //!   spends the compile itself. Every other row prepares by validating alone —
 //!   the answer a parsed CLDR pattern or a bound SQL statement would carry is
 //!   built at each call, and joining the roster is what would change that.
-//!
-//! # Known gaps
-//!
-//! 3. **`rule:core-classes/db-literal-query-checking`'s unterminated string literal is not refused**, and the
-//!    reason is a disagreement rather than an absence: `nvs_db::sql`'s own
-//!    module doc declines it in the other direction, because an unterminated
-//!    quote ends that scan at the end of the text and the statement goes out to
-//!    be diagnosed by a parser that can say what is actually wrong with it.
-//!    Refusing it here would be the one thing this pass refuses that the
-//!    rewriter does not, which is § 4 read backwards. It waits on which of the
-//!    two docs is right, not on a scan.
-//!    Decided: Refuse at compile time and amend nvs_db::sql's doc — A certain bug is caught early, and
-//!    the rewriter must agree to refuse it too.
-//!    — owner: unowned-closures
 
 use nvs_config::capability::Cap;
 use nvs_diagnostics::{Diagnostic, SourceFile, Span, code};
@@ -593,20 +579,22 @@ pub(crate) fn check_call(
     }
 }
 
-/// A literal query, and the literal params array written beside it —
-/// [ADR 0067 § 10](/docs/decisions/0067.md)'s refused second
-/// statement, placeholder count and positional-vs-named consistency.
+/// A literal query, and the literal params array written beside it — [ADR 0067
+/// § 10](/docs/decisions/0067.md)'s four clauses: an unterminated
+/// string literal, a refused second statement, placeholder count and
+/// positional-vs-named consistency.
 ///
-/// The two halves are two codes because they are two mistakes: a second
-/// statement is a text this member cannot send whatever it is handed, and the
-/// other two are a pairing that could have been written to agree. § 10's fourth
-/// clause — an unterminated string literal — is not made here, and the module's
-/// known gaps own why.
+/// The halves are two codes because they are two kinds of mistake. An
+/// unterminated region and a second statement are texts this member cannot send
+/// whatever it is handed, and they are read off the literal alone — so they are
+/// asked before the params array is looked at and answered however unreadable
+/// it turns out to be. The other two are a pairing that could have been written
+/// to agree.
 ///
-/// The refusal is `nvs_stdlib::db::check_literal_query`'s, which is the
-/// rewriter the request itself would have run; that function's doc owns why it
-/// is the rewriter rather than a second reader, and why a refusal has to hold
-/// on all four dialects.
+/// The refusal is `nvs_stdlib::db`'s, which runs the rewriter the request
+/// itself would have run; `check_literal_query`'s doc owns why it is the
+/// rewriter rather than a second reader, and why a refusal has to hold on all
+/// four dialects.
 ///
 /// **The params array is read for its shape and never for its values.** Every
 /// element stands in as one bound slot, including a `Core\Db::inList(…)`: § 5's
@@ -622,8 +610,17 @@ fn check_sql(
     slots: &[ArgSlot],
     env: &mut Env<'_>,
 ) {
-    // § 1's statement count first, because it is a fact about the literal alone
-    // and holds however unreadable the params array beside it turns out to be.
+    // The literal's own regions first: a string literal or a comment the text
+    // never leaves makes every byte after it read as being inside it, so the
+    // statement count below and the placeholder count under that are both read
+    // off a scan that has already gone astray.
+    if let Err(message) = nvs_stdlib::db::check_closed_regions(text) {
+        report_malformed(span, &message, env);
+        return;
+    }
+    // § 1's statement count next, because it too is a fact about the literal
+    // alone and holds however unreadable the params array beside it turns out
+    // to be.
     if let Err(message) = nvs_stdlib::db::check_single_statement(text) {
         report_malformed(span, &message, env);
         return;

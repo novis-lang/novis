@@ -997,6 +997,39 @@ fn a_placeholder_count_mismatch_on_a_literal_is_a_diagnostic() {
 }
 
 #[test]
+fn an_unterminated_literal_in_a_query_is_a_diagnostic() {
+    // `rule:core-classes/db-literal-query-checking`'s "an unterminated string
+    // literal". The rewriter refuses the same text when a request runs it, so
+    // this is that `LogicError` moved to `nvs check`.
+    let open = query("\"select id from t where a = 'x\"", "[]");
+    assert!(
+        reported(&open, code::E_INTRINSIC_LITERAL_MALFORMED),
+        "a literal with no closing quote: {open:?}"
+    );
+
+    // A fact about the text alone, so a params array this pass cannot read
+    // whole does not buy silence the way § 2 buys it for the pairing.
+    let dynamic = check_call(
+        "    Core\\Db\\Connection $db = Core\\Db::connect(\"main\");\n    \
+         array<mixed> $p = [1];\n    \
+         $db->query(\"select id from t where a = 'x and b = ?\", $p);\n",
+    );
+    assert!(
+        reported(&dynamic, code::E_INTRINSIC_LITERAL_MALFORMED),
+        "an unterminated literal beside a computed params array: {dynamic:?}"
+    );
+
+    // And the shape this must not mistake for one: a closed literal holding
+    // the bytes that open one, which is the whole reason the scan tracks
+    // regions rather than counting quotes.
+    let fine = query("\"select id from t where a = 'x?y' and b = ?\"", "[1]");
+    assert!(
+        !fine.has_errors(),
+        "a closed literal was read as an open one: {fine:?}"
+    );
+}
+
+#[test]
 fn a_two_statement_literal_query_is_a_diagnostic() {
     // § 1's "every statement is prepared", read as the one question about
     // statement count that needs no vendor's grammar: a prepared statement is
