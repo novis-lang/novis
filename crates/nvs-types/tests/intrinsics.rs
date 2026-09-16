@@ -858,3 +858,50 @@ fn delete_has_no_static_half_and_is_refused_at_the_door() {
         "the same grant let a written `purge` through: {swept:?}"
     );
 }
+
+#[test]
+fn a_literal_metrics_name_outside_the_grammar_is_a_compile_error() {
+    // `rule:observability/metrics-three-members`'s `[a-z][a-z0-9_]*`, read out
+    // of the literal that wrote it. Asked of all three verbs, because the
+    // grammar belongs to the series: a row missing from § 1's table leaves one
+    // verb accepting the name the other two refuse, which is invisible from any
+    // single line. Each name is refused for a different clause — a capital, a
+    // separator the grammar has no place for, and a leading `_`.
+    for call in [
+        r#"Core\Metrics::increment("HttpRequests");"#,
+        r#"Core\Metrics::observe("http.request.seconds", 0.5);"#,
+        r#"Core\Metrics::gauge("_queue_depth", 3.0);"#,
+    ] {
+        let diags = check_call(&format!("    {call}\n"));
+        assert!(
+            reported(&diags, code::E_INTRINSIC_LITERAL_MALFORMED),
+            "a name outside the grammar compiled: {call} {diags:?}"
+        );
+    }
+
+    // The other side of the bound, and what makes this a grammar rather than a
+    // ban on punctuation: `_` and a digit are admitted everywhere after the
+    // first character.
+    let admitted = check_call(
+        "    Core\\Metrics::increment(\"http_requests_total\");\n    \
+         Core\\Metrics::observe(\"db_query_seconds\", 0.5);\n    \
+         Core\\Metrics::gauge(\"queue_depth_v2\", 3.0);\n",
+    );
+    assert!(
+        !admitted.has_errors(),
+        "a name the grammar admits was refused: {admitted:?}"
+    );
+
+    // Nothing is refused for being dynamic — and here that is not merely this
+    // pass declining to guess: the registry fixes whatever it is handed, so a
+    // computed name is never refused at all. `nvs_types::intrinsics`' fourth
+    // bullet owns why.
+    let computed = check_call(
+        "    string $name = Core\\Str::upper(\"http_requests\");\n    \
+         Core\\Metrics::increment($name);\n",
+    );
+    assert!(
+        !computed.has_errors(),
+        "a computed metric name was refused while checking: {computed:?}"
+    );
+}

@@ -190,7 +190,7 @@ mod keyring;
 mod log;
 mod mail;
 pub mod math;
-mod metrics;
+pub mod metrics;
 mod mime;
 mod multipart;
 mod net;

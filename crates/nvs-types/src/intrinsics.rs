@@ -32,6 +32,16 @@
 //!   a static type admits *any* value the runtime would have accepted, this
 //!   pass says nothing: `%d` against a `?int` is left alone, because the
 //!   runtime only throws on the `null` and this pass cannot know there is one.
+//! * **One row refuses what the runtime accepts, and it is the exception the
+//!   bullet above is stated against.** [`Grammar::MetricName`] reads
+//!   `rule:observability/metrics-three-members`'s `[a-z][a-z0-9_]*` out of a
+//!   written literal, while `nvs_runtime::metrics::Registry` fixes whatever it
+//!   is handed — because a metric write may not fail the request that made it,
+//!   which is the reading
+//!   `rule:observability/past-max-series-a-new-series-is-refused` already gives
+//!   a series past the bound. A naming convention enforced with a throw would
+//!   be a request lost to a spelling, so the grammar is enforced where it is
+//!   free and a name a request computed is accumulated as written.
 //!
 //! # Known gaps
 //!
@@ -152,6 +162,16 @@ enum Grammar {
     /// because a queue name is a flat string the program itself picked and has
     /// no labels for a `*.` to match at.
     QueueName,
+    /// A series name, read against
+    /// `rule:observability/metrics-three-members`'s `[a-z][a-z0-9_]*`.
+    ///
+    /// The only variant whose refusal the runtime does not also make, and the
+    /// module doc's fourth bullet is where that is argued: a name a request
+    /// computed is accumulated as written, because a metric write may not fail
+    /// the request that made it. So this reads the text's own shape, like every
+    /// variant above [`Host`](Self::Host), and is the one that answers about a
+    /// convention rather than about what a member can parse.
+    MetricName,
 }
 
 /// One row of § 1's table: a member, and which of its arguments is the small
@@ -337,6 +357,35 @@ const INTRINSICS: &[Intrinsic] = &[
         field: None,
         grammar: Grammar::QueueName,
     },
+    // `rule:observability/metrics-three-members`'s series name, on all three
+    // verbs: the grammar belongs to the series rather than to the verb it was
+    // first written with, so reading it on one member and not the others would
+    // make one name a compile error in one call and fine in the next.
+    //
+    // `at: 0` on every row, because `at` addresses the **written** argument and
+    // the call-site constant `nvs_stdlib::registry::SOURCE_MEMBERS` puts in
+    // front of the name is `nvs-ir`'s, spliced long after this pass has run.
+    Intrinsic {
+        owner: r"Core\Metrics",
+        member: "increment",
+        at: 0,
+        field: None,
+        grammar: Grammar::MetricName,
+    },
+    Intrinsic {
+        owner: r"Core\Metrics",
+        member: "observe",
+        at: 0,
+        field: None,
+        grammar: Grammar::MetricName,
+    },
+    Intrinsic {
+        owner: r"Core\Metrics",
+        member: "gauge",
+        at: 0,
+        field: None,
+        grammar: Grammar::MetricName,
+    },
 ];
 
 /// § 1's row for a resolved target, or `None` for the overwhelming majority of
@@ -447,6 +496,15 @@ pub(crate) fn check_call(
                 && !grants.allows_name(Cap::QueuePurge, &text)
             {
                 report_ungranted_queue(span, &text, env);
+            }
+        }
+        // The one arm whose refusal the runtime does not repeat, for the reason
+        // [`Grammar::MetricName`] gives. The grammar itself is
+        // `nvs_stdlib::metrics`', so the checker and the reference card cannot
+        // come to spell it differently.
+        Grammar::MetricName => {
+            if let Err(message) = nvs_stdlib::metrics::validate_name(&text) {
+                report_metric_name(span, &message, env);
             }
         }
     }
@@ -640,6 +698,30 @@ fn report_malformed(span: nvs_diagnostics::Span, message: &str, env: &mut Env<'_
             "the compiler reads a literal pattern with the same parser the runtime would have \
              used, so this is the error the first call would have thrown — a computed argument \
              is checked when it runs instead",
+        ),
+    );
+}
+
+/// A series name outside `rule:observability/metrics-three-members`'s grammar,
+/// refused where it was written.
+///
+/// [`report_malformed`]'s code, because it is that kind of mistake — a literal
+/// this member does not read — and its own help, because that function's
+/// closing promise is untrue here: a computed name is not checked when it runs,
+/// and a reader who expects it to be has been told the wrong thing about their
+/// program.
+fn report_metric_name(span: nvs_diagnostics::Span, message: &str, env: &mut Env<'_>) {
+    env.diags.report(
+        Diagnostic::error(
+            code::E_INTRINSIC_LITERAL_MALFORMED,
+            format!("this literal is not one this member can read: {message}"),
+        )
+        .with_primary(span, "read while compiling, because it is a constant")
+        .with_help(
+            "a series name is lower case, digits and `_`, starting with a letter — \
+             `http_requests_total` rather than `HttpRequests` — so that every backend a \
+             scrape reaches spells it the same way; a name a request computes is not read \
+             here and accumulates as written",
         ),
     );
 }

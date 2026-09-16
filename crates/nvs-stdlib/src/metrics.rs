@@ -66,6 +66,41 @@ use crate::registry::{
 /// The class's fully-qualified name.
 pub(crate) const NAME: &str = r"Core\Metrics";
 
+/// `rule:observability/metrics-three-members`'s `[a-z][a-z0-9_]*`, and the one
+/// home of it.
+///
+/// It answers about a **written** name alone. `nvs_types::intrinsics` reads a
+/// literal argument through here and refuses one outside the grammar where it
+/// was written; `nvs_runtime::metrics::Registry` fixes whatever it is handed,
+/// because a metric write may not fail the request that made it — the same
+/// reading `rule:observability/past-max-series-a-new-series-is-refused` gives a
+/// series past the bound, where the write is dropped and the response is
+/// untouched. So this is reached while checking and never on the request path.
+///
+/// # Errors
+///
+/// The sentence a diagnostic quotes under the literal, naming what the name
+/// holds: empty, a first character that is not `a`-`z`, or a later one outside
+/// `[a-z0-9_]`.
+pub fn validate_name(name: &str) -> Result<(), String> {
+    let mut rest = name.chars();
+    let Some(first) = rest.next() else {
+        return Err("a series name is `[a-z][a-z0-9_]*`, and this one is empty".to_owned());
+    };
+    if !first.is_ascii_lowercase() {
+        return Err(format!(
+            "a series name starts with `a`-`z`, and `{name}` starts with `{first}`"
+        ));
+    }
+    if let Some(stray) = rest.find(|c| !c.is_ascii_lowercase() && !c.is_ascii_digit() && *c != '_')
+    {
+        return Err(format!(
+            "a series name is `[a-z][a-z0-9_]*`, and `{name}` carries `{stray}`"
+        ));
+    }
+    Ok(())
+}
+
 /// The `{labels?}` every one of the three members carries.
 ///
 /// The **value** position is a sink with no launderer
