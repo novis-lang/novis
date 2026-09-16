@@ -234,5 +234,9 @@ argv = ["python", "tools/rules.py", "--check"]
 kind = "command"
 stage = "5 the rule"
 name = "the class-scoped alias is a shipped rule the pack can print"
-argv = ["python", "tools/peek.py", "rule:types/class-scoped-alias"]
+# Named by path rather than by its `rule:` token on purpose. `rules.py --citations` resolves every
+# token under `docs/`, this file included, so a token for a rule this goal has not created yet makes
+# the check directly above red — for every unrelated session, whose wrap refuses on it. The path
+# proves the same fragment is printable, and that check above is what proves the citation resolves.
+argv = ["python", "tools/peek.py", "docs/rules/types/class-scoped-alias.md"]
 want = ["docs/rules/types/class-scoped-alias.md"]
