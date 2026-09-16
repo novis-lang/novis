@@ -436,6 +436,14 @@ pub(crate) struct Env<'a> {
     /// is routinely declared in a later file than the call. See
     /// [`crate::derive::check_row_sites`].
     pub row_sites: &'a mut Vec<crate::derive::RowSite>,
+    /// Every call this run has walked past that builds a written class out of a
+    /// **document** — the rest of the same roster, which
+    /// [`crate::derive::hydrates_a_row`] partitions. [`Self::row_sites`]' reason
+    /// exactly, and one of its own: a document is a tree, so the question is
+    /// asked of every deriving class the written one reaches and all of them
+    /// have to have recorded their fields first. See
+    /// [`crate::derive::check_json_sites`].
+    pub json_sites: &'a mut Vec<crate::derive::JsonSite>,
     /// Every `Core\Request::jsonAs<T>` this run has walked past, for
     /// [`Self::row_sites`]' reason and one of its own:
     /// `rule:security/derived-codec-qualifiers` asks its question of the whole

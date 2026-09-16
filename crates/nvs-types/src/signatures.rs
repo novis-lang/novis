@@ -723,6 +723,7 @@ pub fn build_signatures(
     let mut placeholder_codec_sites = Vec::new();
     // And once more: a `queryAs<T>` and a `jsonAs<T>` are expressions too.
     let mut placeholder_row_sites = Vec::new();
+    let mut placeholder_json_sites = Vec::new();
     let mut placeholder_decode_sites = Vec::new();
     // Same again: `rule:attributes/structural-retrieval`'s retrieval is an expression, and this pass
     // checks none, so the table it reads is empty here rather than built twice.
@@ -748,6 +749,7 @@ pub fn build_signatures(
             links: &mut placeholder_links,
             codec_sites: &mut placeholder_codec_sites,
             row_sites: &mut placeholder_row_sites,
+            json_sites: &mut placeholder_json_sites,
             decode_sites: &mut placeholder_decode_sites,
             diags: &mut *diags,
             closure_seq: 0,

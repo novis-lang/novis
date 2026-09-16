@@ -41,14 +41,20 @@
 //!
 //! # Known gaps
 //!
-//! 1. **[`check_row_sites`] has no `Core\Json::decodeAs` half.** The two
-//!    members share [`crate::expr::args::written_class_of`]'s lookup and do
-//!    not share a rule: `decodeAs<array<T>>` is a JSON array document and is
-//!    legitimate, and a document is a tree, so "the mapping cannot fill the
-//!    constructor" is a question about a *document* rather than about the
-//!    class. Whether the missing-`#[Json\Derive]` third of the rule should
-//!    move here from `nvs_stdlib::json`'s run-time refusal is a real question
-//!    and is `rule:core-classes/derive-attribute`'s to answer, not this pass's to widen into.
+//! 1. **[`check_json_sites`] does not ask whether `T` carries a codec at all.**
+//!    The condition it does ask — a constructor the contract fills less than
+//!    all of — is the one [`check_row_sites`] shares with it, and the two
+//!    doors part company on the rest: a `decodeAs<array<T>>` is a JSON array
+//!    document and is legitimate where the row door refuses the plural twice,
+//!    and a document is a tree, so a column map has nothing to say here. What
+//!    is left is the missing-`#[Json\Derive]` third, still answered by
+//!    `nvs_stdlib::json`'s `check_codec` at run time. Moving it here is not
+//!    additive the way the arity condition was:
+//!    `json-decode-as-reads-only-a-class-that-declared-a-codec` asserts that a
+//!    class with no attribute is refused *as a `LogicError`*, that the two
+//!    directions agree per class, and that the codec is read before the
+//!    document — three run-time properties a compile-time refusal deletes
+//!    rather than moves, so the case is rewritten in the same slice.
 //!    Decided: Yes: check `T` (and `array<T>`'s element) statically — The two members enforce the attribute
 //!    the same way and the error is earlier, which is a rule amendment.
 //!    — owner: unowned-closures
@@ -958,6 +964,154 @@ fn report_row_site(site: &RowSite, message: String, help: &str, diags: &mut Diag
             .with_primary(site.span, "written here")
             .with_help(help),
     );
+}
+
+/// Whether a written-class member of `owner` hydrates a **row** rather than a
+/// document — `rule:core-classes/db-column-types`'s question, which is
+/// [`check_row_sites`]'.
+///
+/// The owner rather than the member's name, because the name is not the
+/// program's: `queryAs` is `Core\Db\Connection`'s statement member and
+/// `Core\Request`'s query-string reader alike, so a classification keyed on the
+/// spelling answers a request's class against a column map that has nothing to
+/// say about a query string. Every other written class is a document's, which
+/// is [`check_json_sites`].
+pub(crate) fn hydrates_a_row(owner: &str) -> bool {
+    owner == r"Core\Db\Connection" || owner == r"Core\Db\Transaction"
+}
+
+/// Whether the octets a written-class member of `owner` decodes are a
+/// **peer's** — `rule:security/tainted-sources`, which is what
+/// [`check_decode_sites`] and [`check_shape_decode_site`] ask the fields
+/// receiving them to declare.
+///
+/// Keyed on the owner for [`hydrates_a_row`]'s reason and one of its own: every
+/// member of these owners answers alike. Every `Core\Request` member on the
+/// roster reads the request, and that rule makes the body and the query alike a
+/// peer's octets; `Core\Http\Response::jsonAs` reads the reply another host sent
+/// back, which is input in the same sense — a pinned address settles which host
+/// wrote the octets and nothing about what is in them; and
+/// `Core\Jwt::verifyIssued` reads a payload another party wrote, which
+/// `rule:security/verification-does-not-launder` keeps `tainted` because a
+/// signature proves origin and not safety.
+///
+/// The rest are not: `Core\Json::decodeAs` takes its document through a plain
+/// `string` parameter, so a tainted one is refused where it is passed;
+/// `Core\Arr::shapeAs` converts an array the program already holds, whose taint
+/// it carries in already; and a `Core\Db` row is not a taint source at all.
+pub(crate) fn reads_a_peers_octets(owner: &str) -> bool {
+    owner == r"Core\Request" || owner == r"Core\Http\Response" || owner == r"Core\Jwt"
+}
+
+/// One call site of a member that builds a written class out of a **document**,
+/// held until every deriving class in the program has recorded its fields.
+///
+/// [`RowSite`]'s reason at the other door: the class a call names is routinely
+/// declared in a file the walk has not reached, so answering where the call is
+/// written would make the refusal depend on file order.
+#[derive(Debug)]
+pub struct JsonSite {
+    /// The member that asked, as `Class::member` — every door that runs
+    /// `nvs_stdlib::json`'s decoder reaches here, and a reader needs to see the
+    /// one they wrote.
+    member: String,
+    /// The class the type argument named, resolved. `array<C>` records `C`: a
+    /// list document is the same decode run once per element, and a JSON array
+    /// of objects is a document in its own right, which is where this door
+    /// parts company with [`RowSite`]'s.
+    class: QName,
+    /// Where the type argument is written.
+    span: Span,
+}
+
+impl JsonSite {
+    /// Records a site, from [`crate::expr::args::written_class_of`] — the one
+    /// place a written class and the member that asked for it are both in hand.
+    pub(crate) fn new(member: String, class: QName, span: Span) -> Self {
+        Self {
+            member,
+            class,
+            span,
+        }
+    }
+}
+
+/// `rule:core-classes/derive-field-list`'s skipped field, asked of the class a
+/// document decoder wrote, once every deriving class in the program has
+/// recorded its fields.
+///
+/// Run after the walk, from [`crate::check::check_program`], beside
+/// [`check_row_sites`] and for the same reason.
+///
+/// **One condition, where the row door has four.** A row is a flat list of
+/// columns and a document is a tree, so the three about a column map are the
+/// other door's alone. What the two share is a constructor the contract cannot
+/// fill, and `#[Json\Field(skip: true)]` on a property that stayed a
+/// constructor parameter is the one way to write one: the class is well formed
+/// and stays well formed — `rule:core-classes/derive-field-list` sanctions the
+/// skip — so it is the call asking for a whole instance out of a document that
+/// is where there is nothing to fill that position from.
+///
+/// **The reachable set, not the written class's own fields**, which is
+/// [`check_decode_sites`]' walk for the same reason: a field typed as another
+/// deriving class is built by the same decode, so its constructor has to be
+/// fillable too. `seen` is what stops the walk on a class holding a field of
+/// its own type, which `rule:core-classes/derive-field-list` admits.
+///
+/// A class carrying no codec at all is **not** refused here — that is this
+/// module's own gap 1, and `nvs_stdlib::json`'s `check_codec` is where it is
+/// still answered.
+pub(crate) fn check_json_sites(
+    sites: &[JsonSite],
+    exprs: &crate::expr_table::ExprTypeTable,
+    diags: &mut Diagnostics,
+) {
+    for site in sites {
+        let mut seen = std::collections::BTreeSet::<String>::new();
+        let mut pending = vec![site.class.to_string()];
+        while let Some(class) = pending.pop() {
+            if !seen.insert(class.clone()) {
+                continue;
+            }
+            // Gap 1's class at the root, and at any depth a field naming a class
+            // that carries no codec, which [`resolve_field_types`] has already
+            // refused at the declaration that wrote it.
+            let Some(codec) = exprs.codec(&class) else {
+                continue;
+            };
+            for nested in codec.fields.iter().filter_map(|field| field.class.as_ref()) {
+                pending.push(nested.clone());
+            }
+            let filled: std::collections::BTreeSet<usize> = codec
+                .fields
+                .iter()
+                .filter_map(|field| field.param)
+                .collect();
+            if filled.len() == codec.ctor_arity {
+                continue;
+            }
+            let arity = codec.ctor_arity;
+            let mapped = filled.len();
+            let member = &site.member;
+            diags.report(
+                Diagnostic::error(
+                    code::E_DECODED_CLASS_NOT_CONSTRUCTIBLE,
+                    format!(
+                        "`{class}`'s codec fills {mapped} of its constructor's {arity} \
+                         parameter(s), so `{member}` cannot build one"
+                    ),
+                )
+                .with_primary(site.span, "written here")
+                .with_help(
+                    "a property left off the contract — `#[Json\\Field(skip: true)]`, \
+                     `rule:core-classes/derive-field-list` — is still a constructor parameter, \
+                     and a document has no key to fill it from. Drop the `skip` and let the \
+                     field carry it, or assign the property in the constructor body rather than \
+                     taking it as a parameter",
+                ),
+            );
+        }
+    }
 }
 
 /// One call site of a member that decodes a peer's octets into a written class,

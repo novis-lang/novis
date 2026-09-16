@@ -1631,77 +1631,74 @@ pub(crate) fn written_class_of(
     };
     if let Ty::Class(qname, _) = env.interner.get(element) {
         let qname = qname.clone();
-        // `rule:core-classes/db-column-types`'s own question about the class, which is a question
-        // about the whole program and so is only *recorded* here — see
-        // [`crate::derive::check_row_sites`]. A decode site is the other
-        // recorded question, for `rule:security/derived-codec-qualifiers`'s
-        // qualifier rather than for a type map — see
-        // [`crate::derive::check_decode_sites`] — and it is recorded for a
-        // member whose document is a peer's whatever the argument carrying it
-        // was typed as: `Core\Request::jsonAs` reads the request body,
-        // `Core\Http\Response::jsonAs` reads the reply another host sent back
-        // — a pinned address settles which host wrote the octets and nothing
-        // about what is in them — and `Core\Jwt::verifyIssued` reads a payload
-        // another party wrote, which
-        // `rule:security/verification-does-not-launder` keeps `tainted` because
-        // a signature proves origin and not safety.
-        // `Core\Json::decodeAs` gets neither: it takes its own document through
-        // a plain `string` parameter, so a tainted argument is already refused
-        // where it is passed rather than at the class it writes.
+        // Two questions about the whole program, so both are only *recorded*
+        // here — this is the one place a written class and the member that
+        // asked for it are both in hand — and answered after the walk. Which
+        // ones a call records is the **owner's** question and never the
+        // spelling of the member: `crate::derive::hydrates_a_row` and
+        // `crate::derive::reads_a_peers_octets` are the two rosters, and they
+        // are what the shape branch below reads as well, so a class target and
+        // a shape target cannot come to disagree about where a document came
+        // from.
+        let owner_name = owner.to_string();
         let span = type_args.first().map_or(call_span, |ty| ty.span);
-        if method == "jsonAs" || method == "verifyIssued" {
+        // `rule:security/derived-codec-qualifiers`'s qualifier, asked of the
+        // fields that receive the octets — see
+        // [`crate::derive::check_decode_sites`].
+        if crate::derive::reads_a_peers_octets(&owner_name) {
             env.decode_sites.push(crate::derive::DecodeSite::new(
                 format!("{owner}::{method}"),
                 qname.clone(),
                 span,
             ));
         }
-        // Both of § 18's hydrating members, because the question is the class's
-        // and not the statement's: `rule:core-classes/db-column-types`'s map is
-        // read over the same `#[Db\Derive]` mapping whether the rows were
-        // buffered or walked, so a `streamAs<T>` that recorded no site would
-        // take at run time the refusal its sibling takes while compiling.
-        if method == "queryAs" || method == "streamAs" {
+        if crate::derive::hydrates_a_row(&owner_name) {
+            // Both of § 18's hydrating members, because the question is the
+            // class's and not the statement's:
+            // `rule:core-classes/db-column-types`'s map is read over the same
+            // `#[Db\Derive]` mapping whether the rows were buffered or walked,
+            // so a `streamAs<T>` that recorded no site would take at run time
+            // the refusal its sibling takes while compiling.
             env.row_sites.push(crate::derive::RowSite::new(
                 format!("{owner}::{method}"),
                 qname.clone(),
                 list,
                 span,
             ));
+        } else {
+            // Every other written class is built out of a document, and every
+            // one of those doors runs `nvs_stdlib::json`'s decoder over the
+            // same derived codec — so what that decoder cannot build is asked
+            // once here rather than once per member. See
+            // [`crate::derive::check_json_sites`].
+            env.json_sites.push(crate::derive::JsonSite::new(
+                format!("{owner}::{method}"),
+                qname.clone(),
+                span,
+            ));
         }
         return Some((WrittenTarget::Class(qname), list));
     }
-    // An inline shape declares its own fields, so the two whole-program
-    // questions a class raises are already answered where it is written: there
-    // is no declaration further down the file to find a deriving attribute on,
-    // and no property list to look a column type up in later. It therefore
-    // records no row site, and no decode site either — the qualifier question a
-    // decode site exists to defer is answered here instead, against the fields
-    // in hand. What it does record is the contract itself, read straight off
-    // the type.
+    // An inline shape declares its own fields, so every whole-program question
+    // a class raises is already answered where it is written: there is no
+    // declaration further down the file to find a deriving attribute on, no
+    // property list to look a column type up in later, and no constructor a
+    // contract could fill less than all of — `crate::derive::shape_codec` gives
+    // a shape one parameter per field. It therefore records none of the
+    // deferred sites; the qualifier question a decode site exists to defer is
+    // answered here instead, against the fields in hand. What it does record is
+    // the contract itself, read straight off the type.
     if let Ty::Shape(fields) = env.interner.get(element) {
         let names: Vec<String> = fields.iter().map(|field| field.name.clone()).collect();
         let label = crate::derive::shape_class_label(&names);
         let span = type_args.first().map_or(call_span, |ty| ty.span);
-        // A shape's site is keyed on the **owner** where a class's is keyed on
-        // the member, because what a shape asks is whether these octets came
-        // from outside and every member of these owners answers alike: every
-        // `Core\Request` member on this roster reads the request —
-        // `rule:security/tainted-sources` makes the body and the query alike a
-        // peer's octets — `Core\Http\Response::jsonAs` reads the reply another
-        // host sent back, which that rule makes input in the same sense, and
-        // `Core\Jwt::verifyIssued` reads a payload another party wrote, which
-        // `rule:security/verification-does-not-launder` keeps `tainted`. The
-        // other owners do not: `Core\Json::decodeAs` takes its document through
-        // a plain `string` parameter, so a tainted one is refused where it is
-        // passed; `Core\Arr::shapeAs` converts an array the program already
-        // holds, whose taint it carries in already; and a `Core\Db` row is not
-        // a taint source at all.
+        // Asked here rather than recorded, against the same roster the class
+        // branch reads: what a shape asks is whether these octets came from
+        // outside, which is the owner's answer and not the member's, so
+        // `crate::derive::reads_a_peers_octets` is the one home for it and the
+        // two branches cannot come to disagree.
         let owner_name = owner.to_string();
-        if owner_name == r"Core\Request"
-            || owner_name == r"Core\Http\Response"
-            || owner_name == r"Core\Jwt"
-        {
+        if crate::derive::reads_a_peers_octets(&owner_name) {
             crate::derive::check_shape_decode_site(
                 element,
                 &format!("{owner}::{method}"),

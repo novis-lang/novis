@@ -3595,6 +3595,25 @@ pub mod code {
     /// `rule:errors/ambiguous-input-refused`.
     pub const E_ROUTE_CAPTURE_CASES_SHARE_A_VALUE: Code = Code::new("E0819");
 
+    /// A member that builds a written class out of a document — `decodeAs<T>`,
+    /// `jsonAs<T>`, `queryAs<T>` on a request, `shapeAs<T>` — naming a class
+    /// whose codec fills fewer constructor parameters than the constructor
+    /// declares.
+    ///
+    /// `rule:core-classes/derive-field-list` sanctions `#[Json\Field(skip: true)]`
+    /// on a property, and a skipped property that stayed a constructor
+    /// parameter is the one way to leave a position no key fills. The class is
+    /// well formed for every other purpose it has — it still encodes, and the
+    /// program can still build one itself — so this is a refusal of the
+    /// **call**, exactly as [`E_QUERY_AS_NOT_A_ROW_CLASS`] is at the row door
+    /// and for the same reason: a condition about the class's own fields that
+    /// cannot be moved to the declaration.
+    ///
+    /// The two doors keep separate codes because they refuse separate sets:
+    /// a row is flat, so `E0806` also answers for a column map a document has
+    /// no equivalent of.
+    pub const E_DECODED_CLASS_NOT_CONSTRUCTIBLE: Code = Code::new("E0820");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");
