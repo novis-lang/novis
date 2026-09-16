@@ -729,12 +729,29 @@ pub(crate) fn compile(pattern: &str) -> Result<Vec<Piece>, String> {
 /// [`crate::format::placeholders`] makes beside the renderer it shares a walk
 /// with.
 ///
-/// The *member* restrictions are deliberately not applied: `Core\Time::parse`
-/// also refuses a zonal field (`civil_fields_only`), which is a rule about
-/// that member rather than about the grammar, and leaving it to run time keeps
-/// this answer sound — everything it refuses, every caller refuses.
+/// The *member* restrictions are not applied here: they are a rule about the
+/// member rather than about the grammar, so a caller that owes one asks for it
+/// by name — [`validate_civil`] is `Core\Time::parse`'s. That keeps this
+/// answer sound for everyone else: everything it refuses, every caller refuses.
 pub fn validate(pattern: &str) -> Result<(), String> {
     compile(pattern).map(|_| ())
+}
+
+/// [`validate`] plus `Core\Time::parse`'s own restriction: a pattern the
+/// grammar reads, naming no zone.
+///
+/// The member half of `rule:expressions/intrinsic-list-is-closed`'s roster,
+/// which addresses a row's restriction as well as its grammar. One walk
+/// answers both, so the diagnostic a checking run reports is the first refusal
+/// the first call would have thrown, in the order [`crate::time`]'s own reader
+/// makes them.
+///
+/// # Errors
+///
+/// [`compile`]'s sentence where the pattern is not one, and
+/// [`civil_fields_only`]'s where it names a zone.
+pub fn validate_civil(pattern: &str) -> Result<(), String> {
+    civil_fields_only(&compile(pattern)?)
 }
 
 /// Appends `text` to the pieces, merging it into a trailing literal so that

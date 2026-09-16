@@ -42,6 +42,23 @@
 //!   a series past the bound. A naming convention enforced with a throw would
 //!   be a request lost to a spelling, so the grammar is enforced where it is
 //!   free and a name a request computed is accumulated as written.
+//! * **A member's own restriction on a well-formed pattern is a column on the
+//!   row.** `Core\Time::parse` refuses a *zonal* field in a pattern the
+//!   grammar reads perfectly well, because its zone is argument 3 rather than
+//!   something the pattern names — a rule about the member and not about the
+//!   pattern language, so it rides beside the [`Grammar`] rather than
+//!   splitting it ([`Restriction`]). The refusal itself is still
+//!   `nvs_stdlib::cldr`'s, which is what keeps it the bullet above's kind: the
+//!   member makes it too, before it reads a byte of text.
+//! * **An argument is addressed by the parameter it fills, never by where it
+//!   was written.** The call's [`ArgSlot`] mapping arrives from
+//!   [`crate::expr::args::check_args_typed`], which already had to work it out
+//!   to type the arguments at all, so `Core\Str::format(template: "%d", $n)`
+//!   is read exactly as the positional spelling is
+//!   (`rule:core-api/parameters-are-callable-by-name`). A `...` is the one
+//!   shape that still says nothing about the *tail*: how many entries an array
+//!   hands over is a run-time fact, so the template's own grammar is read and
+//!   the count against its arguments is not.
 //! * **The grants behind the host check arrive from the caller, and `None`
 //!   there is "no configuration was read" rather than an empty grant set.**
 //!   [`crate::Env::grants`] is what this pass reads and
@@ -71,26 +88,7 @@
 //!    Decided: Build the checker-to-IR channel; store prepared patterns in the artifact — No per-call
 //!    compile, and one new channel through the lowering.
 //!    — owner: unowned-closures
-//! 3. **A member's own restriction on a well-formed pattern is left to run
-//!    time.** `Core\Time::parse` refuses a *zonal* field in a pattern the
-//!    grammar reads perfectly well (`nvs_stdlib::cldr`'s `civil_fields_only`),
-//!    because its zone is argument 3 rather than something the pattern names.
-//!    That is a rule about the member and not about the pattern language, and
-//!    [`Grammar`] carries one variant per language by § 1's own reading — so
-//!    refusing it here would need a per-row restriction the table does not
-//!    have a column for. Leaving it leaves § 4 intact: everything this pass
-//!    refuses, the runtime refuses too.
-//!    Decided: Add a restriction column to the roster — The error comes where it was written, and the
-//!    closed table gets one more column.
-//!    — owner: unowned-closures
-//! 4. **A named or spread argument is not read.** `Core\Str::format(template:
-//!    "…")` folds nothing and runs unvalidated, exactly as
-//!    [`crate::links`]' own gap 1 describes: reading one needs the slot
-//!    mapping `check_args_typed` built and this pass is not handed.
-//!    Decided: Hand these passes the slot mapping check_args_typed already builds — Named arguments are
-//!    checked like positional ones, and three passes take a new input.
-//!    — owner: unowned-closures
-//! 5. **`rule:core-classes/db-literal-query-checking`'s unterminated string literal is not refused**, and the
+//! 3. **`rule:core-classes/db-literal-query-checking`'s unterminated string literal is not refused**, and the
 //!    reason is a disagreement rather than an absence: `nvs_db::sql`'s own
 //!    module doc declines it in the other direction, because an unterminated
 //!    quote ends that scan at the end of the text and the statement goes out to
@@ -109,6 +107,8 @@ use nvs_syntax::ast::{Arg, CallArgs, Expr, ExprKind};
 
 use crate::Env;
 use crate::defaults::ConstArg;
+use crate::expr::args::argument_filling;
+use crate::expr_table::ArgSlot;
 use crate::ty::{Ty, TypeId};
 
 /// What kind of small program a folded argument is, and therefore which
@@ -181,9 +181,15 @@ struct Intrinsic {
     /// The declaring class's fully-qualified name.
     owner: &'static str,
     member: &'static str,
-    /// The **written** argument position the pattern is at — 0 for a subject
-    /// that is itself the pattern, 1 for `Core\Time::parse`, whose subject is
-    /// the text being parsed (`rule:core-api/shape-rules` R1).
+    /// The **parameter** the pattern fills — 0 for a subject that is itself
+    /// the pattern, 1 for `Core\Time::parse`, whose subject is the text being
+    /// parsed (`rule:core-api/shape-rules` R1). A receiver is not a parameter,
+    /// so an instance row counts from the first written argument.
+    ///
+    /// A parameter rather than a position, because a `name:` fills its own
+    /// parameter wherever it was written: [`argument_filling`] turns this into
+    /// the written argument through the call's own mapping, and for an
+    /// all-positional list the two numbers are the same.
     at: usize,
     /// Which field *inside* the argument at [`Self::at`] carries the literal,
     /// or `None` where the argument is itself it.
@@ -200,7 +206,28 @@ struct Intrinsic {
     /// check below reads the expression it answers with rather than the
     /// argument.
     field: Option<&'static str>,
+    /// The member's own refusal over a pattern its grammar reads perfectly
+    /// well, or `None` where the grammar is the whole of what it accepts.
+    ///
+    /// A [`Grammar`] is one language and is shared by every row that reads it;
+    /// this is the half that is about the *member*, which is why it is a
+    /// second column rather than a second variant. Each value names the
+    /// grammar it narrows, so the arm that reads a row's grammar is the one
+    /// that applies it.
+    restriction: Option<Restriction>,
     grammar: Grammar,
+}
+
+/// A member's own rule about a well-formed pattern — [`Intrinsic::restriction`].
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Restriction {
+    /// `Core\Time::parse` names no zone: its zone is argument 3, so a pattern
+    /// naming one too would be two answers with no rule to pick between them
+    /// (`rule:core-api/shape-rules` R20). Narrows [`Grammar::DateFormat`], and
+    /// the refusal is `nvs_stdlib::cldr::validate_civil`'s — the same walk
+    /// `Core\Time::parse` itself makes before it reads a byte of text, so this
+    /// stays a refusal the runtime also makes.
+    CivilFields,
 }
 
 /// `rule:expressions/intrinsic-list-is-closed`'s
@@ -212,6 +239,7 @@ const INTRINSICS: &[Intrinsic] = &[
         member: "compile",
         at: 0,
         field: None,
+        restriction: None,
         grammar: Grammar::Regex,
     },
     Intrinsic {
@@ -219,6 +247,7 @@ const INTRINSICS: &[Intrinsic] = &[
         member: "parse",
         at: 0,
         field: None,
+        restriction: None,
         grammar: Grammar::Uri,
     },
     Intrinsic {
@@ -226,6 +255,7 @@ const INTRINSICS: &[Intrinsic] = &[
         member: "format",
         at: 0,
         field: None,
+        restriction: None,
         grammar: Grammar::DateFormat,
     },
     Intrinsic {
@@ -233,6 +263,7 @@ const INTRINSICS: &[Intrinsic] = &[
         member: "parse",
         at: 1,
         field: None,
+        restriction: Some(Restriction::CivilFields),
         grammar: Grammar::DateFormat,
     },
     Intrinsic {
@@ -240,6 +271,7 @@ const INTRINSICS: &[Intrinsic] = &[
         member: "parse",
         at: 0,
         field: None,
+        restriction: None,
         grammar: Grammar::Duration,
     },
     Intrinsic {
@@ -247,6 +279,7 @@ const INTRINSICS: &[Intrinsic] = &[
         member: "format",
         at: 0,
         field: None,
+        restriction: None,
         grammar: Grammar::Template,
     },
     // `rule:core-classes/db-literal-query-checking`'s members, on both classes that declare them: § 7's
@@ -263,6 +296,7 @@ const INTRINSICS: &[Intrinsic] = &[
         member: "query",
         at: 0,
         field: None,
+        restriction: None,
         grammar: Grammar::Sql,
     },
     Intrinsic {
@@ -270,6 +304,7 @@ const INTRINSICS: &[Intrinsic] = &[
         member: "queryAs",
         at: 0,
         field: None,
+        restriction: None,
         grammar: Grammar::Sql,
     },
     Intrinsic {
@@ -277,6 +312,7 @@ const INTRINSICS: &[Intrinsic] = &[
         member: "execute",
         at: 0,
         field: None,
+        restriction: None,
         grammar: Grammar::Sql,
     },
     // `stream` binds the same one statement `query` does — § 4 gives them one
@@ -288,6 +324,7 @@ const INTRINSICS: &[Intrinsic] = &[
         member: "stream",
         at: 0,
         field: None,
+        restriction: None,
         grammar: Grammar::Sql,
     },
     Intrinsic {
@@ -295,6 +332,7 @@ const INTRINSICS: &[Intrinsic] = &[
         member: "streamAs",
         at: 0,
         field: None,
+        restriction: None,
         grammar: Grammar::Sql,
     },
     Intrinsic {
@@ -302,6 +340,7 @@ const INTRINSICS: &[Intrinsic] = &[
         member: "query",
         at: 0,
         field: None,
+        restriction: None,
         grammar: Grammar::Sql,
     },
     Intrinsic {
@@ -309,6 +348,7 @@ const INTRINSICS: &[Intrinsic] = &[
         member: "queryAs",
         at: 0,
         field: None,
+        restriction: None,
         grammar: Grammar::Sql,
     },
     Intrinsic {
@@ -316,6 +356,7 @@ const INTRINSICS: &[Intrinsic] = &[
         member: "execute",
         at: 0,
         field: None,
+        restriction: None,
         grammar: Grammar::Sql,
     },
     Intrinsic {
@@ -323,6 +364,7 @@ const INTRINSICS: &[Intrinsic] = &[
         member: "stream",
         at: 0,
         field: None,
+        restriction: None,
         grammar: Grammar::Sql,
     },
     Intrinsic {
@@ -330,6 +372,7 @@ const INTRINSICS: &[Intrinsic] = &[
         member: "streamAs",
         at: 0,
         field: None,
+        restriction: None,
         grammar: Grammar::Sql,
     },
     // § 10's second sentence, and the only row that addresses a field: § 18
@@ -342,6 +385,7 @@ const INTRINSICS: &[Intrinsic] = &[
         member: "open",
         at: 0,
         field: Some("host"),
+        restriction: None,
         grammar: Grammar::Host,
     },
     // `rule:concurrency/queue-deletion-is-explicit-and-bounded`'s written queue
@@ -356,6 +400,7 @@ const INTRINSICS: &[Intrinsic] = &[
         member: "purge",
         at: 0,
         field: None,
+        restriction: None,
         grammar: Grammar::QueueName,
     },
     // `rule:observability/metrics-three-members`'s series name, on all three
@@ -363,14 +408,15 @@ const INTRINSICS: &[Intrinsic] = &[
     // first written with, so reading it on one member and not the others would
     // make one name a compile error in one call and fine in the next.
     //
-    // `at: 0` on every row, because `at` addresses the **written** argument and
-    // the call-site constant `nvs_stdlib::registry::SOURCE_MEMBERS` puts in
-    // front of the name is `nvs-ir`'s, spliced long after this pass has run.
+    // `at: 0` on every row, because `at` names a parameter the **call site**
+    // filled and the constant `nvs_stdlib::registry::SOURCE_MEMBERS` splices in
+    // front of the name is `nvs-ir`'s, added long after this pass has run.
     Intrinsic {
         owner: r"Core\Metrics",
         member: "increment",
         at: 0,
         field: None,
+        restriction: None,
         grammar: Grammar::MetricName,
     },
     Intrinsic {
@@ -378,6 +424,7 @@ const INTRINSICS: &[Intrinsic] = &[
         member: "observe",
         at: 0,
         field: None,
+        restriction: None,
         grammar: Grammar::MetricName,
     },
     Intrinsic {
@@ -385,6 +432,7 @@ const INTRINSICS: &[Intrinsic] = &[
         member: "gauge",
         at: 0,
         field: None,
+        restriction: None,
         grammar: Grammar::MetricName,
     },
 ];
@@ -412,6 +460,7 @@ pub(crate) fn check_call(
     member: &str,
     args: &CallArgs,
     arg_types: &[TypeId],
+    slots: &[ArgSlot],
     env: &mut Env<'_>,
 ) {
     let Some(row) = row(owner, member) else {
@@ -420,14 +469,10 @@ pub(crate) fn check_call(
     let CallArgs::List(list) = args else {
         return;
     };
-    // Gap 4: a `name:` or a `...` moves an argument away from the position the
-    // row names, so the whole call is left to run time rather than read out of
-    // order.
-    if list.iter().any(|arg| arg.name.is_some() || arg.spread) {
-        return;
-    }
-    let Some(arg) = list.get(row.at) else {
-        // A missing argument is the arity check's refusal, already made.
+    let Some(arg) = argument_filling(row.at, list, slots) else {
+        // Nothing fills the row's parameter: a call too short to have written
+        // it, which is the arity check's refusal and already made, or a `...`
+        // hiding it among a subject's entries.
         return;
     };
     let Some(pattern) = addressed(row, &arg.value, env.src) else {
@@ -438,13 +483,23 @@ pub(crate) fn check_call(
         return;
     };
     match row.grammar {
-        Grammar::Template => check_template(&text, span, row, arg_types, env),
-        Grammar::Sql => check_sql(&text, span, row, list, env),
+        Grammar::Template => {
+            let tail = tail_types(row, list, arg_types, slots);
+            check_template(&text, span, tail.as_deref(), env);
+        }
+        Grammar::Sql => check_sql(&text, span, row, list, slots, env),
         // Both CLDR rows read the same pattern language through the same
         // `compile`, which is why they share one variant: the two members
-        // differ only in what they do with the pieces afterwards.
+        // differ only in what they do with the pieces afterwards, and a row's
+        // `restriction` is where that difference is written down. One walk
+        // answers both questions, so a pattern that is malformed *and* zonal
+        // reports what the first call would have thrown.
         Grammar::DateFormat => {
-            if let Err(message) = nvs_stdlib::cldr::validate(&text) {
+            let refused = match row.restriction {
+                Some(Restriction::CivilFields) => nvs_stdlib::cldr::validate_civil(&text),
+                None => nvs_stdlib::cldr::validate(&text),
+            };
+            if let Err(message) = refused {
                 report_malformed(span, &message, env);
             }
         }
@@ -537,6 +592,7 @@ fn check_sql(
     span: nvs_diagnostics::Span,
     row: &Intrinsic,
     list: &[Arg],
+    slots: &[ArgSlot],
     env: &mut Env<'_>,
 ) {
     // § 1's statement count first, because it is a fact about the literal alone
@@ -545,7 +601,7 @@ fn check_sql(
         report_malformed(span, &message, env);
         return;
     }
-    let Some(params) = list.get(row.at + 1) else {
+    let Some(params) = argument_filling(row.at + 1, list, slots) else {
         // A missing argument is the arity check's refusal, already made.
         return;
     };
@@ -585,7 +641,36 @@ fn check_sql(
     }
 }
 
-/// `Core\Str::format`'s template, against the arguments written beside it.
+/// The types the variadic tail behind `row.at` binds, in the order it binds
+/// them: the values `Core\Str::format`'s template reads.
+///
+/// `None` where a `...` fills that tail, which is the one shape whose count is
+/// a run-time fact — and the only one, because a `name:` never reaches a
+/// variadic tail (`crate::expr::args::map_arguments`' rule 2) and a positional
+/// argument cannot follow one.
+fn tail_types(
+    row: &Intrinsic,
+    list: &[Arg],
+    arg_types: &[TypeId],
+    slots: &[ArgSlot],
+) -> Option<Vec<TypeId>> {
+    if slots.len() != list.len() {
+        // No mapping, so the call is the all-positional one `argument_filling`
+        // already read positionally: the tail is what follows the template.
+        return Some(arg_types.iter().skip(row.at + 1).copied().collect());
+    }
+    let mut tail = Vec::new();
+    for (&slot, &ty) in slots.iter().zip(arg_types) {
+        match slot {
+            ArgSlot::Param(index) if index > row.at => tail.push(ty),
+            ArgSlot::Param(_) => {}
+            ArgSlot::Spread(_) | ArgSlot::Unresolved => return None,
+        }
+    }
+    Some(tail)
+}
+
+/// `Core\Str::format`'s template, against the values the tail behind it binds.
 ///
 /// Three refusals, and they are `nvs_stdlib::format`'s own three: a
 /// placeholder the grammar cannot read, an argument the template asks for and
@@ -595,8 +680,7 @@ fn check_sql(
 fn check_template(
     text: &str,
     span: nvs_diagnostics::Span,
-    row: &Intrinsic,
-    arg_types: &[TypeId],
+    values: Option<&[TypeId]>,
     env: &mut Env<'_>,
 ) {
     let placeholders = match nvs_stdlib::format::placeholders(text) {
@@ -606,10 +690,13 @@ fn check_template(
             return;
         }
     };
-    // The arguments the template reads are the ones after it — `format` is
-    // variadic in exactly the tail, so the written position of argument `n` is
-    // the template's own plus one.
-    let given = arg_types.len().saturating_sub(row.at + 1);
+    // The template's own grammar is read however the arguments were written;
+    // the three refusals below are each a count against them, and a `...`
+    // hands over entries whose count is a run-time fact.
+    let Some(values) = values else {
+        return;
+    };
+    let given = values.len();
     let mut read = vec![false; given];
     for placeholder in &placeholders {
         let Some(seen) = read.get_mut(placeholder.index) else {
@@ -633,7 +720,7 @@ fn check_template(
         return;
     }
     for placeholder in &placeholders {
-        let ty = arg_types[row.at + 1 + placeholder.index];
+        let ty = values[placeholder.index];
         if reads_number(placeholder.conversion) && !may_be_number(ty, env) {
             let described = env.interner.describe(ty);
             let conversion = placeholder.conversion;

@@ -14538,7 +14538,7 @@ Builds the URL path of the route named `$name`, substituting `$params` into its 
 
 **Returns** `string` — The path, `/users/42?page=2`, with an optional `{name?}` capture dropped when `$params` omits it and a `{name...}` capture's own `/`s kept as structure.
 
-**Throws** `RuntimeError` — When `$name` is not a literal the compiler could resolve — a computed name, or one given as a named argument; when `$params` lacks a capture the path requires; or when a value has no text form a segment or query parameter could be built from.
+**Throws** `RuntimeError` — When `$name` is not a literal the compiler could resolve — a computed name; when `$params` lacks a capture the path requires; or when a value has no text form a segment or query parameter could be built from.
 
 <a id="core-core-router-urlabsolute"></a>
 #### `Core\Router::urlAbsolute`

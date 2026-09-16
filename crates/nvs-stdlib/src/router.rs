@@ -48,20 +48,13 @@
 //! program is only what a program reading `Core\Request::method` for itself
 //! gets.
 //!
-//! # Known gaps
-//!
-//! 1. **A name this module is handed is one the compiler could not fold.** The
-//!    route table is built and § 4's link is resolved against it while
-//!    compiling: a literal name reaches [`link`]'s symbols carrying a
-//!    prepared path, an unknown literal one is `E0754` before the program runs,
-//!    and [`CLASS`]'s own link members are what is left over — a *computed*
-//!    name, which § 4 says throws, and `nvs_types::links`' gap 1's named
-//!    argument, which is folded as a computed name would be and throws for a
-//!    reason a reader has to look up. Closing that gap is what would make
-//!    [`no_such_route`] answer only the case § 4 named.
-//!    Decided: The fold grows a named-argument case (the checker already holds the route's typed
-//!    parameters) — Errors at compile time with a precise message; more checker code.
-//!    — owner: unowned-closures
+//! **A name this module is handed is one the compiler could not fold.** The
+//! route table is built and § 4's link is resolved against it while compiling:
+//! a literal name reaches [`link`]'s symbols carrying a prepared path — written
+//! positionally or as `name:`, which `nvs_types::links` reads through the
+//! call's own argument mapping — and an unknown literal one is `E0754` before
+//! the program runs. So [`CLASS`]'s own link members answer exactly the case
+//! § 4 named: a *computed* name, which throws.
 
 use nvs_runtime::{Fault, HelperResult, NvsArray, NvsStr, Tag, Value};
 
@@ -337,9 +330,9 @@ const URL_DOC: MethodDoc = MethodDoc {
           omits it and a `{name...}` capture's own `/`s kept as structure.",
     errors: &[ErrorDoc {
         error: "RuntimeError",
-        desc: "When `$name` is not a literal the compiler could resolve — a computed name, or one \
-               given as a named argument; when `$params` lacks a capture the path requires; or \
-               when a value has no text form a segment or query parameter could be built from.",
+        desc: "When `$name` is not a literal the compiler could resolve — a computed name; when \
+               `$params` lacks a capture the path requires; or when a value has no text form a \
+               segment or query parameter could be built from.",
     }],
 };
 
@@ -1412,9 +1405,9 @@ fn produced(text: &str) -> HelperResult {
     Ok(Value::str(NvsStr::new(text.as_bytes())))
 }
 
-/// The answer both members give for a name that reached run time at all — a
-/// computed one, or gap 1's named argument. A folded literal never arrives
-/// here: it is either a prepared path in [`link`]'s symbols or `E0754`.
+/// The answer both members give for a name that reached run time at all, which
+/// is a computed one. A folded literal never arrives here, however it was
+/// written: it is either a prepared path in [`link`]'s symbols or `E0754`.
 ///
 /// A throw rather than an abort, and that is the difference from
 /// [`crate::program`]: `implementing<T>()` is expanded away in `nvs check`, so

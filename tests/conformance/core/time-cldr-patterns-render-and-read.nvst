@@ -29,9 +29,13 @@ echo $read->format("yyyy-MM-dd HH:mm"), "|\n";
 echo Core\Time::parse("3 June 24", "d MMMM yy", $utc)->format("yyyy-MM-dd"), "|\n";
 
 // A zone the pattern named would be a second answer beside that argument, so
-// a zonal field is refused when reading rather than silently ignored.
+// a zonal field is refused when reading rather than silently ignored. The
+// pattern arrives in a variable for the reason the two below do: `parse`'s row
+// carries this restriction beside its grammar, so the literal spelling is the
+// same refusal made while compiling.
+string $zonal = "yyyy X";
 try {
-    Core\Time::parse("2024 Z", "yyyy X", $utc);
+    Core\Time::parse("2024 Z", $zonal, $utc);
 } catch (Throwable $e) {
     echo Core\Str::contains($e->message, "third argument") as string, "|\n";
 }

@@ -330,9 +330,9 @@ fn a_computed_to_source_reason_is_refused_at_the_call() {
     );
     assert!(!empty.has_errors(), "{empty:?}");
 
-    // A `name:` argument is read where it was written, not where it was
-    // declared — the gap `nvs_types::reasons` closes and `crate::links`' own
-    // gap 1 leaves open.
+    // A `name:` argument is read at the parameter it fills, wherever it was
+    // written — `rule:core-api/parameters-are-callable-by-name`, through the
+    // argument mapping `nvs_types::expr::args` hands this pass.
     let named = check_in_method(
         "Core\\Html\\Markup $m = \"<b>\" as Core\\Html\\Markup;\n\
          string $why = \"cached fragment\";\n\

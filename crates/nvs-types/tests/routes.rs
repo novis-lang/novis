@@ -674,6 +674,44 @@ fn an_unknown_literal_url_name_is_a_diagnostic() {
 }
 
 #[test]
+fn a_named_link_argument_is_folded_like_a_positional_one() {
+    // `rule:core-api/parameters-are-callable-by-name`: `$name` and `$params`
+    // are filled by the names the spec publishes as surely as by position, and
+    // the call's own argument mapping is what says so — so § 4's refusals are
+    // the same refusals when the link is written that way, and a link that
+    // throws at run time is a computed name and nothing else.
+    let src = |link: &str| {
+        with_access(&format!(
+            "<?nvs\nclass Users {{\n  \
+             #[Core\\Route(path: \"/users/{{id}}\", method: Core\\Http\\Method::Get, \
+             name: \"Users::show\")]\n  \
+             public function show(uint $id): string {{ return \"\"; }}\n}}\n\
+             echo Core\\Router::url({link}), \"\\n\";\n"
+        ))
+    };
+    let diags = check_src(&src("name: \"Users::missing\", params: [\"id\" => 1]"));
+    assert!(reported(&diags, code::E_UNKNOWN_ROUTE_NAME), "{diags:?}");
+
+    // The `$params` half through the same mapping, and written *first*: a key
+    // that is neither a capture nor a `#[Query]` parameter is
+    // `rule:routing/a-leftover-link-key-is-a-query-string`'s refusal, and
+    // reaching it means both arguments were read at the parameters they filled
+    // rather than at the positions they were written in.
+    let diags = check_src(&src(
+        "params: [\"id\" => 1, \"nope\" => 2], name: \"Users::show\"",
+    ));
+    assert!(
+        reported(&diags, code::E_ROUTE_LINK_UNKNOWN_PARAM),
+        "{diags:?}"
+    );
+
+    // And the link that is right, written entirely by name: no diagnostic, so
+    // the pair above is a refusal of the *name* and not of the spelling.
+    let diags = check_src(&src("name: \"Users::show\", params: [\"id\" => 1]"));
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+#[test]
 fn an_optional_capture_outside_the_last_position_is_a_diagnostic() {
     // `rule:routing/a-trailing-segment-may-be-absent`: `{name?}` matches a segment or none, and "or none" only
     // has an answer where nothing follows it — a literal segment after one is

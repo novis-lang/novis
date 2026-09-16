@@ -36,9 +36,10 @@ use nvs_stdlib::registry::Qual;
 /// [`ExprKind::New`]'s arm reads the first one back to feed
 /// [`reject_secret_throwable_message`] without a second,
 /// diagnostic-duplicating pass over the same expression — and beside it the
-/// [`ArgSlot`] mapping, which is the fact `nvs-ir` cannot re-derive and so the
-/// one thing this pass has to hand down: a name resolves against
-/// [`MethodSig::param_names`], which no later pass holds.
+/// [`ArgSlot`] mapping, which is the fact no later pass can re-derive and so
+/// the one thing this pass has to hand down: a name resolves against
+/// [`MethodSig::param_names`], which neither `nvs-ir` nor a pass that knows a
+/// member by name holds. [`argument_filling`] is how those passes read it back.
 ///
 /// **The all-positional list is still its own path**, and deliberately: its
 /// mapping is the identity and its arity check is one count against another,
@@ -216,6 +217,39 @@ fn declared_for(slot: ArgSlot, sig: &MethodSig, interner: &mut TypeInterner) -> 
         ArgSlot::Param(index) => sig.param_at(index),
         ArgSlot::Spread(index) => sig.param_at(index).map(|elem| interner.array(elem)),
         ArgSlot::Unresolved => None,
+    }
+}
+
+/// The written argument that fills parameter `param`, for the passes that know
+/// a member by name and have to find one of its arguments —
+/// [`crate::intrinsics`], [`crate::links`] and [`crate::reasons`], each of
+/// which reads one written literal at an address its own roster names.
+///
+/// This is [`check_args_typed`]'s mapping read back, and reading it is the
+/// whole of what those passes gain: a `name:` fills its parameter as surely as
+/// a positional argument does, so `Core\Str::format(template: "%s", $x)` is
+/// addressed exactly as the positional spelling is
+/// (`rule:core-api/parameters-are-callable-by-name`). A `...` fills no single
+/// parameter and so addresses nothing, which is the shape those passes are
+/// still silent about.
+///
+/// A call whose target did not resolve has no mapping — `slots` is empty — and
+/// then a position is all there is: an all-positional list is its own mapping,
+/// and a list that wrote a `name:` or a `...` is addressed by nothing.
+pub(crate) fn argument_filling<'a>(
+    param: usize,
+    list: &'a [Arg],
+    slots: &[ArgSlot],
+) -> Option<&'a Arg> {
+    if slots.len() == list.len() {
+        let at = slots
+            .iter()
+            .position(|slot| *slot == ArgSlot::Param(param))?;
+        return list.get(at);
+    }
+    match list.iter().any(|arg| arg.name.is_some() || arg.spread) {
+        true => None,
+        false => list.get(param),
     }
 }
 

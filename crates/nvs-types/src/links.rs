@@ -41,22 +41,21 @@
 //! handling here at all — nothing is recorded, the `Call` stands, and
 //! `nvs_stdlib::router`'s own body is § 4's "a computed `$name` throws".
 //!
-//! # Known gaps
-//!
-//! 1. **A named argument is not folded.** `Core\Router::url(name: "…")` is
-//!    legal and records no site, so it throws at run time as a computed name
-//!    would. Reading one needs the slot mapping `check_args_typed` already
-//!    built and this pass is not handed.
-//!    Decided: Hand these passes the slot mapping check_args_typed already builds — Named arguments are
-//!    checked like positional ones, and three passes take a new input.
-//!    — owner: unowned-closures
+//! **A `name:` argument is folded like a positional one**, because which
+//! parameter each written argument fills arrives from
+//! [`crate::expr::args::check_args_typed`]: `Core\Router::url(name: "…")` is
+//! read where it was written and an unknown route named that way is `E0754`
+//! before the program runs (`rule:core-api/parameters-are-callable-by-name`).
+//! So the two states above stay the only two, and a link that throws at run
+//! time is a computed name and nothing else.
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, Span, code};
 use nvs_hir::QName;
 use nvs_syntax::ast::{CallArgs, Expr, ExprKind};
 
 use crate::defaults::ConstArg;
-use crate::expr_table::{EnumSpelling, ExprInfo, ExprTypeTable, UrlPiece};
+use crate::expr::args::argument_filling;
+use crate::expr_table::{ArgSlot, EnumSpelling, ExprInfo, ExprTypeTable, UrlPiece};
 use crate::routes::RouteTable;
 use crate::{Ctx, Env};
 
@@ -147,32 +146,30 @@ pub(crate) fn is_link(owner: &QName, member: &str) -> bool {
 ///
 /// Reports nothing: every refusal this pass makes is a question about the table
 /// and is made in [`resolve`], and everything decided here — a computed name, a
-/// named argument, a `$params` that is not a literal — is legal.
+/// `$params` that is not a literal — is legal.
 pub(crate) fn record_site(
     call: &Expr,
     member: &str,
     args: &CallArgs,
+    slots: &[ArgSlot],
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) {
     let CallArgs::List(list) = args else {
         return;
     };
-    // Gap 1: the positions below are the written ones, so a named or spread
-    // argument anywhere is left to run time rather than read out of order.
-    if list.iter().any(|arg| arg.name.is_some() || arg.spread) {
-        return;
-    }
-    let Some(name_arg) = list.first().map(|arg| &arg.value) else {
-        // A missing argument is the arity check's refusal, already made.
+    // Each argument is found through the parameter it fills, so a `name:` is
+    // read where it was written. Nothing fills `$name` in a call too short to
+    // have written it — the arity check's refusal, already made — or in one
+    // whose `...` has no variadic tail to land in, which is refused where it
+    // was mapped.
+    let Some(name_arg) = argument_filling(0, list, slots).map(|arg| &arg.value) else {
         return;
     };
     let Some(ConstArg::Str(name)) = folded_as(name_arg, crate::ty::Ty::String, env) else {
         return;
     };
-    let args = list
-        .get(1)
-        .and_then(|arg| literal_args(&arg.value, ctx, env));
+    let args = argument_filling(1, list, slots).and_then(|arg| literal_args(&arg.value, ctx, env));
     env.links.push(LinkSite {
         span: call.span,
         member: member.to_owned(),

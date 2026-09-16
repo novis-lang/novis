@@ -143,19 +143,6 @@ where taking it is the work and the code that follows it is not.
   throw at a return that allocates nothing, and a capture is the other side of that trade.
   `crates/nvs-runtime/src/lib.rs` § *Known gaps* carries the tags.
   [until: gone crates/nvs-runtime/src/lib.rs:owner: unowned]
-- **A route link's named argument is not folded, so two different failures throw one message.**
-  `nvs_types::links` folds a literal route name while compiling and refuses an unknown one
-  (`E0754`); a **named** argument is not folded at all, so it reaches `Core\Router`'s runtime throw
-  by the path a *computed* name takes, and a reader has to look up which of the two they hit. What
-  has to be decided is whether the fold grows a named-argument case — the checker already holds the
-  route's typed parameter list — or whether § 4's "a computed name throws" is the whole contract and
-  the message is what names both. Until it is, `no_such_route` answers more than the case § 4 named.
-  `crates/nvs-types/src/reasons.rs`'s spread argument is the same question one position over: that
-  roster carries the parameter's own name, so a *named* argument is read there, while a spread moves
-  every position at once — so what is undecided is again whether a compiler-known-call pass is handed
-  the mapping. `crates/nvs-types/src/links.rs` § *Known gaps*,
-  `crates/nvs-types/src/reasons.rs` § *Known gaps* and `crates/nvs-stdlib/src/router.rs` § *Known
-  gaps*. [until: gone crates/nvs-types/src/links.rs:A named argument is not folded]
 - **The derive machinery is a descriptor read by native Rust**, and both halves of `Core\Json` walk a
   per-class `nvs_runtime::CodecField` list rather than straight-line code emitted per class. The two
   narrower holes that waited on which of the two it stays are closed against the descriptor — a

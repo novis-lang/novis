@@ -115,6 +115,62 @@ fn a_literal_format_template_checks_its_placeholder_count_and_types() {
 }
 
 #[test]
+fn a_named_argument_is_read_at_the_parameter_it_fills() {
+    // `rule:core-api/parameters-are-callable-by-name`: the roster addresses a
+    // parameter, and the call's own argument mapping says which written
+    // argument fills it — so every refusal above is the same refusal when the
+    // pattern is written by name. Asserted on two rows whose `at` differs, so
+    // a mapping that only happened to agree with position 0 fails here.
+    let named = check_call("    echo Core\\Str::format(template: \"%q\");\n");
+    assert!(
+        reported(&named, code::E_INTRINSIC_LITERAL_MALFORMED),
+        "a `template:` template was not read: {named:?}"
+    );
+    let parsed = check_call(
+        "    Core\\Time\\DateTime $d = Core\\Time::parse(text: \"2026-08-29\", \
+         format: \"yyyy-MM-dd'\", zone: Core\\Time\\Zone::UTC);\n    \
+         echo $d->format(\"yyyy\");\n",
+    );
+    assert!(
+        reported(&parsed, code::E_INTRINSIC_LITERAL_MALFORMED),
+        "a `format:` CLDR pattern was not read: {parsed:?}"
+    );
+
+    // The count against the arguments is made through the same mapping, and it
+    // counts only the values the variadic tail binds: `template:` fills a
+    // parameter, so a named call with nothing after it supplies none. Every
+    // *value* is still positional — a name never reaches a variadic tail, and
+    // a positional argument cannot follow a named one — so this is the whole
+    // shape a named template has.
+    let counted = check_call("    echo Core\\Str::format(template: \"%s\");\n");
+    assert!(
+        reported(&counted, code::E_FORMAT_TEMPLATE_MISMATCH),
+        "a named template reading past its arguments: {counted:?}"
+    );
+
+    // A `...` is the shape that still says nothing about the tail — how many
+    // entries it hands over is a run-time fact — while the template's own
+    // grammar is read either way. The pair is what keeps "a name is read" from
+    // being a claim that every argument list now is.
+    let spread = check_call(
+        "    array<string> $rest = [\"one\"];\n    \
+         echo Core\\Str::format(\"%s %s\", ...$rest);\n",
+    );
+    assert!(
+        !spread.has_errors(),
+        "a spread tail was counted as one argument: {spread:?}"
+    );
+    let spread_malformed = check_call(
+        "    array<string> $rest = [\"one\"];\n    \
+         echo Core\\Str::format(\"%q\", ...$rest);\n",
+    );
+    assert!(
+        reported(&spread_malformed, code::E_INTRINSIC_LITERAL_MALFORMED),
+        "a malformed template beside a spread: {spread_malformed:?}"
+    );
+}
+
+#[test]
 fn a_literal_date_format_is_validated_while_checking() {
     // § 1's rows 3 and 4 — the two members reading `nvs_stdlib::cldr`'s
     // letters, and the only two rows whose written argument positions differ:
@@ -144,18 +200,32 @@ fn a_literal_date_format_is_validated_while_checking() {
         "an unterminated quoted run: {parsed:?}"
     );
 
-    // And what stays silent. The two spec § 4 patterns; a computed one, which
-    // is § 2's rule again; and a pattern naming a *zone*, which
-    // `Core\Time::parse` itself refuses at run time and this pass deliberately
-    // does not — gap 3 in `intrinsics.rs` owns why, and this line moves to the
-    // refusals above only when the table grows a column for it.
+    // The row's own restriction, which is the third refusal and not a fourth
+    // grammar: the pattern is one `compile` reads and one `$d->format(…)`
+    // accepts, and it is wrong only for the member that takes a `Zone` as its
+    // third argument. The pair below is what says so — the same letters,
+    // refused at `parse` and silent at `format`.
+    let zonal = check_call(
+        "    Core\\Time\\DateTime $z = \
+         Core\\Time::parse(\"2026-08-29 UTC\", \"yyyy-MM-dd VV\", Core\\Time\\Zone::UTC);\n    \
+         echo $z->format(\"yyyy-MM-dd\");\n",
+    );
+    assert!(
+        reported(&zonal, code::E_INTRINSIC_LITERAL_MALFORMED),
+        "a zonal field in a parse pattern: {zonal:?}"
+    );
+
+    // And what stays silent: the two spec § 4 patterns, the zonal one at the
+    // member that has no zone argument to disagree with, and a computed
+    // pattern, which is § 2's rule again.
     let fine = check_call(
         "    string $p = \"yyyy-YY\";\n    \
          Core\\Time\\DateTime $d = Core\\Time::now()->in(Core\\Time\\Zone::UTC);\n    \
          echo $d->format(\"EEEE, d MMMM yyyy\");\n    \
+         echo $d->format(\"yyyy-MM-dd VV\");\n    \
          echo $d->format($p);\n    \
          Core\\Time\\DateTime $z = \
-         Core\\Time::parse(\"2026-08-29 UTC\", \"yyyy-MM-dd VV\", Core\\Time\\Zone::UTC);\n    \
+         Core\\Time::parse(\"2026-08-29 UTC\", $p, Core\\Time\\Zone::UTC);\n    \
          echo $z->format(\"yyyy-MM-dd\");\n",
     );
     assert!(

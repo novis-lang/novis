@@ -47,16 +47,19 @@ try { Core\Time::parse("nothing like a date", $reservedLetter, $berlin); }
 catch (LogicError $bothWrong) { echo $bothWrong->message, "\n"; }
 
 // A further refusal is about this *member* rather than about the pattern
-// language, and lands in the same class: `format` accepts every zonal field and shares the same
-// compiler, so a pattern naming a zone is wrong only for the member that takes
-// a `Zone` as its third argument (R20 — the pattern and the argument would be
-// two answers to one question). That makes it a *narrowing* of the compiled
-// pattern rather than a compile error, which is the shape
-// `Core\Time\Date::format` already has, and `crate::cldr::civil_fields_only`
-// is where `parse` makes it: before a byte of text is read, so it lands on the
+// language, and lands in the same class: `format` accepts every zonal field and
+// shares the same compiler, so a pattern naming a zone is wrong only for the
+// member that takes a `Zone` as its third argument (R20 — the pattern and the
+// argument would be two answers to one question). `crate::cldr::civil_fields_only`
+// is where `parse` makes it, before a byte of text is read, so it lands on the
 // side of the split the call site's own mistake belongs on. A well-formed
 // offset sitting in the text is not the input failing to match.
-try { Core\Time::parse("2024-03-31 Europe/Berlin", "yyyy-MM-dd VV", $berlin); }
+//
+// Computed, like the three above and for their reason: the roster carries this
+// restriction beside the grammar, so the literal spelling is refused while
+// compiling.
+string $zonalPattern = "yyyy-MM-dd VV";
+try { Core\Time::parse("2024-03-31 Europe/Berlin", $zonalPattern, $berlin); }
 catch (LogicError $zonal) { echo $zonal->message, "\n"; }
 
 // The text's refusals say where they stopped, because a caller holding a

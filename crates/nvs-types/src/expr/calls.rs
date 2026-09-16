@@ -136,12 +136,12 @@ pub(crate) fn infer_method_call(
     // is the shape that reaches it here. See [`crate::intrinsics`], which
     // reports and replaces nothing.
     if let Some((owner, name, _)) = &resolved {
-        crate::intrinsics::check_call(owner, name, args, &arg_types, env);
+        crate::intrinsics::check_call(owner, name, args, &arg_types, &slots, env);
         // `rule:core-classes/html-to-source`'s written reason, at the same point and matched the same
         // way — the one pass that refuses an argument *for* being dynamic. See
         // [`crate::reasons`], whose module doc owns why that is not the rule
         // above read backwards.
-        crate::reasons::check_call(owner, name, args, ctx, env);
+        crate::reasons::check_call(owner, name, args, &slots, ctx, env);
         // `rule:security/secret-sinks-refuse`'s graph copy at the one *instance*
         // member that makes one: `Core\Cache\Store::put` declares `mixed` for its
         // value, so the written argument is the last place the qualifier is
@@ -407,11 +407,11 @@ pub(crate) fn infer_static_call(
         // `rule:expressions/intrinsic-list-is-closed`'s closed list — [`infer_method_call`]'s arm of the same
         // hook, for the `Core\Str::format(…)` / `Core\Regex::compile(…)` half
         // of the roster. See [`crate::intrinsics`].
-        crate::intrinsics::check_call(owner, name, args, &arg_types, env);
+        crate::intrinsics::check_call(owner, name, args, &arg_types, &slots, env);
         // `rule:core-classes/html-to-source`'s written reason — `Core\Html::toSource` is a static
         // call, so this is the arm that actually reports it. See
         // [`crate::reasons`].
-        crate::reasons::check_call(owner, name, args, ctx, env);
+        crate::reasons::check_call(owner, name, args, &slots, ctx, env);
         // A member that opens an isolate, which its row says by marking an
         // entry parameter — `rule:concurrency/an-upgrade-is-spawn-shaped`'s `Core\Socket::upgrade`. Its entry
         // takes ADR 0006 § *Decision*'s operand rule and its other arguments
@@ -481,6 +481,19 @@ pub(crate) fn infer_static_call(
         crate::program::expand(expr, &written, env);
         return sig.map_or_else(|| env.interner.mixed(), |s| s.return_ty);
     }
+    // `rule:routing/link-name-and-params-are-checked`'s link, and the one fold that is *not* made here: the route
+    // a literal name asks for may be declared in a file § 5's scan has not
+    // reached, so the site is only recorded and the lookup happens after the
+    // whole walk. The `ExprInfo::Call` recorded below deliberately stands until
+    // then — `crate::links` records over it, and a computed name keeps it. The
+    // site is taken ahead of that record because it reads the call's own
+    // argument mapping, which `resolved_call` takes by value.
+    if let Some((qname, name, _)) = &resolved
+        && crate::links::is_link(qname, name)
+    {
+        let name = name.clone();
+        crate::links::record_site(expr, &name, args, &slots, ctx, env);
+    }
     // See [`infer_method_call`]: persisted for `nvs-ir` to read back a resolved
     // static call's target, always as the *substituted* signature.
     //
@@ -511,17 +524,6 @@ pub(crate) fn infer_static_call(
             target.record_on(&mut call, list);
         }
         env.exprs.record(expr.span, ExprInfo::Call(call));
-    }
-    // `rule:routing/link-name-and-params-are-checked`'s link, and the one fold that is *not* made here: the route
-    // a literal name asks for may be declared in a file § 5's scan has not
-    // reached, so the site is only recorded and the lookup happens after the
-    // whole walk. The `ExprInfo::Call` just above deliberately stands until
-    // then — `crate::links` records over it, and a computed name keeps it.
-    if let Some((qname, name, _)) = &resolved
-        && crate::links::is_link(qname, name)
-    {
-        let name = name.clone();
-        crate::links::record_site(expr, &name, args, ctx, env);
     }
     // The static-call half of the same substitution the instance-call arm
     // above documents — see `MethodSig::returns_static`.

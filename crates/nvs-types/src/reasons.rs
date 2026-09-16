@@ -38,23 +38,22 @@
 //!   resemblance: each is its own ADR's decision to make, and widening this to
 //!   "every parameter named `$reason`" is the open extension point `rule:expressions/intrinsic-list-is-closed`
 //!   refuses for the sibling table.
-//!
-//! # Known gaps
-//!
-//! 1. **A spread argument is not read.** `Core\Html::toSource(...$pair)` moves
-//!    every position, so the call is left alone rather than refused at a
-//!    position it may not have written — [`crate::links`]' gap 1 for the same
-//!    reason. A named argument *is* read, unlike there: the roster carries the
-//!    parameter's own name, so `reason:` is found wherever it was written.
-//!    Decided: Hand these passes the slot mapping check_args_typed already builds — Named arguments are
-//!    checked like positional ones, and three passes take a new input.
-//!    — owner: unowned-closures
+//! * **The reason is found through the parameter it fills**, which
+//!   [`crate::expr::args::check_args_typed`] already worked out, so `reason:`
+//!   is read wherever it was written and the roster carries no second spelling
+//!   of a name the registry publishes
+//!   (`rule:core-api/parameters-are-callable-by-name`). A
+//!   `Core\Html::toSource(...$pair)` fills the parameter with nothing this
+//!   pass can see — and needs no answer here, because a `...` into a member
+//!   that declares no variadic tail is refused where it is mapped.
 
-use nvs_diagnostics::{Diagnostic, SourceFile, code};
+use nvs_diagnostics::{Diagnostic, code};
 use nvs_hir::QName;
-use nvs_syntax::ast::{Arg, CallArgs, Expr};
+use nvs_syntax::ast::{CallArgs, Expr};
 
 use crate::defaults::ConstArg;
+use crate::expr::args::argument_filling;
+use crate::expr_table::ArgSlot;
 use crate::{Ctx, Env};
 
 /// One row: a member, and which of its parameters is the written reason.
@@ -63,12 +62,11 @@ struct Reason {
     owner: &'static str,
     /// The member's own name.
     member: &'static str,
-    /// The reason's position among the **written** arguments — so an instance
-    /// receiver is not counted, exactly as [`crate::intrinsics`]' `at` is not.
+    /// The parameter holding the reason — a receiver is not one, exactly as
+    /// [`crate::intrinsics`]' `at` does not count one. The call's own mapping
+    /// turns it into the written argument, so a `reason:` written anywhere
+    /// fills it.
     at: usize,
-    /// The parameter's spec `$name`, without the sigil, so a `name:` argument
-    /// is found where it was written rather than where it was declared.
-    param: &'static str,
 }
 
 /// `rule:core-classes/html-to-source`'s one member, and every future row that earns its own section.
@@ -76,7 +74,6 @@ static REASONS: &[Reason] = &[Reason {
     owner: r"Core\Html",
     member: "toSource",
     at: 1,
-    param: "reason",
 }];
 
 /// Refuses a written reason that is not a source literal — the hook both call
@@ -86,6 +83,7 @@ pub(crate) fn check_call(
     owner: &QName,
     member: &str,
     args: &CallArgs,
+    slots: &[ArgSlot],
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) {
@@ -106,7 +104,11 @@ pub(crate) fn check_call(
     let CallArgs::List(list) = args else {
         return;
     };
-    let Some(written) = addressed(row, list, env.src) else {
+    let Some(written) = argument_filling(row.at, list, slots).map(|arg| &arg.value) else {
+        // Nothing fills the reason's parameter: a call too short to have
+        // written it, which is the arity check's refusal and already made, or
+        // a `...` this member has no variadic tail for, refused where it was
+        // mapped.
         return;
     };
     let span = written.span;
@@ -126,31 +128,6 @@ pub(crate) fn check_call(
              and compiles",
         ),
     );
-}
-
-/// The argument holding the reason: the one written `name:`, or the one at the
-/// row's position when none was.
-///
-/// `None` where the call cannot be read positionally at all — gap 1's spread,
-/// and a call too short to have written the argument, which is the arity
-/// check's refusal and already reported.
-fn addressed<'a>(row: &Reason, list: &'a [Arg], src: &SourceFile) -> Option<&'a Expr> {
-    if list.iter().any(|arg| arg.spread) {
-        return None;
-    }
-    if let Some(named) = list.iter().find(|arg| {
-        arg.name
-            .is_some_and(|span| crate::span_text(src, span) == row.param)
-    }) {
-        return Some(&named.value);
-    }
-    let arg = list.get(row.at)?;
-    // A `name:` in this slot names some *other* parameter, so the position no
-    // longer addresses the reason and the loop above already looked for it.
-    if arg.name.is_some() {
-        return None;
-    }
-    Some(&arg.value)
 }
 
 /// One expression folded as a `string`: the literal decoder
