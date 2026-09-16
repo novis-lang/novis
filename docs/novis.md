@@ -16287,7 +16287,7 @@ Runs `$body` with a progress bar open on the terminal, and answers whatever `$bo
 <a id="core-core-cli-text"></a>
 ### `Core\Cli\Text`
 
-Keywords: Core\Out::capture, ob_start, ob_get_clean, terminal output, ANSI, escape sequences, captured output, carrier, plain, styled
+Keywords: Core\Out::capture, ob_start, ob_get_clean, terminal output, ANSI, escape sequences, captured output, carrier, plain, styled, text
 
 `Core\Cli\Text` is what `Core\Out::capture` answers when the program is not serving an HTTP request: the
 bytes the captured code wrote, already past the terminal sink, carried as a value rather than as a `string`
@@ -16318,6 +16318,7 @@ length=5
 |---|---|
 | [`Core\Cli\Text::plain`](#core-core-cli-text-plain) | `plain(string $text): Core\Cli\Text` |
 | [`Core\Cli\Text::styled`](#core-core-cli-text-styled) | `styled(string $text, Core\Cli\Style $style): Core\Cli\Text` |
+| [`Core\Cli\Text->text`](#core-core-cli-text-text) | `text(): string` |
 
 <a id="core-core-cli-text-plain"></a>
 #### `Core\Cli\Text::plain`
@@ -16349,6 +16350,17 @@ Answers `$text` as a `Core\Cli\Text` wearing `$style`, with the text itself neut
 | `$style` | `Core\Cli\Style` | The style to wear, as a value — Novis has no markup or escape grammar to write one in. |
 
 **Returns** `Core\Cli\Text` — A `Core\Cli\Text` carrying the neutralized text between the style's own escape sequence and a reset. The styling is rendered for the terminal this process actually has, so it is absent entirely when standard output is not one.
+
+<a id="core-core-cli-text-text"></a>
+#### `Core\Cli\Text->text`
+
+```nvs skip
+$text->text(): string
+```
+
+Answers what this `Core\Cli\Text` says, as a `string`, leaving its styling out: the text of every run joined, already control-byte-substituted. This is what a `Core\Out::capture` filter reads before it writes a new carrier.
+
+**Returns** `string` — The runs' own text, with no escape sequence in it that a `Cli\Style` put there. It is safe to hand straight back to `plain` or `styled`, the terminal sink's substitution being idempotent.
 
 <a id="core-core-cli-color"></a>
 ### `Core\Cli\Color`
