@@ -183,14 +183,6 @@ where taking it is the work and the code that follows it is not.
   the mapping. `crates/nvs-types/src/links.rs` § *Known gaps*,
   `crates/nvs-types/src/reasons.rs` § *Known gaps* and `crates/nvs-stdlib/src/router.rs` § *Known
   gaps*. [until: gone crates/nvs-types/src/links.rs:A named argument is not folded]
-- **`nvs-types`' one unwritten checker pass, which no entry on the chain asks for.** Exhaustive
-  control-flow reachability — "every path through this non-void function returns", and with it
-  whether a bare `return;` is legal where it stands. It is an M4 checker hole and M4 is carried: its
-  loop goal's acceptance list passes, and no live entry on the chain writes this crate's checking
-  passes again. What has to be decided is whether the checker grows the flow analysis it needs at
-  all — the walk is structural rather than a CFG by `crates/nvs-types/src/locals.rs`'s own design
-  note. `crates/nvs-types/src/lib.rs` § *Known gaps* carries the tag.
-  [until: gone crates/nvs-types/src/lib.rs:owner: unowned]
 - **`nvs-types`' intrinsic pass, whose six gaps are each a decision rather than a backlog.** The
   pass validates a literal pattern wherever `rule:expressions/intrinsic-list-is-closed`'s roster
   names one, and it is complete at that. What is open is whether it also *prepares* one, which
@@ -288,18 +280,6 @@ where taking it is the work and the code that follows it is not.
   the difference between a grant that can be tightened mid-request and one fixed at dispatch.
   `crates/nvs-db/src/span.rs` gap 1.
   [until: gone crates/nvs-db/src/span.rs:owner: unowned]
-- **How much of a `mixed` value's tag dispatch is written at once.**
-  `rule:types/erased-member-access` has already decided what an erased read, write and call *do* — a
-  checked, catchable throw when the name is not there, never a silent value — but `nvs_ir::Ty::Tagged`
-  implements exactly one position of it, rendering, and every other position panics naming the case.
-  So `$e->previous->message` needs the value bound to a local and narrowed first, which is why
-  `crates/nvs-types/src/error_lib.rs` records the chain as built but not readable through. Each
-  position closes the same way — one `nvs_ir::ir::Helper` variant dispatching on the tag — and what
-  has to be decided is whether they are taken together, since arithmetic, the truthy table, a subscript
-  and this member access pay one design cost between them and taking them one at a time leaves the
-  rule half-true for however long the others wait.
-  `crates/nvs-types/src/error_lib.rs` § *Known gaps* carries the tag.
-  [until: gone crates/nvs-types/src/error_lib.rs:owner: unowned]
 - **Bounds for a pool no `[db]` block describes.** `[db.<name>.pool]` reaches every connection whose
   settings hash is that block's, and the unscoped `[db] pool = false` reaches every connection the
   process opens, but a literal naming an endpoint an operator wrote no block for — or naming a hashed
@@ -482,8 +462,9 @@ where taking it is the work and the code that follows it is not.
   composite expression forms, so a `$this->prop = ...` inside a closure body or a `match` arm is
   diagnosed spuriously rather than missed silently; and a class with no explicit `constructor` is
   never checked against the `parent::constructor(...)` obligation, since it has no body of its own for
-  such a call to sit in. These are M4 checker holes and M4 is carried, the same standing the entry
-  above records for `crates/nvs-types/src/lib.rs`'s two flow checks. What has to be decided is
+  such a call to sit in. These are M4 checker holes and M4 is carried: that milestone's loop goal
+  passes, and no live entry on the chain writes this crate's checking passes again. What has to be
+  decided is
   whether this pass models a hook's body at all — `rule:classes/lateinit`'s *Revisiting* section
   defers the hooked-property question to `docs/spec/`, so it is a language decision before it is a
   checker one — and whether PHP's inherited constructor is modeled here or left to the runtime throw.
@@ -497,15 +478,6 @@ where taking it is the work and the code that follows it is not.
   took the opposite decision for the same reason, so taking this one alone leaves the two passes
   inconsistent with each other — and the hooked case is the same `docs/spec/` question that rule's
   *Revisiting* section defers. `crates/nvs-types/src/lateinit.rs` gaps 1–3.
-  [until: reviewed 2026-09-10]
-- **A `switch` case that falls through is checked from what was live before the whole `switch`.** No
-  explicit `break`/`continue` and not the last case means the case it falls into runs with the
-  previous one's assignments in hand, and the liveness walk hands it none of them, so a read only the
-  fall-through made live is refused where it stands — safe, and a refusal of a program PHP accepts.
-  The walk is structural rather than a CFG by this module's own design note, which is the bound the
-  entry above already records for the two flow checks `crates/nvs-types/src/lib.rs` is missing. What
-  has to be decided is whether that walk becomes a CFG at all, since a fall-through edge is precisely
-  what a structural walk cannot carry. `crates/nvs-types/src/locals.rs` gap 1.
   [until: reviewed 2026-09-10]
 - **A named constant is a legal property default and an illegal parameter default.** An enum case
   (`Mode $m = Mode::Fast`) or another class's `const` becomes a `nvs_runtime::FieldDefault`
