@@ -2,19 +2,19 @@
 
 ## State
 
-**Goal `dossier` — queue the dossier — has just started; nothing of it has landed yet.** Goal `unix-sockets`'s whole list is
-this goal's floor. There is no design to settle: `rule:testing/four-proofs` decided the four proofs (the goal prose links
+**Goal `dossier` — queue the dossier — has just started; nothing of it has landed yet.** Goal `gap-zero`'s
+whole acceptance list, which carries every goal before it, is this goal's floor. There is no design to settle: `rule:testing/four-proofs` decided the four proofs (the goal prose links
 it; a handoff is copied to `docs/agent/` and its relative links would break),
 `tools/dossier.py` derives the roster from `nvs meta --json`, and
-`--emit-goals` puts the goals it writes onto the end of the chain the driver is walking. The last sweep
-before this goal was written said **795 features, one of them complete, 93 goals over 794 owed** — read
-the numbers off your own run rather than trusting those.
+`--emit-goals` puts the goals it writes onto the end of the chain the driver is walking. The last dry run
+before this goal was reached said **1,069 features, four of them complete, 92 goals over 1,065 owed** —
+read the numbers off your own run rather than trusting those.
 
 ## Next group
 
 **The whole goal is one group** — one file set, `tools/dossier.py` and `docs/agent/goals/`. Stage 2 is
 the emission and takes minutes; **stage 3 is the goal** — an optimization pass run at the one moment it
-has leverage, with the 93 generated files in front of you and none of them walked yet. Do not stop after
+has leverage, with the 92 generated files in front of you and none of them walked yet. Do not stop after
 stage 2 with headroom left.
 
 - [ ] **`cargo build --release -p nvs-cli`**, then `python tools/dossier.py --emit-goals`. It prints what
@@ -27,7 +27,7 @@ stage 2 with headroom left.
       to a generated file is lost at the next emission.
 - [ ] **Two commits**: the generator fix, if there was one, and the generated tree.
 - [ ] **Then stage 3**, which the goal prose owns in full. Four findings are already named there and
-      measured — 14 goals whose `[context] modules` `orient.py` cannot map, the `--scaffold` question
+      measured — eight goals whose `[context] modules` is empty, the `--scaffold` question
       (answered: no, with the figure), what the growing floor actually costs, and the fan-out's width —
       plus whatever those four did not name. `python tools/dossier.py --check-goals` is the one
       mechanical gate; the rest of the stage lands in `.loop/optimization/report.md`, and its
@@ -48,3 +48,12 @@ stage 2 with headroom left.
   exception is
   stage 3: writing a single example and a single attack to feel the shape is a measurement, and it
   belongs in the report rather than in a commit.
+- The emission is idempotent by slug and by claim: `--emit-goals --dry-run` says *nothing appended*
+  while every owed feature is some generated goal's `--group` or `--only`, and that check rides in the
+  floor of every generated goal after this one. It says *would append* — and the run halts on it — the
+  day a feature lands that no goal on disk claims: a new member of a class split by `--only`, or a
+  whole new group. The fix is one `python tools/dossier.py --emit-goals`; it appends one goal and the
+  driver walks into it without a restart.
+- A member whose implementing file moves owes its perf figure again. That shows first as its group's
+  own floor check failing, and `--record-perf --group G` is the fix; until it lands, the dry-run check
+  names the same feature.

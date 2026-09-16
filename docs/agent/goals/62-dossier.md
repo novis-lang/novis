@@ -7,12 +7,12 @@ milestone: dossier
 `rule:testing/four-proofs` settled that every shipped feature
 owes four proofs — a test from Novis *and* from Rust, three examples, one measured figure, one file
 written to break it — and `tools/dossier.py` derives that roster from `nvs meta --json` and the reference
-chapters rather than a list anybody maintains. The sweep says **795 features, one of them complete**.
+chapters rather than a list anybody maintains. The sweep says **1,069 features, four of them complete**.
 This goal is where the loop stops adding surface and starts closing what is behind it.
 
 It writes no proof itself. Its whole job is to emit the goals that do, onto the end of the chain the
 driver is already walking, and then — holding the only view of those goals anyone will ever have all at
-once — to **spend the rest of the session making the loop good at the shape it is about to repeat 93
+once — to **spend the rest of the session making the loop good at the shape it is about to repeat 92
 times.** Emission is stage 2 and takes minutes; stage 3 is the goal.
 
 ## Why here
@@ -22,9 +22,10 @@ The dossier writes no proof: it fires `dossier.py --emit-goals` at this file, so
 the end of the chain the driver is already walking, and `Chain.refresh()` in loop.py walks into it
 without a restart. Everything after goal `dossier` is generated; nothing after it is hand-written, and it
 is last because a proof is only worth writing over a feature that has stopped moving. `dossier.py`'s
-emitter appends from `max(number) + 1` (`append_to_chain`), so the generated goals start directly
-after this entry however many hand-written ones land in front of it — and one that lands in front
-renumbers this entry, which is `chain.py`'s job and no author's.
+emitter numbers what it appends from the highest number already on the chain (`chain_numbers`, read
+by `emit_goals`), so the generated goals start directly after this entry however many hand-written
+ones land in front of it — and one that lands in front renumbers this entry, which is `chain.py`'s
+job and no author's.
 
 ## The target
 
@@ -32,7 +33,7 @@ renumbers this entry, which is `chain.py`'s job and no author's.
 
 One goal per group of features sharing an implementing file set, each with its own `[context]` manifest,
 each gated by `dossier.py --verify --group <G>`. As of the emission that motivated this goal that is
-**93 goals over 794 owed features**, appended directly after this goal — the emitter numbers what it
+**92 goals over 1,065 owed features**, appended directly after this goal — the emitter numbers what it
 appends from the highest number already on the chain, and a hand-written goal landing in front of this
 one renumbers them all, which is `chain.py`'s job. The number is not frozen here: whatever
 the roster owes on the day this runs is what gets written, and a group that owes nothing is left out.
@@ -55,28 +56,30 @@ Everything below is one file set — `tools/dossier.py` and the goals directory 
       emission and the header of every generated file says so.
 - [ ] **Commit the generated tree in one commit**, separate from any fix to `dossier.py`.
 
-## Stage 3 — prepare the loop for 93 of the same thing
+## Stage 3 — prepare the loop for 92 of the same thing
 
 This is an **optimization pass, run at the one moment it has leverage**: after the emission, before the
 first generated goal. [optimization-prompt.md](../optimization-prompt.md) is the standing version of this
 pass and its rules hold here — *make a change when you can name the evidence that it removes nothing,
 otherwise write it down* — with one difference that is the whole reason this stage exists. The standing
 pass is **backward**-looking: it undoes drift the last twenty-five sessions caused. This one is
-**forward**-looking, and its evidence is not a measurement of what happened but the 93 files you just
+**forward**-looking, and its evidence is not a measurement of what happened but the 92 files you just
 wrote. Read menu item 8 there before you start; it is the item this stage put on the menu.
 
 **Four findings are already on the table**, measured against the emission
 that motivated this goal. Confirm each against your own tree — the numbers move — and then decide. They are a floor for
 this stage, not its ceiling.
 
-- [ ] **14 of the 93 goals name a `[context] modules` entry `orient.py` cannot map.** Every `lang:` and
-      `tools:` goal points `modules` at its reference chapter, and `orient.py` maps
-      `brief.crate_modules()` and `brief.editor_modules()` only, so the entry prints nothing and warns
-      once in every session of that goal. `python tools/dossier.py --check-goals` is the finding, and the
-      stage 3 check below is that command exiting 0. **The fix is a judgment call and it is yours**:
-      point those goals at the crates that implement the chapter, or teach `orient.py` to map a reference
-      chapter, or drop the entry and accept that a `lang:` goal has no map. Say which and why in the
-      commit. What is *not* open is where the fix goes — `goal_toml()`, then re-emit.
+- [ ] **Eight of the 92 goals have an empty `[context] modules`, and the map prints nothing for them.**
+      A `lang:` or `tools:` goal names its reference chapter and `orient.py` prints it — the map resolves
+      any pattern against `git ls-files`, and `python tools/dossier.py --check-goals` tests the same
+      thing, so the stage 3 check below is that command exiting 0. What the roster resolves no file for
+      is a `config:directives` or `types:` feature, or one of the fifteen members whose class opens
+      under a name const the registry reader cannot resolve, so those eight goals open the crate by hand
+      in every session. **Whether that earns a per-kind fallback in `goal_toml()`** —
+      `crates/nvs-config/src/` for a directive, the registry for an enum — is yours to decide from what
+      those sessions actually open; say which and why in the commit. What is *not* open is where the fix goes — `goal_toml()`,
+      then re-emit.
 - [ ] **The repetitive part is file creation, not thinking.** A feature owes ~6 files at paths derived
       from its id (`docs/examples/core/Str/at/`, `tests/hostile/core/Str/at/`,
       `benches/members/core/Str/at.nvs`), and 830 features is ~6,700 files. `--bless` already writes an
@@ -108,9 +111,9 @@ this stage, not its ceiling.
       sweep asking last session's failing check first). Measure one sweep before deciding it is a
       problem; a slow sweep that is correct is not drift.
 
-**Then look for what these four did not name.** You have the 93 goals, `loop-stats.py`,
+**Then look for what these four did not name.** You have the 92 goals, `loop-stats.py`,
 `loop-stats.py --attribute`, `orient.py --audit --goal <a generated goal>`, and the emitter that wrote
-all of them. Anything you change in `dossier.py` costs one commit and lands in 93 files; anything you
+all of them. Anything you change in `dossier.py` costs one commit and lands in 92 files; anything you
 change in one generated file is discarded by the next emission.
 
 - [ ] **Write the report to `.loop/optimization/report.md`**, in

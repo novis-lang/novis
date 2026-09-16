@@ -545,13 +545,15 @@ and an emission anywhere else would be a chain nothing reads. **Deciding to run 
 sessions will do next. The user made that decision, and [goal `dossier`](goals/62-dossier.md) is
 what it turned into — one session whose whole job is to fire the emitter, so the roster's own goals land
 on the end of the chain the driver is already walking and the run continues into them without a restart.
-`Chain.refresh()` in `loop.py` is the half that makes that true; the emitter is idempotent by `md` path,
-so goal `dossier`'s check re-runs it under `--dry-run` and passes only on *nothing appended*.
+`Chain.refresh()` in `loop.py` is the half that makes that true; the emitter is idempotent by slug and by
+claim — a goal already on the chain keeps its number, and a feature some generated goal already gates on
+is never given a second one — so goal `dossier`'s check re-runs it under `--dry-run` and passes only on
+*nothing appended*.
 
-Re-running it is how the chain stays current; a group that owes nothing is left out, so a second emission
-appends the goals that are left rather than the ones that were. The generated files carry no ordinal
-prefix — `core-str.md`, not `001-core-str.md` — because a later emission renumbers, and an entry already
-on the chain must keep pointing at its own group's files.
+Re-running it is how the chain stays current: a group that owes nothing is left out, a goal the run has
+walked is left alone, and only the goals for features no goal claims are appended from the chain's end. A
+generated goal is `N-<slug>` under `goals/dossier/` like any other entry, and `chain.py` renumbers it with
+the rest.
 
 `--partition` is the one place in this repository where a session hands **writing** to subagents. The rule
 in [session-prompt.md](session-prompt.md) — a subagent searches and never writes — holds everywhere else,
