@@ -2985,7 +2985,7 @@ pub fn takes_source(class: &str, method: &str) -> bool {
 /// member on both reads the source at the front and the site at the back. A
 /// trailing slot is affordable here and not there because no member on this
 /// roster is variadic, which
-/// [`tests::every_call_site_member_takes_a_fixed_argument_list`] holds.
+/// `every_call_site_member_takes_a_fixed_argument_list` holds.
 ///
 /// **The zero word is a call site inside no class at all** — a script frame, or
 /// the thunk a callable reference synthesizes, which is invoked wherever it is

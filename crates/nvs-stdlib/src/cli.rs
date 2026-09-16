@@ -1539,7 +1539,7 @@ nvs_runtime::nvs_helper! {
     /// `cat data.csv | myprog` can still ask a question. `nvs_runtime::terminal`
     /// is where the device is opened by name; nothing in this module reads the
     /// standard input stream at all, which
-    /// [`tests::a_prompt_reads_the_controlling_terminal_and_not_stdin`] holds
+    /// `a_prompt_reads_the_controlling_terminal_and_not_stdin` holds
     /// shut over this file's own source.
     ///
     /// # Why the answer is `tainted` and the question is `Qual::Neutral`
@@ -2759,7 +2759,7 @@ fn basic_of_rgb(red: u8, green: u8, blue: u8) -> u8 {
 /// terminal, styling is dropped entirely"*.
 ///
 /// A pure function of the style and the depth, so
-/// [`tests::styling_is_a_value_type_and_never_a_grammar`] can ask it about a
+/// `styling_is_a_value_type_and_never_a_grammar` can ask it about a
 /// terminal this process does not have.
 fn sgr(color: Option<Ink>, background: Option<Ink>, flags: i64, depth: ColorDepth) -> String {
     if depth == ColorDepth::None {

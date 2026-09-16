@@ -150,7 +150,7 @@ pub enum Field {
 /// The kinds themselves are match arms below, because the match is what the
 /// compiler checks against `#[non_exhaustive]` enums — so this is the *second*
 /// place a production is written, and
-/// [`tests::every_kind_the_walk_answers_with_is_in_the_table`] is what keeps
+/// `every_kind_the_walk_answers_with_is_in_the_table` is what keeps
 /// the two one home: it reads this file's own text and fails on a production
 /// in either and not the other.
 pub const KINDS: &[&str] = &[
