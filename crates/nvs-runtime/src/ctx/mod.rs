@@ -1289,6 +1289,10 @@ pub struct Ctx {
     /// The files this request has opened and not yet closed, by the key its
     /// `Core\IO\File` carries — see [`Ctx::hold_open_file`].
     open_files: Vec<Option<std::fs::File>>,
+    /// The children this task has spawned, by the key its `Core\Process\Handle`
+    /// carries — see [`Ctx::hold_spawned_child`], and [`HeldChild`] for the
+    /// kill that makes none of them outlive this context.
+    spawned_children: Vec<Option<HeldChild>>,
     /// The sockets this request has opened and not yet closed, by the key its
     /// `Core\Net\Stream` or `Core\Net\Listener` carries — see
     /// [`Ctx::hold_open_socket`].
@@ -1494,6 +1498,13 @@ impl Drop for Ctx {
         // being logged about. Nothing else observes the order; a descriptor has
         // no teardown but the close.
         drop(std::mem::take(&mut self.open_files));
+        // `rule:core-classes/process-spawn`'s lifetime, and it is here rather
+        // than left to the field drop for the line above's reason twice over: a
+        // child still running holds its working directory and whatever it has
+        // open, so on Windows it is what makes the sweep's deletion fail, and
+        // it is also the one resource whose release is a *kill* rather than a
+        // close. [`HeldChild`]'s `Drop` is that kill.
+        drop(std::mem::take(&mut self.spawned_children));
         crate::sweep::at_script_end(self);
         // A failure that ended the request still owns its exception object,
         // and `Thrown`'s own `Drop` is what releases it. Taken here rather

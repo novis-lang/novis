@@ -104,6 +104,127 @@ pub trait HeldReader: std::fmt::Debug + std::any::Any {
     fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
 }
 
+/// One child process a task has started, with the three pipes
+/// `Core\Process\Handle`'s members read and write through.
+///
+/// **A child never outlives the task that started it** —
+/// `rule:core-classes/process-spawn`, and this type's [`Drop`] is the whole of
+/// the mechanism: the child is killed and then reaped, so a handle the program
+/// stopped reading from leaves neither a running process nor a zombie entry in
+/// the operating system's table behind it. A bare [`std::process::Child`] drops
+/// without doing either, which is why the table holds this and not the child.
+///
+/// A pipe is taken out for the length of one read or write and put back
+/// afterwards, because the read happens on the blocking pool and
+/// `nvs_host::blocking::run`'s closure owns what it reads from. Holding the
+/// pipes beside the child rather than inside it is what makes that one move
+/// instead of a borrow across a suspension point.
+///
+/// **What it spends:** one handle and up to three pipes per live child,
+/// charged to the task that spawned it and released with it — O(children in
+/// flight), never O(children ever started).
+#[derive(Debug)]
+pub struct HeldChild {
+    /// The child, or `None` once [`HeldChild::reap`] has waited for it.
+    child: Option<std::process::Child>,
+    /// The status the child exited with, once something has waited for it.
+    /// A second `wait` answers this rather than reaping twice.
+    exited: Option<std::process::ExitStatus>,
+    /// The child's standard input, `None` while a write holds it and once the
+    /// program has closed it.
+    pub stdin: Option<std::process::ChildStdin>,
+    /// The child's standard output, `None` while a read holds it and once the
+    /// stream has ended.
+    pub stdout: Option<std::process::ChildStdout>,
+    /// The child's standard error, on [`HeldChild::stdout`]'s terms.
+    pub stderr: Option<std::process::ChildStderr>,
+}
+
+impl HeldChild {
+    /// Takes the three pipes out of a freshly started child and holds both
+    /// halves together.
+    #[must_use]
+    pub fn new(mut child: std::process::Child) -> Self {
+        Self {
+            stdin: child.stdin.take(),
+            stdout: child.stdout.take(),
+            stderr: child.stderr.take(),
+            exited: None,
+            child: Some(child),
+        }
+    }
+
+    /// The status this child has already been seen to exit with, or `None`
+    /// while it is still one nothing has waited for.
+    #[must_use]
+    pub fn status(&self) -> Option<std::process::ExitStatus> {
+        self.exited
+    }
+
+    /// Asks the operating system to end the child, and answers whether there
+    /// was still one to end.
+    ///
+    /// Idempotent on purpose: `Core\Process\Handle::kill` is `void`, and a
+    /// program that kills a child which has already exited has got what it
+    /// asked for. The status is not collected here — [`HeldChild::reap`] is
+    /// what a `wait` calls, and killing without waiting leaves exactly the
+    /// zombie this type's [`Drop`] exists to prevent.
+    ///
+    /// # Errors
+    ///
+    /// Whatever the operating system said about the signal.
+    pub fn kill(&mut self) -> std::io::Result<bool> {
+        let Some(child) = self.child.as_mut() else {
+            return Ok(false);
+        };
+        child.kill()?;
+        Ok(true)
+    }
+
+    /// Waits for the child to exit and answers its status, **blocking the
+    /// calling thread** — so this is only ever called inside
+    /// `nvs_host::blocking::run`'s closure, which is why this type is moved
+    /// out of the table for a `wait` rather than borrowed from it.
+    ///
+    /// The standard input pipe is dropped first. A child reading to the end of
+    /// its input never sees one while this process still holds the writing end,
+    /// so waiting without closing it is the deadlock every `proc_open` port
+    /// eventually writes.
+    ///
+    /// # Errors
+    ///
+    /// Whatever the operating system said about reaping the child.
+    pub fn reap(&mut self) -> std::io::Result<std::process::ExitStatus> {
+        if let Some(status) = self.exited {
+            return Ok(status);
+        }
+        drop(self.stdin.take());
+        let status = match self.child.as_mut() {
+            Some(child) => child.wait()?,
+            // Unreachable while `exited` is the only thing that empties
+            // `child`, and cheaper to answer than to prove at every caller.
+            None => return Err(std::io::Error::other("the child was never started")),
+        };
+        self.child = None;
+        self.exited = Some(status);
+        Ok(status)
+    }
+}
+
+impl Drop for HeldChild {
+    fn drop(&mut self) {
+        let Some(child) = self.child.as_mut() else {
+            return;
+        };
+        // Both, and in this order. The kill is what makes the child not outlive
+        // the task; the wait is what keeps the operating system's process table
+        // from filling with entries nobody will ever collect. Neither answer is
+        // actionable here — the task this child belonged to is already ending.
+        let _ = child.kill();
+        let _ = child.wait();
+    }
+}
+
 /// One connection a request has open: how it is reached again within the
 /// request, where it goes when the request ends, and the connection itself.
 ///
@@ -209,6 +330,73 @@ impl Ctx {
     pub fn take_open_file(&mut self, key: u64) -> Option<std::fs::File> {
         let index = usize::try_from(key.checked_sub(1)?).ok()?;
         self.open_files.get_mut(index)?.take()
+    }
+
+    /// Files a spawned child against this task and answers the key that reads
+    /// it back — what a `Core\Process\Handle`'s first slot holds.
+    ///
+    /// The same shape and the same reasoning as [`Ctx::hold_open_file`], which
+    /// is the one home of *why* a `Core` handle is a key into a task-owned
+    /// table rather than the native thing itself. What this adds is
+    /// `rule:core-classes/process-spawn`'s lifetime, and it is stronger than a
+    /// descriptor's: a child is not merely released with the task, it is
+    /// **killed** with it, because a process that outlived the task that
+    /// started it would be work nothing is charged for and nothing can cancel.
+    /// [`HeldChild`]'s own `Drop` is that kill, so the table needs no teardown
+    /// arm of its own beyond dropping the field.
+    ///
+    /// **What it spends:** one [`HeldChild`] — a process handle and up to three
+    /// pipes — per `spawn` this task performed, *including* the ones it has
+    /// since waited for, because a key is never reused. That is
+    /// [`Ctx::hold_open_file`]'s trade for its reason: a stale handle reads an
+    /// empty slot and throws, where a recycled key would address whatever child
+    /// the same slot now holds.
+    pub fn hold_spawned_child(&mut self, child: HeldChild) -> u64 {
+        self.spawned_children.push(Some(child));
+        // The index, one-based, so that a handle slot never holds a key a
+        // zeroed value could be mistaken for.
+        self.spawned_children.len() as u64
+    }
+
+    /// The child `key` names, borrowed for one pipe hand-off or one kill, or
+    /// `None` for a key this task never filed and for one a wait is holding.
+    pub fn spawned_child_mut(&mut self, key: u64) -> Option<&mut HeldChild> {
+        let index = usize::try_from(key.checked_sub(1)?).ok()?;
+        self.spawned_children.get_mut(index)?.as_mut()
+    }
+
+    /// Takes the child `key` names out for the length of one off-core wait, or
+    /// `None` when another wait is already holding it.
+    ///
+    /// A borrow will not do here where it does for a read: waiting blocks, so
+    /// it happens inside the blocking pool's closure, and that closure owns what
+    /// it waits on. The entry is left empty meanwhile, which is what makes a
+    /// second `wait` on a handle already inside one a refusal rather than two
+    /// threads reaping the same child — and if the task never comes back for
+    /// it, the closure's result is dropped and [`HeldChild`]'s `Drop` kills the
+    /// child there instead.
+    #[must_use]
+    pub fn take_spawned_child(&mut self, key: u64) -> Option<HeldChild> {
+        let index = usize::try_from(key.checked_sub(1)?).ok()?;
+        self.spawned_children.get_mut(index)?.take()
+    }
+
+    /// Puts a child [`Ctx::take_spawned_child`] lent out back in its own slot,
+    /// so that the key the program is holding still names it.
+    pub fn restore_spawned_child(&mut self, key: u64, child: HeldChild) {
+        let Some(index) = key.checked_sub(1).and_then(|at| usize::try_from(at).ok()) else {
+            return;
+        };
+        if let Some(slot) = self.spawned_children.get_mut(index) {
+            *slot = Some(child);
+        }
+    }
+
+    /// How many children this task is still holding, live or reaped — what
+    /// `a_spawned_child_is_killed_when_its_task_ends` counts.
+    #[must_use]
+    pub fn spawned_children(&self) -> usize {
+        self.spawned_children.len()
     }
 
     /// Files an open socket against this request and answers the key that

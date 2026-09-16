@@ -346,7 +346,7 @@ pub use closure::{
 pub use ctx::{
     AnswerTable, AssertionOutcome, BodyNeed, BodySource, CARRIER_CLI_TEXT, CARRIER_HTML_MARKUP,
     CARRIER_TEXT_SLOT, Ctx, CurrentStack, DEADLINE_OFFSET, DEBUG_FLAGS_OFFSET, DebugFlags,
-    DeclaredHeader, ErrorClass, EventStreamDoor, FaultSite, HOLD_PIECE, HOT_LINE_BYTES,
+    DeclaredHeader, ErrorClass, EventStreamDoor, FaultSite, HOLD_PIECE, HOT_LINE_BYTES, HeldChild,
     HeldConnection, HeldReader, HeldSocket, HeldValue, HttpAnswer, HttpSent, Inbound, InboundSpec,
     Limit, LogChannel, LogWriter, OpenSpawn, OutputSink, PlacedIsolate, RequestBody,
     SAFEPOINT_OFFSET, STACK_CEILING, STACK_LIMIT_OFFSET, STACK_RESERVE, STATICS_OFFSET,
