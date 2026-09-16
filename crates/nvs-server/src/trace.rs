@@ -69,24 +69,21 @@
 //!
 //! **What it spends:** one walk of the arrived header lines per request, and
 //! the bytes the carrier holds for the answer. A sampled request additionally
-//! holds its derived spans, capped at [`SPAN_CEILING`] of them, for as long as
-//! it takes to hand them on. An unsampled one holds none, and nothing outlives
-//! the request either way.
+//! holds the events it files and the spans derived from them, capped at
+//! [`SPAN_CEILING`] of them, for as long as it takes to hand them on. An
+//! unsampled one holds none, and nothing outlives the request either way.
 //!
-//! # Known gaps
+//! # What a filing site asks
 //!
-//! 1. **A sampled request's graph is its root span and nothing else, because
-//!    the events the other three kinds are derived from are filed only under
-//!    `nvs_runtime::DebugFlags::TRACE`.** That bit is a debugging surface a
-//!    served request never turns on, and turning it on for a sampled one would
-//!    file a `call` event per compiled call site — the cost
-//!    `rule:observability/a-call-never-becomes-a-span` refuses outright. What
-//!    is missing is the gate that separates the two: a `query`, an `http` and a
-//!    `spawn` are filed from routines that are already rare, so the question
-//!    they should ask is whether this trace is recorded and not whether a
-//!    debugger is attached. Until it exists, a collector receives one span per
-//!    sampled request, correctly placed in its trace.
-//!    — owner: unowned-closures
+//! `nvs_runtime::Ctx::records_spans`, and never whether a debugger is attached:
+//! a `query`, an `http` and a `spawn` are filed from routines that are already
+//! rare, so a recorded request files all three while paying nothing a normal one
+//! does not. `nvs_runtime::DebugFlags::TRACE` answers that question too and adds
+//! a `call` event per compiled call site, which is why the two are one question
+//! and not one bit — `rule:observability/a-call-never-becomes-a-span` refuses
+//! that cost on a served request outright, and [`spans`] drops the kind here as
+//! well. What a recorded request holds is bounded where it is filed
+//! (`nvs_runtime::SPAN_EVENT_CEILING`), which is what [`SPAN_CEILING`] counts.
 
 use nvs_runtime::{Inbound, TraceContext, TraceEvent, TraceKind};
 use rand::RngExt;
@@ -141,16 +138,19 @@ pub fn take(inbound: &mut Inbound, sample: f64) {
     inbound.set_trace_context(decided);
 }
 
-/// The most spans one request contributes, root included.
+/// The most spans one request contributes, root included: the root, plus every
+/// event a recorded run is allowed to file.
 ///
-/// A request holds its spans until it ends, so an unbounded count would make a
-/// long-running sampled request's memory a function of how many statements it
-/// ran — and a program that queries in a loop would be the one paying for it.
-/// The bound is a fixed count rather than a share of anything so that the worst
-/// case is arithmetic an operator can do: it is per *sampled in-flight*
-/// request, and `rule:programs/memory-priority`'s reading of it is in the
-/// goal's own accounting.
-pub const SPAN_CEILING: usize = 512;
+/// **The count itself is `nvs_runtime::SPAN_EVENT_CEILING`'s**, because that is
+/// where filing stops and where the memory is held — a request keeps its events
+/// until it ends, and that constant's doc comment owns why the bound is a fixed
+/// count and what an operator multiplies it by. Derived here rather than chosen
+/// again so that the two cannot drift into a graph truncated somewhere other
+/// than where the run stopped filing.
+///
+/// A graph built from a real run therefore never reaches this, and the walk that
+/// enforces it is the backstop for a `Completion` assembled by hand.
+pub const SPAN_CEILING: usize = nvs_runtime::SPAN_EVENT_CEILING + 1;
 
 /// Which of `rule:observability/four-kinds-become-a-span`'s four a [`Span`] is.
 ///

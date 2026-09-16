@@ -24,7 +24,7 @@
 //! A handful of `Instant` reads and one `String` per call, held for as long as
 //! the call — O(in-flight calls), never O(calls made). Against a network round
 //! trip that is not measurable, which is why the span is built unconditionally
-//! and only its *rendering* waits on `DebugFlags::TRACE`, exactly as
+//! and only its *rendering* waits on `nvs_runtime::Ctx::records_spans`, exactly as
 //! `nvs_db::QuerySpan` is built unconditionally against a statement's round
 //! trip.
 //!

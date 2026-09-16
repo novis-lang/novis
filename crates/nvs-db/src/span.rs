@@ -40,7 +40,8 @@
 //! rows have ended, and what crosses is [`QuerySpan`]'s `Display` — `nvs-db`
 //! depends on `nvs-runtime`, so the alternative is this field set written a
 //! second time in that crate, and `Ctx::record_query` is where that is argued.
-//! The gate that rendering waits on is `DebugFlags::TRACE`, and gap 1 is what
+//! The gate that rendering waits on is `nvs_runtime::Ctx::records_spans` — this
+//! request's trace is recorded, or `DebugFlags::TRACE` is on — and gap 1 is what
 //! stands between that flag and § 11's grant.
 //!
 //! § 11's other half reads the same span: the `slow_query` threshold a
@@ -64,8 +65,11 @@
 //! 1. **A span renders on a flag no grant turns on.** § 11 gates the output on
 //!    a capability, and `nvs_config::Capability::DebugTrace` — the `debug.trace`
 //!    grant `rule:testing/debug-probes` writes — is the one it means, but
-//!    nothing outside a test sets `DebugFlags::TRACE` from it, so the flag is
-//!    the whole gate. The two halves are both above this crate: the flag is
+//!    nothing outside a test sets `DebugFlags::TRACE` from it. A recorded
+//!    request renders its span without the grant and an unrecorded one renders
+//!    none with it, because sampling is the other question
+//!    `nvs_runtime::Ctx::records_spans` asks and the grant reaches neither. The
+//!    two halves are both above this crate: the flag is
 //!    `nvs-runtime`'s and the grant `nvs-config`'s, and what is missing between
 //!    them is the place a request's capability set is read into its `Ctx`. It
 //!    is recorded here because § 11 is this span's own rule, and every other

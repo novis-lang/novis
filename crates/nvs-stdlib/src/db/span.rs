@@ -50,7 +50,7 @@ impl QueryWatch {
     /// thing here as there — nothing to look a threshold up under.
     pub(crate) fn named(ctx: &nvs_runtime::Ctx, block: Option<&str>) -> QueryWatch {
         QueryWatch {
-            traced: ctx.debug_flags().contains(nvs_runtime::DebugFlags::TRACE),
+            traced: ctx.records_spans(),
             slow: block.and_then(|name| slow_query_of(ctx, name)),
         }
     }

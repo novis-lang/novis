@@ -192,7 +192,59 @@ fn render_spawn(
     )
 }
 
+/// How many of `rule:observability/four-kinds-become-a-span`'s events a
+/// recorded run files before it stops filing them.
+///
+/// **This is the one home of that number**, and `nvs_server::trace::SPAN_CEILING`
+/// — the span count a derived graph carries — is the root plus this. The bound is
+/// here because this is where an event is filed and where the memory is held: a
+/// request keeps its events until it ends, so an unbounded count would make a
+/// sampled request's footprint a function of how many statements it ran, and a
+/// program that queries in a loop would be the one paying for it.
+///
+/// A fixed count rather than a share of anything, so that the worst case is
+/// arithmetic an operator can do: at most this many rendered spans per *sampled
+/// in-flight* request, each of them a line the driver or the transport already
+/// bounds. Past it a sampled run renders nothing further and files nothing
+/// further, and the run itself is untouched — a trace is an observation of a
+/// request and never a limit on one.
+///
+/// A debugging run is not held to it ([`Ctx::records_spans`]): `DebugFlags::TRACE`
+/// files a `call` event per compiled call site, so a ceiling would truncate the
+/// trace a debugger asked for at the first few statements.
+pub const SPAN_EVENT_CEILING: usize = 512;
+
 impl Ctx {
+    /// Whether this run files the events
+    /// `rule:observability/four-kinds-become-a-span`'s spans are derived from —
+    /// the one question every filing site asks, and the one the two sites that
+    /// *render* a span ask before paying for the rendering.
+    ///
+    /// Two states answer `true`, and they are different questions rather than
+    /// one flag with two names. **The trace is recorded**: the head draw
+    /// (`rule:observability/sampling-is-head-based`) went that way, so a
+    /// collector is going to be handed this request's graph. **A debugger is
+    /// attached**: [`DebugFlags::TRACE`] is on, which additionally files a
+    /// `call` event per compiled call site — the cost
+    /// `rule:observability/a-call-never-becomes-a-span` refuses on a served
+    /// request outright, and the reason the two cannot be one bit. A sampled
+    /// request never pays it, because the call probes read that bit and this
+    /// answer is not it.
+    ///
+    /// The ceiling is asked here rather than beside each site, so that a filer
+    /// cannot skip it: past [`SPAN_EVENT_CEILING`] filed events a sampled run
+    /// answers `false` and a debugging one still answers `true`.
+    #[must_use]
+    pub fn records_spans(&self) -> bool {
+        if self.debug.contains(DebugFlags::TRACE) {
+            return true;
+        }
+        // The vector holds nothing else when that bit is off — the call probes
+        // read it themselves — so its length is the filed-event count this
+        // ceiling is about, and no second counter has to be kept true.
+        self.trace_context.sampled() && self.trace.len() < SPAN_EVENT_CEILING
+    }
+
     /// Counts one hit for the statement `stmt` names — [`nvs_probe_stmt`]'s
     /// whole effect under [`DebugFlags::COVERAGE`].
     pub fn record_stmt_hit(&mut self, stmt: u32) {
@@ -231,8 +283,12 @@ impl Ctx {
     /// Records one statement as
     /// `rule:observability/trace-events-carry-a-kind`
     /// 's `query` event — `Core\Db`'s statement routines' whole effect under
-    /// [`DebugFlags::TRACE`], called once the rows have ended so the span is
+    /// [`Ctx::records_spans`], called once the rows have ended so the span is
     /// complete.
+    ///
+    /// The caller asks that question and this does not, because the answer also
+    /// decides whether the span is rendered at all: a site that filed here
+    /// unasked would have paid for the rendering of an event nothing reads.
     ///
     /// **The span arrives already rendered, and that is the crate boundary
     /// rather than laziness.** `rule:observability/a-query-is-a-trace-event`
@@ -259,8 +315,9 @@ impl Ctx {
     /// Records one outbound call as
     /// `rule:observability/trace-events-carry-a-kind`
     /// 's `http` event — `Core\Http\Client`'s whole effect under
-    /// [`DebugFlags::TRACE`], called once the reply's head is in hand and
-    /// **once**, however many attempts and hops it took to get there.
+    /// [`Ctx::records_spans`], called once the reply's head is in hand and
+    /// **once**, however many attempts and hops it took to get there. The
+    /// caller asks that question, for [`Ctx::record_query`]'s reason.
     ///
     /// The span arrives already rendered for [`Ctx::record_query`]'s reason,
     /// one crate further out: the field set the rule fixes — the method, the
@@ -284,8 +341,8 @@ impl Ctx {
 
     /// Opens `rule:observability/spawn-is-its-own-event`'s event where a child
     /// is started, and answers what closes it at the join — `None`, having
-    /// recorded nothing and read no clock, while both [`DebugFlags::TRACE`] and
-    /// [`DebugFlags::PROFILE`] are off.
+    /// recorded nothing and read no clock, for a run nothing records
+    /// ([`Ctx::records_spans`]) and [`DebugFlags::PROFILE`] does not time.
     ///
     /// A spawn is not a call and does not flow through
     /// [`nvs_probe_call_enter`]'s pair, which is the rule's own reason for an
@@ -294,10 +351,7 @@ impl Ctx {
     /// other events, and so that a child that is never joined — a cancelled one
     /// — reads as a spawn with no join rather than as nothing at all.
     pub fn open_spawn(&mut self, form: SpawnForm) -> Option<OpenSpawn> {
-        if !self
-            .debug
-            .intersects(DebugFlags::TRACE | DebugFlags::PROFILE)
-        {
+        if !self.records_spans() && !self.debug.contains(DebugFlags::PROFILE) {
             return None;
         }
         let started = SPAWN_EPOCH.elapsed();
@@ -772,5 +826,73 @@ mod tests {
         probe(&mut ctx, 2);
 
         assert_eq!(ctx.stmt_hits(), [0, 1]);
+    }
+
+    /// `rule:observability/four-kinds-become-a-span`'s three derived kinds are
+    /// filed because the trace is recorded, with no debug flag anywhere — and
+    /// the fourth, a `call`, still is not, because the probes read their own bit
+    /// and a span per compiled call site is the cost
+    /// `rule:observability/a-call-never-becomes-a-span` refuses.
+    #[test]
+    fn a_recorded_run_files_a_spans_events_and_still_no_call_event() {
+        let mut ctx = Ctx::buffered();
+        // The eager root every context draws is recorded by nothing, which is
+        // what a request the head draw sampled out runs as.
+        assert!(!ctx.records_spans());
+        assert!(
+            ctx.open_spawn(SpawnForm::Task).is_none(),
+            "a run nothing records read a clock"
+        );
+
+        ctx.set_trace_context(crate::TraceContext::rooted(1.0));
+        assert!(ctx.records_spans());
+        let open = ctx
+            .open_spawn(SpawnForm::Task)
+            .expect("a recorded run files its spawn");
+        ctx.close_spawn(open, None);
+        ctx.record_query("driver=postgres connection=main rows=1 sql=select 1");
+        ctx.record_http("http method=GET scheme=https host=api.example.com port=443 path=/things");
+
+        let name = b"Math::double";
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry points")]
+        unsafe {
+            nvs_probe_call_enter(&raw mut ctx, name.as_ptr(), name.len());
+            nvs_probe_call_exit(&raw mut ctx, name.as_ptr(), name.len(), crate::OK);
+        }
+
+        let kinds: Vec<_> = ctx.trace().iter().map(|event| event.kind).collect();
+        assert_eq!(
+            kinds,
+            [TraceKind::Spawn, TraceKind::Query, TraceKind::Http],
+            "a recorded run files the three kinds a span is derived from, and nothing else"
+        );
+    }
+
+    /// The bound a recorded run is held to, and the debugging run that is not:
+    /// a program querying in a loop stops filing, while a trace somebody asked
+    /// for is never truncated under them.
+    #[test]
+    fn a_recorded_runs_filing_stops_at_the_ceiling_and_a_debugged_ones_does_not() {
+        let mut ctx = Ctx::buffered();
+        ctx.set_trace_context(crate::TraceContext::rooted(1.0));
+        for _ in 0..SPAN_EVENT_CEILING {
+            assert!(ctx.records_spans(), "the ceiling closed early");
+            ctx.record_query("driver=postgres connection=main rows=1 sql=select 1");
+        }
+
+        assert!(
+            !ctx.records_spans(),
+            "a recorded run kept filing past `SPAN_EVENT_CEILING`"
+        );
+        assert!(
+            ctx.open_spawn(SpawnForm::Task).is_none(),
+            "a run past the ceiling still read a clock"
+        );
+
+        ctx.set_debug_flags(DebugFlags::TRACE);
+        assert!(
+            ctx.records_spans(),
+            "a debugger's trace was truncated by a ceiling that is not its"
+        );
     }
 }

@@ -3794,17 +3794,17 @@ fn exchanged(
 /// attempts and hops.
 ///
 /// **Here and not in [`transport`]**, which is that module's whole shape: it is
-/// handed addresses rather than a `Ctx`, and a trace belongs to the request. The
-/// flag is read here for the same reason, so a request tracing nothing pays only
-/// for the clock reads the span already took — [`span`]'s module doc prices
-/// those against a round trip.
+/// handed addresses rather than a `Ctx`, and a trace belongs to the request.
+/// [`Ctx::records_spans`](nvs_runtime::Ctx::records_spans) is asked here for the
+/// same reason, so a request nothing records pays only for the clock reads the
+/// span already took — [`span`]'s module doc prices those against a round trip.
 ///
 /// A call the answer table served never reaches this: [`exchanged`] answers from
 /// [`faked`] before a span exists, so nothing crossed a network and there is
 /// nothing to report. On a streamed reply the event is filed with the head,
 /// which is where the call ends and the program's own reading begins.
 fn traced(ctx: &mut Ctx, call: &transport::Call<'_>) {
-    if !ctx.debug_flags().contains(nvs_runtime::DebugFlags::TRACE) {
+    if !ctx.records_spans() {
         return;
     }
     let line = {
