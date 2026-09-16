@@ -1,0 +1,163 @@
+# Goal 62 -- both entry forms reach a worker core, and a serving core offers itself
+# The acceptance test, as data.
+#
+# `62-worker-placement.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+
+files = [
+  # Every `examples/*.nvs` fixture an `exact` check below names. goal-switch.py unions the previous
+  # goal's list into this one; this goal adds none of its own, because what it changes is which core
+  # a child starts on and `rule:concurrency/on-worker-runs-the-child-on-another-core` says that is
+  # not readable from the child.
+]
+
+[context]
+
+modules = [
+  # What crosses for a placed child, and `destination_for`/`crosses`, which is where the entry form
+  # stops being a question. Stage 2.
+  "crates/nvs-host/src/placed.rs",
+  # The inbox, the lazily started cores and the answer slot -- the destination set. Stages 2 and 3.
+  "crates/nvs-host/src/worker.rs",
+  # `SchedulerHost::start_isolate`, where a refused placement falls through today. Stage 2.
+  "crates/nvs-host/src/group.rs",
+  # `run_here` and `hand_over`, the same-core start the fall-through reaches. Stage 2.
+  "crates/nvs-host/src/isolate.rs",
+  # The poller a posted job pokes, and where a started core's loop begins. Stages 2 and 3.
+  "crates/nvs-host/src/reactor.rs",
+  # The seam: `Resolver`, `Program`, `install`, `scoped`, `resolve`. Stage 2 rewrites its thread
+  # story and adds nothing to the trait.
+  "crates/nvs-runtime/src/script.rs",
+  # The unit table behind the resolver, which does not move: `Compiler`, its two `RwLock`s and its
+  # key. Stage 2.
+  "crates/nvs-cli/src/script.rs",
+  # The fleet's one `Arc<Compiler>` and the per-core boot that installs it. Stage 3.
+  "crates/nvs-cli/src/serve.rs",
+  # A queue worker installing the compiler for the length of the run -- the shape a started core
+  # copies. Stage 2.
+  "crates/nvs-cli/src/worker.rs",
+  # `nvs run`'s one scheduler and its `script::scoped` for the whole run. Stage 2.
+  "crates/nvs-cli/src/main.rs",
+]
+
+# What a placement promises, what may cross it, and what the memory it takes has to be.
+rules = [
+  "concurrency/on-worker-runs-the-child-on-another-core",
+  "security/isolate-values-cross-by-copy",
+  "programs/memory-priority",
+]
+
+# Empty on purpose: each ADR 0184 section argues one stage and is named in that stage's table below.
+adrs = []
+
+shapes = ["A commit message", "A code comment"]
+
+milestones = []
+
+playbook = [
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole decision record',
+  'Tooling > a plan field is patched',
+  'Tooling > a commit',
+  'Tooling > a [context]*',
+  'Tooling > orient.py prints',
+  'Tooling > another agent',
+  # Ranked by `python tools/playbook.py --goal` against this goal's modules.
+  "Tooling > a loop-goal.toml check's -p",
+  'Tooling > a diagnostic constant',
+  'Writing Novis itself > a type name a',
+  'Writing a test case > a refusal only a',
+]
+
+plan = ["Open now", "Blocking"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE STAGES. One table per prose stage in `62-worker-placement.md`, holding what only that stage needs.
+#
+# `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
+# the base above -- an overlay adds and never replaces, so the base is what a session needs whatever
+# stage it is on, and the way it gets smaller is by moving an entry down here. A stage with nothing
+# of its own needs no table. Narrowable: rules, adrs, spec, shapes, playbook, milestones.
+#
+# These are the PROSE stage numbers, the `## Stage N` headings in this goal's `.md`. They are not
+# the `[[check]]` blocks' `stage = "2 the seam"` labels, which may group several prose stages under
+# one acceptance line. loop-authoring.md section 2 is the whole of it.
+# ---------------------------------------------------------------------------------------------------
+
+[context.stage.2]
+# What a placement is, and what the crossing already does with the argument.
+rules = ["concurrency/a-wake-never-moves-a-task", "security/isolate-shares-nothing"]
+adrs = ["0184 §1", "0184 §2", "0184 §3"]
+
+[context.stage.3]
+# The destination set, and what a serving core owes the requests it exists to answer.
+adrs = ["0184 §5", "0184 §6"]
+
+# Nothing this goal writes exists past the checker; the skip list is the floor's.
+[valgrind]
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-socket.nvs", "examples/queue-sqlite.nvs"]
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# The floor's, not this goal's own: the acceptance list carried in from goal `class-scoped-types`
+# reaches every driver, and the driver preflights the daemon before this goal's first session.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "mysql", "mariadb", "mssql", "redis"]
+memoize_on = ["crates/nvs-db", "crates/nvs-stdlib", "tests/db"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the keystone: a resolver the destination core can reach. Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the seam"
+name = "nvs-host (a path entry is placed, and a core with nothing published still answers a value)"
+args = ["test", "-p", "nvs-host"]
+tests = [
+  "a_path_entry_is_placed_on_another_core",
+  "a_placed_path_child_answers_what_a_same_core_child_answers",
+  "a_placed_path_no_resolver_can_compile_fails_as_a_value",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "2 the seam"
+name = "conformance (a path child on a worker core is the child a method entry already is)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/isolate/a-path-entry-on-a-worker-core-answers-as-one-on-this-core-does.nvst",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- a serving core offers itself as a destination. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the destination"
+name = "nvs-host (a registered core is reached before a new one is started)"
+args = ["test", "-p", "nvs-host"]
+tests = [
+  "a_registered_core_is_chosen_before_one_is_started",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the destination"
+name = "nvs-cli (a serving core registers its inbox as it starts)"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "a_serving_core_registers_its_inbox_as_it_starts",
+]

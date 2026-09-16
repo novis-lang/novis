@@ -46,4 +46,4 @@ table by its owner rather than by a namespace path. The one record this goal ope
 - **Stage 5, the rule and the record** — `docs/rules/types.json`, `docs/rules/types/`,
   `docs/decisions/`: one new record, the `types/class-scoped-alias` fragment, the amended
   `types/type-alias` fragment, `python tools/rules.py --render`. Its own session.
-- When this goal's last check goes green the driver takes goal `gap-zero`.
+- When this goal's last check goes green the driver takes goal `worker-placement`.

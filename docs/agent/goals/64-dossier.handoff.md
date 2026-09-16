@@ -20,7 +20,7 @@ stage 2 with headroom left.
 - [ ] **`cargo build --release -p nvs-cli`**, then `python tools/dossier.py --emit-goals`. It prints what
       it wrote and the goal range it appended.
 - [ ] **Read three or four of the generated `.toml`s** — one `Core` class, one `lang:` chapter, one
-      `tools:` chapter. The three things to check are in `63-dossier.md`'s item list: the `[context]`
+      `tools:` chapter. The three things to check are in `64-dossier.md`'s item list: the `[context]`
       manifest matches real modules, the `--group` argument spells the group the way `dossier.py` does,
       and the batch is a file set rather than an alphabetical run.
 - [ ] **Any fix goes in `goal_toml()` / `goal_prose()` in `tools/dossier.py`**, then re-emit. A hand-edit

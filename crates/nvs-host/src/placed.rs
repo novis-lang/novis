@@ -37,10 +37,19 @@
 //! would answer [`nvs_runtime::script::ResolveError::NoResolver`] — a failure
 //! value where the program asked for a core. Running it here instead keeps every
 //! promise the placement makes but one, which is the same trade
-//! [`destination_for`] refuses a placement under. Closing it is a resolver a
-//! worker core can reach, which is a question about that seam's ownership of the
-//! unit cache rather than about this crossing.
-//! — owner: unowned
+//! [`destination_for`] refuses a placement under.
+//!
+//! Closing it is a resolver the destination core can reach, and the table behind
+//! one is already shareable: `nvs-cli`'s compiler keeps its path map and its unit
+//! map behind `RwLock`s, and a serving fleet hands every core the same
+//! `Arc<Compiler>` so that a source compiles once for the process. What is
+//! per-thread is the seam and not the cache — [`nvs_runtime::script::install`]
+//! takes a `&'static dyn Resolver` and `nvs_runtime::script::scoped` a borrow on
+//! the installing core's own stack, and a core this crate started for itself was
+//! handed neither. So it is a goal's work rather than a milestone's, and it lands
+//! with [`crate::worker`]'s own gap, which is the same seam from the destination
+//! end.
+//! — owner: worker-placement
 //!
 //! # What it spends
 //!

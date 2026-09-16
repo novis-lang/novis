@@ -87,8 +87,9 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [m8-stdlib-depth](59-m8-stdlib-depth.md) | M8, non-database | `nvs-stdlib`, `nvs-render`, `benches/` — every class M8 names as deep as its spec section |
 | [unowned-closures](60-unowned-closures.md) | post-parity, at most one ADR — the prepared-pattern channel, if the user's answers build it | every crate with an `unowned` gap — each built to the answer the user's decision sheet gave |
 | [class-scoped-types](61-class-scoped-types.md) | post-parity, one new record — `rule:types/type-alias` gains a second declaration site | `nvs-syntax`, `nvs-hir`, `nvs-types`, `nvs-diagnostics`, `nvs-fmt`, `nvs-cli`, `nvs-lsp` — a `type` alias as a member of a class, an interface or an enum |
-| [gap-zero](62-gap-zero.md) | post-parity, no ADR — the terminal gate | `tools/`, the ratchet test, CI — last of the hand-written goals: no gap owed by anyone but a future milestone, M0–M8 complete, the index deleted |
-| [dossier](63-dossier.md) | `rule:testing/four-proofs` | none — it writes the goals that open all of them, then optimizes the loop for their shape |
+| [worker-placement](62-worker-placement.md) | post-parity, no ADR — ADR 0184 §§ 2, 5 as written | `nvs-host`, `nvs-runtime`'s script seam, `nvs-cli`'s unit table — a path entry is placed like a method entry, and a serving core offers itself as a destination |
+| [gap-zero](63-gap-zero.md) | post-parity, no ADR — the terminal gate | `tools/`, the ratchet test, CI — last of the hand-written goals: no gap owed by anyone but a future milestone, M0–M8 complete, the index deleted |
+| [dossier](64-dossier.md) | `rule:testing/four-proofs` | none — it writes the goals that open all of them, then optimizes the loop for their shape |
 | after `dossier` | `rule:testing/four-proofs`, generated | one group of features per goal, its own `[context]` manifest, under `goals/dossier/` |
 
 ## The chain contract

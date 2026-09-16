@@ -1,7 +1,7 @@
-# Goal 62 -- no gap is owed by anyone but a future milestone, and the index that held them is gone
+# Goal 63 -- no gap is owed by anyone but a future milestone, and the index that held them is gone
 # The acceptance test, as data.
 #
-# `62-gap-zero.md` is the prose. One home each.
+# `63-gap-zero.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 #
@@ -61,7 +61,7 @@ plan = ["Open now", "Blocking", "Done"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `62-gap-zero.md`. PROSE stage numbers; loop-authoring.md
+# THE STAGES. One table per prose stage in `63-gap-zero.md`. PROSE stage numbers; loop-authoring.md
 # section 2 is the whole of it.
 # ---------------------------------------------------------------------------------------------------
 

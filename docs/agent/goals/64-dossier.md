@@ -1,7 +1,7 @@
 ---
 milestone: dossier
 ---
-# Loop goal 63 — queue the dossier
+# Loop goal 64 — queue the dossier
 
 **One session, one command, and the chain is a hundred goals longer.**
 `rule:testing/four-proofs` settled that every shipped feature

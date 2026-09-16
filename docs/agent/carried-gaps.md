@@ -49,6 +49,8 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 | `rule:core-classes/html-to-source`'s computed `$reason` is not refused — was blocked on a full diagnostic band | `M7` | `crates/nvs-stdlib/src/html.rs` § *Known gaps* |
 | `queryAs<T>`'s three refusals are at run time; the band they waited on is open | `gap-zero` | `crates/nvs-stdlib/src/db/mod.rs` gap 4 |
 | `Core\Queue`'s `limits` and `grants` stay undeclared until an isolate enforces them | `gap-zero` | `crates/nvs-stdlib/src/queue.rs` gap 1 |
+| A child written as a path runs on its parent's core however it is placed, so `on: "worker"` buys it nothing | `worker-placement` | `crates/nvs-host/src/placed.rs` § *Known gaps* |
+| A serving core offers itself as no destination, so a placement under `nvs serve` starts a worker core beside the ones already serving | `worker-placement` | `crates/nvs-host/src/worker.rs` § *Known gaps* |
 
 ## Unowned
 
@@ -490,24 +492,6 @@ where taking it is the work and the code that follows it is not.
   expansion on in the Novis half of the file too — is the trade, or whether the client grows a
   second, real document the service can own. `editors/vscode/src/regions.ts` § *What forwarding does
   not reach*. [until: reviewed 2026-09-11]
-- **A child written as a path runs on its parent's core however it is placed**, so `spawn script
-  "child.nvs" with(on: "worker")` buys nothing and says nothing, which is the silent fall-through
-  `docs/decisions/0184.md` § *Diagnostics* rejects for the one failure it did foresee. The method
-  form crosses because a label is looked up in a class table every core reads, while a path becomes
-  code through a resolver only the booting thread was installed with. What has to be decided is who
-  owns the unit cache across cores — a resolver a worker core can reach is the fix, and refusing the
-  spawn instead would take a whole form away from `on: "worker"` to buy honesty.
-  `crates/nvs-host/src/placed.rs` § *Known gaps*, and `crates/nvs-host/src/group.rs`'s the same gap
-  seen from the seam above it. [until: reviewed 2026-09-14]
-- **A serving core offers itself as no destination**, so a worker placement under `nvs serve` starts
-  one of the lazily started worker cores rather than reaching the sibling serving core
-  `docs/decisions/0184.md` § 5 decides on — which is that record's *Revisiting* fallback, taken
-  without the measurement its trigger describes. `rule:concurrency/on-worker-runs-the-child-on-another-core` is written as what runs, so nothing
-  observable is wrong; what it costs is a thread per placed-to core on a process that already has one
-  per core. What has to be decided is whether a serving core registers an inbox as it starts, which
-  is a question about `nvs serve`'s boot order and not about the crossing.
-  `crates/nvs-host/src/worker.rs` § *Known gaps*. [until: reviewed 2026-09-14]
-
 ## What is *not* on either list
 
 Two kinds of thing look like an unowned gap and are not, and saying so here is cheaper than each

@@ -103,13 +103,15 @@
 //! measurement that trigger describes and pre-authorized by the goal's standing
 //! decisions; `rule:concurrency/on-worker-runs-the-child-on-another-core` is
 //! written as what runs. Closing it is a serving core calling into this module
-//! as it starts rather than anything about the crossing.
+//! as it starts rather than anything about the crossing, so it needs nothing a
+//! later milestone builds and goal `worker-placement` owns it with the entry-form
+//! half [`crate::placed`] states.
 //!
 //! What reaches this from above is [`crate::placed`], and it reaches it for one
 //! of `spawn script`'s two entry forms: a method crosses, a path starts on the
 //! parent's core. That module's own `# Known gaps` is that gap's one home, and
 //! nothing about it is a question for the transport here.
-//! — owner: unowned
+//! — owner: worker-placement
 
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
