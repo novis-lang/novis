@@ -3,54 +3,46 @@
 ## State
 
 **Goal `unowned-closures`. The register is `unowned: 15`** (`python tools/owners.py`), `--deferrals`
-green. The 15 unowned are the scheduling questions and none of them is this goal's own gap.
+green, 45 items still owned by this goal. The 15 unowned are the scheduling questions and none of them
+is this goal's own gap.
 
-**Every identifier `nvs_db::ddl` writes is delimited for its dialect.**
-`crates/nvs-db/src/ddl.rs:568` (`delimited`) is the one place, and every emitter goes through it:
-`"x"` on PostgreSQL and SQLite, backticks on MySQL, `[x]` on SQL Server. Nothing is escaped on the
-way through because `is_bare_identifier` admits no delimiter byte, which is what makes the quoting
-total rather than best effort. `catalog`'s round-trip fixture names its int column `rank` — MySQL 8
-reserves it — so the walk over all five servers is what asks whether the emitter quoted.
+**`nvs-db` owes nothing.** Both of its `# Known gaps` blocks are gone: `schema.rs` refuses a key over a
+column of a backend's unbounded type, and `ddl.rs` emits a SQL Server default change. What each
+replaced them with is the module doc's own prose — `crates/nvs-db/src/schema.rs:51` and
+`crates/nvs-db/src/ddl.rs:85` are where those sections now sit.
 
-**What nvs-db still owes**: `crates/nvs-db/src/schema.rs:53` gap 1, now only its index half, and
-`crates/nvs-db/src/ddl.rs:87` gap 1. Both are owned by this goal and both are the next group.
-
-**The index refusal has a read-path question the `Decided:` sentence does not answer.**
-`crates/nvs-db/src/catalog.rs:1018` builds every key it reads back through `Table::index`, so a
-builder that refuses an index over unbounded text also refuses to *introspect* a database that has
-one, and two fixtures carry exactly that (`crates/nvs-db/src/ddl.rs:1185`,
-`crates/nvs-db/src/catalog.rs:1261`). MySQL's prefix key (`crates/nvs-db/src/ddl.rs:112`) loses its
-last caller the moment no `Table` can hold such an index. Refusing at the builder and keeping the
-read path total — the catalog dropping the key it cannot express — is the shape that does not break
-introspection; whichever way it goes, say so in `schema`'s module doc.
+**Stage 5's remaining items are outside `nvs-db`**: `crates/nvs-cli/src/cache.rs` gaps 1–2, and
+`crates/nvs-server/src/{route,schedule,trace}.rs` gap 1 with `crates/nvs-runtime/src/metrics.rs:105`
+gap 1 beside them. The stage's `nvs-config` and `nvs-server/src/bounds.rs` entries are already closed —
+the goal prose's list is ahead of the register there, and the register is what is true.
 
 ## Next group
 
-**Stage 5: the vocabulary's last portability gap, then the emitter's** — one file set:
-`crates/nvs-db/src/schema.rs`, `crates/nvs-db/src/ddl.rs`, `crates/nvs-db/src/catalog.rs`.
-`rule:core-classes/schema-is-a-value` is what the vocabulary sits inside and
-`rule:core-classes/schema-plan` what the emitter does.
+**Stage 5: the artifact loader's two platform gaps** — one file set: `crates/nvs-cli/src/cache.rs`,
+`crates/nvs-codegen/src/lib.rs`. Both items share one `Decided:` sentence, so the second is nearly free
+once the first lands. `rule:packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header`
+is what the loader implements and
+`rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable` what makes a page runnable.
 
-- [ ] **Refuse an index over unbounded text in the builder** — the remaining half of
-      `crates/nvs-db/src/schema.rs:53`'s `Decided:` sentence: SQL Server refuses `NVARCHAR(MAX)` as a
-      key column outright and MySQL takes it only as a prefix key, so there is no portable spelling
-      to emit instead. `crates/nvs-db/src/schema.rs:612` (`index`) and
-      `crates/nvs-db/src/schema.rs:598` (`unique`) are where a key's columns are resolved and
-      `crates/nvs-db/src/schema.rs:1133` (`SchemaError`) is the enum that needs the case. Decide the
-      read path first — `## State` above names what it costs — then move the two fixtures off their
-      unbounded column and settle what happens to `crates/nvs-db/src/ddl.rs:112`'s prefix key.
-- [ ] **Look a SQL Server default constraint's name up in the emitted batch** —
-      `crates/nvs-db/src/ddl.rs:87`'s gap 1 is the `Decided:` sentence: `ALTER COLUMN` there carries a
-      type and a nullability and nothing else, so a default change needs the generated constraint
-      name, which neither `Change` nor the catalog carries. `crates/nvs-db/src/ddl.rs:687`
-      (`change_column`) is the emitter, and the step becomes dynamic SQL over
-      `sys.default_constraints` — the one place this module writes a statement that is not a literal
-      an operator could paste, so its doc has to say so.
+- [ ] **One shared "make executable" in `nvs-codegen`, and `aarch64` loads through it** —
+      `crates/nvs-cli/src/cache.rs:166`'s gap 1 is the `Decided:` sentence: freshly written bytes need
+      instruction-cache maintenance `mprotect` does not imply, and the loader has no home for it.
+      `crates/nvs-cli/src/cache.rs:431` is where the loader makes the mapping executable and
+      `crates/nvs-cli/src/cache.rs:339` (`relocate`) is what runs before it;
+      `crates/nvs-codegen/src/lib.rs:971` is the JIT's own note on the same step, which is the function's
+      home. `HOST_ARCH` then answers for `aarch64` and the payload stops being a miss on every run.
+- [ ] **Strip Mach-O's leading underscore where a symbol is resolved** —
+      `crates/nvs-cli/src/cache.rs:174`'s gap 2, latent today because CI's Mach-O host is `aarch64`:
+      an undefined name arrives as `_nvs_echo_str` and `resolve` answers `None`, so every artifact is a
+      miss on an x86-64 Mac. It is the same `Decided:` sentence as the item above and belongs in the
+      same slice's file set.
 
 ## Backlog
 
-- `crates/nvs-db/src/catalog.rs` reads a bare spelling on a *non*-text column as a parse failure,
-  not as an opaque default; the two disagree by design, and `column_default`'s own doc argues it.
-- `crates/nvs-cli/src/cache.rs:166` gaps 1 and 2 — `aarch64` and Mach-O's leading underscore, owned
-  by this goal and a different file set.
-- The unowned 15 are scheduling questions, indexed in `docs/agent/carried-gaps.md` § *Unowned*.
+- `crates/nvs-server/src/route.rs:32` gap 1 — where a forged CSRF token is refused (stage 5).
+- `crates/nvs-server/src/schedule.rs:80` gap 1 — a fire's context carries the deployment's configuration.
+- `crates/nvs-server/src/trace.rs:78` gap 1 — the events a sampled request files without `DebugFlags::TRACE`.
+- `crates/nvs-runtime/src/metrics.rs:105` gap 1 — the `otlp` pusher behind `[metrics] endpoint`.
+- Spec § 13's `Core\Test` cell spells `request`'s bag nowhere; `crates/nvs-stdlib/src/test.rs`'s
+  `REQUEST_OPTIONS` is the roster it should state (`docs/agent/carried-gaps.md`).
+- Stage 6, the deferrals, is untouched and `python tools/owners.py --deferrals` is already green.

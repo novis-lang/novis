@@ -188,22 +188,6 @@ where taking it is the work and the code that follows it is not.
   widens a surface the spec fixed rather than repairing it.
   `crates/nvs-stdlib/src/uuid.rs` gap 1.
   [until: gone crates/nvs-stdlib/src/uuid.rs:owner: unowned]
-- **`nvs-db`'s § 5 normalization, which both directions of the schema plan record as owed and
-  which nothing on the chain writes.** The emitter's map into a dialect is lossy — one `BYTEA` for
-  both bytes widths, `CHAR(36)` for a `UUID`, the next width up and a `CHECK` for a `uint` no
-  catalog reports as a type — so a schema applied and read straight back describes as a
-  *different* vocabulary case, and a diff converges only once the declared side is folded through
-  the same map. What has to be decided is where that fold lives: one normalisation over both sides
-  before the diff, or a per-case comparison inside it. Three narrower decisions sit beside it —
-  whether a SQL Server default's server-generated constraint name enters the vocabulary at all,
-  since neither `Change` nor the catalog reads carry one and a default change there is emitted
-  without its default; whether a default spelling the vocabulary cannot hold is dropped, refused
-  as a `SchemaError` or given an opaque case; and, for the two constructs the vocabulary holds
-  that no backend takes portably, whether a builder refuses them or an emitter grows a spelling.
-  Goals `database` and `schema` are retired and M8's database half is carried with them, so no
-  milestone claims this either. `crates/nvs-db/src/ddl.rs`, `crates/nvs-db/src/catalog.rs` and
-  `crates/nvs-db/src/schema.rs` § *Known gaps* carry the tags.
-  [until: gone crates/nvs-db/src/ddl.rs:owner: unowned]
 - **SQL Server refuses a `bytes` parameter, and unrefusing it is a plan-cache decision.** The read
   half of ADR 0067 § 9's row is whole on that driver; the bind half is the one place a `bytes` does
   not reach a server, because every TDS parameter goes out as one `nvarchar` for the server to cast
