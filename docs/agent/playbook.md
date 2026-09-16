@@ -5250,6 +5250,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   could match. Put plain words before the first hole, and the `unreachable from source` sentence in
   a `//` comment within eight lines above the `Fault::` line — not on the enclosing `fn`.
   [until: gone crates/nvs-stdlib/tests/conformance_coverage.rs:every_error_path_is_asserted_or_declared_unreachable]
+- **A `.nvst` case that names a variable `$argv` collects a second diagnostic the case never asked
+  for.** `rule:statements/no-host-populated-variables` refuses every host-populated name, so the line
+  carries `E0211` *as well as* whatever it was written to pin, and an `--EXPECTF-ERROR--` block written
+  for one error a line silently needs two. Spell an argument list `$words` or `$parts` in a case; that
+  rule's own table is the reserved set. [until: reviewed 2026-09-16]
 
 ## Splitting a file that got too big
 
