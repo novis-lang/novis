@@ -3745,7 +3745,7 @@ bool $differ = $mac != $sent;
 /// below still takes `Identical`, so the assertion reads the *choice* rather
 /// than the presence of a call.
 #[test]
-fn a_secret_compared_against_a_mixed_lowers_to_the_constant_time_helper() {
+fn a_secret_compared_against_a_mixed_string_takes_the_constant_time_helper() {
     let (f, map, file) = lower_script_src(
         "<?nvs
 secret string $token = \"a\";
