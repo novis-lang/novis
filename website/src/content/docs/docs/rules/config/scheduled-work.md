@@ -15,9 +15,9 @@ next:
 
 <p class="nv-section-lead">A config block, not a runtime API: five cron fields, a mandatory scope, a lease across a fleet, and a missed fire that stays missed.</p>
 
-<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">9</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">7</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">2</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">6</span><span class="nv-count-label">differ from PHP</span></div></div>
+<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">9</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">9</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">0</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">6</span><span class="nv-count-label">differ from PHP</span></div></div>
 
-<ol class="nv-rule-list"><li><a href="#scheduled-work-is-a-config-block">Scheduled work is a <code>[[schedule]]</code> entry firing a <code>spawn script</code>, checked at boot, with no runtime API</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#cron-is-five-fields-and-nothing-more"><code>cron</code> is five-field POSIX plus five named shorthands, parsed at boot with the line named</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#scope-has-no-default"><code>scope</code> is mandatory with no default, and <code>fleet</code> with no shared store refuses to boot</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#every-schedule-key-is-system">Every <code>[[schedule]]</code> key is <code>System</code>, and not even <code>RuntimeTighten</code> reaches one</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-schedule-entry-narrows-only">An entry's <code>limits</code> and <code>grants</code> narrow the deployment's, and can never widen them</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#a-scheduled-run-is-a-root-isolate">A scheduled run is a root isolate that spends a root's budget, and only <code>nvs serve</code> fires one</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-fleet-entry-fires-at-most-once-under-a-lease">A <code>fleet</code> entry fires once per interval across the deployment under a lease in the shared store — at most once, never exactly once</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#overlap-is-skip-queue-or-kill"><code>overlap</code> is <code>skip</code> by default, <code>queue</code> holds exactly one pending run, and <code>kill</code> cancels before it starts</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#a-missed-fire-is-skipped-and-a-dst-edge-fires-once">A missed fire is never caught up, <code>timezone</code> defaults to UTC, and a DST gap or repeat fires exactly once</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li></ol>
+<ol class="nv-rule-list"><li><a href="#scheduled-work-is-a-config-block">Scheduled work is a <code>[[schedule]]</code> entry firing a <code>spawn script</code>, checked at boot, with no runtime API</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#cron-is-five-fields-and-nothing-more"><code>cron</code> is five-field POSIX plus five named shorthands, parsed at boot with the line named</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#scope-has-no-default"><code>scope</code> is mandatory with no default, and <code>fleet</code> with no shared store refuses to boot</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#every-schedule-key-is-system">Every <code>[[schedule]]</code> key is <code>System</code>, and not even <code>RuntimeTighten</code> reaches one</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-schedule-entry-narrows-only">An entry's <code>limits</code> and <code>grants</code> narrow the deployment's, and can never widen them</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#a-scheduled-run-is-a-root-isolate">A scheduled run is a root isolate that spends a root's budget, and only <code>nvs serve</code> fires one</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-fleet-entry-fires-at-most-once-under-a-lease">A <code>fleet</code> entry fires once per interval across the deployment under a lease in the shared store — at most once, never exactly once</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#overlap-is-skip-queue-or-kill"><code>overlap</code> is <code>skip</code> by default, <code>queue</code> holds exactly one pending run, and <code>kill</code> cancels before it starts</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#a-missed-fire-is-skipped-and-a-dst-edge-fires-once">A missed fire is never caught up, <code>timezone</code> defaults to UTC, and a DST gap or repeat fires exactly once</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li></ol>
 
 <div class="nv-rule" id="scheduled-work-is-a-config-block">
 
@@ -181,7 +181,7 @@ a request could redirect is work a request could redirect into a database it was
 ## An entry's `limits` and `grants` narrow the deployment's, and can never widen them
 
 <div class="nv-rule-tags">
-<span class="nv-rule-status" data-status="designed">Designed</span>
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
 <a class="nv-rule-id" href="#a-schedule-entry-narrows-only"><code>config/a-schedule-entry-narrows-only</code></a>
 </div>
 
@@ -192,13 +192,21 @@ widen a scope it narrowed. A scheduled run cannot widen anything, for the same r
 ([`security/no-runtime-grant`](/docs/rules/security/scopes-and-denial/#no-runtime-grant "Two layers enforce a capability and only the static one grants; nothing anywhere widens")) — the root-owned file is the ceiling, and a block inside it is not a
 second authority.
 
-The keys parse and are carried on the entry today. **What is not armed is the narrowing itself**:
-nothing in the ticker yet builds a run's budget or grant set per isolate from them, so a fire spends
-the deployment's `[limits]` and holds the deployment's `[capabilities]` whole. That is inside the rule
-— the run holds no more than the deployment does — and short of it, since an entry that asked for
-less does not get less.
+The ticker builds both when it arms the entry and applies them to each fire's isolate before its
+first statement, which is the same narrowing a `spawn script` site writes and not a scheduler's own
+mechanism. Nothing checks either table against the deployment first: a sub-cap wider than what is in
+force leaves the inherited ceiling standing, and a name the deployment withheld is still refused at
+the door, so the application is the check.
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/config/scheduled-work/#a-scheduled-run-is-a-root-isolate" title="A scheduled run is a root isolate that spends a root's budget, and only nvs serve fires one"><code>config/a-scheduled-run-is-a-root-isolate</code></a> <a href="/docs/rules/security/scopes-and-denial/#no-runtime-grant" title="Two layers enforce a capability and only the static one grants; nothing anywhere widens"><code>security/no-runtime-grant</code></a> <a href="/docs/rules/config/changeability-classes/#ceilings-are-their-own-directives" title="A ceiling is a System directive with the default's key name, and false removes it"><code>config/ceilings-are-their-own-directives</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0073.md">record 0073</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0005.md">record 0005</a></dd></div></dl>
+**`grants` narrows by capability name, and a scope written beside it narrows nothing.**
+`grants = {net.connect = ["reports.internal"]}` holds the run to `net.connect` and leaves the hosts
+the deployment named standing — the entry reaches no host `[capabilities]` withheld, and takes none
+away from itself either. That is what a narrowing is everywhere, a spawn site's `grants:` included:
+a list of names, asked beside the configuration rather than instead of it. A second channel carrying
+scopes would make an entry a second place a capability's scope is resolved, which is the thing
+[`security/capability-check-at-the-door`](/docs/rules/security/capabilities/#capability-check-at-the-door "The capability check lives inside the function that performs the effect, and that door is the only way out of the process") keeps to one.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/config/scheduled-work/#a-scheduled-run-is-a-root-isolate" title="A scheduled run is a root isolate that spends a root's budget, and only nvs serve fires one"><code>config/a-scheduled-run-is-a-root-isolate</code></a> <a href="/docs/rules/security/scopes-and-denial/#no-runtime-grant" title="Two layers enforce a capability and only the static one grants; nothing anywhere widens"><code>security/no-runtime-grant</code></a> <a href="/docs/rules/config/changeability-classes/#ceilings-are-their-own-directives" title="A ceiling is a System directive with the default's key name, and false removes it"><code>config/ceilings-are-their-own-directives</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0073.md">record 0073</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0005.md">record 0005</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-server/src/schedule.rs"><code>crates/nvs-server/src/schedule.rs</code></a></dd></div></dl>
 
 </div>
 
@@ -250,7 +258,7 @@ queued job is the same root shape ([`concurrency/a-job-runs-as-a-root-isolate`](
 ## A `fleet` entry fires once per interval across the deployment under a lease in the shared store — at most once, never exactly once
 
 <div class="nv-rule-tags">
-<span class="nv-rule-status" data-status="designed">Designed</span>
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
 <a class="nv-rule-id" href="#a-fleet-entry-fires-at-most-once-under-a-lease"><code>config/a-fleet-entry-fires-at-most-once-under-a-lease</code></a>
 </div>
 
@@ -268,11 +276,14 @@ application's job and not a scheduler's: a job that must not run twice makes its
 idempotent.
 
 The ticker holds no store: it asks one question — take this key for this long, yes or no — through a
-`Leases` parameter only `nvs serve` can supply. **Today `nvs serve` supplies none**: the shared tier's
-wire is `put` and `get` ([`concurrency/a-cached-value-is-copied-across-the-boundary`](/docs/rules/concurrency/deferred-and-cross-request-state/#a-cached-value-is-copied-across-the-boundary "A value is copied into the cache and copied back out, by the same graph copy the isolate boundary uses")) and neither
-is a set-if-absent, so every `fleet` entry boots, is left **unarmed**, and is named in a boot note.
-Firing it on each host's own clock would be the precise failure the scope exists to prevent, so the
-safe half is to run none of them and say so.
+`Leases` parameter only `nvs serve` can supply, because the crate the ticker lives in names no
+standard library. That binary supplies one whenever the tree names a `[cache.shared]` store its boot
+can reach, over a connection of its own to that tier and a set-if-absent no program is given
+([`concurrency/cross-request-state-is-explicit`](/docs/rules/concurrency/deferred-and-cross-request-state/#cross-request-state-is-explicit "A value outlives the request that made it only by being put into a named store")).
+
+A tree with no shared store, and one whose store will not answer the boot, leave every `fleet` entry
+**unarmed** and named in a boot note. Firing it on each host's own clock would be the precise failure
+the scope exists to prevent, so the safe half is to run none of them and say so.
 
 <dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/config/scheduled-work/#scope-has-no-default" title="scope is mandatory with no default, and fleet with no shared store refuses to boot"><code>config/scope-has-no-default</code></a> <a href="/docs/rules/config/scheduled-work/#a-missed-fire-is-skipped-and-a-dst-edge-fires-once" title="A missed fire is never caught up, timezone defaults to UTC, and a DST gap or repeat fires exactly once"><code>config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once</code></a> <a href="/docs/rules/concurrency/deferred-and-cross-request-state/#a-cached-value-is-copied-across-the-boundary" title="A value is copied into the cache and copied back out, by the same graph copy the isolate boundary uses"><code>concurrency/a-cached-value-is-copied-across-the-boundary</code></a> <a href="/docs/rules/concurrency/deferred-and-cross-request-state/#cross-request-state-is-explicit" title="A value outlives the request that made it only by being put into a named store"><code>concurrency/cross-request-state-is-explicit</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0073.md">record 0073</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0059.md">record 0059</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-server/src/schedule.rs"><code>crates/nvs-server/src/schedule.rs</code></a></dd></div></dl>
 

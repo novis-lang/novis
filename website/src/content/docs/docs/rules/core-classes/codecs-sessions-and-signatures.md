@@ -178,16 +178,16 @@ job's `dedupe_key` while the job is pending and `null` once it is claimed, succe
 dead-lettered. A partial index (`… where state = 0`) and a stored generated column each say the same
 thing, and neither is in [`core-classes/schema-is-a-value`](/docs/rules/core-classes/schemas/#schema-is-a-value "A schema is a value with three spellings, and its array form is the canonical one")'s vocabulary — they are two dialects'
 answers to one requirement, which is exactly what a schema value exists to stop being. A null
-collides with nothing on the four backends whose unique keys read nulls as distinct, so the
-guarantee is the same one on every backend `Core\Queue` runs a statement against.
+collides with nothing on any of the five, because a unique key's nulls are distinct on every backend
+([`core-classes/a-unique-key-reads-nulls-as-distinct`](/docs/rules/core-classes/schemas/#a-unique-key-reads-nulls-as-distinct "A unique key reads nulls as distinct on every backend, and SQL Server spells that as a filtered index")) — four give it directly and SQL Server
+through the filtered index its emitter writes — so the guarantee is one guarantee, stated once, on
+every backend `Core\Queue` runs a statement against.
 
-SQL Server reads two nulls as **equal**, and so admits one released row rather than any number of
-them. It has no queue statements at all, so nothing runs against that shape today; the day it gains
-them, the spelling it needs is the filtered index [`core-classes/schema-plan`](/docs/rules/core-classes/schemas/#schema-plan "Every plan step carries a grade and its complete SQL, and an unknown grade grades up") keeps out of v1,
-and the vocabulary grows before the queue does. The alternative — a `not null` column with a
-generated token per released row — is refused for a reason that outlives SQL Server: such a column
-cannot be added to a table that already holds rows, so it would be a schema no existing deployment
-could converge to, while a nullable one arrives as a `Safe` step.
+That is the queue reading a property of the vocabulary rather than the queue asking for one. The
+alternative — a `not null` column with a generated token per released row — is refused for a reason
+that outlives any one backend: such a column cannot be added to a table that already holds rows, so
+it would be a schema no existing deployment could converge to, while a nullable one arrives as a
+`Safe` step.
 
 DDL is an injection sink and a privileged act, so **the runtime never issues it implicitly**, not at
 boot and not from a request; applying the plan takes `db.schema` like any other DDL
@@ -203,7 +203,7 @@ the point the option is offered.
 <p>There is no broker, no daemon of its own and no implicit boot-time DDL — the tables are created by <code>nvs queue migrate</code> and by nothing else</p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-classes/schemas/#schema-converges" title="A plan is the difference between a schema value and a live database, and Core knows no migrations"><code>core-classes/schema-converges</code></a> <a href="/docs/rules/core-classes/schemas/#schema-apply-capability" title="Planning is an ordinary read, and applying takes db.schema under a member named for its risk"><code>core-classes/schema-apply-capability</code></a> <a href="/docs/rules/core-classes/connecting-to-a-database/#db-capabilities" title="Three deny-by-default capabilities gate naming a database, dialling one, and issuing DDL to it"><code>core-classes/db-capabilities</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0084.md">record 0084</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0145.md">record 0145</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0067.md">record 0067</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0024.md">record 0024</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0153.md">record 0153</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/queue-push-refuses-an-enqueue-with-no-queue-configured.nvst"><code>tests/conformance/core/queue-push-refuses-an-enqueue-with-no-queue-configured.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/queue-push-judges-its-options-before-it-opens-anything.nvst"><code>tests/conformance/core/queue-push-judges-its-options-before-it-opens-anything.nvst</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-classes/schemas/#schema-converges" title="A plan is the difference between a schema value and a live database, and Core knows no migrations"><code>core-classes/schema-converges</code></a> <a href="/docs/rules/core-classes/schemas/#schema-apply-capability" title="Planning is an ordinary read, and applying takes db.schema under a member named for its risk"><code>core-classes/schema-apply-capability</code></a> <a href="/docs/rules/core-classes/connecting-to-a-database/#db-capabilities" title="Three deny-by-default capabilities gate naming a database, dialling one, and issuing DDL to it"><code>core-classes/db-capabilities</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0084.md">record 0084</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0145.md">record 0145</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0067.md">record 0067</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0024.md">record 0024</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0153.md">record 0153</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0187.md">record 0187</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/queue-push-refuses-an-enqueue-with-no-queue-configured.nvst"><code>tests/conformance/core/queue-push-refuses-an-enqueue-with-no-queue-configured.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/queue-push-judges-its-options-before-it-opens-anything.nvst"><code>tests/conformance/core/queue-push-judges-its-options-before-it-opens-anything.nvst</code></a></dd></div></dl>
 
 </div>
 

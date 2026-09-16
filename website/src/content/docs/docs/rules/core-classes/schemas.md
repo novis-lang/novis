@@ -15,9 +15,9 @@ next:
 
 <p class="nv-section-lead">A schema is a value, a plan is its difference from a live database, and something the schema omits is reported, never dropped.</p>
 
-<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">7</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">7</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">0</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">1</span><span class="nv-count-label">differs from PHP</span></div></div>
+<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">8</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">8</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">0</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">1</span><span class="nv-count-label">differs from PHP</span></div></div>
 
-<ol class="nv-rule-list"><li><a href="#schema-is-a-value">A schema is a value with three spellings, and its array form is the canonical one</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#schema-vocabulary-is-closed">The schema vocabulary is five constructs shared by all five backends, with no raw escape hatch</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#schema-converges">A plan is the difference between a schema value and a live database, and <code>Core</code> knows no migrations</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#schema-introspection">An existing database is read by catalog query, and no DDL parser exists at any tier</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#schema-plan">Every plan step carries a grade and its complete SQL, and an unknown grade grades up</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#schema-absence-never-destroys">Something in the database and not in the schema value is reported with its SQL, and never dropped</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#schema-apply-capability">Planning is an ordinary read, and applying takes <code>db.schema</code> under a member named for its risk</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li></ol>
+<ol class="nv-rule-list"><li><a href="#schema-is-a-value">A schema is a value with three spellings, and its array form is the canonical one</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#schema-vocabulary-is-closed">The schema vocabulary is five constructs shared by all five backends, with no raw escape hatch</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#a-unique-key-reads-nulls-as-distinct">A unique key reads nulls as distinct on every backend, and SQL Server spells that as a filtered index</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#schema-converges">A plan is the difference between a schema value and a live database, and <code>Core</code> knows no migrations</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#schema-introspection">An existing database is read by catalog query, and no DDL parser exists at any tier</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#schema-plan">Every plan step carries a grade and its complete SQL, and an unknown grade grades up</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#schema-absence-never-destroys">Something in the database and not in the schema value is reported with its SQL, and never dropped</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#schema-apply-capability">Planning is an ordinary read, and applying takes <code>db.schema</code> under a member named for its risk</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li></ol>
 
 <div class="nv-rule" id="schema-is-a-value">
 
@@ -64,7 +64,9 @@ The vocabulary is tables, columns, primary keys, unique constraints and indexes 
 five backends genuinely share. A column carries a name, a type, nullability, a default, and whether
 it is the table's **identity**, which every backend has and spells differently. A unique constraint
 is the canonical spelling of uniqueness, so an index in the vocabulary is never unique: admitting
-both would make one schema expressible two ways.
+both would make one schema expressible two ways. Its nulls are distinct on every backend
+([`core-classes/a-unique-key-reads-nulls-as-distinct`](/docs/rules/core-classes/schemas/#a-unique-key-reads-nulls-as-distinct "A unique key reads nulls as distinct on every backend, and SQL Server spells that as a filtered index")), which is a property of the vocabulary and
+not of whichever dialect is emitting it.
 
 The column type enum is [`core-classes/db-column-types`](/docs/rules/core-classes/running-a-statement/#db-column-types "Every column has one natural Novis type, and the requested type converts losslessly or throws")'s map read in the **write** direction —
 one canonical SQL type per Novis type per dialect, chosen so that introspecting the result maps back
@@ -80,8 +82,59 @@ schema" is not a state that exists; and a vendor shipping a new feature costs th
 because it is reachable through `Core\Db::execute` exactly as it is today. Foreign keys, partial
 indexes, index types, collations, check constraints, triggers, views and partitioning are all out of
 v1 for the same reason: no portable spelling, and admitting one would break the empty-plan property.
+What is out of v1 is what a schema *value* may say. An emitter still writes whatever its dialect needs
+to mean a construct that is in the vocabulary — SQLite's `CREATE UNIQUE INDEX` where the others write
+a constraint, SQL Server's filtered index for a nullable unique key — and the introspector reads that
+spelling back as the construct it stands for.
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-classes/schemas/#schema-is-a-value" title="A schema is a value with three spellings, and its array form is the canonical one"><code>core-classes/schema-is-a-value</code></a> <a href="/docs/rules/core-classes/running-a-statement/#db-column-types" title="Every column has one natural Novis type, and the requested type converts losslessly or throws"><code>core-classes/db-column-types</code></a> <a href="/docs/rules/core-classes/schemas/#schema-plan" title="Every plan step carries a grade and its complete SQL, and an unknown grade grades up"><code>core-classes/schema-plan</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0145.md">record 0145</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0067.md">record 0067</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0024.md">record 0024</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/db-schema-refuses-what-the-closed-vocabulary-cannot-say.nvst"><code>tests/conformance/core/db-schema-refuses-what-the-closed-vocabulary-cannot-say.nvst</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-classes/schemas/#schema-is-a-value" title="A schema is a value with three spellings, and its array form is the canonical one"><code>core-classes/schema-is-a-value</code></a> <a href="/docs/rules/core-classes/running-a-statement/#db-column-types" title="Every column has one natural Novis type, and the requested type converts losslessly or throws"><code>core-classes/db-column-types</code></a> <a href="/docs/rules/core-classes/schemas/#schema-plan" title="Every plan step carries a grade and its complete SQL, and an unknown grade grades up"><code>core-classes/schema-plan</code></a> <a href="/docs/rules/core-classes/schemas/#a-unique-key-reads-nulls-as-distinct" title="A unique key reads nulls as distinct on every backend, and SQL Server spells that as a filtered index"><code>core-classes/a-unique-key-reads-nulls-as-distinct</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0145.md">record 0145</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0067.md">record 0067</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0024.md">record 0024</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0187.md">record 0187</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/db-schema-refuses-what-the-closed-vocabulary-cannot-say.nvst"><code>tests/conformance/core/db-schema-refuses-what-the-closed-vocabulary-cannot-say.nvst</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="a-unique-key-reads-nulls-as-distinct">
+
+## A unique key reads nulls as distinct on every backend, and SQL Server spells that as a filtered index
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<a class="nv-rule-id" href="#a-unique-key-reads-nulls-as-distinct"><code>core-classes/a-unique-key-reads-nulls-as-distinct</code></a>
+</div>
+
+A unique key in the schema vocabulary means the standard's unique key on all five backends: rows whose
+key columns are all non-null are distinct, and a row with a null in any key column collides with
+nothing.
+
+Four backends give that directly. **SQL Server's emitter writes a filtered unique index** for a key
+over any nullable column —
+
+```sql
+CREATE UNIQUE INDEX <key> ON <table> (<columns>) WHERE <column> IS NOT NULL;
+```
+
+— with one `IS NOT NULL` conjunct per nullable key column, and the plain `ADD CONSTRAINT … UNIQUE`
+where every key column is `not null`.
+
+**That is a spelling, not a vocabulary growth.** A `Core\Db\Schema` declares a unique key over columns
+and nothing else; the `WHERE` is the emitter's, the way SQLite's emitter already writes
+`CREATE UNIQUE INDEX` where the others write a constraint, and
+[`core-classes/schema-vocabulary-is-closed`](/docs/rules/core-classes/schemas/#schema-vocabulary-is-closed "The schema vocabulary is five constructs shared by all five backends, with no raw escape hatch") still keeps a partial index out of what a program may
+express. The catalog reader matches the index back to the key that asked for it, predicate and all, so
+a second `plan` over a converged database is empty. **Any other predicate leaves the index out of the
+read value entirely**, as a partial index always has: one arriving with its `WHERE` discarded would
+put a key in the value the server does not hold, and a diff that agrees with a database it does not
+match is the failure the whole schema half rests on not having. The cost falls the other way — a plan
+proposing a key whose name a partial index already owns fails on the server rather than in the plan,
+which `crates/nvs-db/src/catalog.rs`'s module doc owns. A build over an existing table is `Locking`
+and inside a `CREATE TABLE` it is `Safe` ([`core-classes/schema-plan`](/docs/rules/core-classes/schemas/#schema-plan "Every plan step carries a grade and its complete SQL, and an unknown grade grades up")).
+
+The alternative is refused for a reason that outlives SQL Server: a `not null` column carrying a
+generated token per row cannot be added to a table that already holds rows, so it describes a schema
+no existing deployment can converge to, while a nullable column arrives as a `Safe` step. Uniform null
+semantics are what [`core-classes/db-one-api`](/docs/rules/core-classes/connecting-to-a-database/#db-one-api "Core\Db is the only database API, and every statement it runs is prepared")'s one-API promise means for a program's own schema,
+and [`core-classes/queue-storage-is-a-table`](/docs/rules/core-classes/codecs-sessions-and-signatures/#queue-storage-is-a-table "The job queue is two tables in a connection the operator names, converged by an explicit command")'s `dedupe_pending` is one reader of them rather than
+the reason for them.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-classes/schemas/#schema-vocabulary-is-closed" title="The schema vocabulary is five constructs shared by all five backends, with no raw escape hatch"><code>core-classes/schema-vocabulary-is-closed</code></a> <a href="/docs/rules/core-classes/schemas/#schema-plan" title="Every plan step carries a grade and its complete SQL, and an unknown grade grades up"><code>core-classes/schema-plan</code></a> <a href="/docs/rules/core-classes/codecs-sessions-and-signatures/#queue-storage-is-a-table" title="The job queue is two tables in a connection the operator names, converged by an explicit command"><code>core-classes/queue-storage-is-a-table</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0187.md">record 0187</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-db/src/ddl.rs"><code>crates/nvs-db/src/ddl.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-db/src/catalog.rs"><code>crates/nvs-db/src/catalog.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-stdlib/tests/queue.rs"><code>crates/nvs-stdlib/tests/queue.rs</code></a></dd></div></dl>
 
 </div>
 
@@ -176,7 +229,12 @@ cannot issue DDL at all and a DBA applies the change from a ticket — a plan wh
 elided into "3 unsafe changes" is useless to that person, and a plan they can paste is the whole
 product. Emitters follow the four dialects, not the five drivers.
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-classes/schemas/#schema-apply-capability" title="Planning is an ordinary read, and applying takes db.schema under a member named for its risk"><code>core-classes/schema-apply-capability</code></a> <a href="/docs/rules/core-classes/schemas/#schema-absence-never-destroys" title="Something in the database and not in the schema value is reported with its SQL, and never dropped"><code>core-classes/schema-absence-never-destroys</code></a> <a href="/docs/rules/core-classes/schemas/#schema-converges" title="A plan is the difference between a schema value and a live database, and Core knows no migrations"><code>core-classes/schema-converges</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0145.md">record 0145</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0067.md">record 0067</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/db-schema-apply-safe-refuses-what-apply-including-risky-runs.nvst"><code>tests/conformance/core/db-schema-apply-safe-refuses-what-apply-including-risky-runs.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/db-schema-plans-every-difference-and-apply-safe-closes-them.nvst"><code>tests/conformance/core/db-schema-plans-every-difference-and-apply-safe-closes-them.nvst</code></a></dd></div></dl>
+A dialect's spelling of a vocabulary construct is graded as that construct, not as the SQL it happens
+to be: SQL Server's filtered unique index for a nullable unique key
+([`core-classes/a-unique-key-reads-nulls-as-distinct`](/docs/rules/core-classes/schemas/#a-unique-key-reads-nulls-as-distinct "A unique key reads nulls as distinct on every backend, and SQL Server spells that as a filtered index")) is `Locking` built over an existing table
+and `Safe` inside a `CREATE TABLE`, exactly as the constraint form is on the other dialects.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-classes/schemas/#schema-apply-capability" title="Planning is an ordinary read, and applying takes db.schema under a member named for its risk"><code>core-classes/schema-apply-capability</code></a> <a href="/docs/rules/core-classes/schemas/#schema-absence-never-destroys" title="Something in the database and not in the schema value is reported with its SQL, and never dropped"><code>core-classes/schema-absence-never-destroys</code></a> <a href="/docs/rules/core-classes/schemas/#schema-converges" title="A plan is the difference between a schema value and a live database, and Core knows no migrations"><code>core-classes/schema-converges</code></a> <a href="/docs/rules/core-classes/schemas/#a-unique-key-reads-nulls-as-distinct" title="A unique key reads nulls as distinct on every backend, and SQL Server spells that as a filtered index"><code>core-classes/a-unique-key-reads-nulls-as-distinct</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0145.md">record 0145</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0067.md">record 0067</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0187.md">record 0187</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/db-schema-apply-safe-refuses-what-apply-including-risky-runs.nvst"><code>tests/conformance/core/db-schema-apply-safe-refuses-what-apply-including-risky-runs.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/db-schema-plans-every-difference-and-apply-safe-closes-them.nvst"><code>tests/conformance/core/db-schema-plans-every-difference-and-apply-safe-closes-them.nvst</code></a></dd></div></dl>
 
 </div>
 

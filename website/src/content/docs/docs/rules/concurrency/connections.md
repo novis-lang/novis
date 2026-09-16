@@ -391,14 +391,22 @@ A graceful shutdown and a control-socket reload close connections with a defined
 period, so a client's reconnect logic sees a clean close rather than a reset. There is one mechanism
 behind both spellings, because there is one thing a stopping process and a reloading one both need.
 
-The drain period starts when a connection **first sees** the drain, not when the drain began, so a
-connection is given the whole period however late it was accepted.
+The drain period is `[server] drain_timeout`, `"30s"` with nothing configured and never unbounded
+([`http-server/an-unsafe-or-unbounded-default-is-a-defect`](/docs/rules/http-server/listening-and-admission/#an-unsafe-or-unbounded-default-is-a-defect "A default that is unsafe inbound or unbounded outbound is a defect, not a neutral starting point")). It starts when a connection **first
+sees** the drain, not when the drain began, so a connection is given the whole period however late
+it was accepted.
+
+A connection is made to see it: **beginning the drain wakes every parked wait**, rather than leaving
+a connection to notice at its own idle timer — which would compose the drain period with
+`keepalive_timeout` and make a stop take the longest wait a deployment configured before the period
+even started. A wake is not a close; it makes the task runnable, and the close below is still the
+one it takes itself.
 
 The close is the connection's *own*, taken at its next wait rather than reached in from the accept
 loop. The socket belongs to the isolate, so closing it from outside would be writing to a descriptor
 another task is parked on — and a dropped descriptor gives the peer a reset, which is exactly what a
 client cannot tell apart from a network failure.
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/concurrency/connections/#connection-bounds-are-finite" title="Every bound on an open connection is finite with nothing configured"><code>concurrency/connection-bounds-are-finite</code></a> <a href="/docs/rules/concurrency/connections/#a-connection-keeps-its-compiled-unit" title="An open connection runs to completion on the code it started with, and an edit reaches only the next one"><code>concurrency/a-connection-keeps-its-compiled-unit</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0083.md">record 0083</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0078.md">record 0078</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-server/src/serve.rs"><code>crates/nvs-server/src/serve.rs</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/concurrency/connections/#connection-bounds-are-finite" title="Every bound on an open connection is finite with nothing configured"><code>concurrency/connection-bounds-are-finite</code></a> <a href="/docs/rules/concurrency/connections/#a-connection-keeps-its-compiled-unit" title="An open connection runs to completion on the code it started with, and an edit reaches only the next one"><code>concurrency/a-connection-keeps-its-compiled-unit</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0083.md">record 0083</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0078.md">record 0078</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0186.md">record 0186</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-server/src/serve.rs"><code>crates/nvs-server/src/serve.rs</code></a></dd></div></dl>
 
 </div>

@@ -1,9 +1,9 @@
 {
   "totals": {
-    "total": 987,
-    "shipped": 724,
-    "designed": 263,
-    "diverging": 585
+    "total": 992,
+    "shipped": 748,
+    "designed": 244,
+    "diverging": 586
   },
   "topics": [
     {
@@ -400,7 +400,7 @@
               "title": "An array is PHP's ordered hash with `string` keys and a declared element type",
               "status": "shipped",
               "href": "/docs/rules/types/arrays-and-property-keys/#arrays",
-              "diverges": "there is no integer key — `Core\\Arr::keys()` returns `array<string>` and a `foreach` key binds as a `string` — and `array<T>` is invariant, enforced on every write"
+              "diverges": "there is no integer key — `Core\\Arr::keys()` returns `array<string>` and a `foreach` key binds as a `string` — and an element type is declared and enforced on every write, reading covariantly"
             },
             {
               "id": "types/array-combination",
@@ -1963,7 +1963,7 @@
             {
               "id": "errors/throw-is-not-slower",
               "slug": "throw-is-not-slower",
-              "title": "A throw costs no more than a return, and allocates nothing",
+              "title": "A throw costs no more than a return, and only its raise allocates",
               "status": "shipped",
               "href": "/docs/rules/errors/how-an-error-travels/#throw-is-not-slower",
               "diverges": "throwing is not a performance cliff, so exceptions may be used on ordinary control-flow paths"
@@ -2807,8 +2807,8 @@
       "single": false,
       "counts": {
         "total": 68,
-        "shipped": 4,
-        "designed": 64,
+        "shipped": 7,
+        "designed": 61,
         "diverging": 23
       },
       "sections": [
@@ -3055,7 +3055,7 @@
             {
               "id": "ide/narrowing-is-a-diff-never-a-save-time-fix",
               "slug": "narrowing-is-a-diff-never-a-save-time-fix",
-              "title": "Because `array<T>` is invariant, the narrowing action is never registered under `source.fixAll.nvs` and never chases the call sites it affects",
+              "title": "The narrowing action is never registered under `source.fixAll.nvs` and never chases the call sites it affects, because it breaks writes it cannot see",
               "status": "designed",
               "href": "/docs/rules/ide/code-actions/#narrowing-is-a-diff-never-a-save-time-fix",
               "diverges": null
@@ -3147,8 +3147,8 @@
           "url": "/docs/rules/ide/testing-the-editor/",
           "counts": {
             "total": 6,
-            "shipped": 0,
-            "designed": 6,
+            "shipped": 1,
+            "designed": 5,
             "diverging": 0
           },
           "rules": [
@@ -3195,8 +3195,8 @@
             {
               "id": "ide/headless-gates-the-loop-the-host-run-gates-the-milestone",
               "slug": "headless-gates-the-loop-the-host-run-gates-the-milestone",
-              "title": "The headless suites run every iteration with no editor; the extension-host run is CI-only, under `xvfb-run`, with an isolated profile",
-              "status": "designed",
+              "title": "Both tiers run on every acceptance sweep: the headless suites with no editor, and the extension-host run in a pinned build with a throwaway profile",
+              "status": "shipped",
               "href": "/docs/rules/ide/testing-the-editor/#headless-gates-the-loop-the-host-run-gates-the-milestone",
               "diverges": null
             }
@@ -3287,8 +3287,8 @@
           "url": "/docs/rules/ide/the-vs-code-extension/",
           "counts": {
             "total": 8,
-            "shipped": 1,
-            "designed": 7,
+            "shipped": 3,
+            "designed": 5,
             "diverging": 1
           },
           "rules": [
@@ -3312,7 +3312,7 @@
               "id": "ide/the-extension-runs-where-the-binary-is",
               "slug": "the-extension-runs-where-the-binary-is",
               "title": "The extension is `novis-lang.nvs`, language `nvs`, `extensionKind: [\"workspace\"]`, built as a `.vsix` and published nowhere",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/ide/the-vs-code-extension/#the-extension-runs-where-the-binary-is",
               "diverges": null
             },
@@ -3352,7 +3352,7 @@
               "id": "ide/the-lockfile-is-committed-and-build-output-is-not",
               "slug": "the-lockfile-is-committed-and-build-output-is-not",
               "title": "`package-lock.json` is committed; `node_modules/`, `out/`, `.vscode-test/` and `*.vsix` are ignored",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/ide/the-vs-code-extension/#the-lockfile-is-committed-and-build-output-is-not",
               "diverges": null
             }
@@ -6072,9 +6072,9 @@
       "url": "/docs/rules/core-classes/",
       "single": false,
       "counts": {
-        "total": 83,
-        "shipped": 59,
-        "designed": 24,
+        "total": 86,
+        "shipped": 64,
+        "designed": 22,
         "diverging": 50
       },
       "sections": [
@@ -6085,8 +6085,8 @@
           "url": "/docs/rules/core-classes/processes-and-files/",
           "counts": {
             "total": 10,
-            "shipped": 8,
-            "designed": 2,
+            "shipped": 9,
+            "designed": 1,
             "diverging": 8
           },
           "rules": [
@@ -6134,7 +6134,7 @@
               "id": "core-classes/process-spawn",
               "slug": "process-spawn",
               "title": "`spawn` answers a handle whose reads and writes suspend, covering `proc_open` and `passthru` in one type",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/core-classes/processes-and-files/#process-spawn",
               "diverges": null
             },
@@ -6320,8 +6320,8 @@
           "blurb": "One database API, every statement prepared, three deny-by-default capabilities, and defaults that close what PHP leaves open.",
           "url": "/docs/rules/core-classes/connecting-to-a-database/",
           "counts": {
-            "total": 8,
-            "shipped": 8,
+            "total": 9,
+            "shipped": 9,
             "designed": 0,
             "diverging": 5
           },
@@ -6375,6 +6375,14 @@
               "diverges": null
             },
             {
+              "id": "core-classes/server-version-is-what-the-server-said",
+              "slug": "server-version-is-what-the-server-said",
+              "title": "`serverVersion` answers what the server said during the handshake, and never spends a round trip",
+              "status": "shipped",
+              "href": "/docs/rules/core-classes/connecting-to-a-database/#server-version-is-what-the-server-said",
+              "diverges": null
+            },
+            {
               "id": "core-classes/db-connection-busy-state",
               "slug": "db-connection-busy-state",
               "title": "Busy state is a field on the connection, and a wire not at a message boundary is closed rather than reset",
@@ -6398,9 +6406,9 @@
           "blurb": "One placeholder is one value. Columns have natural types, transactions are closures, and one error kind spans every driver.",
           "url": "/docs/rules/core-classes/running-a-statement/",
           "counts": {
-            "total": 7,
-            "shipped": 6,
-            "designed": 1,
+            "total": 8,
+            "shipped": 8,
+            "designed": 0,
             "diverging": 4
           },
           "rules": [
@@ -6432,8 +6440,16 @@
               "id": "core-classes/db-streaming",
               "slug": "db-streaming",
               "title": "A streaming result holds its connection until it is drained, and a second statement on it throws",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/core-classes/running-a-statement/#db-streaming",
+              "diverges": null
+            },
+            {
+              "id": "core-classes/a-stream-parks-its-read-on-the-connection",
+              "slug": "a-stream-parks-its-read-on-the-connection",
+              "title": "A stream's read state is parked on the connection on every driver, and a buffer is never the answer",
+              "status": "shipped",
+              "href": "/docs/rules/core-classes/running-a-statement/#a-stream-parks-its-read-on-the-connection",
               "diverges": null
             },
             {
@@ -6468,8 +6484,8 @@
           "blurb": "A schema is a value, a plan is its difference from a live database, and something the schema omits is reported, never dropped.",
           "url": "/docs/rules/core-classes/schemas/",
           "counts": {
-            "total": 7,
-            "shipped": 7,
+            "total": 8,
+            "shipped": 8,
             "designed": 0,
             "diverging": 1
           },
@@ -6488,6 +6504,14 @@
               "title": "The schema vocabulary is five constructs shared by all five backends, with no raw escape hatch",
               "status": "shipped",
               "href": "/docs/rules/core-classes/schemas/#schema-vocabulary-is-closed",
+              "diverges": null
+            },
+            {
+              "id": "core-classes/a-unique-key-reads-nulls-as-distinct",
+              "slug": "a-unique-key-reads-nulls-as-distinct",
+              "title": "A unique key reads nulls as distinct on every backend, and SQL Server spells that as a filtered index",
+              "status": "shipped",
+              "href": "/docs/rules/core-classes/schemas/#a-unique-key-reads-nulls-as-distinct",
               "diverges": null
             },
             {
@@ -6862,9 +6886,9 @@
       "url": "/docs/rules/observability/",
       "single": false,
       "counts": {
-        "total": 31,
-        "shipped": 20,
-        "designed": 11,
+        "total": 32,
+        "shipped": 26,
+        "designed": 6,
         "diverging": 23
       },
       "sections": [
@@ -6875,8 +6899,8 @@
           "url": "/docs/rules/observability/metrics/",
           "counts": {
             "total": 10,
-            "shipped": 7,
-            "designed": 3,
+            "shipped": 8,
+            "designed": 2,
             "diverging": 10
           },
           "rules": [
@@ -6908,7 +6932,7 @@
               "id": "observability/metrics-three-members",
               "slug": "metrics-three-members",
               "title": "`Core\\Metrics` is three verbs for three kinds, always present, and accumulates whether or not an exporter is built",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/observability/metrics/#metrics-three-members",
               "diverges": "there is no client library to install and no `record(name, value, kind)`; a counter, a histogram and a gauge are three members, and a name is validated at a literal call site"
             },
@@ -6968,9 +6992,9 @@
           "blurb": "Exactly four things become a span, an inbound `traceparent` is continued, and sampling is decided once at the root.",
           "url": "/docs/rules/observability/traces/",
           "counts": {
-            "total": 16,
-            "shipped": 8,
-            "designed": 8,
+            "total": 17,
+            "shipped": 13,
+            "designed": 4,
             "diverging": 10
           },
           "rules": [
@@ -6978,7 +7002,7 @@
               "id": "observability/four-kinds-become-a-span",
               "slug": "four-kinds-become-a-span",
               "title": "Exactly four things become a span, and a `call` event never does",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/observability/traces/#four-kinds-become-a-span",
               "diverges": "a distributed trace is not Xdebug's per-call function trace; a span is a request, a query, an outbound call or a spawn, and nothing finer"
             },
@@ -7025,7 +7049,7 @@
             {
               "id": "observability/spawn-is-its-own-event",
               "slug": "spawn-is-its-own-event",
-              "title": "An isolate spawn and its join are one `spawn` event naming which of the three forms it was, with an overhead split, and a child's own stream never crosses live",
+              "title": "A spawn and its join are one `spawn` event naming the form it was, with an overhead split where the child reports its own time, and a child's own stream never crosses live",
               "status": "shipped",
               "href": "/docs/rules/observability/traces/#spawn-is-its-own-event",
               "diverges": null
@@ -7050,7 +7074,7 @@
               "id": "observability/sampling-is-head-based",
               "slug": "sampling-is-head-based",
               "title": "Sampling is decided once at the root by `[trace] sample`, and an inbound trace that is already sampled is always continued",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/observability/traces/#sampling-is-head-based",
               "diverges": null
             },
@@ -7058,16 +7082,24 @@
               "id": "observability/the-exporter-is-a-feature-and-core-metrics-is-not",
               "slug": "the-exporter-is-a-feature-and-core-metrics-is-not",
               "title": "The exporter is a feature-gated Native subsystem, and `Core\\Metrics` is Tier 0 in every build",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/observability/traces/#the-exporter-is-a-feature-and-core-metrics-is-not",
               "diverges": null
             },
             {
               "id": "observability/the-exporters-are-crates",
               "slug": "the-exporters-are-crates",
-              "title": "The OTLP and Prometheus paths are dependencies; the event-to-span wiring and the per-core registry are ours",
-              "status": "designed",
+              "title": "The OTLP and Prometheus paths are somebody else's specification, implemented here; the wiring and the registry are ours",
+              "status": "shipped",
               "href": "/docs/rules/observability/traces/#the-exporters-are-crates",
+              "diverges": null
+            },
+            {
+              "id": "observability/an-exporter-brings-no-second-scheduler-and-no-second-client",
+              "slug": "an-exporter-brings-no-second-scheduler-and-no-second-client",
+              "title": "An exporter brings no second registry, no second scheduler and no second client, and a crate is taken only for an encoder",
+              "status": "shipped",
+              "href": "/docs/rules/observability/traces/#an-exporter-brings-no-second-scheduler-and-no-second-client",
               "diverges": null
             },
             {
@@ -7167,8 +7199,8 @@
       "single": false,
       "counts": {
         "total": 80,
-        "shipped": 72,
-        "designed": 8,
+        "shipped": 73,
+        "designed": 7,
         "diverging": 64
       },
       "sections": [
@@ -7179,8 +7211,8 @@
           "url": "/docs/rules/http-server/listening-and-admission/",
           "counts": {
             "total": 13,
-            "shipped": 11,
-            "designed": 2,
+            "shipped": 12,
+            "designed": 1,
             "diverging": 11
           },
           "rules": [
@@ -7220,7 +7252,7 @@
               "id": "http-server/a-unix-socket-listener",
               "slug": "a-unix-socket-listener",
               "title": "A `listen` entry beginning with a separator is a Unix socket, Unix-only, with `socket_mode`, and it is the transport a proxy should prefer",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/http-server/listening-and-admission/#a-unix-socket-listener",
               "diverges": "the same `listen = /run/nvs.sock` shape as php-fpm, but a Windows host has no named-pipe equivalent and listens on TCP loopback"
             },
@@ -7932,10 +7964,10 @@
       "url": "/docs/rules/routing/",
       "single": false,
       "counts": {
-        "total": 27,
-        "shipped": 23,
-        "designed": 4,
-        "diverging": 27
+        "total": 28,
+        "shipped": 26,
+        "designed": 2,
+        "diverging": 28
       },
       "sections": [
         {
@@ -7944,10 +7976,10 @@
           "blurb": "A route is an attribute compiled into a table. Structural precedence, captures that narrow to closed sets, and no wildcard verb.",
           "url": "/docs/rules/routing/declaring-a-route/",
           "counts": {
-            "total": 11,
-            "shipped": 10,
+            "total": 12,
+            "shipped": 11,
             "designed": 1,
-            "diverging": 11
+            "diverging": 12
           },
           "rules": [
             {
@@ -7997,6 +8029,14 @@
               "status": "shipped",
               "href": "/docs/rules/routing/declaring-a-route/#a-capture-narrows-to-a-closed-set",
               "diverges": "there is no `->where('lang', 'en|de|fr')`; the constraint is the parameter's type, and a regex on a route is refused outright"
+            },
+            {
+              "id": "routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name",
+              "slug": "an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name",
+              "title": "An enum capture is spelled by a written backing value, and by its case name when the value was counted",
+              "status": "shipped",
+              "href": "/docs/rules/routing/declaring-a-route/#an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name",
+              "diverges": "there is no backed-versus-pure split to route on — every enum is integer-backed, so what decides the spelling is whether the value was written"
             },
             {
               "id": "routing/a-trailing-segment-may-be-absent",
@@ -8109,8 +8149,8 @@
           "url": "/docs/rules/routing/links-and-the-api-document/",
           "counts": {
             "total": 10,
-            "shipped": 7,
-            "designed": 3,
+            "shipped": 9,
+            "designed": 1,
             "diverging": 10
           },
           "rules": [
@@ -8126,7 +8166,7 @@
               "id": "routing/link-carries-the-mount-prefix",
               "slug": "link-carries-the-mount-prefix",
               "title": "A link carries the mount prefix the request arrived under, so one table serves at any mount",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/routing/links-and-the-api-document/#link-carries-the-mount-prefix",
               "diverges": "a link is never the declared path concatenated by hand, because the path a route is declared against is the mount-stripped one and the prefix is known only where the request is"
             },
@@ -8150,7 +8190,7 @@
               "id": "routing/an-origin-is-per-mount-and-checked-at-boot",
               "slug": "an-origin-is-per-mount-and-checked-at-boot",
               "title": "An origin is declared per mount with `[app] origin` as the fallback, a request cannot set it, and a mount that calls `urlAbsolute` without one is a boot error",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/routing/links-and-the-api-document/#an-origin-is-per-mount-and-checked-at-boot",
               "diverges": "a multi-tenant deployment configures one origin line with a capture in it rather than computing a base URL per request"
             },
@@ -8205,8 +8245,8 @@
       "single": false,
       "counts": {
         "total": 68,
-        "shipped": 56,
-        "designed": 12,
+        "shipped": 60,
+        "designed": 8,
         "diverging": 44
       },
       "sections": [
@@ -8499,8 +8539,8 @@
           "url": "/docs/rules/config/reloading-and-control/",
           "counts": {
             "total": 8,
-            "shipped": 6,
-            "designed": 2,
+            "shipped": 8,
+            "designed": 0,
             "diverging": 5
           },
           "rules": [
@@ -8540,7 +8580,7 @@
               "id": "config/one-local-control-socket",
               "slug": "one-local-control-socket",
               "title": "The server is controlled over one local socket whose owner and mode are the authentication, and `nvs ctl` is its client",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/config/reloading-and-control/#one-local-control-socket",
               "diverges": "there is no `SIGUSR2`, no `php-fpm reload` and no signal at all; the operator speaks HTTP to a local socket and gets a report back"
             },
@@ -8556,7 +8596,7 @@
               "id": "config/ctl-config-reports-the-live-snapshot",
               "slug": "ctl-config-reports-the-live-snapshot",
               "title": "`nvs ctl config` reports what the running process actually holds, including an optional include that appeared after boot",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/config/reloading-and-control/#ctl-config-reports-the-live-snapshot",
               "diverges": null
             },
@@ -8701,8 +8741,8 @@
           "url": "/docs/rules/config/scheduled-work/",
           "counts": {
             "total": 9,
-            "shipped": 7,
-            "designed": 2,
+            "shipped": 9,
+            "designed": 0,
             "diverging": 6
           },
           "rules": [
@@ -8742,7 +8782,7 @@
               "id": "config/a-schedule-entry-narrows-only",
               "slug": "a-schedule-entry-narrows-only",
               "title": "An entry's `limits` and `grants` narrow the deployment's, and can never widen them",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/config/scheduled-work/#a-schedule-entry-narrows-only",
               "diverges": null
             },
@@ -8758,7 +8798,7 @@
               "id": "config/a-fleet-entry-fires-at-most-once-under-a-lease",
               "slug": "a-fleet-entry-fires-at-most-once-under-a-lease",
               "title": "A `fleet` entry fires once per interval across the deployment under a lease in the shared store — at most once, never exactly once",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/config/scheduled-work/#a-fleet-entry-fires-at-most-once-under-a-lease",
               "diverges": null
             },
@@ -8875,8 +8915,8 @@
       "single": false,
       "counts": {
         "total": 71,
-        "shipped": 31,
-        "designed": 40,
+        "shipped": 33,
+        "designed": 38,
         "diverging": 42
       },
       "sections": [
@@ -9445,8 +9485,8 @@
           "url": "/docs/rules/packaging/running-as-a-service/",
           "counts": {
             "total": 10,
-            "shipped": 4,
-            "designed": 6,
+            "shipped": 6,
+            "designed": 4,
             "diverging": 7
           },
           "rules": [
@@ -9462,7 +9502,7 @@
               "id": "packaging/a-service-is-one-stored-argv",
               "slug": "a-service-is-one-stored-argv",
               "title": "`nvs service` is a namespace, and everything after a mandatory `--` is stored verbatim as the argv the service runs",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/packaging/running-as-a-service/#a-service-is-one-stored-argv",
               "diverges": "there is no shim — no NSSM, no WinSW, no hand-written unit around `php-fpm` — and the hosted program's own flags follow a `--` the installer never reads past"
             },
@@ -9494,7 +9534,7 @@
               "id": "packaging/a-service-answers-its-manager",
               "slug": "a-service-answers-its-manager",
               "title": "A stop drains, a `PARAMCHANGE` reloads, and lifecycle records go to the event log beside the configured log destination",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/packaging/running-as-a-service/#a-service-answers-its-manager",
               "diverges": "a shim can only report that the process exited; the service itself reports an advancing stop checkpoint and performs a reload in-process"
             },

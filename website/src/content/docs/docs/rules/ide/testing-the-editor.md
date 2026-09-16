@@ -15,9 +15,9 @@ next:
 
 <p class="nv-section-lead">An LSP answer is frozen as a case file with a cursor, a request and its exact rendering — and coverage is inferred, not declared.</p>
 
-<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">6</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">0</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">6</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">0</span><span class="nv-count-label">differ from PHP</span></div></div>
+<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">6</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">1</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">5</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">0</span><span class="nv-count-label">differ from PHP</span></div></div>
 
-<ol class="nv-rule-list"><li><a href="#case-files-have-their-own-grammar"><code>.nvst</code> and <code>.lspt</code> get a grammar of their own, with Novis embedded in <code>--FILE--</code> and PHP in <code>--ORACLE--</code></a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#an-lsp-answer-is-frozen-as-an-lspt-case">An LSP answer is frozen as a <code>.lspt</code> case — a document, a <code>&lt;|&gt;</code> cursor, a request and its rendering — run by <code>nvs lsp-test</code> printing <code>N passed, M failed</code></a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#a-request-line-is-closed"><code>--REQUEST--</code> is one line whose argument set is closed per request, and an unknown request or argument fails the case</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#the-rendering-has-one-home"><code>--EXPECT--</code> is exact and frozen, and every response is rendered by <code>nvs_lsp::render</code> so no case invents a spelling</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#lspt-coverage-is-inferred"><code>.lspt</code> coverage is inferred from the node the cursor resolved to, never declared, and <code>every_request_answers_every_construct</code> names each empty cell</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#headless-gates-the-loop-the-host-run-gates-the-milestone">The headless suites run every iteration with no editor; the extension-host run is CI-only, under <code>xvfb-run</code>, with an isolated profile</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li></ol>
+<ol class="nv-rule-list"><li><a href="#case-files-have-their-own-grammar"><code>.nvst</code> and <code>.lspt</code> get a grammar of their own, with Novis embedded in <code>--FILE--</code> and PHP in <code>--ORACLE--</code></a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#an-lsp-answer-is-frozen-as-an-lspt-case">An LSP answer is frozen as a <code>.lspt</code> case — a document, a <code>&lt;|&gt;</code> cursor, a request and its rendering — run by <code>nvs lsp-test</code> printing <code>N passed, M failed</code></a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#a-request-line-is-closed"><code>--REQUEST--</code> is one line whose argument set is closed per request, and an unknown request or argument fails the case</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#the-rendering-has-one-home"><code>--EXPECT--</code> is exact and frozen, and every response is rendered by <code>nvs_lsp::render</code> so no case invents a spelling</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#lspt-coverage-is-inferred"><code>.lspt</code> coverage is inferred from the node the cursor resolved to, never declared, and <code>every_request_answers_every_construct</code> names each empty cell</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#headless-gates-the-loop-the-host-run-gates-the-milestone">Both tiers run on every acceptance sweep: the headless suites with no editor, and the extension-host run in a pinned build with a throwaway profile</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li></ol>
 
 <div class="nv-rule" id="case-files-have-their-own-grammar">
 
@@ -153,30 +153,43 @@ never as the only mechanism, because that would make coverage invisible to the g
 
 <div class="nv-rule" id="headless-gates-the-loop-the-host-run-gates-the-milestone">
 
-## The headless suites run every iteration with no editor; the extension-host run is CI-only, under `xvfb-run`, with an isolated profile
+## Both tiers run on every acceptance sweep: the headless suites with no editor, and the extension-host run in a pinned build with a throwaway profile
 
 <div class="nv-rule-tags">
-<span class="nv-rule-status" data-status="designed">Designed</span>
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
 <a class="nv-rule-id" href="#headless-gates-the-loop-the-host-run-gates-the-milestone"><code>ide/headless-gates-the-loop-the-host-run-gates-the-milestone</code></a>
 </div>
 
-Two tiers, because they answer different questions and cost two orders of magnitude apart.
+Both tiers of the extension's tests run on every acceptance sweep, and they answer different questions
+at costs two orders of magnitude apart.
 
 **Headless, every iteration.** Plain Node, no editor, no display, no network: the grammar snapshot tests, a
 contributions test asserting `package.json` declares what the extension claims and depends only on the
 allowlist, and a protocol round-trip that spawns the real `nvs lsp` binary and drives it with
-`vscode-languageclient`. It is what the loop's acceptance test gates on, and it runs once rather than once
-per leg — a `command` check is not a program fixture, so it has no calling convention for the WSL leg to
-exercise. CI runs it on all three platforms, since a `.vsix` is cross-platform and a path bug is not.
+`vscode-languageclient`. It runs once rather than once per leg — a `command` check is not a program
+fixture, so it has no calling convention for the WSL leg to exercise. CI runs it on all three platforms,
+since a `.vsix` is cross-platform and a path bug is not.
 
-**The extension host, in CI only.** `@vscode/test-electron` runs Mocha inside the real extension host —
-the only thing that can prove activation on `.nvs`, the Tasks, the `LanguageStatusItem`, the AST panel and
-the semantic-token legend. It needs a display, and the only display on a developer's machine is one a
-person is using, so it runs on Linux under `xvfb-run` and is not on the loop's acceptance list at all.
-Wherever it runs it isolates its profile — `--user-data-dir` and `--extensions-dir` to a throwaway
-directory, a fixture folder rather than the repository — or a test that writes a setting writes it into
-the developer's own `settings.json`.
+**The extension host, wherever a developer works.** `@vscode/test-electron` runs Mocha inside the real
+extension host — the only thing that can prove activation on `.nvs`, the Tasks, the `LanguageStatusItem`,
+the AST panel and the semantic-token legend. It is on the loop's acceptance list as `npm run test:host`,
+so it runs on the desktop the loop runs on, opening a window for about a minute; in CI it runs on Linux
+under `xvfb-run -a`.
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/highlighting-and-completion/#highlighting-is-two-layers" title="Syntax highlighting is a TextMate grammar and a semantic-token provider, each with its own test, and each must cover what makes Novis not PHP"><code>ide/highlighting-is-two-layers</code></a> <a href="/docs/rules/ide/security-in-the-editor/#dependencies-are-allowlisted" title="The extension holds no language logic, and its package.json dependencies are checked against an allowlist by its own tests"><code>ide/dependencies-are-allowlisted</code></a> <a href="/docs/rules/ide/highlighting-and-completion/#semantic-tokens-carry-the-qualifiers" title="Semantic tokens use LSP's standard types plus two modifiers of Novis's own, tainted and secret, and the client's legend must equal the server's"><code>ide/semantic-tokens-carry-the-qualifiers</code></a> <a href="/docs/rules/ide/the-vs-code-extension/#the-lockfile-is-committed-and-build-output-is-not" title="package-lock.json is committed; node_modules/, out/, .vscode-test/ and .vsix are ignored"><code>ide/the-lockfile-is-committed-and-build-output-is-not</code></a> <a href="/docs/rules/testing/continuous-integration/#ci-lanes" title="One workflow holds every job, and three lanes decide which of them a run needs"><code>testing/ci-lanes</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0099.md">record 0099</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0101.md">record 0101</a></dd></div></dl>
+**Isolation is what makes that safe, and it is not negotiable.** The run uses a downloaded pinned build
+rather than the editor the developer installed, `--user-data-dir` and `--extensions-dir` under
+`.vscode-test/`, `--disable-extensions`, and a copy of the fixture folder as its workspace rather than the
+repository. Without those, a second instance attaches to the editor already open and exits with no
+results, and a test that writes a setting writes it into that developer's own `settings.json` — the two
+reasons this tier was once CI-only. If a pinned build will not start beside the developer's own editor,
+pin a different one; never drop a flag to make it start.
+
+**The host verdict is never memoized.** The check carries `memoize = false`, so the sweep re-runs it
+whatever the tree hashes to. Every other check's inputs are tracked bytes and the compiler version, which
+is what makes a remembered verdict sound; this one also reads a downloaded editor build and an installed
+package tree that `tools/loop.py`'s walk prunes and never hashes, so a memo hit here would report a green
+editor run on a machine where no editor started.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/highlighting-and-completion/#highlighting-is-two-layers" title="Syntax highlighting is a TextMate grammar and a semantic-token provider, each with its own test, and each must cover what makes Novis not PHP"><code>ide/highlighting-is-two-layers</code></a> <a href="/docs/rules/ide/security-in-the-editor/#dependencies-are-allowlisted" title="The extension holds no language logic, and its package.json dependencies are checked against an allowlist by its own tests"><code>ide/dependencies-are-allowlisted</code></a> <a href="/docs/rules/ide/highlighting-and-completion/#semantic-tokens-carry-the-qualifiers" title="Semantic tokens use LSP's standard types plus two modifiers of Novis's own, tainted and secret, and the client's legend must equal the server's"><code>ide/semantic-tokens-carry-the-qualifiers</code></a> <a href="/docs/rules/ide/the-vs-code-extension/#the-lockfile-is-committed-and-build-output-is-not" title="package-lock.json is committed; node_modules/, out/, .vscode-test/ and .vsix are ignored"><code>ide/the-lockfile-is-committed-and-build-output-is-not</code></a> <a href="/docs/rules/testing/continuous-integration/#ci-lanes" title="One workflow holds every job, and three lanes decide which of them a run needs"><code>testing/ci-lanes</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0099.md">record 0099</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0101.md">record 0101</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0185.md">record 0185</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/editors/vscode/scripts/headless.mjs"><code>editors/vscode/scripts/headless.mjs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/editors/vscode/test/host/index.ts"><code>editors/vscode/test/host/index.ts</code></a></dd></div></dl>
 
 </div>

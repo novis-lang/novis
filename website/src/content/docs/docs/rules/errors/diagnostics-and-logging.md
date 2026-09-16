@@ -71,7 +71,7 @@ Five producers build [`errors/diagnostic-record`](/docs/rules/errors/diagnostics
 |---|---|
 | `Core\Log::write` | a record with the caller's fields |
 | `Core\Debug::dump` | a record at `Debug`, one node per argument |
-| a `Throwable` and its trace | a record at `Error`, frames as Sequence-of-Object nodes |
+| a `Throwable` and its trace | a record at `Error`, its nodes one Frame per frame |
 | a test result | a record per assertion, expected and actual as sibling nodes |
 | a compiler diagnostic | Span nodes over a source map |
 
@@ -83,6 +83,14 @@ server consumes.
 The `Throwable` case is the one that would have leaked had the scope been narrower. It is the
 most-read diagnostic output in any language, and leaving it outside would have meant a second
 implementation of [`errors/record-transformations`](/docs/rules/errors/diagnostics-and-logging/#record-transformations "Redaction, control bytes, bidi and elision are decided in the record").
+
+A frame is a **node kind of its own** rather than an Object node, because it is not a class
+instance and its two readers want two spellings the shape already has: the JSON rendering writes
+`{function, file, line}`, which a pipeline indexes, and the plaintext one writes the `#0`-first
+line a person greps. Novis's frames carry a label and nothing else — [`errors/propagation`](/docs/rules/errors/how-an-error-travels/#propagation "An error propagates as a checked return, never by unwinding")
+builds the trace as the throw unwinds — so those three parts are the whole of one, and the only
+object a record of a throw carries is the throw itself, whose declared properties are walked like
+any other value and redact like any other value.
 
 <dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/errors/diagnostics-and-logging/#diagnostic-record" title="Every developer-facing output is one closed record"><code>errors/diagnostic-record</code></a> <a href="/docs/rules/errors/diagnostics-and-logging/#log-write" title="One write path, and the engine floor is its other caller"><code>errors/log-write</code></a> <a href="/docs/rules/errors/diagnostics-and-logging/#debug-dump" title="A dump goes to the log, and reaches a response body only in development"><code>errors/debug-dump</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0092.md">record 0092</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0079.md">record 0079</a></dd></div></dl>
 

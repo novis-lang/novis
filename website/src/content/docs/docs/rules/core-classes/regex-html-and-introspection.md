@@ -604,14 +604,24 @@ what PHP's reflection makes them.
 <a class="nv-rule-id" href="#ast-is-inert"><code>core-classes/ast-is-inert</code></a>
 </div>
 
-`Core\Ast::parse` and `::parseFile` call directly into the same lexer and parser the compiler itself
-runs, so a construct that parses when a file is compiled parses identically when a running program
-parses the same text, and a rejected construct is rejected identically in both places. There is no
-second grammar implementation anywhere in the project.
+`Core\Ast::parse` calls directly into the same lexer and parser the compiler itself runs, so a
+construct that parses when a file is compiled parses identically when a running program parses the
+same text, and a rejected construct is rejected identically in both places. There is no second
+grammar implementation anywhere in the project.
 
-The return value is a **typed** node tree — one type per production — never an untyped array or a
-stringly-keyed structure. Handing back the parse tree as untyped data would be exactly the shortcut
-`token_get_all()` takes, reintroduced at the one place a fully-typed alternative is easiest to give.
+**Parsing a file is that one member composed with `Core\IO::read`, and there is no `parseFile`.** A
+path is the filesystem's question, so asking it through a second member would put a `fs.read` check
+somewhere other than the door that already owns one ([`security/capability-check-at-the-door`](/docs/rules/security/capabilities/#capability-check-at-the-door "The capability check lives inside the function that performs the effect, and that door is the only way out of the process")),
+and leave the class holding a capability for the sake of one spelling. Two calls keep `Core\Ast`
+capability-free, which is what [`security/reflection-needs-no-capability`](/docs/rules/security/closed-doors/#reflection-needs-no-capability "Reflection and AST parsing are capability-free, because neither reaches the world outside the process") rests on.
+
+The return value is a **typed** node tree — one class per production, named for the production the
+grammar's own walk names — never an untyped array or a stringly-keyed structure. Handing back the
+parse tree as untyped data would be exactly the shortcut `token_get_all()` takes, reintroduced at the
+one place a fully-typed alternative is easiest to give. Those classes are identity rather than
+surface: a `Core` class sits in no hierarchy and `instanceof` against one is refused, so a node's
+production is what `Core\Reflect::forObject` answers and `kind()` is the same production spelled
+short.
 
 **A parsed tree is inert. There is no path from an AST value back into execution.** `eval` does not
 exist and stays rejected: a string has no stable identity, no cache key, and no capability-grantable
@@ -624,7 +634,7 @@ different name; it is the same refusal restated.
 <p><code>token_get_all</code>'s untyped arrays are replaced by one type per production, and there is no <code>eval</code> for a rewritten tree to reach</p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-classes/regex-html-and-introspection/#reflect" title="Core\Reflect is read-only structural introspection, and it is a first-class feature rather than an extension"><code>core-classes/reflect</code></a> <a href="/docs/rules/types/declarations-and-numbers/#declaration" title="Every binding declares its type, and no binding's type ever changes"><code>types/declaration</code></a> <a href="/docs/rules/programs/names-and-files/#compile-target" title="A compile target changes the host context, never the language"><code>programs/compile-target</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0019.md">record 0019</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0006.md">record 0006</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/core-ast-parse-answers-the-compilers-own-tree.nvst"><code>tests/conformance/core/core-ast-parse-answers-the-compilers-own-tree.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/core-ast-parse-stops-where-the-compiler-stops.nvst"><code>tests/conformance/core/core-ast-parse-stops-where-the-compiler-stops.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/core-ast-node-walk-is-a-whole-tree-asserted-by-counting.nvst"><code>tests/conformance/core/core-ast-node-walk-is-a-whole-tree-asserted-by-counting.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/core-ast-nodes-is-children-closed-transitively.nvst"><code>tests/conformance/core/core-ast-nodes-is-children-closed-transitively.nvst</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-classes/regex-html-and-introspection/#reflect" title="Core\Reflect is read-only structural introspection, and it is a first-class feature rather than an extension"><code>core-classes/reflect</code></a> <a href="/docs/rules/types/declarations-and-numbers/#declaration" title="Every binding declares its type, and no binding's type ever changes"><code>types/declaration</code></a> <a href="/docs/rules/programs/names-and-files/#compile-target" title="A compile target changes the host context, never the language"><code>programs/compile-target</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0019.md">record 0019</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0006.md">record 0006</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/core-ast-parse-answers-the-compilers-own-tree.nvst"><code>tests/conformance/core/core-ast-parse-answers-the-compilers-own-tree.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/core-ast-parse-stops-where-the-compiler-stops.nvst"><code>tests/conformance/core/core-ast-parse-stops-where-the-compiler-stops.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/core-ast-node-walk-is-a-whole-tree-asserted-by-counting.nvst"><code>tests/conformance/core/core-ast-node-walk-is-a-whole-tree-asserted-by-counting.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/core-ast-nodes-is-children-closed-transitively.nvst"><code>tests/conformance/core/core-ast-nodes-is-children-closed-transitively.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/ast-parse-answers-a-typed-node-per-production.nvst"><code>tests/conformance/core/ast-parse-answers-a-typed-node-per-production.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/ast-parse-file-reads-through-the-io-door-under-fs-read.nvst"><code>tests/conformance/core/ast-parse-file-reads-through-the-io-door-under-fs-read.nvst</code></a></dd></div></dl>
 
 </div>
 

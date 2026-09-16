@@ -17,7 +17,7 @@ next:
 
 <div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">5</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">5</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">0</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">4</span><span class="nv-count-label">differ from PHP</span></div></div>
 
-<ol class="nv-rule-list"><li><a href="#throwable-hierarchy">A limit report is not a Throwable, and the type checker knows it</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#propagation">An error propagates as a checked return, never by unwinding</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#throw-is-not-slower">A throw costs no more than a return, and allocates nothing</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#helper-abi">A runtime helper never unwinds, and a panic dies inside one request</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#stack-depth">Recursion is bounded twice: a catchable error, then a fatal</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li></ol>
+<ol class="nv-rule-list"><li><a href="#throwable-hierarchy">A limit report is not a Throwable, and the type checker knows it</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#propagation">An error propagates as a checked return, never by unwinding</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#throw-is-not-slower">A throw costs no more than a return, and only its raise allocates</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#helper-abi">A runtime helper never unwinds, and a panic dies inside one request</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#stack-depth">Recursion is bounded twice: a catchable error, then a fatal</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li></ol>
 
 <div class="nv-rule" id="throwable-hierarchy">
 
@@ -84,13 +84,13 @@ not a special case.
 <p>An exception is a status value checked after every call, not a stack unwind</p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/errors/how-an-error-travels/#helper-abi" title="A runtime helper never unwinds, and a panic dies inside one request"><code>errors/helper-abi</code></a> <a href="/docs/rules/errors/how-an-error-travels/#throw-is-not-slower" title="A throw costs no more than a return, and allocates nothing"><code>errors/throw-is-not-slower</code></a> <a href="/docs/rules/errors/the-escalation-ladder/#escalation-ladder" title="A failure escalates through four tiers, and no tier is retried"><code>errors/escalation-ladder</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0002.md">record 0002</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/error/a-throw-crosses-two-frames.nvst"><code>tests/conformance/error/a-throw-crosses-two-frames.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-codegen/tests/throwing.rs"><code>crates/nvs-codegen/tests/throwing.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-codegen/tests/calls.rs"><code>crates/nvs-codegen/tests/calls.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/benches/abi-probe/tests/invariants.rs"><code>benches/abi-probe/tests/invariants.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/benches/abi-probe/tests/unwind_unavailable.rs"><code>benches/abi-probe/tests/unwind_unavailable.rs</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/errors/how-an-error-travels/#helper-abi" title="A runtime helper never unwinds, and a panic dies inside one request"><code>errors/helper-abi</code></a> <a href="/docs/rules/errors/how-an-error-travels/#throw-is-not-slower" title="A throw costs no more than a return, and only its raise allocates"><code>errors/throw-is-not-slower</code></a> <a href="/docs/rules/errors/the-escalation-ladder/#escalation-ladder" title="A failure escalates through four tiers, and no tier is retried"><code>errors/escalation-ladder</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0002.md">record 0002</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/error/a-throw-crosses-two-frames.nvst"><code>tests/conformance/error/a-throw-crosses-two-frames.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-codegen/tests/throwing.rs"><code>crates/nvs-codegen/tests/throwing.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-codegen/tests/calls.rs"><code>crates/nvs-codegen/tests/calls.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/benches/abi-probe/tests/invariants.rs"><code>benches/abi-probe/tests/invariants.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/benches/abi-probe/tests/unwind_unavailable.rs"><code>benches/abi-probe/tests/unwind_unavailable.rs</code></a></dd></div></dl>
 
 </div>
 
 <div class="nv-rule" id="throw-is-not-slower">
 
-## A throw costs no more than a return, and allocates nothing
+## A throw costs no more than a return, and only its raise allocates
 
 <div class="nv-rule-tags">
 <span class="nv-rule-status" data-status="shipped">Shipped</span>
@@ -108,9 +108,17 @@ path returns the status immediately while the success path also copies a 16-byte
 every frame. That is the property PHP compatibility rests on, since frameworks throw on ordinary
 control-flow paths.
 
-It holds only while throwing does not allocate. Storing a message as a `String` made a throw 2.8× a
-return, more than the whole propagation path it was meant to measure, so the pending-error slot is
-a `Cow<'static, str>` and a static exception message allocates nothing.
+It holds only while *propagating* does not allocate. Storing a message as a `String` made a throw
+2.8× a return, more than the whole propagation path it was meant to measure, so the pending-error
+slot is a `Cow<'static, str>` and a static exception message allocates nothing.
+
+**The raise itself renders one frame label, and that is the whole of what a throw allocates.** The
+exception carries the frame it was raised in, rendered from the site the `throw` was compiled with,
+so a `catch` beside the `throw` — the one place no frame is ever unwound out of — reads a backtrace
+naming that frame instead of an empty one. It is spent **once per raise and never per frame**, which
+is what leaves the slope above untouched, and the label the frame pushes as the throw leaves
+replaces that rendering rather than following it, so no frame is named twice. A raise the runtime
+makes for itself is handed no site and renders nothing.
 
 <aside class="nv-rule-diverges">
 <p class="nv-rule-diverges-label">Where this differs from PHP</p>

@@ -15,9 +15,9 @@ next:
 
 <p class="nv-section-lead">One placeholder is one value. Columns have natural types, transactions are closures, and one error kind spans every driver.</p>
 
-<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">7</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">6</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">1</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">4</span><span class="nv-count-label">differ from PHP</span></div></div>
+<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">8</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">8</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">0</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">4</span><span class="nv-count-label">differ from PHP</span></div></div>
 
-<ol class="nv-rule-list"><li><a href="#db-parameters">One placeholder is one value, and expanding a list into <code>IN</code> is written with <code>Core\Db::inList</code></a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#db-literal-query-checking">A literal query is checked while compiling, and no vendor's SQL grammar is ever parsed</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#db-column-types">Every column has one natural Novis type, and the requested type converts losslessly or throws</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#db-streaming">A streaming result holds its connection until it is drained, and a second statement on it throws</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#db-transactions">A transaction is a closure, and <code>Transaction</code> is a <code>Queryable</code> rather than a second query surface</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#db-error">One <code>DbError</code> carries a normalised kind across every driver, and never a bound parameter</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#db-crate-boundary">The wire lives in <code>nvs-db</code> below the standard library, where a codec is borrowed and a state machine is written</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li></ol>
+<ol class="nv-rule-list"><li><a href="#db-parameters">One placeholder is one value, and expanding a list into <code>IN</code> is written with <code>Core\Db::inList</code></a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#db-literal-query-checking">A literal query is checked while compiling, and no vendor's SQL grammar is ever parsed</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#db-column-types">Every column has one natural Novis type, and the requested type converts losslessly or throws</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#db-streaming">A streaming result holds its connection until it is drained, and a second statement on it throws</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#a-stream-parks-its-read-on-the-connection">A stream's read state is parked on the connection on every driver, and a buffer is never the answer</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#db-transactions">A transaction is a closure, and <code>Transaction</code> is a <code>Queryable</code> rather than a second query surface</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#db-error">One <code>DbError</code> carries a normalised kind across every driver, and never a bound parameter</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#db-crate-boundary">The wire lives in <code>nvs-db</code> below the standard library, where a codec is borrowed and a state machine is written</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li></ol>
 
 <div class="nv-rule" id="db-parameters">
 
@@ -124,7 +124,7 @@ as reflected. The same table is read the other way by [`core-classes/schema-voca
 ## A streaming result holds its connection until it is drained, and a second statement on it throws
 
 <div class="nv-rule-tags">
-<span class="nv-rule-status" data-status="designed">Designed</span>
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
 <a class="nv-rule-id" href="#db-streaming"><code>core-classes/db-streaming</code></a>
 </div>
 
@@ -138,13 +138,52 @@ a streamed result already crosses on a single round trip while the client holds 
 a chunk size exists to bound is already one row, and the option could only spend latency to buy
 nothing.
 
-**Not shipped whole.** `stream` lands on PostgreSQL alone: the read needs the portal left open with
-its state parked off the borrow, and the other four drivers have no such state, so the member throws
-a `RuntimeError` naming `query` on each of them rather than buffering behind the caller's back.
-`streamAs` is owed entirely. `crates/nvs-stdlib/src/db/mod.rs` is where that gap is recorded, and
-`crates/nvs-db/src/pg.rs` holds the one driver that has it.
+**Both members answer on all five drivers**, and a driver never substitutes a buffer for a walk it
+cannot park. This rule is the member's contract — constant memory, the connection held, the second
+statement refused — and the read state each driver leaves between two steps is
+[`core-classes/a-stream-parks-its-read-on-the-connection`](/docs/rules/core-classes/running-a-statement/#a-stream-parks-its-read-on-the-connection "A stream's read state is parked on the connection on every driver, and a buffer is never the answer"), which is the mechanism under it.
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-classes/connecting-to-a-database/#db-statement-members" title="Five members run a statement, results are buffered by default, and only one of them streams"><code>core-classes/db-statement-members</code></a> <a href="/docs/rules/core-classes/connecting-to-a-database/#db-connection-busy-state" title="Busy state is a field on the connection, and a wire not at a message boundary is closed rather than reset"><code>core-classes/db-connection-busy-state</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0067.md">record 0067</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0132.md">record 0132</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/db-stream-is-checked-while-compiling-like-every-other-statement.nvst"><code>tests/conformance/core/db-stream-is-checked-while-compiling-like-every-other-statement.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/db-stream-refuses-a-tainted-statement.nvst"><code>tests/conformance/core/db-stream-refuses-a-tainted-statement.nvst</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-classes/connecting-to-a-database/#db-statement-members" title="Five members run a statement, results are buffered by default, and only one of them streams"><code>core-classes/db-statement-members</code></a> <a href="/docs/rules/core-classes/connecting-to-a-database/#db-connection-busy-state" title="Busy state is a field on the connection, and a wire not at a message boundary is closed rather than reset"><code>core-classes/db-connection-busy-state</code></a> <a href="/docs/rules/core-classes/running-a-statement/#a-stream-parks-its-read-on-the-connection" title="A stream's read state is parked on the connection on every driver, and a buffer is never the answer"><code>core-classes/a-stream-parks-its-read-on-the-connection</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0067.md">record 0067</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0132.md">record 0132</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0187.md">record 0187</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-stdlib/tests/db_stream.rs"><code>crates/nvs-stdlib/tests/db_stream.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/db-stream-is-checked-while-compiling-like-every-other-statement.nvst"><code>tests/conformance/core/db-stream-is-checked-while-compiling-like-every-other-statement.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/db-stream-refuses-a-tainted-statement.nvst"><code>tests/conformance/core/db-stream-refuses-a-tainted-statement.nvst</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="a-stream-parks-its-read-on-the-connection">
+
+## A stream's read state is parked on the connection on every driver, and a buffer is never the answer
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<a class="nv-rule-id" href="#a-stream-parks-its-read-on-the-connection"><code>core-classes/a-stream-parks-its-read-on-the-connection</code></a>
+</div>
+
+A streaming statement's read state is split from the borrow and parked on the connection, on every
+driver, so a walk advanced by a later call holds one row rather than a result set.
+
+What is parked is what the result set described, what will end it, and the trace event the statement
+is timed by — `crates/nvs-db/src/pg.rs`'s `PgCursor` is the shape, and each driver's is the same kind
+of value: the column definitions and the wire's sequence position on MySQL and MariaDB, `COLMETADATA`
+on SQL Server. The buffered members keep the same state beside a borrow of the connection, so one row
+reader serves both paths per driver and they cannot disagree about what ends a stream.
+`State::Streaming` is what refuses the second statement ([`core-classes/db-connection-busy-state`](/docs/rules/core-classes/connecting-to-a-database/#db-connection-busy-state "Busy state is a field on the connection, and a wire not at a message boundary is closed rather than reset")),
+read off a cell rather than off a lifetime.
+
+**SQLite streams on one pinned thread per open walk.** `rusqlite`'s rows borrow the statement, which
+borrows the connection, so there is no value to park; the statement is stepped on a thread from the
+blocking pool and each row handed across instead. The thread is released when the walk is drained,
+dropped, or its task ends — O(open streams), never O(requests served).
+
+**Buffering is refused on every driver, in every disguise**, because it breaks the member's one
+promise and makes a request's memory a function of a table's size. A driver whose protocol cannot be
+advanced between calls throws a `RuntimeError` naming the driver and naming `query`; that refusal is
+the fallback for a protocol that has no parked form, not a state any of the five drivers is in.
+
+**An abandoned stream drains rather than poisons.** Each wire protocol frames its remaining rows
+self-describingly to a terminating packet or `DONE` token, so the read back to a message boundary is
+deterministic, bounded by the result set the caller asked for, and the connection returns to `Idle`
+and to the pool. A read that *fails* mid-message is `Poisoned` and closed, as it is for every other
+statement.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-classes/running-a-statement/#db-streaming" title="A streaming result holds its connection until it is drained, and a second statement on it throws"><code>core-classes/db-streaming</code></a> <a href="/docs/rules/core-classes/connecting-to-a-database/#db-connection-busy-state" title="Busy state is a field on the connection, and a wire not at a message boundary is closed rather than reset"><code>core-classes/db-connection-busy-state</code></a> <a href="/docs/rules/core-classes/connecting-to-a-database/#db-drivers-are-an-enum" title="The five drivers are an enum with one match per entry point, not a Driver trait"><code>core-classes/db-drivers-are-an-enum</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0187.md">record 0187</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-stdlib/tests/db_stream.rs"><code>crates/nvs-stdlib/tests/db_stream.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/db-stream-as-answers-a-walk-and-not-a-buffered-result.nvst"><code>tests/conformance/core/db-stream-as-answers-a-walk-and-not-a-buffered-result.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/db-stream-on-sqlite-walks-its-rows-or-refuses-naming-the-driver.nvst"><code>tests/conformance/core/db-stream-on-sqlite-walks-its-rows-or-refuses-naming-the-driver.nvst</code></a></dd></div></dl>
 
 </div>
 
