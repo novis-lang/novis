@@ -111,7 +111,7 @@ modules = [
   "crates/nvs-types/src/intrinsics.rs",
   "crates/nvs-types/src/links.rs",
   "crates/nvs-types/src/expr/args.rs",
-  "crates/nvs-types/src/string_lit.rs",
+  "crates/nvs-syntax/src/string_lit.rs",
   "crates/nvs-types/src/derive.rs",
   # Stage 4 -- the library.
   "crates/nvs-stdlib/src/compress.rs",
