@@ -9,8 +9,10 @@
 //! **There is no format argument on either, and there is no `dumpRaw`.** The
 //! sink in force is the only input to which rendering runs (§ 3), which is
 //! what keeps the five producers from each growing a `$format` parameter and
-//! the renderings from becoming twenty. Today one sink exists — the terminal —
-//! so both members render `nvs_render::plain`.
+//! the renderings from becoming twenty. [`rendered_for`] is the whole of that
+//! choice, asked of the channel the bytes leave through: a dump's leave
+//! through `nvs_runtime::Ctx::write_diagnostic`, so it is that channel's
+//! carrier and not `echo`'s that decides.
 //!
 //! # Where a dump lands
 //!
@@ -21,18 +23,42 @@
 //! deliberately *not* captured by `Core\Out::capture`: capturing one would
 //! swallow the very output it was written to make visible.
 //!
-//! The HTTP rows of that table — a dump reaching an HTML body under
-//! `[debug] inline`, and never reaching a JSON one — are M7's, and they are
-//! the security half of the ADR: PHP's most-exploited information disclosure
-//! is not a bug in `var_dump`, it is that `var_dump` writes to *output*. Here
-//! the forgotten call writes to stderr and, at M8, a log record; the spelling
-//! that would put it in a response body does not exist outside a development
-//! mode whose ceiling is closed by default.
+//! The HTTP rows of that table are the security half of the rule: PHP's
+//! most-exploited information disclosure is not a bug in `var_dump`, it is
+//! that `var_dump` writes to *output*. Here a forgotten call writes to the
+//! diagnostic channel wherever it was made, a request included, and the
+//! spelling that would put one in a response body is `[debug] inline`, whose
+//! ceiling is closed by default. A JSON body is never modified in either mode.
+//!
+//! # Known gaps
+//!
+//! 1. **A dump has no way into a response body and writes no log record**,
+//!    which is the rest of that table: `[debug] inline` is the directive its
+//!    two HTML rows turn on and nothing spells one yet. What is already
+//!    decided is the *rendering* — point the diagnostic channel at the body
+//!    and the collapsible block follows with no second choice made anywhere —
+//!    so what the directive still owes is the channel and the record beside
+//!    it.
+//!    — owner: m8-stdlib-depth
+//! 2. **`render` answers the terminal carrier under every sink**, where
+//!    `rule:errors/debug-dump`'s signature line writes *the carrier of the
+//!    sink in force* and `rule:errors/renderings`' table gives the HTML sink
+//!    `Core\Html\Markup`. Answering two classes means declaring two, and a
+//!    program cannot act on that union: `instanceof` against a `Core` class is
+//!    `E0496` — a signature in this registry has no descriptor to walk — so
+//!    `rule:types/narrowing` has no spelling that reaches either arm and the
+//!    answer would be inert everywhere but `echo`. Declaring one class while
+//!    answering the other is the worse trade, since it would hand a
+//!    `Core\Html\Markup` to the `as string` conversion written for the
+//!    terminal carrier and bypass `rule:core-classes/html-to-source`'s demand
+//!    for a reason. The row lands when a `Core` class is testable.
+//!    — owner: m8-stdlib-depth
 //!
 //! # `render`, and why it is one member rather than a second mechanism
 //!
-//! `render` answers the carrier of the sink in force — `Core\Cli\Text` today —
-//! so a dump can be *embedded* rather than written, by
+//! `render` answers the carrier of the sink in force — `Core\Cli\Text`, under
+//! every sink, for gap 2's reason — so a dump can be *embedded* rather than
+//! written, by
 //! `rule:security/capture-answers-the-carrier`
 //! 's rule verbatim. Because it answers a carrier, `echo Core\Debug::render($x)`
 //! is singly escaped: those bytes have already been through the record's own
@@ -116,7 +142,8 @@ const RENDER_DOC: MethodDoc = MethodDoc {
         desc: "The value to render, walked as `dump` walks one.",
         shape: &[],
     }],
-    ret: "The rendering as a `Core\\Cli\\Text`, without the trailing newline `dump` writes.",
+    ret: "The rendering as a `Core\\Cli\\Text`, the carrier of the sink in force, without the \
+          trailing newline `dump` writes.",
     errors: &[],
 };
 
@@ -153,7 +180,7 @@ nvs_runtime::nvs_helper! {
         if record.nodes.is_empty() {
             return Ok(Value::null());
         }
-        let rendered = nvs_render::plain::render_nodes(&record.nodes);
+        let rendered = rendered_for(ctx.diagnostic_carrier(), &record.nodes);
         // Unreachable from source, and by a different route than the checker
         // refusals elsewhere in this file: the only diagnostic sink that can
         // fail is `OutputSink::Stderr` — `Buffer` and `Sink` never do, which
@@ -174,6 +201,10 @@ nvs_runtime::nvs_helper! {
     /// `rule:security/capture-answers-the-carrier`'s rule verbatim: bytes that have been through a sink
     /// cannot be handed back as a `string` without the next `echo` escaping
     /// them a second time, so this answers what `Core\Out::capture` answers.
+    ///
+    /// The terminal carrier under every sink, which is the module's gap 2 and
+    /// not a reading of the sink: the answer's class is a *declared* type, and
+    /// the two carriers have no spelling a program could tell apart.
     fn nvs_core_debug_render(_ctx, args: [1]) {
         Ok(crate::cli::built(Value::str(nvs_runtime::NvsStr::new(
             rendered(args[0]).as_bytes(),
@@ -232,8 +263,26 @@ fn record_of(source: Option<Source>, tail: &Value) -> Result<Record, Fault> {
     Ok(record)
 }
 
-/// One value as `Core\Debug::render` answers it: the canonical, ordered,
-/// `secret`-redacting text of the whole value, with no trailing newline.
+/// `nodes` in the rendering `carrier`'s sink takes — `rule:errors/renderings`'
+/// table as a function of the carrier alone.
+///
+/// The carrier rather than the sink, because that is the one form in which
+/// every channel already answers the question — `nvs_runtime::Ctx::carrier`
+/// for what `echo` writes to, `Ctx::diagnostic_carrier` for what a dump writes
+/// to — so a second caller needs no second table. Every carrier that is not the
+/// HTML one is a terminal or a stand-in for one, so the plaintext arm is the
+/// fail-closed direction and a sink added later keeps it by saying nothing.
+fn rendered_for(carrier: &str, nodes: &[Node]) -> String {
+    if carrier == nvs_runtime::CARRIER_HTML_MARKUP {
+        nvs_render::html::render_nodes(nodes)
+    } else {
+        nvs_render::plain::render_nodes(nodes)
+    }
+}
+
+/// One value as `Core\Debug::render` answers it at a terminal: the canonical,
+/// ordered, `secret`-redacting text of the whole value, with no trailing
+/// newline.
 ///
 /// Public to the crate because
 /// `rule:testing/inline-snapshots`'s inline snapshot is *this* rendering held in a source literal —
@@ -265,10 +314,14 @@ mod tests {
         assert!(matches!(dump.return_ty, CoreTy::Void));
         let render = CLASS.methods[1];
         assert_eq!(render.name, "render");
-        assert!(matches!(
-            render.return_ty,
-            CoreTy::Instance(name) if name == crate::cli::NAME
-        ));
+        assert!(
+            matches!(
+                render.return_ty,
+                CoreTy::Instance(name) if name == crate::cli::NAME
+            ),
+            "`render` answers one class under every sink, which is gap 2 and not \
+             a reading of `rule:errors/renderings`' table"
+        );
     }
 
     /// **There is no format argument on either member** — § 7. The sink in
@@ -315,6 +368,49 @@ mod tests {
             Some(b"int(7)\n".as_slice())
         );
         assert_eq!(ctx.take_buffered_output().as_deref(), Some(b"".as_slice()));
+        #[expect(
+            unsafe_code,
+            reason = "this frame built the array and still owns the only \
+                      reference to it; the helper borrowed it"
+        )]
+        unsafe {
+            tail.release();
+        }
+    }
+
+    /// `rule:errors/renderings`: a dump renders for the channel its own bytes
+    /// leave through, so the same call writes the collapsible block once the
+    /// diagnostic channel is the HTML sink and the plaintext line everywhere
+    /// else.
+    ///
+    /// Asserted on the block's frame rather than on the whole document,
+    /// because what the nodes inside it look like is `nvs_render::html`'s own
+    /// test and repeating it here would make one rendering change two files.
+    #[test]
+    fn a_dump_renders_for_the_channel_it_writes_to() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        ctx.set_diagnostic_sink(nvs_runtime::OutputSink::Body(Vec::new()));
+        let mut tail = nvs_runtime::NvsArray::new();
+        tail.append(Value::int(7));
+        let tail = Value::array(tail);
+        nvs_runtime::call(
+            nvs_core_debug_dump,
+            &mut ctx,
+            &[Value::source_const(std::ptr::null()), tail],
+        )
+        .expect("a dump cannot fail");
+        let written = ctx
+            .take_buffered_diagnostic()
+            .expect("the HTML sink buffers what is written to it");
+        let written = String::from_utf8(written).expect("the HTML rendering is text");
+        assert!(
+            written.starts_with("<div class=\"nvs-nodes\">") && written.ends_with("</div>"),
+            "the HTML sink takes the collapsible block, not the plaintext line: {written}"
+        );
+        assert!(
+            written.contains('7'),
+            "and it is still the dumped value inside it: {written}"
+        );
         #[expect(
             unsafe_code,
             reason = "this frame built the array and still owns the only \

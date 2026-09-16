@@ -55,6 +55,25 @@ pub fn is_carrier(name: &str) -> bool {
     name == CARRIER_CLI_TEXT || name == CARRIER_HTML_MARKUP
 }
 
+/// The `Core` class a sink hands its bytes back as — one table, read by
+/// [`Ctx::carrier`] for the channel `echo` writes to and by
+/// [`Ctx::diagnostic_carrier`] for the channel a diagnostic writes to, so the
+/// two cannot come to disagree about what [`OutputSink::Body`] means.
+///
+/// [`CARRIER_HTML_MARKUP`] for [`OutputSink::Body`], and [`CARRIER_CLI_TEXT`]
+/// for every other sink, because every other one is a terminal or a stand-in
+/// for one: `nvs run`'s stdout, a test's buffer, a discarded run.
+fn carrier_of(sink: &OutputSink) -> &'static str {
+    match sink {
+        OutputSink::Body(_) => CARRIER_HTML_MARKUP,
+        OutputSink::Stdout
+        | OutputSink::Stderr
+        | OutputSink::Buffer(_)
+        | OutputSink::File(_)
+        | OutputSink::Sink => CARRIER_CLI_TEXT,
+    }
+}
+
 /// Where a request's `echo` output goes.
 #[derive(Debug)]
 #[non_exhaustive]
@@ -451,25 +470,33 @@ impl Ctx {
     /// `rule:tooling/echo-always-has-a-sink`
     /// 's table, read as a class name.
     ///
-    /// [`CARRIER_HTML_MARKUP`] for [`OutputSink::Body`], and
-    /// [`CARRIER_CLI_TEXT`] for every other sink, because every other one is a
-    /// terminal or a stand-in for one: `nvs run`'s stdout, a test's buffer, a
-    /// discarded run. § 3's direction is the fail-closed one — the HTML sink is
-    /// attached by an HTTP request and by nothing else — and it is that variant
-    /// plus this arm rather than a rule any call site states:
-    /// `nvs_host::Isolate` picks the sink from the request it was handed, so a
-    /// scheduled script, a job worker, a `#[Test]` method and a CLI program all
-    /// stay on the terminal sink by never having attached anything.
+    /// [`carrier_of`] over the sink `echo` writes to. § 3's direction is the
+    /// fail-closed one — the HTML sink is attached by an HTTP request and by
+    /// nothing else — and it is that variant plus that table rather than a rule
+    /// any call site states: `nvs_host::Isolate` picks the sink from the
+    /// request it was handed, so a scheduled script, a job worker, a `#[Test]`
+    /// method and a CLI program all stay on the terminal sink by never having
+    /// attached anything.
     #[must_use]
     pub fn carrier(&self) -> &'static str {
-        match &self.output {
-            OutputSink::Body(_) => CARRIER_HTML_MARKUP,
-            OutputSink::Stdout
-            | OutputSink::Stderr
-            | OutputSink::Buffer(_)
-            | OutputSink::File(_)
-            | OutputSink::Sink => CARRIER_CLI_TEXT,
-        }
+        carrier_of(&self.output)
+    }
+
+    /// The same class for the **diagnostic** channel: the sink
+    /// [`Self::write_diagnostic`] writes to, rather than the one `echo` writes
+    /// to.
+    ///
+    /// `rule:errors/renderings` picks a rendering from the sink in force, and
+    /// for a `Core\Debug::dump` the sink in force is the one the dump's own
+    /// bytes leave through — which is this one and not [`Self::carrier`]'s.
+    /// The two channels answer differently on purpose:
+    /// `rule:errors/debug-dump`'s table gives the HTML rendering to the row
+    /// that appends a block to the response **body**, so a request that
+    /// answers HTML while its dumps still go to the engine's stderr reads them
+    /// as the plaintext a developer greps.
+    #[must_use]
+    pub fn diagnostic_carrier(&self) -> &'static str {
+        carrier_of(&self.diagnostic)
     }
 
     /// Opens a capture level: from here until the matching [`Self::end_capture`],
