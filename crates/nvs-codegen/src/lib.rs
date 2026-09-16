@@ -735,10 +735,19 @@ impl Unit {
     ///    is what an `rule:security/isolate-shares-nothing` method entry is
     ///    (`nvs_runtime::Ctx::method_isolate`, and `nvs_runtime::script`'s
     ///    module doc for why that needs no resolver).
+    /// 4. *Reach.* A class named in a serialized payload is resolved against
+    ///    this unit's table and then against the `Core` library's
+    ///    ([`nvs_runtime::Ctx::class_desc`]), and the second of those is a
+    ///    process-wide table no unit holds. It is installed here rather than at
+    ///    each embedder's boot because *here* is the call they all already
+    ///    make: a site that missed it would be a `Core\Time\Instant` that
+    ///    round-trips through `Core\Cache` under one command and is refused as
+    ///    unresolvable under another.
     pub fn install_in(&self, ctx: &mut nvs_runtime::Ctx) {
         if let Some(class) = self.runtime_error_class() {
             ctx.set_runtime_error_class(class);
         }
+        ctx.set_core_classes(nvs_stdlib::core_class_desc);
         ctx.install_statics(std::sync::Arc::clone(&self.statics));
     }
 }

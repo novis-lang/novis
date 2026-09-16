@@ -291,6 +291,9 @@ impl Ctx {
         // why the copy goes this way round and not through the snapshot alone.
         child.config = self.config.clone();
         child.runtime_error_class = self.runtime_error_class.clone();
+        // One word, and the table behind it is the process's, so a task
+        // resolves by name everything the request it belongs to could.
+        child.core_classes = self.core_classes;
         // The word, not its value: a task of this request is bounded by this
         // request's wall time and by no clock of its own. See the field doc.
         child.deadline = std::sync::Arc::clone(&self.deadline);
@@ -398,6 +401,11 @@ impl Ctx {
         isolate.script_depth = self.script_depth.saturating_add(1);
         isolate.max_script_depth = self.max_script_depth;
         isolate.runtime_error_class = self.runtime_error_class.clone();
+        // `rule:security/isolate-shares-nothing` is about *this request's* state, and the
+        // `Core` classes are neither: they are one table the whole process
+        // reads, so the child is handed the same word rather than booting
+        // without one and refusing a payload its parent could read.
+        isolate.core_classes = self.core_classes;
         isolate.deadline = std::sync::Arc::clone(&self.deadline);
         isolate.share_safepoint_with(self);
         // After the word above, and that order is load-bearing for
@@ -549,6 +557,7 @@ impl Ctx {
             script_depth: self.script_depth.saturating_add(1),
             max_script_depth: self.max_script_depth,
             runtime_error_class: self.runtime_error_class.clone(),
+            core_classes: self.core_classes,
             unit_statics: self.unit_statics.clone(),
             deadline: std::sync::Arc::clone(&self.deadline),
             tree: self.tree_handle(),
@@ -776,6 +785,7 @@ pub struct PlacedIsolate {
     script_depth: u32,
     max_script_depth: u32,
     runtime_error_class: Option<ErrorClass>,
+    core_classes: Option<crate::ctx::CoreClasses>,
     unit_statics: Option<std::sync::Arc<[Option<FieldDefault>]>>,
     deadline: std::sync::Arc<std::sync::atomic::AtomicU64>,
     tree: std::sync::Arc<TreeState>,
@@ -833,6 +843,7 @@ impl PlacedIsolate {
         child.script_depth = self.script_depth;
         child.max_script_depth = self.max_script_depth;
         child.runtime_error_class = self.runtime_error_class;
+        child.core_classes = self.core_classes;
         child.deadline = self.deadline;
         child.cpu_limit = self.cpu_limit;
         child.fatal_reserve = self.fatal_reserve;

@@ -158,6 +158,15 @@ use crate::throwable::{Thrown, ThrownClass};
 /// because the seam is spelled out at both ends of it and `nvs-stdlib`'s end is
 /// in another crate.
 pub(crate) type ExitDrain = fn(&mut Ctx, Result<(), i32>, Option<&Thrown>);
+
+/// The `Core` half of [`Ctx::class_desc`]'s answer: a name to the descriptor
+/// `nvs-stdlib` leaked for it, or `None` for a name that crate does not own.
+///
+/// A plain `fn` and not a boxed closure, because the table behind it is the
+/// **process's** — one leaked `ClassTable`, built on first use and never
+/// dropped — so there is nothing per request to capture and installing this
+/// costs one word.
+pub type CoreClasses = fn(&str) -> Option<*const ClassDesc>;
 use crate::value::Value;
 
 mod answers;
@@ -1194,6 +1203,14 @@ pub struct Ctx {
     /// The class a bare-message failure is promoted to, if one was
     /// installed — see [`Ctx::set_runtime_error_class`].
     runtime_error_class: Option<ErrorClass>,
+    /// The `Core` classes, as the resolver an embedder installs at boot — see
+    /// [`Ctx::set_core_classes`], and [`Ctx::class_desc`] for why a name is
+    /// asked of the program's own table first and of this second.
+    ///
+    /// **What it spends:** one word per context, and nothing per request
+    /// beyond it: the descriptors are `nvs_stdlib::instance`'s process-wide
+    /// table, shared by every core rather than built per boot.
+    core_classes: Option<CoreClasses>,
     /// The coroutine yielder of the task this request is running inside, or
     /// null on the main stack — `nvs-host`'s scheduler publishes it on entry
     /// and clears it before the context leaves the coroutine.

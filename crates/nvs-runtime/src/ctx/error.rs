@@ -237,20 +237,30 @@ impl Ctx {
     /// The descriptor for the class `name` spells in **this program's** table,
     /// or `None` for a name it does not declare.
     ///
-    /// The one route from a `Core` member to a class the *program* wrote, and
-    /// it exists for [`crate::graph::decode`]: `rule:classes/serialize-is-a-closed-format` refuses a payload
-    /// naming a class the receiving side cannot resolve, which is a question
-    /// only the compiled unit's own table can answer. It reads the table
+    /// The one route from a `Core` member to a class by name, and it exists for
+    /// [`crate::graph::decode`]: `rule:classes/serialize-is-a-closed-format` refuses a payload
+    /// naming a class the receiving side cannot resolve, and the two tables
+    /// that can resolve one are the compiled unit's and the `Core` library's.
+    ///
+    /// **The program's own table is asked first.** It is the one
     /// [`Self::set_runtime_error_class`] installed rather than a second
     /// registration, for that method's own reason — § 10's classes and every
     /// class the program declares are all rows of one table, and a second
-    /// handle on it would be a second thing to keep in step.
+    /// handle on it would be a second thing to keep in step. A name it does not
+    /// hold is put to [`Self::set_core_classes`]'s resolver, which is what lets
+    /// an encoded `Core\Time\Instant` arrive back as one rather than as a
+    /// refusal naming it.
     ///
-    /// The pointer is live for as long as this context is: the handle shares
-    /// ownership of the table ([`ErrorClass`]).
+    /// The pointer is live for as long as this context is: the program's handle
+    /// shares ownership of its table ([`ErrorClass`]), and the `Core`
+    /// descriptors are one table leaked for the process.
     #[must_use]
     pub fn class_desc(&self, name: &str) -> Option<*const ClassDesc> {
-        Some(self.runtime_error_class.as_ref()?.sibling(name)?.desc())
+        self.runtime_error_class
+            .as_ref()
+            .and_then(|class| class.sibling(name))
+            .map(|class| class.desc())
+            .or_else(|| (self.core_classes?)(name))
     }
 
     /// The same table as a **handle that keeps it alive by itself** — one

@@ -267,6 +267,13 @@ pub use nvs_runtime::{CodecField, CodecTy, EnumCases, FieldDefault};
 /// stays beside the table it reads.
 pub use instance::class_descriptors;
 
+/// The resolver an embedder installs on a context at boot, so a serialized
+/// `Core` instance resolves on the way back in — `nvs_runtime::Ctx`'s
+/// `set_core_classes`, whose one caller is `nvs_codegen::Unit::install_in`.
+/// Re-exported beside the roster above because both are the same leaked table
+/// read from outside this crate.
+pub use instance::core_class_desc;
+
 /// `Core\Cache::process()`'s tier, created before the cores that will share it —
 /// `nvs serve` calls this as its fleet starts. The function's own doc owns why a
 /// tier that no caller armed is still correct.

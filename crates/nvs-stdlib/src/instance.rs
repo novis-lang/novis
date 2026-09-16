@@ -436,6 +436,24 @@ pub fn class_descriptors() -> Vec<(&'static str, *const ClassDesc)> {
     vec![(crate::html::MARKUP_NAME, descriptor(&crate::html::MARKUP))]
 }
 
+/// The `Core` half of [`nvs_runtime::Ctx::class_desc`]: a class name to the
+/// descriptor this process leaked for it, or `None` for a name this crate does
+/// not own.
+///
+/// This is the whole of what an embedder installs — `Ctx::set_core_classes`
+/// takes exactly this signature — and it is a `fn` rather than a table handed
+/// over because [`descriptors`] is already the process's, built on first use
+/// and never dropped. So a context costs one word to arm and a boot costs
+/// nothing at all.
+///
+/// A **namespace** class answers `None` here, for [`descriptors`]'s own reason:
+/// it has no instances, so nothing encodes one and nothing can ask for it back.
+#[must_use]
+pub fn core_class_desc(name: &str) -> Option<*const ClassDesc> {
+    let table = descriptors();
+    Some(table.desc(table.id_of(name)?))
+}
+
 /// Whether `value` is an instance of `class`, asked by descriptor address.
 ///
 /// A descriptor's address **is** its identity — [`descriptors`] leaks one table

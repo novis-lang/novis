@@ -141,6 +141,7 @@ impl Ctx {
             holds_deferred_slot: false,
             pending: None,
             runtime_error_class: None,
+            core_classes: None,
             output,
             diagnostic: OutputSink::Stderr,
             log: LogTarget::Unread,
@@ -427,6 +428,28 @@ impl Ctx {
     /// is.
     pub fn set_routes(&mut self, table: std::sync::Arc<crate::routes::Routes>) {
         self.routes = Some(table);
+    }
+
+    /// The `Core`-class resolver this context was booted with, or `None` where
+    /// no embedder installed one — what [`Self::set_core_classes`] wrote, and
+    /// what a derived context copies so a child resolves the names its parent
+    /// could.
+    #[must_use]
+    pub fn core_classes(&self) -> Option<crate::ctx::CoreClasses> {
+        self.core_classes
+    }
+
+    /// Hands this program the `Core` classes, written before it runs exactly as
+    /// [`Self::set_commands`] is — the difference being that this table is the
+    /// **process's** rather than this unit's compile product, so what crosses
+    /// is a function pointer and not an `Arc`.
+    ///
+    /// Installing it is what makes an encoded `Core` instance resolvable on the
+    /// way back in ([`Self::class_desc`], and `crate::graph`'s `decode`); a
+    /// context that never gets one still runs, and refuses such a payload by
+    /// name as it always did.
+    pub fn set_core_classes(&mut self, resolve: crate::ctx::CoreClasses) {
+        self.core_classes = Some(resolve);
     }
 
     /// This process's argument vector past the program itself — see
