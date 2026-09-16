@@ -285,6 +285,7 @@ pub mod object;
 pub mod os;
 pub mod peer;
 pub mod pool;
+pub mod record;
 pub mod release;
 pub mod routes;
 pub mod script;
