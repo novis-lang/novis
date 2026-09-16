@@ -791,6 +791,7 @@ mod tests {
             links: &mut Vec::new(),
             codec_sites: &mut Vec::new(),
             row_sites: &mut Vec::new(),
+            json_sites: &mut Vec::new(),
             decode_sites: &mut Vec::new(),
             diags: &mut diags,
             closure_seq: 0,

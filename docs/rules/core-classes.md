@@ -1501,7 +1501,12 @@ narrower door, because a column is a single value: [`core-classes/db-column-type
 nested document, so `#[Db\Derive]` refuses a list of lists and a list of shapes at the declaration.
 
 Two per-field overrides exist and no more: `name` renames one key or column, and `skip: true` removes
-the field from the codec entirely. There is no whole-class naming policy — that would make a wire
+the field from the codec entirely. A skipped property is exempt from the constructor-parameter rule
+above, and a class keeping it as a parameter anyway stays well formed — it still encodes, and the
+program can still build one itself. What such a class cannot do is be **decoded**: the contract names
+no key for that position, and a default carried on a field cannot be read for a position that has no
+field. So the refusal is of the call that asks for a whole instance out of a document or a row rather
+than of the declaration, at every door that reads a derived codec. There is no whole-class naming policy — that would make a wire
 format depend on a setting rather than on the source.
 
 <sub>See also [`core-classes/derive-attribute`](core-classes.md#core-classes-derive-attribute), [`core-classes/derive-reports-every-field`](core-classes.md#core-classes-derive-reports-every-field), [`core-classes/db-column-types`](core-classes.md#core-classes-db-column-types). Decided in [0071](../decisions/0071.md), [0022](../decisions/0022.md), [0038](../decisions/0038.md), [0030](../decisions/0030.md), [0067](../decisions/0067.md).</sub>

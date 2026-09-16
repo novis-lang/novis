@@ -775,9 +775,11 @@ the checker still refuses — `crates/nvs-types/src/defaults.rs`'s own gap, not 
 three are answered at every door that reads a derived codec, a row's columns included: the default is
 evaluated while compiling into a constant that rides on the field itself
 (`nvs_runtime::CodecField::default`), so a decoder fills an absent optional key without being the call
-site that would otherwise emit one. What stays unfilled is a constructor position **no field names** —
-a property `skip: true` removed from the contract — which `crates/nvs-stdlib/src/json.rs` records as
-its own gap.
+site that would otherwise emit one. A constructor position **no field names** — a property
+`skip: true` removed from the contract, which [`core-classes/derive-field-list`](core-classes.md#core-classes-derive-field-list) sanctions — has no
+field to carry a constant and is filled by nothing, so the call that asks for an instance out of a
+document is refused while compiling rather than answered with a guess: `E0820` at a document door and
+`E0806` at a row's.
 
 <sub>See also [`core-api/written-participation`](core-api.md#core-api-written-participation), [`core-api/omission-is-not-a-written-null`](core-api.md#core-api-omission-is-not-a-written-null), [`core-api/the-marker-never-reaches-a-program`](core-api.md#core-api-the-marker-never-reaches-a-program), [`types/unions-and-mixed`](types.md#types-unions-and-mixed). Decided in [0071](../decisions/0071.md), [0063](../decisions/0063.md).</sub>
 
