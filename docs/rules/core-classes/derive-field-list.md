@@ -12,7 +12,11 @@ constructor-assigned.
 
 A field's type must be codec-reachable — a scalar, one of the named `Core` value types, an enum, an
 inline shape, an `array<T>` or `?T` of one of those, or another class that itself has a codec.
-Anything else is a compile error at the field. Recursion is fine and terminates on the data.
+Anything else is a compile error at the field. Recursion is fine and terminates on the data, and it
+is the *type* that recurses rather than only the field: an `array<T>` whose `T` is itself an
+`array<…>` or an inline shape is reachable, and a decode reads every level of it. A row is the one
+narrower door, because a column is a single value: `rule:core-classes/db-column-types` maps none to a
+nested document, so `#[Db\Derive]` refuses a list of lists and a list of shapes at the declaration.
 
 Two per-field overrides exist and no more: `name` renames one key or column, and `skip: true` removes
 the field from the codec entirely. There is no whole-class naming policy — that would make a wire

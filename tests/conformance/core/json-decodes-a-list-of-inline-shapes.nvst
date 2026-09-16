@@ -1,0 +1,53 @@
+--TEST--
+`Core\Json::decodeAs` fills an `array<T>` of inline shapes, pinning `rule:core-classes/derive-field-list` and `rule:types/shape-type`
+--FILE--
+<?nvs
+// An inline shape reached as a list's *element* is the same wire contract it is
+// as a field: `rule:core-classes/derive-field-list` makes both reachable, and
+// the element's two resolved pointers — the class a literal of those field
+// names builds, and the contract holding the per-field wire types that label
+// cannot carry — ride on the field the same way an element class's label does.
+#[Core\Json\Derive]
+class Board {
+    public string $id;
+    public array<{x: int, y: int, note?: string}> $marks;
+
+    public function constructor(string $id, array<{x: int, y: int, note?: string}> $marks)
+    {
+        $this->id = $id;
+        $this->marks = $marks;
+    }
+}
+
+Board $board = Core\Json::decodeAs<Board>(
+    "{\"id\":\"b-1\",\"marks\":[{\"x\":1,\"y\":2},{\"x\":3,\"y\":4,\"note\":\"gift\"}]}"
+);
+echo $board->id, "\n";
+echo $board->marks[0]->y, "\n";
+echo $board->marks[1]->note, "\n";
+
+// `rule:types/shape-type`'s `?` is the optional column at every position: the
+// first element carries no `note` and the slot it would have filled stays
+// unset, which the encoder writes as an absent key rather than as `null`.
+echo Core\Json::encode($board), "\n";
+
+// `rule:core-classes/derive-reports-every-field`: a bad element reports under
+// the field's path, the position and the shape's own key — three segments,
+// where an element scalar has two — and every bad one at once.
+try {
+    Core\Json::decodeAs<Board>("{\"id\":\"b-2\",\"marks\":[{\"x\":1,\"y\":\"no\"},{\"y\":9}]}");
+    echo "not reached\n";
+} catch (ParseError $bad) {
+    echo "issues=", Core\Arr::count($bad->issues), "\n";
+    foreach ($bad->issues as {path: string, message: string} $issue) {
+        echo "  ", $issue->path, "\n";
+    }
+}
+--EXPECT--
+b-1
+2
+gift
+{"id":"b-1","marks":[{"x":1,"y":2},{"note":"gift","x":3,"y":4}]}
+issues=2
+  marks.0.y
+  marks.1.x

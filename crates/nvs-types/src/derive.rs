@@ -60,7 +60,7 @@ use nvs_syntax::ast::{
     Param, PropertyMember,
 };
 
-use nvs_stdlib::{CodecTy, EnumCases};
+use nvs_stdlib::{CodecElement, CodecTy, EnumCases};
 
 use crate::ty::{Ty, TypeId};
 use crate::{Ctx, Env, span_text, strip_sigil};
@@ -352,14 +352,14 @@ pub struct DerivedField {
     /// What a decode has to produce for this field — the declared property
     /// type, erased to the closed roster a native decoder branches on.
     pub ty: CodecTy,
-    /// Each element's wire type where [`Self::ty`] is [`CodecTy::List`] — see
-    /// [`nvs_stdlib::CodecField::element`], which this is the declaration half
-    /// of.
-    pub element: Option<CodecTy>,
+    /// What each position holds where [`Self::ty`] is [`CodecTy::List`], every
+    /// level of it — see [`nvs_stdlib::CodecField::element`], which this is
+    /// the declaration half of.
+    pub element: Option<CodecElement>,
     /// The class's label where the erasure above dropped one: the field's own
-    /// class for a [`CodecTy::Class`], the element's for a [`CodecTy::List`]
-    /// of one. The only half a front end can state; `nvs-codegen` resolves it
-    /// to a descriptor.
+    /// class for a [`CodecTy::Class`], the *terminal element's* for a
+    /// [`CodecTy::List`] at any depth. The only half a front end can state;
+    /// `nvs-codegen` resolves it to a descriptor.
     pub class: Option<String>,
     /// The accepted backing values where the erasure above produced a
     /// [`CodecTy::Enum`], for the field itself or for a list's element — see
@@ -588,31 +588,40 @@ fn codec_ty(
     }
 }
 
-/// § 2's list field, erased. The element goes through [`codec_ty`] once, and a
-/// second `List` coming back out is `array<array<T>>` — which
-/// [`nvs_stdlib::CodecField::element`] has no room to describe, so the whole
-/// field stays `Opaque` and refuses at the `decodeAs<T>` rather than
-/// half-decoding. An `Opaque` element is refused the same way, and so is a
-/// [`CodecTy::Shape`] one: a shape needs the field's own contract slot, which a
-/// list has already spent describing its element.
+/// § 2's list field, erased. The element goes through [`codec_ty`] once and
+/// comes back as a [`CodecElement`] chain, so a second `List` is one more link
+/// rather than a type this has no room for: `array<array<Tag>>` and
+/// `array<{n: int}>` describe themselves in full.
+///
+/// **Everything the element's own erasure dropped rides up onto the field** —
+/// the class label, the case roster and the inline shape's contract alike —
+/// because a chain of lists bottoms out in exactly one node that is not a
+/// `List`, and only that node can name any of the three. The field is the one
+/// row a decoder has in hand when it reaches position `n` at any depth, and
+/// `nvs-codegen` resolves its two pointers once.
+///
+/// An `Opaque` element is the one case that takes the whole field with it: the
+/// terminal type has no wire form, so no depth of list around it has one
+/// either. `rule:core-classes/derive-field-list`'s reachable test refuses that
+/// declaration outright ([`resolve_field_types`]).
 fn list_erasure(
     element: TypeId,
     interner: &mut crate::ty::TypeInterner,
     enums: &crate::enums::EnumTable,
 ) -> Erased {
     let erased = codec_ty(element, interner, enums);
-    match erased.ty {
-        CodecTy::List | CodecTy::Shape | CodecTy::Opaque => Erased::wire(CodecTy::Opaque),
-        // The element's class label and its case roster both ride up onto the
-        // *field*, which is the one row a decoder has in hand when it reaches
-        // position `n`.
-        ty => Erased {
-            ty: CodecTy::List,
-            element: Some(ty),
-            class: erased.class,
-            cases: erased.cases,
-            shape: None,
-        },
+    if erased.ty == CodecTy::Opaque {
+        return Erased::wire(CodecTy::Opaque);
+    }
+    Erased {
+        ty: CodecTy::List,
+        element: Some(CodecElement {
+            ty: erased.ty,
+            element: erased.element.map(Box::new),
+        }),
+        class: erased.class,
+        cases: erased.cases,
+        shape: erased.shape,
     }
 }
 
@@ -645,13 +654,13 @@ fn nested_of(declared: TypeId, interner: &crate::ty::TypeInterner) -> Nested {
 struct Erased {
     /// The wire type a decoder branches on.
     ty: CodecTy,
-    /// A [`CodecTy::List`]'s element type.
-    element: Option<CodecTy>,
-    /// The class label a [`CodecTy::Class`], a [`CodecTy::Shape`] or a list of
-    /// either lost.
+    /// A [`CodecTy::List`]'s element, every level of it.
+    element: Option<CodecElement>,
+    /// The class label a [`CodecTy::Class`], a [`CodecTy::Shape`] or a list
+    /// bottoming out in either lost.
     class: Option<String>,
     /// A [`CodecTy::Enum`]'s accepted backing values, for the field itself or
-    /// for a list's element.
+    /// for a list's terminal element.
     cases: Option<EnumCases>,
     /// A [`CodecTy::Shape`]'s own field list, read the way [`shape_codec`]
     /// reads a written one.
@@ -730,16 +739,18 @@ pub struct CodecFieldSite {
 /// [`crate::links::resolve`]'s reason: a field naming another deriving class
 /// must not depend on which file declared it first.
 ///
-/// **What it refuses is the unreachable set, not the undecoded one.** § 2
-/// lists a `decimal`, an `Instant`, an enum, an inline shape, an `array<T>`
-/// and a nested codec-carrying class as reachable; a reachable type the
-/// erasure has no wire type for — an `array<array<T>>`, an `array` of inline
-/// shapes — still erases to [`CodecTy::Opaque`] and is refused by
-/// `nvs_stdlib::json` when a `decodeAs<T>` runs, which is that crate's missing
-/// decoder and not a contract error. Refusing an `Opaque` here would report it
-/// as if the
-/// program were wrong — so the test is over the declared type, and
-/// `nvs_stdlib::json`'s gap 1 owns the difference.
+/// **What it refuses is the unreachable set**, and the JSON half of the
+/// erasure now answers for all of it: § 2 lists a `decimal`, an `Instant`, an
+/// enum, an inline shape, an `array<T>` and a nested codec-carrying class as
+/// reachable, and each of those — at any depth of `array<…>`, since
+/// [`list_erasure`]'s chain describes every level — erases to a wire type
+/// `nvs_stdlib::json` decodes. So the test is over the declared type alone,
+/// and an [`CodecTy::Opaque`] reaching a decoder is a declaration this pass
+/// has already reported rather than a missing case.
+///
+/// The row half is narrower on purpose and refuses where it is: a column is
+/// one value, so [`check_row_sites`] turns away the nested documents the JSON
+/// door reads.
 pub(crate) fn resolve_field_types(
     sites: &[CodecFieldSite],
     signatures: &crate::signatures::SignatureTable,
@@ -878,7 +889,13 @@ pub(crate) fn check_row_sites(
         // refusal as the backstop for a class built by hand.
         if let Some(field) = codec.fields.iter().find(|field| {
             matches!(field.ty, CodecTy::Opaque | CodecTy::Shape)
-                || field.element == Some(CodecTy::Opaque)
+                // A column is one value, so a list of them is as deep as a row
+                // goes: an element that is itself a list or an inline shape is
+                // a nested document, which `rule:core-classes/db-column-types`
+                // maps no column to however well the JSON door reads one.
+                || field.element.as_ref().is_some_and(|element| {
+                    element.any(|ty| matches!(ty, CodecTy::Opaque | CodecTy::Shape | CodecTy::List))
+                })
         }) {
             let property = &field.property;
             report_row_site(
@@ -1265,8 +1282,8 @@ fn class_has_codec(
                 // A `Core` value type — § 2's `Instant`, `Duration`, `Uuid`
                 // and their siblings — declares no member for this to find:
                 // which of them has a wire form is `nvs_stdlib::json`'s
-                // roster, not this pass's, and that crate's gap 1 is where
-                // the missing decoders are owed.
+                // roster, not this pass's, and that crate's § *A value type
+                // crosses as text* is where the two that have one are named.
                 || label.starts_with(r"Core\")
         }
         // A name with no signature is a name that did not resolve, and that

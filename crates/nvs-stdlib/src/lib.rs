@@ -259,7 +259,7 @@ mod zip;
 /// and `nvs-ir` each produce a stage of it and neither depends on the runtime
 /// directly, so they reach it through this crate, which they already treat as
 /// the home of the `Core` contract.
-pub use nvs_runtime::{CodecField, CodecTy, EnumCases, FieldDefault};
+pub use nvs_runtime::{CodecElement, CodecField, CodecTy, EnumCases, FieldDefault};
 
 /// `rule:core-classes/html-literal`'s folded constant needs a `Core` class's
 /// descriptor address while it is being compiled, and `instance` is where the

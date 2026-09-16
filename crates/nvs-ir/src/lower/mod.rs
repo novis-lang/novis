@@ -458,7 +458,7 @@ fn codec_fields(
                     slot: layout.slot_of(&field.property)?,
                     param: field.param?,
                     ty: field.ty,
-                    element: field.element,
+                    element: field.element.clone(),
                     // The label rides down untouched; `nvs-codegen` is the
                     // first place every descriptor exists, so it is the one
                     // that can resolve it.
@@ -3425,8 +3425,11 @@ pub(crate) fn shape_codec_key(fields: &[nvs_types::CodecField]) -> String {
         }
         out.push(':');
         out.push_str(&format!("{:?}", field.ty));
-        if let Some(element) = field.element {
-            out.push_str(&format!("<{element:?}>"));
+        if let Some(element) = &field.element {
+            // Every level of it: `array<Tag>` and `array<array<Tag>>` are two
+            // contracts and decode differently, so a key that rendered only
+            // the outermost element would file them under one table.
+            push_element_key(element, &mut out);
         }
         if let Some(class) = &field.class {
             out.push('@');
@@ -3444,6 +3447,17 @@ pub(crate) fn shape_codec_key(fields: &[nvs_types::CodecField]) -> String {
     }
     out.push('}');
     out
+}
+
+/// One list field's element chain, appended to the key [`shape_codec_key`] is
+/// building — `<Str>`, `<List<Str>>`, one pair of angle brackets per level.
+fn push_element_key(element: &nvs_types::CodecElement, out: &mut String) {
+    out.push('<');
+    out.push_str(&format!("{:?}", element.ty));
+    if let Some(inner) = &element.element {
+        push_element_key(inner, out);
+    }
+    out.push('>');
 }
 
 /// One inline shape's [`nvs_types::derive::DerivedCodec`], as the field list
@@ -3464,7 +3478,7 @@ fn shape_codec_fields(codec: &nvs_types::derive::DerivedCodec) -> Vec<nvs_types:
             slot,
             param: slot,
             ty: field.ty,
-            element: field.element,
+            element: field.element.clone(),
             // The label and the roster ride down untouched, for
             // [`codec_fields`]'s reasons: `nvs-codegen` is the first place a
             // descriptor exists, and a case list is already the values

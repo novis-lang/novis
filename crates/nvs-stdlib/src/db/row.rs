@@ -293,11 +293,21 @@ pub(super) fn hydrated(field: &nvs_runtime::CodecField, held: Value) -> Result<V
     let nvs_runtime::CodecTy::List = field.ty else {
         return converted(field.ty, field.cases.as_ref(), field.class.as_deref(), held);
     };
-    let Some(element) = field.element else {
+    let Some(element) = field.element.as_ref() else {
         return Err(
             "this field is a list whose element type the derive pass did not record".to_owned(),
         );
     };
+    // A column is one value, so a row's list is flat: `nvs_types::derive`'s
+    // row-site check refuses a nested list or an inline shape at the
+    // declaration, and this is the backstop for a descriptor built by hand.
+    if element.element.is_some() {
+        return Err(
+            "this field is a list of lists, and `rule:core-classes/db-column-types` maps no \
+             column to one"
+                .to_owned(),
+        );
+    }
     let held_ptr = held
         .array_ptr()
         .ok_or_else(|| wanted("an `array<T>` column", held))?;
@@ -311,8 +321,13 @@ pub(super) fn hydrated(field: &nvs_runtime::CodecField, held: Value) -> Result<V
         // no nullability of its own on `CodecField`, and PostgreSQL's array
         // types all admit one.
         if one.tag() != Some(Tag::Null) {
-            converted(element, field.cases.as_ref(), field.class.as_deref(), one)
-                .map_err(|why| format!("element {slot}: {why}"))?;
+            converted(
+                element.ty,
+                field.cases.as_ref(),
+                field.class.as_deref(),
+                one,
+            )
+            .map_err(|why| format!("element {slot}: {why}"))?;
         }
         from = slot + 1;
     }

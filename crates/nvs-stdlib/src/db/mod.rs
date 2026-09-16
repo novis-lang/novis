@@ -280,7 +280,7 @@
 //!    site* emits and a hydration has no call site, so [`hydrate`] is loud
 //!    rather than filling a `null` that would be right for one declaration in
 //!    ten. Where that constant has to ride so a decoder with no call site can
-//!    reach it is `crate::json`'s gap 2, the same knot at the other door.
+//!    reach it is `crate::json`'s gap 1, the same knot at the other door.
 //!    — owner: m8-stdlib-depth
 
 use std::net::{SocketAddr, ToSocketAddrs as _};

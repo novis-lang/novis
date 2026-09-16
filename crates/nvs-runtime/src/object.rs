@@ -771,10 +771,10 @@ pub enum CodecTy {
     ///
     /// The element rides on [`CodecField::element`] rather than inside this
     /// variant for the same reason a class identity does not: this enum is
-    /// `Copy` and a recursive variant is not, and an element that is itself a
-    /// list has nowhere to put its own element. `nvs_types::derive` erases
-    /// `array<array<T>>` to [`Self::Opaque`] on that account, so
-    /// [`CodecField::element`] is never itself a `List`.
+    /// `Copy` and a recursive variant is not. What nests instead is
+    /// [`CodecElement`], so an `array<array<T>>` describes every level of
+    /// itself and a list element is itself a `List` as often as the
+    /// declaration says.
     List,
     /// An enum — `rule:core-classes/derive-field-list`'s enum field, decoded as a membership test
     /// rather than as a construction: `rule:enums/representation` reserves an enum tag that
@@ -797,10 +797,15 @@ pub enum CodecTy {
     /// carry ride beside it on [`CodecField::shape`], as the key of the
     /// [`ShapeCodec`] a `decodeAs<{n: int}>` call site is handed.
     Shape,
-    /// A declared type this decoder has no case for yet — an
-    /// `array<array<T>>`. Encoding one still works; decoding into one is
-    /// `nvs_stdlib::json`'s own known gap, and it faults naming the field
-    /// rather than guessing a value.
+    /// A declared type no wire type describes — a `callable`, an `object`, a
+    /// union of two non-`null` arms.
+    ///
+    /// `rule:core-classes/derive-field-list`'s reachable test refuses such a
+    /// field at the declaration that wrote it, so this is what the erasure
+    /// answers *while* that refusal is still being collected rather than a
+    /// decoder's missing case: nothing the reachable set admits erases here,
+    /// every depth of `array<…>` and every inline shape included. A decoder
+    /// that meets one faults naming the field rather than guessing a value.
     Opaque,
 }
 
@@ -825,6 +830,69 @@ pub struct EnumCases {
     pub values: Vec<i128>,
 }
 
+/// What one position of a [`CodecTy::List`] field holds — the element's own
+/// wire type, and, where that is another list, its element in turn.
+///
+/// The recursion is the whole point: an `array<array<Tag>>` is two of these
+/// and a `Tag` at the bottom, so a decoder walks down the chain it was handed
+/// instead of stopping one level in.
+///
+/// **The labels a wire type loses stay on the field**, not here. A chain of
+/// lists bottoms out in exactly one node that is not a `List`, and that
+/// terminal node is the only one that can name a class, a case roster or a
+/// contract — so [`CodecField::class`], [`CodecField::cases`] and
+/// [`CodecField::shape`] answer for it, and `nvs-codegen` resolves the two
+/// pointers once per field at the depth it already resolves them at.
+///
+/// **What it spends**, per `rule:programs/memory-priority`: one allocation per
+/// nesting level of a list field, in the compiled unit's own descriptor —
+/// O(declarations in the program), never per request and never per document.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CodecElement {
+    /// The element's wire type.
+    pub ty: CodecTy,
+    /// The element's own element, where [`Self::ty`] is [`CodecTy::List`], and
+    /// `None` for every other one.
+    pub element: Option<Box<CodecElement>>,
+}
+
+impl CodecElement {
+    /// A leaf: an element that is not itself a list.
+    #[must_use]
+    pub const fn leaf(ty: CodecTy) -> Self {
+        Self { ty, element: None }
+    }
+
+    /// The wire type at the bottom of this chain — the one node that is not a
+    /// [`CodecTy::List`], which is the node [`CodecField::class`] and its two
+    /// siblings carry the labels of.
+    #[must_use]
+    pub fn terminal(&self) -> CodecTy {
+        let mut at = self;
+        while let Some(inner) = &at.element {
+            at = inner;
+        }
+        at.ty
+    }
+
+    /// Whether any node of this chain satisfies `test` — how a decoder asks
+    /// its "do I have a case for every level of this" question once rather
+    /// than per level.
+    #[must_use]
+    pub fn any(&self, test: impl Fn(CodecTy) -> bool) -> bool {
+        let mut at = self;
+        loop {
+            if test(at.ty) {
+                return true;
+            }
+            match &at.element {
+                Some(inner) => at = inner,
+                None => return false,
+            }
+        }
+    }
+}
+
 /// One field of a class's derived JSON codec: the wire key, the slot it is
 /// read from, the constructor position it is written to, and what a decode
 /// must produce for it.
@@ -845,16 +913,16 @@ pub struct CodecField {
     pub param: usize,
     /// What a decode has to produce for this field.
     pub ty: CodecTy,
-    /// Each element's wire type when [`Self::ty`] is [`CodecTy::List`], and
+    /// What each position holds when [`Self::ty`] is [`CodecTy::List`], and
     /// `None` for every other one.
     ///
-    /// Never itself a [`CodecTy::List`] — [`CodecTy::List`]'s own docs say why
-    /// — so a decoder reading this reaches a scalar or a class in one step.
-    pub element: Option<CodecTy>,
+    /// Itself a [`CodecTy::List`] as often as the declaration nests one, which
+    /// is what [`CodecElement`] exists for.
+    pub element: Option<CodecElement>,
     /// The class's label when a class identity is what the erasure above
-    /// dropped: the field's own class for a [`CodecTy::Class`], the
-    /// *element's* for a [`CodecTy::List`] of one, and `None` for every other
-    /// wire type.
+    /// dropped: the field's own class for a [`CodecTy::Class`], the *terminal
+    /// element's* for a [`CodecTy::List`] at any depth, and `None` for every
+    /// other wire type.
     ///
     /// The *declaration* half of a nested field, which is all a front-end
     /// crate can say: a descriptor does not exist until `nvs-codegen` has
@@ -863,12 +931,15 @@ pub struct CodecField {
     /// this list, and [`ClassDesc::codec_class`] reads one back.
     pub class: Option<String>,
     /// The accepted backing values where [`Self::ty`] is [`CodecTy::Enum`],
-    /// or where [`Self::element`] is — the *element's* roster in that second
-    /// case, exactly as [`Self::class`] holds the element's label. `None` for
-    /// every other wire type.
+    /// or where [`Self::element`]'s terminal is — the *element's* roster in
+    /// that second case, exactly as [`Self::class`] holds the element's label.
+    /// `None` for every other wire type.
     pub cases: Option<EnumCases>,
-    /// The wire contract's key when [`Self::ty`] is [`CodecTy::Shape`], and
-    /// `None` for every other wire type — `nvs_ir::lower::shape_codec_key`'s
+    /// The wire contract's key when [`Self::ty`] is [`CodecTy::Shape`] — or
+    /// when [`Self::element`]'s terminal is, an `array<{n: int}>` naming its
+    /// element's contract here exactly as it names that element's class on
+    /// [`Self::class`]. `None` for every other wire type —
+    /// `nvs_ir::lower::shape_codec_key`'s
     /// rendering of the nested shape, which `nvs-codegen` resolves to a
     /// [`ShapeCodec`] address in the second pass [`Self::class`] is resolved in.
     ///
