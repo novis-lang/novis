@@ -6,14 +6,17 @@ Two operands whose static types cannot both hold one value are refused before an
 // reported from the same run: the compiler already knows each answer, so
 // none of them is a question the program is allowed to ask.
 enum Status: int { Active = 1, Banned = 2 }
+enum Tier: int { Low = 1, High = 2 }
 class A {
 }
 class B {
 }
 string $s = "1";
 int $n = 1;
+uint $u = 1;
 bytes $y = $s as bytes;
 Status $e = Status::Active;
+Tier $t = Tier::Low;
 A $a = new A();
 B $b = new B();
 echo $s == $n, "\n";
@@ -21,9 +24,17 @@ echo $s == $y, "\n";
 echo $e == 1, "\n";
 echo $a == $b, "\n";
 echo $a == null, "\n";
+// Each enum is its own domain, so two of them are as disjoint as an enum and
+// the integer under it — a `match` on one of the two is the written spelling.
+echo $e == $t, "\n";
+// The other side of the same bound, and the reason the refusal is a
+// disjointness question rather than an identity-of-types one: `int`, `uint`,
+// `float` and `decimal` are one numeric domain, so this pairing is not
+// refused and the count below stays at the comparisons that are.
+echo $n == $u, "\n";
 --EXPECT--
 
 --EXPECTF-ERROR--
 error[E0466]: `string` and `int` are disjoint; no value is both, so this comparison is always false
 %A
-error: aborting due to 5 errors
+error: aborting due to 6 errors

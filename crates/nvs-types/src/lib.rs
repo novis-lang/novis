@@ -140,19 +140,25 @@
 //!   an arithmetic or bitwise operator applied directly to an enum operand,
 //!   and a conversion from one enum type to a different one — are [`expr`]'s
 //!   `reject_enum_operand`/`reject_enum_to_enum_conversion`.
+//! - **Equality-operand compatibility is one pass over one table.**
+//!   [`expr::operators`]'s `types_are_disjoint` partitions every modeled type
+//!   into `rule:expressions/disjoint-comparison-refused`'s domains and refuses
+//!   a comparison landing in two of them (`E0466`) — from `==`/`!=`, and from a
+//!   `switch` label and a `match` arm against their subject, which are the same
+//!   comparison written without the operator. Each enum is its own domain, so
+//!   two different enum types are refused for the reason an enum and the
+//!   integer under it are; `int`, `uint`, `float` and `decimal` are one domain,
+//!   so no pairing among them ever is. The pass is deliberately one-sided —
+//!   `mixed`, an intersection, a type variable and any class this compilation
+//!   did not declare all read as *may overlap*, because a missed diagnostic
+//!   costs an author nothing and a wrong one costs them a program that used to
+//!   build.
 //!
 //! # Known gaps
 //!
 //! Deliberately out of scope so far, left for a follow-up (see
 //! `docs/agent/handoff.md` for the ordering):
 //!
-//! - **No equality-operand compatibility check exists, for any type pair.**
-//!   `==`/`===` between two different enum types is not diagnosed, and neither
-//!   is `int` against `uint`; singling enums out would leave the operator
-//!   inconsistent with itself, so this wants a pass of its own rather than a
-//!   one-off special case. `rule:types/conversion`'s enum-to-enum refusal
-//!   already covers the `as` spelling, so the comparison is the whole hole.
-//!   — owner: unowned
 //! - **Exhaustive control-flow reachability is not done** — "every path
 //!   through this non-void function returns", and with it whether a bare
 //!   `return;` is legal where it stands, which is the same question as
