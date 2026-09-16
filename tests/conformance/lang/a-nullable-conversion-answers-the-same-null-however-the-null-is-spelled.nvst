@@ -1,0 +1,127 @@
+--TEST--
+`as ?T`'s `null` is one type written three ways — `?(A|B)`, `?A|B` and `A|B|null` — and the three answer the same value on every operand, `rule:expressions/nullable-conversion` over `rule:expressions/nullable-conversion-availability` row 2 and `rule:types/literal-types`'s membership chain
+--FILE--
+<?nvs
+enum Mode: int {
+    Read = 1,
+    Write = 2,
+    Admin = 3,
+}
+
+final class Spelling {
+    // `rule:expressions/nullable-conversion`'s `?T` with the `?` on the whole
+    // annotation, which is the spelling the parser hands the lowering as one
+    // `Nullable` node.
+    public static function parenText(mixed $m): string {
+        ?string $text = $m as ?("a"|"b");
+        if ($text != null) {
+            return $text;
+        }
+        return "null";
+    }
+
+    // The same type with the parentheses dropped: `?` binds the atom and not
+    // the union, so this parses as `?"a" | "b"` — a union whose *first member*
+    // carries the nullability. Reading the `?` off the annotation's own node
+    // misses it, and the membership chain the row above runs is then never
+    // reached at all.
+    public static function bareText(mixed $m): string {
+        ?string $text = $m as ?"a"|"b";
+        if ($text != null) {
+            return $text;
+        }
+        return "null";
+    }
+
+    // The same type again with the sugar expanded by hand. `?T` *is* `T|null`,
+    // so nothing about this spelling is a second operator.
+    public static function writtenText(mixed $m): string {
+        ?string $text = $m as "a"|"b"|null;
+        if ($text != null) {
+            return $text;
+        }
+        return "null";
+    }
+
+    // `rule:types/enum-case-type`'s named subset under the same three
+    // spellings: the target is a closed set either way, so a spelling that
+    // slips past the chain hands its operand through unchecked.
+    public static function parenCase(mixed $m): string {
+        ?Mode $some = $m as ?(Mode::Read|Mode::Write);
+        if ($some != null) {
+            return ($some as int) as string;
+        }
+        return "null";
+    }
+
+    public static function bareCase(mixed $m): string {
+        ?Mode $some = $m as ?Mode::Read|Mode::Write;
+        if ($some != null) {
+            return ($some as int) as string;
+        }
+        return "null";
+    }
+
+    public static function writtenCase(mixed $m): string {
+        ?Mode $some = $m as Mode::Read|Mode::Write|null;
+        if ($some != null) {
+            return ($some as int) as string;
+        }
+        return "null";
+    }
+}
+
+// A hit, a miss, and the tags that have no row into either set at all.
+array<mixed> $rows = ["a", "b", "z", 1, 2, 9, true];
+
+// The assertion is the agreement, counted rather than read off a line: three
+// spellings of one type that disagree anywhere fail here, and the echoed
+// values fail alongside them if all three drift the same way.
+int $asked = 0;
+int $agreed = 0;
+foreach ($rows as mixed $row) {
+    string $paren = Spelling::parenText($row);
+    string $bare = Spelling::bareText($row);
+    string $written = Spelling::writtenText($row);
+    echo $paren, " ", $bare, " ", $written, "\n";
+    $asked = $asked + 1;
+    if ($paren == $bare && $paren == $written) {
+        $agreed = $agreed + 1;
+    }
+
+    string $parenCase = Spelling::parenCase($row);
+    string $bareCase = Spelling::bareCase($row);
+    string $writtenCase = Spelling::writtenCase($row);
+    echo $parenCase, " ", $bareCase, " ", $writtenCase, "\n";
+    $asked = $asked + 1;
+    if ($parenCase == $bareCase && $parenCase == $writtenCase) {
+        $agreed = $agreed + 1;
+    }
+}
+echo "agreed ", $agreed as string, " of ", $asked as string, "\n";
+
+// A statically typed operand takes the other path into the chain — the base
+// conversion runs first and one representation is compared — and the miss is
+// still `null` in both union spellings.
+string $hit = "a";
+string $miss = "z";
+echo Spelling::bareText($hit), " ", Spelling::bareText($miss), "\n";
+echo Spelling::writtenText($hit), " ", Spelling::writtenText($miss), "\n";
+--EXPECT--
+a a a
+null null null
+b b b
+null null null
+null null null
+null null null
+null null null
+1 1 1
+null null null
+2 2 2
+null null null
+null null null
+null null null
+null null null
+agreed 14 of 14
+a null
+a null
