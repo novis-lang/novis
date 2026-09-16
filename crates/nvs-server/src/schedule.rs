@@ -75,20 +75,21 @@
 //! sleep re-arms past exactly that wake; `kill` keeps the id of the task each
 //! fire was spawned as, which is the handle it cancels and then waits out.
 //!
-//! # Known gaps
+//! # The tree a fire runs under arrives with its isolate
 //!
-//! 1. **A fire's context carries no configuration, so its `limits` sub-cap has
-//!    no ceiling to narrow and its `script` is refused at the door.** [`fire`]
-//!    builds the run's root on a bare [`Ctx`], and every question either half
-//!    asks of a context with none answers the closed way:
-//!    `nvs_runtime::Ctx::narrow_under` takes no sub-cap where there is no
-//!    configuration to set it in, and `nvs_runtime::capability::granted` denies
-//!    `script.spawn` to a context holding none, which is the refusal
-//!    `nvs_cli::serve`'s [`Fires::isolate`] reports. The grant half of a
-//!    narrowing lands regardless — it subtracts from a list rather than setting
-//!    a directive — so what is missing here is the deployment's own snapshot on
-//!    that context and not the narrowing over it.
-//!    — owner: unowned-closures
+//! [`fire`] builds the run's root context and puts no configuration on it,
+//! because this crate holds no snapshot and no holder to read one out of. The
+//! deployment therefore arrives the way the isolate does — through
+//! [`Fires::isolate`], which is handed that context and owes it the tree before
+//! it returns. § 5's two halves are measured against it: the run's budget is
+//! `[limits]` and its grants are `[capabilities]`, so a context still holding
+//! neither has no ceiling for the entry's `limits` to be tighter than and is
+//! denied `script.spawn` at the door.
+//!
+//! The narrowing over that tree stays the ticker's, for the reason the entry's
+//! own field gives: `limits` and `grants` are what the `[[schedule]]` block
+//! wrote, and reading them a second time on the implementor's side would be a
+//! second place one entry is understood.
 
 use std::cell::Cell;
 use std::io;
@@ -283,9 +284,16 @@ pub trait Fires {
     /// reported; the ticker adds nothing to it, because the front end's diagnostic is the message
     /// and a second line saying so is noise on every interval.
     ///
-    /// § 5's shape, and the implementation owes all of it: `Isolate::new` with the entry's `name` as
-    /// the argument the script reads back through `Core\Script::args()`, and [`nvs_host::Output`]
-    /// `Capture`, because a scheduled run's output is logged rather than delivered.
+    /// § 5's shape, and the implementation owes all of it: the deployment's configuration on the
+    /// context it is handed, `Isolate::new` with the entry's `name` as the argument the script reads
+    /// back through `Core\Script::args()`, and [`nvs_host::Output`] `Capture`, because a scheduled
+    /// run's output is logged rather than delivered.
+    ///
+    /// The tree is owed **first**, before anything here asks a capability, and it is owed here
+    /// because the ticker has none to give — the crate doc's § *The tree a fire runs under arrives
+    /// with its isolate* is why. A context still holding none has no ceiling for the entry's
+    /// `limits` to be tighter than, and `nvs_runtime::capability::granted` denies it `script.spawn`,
+    /// which is the first thing `nvs_runtime::script::resolve` asks for.
     fn isolate(&self, entry: &Armed, ctx: &mut Ctx) -> Option<Isolate>;
 
     /// § 5's log line: what the run answered, delivered to nobody.
