@@ -54,17 +54,16 @@ One file set: `crates/nvs-ir/src/lower/`, `crates/nvs-runtime/src/`, `crates/nvs
 One file set: `crates/nvs-types/src/`, `crates/nvs-hir/src/`, `crates/nvs-syntax/src/`,
 `crates/nvs-diagnostics/src/`.
 
-- **Builds**: `crates/nvs-hir/src/requires.rs` gap 2 (the harvest's wildcard arms made exhaustive,
-  `requires.rs:703`, `:705`, `:910`, `:975`, `:1018`, `:1191`, `:1245`), gap 3 (`Probe::tried` folded into the
-  unit key, `crates/nvs-config/src/cache.rs:36-37`, `crates/nvs-cli/src/script.rs:164`);
-  `crates/nvs-types/src/ctor_init.rs` gap 2 and `lateinit.rs` gap 2 (both `scan_expr` walks exhaustive,
-  closure bodies deliberately not counted).
+- **Builds**: `crates/nvs-hir/src/requires.rs` gap 2 (`Probe::tried` folded into the unit key,
+  `crates/nvs-config/src/cache.rs:36-37`, `crates/nvs-cli/src/script.rs:164`);
+  `crates/nvs-types/src/ctor_init.rs` gap 1 (a class with no explicit `constructor` refuses every own
+  required property that has no default, `ctor_init.rs:131`, `signatures.rs:1756`).
 - **M1's two, which no goal on the chain had taken** (tagged `M1`, a milestone that must be complete):
   `crates/nvs-syntax/src/lib.rs` gap 2 — `use function` / `use const` get the targeted refusal the gap
   itself asks for, naming `rule:classes/no-free-functions-or-constants`, instead of a generic parse error;
   gap 3 — keyword-spelled name segments past the first are covered by conformance cases rather than
   spot-checked (`Parser::is_name_segment`). Both are retagged to this goal in stage 0.
-- **Decided**: `ctor_init.rs` gaps 1, 3; `lateinit.rs` gaps 1, 3; `defaults.rs` gap 1; `derive.rs` gap 3;
+- **Decided**: `defaults.rs` gap 1; `derive.rs` gap 3;
   `intrinsics.rs` gaps 1–5; `links.rs` gap 1 and `reasons.rs` gap 1 (with `crates/nvs-stdlib/src/router.rs`
   gap 1, the same question); `response.rs` gap 1; `crates/nvs-syntax/src/casing.rs` gap 1,
   `crates/nvs-syntax/src/lib.rs` gap 1; `crates/nvs-hir/src/hierarchy.rs` gap 1, `requires.rs` gap 1;
