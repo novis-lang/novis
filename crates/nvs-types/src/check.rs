@@ -604,6 +604,11 @@ fn check_property_hooks(p: &nvs_syntax::ast::PropertyMember, ctx: &Ctx<'_>, env:
             nvs_syntax::ast::PropertyHookBody::Block(block) => {
                 check_block(&block.stmts, &mut live, &mut scope, return_ty, &inner, env);
                 record_locals(block.span, &mut scope, env);
+                let subject = format!(
+                    "`{}`",
+                    crate::signatures::hook_label(class, &name, hook.kind)
+                );
+                check_body_exits(&subject, block, return_ty, p.ty.span, env);
             }
         }
     }
@@ -830,24 +835,67 @@ fn forwards_the_called_class(name: &str, ctx: &Ctx<'_>, env: &Env<'_>) -> bool {
 }
 
 fn check_every_path_returns(m: &MethodMember, body: &Block, return_ty: TypeId, env: &mut Env<'_>) {
-    if m.return_type.is_none() || matches!(env.interner.get(return_ty), Ty::Void | Ty::Never) {
-        return;
-    }
-    if block_always_exits(&body.stmts) {
+    if m.return_type.is_none() {
         return;
     }
     let name = span_text(env.src, m.name).to_owned();
-    let declared = env.interner.describe(return_ty);
+    let declared = m.return_type.as_ref().map_or(m.name, |t| t.span);
+    check_body_exits(&format!("`{name}`"), body, return_ty, declared, env);
+}
+
+/// `rule:types/declaration`'s promise read at both exits of one block body:
+/// `E0739` where a path reaches the closing brace, `E0822` where a written
+/// `return;` leaves with nothing in hand.
+///
+/// The two are one function because they are one promise — a non-`void`
+/// declaration hands back a value **every** way out — and because every door a
+/// body arrives through owes both: a method, a block-bodied `get` hook and a
+/// block-bodied `fn` alike. `subject` is how the declaration is named back to
+/// its author, already quoted, and `declared` is the span of the written type
+/// the message points at.
+///
+/// Only the `E0739` half is an analysis. Whether a written `return;` is legal
+/// is the declared type alone, which is why `never` refuses one and yet is not
+/// asked about the falling-off path: a body whose every exit is a throw writes
+/// no `return` at all, and [`crate::returns`]'s walk is deliberately one-sided
+/// about the shapes it cannot prove.
+pub(crate) fn check_body_exits(
+    subject: &str,
+    body: &Block,
+    return_ty: TypeId,
+    declared: Span,
+    env: &mut Env<'_>,
+) {
+    if matches!(env.interner.get(return_ty), Ty::Void) {
+        return;
+    }
+    let mut valueless = Vec::new();
+    crate::returns::for_each_valueless_return(&body.stmts, &mut |span| valueless.push(span));
+    let described = env.interner.describe(return_ty);
+    for span in valueless {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_VALUELESS_RETURN,
+                format!("{subject} declares `{described}` but this `return` hands back nothing"),
+            )
+            .with_primary(span, "leaves with no value")
+            .with_secondary(declared, "declared here")
+            .with_help(
+                "return a value here, or declare `void` — `rule:types/conversion` has no implicit \
+                 `null` to stand in for the declared type",
+            ),
+        );
+    }
+    if matches!(env.interner.get(return_ty), Ty::Never) || block_always_exits(&body.stmts) {
+        return;
+    }
     env.diags.report(
         Diagnostic::error(
             code::E_MISSING_RETURN,
-            format!("`{name}` declares `{declared}` but a path reaches the end of its body"),
+            format!("{subject} declares `{described}` but a path reaches the end of its body"),
         )
         .with_primary(closing_brace(body), "reached without returning")
-        .with_secondary(
-            m.return_type.as_ref().map_or(m.name, |t| t.span),
-            "declared here",
-        )
+        .with_secondary(declared, "declared here")
         .with_help(
             "return a value on that path, throw, or declare `void` — a body that falls off its \
              end returns nothing at all, and `rule:types/conversion` has no implicit `null` to stand in for \

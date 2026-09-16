@@ -1,15 +1,20 @@
 //! "Does every path through this body leave the frame?" — `rule:types/declaration`'s
-//! *nothing is untyped*, applied to the one exit a body can take without
+//! *nothing is untyped*, applied to the two exits a body can take without
 //! writing anything at all.
 //!
-//! A method declaring a return type other than `void` promises a value of that
-//! type at every exit. The path that reaches the closing brace writes none, and
-//! there is nothing for it to hand back: `nvs_ir::lower::lower_method` seals a
-//! body's fall-through exit with `Terminator::Return(None)`, so the caller of an
-//! `int` method reads a slot the callee never wrote. PHP answers `null` there;
-//! `rule:types/conversion` has no implicit conversion for that to be, and inventing one
-//! would change a binding's type behind its declaration — so the path is refused
-//! where it is written (`E0739`).
+//! A body checked against a return type other than `void` promises a value of
+//! that type at every exit. The path that reaches the closing brace writes
+//! none, and there is nothing for it to hand back: `nvs_ir::lower::lower_method`
+//! seals a body's fall-through exit with `Terminator::Return(None)`, so the
+//! caller of an `int` method reads a slot the callee never wrote. PHP answers
+//! `null` there; `rule:types/conversion` has no implicit conversion for that to be, and
+//! inventing one would change a binding's type behind its declaration — so the
+//! path is refused where it is written (`E0739`). A written `return;` reaches
+//! the same terminator by the same promise and is refused as `E0822`, which
+//! asks nothing of the walk below: the declared type is the whole of whether
+//! one is legal. `crate::check`'s `check_body_exits` reads both, over every
+//! block body a declared type is checked against —
+//! `rule:php-migration/a-body-never-falls-off-its-end` is the pair's home.
 //!
 //! **The analysis is asymmetric on purpose, and the opposite way round from
 //! [`crate::locals`]'s `terminates`.** That one answers "may I drop this branch's
@@ -31,8 +36,9 @@
 //!
 //! A generator is not checked at all: `rule:iteration/one-way-only` leaves a generator's body no
 //! return value to produce, and `crate::check` already checks that body against
-//! `void`.
+//! `void` — which is also what makes `return;` its one legal stop.
 
+use nvs_diagnostics::Span;
 use nvs_syntax::ast::{Block, Expr, ExprKind, Stmt, StmtKind};
 
 /// Whether every path through `stmts` leaves the frame before reaching the end
@@ -42,22 +48,41 @@ pub(crate) fn block_always_exits(stmts: &[Stmt]) -> bool {
 }
 
 /// Every `return <expr>;` written in `stmts`, in source order.
+pub(crate) fn for_each_return<F: FnMut(&Expr)>(stmts: &[Stmt], f: &mut F) {
+    for_each_return_stmt(stmts, &mut |operand, _| {
+        if let Some(e) = operand {
+            f(e);
+        }
+    });
+}
+
+/// Every `return;` written in `stmts` that carries no value, as its own span.
+pub(crate) fn for_each_valueless_return<F: FnMut(Span)>(stmts: &[Stmt], f: &mut F) {
+    for_each_return_stmt(stmts, &mut |operand, span| {
+        if operand.is_none() {
+            f(span);
+        }
+    });
+}
+
+/// Every `return` written in `stmts`, in source order: its operand where it has
+/// one, and the statement's own span either way.
 ///
 /// A closure literal's body is *not* descended into: `fn` is an expression, so
 /// its returns belong to its own frame and are checked when
 /// `crate::expr::calls::check_fn_literal` checks that body. Nothing else here
 /// walks expressions at all, which is what makes that free rather than a case
 /// to remember.
-pub(crate) fn for_each_return<F: FnMut(&Expr)>(stmts: &[Stmt], f: &mut F) {
+fn for_each_return_stmt<F: FnMut(Option<&Expr>, Span)>(stmts: &[Stmt], f: &mut F) {
     for stmt in stmts {
         visit_return(stmt, f);
     }
 }
 
-fn visit_return<F: FnMut(&Expr)>(stmt: &Stmt, f: &mut F) {
+fn visit_return<F: FnMut(Option<&Expr>, Span)>(stmt: &Stmt, f: &mut F) {
     match &stmt.kind {
-        StmtKind::Return(Some(e)) => f(e),
-        StmtKind::Block(b) => for_each_return(&b.stmts, f),
+        StmtKind::Return(operand) => f(operand.as_ref(), stmt.span),
+        StmtKind::Block(b) => for_each_return_stmt(&b.stmts, f),
         StmtKind::If { then, else_, .. } => {
             visit_return(then, f);
             if let Some(else_) = else_ {
@@ -70,7 +95,7 @@ fn visit_return<F: FnMut(&Expr)>(stmt: &Stmt, f: &mut F) {
         | StmtKind::Foreach { body, .. } => visit_return(body, f),
         StmtKind::Switch { cases, .. } => {
             for case in cases {
-                for_each_return(&case.body, f);
+                for_each_return_stmt(&case.body, f);
             }
         }
         StmtKind::Try {
@@ -78,12 +103,12 @@ fn visit_return<F: FnMut(&Expr)>(stmt: &Stmt, f: &mut F) {
             catches,
             finally,
         } => {
-            for_each_return(&body.stmts, f);
+            for_each_return_stmt(&body.stmts, f);
             for catch in catches {
-                for_each_return(&catch.body.stmts, f);
+                for_each_return_stmt(&catch.body.stmts, f);
             }
             if let Some(finally) = finally {
-                for_each_return(&finally.stmts, f);
+                for_each_return_stmt(&finally.stmts, f);
             }
         }
         _ => {}

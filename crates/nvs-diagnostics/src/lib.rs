@@ -3648,6 +3648,22 @@ pub mod code {
     /// constructor position it leaves unfilled, and this one names a class with
     /// no contract to inspect.
     pub const E_DECODED_CLASS_HAS_NO_CODEC: Code = Code::new("E0821");
+    /// A written `return;` in a body whose declaration is not `void`.
+    ///
+    /// The defect [`E_MISSING_RETURN`] names, written out rather than reached
+    /// by falling off the end: both exits lower to
+    /// `nvs_ir::ir::Terminator::Return(None)`, so the caller of an `int`
+    /// member reads a slot the callee never wrote. It is a code of its own
+    /// because the edit is a different one — that code names a *path* an
+    /// author has to find, and this one names the statement under the cursor.
+    ///
+    /// `void` is the whole of what makes one legal, which is why a
+    /// constructor's is: it declares no return type at all, and
+    /// [`E_CONSTRUCTOR_RETURN_CARRIES_A_VALUE`] is the other half of that
+    /// pair. A generator's body reaches this nowhere — `rule:iteration/one-way-only` leaves it
+    /// no return value to produce, so `nvs_types::check` checks it against
+    /// `void` and `return;` is its only stop.
+    pub const E_VALUELESS_RETURN: Code = Code::new("E0822");
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.

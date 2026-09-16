@@ -81,13 +81,17 @@
 //! [`is_true_literal`] owns which subject qualifies, and why a `default` arm
 //! and a comma-separated run of labels are given nothing.
 //!
-//! **Known gaps**, beyond the ones `crate` docs already name: a `switch`
-//! case that silently falls through to the next one (no explicit `break`/
-//! `continue`, and not the last case) contributes nothing to what is live
-//! *within* the case it falls into — each case is still checked starting
-//! fresh from what was live before the whole `switch`, same as a `case`
-//! reached by a direct jump would see (documented at the `Switch` arm below).
-//! — owner: unowned
+//! **Every `switch` case is checked from what was live before the whole
+//! `switch`**, whether it is reached by its own label or by falling out of the
+//! case above it. That is the join of those two entries rather than an
+//! approximation of it: a case is always reachable by its own label, so a name
+//! the case above assigned is not live on every way in, and intersecting the
+//! entries leaves exactly the pre-`switch` set. What it costs is one program PHP
+//! runs: a read whose only assignment is the case above it is refused, which is
+//! `rule:types/declaration`'s *definite assignment is checked* over the entry a
+//! fall-through does not remove, and the fix is a binding made before the
+//! `switch`. The `Switch` arm below documents what the same walk models
+//! precisely, which is what each case contributes to what is live *after* it.
 //!
 //! **A type declaration reaching this walk is refused, not descended into.**
 //! [`crate::check::check_stmts`] matches `class`/`interface`/`enum` at file
@@ -1081,9 +1085,10 @@ pub(crate) fn check_stmt(
             check_return(e, return_ty, live, scope, ctx, env);
         }
         StmtKind::Return(None) => {
-            // Whether a bare `return;` is legal here (only when `return_ty`
-            // is `void`) needs reachability analysis this slice doesn't do —
-            // see the crate docs' known gaps.
+            // Nothing to check about the value there is not: whether a bare
+            // `return;` is legal is the declared type alone, and
+            // `crate::check`'s `check_body_exits` reads it once per body
+            // rather than here, where the declaration is not in reach.
         }
         StmtKind::Block(b) => check_block(&b.stmts, live, scope, return_ty, ctx, env),
         StmtKind::Empty | StmtKind::InlineHtml(_) | StmtKind::Error => {}
@@ -1195,9 +1200,9 @@ pub(crate) fn check_stmt(
         }
         StmtKind::Switch { subject, cases } => {
             let subject_ty = check_expr(subject, None, live, scope, ctx, env);
-            // Every case starts fresh from the pre-switch `live` — see the
-            // module docs' known gaps on why fallthrough isn't modeled for
-            // *within*-case reads. What *is* modeled precisely: a case
+            // Every case starts fresh from the pre-switch `live`, which is the
+            // join of its two entries rather than a stand-in for one — the
+            // module docs own why. What is modeled precisely here: a case
             // contributes to what's live after the switch only when it
             // definitely exits there — via a trailing `break`/`continue`, by
             // being the last case and falling off the end, or (excluded from

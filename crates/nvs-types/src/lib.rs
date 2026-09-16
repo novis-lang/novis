@@ -153,20 +153,15 @@
 //!   did not declare all read as *may overlap*, because a missed diagnostic
 //!   costs an author nothing and a wrong one costs them a program that used to
 //!   build.
-//!
-//! # Known gaps
-//!
-//! Deliberately out of scope so far, left for a follow-up (see
-//! `docs/agent/handoff.md` for the ordering):
-//!
-//! - **Exhaustive control-flow reachability is not done** — "every path
-//!   through this non-void function returns", and with it whether a bare
-//!   `return;` is legal where it stands, which is the same question as
-//!   whether the enclosing return type is `void` ([`locals`]'s
-//!   `StmtKind::Return(None)` arm). Definite assignment itself is no longer
-//!   conservative around the block statements: a `switch` and a `try`/`catch`
-//!   intersect their arms' live sets the way an `if` does.
-//!   — owner: unowned
+//! - **A declared return type is answered for at both of a body's exits.**
+//!   [`returns`] walks for a path that reaches the closing brace (`E0739`) and
+//!   [`check`]'s `check_body_exits` refuses a written `return;` under anything
+//!   but `void` (`E0822`), over every block body a declared type is checked
+//!   against: a method's, a `get` hook's and a block-bodied `fn`'s.
+//!   `rule:php-migration/a-body-never-falls-off-its-end` owns the pair.
+//!   Definite assignment is likewise not conservative around the block
+//!   statements: a `switch` and a `try`/`catch` intersect their arms' live sets
+//!   the way an `if` does.
 
 pub(crate) mod attributes;
 pub(crate) mod callables;

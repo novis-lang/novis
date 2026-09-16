@@ -1,0 +1,33 @@
+--TEST--
+A `get` hook and a block-bodied `fn` answer for a path that reaches their closing brace, exactly as a method does — `rule:types/declaration`
+--FILE--
+<?nvs
+// The promise is the declaration's, not the method's: every block body checked
+// against a non-`void` type is walked for a path that leaves through the
+// bottom. Both bodies below return on one path and fall off the other.
+class Reading {
+    public int $celsius = 20;
+
+    public int $doubled {
+        get {
+            if ($this->celsius > 0) {
+                return $this->celsius * 2;
+            }
+        }
+    }
+}
+
+var $clamp = fn (int $x): int => {
+    if ($x > 0) {
+        return $x;
+    }
+};
+echo $clamp(1), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0739]: `Reading::$doubled::get` declares `int` but a path reaches the end of its body
+%A
+error[E0739]: the closure declares `int` but a path reaches the end of its body
+%A
+error: aborting due to 2 errors

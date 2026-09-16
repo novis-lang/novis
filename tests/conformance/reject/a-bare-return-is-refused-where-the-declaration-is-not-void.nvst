@@ -1,0 +1,39 @@
+--TEST--
+A `return;` under a declaration that is not `void` is refused where it is written, at every door a body arrives through — `rule:types/declaration`
+--FILE--
+<?nvs
+// A non-`void` declaration promises a value at every exit, and a bare
+// `return;` is the exit carrying none. What makes one legal is the declared
+// type alone, so the constructor below keeps its own: it declares no return
+// type at all, and `E0248` is the other half of that pair.
+class Sum {
+    public int $total;
+
+    public function constructor(int $total) {
+        $this->total = $total;
+        return;
+    }
+
+    public int $doubled {
+        get {
+            return;
+        }
+    }
+
+    public static function of(int $n): int {
+        return;
+    }
+}
+
+var $f = fn (int $x): int => { return; };
+echo $f(1), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0822]: `Sum::$doubled::get` declares `int` but this `return` hands back nothing
+%A
+error[E0822]: `of` declares `int` but this `return` hands back nothing
+%A
+error[E0822]: the closure declares `int` but this `return` hands back nothing
+%A
+error: aborting due to 3 errors

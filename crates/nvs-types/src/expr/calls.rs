@@ -1926,6 +1926,12 @@ pub(crate) fn check_fn_literal(
             // through is `Captures`, so a reader walking outward from here
             // finds the enclosing body's copy rather than a shared one.
             crate::check::record_locals(block.span, &mut inner, env);
+            // A block body owes what a method's owes, and through the same two
+            // exits — the `E0450` above having already made the declared type a
+            // fact rather than a stand-in.
+            if let Some(written) = f.return_type.as_ref() {
+                crate::check::check_body_exits("the closure", block, ret, written.span, env);
+            }
             ret
         }
     };
