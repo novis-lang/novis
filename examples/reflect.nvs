@@ -11,8 +11,11 @@
 // does.** A `private` member is not reachable through `Core\Reflect` from
 // outside its class, because a reflection API that quietly lifts the rules
 // is a way of writing code that the type checker cannot see — which is the
-// half PHP's `setAccessible` gave away. So `members` counts two, not
-// three, and the read of the third is refused.
+// half PHP's `setAccessible` gave away. Naming a member is the program's
+// shape and always answerable, so `properties` lists all three; reading
+// one is an act, checked where the call is written, so
+// `readableProperties` answers two from out here and the read of the
+// third is refused.
 //
 // **A parsed AST is inert typed data**, with no path back into execution.
 // `Core\Ast::parse` is a reader, not an `eval` behind a longer name; ADR
@@ -34,7 +37,9 @@ var $described = Core\Reflect::forObject($point);
 echo 'class=', $described->name(), "\n";
 
 // The visibility-respecting walk: two of the three, seen from out here.
-echo 'members=', Core\Arr::count($described->properties()), "\n";
+// `properties()` beside it is the complete roster, and the difference
+// between the two answers is exactly what `get` refuses below.
+echo 'members=', Core\Arr::count($described->readableProperties()), "\n";
 
 // And the third, asked for by name. The clause is `RuntimeError` rather
 // than `Throwable`, so a misspelled member would not have been counted as
