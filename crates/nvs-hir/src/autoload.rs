@@ -138,6 +138,43 @@ pub struct AutoloadMap {
     /// already owned, with the root the glob would have given it — the
     /// vendor-override rule, made visible.
     shadowed: Vec<(String, PathBuf)>,
+    /// What *this program's* resolution probed, as opposed to what the
+    /// declarations above say it could: written only by
+    /// [`Self::resolve_recording`].
+    trace: ProbeTrace,
+}
+
+/// Every path a program's `autoload` resolution probed, in the order it probed
+/// them and with the misses kept — `rule:packaging/autoload-probes-fold-into-the-cache-key`'s datum.
+///
+/// **The misses are the point.** A file nobody references changes nothing, and
+/// when a reference is finally written it is the *referencing* file whose
+/// content hash moves, so an artifact cache keyed on the files it compiled
+/// already notices that on its own. What it cannot notice is shadowing:
+/// writing `src/Thing.nvs` where `App\Thing` currently resolves to
+/// `vendor/compat/Thing.nvs` changes the answer without touching a byte of
+/// anything the first compile hashed. The probed-and-missed path is the only
+/// record that the answer was ever a question.
+///
+/// What it holds: one [`PathBuf`] per root probed per autoloaded name —
+/// O(names × roots) for the length of one resolution, released with the map
+/// (`rule:programs/memory-priority`).
+#[derive(Clone, Debug, Default)]
+pub struct ProbeTrace {
+    probed: Vec<PathBuf>,
+}
+
+impl ProbeTrace {
+    /// The trace, in probe order, misses included.
+    ///
+    /// A name appears at most once: `crate::requires`' walk refuses a second
+    /// probe of a name it has already asked about, which is what bounds the
+    /// length and what makes the order a function of the program rather than of
+    /// how many times something asked.
+    #[must_use]
+    pub fn probed(&self) -> &[PathBuf] {
+        &self.probed
+    }
 }
 
 /// What one [`AutoloadMap::resolve`] call did: the file it landed on, if
@@ -264,6 +301,29 @@ impl AutoloadMap {
         }
 
         probe
+    }
+
+    /// [`Self::resolve`], keeping what it probed in this map's [`ProbeTrace`].
+    ///
+    /// The graph walk resolves through this one; every other caller through the
+    /// plain one. `rule:packaging/autoload-probes-fold-into-the-cache-key` keys a unit on what the
+    /// *program's own* resolution probed, so a caller merely asking the map a
+    /// question — `nvs check --autoload-map`, an editor resolving a name under
+    /// the cursor — must not be able to lengthen a trace a cache key is
+    /// computed from. Splitting the two is what makes that structural rather
+    /// than a note telling each caller to be careful.
+    pub fn resolve_recording(&mut self, name: &QName) -> Probe {
+        let probe = self.resolve(name);
+        self.trace.probed.extend(probe.tried.iter().cloned());
+        probe
+    }
+
+    /// What this program's resolution probed, handed back with the map rather
+    /// than dropped — the trace `rule:packaging/autoload-probes-fold-into-the-cache-key` folds into the
+    /// unit's cache key.
+    #[must_use]
+    pub fn probe_trace(&self) -> &ProbeTrace {
+        &self.trace
     }
 
     /// Every name the roots declare, sorted by fully-qualified name —

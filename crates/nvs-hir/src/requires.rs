@@ -83,14 +83,6 @@
 //!   Decided: Fold literal concatenations and consts before the graph walk — More requires are resolved
 //!   and bundled at build time, at the cost of a small constant folder that runs before the checker's.
 //!   — owner: unowned-closures
-//! - The escape sequences a double-quoted literal's cooking recognises are a
-//!   practical subset (`\\`, `\"`, `\$`, `\n`, `\r`, `\t`, `\v`, `\f`, `\e`)
-//!   good enough for a file path — octal/hex/unicode escapes are left
-//!   un-cooked (the backslash survives verbatim), which only matters for a
-//!   `require` path containing one, vanishingly rare in practice. The real
-//!   string-literal cooker belongs to a later milestone once something
-//!   besides this module needs it.
-//!   — owner: unowned
 //! - The name harvest is an over-approximation on purpose, and it reaches
 //!   every declaration site's `#[...]` groups as well as its types and its
 //!   bodies ([`walk_attributes`]) — but a `Name` in a still-unwalked corner
@@ -98,12 +90,14 @@
 //!   to autoload, so the direction to widen in is always "harvest more",
 //!   never "filter harder".
 //!   — owner: unowned
-//! - `rule:packaging/autoload-probes-fold-into-the-cache-key`'s probe trace is produced ([`crate::autoload::Probe`]) and
-//!   then dropped. Folding it into the artifact cache's key needs
+//! - `rule:packaging/autoload-probes-fold-into-the-cache-key`'s probe trace is
+//!   recorded and handed back ([`crate::autoload::ProbeTrace`], on the
+//!   [`AutoloadMap`] this walk returns) and read by nobody yet. What is left is
+//!   entirely on the cache side: a probed miss becomes a negative entry in
 //!   `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s
-//!   `PathEntry` table, which does not exist yet; that is the cache slice's
-//!   work, not this one's.
-//!   — owner: unowned
+//!   `PathEntry` table, and the trace's digest joins the unit key beside the
+//!   content hash. Nothing this module produces is missing for it.
+//!   — owner: unowned-closures
 
 use std::path::{Path, PathBuf};
 
@@ -407,12 +401,12 @@ pub fn resolve_program_linted(
             if resolver.module().symbols.contains(&name) || !probed.insert(name.clone()) {
                 continue;
             }
-            // `rule:packaging/autoload-probes-fold-into-the-cache-key` keys the artifact cache on the whole probe trace,
+            // `rule:packaging/autoload-probes-fold-into-the-cache-key` keys a unit on the whole probe trace,
             // misses included, so that adding a file which *shadows* one already
-            // resolved invalidates the unit. `Probe::tried` carries it; nothing
-            // records it yet, because `rule:packaging/an-artifact-is-one-immutable-content-addressed-file`'s `PathEntry` table is the cache
-            // slice's, not this one's.
-            if let Some(path) = built.resolve(&name).hit {
+            // resolved invalidates it. Resolving through `resolve_recording`
+            // rather than `resolve` is what keeps that trace: it rides back out
+            // inside the `AutoloadMap`, which is where the key reads it from.
+            if let Some(path) = built.resolve_recording(&name).hit {
                 next = Some((name, span, path));
                 break;
             }
@@ -921,7 +915,7 @@ fn walk_stmt(stmt: &Stmt, src: &SourceFile, out: &mut Harvest) {
 /// cook (a heredoc) is dropped: the parser already reported
 /// `E_AUTOLOAD_PATH_NOT_LITERAL` for every path that is not a plain string.
 fn record_autoload(decl: &AutoloadDecl, src: &SourceFile, out: &mut Harvest) {
-    let cook = |span: Span| src.span_text(span).and_then(cook_quoted);
+    let cook = |span: Span| cook_quoted(src, span);
     let kind = match &decl.kind {
         AutoloadKind::Prefix { prefix, roots } => {
             let Some(prefix) = cook(*prefix) else {
@@ -1260,62 +1254,32 @@ fn literal_require_path(expr: &Expr, src: &SourceFile) -> Option<String> {
     let ExprKind::Str(span) = &inner.kind else {
         return None;
     };
-    cook_quoted(src.span_text(*span)?)
+    cook_quoted(src, *span)
 }
 
-/// Cooks a lexed string token's raw text (quotes included) into its value.
-/// Only single- and double-quoted forms are recognised — a heredoc/nowdoc
-/// token's raw text starts with `<`, which falls through to `None`, the
-/// dynamic-fallback case. See the module docs for the escape subset a
-/// double-quoted literal supports.
-fn cook_quoted(raw: &str) -> Option<String> {
+/// Cooks a lexed string token into its value, for the two spellings a
+/// `require` resolves statically.
+///
+/// The cooking itself is [`nvs_syntax::string_lit::cook_string_literal`] — the
+/// front end's one escape grammar, so a path and an ordinary string literal
+/// written the same way denote the same bytes, octal, hex and `\u{...}`
+/// escapes included. What this adds is the *spelling* filter: a heredoc/nowdoc
+/// token's raw text starts with `<`, and that falls through to `None`, the
+/// dynamic-fallback case the module docs' first known gap names.
+///
+/// A literal whose escapes do not fully cook — a `\u{...}` past the Unicode
+/// ceiling, a byte escape that is not valid UTF-8 — still yields a value here,
+/// the same best-effort one the checker keeps checking against; the escape's
+/// own diagnostic belongs to `nvs_types::expr`'s `ExprKind::Str` arm, and a
+/// best-effort path that names no file is already
+/// `code::E_REQUIRE_TARGET_NOT_FOUND`'s case.
+fn cook_quoted(src: &SourceFile, span: Span) -> Option<String> {
+    let raw = src.span_text(span)?;
     let quote = raw.chars().next()?;
     if quote != '\'' && quote != '"' || raw.len() < 2 || !raw.ends_with(quote) {
         return None;
     }
-    let body = &raw[quote.len_utf8()..raw.len() - quote.len_utf8()];
-
-    if quote == '\'' {
-        let mut out = String::with_capacity(body.len());
-        let mut chars = body.chars();
-        while let Some(c) = chars.next() {
-            if c == '\\'
-                && let Some(n @ ('\\' | '\'')) = chars.clone().next()
-            {
-                out.push(n);
-                chars.next();
-                continue;
-            }
-            out.push(c);
-        }
-        return Some(out);
-    }
-
-    let mut out = String::with_capacity(body.len());
-    let mut chars = body.chars();
-    while let Some(c) = chars.next() {
-        if c != '\\' {
-            out.push(c);
-            continue;
-        }
-        match chars.clone().next() {
-            Some('\\') => out.push('\\'),
-            Some('"') => out.push('"'),
-            Some('$') => out.push('$'),
-            Some('n') => out.push('\n'),
-            Some('r') => out.push('\r'),
-            Some('t') => out.push('\t'),
-            Some('v') => out.push('\u{0B}'),
-            Some('f') => out.push('\u{0C}'),
-            Some('e') => out.push('\u{1B}'),
-            _ => {
-                out.push('\\');
-                continue;
-            }
-        }
-        chars.next();
-    }
-    Some(out)
+    Some(nvs_syntax::string_lit::cook_string_literal(src, span))
 }
 
 #[cfg(test)]
@@ -1480,6 +1444,57 @@ require './Lib/Helper.nvs';
             module
                 .symbols
                 .contains(&crate::qname::QName::parse("Helper"))
+        );
+    }
+
+    /// A `require` path is a string literal, so it denotes exactly what the
+    /// front end's one escape grammar says a string literal denotes
+    /// ([`nvs_syntax::string_lit`], the routine the checker diagnoses through
+    /// and the lowering emits from). Asserted as agreement on both sides of
+    /// the grammar rather than on one decoded byte: the target is named with
+    /// the three escapes only the full cooker decodes — hex, octal and
+    /// `\u{...}` — and a single-quoted literal, which has exactly two escapes,
+    /// still leaves `\x61` the four characters written.
+    #[test]
+    fn a_require_path_decodes_every_escape_its_string_does() {
+        let dir = TempDir::new("escapes");
+        dir.write(
+            "esc-aBé.nvs",
+            "<?nvs
+class Escaped {}
+",
+        );
+        dir.write(
+            "main.nvs",
+            r#"<?nvs
+require "esc-\x61\102\u{e9}.nvs";
+"#,
+        );
+
+        let (module, diags) = resolve_entry(&dir, "main.nvs");
+        assert!(!diags.has_errors(), "{diags:?}");
+        assert!(
+            module
+                .symbols
+                .contains(&crate::qname::QName::parse("Escaped")),
+            "the hex/octal/unicode-escaped path named no file"
+        );
+
+        let single = TempDir::new("escapes-single");
+        single.write(
+            "esc-a.nvs",
+            "<?nvs
+class Unreached {}
+",
+        );
+        single.write("main.nvs", "<?nvs\nrequire 'esc-\\x61.nvs';\n");
+
+        let (module, diags) = resolve_entry(&single, "main.nvs");
+        assert!(diags.has_errors(), "a single-quoted `\\x61` cooked");
+        assert!(
+            !module
+                .symbols
+                .contains(&crate::qname::QName::parse("Unreached"))
         );
     }
 
@@ -1708,6 +1723,80 @@ require './Lib/Helper.nvs';
         let (module, diags) = resolve_entry(&dir, "main.nvs");
         assert!(!diags.has_errors(), "{diags:?}");
         assert!(module.symbols.contains(&QName::parse(r"Framework\Core")));
+    }
+
+    /// `rule:packaging/autoload-probes-fold-into-the-cache-key`'s shadowing
+    /// edge, which is the whole reason a trace keeps its misses. Between the
+    /// two resolutions here, every file the first one hashed is byte-for-byte
+    /// what it was — so nothing *but* the recorded miss could tell the two
+    /// units apart, and a cache keyed on the compiled files alone would serve
+    /// the stale one.
+    #[test]
+    fn a_file_created_where_autoload_probed_invalidates_the_unit() {
+        let dir = TempDir::new("autoload-shadowing");
+        fs::create_dir_all(dir.path.join("src")).expect("create src root");
+        fs::create_dir_all(dir.path.join("vendor")).expect("create vendor root");
+        dir.write(
+            "Bootstrap.nvs",
+            "<?nvs\nautoload 'Framework' from './src', './vendor';\n",
+        );
+        dir.write(
+            "vendor/Core.nvs",
+            "<?nvs\nnamespace Framework;\nclass Core {}\n",
+        );
+        dir.write(
+            "main.nvs",
+            "<?nvs\nrequire './Bootstrap.nvs';\nvar $app = new Framework\\Core();\n",
+        );
+
+        let walk = |dir: &TempDir| -> Vec<PathBuf> {
+            let mut map = SourceMap::new();
+            let entry_id = map
+                .load(dir.path.join("main.nvs"))
+                .expect("load entry fixture");
+            let mut diags = Diagnostics::new();
+            let stmts = parse_file(map.file(entry_id), &mut diags);
+            let (_module, _loaded, autoload) =
+                resolve_program(entry_id, stmts, &mut map, &mut diags);
+            assert!(!diags.has_errors(), "{diags:?}");
+            autoload.probe_trace().probed().to_vec()
+        };
+
+        let before = walk(&dir);
+        assert_eq!(
+            before.len(),
+            2,
+            "probed {before:?}, not `src` then `vendor`"
+        );
+        assert!(
+            before[0].ends_with(Path::new("src/Core.nvs")) && !before[0].exists(),
+            "{:?} is not a recorded miss under `./src`",
+            before[0]
+        );
+        assert!(
+            before[1].ends_with(Path::new("vendor/Core.nvs")),
+            "the hit came from {:?}, not `./vendor`",
+            before[1]
+        );
+
+        // The one edit: a file written exactly where the first resolution
+        // probed and found nothing. `Bootstrap.nvs`, `main.nvs` and
+        // `vendor/Core.nvs` are untouched.
+        dir.write(
+            "src/Core.nvs",
+            "<?nvs\nnamespace Framework;\nclass Core {}\n",
+        );
+
+        let after = walk(&dir);
+        assert_ne!(
+            before, after,
+            "the trace did not notice the file written where it probed"
+        );
+        assert_eq!(
+            after,
+            before[..1].to_vec(),
+            "`./src` now hits, so the probe stops there"
+        );
     }
 
     /// `rule:programs/autoload`'s output rather than its effect: the name resolves to a
