@@ -98,10 +98,13 @@
 //!    declaration a function of the *values* a call binds rather than of the
 //!    statement alone. § 1 keys the plan cache on SQL text plus expansion arity,
 //!    so two calls binding the same statement with a `bytes` in different
-//!    positions would share a plan declared for the wrong types. The fix is
-//!    therefore the cache key's shape as much as the encoder's, and that is a
-//!    § 1 question rather than a § 9 one.
-//!    — owner: unowned
+//!    positions name one key. They are told apart without moving it:
+//!    [`TdsPlan`] already carries the `@params` text a plan was compiled
+//!    against and makes a mismatch a miss that unprepares the plan it did not
+//!    fit, which is what widening a marker to `nvarchar(max)` needed first. So what is left is this driver's encoder — a form per bound value,
+//!    a `varbinary` entry in the declaration, and the bytes written as
+//!    themselves.
+//!    — owner: tds-bytes
 
 use std::borrow::Cow;
 use std::cell::Cell;

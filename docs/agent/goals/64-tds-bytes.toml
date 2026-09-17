@@ -1,0 +1,172 @@
+# Goal 64 -- a `bytes` parameter binds on every driver
+# The acceptance test, as data.
+#
+# `64-tds-bytes.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+
+files = [
+  # Every `examples/*.nvs` fixture an `exact` check below names. goal-switch.py unions the previous
+  # goal's list into this one; this goal adds none of its own, because what it changes is what one
+  # driver puts on the wire and a unit test against a scripted server is where that is read.
+]
+
+[context]
+
+modules = [
+  # `encode`, `bind`, `declarations`, `text_param` and `text_of`: every site of the refusal, and the
+  # `@params` text a statement is compiled against. Stages 2 and 3.
+  "crates/nvs-db/src/tds/rpc.rs",
+  # `TdsPlan::declared` -- the declaration a plan was compiled against, compared on every lookup --
+  # and `start_statement`, the sequencing one statement goes out under. Stages 2 and 3.
+  "crates/nvs-db/src/tds/plan.rs",
+  # The driver's own map, and the `# Known gaps` block this goal closes. Stages 0 and 4.
+  "crates/nvs-db/src/tds/mod.rs",
+  # `decode_column`: the read side of ADR 0067 § 9's row, already whole, which stage 4 reads back
+  # through. Stage 4.
+  "crates/nvs-db/src/tds/value.rs",
+  # The wire's type tokens -- what a `varbinary` marker and its length are on this protocol. Stage 3.
+  "crates/nvs-db/src/tds/types.rs",
+  # The scripted server a unit test drives, which is how a wire shape is asserted without a daemon.
+  # Stage 4.
+  "crates/nvs-db/src/tds/testing.rs",
+  # `StatementCache` and the TDS connection's own cache field: § 1's key, stated once for every
+  # driver. Stage 3.
+  "crates/nvs-db/src/conn.rs",
+  # The driver that already binds a `bytes`: `encode`'s binary path, as the shape to agree with
+  # rather than to invent. Stage 2.
+  "crates/nvs-db/src/pg.rs",
+]
+
+# What a column's type means in both directions, what one API over five backends promises, and what
+# the memory a decision takes has to be.
+rules = [
+  "core-classes/db-column-types",
+  "core-classes/db-one-api",
+  "programs/memory-priority",
+]
+
+# Empty on purpose: the sections that argue this goal belong to single stages, below.
+adrs = []
+
+shapes = ["A commit message", "A code comment"]
+
+milestones = []
+
+playbook = [
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole decision record',
+  'Tooling > a plan field is patched',
+  'Tooling > a commit',
+  'Tooling > a [context]*',
+  'Tooling > orient.py prints',
+  'Tooling > another agent',
+  # Ranked by `python tools/playbook.py --manifest` against this goal's modules.
+  "Tooling > a loop-goal.toml check's -p",
+  'Writing Novis itself > nvsdb::encode is',
+  "Writing Novis itself > a crate's known-gap",
+  'Writing Novis itself > adding a driver',
+  'Writing a test case > a tds',
+  'Running things > python tools/db-matrix.py',
+]
+
+plan = ["Open now", "Blocking"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE STAGES. One table per prose stage in `64-tds-bytes.md`, holding what only that stage needs.
+#
+# `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
+# the base above -- an overlay adds and never replaces, so the base is what a session needs whatever
+# stage it is on, and the way it gets smaller is by moving an entry down here. A stage with nothing
+# of its own needs no table. Narrowable: rules, adrs, spec, shapes, playbook, milestones.
+#
+# These are the PROSE stage numbers, the `## Stage N` headings in this goal's `.md`. They are not
+# the `[[check]]` blocks' `stage = "2 the bound form"` labels, which may group several prose stages
+# under one acceptance line. loop-authoring.md section 2 is the whole of it.
+# ---------------------------------------------------------------------------------------------------
+
+[context.stage.2]
+# The type map read in both directions: the row a `bytes` is, and the sentence that says the table is
+# read outwards too.
+adrs = ["0067 §9"]
+
+[context.stage.3]
+# The key every driver's statement cache holds, which this stage does not move.
+adrs = ["0067 §1"]
+
+[context.stage.4]
+# What one API over five backends owes a program that binds the same list at each of them.
+rules = ["core-classes/db-transactions"]
+
+# Nothing this goal writes exists past the checker; the skip list is the floor's.
+[valgrind]
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-socket.nvs", "examples/queue-sqlite.nvs"]
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# This goal's own as well as its floor's: stage 4 asserts that a real SQL Server accepts the bind,
+# which is `tools/db-matrix.py`'s leg and nothing a scripted server can answer for.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "mysql", "mariadb", "mssql", "redis"]
+memoize_on = ["crates/nvs-db", "crates/nvs-stdlib", "tests/db"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the keystone: a bound value carries its form. Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the bound form"
+name = "nvs-db (a `bytes` is a bound value with a form, and the values with none are still refused)"
+args = ["test", "-p", "nvs-db"]
+tests = [
+  "a_bound_bytes_carries_a_binary_form_rather_than_a_refusal",
+  "an_array_an_object_and_a_non_finite_float_are_still_refused_by_the_tds_encoder",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the declaration, and the bytes on the wire. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the declaration"
+name = "nvs-db (a binary marker is declared `varbinary` and written as itself)"
+args = ["test", "-p", "nvs-db"]
+tests = [
+  "a_bound_parameter_renders_as_t_sql_reads_it_and_a_bytes_is_declared_varbinary",
+  "a_plan_declared_for_a_bytes_is_not_reused_for_a_text_value_at_that_marker",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the round trip, scripted and real. Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the round trip"
+name = "nvs-db (a `bytes` bound to the scripted server comes back as the bytes that went out)"
+args = ["test", "-p", "nvs-db"]
+tests = [
+  "tds_round_trips_a_bytes_through_varbinary",
+]
+
+# The matrix is the only place a driver claim meets a real server, and the one that says this bind is
+# not merely well-formed.
+[[check]]
+kind = "command"
+stage = "4 the round trip"
+name = "the five-driver matrix, with a `bytes` bound on each"
+argv = ["python", "tools/db-matrix.py", "--all"]
+want = ["mysql: ok", "mariadb: ok", "postgres: ok", "mssql: ok", "sqlite: ok"]
