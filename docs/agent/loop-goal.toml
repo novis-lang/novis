@@ -137,6 +137,8 @@ modules = [
   # The parse tree as a walkable shape: one entry per node, its production's name and the nodes it
   # contains — what `rule:core-classes/ast-is-inert`'s `Core\Ast::parse` hands a running program.
   "crates/nvs-syntax/src/walk.rs",
+  # Diagnostic values: what the compiler wants to say about a span of source.
+  "crates/nvs-diagnostics/src/diagnostic.rs",
 ]
 
 # The two rules every stage is written inside: what an alias is, and what a shape is.
