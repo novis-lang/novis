@@ -36,10 +36,10 @@ final class Report
 // the parent still reads 40 at the end.
 Report::$runs = 40;
 
-// The method form is the one that crosses: its label is looked up in the
-// compiled unit's class table, which every core already holds, where a path
-// would need a resolver the far core was never installed with
-// (`crates/nvs-host/src/placed.rs`'s `# Known gaps`).
+// The method form's label is looked up in the compiled unit's class table,
+// which every core already holds, so the far core prepares this child with no
+// resolver in the picture at all — the path form is the sibling case, and
+// `crates/nvs-host/src/placed.rs`'s *Both entry forms cross* is what each needs.
 var $elsewhere = spawn script Report::span(...)
     with(args: ["from" => "may", "months" => 3], output: "capture", on: "worker");
 var $answered = await $elsewhere;

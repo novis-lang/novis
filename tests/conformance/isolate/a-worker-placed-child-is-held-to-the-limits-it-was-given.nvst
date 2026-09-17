@@ -13,10 +13,11 @@ spawn = true
 memory = "256M"
 --FILE--
 <?nvs
-// The method form is the one that crosses a core: its label is looked up in the
-// compiled unit's class table, which every core already holds, where a path
-// would need a resolver the far core was never installed with
-// (`crates/nvs-host/src/placed.rs`'s `# Known gaps`).
+// The method form, which crosses with no resolver in the picture: its label is
+// looked up in the compiled unit's class table, which every core already holds.
+// A path crosses too and is compiled over there instead
+// (`crates/nvs-host/src/placed.rs`'s *Both entry forms cross*); what this case
+// is about is the ceiling, which is the same either way.
 final class Greedy
 {
     // `uint` because that is what `Core\Arr::count` answers, and a declared

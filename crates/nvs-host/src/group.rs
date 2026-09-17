@@ -86,17 +86,16 @@
 //! `rule:programs/memory-priority`. Per thread: one
 //! word, the installed pointer [`crate::Scheduler::run`] publishes.
 //!
-//! # Known gaps
+//! # Where a placement goes instead
 //!
-//! A child spawned `on: "worker"` reaches another core only when its entry is
-//! the **method** form; one naming a path starts here. [`crate::placed`] is that
-//! gap's one home and holds the reason — a path becomes code through a resolver
-//! only the thread `nvs-cli` booted on was installed with, while a method is code
-//! the compiled unit already holds and every core reads that unit. Everything
-//! else about the two placements is the same, so [`SchedulerHost::start_isolate`]
-//! asks [`crate::placed::destination_for`] and falls through to the body below on
-//! any answer but a core.
-//! — owner: worker-placement
+//! A child spawned `on: "worker"` reaches another core whichever entry form it
+//! names: a method is code the compiled unit already holds and every core reads
+//! that unit, and a path is compiled on the far core through the resolver the
+//! process published. [`crate::placed`] is the one home of what each needs.
+//! What is left here is the fall-through — a context with no class table, a
+//! process that published no resolver, no core free — so
+//! [`SchedulerHost::start_isolate`] asks [`crate::placed::destination_for`] and
+//! runs the child in the body below on any answer but a core.
 
 use std::cell::RefCell;
 use std::collections::VecDeque;

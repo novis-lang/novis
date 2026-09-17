@@ -1,0 +1,70 @@
+--TEST--
+A child written as a **path** and placed `on: "worker"` answers exactly what the same child placed `on: "here"` answers: the far core compiles it through the resolver the process published — `rule:concurrency/on-worker-runs-the-child-on-another-core`, ADR 0184 § 1
+--FILE nvs.toml--
+# `rule:security/capability-check-at-the-door`: `spawn script` goes through a door that asks for
+# `script.spawn` first, and deny-by-default means a case with no
+# configuration cannot spawn at all. This grants it and nothing else.
+[capabilities.script]
+spawn = true
+--FILE child.nvs--
+<?nvs
+// The child's own file, which is the whole point of the path form: nothing in
+// the parent's compiled unit names this code, so the core that runs it has to
+// compile it for itself. A class static and an `echo`, so the answer the join
+// carries is built here rather than defaulted.
+final class Tally {
+    public static int $runs = 0;
+}
+
+Tally::$runs = Tally::$runs + 1;
+echo "child ran\n";
+return "counted " . (Tally::$runs as string);
+--FILE--
+<?nvs
+// The agreement shape, asked of the entry form that used to stay home: one
+// question put to both placements, asserting that they **agree** rather than
+// what each answered, so a worker core that compiled a different file — or the
+// same file against a different store — fails here while still looking right on
+// its own line.
+//
+// `rule:concurrency/on-worker-runs-the-child-on-another-core`: both entry forms
+// cross, and each is prepared by the core that runs the child. A path becomes
+// code through a resolver, which is per thread, so the process publishes one
+// handle to the compiler it already built and a core installs it as it starts;
+// what is shared either way is compiled code and nothing else.
+
+// Set in the parent before either spawn, and read by neither: an isolate has
+// its own statics whichever core it runs on, so both children answer `1`.
+final class Tally {
+    public static int $runs = 40;
+}
+
+var $elsewhere = spawn script "child.nvs" with(output: "capture", on: "worker");
+var $answered = await $elsewhere;
+
+var $athome = spawn script "child.nvs" with(output: "capture", on: "here");
+var $local = await $athome;
+
+// Each line is a row of the joined answer, asked of both placements at once.
+// The answer crossed by copy at every node on the way out (ADR 0184 § 2), so
+// agreement here is agreement about values rather than about a shared object.
+echo "ok agrees: ", ($answered->ok == $local->ok) ? "yes" : "no", "\n";
+echo "and both are ", $answered->ok ? "true" : "false", "\n";
+echo "value agrees: ", (($answered->value as string) == ($local->value as string)) ? "yes" : "no", "\n";
+echo "value is ", $local->value as string, "\n";
+echo "output agrees: ", ($answered->output == $local->output) ? "yes" : "no", "\n";
+echo "output is ", $local->output;
+echo "error agrees: ", (($answered->error == null) == ($local->error == null)) ? "yes" : "no", "\n";
+
+// The last row of the same table: a child compiled on another core is still an
+// isolate, so neither of them reached this store.
+echo "parent still reads ", Tally::$runs, "\n";
+--EXPECT--
+ok agrees: yes
+and both are true
+value agrees: yes
+value is counted 1
+output agrees: yes
+output is child ran
+error agrees: yes
+parent still reads 40

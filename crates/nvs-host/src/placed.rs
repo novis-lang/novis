@@ -29,27 +29,23 @@
 //! ADR 0184 § 2 says belongs to the placement and the reason `on: "here"`
 //! exists.
 //!
-//! # Known gaps
+//! # Both entry forms cross
 //!
-//! **Only a method entry is placed; a path entry runs on the parent's core.**
-//! [`nvs_runtime::script::resolve`] reads a resolver a thread was *installed*
-//! with, and only the thread `nvs-cli` booted on has one, so a path that crossed
-//! would answer [`nvs_runtime::script::ResolveError::NoResolver`] — a failure
-//! value where the program asked for a core. Running it here instead keeps every
-//! promise the placement makes but one, which is the same trade
-//! [`destination_for`] refuses a placement under.
+//! A path becomes code through a resolver, which is per thread, and a core
+//! [`crate::worker`] starts for itself was never on the thread `nvs-cli` booted.
+//! What closes that is [`nvs_runtime::script::SharedResolver`]: the process
+//! publishes one handle to the compiler it already built — `nvs-cli`'s keeps its
+//! path map and its unit map behind `RwLock`s, and a serving fleet hands every
+//! core the same `Arc<Compiler>` so that a source compiles once for the process
+//! — and a core installs it on its own thread as it starts. So what is per
+//! thread stays the seam and not the cache, and a path entry is prepared on the
+//! core that runs it exactly as a method entry is.
 //!
-//! Closing it is a resolver the destination core can reach, and the table behind
-//! one is already shareable: `nvs-cli`'s compiler keeps its path map and its unit
-//! map behind `RwLock`s, and a serving fleet hands every core the same
-//! `Arc<Compiler>` so that a source compiles once for the process. What is
-//! per-thread is the seam and not the cache — [`nvs_runtime::script::install`]
-//! takes a `&'static dyn Resolver` and `nvs_runtime::script::scoped` a borrow on
-//! the installing core's own stack, and a core this crate started for itself was
-//! handed neither. So it is a goal's work rather than a milestone's, and it lands
-//! with [`crate::worker`]'s own gap, which is the same seam from the destination
-//! end.
-//! — owner: worker-placement
+//! [`crosses`] therefore asks what is true of the *context* rather than of the
+//! entry's form, plus the one question a path still raises: whether this process
+//! published a resolver at all. A `nvs check` and a test publish none, and a path
+//! entry there stays on the parent's core rather than crossing to answer
+//! [`nvs_runtime::script::ResolveError::NoResolver`].
 //!
 //! # What it spends
 //!
@@ -86,8 +82,9 @@ use crate::worker::{Answer, Destination, Posted};
 ///
 /// * A core to write to, and this task's own way of being woken by it
 ///   ([`crate::worker::destination`]).
-/// * An entry the far core can prepare, which today is the method form alone —
-///   the module doc's known gap owns why.
+/// * An entry the far core can prepare: a method always, and a path wherever
+///   this process published a resolver — the module doc's *Both entry forms
+///   cross* owns why those are the same question asked of two forms.
 /// * A class table to prepare it *against*: a method entry is a label looked up
 ///   in the compiled unit's table, and a context holding none could resolve
 ///   nothing there.
@@ -105,7 +102,19 @@ pub(crate) fn destination_for(ctx: &Ctx, entry: &Entry) -> Option<Destination> {
 /// rather than about whether a core happened to be free, which is also the only
 /// way to ask it of a context that is on no scheduler.
 fn crosses(ctx: &Ctx, entry: &Entry) -> bool {
-    entry.is_method() && ctx.class_table().is_some()
+    if ctx.class_table().is_none() {
+        return false;
+    }
+    // A method is a label in the compiled unit's table, and that table crossed
+    // with the seed, so there is nothing further to ask. A path becomes code
+    // through a resolver, and the one the far core will hold is the handle this
+    // process published — [`nvs_runtime::script::published`], read here rather
+    // than off a started core's thread-local because a core takes the handle as
+    // it starts and a core is started for the first placement that reaches it.
+    // A process that published none is a `nvs check` or a test, and a path entry
+    // there stays on the parent's core rather than crossing to answer
+    // [`nvs_runtime::script::ResolveError::NoResolver`].
+    entry.is_method() || nvs_runtime::script::published().is_some()
 }
 
 /// Starts the child on the core `destination` holds, and answers the handle that
@@ -200,11 +209,17 @@ fn cross(crossing: Crossing) -> Crossed {
         seed,
         timed,
     } = crossing;
-    // The method form's constructor, `destination_for` having refused every
-    // other one: the child's statics are materialized here from the recipes the
-    // compiled unit owns, because its code is the parent's unit's and there is no
-    // second unit whose prologue would arm them.
-    let child = seed.build_method(OutputSink::Buffer(Vec::new()));
+    // A method entry's statics are materialized here from the recipes the
+    // compiled unit owns, because its code is the parent's unit's and there is
+    // no second unit whose prologue would arm them. A path entry's are its own
+    // unit's, armed by the program below through `Ctx::install_statics` as every
+    // entry file's prologue does, so seeding the parent's first would be a store
+    // built to be thrown away.
+    let child = if entry.is_method() {
+        seed.build_method(OutputSink::Buffer(Vec::new()))
+    } else {
+        seed.build(OutputSink::Buffer(Vec::new()))
+    };
     // The receiving table for both crossings on this side, taken before the
     // context is moved into the run below. It is the table that crossed, so a
     // class in the answer is the same descriptor the parent will compare against
@@ -397,25 +412,47 @@ mod tests {
         ctx
     }
 
-    /// A method entry crosses and a path entry does not — the module doc's known
-    /// gap, asserted rather than described.
+    /// A resolver with nothing behind it, which is all a `crosses` case needs:
+    /// the question is whether the process published one, and no path here is
+    /// ever compiled.
+    #[derive(Debug)]
+    struct Publishable;
+
+    impl nvs_runtime::script::Resolver for Publishable {
+        fn resolve(&self, path: &str) -> Result<nvs_runtime::script::Program, String> {
+            Err(format!("`{path}` is not a script"))
+        }
+    }
+
+    /// Both entry forms cross once the process has published a resolver, and a
+    /// path stops crossing the moment it withdraws one.
     ///
-    /// The two forms differ in exactly one thing that matters here: a method is
-    /// code the compiled unit already holds and every core reads that unit, while
-    /// a path has to be compiled by a resolver only one thread was installed
-    /// with. A placement that crossed a path anyway would answer
-    /// `ResolveError::NoResolver` — a failure value where the program asked for a
-    /// core.
+    /// The forms differ in where the code comes from — a method is in the unit
+    /// the seed carries, a path is compiled on the far core — and the module
+    /// doc's *Both entry forms cross* owns why that is now a difference in the
+    /// preparation rather than in the placement. A path crossing to a core with
+    /// no resolver would answer `ResolveError::NoResolver`, which is a failure
+    /// value where the program asked for a core, so the published handle is what
+    /// the second half of this asserts.
     #[test]
-    fn a_method_entry_crosses_to_another_core_and_a_path_entry_stays_here() {
+    fn both_entry_forms_cross_once_a_resolver_is_published() {
         let ctx = with_a_class_table();
         let method = Entry::Method {
             label: "Work::run".to_owned(),
             names: Vec::new(),
         };
+        let path = Entry::Path("child.nvs".to_owned());
         assert!(crosses(&ctx, &method), "a method entry may not cross");
+        let published = nvs_runtime::script::publish(nvs_runtime::script::SharedResolver::new(
+            std::sync::Arc::new(Publishable),
+        ));
         assert!(
-            !crosses(&ctx, &Entry::Path("child.nvs".to_owned())),
+            crosses(&ctx, &path),
+            "a path entry stayed here with a resolver every core reads"
+        );
+        drop(published);
+        assert!(
+            !crosses(&ctx, &path),
             "a path entry crossed to a core that could not resolve it"
         );
     }

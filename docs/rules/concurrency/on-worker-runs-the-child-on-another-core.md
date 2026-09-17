@@ -26,11 +26,15 @@ cancelled, it is charged to the tree's budget rather than to a per-call limit
 call does not return until the cancellation it sent has been acknowledged from the other core and the
 child's own teardown has run there.
 
-**Which entry crosses is a fact about the spawn's form.** A `Class::method(...)` entry is a label the
-compiled unit's class table carries, and every core reads that unit, so the far core can prepare the
-child for itself. A path entry is compiled by a resolver only the thread the process booted on holds, so
-a child written as a path runs on its parent's core and the placement buys it nothing;
-`crates/nvs-host/src/placed.rs`'s `# Known gaps` is the one home of what closing that takes.
+**Both entry forms cross, and each is prepared by the core that runs the child.** A
+`Class::method(...)` entry is a label the compiled unit's class table carries, and every core reads that
+unit. A path entry is compiled through a resolver, which is per thread — so the process publishes one
+handle to the compiler it already built, and a core installs it on its own thread as it starts. What is
+shared either way is compiled code and nothing else, which is the sharing
+`rule:security/isolate-shares-nothing` permits. A process that publishes no resolver at all — a `nvs
+check`, an embedder that installed one only on its own thread — runs a path-entry child on the parent's
+core rather than placing it where nothing could compile it;
+`crates/nvs-host/src/placed.rs`'s *Both entry forms cross* is the one home of what each form needs.
 
 Which core it is, is decided by the set that offers one, and **worker cores are started lazily and
 bounded at the core count**: a core's scheduler thread starts the first time a program places a child on
