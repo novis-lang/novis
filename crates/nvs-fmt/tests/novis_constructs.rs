@@ -130,6 +130,97 @@ echo Grade::letter(84), match (1) { 1 => 'one', default => 'many' }, \"\\n\";
 }
 
 #[test]
+fn a_class_scoped_type_alias_has_one_layout() {
+    // A `type` member is a declaration with no body, so its whole layout is the
+    // depth of the body it sits in: four spaces per enclosing body, no tabs
+    // (`rule:tooling/fmt-base-style-is-per`), in a class, an interface and an
+    // enum alike. Each owner here writes one at a depth nobody would choose —
+    // too deep, at the left margin, half a level, a tab — and every other byte
+    // is what the printer answers today. The runs inside the type expression
+    // are among them: a type is a node to nobody in
+    // `crates/nvs-syntax/src/walk.rs`, so the `{` of a shape written in type
+    // position is outside the one-space rule the object literal below is
+    // inside, which is the crate's own known gap 5 and is the same at file
+    // scope. The blank line each author left is theirs, here as everywhere
+    // (known gap 1).
+    let mangled = "\
+<?nvs
+class Order
+{
+        type Meta = {total: decimal, note?: string};
+type Tag = string|int;
+
+    public function stamp(Meta $meta): Tag
+    {
+        return $meta->note ?? 'none';
+    }
+}
+
+interface Shipper
+{
+  type Label = {code: string};
+}
+
+enum Status
+{
+\ttype Pair = array<Status>;
+
+    Open,
+    Shipped,
+}
+
+class Report
+{
+    public static function total(Order::Meta $meta): decimal
+    {
+        return $meta->total;
+    }
+}
+echo Report::total({ total: 2.5 }), \"\\n\";
+";
+    let canonical = "\
+<?nvs
+class Order
+{
+    type Meta = {total: decimal, note?: string};
+    type Tag = string|int;
+
+    public function stamp(Meta $meta): Tag
+    {
+        return $meta->note ?? 'none';
+    }
+}
+
+interface Shipper
+{
+    type Label = {code: string};
+}
+
+enum Status
+{
+    type Pair = array<Status>;
+
+    Open,
+    Shipped,
+}
+
+class Report
+{
+    public static function total(Order::Meta $meta): decimal
+    {
+        return $meta->total;
+    }
+}
+echo Report::total({ total: 2.5 }), \"\\n\";
+";
+    assert_eq!(formatted(mangled), canonical);
+    // And the layout is one layout: what comes out goes back in unchanged
+    // (`rule:tooling/fmt-is-idempotent`), so neither the member's own line nor
+    // the bare `Meta` and `Order::Meta` that reach it move on a second run.
+    assert_eq!(formatted(canonical), canonical);
+}
+
+#[test]
 fn an_object_literal_on_one_line_has_one_space_inside_each_brace() {
     // One literal with no space inside either brace and one with too much, and
     // a literal its author wrote across lines, whose fields are one per line
