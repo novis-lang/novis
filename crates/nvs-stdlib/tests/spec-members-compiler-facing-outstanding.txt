@@ -1,0 +1,30 @@
+# Every member `docs/spec/01-core-library.md` § 13 names in the roster half of a
+# `| Class | Owns | ADR |` row that `nvs_stdlib::registry::CLASSES` does not
+# declare yet. One key per line, `§13 <Class>::<member>` — the row's class, since
+# § 13 is one row per class and a bare member name would say nothing about which
+# — then the goal that will strike it, named by its slug: `§13 Router::match  #
+# server`, read against docs/agent/goals/ by
+# `every_outstanding_key_names_an_owner`. That test's doc owns the column.
+#
+# A row that names no member at all is keyed by its class instead — `§13
+# Core\BigInt` — because the roster is the only claim a row makes, and a class
+# stated as English would otherwise be checked by nothing.
+#
+# `tests/spec_registry_coverage.rs` owns this file, and
+# `compiler_facing_members` owns what counts as a roster rather than as the
+# prose beside one. The list **only shrinks**: registering a member and striking
+# its line here are one edit, and the test fails on a stale line as loudly as on
+# an unlisted one. When this file holds no keys, spec § 13 is registered whole.
+#
+# Every key here is `unowned`, and docs/agent/carried-gaps.md § *Unowned* holds
+# the reason for each: no live goal builds either the double half of `Core\Test`
+# or arbitrary-precision integers, and neither waits on a milestone's work, so a
+# deferral would be the dishonest column rather than the scheduled one.
+
+§13 Core\BigInt  # unowned
+
+§13 Test::assertCalled  # unowned
+§13 Test::assertCompletes  # unowned
+§13 Test::assertNeverCalled  # unowned
+§13 Test::double  # unowned
+§13 Test::partial  # unowned

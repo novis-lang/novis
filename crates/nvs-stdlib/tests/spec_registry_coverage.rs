@@ -11,6 +11,15 @@
 //! members are English but their `Class` column is not, so the roster is
 //! checked where the signatures cannot be.
 //!
+//! [`every_compiler_facing_spec_member_is_registered`] asks it of § 13, whose
+//! `| Class | Owns | ADR |` rows put a class's roster and a paragraph about it
+//! in one cell. [`compiler_facing_members`] owns the rule that tells the two
+//! apart — a span is a member when it writes a signature or a generic, or when
+//! commas and slashes alone join it to one that does — and
+//! [`the_compiler_facing_walk_reads_a_roster_and_not_the_prose_beside_it`] pins
+//! both directions of it, since a walk reading the whole cell would report a
+//! *Replaces* clause's PHP twins as members nobody has written.
+//!
 //! This is the mirror of `conformance_coverage.rs`, which walks the registry
 //! and asks the repository for a case. This walks the *spec* and asks the
 //! registry for a row, so the two together close the loop: a member cannot be
@@ -39,10 +48,11 @@
 //!
 //! # The outstanding list is a file, and it only shrinks
 //!
-//! §§ 1-12 are not on disk yet — `crates/nvs-stdlib`'s own known gap 1 and the
-//! plan's `Open now` say how much is owed — so the honest reading of "fails
-//! naming every one with no registry entry" is a test that is red for the
-//! whole of the loop that exists to make it green. That trade was refused:
+//! A section the registry does not yet hold whole is the ordinary state of a
+//! spec being implemented — `crates/nvs-stdlib`'s own module doc says which
+//! ones those are — so the honest reading of "fails naming every one with no
+//! registry entry" is a test that is red for the whole of the loop that exists
+//! to make it green. That trade was refused:
 //! `tools/verify.py` stops at the first failing step, so a permanently red
 //! `cargo test` costs every later session its clippy and fmt signal, which is
 //! a much larger loss than the one it buys. The acceptance gate withholds
@@ -60,8 +70,8 @@
 //!   member and striking its line are one edit, and the file cannot drift into
 //!   a list of things that were true once.
 //!
-//! When the file is empty, its emptiness *is* the sentence at the top of this
-//! doc, and the loop is done with §§ 1-12.
+//! When one of these files is empty, its emptiness *is* the sentence at the top
+//! of this doc for the sections that file walks.
 //!
 //! # An outstanding key names its owner, in a column
 //!
@@ -139,6 +149,14 @@ fn cells(line: &str) -> Vec<String> {
     let mut escaped = false;
     for c in line.trim().trim_matches('|').chars() {
         match c {
+            // Held rather than written, and written below only where it turns
+            // out to have escaped nothing: a cell naming `Core\Reflect` holds
+            // one backslash and not two, which is what `classes_named` is
+            // asked about.
+            '\\' if !escaped => {
+                escaped = true;
+                continue;
+            }
             '|' if !escaped => out.push(String::new()),
             _ => {
                 if escaped && c != '|' {
@@ -147,7 +165,7 @@ fn cells(line: &str) -> Vec<String> {
                 out.last_mut().expect("a cell").push(c);
             }
         }
-        escaped = c == '\\' && !escaped;
+        escaped = false;
     }
     out.iter().map(|cell| cell.trim().to_owned()).collect()
 }
@@ -319,12 +337,13 @@ fn registered(candidates: &[&'static registry::CoreClass], name: &str) -> bool {
 /// Every ratchet file this module owns, named once so a gate written over all of
 /// them cannot quietly miss one.
 ///
-/// There is one per walk — §§ 1-12's, §§ 14-19's, §§ 16-17's classes and the
-/// migration table's — because the halves are finished by different loops and a
-/// single file would make a Part I regression indistinguishable from a Part II
-/// member nobody has reached yet.
-const RATCHETS: [&str; 4] = [
+/// There is one per walk — §§ 1-12's, § 13's, §§ 14-19's, §§ 16-17's classes
+/// and the migration table's — because the halves are finished by different
+/// loops and a single file would make a Part I regression indistinguishable
+/// from a Part II member nobody has reached yet.
+const RATCHETS: [&str; 5] = [
     "spec-members-outstanding.txt",
+    "spec-members-compiler-facing-outstanding.txt",
     "spec-members-part-two-outstanding.txt",
     "spec-classes-part-two-outstanding.txt",
     "migration-members-outstanding.txt",
@@ -1046,12 +1065,13 @@ struct PartTwoMember {
 /// all three own a `get`. The loose reading would let `Core\Env::get` strike
 /// two members nobody has written.
 ///
-/// **§§ 16 and 17 are out of scope, on the same line § 13 is.** Both write
-/// `| Class | Surface | ADR |` — one row per class, its members inside an
-/// English cell beside the prose about them — and a "Replaces `fsockopen`"
-/// clause sits in that cell with no dash or column separating it, so reading
-/// them means reading English rather than a shape. What that costs is worth
-/// naming rather than leaving implicit: nothing checks that `Core\Http\Client`,
+/// **§§ 16 and 17 are out of scope.** Both write `| Class | Surface | ADR |` —
+/// one row per class, its members inside an English cell beside the prose about
+/// them — and a "Replaces `fsockopen`" clause sits in that cell with no dash or
+/// column separating it, where § 13's otherwise identical shape puts its roster
+/// in one run of commas and slashes that [`compiler_facing_members`] can find an
+/// end to. What that costs is worth naming rather than leaving implicit:
+/// nothing checks that `Core\Http\Client`,
 /// `Core\RateLimit`, `Core\Metrics`, `Core\Net`, `Core\Crypto`, `Core\Html`,
 /// `Core\Xml`, `Core\Compress`, `Core\Zip` or `Core\Mime` has a row for every
 /// member the spec gives it — the registry-side gates walk the registry, so
@@ -1403,6 +1423,299 @@ fn every_part_two_spec_class_is_registered() {
          {}\n\
          Delete those lines — the list only shrinks, and striking a line is part of the slice \
          that registers the class.",
+        stale.len(),
+        path.display(),
+        stale
+            .iter()
+            .map(|key| key.as_str())
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+}
+
+/// Every code span in `text`, paired with the run of text between it and the
+/// span before it — `("forObject", ", ")`, and `""` for the first.
+///
+/// [`spans`] is the same walk without the gaps, and the gap is what
+/// [`a_roster_separator`] reads: § 13 states a roster and a sentence about it
+/// in one cell, and the only thing telling the two apart is what sits between
+/// two spans.
+fn spans_with_gaps(text: &str) -> Vec<(&str, &str)> {
+    let mut found = Vec::new();
+    let mut rest = text;
+    while let Some(open) = rest.find('`') {
+        let gap = &rest[..open];
+        let after = &rest[open + 1..];
+        let Some(close) = after.find('`') else { break };
+        found.push((&after[..close], gap));
+        rest = &after[close + 1..];
+    }
+    found
+}
+
+/// Whether the text between two code spans joins them into one roster rather
+/// than ending the clause the first one was in.
+///
+/// A roster is written `` `a`, `b` and `c` `` or `` `a`/`b` ``, with bold on the
+/// conjunction in one § 13 row, so a separator is commas, slashes, whitespace,
+/// emphasis and the two conjunctions and nothing else. Every other gap — a full
+/// stop, an em dash, any word at all — ends the roster, which is what keeps a
+/// *Replaces* clause's PHP twins and a sentence's `decimal` out of the walk.
+fn a_roster_separator(between: &str) -> bool {
+    between
+        .split(|c: char| c.is_whitespace() || c == ',' || c == '/' || c == '*')
+        .all(|word| word.is_empty() || word == "and" || word == "or")
+}
+
+/// One key docs/spec/01-core-library.md § 13 produces: a member one of its rows
+/// names, or a row's class where the row names no member at all.
+struct CompilerFacingMember {
+    /// Whether the registry answers for it — some candidate class declares the
+    /// member, or a class of that exact name is registered.
+    declared: bool,
+    /// `§13 Reflect::forClass`, or `§13 Core\BigInt` for a class-only row. The
+    /// spelling the ratchet file lists.
+    key: String,
+}
+
+/// Every member [docs/spec/01-core-library.md](/docs/spec/01-core-library.md)
+/// § 13 names, resolved to the classes the row naming it is about.
+///
+/// § 13 is a third shape again: `| Class | Owns | ADR |`, one row per class,
+/// with that class's roster and a paragraph about it sharing the *Owns* cell.
+/// That is the shape §§ 16-17 are excluded on, and reading it off position
+/// alone is what a naive walk gets wrong — `Core\Decimal`'s cell says "the
+/// non-operator members of the `decimal` scalar", `Core\Command`'s ends "no
+/// conversion from `string` are compile errors", and a *Replaces* clause puts
+/// eleven PHP function names in backticks beside `Core\Reflect`'s three
+/// members.
+///
+/// So a span is a member when it **anchors** — it writes a signature or a
+/// generic argument, `` `typeOf(mixed): TypeKind` ``, `` `get<T>` `` — or when
+/// an unbroken run of [`a_roster_separator`] gaps joins it to one that does.
+/// `` `forClass`, `forObject`, `typeOf(…)` `` is one roster and all three are
+/// read; `` `decimal` `` anchors nothing and neighbours nothing, and the full
+/// stop before *Replaces* ends the only run that could have reached its twins.
+/// A span that is not a member name at all, or that names a type by
+/// `rule:core-api/shape-rules`' casing, is never accepted and **breaks the run**, so a
+/// roster cannot reach across one.
+///
+/// A row whose cell names no member is keyed by its class instead, because the
+/// roster is the only claim a row makes and a class stated as English —
+/// `Core\Decimal` and `Core\BigInt` share one — would otherwise be checked by
+/// nothing. A row that does name members needs no class key: its members are
+/// resolved through [`classes_named`], which is empty for a class nobody has
+/// written, so every one of them is outstanding already.
+fn compiler_facing_members() -> Vec<CompilerFacingMember> {
+    let spec = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/spec/01-core-library.md");
+    let text = fs::read_to_string(&spec).unwrap_or_else(|err| panic!("{}: {err}", spec.display()));
+
+    let mut in_section = false;
+    let mut found: Vec<CompilerFacingMember> = Vec::new();
+    for line in text.lines() {
+        if let Some(number) = section_number(line) {
+            in_section = number == 13;
+            continue;
+        }
+        // Only a table row, so the prose under the table — which writes
+        // `Core\Reflect::typeOf`, `#[Test]` and `unserialize` in the same
+        // backticks — is not a roster this walk can be told apart from.
+        if !in_section || !line.starts_with('|') {
+            continue;
+        }
+        let row = cells(line);
+        let (Some(class_cell), Some(owns)) = (row.first(), row.get(1)) else {
+            continue;
+        };
+        let named: Vec<&str> = spans(class_cell)
+            .into_iter()
+            .filter(|span| span.starts_with(r"Core\"))
+            .collect();
+        if named.is_empty() {
+            continue;
+        }
+        let mut candidates: Vec<&'static registry::CoreClass> = Vec::new();
+        for name in &named {
+            for class in classes_named(name) {
+                if !candidates.iter().any(|held| held.name == class.name) {
+                    candidates.push(class);
+                }
+            }
+        }
+        let prefix = format!("{}::", named[0].trim_start_matches(r"Core\"));
+
+        // A parenthesised aside goes the way it does in Part II's bullets, and
+        // § 13 needs it more: `Core\Router` writes four of them, one holding a
+        // markdown link and one holding `url` itself.
+        let cleaned = without_asides(owns);
+        let listed = spans_with_gaps(&cleaned);
+        let names: Vec<Option<&str>> = listed
+            .iter()
+            .map(|(span, _)| {
+                let head = span[..span.find(['(', '<']).unwrap_or(span.len())].trim();
+                let name = member_name(head)?;
+                let mut rest = name.chars();
+                let a_type = rest.next().is_some_and(|first| first.is_ascii_uppercase())
+                    && rest.any(|later| later.is_ascii_lowercase());
+                (!a_type).then_some(name)
+            })
+            .collect();
+        let mut accepted: Vec<bool> = listed
+            .iter()
+            .zip(&names)
+            .map(|((span, _), name)| name.is_some() && span.contains(['(', '<']))
+            .collect();
+        // A run reaches its anchor from either side — `forClass` is two commas
+        // to the left of `typeOf(…)`, `assertSame` one slash — so the pass runs
+        // forwards and then backwards, and a span that is not a member is never
+        // accepted and so never carries acceptance across itself.
+        for index in 1..listed.len() {
+            accepted[index] = accepted[index]
+                || (names[index].is_some()
+                    && accepted[index - 1]
+                    && a_roster_separator(listed[index].1));
+        }
+        for index in (0..listed.len().saturating_sub(1)).rev() {
+            accepted[index] = accepted[index]
+                || (names[index].is_some()
+                    && accepted[index + 1]
+                    && a_roster_separator(listed[index + 1].1));
+        }
+
+        let mut any = false;
+        for (index, name) in names.iter().enumerate() {
+            let (Some(name), true) = (name, accepted[index]) else {
+                continue;
+            };
+            // A span qualified with some other class is a cross-reference and
+            // not one of this row's members, exactly as it is in Part II's
+            // tables: `Core\Router`'s cell says `Core\Request::route()` is the
+            // match it produced, and read as a `Router` member that would be a
+            // ratchet key no session could ever strike.
+            if qualifier(listed[index].0).is_some_and(|class| !named.contains(&class)) {
+                continue;
+            }
+            any = true;
+            found.push(CompilerFacingMember {
+                declared: registered(&candidates, name),
+                key: format!("§13 {prefix}{name}"),
+            });
+        }
+        if !any {
+            for name in named {
+                found.push(CompilerFacingMember {
+                    declared: registry::CLASSES.iter().any(|class| class.name == name),
+                    key: format!("§13 {name}"),
+                });
+            }
+        }
+    }
+
+    found
+}
+
+/// The § 13 walk reads the rosters and stops where the prose beside them
+/// starts.
+///
+/// **A gate over a parser needs a case that knows what the parser must find**,
+/// and here it needs the other half too: a walk that accepted every span in the
+/// *Owns* cell would report `§13 Reflect::get_class` and `§13 Decimal::decimal`
+/// as members nobody has written, and they are a PHP twin and a scalar's name.
+/// Both directions are pinned, because either alone passes on a walk that is
+/// wrong — the keys that must be there say the roster is read, and the keys that
+/// must not say the sentence around it is not.
+#[test]
+fn the_compiler_facing_walk_reads_a_roster_and_not_the_prose_beside_it() {
+    let found = compiler_facing_members();
+    let keys: BTreeSet<&str> = found.iter().map(|member| member.key.as_str()).collect();
+
+    for key in [
+        // A bare name two commas from its row's only signature.
+        "§13 Reflect::forClass",
+        "§13 Reflect::typeOf",
+        // A slash-separated roster that anchors on one generic in the middle.
+        "§13 Test::assertSame",
+        "§13 Test::expectFailure",
+        // The cell with four parenthesised asides in it.
+        "§13 Router::urlSigned",
+        "§13 Serialize::encode",
+        // The row that names no member at all.
+        r"§13 Core\BigInt",
+    ] {
+        assert!(
+            keys.contains(key),
+            "the walk over docs/spec/01-core-library.md § 13 did not enumerate `{key}`, so the \
+             gate below cannot ask the registry about it"
+        );
+    }
+
+    for key in [
+        // A *Replaces* clause's PHP twin, a full stop away from the roster.
+        "§13 Reflect::get_class",
+        // The last span of a sentence about compile errors.
+        "§13 Command::string",
+        // A scalar's name, in a cell that names no member.
+        "§13 Decimal::decimal",
+        // A statement keyword, in the sentence after the em dash.
+        "§13 Serialize::spawn",
+    ] {
+        assert!(
+            !keys.contains(key),
+            "the walk over docs/spec/01-core-library.md § 13 read `{key}` out of the prose beside \
+             a roster — a ratchet key no session could ever strike"
+        );
+    }
+
+    assert!(
+        found.len() > 25,
+        "{} yielded only {} § 13 key(s), which is too few to be the whole table — the roster \
+         reading has stopped matching the spec's own shape",
+        "docs/spec/01-core-library.md",
+        found.len()
+    );
+}
+
+/// [`every_part_one_spec_member_is_registered`]'s third half: every member
+/// [docs/spec/01-core-library.md](/docs/spec/01-core-library.md) § 13 names is a
+/// member some class in [`registry::CLASSES`] declares.
+///
+/// [`compiler_facing_members`] owns the walk and what a roster is.  This owns
+/// the ratchet: `tests/spec-members-compiler-facing-outstanding.txt`, whose keys
+/// carry the row's class — `§13 Router::match` — because § 13 is one row per
+/// class and a bare member name would say nothing about which.
+#[test]
+fn every_compiler_facing_spec_member_is_registered() {
+    let outstanding: BTreeSet<String> = compiler_facing_members()
+        .into_iter()
+        .filter(|member| !member.declared)
+        .map(|member| member.key)
+        .collect();
+
+    let Ratchet {
+        path, keys: listed, ..
+    } = outstanding_file("spec-members-compiler-facing-outstanding.txt");
+    let unlisted: Vec<&String> = outstanding.difference(&listed).collect();
+    assert!(
+        unlisted.is_empty(),
+        "{} spec member(s) in § 13 have no `registry::CLASSES` row and are not listed in {}: {}\n\
+         Register the member (four things — see docs/agent/conventions.md), or add its key to \
+         that file if it is genuinely still owed.",
+        unlisted.len(),
+        path.display(),
+        unlisted
+            .iter()
+            .map(|key| key.as_str())
+            .collect::<Vec<_>>()
+            .join(", ")
+    );
+
+    let stale: Vec<&String> = listed.difference(&outstanding).collect();
+    assert!(
+        stale.is_empty(),
+        "{} line(s) in {} name a member that is registered now, or a key no § 13 row produces: \
+         {}\n\
+         Delete those lines — the list only shrinks, and striking a line is part of the slice \
+         that registers the member.",
         stale.len(),
         path.display(),
         stale

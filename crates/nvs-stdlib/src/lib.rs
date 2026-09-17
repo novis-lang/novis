@@ -100,9 +100,8 @@
 //! copy of it.
 //!
 //! So a member the spec writes and this crate has not registered needs its row
-//! and its body, never a spelling: `rule:types/array-combination`'s four,
-//! `Arr::append`, `Arr::prepend`, `Path::join`, `diff`/`intersect`, § 9's
-//! three collections and § 12's `Uri` are each in that position.
+//! and its body, never a spelling — and which members those are is counted
+//! rather than listed here, by the walks below.
 //!
 //! **A type variable is inferred, never declared by user code.**
 //! `rule:types/declaration`'s *Revisiting* section scopes `<T>` to
@@ -111,36 +110,30 @@
 //! substitution, and its own docs are the home for what that does and does not
 //! do yet.
 //!
-//! # Known gaps
+//! # What measures the roster
 //!
-//! 1. **The registry holds spec §§ 1–12 whole; §§ 13–20 hold whatever the
-//!    goals since have written, and nothing measures the remainder.**
-//!    `Core\Arr::count` was the first, and landed with the mechanism rather
-//!    than after it, on this repository's standing "narrow slice, end to end"
-//!    rule. Two more members proved the two things the mechanism still had to:
-//!    `Arr::filter`, which calls *back* into Novis code through
-//!    `nvs_runtime::call_closure`, and `Str::join`, the first with an optional
-//!    parameter. Everything registered since is a registry row plus a body and
-//!    nothing else.
+//! `tests/spec_registry_coverage.rs` walks `docs/spec/01-core-library.md` and
+//! asks this registry for a row, in each shape the spec writes one: §§ 1–12's
+//! `| Member | Signature | … |` tables, § 13's `| Class | Owns | ADR |` rows,
+//! and §§ 14–19's bullets and tables. Every walk carries a checked-in
+//! outstanding-members file — `spec-members-outstanding.txt`,
+//! `spec-members-compiler-facing-outstanding.txt`,
+//! `spec-members-part-two-outstanding.txt` — which **only ever shrinks**:
+//! registering a member and striking its line are one edit, and the gate fails
+//! on a stale line as loudly as on an unlisted one. A file holding no keys is
+//! this project's definition of *registered whole* for the sections it walks,
+//! and every key that remains names its owner in a column, read against
+//! `docs/agent/goals/`. `tests/conformance_coverage.rs` keeps the other half
+//! honest: a registered member with no `.nvst` case that calls it fails
+//! `cargo test -p nvs-stdlib`.
 //!
-//!    **Two gates say so, and both stop at § 12.**
-//!    `tests/spec_registry_coverage.rs` fails on a §§ 1–12 row the registry
-//!    does not declare, and `tests/spec-members-outstanding.txt` — the file it
-//!    reads, which only ever shrinks — holds no keys, which is this project's
-//!    definition of *registered whole*. `tests/conformance_coverage.rs` then
-//!    keeps that half honest: a member with no `.nvst` case that calls it fails
-//!    `cargo test -p nvs-stdlib`.
-//!
-//!    **Past § 12 there is no outstanding-members file and no coverage gate**,
-//!    so a row nobody has written fails nothing — `Core\Db`'s `stream`,
-//!    `streamAs` and `Connection::close` are spec § 18 rows in exactly that
-//!    position. What each of §§ 13–20 still owes is its own module's known
-//!    gaps; `docs/agent/carried-gaps.md` is where the ones no chain goal owns
-//!    are kept, and widening either gate past § 12 is an entry on it.
-//!    Decided: Widen both gates past § 12, with an outstanding-members ratchet file seeded with every
-//!    unwritten row — Every missing member becomes visible and can only shrink; seeding the file is a
-//!    one-time listing job.
-//!    — owner: decided-closures
+//! **What no walk reads is §§ 16–17's rosters**, which the spec states inside
+//! an English cell rather than as a shape — `compiler_facing_members`' own doc
+//! is where that bound and the reason § 13's otherwise identical table can be
+//! read are written down. Those two sections get a class-level walk instead,
+//! over `spec-classes-part-two-outstanding.txt`, so a class the spec names and
+//! nobody has written is still caught; that a class the registry does hold is
+//! missing a member the prose gives it, nothing checks.
 
 pub mod arr;
 mod ast;
