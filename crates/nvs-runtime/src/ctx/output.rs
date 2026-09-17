@@ -620,7 +620,8 @@ impl Ctx {
     /// a CLI program, a `#[Test]` method, a `.nvst` case, a `spawn script`
     /// child, none of which is answering a request — and there the member
     /// writes the bytes into this context's own output, which is
-    /// `nvs_stdlib::response`'s gap 1 for the member whose body is a file.
+    /// `nvs_stdlib::response` § *A body goes out verbatim, and off a request
+    /// the declaration is inert* for the member whose body is a file.
     ///
     /// The request is the question rather than the sink, unlike
     /// [`Self::carrier`]: a child isolate inside a request takes its parent's

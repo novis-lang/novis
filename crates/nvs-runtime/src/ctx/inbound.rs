@@ -437,7 +437,8 @@ pub struct Inbound {
     ///
     /// `None` for every carrier no connection built, which is what makes a
     /// stream off a CLI program an ordinary buffered body rather than a refusal
-    /// (`nvs_stdlib::response`'s own gap 1).
+    /// (`nvs_stdlib::response` § *A body goes out verbatim, and off a request
+    /// the declaration is inert*).
     ///
     /// **What it spends:** one pointer per request, plus one small allocation
     /// the connection holds the other reference to.
