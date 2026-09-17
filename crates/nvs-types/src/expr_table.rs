@@ -2186,7 +2186,7 @@ mod tests {
     /// `nvs-codegen` relocates against the descriptor
     /// `nvs_stdlib::class_descriptors` publishes.
     #[test]
-    fn an_instanceof_records_a_core_class_the_same_way() {
+    fn an_instanceof_over_a_core_class_records_the_resolved_name() {
         let (exprs, span) = check_and_find_expr_span(
             "<?nvs\nclass T {\n  function m(mixed $v): bool {\n    return $v instanceof Core\\Time\\Date;\n  }\n}\n",
         );

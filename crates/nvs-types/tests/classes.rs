@@ -1142,3 +1142,156 @@ fn a_computed_member_name_without_a_property_key_is_still_e0235() {
         "{unset:?}"
     );
 }
+
+/// `rule:types/class-reference-sites`: a `Core` class a value can be an instance of is a
+/// written class name `instanceof` accepts like a declared one. Two families
+/// qualify — a registered class with instances, and a namespaced
+/// `nvs_hir::errors::TREE` entry, which is an exception class under `Core\` by
+/// spelling alone — and a `Core` **namespace** class, declaring neither a slot
+/// nor an instance member, is the one that stays refused, because nothing is
+/// ever an instance of it and the test has no descriptor to walk.
+#[test]
+fn a_core_class_is_a_testable_instanceof_target() {
+    let accepted = check_src(
+        "<?nvs\n\
+         class T {\n\
+         \x20 function m(mixed $v): void {\n\
+         \x20   bool $a = $v instanceof Core\\Time\\Date;\n\
+         \x20   bool $b = $v instanceof Core\\Uri;\n\
+         \x20   bool $c = $v instanceof Core\\Db\\DbError;\n\
+         \x20 }\n\
+         }\n",
+    );
+    assert!(!accepted.has_errors(), "{accepted:?}");
+
+    let namespace = check_src(
+        "<?nvs\n\
+         class T {\n\
+         \x20 function m(mixed $v): void { $v instanceof Core\\Json; }\n\
+         }\n",
+    );
+    assert!(
+        namespace
+            .iter()
+            .any(|d| d.code == Some(code::E_INSTANCEOF_NOT_A_CLASS)
+                && d.message.contains("has no instances")),
+        "{namespace:?}"
+    );
+}
+
+/// The two right-hand sides `rule:types/class-reference-sites` refuses do not widen with the
+/// `Core` roster. A computed name is refused because Novis has no dynamic class
+/// names at all, and an enum — declared or `Core`-owned — because
+/// `rule:enums/closed-integer-type` makes a case a named integer rather than an object, so no
+/// value is ever an instance of one.
+#[test]
+fn a_dynamic_right_hand_side_and_an_enum_are_still_refused() {
+    let refused = check_src(
+        "<?nvs\n\
+         enum Rank: int { Low = 1, High = 2 }\n\
+         class T {\n\
+         \x20 function m(mixed $v, string $s): void {\n\
+         \x20   $v instanceof $s;\n\
+         \x20   $v instanceof Rank;\n\
+         \x20   $v instanceof Core\\Http\\Method;\n\
+         \x20 }\n\
+         }\n",
+    );
+    let refusals: Vec<_> = refused
+        .iter()
+        .filter(|d| d.code == Some(code::E_INSTANCEOF_NOT_A_CLASS))
+        .collect();
+    assert_eq!(refusals.len(), 3, "{refused:?}");
+    assert!(
+        refusals
+            .iter()
+            .any(|d| d.message.contains("must be a written class name")),
+        "{refused:?}"
+    );
+    assert_eq!(
+        refusals
+            .iter()
+            .filter(|d| d.message.contains("is an enum"))
+            .count(),
+        2,
+        "{refused:?}"
+    );
+}
+
+/// `rule:types/conversion`'s `mixed`-to-class row reaches a `Core` class with instances on a
+/// declared class's terms: the descriptor the process publishes is a class to
+/// test the value against, so the downcast is checked rather than asserted. A
+/// `Core` namespace class names no descriptor and keeps `E0711`, and an operand
+/// sharing no value with the target is the ordinary disjointness refusal.
+#[test]
+fn a_core_class_is_a_checked_conversion_target() {
+    let accepted = check_src(
+        "<?nvs\n\
+         class T {\n\
+         \x20 function m(mixed $v): void {\n\
+         \x20   Core\\Time\\Date $d = $v as Core\\Time\\Date;\n\
+         \x20   string $s = $d->format(\"yyyy\");\n\
+         \x20 }\n\
+         }\n",
+    );
+    assert!(!accepted.has_errors(), "{accepted:?}");
+
+    let namespace = check_src(
+        "<?nvs\n\
+         class T {\n\
+         \x20 function m(mixed $v): void { $v as Core\\Json; }\n\
+         }\n",
+    );
+    assert!(
+        namespace
+            .iter()
+            .any(|d| d.code == Some(code::E_UNTESTABLE_CONVERSION_TARGET)),
+        "{namespace:?}"
+    );
+
+    // `rule:core-classes/html-auto-escape` keeps `as Core\Html\Markup` a lift, so it is decided
+    // by `crate::expr::quals` rather than by this table and a literal is
+    // accepted where a computed operand is not.
+    let lift = check_src(
+        "<?nvs\n\
+         class T {\n\
+         \x20 function m(): void { Core\\Html\\Markup $m = \"<b>b</b>\" as Core\\Html\\Markup; }\n\
+         }\n",
+    );
+    assert!(!lift.has_errors(), "{lift:?}");
+}
+
+/// The other three `ConvKind::Object` targets name no class at all, so there is
+/// nothing to test a value against and the operand has to be an object already:
+/// `$plain as object` is the free widening row, and everything wider than an
+/// object keeps `E0711`.
+#[test]
+fn an_object_a_shape_and_a_callable_are_still_untestable_targets() {
+    let refused = check_src(
+        "<?nvs\n\
+         class T {\n\
+         \x20 function m(mixed $v): void {\n\
+         \x20   $v as object;\n\
+         \x20   $v as callable;\n\
+         \x20   $v as {x: int};\n\
+         \x20 }\n\
+         }\n",
+    );
+    assert_eq!(
+        refused
+            .iter()
+            .filter(|d| d.code == Some(code::E_UNTESTABLE_CONVERSION_TARGET))
+            .count(),
+        3,
+        "{refused:?}"
+    );
+
+    let widened = check_src(
+        "<?nvs\n\
+         class Foo {}\n\
+         class T {\n\
+         \x20 function m(Foo $f): void { object $o = $f as object; }\n\
+         }\n",
+    );
+    assert!(!widened.has_errors(), "{widened:?}");
+}
