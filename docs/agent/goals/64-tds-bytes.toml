@@ -150,7 +150,7 @@ playbook = [
   'Writing Novis itself > nvsdb::encode is',
   "Writing Novis itself > a crate's known-gap",
   'Writing Novis itself > adding a driver',
-  'Writing a test case > a tds',
+  'Writing a test case > a tds*',
   'Running things > python tools/db-matrix.py',
 ]
 
@@ -11348,9 +11348,13 @@ kind = "cargo-named"
 stage = "2 the bound form"
 name = "nvs-db (a `bytes` is a bound value with a form, and the values with none are still refused)"
 args = ["test", "-p", "nvs-db"]
+# The first name is a conjunction because the claim is: a `bytes` now has a form where every other
+# value has a rendering, and an encoder copied from PostgreSQL's passes a bytes-only case.
+# The second names no object: an instance comes from `NvsObj::new`, which is `unsafe`, and this crate
+# forbids it -- so the arm that refuses an object is asked through the tags a safe caller can mint.
 tests = [
-  "a_bound_bytes_carries_a_binary_form_rather_than_a_refusal",
-  "an_array_an_object_and_a_non_finite_float_are_still_refused_by_the_tds_encoder",
+  "a_bound_parameter_renders_as_t_sql_reads_it_and_a_bytes_goes_out_marked",
+  "an_array_and_a_non_finite_float_are_still_refused_by_the_tds_encoder",
 ]
 
 
@@ -11363,9 +11367,12 @@ kind = "cargo-named"
 stage = "3 the declaration"
 name = "nvs-db (a binary marker is declared `varbinary` and written as itself)"
 args = ["test", "-p", "nvs-db"]
+# The second name is the plan half: a statement binding a `bytes` at one marker and text at it is two
+# declarations, told apart by the comparison `TdsPlan::declared` already makes rather than by a wider
+# cache key -- which is the goal's own standing decision.
 tests = [
-  "a_bound_parameter_renders_as_t_sql_reads_it_and_a_bytes_is_declared_varbinary",
-  "a_plan_declared_for_a_bytes_is_not_reused_for_a_text_value_at_that_marker",
+  "a_marked_value_is_declared_varbinary_and_sent_as_its_own_octets",
+  "one_statement_binding_a_bytes_at_two_markers_is_two_plans_under_one_key",
 ]
 
 
@@ -11378,8 +11385,12 @@ kind = "cargo-named"
 stage = "4 the round trip"
 name = "nvs-db (a `bytes` bound to the scripted server comes back as the bytes that went out)"
 args = ["test", "-p", "nvs-db"]
+# The second name is the matrix leg's own case in `crates/nvs-db/tests/handshake.rs`: off the matrix
+# it returns without asserting, so this entry pins that it is in the tree and the `--all` check below
+# is the one that runs it against a server.
 tests = [
   "tds_round_trips_a_bytes_through_varbinary",
+  "a_mssql_bytes_binds_as_a_varbinary_and_comes_back_equal",
 ]
 
 # The matrix is the only place a driver claim meets a real server, and the one that says this bind is

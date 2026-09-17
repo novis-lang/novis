@@ -2,40 +2,39 @@
 
 ## State
 
-**Goal `tds-bytes` — stages 2 and 3 have landed.** A `bytes` bound on SQL Server goes out as a
-`varbinary` parameter: `crates/nvs-db/src/tds/rpc.rs:178`'s `Bound` is the form a bound value carries,
-`declarations` gives a binary marker its own `varbinary` entry, and `binary_param`
-(`crates/nvs-db/src/tds/rpc.rs:517`) writes the octets as themselves. `crates/nvs-db/src/tds/mod.rs`
-owns no gap now and the `carried-gaps.md` § *Owned* row is struck.
+**Goal `tds-bytes` is met.** A `bytes` bound on SQL Server goes out as a `varbinary` parameter and
+comes back equal: `crates/nvs-db/src/tds/rpc.rs:178`'s `Bound` is the form a bound value carries,
+`binary_param` (`crates/nvs-db/src/tds/rpc.rs:517`) writes the octets as themselves, and
+`crates/nvs-db/src/tds/plan.rs:954`'s scripted case asserts the write half and `decode_column`'s read
+half as one equality. The real-server half is `a_mssql_bytes_binds_as_a_varbinary_and_comes_back_equal`
+in `crates/nvs-db/tests/handshake.rs:1361`, confirmed to run by breaking its assertion and watching
+the `mssql` leg name it.
 
-The form travels from `encode` to `bind` as one `BINARY_MARK` octet in front of the value —
-`crates/nvs-db/src/tds/rpc.rs:106-115` owns why `0xFF` makes the two forms disjoint rather than
-conventional, and why `Encoder::Wire`'s shared `fn(Value) -> Option<Vec<u8>>` leaves no other channel.
-Stages 2 and 3 landed as one commit on purpose: the goal's *Standing decisions* says the refusal is
-closed in `encode` and on the wire together or in neither.
+Stages 2 and 3 landed last session under names no check named, so the acceptance list read `did not
+run` over green work. The goal's checks now name the tests the tree holds, in both toml copies; the
+one drafted name that was real work — the encoder's refusal for the tags with no form — is
+`an_array_and_a_non_finite_float_are_still_refused_by_the_tds_encoder`, and it names no object
+because `NvsObj::new` is `unsafe` and `nvs-db` forbids it.
 
-What is left is stage 4 alone — the round trip pinned on the scripted server and on a real one.
+`python tools/db-matrix.py --all` is 8/8 legs green, and the owner and playbook gates report the goal
+owns no gap and no carried row.
 
 ## Next group
 
-**Stage 4: the round trip, scripted and real** — one file set: `crates/nvs-db/src/tds/plan.rs`,
-`crates/nvs-db/src/tds/testing.rs`, `crates/nvs-db/tests/handshake.rs`.
+**Follow-on, unscheduled — one file set: `crates/nvs-stdlib/src/db/pool.rs`,
+`crates/nvs-db/src/tds/rpc.rs`.**
 
-- [ ] **A bound `bytes` comes back equal, over the scripted server** — a case beside
-      `crates/nvs-db/src/tds/plan.rs:901` that binds a marked value and answers a `varbinary` column
-      carrying the same octets, so the write half and `decode_column`'s read half are one assertion.
-      `crates/nvs-db/src/tds/testing.rs:305`'s `binary_type` builds the column and `plp_value` the
-      body. `rule:core-classes/db-column-types`.
-- [ ] **The same claim against a real SQL Server** — `crates/nvs-db/tests/handshake.rs:474`'s `mssql()`
-      gate and `mssql_run` at `crates/nvs-db/tests/handshake.rs:546`, run under `python
-      tools/db-matrix.py --all`. Break the new case's own assertion once and re-run: the tool reports
-      `ok` for a case that never ran (playbook § *Running things*). `rule:core-classes/db-one-api`.
-- [ ] **Then the goal is met** — `python tools/verify.py --doc`, `python tools/owners.py --closes
-      tds-bytes` and `python tools/playbook.py --closes tds-bytes` before `DONE`. The owner gate is
-      already green: `crates/nvs-db/src/tds/mod.rs:86` is where gap 1 was.
+- [ ] **No case binds a `bytes` through `Core\Db` on SQL Server** —
+      `crates/nvs-stdlib/src/db/pool.rs:220` is where the driver picks `nvs_db::tds::encode`, and
+      every case for the new form sits at the `TdsConn` surface below it, so the one line that would
+      hand this driver PostgreSQL's renderer is unasserted. `rule:core-classes/db-one-api`.
+- [ ] **The form travels in band, and a hand-written parameter can claim it** —
+      `crates/nvs-db/src/tds/rpc.rs:106` owns why `BINARY_MARK` is one octet in front of the value
+      rather than a typed parameter list, which is `Encoder::Wire`'s shared
+      `fn(Value) -> Option<Vec<u8>>` and not this driver's choice. Widening that signature is the
+      repair, and it is five drivers' seam. `rule:core-classes/db-column-types`.
 
 ## Backlog
 
-- A `.nvst` case binding a `bytes` through `Core\Db` on every driver, if none exists — `python
-  tools/gaps.py` ranks it; the other four drivers already bind one.
-- `Core\Db::stream` and the schema half of § 9's binary row stay `gap-zero`'s — `docs/agent/carried-gaps.md`.
+- `Core\Db::stream` and the schema half on SQL Server — `gap-zero`'s register names their owners.
+- The `nvs/rest` package is the only unscheduled half of the REST/OAuth client plan.
