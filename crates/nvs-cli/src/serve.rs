@@ -520,15 +520,27 @@ pub(crate) fn run(
             return ExitCode::FAILURE;
         }
     };
+    // And the same key on the other block. `[metrics]` is the one that has both
+    // halves: a tree writing `prometheus` bound a socket above and a tree
+    // writing `otlp` dials a collector here, which is a second endpoint and
+    // never a second scheduler
+    // (`rule:observability/an-exporter-brings-no-second-scheduler-and-no-second-client`).
+    let registry_collector = match metrics_collector(&current.load().config) {
+        Ok(collector) => collector,
+        Err(refusal) => {
+            eprintln!("error: {refusal}");
+            return ExitCode::FAILURE;
+        }
+    };
     // A build without the feature reaches here with nothing, exactly as the
-    // scrape socket does: `trace_collector` refused the tree that would have
+    // scrape socket does: both resolutions refused the tree that would have
     // named a collector.
     #[cfg(not(feature = "exporter"))]
-    let _ = collector;
+    let _ = (collector, registry_collector);
     #[cfg(feature = "exporter")]
     let mut traces = match collector
         .as_deref()
-        .map(nvs_server::Endpoint::of)
+        .map(|written| nvs_server::Endpoint::of(written, nvs_server::Signal::Traces))
         .transpose()
     {
         Ok(endpoint) => endpoint,
@@ -540,6 +552,22 @@ pub(crate) fn run(
     #[cfg(feature = "exporter")]
     if let Some(endpoint) = &traces {
         println!("traces pushed to {endpoint}");
+    }
+    #[cfg(feature = "exporter")]
+    let mut series = match registry_collector
+        .as_deref()
+        .map(|written| nvs_server::Endpoint::of(written, nvs_server::Signal::Metrics))
+        .transpose()
+    {
+        Ok(endpoint) => endpoint,
+        Err(refusal) => {
+            eprintln!("error: {refusal}");
+            return ExitCode::FAILURE;
+        }
+    };
+    #[cfg(feature = "exporter")]
+    if let Some(endpoint) = &series {
+        println!("series pushed to {endpoint}");
     }
     listening(&bound, path, &told);
 
@@ -584,6 +612,8 @@ pub(crate) fn run(
             scrapes: scrapes.take(),
             #[cfg(feature = "exporter")]
             traces: traces.take(),
+            #[cfg(feature = "exporter")]
+            series: series.take(),
             compiler,
             mounts,
             snapshot,
@@ -647,6 +677,12 @@ pub(crate) fn run(
             // spans, because the queue is the process's and not this core's.
             #[cfg(feature = "exporter")]
             traces: if index == 0 { traces.take() } else { None },
+            // And one registry push, for the scrape listener's reason rather
+            // than the queue's: it gathers every core through
+            // `nvs_server::metrics::every_core`, so a second core pushing would
+            // be a second copy of the same numbers arriving twice.
+            #[cfg(feature = "exporter")]
+            series: if index == 0 { series.take() } else { None },
             // One roster and so one ticker, on the first worker: a schedule
             // armed per core would fire every entry once per core.
             ticks: index == 0,
@@ -708,6 +744,17 @@ struct Core {
     /// is that split.
     #[cfg(feature = "exporter")]
     traces: Option<nvs_server::Endpoint>,
+    /// `[metrics] endpoint`, on exactly one worker and for the reason
+    /// [`Core::scrapes`] is: the registry a push carries is every core's,
+    /// gathered through `nvs_server::metrics::every_core`, so a second core's
+    /// push would be a second copy of the same numbers landing at the same
+    /// collector.
+    ///
+    /// `None` on every other core, and on every core of a process whose
+    /// `[metrics]` names no `otlp` exporter — including one that names
+    /// `prometheus`, which binds [`Core::scrapes`] instead.
+    #[cfg(feature = "exporter")]
+    series: Option<nvs_server::Endpoint>,
     /// The fleet's one compiled-unit cache, so a source compiles once for the
     /// process rather than once per core.
     compiler: Arc<Compiler>,
@@ -756,6 +803,8 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
         scrapes,
         #[cfg(feature = "exporter")]
         traces,
+        #[cfg(feature = "exporter")]
+        series,
         compiler,
         mounts,
         snapshot,
@@ -1209,6 +1258,23 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
             let draining = draining.clone();
             move |_ctx| {
                 nvs_server::push_queued_on_this_core(&endpoint, waits, &draining, |note| {
+                    eprintln!("note: {note}");
+                });
+            }
+        });
+    }
+
+    // The registry's own push, on the same terms and beside it: a task on this
+    // scheduler that runs no Novis code, reads every core's series on its own
+    // cadence and dials the collector `[metrics] endpoint` names. It is the
+    // push shape of the scrape loop above, and a tree writes one or the other
+    // because `[metrics] exporter` names one protocol.
+    #[cfg(feature = "exporter")]
+    if let Some(endpoint) = series {
+        sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Request, {
+            let draining = draining.clone();
+            move |_ctx| {
+                nvs_server::push_registry_on_this_core(&endpoint, waits, &draining, |note| {
                     eprintln!("note: {note}");
                 });
             }
@@ -2218,6 +2284,49 @@ fn trace_collector(config: &nvs_config::Config) -> Result<Option<String>, String
             .to_owned()
     })?;
     Ok(Some(written.to_owned()))
+}
+
+/// The collector `[metrics]` asks this process to push its registry to, as
+/// written, or `None` where it asks for nothing.
+///
+/// The other half of [`scrape_socket`]'s block, and the pair of them is what
+/// makes `[metrics]` the one § 6 gives both protocols: a tree writing
+/// `prometheus` binds a socket there and a tree writing `otlp` dials a
+/// collector here, and neither function answers anything for the protocol the
+/// other one owns.
+///
+/// **An `otlp` exporter with no `endpoint` is refused rather than defaulted**,
+/// which is [`trace_collector`]'s sentence over the other block and holds for
+/// its reason: the failure a default produces here is silence
+/// (`rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`).
+///
+/// # Errors
+///
+/// The refusal as one line: an exporter this build cannot run, or one with
+/// nowhere to push to.
+fn metrics_collector(config: &nvs_config::Config) -> Result<Option<String>, String> {
+    let Some(metering) = nvs_config::Metering::of(config) else {
+        return Ok(None);
+    };
+    if let Some(refusal) =
+        exporter_not_built(metering.exporter, "[metrics]", cfg!(feature = "exporter"))
+    {
+        return Err(refusal);
+    }
+    if metering.exporter != nvs_config::Exporter::Otlp {
+        return Ok(None);
+    }
+    config
+        .metrics
+        .as_ref()
+        .and_then(|metrics| metrics.endpoint.clone())
+        .ok_or_else(|| {
+            "`[metrics] exporter` is `otlp` and `[metrics] endpoint` names no collector, so a \
+             series would have nowhere to go: write one, as `http://127.0.0.1:4318`, or \
+             `exporter = false`"
+                .to_owned()
+        })
+        .map(Some)
 }
 
 /// What a build carrying no exporter owes a tree that configured one, or `None`.

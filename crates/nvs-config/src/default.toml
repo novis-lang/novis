@@ -775,10 +775,10 @@
 # reads this process's series, and picking one nobody wrote down is not a default to have
 # (`rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`).
 #listen = "127.0.0.1:9090"          # the Prometheus scrape endpoint
-# NOT IMPLEMENTED — nothing pushes to `endpoint`: the `opentelemetry-otlp` dependency that would is
-# not in the workspace, and `rule:observability/the-exporters-are-crates` is what closes it. The
-# registry it would push is real and is kept whole without it.
-#endpoint = "http://127.0.0.1:4317" # the OTLP collector URL
+# Where the collector this process pushes its series to is. Required where `exporter = "otlp"`, on
+# the terms `listen` is required by `prometheus`. The push is OTLP over HTTP and goes to
+# `/v1/metrics` under a URL that names no path; a URL that names one is dialled as written.
+#endpoint = "http://127.0.0.1:4318" # the OTLP collector URL
 
 #[trace]
 # `false` or `otlp`, head-based sampling from 0.0 to 1.0, and whether `traceparent` is sent on
@@ -787,10 +787,9 @@
 #exporter = false
 #sample = 0.01
 #propagate = true
-# NOT IMPLEMENTED — no exporter is built, so no span leaves the process. The wiring from the
-# runtime's event kinds to spans is ours and the transport is not, which is what
-# `rule:observability/the-exporters-are-crates` closes.
-#endpoint = "http://127.0.0.1:4317"
+# Where the collector this process pushes its spans to is, on `[metrics] endpoint`'s terms and
+# required where `exporter = "otlp"`. A URL that names no path takes `/v1/traces`.
+#endpoint = "http://127.0.0.1:4318"
 
 
 # ----------------------------------------------------------------------------------------------

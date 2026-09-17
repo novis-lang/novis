@@ -1068,9 +1068,9 @@ pub struct Metrics {
     /// answered by `nvs_server::serve_scrapes_on_this_core`. Required where
     /// `exporter` is `prometheus`.
     pub listen: Option<String>,
-    /// The OTLP collector URL.
-    ///
-    /// [unread: the scrape half of the exporter is built and the push half is not, so nothing reaches this; the `opentelemetry-otlp` dependency that would is not in the workspace. owner: rule:observability/the-exporters-are-crates]
+    /// The OTLP collector URL, dialled at boot by `nvs serve` and pushed to by
+    /// `nvs_server::push_registry_on_this_core`. Required where `exporter` is
+    /// `otlp`.
     pub endpoint: Option<String>,
     /// Per core (§ 7).
     pub max_series: Option<u64>,

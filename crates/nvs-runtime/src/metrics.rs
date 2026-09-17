@@ -100,14 +100,13 @@
 //! Nothing is charged to a request, nothing grows with requests served, and a
 //! process with no exporter configured builds no registry at all.
 //!
-//! # Known gaps
+//! # Who reads it
 //!
-//! 1. **Only a scrape reads this.** `nvs_server::prometheus` binds `[metrics]
-//!    listen` and answers a collector with [`every_core`]; `[metrics] endpoint`
-//!    has no pusher, so a tree naming `exporter = "otlp"` builds a registry
-//!    nothing ships. That module is the half a build without the `exporter`
-//!    feature loses, and this one is in every build either way.
-//!    — owner: decided-closures
+//! Both exporters, through [`every_core`] and nothing else.
+//! `nvs_server::prometheus` binds `[metrics] listen` and answers a collector
+//! that pulls; `nvs_server::otlp` dials `[metrics] endpoint` and pushes on a
+//! cadence of its own. Those modules are the half a build without the
+//! `exporter` feature loses, and this one is in every build either way.
 
 use std::cell::RefCell;
 use std::collections::BTreeMap;

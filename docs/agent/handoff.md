@@ -5,49 +5,45 @@
 **Goal `decided-closures`, stage 2 — the runtime and the lowering.** Stage 1's floor is the closed goal
 `cache-shared-dial`'s checks, and they pass.
 
-The in-flight cycle collector is **built**, so three items are off the register:
-`crates/nvs-runtime/src/lib.rs` gaps 5 and 7 and `crates/nvs-ir/src/lib.rs` gap 14 are deleted.
-`crates/nvs-runtime/src/object.rs`'s `reclaim` is the one walk both moments share — `sweep` at
-teardown, which detaches survivors, and `collect` in flight, which does not — and
-`Ctx::collect_if_asked` is the only door in. `crate::budget`'s threshold raises `COLLECT` beside
-`MEMORY_LIMIT` at the allocation that crossed the ceiling, so a request under its ceiling pays
-nothing and a request over it collects before the counter is read, at both poll sites
-(`nvs_safepoint` and `run_helper`). The run files `rule:observability/gc-pause-is-its-own-event`'s
-event, which moved that rule from `designed` to `shipped`.
+The `otlp` push half is **built for both signals**, so `crates/nvs-runtime/src/metrics.rs` gap 1 is
+deleted and `[metrics] endpoint` is read rather than tagged `[unread:]`. One
+`crates/nvs-server/src/otlp.rs` now carries both: `Signal` picks the path a base URL takes
+(`/v1/traces`, `/v1/metrics`) and the key a refusal quotes, `delivered` is the one dialler both use,
+and `push_registry_on_this_core` gathers `nvs_runtime::metrics::every_core` every `INTERVAL` and
+merges it through `crate::prometheus::merged` — the scrape's own arithmetic, now `pub(crate)`, so
+there is no second copy of it. `nvs serve` arms that task on the worker the scrape listener and the
+span drain already go to, and `metrics_collector` in `crates/nvs-cli/src/serve.rs` is
+`trace_collector`'s twin on the other block.
 
-What keeps stage 2 red is the `otlp` push in `nvs-server`: a tree naming `exporter = "otlp"` builds a
-registry nothing ships. Nothing is blocked.
+Both of stage 2's checks are green. What keeps the goal open is its **owner gate**, not a check:
+three stage 2 items are still gaps naming this goal. Nothing is blocked.
 
 ## Next group
 
-**Stage 2: the registry leaves the process as a push** — one file set:
-`crates/nvs-server/src/otlp.rs`, `crates/nvs-server/src/prometheus.rs`,
-`crates/nvs-runtime/src/metrics.rs`.
+**Stage 2: the three gaps the stage's checks do not name** — one file set:
+`crates/nvs-runtime/src/`, `crates/nvs-ir/src/`.
 
-- [ ] **`[metrics] endpoint` gets a pusher, over the queue the trace half already drains** —
-      `crates/nvs-server/src/otlp.rs:437` (`push_queued_on_this_core`, the drain task a request never
-      touches), `crates/nvs-server/src/otlp.rs:308` (`[trace] endpoint`'s resolution, which the
-      metrics endpoint needs its twin of) and `crates/nvs-server/src/otlp.rs:122` (the `/v1/traces`
-      path constant, beside which `/v1/metrics` goes). The registry is read exactly as the scrape
-      reads it, per `rule:observability/a-registry-is-per-core-and-nothing-reads-it`:
-      `crates/nvs-runtime/src/metrics.rs:936` (`every_core`) summed by the same arithmetic
-      `crates/nvs-server/src/prometheus.rs:213` (`scrape`) does, which is the rule's "arithmetic and
-      never coordination". No second scheduler and no second client
-      (`rule:observability/an-exporter-brings-no-second-scheduler-and-no-second-client`) — the encoder
-      is ours against OTLP's `metrics/v1` messages, as `docs/decisions/0186.md` § *Investigation*
-      settled for the trace half. The test the stage names is
-      `an_otlp_endpoint_receives_the_registry_as_a_push`.
-- [ ] **`crates/nvs-runtime/src/metrics.rs:105` gap 1 is deleted once it ships** — the gap is "only a
-      scrape reads this", and it names no second half; what the push spends per core goes in that
-      module's own doc per `rule:programs/memory-priority`.
+- [ ] **`crates/nvs-runtime/src/routes.rs:83` gap 1 — measure the linear walk before replacing it** —
+      the gap is `rule:routing/path-grammar`'s trie against the scan that is there. The goal's own
+      sentence makes this measure-first: run `benches/serve-proxied.json` and build the trie only if
+      the walk shows, and otherwise strike the gap as a stated bound naming where the figure lives
+      (`docs/agent/conventions.md` § *A code comment* forbids the figure itself in the comment).
+      `crates/nvs-runtime/src/routes.rs:83` is the gap and the walk it describes is beside it.
+- [ ] **`crates/nvs-ir/src/lib.rs:614` gap 18 — a throw escaping an abandoned generator's `finally`
+      is reported and replaces nothing** — through the escalation ladder rather than dropped, per
+      `rule:errors/propagation` and `rule:errors/throw-is-not-slower` (the raise is what allocates,
+      and this path raises once). `crates/nvs-ir/src/lib.rs:614` is the gap.
+- [ ] **`crates/nvs-runtime/src/record.rs:48` gap 1 — a `secret` into an array element or a shape
+      field is refused at compile time** — the walk that would meet the value is here and the
+      refusal is `nvs-types`'s, so this one leaves the file set: expect
+      `crates/nvs-types/src/` beside `crates/nvs-runtime/src/record.rs:48`. Take it last, or give
+      it its own group.
 
 ## Backlog
 
-- `crates/nvs-runtime/src/routes.rs:83` gap 1 — the route walk is a linear scan, not
-  `rule:routing/path-grammar`'s trie (goal `decided-closures`, stage 2).
-- `crates/nvs-runtime/src/record.rs:48` gap 1 — a `secret` value reaches the record walk with no
-  property to be declared on (goal `decided-closures`, stage 2).
-- `crates/nvs-ir/src/lib.rs:614` gap 18 — an abandoned generator's `finally` runs; a throw escaping
-  one is dropped (goal `decided-closures`).
-- Stage 3 onward is the goal file's own list; `python tools/owners.py --closes decided-closures` is
-  what the driver gates the goal's end on.
+- Stage 3 opens at `crates/nvs-diagnostics/src/embedded.rs:30` gap 1 — `docs/agent/loop-goal.md`
+  § *Stage 3*.
+- Nothing builds this crate without the `exporter` feature, so the two `#[cfg(not(...))]` arms in
+  `crates/nvs-cli/src/serve.rs` are compiled by no check — `tools/verify.py` owns whether that is
+  worth a pass.
+- `docs/decisions/0186.md` § *Investigation* stays frozen; it predates both pushers existing.
