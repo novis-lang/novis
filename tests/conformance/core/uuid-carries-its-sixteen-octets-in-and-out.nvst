@@ -1,0 +1,43 @@
+--TEST--
+`Core\Uuid::fromBytes` and `$uuid->toBytes` carry one UUID's 128 bits in both directions, over written values and over both generators' draws — spec § 11
+--FILE--
+<?nvs
+// Spec § 11's octet pair, asserted as a *round trip* by counting agreement
+// over a sweep rather than off one line: a pair that wrote the two halves the
+// wrong way up round-trips against itself on a symmetric value, so the rows
+// below are asymmetric and both generators are swept as well.
+array<string> $written = [
+    "00112233-4455-6677-8899-aabbccddeeff",
+    "f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4",
+    "00000000-0000-0000-0000-000000000000",
+    "ffffffff-ffff-ffff-ffff-ffffffffffff",
+];
+int $trips = 0;
+int $widths = 0;
+foreach ($written as string $text) {
+    bytes $octets = Core\Uuid::parse($text)->toBytes();
+    // Sixteen, always — the width is what the whole pair is for, since the
+    // canonical text spelling the same bits is 36.
+    $widths = $widths + (((Core\Bytes::length($octets) as int) == 16) ? 1 : 0);
+    $trips = $trips + ((Core\Uuid::fromBytes($octets)->toString() == $text) ? 1 : 0);
+}
+echo "written ", $trips, " ", $widths, " of ", Core\Arr::count($written), "\n";
+
+// A drawn UUID cannot be written down, so both generators go round the same
+// trip and only the agreement is counted. A `v7` differs from a `v4` in every
+// bit that is not the variant, so a pair that only held for one layout fails
+// this line while still passing the rows above.
+int $draws = 0;
+int $i = 0;
+for ($i = 0; $i < 16; $i = $i + 1) {
+    var $four = Core\Uuid::v4();
+    $draws = $draws
+        + ((Core\Uuid::fromBytes($four->toBytes())->toString() == $four->toString()) ? 1 : 0);
+    var $seven = Core\Uuid::v7();
+    $draws = $draws
+        + ((Core\Uuid::fromBytes($seven->toBytes())->toString() == $seven->toString()) ? 1 : 0);
+}
+echo "drawn ", $draws, " of 32\n";
+--EXPECT--
+written 4 4 of 4
+drawn 32 of 32

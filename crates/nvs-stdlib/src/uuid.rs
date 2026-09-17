@@ -2,8 +2,9 @@
 //! § 11's second table, which replaces `uniqid`, `com_create_guid` and every
 //! userland UUID library with one type.
 //!
-//! All four of that table's members are here. A `Core\Uuid` is a **value with a
-//! type**, not a 36-character string a program passes around and re-validates
+//! Every one of that table's `Uuid` rows is here. A `Core\Uuid` is a **value
+//! with a type**, not a 36-character string a program passes around and
+//! re-validates
 //! at every boundary: that is what makes `rule:core-classes/db-statement-members`'s native `UUID` column
 //! binding and `rule:routing/routes-are-compiled-not-registered`'s `Core\Uuid` route segment able to state what they
 //! take.
@@ -81,7 +82,10 @@
 //!
 //! One [`crate::instance`] object per UUID — an `NvsObj` header plus two
 //! 16-byte slots — charged to the request that produced it and released with
-//! it. Nothing is retained between calls, and no table grows with traffic.
+//! it, plus one `NvsStr` per *rendering*: the 36 characters `toString` writes
+//! or the sixteen octets `toBytes` does, one allocation each call and nothing
+//! cached between them (`rule:programs/memory-priority`). Nothing is retained
+//! between calls, and no table grows with traffic.
 //!
 //! # Two UUIDs holding the same bits are not `==`
 //!
@@ -99,18 +103,20 @@
 //! chosen for; a program that needs a total order inside one millisecond needs
 //! a sequence, not a UUID.
 //!
-//! # Known gaps
+//! # The octets are the second door, and the text is not on the way
 //!
-//! 1. **There is no `bytes` round trip**, which is what an `rule:core-classes/db-one-api` driver
-//!    binding a native `UUID` column will want: sixteen bytes in and out with
-//!    no 36-character detour between them. Nothing under it is missing —
-//!    `nvs_runtime::Tag::Bytes` is a live tag and [`crate::instance`] holds
-//!    whatever Novis can hold — so what has to be decided is whether spec
-//!    § 11's second table gains the pair at all, since all four members it
-//!    names are here and a fifth widens the surface rather than repairing it.
-//!    Decided: Add the pair (spec § 11 amendment) — Drivers and binary protocols skip text conversion,
-//!    and ramsey/uuid users expect getBytes; one more surface pair.
-//!    — owner: decided-closures
+//! `fromBytes` and `toBytes` carry the sixteen octets themselves, most
+//! significant first — the order the canonical text spells them in — so an
+//! `rule:core-classes/db-one-api` driver binding a native `UUID` column, a
+//! binary protocol and a hash input read and write a UUID with no
+//! 36-character detour in either direction.
+//!
+//! `fromBytes` has one thing to refuse and it is a **length**: every 128-bit
+//! pattern is a UUID, including the nil and the max, which is the rule `parse`
+//! states above arriving here without a grammar in front of it. So the pair is
+//! a round trip by construction rather than by agreement — `toBytes` writes
+//! the slots and `fromBytes` reads them back, and neither consults the
+//! rendering.
 
 use rand::Rng;
 use uuid::{Builder, Uuid};
@@ -127,10 +133,11 @@ use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamD
 /// every [`CoreTy::Instance`] naming it cannot drift apart.
 pub const NAME: &str = r"Core\Uuid";
 
-/// `Core\Uuid`'s registry rows — § 11's second table's four static members,
-/// plus the rendering member that section's table now writes. `isValid` was a
-/// fifth until `rule:expressions/try-parse` deleted it: `tryParse` is that question asked
-/// through `parse` itself, so the two were one predicate and R17 keeps one.
+/// `Core\Uuid`'s registry rows — § 11's second table's static members, and
+/// beside them the two members that render a receiver, one into text and one
+/// into octets. `isValid` was a static row until `rule:expressions/try-parse`
+/// deleted it: `tryParse` is that question asked through `parse` itself, so the
+/// two were one predicate and R17 keeps one.
 pub const CLASS: CoreClass = CoreClass {
     name: NAME,
     methods: &[
@@ -176,16 +183,41 @@ pub const CLASS: CoreClass = CoreClass {
             symbol: "nvs_core_uuid_try_parse",
             doc: Some(&TRY_PARSE_DOC),
         },
+        CoreMethod {
+            name: "fromBytes",
+            names: &["b"],
+            // `Qual::Neutral` for `parse`'s reason one representation over:
+            // the octets arrived from outside the process, so the parameter
+            // admits a `tainted` buffer, and the 128 bits that come back carry
+            // none of it — a UUID is a closed shape with nothing an injection
+            // could ride into.
+            params: &[CoreTy::Blob(Qual::Neutral)],
+            defaults: &[],
+            return_ty: CoreTy::Instance(NAME),
+            symbol: "nvs_core_uuid_from_bytes",
+            doc: Some(&FROM_BYTES_DOC),
+        },
     ],
-    instance: &[CoreMethod {
-        name: "toString",
-        names: &[],
-        params: &[],
-        defaults: &[],
-        return_ty: CoreTy::Str,
-        symbol: "nvs_core_uuid_to_string",
-        doc: Some(&TO_STRING_DOC),
-    }],
+    instance: &[
+        CoreMethod {
+            name: "toString",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "nvs_core_uuid_to_string",
+            doc: Some(&TO_STRING_DOC),
+        },
+        CoreMethod {
+            name: "toBytes",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Bytes,
+            symbol: "nvs_core_uuid_to_bytes",
+            doc: Some(&TO_BYTES_DOC),
+        },
+    ],
     slots: &["high", "low"],
     constants: &[],
 };
@@ -244,12 +276,40 @@ const TRY_PARSE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
+/// `Core\Uuid::fromBytes`'s reference card — `rule:core-api/reference-card`.
+const FROM_BYTES_DOC: MethodDoc = MethodDoc {
+    short: "Reads sixteen octets as a UUID — the form a native `UUID` column and a binary \
+            protocol carry one in, with no canonical text on the way, replacing the \
+            `getBytes`/`fromBytes` pair of the userland libraries.",
+    params: &[ParamDoc {
+        name: "b",
+        desc: "The sixteen octets, most significant first, as `$uuid->toBytes()` writes them.",
+        shape: &[],
+    }],
+    ret: "The `Uuid` those 128 bits are; every pattern is one, the nil and the max included, so \
+          a length is all this checks.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$b` is not exactly sixteen bytes long; the message names the length it got.",
+    }],
+};
+
 /// `$uuid->toString`'s reference card — `rule:core-api/reference-card`.
 const TO_STRING_DOC: MethodDoc = MethodDoc {
     short: "Renders the receiver in RFC 9562's canonical lower-case hyphenated `8-4-4-4-12` \
             form — the only way its text comes back out, and what `echo $uuid` writes.",
     params: &[],
     ret: "The 36-character text, lower case whatever case `parse` read.",
+    errors: &[],
+};
+
+/// `$uuid->toBytes`'s reference card — `rule:core-api/reference-card`.
+const TO_BYTES_DOC: MethodDoc = MethodDoc {
+    short: "Writes the receiver's sixteen octets, most significant first — `toString`'s twin for \
+            a native `UUID` column, a binary protocol or a hash input, where the canonical text \
+            would be 36 bytes spelling the same 128 bits.",
+    params: &[],
+    ret: "Sixteen bytes, which `Core\\Uuid::fromBytes` reads back as this same UUID.",
     errors: &[],
 };
 
@@ -266,7 +326,9 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_uuid_v7" => (nvs_core_uuid_v7 as *const ()).cast(),
         "nvs_core_uuid_parse" => (nvs_core_uuid_parse as *const ()).cast(),
         "nvs_core_uuid_try_parse" => (nvs_core_uuid_try_parse as *const ()).cast(),
+        "nvs_core_uuid_from_bytes" => (nvs_core_uuid_from_bytes as *const ()).cast(),
         "nvs_core_uuid_to_string" => (nvs_core_uuid_to_string as *const ()).cast(),
+        "nvs_core_uuid_to_bytes" => (nvs_core_uuid_to_bytes as *const ()).cast(),
         _ => return None,
     })
 }
@@ -349,6 +411,25 @@ fn text_of<'a>(args: &'a [Value], member: &str) -> Result<&'a str, Fault> {
     args[0].as_text().ok_or_else(|| {
         Fault::fatal(format!(
             "Core\\Uuid::{member} expected a `string`, got tag {}",
+            args[0].tag_byte()
+        ))
+    })
+}
+
+/// The `bytes` in argument slot 0, for the member that reads octets.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] naming the member, [`text_of`]'s twin one tag over and
+/// for its reason: the checker placed the argument and compiled code wrote the
+/// tag, so anything else in that slot is a runtime-contract violation rather
+/// than something a program can cause. **The length is not checked here** —
+/// that is the one thing about this argument a program *can* get wrong, so it
+/// is a throw at the member and not a fatal at the reader.
+fn bytes_of<'a>(args: &'a [Value], member: &str) -> Result<&'a [u8], Fault> {
+    args[0].as_bytes().ok_or_else(|| {
+        Fault::fatal(format!(
+            "Core\\Uuid::{member} expected a `bytes`, got tag {}",
             args[0].tag_byte()
         ))
     })
@@ -445,7 +526,8 @@ nvs_runtime::nvs_helper! {
     /// identifier, and a member whose whole job is "hand me an id" is the
     /// wrong place to surface a misconfigured host clock.
     ///
-    /// Ordering inside one millisecond is random — gap 3.
+    /// Ordering inside one millisecond is random, and this module's docs say
+    /// what that costs a program that needs a total order.
     fn nvs_core_uuid_v7(ctx, args: [0]) {
         let _ = args;
         // `rule:testing/determinism-declared-on-the-test` names this member beside `Core\Time::now` and
@@ -514,14 +596,46 @@ nvs_runtime::nvs_helper! {
 }
 
 nvs_runtime::nvs_helper! {
+    /// `Core\Uuid::fromBytes(bytes $b): Uuid` — the octet door this module's
+    /// docs open, replacing the `fromBytes`/`getBytes` pair every userland
+    /// UUID library carries and the `bin2hex`-then-validate idiom PHP programs
+    /// wrote instead.
+    ///
+    /// **A length is the whole of what this refuses** (`rule:core-api/shape-rules` R4), and
+    /// the message names the length it was handed, because that is the fact
+    /// the caller does not already have: a buffer of the wrong width came from
+    /// a column, a frame or a slice that is off by something, and the count is
+    /// what says which. There is nothing else to check — every 128-bit pattern
+    /// is a UUID, which is [`nvs_core_uuid_parse`]'s own rule reaching here
+    /// without the grammar in front of it.
+    ///
+    /// The octets are most significant first, the order the canonical text
+    /// spells them and the order [`of_octets`] already hands a database row
+    /// over in, so the two seams onto the same sixteen bytes agree by
+    /// construction rather than by a test that compares them.
+    fn nvs_core_uuid_from_bytes(_ctx, args: [1]) {
+        let octets = bytes_of(args, "fromBytes")?;
+
+        let sixteen: [u8; 16] = octets.try_into().map_err(|_| {
+            Fault::thrown(format!(
+                "Core\\Uuid::fromBytes(): a UUID is sixteen bytes, and this buffer is {}",
+                octets.len()
+            ))
+        })?;
+        Ok(of_octets(sixteen))
+    }
+}
+
+nvs_runtime::nvs_helper! {
     /// `$uuid->toString(): string` — the canonical
     /// `8-4-4-4-12` lower-case hex form, which is what RFC 9562 § 4 writes and
     /// what every database, log line and HTTP header expects.
     ///
     /// **Lower case, always.** The RFC's own grammar accepts either case on
     /// input and emits lower, and two renderings of one UUID that differ only
-    /// in case would compare unequal as strings — which is the comparison gap
-    /// 3 leaves programs writing today.
+    /// in case would compare unequal as strings — and comparing this text is
+    /// the comparison a program writes, `==` on two instances being object
+    /// identity as this module's docs say.
     ///
     /// Named `toString` rather than `format` or `toText` so that it is already
     /// the member `Stringable` declares
@@ -535,6 +649,26 @@ nvs_runtime::nvs_helper! {
         let mut buffer = TEXT;
         let text = canonical(value.into_bytes(), &mut buffer);
         Ok(Value::str(NvsStr::new(text.as_bytes())))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$uuid->toBytes(): bytes` — the sixteen octets themselves, most
+    /// significant first, which is what a native `UUID` column, a binary
+    /// frame and a hash input take.
+    ///
+    /// [`nvs_core_uuid_to_string`]'s twin, and the same shape of cost: the
+    /// slots hold the value and a rendering allocates, so this is sixteen
+    /// bytes where that one is thirty-six. A program that has a UUID and wants
+    /// its octets had to render the text and unhex it before this existed,
+    /// which is two allocations and a grammar to get back the bits it was
+    /// already holding.
+    ///
+    /// Never fails: the receiver is two `uint` slots and every 128-bit pattern
+    /// is a UUID, so there is nothing here that can refuse.
+    fn nvs_core_uuid_to_bytes(_ctx, args: [1]) {
+        let value = uuid_of(args, 0, "toBytes")?;
+        Ok(Value::bytes(NvsStr::new(&value.into_bytes())))
     }
 }
 
@@ -654,6 +788,103 @@ mod tests {
         assert_eq!(
             rendered(super::built(known)),
             "00112233-4455-6677-8899-aabbccddeeff"
+        );
+    }
+
+    /// The sixteen octets `$uuid->toBytes()` answers. The receiver is borrowed
+    /// rather than released, because every caller below renders it afterwards.
+    fn octets(value: &Value) -> [u8; 16] {
+        let buffer = run(super::nvs_core_uuid_to_bytes, &[*value]).expect("`toBytes` never fails");
+        let out: [u8; 16] = buffer
+            .as_bytes()
+            .expect("`toBytes` answers with a `bytes`")
+            .try_into()
+            .expect("a UUID is sixteen octets");
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the buffer the helper built; the receiver \
+                      is the caller's and is borrowed here"
+        )]
+        unsafe {
+            buffer.release();
+        }
+        out
+    }
+
+    /// `Core\Uuid::fromBytes($octets)`, releasing the buffer this test built.
+    fn from_octets(octets: &[u8]) -> Result<Value, i32> {
+        let subject = Value::bytes(nvs_runtime::NvsStr::new(octets));
+        let answer = run(super::nvs_core_uuid_from_bytes, &[subject]);
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the one reference it built, and the helper \
+                      borrowed its argument rather than consuming it"
+        )]
+        unsafe {
+            subject.release();
+        }
+        answer
+    }
+
+    /// The octets are the same 128 bits the text spells, out and back in, over
+    /// every shape this class holds: two written values, RFC 9562's nil and
+    /// max, and draws from both generators. Counted over the sweep rather than
+    /// read off a line, so a pair that agreed on some of them still fails —
+    /// and the width is asserted on both sides of sixteen, because a member
+    /// that took a short buffer would answer a UUID the caller never had.
+    #[test]
+    fn a_uuid_round_trips_through_its_sixteen_bytes() {
+        let known = [
+            "00112233-4455-6677-8899-aabbccddeeff",
+            "f9168c5e-ceb2-4faa-b6bf-329bf39fa1e4",
+            "00000000-0000-0000-0000-000000000000",
+            "ffffffff-ffff-ffff-ffff-ffffffffffff",
+        ];
+        let mut agreed = 0;
+        for text in known {
+            let value = super::built(super::read(text).expect("a canonical UUID"));
+            let bytes = octets(&value);
+            // The octets are the canonical digits in the canonical order, so
+            // their hex is that text with the hyphens taken out — which is
+            // what says `toBytes` is not writing the halves the other way up.
+            let spelled: String = bytes.iter().map(|byte| format!("{byte:02x}")).collect();
+            agreed += usize::from(spelled == text.replace('-', ""));
+            agreed += usize::from(rendered(value) == text);
+            agreed += usize::from(
+                rendered(from_octets(&bytes).expect("sixteen octets are a UUID")) == text,
+            );
+        }
+        assert_eq!(agreed, known.len() * 3);
+
+        // A drawn UUID cannot be written down, so both generators go round the
+        // same trip and only the agreement is counted.
+        let mut trips = 0;
+        for member in [
+            super::nvs_core_uuid_v4 as unsafe extern "C" fn(_, _, _) -> i32,
+            super::nvs_core_uuid_v7,
+        ] {
+            for _ in 0..8 {
+                let drawn = run(member, &[]).expect("a draw never fails");
+                let bytes = octets(&drawn);
+                let text = rendered(drawn);
+                trips += usize::from(
+                    rendered(from_octets(&bytes).expect("sixteen octets are a UUID")) == text,
+                );
+            }
+        }
+        assert_eq!(trips, 16);
+
+        // Sixteen is the only width, asserted from both sides: a buffer one
+        // octet short and one octet long are refused, and so is the empty one.
+        for width in [0_usize, 15, 17, 32] {
+            assert!(
+                from_octets(&vec![0; width]).is_err(),
+                "{width} octets is not a UUID"
+            );
+        }
+        assert_eq!(
+            rendered(from_octets(&[0; 16]).expect("sixteen octets are a UUID")),
+            "00000000-0000-0000-0000-000000000000"
         );
     }
 
