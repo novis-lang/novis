@@ -67,6 +67,15 @@ a `carried-gaps.md` § *Owned* row whose owner is retired -- one behaviour for o
 files. Striking the owner is a judgement (is the gap closed, or was it left behind?), so the tool
 surfaces it and a session decides.
 
+**`--closes SLUG` is the gate a goal meets at its end, and the one a count cannot be.** It exits 1
+while any item names that goal, listing each. A goal whose acceptance list says `unowned: 0` is
+reached the moment its items are tagged to it, because a tag is what makes the count zero -- goal
+`unowned-closures` walked that way, forty items tagged and none built -- and the retired-owner
+finding above cannot catch it in time, because a goal is retired only *after* it is reached.
+`tools/loop.py`'s `owner_gate` asks this of every goal by name on the sweep that would reach it,
+so a goal's own list need not; `playbook.py --closes` is the same question over the index. A tag is
+not a build.
+
 **A heading is not a register.** Owed work stated under a section of its own -- `# What is here, and
 what is not yet`, `# What a caller owes` -- is in the one shape nothing can read: no item number, no
 owner tag, no way to ask who closes it. The roster names every such heading and counts them on the
@@ -768,9 +777,33 @@ def run_check(kinds: dict, regs: list[dict], untagged_is_an_error: bool, reasons
     return 0
 
 
+def run_closes(found: list[dict], slug: str) -> int:
+    """`--closes SLUG`: every item that still names the goal, and 1 if there is one.
+
+    The module doc says why this is asked of a goal by name rather than read off a count. An item
+    leaves this list one of three ways -- built and its numbered item deleted, struck as a stated
+    bound in the module's own prose, or re-tagged to a milestone at `FIRST_FUTURE_MILESTONE` or
+    later whose plan states the scope -- and `--deferrals` is what holds the third honest.
+    """
+    owned = sorted((gap for gap in found if gap["owner"] == slug),
+                   key=lambda gap: (gap["file"], gap["line"]))
+    if not owned:
+        print(f"owners.py: goal `{slug}` owns no module-doc gap")
+        return 0
+    for gap in owned:
+        print(line_of(gap))
+    print(f"owners.py: goal `{slug}` still owns {len(owned)} module-doc gap(s). A goal is reached "
+          f"when each is built and its item deleted, struck as a stated bound, or deferred to a "
+          f"milestone at M{FIRST_FUTURE_MILESTONE} or later whose plan states the scope; a tag is "
+          f"not a build.")
+    return 1
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--closes", metavar="SLUG",
+                    help="exit 1 while any item names that goal -- the gate a goal meets at its end")
     ap.add_argument("--registers", action="store_true",
                     help="one line per register a gap is written in, and what each holds")
     ap.add_argument("--deferrals", action="store_true",
@@ -808,6 +841,8 @@ def main() -> int:
     if opts.registers:
         report_registers(regs)
         return 0
+    if opts.closes:
+        return run_closes(found, opts.closes)
     if opts.deferrals:
         return run_deferrals(kinds)
     if opts.check:

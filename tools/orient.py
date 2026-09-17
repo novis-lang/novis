@@ -49,7 +49,7 @@ naming something that no longer exists, and that prints as a loud warning rather
     python tools/orient.py --item N     # pin a specific checklist item instead of the first unticked
     python tools/orient.py --stage N    # price a stage the run has not reached, instead of the live one
     python tools/orient.py --full       # ignore the manifest and print everything it could select
-    python tools/orient.py --goal docs/agent/goals/67-dossier.toml --audit  # price a STAGED manifest
+    python tools/orient.py --goal docs/agent/goals/68-dossier.toml --audit  # price a STAGED manifest
 
 `--audit` reports. It never exits non-zero over a size, and nothing in this repository does:
 see docs/agent/doc-style.md on why a length tripwire costs more than it saves.
@@ -102,6 +102,7 @@ RUNNING = ROOT / ".loop" / "running"
 INTERRUPTED = ROOT / ".loop" / "interrupted.json"
 LEDGER = ROOT / ".loop" / "log.md"
 DOCGATE = ROOT / ".loop" / "doc-gate.json"
+OWNERGATE = ROOT / ".loop" / "owner-gate.json"
 
 # A section is measured for --audit as it is emitted, so the report is of what was actually
 # printed rather than of what the files hold.
@@ -530,8 +531,23 @@ def doc_gate_failure() -> tuple[str, str] | None:
     and holds the goal open while it is red -- `tools/verify.py`'s *Why `doc` runs when a goal
     ends* is the argument. It has to be printed here because no session's own `verify.py` will
     mention it, and the comment that broke it may be as old as the goal."""
+    return gate_failure(DOCGATE)
+
+
+def owner_gate_failure() -> tuple[str, str] | None:
+    """The owner gate's standing verdict, out of `.loop/owner-gate.json`, or `None` when green.
+
+    `tools/loop.py`'s `owner_gate` runs `owners.py --closes <slug>` and `playbook.py --closes
+    <slug>` on the same sweep as the rustdoc gate and holds the goal open while a gap still names
+    it; its docstring is the argument. Printed here for the same reason the rustdoc gate is: no
+    session's own `verify.py` asks it."""
+    return gate_failure(OWNERGATE)
+
+
+def gate_failure(path: Path) -> tuple[str, str] | None:
+    """A goal-end gate's `{failed, session}` file, as (session, finding), or `None` when green."""
     try:
-        state = json.loads(read(DOCGATE))
+        state = json.loads(read(path))
     except ValueError:
         return None
     if not isinstance(state, dict):
@@ -765,18 +781,28 @@ def run_marker() -> None:
             emit("The ledger in .loop/log.md says which: the same line repeating session after")
             emit("session is the first kind, and it is not an alarm.")
             emit_check_block(fail)
-    # Below the acceptance verdict on purpose: a red check is a regression and outranks this.
+    # Below the acceptance verdict on purpose: a red check is a regression and outranks these.
     gate = doc_gate_failure()
-    if gate is None:
-        return
-    since, why = gate
-    emit()
-    emit(f"THE RUSTDOC GATE IS RED, as of session {since}:")
-    emit(f"  {why}")
-    emit("The driver runs it only on a sweep where every acceptance check passed, and the goal is")
-    emit("not reached while it is red. `python tools/verify.py --doc` is the whole check, and")
-    emit("rustdoc names the file and the line. Fix every finding, run `--doc` until it is green,")
-    emit("and say so in the handoff.")
+    if gate is not None:
+        since, why = gate
+        emit()
+        emit(f"THE RUSTDOC GATE IS RED, as of session {since}:")
+        emit(f"  {why}")
+        emit("The driver runs it only on a sweep where every acceptance check passed, and the goal is")
+        emit("not reached while it is red. `python tools/verify.py --doc` is the whole check, and")
+        emit("rustdoc names the file and the line. Fix every finding, run `--doc` until it is green,")
+        emit("and say so in the handoff.")
+    gate = owner_gate_failure()
+    if gate is not None:
+        since, why = gate
+        emit()
+        emit(f"THE OWNER GATE IS RED, as of session {since}:")
+        emit(f"  {why}")
+        emit("The driver runs it only on a sweep where every acceptance check passed, and the goal is")
+        emit("not reached while a gap still names it. `python tools/owners.py --closes <slug>` and")
+        emit("`python tools/playbook.py --closes <slug>` list each one. Build it and delete its item,")
+        emit("strike it as a stated bound in the module's own prose, or re-tag it to a milestone whose")
+        emit("plan states the scope -- a tag is not a build -- then say so in the handoff.")
 
 
 def run_numbers() -> None:

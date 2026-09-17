@@ -95,7 +95,8 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
     copy this session's subagent transcripts into .loop/logs/<run>-NNNN.subagents/
     read .loop/status.txt, diff HEAD, append one ledger line
     run the acceptance test from docs/agent/loop-goal.toml
-      -> passes, then `verify.py --doc`: red -> the goal stays open, the run carries on
+      -> passes, then `verify.py --doc`, and `owners.py --closes <slug>` with `playbook.py --closes`:
+                                              either red -> the goal stays open, the run carries on
       -> passes, the chain has a next goal -> install it and keep going, stall streak reset
       -> passes, the chain is on its last  -> stop, CHAIN COMPLETE
     if status is DONE but acceptance fails -> hold and say so (the session was wrong)

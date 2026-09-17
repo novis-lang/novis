@@ -539,6 +539,31 @@ def report_expiry(today: date | None = None) -> tuple[int, int]:
     return len(expired), len(bad)
 
 
+def run_closes(slug: str) -> int:
+    """`--closes SLUG`: every `carried-gaps.md` § *Owned* row that still names the goal, and 1 if
+    there is one.
+
+    The other half of `tools/owners.py --closes`, over the index rather than the module docs, and
+    asked for the same reason: the retired-owner rows `--check` prints can only appear once the
+    goal is retired, which is after it was reached, so `tools/loop.py`'s `owner_gate` asks this of
+    the goal by name on the sweep that would reach it. A row leaves the table when its gap is
+    closed and the row deleted, or when the owner is struck for a reason the row states.
+    """
+    text = CARRIED_GAPS.read_text(encoding="utf-8") if CARRIED_GAPS.exists() else ""
+    rel = CARRIED_GAPS.relative_to(ROOT).as_posix()
+    rows = [(line + 1, gap) for line, gap, owner in owned_rows(text)
+            if owner.strip().strip("`") == slug]
+    if not rows:
+        print(f"playbook.py: goal `{slug}` owns no {rel} row")
+        return 0
+    for line, gap in rows:
+        print(f"  {rel}:{line}  {gap[:70]}")
+    print(f"playbook.py: goal `{slug}` still owns {len(rows)} {rel} row(s). A goal is reached when "
+          f"each gap is closed and its row deleted, or its owner struck for a reason the row "
+          f"states; a tag is not a build.")
+    return 1
+
+
 def run_retire(dry: bool) -> int:
     """The `--retire` flag: refuse while a declaration cannot be read, otherwise `retire`."""
     expired, _owed, bad, _rows = expiry_report()
@@ -1160,6 +1185,8 @@ def main() -> int:
     ap.add_argument("--gap", action="store_true",
                     help="bullets the handoff's next group implies that the manifest omits")
     ap.add_argument("--check", action="store_true")
+    ap.add_argument("--closes", metavar="SLUG",
+                    help="exit 1 while a carried-gaps § Owned row names that goal")
     ap.add_argument("--retire", action="store_true",
                     help="delete every bullet whose declared retirement condition holds")
     ap.add_argument("--dry-run", action="store_true", help="with --retire: say what would go")
@@ -1189,6 +1216,8 @@ def main() -> int:
         return run_gap(text, every, opts.floor)
     if opts.check:
         return run_check(text, every)
+    if opts.closes:
+        return run_closes(opts.closes)
     if opts.retire:
         return run_retire(opts.dry_run)
     if opts.dupes is not None:

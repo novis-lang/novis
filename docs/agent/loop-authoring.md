@@ -204,6 +204,12 @@ Three failure modes worth naming, all of which have happened here:
   something the goal's own work turns green. `CHORE_ARGV` in [loop.py](../../tools/loop.py) is the list
   of commands that are not, with what to run instead and why; `chain.py --check` refuses an entry that
   names one, so this is caught when the goal is written rather than when the chain reaches it.
+- **A tag is not a build.** Goal `unowned-closures`'s gate was `owners.py`'s `unowned: 0`, and its
+  stage 0 tagged every gap to the goal itself — which is what made the count zero, so the goal was
+  reached with forty items tagged to it and none built. A gate over a register must ask what the
+  goal's own tag cannot answer: `owners.py --closes <slug>` is red while any item names the goal, and
+  `owner_gate` in [loop.py](../../tools/loop.py) asks it of every goal on the sweep that would reach
+  it, whether or not the goal's list does.
 
 ## 4. The two halves, and what belongs in each
 

@@ -88,6 +88,7 @@ WRITTEN = RUNDIR / "written.txt"
 CHAINSTATE = RUNDIR / "chain.json"
 RUNEND = RUNDIR / "run-end.json"
 DOCGATE = RUNDIR / "doc-gate.json"
+OWNERGATE = RUNDIR / "owner-gate.json"
 FLOORGATE = RUNDIR / "floor-gate.json"
 LASTFAIL = RUNDIR / "last-fail.json"
 
@@ -5306,6 +5307,59 @@ def doc_gate(index):
     return why
 
 
+def write_owner_gate(failed=None, session=""):
+    """`.loop/owner-gate.json`: the owner gate's standing verdict, for `orient.py`, in the shape
+    `write_doc_gate` writes and for the same reason."""
+    try:
+        RUNDIR.mkdir(parents=True, exist_ok=True)
+        OWNERGATE.write_text(
+            json.dumps({"when": time.time(), "failed": failed or "", "session": session},
+                       indent=1),
+            encoding="utf-8", newline="\n")
+    except OSError:
+        pass
+
+
+def owner_gate(index, slug):
+    """`owners.py --closes <slug>` and `playbook.py --closes <slug>` on a sweep that would reach
+    the goal, and a goal is not reached while either names a gap. Returns the finding, or "" when
+    green.
+
+    The floor carries `no module-doc gap names a goal that walked without closing it`, and it
+    cannot fire at the one moment it matters. A goal reads as retired off its `.toml` being gone,
+    which `chain.py --retire` does *after* the goal is reached, so an item tagged to the reaching
+    goal counts as goal-owned on the sweep that reaches it and as retired-owner on the next goal's
+    floor, one goal late. Goal `unowned-closures` walked that way with forty items tagged to it and
+    none built: its own gate was `unowned: 0`, and tagging the items to the goal is what made the
+    count zero. So the question is asked here, of the goal by name, whether or not its own list
+    asks it, over the two registers a goal's tag can sit in -- the module docs and
+    `carried-gaps.md` § *Owned*. A tag is not a build.
+
+    Red, it holds the goal open without stopping the run, as `doc_gate` does: `orient.py` prints
+    the finding off the file this writes, the next session builds, strikes or re-owners each item,
+    and the next green sweep asks again."""
+    step(f"owner gate: no gap names goal `{slug}` (the acceptance list is green)", C.CYAN)
+    began = time.monotonic()
+    found = []
+    for tool in ("owners.py", "playbook.py"):
+        r = capture(sys.executable, [str(ROOT / "tools" / tool), "--closes", slug], timeout=300)
+        if r.code == 0:
+            continue
+        text = ((r.out or "") + "\n" + (r.err or "")).replace("\r\n", "\n")
+        last = next((ln.strip() for ln in reversed(text.split("\n")) if ln.strip()), "")
+        found.append(last or f"`python tools/{tool} --closes {slug}` exited {r.code}")
+    spent = mmss(time.monotonic() - began)
+    if not found:
+        step(f"owner gate green in {spent}", C.CYAN)
+        write_owner_gate()
+        return ""
+    why = "; ".join(found)
+    step(f"owner gate FAILED in {spent} -- {why}", C.RED)
+    write_owner_gate(failed=why, session=f"{index:04d}")
+    ledger(f"       owner gate: {why}")
+    return why
+
+
 #: How many failed DONE claims on one goal get a fresh session before a hand is asked.
 #:
 #: A DONE claim the sweep refuses used to hold the run at once, and the person's hand then did
@@ -5637,11 +5691,13 @@ def drive(opts, goal, chain):
         if widened:
             step(widened, C.CYAN)
             ledger(f"       {widened}")
-        # Only a sweep that would reach the goal pays for the rustdoc gate; `doc_gate` says why.
+        # Only a sweep that would reach the goal pays for the two goal-end gates; `doc_gate` and
+        # `owner_gate` each say why. Both run when the list is green, so one session sees both.
         docs_red = "" if fail else doc_gate(index)
+        owner_red = "" if fail else owner_gate(index, chain.current.slug)
         # The verdict on session `i` is the last thing that belongs in session `i`'s log.
         CONSOLE.close_session()
-        if not fail and not docs_red:
+        if not fail and not docs_red and not owner_red:
             done = chain.current.slug
             ledger(f"## goal reached: {done} -- every check in its acceptance list passes")
             say(f"GOAL REACHED: {done}", C.GREEN)
@@ -5683,8 +5739,9 @@ def drive(opts, goal, chain):
         if fail:
             ledger(f"       goal check: {fail}")
 
-        # A `DONE` held only by the rustdoc gate is not a wrong claim, just an unfinished one: the
-        # next session gets the finding in its pack and fixes it, with no one to wake.
+        # A `DONE` held only by a goal-end gate -- rustdoc, or a gap still naming the goal -- is not
+        # a wrong claim, just an unfinished one: the next session gets the finding in its pack and
+        # fixes it, with no one to wake.
         #
         # A `DONE` the sweep refuses gets the same treatment: the failing check is in the next
         # pack, so a fresh session is given it before a hand is asked. The hand is asked when the
