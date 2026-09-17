@@ -24232,13 +24232,13 @@ Takes one job out of the queue, if it is still waiting. A job a worker has alrea
 Core\Queue::stats(string $queue): Core\Queue\Stats
 ```
 
-Counts one named queue: what is waiting, what a worker holds, how many attempts the queue's jobs have used, and how deep its dead-letter table is. The four are read together, so they describe one instant rather than four.
+Counts one named queue: what is waiting, what a worker holds, how many attempts the queue's jobs have used, how deep its dead-letter table is, and how many attempts the jobs in it used before they got there. The five are read together, so they describe one instant rather than five.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$queue` | `string` (neutral) | The queue to count, as `push`'s own `queue` option names one. Queues are separate populations by design, so there is no spelling that totals them. |
 
-**Returns** `Core\Queue\Stats` — A `Core\Queue\Stats`, whose four counters are members — `$stats->pending()` and not `$stats->pending`, because a `Core`-owned instance has no property a program can reach.
+**Returns** `Core\Queue\Stats` — A `Core\Queue\Stats`, whose five counters are members — `$stats->pending()` and not `$stats->pending`, because a `Core`-owned instance has no property a program can reach.
 
 **Throws** `RuntimeError` — This deployment writes no `[queue]` block, so nothing says which database the jobs would be in; or the queue's connection names a driver that cannot yet run a statement.; `IOError` — The queue's connection did not open, or the query was refused by the server — most often because `nvs queue migrate` has not created the tables.
 
@@ -24291,7 +24291,7 @@ Keywords:
 <a id="core-core-queue-stats"></a>
 ### `Core\Queue\Stats`
 
-Keywords: pending, claimed, attempts, deadLettered
+Keywords: pending, claimed, attempts, deadLettered, deadAttempts
 
 | Member | Signature |
 |---|---|
@@ -24299,6 +24299,7 @@ Keywords: pending, claimed, attempts, deadLettered
 | [`Core\Queue\Stats->claimed`](#core-core-queue-stats-claimed) | `claimed(): uint` |
 | [`Core\Queue\Stats->attempts`](#core-core-queue-stats-attempts) | `attempts(): uint` |
 | [`Core\Queue\Stats->deadLettered`](#core-core-queue-stats-deadlettered) | `deadLettered(): uint` |
+| [`Core\Queue\Stats->deadAttempts`](#core-core-queue-stats-deadattempts) | `deadAttempts(): uint` |
 
 <a id="core-core-queue-stats-pending"></a>
 #### `Core\Queue\Stats->pending`
@@ -24331,7 +24332,7 @@ $stats->attempts(): uint
 
 How many attempts the queue's jobs have used between them. Climbing while `pending` does not is what a queue whose jobs keep failing and being retried looks like.
 
-**Returns** `uint` — A `uint`, summed over the jobs table alone: a job that exhausted its attempts has moved to the dead-letter table, and `deadLettered` is what counts it there.
+**Returns** `uint` — A `uint`, summed over the jobs table alone: a job that exhausted its attempts has moved to the dead-letter table, `deadLettered` is what counts it there, and `deadAttempts` is what its attempts are summed into.
 
 <a id="core-core-queue-stats-deadlettered"></a>
 #### `Core\Queue\Stats->deadLettered`
@@ -24343,6 +24344,17 @@ $stats->deadLettered(): uint
 How many of the queue's jobs exhausted their attempts and are in the dead-letter table. The counter worth alerting on: an unwatched dead-letter table is the classic way a queue silently loses work.
 
 **Returns** `uint` — A `uint` that only rises, since nothing the runtime does ever removes a dead-lettered job — emptying that table is an operator's act.
+
+<a id="core-core-queue-stats-deadattempts"></a>
+#### `Core\Queue\Stats->deadAttempts`
+
+```nvs skip
+$stats->deadAttempts(): uint
+```
+
+How many attempts the dead-lettered jobs used between them before they were buried. Divided by `deadLettered` it is what a job costs the fleet before it is given up on, which is the figure that says whether the attempt ceiling is set where it earns its retries.
+
+**Returns** `uint` — A `uint`, summed over the dead-letter table alone. Every attempt the queue has made is in exactly one of this and `attempts`: the move takes a job's attempts out of the jobs table with the row, so a caller wanting the total adds the two.
 
 <a id="core-enums"></a>
 ### `Core` enums
