@@ -69,9 +69,20 @@ the acceptance test failed at the first check holding it and reached nothing beh
 | the fix | rewrite the name in `loop-goal.toml` | write the test |
 | renaming it to something green | restores a check that was already true | hides an open hole |
 
-**There are none outstanding.** The last was
-`every_spellable_expression_reaches_a_diagnostic_or_an_ir`, item 49's, which landed as the second test in
-[type_atoms.rs](../../crates/nvs-ir/tests/type_atoms.rs) beside the type half it is named after.
+**One is outstanding:**
+
+- `mysql_gives_an_indexed_text_column_a_prefix_length`, owed by goal `schema`'s stage 3 and carried in
+  the floor ever since — [loop-goal.toml](loop-goal.toml)'s `nvs-db (four dialects)` block names it
+  beside three that landed. It is cause 3 on both halves: no test asserts a prefix length anywhere in
+  `crates/nvs-db`, and `create_table` ([ddl.rs:125](../../crates/nvs-db/src/ddl.rs#L125)) writes
+  MySQL's inline clause as `` INDEX `wide_token_idx` (`token`) `` with the bare column name, which
+  InnoDB refuses for a `TEXT` or `BLOB` column. So renaming it to something green would hide an open
+  hole, which is exactly what the table above says not to do.
+  [until: test mysql_gives_an_indexed_text_column_a_prefix_length]
+
+The one before it was `every_spellable_expression_reaches_a_diagnostic_or_an_ir`, item 49's, which
+landed as the second test in [type_atoms.rs](../../crates/nvs-ir/tests/type_atoms.rs) beside the type
+half it is named after.
 
 A future stage that names a test on purpose before writing it adds a bullet here, one per name, with the
 item that owes it, and ends the bullet with the trailer `[until: test <name>]` that

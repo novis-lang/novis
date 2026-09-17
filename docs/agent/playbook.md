@@ -3699,9 +3699,9 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   overdue and reports nothing, only under load. Arm strictly after the base whenever the sweep
   instant derives from the armed one. [until: gone crates/nvs-host/src/timer.rs:.max(NOTHING + 1)]
 - **A frozen `--EXPECTF-ERROR--` block's line numbers are read off the runner, not counted by
-  hand.** `--FILE--`'s first line, the `<?nvs`, is `case.nvs:1`, so the number is the case file's
-  own line minus the header, and miscounting the comment above the code by one is the whole failure
-  mode. Write the block with any plausible numbers and run `target/debug/nvs test
+  hand.** `--FILE--`'s first line, the `<?nvs`, is *not* `case.nvs:1` — the line after it is, so the
+  number is the `.nvst` line minus one more than the header, and an off-by-one lands the caret on the
+  statement above the one that is wrong. Write the block with any plausible numbers and run `target/debug/nvs test
   tests/conformance/core --filter <slug>` once — it prints the real `case.nvs:NN:CC` in the actual
   half, and columns do not shift with the header. [until: reviewed 2026-09-06]
 - **A `nvs-host` test makes a context *fail* with `Ctx::set_pending("message")`, not with
