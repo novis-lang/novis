@@ -1,14 +1,14 @@
-# Goal 64 -- a `bytes` parameter binds on every driver
+# Goal 65 -- a password, a database index and TLS reach the shared store
 # The acceptance test, as data.
 #
-# `64-tds-bytes.md` is the prose. One home each.
+# `65-cache-shared-dial.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 
 files = [
-  # Every `examples/*.nvs` fixture an `exact` check below names. goal-switch.py unions the previous
-  # goal's list into this one; this goal adds none of its own, because what it changes is what one
-  # driver puts on the wire and a unit test against a scripted server is where that is read.
+  # goal-switch.py unions the previous goal's list into this one; this is the one fixture this goal
+  # adds, the sibling of `examples/cache-shared-socket.nvs` that dials the same store over TLS.
+  "examples/cache-shared-tls.nvs",
   # carried from the previous goal by tools/goal-switch.py
   "examples/webcrypto.nvs",
   "examples/finish.nvs",
@@ -96,43 +96,45 @@ files = [
 [context]
 
 modules = [
-  # `encode`, `bind`, `declarations`, `text_param` and `text_of`: every site of the refusal, and the
-  # `@params` text a statement is compiled against. Stages 2 and 3.
-  "crates/nvs-db/src/tds/rpc.rs",
-  # `TdsPlan::declared` -- the declaration a plan was compiled against, compared on every lookup --
-  # and `start_statement`, the sequencing one statement goes out under. Stages 2 and 3.
-  "crates/nvs-db/src/tds/plan.rs",
-  # The driver's own map, and the `# Known gaps` block this goal closes. Stages 0 and 4.
-  "crates/nvs-db/src/tds/mod.rs",
-  # `decode_column`: the read side of ADR 0067 § 9's row, already whole, which stage 4 reads back
-  # through. Stage 4.
-  "crates/nvs-db/src/tds/value.rs",
-  # The wire's type tokens -- what a `varbinary` marker and its length are on this protocol. Stage 3.
-  "crates/nvs-db/src/tds/types.rs",
-  # The scripted server a unit test drives, which is how a wire shape is asserted without a daemon.
-  # Stage 4.
-  "crates/nvs-db/src/tds/testing.rs",
-  # `StatementCache` and the TDS connection's own cache field: § 1's key, stated once for every
-  # driver. Stage 3.
-  "crates/nvs-db/src/conn.rs",
-  # The driver that already binds a `bytes`: `encode`'s binary path, as the shape to agree with
-  # rather than to invent. Stage 2.
-  "crates/nvs-db/src/pg.rs",
+  # The module doc that owns the gap, `Target` and the URL read that refuses all three today, `URL`
+  # and `READS`, and the scripted store every wire claim is asserted against. Stages 0, 2, 4 and 5.
+  "crates/nvs-stdlib/src/cache.rs",
+  # The protocol client: `Transport` and its `dial`, and the `connect` that reaches them again after
+  # a dropped socket. Stages 2, 4 and 5.
+  "crates/nvs-stdlib/src/cache/redis.rs",
+  # `CacheShared` -- the two keys `url` and `timeout` sit beside -- and its doc, which says all three
+  # are refused. Stages 0 and 3.
+  "crates/nvs-config/src/tree.rs",
+  # `SECRETS`: one `SecretPair` row per `value`/`value_file` pair, with the sites and the setter
+  # beside it. The credential is a third row here. Stage 3.
+  "crates/nvs-config/src/secret.rs",
+  # The `cache.shared` row that gives each key its reload class, which the two new keys join. Stage 3.
+  "crates/nvs-config/src/directive.rs",
+  # The one existing caller of the outbound TLS client over a plain socket: the shape stage 4 agrees
+  # with rather than invents. Stage 4.
+  "crates/nvs-stdlib/src/http/transport.rs",
+  # `NvsTls` itself -- the handshake that takes a socket and gives back a plaintext stream, and the
+  # process-wide `ClientPolicy` it checks against. Stage 4.
+  "crates/nvs-host/src/tls.rs",
+  # `NvsTcp::connect_timeout`, which the TLS arm still dials through before the handshake. Stage 4.
+  "crates/nvs-host/src/net.rs",
 ]
 
-# What a column's type means in both directions, what one API over five backends promises, and what
-# the memory a decision takes has to be.
+# The grant over the store, which this goal does not move, and the account every byte it spends is
+# written into. The rules a single stage is written against are in that stage's own table below.
 rules = [
-  "core-classes/db-column-types",
-  "core-classes/db-one-api",
+  "config/cache-shared-is-the-grant-over-the-configured-store",
   "programs/memory-priority",
 ]
 
-# Empty on purpose: the sections that argue this goal belong to single stages, below.
+# Empty on purpose: what argues this goal is the rule fragments, and they are named per stage.
 adrs = []
 
+# The module docs of stage 0 are rewritten whole rather than annotated, which is the shape that most
+# often goes wrong here.
 shapes = ["A commit message", "A code comment"]
 
+# None. This closes an M0-M8 gap from the post-parity chain and builds inside no later milestone.
 milestones = []
 
 playbook = [
@@ -146,11 +148,11 @@ playbook = [
   'Tooling > orient.py prints',
   'Tooling > another agent',
   # Ranked by `python tools/playbook.py --manifest` against this goal's modules.
+  'Writing a test case > a cfg(unix)-only',
+  'Writing a test case > a refusal only a',
+  "Tooling > a # known gaps item's claims",
+  'Writing Novis itself > nvs-host cannot',
   "Tooling > a loop-goal.toml check's -p",
-  'Writing Novis itself > nvsdb::encode is',
-  "Writing Novis itself > a crate's known-gap",
-  'Writing Novis itself > adding a driver',
-  'Writing a test case > a tds*',
   'Running things > python tools/db-matrix.py',
 ]
 
@@ -158,7 +160,7 @@ plan = ["Open now", "Blocking"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `64-tds-bytes.md`, holding what only that stage needs.
+# THE STAGES. One table per prose stage in `65-cache-shared-dial.md`, holding what only that stage needs.
 #
 # `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
 # the base above -- an overlay adds and never replaces, so the base is what a session needs whatever
@@ -166,32 +168,37 @@ plan = ["Open now", "Blocking"]
 # of its own needs no table. Narrowable: rules, adrs, spec, shapes, playbook, milestones.
 #
 # These are the PROSE stage numbers, the `## Stage N` headings in this goal's `.md`. They are not
-# the `[[check]]` blocks' `stage = "2 the bound form"` labels, which may group several prose stages
+# the `[[check]]` blocks' `stage = "3 the two keys"` labels, which may group several prose stages
 # under one acceptance line. loop-authoring.md section 2 is the whole of it.
 # ---------------------------------------------------------------------------------------------------
 
-[context.stage.2]
-# The type map read in both directions: the row a `bytes` is, and the sentence that says the table is
-# read outwards too.
-adrs = ["0067 §9"]
-
 [context.stage.3]
-# The key every driver's statement cache holds, which this stage does not move.
-adrs = ["0067 §1"]
+# The pair the credential becomes -- exactly one of the two, the file's whole content, never in the
+# merged table -- and why the index is a key rather than a second spelling in the URL.
+rules = [
+  "config/a-secret-is-a-file-whose-content-is-the-value",
+  "errors/ambiguous-input-refused",
+]
 
 [context.stage.4]
-# What one API over five backends owes a program that binds the same list at each of them.
-rules = ["core-classes/db-transactions"]
+# One outbound client for the process, and the grant a relaxation of its trust would need -- which
+# a configured store has no call site to prove.
+rules = [
+  "security/one-tls-client",
+  "security/tls-trust-is-relaxed-only-under-a-host-grant",
+]
 
-# Nothing this goal writes exists past the checker; the skip list is the floor's.
+# Nothing this goal writes exists past the checker; the skip list is the floor's, plus this goal's own
+# fixture, whose connection is the same shape as the socket one already skipped.
 [valgrind]
-skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-socket.nvs", "examples/queue-sqlite.nvs"]
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-socket.nvs", "examples/cache-shared-tls.nvs", "examples/queue-sqlite.nvs"]
 
 [wsl]
 target_dir = "/var/tmp/nvs-target-wsl"
 
-# This goal's own as well as its floor's: stage 4 asserts that a real SQL Server accepts the bind,
-# which is `tools/db-matrix.py`'s leg and nothing a scripted server can answer for.
+# This goal's own as well as its floor's: stage 5 dials a real store over TLS at a non-zero database
+# index, and `redis` already serves both -- port 6380 under the `certs` service's chain, and the
+# sixteen databases every stock store has.
 [docker]
 compose = "tests/db/compose.yaml"
 services = ["postgres", "mysql", "mariadb", "mssql", "redis"]
@@ -200,7 +207,7 @@ memoize_on = ["crates/nvs-db", "crates/nvs-stdlib", "tests/db"]
 
 # <<< goal-switch: floor checks are inserted below this line >>>
 
-# 844 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# 848 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
 # They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
 # Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
@@ -11337,15 +11344,12 @@ cases = [
   "tests/conformance/core/one-core-value-answers-the-same-from-is-instanceof-and-as.nvst",
 ]
 
-
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- the keystone: a bound value carries its form. Goal prose stage 2.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "2 the bound form"
+stage = "1 floor"
 name = "nvs-db (a `bytes` is a bound value with a form, and the values with none are still refused)"
 args = ["test", "-p", "nvs-db"]
 # The first name is a conjunction because the claim is: a `bytes` now has a form where every other
@@ -11357,14 +11361,12 @@ tests = [
   "an_array_and_a_non_finite_float_are_still_refused_by_the_tds_encoder",
 ]
 
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 3 -- the declaration, and the bytes on the wire. Goal prose stage 3.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "3 the declaration"
+stage = "1 floor"
 name = "nvs-db (a binary marker is declared `varbinary` and written as itself)"
 args = ["test", "-p", "nvs-db"]
 # The second name is the plan half: a statement binding a `bytes` at one marker and text at it is two
@@ -11375,14 +11377,12 @@ tests = [
   "one_statement_binding_a_bytes_at_two_markers_is_two_plans_under_one_key",
 ]
 
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 4 -- the round trip, scripted and real. Goal prose stage 4.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "4 the round trip"
+stage = "1 floor"
 name = "nvs-db (a `bytes` bound to the scripted server comes back as the bytes that went out)"
 args = ["test", "-p", "nvs-db"]
 # The second name is the matrix leg's own case in `crates/nvs-db/tests/handshake.rs`: off the matrix
@@ -11397,7 +11397,81 @@ tests = [
 # not merely well-formed.
 [[check]]
 kind = "command"
-stage = "4 the round trip"
+stage = "1 floor"
 name = "the five-driver matrix, with a `bytes` bound on each"
 argv = ["python", "tools/db-matrix.py", "--all"]
 want = ["mysql: ok", "mariadb: ok", "postgres: ok", "mssql: ok", "sqlite: ok"]
+
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the keystone: the dial is one value, applied in one place. Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the dial"
+name = "nvs-stdlib (the dial carries the credential and the index beside the transport)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_dial_carries_the_credential_and_the_index_beside_the_transport",
+  "a_store_configured_with_neither_dials_exactly_as_it_did",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- two keys, as registry rows. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the two keys"
+name = "nvs-config (the credential is a pair on the secret registry, and the index is a key)"
+args = ["test", "-p", "nvs-config"]
+tests = [
+  "a_cache_shared_password_is_read_from_its_file_sibling_and_never_enters_the_merged_table",
+  "both_halves_of_the_cache_shared_password_pair_is_refused",
+  "a_cache_shared_database_index_is_read_beside_the_url",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- `rediss://` is the third transport arm. Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the transport arm"
+name = "nvs-stdlib (a `rediss://` store dials through the one outbound TLS client, and the two other spellings stay refused)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_rediss_url_hands_the_socket_to_the_one_outbound_tls_client",
+  "a_redis_url_carrying_userinfo_or_a_path_is_still_refused",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- the handshake is part of every connection, and a real store agrees. Goal prose stage 5.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "5 every connection"
+name = "nvs-stdlib (`AUTH` and `SELECT` precede the first command on the first connect and on the reconnect)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "auth_and_select_precede_the_first_command_in_that_order",
+  "a_reconnect_after_a_dropped_socket_sends_both_again",
+]
+
+# Its own tree, for `examples/cache-shared-socket.toml`'s reason: `[cache.shared]` is unscoped, so a
+# second store cannot be spelled beside the first in the repository's `nvs.toml`.
+[[check]]
+kind = "exact"
+stage = "5 every connection"
+file = "examples/cache-shared-tls.nvs"
+args = ["--config", "examples/cache-shared-tls.toml"]
+want = [
+  "put and get agree over TLS",
+  "the entry is at the configured index and not at zero",
+]

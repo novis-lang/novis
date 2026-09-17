@@ -2,39 +2,50 @@
 
 ## State
 
-**Goal `tds-bytes` is met.** A `bytes` bound on SQL Server goes out as a `varbinary` parameter and
-comes back equal: `crates/nvs-db/src/tds/rpc.rs:178`'s `Bound` is the form a bound value carries,
-`binary_param` (`crates/nvs-db/src/tds/rpc.rs:517`) writes the octets as themselves, and
-`crates/nvs-db/src/tds/plan.rs:954`'s scripted case asserts the write half and `decode_column`'s read
-half as one equality. The real-server half is `a_mssql_bytes_binds_as_a_varbinary_and_comes_back_equal`
-in `crates/nvs-db/tests/handshake.rs:1361`, confirmed to run by breaking its assertion and watching
-the `mssql` leg name it.
+**Goal 65 — a password, a database index and TLS reach the shared store — has just started; nothing of it has landed yet.** Goal `tds-bytes`'s whole list is this goal's Stage 1 floor.
 
-Stages 2 and 3 landed last session under names no check named, so the acceptance list read `did not
-run` over green work. The goal's checks now name the tests the tree holds, in both toml copies; the
-one drafted name that was real work — the encoder's refusal for the tags with no form — is
-`an_array_and_a_non_finite_float_are_still_refused_by_the_tds_encoder`, and it names no object
-because `NvsObj::new` is `unsafe` and `nvs-db` forbids it.
+What is settled before the first session: none of the three needs a mechanism built. The secret
+plumbing is `crates/nvs-config/src/secret.rs:161`'s `SECRETS`, one `SecretPair` row per
+`value`/`value_file` pair; the TLS client is `nvs_host::tls::NvsTls`, the process's only one
+(`rule:security/one-tls-client`), already dialled over a plain socket at
+`crates/nvs-stdlib/src/http/transport.rs:1633`; and `Transport`
+(`crates/nvs-stdlib/src/cache/redis.rs:433`) is already the enum that says which socket a store is
+reached over. `tests/db/compose.yaml:293`'s `redis` serves TLS on `6380` today, published at
+`127.0.0.1:16380`, so stage 5 needs no compose edit.
 
-`python tools/db-matrix.py --all` is 8/8 legs green, and the owner and playbook gates report the goal
-owns no gap and no carried row.
+A session must not re-decide three things (the goal's *Standing decisions*): the credential is the
+`password`/`password_file` pair and never URL userinfo, the index is the `database` key and never a URL
+path, and no trust relaxation reaches this store.
 
 ## Next group
 
-**Follow-on, unscheduled — one file set: `crates/nvs-stdlib/src/db/pool.rs`,
-`crates/nvs-db/src/tds/rpc.rs`.**
+**Stage 2: the dial** — one file set: `crates/nvs-stdlib/src/cache.rs`,
+`crates/nvs-stdlib/src/cache/redis.rs`.
 
-- [ ] **No case binds a `bytes` through `Core\Db` on SQL Server** —
-      `crates/nvs-stdlib/src/db/pool.rs:220` is where the driver picks `nvs_db::tds::encode`, and
-      every case for the new form sits at the `TdsConn` surface below it, so the one line that would
-      hand this driver PostgreSQL's renderer is unasserted. `rule:core-classes/db-one-api`.
-- [ ] **The form travels in band, and a hand-written parameter can claim it** —
-      `crates/nvs-db/src/tds/rpc.rs:106` owns why `BINARY_MARK` is one octet in front of the value
-      rather than a typed parameter list, which is `Encoder::Wire`'s shared
-      `fn(Value) -> Option<Vec<u8>>` and not this driver's choice. Widening that signature is the
-      repair, and it is five drivers' seam. `rule:core-classes/db-column-types`.
+- [ ] **The dial is one value, not three** — `crates/nvs-stdlib/src/cache.rs:2115`'s `Target` says
+      which socket and nothing else, and `crates/nvs-stdlib/src/cache/redis.rs:448`'s
+      `Transport::dial` takes it. What the dial takes becomes transport, credential and index
+      together, settled once where the URL is read.
+- [ ] **`connect` applies the whole of it** — `crates/nvs-stdlib/src/cache/redis.rs:172` dials on the
+      first command and again after a dropped socket, so it is the one place all three are applied.
+      A session that authenticates anywhere else has built the reconnect bug this stage exists to
+      stop.
+- [ ] **A store configured with neither dials as it did** — the same file, the arm where `password`
+      and `database` are both absent, which is every deployment on the chain today and must not gain
+      a round trip.
 
 ## Backlog
 
-- `Core\Db::stream` and the schema half on SQL Server — `gap-zero`'s register names their owners.
-- The `nvs/rest` package is the only unscheduled half of the REST/OAuth client plan.
+- **Stage 3, the two keys** — `crates/nvs-config/src/secret.rs:161`'s `SECRETS` gains the pair and
+  `crates/nvs-config/src/tree.rs:1273`'s `CacheShared` gains `database`, both `System`-class in
+  `crate::directive`'s `cache.shared` row. File set: `crates/nvs-config/src/`.
+- **Stage 4, the transport arm** — `crates/nvs-stdlib/src/cache/redis.rs:433`'s `Transport` gains a
+  TLS arm over `NvsTcp`, agreeing with `crates/nvs-stdlib/src/http/transport.rs:1633` rather than
+  inventing a second door. Same file set as stage 2.
+- **Stage 5, every connection and a real store** — the scripted store at
+  `crates/nvs-stdlib/src/cache.rs:2770` for the order and the reconnect, then
+  `examples/cache-shared-tls.nvs` against the container.
+- **Stage 0's six sentences** — each rewritten in the slice that makes it wrong, not after it; the
+  goal's *Stage 0* lists them with their files, and `crates/nvs-stdlib/src/cache.rs:155` gap 1 is the
+  last of them.
+- When this goal's last check goes green the driver takes goal `gap-zero`.
