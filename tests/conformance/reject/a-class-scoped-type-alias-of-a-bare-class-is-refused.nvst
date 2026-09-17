@@ -1,0 +1,54 @@
+--TEST--
+a class-scoped `type` alias naming one class-shaped atom on its own is `E0307`, in a class, an interface and an enum body alike — `rule:types/alias-is-never-a-bare-class`
+--FILE--
+<?nvs
+// `rule:types/alias-is-never-a-bare-class`: an alias names a type expression,
+// and a single class-shaped atom on its own is the one production it may not
+// name — a class already has a name, and a second one for it is what
+// `rule:statements/nothing-gets-a-second-name` refuses. A class-scoped alias
+// is the same declaration in a different body, so it is the same refusal, in
+// a class, an interface and an enum body alike.
+class Thing {}
+interface Contract {}
+enum Colour: int {
+    Red = 1,
+}
+
+// The accepted half first: the atom is refused bare, not wherever it appears.
+// A union, an intersection and a wrapper each name a shape the class does not
+// already have a name for, and a parenthesised atom is not the bare form.
+class Accepted {
+    type OrNull = Thing|null;
+    type Both = Thing&Contract;
+    type Many = array<Thing>;
+    type Wrapped = (Colour);
+}
+
+class OfAClass {
+    type Id = Thing;
+}
+
+interface OfAnInterface {
+    type Id = Contract;
+}
+
+enum OfAnEnum: int {
+    On = 1,
+
+    type Id = Colour;
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0307]: a `type` alias may not name a single class, interface or enum on its own
+   --> case.nvs:25:15
+%A
+error[E0307]: a `type` alias may not name a single class, interface or enum on its own
+   --> case.nvs:29:15
+%A
+error[E0307]: a `type` alias may not name a single class, interface or enum on its own
+   --> case.nvs:35:15
+%A
+error: aborting due to 3 errors

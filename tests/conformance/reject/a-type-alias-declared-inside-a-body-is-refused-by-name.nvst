@@ -1,0 +1,44 @@
+--TEST--
+a `type` alias written in a method body, a block or a closure body is `E0233` naming the alias, the same refusal a nested class gets — `rule:types/type-alias`
+--FILE--
+<?nvs
+// `rule:types/type-alias`: `type` is a file- and namespace-scope declaration
+// beside `use` and `namespace`, and a class-body member. A body is neither.
+// PHP would declare a nested name when the statement *runs*, so whether it
+// exists would depend on control flow; Novis resolves every type name against
+// a table built before any code runs, so the declaration is refused where it
+// is written and named as a `type`, not reported as a statement the grammar
+// does not have.
+class Outer {
+    public static function run(): int {
+        type InAMethodBody = int;
+        return 1;
+    }
+}
+
+// A block at file scope is not file scope: the alias would exist only on the
+// branch that reached it.
+if (true) {
+    type InABlock = int;
+}
+
+// A closure body is a body like any other.
+callable $f = fn (): int => {
+    type InAClosure = int;
+    return 1;
+};
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0233]: a nested `type` declaration is not supported
+   --> case.nvs:11:14
+%A
+error[E0233]: a nested `type` declaration is not supported
+   --> case.nvs:19:10
+%A
+error[E0233]: a nested `type` declaration is not supported
+   --> case.nvs:24:10
+%A
+error: aborting due to 3 errors
