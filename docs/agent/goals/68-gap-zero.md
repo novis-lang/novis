@@ -1,7 +1,7 @@
 ---
 milestone: post-parity
 ---
-# Loop goal 67 — no gap is owed by anyone but a future milestone, and the index that held them is gone
+# Loop goal 68 — no gap is owed by anyone but a future milestone, and the index that held them is gone
 
 The end of the gap program the user set on 2026-09-13. Every recorded gap is **closed, or tagged to a
 future milestone (M9 and above) whose own plan file states the scope** — no item names a goal, no item

@@ -1,0 +1,334 @@
+# Goal 67 -- `is` is the one type test, and `instanceof` is gone
+# The acceptance test, as data.
+#
+# `67-one-type-test.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+#
+# The gate is an absence: `git grep -i -w instanceof` finds the word nowhere but the homes that have
+# to spell it -- the token table and the parser site that refuse it, the diagnostics crate's doc for
+# that code, the parser test and the conformance case that pin it, and the `php-migration` chapter
+# that states the divergence. Every other check names a test that proves one stage's item.
+
+files = [
+  # Every `examples/*.nvs` fixture an `exact` check below names. goal-switch.py unions the previous
+  # goal's list into this one; this goal adds none of its own, because each item's proof is a unit
+  # test beside the code it changes, a conformance case, or the word being gone.
+]
+
+[context]
+
+modules = [
+  # Every file this goal rewrites, grouped by stage. The comment on each is the item.
+  # Stage 3 -- the front end.
+  # `parse_instanceof` becomes `parse_type_test`; the value arm starts at a `$variable`.
+  "crates/nvs-syntax/src/parser/expr.rs",
+  # `parse_type_test_operand` and `reject_value_in_type_test` go with `E0812`.
+  "crates/nvs-syntax/src/parser/ty.rs",
+  # `ExprKind::InstanceOf` goes; `ExprKind::TypeTest` carries `against: TestOperand`.
+  "crates/nvs-syntax/src/ast.rs",
+  # `infer_instanceof`, `testable_class_name` and `testable_core_class` go; `reject_dynamic_class_name`
+  # gains the `is` site.
+  "crates/nvs-types/src/expr/members.rs",
+  # `infer_type_test` gains the value arm and records `ExprInfo::ClassRefTest { base }`.
+  "crates/nvs-types/src/expr/type_test.rs",
+  # `instanceof_residue` and `instanceof_test` go; the `is` residue narrows the value form to `T`.
+  "crates/nvs-types/src/locals.rs",
+  # `ExprInfo::InstanceOf` goes; `ExprInfo::ClassRefTest` arrives.
+  "crates/nvs-types/src/expr_table.rs",
+  # The new refusal code; `E0496`'s doc reduced to its three sites; `E0497` and `E0812` retired.
+  "crates/nvs-diagnostics/src/lib.rs",
+  # Stage 4 -- the lowering, the codegen and the runtime primitive.
+  # `lower_instanceof` goes; `lower_type_test` gains the descriptor-valued arm.
+  "crates/nvs-ir/src/lower/expr.rs",
+  # `InstKind::InstanceOf` becomes `InstKind::ClassTest`; `TestedClass` stays.
+  "crates/nvs-ir/src/ir.rs",
+  # `emit_instanceof` becomes `emit_class_test`, over the renamed runtime symbols.
+  "crates/nvs-codegen/src/emit.rs",
+  # `nvs_object_instanceof` / `nvs_value_instanceof` become `nvs_object_is_class` / `nvs_value_is_class`.
+  "crates/nvs-runtime/src/object.rs",
+  # Stage 5 -- the library, the LSP and the formatter.
+  # The `InstanceOf` node kind leaves `Core\Ast`'s roster.
+  "crates/nvs-stdlib/src/ast.rs",
+  # The `ExprInfo::InstanceOf` arm goes; the type after `is` resolves as a type node does.
+  "crates/nvs-lsp/src/definition.rs",
+]
+
+# What every stage is written inside: the operator, what it narrows, and the list the divergence
+# joins.
+rules = [
+  "types/type-test",
+  "types/narrowing",
+  "php-migration/every-divergence-is-deliberate-and-listed",
+  "programs/memory-priority",
+]
+
+# Empty on purpose: the record this goal opens is stage 2's, and no stage argues from another.
+adrs = []
+
+shapes = ["A commit message", "A code comment"]
+
+milestones = []
+
+playbook = [
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole decision record',
+  'Tooling > a plan field is patched',
+  'Tooling > a commit',
+  'Tooling > a [context]*',
+  'Tooling > orient.py prints',
+  'Tooling > another agent',
+  "Tooling > a loop-goal.toml check's -p",
+  "Writing Novis itself > a crate's known-gap",
+]
+
+plan = ["Open now", "Blocking"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE STAGES. One table per prose stage in `67-one-type-test.md`, holding what only that stage needs.
+# `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
+# the base above -- an overlay adds and never replaces. These are the PROSE stage numbers, not the
+# `[[check]]` blocks' `stage = "..."` labels. loop-authoring.md section 2 is the whole of it.
+# ---------------------------------------------------------------------------------------------------
+
+[context.stage.2]
+# The record and the rulebook: the six rules the record modifies, and the shapes it writes.
+rules = [
+  "types/class-reference-sites",
+  "php-migration/let-and-is-are-reserved",
+  "php-migration/a-declared-type-answers-before-the-program-runs",
+  "php-migration/is-takes-pattern-matchings-type-patterns",
+]
+shapes = ["A rule fragment", "A decision record", "Citing a document"]
+
+[context.stage.3]
+# The front end: the `class<T>` the value arm types against, the diagnostic shape, and the case shape.
+rules = ["types/class-reference", "types/class-reference-sites"]
+shapes = ["A diagnostic", "A `.nvst` test case"]
+
+[context.stage.5]
+# The library: `Core\Ast`'s roster is a `Core` surface, and the LSP case shape.
+rules = ["core-classes/ast-is-inert"]
+shapes = ["A `Core` member", "An `.lspt` case"]
+
+[context.stage.6]
+shapes = ["A `.nvst` test case"]
+
+[context.stage.7]
+# The sweep: the reserved-spelling rule the refusal lives under, and the playbook bullet shape. The
+# divergence rule stage 2 creates is in this stage's file set and is read from there.
+rules = ["php-migration/let-and-is-are-reserved"]
+shapes = ["A playbook bullet"]
+
+# The collector and the string reuse are refcount edges; the skip list is the floor's.
+[valgrind]
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-socket.nvs", "examples/queue-sqlite.nvs"]
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# The gate -- first, so a session sees at once what the goal is for: the word names nothing but the
+# refusal and the divergence. Goal prose stage 7.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "7 the gate"
+name = "`instanceof` is spelled nowhere but the refusal that names it and the rule that states the divergence"
+argv = [
+  "git", "grep", "-n", "-i", "-w", "instanceof", "--",
+  "crates", "tests", "docs/reference", "docs/spec", "docs/rules", "docs/agent/playbook.md",
+  ":!crates/nvs-syntax/src/token.rs",
+  ":!crates/nvs-syntax/src/parser/expr.rs",
+  ":!crates/nvs-syntax/src/parser/tests/expr.rs",
+  ":!crates/nvs-diagnostics/src/lib.rs",
+  ":!tests/conformance/reject/instanceof-is-spelled-is.nvst",
+  ":!docs/rules/php-migration.json",
+  ":!docs/rules/php-migration.md",
+  ":!docs/rules/php-migration/one-type-test.md",
+  ":!docs/rules/php-migration/let-and-is-are-reserved.md",
+]
+exit = "nonzero"
+
+[[check]]
+kind = "command"
+stage = "7 the gate"
+name = "the rule the record replaced is cited nowhere"
+argv = ["git", "grep", "-n", "is-takes-pattern-matchings-type-patterns", "--", "crates", "tests", "docs/rules", "docs/reference", "docs/spec", "docs/agent/playbook.md"]
+exit = "nonzero"
+
+[[check]]
+kind = "command"
+stage = "7 the gate"
+name = "the divergence rule is shipped"
+argv = ["git", "grep", "-n", "-A", "2", "\"id\": \"php-migration/one-type-test\"", "--", "docs/rules/php-migration.json"]
+want = ["\"status\": \"shipped\""]
+
+[[check]]
+kind = "command"
+stage = "7 the gate"
+name = "the chain still walks"
+argv = ["python", "tools/chain.py", "--check"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the record and the rulebook. Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "the divergence rule exists and the record created it"
+argv = ["git", "grep", "-n", "-A", "4", "\"id\": \"php-migration/one-type-test\"", "--", "docs/rules/php-migration.json"]
+want = ["\"id\": \"php-migration/one-type-test\"", "\"because\""]
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "no rule claims the type-pattern half of PHP's RFC any more"
+argv = ["git", "grep", "-n", "is-takes-pattern-matchings-type-patterns", "--", "docs/rules"]
+exit = "nonzero"
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "every rule's because names a record, and every record's changes names its rules"
+argv = ["python", "tools/rules.py", "--check"]
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "every generated chapter is current with the fragment and its topic entry"
+argv = ["python", "tools/rules.py", "--render", "--check"]
+
+[[check]]
+kind = "command"
+stage = "2 the record"
+name = "the record and the rulebook still agree on what this decision created and modified"
+argv = ["python", "tools/records.py", "--check"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the front end. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the front end"
+name = "nvs-syntax (`instanceof` is refused naming `is`, and a variable after `is` is a value operand)"
+args = ["test", "-p", "nvs-syntax"]
+tests = [
+  "instanceof_is_refused_naming_is_and_costs_one_diagnostic",
+  "a_variable_after_is_parses_as_a_value_operand_and_a_parenthesis_as_a_type",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the front end"
+name = "nvs-types (a class reference on the right of `is` narrows to its base, a non-reference is refused, a scalar subject folds)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "a_class_reference_on_the_right_of_is_narrows_the_subject_to_its_base",
+  "a_value_that_is_not_a_class_reference_on_the_right_of_is_is_refused_as_a_dynamic_class_name",
+  "a_class_test_over_a_subject_that_holds_no_object_folds_to_false_without_a_diagnostic",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the lowering, the codegen and the runtime primitive. Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the primitive"
+name = "nvs-ir (a class reference test lowers to a descriptor-valued class test)"
+args = ["test", "-p", "nvs-ir"]
+tests = [
+  "a_class_reference_test_lowers_to_a_descriptor_valued_class_test",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the primitive"
+name = "nvs-codegen (a class test's target is a relocation, and a Core class's is the process's descriptor)"
+args = ["test", "-p", "nvs-codegen"]
+tests = [
+  "a_class_test_target_is_a_relocation_not_an_immediate",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- the library, the LSP and the formatter. Goal prose stage 5.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "5 the library"
+name = "nvs-stdlib (Core\\Ast's roster has a type-test node and no class-test node beside it)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "the_ast_roster_names_a_type_test_and_no_second_node_for_a_class_test",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "5 the library"
+name = "nvs-lsp (definition on the type after `is` answers the interface)"
+args = ["test", "-p", "nvs-lsp"]
+tests = [
+  "definition_on_the_type_after_is_answers_the_interface_it_tests_against",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "5 the library"
+name = "nvs-fmt (a class reference after `is` is formatted as a type is)"
+args = ["test", "-p", "nvs-fmt"]
+tests = [
+  "a_class_reference_after_is_is_formatted_as_a_type_is",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 6 -- the tests. Goal prose stage 6.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "6 the tests"
+name = "conformance (the dynamic class test, the settled class row, the two refusals, the Core class)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/lang/an-is-test-against-a-class-reference-is-the-dynamic-class-test.nvst",
+  "tests/conformance/lang/an-is-test-whose-answer-the-declaration-settles-is-not-a-diagnostic.nvst",
+  "tests/conformance/reject/a-value-that-is-not-a-class-reference-on-the-right-of-is-is-refused.nvst",
+  "tests/conformance/reject/instanceof-is-spelled-is.nvst",
+  "tests/conformance/lang/an-is-test-against-a-core-class-answers-like-a-declared-one.nvst",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "6 the tests"
+name = "conformance (what the differential twins proved, kept under `is`)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/class/an-is-test-answers-for-every-supertype.nvst",
+  "tests/conformance/class/an-is-test-through-an-erased-subject-answers-every-tag.nvst",
+  "tests/conformance/lang/an-is-test-narrows-its-subject-on-the-true-edge.nvst",
+  "tests/conformance/core/one-core-value-answers-the-same-from-is-and-as.nvst",
+]
+
+[[check]]
+kind = "command"
+stage = "6 the tests"
+name = "no differential case spells the refused keyword, and the two that did are gone"
+argv = ["git", "grep", "-l", "-i", "-w", "instanceof", "--", "tests/differential"]
+exit = "nonzero"
