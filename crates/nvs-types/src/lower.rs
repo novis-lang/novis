@@ -27,6 +27,7 @@
 use nvs_diagnostics::{Diagnostic, Span, code};
 use nvs_hir::SymbolKind;
 use nvs_syntax::ast::{ImplementsClause, Name, Type, TypeAtom, TypeKind};
+use rustc_hash::FxHashSet;
 
 use crate::ty::TypeId;
 use crate::{Ctx, Env, span_text};
@@ -493,7 +494,7 @@ fn lower_class_const_type(
                 // The registry is the whole roster of `Core`, so a class it
                 // does not hold has no constant either — the same withdrawal of
                 // blanket trust `crate::expr::members` makes one position over.
-                report_unknown(span, qname, name, "constant", env);
+                report_missing_member(span, qname, name, "constant", env);
                 env.interner.mixed()
             }
         };
@@ -517,10 +518,79 @@ fn lower_class_const_type(
             | crate::consts::ConstValue::Ineligible,
         ) => report_not_const(span, qname, name, env),
         None => {
-            report_unknown(span, qname, name, "constant", env);
+            report_missing_member(span, qname, name, "constant", env);
             env.interner.mixed()
         }
     }
+}
+
+/// Nothing `qname` itself declares answers to `name`. An **ancestor**'s own
+/// `type` alias may, and that is a different mistake with a different repair:
+/// a class-scoped alias is reached through the owner that declares it and is
+/// inherited by nothing (`rule:types/type-alias`), so the help names the
+/// spelling that resolves instead of leaving the author to guess which of the
+/// three member kinds the name was looked up as.
+fn report_missing_member(
+    span: Span,
+    qname: &nvs_hir::QName,
+    name: &str,
+    kind: &str,
+    env: &mut Env<'_>,
+) {
+    let Some(owner) = alias_owned_by_an_ancestor(qname, name, env) else {
+        report_unknown(span, qname, name, kind, env);
+        return;
+    };
+    env.diags.report(
+        Diagnostic::error(
+            code::E_UNKNOWN_MEMBER,
+            format!("`{qname}` has no `type` named `{name}`"),
+        )
+        .with_primary(span, "not inherited")
+        .with_help(format!(
+            "`{owner}::{name}` is where it is declared, and that is the spelling that resolves \
+             — a class-scoped `type` is reached through its own owner and through no subclass or \
+             implementor (`rule:types/type-alias`)"
+        )),
+    );
+}
+
+/// The nearest `extends`/`implements` ancestor of `qname` that declares a
+/// `type` alias called `name`, if one does. Breadth-first, so a name declared
+/// twice up the chain answers with the closest owner.
+fn alias_owned_by_an_ancestor(
+    qname: &nvs_hir::QName,
+    name: &str,
+    env: &Env<'_>,
+) -> Option<nvs_hir::QName> {
+    let mut seen: FxHashSet<nvs_hir::QName> = FxHashSet::default();
+    let mut queue = supertypes_of(qname, env);
+    let mut next = 0;
+    while next < queue.len() {
+        let candidate = queue[next].clone();
+        next += 1;
+        if !seen.insert(candidate.clone()) {
+            continue;
+        }
+        if env.aliases.get_member(&candidate, name).is_some() {
+            return Some(candidate);
+        }
+        queue.extend(supertypes_of(&candidate, env));
+    }
+    None
+}
+
+/// One declaration's supertypes: `extends` and `implements` together, which is
+/// the single "walk the parents" step `nvs_hir`'s class links are shaped for.
+fn supertypes_of(qname: &nvs_hir::QName, env: &Env<'_>) -> Vec<nvs_hir::QName> {
+    env.graph.get(qname).map_or_else(Vec::new, |links| {
+        links
+            .extends
+            .iter()
+            .chain(links.implements.iter())
+            .cloned()
+            .collect()
+    })
 }
 
 /// `rule:types/constant-in-type-position`'s "a constant backed by a non-scalar type is not eligible, and
