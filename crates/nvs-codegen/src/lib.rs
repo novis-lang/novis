@@ -1549,6 +1549,15 @@ impl Classes {
         if class.field_types.len() == class.fields.len() && !class.field_types.is_empty() {
             self.table.set_field_types(id, class.field_types.clone());
         }
+        // The class's constants, converted into the runtime's own currency
+        // because `nvs-runtime` cannot see `nvs_types`. Guarded only on being
+        // non-empty, where the three above are guarded on their length: a
+        // constant roster is aligned to no slot order, so there is no
+        // disagreement for a length check to catch.
+        if !class.constants.is_empty() {
+            self.table
+                .set_class_constants(id, class.constants.iter().map(constant_desc).collect());
+        }
         let slots = class
             .fields
             .iter()
@@ -1623,6 +1632,32 @@ impl Classes {
             .get(class)
             .and_then(|entry| entry.slots.get(field))
             .copied()
+    }
+}
+
+/// One `nvs_ir::ClassConstant` in the runtime's own currency.
+///
+/// The one place the two spellings of a folded constant meet, and it is a
+/// total mapping: every case `nvs_ir::ConstValue` has is a case
+/// `nvs_runtime::ConstantValue` has, so nothing here can pick a wrong one or
+/// lose a value. It runs once per declared constant per compiled unit, at the
+/// same point in `define_class` as the field rosters beside it.
+fn constant_desc(constant: &nvs_ir::ClassConstant) -> nvs_runtime::ConstantDesc {
+    use nvs_ir::ConstValue;
+    use nvs_runtime::ConstantValue;
+
+    nvs_runtime::ConstantDesc {
+        name: constant.name.clone(),
+        public: constant.public,
+        protected: constant.protected,
+        secret: constant.secret,
+        value: match &constant.value {
+            ConstValue::Str(text) => ConstantValue::Str(text.clone()),
+            ConstValue::Int(value) => ConstantValue::Int(*value),
+            ConstValue::Bool(value) => ConstantValue::Bool(*value),
+            ConstValue::Float(value) => ConstantValue::Float(*value),
+            ConstValue::Ineligible => ConstantValue::Opaque,
+        },
     }
 }
 

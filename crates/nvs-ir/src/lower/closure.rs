@@ -297,6 +297,7 @@ pub(crate) fn lower_closure(
             // wants.
             public_fields: Vec::new(),
             protected_fields: Vec::new(),
+            constants: Vec::new(),
             // And for the same reason again: a capture's type was written on
             // the variable it closes over, not on a property declaration.
             field_types: Vec::new(),
@@ -804,6 +805,7 @@ pub(crate) fn lower_callable(
             secret_fields: Vec::new(),
             public_fields: Vec::new(),
             protected_fields: Vec::new(),
+            constants: Vec::new(),
             field_types: Vec::new(),
             // A first-class callable is a closure, so it carries the same
             // edges an `fn` literal's class does — the one every closure has

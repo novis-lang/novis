@@ -194,6 +194,7 @@ Conventions the whole file uses:
 | [`Core\Reflect\MethodInfo`](#core-core-reflect-methodinfo) |  |
 | [`Core\Reflect\PropertyInfo`](#core-core-reflect-propertyinfo) |  |
 | [`Core\Reflect\ParameterInfo`](#core-core-reflect-parameterinfo) |  |
+| [`Core\Reflect\ConstantInfo`](#core-core-reflect-constantinfo) |  |
 | [`Core\Reflect\EnumInfo`](#core-core-reflect-enuminfo) |  |
 | [`Core\Ast`](#core-core-ast) |  |
 | [`Core\Ast\Node`](#core-core-ast-node) |  |
@@ -22748,7 +22749,7 @@ Which of the language's representations `$value` currently holds. The single rep
 <a id="core-core-reflect-classinfo"></a>
 ### `Core\Reflect\ClassInfo`
 
-Keywords: name, properties, readableProperties, hasProperty, methods, hasMethod, get, set, call, construct
+Keywords: name, properties, readableProperties, hasProperty, methods, constants, constant, hasMethod, get, set, call, construct
 
 | Member | Signature |
 |---|---|
@@ -22757,6 +22758,8 @@ Keywords: name, properties, readableProperties, hasProperty, methods, hasMethod,
 | [`Core\Reflect\ClassInfo->readableProperties`](#core-core-reflect-classinfo-readableproperties) | `readableProperties(): array<string>` |
 | [`Core\Reflect\ClassInfo->hasProperty`](#core-core-reflect-classinfo-hasproperty) | `hasProperty(string $name): bool` |
 | [`Core\Reflect\ClassInfo->methods`](#core-core-reflect-classinfo-methods) | `methods(): array<Core\Reflect\MethodInfo>` |
+| [`Core\Reflect\ClassInfo->constants`](#core-core-reflect-classinfo-constants) | `constants(): array<Core\Reflect\ConstantInfo>` |
+| [`Core\Reflect\ClassInfo->constant`](#core-core-reflect-classinfo-constant) | `constant(string $name): mixed` |
 | [`Core\Reflect\ClassInfo->hasMethod`](#core-core-reflect-classinfo-hasmethod) | `hasMethod(string $name): bool` |
 | [`Core\Reflect\ClassInfo->get`](#core-core-reflect-classinfo-get) | `get(mixed $object, string $name): mixed` |
 | [`Core\Reflect\ClassInfo->set`](#core-core-reflect-classinfo-set) | `set(mixed $object, string $name, mixed $value): void` |
@@ -22821,6 +22824,34 @@ $classInfo->methods(): array<Core\Reflect\MethodInfo>
 The described class's methods — its own and every inherited one — each with its name, its visibility and how many parameters it declares. Replaces `get_class_methods`.
 
 **Returns** `array<Core\Reflect\MethodInfo>` — One `Core\Reflect\MethodInfo` per declared method, in name order, and a method the calling site could not call is among them carrying `isPublic() === false`. Naming a method is not calling it, which is why the roster is complete and `Core\Reflect\ClassInfo::call` is where the check is made.
+
+<a id="core-core-reflect-classinfo-constants"></a>
+#### `Core\Reflect\ClassInfo->constants`
+
+```nvs skip
+$classInfo->constants(): array<Core\Reflect\ConstantInfo>
+```
+
+The described class's constants — its own and every inherited one — each with its name and its visibility. Replaces `ReflectionClass::getReflectionConstants`.
+
+**Returns** `array<Core\Reflect\ConstantInfo>` — One `Core\Reflect\ConstantInfo` per constant the class answers, its own declarations first. A constant a subclass redeclares appears once, with the declaration that wins. The *values* are not here: naming a constant is metadata, reading one is acting, and `constant` is where that check is made.
+
+<a id="core-core-reflect-classinfo-constant"></a>
+#### `Core\Reflect\ClassInfo->constant`
+
+```nvs skip
+$classInfo->constant(string $name): mixed
+```
+
+The value of the class constant `$name`, under exactly the visibility ordinary code at this call site would face. Replaces `ReflectionClassConstant::getValue`, and there is no `setAccessible` to lift the check with.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The constant's name, as the declaration writes it — no class qualifier and no `::`. |
+
+**Returns** `mixed` — The folded value: a `string`, `int`, `bool` or `float`, whichever the declaration's right-hand side is.
+
+**Throws** `RuntimeError` — `$name` names a constant this call site may not reach — a reflective read has the visibility ordinary code has; or one whose declared type carries `secret`, which is refused at every site, because the `mixed` this answers with carries no qualifier and the value would reach the next sink unmarked.; `LogicError` — The class declares and inherits no constant of that name; or the declaration's value is not one of the four literals Novis folds, which `hasValue` reports ahead of the call. Both are mistakes in the program rather than privilege questions, which is what separates them from the refusals above.
 
 <a id="core-core-reflect-classinfo-hasmethod"></a>
 #### `Core\Reflect\ClassInfo->hasMethod`
@@ -23029,6 +23060,50 @@ $parameterInfo->name(): string
 The parameter's name, as the declaring method writes it.
 
 **Returns** `string` — The name with no `$` sigil — what a named argument at a call site writes. A promoted constructor parameter answers here under the same name its property carries.
+
+<a id="core-core-reflect-constantinfo"></a>
+### `Core\Reflect\ConstantInfo`
+
+Keywords: name, isPublic, hasValue
+
+| Member | Signature |
+|---|---|
+| [`Core\Reflect\ConstantInfo->name`](#core-core-reflect-constantinfo-name) | `name(): string` |
+| [`Core\Reflect\ConstantInfo->isPublic`](#core-core-reflect-constantinfo-ispublic) | `isPublic(): bool` |
+| [`Core\Reflect\ConstantInfo->hasValue`](#core-core-reflect-constantinfo-hasvalue) | `hasValue(): bool` |
+
+<a id="core-core-reflect-constantinfo-name"></a>
+#### `Core\Reflect\ConstantInfo->name`
+
+```nvs skip
+$constantInfo->name(): string
+```
+
+The constant's name, as the declaring class writes it.
+
+**Returns** `string` — The name with no class qualifier and no `::` — what `Core\Reflect\ClassInfo::constant` takes.
+
+<a id="core-core-reflect-constantinfo-ispublic"></a>
+#### `Core\Reflect\ConstantInfo->isPublic`
+
+```nvs skip
+$constantInfo->isPublic(): bool
+```
+
+Whether code outside the declaring class may name the constant.
+
+**Returns** `bool` — `false` for a `private` or `protected` constant, which is still listed, on `Core\Reflect\PropertyInfo::isPublic`'s terms exactly: knowing that a constant exists and may not be read from here is what tells a refusal from a misspelling.
+
+<a id="core-core-reflect-constantinfo-hasvalue"></a>
+#### `Core\Reflect\ConstantInfo->hasValue`
+
+```nvs skip
+$constantInfo->hasValue(): bool
+```
+
+Whether the constant's declared value is one Novis folds at compile time, and so one `Core\Reflect\ClassInfo::constant` can hand back.
+
+**Returns** `bool` — `true` for a `string`, `int`, `bool` or `float` literal — `false` for an `array` or object constant, and for an integer no `int` holds. Novis folds a constant that *is* a literal and runs no second constant-expression evaluator, so this reports a stated bound rather than an unknown, and it is `false` for exactly the constants the checker also refuses in type position.
 
 <a id="core-core-reflect-enuminfo"></a>
 ### `Core\Reflect\EnumInfo`

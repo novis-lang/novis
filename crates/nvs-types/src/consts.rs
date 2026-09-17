@@ -239,6 +239,11 @@ fn fold_class(decl: &ClassDecl, src: &SourceFile) -> FxHashMap<String, ConstEntr
 /// Whether a written annotation carries `rule:security/secret-qualifier`'s `secret` anywhere in
 /// it.
 ///
+/// [`crate::layout::ClassLayout::constants`] asks the same question of the same
+/// annotation, and for the reason that matters most here: a reflective read of
+/// a constant hands its value back as `mixed`, which carries no qualifier, so
+/// the bit has to travel with the value or the refusal cannot be made.
+///
 /// Read off the **syntax** rather than off an interned type, because this pass
 /// runs before the first annotation is interned — that is the whole reason it
 /// is a pass of its own, and giving it an interner would put it after
@@ -248,7 +253,7 @@ fn fold_class(decl: &ClassDecl, src: &SourceFile) -> FxHashMap<String, ConstEntr
 /// `crate::expr::quals::is_secret` reaches the same answer one representation
 /// down, and a union answering `secret` for one member is the safe direction
 /// for a sink either way.
-fn type_carries_secret(ty: &Type) -> bool {
+pub(crate) fn type_carries_secret(ty: &Type) -> bool {
     match &ty.kind {
         TypeKind::Nullable(inner) | TypeKind::Paren(inner) => type_carries_secret(inner),
         TypeKind::Union(members) | TypeKind::Intersection(members) => {
@@ -272,6 +277,14 @@ fn type_carries_secret(ty: &Type) -> bool {
 
 /// One `const T NAME = expr;`, folded.
 ///
+/// Two readers, one fold. This table is the first, and
+/// [`crate::layout::ClassLayout::constants`] is the second: a reflective
+/// description hands a constant's value back as a value, so the roster it is
+/// built from needs the same four literals this resolves and the same
+/// [`ConstValue::Ineligible`] for everything else. Sharing the function rather
+/// than the table is what keeps one grammar — a second fold would be a second
+/// answer to `const X = -1;` waiting to differ.
+///
 /// The accepted shapes are exactly [`crate::enums::literal_value`]'s, plus
 /// the three other literals a written value can be: a bare `int` literal, a
 /// negated one (the parser produces `-1` as a unary over the literal, never as
@@ -280,7 +293,7 @@ fn type_carries_secret(ty: &Type) -> bool {
 /// const-evaluated — `rule:types/constant-in-type-position` folds a constant that *is* a literal, and a
 /// general constant-expression evaluator is a second evaluator in the language
 /// for no requirement.
-fn fold_const(c: &ConstMember, src: &SourceFile) -> ConstValue {
+pub(crate) fn fold_const(c: &ConstMember, src: &SourceFile) -> ConstValue {
     let (negated, inner) = match &c.value.kind {
         ExprKind::Unary {
             op: UnaryOp::Neg,

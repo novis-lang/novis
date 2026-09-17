@@ -486,6 +486,21 @@ pub struct ClassDesc {
     /// carries it, and [`ClassTable::set_field_types`] fills it. **Cost:** one
     /// `String` per field per class, once per process, not per instance.
     field_types: Vec<String>,
+    /// Every class constant a program can name on this class, flattened over
+    /// its ancestors where `nvs_types::layout` flattened it — empty for a class
+    /// no declaration laid out, on [`Self::public_fields`]' terms exactly.
+    ///
+    /// Beside the field rosters rather than among them, because a constant
+    /// claims no slot: it belongs to the class and never to an instance, which
+    /// is why nothing here is indexed against [`Self::fields`] and why the
+    /// roster is keyed by name alone. `nvs_types::layout` folds it,
+    /// `nvs_ir::ir::Class::constants` carries it and
+    /// [`ClassTable::set_class_constants`] fills it;
+    /// `Core\Reflect\ClassInfo::constants` is what reads it back.
+    ///
+    /// **Cost:** one [`ConstantDesc`] per constant per class, once per process,
+    /// not per instance and not per request.
+    constants: Vec<ConstantDesc>,
     /// The address of the **native** function that renders an instance of this
     /// class as a `string`, or null for every class that has none — which is
     /// every class a program declares, and every `Core` class the spec gives
@@ -956,6 +971,62 @@ impl EnumDesc {
     }
 }
 
+/// One class constant on a [`ClassDesc`] — everything
+/// `Core\Reflect\ClassInfo`'s two constant members answer from, and nothing a
+/// running program's `Foo::BAR` reads: an ordinary use of a constant is folded
+/// at compile time and never reaches a descriptor.
+///
+/// It grants a class nothing on [`EnumDesc`]'s terms exactly. Every field is
+/// what the declaration already published to the checker, and the value is the
+/// one `nvs_types::consts`' fold made of it.
+#[derive(Clone, Debug)]
+pub struct ConstantDesc {
+    /// The constant's name, as its declaration writes it.
+    pub name: String,
+    /// Whether code outside the declaring class may name it.
+    pub public: bool,
+    /// Whether it is declared `protected` — the second bit, on
+    /// [`ClassDesc::protected_fields`]' terms, so a reflective read from a
+    /// subclass's body reaches what an ordinary one there reaches.
+    pub protected: bool,
+    /// Whether the declaration's annotation carries `secret`, which is what
+    /// makes a reflective read of the value refuse rather than launder:
+    /// `nvs_types::layout::ClassConstant::secret` owns why the bit travels.
+    pub secret: bool,
+    /// The folded value, or [`ConstantValue::Opaque`] where the declaration's
+    /// right-hand side is not one of the four literals that fold.
+    pub value: ConstantValue,
+}
+
+/// A class constant's compile-time value, in the four shapes
+/// `rule:types/constant-in-type-position`'s fold produces plus the absence of
+/// one.
+///
+/// The runtime's own currency rather than `nvs_types::consts::ConstValue`,
+/// which this crate cannot see: `nvs-codegen` converts once per declared
+/// constant per compiled unit, and the shapes are one-for-one so the
+/// conversion is total and can never pick a wrong case.
+#[derive(Clone, Debug, PartialEq)]
+pub enum ConstantValue {
+    /// A `string` constant, already cooked — the bytes a `Value::str` holds.
+    Str(String),
+    /// An `int` constant, in `int`'s own range.
+    Int(i64),
+    /// A `bool` constant.
+    Bool(bool),
+    /// A `float` constant.
+    Float(f64),
+    /// Declared, and not one of the four above: an `array` or object constant,
+    /// or an integer whose magnitude no `int` holds.
+    ///
+    /// **A stated bound, not a lost value.** Novis folds a constant that *is* a
+    /// literal and runs no second constant-expression evaluator
+    /// (`nvs_types::consts`), so a reflective read of one of these reports that
+    /// it has no compile-time value rather than guessing at one — which is the
+    /// same answer the checker gives a use of it in type position.
+    Opaque,
+}
+
 /// What one position of a [`CodecTy::List`] field holds — the element's own
 /// wire type, and, where that is another list, its element in turn.
 ///
@@ -1317,6 +1388,25 @@ impl ClassDesc {
     #[must_use]
     pub fn field_is_protected(&self, index: usize) -> bool {
         self.protected_fields.get(index).copied().unwrap_or(false)
+    }
+
+    /// Every class constant this class answers, in declaration order with each
+    /// ancestor's after its own — see [`Self::constants`].
+    #[must_use]
+    pub fn constants(&self) -> &[ConstantDesc] {
+        &self.constants
+    }
+
+    /// The constant named `name`, or `None` where this class declares and
+    /// inherits none.
+    ///
+    /// By name rather than by index, because a constant claims no slot: there
+    /// is no ordinal for a caller to have and nothing for one to be aligned
+    /// against. The scan is over a roster of the size a declaration wrote, and
+    /// it is reached only from a reflective member.
+    #[must_use]
+    pub fn constant(&self, name: &str) -> Option<&ConstantDesc> {
+        self.constants.iter().find(|c| c.name == name)
     }
 
     /// The type slot `index` is declared with, as its declaration spells it —
@@ -1718,6 +1808,7 @@ impl ClassTable {
             public_fields: Vec::new(),
             protected_fields: Vec::new(),
             field_types: Vec::new(),
+            constants: Vec::new(),
             render: std::ptr::null(),
             compare: std::ptr::null(),
             unwind: std::ptr::null(),
@@ -1877,6 +1968,25 @@ impl ClassTable {
             protected.len()
         );
         desc.protected_fields = protected;
+    }
+
+    /// Fills in `id`'s class constants — see [`ClassDesc::constants`].
+    ///
+    /// No length assertion, where the three setters around it each make one:
+    /// this roster is keyed by name and aligned to nothing, so there is no
+    /// count it could disagree with and no way for a short list to answer one
+    /// constant's value under another's name. A class that never reaches this
+    /// setter declares none, which is the same answer an empty list gives.
+    ///
+    /// # Panics
+    ///
+    /// If `id` does not belong to this table.
+    pub fn set_class_constants(&mut self, id: ClassId, constants: Vec<ConstantDesc>) {
+        let desc = self
+            .classes
+            .get_mut(id.0)
+            .expect("a class id always belongs to the table that handed it out");
+        desc.constants = constants;
     }
 
     /// Fills in `id`'s per-slot declared type names — see

@@ -1,0 +1,39 @@
+--TEST--
+`Core\Reflect\ClassInfo::constants` names every constant a class declares and `Core\Reflect\ConstantInfo` carries the visibility of each and whether its value folded — `rule:core-classes/reflect` and `rule:types/constant-in-type-position`
+--FILE--
+<?nvs
+// `rule:core-classes/reflect`: naming a constant reads the program's *shape* and
+// is always available; reading its value is acting, and that is
+// `Core\Reflect\ClassInfo::constant`'s. So the roster is complete — the
+// `private` constant is here with its bit saying so, exactly as the property
+// roster carries a `private` property.
+class Limits {
+    public const int MAX = 10;
+    private const string KEY = "ada";
+    public const array ROWS = [1, 2];
+}
+
+var $described = Core\Reflect::forObject(new Limits());
+var $roster = $described->constants();
+
+// All three, declaration order. The count is asserted beside the names because
+// a roster that dropped the `private` one still prints two plausible lines.
+echo Core\Arr::count($roster), "\n";
+foreach ($roster as Core\Reflect\ConstantInfo $constant) {
+    echo $constant->name(), " ", $constant->isPublic() ? "public" : "closed", " ",
+         $constant->hasValue() ? "value" : "none", "\n";
+}
+
+// `rule:types/constant-in-type-position`: Novis folds a constant that *is* a literal and runs no
+// second constant-expression evaluator, so an `array` constant has no
+// compile-time value to hand back. `hasValue` reports that stated bound ahead
+// of the call rather than leaving a caller to discover it from a throw — and
+// it is `false` for exactly the constants the checker also refuses in type
+// position.
+echo $described->constant("MAX") as int, "\n";
+--EXPECT--
+3
+MAX public value
+KEY closed value
+ROWS public none
+10

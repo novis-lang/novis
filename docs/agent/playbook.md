@@ -2314,6 +2314,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   nothing before that did. For a repeated one-line insertion write the whole run as a `python
   tools/splice.py --patch` file, which matches every block before it writes a byte.
   [until: reviewed 2026-12-17]
+- **An `ir::Class` field typed with an `nvs_types` type fails to compile in `nvs-codegen`.** That
+  crate lists `nvs-types` under `[dev-dependencies]` only, so the lib half sees `nvs-ir` and
+  `nvs-runtime` and nothing above them, and the error reads as a missing dependency rather than a
+  deliberate boundary. Re-export the type from `crates/nvs-ir/src/lib.rs` and name it `nvs_ir::…`
+  in codegen. [until: reviewed 2026-09-17]
 
 ## Running things
 

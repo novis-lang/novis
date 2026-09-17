@@ -47,6 +47,7 @@ use nvs_hir::{ClassGraph, QName};
 use nvs_syntax::ast::{ClassMemberKind, Modifier, NamespaceDecl, PropertyMember, Stmt, StmtKind};
 use rustc_hash::FxHashMap;
 
+use crate::consts::ConstValue;
 use crate::span_text;
 
 /// A namespace name's segments — the same one-liner [`crate::check`] and
@@ -170,6 +171,66 @@ pub struct ClassLayout {
     /// The accessor bit is carried rather than read back off the label's
     /// tail, so that spelling stays this crate's alone.
     pub hooks: Vec<(String, String, bool)>,
+    /// Every class constant a program can name on this class — its own first,
+    /// then the nearest ancestor declaring each name it does not, on
+    /// [`Self::methods`]' precedence exactly.
+    ///
+    /// Flattened rather than own-only for the reason
+    /// `rule:core-classes/reflect` gives the two rosters beside it: a roster
+    /// that dropped an inherited name would answer a declared constant and a
+    /// misspelling the same way, and `Foo::BAR` in source reads through the
+    /// chain, so a description that did not would describe a different class
+    /// than the one running.
+    ///
+    /// **Cost:** one [`ClassConstant`] per constant per class, once per
+    /// compiled unit, never per request.
+    pub constants: Vec<ClassConstant>,
+}
+
+/// One class constant, as much of it as a reflective description reads back:
+/// the name, the two bits that spell its visibility, the one
+/// `rule:security/secret-qualifier` bit, and the value itself.
+///
+/// A struct rather than [`ClassLayout::methods`]' tuple because the last field
+/// is a value and not a spelling, and that is the decision this roster turns
+/// on. A constant *is* its value — a reflective read that answered the
+/// declaration's source text would hand back `"[1, 2]"` and `"1 + 1"` and make
+/// every caller write a parser — so the fold
+/// [`crate::consts::fold_const`] already performs for
+/// `rule:types/constant-in-type-position` is what travels, and
+/// `nvs_runtime::ConstantDesc` is where it lands.
+///
+/// **[`ConstValue::Ineligible`] is a value's absence, not a constant's.** An
+/// `array` or object constant keeps its row — the name and the visibility are
+/// as much a fact about the class as any other constant's — and only the value
+/// is missing, which `Core\Reflect\ClassInfo::constant` reports as the bound it
+/// is rather than as a name it does not know.
+#[derive(Clone, Debug)]
+pub struct ClassConstant {
+    /// The constant's name, as its declaration writes it — no class qualifier
+    /// and no `::`.
+    pub name: String,
+    /// Whether code outside the declaring class may name it, on
+    /// [`ClassLayout::public_fields`]' terms.
+    pub public: bool,
+    /// Whether it is declared `protected` — the second bit, read for
+    /// [`ClassLayout::protected_fields`]' reason exactly, so a subclass's site
+    /// reaches what an ordinary `static::CONST` there reaches.
+    pub protected: bool,
+    /// Whether the declaration's own annotation carries
+    /// `rule:security/secret-qualifier`'s `secret`.
+    ///
+    /// It travels because the reflective read's return type is `mixed`, which
+    /// carries no qualifier: a `secret string` handed back through one would be
+    /// an ordinary string at the next sink, and
+    /// `rule:security/secret-sinks-refuse`'s refusal would never be made. So
+    /// the bit rides with the value and the reading member refuses rather than
+    /// laundering — priority 1 of `rule:programs/memory-priority`, bought with
+    /// one `bool`.
+    pub secret: bool,
+    /// What `rule:types/constant-in-type-position`'s fold makes of the
+    /// declaration's right-hand side.
+    pub value: ConstValue,
 }
 
 impl ClassLayout {
@@ -256,6 +317,7 @@ pub fn build_class_layouts(
     let mut own: FxHashMap<QName, Vec<(String, bool, bool, String)>> = FxHashMap::default();
     let mut own_methods: OwnMethods = FxHashMap::default();
     let mut own_hooks: FxHashMap<QName, Vec<(String, String, bool)>> = FxHashMap::default();
+    let mut own_constants: FxHashMap<QName, Vec<ClassConstant>> = FxHashMap::default();
     // The exception tree first: it has no source declaration to collect from
     // (`nvs_hir::errors`), and a user class extending it needs its four slots
     // already claimed before its own are appended.
@@ -312,6 +374,7 @@ pub fn build_class_layouts(
             &mut own,
             &mut own_methods,
             &mut own_hooks,
+            &mut own_constants,
         );
     }
 
@@ -343,6 +406,16 @@ pub fn build_class_layouts(
         let mut hook_walked = Vec::new();
         flatten_hooks(qname, graph, &own_hooks, &mut hooks, &mut hook_walked);
 
+        let mut constants = Vec::new();
+        let mut const_walked = Vec::new();
+        flatten_constants(
+            qname,
+            graph,
+            &own_constants,
+            &mut constants,
+            &mut const_walked,
+        );
+
         table.by_label.insert(
             qname.to_string(),
             ClassLayout {
@@ -353,6 +426,7 @@ pub fn build_class_layouts(
                 conforms: conforms.iter().map(QName::to_string).collect(),
                 methods,
                 hooks,
+                constants,
             },
         );
     }
@@ -368,6 +442,7 @@ fn collect_own(
     out: &mut FxHashMap<QName, Vec<(String, bool, bool, String)>>,
     methods: &mut OwnMethods,
     hooks: &mut FxHashMap<QName, Vec<(String, String, bool)>>,
+    constants: &mut FxHashMap<QName, Vec<ClassConstant>>,
 ) {
     let mut current = namespace.to_vec();
     for stmt in stmts {
@@ -377,7 +452,9 @@ fn collect_own(
                     .as_ref()
                     .map_or_else(Vec::new, |n| qname_segments(src, n));
                 match body {
-                    Some(block) => collect_own(&block.stmts, src, &scoped, out, methods, hooks),
+                    Some(block) => {
+                        collect_own(&block.stmts, src, &scoped, out, methods, hooks, constants);
+                    }
                     None => current = scoped,
                 }
             }
@@ -386,6 +463,7 @@ fn collect_own(
                 out.insert(qname.clone(), own_properties(&decl.members, src));
                 methods.insert(qname.clone(), own_methods(&decl.members, src));
                 hooks.insert(qname.clone(), own_hooks(&qname, &decl.members, src));
+                constants.insert(qname.clone(), own_constants(&decl.members, src));
             }
             // An interface declares no instance property (`rule:classes/interface-default-methods` gives
             // it method bodies, not state), but it still needs an entry: it is
@@ -401,6 +479,11 @@ fn collect_own(
                 // properties being none at all; the entry is still made, on
                 // the terms above.
                 hooks.insert(qname.clone(), own_hooks(&qname, &decl.members, src));
+                // Constants are the one roster an interface fills as a class
+                // does: `interface Limits { const int MAX = 10; }` is a name
+                // every implementor answers, so the walk reads the same
+                // members here that it reads there.
+                constants.insert(qname.clone(), own_constants(&decl.members, src));
             }
             _ => {}
         }
@@ -483,6 +566,69 @@ fn own_hooks(
                 .collect::<Vec<_>>()
         })
         .collect()
+}
+
+/// One declaration's own class constants, each folded to the value
+/// [`ClassConstant`] carries.
+///
+/// Every one of them, where [`own_methods`] keeps only what has a body: a
+/// constant is a declaration and nothing else, so there is no bodiless half to
+/// exclude. The fold is [`crate::consts::fold_const`]'s and the `secret` bit is
+/// [`crate::consts::type_carries_secret`]'s, both reused rather than rewritten
+/// — a second reading of `const int X = -1;` in this crate is a second answer
+/// waiting to differ from the one `rule:types/constant-in-type-position`
+/// already gives.
+fn own_constants(members: &[nvs_syntax::ast::ClassMember], src: &SourceFile) -> Vec<ClassConstant> {
+    members
+        .iter()
+        .filter_map(|member| match &member.kind {
+            ClassMemberKind::Const(c) => Some(ClassConstant {
+                name: span_text(src, c.name).to_owned(),
+                public: is_public(&c.modifiers),
+                protected: is_protected(&c.modifiers),
+                secret: c
+                    .ty
+                    .as_ref()
+                    .is_some_and(crate::consts::type_carries_secret),
+                value: crate::consts::fold_const(c, src),
+            }),
+            _ => None,
+        })
+        .collect()
+}
+
+/// Appends every class constant `qname` answers to `constants` — its own
+/// first, then its superclass chain's, then any interface's.
+///
+/// [`flatten_methods`]' walk keyed on the name alone, which is what a
+/// constant's own override rule is: a class redeclaring an inherited name
+/// answers with its own value, and `Foo::BAR` in source resolves the same way
+/// (`crate::consts::ConstTable::get`'s ancestor walk, which this mirrors so
+/// the two never disagree about which declaration won).
+fn flatten_constants(
+    qname: &QName,
+    graph: &ClassGraph,
+    own: &FxHashMap<QName, Vec<ClassConstant>>,
+    constants: &mut Vec<ClassConstant>,
+    walked: &mut Vec<QName>,
+) {
+    if walked.contains(qname) {
+        return;
+    }
+    walked.push(qname.clone());
+    if let Some(declared) = own.get(qname) {
+        for constant in declared {
+            if !constants.iter().any(|have| have.name == constant.name) {
+                constants.push(constant.clone());
+            }
+        }
+    }
+    let Some(links) = graph.get(qname) else {
+        return;
+    };
+    for parent in links.extends.iter().chain(links.implements.iter()) {
+        flatten_constants(parent, graph, own, constants, walked);
+    }
 }
 
 /// Whether `modifiers` leave the member they decorate readable from outside its

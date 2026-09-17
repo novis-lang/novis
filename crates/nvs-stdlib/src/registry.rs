@@ -2127,6 +2127,10 @@ pub const CLASSES: &[CoreClass] = &[
     // than off the description: a parameter belongs to the member that declares
     // it, and a class-wide list would have nothing to align to.
     crate::reflect::PARAMETER_INFO,
+    // The description's third roster, and its own class for the two above's
+    // reason: what a row carries past its name and its bit is a fact no other
+    // row has — whether the declaration folded to a value at all.
+    crate::reflect::CONSTANT_INFO,
     // `rule:enums/reflection`'s description of the one type that has no
     // descriptor: an enum case at run time is the integer behind it, so there
     // is no value to describe and no `forObject` twin — the name is the only
@@ -3156,6 +3160,7 @@ pub const CALL_SITE_MEMBERS: &[(&str, &str)] = &[
     (crate::reflect::CLASS_INFO_NAME, "readableProperties"),
     (crate::reflect::CLASS_INFO_NAME, "get"),
     (crate::reflect::CLASS_INFO_NAME, "set"),
+    (crate::reflect::CLASS_INFO_NAME, "constant"),
     (crate::reflect::CLASS_INFO_NAME, "call"),
     (crate::reflect::CLASS_INFO_NAME, "construct"),
 ];

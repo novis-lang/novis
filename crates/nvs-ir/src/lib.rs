@@ -626,6 +626,12 @@ pub mod print;
 pub mod ty;
 
 pub use ir::{Function, Program};
+/// A class constant's declaration and its folded value, re-exported because
+/// [`ir::Class::constants`] is a straight copy of the front end's roster and
+/// `nvs-codegen` — which reads that field but deliberately does not depend on
+/// `nvs-types` — has to be able to name what it holds.
+pub use nvs_types::ClassConstant;
+pub use nvs_types::consts::ConstValue;
 pub use ty::Ty;
 
 use nvs_diagnostics::{SourceFile, Span};

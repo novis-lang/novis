@@ -1,0 +1,75 @@
+--TEST--
+`Core\Reflect\ClassInfo::constant` hands back a constant's folded value at exactly the sites an ordinary `Class::CONST` reaches it from, through the override and the interface alike — `rule:security/reflection-enforces-visibility`
+--FILE--
+<?nvs
+// `rule:security/reflection-enforces-visibility`: a reflective read faces the check ordinary code at
+// that site would face. A `protected` constant is therefore reached from the
+// declaring class's own body and from a subclass's, and refused from outside —
+// which is what an ordinary read at each of those three sites does.
+interface Bounded {
+    public const int FLOOR = 0;
+}
+
+class Base implements Bounded {
+    protected const string TAG = "base";
+    public const int MAX = 10;
+
+    public function reach(): string {
+        var $described = Core\Reflect::forObject($this);
+        return $described->constant("TAG") as string;
+    }
+}
+
+class Narrow extends Base {
+    public const int MAX = 3;
+
+    public function inherited(): string {
+        var $described = Core\Reflect::forObject($this);
+        return $described->constant("TAG") as string;
+    }
+}
+
+var $described = Core\Reflect::forObject(new Narrow());
+
+// The roster is flattened over the chain and a redeclared name appears once,
+// carrying the declaration that wins — the resolution `Narrow::MAX` in source
+// makes, asked of a class the checker never saw. Every row folded, which is
+// what makes the refusal below a visibility answer rather than a missing value.
+foreach ($described->constants() as Core\Reflect\ConstantInfo $constant) {
+    echo $constant->name(), " ", $constant->isPublic() ? "public" : "closed", " ",
+         $constant->hasValue() ? "value" : "none", "\n";
+}
+echo $described->constant("MAX") as int, "\n";
+
+// An interface's constant is one the implementor answers, reached by the
+// `implements` edge rather than by `extends`.
+echo $described->constant("FLOOR") as int, "\n";
+
+// The three sites, in the order the rule states them: the subclass's body, the
+// declaring class's own, and outside every class.
+echo (new Narrow())->inherited(), "\n";
+echo (new Base())->reach(), "\n";
+try {
+    $described->constant("TAG");
+} catch (RuntimeError $refused) {
+    echo "refused from outside\n";
+}
+
+// And a name the class declares nothing of. A misspelling is a mistake in the
+// program's shape and a refusal is a privilege answer, so they are different
+// classes of throw — the same split `Core\Reflect\ClassInfo::get` makes.
+try {
+    $described->constant("CEILING");
+} catch (LogicError $absent) {
+    echo "absent\n";
+}
+--EXPECT--
+MAX public value
+TAG closed value
+FLOOR public value
+3
+0
+base
+base
+refused from outside
+absent

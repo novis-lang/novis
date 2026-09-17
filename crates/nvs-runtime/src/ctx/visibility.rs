@@ -12,10 +12,11 @@
 //! member carry it to the descriptor, so a `protected` member is told from a
 //! `private` one here.
 //!
-//! A property is asked for by name and a method by the row a caller already
-//! holds, which is the one asymmetry: a reflective read is a member call and
-//! can afford a second name lookup, while an erased dispatch is on the request
-//! path and has the row in hand by the time it asks.
+//! A property and a class constant are each asked for by name, and a method by
+//! the row a caller already holds, which is the one asymmetry: a reflective
+//! read is a member call and can afford a second name lookup, while an erased
+//! dispatch is on the request path and has the row in hand by the time it
+//! asks.
 //!
 //! **What it spends:** nothing per request and nothing per instance. A `public`
 //! member is one array read. The walk is reached only by a non-`public` member
@@ -63,6 +64,30 @@ impl Ctx {
         row.public
             || self.reaches(subject, site, row.protected, |desc| {
                 desc.method_row(&row.name).is_some()
+            })
+    }
+
+    /// Whether the class constant `name` of `subject` may be read from a body
+    /// inside `site`, on [`Self::field_is_visible_from`]'s terms exactly.
+    ///
+    /// The third door, and the one whose subject is a class rather than an
+    /// instance: a constant claims no slot, so the roster is asked by name and
+    /// `declares` is the same question one step over. `false` for a constant
+    /// `subject` does not have, for the reason the property answer gives — a
+    /// caller that owes a misspelling a refusal of its own asks that first.
+    #[must_use]
+    pub fn constant_is_visible_from(
+        &self,
+        subject: &ClassDesc,
+        name: &str,
+        site: Option<&str>,
+    ) -> bool {
+        let Some(constant) = subject.constant(name) else {
+            return false;
+        };
+        constant.public
+            || self.reaches(subject, site, constant.protected, |desc| {
+                desc.constant(name).is_some()
             })
     }
 

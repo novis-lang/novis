@@ -530,6 +530,7 @@ pub(crate) fn lower_generator(
         secret_fields: Vec::new(),
         public_fields: Vec::new(),
         protected_fields: Vec::new(),
+        constants: Vec::new(),
         field_types: Vec::new(),
         // `Iterable`/`Iterator` are compiler-declared and have no layout
         // entry of their own, so `nvs_codegen::Classes::define` drops an

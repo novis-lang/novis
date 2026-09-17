@@ -203,6 +203,20 @@ pub struct Class {
     /// **Cost:** one `bool` per field slot per class, once per compiled unit,
     /// not per request.
     pub protected_fields: Vec<bool>,
+    /// A straight copy of `nvs_types::layout::ClassLayout::constants`, which
+    /// owns the roster's flattening rule and why a folded value travels rather
+    /// than the declaration's source text. `nvs-codegen` turns each row into a
+    /// `nvs_runtime::ConstantDesc` on the class's descriptor, and
+    /// `Core\Reflect\ClassInfo::constants` is what reads it back.
+    ///
+    /// Empty for every class this crate synthesizes — a closure environment, a
+    /// generator's state machine, a shape literal's carrier — on
+    /// [`Self::public_fields`]' terms exactly: nothing declared one, rather
+    /// than a class that declares none.
+    ///
+    /// **Cost:** one row per declared constant per class, once per compiled
+    /// unit, not per request.
+    pub constants: Vec<nvs_types::ClassConstant>,
     /// Each field slot's declared type as its declaration spells it, in
     /// [`Self::fields`]' own order — or **empty**, on [`Self::public_fields`]'
     /// terms exactly: "nothing told this class", never "every slot is

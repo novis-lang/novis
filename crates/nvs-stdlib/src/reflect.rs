@@ -21,8 +21,8 @@
 //!
 //! # Decision: `ClassInfo` holds its answers, rather than the described class
 //!
-//! [`CLASS_INFO`]'s two slots are the class's name and its visible property
-//! names, both computed at [`nvs_core_reflect_for_object`] time. A slot holding
+//! [`CLASS_INFO`]'s slots are the class's name and its three rosters, all
+//! computed at [`nvs_core_reflect_for_object`] time. A slot holding
 //! the descriptor itself would be smaller and would defer the walk — but
 //! [`crate::instance`]'s first decision is that a `Core` instance is an ordinary
 //! Novis object, so every slot must be a value Novis already holds, and a raw
@@ -32,8 +32,9 @@
 //! § 1 says it is: nothing it carries can be dereferenced back into the program.
 //!
 //! **What it spends:** per `forClass` or `forObject` call, one array and one
-//! [`PROPERTY_INFO`] of three slots per declared property, plus one array and
-//! one [`METHOD_INFO`] of three slots per declared method, charged to the
+//! [`PROPERTY_INFO`] of three slots per declared property, one array and one
+//! [`METHOD_INFO`] of three slots per declared method, and one array and one
+//! [`CONSTANT_INFO`] of three slots per class constant, charged to the
 //! request that asked and released with the description. A program that
 //! describes the same class in a loop pays per call; the alternative is a
 //! per-core cache keyed by descriptor address, which nothing yet needs. Both
@@ -46,12 +47,12 @@
 //! spends one decoded [`nvs_render::Source`] on top, which is two short strings
 //! read out of the unit's own data section.
 //!
-//! # Decision: both rosters are complete, and the readable walk is a member of
+//! # Decision: every roster is complete, and the readable walk is a member of
 //! its own
 //!
-//! [`CLASS_INFO`]'s `properties` and its `methods` answer the same shape: every
-//! member the class declares, each row carrying the bit saying whether this
-//! call site may act on it. `readableProperties` is the other question — the
+//! [`CLASS_INFO`]'s `properties`, its `methods` and its `constants` answer the
+//! same shape: every member the class declares, each row carrying the bit
+//! saying whether this call site may act on it. `readableProperties` is the other question — the
 //! list a `get` is about to be made against — and it has a spelling of its own
 //! because it has an answer of its own, which depends on where the call is
 //! written. § 2 is what divides them: *reading metadata* is always available,
@@ -66,8 +67,11 @@
 //! and its `hasMethod` twin answer `false` to a declared name and to a typo
 //! alike. Nothing leaks by it — a name, a visibility bit, a declared type and a
 //! parameter count are what the declaration already published to the checker,
-//! and no state of any instance is reachable through them. Acting is still
-//! [`nvs_core_reflect_class_info_get`]'s and
+//! and no state of any instance is reachable through them. A constant's roster
+//! row carries no value for the same reading one step further: the value *is*
+//! the declaration, so it is the one thing on a row that would be state, and it
+//! is [`nvs_core_reflect_class_info_constant`]'s to hand back. Acting is still
+//! that member's and [`nvs_core_reflect_class_info_get`]'s and
 //! [`nvs_core_reflect_class_info_call`]'s, which is where § 2's check is made.
 //!
 //! # Decision: a description reads its own class's instances, and says so
@@ -149,19 +153,21 @@
 //!
 //! # Known gaps
 //!
-//! 1. § 1's roster is short of two of the classes it names, `ConstantInfo` and
-//!    `AttributeInfo`. [`METHOD_INFO`], [`PROPERTY_INFO`], [`PARAMETER_INFO`]
+//! 1. § 1's roster is short of one of the classes it names, `AttributeInfo`.
+//!    [`METHOD_INFO`], [`PROPERTY_INFO`], [`PARAMETER_INFO`], [`CONSTANT_INFO`]
 //!    and [`ENUM_INFO`] are here, so `get_class_methods`, `method_exists`,
-//!    `get_object_vars` and `property_exists` all have their answers and an
+//!    `get_object_vars`, `property_exists` and
+//!    `ReflectionClass::getReflectionConstants` all have their answers and an
 //!    enum's case list has the only one it can have; the spec's roster row
 //!    (`docs/spec/01-core-library.md` § 13) is the home of the full list, and
-//!    the two left are waiting on descriptor data no crate carries rather than
-//!    on a decision. A [`nvs_runtime::ClassDesc`] carries no class constants
-//!    and no attributes at all, so each is a join from `nvs_types` through
-//!    `nvs-codegen` before it is a member here —
-//!    [`nvs_runtime::EnumDesc`] and `nvs_ir::ir::Program::enums` are the shape
-//!    that join takes, one list beside the descriptors rather than a field on
-//!    them, because neither fact belongs to an instance.
+//!    the one left is waiting on descriptor data no crate carries rather than
+//!    on a decision. A [`nvs_runtime::ClassDesc`] carries no attributes at all,
+//!    so it is a join from `nvs_types` through `nvs-codegen` before it is a
+//!    member here — [`nvs_runtime::ConstantDesc`] and
+//!    `nvs_types::layout::ClassLayout::constants` are the shape that join
+//!    takes, a roster on the descriptor itself, because an attribute is
+//!    attached to a declaration and answers to the class rather than to any
+//!    instance of it.
 //!    — owner: decided-closures
 
 use nvs_runtime::{ClassDesc, Fault, NvsArray, NvsObj, NvsStr, Tag, ThrownClass, Value};
@@ -185,6 +191,9 @@ pub(crate) const PROPERTY_INFO_NAME: &str = "Core\\Reflect\\PropertyInfo";
 /// One described parameter's own name, as a program writes it.
 pub(crate) const PARAMETER_INFO_NAME: &str = "Core\\Reflect\\ParameterInfo";
 
+/// One described class constant's own name, as a program writes it.
+pub(crate) const CONSTANT_INFO_NAME: &str = "Core\\Reflect\\ConstantInfo";
+
 /// The described enum's own name, as a program writes it.
 pub(crate) const ENUM_INFO_NAME: &str = "Core\\Reflect\\EnumInfo";
 
@@ -197,6 +206,9 @@ const PROPERTIES_SLOT: usize = 1;
 /// [`CLASS_INFO`]'s slot holding one [`METHOD_INFO`] per declared method.
 const METHODS_SLOT: usize = 2;
 
+/// [`CLASS_INFO`]'s slot holding one [`CONSTANT_INFO`] per class constant.
+const CONSTANTS_SLOT: usize = 3;
+
 /// [`PROPERTY_INFO`]'s slot holding the property's name.
 const PROPERTY_NAME_SLOT: usize = 0;
 
@@ -206,6 +218,16 @@ const PROPERTY_PUBLIC_SLOT: usize = 1;
 /// [`PROPERTY_INFO`]'s slot holding the type the declaration spells, or `null`
 /// where it named none.
 const PROPERTY_TYPE_SLOT: usize = 2;
+
+/// [`CONSTANT_INFO`]'s slot holding the constant's name.
+const CONSTANT_NAME_SLOT: usize = 0;
+
+/// [`CONSTANT_INFO`]'s slot holding whether the constant is `public`.
+const CONSTANT_PUBLIC_SLOT: usize = 1;
+
+/// [`CONSTANT_INFO`]'s slot holding whether the constant folded to a value at
+/// all — see [`CONSTANT_HAS_VALUE_DOC`].
+const CONSTANT_HAS_VALUE_SLOT: usize = 2;
 
 /// [`METHOD_INFO`]'s slot holding the method's name.
 const METHOD_NAME_SLOT: usize = 0;
@@ -475,6 +497,27 @@ pub(crate) const CLASS_INFO: CoreClass = CoreClass {
             doc: Some(&METHODS_DOC),
         },
         CoreMethod {
+            name: "constants",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Instance(CONSTANT_INFO_NAME)),
+            symbol: "nvs_core_reflect_class_info_constants",
+            doc: Some(&CONSTANTS_DOC),
+        },
+        CoreMethod {
+            name: "constant",
+            names: &["name"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            // `mixed`, on `get`'s terms one member down: which of the four
+            // literal types a constant folded to is not known where the call
+            // is written, the class being named at run time.
+            return_ty: CoreTy::Mixed,
+            symbol: "nvs_core_reflect_class_info_constant",
+            doc: Some(&CONSTANT_DOC),
+        },
+        CoreMethod {
             name: "hasMethod",
             names: &["name"],
             params: &[CoreTy::Text(Qual::Neutral)],
@@ -541,7 +584,7 @@ pub(crate) const CLASS_INFO: CoreClass = CoreClass {
             doc: Some(&CONSTRUCT_DOC),
         },
     ],
-    slots: &["name", "properties", "methods"],
+    slots: &["name", "properties", "methods", "constants"],
     constants: &[],
 };
 
@@ -552,6 +595,49 @@ const NAME_DOC: MethodDoc = MethodDoc {
     ret: "The class name — `App\\Model\\User` for a namespaced declaration, and never an alias \
           the naming site happened to use.",
     errors: &[],
+};
+
+/// `Core\Reflect\ClassInfo::constants`'s reference card — `rule:core-api/reference-card`.
+const CONSTANTS_DOC: MethodDoc = MethodDoc {
+    short: "The described class's constants — its own and every inherited one — each with its name \
+            and its visibility. Replaces `ReflectionClass::getReflectionConstants`.",
+    params: &[],
+    ret: "One `Core\\Reflect\\ConstantInfo` per constant the class answers, its own declarations \
+          first. A constant a subclass redeclares appears once, with the declaration that wins. \
+          The *values* are not here: naming a constant is metadata, reading one is acting, and \
+          `constant` is where that check is made.",
+    errors: &[],
+};
+
+/// `Core\Reflect\ClassInfo::constant`'s reference card — `rule:core-api/reference-card`.
+const CONSTANT_DOC: MethodDoc = MethodDoc {
+    short: "The value of the class constant `$name`, under exactly the visibility ordinary code at \
+            this call site would face. Replaces `ReflectionClassConstant::getValue`, and there is \
+            no `setAccessible` to lift the check with.",
+    params: &[ParamDoc {
+        name: "name",
+        desc: "The constant's name, as the declaration writes it — no class qualifier and no \
+               `::`.",
+        shape: &[],
+    }],
+    ret: "The folded value: a `string`, `int`, `bool` or `float`, whichever the declaration's \
+          right-hand side is.",
+    errors: &[
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "`$name` names a constant this call site may not reach — a reflective read has \
+                   the visibility ordinary code has; or one whose declared type carries `secret`, \
+                   which is refused at every site, because the `mixed` this answers with carries \
+                   no qualifier and the value would reach the next sink unmarked.",
+        },
+        ErrorDoc {
+            error: "LogicError",
+            desc: "The class declares and inherits no constant of that name; or the declaration's \
+                   value is not one of the four literals Novis folds, which `hasValue` reports \
+                   ahead of the call. Both are mistakes in the program rather than privilege \
+                   questions, which is what separates them from the refusals above.",
+        },
+    ],
 };
 
 /// `Core\Reflect\ClassInfo::properties`'s reference card — `rule:core-api/reference-card`.
@@ -1185,6 +1271,89 @@ const PROPERTY_TYPE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
+/// One class constant of a description's roster — `Core\Reflect\ConstantInfo`.
+///
+/// [`PROPERTY_INFO`]'s shape for the member that is a *value*, and the third
+/// slot is where the two part company. A property's row names the type its
+/// declaration spells; a constant's declaration *is* its value, so what the row
+/// carries instead is whether there is one to read — a constant folds when its
+/// right-hand side is one of the four literals `nvs_types::consts` resolves,
+/// and an `array` or object constant keeps its row with nothing to hand back.
+///
+/// **No slot holds the value**, and that is `rule:core-classes/reflect` § 2's
+/// division applied to a constant: naming one is metadata and is always
+/// available, reading one is acting and faces the check ordinary code at the
+/// call site faces. A row built by [`describe`] has no site to be judged
+/// against, so the value is [`nvs_core_reflect_class_info_constant`]'s to hand
+/// back — the same split `properties` and `get` already make.
+pub(crate) const CONSTANT_INFO: CoreClass = CoreClass {
+    name: CONSTANT_INFO_NAME,
+    methods: &[],
+    instance: &[
+        CoreMethod {
+            name: "name",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "nvs_core_reflect_constant_info_name",
+            doc: Some(&CONSTANT_NAME_DOC),
+        },
+        CoreMethod {
+            name: "isPublic",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            symbol: "nvs_core_reflect_constant_info_is_public",
+            doc: Some(&CONSTANT_IS_PUBLIC_DOC),
+        },
+        CoreMethod {
+            name: "hasValue",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            symbol: "nvs_core_reflect_constant_info_has_value",
+            doc: Some(&CONSTANT_HAS_VALUE_DOC),
+        },
+    ],
+    slots: &["name", "public", "hasValue"],
+    constants: &[],
+};
+
+/// `Core\Reflect\ConstantInfo::name`'s reference card — `rule:core-api/reference-card`.
+const CONSTANT_NAME_DOC: MethodDoc = MethodDoc {
+    short: "The constant's name, as the declaring class writes it.",
+    params: &[],
+    ret: "The name with no class qualifier and no `::` — what \
+          `Core\\Reflect\\ClassInfo::constant` takes.",
+    errors: &[],
+};
+
+/// `Core\Reflect\ConstantInfo::isPublic`'s reference card — `rule:core-api/reference-card`.
+const CONSTANT_IS_PUBLIC_DOC: MethodDoc = MethodDoc {
+    short: "Whether code outside the declaring class may name the constant.",
+    params: &[],
+    ret: "`false` for a `private` or `protected` constant, which is still listed, on \
+          `Core\\Reflect\\PropertyInfo::isPublic`'s terms exactly: knowing that a constant exists \
+          and may not be read from here is what tells a refusal from a misspelling.",
+    errors: &[],
+};
+
+/// `Core\Reflect\ConstantInfo::hasValue`'s reference card — `rule:core-api/reference-card`.
+const CONSTANT_HAS_VALUE_DOC: MethodDoc = MethodDoc {
+    short: "Whether the constant's declared value is one Novis folds at compile time, and so one \
+            `Core\\Reflect\\ClassInfo::constant` can hand back.",
+    params: &[],
+    ret: "`true` for a `string`, `int`, `bool` or `float` literal — `false` for an `array` or \
+          object constant, and for an integer no `int` holds. Novis folds a constant that *is* a \
+          literal and runs no second constant-expression evaluator, so this reports a stated \
+          bound rather than an unknown, and it is `false` for exactly the constants the checker \
+          also refuses in type position.",
+    errors: &[],
+};
+
 /// A `string` argument of `member`, as text.
 ///
 /// A [`Fault::fatal`] for the wrong tag, on `crate::json`'s own `text_of`
@@ -1272,12 +1441,24 @@ fn describe(desc: &ClassDesc) -> Value {
             ],
         ));
     }
+    let mut constants = NvsArray::new();
+    for constant in desc.constants() {
+        constants.append(crate::instance::build(
+            &CONSTANT_INFO,
+            [
+                Value::str(NvsStr::new(constant.name.as_bytes())),
+                Value::bool(constant.public),
+                Value::bool(constant.value != nvs_runtime::ConstantValue::Opaque),
+            ],
+        ));
+    }
     crate::instance::build(
         &CLASS_INFO,
         [
             Value::str(NvsStr::new(desc.name().as_bytes())),
             Value::array(properties),
             Value::array(methods),
+            Value::array(constants),
         ],
     )
 }
@@ -1364,6 +1545,21 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         }
         "nvs_core_reflect_class_info_has_method" => {
             (nvs_core_reflect_class_info_has_method as *const ()).cast()
+        }
+        "nvs_core_reflect_class_info_constants" => {
+            (nvs_core_reflect_class_info_constants as *const ()).cast()
+        }
+        "nvs_core_reflect_class_info_constant" => {
+            (nvs_core_reflect_class_info_constant as *const ()).cast()
+        }
+        "nvs_core_reflect_constant_info_name" => {
+            (nvs_core_reflect_constant_info_name as *const ()).cast()
+        }
+        "nvs_core_reflect_constant_info_is_public" => {
+            (nvs_core_reflect_constant_info_is_public as *const ()).cast()
+        }
+        "nvs_core_reflect_constant_info_has_value" => {
+            (nvs_core_reflect_constant_info_has_value as *const ()).cast()
         }
         "nvs_core_reflect_property_info_name" => {
             (nvs_core_reflect_property_info_name as *const ()).cast()
@@ -1680,6 +1876,125 @@ nvs_runtime::nvs_helper! {
     /// twice.
     fn nvs_core_reflect_class_info_methods(_ctx, args: [1]) {
         slot_of(args, &CLASS_INFO, METHODS_SLOT, "methods")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Reflect\ClassInfo::constants(): array<Core\Reflect\ConstantInfo>`
+    /// — ADR 0019 § 1's third roster, replacing
+    /// `ReflectionClass::getReflectionConstants`.
+    ///
+    /// The whole roster, on the two above it terms exactly: naming a constant
+    /// reads the program's shape, and reading its value is acting and goes
+    /// through [`nvs_core_reflect_class_info_constant`]'s check. Answered off
+    /// the slot [`describe`] filled.
+    fn nvs_core_reflect_class_info_constants(_ctx, args: [1]) {
+        slot_of(args, &CLASS_INFO, CONSTANTS_SLOT, "constants")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Reflect\ClassInfo::constant(string $name): mixed` — ADR 0019 § 2's
+    /// rule that *acting* on a member faces the ordinary check, for the member
+    /// whose declaration is its value.
+    ///
+    /// Four refusals in one order, and the order is
+    /// [`nvs_core_reflect_class_info_get`]'s for its reason: the name has to be
+    /// one this class answers, then the site has to reach it, then the
+    /// declaration has to carry no `secret`, and only then is the fold asked
+    /// for. A member that asked visibility first would answer a misspelling
+    /// with a `private` read's refusal.
+    ///
+    /// The `secret` refusal is the one that is not `get`'s, and it is made at
+    /// **every** site including the declaring class's own. This member answers
+    /// `mixed`, which carries no qualifier, so a `secret string` handed through
+    /// it would be an ordinary string at the next sink and
+    /// `rule:security/secret-sinks-refuse` would never fire. Refusing is the
+    /// direction that fails closed; the value is still reachable by naming the
+    /// constant in source, where the qualifier survives.
+    ///
+    /// The subject is reached by name rather than through an object, unlike
+    /// `get`: a constant belongs to the class, so there is no instance for a
+    /// caller to hand over and none for this to pair against.
+    fn nvs_core_reflect_class_info_constant(ctx, args: [3]) {
+        let member = "constant";
+        let receiver = crate::instance::receiver(args[0], &CLASS_INFO, member)?;
+        let name = text_of(&args[1], "Core\\Reflect\\ClassInfo::constant")?;
+        let site = site_class(args[2]);
+        let described = crate::instance::slot(receiver, NAME_SLOT);
+        let described = described.as_text().unwrap_or_default();
+        #[expect(
+            unsafe_code,
+            reason = "`class_desc` answers with a pointer into the compiled unit's class table, \
+                      which outlives this context and is never rewritten while a member of it is \
+                      running"
+        )]
+        let desc = ctx.class_desc(described).map(|desc| unsafe { &*desc });
+        let Some(constant) = desc.and_then(|desc| desc.constant(name)) else {
+            return Err(Fault::thrown_as(
+                ThrownClass::Logic,
+                format!(
+                    "{CLASS_INFO_NAME}::constant(): `{described}` has no constant named `{name}`"
+                ),
+            ));
+        };
+        if !desc.is_some_and(|desc| ctx.constant_is_visible_from(desc, name, site.as_deref())) {
+            return Err(Fault::thrown(format!(
+                "{CLASS_INFO_NAME}::constant(): `{described}::{name}` is not readable from \
+                 outside the class, and reflection does not lift that"
+            )));
+        }
+        if constant.secret {
+            return Err(Fault::thrown(format!(
+                "{CLASS_INFO_NAME}::constant(): `{described}::{name}` is declared `secret`, and \
+                 this member answers `mixed`, which carries no qualifier — name the constant in \
+                 source, where it does"
+            )));
+        }
+        Ok(match &constant.value {
+            nvs_runtime::ConstantValue::Str(text) => Value::str(NvsStr::new(text.as_bytes())),
+            nvs_runtime::ConstantValue::Int(value) => Value::int(*value),
+            nvs_runtime::ConstantValue::Bool(value) => Value::bool(*value),
+            nvs_runtime::ConstantValue::Float(value) => Value::float(*value),
+            nvs_runtime::ConstantValue::Opaque => {
+                return Err(Fault::thrown_as(
+                    ThrownClass::Logic,
+                    format!(
+                        "{CLASS_INFO_NAME}::constant(): `{described}::{name}` is declared with a \
+                         value Novis does not fold, so there is none to read — `hasValue` reports \
+                         that ahead of the call"
+                    ),
+                ));
+            }
+        })
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Reflect\ConstantInfo::name(): string` — the constant's own name.
+    fn nvs_core_reflect_constant_info_name(_ctx, args: [1]) {
+        slot_of(args, &CONSTANT_INFO, CONSTANT_NAME_SLOT, "name")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Reflect\ConstantInfo::isPublic(): bool` — the visibility bit
+    /// `nvs_types::layout` fixed at the declaration and
+    /// [`nvs_runtime::ConstantDesc`] carried down.
+    fn nvs_core_reflect_constant_info_is_public(_ctx, args: [1]) {
+        slot_of(args, &CONSTANT_INFO, CONSTANT_PUBLIC_SLOT, "isPublic")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Reflect\ConstantInfo::hasValue(): bool` — whether the declaration
+    /// folded, which is whether
+    /// [`nvs_core_reflect_class_info_constant`] has a value to hand back.
+    ///
+    /// A bound reported as one: `nvs_runtime::ConstantValue::Opaque`'s own doc
+    /// comment owns which declarations reach it and why Novis stops there.
+    fn nvs_core_reflect_constant_info_has_value(_ctx, args: [1]) {
+        slot_of(args, &CONSTANT_INFO, CONSTANT_HAS_VALUE_SLOT, "hasValue")
     }
 }
 
@@ -2631,7 +2946,7 @@ mod tests {
     /// landing a class deletes its line in the same slice. Nothing is added
     /// without deleting this sentence — a roster the record names and this file
     /// silently omits is exactly the drift the gate exists for.
-    const NOT_YET_BUILT: &[&str] = &["ConstantInfo", "AttributeInfo"];
+    const NOT_YET_BUILT: &[&str] = &["AttributeInfo"];
 
     /// Every `*Info` class ADR 0019 § 1 names is a registered class, or is one
     /// of [`NOT_YET_BUILT`].
