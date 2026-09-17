@@ -1,0 +1,39 @@
+--TEST--
+`Core\Reflect\ParameterInfo::type` answers the type the declaration spells, whole — the nullable, the generic argument and the class name included — `rule:core-classes/reflect`
+--FILE--
+<?nvs
+// A parameter's declared type is part of the program's shape, so it is
+// introspection and reaches no value. What makes it worth asking for is that a
+// *representation* cannot answer it: `int` and `uint` share one, `?int` and
+// `int` share one, and every class shares one with every other, so only the
+// declaration's own words tell them apart.
+class Say {
+    public static function text(?string $value): string {
+        if ($value == null) { return "<none>"; }
+        return $value;
+    }
+}
+
+class Orders {
+    public function place(
+        string $sku,
+        ?int $quantity,
+        array<string> $tags,
+        Core\Uuid $id,
+    ): string {
+        return $sku;
+    }
+}
+
+var $described = Core\Reflect::forObject(new Orders());
+
+foreach ($described->methods() as Core\Reflect\MethodInfo $method) {
+    foreach ($method->parameters() as Core\Reflect\ParameterInfo $parameter) {
+        echo $parameter->name(), ": ", Say::text($parameter->type()), "\n";
+    }
+}
+--EXPECT--
+sku: string
+quantity: ?int
+tags: array<string>
+id: Core\Uuid

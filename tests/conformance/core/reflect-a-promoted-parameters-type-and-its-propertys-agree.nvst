@@ -1,0 +1,49 @@
+--TEST--
+A promoted constructor parameter's declared type and the type of the property it becomes are one declaration read twice, and every one of them agrees — `rule:core-classes/reflect`
+--FILE--
+<?nvs
+// One declaration reaches a description down two roads: the property roster,
+// off the class's field table, and the parameter roster, off the method table.
+// The assertion is a count over every promoted parameter rather than a line per
+// name, because a description that grew its own spelling on one of the two
+// roads still reads correctly on either road alone.
+class Say {
+    public static function text(?string $value): string {
+        if ($value == null) { return "<none>"; }
+        return $value;
+    }
+}
+
+class Point {
+    public function constructor(
+        public int $x,
+        public ?string $label,
+        public array<int> $tags,
+    ) {}
+}
+
+var $described = Core\Reflect::forObject(new Point(1, null, []));
+
+int $checked = 0;
+int $agree = 0;
+foreach ($described->methods() as Core\Reflect\MethodInfo $method) {
+    if ($method->name() != "constructor") { continue; }
+    foreach ($method->parameters() as Core\Reflect\ParameterInfo $parameter) {
+        foreach ($described->properties() as Core\Reflect\PropertyInfo $property) {
+            if ($property->name() != $parameter->name()) { continue; }
+            $checked = $checked + 1;
+            if (Say::text($property->type()) == Say::text($parameter->type())) {
+                $agree = $agree + 1;
+            }
+        }
+    }
+}
+
+// Three pairs, not two: a promotion that lost the nullable on one side would
+// leave `checked` where it is and drop `agree`, and one that dropped a
+// property outright drops both.
+echo "checked=", $checked, "\n";
+echo "agree=", $agree, "\n";
+--EXPECT--
+checked=3
+agree=3

@@ -23057,11 +23057,12 @@ The type the property is declared with, spelled as the declaration spells it.
 <a id="core-core-reflect-parameterinfo"></a>
 ### `Core\Reflect\ParameterInfo`
 
-Keywords: name
+Keywords: name, type
 
 | Member | Signature |
 |---|---|
 | [`Core\Reflect\ParameterInfo->name`](#core-core-reflect-parameterinfo-name) | `name(): string` |
+| [`Core\Reflect\ParameterInfo->type`](#core-core-reflect-parameterinfo-type) | `type(): ?string` |
 
 <a id="core-core-reflect-parameterinfo-name"></a>
 #### `Core\Reflect\ParameterInfo->name`
@@ -23073,6 +23074,17 @@ $parameterInfo->name(): string
 The parameter's name, as the declaring method writes it.
 
 **Returns** `string` — The name with no `$` sigil — what a named argument at a call site writes. A promoted constructor parameter answers here under the same name its property carries.
+
+<a id="core-core-reflect-parameterinfo-type"></a>
+#### `Core\Reflect\ParameterInfo->type`
+
+```nvs skip
+$parameterInfo->type(): ?string
+```
+
+The type the parameter is declared at, spelled as the declaration spells it.
+
+**Returns** `?string` — The written type — `int`, `?int`, `array<string>`, `App\User` — or `null` for a row the declaring table named no type for. A method declaring a parameter in source names its type there, so a listed parameter answers with one; the member nothing spelled is the one with no row at all, and `parameterCount` is what still answers for it. A name rather than a value to compare: what a type *is* is `Core\Reflect::typeOf`'s question, asked of a value.
 
 <a id="core-core-reflect-constantinfo"></a>
 ### `Core\Reflect\ConstantInfo`

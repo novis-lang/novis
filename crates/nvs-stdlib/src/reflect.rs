@@ -297,6 +297,11 @@ const METHOD_PARAMETERS_SLOT: usize = 3;
 /// [`PARAMETER_INFO`]'s slot holding the parameter's name.
 const PARAMETER_NAME_SLOT: usize = 0;
 
+/// [`PARAMETER_INFO`]'s slot holding the type the declaration spells, or `null`
+/// where it named none — [`PROPERTY_TYPE_SLOT`]'s answer for the other half of
+/// a declaration.
+const PARAMETER_TYPE_SLOT: usize = 1;
+
 /// [`ENUM_INFO`]'s slot holding the described enum's name.
 const ENUM_NAME_SLOT: usize = 0;
 
@@ -1088,27 +1093,44 @@ const METHOD_PARAMETERS_DOC: MethodDoc = MethodDoc {
 };
 
 /// `Core\Reflect\ParameterInfo` — one row of [`METHOD_INFO`]'s roster: the name
-/// a parameter is declared under.
+/// a parameter is declared under, and the type it is declared at.
 ///
-/// A class rather than the bare `array<string>` of names it currently answers,
-/// on [`METHOD_INFO`]'s own terms: the roster ADR 0019 § 1 names is a family of
-/// descriptions, and a description is what the next question hangs off — a
-/// parameter's declared type reaches the descriptor along
-/// `nvs_types::layout::ClassLayout::methods`' road or not at all, and arriving
-/// there it is a member here rather than a second roster beside this one.
+/// A class rather than the bare `array<string>` of names, on [`METHOD_INFO`]'s
+/// own terms: the roster ADR 0019 § 1 names is a family of descriptions, and a
+/// description is what the next question hangs off. The type is that next
+/// question, and it travelled the road this class was shaped around — down
+/// `nvs_types::layout::ClassLayout::methods` to
+/// [`nvs_runtime::MethodRow::param_types`] — so it is a member here rather than
+/// a second roster beside this one, which is the same pair
+/// [`PROPERTY_INFO`] answers for a declared property.
 pub(crate) const PARAMETER_INFO: CoreClass = CoreClass {
     name: PARAMETER_INFO_NAME,
     methods: &[],
-    instance: &[CoreMethod {
-        name: "name",
-        names: &[],
-        params: &[],
-        defaults: &[],
-        return_ty: CoreTy::Str,
-        symbol: "nvs_core_reflect_parameter_info_name",
-        doc: Some(&PARAMETER_NAME_DOC),
-    }],
-    slots: &["name"],
+    instance: &[
+        CoreMethod {
+            name: "name",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "nvs_core_reflect_parameter_info_name",
+            doc: Some(&PARAMETER_NAME_DOC),
+        },
+        CoreMethod {
+            name: "type",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            // `?string` on [`PROPERTY_INFO`]'s terms: a parameter the front end
+            // admitted wrote a type, so the `null` here is the row whose
+            // *declaration* was never read rather than a parameter that
+            // declined to name one.
+            return_ty: CoreTy::Nullable(&CoreTy::Str),
+            symbol: "nvs_core_reflect_parameter_info_type",
+            doc: Some(&PARAMETER_TYPE_DOC),
+        },
+    ],
+    slots: &["name", "type"],
     constants: &[],
 };
 
@@ -1118,6 +1140,19 @@ const PARAMETER_NAME_DOC: MethodDoc = MethodDoc {
     params: &[],
     ret: "The name with no `$` sigil — what a named argument at a call site writes. A promoted \
           constructor parameter answers here under the same name its property carries.",
+    errors: &[],
+};
+
+/// `Core\Reflect\ParameterInfo::type`'s reference card — `rule:core-api/reference-card`.
+const PARAMETER_TYPE_DOC: MethodDoc = MethodDoc {
+    short: "The type the parameter is declared at, spelled as the declaration spells it.",
+    params: &[],
+    ret: "The written type — `int`, `?int`, `array<string>`, `App\\User` — or `null` for a row the \
+          declaring table named no type for. A method declaring a parameter in source names its \
+          type there, so a listed parameter answers with one; the member nothing spelled is the \
+          one with no row at all, and `parameterCount` is what still answers for it. A name \
+          rather than a value to compare: what a type *is* is `Core\\Reflect::typeOf`'s question, \
+          asked of a value.",
     errors: &[],
 };
 
@@ -1603,9 +1638,11 @@ fn text_of<'a>(value: &'a Value, member: &str) -> Result<&'a str, Fault> {
 /// can name but whose type no declaration spelled keeps its row, with
 /// [`PROPERTY_TYPE_SLOT`] holding `null`. A method row carries one
 /// [`PARAMETER_INFO`] per name [`nvs_runtime::MethodRow::param_names`] holds,
-/// so a member nothing declared in source keeps its row with that roster empty
-/// while [`METHOD_PARAMETER_COUNT_SLOT`] still answers what the compiled code
-/// takes — that field's own doc comment owns which rows those are.
+/// each naming what [`nvs_runtime::MethodRow::param_types`] spells at the same
+/// position, so a member nothing declared in source keeps its row with that
+/// roster empty while [`METHOD_PARAMETER_COUNT_SLOT`] still answers what the
+/// compiled code takes — that field's own doc comment owns which rows those
+/// are.
 ///
 /// The attach-site roster is the one that is not a walk over the class's
 /// members at all: each [`nvs_runtime::AttributeDesc`] names the declaration it
@@ -1640,10 +1677,18 @@ fn describe(desc: &ClassDesc) -> Value {
             continue;
         }
         let mut parameters = NvsArray::new();
-        for name in &row.param_names {
+        for (slot, name) in row.param_names.iter().enumerate() {
+            // The two rosters are one declaration read twice, so the type is
+            // taken by the name's own position rather than by a second search.
+            // A position the table spelled nothing at answers `null`, which is
+            // the absence [`PARAMETER_TYPE_SLOT`] carries.
+            let ty = match row.param_types.get(slot) {
+                Some(ty) if !ty.is_empty() => Value::str(NvsStr::new(ty.as_bytes())),
+                _ => Value::null(),
+            };
             parameters.append(crate::instance::build(
                 &PARAMETER_INFO,
-                [Value::str(NvsStr::new(name.as_bytes()))],
+                [Value::str(NvsStr::new(name.as_bytes())), ty],
             ));
         }
         methods.append(crate::instance::build(
@@ -1855,6 +1900,9 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         }
         "nvs_core_reflect_parameter_info_name" => {
             (nvs_core_reflect_parameter_info_name as *const ()).cast()
+        }
+        "nvs_core_reflect_parameter_info_type" => {
+            (nvs_core_reflect_parameter_info_type as *const ()).cast()
         }
         "nvs_core_reflect_enum_info_of" => (nvs_core_reflect_enum_info_of as *const ()).cast(),
         "nvs_core_reflect_enum_info_name" => (nvs_core_reflect_enum_info_name as *const ()).cast(),
@@ -2444,6 +2492,20 @@ nvs_runtime::nvs_helper! {
     /// `$`-sigil excluded.
     fn nvs_core_reflect_parameter_info_name(_ctx, args: [1]) {
         slot_of(args, &PARAMETER_INFO, PARAMETER_NAME_SLOT, "name")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Reflect\ParameterInfo::type(): ?string` — the declared type as its
+    /// declaration spells it, from
+    /// [`nvs_runtime::MethodRow::param_types`].
+    ///
+    /// `null` where the row carries no spelling for that parameter, which is
+    /// the same absence `Core\Reflect\PropertyInfo::type` reports and reported
+    /// the same way: what the descriptor holds, never a guess at what the
+    /// compiled code takes.
+    fn nvs_core_reflect_parameter_info_type(_ctx, args: [1]) {
+        slot_of(args, &PARAMETER_INFO, PARAMETER_TYPE_SLOT, "type")
     }
 }
 

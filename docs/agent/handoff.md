@@ -2,60 +2,53 @@
 
 ## State
 
-**Goal `decided-closures`, stage 4 — the library.** `python tools/owners.py --closes
-decided-closures` still names **5**: `nvs-diagnostics/src/embedded.rs:30`,
-`nvs-stdlib/src/command.rs:74`, `nvs-syntax/src/lib.rs:96`, `nvs-types/src/defaults.rs:58`,
-`nvs-types/src/response.rs:29`. The other two stage-6 gates stay green.
+**Goal `decided-closures`, stage 3 — the checker and the front end.** `python tools/owners.py
+--closes decided-closures` now names **4**, and every one of them is stage 3:
+`crates/nvs-diagnostics/src/embedded.rs:30`, `crates/nvs-syntax/src/lib.rs:96`,
+`crates/nvs-types/src/defaults.rs:58`, `crates/nvs-types/src/response.rs:29`. **Stage 4 — the
+library — owns no gap any more.** The other two stage-6 gates stay green.
 
-**`command.rs` gap 1's blocker is gone — the signature the help page needs is now on the row it
-already reaches.** `nvs_runtime::MethodRow::param_types` carries each declared parameter's
-*spelling* beside `param_names` (`crates/nvs-runtime/src/object.rs:654`), filled by
-`nvs_types::layout`'s declaration walk through `nvs_ir::ir::Class` and both of `nvs-codegen`'s
-binders — no new seam, and `crates/nvs-codegen/tests/objects.rs:428` pins `uint` and `?int` arriving
-at a descriptor, which is exactly what a `Tag` nibble cannot say. The roster's shape is stated once
-as `nvs_types::layout::MethodEntry` and re-exported through `nvs_types` and `nvs_ir`; the playbook
-bullet under *Writing Novis itself* owns why it is a name and not a written-out tuple.
+**What the help page does now, and where its layout is stated.** `page_for` takes the handler's
+`nvs_runtime::MethodRow` as a parameter (`crates/nvs-stdlib/src/command.rs:860`) and `signature_of`
+(`crates/nvs-stdlib/src/command.rs:844`) resolves it from the row's `Class::method` label through
+`Ctx::class_desc`; a caller with no context passes `None` and the page prints no declaration column.
+An entry line is `spelling  type = default  about`, both halves of the declaration or neither, and a
+flag names its type alone. The module doc § *What a page looks like* is that layout's one home
+(`crates/nvs-stdlib/src/command.rs:11`).
 
-**What the render still has to do, and everything it needs is local to `command.rs` now.**
-`Command::handler` is the `Class::method` label (`crates/nvs-runtime/src/commands.rs:235`),
-`ctx.class_desc(name) -> Option<*const ClassDesc>` (`crates/nvs-runtime/src/ctx/error.rs:277`) is the
-lookup, and `reflect.rs:2089` is the `#[expect(unsafe_code, reason = …)]` deref idiom to copy. A
-`CommandArg::param` finds its own spelling by its position in `MethodRow::param_names`. Gap 1's last
-sentence — that the declared default is withheld because a page naming one of the two reads as
-though the other were absent — is what makes rendering **both** the type and
-`CommandArg::default` the close rather than half of it.
+**`Core\Reflect\ParameterInfo` answers a type now** (`crates/nvs-stdlib/src/reflect.rs:1106`), which
+is what that class's own doc comment said would happen the day the spelling reached the descriptor —
+`null` only for a row the table named no type for. It is `PropertyInfo::type`'s pair, and a promoted
+constructor parameter's two answers are pinned as agreeing.
 
 ## Next group
 
-**Stage 4: the help page names its parameters' types** — one file set:
-`crates/nvs-stdlib/src/command.rs` alone, plus the `.nvst` cases beside it.
+**Stage 3: the checker's last two register items** — one file set: `crates/nvs-types/src/` alone,
+plus `crates/nvs-ir/src/lower/call.rs` for the second.
 
-- [ ] **Render the type and the default, and delete gap 1 — `crates/nvs-stdlib/src/command.rs:759`.**
-      `page_for` reaches the handler's row through `ctx` and `block`
-      (`crates/nvs-stdlib/src/command.rs:739`) grows the column; keep `usage_line`
-      (`crates/nvs-stdlib/src/command.rs:720`) as it is, since the usage line is the shape of a
-      command line and not a declaration. `page_for` has three call sites with no `ctx` — the unit
-      tests at `crates/nvs-stdlib/src/command.rs:1145` — so the resolved row arrives as a parameter
-      those pass `None` for. The module doc's § *What a page looks like* is the layout's one home
-      (`crates/nvs-stdlib/src/command.rs:11`) and § *What a completion script completes*
-      (`crates/nvs-stdlib/src/command.rs:47`) cites "gap 1 below", so both are rewritten in this
-      slice. `rule:tooling/commands-are-compiled` is what the page owes.
-- [ ] **Three `.nvst` cases, each a different question — `crates/nvs-stdlib/src/command.rs:216`.**
-      A page naming a `uint` flag's type and its default; a positional whose declared type is a
-      class or a nullable, so the spelling is one no `Tag` can reach; and the agreement case — every
-      argument the table lists is named with a type on the page, asserted by counting rather than
-      read off a line. `tests/conformance/core/` is where they land, never an `--ORACLE--` section.
-- [ ] **Widen `Core\Reflect\MethodInfo::parameters` to carry the type, or state it as a bound —
-      `crates/nvs-stdlib/src/reflect.rs:1643`.** That walk builds one `PARAMETER_INFO` per
-      `param_names` entry and the type is now beside it; whichever way it goes is a `Core` surface
-      decision, so it is the five edits of `docs/agent/conventions.md` § *A `Core` member* or a
-      sentence in the module doc — not a silent omission.
+- [ ] **Strike `response.rs` gap 1 as the stated bound it already is —
+      `crates/nvs-types/src/response.rs:29`.** Its `Decided:` is *keep the run-time default*, so
+      there is nothing to build: rewrite the paragraph as the module's own prose — a mount's entry
+      script runs a `.nvs` file's top-level frame, so § 4's sixth row is answered at run time by § 3's
+      default (`echo` means `text/html`, the last body member wins the `Content-Type`) — and delete
+      the "Known gap" framing with its `Decided:` and `— owner:` lines. Check
+      `rule:security/response-body-is-one-typed-member` does not promise a static refusal there; amend
+      the fragment in this slice if it does.
+- [ ] **Build `defaults.rs` gap 1: a named constant at a parameter default —
+      `crates/nvs-types/src/defaults.rs:58`.** `Decided:` is *allow it, the call-site emitter carries
+      the parameter's own IR type*. `literal_default` (`crates/nvs-types/src/defaults.rs:488`) is what
+      widens, and the reason it could not before is
+      `nvs_ir::lower::emit_const_arg` (`crates/nvs-ir/src/lower/call.rs:606`), which would hand a
+      `ConstArg::Int` (`crates/nvs-types/src/defaults.rs:100`) to a `nvs_ir::ty::Ty::Enum` position —
+      so the emitter takes the position's type first and the decoder follows. The property half
+      already accepts it, so the cases are the parameter half of what
+      `rule:types/literal-types` bounds: an enum case and another class's `const` as a parameter
+      default, and the `uint $n = Limits::MAX` above `i64::MAX` that stays refused.
 
 ## Backlog
 
-- `nvs-diagnostics/src/embedded.rs:30`, `nvs-syntax/src/lib.rs:96`, `nvs-types/src/defaults.rs:58`,
-  `nvs-types/src/response.rs:29` — the four stage-4 gaps this group does not touch, each with its
-  own `Decided:` sentence in its module doc.
+- `crates/nvs-diagnostics/src/embedded.rs:30` and `crates/nvs-syntax/src/lib.rs:96` — the other two
+  stage-3 register gaps, each with its own `Decided:` sentence in its module doc.
 - `crates/nvs-runtime/src/object.rs:654` — `param_types` is empty for every native `Core` row, on
-  `param_names`' terms; `nvs_stdlib::registry::CoreMethod::params` is where a spelling for one
-  would have to come from if a reader ever needs it.
+  `param_names`' terms; `nvs_stdlib::registry::CoreMethod::params` is where a spelling for one would
+  have to come from if a reader ever needs it.
