@@ -121,9 +121,9 @@
 //! What it costs is one compare and a not-taken branch per release — the
 //! hottest operation in the runtime — against a sentinel every allocated
 //! string misses. Nothing else changes: an immortal string is never mutated
-//! in place either, because [`nvs_str_append`] takes its in-place path only at
-//! a refcount of exactly one, so it copies out of an immortal exactly as it
-//! copies out of a shared one.
+//! in place either, because [`nvs_str_append`] and [`concat_onto`] take their
+//! in-place path only at a refcount of exactly one, so they copy out of an
+//! immortal exactly as they copy out of a shared one.
 //!
 //! # Reading the payload as text
 //!
@@ -166,8 +166,8 @@ pub struct StrHeader {
     /// How many owners hold this allocation. Reaching `0` frees it.
     refcount: Cell<usize>,
     /// Payload length in bytes. Written after construction only by
-    /// [`nvs_str_append`] and [`NvsStr::build`], and only while this
-    /// allocation has exactly one owner.
+    /// [`nvs_str_append`], [`concat_onto`] and [`NvsStr::build`], and only
+    /// while this allocation has exactly one owner.
     len: Cell<usize>,
     /// How many payload bytes the allocation has room for — what the layout
     /// this header was allocated with, and will be freed with, is computed
@@ -336,11 +336,14 @@ fn try_str_layout(cap: usize) -> Option<Layout> {
 /// How much room a string of `len` bytes takes when it has to grow to hold
 /// `needed` — doubling, floored at what is actually asked for.
 ///
-/// Doubling is what makes a loop of appends linear overall rather than
-/// quadratic: each reallocation copies `len` bytes but at least doubles the
-/// room, so the copies sum to under twice the final length however many
-/// appends there were. The cost is that an appended-to string holds up to
-/// twice its payload, which this module's docs state as what capacity spends.
+/// Doubling is what makes a loop of appends — or of concatenations onto a
+/// solely-owned left operand — linear overall rather than quadratic: each
+/// reallocation copies `len` bytes but at least doubles the room, so the copies
+/// sum to under twice the final length however many of them there were. The
+/// cost is that an accumulated-into string holds up to twice its payload, which
+/// this module's docs state as what capacity spends. A concatenation whose left
+/// operand is **shared** takes the exact length instead: it is building a value
+/// for somebody else to hold, not an accumulation to append to again.
 fn grown_capacity(len: usize, needed: usize) -> usize {
     needed.max(len.saturating_mul(2))
 }
@@ -1142,92 +1145,204 @@ pub unsafe extern "C" fn nvs_str_new(ptr: *const u8, len: usize) -> *mut StrHead
     NvsStr::new(bytes).into_raw()
 }
 
-/// Allocates a fresh string holding `lhs`'s bytes followed by `rhs`'s, with a
-/// reference count of one — `nvs_ir::InstKind::Concat`'s entry point for the
-/// two-operand case, which is the common one and is kept because it needs
-/// neither the stack array nor the count [`nvs_str_concat_n`] takes.
+/// Concatenation's whole body: appends every piece in `rest` to `lhs`,
+/// consuming one reference to `lhs` and yielding one to the result.
 ///
-/// Neither operand is retained or released: that instruction only *reads* its
-/// two operands to build the new buffer, and ownership of each stays wherever
-/// it already was. `nvs_ir::ir::InstKind::Concat`'s own doc comment is the one
-/// home for that rule.
+/// **A solely-owned left operand is written into and handed straight back.**
+/// No allocation, and not one byte of the accumulation moves — which is what
+/// makes `$s = $s . $x` linear rather than quadratic, exactly as
+/// [`nvs_str_append`] makes `$s .= $x` linear. Sole ownership is the whole of
+/// what makes that write unobservable: no second owner can see the operand
+/// change under it, and the lowering hands this reference over only where the
+/// holder is re-pointed at the result anyway
+/// (`nvs_ir::ir::InstKind::Concat`'s own doc comment is that protocol's one
+/// home).
+///
+/// Everything else allocates once and copies every piece into it: a **shared**
+/// left operand takes exactly the bytes the result needs, since nothing will
+/// be appended to the copy that the copy was not already made for, and a
+/// solely-owned one with too little room takes [`grown_capacity`]'s doubling,
+/// so a run of concatenations reallocates a logarithmic number of times rather
+/// than once per piece. Either way `lhs` is released **last**, after every
+/// piece has been read, because a piece may be `lhs` itself.
+///
+/// **A refused allocation answers a static empty string** rather than
+/// acquiring a status the `extern "C"` signatures above this have nowhere to
+/// put — see [`NvsStr::empty_immortal`]. The consumed reference is released on
+/// that path too, so a refusal balances exactly as a served call does.
 ///
 /// # Safety
 ///
-/// `lhs` and `rhs` must each refer to a live Novis string allocation. They may
-/// be the same allocation: the pieces are read before the destination is
-/// written, and the destination is a fresh allocation regardless.
+/// `lhs` must refer to a live Novis string allocation whose reference this
+/// caller owns and does not release again, and every piece in `rest` to a live
+/// one. A piece may be `lhs`: every piece is read before `lhs`'s length moves
+/// and before the release that can free it, and the bytes written always begin
+/// past `lhs`'s own payload.
 #[expect(
     unsafe_code,
-    reason = "compiled code passes two raw string pointers whose liveness the \
-              signature cannot express"
+    reason = "the pointees' liveness and the left operand's ownership are the \
+              caller's obligation to state"
+)]
+unsafe fn concat_onto(lhs: *mut StrHeader, rest: &[*const StrHeader]) -> *mut StrHeader {
+    #[expect(
+        unsafe_code,
+        reason = "the caller guarantees every pointee is live and that `lhs`'s \
+                  reference is this function's; each read and write below stays \
+                  within one of those allocations' own payload regions"
+    )]
+    unsafe {
+        if rest.is_empty() {
+            return lhs;
+        }
+        let header = &*lhs;
+        let len = header.len.get();
+        let added = rest
+            .iter()
+            .try_fold(0_usize, |total, piece| {
+                total.checked_add(NvsStr::bytes_of(*piece).len())
+            })
+            .expect("an Novis string's length cannot overflow a usize");
+        let needed = len
+            .checked_add(added)
+            .expect("an Novis string's length cannot overflow a usize");
+        // Every piece or none: one uncached operand and the sum is unknown,
+        // which is `cached_count`'s whole rule. Read before anything moves,
+        // since the write below invalidates the left operand's own word.
+        let counts = cached_count(lhs).and_then(|first| {
+            rest.iter().try_fold(first, |total, piece| {
+                cached_count(*piece).map(|c| total + c)
+            })
+        });
+        let solely_owned = header.refcount.get() == 1;
+        let reused = solely_owned && header.cap >= needed;
+        let out = if reused {
+            lhs
+        } else {
+            let cap = if solely_owned {
+                grown_capacity(len, needed)
+            } else {
+                needed
+            };
+            let Some(fresh) = NvsStr::alloc_or_refusal(needed, cap) else {
+                nvs_str_release(lhs);
+                return NvsStr::empty_immortal().into_raw();
+            };
+            std::ptr::copy_nonoverlapping(
+                lhs.cast::<u8>().add(PAYLOAD_OFFSET),
+                fresh.as_ptr().cast::<u8>().add(PAYLOAD_OFFSET),
+                len,
+            );
+            fresh.as_ptr()
+        };
+        let dst = out.cast::<u8>().add(PAYLOAD_OFFSET);
+        let mut written = len;
+        for piece in rest {
+            // A piece that *is* the reused destination reads its own payload,
+            // which ends where this write begins — the two ranges are disjoint
+            // for the same reason `nvs_str_append`'s are.
+            let bytes = NvsStr::bytes_of(*piece);
+            std::ptr::copy_nonoverlapping(bytes.as_ptr(), dst.add(written), bytes.len());
+            written += bytes.len();
+        }
+        debug_assert_eq!(written, needed, "a piece was copied at the wrong offset");
+        // The joined text is read off the buffer rather than through the
+        // header, and the seams off the pieces, while `len` is still the left
+        // operand's own: a reused destination is also a possible piece, so a
+        // header already carrying the joined length would hand the seam walk
+        // bytes that are not the piece's. The seams are the cumulative lengths,
+        // recomputed rather than kept, because keeping them would be the
+        // scratch allocation this path exists to do without.
+        let joined = counts.and_then(|sum| {
+            let mut at = len;
+            let seams = std::iter::once(len).chain(rest[..rest.len() - 1].iter().map(|piece| {
+                at += NvsStr::bytes_of(*piece).len();
+                at
+            }));
+            let payload = std::slice::from_raw_parts(dst, needed);
+            debug_assert!(
+                std::str::from_utf8(payload).is_ok(),
+                "a cached grapheme count belongs to a `string`, whose payload is \
+                 well-formed UTF-8 by `rule:types/bytes`'s construction"
+            );
+            joined_count(std::str::from_utf8_unchecked(payload), sum, seams)
+        });
+        if reused {
+            header.len.set(needed);
+            header.graphemes.set(COUNT_UNKNOWN);
+        } else {
+            nvs_str_release(lhs);
+        }
+        if let Some(joined) = joined {
+            remember_count(&*out, joined);
+        }
+        out
+    }
+}
+
+/// Concatenates `rhs` onto `lhs` — `nvs_ir::InstKind::Concat`'s entry point for
+/// the two-operand case, which is the common one and is kept because it needs
+/// neither the stack array nor the count [`nvs_str_concat_n`] takes.
+///
+/// **Consumes one reference to `lhs` and yields one to the result**, reusing
+/// `lhs`'s own buffer whenever nothing else holds it; `rhs` is only *read*, so
+/// it is neither retained nor released. [`concat_onto`] is the whole body and
+/// `nvs_ir::ir::InstKind::Concat`'s own doc comment is the one home for that
+/// protocol.
+///
+/// # Safety
+///
+/// `lhs` must refer to a live Novis string allocation whose reference this
+/// caller owns and does not release again; `rhs` must refer to a live one.
+/// They may be the same allocation — `$s = $s . $s` — which [`concat_onto`]'s
+/// contract covers.
+#[expect(
+    unsafe_code,
+    reason = "compiled code passes two raw string pointers whose liveness and \
+              ownership the signature cannot express"
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_str_concat(
-    lhs: *const StrHeader,
+    lhs: *mut StrHeader,
     rhs: *const StrHeader,
 ) -> *mut StrHeader {
     #[expect(
         unsafe_code,
-        reason = "the caller guarantees both pointees are live; the borrows \
-                  end before `from_pieces` returns, and it writes only into \
-                  the fresh allocation it made"
-    )]
-    let (left, right) = unsafe { (NvsStr::bytes_of(lhs), NvsStr::bytes_of(rhs)) };
-    let out = NvsStr::from_pieces(&[left, right]).into_raw();
-    #[expect(
-        unsafe_code,
-        reason = "`out` is the allocation just made and no other handle to it \
-                  exists; both operands are live by this function's contract, \
-                  and each is read as text only once it has a cached count, \
-                  which only a `string` ever has"
+        reason = "this function's own contract is `concat_onto`'s, one piece \
+                  wide; the slice is a borrow of the caller's argument"
     )]
     unsafe {
-        if let (Some(l), Some(r)) = (cached_count(lhs), cached_count(rhs))
-            && let Some(joined) =
-                joined_count(NvsStr::text_of(out), l + r, std::iter::once(left.len()))
-        {
-            remember_count(&*out, joined);
-        }
+        concat_onto(lhs, std::slice::from_ref(&rhs))
     }
-    out
 }
 
-/// Allocates a fresh string holding every piece's bytes in order, with a
-/// reference count of one — [`nvs_str_concat`] for three or more operands, and
-/// the entry point `nvs_ir::InstKind::Concat` takes once it carries that many.
+/// Concatenates every piece after the first onto that first one —
+/// [`nvs_str_concat`] for three or more operands, and the entry point
+/// `nvs_ir::InstKind::Concat` takes once it carries that many.
 ///
-/// **One allocation for the whole expression.** Folding
-/// `"<tr><td>" . $i . "</td>"` left into a chain of [`nvs_str_concat`] calls
-/// allocates n-1 buffers for an n-operand concatenation and copies a growing
-/// prefix into each one; here the total length is summed first and every piece
-/// is copied once.
+/// **One allocation for the whole expression, and none at all where the left
+/// operand can be written into.** Folding `"<tr><td>" . $i . "</td>"` left into
+/// a chain of [`nvs_str_concat`] calls allocates n-1 buffers for an n-operand
+/// concatenation and copies a growing prefix into each one; here the total
+/// length is summed first and every piece is copied once.
 ///
-/// Ownership is [`nvs_str_concat`]'s exactly: each piece is only *read*, so
-/// none is retained and none is released — `nvs_ir::ir::InstKind::Concat`'s own
-/// doc comment is the one home for that rule.
-///
-/// It does not route through [`NvsStr::from_pieces`], which wants a
-/// `&[&[u8]]`: materializing one from the pointer array would be a second
-/// allocation on the path whose whole point is to have exactly one. The two
-/// loops here are that function's two, over `bytes_of` instead of over
-/// borrowed slices.
-///
-/// **A refused allocation answers a static empty string** rather than
-/// acquiring a status this `extern "C"` signature has nowhere to put — see
-/// [`NvsStr::empty_immortal`]. [`nvs_str_concat`] reaches the same answer
-/// through [`NvsStr::build`], which is why only this one spells it out.
+/// Ownership is [`nvs_str_concat`]'s exactly: one reference to `pieces[0]` is
+/// consumed and one to the result is yielded, while every later piece is only
+/// read. A `count` of one hands that same reference straight back, and a
+/// `count` of zero — which `nvs_ir::ir::InstKind::Concat` never emits, its
+/// `pieces` always holding two or more — has no operand to consume and answers
+/// the static empty string.
 ///
 /// # Safety
 ///
 /// `pieces` must point at `count` consecutive `*const StrHeader`, each
-/// referring to a live Novis string allocation. Two of them may be the same
-/// allocation: every piece is read before the destination — a fresh
-/// allocation regardless — is written.
+/// referring to a live Novis string allocation, and this caller must own the
+/// first one's reference and not release it again. Two of them may be the same
+/// allocation, which [`concat_onto`]'s contract covers.
 #[expect(
     unsafe_code,
     reason = "compiled code passes a stack array of raw string pointers whose \
-              liveness and count the signature cannot express"
+              liveness, count and leading operand's ownership the signature \
+              cannot express"
 )]
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn nvs_str_concat_n(
@@ -1237,47 +1352,15 @@ pub unsafe extern "C" fn nvs_str_concat_n(
     #[expect(
         unsafe_code,
         reason = "the caller guarantees `count` live pointers at `pieces` and a \
-                  live pointee behind each; every borrow ends before the fresh \
-                  allocation this returns is written"
+                  live pointee behind each; the rest of the contract is \
+                  `concat_onto`'s"
     )]
     unsafe {
         let pieces = std::slice::from_raw_parts(pieces, count);
-        let len = pieces
-            .iter()
-            .try_fold(0_usize, |total, piece| {
-                total.checked_add(NvsStr::bytes_of(*piece).len())
-            })
-            .expect("an Novis string's length cannot overflow a usize");
-        let Some(out) = NvsStr::alloc_or_refusal(len, len) else {
+        let Some((&lhs, rest)) = pieces.split_first() else {
             return NvsStr::empty_immortal().into_raw();
         };
-        let dst = out.as_ptr().cast::<u8>().add(PAYLOAD_OFFSET);
-        let mut written = 0_usize;
-        for piece in pieces {
-            let bytes = NvsStr::bytes_of(*piece);
-            std::ptr::copy_nonoverlapping(bytes.as_ptr(), dst.add(written), bytes.len());
-            written += bytes.len();
-        }
-        // Every piece or none: one uncached operand and the sum is unknown,
-        // which is `cached_count`'s whole rule. The seams are the cumulative
-        // lengths, recomputed rather than kept, because keeping them would be
-        // the scratch allocation this function exists to do without.
-        let sum = pieces.iter().try_fold(0_usize, |total, piece| {
-            cached_count(*piece).map(|count| total + count)
-        });
-        if let Some(sum) = sum {
-            let mut at = 0_usize;
-            let seams = pieces[..pieces.len().saturating_sub(1)]
-                .iter()
-                .map(|piece| {
-                    at += NvsStr::bytes_of(*piece).len();
-                    at
-                });
-            if let Some(joined) = joined_count(NvsStr::text_of(out.as_ptr()), sum, seams) {
-                remember_count(out.as_ref(), joined);
-            }
-        }
-        out.as_ptr()
+        concat_onto(lhs.cast_mut(), rest)
     }
 }
 
@@ -1493,6 +1576,26 @@ pub unsafe extern "C" fn nvs_str_release(ptr: *mut StrHeader) {
 mod tests {
     use super::*;
 
+    /// `ptr` with one more reference on it — what a case hands a
+    /// concatenation whose leading operand it means to go on using, since
+    /// [`concat_onto`] consumes one. The operand is left *shared* by it, which
+    /// is also what keeps the result a fresh allocation.
+    ///
+    /// # Safety
+    ///
+    /// `ptr` must refer to a live Novis string allocation.
+    #[expect(
+        unsafe_code,
+        reason = "the pointee's liveness is the caller's obligation to state"
+    )]
+    unsafe fn lent(ptr: *mut StrHeader) -> *mut StrHeader {
+        #[expect(unsafe_code, reason = "the caller guarantees the pointee is live")]
+        unsafe {
+            nvs_str_retain(ptr);
+        }
+        ptr
+    }
+
     #[test]
     fn a_fresh_string_has_one_reference_and_its_bytes() {
         let s = NvsStr::new(b"Hello, World!");
@@ -1599,11 +1702,12 @@ mod tests {
         let rhs = NvsStr::new(b"20").into_raw();
         #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
         unsafe {
-            let joined = nvs_str_concat(lhs, rhs);
+            let joined = nvs_str_concat(lent(lhs), rhs);
             assert_eq!(NvsStr::bytes_of(joined), b"quadruple(5) = 20");
             assert_eq!(NvsStr::refcount_of(joined), 1);
-            // Neither operand is retained or released by the concatenation —
-            // see `nvs_str_concat`'s own doc comment.
+            // The concatenation consumed the reference it was lent and left
+            // the one this case holds; `rhs` it only read. See
+            // `nvs_str_concat`'s own doc comment.
             assert_eq!(NvsStr::refcount_of(lhs), 1);
             assert_eq!(NvsStr::refcount_of(rhs), 1);
             nvs_str_release(joined);
@@ -1627,7 +1731,7 @@ mod tests {
                 // nowhere but the fresh result.
                 (abc, abc, &b"abcabc"[..]),
             ] {
-                let joined = nvs_str_concat(lhs, rhs);
+                let joined = nvs_str_concat(lent(lhs), rhs);
                 assert_eq!(NvsStr::bytes_of(joined), expected);
                 nvs_str_release(joined);
             }
@@ -1647,12 +1751,17 @@ mod tests {
             let empty = NvsStr::new(b"").into_raw();
 
             // The shape this exists for: three pieces, one allocation.
-            let pieces = [open.cast_const(), mid.cast_const(), close.cast_const()];
+            let pieces = [
+                lent(open).cast_const(),
+                mid.cast_const(),
+                close.cast_const(),
+            ];
             let joined = nvs_str_concat_n(pieces.as_ptr(), pieces.len());
             assert_eq!(NvsStr::bytes_of(joined), b"<tr><td>7</td></tr>");
             assert_eq!(NvsStr::refcount_of(joined), 1);
-            // No piece is retained or released — `nvs_str_concat`'s rule,
-            // unchanged by the arity.
+            // The leading piece's lent reference is consumed and no other is
+            // retained or released — `nvs_str_concat`'s rule, unchanged by the
+            // arity.
             for piece in pieces {
                 assert_eq!(NvsStr::refcount_of(piece), 1);
             }
@@ -1661,7 +1770,7 @@ mod tests {
             // An empty piece, and the same allocation appearing twice: every
             // piece is read before the fresh destination is written.
             let repeated = [
-                mid.cast_const(),
+                lent(mid).cast_const(),
                 empty.cast_const(),
                 mid.cast_const(),
                 mid.cast_const(),
@@ -1677,9 +1786,15 @@ mod tests {
     }
 
     /// The claim § B of `docs/perf/userland-gap.md` asks for, measured rather
-    /// than asserted about: an n-piece concatenation allocates one buffer,
-    /// where a fold of two-operand `nvs_str_concat` calls allocates n-1 of
-    /// them and copies its leading pieces n-1 times.
+    /// than asserted about: an n-piece concatenation allocates one buffer, of
+    /// exactly the length it answers, where a fold of two-operand
+    /// `nvs_str_concat` calls reallocates every time the accumulation outgrows
+    /// the room it has and copies what is already there into the new one.
+    ///
+    /// Each call is handed a reference of its own to its leading operand, that
+    /// being what [`concat_onto`] consumes — which is also what keeps the n-ary
+    /// reading exact rather than zero: `pieces` still holds that operand, so
+    /// nothing may be written into it and the buffer is a fresh one.
     ///
     /// Bytes-ever-allocated, for the reason
     /// [`appending_into_spare_capacity_allocates_nothing`] reads the same
@@ -1696,6 +1811,7 @@ mod tests {
                 .collect();
             let total = 8 * 10;
 
+            nvs_str_retain(pieces[0].cast_mut());
             let before = allocated_bytes();
             let joined = nvs_str_concat_n(pieces.as_ptr(), pieces.len());
             let n_ary = allocated_bytes() - before;
@@ -1703,23 +1819,23 @@ mod tests {
             assert_eq!(n_ary, PAYLOAD_OFFSET + total);
             nvs_str_release(joined);
 
-            // The fold, over the same pieces: one allocation per join, each
-            // holding the accumulation so far.
+            // The fold, over the same pieces. Each join consumes the
+            // accumulation's reference and yields the result's, so there is no
+            // release between them.
+            nvs_str_retain(pieces[0].cast_mut());
             let before = allocated_bytes();
-            let mut folded = nvs_str_concat(pieces[0], pieces[1]);
+            let mut folded = nvs_str_concat(pieces[0].cast_mut(), pieces[1]);
             for piece in &pieces[2..] {
-                let next = nvs_str_concat(folded, *piece);
-                nvs_str_release(folded);
-                folded = next;
+                folded = nvs_str_concat(folded, *piece);
             }
             let fold = allocated_bytes() - before;
             assert_eq!(NvsStr::bytes_of(folded).len(), total);
             nvs_str_release(folded);
 
             assert!(
-                n_ary * 4 < fold,
+                n_ary < fold,
                 "eight pieces cost {n_ary} bytes n-ary against the fold's {fold}: \
-                 the pieces are being copied more than once"
+                 the n-ary path is folding rather than sizing the result once"
             );
 
             for piece in pieces {
@@ -1861,6 +1977,97 @@ mod tests {
             );
             nvs_str_release(same);
             nvs_str_release(piece);
+        }
+    }
+
+    /// `$s = $s . $x` is linear, which is the whole of what the ownership
+    /// hand-off buys: the accumulation is written into rather than copied out
+    /// of, so a run of concatenations allocates a multiple of the *final*
+    /// length rather than of what each iteration would have copied.
+    /// `nvs_ir::ir::InstKind::Concat` is the home for the protocol this case
+    /// stands in for — `acc` is the binding whose one reference the lowering
+    /// hands over and re-points at the result.
+    ///
+    /// Bytes-ever-allocated is the only reading that shows it, for
+    /// `appending_into_spare_capacity_allocates_nothing`'s reason: a
+    /// `live_bytes` delta cannot tell a copy that was freed again from no copy
+    /// at all.
+    #[test]
+    fn concat_reuses_a_solely_owned_left_operand() {
+        use crate::counting_alloc::allocated_bytes;
+
+        const RUN: usize = 1_000;
+        const PIECE: usize = 10;
+
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
+        unsafe {
+            let piece = NvsStr::new(b"0123456789").into_raw();
+            let mut acc = NvsStr::new(b"").into_raw();
+
+            let before = allocated_bytes();
+            for _ in 0..RUN {
+                acc = nvs_str_concat(acc, piece);
+            }
+            let spent = allocated_bytes() - before;
+
+            assert_eq!(NvsStr::bytes_of(acc).len(), RUN * PIECE);
+            // Copying the accumulation into a fresh buffer every iteration
+            // would be quadratic; doubling makes the reallocations sum to
+            // under four times the final length, headers included.
+            assert!(
+                spent < 4 * RUN * PIECE,
+                "{RUN} concatenations allocated {spent} bytes for a {}-byte result: the \
+                 accumulation is being copied rather than written into",
+                RUN * PIECE
+            );
+
+            // And the last doubling left room, so one more concatenation
+            // allocates nothing at all and answers the pointer it was handed.
+            let quiet = allocated_bytes();
+            let same = nvs_str_concat(acc, piece);
+            assert_eq!(same, acc, "the concatenation had the room to write into");
+            assert_eq!(
+                allocated_bytes() - quiet,
+                0,
+                "an in-place concatenation allocated something"
+            );
+            nvs_str_release(same);
+
+            // A second owner forbids that write, exactly as it forbids an
+            // append's: the result is a separate buffer and the other owner's
+            // bytes are untouched.
+            let held = NvsStr::new(b"abc");
+            let shared = held.clone().into_raw();
+            let joined = nvs_str_concat(shared, piece);
+            assert_ne!(joined, shared, "a second owner forbids the in-place write");
+            assert_eq!(NvsStr::bytes_of(joined), b"abc0123456789");
+            assert_eq!(held.as_bytes(), b"abc");
+            assert_eq!(held.refcount(), 1);
+            nvs_str_release(joined);
+            nvs_str_release(piece);
+        }
+    }
+
+    /// Three or more pieces reuse the leading operand on the same terms, and
+    /// a piece that *is* that operand is read before the write that would
+    /// change it — `$s = $s . $s . "!"`.
+    #[test]
+    fn concat_n_reuses_the_leading_operand_and_reads_a_self_piece_first() {
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
+        unsafe {
+            // Room to spare, so the leading operand is written into: a build
+            // of capacity 16 holding 2 bytes has the 5 the result needs.
+            let acc = NvsStr::build(16, |w| w.push_str("xy")).into_raw();
+            let bang = NvsStr::new(b"!").into_raw();
+            let pieces = [acc.cast_const(), acc.cast_const(), bang.cast_const()];
+            let joined = nvs_str_concat_n(pieces.as_ptr(), pieces.len());
+            assert_eq!(
+                joined, acc,
+                "the leading operand had the room to write into"
+            );
+            assert_eq!(NvsStr::bytes_of(joined), b"xyxy!");
+            nvs_str_release(joined);
+            nvs_str_release(bang);
         }
     }
 
@@ -2031,15 +2238,19 @@ mod tests {
             assert_eq!(NvsStr::grapheme_count_of(target), 4);
 
             forget_scans();
-            let joined = nvs_str_concat(base, mark);
+            let joined = nvs_str_concat(lent(base), mark);
             assert_eq!(NvsStr::grapheme_count_of(joined), 4, "the seam joined");
-            let apart = nvs_str_concat(base, base);
+            let apart = nvs_str_concat(lent(base), base);
             assert_eq!(NvsStr::grapheme_count_of(apart), 8, "and this one did not");
             assert_eq!(scans(), 0, "neither side was rescanned");
 
             // Three pieces with an empty one between them: two seams at one
             // byte are one join, not two.
-            let pieces = [base.cast_const(), empty.cast_const(), mark.cast_const()];
+            let pieces = [
+                lent(base).cast_const(),
+                empty.cast_const(),
+                mark.cast_const(),
+            ];
             let spanning = nvs_str_concat_n(pieces.as_ptr(), pieces.len());
             assert_eq!(NvsStr::grapheme_count_of(spanning), 4);
             assert_eq!(scans(), 0);
@@ -2058,7 +2269,7 @@ mod tests {
             assert_eq!(NvsStr::grapheme_count_of(one_flag), 1);
             assert_eq!(NvsStr::grapheme_count_of(pair), 1);
             forget_scans();
-            let regrouped = nvs_str_concat(one_flag, pair);
+            let regrouped = nvs_str_concat(lent(one_flag), pair);
             assert_eq!(scans(), 0, "the concatenation itself still scans nothing");
             assert_eq!(NvsStr::grapheme_count_of(regrouped), 2);
             assert_eq!(scans(), 1);
@@ -2068,7 +2279,7 @@ mod tests {
             // than scanning it: a concatenation that segments is the cost the
             // whole word exists to remove.
             let fresh = NvsStr::new("\u{301}".as_bytes()).into_raw();
-            let unknown = nvs_str_concat(base, fresh);
+            let unknown = nvs_str_concat(lent(base), fresh);
             assert_eq!(scans(), 0, "building it scanned nothing");
             assert_eq!(NvsStr::grapheme_count_of(unknown), 4);
             assert_eq!(scans(), 1, "the first ask paid the ordinary scan");
@@ -2095,21 +2306,27 @@ mod tests {
                 for right in CORPUS {
                     let expected = format!("{left}{right}").graphemes(true).count();
 
-                    let lhs = NvsStr::new(left.as_bytes()).into_raw();
+                    let lhs = NvsStr::new(left.as_bytes());
                     let rhs = NvsStr::new(right.as_bytes()).into_raw();
                     // Counted first, so the concatenation propagates rather
                     // than leaving the result unknown.
-                    let _ = NvsStr::grapheme_count_of(lhs);
+                    let _ = lhs.grapheme_count();
                     let _ = NvsStr::grapheme_count_of(rhs);
 
-                    let joined = nvs_str_concat(lhs, rhs);
+                    // A concatenation consumes one reference to its leading
+                    // operand, so each call below is handed a clone's and
+                    // `lhs` keeps the one it holds — which also makes these
+                    // two the *shared* leading operand, whose result is a
+                    // fresh buffer.
+                    let joined = nvs_str_concat(lhs.clone().into_raw(), rhs);
                     assert_eq!(
                         NvsStr::grapheme_count_of(joined),
                         expected,
                         "{left:?} . {right:?}"
                     );
 
-                    let pieces = [lhs.cast_const(), rhs.cast_const()];
+                    let leading = lhs.clone().into_raw();
+                    let pieces = [leading.cast_const(), rhs.cast_const()];
                     let n_ary = nvs_str_concat_n(pieces.as_ptr(), pieces.len());
                     assert_eq!(
                         NvsStr::grapheme_count_of(n_ary),
@@ -2117,7 +2334,10 @@ mod tests {
                         "concat_n {left:?} . {right:?}"
                     );
 
-                    // Both append paths: one with room to spare, one without.
+                    // Both append paths, and both concatenation paths over a
+                    // solely-owned leading operand: one with room to spare,
+                    // which writes into the operand's own buffer and corrects
+                    // the seam there, one without.
                     for capacity in [left.len(), left.len() + right.len()] {
                         let target =
                             NvsStr::build(capacity, |out| out.push(left.as_bytes())).into_raw();
@@ -2129,9 +2349,20 @@ mod tests {
                             "append {left:?} .= {right:?} at capacity {capacity}"
                         );
                         nvs_str_release(appended);
+
+                        let owned =
+                            NvsStr::build(capacity, |out| out.push(left.as_bytes())).into_raw();
+                        let _ = NvsStr::grapheme_count_of(owned);
+                        let reused = nvs_str_concat(owned, rhs);
+                        assert_eq!(
+                            NvsStr::grapheme_count_of(reused),
+                            expected,
+                            "concat into {left:?} at capacity {capacity}"
+                        );
+                        nvs_str_release(reused);
                     }
 
-                    for ptr in [lhs, rhs, joined, n_ary] {
+                    for ptr in [rhs, joined, n_ary] {
                         nvs_str_release(ptr);
                     }
                 }

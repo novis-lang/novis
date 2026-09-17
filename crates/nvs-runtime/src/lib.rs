@@ -196,16 +196,6 @@
 //! Each is a missing *representation*, not a missing decision, and each is
 //! named at the item it blocks:
 //!
-//! 2. **Appending is the only string operation with an in-place fast path.**
-//!    [`nvs_str_append`] writes into its target's spare capacity at a
-//!    `refcount == 1`, so `$out .= $piece` is linear; every other producer —
-//!    [`nvs_str_concat`], [`nvs_str_concat_n`], every `Core\Str` member —
-//!    allocates its result. That is a widening of [`NvsStr`] wherever a
-//!    producer can prove sole ownership, not a redesign, and [`NvsArray`]'s
-//!    copy-on-write is the shape it would take.
-//!    Decided: Concat and concat_n reuse a solely-owned left operand — Makes `$s = $s . $x` linear like
-//!    `.=`, at the cost of an ownership hand-off in the lowering for those two calls.
-//!    — owner: decided-closures
 //! 5. **`nvs_safepoint` clears `COLLECT` and acts on nothing.** `CPU_LIMIT` and
 //!    `CANCEL` become [`FATAL`]; the flag asking for a collection is dropped,
 //!    since the cycle collector does not exist.

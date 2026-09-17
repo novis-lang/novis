@@ -2099,6 +2099,7 @@ impl<'a> Lowering<'a> {
         // string leaves it ([`Self::forget_temporaries_since`]).
         let mark = self.temporaries_mark();
         let mut pieces: Vec<(ValueId, bool)> = Vec::with_capacity(parts.len());
+        let mut leading = None;
         for (i, part) in parts.iter().enumerate() {
             let piece = match part {
                 StringPart::Text(span) => {
@@ -2121,6 +2122,9 @@ impl<'a> Lowering<'a> {
                 StringPart::Expr(e) => self.concat_operand(e, env, cur),
             };
             if !piece.1 {
+                if pieces.is_empty() {
+                    leading = Some(self.temporaries_mark());
+                }
                 self.own_temporary(piece.0);
             }
             pieces.push(piece);
@@ -2129,10 +2133,11 @@ impl<'a> Lowering<'a> {
             [only] => only,
             _ => {
                 let ids = pieces.iter().map(|(v, _)| *v).collect();
-                let (result, _) = self.emit(*cur, Ty::Str, InstKind::Concat { pieces: ids });
-                // Every piece is consumed here, and whichever of them were
-                // fresh are on the stack — so this releases exactly what the
-                // `if !alias` guard above staged.
+                let result = self.emit_concat(*cur, ids, leading);
+                // Every piece is read here, and whichever of them were fresh
+                // are on the stack — so this releases exactly what the
+                // `if !alias` guard above staged, less the leading piece, whose
+                // reference `emit_concat` has just handed to the instruction.
                 self.release_temporaries_since(mark, *cur);
                 self.own_temporary(result);
                 (result, false)
@@ -2223,15 +2228,12 @@ impl<'a> Lowering<'a> {
             }
             [only] => only,
             _ => {
-                let (joined, _) = self.emit(
-                    *cur,
-                    Ty::Str,
-                    InstKind::Concat {
-                        pieces: pieces.clone(),
-                    },
-                );
-                // Every piece is consumed here and each of them is fresh, so
-                // this releases exactly what the loop above staged.
+                // Every piece is fresh, so the leading one is the entry the
+                // loop above staged first — `emit_concat` drops it there and
+                // hands its reference to the instruction.
+                let joined = self.emit_concat(*cur, pieces.clone(), Some(mark));
+                // Every piece is read here, so this releases exactly what the
+                // loop above staged and the hand-off left.
                 self.release_temporaries_since(mark, *cur);
                 self.own_temporary(joined);
                 joined
@@ -2577,16 +2579,70 @@ impl<'a> Lowering<'a> {
         Self::flatten_concat(rhs, &mut operands);
         let mark = self.temporaries_mark();
         let mut pieces = Vec::with_capacity(operands.len());
+        let mut leading = None;
         for operand in operands {
             let (v, aliasing) = self.concat_operand(operand, env, cur);
             if !aliasing {
+                if pieces.is_empty() {
+                    leading = Some(self.temporaries_mark());
+                }
                 self.own_temporary(v);
             }
             pieces.push(v);
         }
-        let result = self.emit(*cur, Ty::Str, InstKind::Concat { pieces });
+        let result = self.emit_concat(*cur, pieces, leading);
         self.release_temporaries_since(mark, *cur);
-        result
+        (result, Ty::Str)
+    }
+
+    /// Emits the [`InstKind::Concat`] over `pieces`, handing it the one
+    /// reference to `pieces[0]` that it consumes — the choice between the two
+    /// ways a `.` expression supplies that reference, and the one home for it.
+    ///
+    /// `leading` is where the leading piece sits on
+    /// [`Self::owned_temporaries`], when this frame is what owns it. The entry
+    /// is dropped rather than released, and that *is* the hand-off: the release
+    /// the sweep after this instruction would have emitted is exactly the
+    /// reference `Concat` takes, so a literal-led concatenation pays nothing
+    /// for the protocol. A piece a durable slot owns has no such entry, so it
+    /// is retained instead and the slot keeps its own.
+    ///
+    /// The retain sits immediately before the instruction, once every operand
+    /// has been lowered, so nothing that can throw runs between the two and no
+    /// unwinding edge ever sees a reference this frame holds and nothing names.
+    /// [`InstKind::Concat`]'s own doc comment owns the protocol itself.
+    pub(crate) fn emit_concat(
+        &mut self,
+        cur: BlockId,
+        pieces: Vec<ValueId>,
+        leading: Option<usize>,
+    ) -> ValueId {
+        match leading {
+            Some(slot) => self.forget_temporary(slot),
+            None => self.emit_retain(cur, pieces[0]),
+        }
+        self.emit(cur, Ty::Str, InstKind::Concat { pieces }).0
+    }
+
+    /// Whether `expr` is a `.` spine whose **leading** operand is a read of
+    /// `$name` — `$s = $s . e …`, the one assignment
+    /// [`Self::lower_string_self_concat`] hands the binding's own reference to.
+    pub(crate) fn concat_spine_opens_with(&self, expr: &Expr, name: &str) -> bool {
+        if !matches!(
+            &expr.kind,
+            ExprKind::Binary {
+                op: BinaryOp::Concat,
+                ..
+            }
+        ) {
+            return false;
+        }
+        let mut operands = Vec::new();
+        Self::flatten_concat(expr, &mut operands);
+        matches!(
+            &operands[0].kind,
+            ExprKind::Variable(span) if strip_sigil(span_text(self.src, *span)) == name
+        )
     }
 
     /// Appends `expr`'s concatenation operands to `out`, in evaluation order —
@@ -2597,7 +2653,7 @@ impl<'a> Lowering<'a> {
     /// associates left, but `$a . ($b . $c)` is written with parentheses often
     /// enough to be worth the one extra arm, and it is the same flattening —
     /// operand order, and therefore evaluation order, is identical either way.
-    fn flatten_concat<'e>(expr: &'e Expr, out: &mut Vec<&'e Expr>) {
+    pub(crate) fn flatten_concat<'e>(expr: &'e Expr, out: &mut Vec<&'e Expr>) {
         if let ExprKind::Binary {
             op: BinaryOp::Concat,
             lhs,

@@ -21,7 +21,7 @@ use nvs_runtime::{
     ArrayHeader, Ctx, FATAL, IMMORTAL_REFCOUNT, NvsArray, NvsStr, OutputSink, SafepointFlags,
     Value, affordable, budget, nvs_array_append, nvs_array_next_slot, nvs_array_release,
     nvs_array_set, nvs_array_set_index, nvs_array_value_at, nvs_str_append, nvs_str_concat,
-    nvs_str_concat_n, nvs_str_release, prime_empty_array,
+    nvs_str_concat_n, nvs_str_release, nvs_str_retain, prime_empty_array,
 };
 
 /// A request under `bytes` of ceiling, holding nothing of its own yet.
@@ -250,21 +250,28 @@ fn no_string_allocation_path_can_abort() {
 #[test]
 fn a_concat_past_the_ceiling_returns_the_immortal_empty_string() {
     let payload = vec![b'x'; 8 << 20];
-    let bulk = NvsStr::new(&payload).into_raw();
+    let bulk = NvsStr::new(&payload);
     let tail = NvsStr::new(b"!").into_raw();
     let ctx = ctx_under(1 << 20);
 
     #[expect(
         unsafe_code,
         reason = "the two operands are live for this whole case, which is what \
-                  both primitives' safety contracts ask for; the results are \
-                  read through the same module's own accessor"
+                  both primitives' safety contracts ask for; each call is \
+                  handed the leading operand's reference it consumes, and the \
+                  results are read through the same module's own accessor"
     )]
     unsafe {
-        // Two operands, which reach the allocation through `NvsStr::build`, and
-        // three, which reach it through an allocation of their own.
-        let joined = nvs_str_concat(bulk, tail);
-        let pieces = [bulk.cast_const(), tail.cast_const(), bulk.cast_const()];
+        // Two operands and three. Each call consumes one reference to its
+        // leading operand, so each is handed a clone's rather than the one
+        // this case keeps.
+        let joined = nvs_str_concat(bulk.clone().into_raw(), tail);
+        let leading = bulk.clone().into_raw();
+        let pieces = [
+            leading.cast_const(),
+            tail.cast_const(),
+            leading.cast_const(),
+        ];
         let joined_n = nvs_str_concat_n(pieces.as_ptr(), pieces.len());
 
         assert!(
@@ -289,7 +296,9 @@ fn a_concat_past_the_ceiling_returns_the_immortal_empty_string() {
             "releasing the degenerate return freed a static, so the next reader is reading freed memory",
         );
 
-        nvs_str_release(bulk);
+        // Neither `leading` nor the clone the two-operand call took is released
+        // here: each was consumed by the call it was handed to, and `bulk`
+        // releases the one it kept when it drops.
         nvs_str_release(tail);
     }
 
@@ -376,15 +385,18 @@ fn a_refused_operation_balances_every_reference_it_was_handed() {
         )]
         unsafe {
             let appended = nvs_str_append(target, suffix);
-            let joined = nvs_str_concat(target, suffix);
+            // A concatenation consumes its leading operand's reference too, so
+            // it is handed one of its own rather than the append's.
+            nvs_str_retain(appended);
+            let joined = nvs_str_concat(appended, suffix);
             assert!(
                 ctx.over_memory_limit(),
                 "both operations were served, so the balance below says nothing about a refusal",
             );
 
-            // What a caller holds after each: one reference to the append's
-            // result, none to a concatenation's operands, and one to the value
-            // it answered — including when that value is the static.
+            // What a caller holds after each: one reference to the value it
+            // answered — including when that value is the static — and none to
+            // the operand whose reference it consumed.
             nvs_str_release(joined);
             nvs_str_release(appended);
             nvs_str_release(suffix);

@@ -1640,9 +1640,11 @@ struct Signatures {
     /// `nvs_str_concat(lhs, rhs) -> *mut StrHeader`,
     /// `nvs_str_append(target, suffix) -> *mut StrHeader` and
     /// `nvs_str_concat_n(pieces, count) -> *mut StrHeader`, which are all the
-    /// same shape: two pointer-width parameters, one pointer back. They
-    /// differ in ownership and in what the second parameter *means*, not in
-    /// ABI — see `nvs_ir::ir::InstKind::StrAppend` and `InstKind::Concat` — so
+    /// same shape: two pointer-width parameters, one pointer back. They share
+    /// their ownership too — each consumes the reference its leading operand
+    /// arrived with and produces the one the result carries — and differ only
+    /// in what the second parameter *means*, not in ABI; see
+    /// `nvs_ir::ir::InstKind::StrAppend` and `InstKind::Concat`, so
     /// one signature serves all of them, and a count declares itself with
     /// `AbiParam::new(ptr)` because a `usize` is pointer-width.
     str_concat: Signature,

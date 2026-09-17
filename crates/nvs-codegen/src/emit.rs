@@ -3165,22 +3165,26 @@ impl Emitter<'_, '_> {
     }
 
     /// `.` concatenation: one call, which allocates the joined buffer once
-    /// however many pieces there are.
+    /// however many pieces there are — or not at all, where it can write into
+    /// the leading piece's own.
     ///
     /// **Which call is the piece count.** Two pieces stay on the two-argument
     /// `nvs_str_concat`, which is the common shape and reads both operands out
     /// of registers. Three or more go to `nvs_str_concat_n` through a
     /// [`Self::pointer_array_slot`] — the same stack-array shape a helper
     /// call's argument list already uses, over bare `StrHeader` pointers
-    /// instead of 16-byte `Value`s. Both allocate exactly one buffer, which is
+    /// instead of 16-byte `Value`s. Both allocate at most one buffer, which is
     /// the whole point of `nvs_ir::ir::InstKind::Concat` being n-ary.
     ///
     /// No status check and no `Value` materialization: like `nvs_str_new`,
     /// these are memory primitives over bare `StrHeader` pointers rather than
     /// `rule:errors/propagation` helpers, because they cannot fail — see `nvs-runtime`'s
-    /// "primitives compiled code calls" section for that split. No piece is
-    /// retained or released here; `nvs_ir::ir::InstKind::Concat`'s own doc
-    /// comment owns that rule and `nvs-ir` emits the releases.
+    /// "primitives compiled code calls" section for that split. Both calls
+    /// consume the reference the leading piece arrives with and produce the one
+    /// the result carries, exactly as [`Self::emit_str_append`]'s does, so
+    /// nothing is retained or released around either here;
+    /// `nvs_ir::ir::InstKind::Concat`'s own doc comment owns that protocol and
+    /// `nvs-ir` emits the retains and releases the rest of the pieces need.
     fn emit_concat(&mut self, pieces: &[ValueId]) -> Result<Value, CodegenError> {
         let mut operands = Vec::with_capacity(pieces.len());
         for piece in pieces {
@@ -3222,12 +3226,12 @@ impl Emitter<'_, '_> {
     /// into the target's own buffer whenever it is solely owned and has the
     /// room, and separates copy-on-write when it is not.
     ///
-    /// The same non-helper memory primitive [`Self::emit_concat`] calls, and
-    /// the same two-pointers-to-a-pointer signature, so it shares
-    /// [`RuntimeSig::StrConcat`]. What it does *not* share is ownership: this
-    /// call consumes the reference `target` arrived with and produces the one
-    /// the result carries, which is `nvs_ir::ir::InstKind::StrAppend`'s
-    /// protocol and why nothing is retained or released around it here either.
+    /// The same non-helper memory primitive [`Self::emit_concat`] calls, the
+    /// same two-pointers-to-a-pointer signature — so it shares
+    /// [`RuntimeSig::StrConcat`] — and the same ownership: the call consumes
+    /// the reference `target` arrived with and produces the one the result
+    /// carries, which is `nvs_ir::ir::InstKind::StrAppend`'s protocol and why
+    /// nothing is retained or released around it here either.
     fn emit_str_append(&mut self, target: ValueId, suffix: ValueId) -> Result<Value, CodegenError> {
         let (t, tty) = self.value(target)?;
         let (s, sty) = self.value(suffix)?;

@@ -1,5 +1,5 @@
 ---
-source: crates/nvs-ir/src/lower.rs
+source: crates/nvs-ir/src/lower/tests.rs
 expression: "print_function(&f, map.file(file))"
 ---
 fn m(object) -> string {
@@ -10,7 +10,6 @@ fn m(object) -> string {
     v1 = const.str "a"  ; string
     v2 = const.str "b"  ; string
     v3 = concat v1, v2  ; string
-    release v1
     release v2
     release v0
     return v3

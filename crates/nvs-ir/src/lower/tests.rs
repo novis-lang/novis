@@ -1044,9 +1044,11 @@ class T {
 /// `"pre" . $mid . " post"` does, per
 /// `Lowering::lower_interpolated_parts`, so the whole string is one
 /// allocation rather than a fold's two. `$mid`'s own read is an aliasing
-/// one, so it's left unreleased (its slot still owns it); the two literal
-/// text pieces are fresh and released once the `Concat` has read them,
-/// ending with the whole method's own `void` exit releasing `$s`.
+/// one, so it's left unreleased (its slot still owns it); the trailing
+/// literal text piece is fresh and released once the `Concat` has read it,
+/// while the leading one is handed over instead — its release is the
+/// reference the instruction consumes. The whole method's own `void` exit
+/// then releases `$s`.
 #[test]
 fn interpolated_string_with_text_on_both_sides_is_one_concat() {
     let (f, map, file) = lower_first_method(
@@ -1384,16 +1386,17 @@ fn the_object_top_type_erases_to_the_pointer_a_class_does() {
 }
 
 /// `"a" . "b"` — two fresh literal operands lower to a single
-/// `InstKind::Concat`, with no retain of either operand (each is only
-/// read to build the new buffer, exactly the way `InstKind::FieldGet`
-/// reads its `object` receiver without retaining it). Each is a fresh,
+/// `InstKind::Concat`, with no retain of either. Each is a fresh,
 /// non-aliasing value with no durable slot of its own — a bare `Str`
-/// literal isn't `is_aliasing_read` — so each gets exactly one release
-/// right after `Concat` reads it, the same "release a fresh value once
-/// its one and only use is done" precedent a bare call/`new` statement
-/// already sets; the concatenation's own result needs no retain or
-/// release at all when it's returned directly — a fresh producer, same
-/// as a literal or a call's result, transferring straight out.
+/// literal isn't `is_aliasing_read` — so the *trailing* one gets exactly
+/// one release right after `Concat` reads it, the same "release a fresh
+/// value once its one and only use is done" precedent a bare call/`new`
+/// statement already sets. The **leading** one gets none: that release is
+/// the reference the instruction consumes, which is what
+/// `Lowering::emit_concat` hands over rather than emitting. The
+/// concatenation's own result needs no retain or release at all when it's
+/// returned directly — a fresh producer, same as a literal or a call's
+/// result, transferring straight out.
 #[test]
 fn concatenating_two_string_literals_needs_no_retain_of_either_operand() {
     let (f, map, file) = lower_first_method(
@@ -1402,17 +1405,20 @@ fn concatenating_two_string_literals_needs_no_retain_of_either_operand() {
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-/// `$a . $b` — both operands are aliasing reads of an existing local, but
-/// `InstKind::Concat` only *reads* them to build the new buffer; neither
-/// local's own slot is retained on the way in, since concatenation never
-/// becomes a second durable owner of either operand the way binding one
-/// to a new local would. `$a`/`$b`'s own slots still get their ordinary
-/// one release each at `m`'s exit sweep, and the concatenation's own
-/// result — bound to `$c` here, an aliasing read of nothing — needs no
-/// retain either, only the release `release_all_locals` gives every
-/// refcounted local still live at return.
+/// `$a . $b` — both operands are aliasing reads of an existing local.
+/// `$b` is only *read* to build the result, so it is not retained: a
+/// concatenation never becomes a second durable owner of a trailing piece
+/// the way binding one to a new local would. `$a` **is** retained, and
+/// only because the instruction consumes one reference to its leading
+/// piece — `$a`'s own slot keeps the one it holds and this is the extra,
+/// which is `InstKind::Concat`'s protocol and `Lowering::emit_concat`'s
+/// choice between the two ways of supplying it. Both slots still get
+/// their ordinary one release each at `m`'s exit sweep, and the
+/// concatenation's own result — bound to `$c` here, an aliasing read of
+/// nothing — needs no retain either, only the release
+/// `release_all_locals` gives every refcounted local still live at return.
 #[test]
-fn concatenating_two_string_locals_reads_them_without_retaining() {
+fn concatenating_two_string_locals_retains_only_the_leading_one() {
     let (f, map, file) = lower_first_method(
         "<?nvs\nclass T {\n  function m(): void {\n    string $a = \"x\";\n    string $b = \"y\";\n    string $c = $a . $b;\n  }\n}\n",
     );
@@ -1424,9 +1430,11 @@ fn concatenating_two_string_locals_reads_them_without_retaining() {
 /// implicit to-string) converts through a new `InstKind::HelperCall`
 /// (`Helper::IntToString`) before reaching `InstKind::Concat`. Both the
 /// helper-call result and the `"x"` literal are fresh, non-aliasing
-/// values with no durable slot of their own, so both get released right
-/// after `Concat` reads them — the concatenation's own result is
-/// returned directly and needs no release at all.
+/// values with no durable slot of their own; the literal is released
+/// right after `Concat` reads it, and the conversion result is not,
+/// because it leads and its release *is* the reference the instruction
+/// consumes. The concatenation's own result is returned directly and
+/// needs no release at all.
 #[test]
 fn concatenating_an_int_literal_with_a_string_uses_a_helper_call() {
     let (f, map, file) = lower_first_method(
@@ -1439,9 +1447,10 @@ fn concatenating_an_int_literal_with_a_string_uses_a_helper_call() {
 /// slot) converts through `Helper::BoolToString`; the conversion result
 /// is still a fresh, non-aliasing `Ty::Str` value (the `bool` itself was
 /// never refcounted, so there was nothing to alias into the conversion),
-/// so it's released right after `Concat` reads it, same as the `int`
-/// case above. `$flag`'s own slot needs no release from `Concat` at all
-/// — it isn't `Ty::is_refcounted`, so `release_all_locals` skips it too.
+/// and it leads — so it is handed to `Concat` rather than released after
+/// it, same as the `int` case above. `$flag`'s own slot needs no release
+/// from `Concat` at all — it isn't `Ty::is_refcounted`, so
+/// `release_all_locals` skips it too.
 #[test]
 fn concatenating_a_bool_local_with_a_string_uses_a_helper_call() {
     let (f, map, file) = lower_first_method(
@@ -1460,7 +1469,9 @@ fn concatenating_a_bool_local_with_a_string_uses_a_helper_call() {
 /// It dispatches through `InstKind::ClassDescOf`/`CallVirtual` so an
 /// override wins, carries `rule:errors/propagation`'s error edge because a `toString` body
 /// may throw, and retains `$n` first — the parameter's slot still owns it,
-/// and the callee releases every refcounted parameter at its own exit.
+/// and the callee releases every refcounted parameter at its own exit. The
+/// `toString` result then leads the concatenation, so it is handed over
+/// rather than released after it, exactly as a converted scalar is.
 #[test]
 fn concatenating_a_stringable_object_operand_calls_its_to_string() {
     let (f, map, file) = lower_first_method(
@@ -1775,6 +1786,25 @@ fn appending_to_a_string_local_appends_in_place_rather_than_concatenating() {
     let (f, map, file) = lower_first_method(
         "<?nvs\nclass T {\n  function m(string $piece): string {\n    var $out = \"\";\n    \
              $out .= $piece;\n    return $out;\n  }\n}\n",
+    );
+    assert_snapshot!(print_function(&f, map.file(file)));
+}
+
+/// `$out = $out . $piece;` on a plain `string` local — one `concat` with
+/// neither a retain of `$out` nor a release of its previous value, which
+/// is what makes the statement linear rather than quadratic: the binding's
+/// one reference is what `InstKind::Concat` consumes, and the one it
+/// yields is what the binding is re-pointed at, so the runtime finds the
+/// accumulation solely owned and writes into it. That is
+/// `InstKind::StrAppend`'s protocol over the `=` spelling —
+/// `Lowering::lower_string_self_concat`, and `InstKind::Concat`'s own doc
+/// comment for the protocol. `$piece` is only read, so its own slot keeps
+/// it.
+#[test]
+fn assigning_a_string_local_its_own_concatenation_hands_the_binding_over() {
+    let (f, map, file) = lower_first_method(
+        "<?nvs\nclass T {\n  function m(string $piece): string {\n    var $out = \"\";\n    \
+             $out = $out . $piece;\n    return $out;\n  }\n}\n",
     );
     assert_snapshot!(print_function(&f, map.file(file)));
 }

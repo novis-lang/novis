@@ -1175,23 +1175,41 @@ pub enum InstKind {
     /// emits no `Concat` at all — `lower_interpolated_parts`' own doc comment
     /// says what it does instead — and nothing else produces one.
     ///
-    /// The result is a fresh value with exactly one natural owner —
-    /// concatenation always allocates a new buffer, so
-    /// `crate::lower::is_aliasing_read` stays `false` for `ExprKind::Binary`,
-    /// same as it already is for [`InstKind::ConstStr`]/[`InstKind::New`]/
-    /// [`InstKind::Call`]. No piece is retained by this instruction itself:
-    /// each is only *read* to build the new buffer, exactly the way
-    /// [`InstKind::FieldGet`] reads its `object` receiver without retaining
-    /// it, so ownership of each stays wherever it already was (its own local
-    /// slot, field, ...) — and `crate::lower::Lowering::concat_operand`'s
-    /// caller releases a piece right after this instruction reads it when that
-    /// piece was never such a slot to begin with (a literal, a nested
-    /// `Concat`'s own result, or a freshly converted
-    /// [`HelperCall`](InstKind::HelperCall) result), since nothing else will
-    /// ever release it otherwise.
+    /// **Consumes one reference to the leading piece and yields one to the
+    /// result**, on [`InstKind::ArraySet`]'s protocol, which that variant's own
+    /// doc comment is the worked statement of. Every other piece is only
+    /// *read*, exactly the way [`InstKind::FieldGet`] reads its `object`
+    /// receiver without retaining it, so ownership of each stays wherever it
+    /// already was.
+    ///
+    /// That one hand-off is what makes `$s = $s . $x` linear rather than
+    /// quadratic: `nvs_runtime`'s concatenation primitives write into the
+    /// leading buffer whenever nothing else holds it, and sole ownership is the
+    /// whole of what makes that write unobservable — so the reference has to
+    /// arrive here rather than stay in the slot it came from. It is supplied
+    /// three ways, and `crate::lower::Lowering::emit_concat` is the one home
+    /// for the choice between the first two: a piece no durable slot owns (a
+    /// literal, a nested `Concat`'s own result, a freshly converted
+    /// [`HelperCall`](InstKind::HelperCall) result) is **handed over** — the
+    /// release `crate::lower::Lowering::owned_temporaries` would have emitted
+    /// after this instruction is what pays for it; a piece a slot does own is
+    /// **retained** first, so the slot keeps its own and this consumes the
+    /// extra; and `$s = $s . e`, where the assignment re-points `$s` at the
+    /// result anyway, hands the binding's own reference over with neither a
+    /// retain nor a release — `crate::lower::Lowering::lower_string_self_concat`,
+    /// which is [`InstKind::StrAppend`]'s bookkeeping over this instruction.
+    ///
+    /// Every later piece that no durable slot owns is still released right
+    /// after this instruction reads it, since nothing else ever will.
+    ///
+    /// The result owns exactly one reference and it is this instruction's
+    /// caller's, whether the runtime allocated a fresh buffer or wrote into the
+    /// leading piece's own — so `crate::lower::is_aliasing_read` stays `false`
+    /// for `ExprKind::Binary`, same as it already is for
+    /// [`InstKind::ConstStr`]/[`InstKind::New`]/[`InstKind::Call`].
     Concat {
         /// The operands in evaluation order, each already lowered and already
-        /// [`Ty::Str`]. Two or more.
+        /// [`Ty::Str`]. Two or more. One reference to the first is consumed.
         pieces: Vec<ValueId>,
     },
     /// `$s .= e` where `$s` is a plain [`Ty::Str`] local — the one compound

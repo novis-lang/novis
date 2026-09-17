@@ -25,7 +25,6 @@ fn <script>() -> tagged {
     v15 = const.str " then "  ; string
     v16 = helper.int_to_string v13 ! bb6  ; string
     v17 = concat v1, v6, v7, v8, v9, v14, v15, v16  ; string
-    release v1
     release v6
     release v7
     release v8
