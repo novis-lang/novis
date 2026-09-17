@@ -93,13 +93,13 @@ use std::time::{Duration, Instant};
 use nvs_db::conn::Endpoint;
 use nvs_db::matrix::{self, Location, Server};
 use nvs_db::mysql::scalar;
-use nvs_db::tds::{TdsScalar, scalar as tds_scalar};
+use nvs_db::tds::{TdsScalar, encode as tds_encode, scalar as tds_scalar};
 use nvs_db::{
     DbErrorKind, Driver, Isolation, MariaConn, MariaTarget, MySqlConn, MySqlRows, MySqlScalar,
     MySqlTarget, PgConn, PgTarget, ServerError, TdsConn, TdsTarget,
 };
 use nvs_host::{Reactor, Scheduler, run_until_idle};
-use nvs_runtime::{Ctx, OutputSink, TaskRoot};
+use nvs_runtime::{Ctx, NvsStr, OutputSink, TaskRoot, Value};
 
 /// How long the whole of one handshake here may take.
 ///
@@ -1344,5 +1344,64 @@ fn a_mssql_reset_from_inside_a_transaction_leaves_none_and_the_logins_level() {
         mssql_one_value(&mut conn, LEVEL).as_deref(),
         Some("ReadCommitted"),
         "the session kept the level one request asked for, and the next request would inherit it",
+    );
+}
+
+/// § 9's `bytes` row against a real SQL Server: the octets a program bound are
+/// stored in a `varbinary` column and come back equal, which is the half
+/// `tds::plan`'s `tds_round_trips_a_bytes_through_varbinary` cannot ask — a
+/// scripted server answers with whatever the case wrote for it.
+///
+/// The octets are what a text bind destroys: a zero, a high byte and a lone
+/// `0x80`, none of which is UTF-8 or survives a UCS-2 widening, so a driver
+/// that had declared the marker `nvarchar` cannot produce this row rather than
+/// producing a different one. `VARBINARY(MAX)` is the column so the bind is the
+/// only thing under test and not the width the server chose.
+#[test]
+fn a_mssql_bytes_binds_as_a_varbinary_and_comes_back_equal() {
+    let Some(server) = mssql() else {
+        return;
+    };
+    let octets: [u8; 5] = [0x00, 0x61, 0xFF, 0xFE, 0x80];
+    let bound = tds_encode(Value::bytes(NvsStr::new(&octets)))
+        .expect("a `bytes` § 9 binds")
+        .expect("a value and not SQL NULL");
+
+    let mut conn = mssql_open(&server);
+    mssql_run(&mut conn, "DROP TABLE IF EXISTS novis_octets");
+    mssql_run(
+        &mut conn,
+        "CREATE TABLE novis_octets (v VARBINARY(MAX) NOT NULL)",
+    );
+
+    let set: [Option<&[u8]>; 1] = [Some(&bound)];
+    let sets: [&[Option<&[u8]>]; 1] = [&set];
+    assert_eq!(
+        conn.execute_many("INSERT INTO novis_octets (v) VALUES (@p1)", &sets)
+            .expect("the server took the bound octets"),
+        1,
+        "the insert bound one value and wrote one row",
+    );
+
+    let mut rows = conn
+        .query("SELECT v FROM novis_octets", &[])
+        .expect("the server ran the statement");
+    // Cloned out before the walk, for [`mssql_one_value`]'s reason.
+    let columns = rows.columns().to_vec();
+    let mut back = None;
+    while let Some(row) = rows.next_row().expect("a row, or the end of the stream") {
+        if back.is_none() {
+            let value = row.column(0).expect("the row has a first column");
+            back = match tds_scalar(&columns[0], value).expect("the column decodes under § 9") {
+                TdsScalar::Bytes(stored) => Some(stored.to_vec()),
+                other => panic!("the column answered {other:?}, which is not `bytes`"),
+            };
+        }
+    }
+
+    assert_eq!(
+        back.as_deref(),
+        Some(&octets[..]),
+        "the octets the server stored are not the ones that went out",
     );
 }
