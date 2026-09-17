@@ -1436,7 +1436,11 @@ satisfying the shape's declared type by ordinary assignability. No new compariso
   does not.
 - Plain `object` is the fully erased form, and every shape type is a subtype of it
   ([`types/object-top`](types.md#types-object-top)).
-- A shape is a type *expression*, so [`types/type-alias`](types.md#types-type-alias) names one for free.
+- A shape is a type *expression*, so [`types/type-alias`](types.md#types-type-alias) names one for free — and a **local
+  declaration** is the one slot where naming it first is required rather than optional, because a
+  statement-initial `{` opens a block before it is anything else. `{x: int} $point;` is `E0134`,
+  naming `type Point = {x: int}; Point $point;`; a parameter, a return type, a property, a class
+  constant and a `foreach` binding each take the bare shape.
 
 **This is the one deliberate, tightly scoped exception to an otherwise fully nominal type system.**
 Two unrelated named classes sharing field names and types are interchangeable wherever a shape type is

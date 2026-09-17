@@ -81,9 +81,13 @@ mod tests;
 
 /// Produces an AST from a source file, one construct at a time.
 ///
-/// Holds its own small lookahead buffer over the [`Lexer`] — up to three
-/// tokens, for the `(` *cast-keyword* `)` lookahead that tells a cast apart
-/// from a parenthesized expression.
+/// Holds its own lookahead buffer over the [`Lexer`]. Three tokens answer all
+/// but one of the grammar's classifications, the widest being the `(`
+/// *cast-keyword* `)` run that tells a cast apart from a parenthesized
+/// expression. The exception is the shape-typed-local tell in `parser::stmt`,
+/// which asks what follows a *matched* `{...}` and so buffers that run's
+/// tokens, up to the limit that module fixes, until the statement under it
+/// consumes them again.
 #[derive(Debug)]
 pub struct Parser<'src, 'd> {
     file: &'src SourceFile,

@@ -247,6 +247,14 @@ pub mod code {
     /// nothing to attach to. Parsing the run and dropping it would accept a
     /// declaration saying something the language does not have.
     pub const E_TYPE_ALIAS_TAKES_NO_MODIFIER_OR_ATTRIBUTE: Code = Code::new("E0133");
+    /// A bare shape type written in front of a local's name (`{x: int}
+    /// $point;`) — `rule:types/shape-type`. A statement-initial `{` is a block
+    /// before it is anything else, so the shape never reaches a declaration
+    /// there; every other slot takes a bare shape fine, and the help names the
+    /// `type` alias that rule's own example uses. Reported in place of
+    /// [`E_OBJECT_LITERAL_NEEDS_PARENS`] when the token after the matched `}`
+    /// is a variable, because parentheses are not the fix for this one.
+    pub const E_SHAPE_TYPED_LOCAL_NEEDS_AN_ALIAS: Code = Code::new("E0134");
 
     // --- E02xx rejected PHP constructs -------------------------------------
     // Novis accepts PHP 8.5 syntax as a *pragmatic* superset. These constructs
@@ -3874,10 +3882,7 @@ mod tests {
     /// than leave `brief.py`'s next-free line quietly wrong.
     #[test]
     fn the_newest_parser_code_is_the_bands_highest_number() {
-        assert_eq!(
-            code::E_TYPE_ALIAS_TAKES_NO_MODIFIER_OR_ATTRIBUTE.as_str(),
-            "E0133"
-        );
+        assert_eq!(code::E_SHAPE_TYPED_LOCAL_NEEDS_AN_ALIAS.as_str(), "E0134");
 
         let mut band = parser_band();
         assert!(band.len() > 3, "the band did not parse: {band:?}");
@@ -3887,7 +3892,7 @@ mod tests {
         assert_eq!(band, unique, "two parser-band codes share a number");
         assert_eq!(
             band.pop(),
-            Some(33),
+            Some(34),
             "the newest code is no longer the band's highest, so the number after \
              it is no longer the next free one",
         );

@@ -1,0 +1,50 @@
+--TEST--
+a local declaration typed with a bare inline shape is refused naming the `type` alias form, while a block a variable happens to follow is left alone — `rule:types/shape-type`, `rule:types/object-literal`
+--FILE--
+<?nvs
+// `rule:types/shape-type`: a shape is a type expression, so every declaration
+// slot takes it bare but this one — a statement-initial `{` opens a block
+// before it is anything else, so the type never reaches a declaration here.
+// The refusal names the spelling that works, which is the one that rule's own
+// example uses.
+{x: int} $point;
+
+// An optional key and a nested shape are the same declaration written in the
+// same place: the tell is the variable after the *matched* `}` and not
+// anything between the braces, so nesting changes nothing. The initializer is
+// consumed with the declaration rather than re-read as a statement of its own.
+{x?: int} $optional;
+{outer: {inner: int}} $nested = {outer: {inner: 1}};
+
+// The two spellings the scan must not claim, both of which compile clean: a
+// block that a variable happens to follow, and `rule:types/type-alias`'s
+// named form, which is the fix this error points at. The error count below is
+// what asserts they were left alone — a scan that claimed either would report
+// one more.
+int $x = 0;
+{ echo "b\n"; } $x = 1;
+
+type Point = {x: int};
+Point $p = {x: 1};
+echo $p->x, "\n";
+
+// A discarded object literal keeps the parenthesize refusal: no variable
+// follows the `}`, so this tell answers no and `rule:types/object-literal`'s
+// own error is still what an author reads.
+{x: 1};
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0134]: a local declaration cannot be typed with a bare shape
+  --> case.nvs:7:1
+%A
+error[E0134]: a local declaration cannot be typed with a bare shape
+   --> case.nvs:13:1
+%A
+error[E0134]: a local declaration cannot be typed with a bare shape
+   --> case.nvs:14:1
+%A
+error[E0117]: an object literal here is ambiguous with a block
+   --> case.nvs:31:1
+%A
+error: aborting due to 4 errors

@@ -32,6 +32,15 @@
 
 use super::*;
 
+/// How far past a statement-initial `{` the shape-typed-local tell looks for
+/// the matching `}`. A shape a local would be declared with is a handful of
+/// tokens; past this the tell gives up and the `{` is read as the block or
+/// object literal it otherwise looks like, which costs a worse message on
+/// input no author writes. This is what keeps the scan — the one place the
+/// parser looks further ahead than three tokens — buffering a bounded number
+/// of tokens rather than however many the braced run holds.
+const SHAPE_TYPED_LOCAL_SCAN_LIMIT: usize = 256;
+
 impl<'src, 'd> Parser<'src, 'd> {
     /// A `{ ... }` block. If a statement consumes no tokens at all (a
     /// construct not yet implemented, sitting at a token no statement form
@@ -61,6 +70,96 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// depth guard as [`Self::parse_assignment`].
     pub(super) fn parse_statement(&mut self) -> Stmt {
         self.guarded(Self::error_stmt_here, Self::parse_statement_inner)
+    }
+
+    /// Whether the `{` at the current position opens a *shape type* written in
+    /// front of a local's name (`{x: int} $point;`, `{x?: int} $point;`)
+    /// rather than a block or an object literal, answering with how far the
+    /// matching `}` is from here so the refusal can consume the run this
+    /// identified.
+    ///
+    /// Both halves are load-bearing. The braced run has to open like a field
+    /// list, which is what keeps a block a variable happens to follow
+    /// (`{ echo 1; } $x = 1;`) out of it, and the token after the *matched*
+    /// `}` has to be a variable, which is what keeps a discarded object
+    /// literal (`{x: 1};`) out. An optional key (`{x?: int}`) opens a field
+    /// list too: it is the same declaration written in the same place, and
+    /// only [`Self::at_object_literal_in_block_position`], which answers for a
+    /// *literal*, has no spelling for it.
+    fn at_shape_typed_local(&mut self) -> Option<usize> {
+        if self.peek().kind != TokenKind::LBrace || self.peek_at(1).kind != TokenKind::Ident {
+            return None;
+        }
+        let opens_a_field = match self.peek_at(2).kind {
+            TokenKind::Colon => true,
+            TokenKind::Question => self.peek_at(3).kind == TokenKind::Colon,
+            _ => false,
+        };
+        if !opens_a_field {
+            return None;
+        }
+        let mut depth = 0usize;
+        for n in 0..SHAPE_TYPED_LOCAL_SCAN_LIMIT {
+            match self.peek_at(n).kind {
+                TokenKind::LBrace => depth += 1,
+                TokenKind::RBrace => {
+                    depth -= 1;
+                    if depth == 0 {
+                        return (self.peek_at(n + 1).kind == TokenKind::Variable).then_some(n);
+                    }
+                }
+                TokenKind::Eof => return None,
+                _ => {}
+            }
+        }
+        None
+    }
+
+    /// `{x: int} $point;` — the refusal `rule:types/shape-type` leaves this
+    /// position with. Every other declaration slot (parameter, return type,
+    /// property, class constant, `foreach` binding) takes a bare shape, and a
+    /// local's cannot, because a statement-initial `{` is a block first. The
+    /// shape is not the problem, so the message names the spelling that works.
+    ///
+    /// `close` is where [`Self::at_shape_typed_local`] found the matching `}`.
+    /// That run, the variable behind it and whatever reaches the `;` are
+    /// consumed and the statement becomes `Empty`: parsing `{x: int}` as a
+    /// block would report the field list as broken statements, which is the
+    /// cascade this error exists to replace.
+    fn parse_shape_typed_local_refusal(&mut self, close: usize) -> Stmt {
+        let start = self.peek().span;
+        for _ in 0..=close {
+            self.bump();
+        }
+        let shape = start.to(self.last_span);
+        self.diags.report(
+            Diagnostic::error(
+                code::E_SHAPE_TYPED_LOCAL_NEEDS_AN_ALIAS,
+                "a local declaration cannot be typed with a bare shape",
+            )
+            .with_primary(
+                shape,
+                "`{` at the start of a statement already opens a block",
+            )
+            .with_help(
+                "name the shape first: `type Point = {x: int}; Point $point;` \
+                 (`rule:types/shape-type`)",
+            ),
+        );
+        self.bump(); // the variable the tell found behind the `}`
+        while !self.at(TokenKind::Semicolon)
+            && !self.at(TokenKind::Eof)
+            && !self.at(TokenKind::RBrace)
+        {
+            self.bump();
+        }
+        if self.at(TokenKind::Semicolon) {
+            self.bump();
+        }
+        Stmt {
+            span: start.to(self.last_span),
+            kind: StmtKind::Empty,
+        }
     }
 
     pub(super) fn error_stmt_here(&mut self) -> Stmt {
@@ -128,23 +227,26 @@ impl<'src, 'd> Parser<'src, 'd> {
                 span: start,
                 kind: StmtKind::Empty,
             },
-            TokenKind::LBrace if self.at_object_literal_in_block_position() => {
-                // `rule:types/object-literal`: a statement-initial `{` already means a
-                // block — a discarded object-literal statement needs
-                // `({...});` instead.
-                let expr = self.parse_object_literal_needs_parens();
-                self.expect(TokenKind::Semicolon, "`;`");
-                let span = start.to(self.last_span);
-                Stmt {
-                    span,
-                    kind: StmtKind::Expr(expr),
-                }
-            }
             TokenKind::LBrace => {
-                let block = self.parse_block();
-                Stmt {
-                    span: block.span,
-                    kind: StmtKind::Block(block),
+                if let Some(close) = self.at_shape_typed_local() {
+                    self.parse_shape_typed_local_refusal(close)
+                } else if self.at_object_literal_in_block_position() {
+                    // `rule:types/object-literal`: a statement-initial `{` already means a
+                    // block — a discarded object-literal statement needs
+                    // `({...});` instead.
+                    let expr = self.parse_object_literal_needs_parens();
+                    self.expect(TokenKind::Semicolon, "`;`");
+                    let span = start.to(self.last_span);
+                    Stmt {
+                        span,
+                        kind: StmtKind::Expr(expr),
+                    }
+                } else {
+                    let block = self.parse_block();
+                    Stmt {
+                        span: block.span,
+                        kind: StmtKind::Block(block),
+                    }
                 }
             }
             TokenKind::Semicolon => {
