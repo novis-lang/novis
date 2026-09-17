@@ -351,7 +351,9 @@ Reading **metadata** — a member's existence, name, declared type, visibility, 
 is different: calling a reflected method, or reading or writing a reflected property, runs through
 exactly the visibility check, and any declared property observer, that ordinary code at that call site
 would face. A reflective call from outside a class to one of its `private` methods fails the way an
-ordinary out-of-class call would.
+ordinary out-of-class call would. A `protected` member is where that promise is worth stating twice:
+a reflective read, write or call written inside a subclass's body reaches it, because an ordinary
+access there reaches it, while the same site is refused the class's `private` members.
 
 **There is no `setAccessible(true)` and no equivalent.** It is rejected outright rather than left
 undocumented, because an escape hatch for reaching a private member from anywhere is a structural

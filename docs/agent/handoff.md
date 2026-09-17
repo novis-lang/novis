@@ -2,56 +2,57 @@
 
 ## State
 
-**Goal `decided-closures`, stage 4 — the library.** `Core\Reflect\EnumInfo` is built end to end, so
-`rule:enums/reflection` is `shipped` rather than `designed` and names the five conformance cases
-that pin it. `EnumInfo::of(Status::class)` answers a description carrying the enum's name, its
-closed case list and which of `rule:enums/one-backing-type`'s two integer types the cases are
-constants of; `valueOf` reads one constant and throws `LogicError` for a name the enum does not
-declare.
+**Goal `decided-closures`, stage 4 — the library.** `crates/nvs-stdlib/src/reflect.rs`'s gap 2 is
+built and its item deleted: `python tools/owners.py --closes decided-closures` names 16 where it
+named 17. A `protected` member is now reached reflectively from exactly the sites an ordinary
+access reaches it from, which is the whole of `rule:security/reflection-enforces-visibility`
+rather than the closed-fails-safe half.
 
-**The shape had to be carried, because an enum has no descriptor.**
-`rule:enums/representation` makes a case *be* the integer behind it, so nothing at run time can be
-asked what enum it came from. The channel is `nvs_types::enums::EnumTable::iter` →
-`nvs_ir::ir::Program::enums` → `nvs_runtime::ClassTable::define_enum` → `Ctx::enum_desc`, one list
-beside the descriptors rather than a field on them, and `Core` enums ride it too because the
-checker's table is seeded with them. `reflect.rs`'s module doc states what each end spends.
+**The visibility *level* travels now, where one readable/not bit did.** `nvs_types::layout` reads
+`protected` off the declaration beside `public`; the pair rides `nvs_ir::ir::Class` and
+`nvs-codegen` to `ClassDesc::field_is_protected` and `MethodRow::protected`. The one answer both
+doors ask is `Ctx::field_is_visible_from` / `Ctx::method_is_visible_from` in the new
+`crates/nvs-runtime/src/ctx/visibility.rs`, which replaces the site-equality each of the five call
+sites had written for itself — `ClassInfo::get`, `::set`, `::readableProperties` and, through
+`call_erased_method_from`, `::call` and `::construct`.
 
-**`reflect.rs` gap 1 was stale in two ways, both in the direction the playbook's known-gap bullet
-warns about.** `ParameterInfo` was already registered and `nvs_runtime::MethodRow::param_names`
-already carried parameter names, so the gap's own stated reason — *"a parameter's name is in no
-descriptor at all"* — was false about the crate it named. Rewritten to what the code does, under the
-goal's standing decision that tested code beats a record: two classes are left, `ConstantInfo` and
-`AttributeInfo`, and each needs class-constant or attribute data no `ClassDesc` carries.
+**The walk is exact in both directions, which is what the second bit bought.** A site that *is* the
+subject's class reaches its `protected` members because it inherits them; an ancestor reaches one
+when it declares it, which is what the module's `declares` argument asks; an unrelated class that
+spells the same property name is refused, so the relation is asked and never the spelling alone.
+`private` still wants equality, and a site inside no class is still outside everything.
 
-**The gap is narrowed, not closed**, so `python tools/owners.py --closes decided-closures` still
-names 17. `valueOf`'s `int|uint` return is the one place this class costs a caller anything — the
-module doc owns why answering `int` always would be worse.
+**What is left in this file is gap 1**, and it is the bigger half: `ConstantInfo` and
+`AttributeInfo` each need descriptor data no `ClassDesc` carries at all.
 
 ## Next group
 
-**Stage 4: `Core\Reflect`'s remaining two gaps** — one file set:
-`crates/nvs-stdlib/src/reflect.rs`, `crates/nvs-runtime/src/object.rs`, `crates/nvs-ir/src/ir.rs`,
-`crates/nvs-types/src/layout.rs` and the cases under `tests/conformance/core/`. Gap 2 is the
-smaller of the two and is the same carriage this session just built, one bit wide.
+**Stage 4: `crates/nvs-stdlib/src/reflect.rs`'s last gap, one join at a time** — one file set, and
+it is the channel this session just widened by one bit: `crates/nvs-types/src/layout.rs`,
+`crates/nvs-ir/src/ir.rs`, `crates/nvs-codegen/src/lib.rs`, `crates/nvs-runtime/src/object.rs`,
+`crates/nvs-stdlib/src/reflect.rs` and the cases under `tests/conformance/core/`.
 
-- [ ] **`crates/nvs-stdlib/src/reflect.rs:166` — gap 2: a `protected` member is not reached
-      reflectively from a subclass's body.** `crates/nvs-stdlib/src/reflect.rs:1883` is the compare
-      that is wrong — `site_class(args[3]).is_some_and(|site| site == class)`, repeated at `:1615`,
-      `:1953`, `:2021` and `:2093`. What closes it is a second bit beside
-      `crates/nvs-types/src/layout.rs:79`'s `public_fields`, carried through
-      `crates/nvs-ir/src/ir.rs:193` to a `field_is_protected` next to
-      `crates/nvs-runtime/src/object.rs:1278`, plus the same bit on `MethodRow`; the test then
-      becomes per-member rather than once per call, since a `private` row still wants equality
-      (`rule:security/reflection-enforces-visibility`).
-- [ ] **`crates/nvs-stdlib/src/reflect.rs:152` — gap 1's remainder: `ConstantInfo` and
-      `AttributeInfo`.** `crates/nvs-stdlib/src/reflect.rs:914`'s `PARAMETER_INFO` and this
-      session's `ENUM_INFO` beside it are the two shapes to copy — a row class and a
-      described-by-name class — and `crates/nvs-stdlib/src/reflect.rs:2580`'s `NOT_YET_BUILT` is the
-      machine-checked worklist both come off (`rule:tooling/reflection-and-source-parsing-are-core-features`).
+- [ ] **`crates/nvs-stdlib/src/reflect.rs:152` — gap 1a: `Core\Reflect\ConstantInfo`.** A
+      descriptor carries no class constants, so the member is a join before it is a class, and the
+      join is this session's shape exactly: a roster beside `crates/nvs-types/src/layout.rs:95` in
+      `ClassLayout`, beside `crates/nvs-ir/src/ir.rs:205` in `ir::Class`, a setter pair at
+      `crates/nvs-codegen/src/lib.rs:1542` and a list on `crates/nvs-runtime/src/object.rs:476`'s
+      descriptor. **Decide the carried form in the slice and state what it spends**
+      (`rule:programs/memory-priority`): a constant is a *value*, not a bit, so it is either the
+      declaration's spelling or something the runtime can hand back as a `Value`. Then the five
+      edits of `docs/agent/conventions.md` § *A `Core` member* and three `.nvst` cases.
+- [ ] **`crates/nvs-stdlib/src/reflect.rs:152` — gap 1b: `Core\Reflect\AttributeInfo`**, through
+      the same join — `crates/nvs-types/src/layout.rs:95`, `crates/nvs-ir/src/ir.rs:205`,
+      `crates/nvs-codegen/src/lib.rs:1542`, `crates/nvs-runtime/src/object.rs:476` — and the same
+      five edits. An attribute
+      is a name plus its arguments, so locate where `nvs_types` holds the attribute table first —
+      `rule:core-classes/derive-generates-what-is-missing` already records a per-class field list on
+      the descriptor, and whether that pass is the place to hang this is the first question.
 
 ## Backlog
 
-- The cross-request compiled-pattern caches are bracketed by nothing — `crates/nvs-stdlib/src/regex.rs:69` gap 1, waiting on the request arena.
-- 15 further `decided-closures` gaps, one per line of `python tools/owners.py --closes decided-closures`.
-- `crates/nvs-stdlib/src/test.rs:94` and `:102` — two gaps in one file, the next coherent group after `reflect.rs`.
-- `crates/nvs-types/src/defaults.rs:58` gap 1 — a named constant as a parameter default.
+- An ordinary erased call — `mixed $x = $obj; $x->m()` — still passes `site: None`, so a
+  `protected` method is refused through it even from inside the hierarchy;
+  `crates/nvs-runtime/src/dispatch.rs`'s `call_erased_method` doc owns that as a decision, and the
+  level reaching the descriptor is what would now make it answerable.
+- `docs/agent/carried-gaps.md` is the home for anything that must outlive this goal.
