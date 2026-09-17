@@ -26,6 +26,7 @@ use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
 use std::hint::black_box;
 use std::rc::Rc;
+use std::sync::{Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant};
 
 use nvs_abi_probe::{Ctx, Helper, Probe, Value, call};
@@ -35,6 +36,52 @@ use nvs_abi_probe::{Ctx, Helper, Probe, Value, call};
 // lives outside `src/`.
 #[path = "../shared/isolate.rs"]
 mod isolate;
+
+/// Holds this binary's guards apart, so each one measures a machine that is
+/// otherwise idle.
+///
+/// libtest runs a test binary's tests on as many threads as the host has cores,
+/// and every test below is a *timing*. A guard whose figure is a ratio across
+/// worker cores then measures its neighbours as much as the code under it —
+/// they are on the cores it is fanning out onto, so it answers that the fan-out
+/// lost to a single core, which is a red build that says nothing about the
+/// tree. The thresholds here are baselines taken with nothing else running in
+/// the process, and this is what keeps the run they are compared against the
+/// same kind of run they came from.
+///
+/// The lock is poison-tolerant on purpose: a guard that fails panics while
+/// holding it, and a poisoned lock would turn one honest red into a spurious
+/// one in every guard after it, hiding the one that matters.
+fn serialised() -> MutexGuard<'static, ()> {
+    static QUIET: Mutex<()> = Mutex::new(());
+    QUIET.lock().unwrap_or_else(PoisonError::into_inner)
+}
+
+/// Every guard in this file takes [`serialised`] before it measures anything.
+///
+/// The lock quietens a run only if all of them take it: one guard that skips
+/// the line is one that runs on the cores the guard beside it is timing. That
+/// is a convention a reader has to remember, so this counts it instead.
+#[test]
+#[cfg_attr(
+    debug_assertions,
+    ignore = "it counts the guards, which only run in release"
+)]
+fn every_guard_in_this_binary_takes_the_lock() {
+    let _quiet = serialised();
+
+    let source = include_str!("perf_guards.rs");
+    // Spelled in halves so the needle does not match its own literal here.
+    let needle = concat!("let _quiet = ", "serialised();");
+    let holding = source.matches(needle).count();
+    let guards = source.matches("\n#[test]\n").count();
+    assert_eq!(
+        holding, guards,
+        "{guards} guards in this file and {holding} of them take `serialised()`. One that does \
+         not runs on the cores the guard beside it is timing, which is the failure this lock \
+         exists to stop."
+    );
+}
 
 /// How far a measurement sits from the threshold it must stay under, as the
 /// phrase every guard with a numeric bound prints beside its own figure.
@@ -82,6 +129,8 @@ fn ns_per_op(iters: u64, batches: u32, mut op: impl FnMut()) -> f64 {
 #[test]
 #[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
 fn a_checked_return_frame_stays_cheap() {
+    let _quiet = serialised();
+
     // Baseline: ~0.85 ns per frame (ADR 0002). Derived from the slope between
     // two depths so that harness call-out overhead cancels out.
     const MAX_NS_PER_FRAME: f64 = 15.0;
@@ -116,6 +165,8 @@ fn a_checked_return_frame_stays_cheap() {
 #[test]
 #[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
 fn throwing_costs_about_the_same_as_returning() {
+    let _quiet = serialised();
+
     // ADR 0002 claims a throw costs roughly what a return does, which is what
     // lets PHP code that uses exceptions for control flow keep working. A large
     // ratio here means the error path has acquired real work — an allocation
@@ -158,6 +209,8 @@ fn throwing_costs_about_the_same_as_returning() {
 #[test]
 #[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
 fn a_raise_renders_one_frame_label_and_nothing_larger() {
+    let _quiet = serialised();
+
     // `rule:errors/throw-is-not-slower` now says a raise allocates: it renders
     // the frame it happened in, from the site the `throw` was compiled with, so
     // a `catch` beside the `throw` has a backtrace at all. What must stay true
@@ -213,6 +266,8 @@ fn a_raise_renders_one_frame_label_and_nothing_larger() {
 #[test]
 #[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
 fn a_coroutine_round_trip_stays_cheap() {
+    let _quiet = serialised();
+
     // Baseline: ~25 ns per suspend/resume through JIT frames (ADR 0003 preamble
     // / docs/adr/README.md). This is the price of "no async colouring".
     const MAX_NS: f64 = 400.0;
@@ -255,6 +310,8 @@ fn a_coroutine_round_trip_stays_cheap() {
 #[test]
 #[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
 fn an_all_bits_off_debug_probe_stays_in_the_safepoint_cost_class() {
+    let _quiet = serialised();
+
     // ADR 0018 § 1's whole argument for a runtime-checked flag over a second
     // compiled tier rests on this: the check is emitted at every statement
     // boundary of every compiled unit, whether or not any request ever sets a
@@ -315,6 +372,8 @@ fn an_all_bits_off_debug_probe_stays_in_the_safepoint_cost_class() {
 #[test]
 #[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
 fn an_amortised_deadline_poll_costs_less_than_the_check_it_rides_beside() {
+    let _quiet = serialised();
+
     // ADR 0106 § 5 owns exactly one number and this is it: a helper whose
     // runtime scales with its input polls the deadline through
     // `nvs_runtime::bounded_loop`, the poll is amortised over
@@ -392,6 +451,8 @@ fn an_amortised_deadline_poll_costs_less_than_the_check_it_rides_beside() {
 #[test]
 #[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
 fn a_probe_that_is_switched_on_mid_flight_actually_fires() {
+    let _quiet = serialised();
+
     // The other half of the same claim, and the reason the cost above is
     // worth paying: setting the word on a context is the entire mechanism, so
     // already-compiled code has to start reporting with no recompilation.
@@ -497,6 +558,8 @@ mod wasm_guards {
 #[test]
 #[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
 fn an_os_process_costs_orders_of_magnitude_more_than_a_task() {
+    let _quiet = serialised();
+
     // ADR 0006 gives Novis an in-process script isolate because PHP's only way to
     // run a script under its own heap, globals and limits is another process.
     // The whole argument is this ratio, so it is measured rather than asserted.
@@ -547,6 +610,8 @@ fn an_os_process_costs_orders_of_magnitude_more_than_a_task() {
 #[test]
 #[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
 fn a_spawn_to_result_round_trip_stays_in_the_microsecond_class() {
+    let _quiet = serialised();
+
     // The figure M5's acceptance asks for, and the one the test above only
     // approximates: that one prices a bare coroutine, this one prices ADR 0006's
     // boundary itself — the argument's graph copy in, the child's own ownership
@@ -585,6 +650,8 @@ fn a_spawn_to_result_round_trip_stays_in_the_microsecond_class() {
 #[test]
 #[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
 fn concurrent_spawns_leave_the_scheduler_serving_other_tasks() {
+    let _quiet = serialised();
+
     // M8's list for `rule:core-classes/process-is-argv-only`: children in
     // flight do not stop the core they were started from serving anything else.
     // What is driven is the handoff the member performs — `blocking::run`
@@ -678,6 +745,8 @@ fn concurrent_spawns_leave_the_scheduler_serving_other_tasks() {
 #[test]
 #[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
 fn a_cpu_bound_fan_out_across_four_worker_cores_is_near_linear_by_the_margin_this_test_names() {
+    let _quiet = serialised();
+
     // The second figure M5's acceptance asks for, and the one that is a ratio:
     // CPU-bound children placed `on: "worker"` against the same children run one
     // after another on the core that asked for them. The construct is the
@@ -802,6 +871,8 @@ fn bench_sum(program: &nvs_ir::Program) -> &nvs_ir::Function {
 fn a_typed_arithmetic_loop_contains_no_call() {
     use nvs_ir::ir::InstKind;
 
+    let _quiet = serialised();
+
     let (program, _unit) = compile_arith();
     let sum = bench_sum(&program);
 
@@ -891,6 +962,8 @@ fn a_typed_arithmetic_loop_contains_no_call() {
 #[test]
 #[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
 fn a_typed_arithmetic_loop_stays_in_the_native_cost_class() {
+    let _quiet = serialised();
+
     // Self-relative, per ADR 0026: the bound is a multiple of the
     // checked-return frame cost this file already measures on *this* machine,
     // never an absolute figure quoted from another one.
@@ -990,6 +1063,8 @@ fn compile_decimal_arith() -> nvs_codegen::Unit {
 #[test]
 #[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
 fn a_typed_decimal_arithmetic_loop_stays_in_its_cost_class() {
+    let _quiet = serialised();
+
     // Self-relative, per ADR 0026: the bound is a multiple of the
     // checked-return frame cost this file already measures on *this* machine,
     // never an absolute figure quoted from another one.
@@ -1063,6 +1138,8 @@ fn a_typed_decimal_arithmetic_loop_stays_in_its_cost_class() {
 #[test]
 #[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
 fn a_refcount_one_array_member_mutates_in_place() {
+    let _quiet = serialised();
+
     // Self-relative, per ADR 0026: the bound compares two writes measured on
     // *this* machine, never an absolute figure quoted from another one.
     //
@@ -1161,6 +1238,8 @@ fn corpora() -> [(&'static str, String, f64); 2] {
 #[test]
 #[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
 fn a_grapheme_index_costs_more_than_a_code_point_index() {
+    let _quiet = serialised();
+
     // ADR 0009 § 2's granularity, decided by this measurement, which its
     // *Revisiting* section asked for by name.
     //
@@ -1297,6 +1376,8 @@ class Bench {
 #[test]
 #[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
 fn the_linear_regex_tier_keeps_pace_with_the_backtracking_tier_on_one_corpus() {
+    let _quiet = serialised();
+
     // Self-relative, per ADR 0026: the two tiers are measured against each
     // other in the same run, never against a figure quoted from another
     // machine. Neither pattern matches anywhere in the corpus, so each leg is
@@ -1562,6 +1643,8 @@ fn path_calls(program: &nvs_ir::Program, name: &str) -> Vec<String> {
 fn a_class_without_a_property_observer_costs_nothing_extra() {
     use nvs_ir::ir::InstKind;
 
+    let _quiet = serialised();
+
     // ADR 0014 § 4: a property with no hook, on a class that does not
     // implement `PropertyObserver`, compiles to a direct field load or store —
     // "no branch, no virtual call, nothing paid by a class that never asked
@@ -1786,6 +1869,8 @@ fn platform_round_trip(layout: Layout) {
 #[test]
 #[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
 fn an_allocation_round_trip_stays_in_the_pooled_cost_class() {
+    let _quiet = serialised();
+
     // Self-relative, per ADR 0026: the bound is this machine's own platform
     // heap, measured in the same loop rather than quoted. A 32-byte round trip
     // through `System` costs tens of nanoseconds
