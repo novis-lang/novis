@@ -61,14 +61,6 @@
 //! body are always-rejected constructs, and the same "nothing downstream ever
 //! acts on it" reasoning their own AST doc comments give for not inspecting
 //! them further covers their casing too.
-//!
-//! **Known gaps, left out deliberately:**
-//! - A `type` alias's own name is not checked — `rule:core-api/identifier-casing`'s scope table does
-//!   not list "type alias" as one of the categories it covers, so no rule is
-//!   enforced here rather than guessing one.
-//!   Decided: PascalCase, like classes — An alias reads like the type it names, and it is a rule change
-//!   plus a four-line check.
-//!   — owner: decided-closures
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
 
@@ -380,6 +372,9 @@ fn check_stmt(stmt: &Stmt, src: &SourceFile, diags: &mut Diagnostics) {
             check_type_name(decl.name.span, src, "class", diags);
             check_members(&decl.members, src, diags);
         }
+        StmtKind::TypeAliasDecl(decl) => {
+            check_type_name(decl.name.span, src, "type alias", diags);
+        }
         StmtKind::InterfaceDecl(decl) => {
             check_type_name(decl.name.span, src, "interface", diags);
             check_members(&decl.members, src, diags);
@@ -538,10 +533,13 @@ fn check_members(members: &[ClassMember], src: &SourceFile, diags: &mut Diagnost
                 );
                 check_method(m, src, diags);
             }
-            // This pass asks nothing of an alias at either site one is written:
-            // the file-scope form has no arm here either, and the two are one
+            // An alias names a type, so it is PascalCase like the class whose
+            // place it can stand in. The file-scope form is checked in
+            // [`check_stmt`] with the same category: the two are one
             // production, so they get one answer.
-            ClassMemberKind::TypeAlias(_) => {}
+            ClassMemberKind::TypeAlias(alias) => {
+                check_type_name(alias.name.span, src, "type alias", diags);
+            }
             ClassMemberKind::Error => {}
         }
     }

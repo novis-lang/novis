@@ -11,7 +11,9 @@ type Point  = {x: int, y: int};
 ```
 
 `TypeExpr` is any production of the type grammar (`rule:types/grammar`) but one
-(`rule:types/alias-is-never-a-bare-class`). The alias name is then lexically valid anywhere a class
+(`rule:types/alias-is-never-a-bare-class`). The name is `PascalCase` like a class's, at both
+sites and by the same check (`rule:core-api/identifier-casing`), because an alias stands where a class
+name stands and reads as the type it names. The alias name is then lexically valid anywhere a class
 name is, resolved by the same contextual lookup that already tells `self`/`static`/`parent` and an
 enum's name apart from a class's, and reached through ordinary `use`/FQN resolution — nothing is
 auto-imported.

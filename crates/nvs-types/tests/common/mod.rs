@@ -231,6 +231,22 @@ pub(crate) fn check_src(src: &str) -> Diagnostics {
     check_src_granted(src, None)
 }
 
+/// The declaration pass on its own — `nvs_syntax::check_declarations`, which
+/// answers identifier casing (`rule:core-api/identifier-casing`) and written visibility off the
+/// bare AST, before anything is resolved.
+///
+/// Every other helper here starts at `resolve_file`, so a casing refusal is
+/// invisible to all of them: a fixture asking for one calls this instead of
+/// [`check_src`], and gets that pass's diagnostics and no others.
+pub(crate) fn check_declarations_only(src: &str) -> Diagnostics {
+    let mut map = SourceMap::new();
+    let file = map.add("t.nvs", src);
+    let mut diags = Diagnostics::new();
+    let stmts = parse_file(map.file(file), &mut diags);
+    nvs_syntax::check_declarations(&stmts, map.file(file), &mut diags);
+    diags
+}
+
 /// [`check_src`] with a deployment's `[capabilities]` block in front of the
 /// checker — `rule:core-classes/db-literal-query-checking`'s "read at boot on the machine that compiles",
 /// which is the only input to a check that is not the program.

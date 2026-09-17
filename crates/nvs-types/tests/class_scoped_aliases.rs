@@ -1,6 +1,11 @@
 //! `rule:types/type-alias`'s class-scoped member, in the checker: the two
-//! spellings a body's own alias is reached by, and the name left of a `::`
-//! when that name is itself an alias.
+//! spellings a body's own alias is reached by, the name left of a `::` when
+//! that name is itself an alias, and the casing an alias's own name is held
+//! to at both sites one can be written.
+//!
+//! The casing case reaches a different pass from the rest — `rule:core-api/identifier-casing` is
+//! answered off the bare AST, before resolution — so it calls
+//! `common::check_declarations_only` where the others call `check_src`.
 //!
 //! Transparency is what these assert. A shape named `Order::Meta`, named
 //! `Meta` inside `Order`, and written at file scope is **one** interned type,
@@ -54,5 +59,36 @@ fn an_alias_left_of_a_double_colon_expands_before_the_member_is_read() {
     assert!(
         reported.message.contains("expands to") && reported.message.contains("array"),
         "the diagnostic names what the alias expands to: {reported:?}"
+    );
+}
+
+/// Both sides of the bound, in one source: the file-scope form and the member
+/// form are one production, so a name refused at one is refused at the other
+/// and a `PascalCase` name at either is accepted. The suggestion is asserted
+/// because it is what the diagnostic offers as the rename.
+#[test]
+fn a_type_alias_that_is_not_pascal_case_is_refused() {
+    let diags = check_declarations_only(
+        "<?nvs
+type user_id = uint;
+type Rows = array<int>;
+class Order {
+  type meta_row = {total: int};
+  type Line = {sku: string};
+}
+",
+    );
+    let refused: Vec<_> = diags
+        .iter()
+        .filter(|d| d.code == Some(code::E_BAD_TYPE_CASING))
+        .collect();
+    assert_eq!(
+        refused.len(),
+        2,
+        "`user_id` and `meta_row`, and neither `Rows` nor `Line`: {diags:?}"
+    );
+    assert!(
+        refused[0].message.contains("UserId") && refused[1].message.contains("MetaRow"),
+        "each refusal names the PascalCase rename: {refused:?}"
     );
 }
