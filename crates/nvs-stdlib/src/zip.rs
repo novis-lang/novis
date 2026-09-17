@@ -602,11 +602,11 @@ fn refuse_hostile(name: &str, external: u32, seen: &[Entry]) -> Result<(), Fault
         return Err(malformed("an entry has no name at all"));
     }
     // `Core\Path`'s grammar rather than a second one written here: a leading
-    // separator or a drive is absolute on every platform in both directions,
-    // which is what makes this refusal the same on the Windows leg and the WSL
-    // one.
+    // separator, a drive and a UNC server are each absolute on every platform
+    // in both directions, which is what makes this refusal the same on the
+    // Windows leg and the WSL one.
     let parts = crate::path::parse(name);
-    if parts.absolute || parts.drive.is_some() {
+    if parts.absolute || !matches!(parts.root, crate::path::Root::Unnamed) {
         return Err(refuses_path("it names an absolute path", name));
     }
     if parts.components.contains(&"..") {

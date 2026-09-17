@@ -15,10 +15,13 @@ array<string> $bare = ["/var/log", "a/b", "C:/tmp/x", "/", "x", "a/./b/.."];
 
 int $agreed = 0;
 foreach ($bare as string $b) {
-    // The three spellings. The third doubles *every* separator, which is the
-    // same empty component reached from the middle of the path rather than
-    // from its end — one rule, so one sweep.
-    array<string> $same = [$b . "/", $b . "//", Core\Str::replace($b, "/", "//")];
+    // The three spellings. The third doubles every separator but the leading
+    // one, which is the same empty component reached from the middle of the
+    // path rather than from its end — one rule, so one sweep. The leading
+    // separator is left alone because doubling *it* is not an empty component
+    // at all but the UNC root, which is pinned on its own at the end.
+    string $interior = Core\Str::slice($b, 0, 1) . Core\Str::replace(Core\Str::slice($b, 1), "/", "//");
+    array<string> $same = [$b . "/", $b . "//", $interior];
     foreach ($same as string $d) {
         $agreed = $agreed + ((Core\Path::basename($b) == Core\Path::basename($d)) ? 1 : 0);
         $agreed = $agreed + ((Core\Path::dirname($b) == Core\Path::dirname($d)) ? 1 : 0);
@@ -38,7 +41,8 @@ echo "agreed ", $agreed, " of 6 members x 3 spellings x ", Core\Arr::count($bare
 int $empties = 0;
 int $elements = 0;
 foreach ($bare as string $p) {
-    array<string> $spellings = [$p, $p . "/", $p . "//", Core\Str::replace($p, "/", "//")];
+    string $doubled = Core\Str::slice($p, 0, 1) . Core\Str::replace(Core\Str::slice($p, 1), "/", "//");
+    array<string> $spellings = [$p, $p . "/", $p . "//", $doubled];
     foreach ($spellings as string $q) {
         foreach (Core\Path::split($q) as string $element) {
             $elements = $elements + 1;
@@ -60,6 +64,15 @@ echo "split ", Core\Arr::count(Core\Path::split($decorated)), " elements\n";
 // The one separator that is *not* nothing is the root's, which is why `'/'` and
 // `'//'` are the same absolute path rather than the same empty one.
 echo "root ", (Core\Path::isAbsolute("//") ? "absolute" : "relative"), " ", Core\Arr::count(Core\Path::split("//")), " element\n";
+
+// A *leading* doubled separator followed by a name is the other separator that
+// is not nothing: it is the UNC root, the third of the root shapes
+// `crates/nvs-stdlib/src/path.rs` names. The server and the share belong to
+// that root rather than being components, so the doubling survives every
+// member that renders a path back — which is why `//` above, with no server
+// after it, is still the ordinary absolute root and not one of these.
+echo "unc ", Core\Str::replace(Core\Path::normalize("//server//share//f"), Core\Path::SEPARATOR, "/"), "\n";
+echo "unc root ", Core\Arr::count(Core\Path::split("//server/share/f")), " elements\n";
 --EXPECT--
 agreed 108 of 6 members x 3 spellings x 6 paths
 elements 56 empty 0
@@ -68,3 +81,5 @@ dirname /var
 normalize /var/log
 split 3 elements
 root absolute 1 element
+unc //server/share/f
+unc root 2 elements

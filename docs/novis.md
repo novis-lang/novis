@@ -10571,7 +10571,7 @@ Answers `$path` with its last component's extension replaced by `$extension`, or
 Core\Path::join(string $base, string ...$segments): string
 ```
 
-Appends each of `$segments` to `$base` with a separator between — the `$a . "/" . $b` every PHP program writes. Only the base decides the root: a segment's own leading separator or drive is dropped rather than allowed to replace what came before.
+Appends each of `$segments` to `$base` with a separator between — the `$a . "/" . $b` every PHP program writes. Only the base decides the root: a segment's own leading separator or root is dropped rather than allowed to replace what came before.
 
 | Parameter | Type | Meaning |
 |---|---|---|
@@ -10593,7 +10593,7 @@ Splits `$path` into its components — `explode(DIRECTORY_SEPARATOR, …)` for b
 |---|---|---|
 | `$path` | `string` | The path, with `/` and `\` both read as separators. |
 
-**Returns** `array<string>` — The components in order, an absolute path's root (`/` or `C:\`, rendered with `Path::SEPARATOR`) first; never an empty element, since a repeated or trailing separator contributes nothing, and an empty array for `''`.
+**Returns** `array<string>` — The components in order, an absolute path's root (`/`, `C:\` or `\\server\share\`, rendered with `Path::SEPARATOR`) first; never an empty element, since a repeated or trailing separator contributes nothing, and an empty array for `''`.
 
 <a id="core-core-path-normalize"></a>
 #### `Core\Path::normalize`
@@ -10617,13 +10617,13 @@ Resolves `.` and `..` in `$path` lexically and re-renders it with `Path::SEPARAT
 Core\Path::isAbsolute(string $path): bool
 ```
 
-Answers whether `$path` begins at a root — a separator, or a drive letter followed by a separator — replacing the manual checks PHP leaves this to.
+Answers whether `$path` begins at a root — a separator, a drive letter followed by a separator, or a UNC server — replacing the manual checks PHP leaves this to.
 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$path` | `string` (neutral) | The path, with `/` and `\` both read as separators. |
 
-**Returns** `bool` — `true` for `/tmp`, `\tmp` and `C:/log` on every platform — the grammar is the same everywhere, only the rendered separator differs — and `false` otherwise, `''` included.
+**Returns** `bool` — `true` for `/tmp`, `\tmp`, `C:/log` and `\\server\share` on every platform — the grammar is the same everywhere, only the rendered separator differs — and `false` otherwise, `''` included.
 
 <a id="core-core-path-relativeto"></a>
 #### `Core\Path::relativeTo`
@@ -10639,7 +10639,7 @@ Answers the relative path that leads from `$base` to `$path`, both resolved lexi
 | `$path` | `string` | The destination. |
 | `$base` | `string` | The directory the answer is relative to; one `..` is emitted per component of it that the two do not share. |
 
-**Returns** `?string` — The relative path, rendered with `Path::SEPARATOR` and never carrying a root; `.` when both name the same place; `null` when no relative path exists — one side is absolute and the other is not, the two name different drives, or `$base` still holds a `..` the answer would have to walk back into. Components compare byte for byte, except a drive letter, which ignores ASCII case.
+**Returns** `?string` — The relative path, rendered with `Path::SEPARATOR` and never carrying a root; `.` when both name the same place; `null` when no relative path exists — one side is absolute and the other is not, the two begin at different roots, or `$base` still holds a `..` the answer would have to walk back into. Components compare byte for byte, except a drive letter and a UNC server, which ignore ASCII case.
 
 <a id="core-core-io"></a>
 ### `Core\IO`

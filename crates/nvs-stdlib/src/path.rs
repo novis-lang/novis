@@ -43,27 +43,26 @@
 //! returns — undotted, or `null` for none. That inverse is the whole reason
 //! the first two rows are worth diverging for.
 //!
-//! Neither gap below is a missing *member*: spec § 8's roster is whole here.
+//! # The three root shapes
 //!
-//! # Known gaps
+//! [`Root`] is the whole list of places a path can begin: nothing named — a
+//! bare separator, or no root at all — a drive letter with a separator after
+//! it (`C:\log`), or a UNC server and share (`\\server\share\f`). The doubled
+//! separator belongs to the UNC root rather than being two empty components,
+//! and the server and share belong to it rather than being names, so
+//! `basename('\\server\share')` is the empty name every root has and every
+//! member that re-renders a path renders the root back. What the third shape
+//! spends is one more `&str` pair on the [`Parts`] a call already builds: a
+//! stack value that dies with the call, per `rule:programs/memory-priority`.
 //!
-//! 1. **A UNC path is not modelled.** `\\server\share\f` parses as an ordinary
-//!    absolute path whose components are `server`, `share` and `f`, so
-//!    re-rendering it loses the doubled separator that makes it UNC. Nothing
-//!    on the path to `examples/collect.nvs` writes one; the fix is a third
-//!    root shape beside [`Parts::drive`], not a change of interface.
-//!    Decided: Yes: add a third root shape beside the drive letter — Round-trips correctly; one more
-//!    root case in the path parser and its tests.
-//!    — owner: decided-closures
-//! 2. **A drive-*relative* path is not modelled.** `C:log` — Windows' "the
-//!    current directory *on* drive C" — has no separator after the colon, so
-//!    [`split_drive`] declines it and the whole thing is one component named
-//!    `C:log`. That is the shape that round-trips; treating `C:` as a root
-//!    would make `Path::split('a:b')` answer `['a:', 'b']` for an ordinary
-//!    relative path, which is worse.
-//!    Decided: No: keep it one relative component and state it as the grammar — Round-trips and never
-//!    splits a:b wrongly; loses the Windows-specific meaning.
-//!    — owner: decided-closures
+//! **`C:log` is not a root, and that is the bound this module states rather
+//! than a shape it is missing.** Windows reads it as "the current directory
+//! *on* drive C", but a drive is a root here only when a separator follows it
+//! ([`split_drive`]), so `C:log` is one relative component whose name is
+//! `C:log` and which round-trips as written. Reading `C:` as a root without
+//! one would make `Path::split('a:b')` answer `['a:', 'b']` for an ordinary
+//! relative path; losing the Windows-specific meaning is the cheaper of the
+//! two.
 //!
 //! # What these members do with a qualifier
 //!
@@ -288,7 +287,7 @@ const WITH_EXTENSION_DOC: MethodDoc = MethodDoc {
 const JOIN_DOC: MethodDoc = MethodDoc {
     short: "Appends each of `$segments` to `$base` with a separator between — the \
             `$a . \"/\" . $b` every PHP program writes. Only the base decides the root: a \
-            segment's own leading separator or drive is dropped rather than allowed to replace \
+            segment's own leading separator or root is dropped rather than allowed to replace \
             what came before.",
     params: &[
         ParamDoc {
@@ -319,9 +318,9 @@ const SPLIT_DOC: MethodDoc = MethodDoc {
         desc: "The path, with `/` and `\\` both read as separators.",
         shape: &[],
     }],
-    ret: "The components in order, an absolute path's root (`/` or `C:\\`, rendered with \
-          `Path::SEPARATOR`) first; never an empty element, since a repeated or trailing \
-          separator contributes nothing, and an empty array for `''`.",
+    ret: "The components in order, an absolute path's root (`/`, `C:\\` or `\\\\server\\share\\`, \
+          rendered with `Path::SEPARATOR`) first; never an empty element, since a repeated or \
+          trailing separator contributes nothing, and an empty array for `''`.",
     errors: &[],
 };
 
@@ -343,16 +342,16 @@ const NORMALIZE_DOC: MethodDoc = MethodDoc {
 
 /// `Core\Path::isAbsolute`'s reference card — `rule:core-api/reference-card`.
 const IS_ABSOLUTE_DOC: MethodDoc = MethodDoc {
-    short: "Answers whether `$path` begins at a root — a separator, or a drive letter followed \
-            by a separator — replacing the manual checks PHP leaves this to.",
+    short: "Answers whether `$path` begins at a root — a separator, a drive letter followed by \
+            a separator, or a UNC server — replacing the manual checks PHP leaves this to.",
     params: &[ParamDoc {
         name: "path",
         desc: "The path, with `/` and `\\` both read as separators.",
         shape: &[],
     }],
-    ret: "`true` for `/tmp`, `\\tmp` and `C:/log` on every platform — the grammar is the same \
-          everywhere, only the rendered separator differs — and `false` otherwise, `''` \
-          included.",
+    ret: "`true` for `/tmp`, `\\tmp`, `C:/log` and `\\\\server\\share` on every platform — the \
+          grammar is the same everywhere, only the rendered separator differs — and `false` \
+          otherwise, `''` included.",
     errors: &[],
 };
 
@@ -375,9 +374,9 @@ const RELATIVE_TO_DOC: MethodDoc = MethodDoc {
     ],
     ret: "The relative path, rendered with `Path::SEPARATOR` and never carrying a root; `.` \
           when both name the same place; `null` when no relative path exists — one side is \
-          absolute and the other is not, the two name different drives, or `$base` still \
+          absolute and the other is not, the two begin at different roots, or `$base` still \
           holds a `..` the answer would have to walk back into. Components compare byte for \
-          byte, except a drive letter, which ignores ASCII case.",
+          byte, except a drive letter and a UNC server, which ignore ASCII case.",
     errors: &[],
 };
 
@@ -438,21 +437,39 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 // The grammar — one parse, shared by every member
 // ============================================================================
 
-/// One path, taken apart: at most a drive, whether a separator follows it, and
-/// every non-empty component in order.
+/// The root a path begins at, where it names one — the module docs' three
+/// shapes, of which this is the whole list.
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum Root<'a> {
+    /// No named root. The path is relative (`a/b`) or begins at the current
+    /// drive's root (`/a/b`), and `Parts::absolute` is what tells those apart.
+    Unnamed,
+    /// The `C:` of `C:\log`, without its separator.
+    Drive(&'a str),
+    /// The `\\server\share` of `\\server\share\f`, as the two names it is made
+    /// of. The share is absent for `\\server` alone, which names a host and no
+    /// export on it.
+    Unc {
+        server: &'a str,
+        share: Option<&'a str>,
+    },
+}
+
+/// One path, taken apart: its root, whether it begins at one, and every
+/// non-empty component in order.
 ///
 /// Borrowed from the subject rather than owned, since every member either
 /// answers with one component or renders a fresh string; nothing here holds a
 /// path past its own call.
 ///
-/// **`drive.is_some()` implies `absolute`** — [`split_drive`] only recognizes
-/// a drive that a separator follows, which is this module's gap 2.
+/// **A named root implies `absolute`** — a drive is only [`split_drive`]'s
+/// when a separator follows it, and a UNC root begins at two.
 #[derive(Debug)]
 pub(crate) struct Parts<'a> {
-    /// The `C:` of `C:\log`, without its separator, or `None` for a path that
-    /// names no drive.
-    pub(crate) drive: Option<&'a str>,
-    /// Whether the path begins at a root — a separator, or a drive's.
+    /// Where the path begins, and under what name.
+    pub(crate) root: Root<'a>,
+    /// Whether the path begins at a root — a separator, or a drive's, or a
+    /// UNC share's.
     pub(crate) absolute: bool,
     /// Every component, in order, with empty ones dropped: a repeated
     /// separator names nothing, and neither does a trailing one.
@@ -469,7 +486,8 @@ fn is_separator(c: char) -> bool {
 /// names no drive.
 ///
 /// A drive is recognized **only** when a separator follows it, which is what
-/// keeps an ordinary relative `a:b` from parsing as one — gap 2 above.
+/// keeps an ordinary relative `a:b` from parsing as one and is the bound the
+/// module docs state over `C:log`.
 fn split_drive(path: &str) -> Option<(&str, &str)> {
     let bytes = path.as_bytes();
     let (Some(letter), Some(b':'), Some(third)) =
@@ -483,15 +501,47 @@ fn split_drive(path: &str) -> Option<(&str, &str)> {
     None
 }
 
+/// `path` split into the server and share of its UNC root and the rest that
+/// follows them, or `None` where it does not begin at one.
+///
+/// A UNC root is **exactly two** leading separators followed by a non-empty
+/// server name. Three or more is an ordinary absolute path — `\\\a` names `a`
+/// under the root, not a host called nothing — and so is a bare `\\`.
+fn split_unc(path: &str) -> Option<(&str, Option<&str>, &str)> {
+    let doubled = path
+        .strip_prefix(is_separator)
+        .and_then(|rest| rest.strip_prefix(is_separator))?;
+    let (server, after) = match doubled.find(is_separator) {
+        Some(cut) => doubled.split_at(cut),
+        None => (doubled, ""),
+    };
+    if server.is_empty() {
+        return None;
+    }
+    let tail = after.trim_start_matches(is_separator);
+    let (share, rest) = match tail.find(is_separator) {
+        Some(cut) => tail.split_at(cut),
+        None => (tail, ""),
+    };
+    Some((server, (!share.is_empty()).then_some(share), rest))
+}
+
 /// Takes one path apart. Total: every string is a path, including the empty
-/// one, which is no drive, not absolute and no components.
+/// one, which is no root, not absolute and no components.
 pub(crate) fn parse(path: &str) -> Parts<'_> {
-    let (drive, rest) = match split_drive(path) {
-        Some((drive, rest)) => (Some(drive), rest),
-        None => (None, path),
+    if let Some((server, share, rest)) = split_unc(path) {
+        return Parts {
+            root: Root::Unc { server, share },
+            absolute: true,
+            components: rest.split(is_separator).filter(|c| !c.is_empty()).collect(),
+        };
+    }
+    let (root, rest) = match split_drive(path) {
+        Some((drive, rest)) => (Root::Drive(drive), rest),
+        None => (Root::Unnamed, path),
     };
     Parts {
-        drive,
+        root,
         absolute: rest.starts_with(is_separator),
         components: rest.split(is_separator).filter(|c| !c.is_empty()).collect(),
     }
@@ -501,8 +551,18 @@ pub(crate) fn parse(path: &str) -> Parts<'_> {
 /// relative path.
 fn root(parts: &Parts<'_>) -> String {
     let mut out = String::new();
-    if let Some(drive) = parts.drive {
-        out.push_str(drive);
+    match parts.root {
+        Root::Unnamed => {}
+        Root::Drive(drive) => out.push_str(drive),
+        Root::Unc { server, share } => {
+            out.push_str(SEPARATOR);
+            out.push_str(SEPARATOR);
+            out.push_str(server);
+            if let Some(share) = share {
+                out.push_str(SEPARATOR);
+                out.push_str(share);
+            }
+        }
     }
     if parts.absolute {
         out.push_str(SEPARATOR);
@@ -607,7 +667,7 @@ fn walk<'a>(target: &[&'a str], origin: &[&'a str]) -> Option<Vec<&'a str>> {
 fn relative(components: &[&str]) -> String {
     render(
         &Parts {
-            drive: None,
+            root: Root::Unnamed,
             absolute: false,
             components: Vec::new(),
         },
@@ -813,7 +873,7 @@ nvs_runtime::nvs_helper! {
     /// replacing the `$a . "/" . $b` every PHP program writes.
     ///
     /// **Only the base decides the root, and a segment is only ever
-    /// appended.** A segment's own leading separator and its own drive are
+    /// appended.** A segment's own leading separator and its own root are
     /// dropped rather than made to replace what came before, which is where
     /// this parts company with `PathBuf::push` and Python's `os.path.join`.
     /// Their rule — an absolute segment wins — is exactly what turns
@@ -877,9 +937,10 @@ nvs_runtime::nvs_helper! {
     /// `explode(DIRECTORY_SEPARATOR, …)`, which only ever worked for one
     /// platform's paths at a time.
     ///
-    /// **An absolute path's first element is its root** — `'/'`, or `'C:\'`,
-    /// rendered with [`SEPARATOR`]. That is what makes the decomposition
-    /// lossless: `Core\Path::join(...Core\Path::split($p))` is `$p` with its
+    /// **An absolute path's first element is its root** — `'/'`, `'C:\'` or
+    /// `'\\server\share\'`, rendered with [`SEPARATOR`]. That is what makes
+    /// the decomposition lossless:
+    /// `Core\Path::join(...Core\Path::split($p))` is `$p` with its
     /// separators normalized, which is the property `join` is written against.
     /// A repeated separator and a trailing one contribute nothing, so the
     /// remaining elements are names and never the empty string — PHP's
@@ -927,8 +988,8 @@ nvs_runtime::nvs_helper! {
     /// `Core\Path::isAbsolute(string $path): bool` — replacing the manual
     /// checks PHP leaves this to.
     ///
-    /// True for a path beginning at a separator, and for one beginning at a
-    /// drive followed by a separator. Both readings hold on **every**
+    /// True for a path beginning at a separator, at a drive followed by a
+    /// separator, or at a UNC server. All three readings hold on **every**
     /// platform, which is this module's own docs' one-grammar rule; the spec's
     /// `Q` column marks this member neutral, and a lexical question about a
     /// string is exactly why.
@@ -952,25 +1013,32 @@ nvs_runtime::nvs_helper! {
     ///
     /// * one side is absolute and the other is not, so there is no common
     ///   starting point at all;
-    /// * the two name different drives, which are different roots;
+    /// * the two begin at different roots — different drives, different UNC
+    ///   shares, or a drive against a share;
     /// * `$base` still holds a `..` this would have to walk back *into*, and
     ///   the name of the directory it left is not in the input ([`walk`]).
     ///
     /// A component is compared **exactly**, byte for byte. Case-insensitivity
     /// is a property of a filesystem rather than of a path, and this member
-    /// touches no filesystem; the one exception is a drive letter, which is
-    /// ASCII-case-insensitive everywhere it exists.
+    /// touches no filesystem. The exceptions are the two names resolved
+    /// outside any filesystem: a drive letter, and a UNC server, which is a
+    /// host name. A share name is the remote host's own, so it is compared
+    /// like any other component.
     fn nvs_core_path_relative_to(_ctx, args: [2]) {
         let path = text(&args[0], "relativeTo", "the path")?;
         let base = text(&args[1], "relativeTo", "the base")?;
 
         let (target, origin) = (parse(path), parse(base));
-        let same_drive = match (target.drive, origin.drive) {
-            (Some(here), Some(there)) => here.eq_ignore_ascii_case(there),
-            (None, None) => true,
+        let same_root = match (target.root, origin.root) {
+            (Root::Unnamed, Root::Unnamed) => true,
+            (Root::Drive(here), Root::Drive(there)) => here.eq_ignore_ascii_case(there),
+            (
+                Root::Unc { server: here, share: ours },
+                Root::Unc { server: there, share: theirs },
+            ) => here.eq_ignore_ascii_case(there) && ours == theirs,
             _ => false,
         };
-        if target.absolute != origin.absolute || !same_drive {
+        if target.absolute != origin.absolute || !same_root {
             return Ok(Value::null());
         }
         match walk(&resolved(&target), &resolved(&origin)) {
@@ -1259,7 +1327,13 @@ mod tests {
     /// The property `split`'s root-first element exists for.
     #[test]
     fn join_reassembles_what_split_took_apart() {
-        for path in ["/var/www/index.php", "var/www", "/", r"C:\x\y"] {
+        for path in [
+            "/var/www/index.php",
+            "var/www",
+            "/",
+            r"C:\x\y",
+            r"\\server\share\f",
+        ] {
             let parts = split(path);
             let (base, segments) = parts.split_first().expect("a non-empty path splits");
             let borrowed: Vec<&str> = segments.iter().map(String::as_str).collect();
@@ -1293,7 +1367,8 @@ mod tests {
         );
         assert_eq!(relative_to("/var/www", "/var/www").as_deref(), Some("."));
         assert_eq!(relative_to("a/b", "a").as_deref(), Some("b"));
-        // A drive letter is the one component compared case-insensitively.
+        // A drive letter is compared case-insensitively — a name no
+        // filesystem owns, as a UNC server is.
         assert_eq!(relative_to(r"C:\x\y", r"c:\x").as_deref(), Some("y"));
     }
 
@@ -1314,5 +1389,36 @@ mod tests {
         for relative in ["a", "a/b", "", "C:log", "a:b"] {
             assert!(!is_absolute(relative), "{relative}");
         }
+    }
+
+    /// The third root shape. A UNC server and share are the *root*, so the
+    /// doubled separator survives every member that re-renders a path and the
+    /// share is not a component a `..` can climb out of — which is the whole
+    /// difference from parsing `\\server\share\f` as an ordinary absolute
+    /// path.
+    #[test]
+    fn a_unc_path_round_trips_as_a_third_root_shape() {
+        assert!(is_absolute(r"\\server\share\f"));
+        assert_eq!(normalize(r"\\server\share\f"), "//server/share/f");
+        assert_eq!(normalize("//server/share//a/./../f"), "//server/share/f");
+        assert_eq!(split(r"\\server\share\f"), ["//server/share/", "f"]);
+        // The root is where walking up stops, and it has no name of its own.
+        assert_eq!(dirname(r"\\server\share\f", 1), "//server/share/");
+        assert_eq!(normalize(r"\\server\share\..\.."), "//server/share/");
+        assert_eq!(basename(r"\\server\share", false), "");
+        // A server with no share is a root as well; three separators are an
+        // ordinary absolute path rather than a host named nothing.
+        assert_eq!(normalize(r"\\server"), "//server/");
+        assert_eq!(split(r"\\\a"), ["/", "a"]);
+        assert_eq!(normalize(r"\\"), "/");
+        // The server is a host name and ignores ASCII case; the share is a
+        // name the remote host owns, so it compares like any component, and
+        // no UNC path is relative to a path under another root.
+        assert_eq!(
+            relative_to(r"\\server\share\a\b", r"\\SERVER\share\a").as_deref(),
+            Some("b")
+        );
+        assert_eq!(relative_to(r"\\server\one\a", r"\\server\two\a"), None);
+        assert_eq!(relative_to(r"\\server\share\a", "/a"), None);
     }
 }

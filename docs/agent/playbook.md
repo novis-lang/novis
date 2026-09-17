@@ -5496,6 +5496,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `rule:core-api/identifier-casing` is answered — is in none of them, so the fixture reads an empty
   `Diagnostics` and looks like unbuilt work. Call `common::check_declarations_only` for a
   declaration-shape refusal. [until: gone crates/nvs-types/tests/common/mod.rs:check_declarations_only]
+- **A conformance case that *constructs* its subjects can pin a shape nobody wrote down.**
+  `path-agrees-a-trailing-or-repeated-separator-is-nothing.nvst` doubles every separator of six
+  paths, so widening `Core\Path`'s grammar with a UNC root turned one constructed path into a
+  different root and four members stopped agreeing about it. After a grammar change read the cases
+  that *build* their inputs before the ones that write them out; `tools/verify.py`'s `.nvst` step is
+  where it surfaces, a step after the unit tests that all passed. [until: reviewed 2026-09-17]
 
 ## Splitting a file that got too big
 
