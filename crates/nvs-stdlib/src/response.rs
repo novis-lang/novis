@@ -190,7 +190,8 @@
 //! writers of one body a compile error, `nvs_types::response` is that error, and
 //! its module doc is the one home for what the refusal reaches and what it
 //! deliberately leaves alone. The one case that does reach here is a mount's
-//! entry script, which is that module's own known gap and not this one's.
+//! entry script, which that module states as the bound its scope costs and
+//! answers with the same last-one-wins this module already is.
 //!
 //! # A body goes out verbatim, and off a request the declaration is inert
 //!

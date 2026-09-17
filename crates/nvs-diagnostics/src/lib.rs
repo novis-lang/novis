@@ -3396,8 +3396,8 @@ pub mod code {
     /// diagnostic. Reported inside a `#[Route]` handler and nowhere else, because
     /// § 3 binds `echo` by context and a handler is the one body a request is
     /// statically certain to reach — `nvs_types::response`'s module doc owns
-    /// that scope, the reach inside a handler, and the entry-script gap it
-    /// leaves.
+    /// that scope, the reach inside a handler, and the entry script the scope
+    /// leaves to the run-time default.
     pub const E_ECHO_BESIDE_A_BODY_MEMBER: Code = Code::new("E0801");
 
     /// A `spawn script` operand that is neither of

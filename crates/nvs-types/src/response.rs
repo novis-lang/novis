@@ -20,24 +20,25 @@
 //! declaration and the rule has something to be about. Everywhere else is left
 //! alone rather than refused on suspicion: a `#[Command]` method, a `#[Test]`
 //! method or a `.nvst` case that writes both is a CLI program, where a body
-//! member's declaration is inert (`nvs_stdlib::response`'s gap 1) and there is
-//! no response for two writers to disagree over. Refusing those would refuse
+//! member's declaration is inert (`nvs_stdlib::response` § *A body goes out
+//! verbatim, and off a request the declaration is inert*) and there is no
+//! response for two writers to disagree over. Refusing those would refuse
 //! programs that have no response to be wrong about, and the corpus already
 //! pins the shared-output behaviour they rely on
 //! (`tests/conformance/core/a-response-body-member-and-echo-share-one-output.nvst`).
 //!
-//! **Known gap: a mount's entry script.** `rule:http-server/a-request-resolves-in-five-steps`'s steps 4 and 5 run a
-//! `.nvs` file's *top-level frame* as the request body, so an entry that echoes
-//! a page and also calls a body member is § 4's sixth row and is not refused
-//! here. The same file is one compiled unit whether the server ran it or
+//! **A mount's entry script is the one response this refusal does not reach,
+//! and § 3's default answers it instead.** `rule:http-server/a-request-resolves-in-five-steps`'s steps 4 and 5
+//! run a `.nvs` file's *top-level frame* as the request body, so an entry that
+//! echoes a page and also calls a body member is § 4's sixth row and is not
+//! refused here. That is the bound the scope above costs, and it is held rather
+//! than closed: the same file is one compiled unit whether the server ran it or
 //! `nvs run` did, so a static refusal there would refuse the CLI use of every
-//! such file — the missing fact is a declaration that a file is an entry, which
-//! the language does not have. Until it does, the entry-script half of § 4's
-//! row is answered by § 3's default alone: `echo` means `text/html`, and a body
-//! member written beside it wins the `Content-Type` it declared last.
-//! Decided: Keep the run-time default (`echo` is text/html, the last body member wins) — No new
-//! surface, and the mixed case stays legal with defined behaviour.
-//! — owner: decided-closures
+//! such file, and the fact that would tell the two apart — a declaration that a
+//! file is an entry — is not one the language has. The entry-script half of
+//! § 4's row is therefore defined behaviour rather than an arbitration: `echo`
+//! means `text/html`, and a body member written beside it wins the
+//! `Content-Type` it declared last.
 //!
 //! **The reach inside a handler is that handler's own body**, closures written
 //! in it included — an `fn` literal writes the same response, and

@@ -28,3 +28,12 @@ different typed members beside each other. They disagree about the body's type a
 and silently letting the last one win is how a JSON endpoint acquires an HTML prelude. What the
 refusal needs is two *different* writers: one member called twice declares one thing twice, so a body
 written in a loop is an ordinary program and is left alone.
+
+**That error is reported where a response is statically certain, which is a `#[Route]` handler.**
+`echo` is bound by context and not by syntax — the same body writes a response under a request and a
+terminal sink under `nvs run` — so a method that is not a handler writes no response for two writers
+to disagree over and is left alone rather than refused on suspicion. One response is outside the
+check and stays there: a mount's entry script, whose top-level frame is the request body and which is
+the same compiled unit the command line runs, so nothing distinguishes the two uses at compile time.
+There the default decides instead of the refusal — `echo` alone means `text/html`, and a typed member
+written beside it wins the content type it declared last.
