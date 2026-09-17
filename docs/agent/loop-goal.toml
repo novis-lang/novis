@@ -133,6 +133,9 @@ modules = [
   # ("there is no shadowing") and flow-sensitive definite assignment ("reading a binding on a path
   # that may not have reached its initialiser is a compile error").
   "crates/nvs-types/src/locals.rs",
+  # `rule:types/closure-literal`'s closure literals, lowered to an object of a synthesized class
+  # with one field per capture.
+  "crates/nvs-ir/src/lower/closure.rs",
 ]
 
 # What a conversion is, what `mixed` narrows through, and what the memory it takes has to be.
