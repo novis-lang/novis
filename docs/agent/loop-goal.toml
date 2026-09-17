@@ -1,15 +1,14 @@
-# Goal 62 -- both entry forms reach a worker core, and a serving core offers itself
+# Goal 63 -- a `Core` class is a name a type test can walk
 # The acceptance test, as data.
 #
-# `62-worker-placement.md` is the prose. One home each.
+# `63-core-class-tests.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 
 files = [
   # Every `examples/*.nvs` fixture an `exact` check below names. goal-switch.py unions the previous
-  # goal's list into this one; this goal adds none of its own, because what it changes is which core
-  # a child starts on and `rule:concurrency/on-worker-runs-the-child-on-another-core` says that is
-  # not readable from the child.
+  # goal's list into this one; this goal adds none of its own, because what it changes is which
+  # programs compile and the conformance tree is where that is read.
   # carried from the previous goal by tools/goal-switch.py
   "examples/webcrypto.nvs",
   "examples/finish.nvs",
@@ -97,43 +96,43 @@ files = [
 [context]
 
 modules = [
-  # What crosses for a placed child, and `destination_for`/`crosses`, which is where the entry form
-  # stops being a question. Stage 2.
-  "crates/nvs-host/src/placed.rs",
-  # The inbox, the lazily started cores and the answer slot -- the destination set. Stages 2 and 3.
-  "crates/nvs-host/src/worker.rs",
-  # `SchedulerHost::start_isolate`, where a refused placement falls through today. Stage 2.
-  "crates/nvs-host/src/group.rs",
-  # `run_here` and `hand_over`, the same-core start the fall-through reaches. Stage 2.
-  "crates/nvs-host/src/isolate.rs",
-  # The poller a posted job pokes, and where a started core's loop begins. Stages 2 and 3.
-  "crates/nvs-host/src/reactor.rs",
-  # The seam: `Resolver`, `Program`, `install`, `scoped`, `resolve`. Stage 2 rewrites its thread
-  # story and adds nothing to the trait.
-  "crates/nvs-runtime/src/script.rs",
-  # The unit table behind the resolver, which does not move: `Compiler`, its two `RwLock`s and its
-  # key. Stage 2.
-  "crates/nvs-cli/src/script.rs",
-  # The fleet's one `Arc<Compiler>` and the per-core boot that installs it. Stage 3.
-  "crates/nvs-cli/src/serve.rs",
-  # A queue worker installing the compiler for the length of the run -- the shape a started core
-  # copies. Stage 2.
-  "crates/nvs-cli/src/worker.rs",
-  # `nvs run`'s one scheduler and its `script::scoped` for the whole run. Stage 2.
-  "crates/nvs-cli/src/main.rs",
-  # The accept loop: one listening socket, one coroutine per connection, and one `hyper`
-  # connection future driven on that coroutine's own stack.
-  "crates/nvs-server/src/serve.rs",
+  # `infer_instanceof` and the module doc's roster of `E0496` right-hand sides -- the refusal this
+  # goal removes, and the two beside it that stay. Stage 2.
+  "crates/nvs-types/src/expr/members.rs",
+  # `reject_unconvertible` and `reject_uncheckable_element_type`: the `E0711` roster of targets
+  # naming no class to test against. Stage 3.
+  "crates/nvs-types/src/expr/operators.rs",
+  # `ExprInfo::InstanceOf` -- what a recorded test carries to `nvs-ir`, and why it is recorded at
+  # all. Stage 2.
+  "crates/nvs-types/src/expr_table.rs",
+  # `class_descriptors`: the `(name, *const ClassDesc)` pairs already published to the backend, and
+  # the address the test walks. Stage 2.
+  "crates/nvs-stdlib/src/instance.rs",
+  # `class_desc(label)`, how the backend reaches a descriptor by name. Stage 2.
+  "crates/nvs-codegen/src/lib.rs",
+  # `TestShape` and the lowering of a recorded test -- where a checked test becomes one. Stage 2.
+  "crates/nvs-ir/src/lower/expr.rs",
+  # `lower_checked_downcast`, the conversion table's fall-through, and `lower_markup_lift`'s own arm
+  # that must not be reached through it. Stage 3.
+  "crates/nvs-ir/src/lower/convert.rs",
+  # `Ctx::class_desc`: the `Core` resolver consulted after the program's table, which is why a
+  # decoded instance arrives back under its own descriptor. Stage 2.
+  "crates/nvs-runtime/src/ctx/error.rs",
+  # The graph copy, and the `# Known gaps` block this goal closes. Stages 0 and 4.
+  "crates/nvs-runtime/src/graph.rs",
+  # `E_INSTANCEOF_NOT_A_CLASS` and `E_UNTESTABLE_CONVERSION_TARGET`: both rosters, as the codes
+  # state them. Stages 0 and 3.
+  "crates/nvs-diagnostics/src/lib.rs",
 ]
 
-# What a placement promises, what may cross it, and what the memory it takes has to be.
+# What a conversion is, what `mixed` narrows through, and what the memory it takes has to be.
 rules = [
-  "concurrency/on-worker-runs-the-child-on-another-core",
-  "security/isolate-values-cross-by-copy",
+  "types/unions-and-mixed",
+  "types/conversion",
   "programs/memory-priority",
 ]
 
-# Empty on purpose: each ADR 0184 section argues one stage and is named in that stage's table below.
+# Empty on purpose: no record argues this goal, and the one it may open is named in the prose.
 adrs = []
 
 shapes = ["A commit message", "A code comment"]
@@ -161,7 +160,7 @@ plan = ["Open now", "Blocking"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `62-worker-placement.md`, holding what only that stage needs.
+# THE STAGES. One table per prose stage in `63-core-class-tests.md`, holding what only that stage needs.
 #
 # `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
 # the base above -- an overlay adds and never replaces, so the base is what a session needs whatever
@@ -169,18 +168,22 @@ plan = ["Open now", "Blocking"]
 # of its own needs no table. Narrowable: rules, adrs, spec, shapes, playbook, milestones.
 #
 # These are the PROSE stage numbers, the `## Stage N` headings in this goal's `.md`. They are not
-# the `[[check]]` blocks' `stage = "2 the seam"` labels, which may group several prose stages under
-# one acceptance line. loop-authoring.md section 2 is the whole of it.
+# the `[[check]]` blocks' `stage = "2 the testable name"` labels, which may group several prose
+# stages under one acceptance line. loop-authoring.md section 2 is the whole of it.
 # ---------------------------------------------------------------------------------------------------
 
 [context.stage.2]
-# What a placement is, and what the crossing already does with the argument.
-rules = ["concurrency/a-wake-never-moves-a-task", "security/isolate-shares-nothing"]
-adrs = ["0184 §1", "0184 §2", "0184 §3"]
+# What a class reference is at each of the sites that takes one, and what a written name may be.
+rules = ["types/class-reference-sites", "types/type-test"]
 
 [context.stage.3]
-# The destination set, and what a serving core owes the requests it exists to answer.
-adrs = ["0184 §5", "0184 §6"]
+# The lift that is not a downcast, and the rule that keeps it one.
+rules = ["core-classes/html-auto-escape", "types/type-test"]
+
+[context.stage.4]
+# The third spelling, what a program may ask about a value it holds as `mixed`, and what the walk
+# whose module doc this stage rewrites is allowed to carry.
+rules = ["types/type-test", "types/erased-member-access", "security/isolate-values-cross-by-copy"]
 
 # Nothing this goal writes exists past the checker; the skip list is the floor's.
 [valgrind]
@@ -189,7 +192,7 @@ skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-so
 [wsl]
 target_dir = "/var/tmp/nvs-target-wsl"
 
-# The floor's, not this goal's own: the acceptance list carried in from goal `class-scoped-types`
+# The floor's, not this goal's own: the acceptance list carried in from goal `worker-placement`
 # reaches every driver, and the driver preflights the daemon before this goal's first session.
 [docker]
 compose = "tests/db/compose.yaml"
@@ -199,7 +202,7 @@ memoize_on = ["crates/nvs-db", "crates/nvs-stdlib", "tests/db"]
 
 # <<< goal-switch: floor checks are inserted below this line >>>
 
-# 835 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# 839 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
 # They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
 # Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
@@ -11234,15 +11237,12 @@ name = "the class-scoped alias is a shipped rule the pack can print"
 argv = ["python", "tools/peek.py", "docs/rules/types/class-scoped-alias.md"]
 want = ["docs/rules/types/class-scoped-alias.md"]
 
-
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- the keystone: a resolver the destination core can reach. Goal prose stage 2.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "2 the seam"
+stage = "1 floor"
 name = "nvs-host (a path entry is placed, and a core with nothing published still answers a value)"
 args = ["test", "-p", "nvs-host"]
 tests = [
@@ -11253,21 +11253,19 @@ tests = [
 
 [[check]]
 kind = "nvs-suite"
-stage = "2 the seam"
+stage = "1 floor"
 name = "conformance (a path child on a worker core is the child a method entry already is)"
 args = ["test", "tests/conformance/"]
 cases = [
   "tests/conformance/isolate/a-path-entry-placed-on-a-worker-core-answers-as-one-here-does.nvst",
 ]
 
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 3 -- a serving core offers itself as a destination. Goal prose stage 3.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "3 the destination"
+stage = "1 floor"
 name = "nvs-host (a registered core is reached before a new one is started)"
 args = ["test", "-p", "nvs-host"]
 tests = [
@@ -11276,9 +11274,74 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "3 the destination"
+stage = "1 floor"
 name = "nvs-cli (a serving core registers its inbox as it starts)"
 args = ["test", "-p", "nvs-cli"]
 tests = [
   "a_serving_core_registers_its_inbox_as_it_starts",
+]
+
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the keystone: a `Core` class is a testable class name. Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the testable name"
+name = "nvs-types (a Core class is a written name `instanceof` accepts, and the test is recorded)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "a_core_class_is_a_testable_instanceof_target",
+  "an_instanceof_over_a_core_class_records_the_resolved_name",
+  "a_dynamic_right_hand_side_and_an_enum_are_still_refused",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "2 the testable name"
+name = "conformance (a mixed holding a Core instance answers `instanceof` by naming the class)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/a-mixed-holding-a-core-instance-is-tested-by-name.nvst",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the conversion target, and the lift that is not one. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the conversion target"
+name = "nvs-types (a Core class is a conversion target, and object/shape/callable still are not)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "a_core_class_is_a_checked_conversion_target",
+  "an_object_a_shape_and_a_callable_are_still_untestable_targets",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "3 the conversion target"
+name = "conformance (a mixed narrows to the Core class it holds, and a markup lift is still a lift)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/a-mixed-narrows-to-the-core-class-it-holds.nvst",
+  "tests/conformance/core/a-string-lifted-to-markup-is-not-a-downcast.nvst",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the three spellings agree, and the gap is closed. Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "4 one question, three spellings"
+name = "conformance (`is`, `instanceof` and `as` answer the same question about one Core value)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/one-core-value-answers-the-same-from-is-instanceof-and-as.nvst",
 ]

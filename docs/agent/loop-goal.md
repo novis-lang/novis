@@ -1,93 +1,98 @@
 ---
 milestone: post-parity
 ---
-# Loop goal 62 — both entry forms reach a worker core, and a serving core offers itself
+# Loop goal 63 — a `Core` class is a name a type test can walk
 
-A child spawned `on: "worker"` starts on another core whichever way its entry is written, so the
-placement is a fact about what the program asked for rather than about the spelling the spawn site
-used. Under `nvs serve` the core it reaches is a sibling serving core, which is the destination
-ADR 0184 § 5 decides on and the one the process is already running a scheduler on. Afterwards
-`crates/nvs-host/src/placed.rs` and `crates/nvs-host/src/worker.rs` own no gap, and
-`rule:concurrency/on-worker-runs-the-child-on-another-core`'s last two paragraphs state a placement
-with nothing subtracted from it.
+`$v instanceof Core\Time\Date` and `$v as Core\Time\Date` answer at run time instead of being refused
+where they are written, so a `mixed` holding a `Core` instance narrows to the class it actually holds.
+A value that arrives as a `mixed` — decoded back from an isolate's answer, handed over by `Core\Debug`,
+taken by any member declaring `mixed` — becomes usable by naming its class, the same way a value of a
+class the program declares already does. Afterwards `crates/nvs-runtime/src/graph.rs` owns no gap.
 
 ## Why here
 
-The crossing is built and is not what this goal touches: `crate::placed` already encodes an argument,
-carries a `PlacedIsolate` and decodes a `Crossed` answer at the join, and `crate::worker` already
-holds the inbox, the lazily started cores and the answer slot. What it is missing is a **resolver the
-destination core can reach**, and that exists too — `nvs_cli::script::Compiler` keeps its path table
-and its unit table behind `RwLock`s and is already handed to every serving core as one
-`Arc<Compiler>` (`crates/nvs-cli/src/serve.rs:703`), so the fleet compiles a source once for the
-process. Only the *seam* is still per-thread by borrow: `nvs_runtime::script::install` takes a
-`&'static dyn Resolver` and `scoped` a borrow on the installing core's own stack, and a core
-`nvs-host` started for itself was handed neither.
+Directly after goal `worker-placement` and in front of goal `gap-zero`, because both halves of the
+answer are already built and only the checker's roster is missing. The descriptor a test would walk is
+published: `nvs_stdlib::instance::class_descriptors` (`crates/nvs-stdlib/src/instance.rs:488`) hands the
+backend a `(name, *const ClassDesc)` pair for every `Core` class, which is how a folded `` html`…` ``
+constant already reaches one. The run-time side is built too — `nvs_runtime::Ctx::class_desc`
+(`crates/nvs-runtime/src/ctx/error.rs:261`) asks the `Core` resolver after the program's own table, which
+is why a decoded `Core\Time\Date` arrives back under its own descriptor with its slots intact. What
+refuses the program is one roster in `nvs-types`, in two places: `infer_instanceof`
+(`crates/nvs-types/src/expr/members.rs:298`) reports `E0496` for a `Core` class because it "has no
+descriptor laid out for the test to walk", and `reject_unconvertible`
+(`crates/nvs-types/src/expr/operators.rs:1765`) reports `E0711` for the same class as a conversion
+target with no class to test against.
 
-So this goal is a seam and a destination set, both over parts that are on disk, and it could not have
-been written before either half existed. Goal `gap-zero` is what needs it: that goal's gate is that no
-register item names a goal, and these two items name this one.
+Goal `gap-zero` is what needs it: that goal's gate is that no register item names a goal, and
+`crates/nvs-runtime/src/graph.rs` gap 1 names this one. It could not have been written earlier: the
+crossing that hands a program a decoded `Core` instance is what made the question reachable, and it is
+that crate's own walk (`crates/nvs-runtime/src/graph.rs`).
 
 ## Stage 0 — the catch-up
 
 The sentences on disk that go wrong the day this goal is green, each with the file that holds them:
 
-- `rule:concurrency/on-worker-runs-the-child-on-another-core`, its last two paragraphs — *Which entry
-  crosses is a fact about the spawn's form* and the `nvs serve` exception. Both are written as what
-  runs and both stop being true; the rule is amended in the slice that makes it so, per AGENTS.md
-  § *Where to look*.
-- `crates/nvs-host/src/placed.rs` — the `# Known gaps` block and
-  [`destination_for`]'s second question, *an entry the far core can prepare, which today is the method
-  form alone*, which `crosses` spells as `entry.is_method()`.
-- `crates/nvs-host/src/group.rs` — the `# Known gaps` block, which states the same gap a second time
-  because `SchedulerHost::start_isolate` is where the fall-through lands.
-- `crates/nvs-host/src/worker.rs` — the `# Known gaps` block, which is the destination half.
-- `crates/nvs-runtime/src/script.rs` — the comment above its test resolvers, *a real implementor holds
-  a unit cache, is `!Sync` for that reason and goes through `scoped` instead*. The unit cache the tree
-  actually has is shared across the fleet already; what `scoped` buys is a lifetime, not thread
-  confinement, and this goal makes the distinction load-bearing.
+- `crates/nvs-types/src/expr/members.rs:44-49` — *a `Core` class has no descriptor laid out for the test
+  to walk, so all three are `E0496`*. Three refusals share that code and only this one stops being true;
+  the dynamic form and the enum stay exactly as they are.
+- `crates/nvs-ir/src/lib.rs:558-562` — *Every other object target names no class to test against — plain
+  `object`, a shape, a `callable`, a `Core` class*. The roster loses its last member and keeps the rest.
+- `crates/nvs-runtime/src/graph.rs:72-86` — the `# Known gaps` block this goal closes, rewritten as what
+  the round trip then does rather than as what it cannot do.
+- `crates/nvs-diagnostics/src/lib.rs`'s docs on `E_INSTANCEOF_NOT_A_CLASS` and
+  `E_UNTESTABLE_CONVERSION_TARGET`, wherever they name a `Core` class as a member of either roster.
 
 ## Stage 1 — the floor
 
-Goal `class-scoped-types`'s whole acceptance list, carried in verbatim by `tools/goal-switch.py`. Never traded.
+Goal `worker-placement`'s whole acceptance list, carried in verbatim by `tools/goal-switch.py`. Never traded.
 
-## Stage 2 — the keystone: a resolver the destination core can reach
+## Stage 2 — the keystone: a `Core` class is a testable class name
 
-`nvs_runtime::script` gains a form of the seam that can be **published to a core that has not started
-yet** — a handle the placing core writes and the started core installs on its own thread, rather than a
-borrow that only unwinds with the stack that took it. The unit table behind it is unchanged and stays
-`nvs-cli`'s: the seam's module doc already owns why the compiler is reached this way round rather than
-from `nvs-host`, and nothing here gives a `Resolver` a notion of a running unit.
+The one question `nvs-types` asks — *does this name resolve to a class whose descriptor a test can walk?*
+— answers yes for a `Core` class. `infer_instanceof` stops reporting `E0496` for one and records the
+resolved name in `ExprInfo::InstanceOf` the way it already records a declared class, so `nvs-ir` reaches
+the descriptor address `class_descriptors` publishes and the run-time test is the walk it already does.
+Nothing about the descriptor set moves, and `nvs-types` gains no second table: what it needs is the
+class's *identity*, which the registry already answers for every other purpose.
 
-Once a started core can resolve, `crosses` stops asking which form the entry is and a path child is
-prepared where a method child already is — by whichever core is about to run it
-(`crates/nvs-runtime/src/script.rs`'s *What crosses, and who owns it afterwards*). The class-table
-question stays exactly as it is: it is about the context, not about the entry.
+Everything after this is mechanical, which is why it is the keystone: once a `Core` name is testable, the
+conversion target below is the same question asked through a different operator.
 
-## Stage 3 — a serving core offers itself as a destination
+## Stage 3 — the conversion target, and the lift that is not one
 
-A serving core registers its inbox as it starts, so a placement under `nvs serve` reaches a sibling
-serving core round-robin over the cores this process already runs schedulers on, rather than starting
-one of `crate::worker`'s lazily started cores beside them. That is ADR 0184 § 5 as written, and the
-record's *Revisiting* trigger — placement starving the requests those cores exist to answer — is the
-one thing that would take it back, on a measurement rather than on a session's judgement.
+`mixed as Core\Time\Date` becomes `rule:types/unions-and-mixed`'s checked downcast over the descriptor
+stage 2 made reachable — `nvs_ir::lower::Lowering::lower_checked_downcast`
+(`crates/nvs-ir/src/lower/convert.rs:1171`) is the lowering, unchanged in shape. `reject_unconvertible`'s
+roster keeps `object`, a shape and a `callable`, each of which still names no class.
 
-The lazily started cores stay, because they are what every other binary has: one scheduler is all
-`nvs run`, a queue job and a test have.
+`string as Core\Html\Markup` does not move. `rule:core-classes/html-auto-escape` makes it a **lift**
+rather than a test — the operand is a source literal or it is `E0417` — and it stays
+`Lowering::lower_markup_lift`'s own arm, never reached through the downcast this stage opens.
+
+## Stage 4 — the three spellings agree
+
+`rule:types/type-test` owns `is`, and whatever it already answers for a `Core` class is what the two
+operators above must agree with: one question, three spellings, and no program that can ask it two ways
+and get two answers. The conformance cases are written over the same class from all three, and
+`crates/nvs-runtime/src/graph.rs`'s module doc is rewritten as what the round trip now does.
 
 ## Standing decisions
 
-- **The seam's shape is this goal's to choose, and the unit cache does not move.** Whatever carries a
-  resolver to a core that has not started yet, `nvs-cli` goes on owning the table
-  (`crates/nvs-cli/src/script.rs` § *Decision: one unit per written path*), and a `Resolver` gains no
-  operation answering "the unit this thread is running" — that was refused where the seam is written
-  and is not re-opened here.
-- **A fall-through is not how a placement fails.** ADR 0184 § *Diagnostics* is the standing answer: a
-  placement that cannot be honoured surfaces as the spawn failing, with `ok = false` and the reason in
-  `error.message`, because a program that asked for another core and silently got this one is
-  measuring a speedup that is not there. Where this goal removes a reason for the fall-through it does
-  not add another.
-- **What it spends is written per module**, per `rule:programs/memory-priority`: a published resolver
-  handle is one per process, and a serving core registering an inbox adds no thread to a deployment
-  that places nothing.
-- **Not this goal**: work stealing between serving cores, which ADR 0184 rejects as a different
-  decision; any change to what crosses, which `rule:security/isolate-values-cross-by-copy` owns.
+- **The descriptor set does not move, and no second table is built.**
+  `nvs_stdlib::instance::class_descriptors` stays the one publisher of a `Core` class's descriptor
+  address, and `nvs_runtime::Ctx::class_desc` stays the one lookup. A session that finds the checker
+  needs the identity in a different shape derives it from the registry rather than declaring a copy.
+- **A `Core` class is final for the test.** The walk answers the class itself and whatever its descriptor
+  already declares; this goal adds no inheritance edge, no interface and no member to any `Core` class.
+- **`string as Core\Html\Markup` stays a lift**, per `rule:core-classes/html-auto-escape`. A session that
+  finds the downcast reaching it has widened the wrong roster.
+- **Not this goal**: `new Core\X()` and a static call through a value, which `reject_dynamic_class_name`
+  refuses for the unrelated no-computed-names reason; what the `Core` registry contains; and the
+  crossing itself, which `rule:security/isolate-values-cross-by-copy` owns.
+- **What it spends** is written per module, per `rule:programs/memory-priority`: the descriptor table is
+  per process and already built, and a test that answers costs the walk it already costs for a declared
+  class.
+- **ADR slots**: one record, taking the next free number, and only if the shape the checker needs for a
+  `Core` class's identity is a design choice rather than a lookup. Reading the registry the way every
+  other pass reads it opens none.
