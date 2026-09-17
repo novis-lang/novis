@@ -90,8 +90,9 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [worker-placement](62-worker-placement.md) | post-parity, no ADR — ADR 0184 §§ 2, 5 as written | `nvs-host`, `nvs-runtime`'s script seam, `nvs-cli`'s unit table — a path entry is placed like a method entry, and a serving core offers itself as a destination |
 | [core-class-tests](63-core-class-tests.md) | post-parity, at most one ADR — only if the checker needs a `Core` class's identity in a shape the registry does not already answer | `nvs-types`, `nvs-ir`, `nvs-stdlib`'s descriptor table — `instanceof` and `as` name a `Core` class, so a `mixed` narrows to the one it holds |
 | [tds-bytes](64-tds-bytes.md) | post-parity, no ADR — ADR 0067 §§ 1 and 9 state both halves | `nvs-db`'s TDS encoder — a bound value carries its form, a binary marker is declared `varbinary`, and the plan cache tells the two declarations apart on the comparison it already makes |
-| [gap-zero](65-gap-zero.md) | post-parity, no ADR — the terminal gate | `tools/`, the ratchet test, CI — last of the hand-written goals: no gap owed by anyone but a future milestone, M0–M8 complete, the index deleted |
-| [dossier](66-dossier.md) | `rule:testing/four-proofs` | none — it writes the goals that open all of them, then optimizes the loop for their shape |
+| [cache-shared-dial](65-cache-shared-dial.md) | post-parity, no ADR — four rule fragments state every half | `nvs-config`'s secret registry, `nvs-stdlib`'s Redis client, `nvs-host`'s TLS client — `[cache.shared]` gains a credential pair and a database index, and `rediss://` is a third transport arm |
+| [gap-zero](66-gap-zero.md) | post-parity, no ADR — the terminal gate | `tools/`, the ratchet test, CI — last of the hand-written goals: no gap owed by anyone but a future milestone, M0–M8 complete, the index deleted |
+| [dossier](67-dossier.md) | `rule:testing/four-proofs` | none — it writes the goals that open all of them, then optimizes the loop for their shape |
 | after `dossier` | `rule:testing/four-proofs`, generated | one group of features per goal, its own `[context]` manifest, under `goals/dossier/` |
 
 ## The chain contract

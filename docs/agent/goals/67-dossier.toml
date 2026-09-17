@@ -1,0 +1,126 @@
+# Goal 67 -- queue the dossier. The acceptance test, as data.
+#
+# `67-dossier.md` is the prose. One home each.
+#
+# `files` is written across lines so goal-switch.py's union has somewhere to put the floor's
+# fixtures; this goal names none of its own -- its check is one Python command.
+files = [
+]
+
+[context]
+
+modules = [
+  # Where the roster comes from: `nvs meta --json` is the CLI command, and the registry is what it
+  # walks. A generated goal that names a group this does not is a group that was renamed.
+  "crates/nvs-cli/src/meta.rs",
+  "crates/nvs-stdlib/src/registry.rs",
+]
+
+# The rule ids this goal's prose cites, then the records that are a readable map of a
+# decision. ADRs 0079, 0063 came out: each created more than eight rules, so naming
+# them here printed a whole chapter of titles to every stage,
+# and the rules that bind this goal are named by id above. `brief.py --where` reaches
+# the rest in one call.
+rules = [
+  "0134",
+  "0026",
+  "0117",
+  "0004",
+]
+
+# None. `rule:testing/four-proofs` is this goal's decision and it is already written; the goal prose says what the one
+# new thing -- a session may now fire the emitter -- is recorded in instead.
+adrs = []
+
+shapes = [
+  "A feature's four proofs — an example, an attack, a bench, a `covers:` marker",
+  "A commit message",
+]
+
+playbook = [
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a commit',
+  'Tooling > a [context]*',
+  'Tooling > orient.py prints',
+  'Tooling > another agent',
+  'Running things > target/release/nvs.exe is',
+]
+
+plan = ["Open now", "Blocking"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE STAGES. One table per prose stage in `67-dossier.md`, holding what only that stage needs.
+#
+# `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
+# the base above -- an overlay adds and never replaces. Every entry here is one this goal's own
+# prose already names under that `## Stage N` heading; the base keeps what no single stage owns.
+#
+# These are the PROSE stage numbers, not the `[[check]]` blocks' `stage = "..."` labels, which may
+# group several prose stages under one acceptance line. loop-authoring.md section 2 is the whole
+# of it.
+# ---------------------------------------------------------------------------------------------------
+
+[context.stage.3]
+rules = ["testing/four-proofs"]
+
+[valgrind]
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs"]
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# The floor carries goals `core-part-ii` through `server` and 9-21's container-backed checks. Same compose file, same
+# memoization. This
+# goal itself needs no container -- it runs one Python command -- but the floor under it does, and the
+# floor is not traded for anything above it.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "redis"]
+memoize_on = ["crates/nvs-server", "crates/nvs-db", "tests/db"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the emission is on the chain, and re-running it changes nothing.
+#
+# `--dry-run` is the point: a check that appended the hundred entries itself would pass by doing the
+# work it exists to judge. This one writes nothing and passes only when every goal the emitter would
+# write is already named by the chain -- which is false if the session skipped the emission, and false
+# again if a later re-emission would rename a file the chain points at.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "2 the emission"
+name = "dossier: the chain already names every emitted goal"
+argv = ["python", "tools/dossier.py", "--emit-goals", "--dry-run"]
+want = ["already names every one of them -- nothing appended"]
+
+# The chain is the schedule and the plan's `Carried by` cells are derived from it, so a hundred new
+# entries are a hundred chances for the two to disagree. `dossier` is a label rather than a milestone
+# id, which `plan.py` expects (MILESTONE_TAG_RE), so this passes without a new row in the index.
+[[check]]
+kind = "command"
+stage = "2 the emission"
+name = "plan.py: the index and the grown chain still agree"
+argv = ["python", "tools/plan.py", "--check"]
+want = ["every cell agreeing with the chain"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the loop is ready for 93 of the same shape.
+#
+# One mechanical gate, because only one of stage 3's findings has a right answer that a check can
+# state: a generated goal must be one the driver can walk and `orient.py` can orient inside. The rest
+# of the stage is judgment and lands in the report, which no check can grade -- see the goal prose.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "3 the loop is ready"
+name = "dossier: every generated goal is walkable and its manifest resolves"
+argv = ["python", "tools/dossier.py", "--check-goals"]
+want = ["every manifest resolves"]

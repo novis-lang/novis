@@ -159,9 +159,11 @@
 //!    plumbing to carry the credential, a database index is a second namespace
 //!    nothing yet names, and a `rediss://` store is a second caller of the TLS
 //!    client `crate::http::transport` dials through. Each is a key beside
-//!    `[cache.shared] url` before it is a connection, which is what makes the
-//!    three one decision rather than three pieces of plumbing.
-//!    — owner: unowned
+//!    `[cache.shared] url` before it is a connection, and all three are applied
+//!    at the one dial — including the silent reconnect after a dropped socket —
+//!    which is what makes them one decision rather than three pieces of
+//!    plumbing.
+//!    — owner: cache-shared-dial
 
 use std::borrow::Borrow;
 use std::cell::RefCell;
