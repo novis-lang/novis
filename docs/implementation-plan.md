@@ -97,7 +97,7 @@ somebody has already followed.
 | done | [M4B](plan/m4b.md) | Minimal `nvs-lsp`, syntax highlighting and the VS Code extension (~3 weeks) | ~1.5 |
 | done | [M5](plan/m5.md) | Concurrency and script isolates (~5 weeks) | ~3.5 |
 | done | [M6](plan/m6.md) | Config, limits, capabilities, disk cache (~3 weeks) | ~1 |
-| goals `server`, `request-json`, `input-shapes`, `parses`, `per-core`, `serve-runs-the-queue`, `event-streams`, `finish-response`, `m7-server-surface` | [M7](plan/m7.md) | Built-in HTTP server (~4 weeks) | ~2 |
+| done | [M7](plan/m7.md) | Built-in HTTP server (~4 weeks) | ~2 |
 | done | [M8](plan/m8.md) | Stdlib and databases (~16 weeks) | ~6.5 |
 | backlog 1 | [M9](plan/m9.md) | Extension system, and the `nvs:ext@1.0.0` world it freezes (~6 weeks) | ~2.5 |
 | goals `agent-surface`, `workspace-index`, `editor-surfaces`, `fmt`, `template-format` | [M10](plan/m10.md) | Developer tooling and IDE integration (~14 weeks; scope shifted by `rule:ide/every-feature-is-staged-behind-its-dependency`, net change undetermined) | ~8 |

@@ -2339,6 +2339,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   because argparse cannot split one variadic positional list around an option — the same call with
   the flag last reads all of them. Write every target first and every flag at the end, which is how
   the tool's own usage line spells it. [until: reviewed 2026-09-17]
+- **A milestone's `Carried by` cell goes stale the session the *last* goal carrying it walks, and
+  only the goal-end sweep reads it, so it turns a DONE claim red one check before the switch.** M7's
+  cell still listed nine walked goals because nothing rewrites it when a goal is reached — the cell is
+  derived from the chain and the registers, and no session-level gate derives it. When `plan.py
+  --check` reports a structural finding naming a milestone, run `python tools/plan.py --past` to see
+  which milestone completed and `python tools/plan.py --sync` to write the cell; it is one edit and
+  never the work the goal was doing. [until: reviewed 2026-09-18]
 
 ## Running things
 
