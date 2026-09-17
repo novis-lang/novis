@@ -87,6 +87,32 @@
 //! new code becomes executable either way — the class is in the unit already
 //! running.
 //!
+//! # Reaching a core that has not started yet
+//!
+//! [`install`] and [`scoped`] both publish onto *this* thread, and a thread
+//! `nvs-host` starts for a worker placement was handed neither: a
+//! `&'static dyn Resolver` is not `Send`, and `scoped`'s borrow lives on the
+//! installing core's own stack. So a path entry placed `on: "worker"` would ask
+//! a core that answers [`ResolveError::NoResolver`], while
+//! `rule:concurrency/on-worker-runs-the-child-on-another-core` asks the core
+//! that *starts* a child to be the one that prepares it.
+//!
+//! [`SharedResolver`] is the third form, and it is a **handle rather than a
+//! second cache**. The implementor behind it is `Send + Sync` and shared by
+//! `Arc`, which is what `nvs-cli`'s compiler already is: its path map and its
+//! unit map sit behind `RwLock`s so that a source compiles once for the process
+//! rather than once per core. A core publishes one with [`publish`], and a core
+//! starting later takes its own clone through [`published`] and installs it for
+//! the length of its own run with [`SharedResolver::scoped`]. What is per
+//! thread stays the seam; what is per process is the table, exactly as before.
+//!
+//! What crosses is therefore the handle and never a [`Program`], which is a
+//! boxed closure this crate never asked to be `Send` and is built on the core
+//! about to run it. [`resolve`]'s answer and [`ResolveError`] are unchanged by
+//! any of this: a started core holding the published handle answers a path the
+//! way the booting core does, and one holding nothing answers
+//! [`ResolveError::NoResolver`] the way it always has.
+//!
 //! # What it spends
 //!
 //! One machine word pair per thread — a null-checked wide pointer in a
@@ -94,8 +120,15 @@
 //! this crate's `alloc` module requires of every one in it. It is
 //! O(threads) and does not grow with isolates spawned, per
 //! `rule:programs/memory-priority`.
+//!
+//! Plus **one handle for the whole process**: a `Mutex<Option<SharedResolver>>`
+//! in a `static`, `const`-initialized, holding one `Arc` clone of a resolver the
+//! process built anyway. A `static` is not a thread-local and so is never
+//! dropped at all, which is the stricter end of the rule the paragraph above
+//! states. O(1), whatever the core count and whatever a program places.
 
 use std::cell::Cell;
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 use nvs_config::capability::{Cap, Scope};
 
@@ -228,8 +261,9 @@ pub fn install(resolver: &'static dyn Resolver) -> Installed {
 /// `&'static` so that an [`Installed`]'s remembered previous can never dangle
 /// whatever order a nest of guards is dropped in, and `nvs_host`'s host
 /// satisfies that by being a
-/// unit struct in a `static` — a resolver cannot, because it holds the unit
-/// cache and a compiled unit is `Rc`-shared, so the whole type is `!Sync`.
+/// unit struct in a `static` — a resolver cannot, because it is built out of the
+/// configuration this process booted under and owns the unit cache it goes on
+/// filling, so it is a value with a lifetime rather than a constant.
 /// Leaking one per process is well inside
 /// `rule:programs/memory-priority`'s bound, but it
 /// is a *definite* loss to a leak checker, and `tools/loop.py`'s valgrind sweep
@@ -257,6 +291,102 @@ pub fn scoped<R>(resolver: &(dyn Resolver + 'static), run: impl FnOnce() -> R) -
     let answer = run();
     drop(installed);
     answer
+}
+
+/// A resolver a core that has not started yet can be handed.
+///
+/// [`install`] and [`scoped`] both publish onto the calling thread, so neither
+/// reaches a thread somebody else starts afterwards. This is the form that
+/// does: a `Send + Sync` handle, cheap to clone, which the starting core
+/// installs on its own thread for as long as it runs. The module doc's
+/// *Reaching a core that has not started yet* owns why this is a handle to the
+/// one table rather than a second one.
+///
+/// It is deliberately not a [`Resolver`] itself. That trait's subject is a path
+/// and its answer is a [`Program`] built for the core about to run it; this
+/// type's subject is *reaching* an implementor from another thread. Folding the
+/// two would oblige every resolver to be `Send + Sync`, including the ones a
+/// `nvs check` and a single-core run install, which never cross anything.
+#[derive(Clone, Debug)]
+pub struct SharedResolver(Arc<dyn Resolver + Send + Sync>);
+
+impl SharedResolver {
+    /// Takes a handle to `resolver`.
+    ///
+    /// An `Arc` the caller already holds rather than a value to wrap, because
+    /// the whole point is that the placing core goes on using the same one: a
+    /// serving fleet's cores share a single compiler so that a source compiles
+    /// once for the process.
+    #[must_use]
+    pub fn new<R: Resolver + Send + Sync + 'static>(resolver: Arc<R>) -> Self {
+        Self(resolver)
+    }
+
+    /// Publishes this handle's resolver on **this** thread for the duration of
+    /// `run`, and takes it back down however `run` ends.
+    ///
+    /// [`scoped`] with the handle's own `Arc` keeping the implementor alive, so
+    /// a started core wraps its whole run in one call and every `spawn script`
+    /// underneath reaches [`resolve`] as it would on the core that published.
+    pub fn scoped<R>(&self, run: impl FnOnce() -> R) -> R {
+        scoped(&*self.0, run)
+    }
+}
+
+/// The process's published handle, or `None` when nothing has published one.
+///
+/// A `static` rather than a thread-local, which is the whole of why it exists:
+/// it is read by a core that has not started yet and so has no thread-local of
+/// the publishing core's to read. One handle per process, per
+/// `rule:programs/memory-priority`'s *say what you spend*.
+static PUBLISHED: Mutex<Option<SharedResolver>> = Mutex::new(None);
+
+/// Withdraws the published handle and restores whatever was published before,
+/// when dropped.
+#[derive(Debug)]
+#[must_use = "the handle is withdrawn the moment this guard is dropped"]
+pub struct Published {
+    previous: Option<SharedResolver>,
+}
+
+impl Drop for Published {
+    fn drop(&mut self) {
+        *published_slot() = self.previous.take();
+    }
+}
+
+/// Publishes `resolver` for every core that starts while the guard lives.
+///
+/// Nesting is restoration, not replacement, exactly as [`install`] is — a
+/// process driven from inside another one publishes over it and puts the outer
+/// one back on the way out.
+///
+/// A core that has already started does not see this; it holds whatever it
+/// installed on its own thread. What [`publish`] decides is what the *next*
+/// core reads out of [`published`] as it starts, which is the one moment a core
+/// has no resolver of its own and no stack to borrow one from.
+pub fn publish(resolver: SharedResolver) -> Published {
+    let previous = published_slot().replace(resolver);
+    Published { previous }
+}
+
+/// The published handle, for a core that is starting and has none of its own.
+///
+/// A clone, so the caller owns its share of the implementor for as long as it
+/// runs and no [`Published`] guard dropped meanwhile can pull the table out from
+/// under a core mid-placement.
+#[must_use]
+pub fn published() -> Option<SharedResolver> {
+    published_slot().clone()
+}
+
+/// The slot, with a poisoned lock read through rather than around.
+///
+/// Nothing here can leave a broken invariant behind a panic: the value is one
+/// `Option` that is replaced whole, so the state a poisoned lock guards is
+/// exactly as valid as an unpoisoned one's.
+fn published_slot() -> MutexGuard<'static, Option<SharedResolver>> {
+    PUBLISHED.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
 /// Turns `path` into a [`Program`] through this thread's resolver, once
@@ -408,7 +538,8 @@ pub fn is_installed() -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        Installed, Program, ResolveError, Resolver, install, is_installed, resolve, scoped,
+        Installed, Program, ResolveError, Resolver, SharedResolver, install, is_installed, publish,
+        published, resolve, scoped,
     };
     use crate::ctx::{Ctx, OutputSink};
     use crate::host::Entry;
@@ -442,8 +573,9 @@ mod tests {
     }
 
     // `install` takes a `&'static dyn Resolver`, so a `static` is the only way
-    // to reach it directly; a real implementor holds a unit cache, is `!Sync`
-    // for that reason and goes through `scoped` instead.
+    // to reach it directly; a real implementor is built out of a configuration
+    // and owns a unit cache, so it is a value on a stack and goes through
+    // `scoped` or a `SharedResolver` instead.
     static FIXED: Fixed = Fixed;
     static REFUSING: Refusing = Refusing;
 
@@ -511,6 +643,62 @@ mod tests {
         assert_eq!(answer.as_int(), Some(7));
         drop(installed);
         assert!(!is_installed());
+    }
+
+    /// The length of the path the two cross-thread cases resolve, which is what
+    /// [`Fixed`] answers with and therefore the proof that the *far* thread's
+    /// resolver is the one that ran.
+    const RESOLVED: Option<i64> = Some(8);
+
+    #[test]
+    fn a_shared_handle_crosses_to_a_thread_and_answers_there() {
+        // The property the third form exists for: the handle is `Send`, so a
+        // core `nvs-host` starts can be handed one, and what it installs on its
+        // own thread answers `resolve` exactly as an `install` here would.
+        // Nothing of the `Program` crosses — it is built on the far side.
+        let mine = SharedResolver::new(std::sync::Arc::new(Fixed));
+        let answered = std::thread::spawn(move || {
+            assert!(
+                !is_installed(),
+                "a started thread installs nothing by itself"
+            );
+            mine.scoped(|| {
+                let mut ctx = granting();
+                let program = resolve(&ctx, "abcd.nvs").expect("the shared resolver answers");
+                program(&mut ctx, Value::null()).as_int()
+            })
+        })
+        .join()
+        .expect("the started thread did not panic");
+        assert_eq!(answered, RESOLVED);
+    }
+
+    #[test]
+    fn a_published_resolver_reaches_a_thread_started_after_it_and_is_withdrawn_with_its_guard() {
+        assert!(
+            published().is_none(),
+            "nothing has published in this process"
+        );
+        let guard = publish(SharedResolver::new(std::sync::Arc::new(Fixed)));
+        // The core is started *after* the publish and reads the slot for
+        // itself, which is the one moment it has neither a resolver of its own
+        // nor a stack of the publisher's to borrow one from.
+        let answered = std::thread::spawn(|| {
+            let handle = published().expect("the process published a handle");
+            handle.scoped(|| {
+                let mut ctx = granting();
+                let program = resolve(&ctx, "abcd.nvs").expect("the published resolver answers");
+                program(&mut ctx, Value::null()).as_int()
+            })
+        })
+        .join()
+        .expect("the started thread did not panic");
+        assert_eq!(answered, RESOLVED);
+        drop(guard);
+        assert!(
+            published().is_none(),
+            "the guard restores what was published before it, as `install`'s does"
+        );
     }
 
     #[test]
