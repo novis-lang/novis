@@ -4,50 +4,49 @@
 
 **Goal `decided-closures`, stage 2 — the runtime and the lowering.** Stage 1's floor is the closed
 goal `cache-shared-dial`'s checks, and they pass. Both of stage 2's own checks are green; what keeps
-the goal open is its **owner gate**, and two stage 2 items are still gaps naming it.
+the goal open is its **owner gate**, and one stage 2 item is still a gap naming it.
 
-`crates/nvs-runtime/src/routes.rs` gap 1 is **struck as a stated bound**, its `Decided:` sentence
-having asked for a measurement first. The walk is a comparison over every row of the right verb and
-stays one: the module now says so as prose, and the figure's home is
-`benches/abi-probe/benches/routing.rs` — a new criterion target with hit arms at 8, 64 and 512 rows
-plus a miss at the largest, so the slope between two sizes is the per-row cost with the path split
-cancelled out. `benches/abi-probe/tests/perf_guards.rs`'s
-`a_route_table_walk_costs_a_fraction_of_the_request_it_rides_in` fails a build when a row leaves
-that cost class, and `benches/abi-probe/shared/routes.rs` is the one table both of them build, on
-the `shared/isolate.rs` pattern beside it.
+`crates/nvs-ir/src/lib.rs` gap 18 is **built and its item deleted** — a throw escaping an abandoned
+generator's `finally` is reported rather than dropped. `nvs-runtime` is below the crate that runs
+tier 3, so the ladder arrives as a function pointer: `crates/nvs-runtime/src/floor.rs`'s `Ladder`,
+`install_ladder` and `escalate` are the seam, `crates/nvs-cli/src/main.rs:1198` installs
+`nvs_host::ladder::escalate` into it beside the panic hook, and
+`crates/nvs-runtime/src/ctx/error.rs:341` reports the escaped throw through tier 3 and then the floor
+before putting the saved failure back. **Tier 2 is skipped on purpose** and that is the divergence
+from PHP that remains: the throw reached no request root, so the program's own uncaught handler is
+not user code to re-enter from inside a refcount-zero release. The restore is still a replace, so
+nothing the report leaves behind can become the pending failure.
 
-The denominator is `benches/serve-proxied.json`'s `nvs-serve-direct` arm, **read off disk rather
-than re-run**: that bench is a Docker ratio against php-fpm over a one-route `hello`, so no run of
-it at any table size could have shown a table's length. Nothing is blocked.
+The two guards are in `error.rs`'s test module, serialised against each other because the installed
+tier 3 is process-wide: one asserts the escaped throw reaches a handler and the failure in flight is
+the one that comes back, the other that the floor writes it when no tier 3 answers. Nothing is
+blocked.
 
 ## Next group
 
-**Stage 2: the two gaps the stage's checks do not name** — one file set:
-`crates/nvs-runtime/src/`, `crates/nvs-ir/src/`, and `crates/nvs-host/src/` for the first item.
+**Stage 3: the checker refuses a `secret` into a container** — one file set:
+`crates/nvs-types/src/expr/`, with `crates/nvs-runtime/src/record.rs` for the gap text itself.
 
-- [ ] **`crates/nvs-ir/src/lib.rs:614` gap 18 — a throw escaping an abandoned generator's `finally`
-      reaches the escalation ladder** — `rule:errors/escalation-ladder`, whose tier 3 is
-      `crates/nvs-host/src/ladder.rs:90` and therefore **above** `nvs-runtime`: the decided answer
-      ("report it through the ladder, without replacing anything") is a hook, not a call. The throw
-      is dropped at `crates/nvs-runtime/src/ctx/error.rs:324`, whose one caller is
-      `crates/nvs-runtime/src/object.rs:3367`. Tier 4 is already on this side —
-      `crates/nvs-runtime/src/floor.rs:110` builds the record from a `Thrown` and
-      `crates/nvs-runtime/src/floor.rs:258` writes it — so what the hook adds over calling those two
-      directly is tier 3, and `crates/nvs-cli/src/main.rs:2328` is the existing caller whose shape
-      an installed hook has to agree with.
-- [ ] **`crates/nvs-runtime/src/record.rs:48` gap 1 — a `secret` into an array element or a shape
-      field is refused where it is written** — `rule:security/secret-qualifier`. Its `Decided:`
-      sentence is a **compile-time** refusal, so the build is `crates/nvs-types/src/` and not this
-      crate: it is the same work as stage 3's failing acceptance check
-      `a_secret_stored_into_an_array_element_is_refused_at_compile_time`, and the record walk's item
-      is struck once the checker refuses. `crates/nvs-runtime/src/record.rs:48` is the gap and
-      `nvs_types::expr::quals::reject_secret_debug_argument` is the refusal it is modelled on.
+- [ ] **`crates/nvs-runtime/src/record.rs:48` gap 1 — a `secret` stored into an array element or a
+      shape-literal field is refused where it is written** — `rule:security/secret-qualifier` and
+      `rule:errors/record-transformations`, whose redaction row this closes at the one end neither
+      existing refusal reaches. The refusal is `nvs-types`'s and belongs beside the one already
+      there: `crates/nvs-types/src/expr/quals.rs:529` is `reject_secret_debug_argument`, called from
+      `crates/nvs-types/src/expr/calls.rs:372`. The acceptance check the driver reports red names it
+      — `nvs-types`'s `a_secret_stored_into_an_array_element_is_refused_at_compile_time` — so the
+      test's name is fixed and its crate is too. The gap's own text says why neither end reaches a
+      container today: the qualifier composes onto no element type, and a shape field's type is
+      inferred rather than declared, so the refusal is at the **write**, not on a carried bit. A new
+      diagnostic code comes from the `E08xx` band (next free `E0824`; re-derive it before claiming).
+- [ ] **Delete gap 1 from `crates/nvs-runtime/src/record.rs:46`'s register** once the refusal lands,
+      leaving gap 2's struck prose alone — the item is the last thing the owner gate reads for this
+      file, and `python tools/owners.py --closes decided-closures` is what proves it.
 
 ## Backlog
 
-- The `[context] modules` manifest reaches no `nvs-host` path, so the ladder above did not print —
-  `docs/agent/loop-goal.toml`, and the next item needs it.
-- Stage 3's three `[[check]]` blocks are the goal's earliest red ones — `docs/agent/loop-goal.toml:11568`.
-- `benches/serve-proxied.json` has no large-table arm; the walk's figure is a microbench by
-  necessity — `benches/abi-probe/benches/routing.rs` owns why.
-- 39 gaps still name this goal outside stage 2 — `python tools/owners.py --closes decided-closures`.
+- The goal's own owner gate is what remains after the two items above — `owners.py --closes` and
+  `playbook.py --closes` name the rest (`docs/agent/loop-goal.md` § *Standing decisions*).
+- `[context.stage.3]` in `docs/agent/loop-goal.toml:216` names `types/type-alias` and two others but
+  not `rule:security/secret-qualifier` or `rule:errors/record-transformations`, which the item above
+  is written against; `[context] modules` names no `crates/nvs-types/src/expr/` path either.
+- Stage 4's prepared-pattern channel still holds this goal's one ADR slot (`docs/agent/loop-goal.md`).

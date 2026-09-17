@@ -1195,6 +1195,14 @@ fn main() -> ExitCode {
     // owns that split.
     nvs_runtime::floor::install_panic_hook();
 
+    // Tier 3 of `rule:errors/escalation-ladder` lives in `nvs_host`, above the
+    // crate that classifies a failure raised on a release path, so it arrives
+    // there as a function pointer. Here rather than per command because every
+    // command below can run compiled code, and a release happens wherever a
+    // refcount reaches zero — `nvs_runtime::Ctx::with_pending_set_aside` is the
+    // classifier that has no other way to reach it.
+    nvs_runtime::floor::install_ladder(nvs_host::ladder::escalate);
+
     // `rule:packaging/a-bundle-is-found-by-its-footer-before-argv-is-read`, and it happens before clap sees anything: a bundled
     // executable's `argv` belongs to the program it carries, so an app whose
     // first argument is `run` or `--help` must not have it read as one of

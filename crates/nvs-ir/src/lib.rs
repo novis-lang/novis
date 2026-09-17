@@ -611,28 +611,7 @@
 //!    method row, through the one `nvs_runtime::closure`'s `check_param_tags`
 //!    implementation the `callable` bullet above already goes through.
 //!    — owner: M12
-//! 18. **An abandoned generator's `finally` runs; a throw escaping one is
-//!     dropped.** `{name}$gen::gen#unwind` is on every generator's state class
-//!     and in its method table, and `nvs_runtime::object::dismantle` calls it
-//!     on the way past: it raises the `gen#unwind` flag and re-enters
-//!     `advance()`, whose resume block for a suspension inside a
-//!     `finally`-owning region takes the unwind arm and runs exactly what
-//!     `return;` runs at that point. [`lower::generator::lower_generator`]
-//!     § *An abandoned generator runs its `finally`* owns the mechanism, and
-//!     `rule:classes/no-destructors` records why it is not the destructor Novis does not have. What is
-//!     left is one divergence, and it is the runtime's: a release has no error
-//!     edge, so an exception a `finally` raises on that path is discarded
-//!     where PHP reports it uncaught —
-//!     `nvs_runtime::Ctx::with_pending_set_aside` argues why losing it beats
-//!     replacing the exception actually in flight, and surfacing it wants ADR
-//!     0020's ladder. `tests/conformance/iter/an-abandoned-generator-runs-the-finally-it-is-suspended-inside.nvst`
-//!     and `tests/differential/iter/an-abandoned-generators-finally-matches-phps.nvst`
-//!     pin the rest.
-//!     Decided: Report it through the escalation ladder, without replacing anything — The error is
-//!     logged and visible the way an uncaught one is, the exception already in flight is left alone,
-//!     and it needs a hook from object dismantling into the ladder.
-//!     — owner: decided-closures
-//! 19. **`DEBUG_BREAK` is cleared and otherwise ignored.** The poll
+//! 18. **`DEBUG_BREAK` is cleared and otherwise ignored.** The poll
 //!     [`ir::InstKind::Safepoint`] lowers to drops that flag where `CPU_LIMIT`
 //!     and `CANCEL` stop the request: there is no debugger to hand the frame
 //!     to, and the frame a breakpoint stops in is `nvs dap`'s question rather

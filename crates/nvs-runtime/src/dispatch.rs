@@ -619,8 +619,8 @@ pub fn call_compare_to(
 /// # Errors
 ///
 /// [`Fault::Pending`] when a `finally` the unwind ran threw — which
-/// [`crate::object::dismantle`] discards, [`crate::Ctx::with_pending_set_aside`]
-/// owning why.
+/// [`crate::object::dismantle`] reports through the escalation ladder rather
+/// than propagating, [`crate::Ctx::with_pending_set_aside`] owning why.
 pub(crate) fn call_unwind(
     ctx: &mut Ctx,
     receiver: Value,

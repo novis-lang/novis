@@ -300,10 +300,10 @@ impl Ctx {
             .map_or_else(|| installed.desc(), |found| found.desc())
     }
 
-    /// Runs `body` with this context's pending failure set aside, discarding
+    /// Runs `body` with this context's pending failure set aside, **reporting**
     /// anything `body` raised and putting the saved one back.
     ///
-    /// # Decision: a throw out of a dying generator's `finally` is dropped
+    /// # A throw out of a dying generator's `finally` is reported where it stands
     ///
     /// Its one caller is [`crate::object::dismantle`], and a release has no
     /// error edge to propagate on: `nvs_object_release` answers nothing, and
@@ -311,16 +311,28 @@ impl Ctx {
     /// a landing pad dropping its locals on the way out. Leaving the throw in
     /// the pending slot would therefore either replace the exception actually
     /// in flight with one raised by a `finally` the program never resumed into
-    /// by hand, or attach itself to whatever call returns next; both are worse
-    /// than losing it, and the first loses the original as well. So the
-    /// `finally` **runs** — which is what PHP compatibility asks for
-    /// (`rule:iteration/generators`) —
-    /// and a throw escaping it is where this differs from PHP, which reports
-    /// one as uncaught. Surfacing it wants
-    /// `rule:errors/escalation-ladder`'s ladder, whose tier 3 is
-    /// `nvs_host::ladder::escalate` — above this crate, and so reachable from a
-    /// release only through a hook nothing installs here yet. Until one exists,
-    /// the safe half is the half that is kept.
+    /// by hand, or attach itself to whatever call returns next; the first loses
+    /// the original as well. So the `finally` **runs** — which is what PHP
+    /// compatibility asks for (`rule:iteration/generators`) — and the throw
+    /// escaping it is **reported rather than carried**: it goes to
+    /// `rule:errors/escalation-ladder`'s tier 3 through
+    /// [`crate::floor::escalate`], and to the floor beneath it when no handler
+    /// answered, which is every tier the ladder has left once the throw cannot
+    /// be propagated. Nothing it does replaces the failure in flight; the
+    /// restore below is what holds that.
+    ///
+    /// **Tier 2 is skipped, and that is the divergence from PHP that remains.**
+    /// `rule:errors/on-uncaught-throw`'s handler belongs to a request that
+    /// reached its root uncaught, and this throw reached no root at all — it was
+    /// raised under a refcount hitting zero. Running the program's own handler
+    /// from there is user code re-entered from inside a release with another
+    /// failure already in flight, which is the thing this whole function exists
+    /// to prevent. PHP reports such a throw as uncaught, so the message, the
+    /// class and the backtrace are the same and the *tier* is not.
+    ///
+    /// **What it spends:** one [`crate::floor::uncaught`] record — a node per
+    /// frame, bounded by [`nvs_render::Caps`] — per throw that escapes, and
+    /// nothing at all when none does.
     pub(crate) fn with_pending_set_aside<R>(&mut self, body: impl FnOnce(&mut Self) -> R) -> R {
         let saved = self.pending.take();
         // The mark travels with the failure it describes, or the throw put back
@@ -328,8 +340,20 @@ impl Ctx {
         // provisional" rather than its own.
         let saved_site_frame = std::mem::take(&mut self.site_frame_pending);
         let out = body(self);
+        if self.pending.is_some() {
+            // Taken rather than borrowed: the report needs this context, and
+            // the escaped throw is an object whose reference is released as
+            // `escaped` drops at the end of the block.
+            let escaped = self.take_thrown();
+            let record = crate::floor::uncaught(&escaped);
+            if !crate::floor::escalate(self, &record) {
+                crate::floor::report(self, &record);
+            }
+        }
         // Dropping a `Pending::Thrown` releases the exception object's own
         // reference, which is why this is a replace rather than an assignment.
+        // It covers the report as well: a tier-3 handler that left a failure of
+        // its own on this context does not get to be the one that comes back.
         drop(std::mem::replace(&mut self.pending, saved));
         self.site_frame_pending = saved_site_frame;
         out
@@ -944,5 +968,112 @@ mod tests {
         // Taken rather than borrowed: the next test starts empty.
         assert_eq!(ctx.assertion_count(), 0);
         assert_eq!(ctx.discharge_failures_from(mark), 0);
+    }
+
+    /// Serialises the two tests below against each other. The installed tier 3
+    /// is process-wide, so one test's handler would otherwise answer the
+    /// other's escalation — and the pair exist precisely to tell an answered
+    /// escalation from an unanswered one.
+    static LADDER_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    /// Every record [`claims`] was handed, rendered.
+    static ESCALATED: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+
+    /// A tier 3 that reports everything, which is the answer that leaves the
+    /// floor nothing to write.
+    fn claims(_ctx: &mut Ctx, record: &nvs_render::Record) -> bool {
+        ESCALATED
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .push(nvs_render::json::render(record));
+        true
+    }
+
+    /// Installs `ladder` for the length of the test and puts back what it
+    /// displaced, however the test ends.
+    struct Installed(Option<crate::floor::Ladder>);
+
+    impl Drop for Installed {
+        fn drop(&mut self) {
+            crate::floor::swap_ladder(self.0);
+        }
+    }
+
+    /// A context whose failures can be read back, with the seeded error tree a
+    /// promotion needs — the pair every test of a reported throw wants.
+    fn reporting_ctx() -> Ctx {
+        const NARROW: [&str; 4] = ["message", "previous", "backtrace", "location"];
+        let mut table = ClassTable::new();
+        let root = table.define("RuntimeError", &NARROW, &[]);
+        let mut ctx = Ctx::buffered();
+        ctx.set_runtime_error_class(ErrorClass::new(std::sync::Arc::new(table), root));
+        ctx.set_diagnostic_sink(crate::OutputSink::Buffer(Vec::new()));
+        ctx
+    }
+
+    /// `rule:errors/escalation-ladder`'s first sentence, on the one path that
+    /// has no request root to report at: a throw escaping an abandoned
+    /// generator's `finally` reaches tier 3, and the exception actually in
+    /// flight is still the pending one afterwards.
+    #[test]
+    fn a_throw_escaping_a_set_aside_region_reaches_the_ladder_and_replaces_nothing() {
+        let _serialised = LADDER_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        ESCALATED
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clear();
+        let _installed = Installed(crate::floor::swap_ladder(Some(claims)));
+
+        let mut ctx = reporting_ctx();
+        ctx.set_pending("the exception the release is unwinding under");
+        ctx.with_pending_set_aside(|ctx| ctx.set_pending("thrown out of an abandoned finally"));
+
+        let escalated = ESCALATED
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
+        assert_eq!(escalated.len(), 1, "one escalation, and no retry of it");
+        assert!(
+            escalated[0].contains("thrown out of an abandoned finally"),
+            "the escaped throw is what tier 3 is handed: {}",
+            escalated[0]
+        );
+        assert_eq!(
+            ctx.take_thrown().message(),
+            "the exception the release is unwinding under",
+            "the failure in flight is the one that comes back"
+        );
+        assert!(
+            ctx.take_buffered_diagnostic()
+                .expect("the diagnostic channel was given a buffer")
+                .is_empty(),
+            "tier 4 is the floor beneath tier 3, not a second line beside it"
+        );
+    }
+
+    /// The other half of that answer: nothing reported, so the floor owes the
+    /// line — which is also every process that installed no handler at all.
+    #[test]
+    fn a_throw_escaping_a_set_aside_region_falls_to_the_floor_when_no_tier_3_answers() {
+        let _serialised = LADDER_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let _installed = Installed(crate::floor::swap_ladder(None));
+
+        let mut ctx = reporting_ctx();
+        ctx.with_pending_set_aside(|ctx| ctx.set_pending("thrown out of an abandoned finally"));
+
+        assert!(ctx.pending_class().is_none(), "nothing is carried onward");
+        let written = String::from_utf8(
+            ctx.take_buffered_diagnostic()
+                .expect("the diagnostic channel was given a buffer"),
+        )
+        .expect("a record renders as UTF-8");
+        assert!(
+            written.contains("thrown out of an abandoned finally"),
+            "the floor writes the throw nothing else reported: {written}"
+        );
     }
 }

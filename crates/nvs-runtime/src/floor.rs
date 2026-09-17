@@ -64,6 +64,20 @@
 //! coalesce none of it. They share [`key`] and [`COALESCING_WINDOW`], so what
 //! counts as the same record and how long one holds is decided once for both.
 //!
+//! # The tier above is reached from here too
+//!
+//! Tier 3 runs in `nvs_host`, which is above this crate, so a failure this
+//! crate classifies for itself — a throw escaping an abandoned generator's
+//! `finally`, which reaches no request root to be reported at
+//! ([`Ctx::with_pending_set_aside`]) — cannot call it. [`Ladder`] is the
+//! function pointer the process's entry point installs and [`escalate`] is the
+//! one read of it, answering `false` in a process that installed none, which is
+//! the same sentence "no handler is configured" already gets: the floor still
+//! owes the line. It sits beside the floor rather than in a module of its own
+//! because [`report_argument`] already does — the crate that owns the meaning
+//! of a record keeps both the shape tier 3 is handed and the seam it is reached
+//! through, and `nvs_host::ladder`'s own module doc argues that split in full.
+//!
 //! `[log] format` is not read here. `rule:errors/renderings`'s plaintext rendering of the
 //! same record is what `rule:config/a-mode-is-five-defaults`
 //! 's `development` default selects, and nothing reads that directive at run
@@ -73,6 +87,7 @@
 use std::cell::{Cell, RefCell};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
+use std::sync::{Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
 use nvs_render::{Level, Node, Record, Rendered, Scalar};
@@ -269,6 +284,63 @@ pub fn report(ctx: &mut Ctx, record: &Record) {
     }
     ctx.stamp_envelope(&mut carried.envelope);
     let _ = ctx.write_log_record(&carried, crate::LogChannel::Diagnostic);
+}
+
+/// How a record reaches `rule:errors/escalation-ladder`'s **tier 3** from a
+/// crate beneath the one that runs it.
+///
+/// `nvs_host::ladder::escalate` is the implementation and this is its shape, so
+/// a caller that can name that function calls it directly and one that cannot
+/// reads [`escalate`] instead — the two are the same call, and a single meaning
+/// for the answer: `true` is "the handler reported, write nothing more", and
+/// every other outcome is `false`, which is tier 4's cue.
+pub type Ladder = fn(&mut Ctx, &Record) -> bool;
+
+/// The installed tier 3, or `None` in a process whose entry point installed
+/// none.
+///
+/// Process-wide rather than per thread, which is what a tier of the ladder is:
+/// `[log] handler` is one deployment's configuration and an isolate spawned for
+/// it runs on whichever core the failure happened on. The pointer is copied out
+/// before it is called, so a handler that fails — or that reaches a failure of
+/// its own — never finds this lock held.
+static LADDER: Mutex<Option<Ladder>> = Mutex::new(None);
+
+/// Installs `ladder` as this process's tier 3, replacing whatever was there.
+///
+/// Called once by the entry point, beside [`install_panic_hook`] and before any
+/// program runs. A process that calls it never has [`escalate`] answer `false`
+/// for want of a hook, and one that does not still has the floor.
+pub fn install_ladder(ladder: Ladder) {
+    *LADDER.lock().unwrap_or_else(PoisonError::into_inner) = Some(ladder);
+}
+
+/// Swaps the installed tier 3 for `ladder`, answering what was there.
+///
+/// The restore [`install_ladder`] deliberately is not: a boot-time seam has
+/// nothing to put back, and a test that installs one has to leave the process
+/// as it found it.
+#[cfg(test)]
+pub(crate) fn swap_ladder(ladder: Option<Ladder>) -> Option<Ladder> {
+    std::mem::replace(
+        &mut *LADDER.lock().unwrap_or_else(PoisonError::into_inner),
+        ladder,
+    )
+}
+
+/// Offers `record` to tier 3, answering whether it reported.
+///
+/// `false` means the floor still owes the line, and [`report`] is what the
+/// caller writes next — the shape `nvs_host::ladder`'s own module doc fixes,
+/// held to here for the one reason it exists: no tier is retried, and a record
+/// nothing escalated is a record tier 4 writes rather than one that is dropped.
+#[must_use]
+pub fn escalate(ctx: &mut Ctx, record: &Record) -> bool {
+    let installed = *LADDER.lock().unwrap_or_else(PoisonError::into_inner);
+    let Some(ladder) = installed else {
+        return false;
+    };
+    ladder(ctx, record)
 }
 
 /// Installs the process's panic hook: a panic raised beneath a **served
