@@ -186,7 +186,7 @@ One line per rule, and the link to the rule that owns it. Generated from `docs/r
 - **An enum value costs nothing beyond the integer it is** — An enum value is its backing integer and nothing more — zero additional bytes over what `int` or `uint` already costs, no allocation, no refcount, no descriptor. ([`enums/representation`](rules/enums.md#enums-representation))
 - **An enum case is always truthy, whatever integer backs it** — An enum case in a condition is **always truthy**, whatever integer backs it. ([`enums/truthiness`](rules/enums.md#enums-truthiness))
 - **A case is an integer constant, and an enum body declares nothing but cases** — `EnumName::CaseName` **is** an integer constant, inlined at every use site the way a literal `5` is: nothing is allocated, nothing is refcounted, there is no descriptor, and there is no per-isolate storage slot for an e… ([`enums/no-class-machinery`](rules/enums.md#enums-no-class-machinery))
-- **Reflection describes an enum's shape and grants it nothing a class has** *(designed)* — `Core\Reflect\EnumInfo::of(Status::class)` reports an enum's shape as ordinary structural metadata — the type's name and its closed case list — the same way `ClassInfo` reports a class's shape. ([`enums/reflection`](rules/enums.md#enums-reflection))
+- **Reflection describes an enum's shape and grants it nothing a class has** — `Core\Reflect\EnumInfo::of(Status::class)` reports an enum's shape as ordinary structural metadata — the type's name and its closed case list — the same way `ClassInfo` reports a class's shape. ([`enums/reflection`](rules/enums.md#enums-reflection))
 
 ## Iteration
 

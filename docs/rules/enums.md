@@ -3,8 +3,6 @@
 
 # Enums
 
-*1 of 8 rules below are **designed** rather than shipped, and are marked where they appear.*
-
 <a id="enums-declaration"></a>
 
 ## A case with no written value counts on from the one before it, starting at zero
@@ -166,7 +164,7 @@ is no standalone-function destination for it to go to.
 
 <a id="enums-reflection"></a>
 
-## Reflection describes an enum's shape and grants it nothing a class has  *(designed — not yet in the compiler)*
+## Reflection describes an enum's shape and grants it nothing a class has
 
 `rule:enums/reflection`
 

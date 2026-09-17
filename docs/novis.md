@@ -194,6 +194,7 @@ Conventions the whole file uses:
 | [`Core\Reflect\MethodInfo`](#core-core-reflect-methodinfo) |  |
 | [`Core\Reflect\PropertyInfo`](#core-core-reflect-propertyinfo) |  |
 | [`Core\Reflect\ParameterInfo`](#core-core-reflect-parameterinfo) |  |
+| [`Core\Reflect\EnumInfo`](#core-core-reflect-enuminfo) |  |
 | [`Core\Ast`](#core-core-ast) |  |
 | [`Core\Ast\Node`](#core-core-ast-node) |  |
 | [`Core\Db`](#core-core-db) |  |
@@ -23028,6 +23029,84 @@ $parameterInfo->name(): string
 The parameter's name, as the declaring method writes it.
 
 **Returns** `string` — The name with no `$` sigil — what a named argument at a call site writes. A promoted constructor parameter answers here under the same name its property carries.
+
+<a id="core-core-reflect-enuminfo"></a>
+### `Core\Reflect\EnumInfo`
+
+Keywords: of, name, cases, valueOf, isUnsigned
+
+| Member | Signature |
+|---|---|
+| [`Core\Reflect\EnumInfo::of`](#core-core-reflect-enuminfo-of) | `of(string $name): ?Core\Reflect\EnumInfo` |
+| [`Core\Reflect\EnumInfo->name`](#core-core-reflect-enuminfo-name) | `name(): string` |
+| [`Core\Reflect\EnumInfo->cases`](#core-core-reflect-enuminfo-cases) | `cases(): array<string>` |
+| [`Core\Reflect\EnumInfo->valueOf`](#core-core-reflect-enuminfo-valueof) | `valueOf(string $case): int\|uint` |
+| [`Core\Reflect\EnumInfo->isUnsigned`](#core-core-reflect-enuminfo-isunsigned) | `isUnsigned(): bool` |
+
+<a id="core-core-reflect-enuminfo-of"></a>
+#### `Core\Reflect\EnumInfo::of`
+
+```nvs skip
+Core\Reflect\EnumInfo::of(string $name): ?Core\Reflect\EnumInfo
+```
+
+Describes the enum `$name` names. The only way to read an enum's case list, since `rule:enums/no-class-machinery` gives an enum no members of its own.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The enum's name as its declaration writes it, namespace included and with no leading separator — what `Status::class` answers. |
+
+**Returns** `?Core\Reflect\EnumInfo` — A description of that enum, or `null` where the program declares none of that name.
+
+<a id="core-core-reflect-enuminfo-name"></a>
+#### `Core\Reflect\EnumInfo->name`
+
+```nvs skip
+$enumInfo->name(): string
+```
+
+The described enum's own name.
+
+**Returns** `string` — The name as the declaration writes it — what was passed to `of`.
+
+<a id="core-core-reflect-enuminfo-cases"></a>
+#### `Core\Reflect\EnumInfo->cases`
+
+```nvs skip
+$enumInfo->cases(): array<string>
+```
+
+Every case the enum declares, by name.
+
+**Returns** `array<string>` — One string per case, ascending by the case's constant and then by name. A declaration's own order is carried by nothing below the parser, so this order is the one the runtime can state rather than an approximation of the source.
+
+<a id="core-core-reflect-enuminfo-valueof"></a>
+#### `Core\Reflect\EnumInfo->valueOf`
+
+```nvs skip
+$enumInfo->valueOf(string $case): int|uint
+```
+
+The constant behind one case.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$case` | `string` (neutral) | The case's own name, as `cases` answers it. |
+
+**Returns** `int|uint` — The case's value, as an `int` or a `uint` by what `isUnsigned` answers. The union is what a description reached by *name* can promise — the backing belongs to the enum the name named — so a caller that knows which it asked for narrows with `as int`.
+
+**Throws** `LogicError` — The enum declares no case of that name. `cases` is the list that cannot be wrong, so an unknown name here is a mistake in the asking rather than an absence to report.
+
+<a id="core-core-reflect-enuminfo-isunsigned"></a>
+#### `Core\Reflect\EnumInfo->isUnsigned`
+
+```nvs skip
+$enumInfo->isUnsigned(): bool
+```
+
+Which of `rule:enums/one-backing-type`'s two integer types the cases are constants of.
+
+**Returns** `bool` — `true` for an enum written `: uint`, `false` for every other one — there is no third backing and no unbacked form.
 
 <a id="core-core-ast"></a>
 ### `Core\Ast`
