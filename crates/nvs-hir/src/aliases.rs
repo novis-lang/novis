@@ -46,8 +46,8 @@
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
 use nvs_syntax::ast::{
-    ClassMember, ClassMemberKind, NamespaceDecl, Stmt, StmtKind, Type, TypeAliasDecl, TypeAtom,
-    TypeKind,
+    ClassMember, ClassMemberKind, EnumCase, NamespaceDecl, Stmt, StmtKind, Type, TypeAliasDecl,
+    TypeAtom, TypeKind,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -152,6 +152,10 @@ pub struct AliasResolver {
     /// the same trick [`crate::hierarchy::HierarchyResolver`] uses for a
     /// single name, generalised to a whole type tree.
     names: FxHashMap<Span, String>,
+    /// One body's name collisions, found while collecting: an alias sharing a
+    /// name with a constant or an enum case. Collection is handed no
+    /// [`Diagnostics`], so they wait here for [`AliasResolver::resolve`].
+    collisions: Vec<Diagnostic>,
 }
 
 impl AliasResolver {
@@ -210,13 +214,20 @@ impl AliasResolver {
                 // body that has a class-shaped name takes them, and takes them
                 // the same way.
                 StmtKind::ClassDecl(decl) => {
-                    self.record_members(&decl.members, decl.name, src, &current_ns, &imports);
+                    self.record_members(&decl.members, &[], decl.name, src, &current_ns, &imports);
                 }
                 StmtKind::InterfaceDecl(decl) => {
-                    self.record_members(&decl.members, decl.name, src, &current_ns, &imports);
+                    self.record_members(&decl.members, &[], decl.name, src, &current_ns, &imports);
                 }
                 StmtKind::EnumDecl(decl) => {
-                    self.record_members(&decl.members, decl.name, src, &current_ns, &imports);
+                    self.record_members(
+                        &decl.members,
+                        &decl.cases,
+                        decl.name,
+                        src,
+                        &current_ns,
+                        &imports,
+                    );
                 }
                 _ => {}
             }
@@ -224,21 +235,99 @@ impl AliasResolver {
     }
 
     /// Every `type` member of one body, under the owner that declares them.
+    /// `cases` is an enum's own cases and is empty for a class or an
+    /// interface; they are the other half of what
+    /// [`Self::check_name_collisions`] compares an alias's name against.
     fn record_members(
         &mut self,
         members: &[ClassMember],
+        cases: &[EnumCase],
         owner_name: nvs_syntax::ast::Name,
         src: &SourceFile,
         namespace: &[String],
         imports: &FxHashMap<String, QName>,
     ) {
         let owner = QName::join(namespace, name_text(src, &owner_name));
+        self.check_name_collisions(members, cases, &owner, src);
         for member in members {
             let ClassMemberKind::TypeAlias(alias) = &member.kind else {
                 continue;
             };
             let key = AliasKey::Member(owner.clone(), name_text(src, &alias.name).to_owned());
             self.record(key, alias, src, namespace, imports, Some(owner.clone()));
+        }
+    }
+
+    /// An alias, an enum case and a constant are all spelled `Owner::Name`,
+    /// so one body declaring two of them under one name is refused where the
+    /// later of the two is written — `rule:types/type-alias`, which is
+    /// `rule:statements/nothing-gets-a-second-name` for a member. The goal's
+    /// resolution order at `Owner::Name` therefore decides nothing a
+    /// compiling program can observe.
+    ///
+    /// Only a collision an alias takes part in is reported here: two
+    /// constants or two cases under one name are [`crate::members`]'s to
+    /// report. The alias is still recorded, so a reference to it resolves to
+    /// its expansion instead of drawing a second, unrelated error.
+    fn check_name_collisions(
+        &mut self,
+        members: &[ClassMember],
+        cases: &[EnumCase],
+        owner: &QName,
+        src: &SourceFile,
+    ) {
+        let mut declared: Vec<(&str, Span, &str, bool)> = Vec::new();
+        for case in cases {
+            declared.push((
+                name_text(src, &case.name),
+                case.name.span,
+                "an enum case",
+                false,
+            ));
+        }
+        for member in members {
+            match &member.kind {
+                ClassMemberKind::Const(konst) => declared.push((
+                    src.span_text(konst.name).unwrap_or_default(),
+                    konst.name,
+                    "a class constant",
+                    false,
+                )),
+                ClassMemberKind::TypeAlias(alias) => declared.push((
+                    name_text(src, &alias.name),
+                    alias.name.span,
+                    "a `type` alias",
+                    true,
+                )),
+                _ => {}
+            }
+        }
+        // Source order, because the diagnostic points at the second
+        // declaration and the AST keeps an enum's cases beside its members
+        // rather than interleaved with them.
+        declared.sort_by_key(|(_, span, _, _)| span.start);
+        for (index, (name, span, _, is_alias)) in declared.iter().enumerate() {
+            let Some((_, first_span, first_kind, first_is_alias)) = declared[..index]
+                .iter()
+                .find(|(earlier, _, _, _)| earlier == name)
+            else {
+                continue;
+            };
+            if !is_alias && !first_is_alias {
+                continue;
+            }
+            self.collisions.push(
+                Diagnostic::error(
+                    code::E_DUPLICATE_DECLARATION,
+                    format!("`{owner}::{name}` is already declared as {first_kind}"),
+                )
+                .with_primary(*span, "duplicate declaration")
+                .with_secondary(*first_span, "previously declared here")
+                .with_help(
+                    "`Owner::Name` in type position names one thing — rename the alias, the \
+                     constant or the case (`rule:types/type-alias`)",
+                ),
+            );
         }
     }
 
@@ -269,10 +358,14 @@ impl AliasResolver {
 
     /// Substitutes every collected alias's expansion, reporting
     /// `E_TYPE_ALIAS_CYCLE` for a name that, directly or through some chain,
-    /// expands back to itself. Call once, after every file sharing this
-    /// resolver has run [`Self::collect_aliases`].
+    /// expands back to itself, together with every name collision collection
+    /// found ([`Self::check_name_collisions`]). Call once, after every file
+    /// sharing this resolver has run [`Self::collect_aliases`].
     #[must_use]
     pub fn resolve(self, diags: &mut Diagnostics) -> AliasTable {
+        for collision in self.collisions {
+            diags.report(collision);
+        }
         let mut ctx = ResolveCtx {
             pending: &self.pending,
             names: &self.names,
@@ -689,6 +782,38 @@ mod tests {
             let ty = table.get_member(&QName::parse("Order"), name).unwrap();
             assert!(is_atom(ty, &TypeAtom::Mixed), "{name}: {ty:?}");
         }
+    }
+
+    #[test]
+    fn an_alias_sharing_a_name_with_a_constant_is_refused() {
+        let (_, diags) =
+            resolve("<?nvs\nclass Holder { public const int ID = 1; type ID = array<uint>; }\n");
+        let duplicates: Vec<_> = diags
+            .iter()
+            .filter(|d| d.code == Some(code::E_DUPLICATE_DECLARATION))
+            .collect();
+        assert_eq!(duplicates.len(), 1, "{diags:?}");
+    }
+
+    #[test]
+    fn an_alias_sharing_a_name_with_an_enum_case_is_refused() {
+        let (_, diags) = resolve("<?nvs\nenum Colour: int { Red = 1, type Red = array<uint>; }\n");
+        let duplicates: Vec<_> = diags
+            .iter()
+            .filter(|d| d.code == Some(code::E_DUPLICATE_DECLARATION))
+            .collect();
+        assert_eq!(duplicates.len(), 1, "{diags:?}");
+    }
+
+    #[test]
+    fn an_alias_and_a_differently_named_constant_are_both_fine() {
+        let (table, diags) =
+            resolve("<?nvs\nclass Holder { public const int ID = 1; type Ids = array<uint>; }\n");
+        assert!(!diags.has_errors(), "{diags:?}");
+        assert!(
+            table.get_member(&QName::parse("Holder"), "Ids").is_some(),
+            "the alias is still recorded"
+        );
     }
 
     #[test]
