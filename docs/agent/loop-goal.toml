@@ -118,6 +118,14 @@ modules = [
   "crates/nvs-host/src/tls.rs",
   # `NvsTcp::connect_timeout`, which the TLS arm still dials through before the handshake. Stage 4.
   "crates/nvs-host/src/net.rs",
+  # `Core\RateLimit` — `rule:core-classes/ratelimit-two-members`'s limiter for what only the
+  # application knows, as both halves of it: `consume` over the shared store, `shed` over this
+  # core's own memory, and the `Core\RateLimit\Decision` each answers with.
+  "crates/nvs-stdlib/src/ratelimit.rs",
+  # `rule:http-server/a-session-store-answers-four-operations`'s session store: the identifier a
+  # store issues, the record it keeps under it, and the two directives that decide where that
+  # store is and how long a record survives.
+  "crates/nvs-stdlib/src/session.rs",
 ]
 
 # The grant over the store, which this goal does not move, and the account every byte it spends is
