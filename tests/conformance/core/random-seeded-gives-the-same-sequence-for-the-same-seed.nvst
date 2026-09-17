@@ -1,0 +1,76 @@
+--TEST--
+A `Core\Random\Seeded` generator draws the same sequence for the same seed, member for member, and a different one for a different seed — spec § 11, `rule:testing/determinism-declared-on-the-test`
+--FILE--
+<?nvs
+// Spec § 11 makes reproducibility a *type* rather than a mode `Core\Random`
+// can be put into, so what this case pins is the one thing that type promises:
+// the seed decides the sequence and nothing else does. Every row compares two
+// generators built at one seed rather than asserting a drawn value, which is
+// the only thing a draw lets a case assert at all.
+//
+// `Pair` exists because a case's own helper has to be a method
+// (`rule:classes/no-free-functions-or-constants`), and because the two
+// generators have to be asked in one fixed order: a sequence is fixed as a
+// whole, so a row that asked one of them twice would be comparing draws that
+// were never meant to be equal.
+final class Pair {
+    // Whether the two answer the same thing, member by member. A member that
+    // drew from anything but its own receiver's state fails its own row here
+    // while the other six still pass.
+    public static function agree(Core\Random\Seeded $left, Core\Random\Seeded $right, array<int> $box): int {
+        int $agreed = 0;
+        $agreed = $agreed + (($left->int(0, 1000000) == $right->int(0, 1000000)) ? 1 : 0);
+        $agreed = $agreed + (($left->float() == $right->float()) ? 1 : 0);
+        $agreed = $agreed + ((Core\Encoding::toHex($left->bytes(16)) == Core\Encoding::toHex($right->bytes(16))) ? 1 : 0);
+        $agreed = $agreed + (($left->token(8) == $right->token(8)) ? 1 : 0);
+        $agreed = $agreed + ((($left->pick($box) as int) == ($right->pick($box) as int)) ? 1 : 0);
+        $agreed = $agreed + ((Core\Json::encode($left->sample($box, 2)) == Core\Json::encode($right->sample($box, 2))) ? 1 : 0);
+        $agreed = $agreed + ((Core\Json::encode($left->shuffle($box)) == Core\Json::encode($right->shuffle($box))) ? 1 : 0);
+        return $agreed;
+    }
+}
+
+array<int> $box = [10, 20, 30, 40];
+
+// One seed, two generators: all seven members agree, and they agree again on a
+// second round — which is what says the *sequence* is fixed rather than the
+// first draw of each member.
+var $left = new Core\Random\Seeded(42);
+var $right = new Core\Random\Seeded(42);
+echo "one seed: ", Pair::agree($left, $right, $box), " and ", Pair::agree($left, $right, $box), " of 7\n";
+
+// Two seeds, over the members whose answers are wide enough that a collision
+// is not a thing that happens: a `pick` of four entries at two seeds agrees one
+// time in four, so it would say nothing here and is left to the rows above.
+var $one = new Core\Random\Seeded(42);
+var $two = new Core\Random\Seeded(43);
+int $differ = 0;
+$differ = $differ + (($one->int(0, 9223372036854775807) == $two->int(0, 9223372036854775807)) ? 0 : 1);
+$differ = $differ + (($one->float() == $two->float()) ? 0 : 1);
+$differ = $differ + ((Core\Encoding::toHex($one->bytes(16)) == Core\Encoding::toHex($two->bytes(16))) ? 0 : 1);
+$differ = $differ + (($one->token(16) == $two->token(16)) ? 0 : 1);
+echo "two seeds: ", $differ, " of 4 differ\n";
+
+// A second draw is a second value: the advanced state reaches the instance, so
+// a generator that kept its seed unchanged would answer one token forever and
+// still pass every row above.
+var $advancing = new Core\Random\Seeded(7);
+string $first = $advancing->token(16);
+string $second = $advancing->token(16);
+echo "a second draw is a second value: ", ($first == $second) ? "no" : "yes", "\n";
+
+// And the seed fixes the whole sequence rather than its head: a hundred draws
+// in, two generators at one seed are still on the same value.
+var $a = new Core\Random\Seeded(2024);
+var $b = new Core\Random\Seeded(2024);
+int $i = 0;
+int $same = 0;
+for ($i = 0; $i < 100; $i = $i + 1) {
+    $same = $same + (($a->int(0, 9223372036854775807) == $b->int(0, 9223372036854775807)) ? 1 : 0);
+}
+echo "a hundred draws in: ", $same, " of 100\n";
+--EXPECT--
+one seed: 7 and 7 of 7
+two seeds: 4 of 4 differ
+a second draw is a second value: yes
+a hundred draws in: 100 of 100

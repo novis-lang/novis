@@ -1,0 +1,94 @@
+--TEST--
+`Core\Random\Seeded` refuses what `Core\Random` refuses, names itself in every sentence, and leaves its sequence where it was when it does — spec § 11, `rule:core-api/shape-rules` R4
+--FILE--
+<?nvs
+// `rule:core-api/shape-rules` R4 read at the mirror class: a call with no
+// answer to invent throws rather than inventing one. What each message says is
+// this class's own name and not the one it mirrors — two members sharing one
+// sentence would leave a program unable to tell which of the two generators it
+// had reached, which is the distinction the type exists to make.
+//
+// `Refused` exists because a case's own helper has to be a method
+// (`rule:classes/no-free-functions-or-constants`).
+final class Refused {
+    public static function int(Core\Random\Seeded $g, int $min, int $max): string {
+        try {
+            $g->int($min, $max);
+            return "served";
+        } catch (Throwable $range) {
+            return $range->message;
+        }
+    }
+
+    public static function bytes(Core\Random\Seeded $g, uint $count): string {
+        try {
+            $g->bytes($count);
+            return "served";
+        } catch (Throwable $draw) {
+            return $draw->message;
+        }
+    }
+
+    public static function token(Core\Random\Seeded $g, uint $count): string {
+        try {
+            $g->token($count);
+            return "served";
+        } catch (Throwable $rendered) {
+            return $rendered->message;
+        }
+    }
+
+    public static function sample(Core\Random\Seeded $g, array<int> $a, uint $count): string {
+        try {
+            $g->sample($a, $count);
+            return "served";
+        } catch (Throwable $short) {
+            return $short->message;
+        }
+    }
+}
+
+var $g = new Core\Random\Seeded(5);
+array<int> $three = [1, 2, 3];
+
+// The first call each member does not answer, one step outside the single
+// argument that decides it: a lower bound above the upper, a draw of nothing,
+// a sample wider than its array.
+echo Refused::int($g, 4, 3), "\n";
+echo Refused::bytes($g, 0), "\n";
+echo Refused::token($g, 0), "\n";
+echo Refused::sample($g, $three, 4), "\n";
+
+// And the draw no machine can serve, which the allocator refuses rather than
+// the policy seam — `random-an-oversized-draw-names-the-check-that-refused-it`
+// is where the two checks are told apart, and `token`'s bound sits at half of
+// `bytes`'s here for the same reason it does there.
+echo Refused::bytes($g, 9223372036854775807), "\n";
+echo Refused::token($g, 4611686018427387903), "\n";
+
+// A refusal draws nothing, so the sequence is where it was: a generator asked
+// twice for what it cannot answer still agrees, draw for draw, with one that
+// was never asked. `float` is the row that decides it — `pick` and `shuffle`
+// over four entries could agree by chance, and are here because a shared state
+// would have dragged them along with it.
+var $clean = new Core\Random\Seeded(9);
+var $bumped = new Core\Random\Seeded(9);
+echo Core\Str::startsWith(Refused::int($bumped, 4, 3), 'Core\Random\Seeded::') ? "refused" : "served", "\n";
+echo Core\Str::startsWith(Refused::bytes($bumped, 0), 'Core\Random\Seeded::') ? "refused" : "served", "\n";
+
+array<int> $box = [10, 20, 30, 40];
+int $held = 0;
+$held = $held + (($clean->float() == $bumped->float()) ? 1 : 0);
+$held = $held + ((($clean->pick($box) as int) == ($bumped->pick($box) as int)) ? 1 : 0);
+$held = $held + ((Core\Json::encode($clean->shuffle($box)) == Core\Json::encode($bumped->shuffle($box))) ? 1 : 0);
+echo "a refusal leaves the sequence where it was: ", $held, " of 3\n";
+--EXPECT--
+Core\Random\Seeded::int(): the range is empty — the lower bound 4 is above the upper bound 3, and both ends are inclusive
+Core\Random\Seeded::bytes(): a draw of zero bytes is the empty buffer, which is no sequence at all — draw at least one byte
+Core\Random\Seeded::token(): a token of zero bytes is the empty string, which is no sequence at all — draw at least one byte
+Core\Random\Seeded::sample(): asked for 4 distinct entries from an array that holds 3
+Core\Random\Seeded::bytes(): the requested draw is larger than any buffer this process could hold
+Core\Random\Seeded::token(): the requested draw is larger than any buffer this process could hold
+refused
+refused
+a refusal leaves the sequence where it was: 3 of 3

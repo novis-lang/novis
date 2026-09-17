@@ -1499,6 +1499,10 @@ pub const CLASSES: &[CoreClass] = &[
     crate::objset::CLASS,
     crate::heap::CLASS,
     crate::random::CLASS,
+    // Spec § 11's reproducible generator, which is a *type* rather than a mode
+    // the class above can be put into — `crate::random`'s own docs argue the
+    // separation, and [`CONSTRUCTORS`] is what makes `new` on it resolve.
+    crate::random::SEEDED,
     crate::uuid::CLASS,
     crate::hash::CLASS,
     crate::hash::STREAM,
@@ -2631,8 +2635,8 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
 pub const TRY_PARSE_CLASSES: &[&str] = &[crate::uri::NAME, crate::uuid::NAME];
 
 /// Every `Core` class a program may write `new` on, with the constructor that
-/// builds one — `docs/spec/01-core-library.md` § 9's collections and nothing
-/// else.
+/// builds one — `docs/spec/01-core-library.md` § 9's collections and § 11's
+/// seeded generator.
 ///
 /// A roster rather than a synthetic `constructor` row on [`CoreClass`], for
 /// the reason [`crate::instance`]'s module docs give: a `Core` class has no
@@ -2655,6 +2659,7 @@ pub const CONSTRUCTORS: &[(&str, &CoreMethod)] = &[
     (crate::objset::NAME, &crate::objset::NEW),
     (crate::heap::NAME, &crate::heap::NEW),
     (crate::channel::NAME, &crate::channel::NEW),
+    (crate::random::SEEDED_NAME, &crate::random::SEEDED_NEW),
 ];
 
 /// The constructor that builds a `class` instance, or `None` when `new` on it

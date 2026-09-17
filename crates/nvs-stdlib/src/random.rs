@@ -5,9 +5,8 @@
 //! `shuffle`, `str_shuffle` and `array_rand` into one class and keeps none of
 //! the insecure generators under any name. So there is no fast-but-predictable
 //! tier here to fall back to and none to add later: every member draws from a
-//! cryptographic generator, and the only escape from that is
-//! `Core\Random\Seeded`, a *different type* whose guarantee is reproducibility
-//! (gap 2 below).
+//! cryptographic generator, and the only escape from that is [`SEEDED`], a
+//! *different type* whose guarantee is reproducibility.
 //!
 //! # The generator, and why `rand`
 //!
@@ -50,6 +49,13 @@
 //! a call, so AGENTS.md's "attributable to a request and O(in-flight)" rule is
 //! satisfied trivially: the generator belongs to the worker, not to the work.
 //!
+//! A [`SEEDED`] instance spends one object allocation of its own: a header and
+//! a single 16-byte slot, which is the whole of that generator — SplitMix64's
+//! state is one word, so a reproducible generator costs what any other
+//! one-field object costs. It is charged to the request that wrote the `new`
+//! and released with the value, so the cost is O(in-flight) by construction and
+//! a program that writes none pays nothing.
+//!
 //! # Nothing forks, so no child inherits this state
 //!
 //! A `fork(2)` without an exec would leave the child drawing the parent's
@@ -62,21 +68,7 @@
 //! `Type=notify` unit, which is the systemd type that does not daemonize.
 //! Should a pre-fork model ever land, it owes `ThreadRng::reseed` in the child.
 //!
-//! # Known gaps
-//!
-//! 1. **`Core\Random\Seeded` is not built, and whether it should exist is the
-//!    open half.** Spec § 11 makes it a separate object with the same members,
-//!    constructed from an explicit seed, on the argument that making the
-//!    distinction a *type* is what stops a test helper being reached for in
-//!    production. `docs/novis.md`'s `Core\Random` chapter says there is no
-//!    seeded generator under any name, and ADR 0079 § 12 reaches reproducibility
-//!    from the other side: `#[Test(seed:)]` seeds this class for the isolate a
-//!    test runs in, which is the same argument it makes for the clock.
-//!    Decided: Register Core\Random\Seeded per spec § 11 — Reproducible sequences for simulations and
-//!    fixtures; a predictable generator becomes reachable from production code.
-//!    — owner: decided-closures
-//!
-//! # The one exception, and no program outside a test can select it
+//! # Reproducibility is a declared seed or a separate type, never this class
 //!
 //! A `#[Test(seed: …)]` isolate draws from [`SplitMix`] instead, so the test's
 //! sequence reproduces
@@ -86,8 +78,17 @@
 //!
 //! The selection is a field on `nvs_runtime::Ctx` that only the test runner
 //! writes, so there is no spelling outside a `#[Test]` that reaches it — see
-//! [`nvs_runtime::Ctx::random_state`], which owns that argument, and § 12's own
-//! reason for keeping `Core\Random\Seeded` a separate *type* in production.
+//! [`nvs_runtime::Ctx::random_state`], which owns that argument.
+//!
+//! [`SEEDED`] is the other way, and the one a program outside a test can write:
+//! `new Core\Random\Seeded(42)` holds a [`SplitMix`] state of its own in a slot
+//! and draws every member from it, so a seed fixes that one value's sequence
+//! and nothing else's. The separation is a **type** rather than a mode this
+//! class can be put into, which is spec § 11's own argument: a generator that
+//! reproduces says so at every call site that takes one, and cannot be reached
+//! for where an unpredictable one was meant. `srand` and `mt_srand` have no
+//! equivalent, because seeding the global generator is the spelling this
+//! separation removes.
 
 use rand::seq::SliceRandom;
 use rand::{Rng, RngExt};
@@ -100,10 +101,17 @@ use crate::registry::{Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc,
 // Registration — this class's rows, and where its symbols live
 // ============================================================================
 
+/// The class's fully-qualified name, as the registry holds it and as every
+/// message naming one of its members spells it.
+pub(crate) const NAME: &str = r"Core\Random";
+
+/// [`SEEDED`]'s name, the same way, and as [`CoreTy::Instance`] spells it.
+pub(crate) const SEEDED_NAME: &str = r"Core\Random\Seeded";
+
 /// `Core\Random`'s registry rows, in the spec's own order — all seven of
 /// § 11's first table.
 pub const CLASS: CoreClass = CoreClass {
-    name: r"Core\Random",
+    name: NAME,
     methods: &[
         CoreMethod {
             name: "int",
@@ -301,6 +309,250 @@ const SHUFFLE_DOC: MethodDoc = MethodDoc {
 /// resolves and the number the helper documents cannot drift apart.
 const DEFAULT_TOKEN_BYTES: u64 = 32;
 
+/// The linker symbol `new Core\Random\Seeded(…)` lowers to — see
+/// [`crate::registry::CONSTRUCTORS`], which is the roster `nvs-ir` reads.
+pub(crate) const SEEDED_NEW_SYMBOL: &str = "nvs_core_random_seeded_new";
+
+/// `new Core\Random\Seeded(int $seed)` — the constructor
+/// [`crate::registry::CONSTRUCTORS`] registers.
+///
+/// A positional parameter rather than an options bag: spec § 11 writes
+/// "constructed from an explicit seed", and a generator whose whole state is
+/// that seed has nothing else to be told. There is no default, because a
+/// *seeded* generator nobody gave a seed is the unpredictable one this class
+/// exists to be distinguishable from.
+pub(crate) const SEEDED_NEW: CoreMethod = CoreMethod {
+    name: "constructor",
+    names: &["seed"],
+    params: &[CoreTy::Int],
+    defaults: &[],
+    return_ty: CoreTy::Instance(SEEDED_NAME),
+    symbol: SEEDED_NEW_SYMBOL,
+    doc: Some(&SEEDED_CONSTRUCTOR_DOC),
+};
+
+/// `Core\Random\Seeded`'s registry rows — [`CLASS`]'s seven members, in the
+/// same order, over a sequence an explicit seed fixes.
+///
+/// **Every one of them is an instance member**, and the only static entry point
+/// is the constructor, which is not a member at all
+/// ([`crate::registry::CONSTRUCTORS`]). That is what makes the separation a
+/// type: there is no spelling that draws a reproducible value without holding
+/// one of these, and a parameter declaring it says which of the two generators
+/// it will accept.
+///
+/// One slot, holding the generator's state as an `int`, because [`SplitMix`]'s
+/// state is one word — the module docs' reason for writing that generator here
+/// is also the reason this class is an ordinary object rather than a handle
+/// into a table of native ones.
+pub(crate) const SEEDED: CoreClass = CoreClass {
+    name: SEEDED_NAME,
+    methods: &[],
+    instance: &[
+        CoreMethod {
+            name: "int",
+            names: &["min", "max"],
+            params: &[CoreTy::Int, CoreTy::Int],
+            defaults: &[],
+            return_ty: CoreTy::Int,
+            symbol: "nvs_core_random_seeded_int",
+            doc: Some(&SEEDED_INT_DOC),
+        },
+        CoreMethod {
+            name: "float",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Float,
+            symbol: "nvs_core_random_seeded_float",
+            doc: Some(&SEEDED_FLOAT_DOC),
+        },
+        CoreMethod {
+            name: "bytes",
+            names: &["count"],
+            params: &[CoreTy::Uint],
+            defaults: &[],
+            return_ty: CoreTy::Bytes,
+            symbol: "nvs_core_random_seeded_bytes",
+            doc: Some(&SEEDED_BYTES_DOC),
+        },
+        CoreMethod {
+            name: "token",
+            names: &["bytes"],
+            params: &[CoreTy::Uint],
+            defaults: &[Const::Uint(DEFAULT_TOKEN_BYTES)],
+            return_ty: CoreTy::Str,
+            symbol: "nvs_core_random_seeded_token",
+            doc: Some(&SEEDED_TOKEN_DOC),
+        },
+        CoreMethod {
+            name: "pick",
+            names: &["a"],
+            params: &[CoreTy::Array(&CoreTy::Var("T"))],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::Var("T")),
+            symbol: "nvs_core_random_seeded_pick",
+            doc: Some(&SEEDED_PICK_DOC),
+        },
+        CoreMethod {
+            name: "sample",
+            names: &["a", "count"],
+            params: &[CoreTy::Array(&CoreTy::Var("T")), CoreTy::Uint],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Var("T")),
+            symbol: "nvs_core_random_seeded_sample",
+            doc: Some(&SEEDED_SAMPLE_DOC),
+        },
+        CoreMethod {
+            name: "shuffle",
+            names: &["a"],
+            params: &[CoreTy::Array(&CoreTy::Var("T"))],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Var("T")),
+            symbol: "nvs_core_random_seeded_shuffle",
+            doc: Some(&SEEDED_SHUFFLE_DOC),
+        },
+    ],
+    slots: &["state"],
+    constants: &[],
+};
+
+/// [`SEEDED`]'s state slot, by index — the layout its `slots` names.
+const STATE_SLOT: usize = 0;
+
+/// `new Core\Random\Seeded`'s reference card — `rule:core-api/reference-card`.
+const SEEDED_CONSTRUCTOR_DOC: MethodDoc = MethodDoc {
+    short: "Builds a generator whose sequence `$seed` fixes — the reproducible half of spec § 11, \
+            replacing `srand` and `mt_srand` with a value rather than a mode.",
+    params: &[ParamDoc {
+        name: "seed",
+        desc: "The seed the sequence is drawn from; every `int` is one, including `0`.",
+        shape: &[],
+    }],
+    ret: "A generator drawing the same sequence for the same seed, and nothing about it is \
+          unpredictable.",
+    errors: &[],
+};
+
+/// `Core\Random\Seeded::int`'s reference card — `rule:core-api/reference-card`.
+const SEEDED_INT_DOC: MethodDoc = MethodDoc {
+    short: "Draws an integer uniformly from `[$min, $max]`, inclusive at both ends, from this \
+            generator's own sequence — `Core\\Random::int`'s answer, reproducibly.",
+    params: &[
+        ParamDoc {
+            name: "min",
+            desc: "The lowest value the draw may answer.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "max",
+            desc: "The highest value the draw may answer.",
+            shape: &[],
+        },
+    ],
+    ret: "An `int` in the range, without bias; `$min` itself when the two bounds are equal.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$min` is above `$max` — the range is empty, and the bounds are not swapped.",
+    }],
+};
+
+/// `Core\Random\Seeded::float`'s reference card — `rule:core-api/reference-card`.
+const SEEDED_FLOAT_DOC: MethodDoc = MethodDoc {
+    short: "Draws a float uniformly from the half-open interval `[0, 1)` from this generator's own \
+            sequence — `Core\\Random::float`'s answer, reproducibly.",
+    params: &[],
+    ret: "A `float` with 53 random bits; `0.0` is drawable and `1.0` is not.",
+    errors: &[],
+};
+
+/// `Core\Random\Seeded::bytes`'s reference card — `rule:core-api/reference-card`.
+const SEEDED_BYTES_DOC: MethodDoc = MethodDoc {
+    short: "Draws `$count` bytes from this generator's own sequence as a raw buffer — a fixture, \
+            never a key, since a reproducible buffer is a secret anyone holding the seed has.",
+    params: &[ParamDoc {
+        name: "count",
+        desc: "How many bytes to draw; at least one.",
+        shape: &[],
+    }],
+    ret: "A `bytes` value of exactly `$count` octets, unrendered.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$count` is `0`, as `Core\\Random::bytes`'s own draw of nothing is, or is larger \
+               than a buffer this process can allocate.",
+    }],
+};
+
+/// `Core\Random\Seeded::token`'s reference card — `rule:core-api/reference-card`.
+const SEEDED_TOKEN_DOC: MethodDoc = MethodDoc {
+    short: "Draws `$bytes` bytes from this generator's own sequence and renders them as lower-case \
+            hex — a stable identifier for a fixture, never a session token.",
+    params: &[ParamDoc {
+        name: "bytes",
+        desc: "How many bytes of entropy to draw, `32` by default — the answer is twice as many \
+               characters.",
+        shape: &[],
+    }],
+    ret: "A `string` of `2 * $bytes` hex digits, `0`–`9` and `a`–`f`.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$bytes` is `0`, or the draw or its rendering is larger than a buffer this process \
+               can allocate.",
+    }],
+};
+
+/// `Core\Random\Seeded::pick`'s reference card — `rule:core-api/reference-card`.
+const SEEDED_PICK_DOC: MethodDoc = MethodDoc {
+    short: "Draws one entry of `$a` uniformly from this generator's own sequence and answers its \
+            value — `Core\\Random::pick`'s answer, reproducibly.",
+    params: &[ParamDoc {
+        name: "a",
+        desc: "The array to draw from.",
+        shape: &[],
+    }],
+    ret: "One entry's value; `null` when `$a` is empty, which over an `array<?T>` is \
+          indistinguishable from drawing a `null` entry.",
+    errors: &[],
+};
+
+/// `Core\Random\Seeded::sample`'s reference card — `rule:core-api/reference-card`.
+const SEEDED_SAMPLE_DOC: MethodDoc = MethodDoc {
+    short: "Draws `$count` distinct entries of `$a` uniformly from this generator's own sequence — \
+            `Core\\Random::sample`'s answer, reproducibly.",
+    params: &[
+        ParamDoc {
+            name: "a",
+            desc: "The array to draw from.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "count",
+            desc: "How many distinct entries to draw; at most the array's size.",
+            shape: &[],
+        },
+    ],
+    ret: "A fresh list of the drawn values under `0, 1, …` keys, in drawn order; the subject's \
+          keys are discarded, and `$a` is unchanged.",
+    errors: &[ErrorDoc {
+        error: "RuntimeError",
+        desc: "`$count` is above the number of entries `$a` holds.",
+    }],
+};
+
+/// `Core\Random\Seeded::shuffle`'s reference card — `rule:core-api/reference-card`.
+const SEEDED_SHUFFLE_DOC: MethodDoc = MethodDoc {
+    short: "Answers every entry of `$a` in an order drawn from this generator's own sequence — \
+            `Core\\Random::shuffle`'s answer, reproducibly.",
+    params: &[ParamDoc {
+        name: "a",
+        desc: "The array to reorder.",
+        shape: &[],
+    }],
+    ret: "A fresh list of all the values under `0, 1, …` keys — the subject's keys are discarded \
+          — and `$a` is unchanged.",
+    errors: &[],
+};
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that
 /// belongs to another domain. See [`crate::symbols`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
@@ -312,6 +564,14 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_random_pick" => (nvs_core_random_pick as *const ()).cast(),
         "nvs_core_random_sample" => (nvs_core_random_sample as *const ()).cast(),
         "nvs_core_random_shuffle" => (nvs_core_random_shuffle as *const ()).cast(),
+        SEEDED_NEW_SYMBOL => (nvs_core_random_seeded_new as *const ()).cast(),
+        "nvs_core_random_seeded_int" => (nvs_core_random_seeded_int as *const ()).cast(),
+        "nvs_core_random_seeded_float" => (nvs_core_random_seeded_float as *const ()).cast(),
+        "nvs_core_random_seeded_bytes" => (nvs_core_random_seeded_bytes as *const ()).cast(),
+        "nvs_core_random_seeded_token" => (nvs_core_random_seeded_token as *const ()).cast(),
+        "nvs_core_random_seeded_pick" => (nvs_core_random_seeded_pick as *const ()).cast(),
+        "nvs_core_random_seeded_sample" => (nvs_core_random_seeded_sample as *const ()).cast(),
+        "nvs_core_random_seeded_shuffle" => (nvs_core_random_seeded_shuffle as *const ()).cast(),
         _ => return None,
     })
 }
@@ -320,11 +580,11 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 // Argument decoding — the same shape as `crate::path`'s, naming this class
 // ============================================================================
 
-/// One `int` argument.
-fn integer(value: &Value, member: &str, position: &str) -> Result<i64, Fault> {
+/// One `int` argument, reported against whichever of the two classes is asking.
+fn integer(class: &str, value: &Value, member: &str, position: &str) -> Result<i64, Fault> {
     value.as_int().ok_or_else(|| {
         Fault::fatal(format!(
-            "Core\\Random::{member} expected {:?} for {position}, got tag {}",
+            "{class}::{member} expected {:?} for {position}, got tag {}",
             Tag::Int,
             value.tag_byte()
         ))
@@ -333,10 +593,10 @@ fn integer(value: &Value, member: &str, position: &str) -> Result<i64, Fault> {
 
 /// One `uint` argument, as a `usize` — saturating, since a count larger than
 /// this process could address is refused by the caller either way.
-fn count(value: &Value, member: &str, position: &str) -> Result<usize, Fault> {
+fn count(class: &str, value: &Value, member: &str, position: &str) -> Result<usize, Fault> {
     let raw = value.as_uint().ok_or_else(|| {
         Fault::fatal(format!(
-            "Core\\Random::{member} expected {:?} for {position}, got tag {}",
+            "{class}::{member} expected {:?} for {position}, got tag {}",
             Tag::Uint,
             value.tag_byte()
         ))
@@ -347,12 +607,20 @@ fn count(value: &Value, member: &str, position: &str) -> Result<usize, Fault> {
 /// The subject array of one of the three `array<T>` members, as the borrowed
 /// handle [`crate::arr::borrowed`] owns the rules for — never
 /// `NvsArray::from_raw`, which would release the caller's reference on drop.
-fn subject(args: &[Value], member: &str) -> Result<std::mem::ManuallyDrop<NvsArray>, Fault> {
-    let array = args[0].array_ptr().ok_or_else(|| {
+///
+/// `at` is the slot it arrived in, which is `0` for a static member and `1` for
+/// an instance one, whose receiver is slot 0.
+fn subject(
+    class: &str,
+    args: &[Value],
+    at: usize,
+    member: &str,
+) -> Result<std::mem::ManuallyDrop<NvsArray>, Fault> {
+    let array = args[at].array_ptr().ok_or_else(|| {
         Fault::fatal(format!(
-            "Core\\Random::{member} expected {:?}, got tag {}",
+            "{class}::{member} expected {:?}, got tag {}",
             Tag::Array,
-            args[0].tag_byte()
+            args[at].tag_byte()
         ))
     })?;
     Ok(crate::arr::borrowed(array))
@@ -408,6 +676,99 @@ fn drawn(subject: &NvsArray, slots: &[usize]) -> Value {
         out.append(owned_value_at(subject, *slot));
     }
     Value::array(out)
+}
+
+// ============================================================================
+// The draws — one per member, over whichever generator the caller selected
+// ============================================================================
+//
+// Each is the whole of a member except its argument decoding and its refusals,
+// which stay with the member so that the sentence a program is handed names the
+// class it called. That is also why a refusal arrives here as a closure: the
+// message belongs to `Core\Random::bytes` or to `Core\Random\Seeded::bytes`,
+// and the arithmetic belongs to neither.
+
+/// `int`'s draw: one integer from `[min, max]`, both ends included.
+fn int_from(rng: &mut Generator<'_>, min: i64, max: i64) -> Value {
+    Value::int(rng.random_range(min..=max))
+}
+
+/// `float`'s draw: 53 random bits, uniform in `[0, 1)`.
+fn float_from(rng: &mut Generator<'_>) -> Value {
+    Value::float(rng.random::<f64>())
+}
+
+/// `bytes`'s and `token`'s draw: `count` octets, in a buffer reserved fallibly.
+///
+/// `vec![0; n]` *aborts the process* when the allocator refuses it, which in a
+/// server is every in-flight request paying for one argument, so the buffer is
+/// reserved fallibly and the caller says which member could not be served.
+///
+/// # Errors
+///
+/// `refusal`, when the allocator will not hold `count` octets.
+fn buffer_from(
+    rng: &mut Generator<'_>,
+    count: usize,
+    refusal: impl FnOnce() -> Fault,
+) -> Result<Vec<u8>, Fault> {
+    let mut drawn: Vec<u8> = Vec::new();
+    drawn.try_reserve_exact(count).map_err(|_| refusal())?;
+    drawn.resize(count, 0);
+    rng.fill_bytes(&mut drawn);
+    Ok(drawn)
+}
+
+/// `token`'s rendering: `drawn` as lower-case hex, in a string reserved
+/// fallibly for the reason [`buffer_from`] gives.
+///
+/// # Errors
+///
+/// `refusal`, when the allocator will not hold `digits` characters.
+fn hex_from(drawn: &[u8], digits: usize, refusal: impl FnOnce() -> Fault) -> Result<String, Fault> {
+    let mut token = String::new();
+    token.try_reserve_exact(digits).map_err(|_| refusal())?;
+    for byte in drawn.iter().copied() {
+        token.push(HEX_DIGITS[usize::from(byte >> 4)]);
+        token.push(HEX_DIGITS[usize::from(byte & 0x0f)]);
+    }
+    Ok(token)
+}
+
+/// `pick`'s draw: one entry's value, or `null` over an empty subject.
+fn pick_from(rng: &mut Generator<'_>, subject: &NvsArray) -> Value {
+    let slots = slots(subject);
+    match slots.len() {
+        0 => Value::null(),
+        len => owned_value_at(subject, slots[rng.random_range(0..len)]),
+    }
+}
+
+/// `sample`'s draw: `count` distinct entries, in the order they were drawn.
+///
+/// # Errors
+///
+/// `refusal`, handed the number of entries the subject holds, when `count` is
+/// above it — there are not that many distinct entries to draw.
+fn sample_from(
+    rng: &mut Generator<'_>,
+    subject: &NvsArray,
+    count: usize,
+    refusal: impl FnOnce(usize) -> Fault,
+) -> Result<Value, Fault> {
+    let mut slots = slots(subject);
+    if count > slots.len() {
+        return Err(refusal(slots.len()));
+    }
+    let (sampled, _) = slots.partial_shuffle(rng, count);
+    Ok(drawn(subject, sampled))
+}
+
+/// `shuffle`'s draw: every entry, in a uniformly random order.
+fn shuffle_from(rng: &mut Generator<'_>, subject: &NvsArray) -> Value {
+    let mut slots = slots(subject);
+    slots.shuffle(rng);
+    drawn(subject, &slots)
 }
 
 /// `rule:testing/determinism-declared-on-the-test`'s seeded generator: SplitMix64, over the single `u64` of state
@@ -520,6 +881,42 @@ impl rand::TryRng for Generator<'_> {
     }
 }
 
+/// Runs `with` against the generator the receiver in `args[0]` holds, writing
+/// the advanced state back into its slot.
+///
+/// Read, draw, write back — which is what makes a seed fix a *sequence* rather
+/// than one number, and it is per instance: two generators at one seed are two
+/// states that happen to be equal, so a draw from one says nothing about the
+/// other. [`draw`] is the same three steps against `nvs_runtime::Ctx`'s state,
+/// and the two are deliberately not one function: a member here has a receiver
+/// to read and never consults the context, so a test's declared seed and a
+/// value a program is holding cannot reach into each other.
+///
+/// The state is written back after the draw and not before, so a member that
+/// refused its arguments leaves the sequence exactly where it found it.
+///
+/// # Errors
+///
+/// The [`crate::instance::receiver`] fault a wrongly-tagged receiver is, which
+/// compiled code cannot produce.
+fn sequence<T>(
+    args: &[Value],
+    member: &str,
+    with: impl FnOnce(&mut Generator<'_>) -> T,
+) -> Result<T, Fault> {
+    let receiver = crate::instance::receiver(args[0], &SEEDED, member)?;
+    // The constructor wrote an `int` into this slot and nothing else ever
+    // writes it, so the fallback is a shape this crate cannot produce rather
+    // than a default anything relies on.
+    let held = crate::instance::slot(receiver, STATE_SLOT)
+        .as_int()
+        .unwrap_or(0);
+    let mut state = SplitMix(held.cast_unsigned());
+    let drawn = with(&mut Generator(&mut state));
+    crate::instance::set_slot(receiver, STATE_SLOT, Value::int(state.0.cast_signed()));
+    Ok(drawn)
+}
+
 // ============================================================================
 // The members
 // ============================================================================
@@ -534,8 +931,8 @@ nvs_runtime::nvs_helper! {
     /// so it throws (`rule:core-api/shape-rules` R4) rather than swapping the bounds — a swap
     /// would turn a computed-bounds bug into a plausible-looking result.
     fn nvs_core_random_int(ctx, args: [2]) {
-        let min = integer(&args[0], "int", "the lower bound")?;
-        let max = integer(&args[1], "int", "the upper bound")?;
+        let min = integer(NAME, &args[0], "int", "the lower bound")?;
+        let max = integer(NAME, &args[1], "int", "the upper bound")?;
 
         if min > max {
             return Err(Fault::thrown(format!(
@@ -543,7 +940,7 @@ nvs_runtime::nvs_helper! {
                  upper bound {max}, and both ends are inclusive"
             )));
         }
-        Ok(Value::int(draw(ctx, |rng| rng.random_range(min..=max))))
+        Ok(draw(ctx, |rng| int_from(rng, min, max)))
     }
 }
 
@@ -557,7 +954,7 @@ nvs_runtime::nvs_helper! {
     /// `f64`.
     fn nvs_core_random_float(ctx, args: [0]) {
         let _ = args;
-        Ok(Value::float(draw(ctx, |rng| rng.random::<f64>())))
+        Ok(draw(ctx, float_from))
     }
 }
 
@@ -587,7 +984,7 @@ nvs_runtime::nvs_helper! {
     /// and asking it is both exact and the difference between a throw and an
     /// abort.
     fn nvs_core_random_bytes(ctx, args: [1]) {
-        let count = count(&args[0], "bytes", "the byte count")?;
+        let count = count(NAME, &args[0], "bytes", "the byte count")?;
 
         if count == 0 {
             return Err(Fault::thrown(
@@ -602,15 +999,13 @@ nvs_runtime::nvs_helper! {
         // the first is where `[limits.hard]` will attach, the second is what
         // catches a draw the machine cannot satisfy today.
         nvs_runtime::affordable(Some(count), "Core\\Random::bytes()")?;
-        let mut drawn: Vec<u8> = Vec::new();
-        drawn.try_reserve_exact(count).map_err(|_| {
+        let refusal = || {
             Fault::thrown(
                 "Core\\Random::bytes(): the requested draw is larger than any buffer this process \
                  could hold",
             )
-        })?;
-        drawn.resize(count, 0);
-        draw(ctx, |rng| rng.fill_bytes(&mut drawn));
+        };
+        let drawn = draw(ctx, |rng| buffer_from(rng, count, refusal))?;
 
         Ok(Value::bytes(NvsStr::new(&drawn)))
     }
@@ -645,7 +1040,7 @@ nvs_runtime::nvs_helper! {
     /// so both buffers are reserved fallibly and report the same refusal
     /// `bytes` reports.
     fn nvs_core_random_token(ctx, args: [1]) {
-        let bytes = count(&args[0], "token", "the byte count")?;
+        let bytes = count(NAME, &args[0], "token", "the byte count")?;
 
         if bytes == 0 {
             return Err(Fault::thrown(
@@ -662,24 +1057,17 @@ nvs_runtime::nvs_helper! {
         // The allocator is then asked rather than assumed: `vec![0; n]` and
         // `String::with_capacity(n)` abort the process on a refusal, and a
         // count the seam allows can still be a draw this machine cannot serve.
-        let mut drawn: Vec<u8> = Vec::new();
-        let mut token = String::new();
-        drawn
-            .try_reserve_exact(bytes)
-            .and_then(|()| token.try_reserve_exact(digits))
-            .map_err(|_| {
-                Fault::thrown(
-                    "Core\\Random::token(): the requested draw is larger than any buffer this \
-                     process could hold",
-                )
-            })?;
-        drawn.resize(bytes, 0);
-        draw(ctx, |rng| rng.fill_bytes(&mut drawn));
+        // One sentence for both buffers, since a caller cannot act on which of
+        // the two the allocator stopped at.
+        let refusal = || {
+            Fault::thrown(
+                "Core\\Random::token(): the requested draw is larger than any buffer this \
+                 process could hold",
+            )
+        };
+        let drawn = draw(ctx, |rng| buffer_from(rng, bytes, refusal))?;
+        let token = hex_from(&drawn, digits, refusal)?;
 
-        for byte in drawn {
-            token.push(HEX_DIGITS[usize::from(byte >> 4)]);
-            token.push(HEX_DIGITS[usize::from(byte & 0x0f)]);
-        }
         Ok(Value::str(NvsStr::new(token.as_bytes())))
     }
 }
@@ -698,16 +1086,9 @@ nvs_runtime::nvs_helper! {
     /// which is the shape that makes `$a[array_rand($a)]` the idiom. `rule:types/arrays` stores every key as a string, so answering with one would hand back
     /// a `string` for an `array<T>` and lose the type the caller had.
     fn nvs_core_random_pick(ctx, args: [1]) {
-        let subject = subject(args, "pick")?;
+        let subject = subject(NAME, args, 0, "pick")?;
 
-        let slots = slots(&subject);
-        Ok(match slots.len() {
-            0 => Value::null(),
-            len => {
-                let at = draw(ctx, |rng| rng.random_range(0..len));
-                owned_value_at(&subject, slots[at])
-            }
-        })
+        Ok(draw(ctx, |rng| pick_from(rng, &subject)))
     }
 }
 
@@ -729,23 +1110,17 @@ nvs_runtime::nvs_helper! {
     /// duplicate or silently answering short — a failure either way, and only
     /// the throw says so.
     fn nvs_core_random_sample(ctx, args: [2]) {
-        let subject = subject(args, "sample")?;
-        let count = count(&args[1], "sample", "the sample size")?;
+        let subject = subject(NAME, args, 0, "sample")?;
+        let count = count(NAME, &args[1], "sample", "the sample size")?;
 
-        let mut slots = slots(&subject);
-        if count > slots.len() {
-            let held = slots.len();
-            return Err(Fault::thrown(format!(
-                "Core\\Random::sample(): asked for {count} distinct entries from an array that \
-                 holds {held}"
-            )));
-        }
-        // Copied out of the closure rather than borrowed through it: the
-        // shuffled half is a slice *into* `slots`, and a reference cannot leave
-        // a closure whose return type is `draw`'s own type variable. One `Vec`
-        // of indices on a path that is already building an array.
-        let sampled = draw(ctx, |rng| slots.partial_shuffle(rng, count).0.to_vec());
-        Ok(drawn(&subject, &sampled))
+        draw(ctx, |rng| {
+            sample_from(rng, &subject, count, |held| {
+                Fault::thrown(format!(
+                    "Core\\Random::sample(): asked for {count} distinct entries from an array \
+                     that holds {held}"
+                ))
+            })
+        })
     }
 }
 
@@ -762,11 +1137,168 @@ nvs_runtime::nvs_helper! {
     /// shuffle is about position, and a key that survived it would name an
     /// entry that is no longer where the caller left it.
     fn nvs_core_random_shuffle(ctx, args: [1]) {
-        let subject = subject(args, "shuffle")?;
+        let subject = subject(NAME, args, 0, "shuffle")?;
 
-        let mut slots = slots(&subject);
-        draw(ctx, |rng| slots.shuffle(rng));
-        Ok(drawn(&subject, &slots))
+        Ok(draw(ctx, |rng| shuffle_from(rng, &subject)))
+    }
+}
+
+// ============================================================================
+// `Core\Random\Seeded` — the same seven, over a sequence a seed fixes
+// ============================================================================
+
+nvs_runtime::nvs_helper! {
+    /// `new Core\Random\Seeded(int $seed)` — a generator whose sequence
+    /// `$seed` fixes.
+    ///
+    /// Reached as a symbol rather than as a registered `constructor` member: a
+    /// `Core` class has no constructor a program could resolve, so `nvs-ir`
+    /// lowers `new` on one straight to this helper ([`crate::instance`]'s
+    /// module docs), and [`SEEDED_NEW`] is the signature the checker holds the
+    /// call to.
+    ///
+    /// **The seed is the state**, which is what makes
+    /// `new Core\Random\Seeded(42)` draw the sequence a `#[Test(seed: 42)]`
+    /// isolate draws from `Core\Random`: the test runner seeds
+    /// `nvs_runtime::Ctx::random_state` with the same `int`, and both ends
+    /// build the same [`SplitMix`] over it. Every `int` is a seed, `0`
+    /// included, so there is nothing here to refuse.
+    fn nvs_core_random_seeded_new(_ctx, args: [1]) {
+        let seed = integer(SEEDED_NAME, &args[0], "constructor", "the seed")?;
+        Ok(crate::instance::build(&SEEDED, [Value::int(seed)]))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Random\Seeded::int(int $min, int $max): int` — the draw
+    /// [`nvs_core_random_int`] makes, from this instance's own sequence.
+    ///
+    /// The closed bounds and the empty-range throw are that member's, argued
+    /// there; what differs is only where the bits come from.
+    fn nvs_core_random_seeded_int(_ctx, args: [3]) {
+        let min = integer(SEEDED_NAME, &args[1], "int", "the lower bound")?;
+        let max = integer(SEEDED_NAME, &args[2], "int", "the upper bound")?;
+
+        if min > max {
+            return Err(Fault::thrown(format!(
+                "Core\\Random\\Seeded::int(): the range is empty — the lower bound {min} is \
+                 above the upper bound {max}, and both ends are inclusive"
+            )));
+        }
+        sequence(args, "int", |rng| int_from(rng, min, max))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Random\Seeded::float(): float` — the draw
+    /// [`nvs_core_random_float`] makes, from this instance's own sequence.
+    fn nvs_core_random_seeded_float(_ctx, args: [1]) {
+        sequence(args, "float", float_from)
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Random\Seeded::bytes(uint $count): bytes` — the draw
+    /// [`nvs_core_random_bytes`] makes, from this instance's own sequence.
+    ///
+    /// **A fixture, not a key.** The buffer is exactly as unpredictable as the
+    /// seed that produced it, so the guarantee `Core\Random::bytes` carries is
+    /// not this member's; the two are different types precisely so that a
+    /// program cannot reach one where it meant the other.
+    ///
+    /// Zero bytes throws and an oversized draw is refused twice over, both for
+    /// the reasons [`nvs_core_random_bytes`] gives.
+    fn nvs_core_random_seeded_bytes(_ctx, args: [2]) {
+        let count = count(SEEDED_NAME, &args[1], "bytes", "the byte count")?;
+
+        if count == 0 {
+            return Err(Fault::thrown(
+                "Core\\Random\\Seeded::bytes(): a draw of zero bytes is the empty buffer, which \
+                 is no sequence at all — draw at least one byte",
+            ));
+        }
+        nvs_runtime::affordable(Some(count), "Core\\Random\\Seeded::bytes()")?;
+        let refusal = || {
+            Fault::thrown(
+                "Core\\Random\\Seeded::bytes(): the requested draw is larger than any buffer \
+                 this process could hold",
+            )
+        };
+        let drawn = sequence(args, "bytes", |rng| buffer_from(rng, count, refusal))??;
+
+        Ok(Value::bytes(NvsStr::new(&drawn)))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Random\Seeded::token(uint $bytes = 32): string` — the draw
+    /// [`nvs_core_random_token`] makes, from this instance's own sequence, and
+    /// rendered the same way.
+    ///
+    /// A stable identifier for a fixture rather than a session token, which is
+    /// [`nvs_core_random_seeded_bytes`]'s distinction one rendering further on.
+    /// `$bytes` counts the entropy drawn and never the characters produced, as
+    /// it does there.
+    fn nvs_core_random_seeded_token(_ctx, args: [2]) {
+        let bytes = count(SEEDED_NAME, &args[1], "token", "the byte count")?;
+
+        if bytes == 0 {
+            return Err(Fault::thrown(
+                "Core\\Random\\Seeded::token(): a token of zero bytes is the empty string, which \
+                 is no sequence at all — draw at least one byte",
+            ));
+        }
+        let digits =
+            nvs_runtime::affordable(bytes.checked_mul(2), "Core\\Random\\Seeded::token()")?;
+        let refusal = || {
+            Fault::thrown(
+                "Core\\Random\\Seeded::token(): the requested draw is larger than any buffer \
+                 this process could hold",
+            )
+        };
+        let drawn = sequence(args, "token", |rng| buffer_from(rng, bytes, refusal))??;
+        let token = hex_from(&drawn, digits, refusal)?;
+
+        Ok(Value::str(NvsStr::new(token.as_bytes())))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Random\Seeded::pick(array<T> $a): ?T` — the draw
+    /// [`nvs_core_random_pick`] makes, from this instance's own sequence.
+    fn nvs_core_random_seeded_pick(_ctx, args: [2]) {
+        let subject = subject(SEEDED_NAME, args, 1, "pick")?;
+
+        sequence(args, "pick", |rng| pick_from(rng, &subject))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Random\Seeded::sample(array<T> $a, uint $count): array<T>` — the
+    /// draw [`nvs_core_random_sample`] makes, from this instance's own
+    /// sequence, in the order it drew them.
+    fn nvs_core_random_seeded_sample(_ctx, args: [3]) {
+        let subject = subject(SEEDED_NAME, args, 1, "sample")?;
+        let count = count(SEEDED_NAME, &args[2], "sample", "the sample size")?;
+
+        sequence(args, "sample", |rng| {
+            sample_from(rng, &subject, count, |held| {
+                Fault::thrown(format!(
+                    "Core\\Random\\Seeded::sample(): asked for {count} distinct entries from an \
+                     array that holds {held}"
+                ))
+            })
+        })?
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Random\Seeded::shuffle(array<T> $a): array<T>` — the draw
+    /// [`nvs_core_random_shuffle`] makes, from this instance's own sequence.
+    fn nvs_core_random_seeded_shuffle(_ctx, args: [2]) {
+        let subject = subject(SEEDED_NAME, args, 1, "shuffle")?;
+
+        sequence(args, "shuffle", |rng| shuffle_from(rng, &subject))
     }
 }
 
@@ -1079,5 +1611,79 @@ mod tests {
         let status = run(super::nvs_core_random_int, &[Value::uint(1), Value::int(6)])
             .expect_err("a `uint` is not an `int`");
         assert_eq!(status, nvs_runtime::FATAL);
+    }
+
+    /// A generator at `seed`, as `new Core\Random\Seeded($seed)` builds one.
+    fn seeded(seed: i64) -> Value {
+        run(super::nvs_core_random_seeded_new, &[Value::int(seed)]).expect("every `int` is a seed")
+    }
+
+    /// `count` draws over the whole non-negative range, which is wide enough
+    /// that two sequences agreeing by chance is not a thing that happens.
+    fn sequence(generator: Value, count: usize) -> Vec<i64> {
+        let mut drawn = Vec::new();
+        for _ in 0..count {
+            drawn.push(
+                run(
+                    super::nvs_core_random_seeded_int,
+                    &[generator, Value::int(0), Value::int(i64::MAX)],
+                )
+                .expect("a non-empty range always has an answer")
+                .as_int()
+                .expect("`int` answers with an `int`"),
+            );
+        }
+        drawn
+    }
+
+    /// The class's whole promise: one seed is one sequence, and another seed is
+    /// another one.
+    #[test]
+    fn core_random_seeded_gives_the_same_sequence_for_the_same_seed() {
+        let left = seeded(42);
+        let right = seeded(42);
+        let apart = seeded(43);
+
+        let replayed = sequence(left, 16);
+        assert_eq!(replayed, sequence(right, 16));
+        assert_ne!(replayed, sequence(apart, 16));
+
+        release(left);
+        release(right);
+        release(apart);
+    }
+
+    /// The advanced state reaches the instance's slot, so the seed fixes a
+    /// sequence rather than a number — a generator that kept its seed unchanged
+    /// would answer one value forever and still pass the test above.
+    #[test]
+    fn a_seeded_generator_advances_between_draws() {
+        let generator = seeded(7);
+        let drawn = sequence(generator, 8);
+
+        let mut distinct = drawn.clone();
+        distinct.sort_unstable();
+        distinct.dedup();
+        assert_eq!(distinct.len(), drawn.len(), "a draw repeated: {drawn:?}");
+        release(generator);
+    }
+
+    /// A refused draw takes nothing from the sequence: the state is written
+    /// back after the draw and not before it, so the next draw is the one the
+    /// refusal was asked instead of.
+    #[test]
+    fn a_refused_seeded_draw_leaves_the_sequence_where_it_was() {
+        let bumped = seeded(11);
+        let status = run(
+            super::nvs_core_random_seeded_int,
+            &[bumped, Value::int(4), Value::int(3)],
+        )
+        .expect_err("no integer is both at least 4 and at most 3");
+        assert_eq!(status, nvs_runtime::THROWN);
+
+        let clean = seeded(11);
+        assert_eq!(sequence(bumped, 4), sequence(clean, 4));
+        release(bumped);
+        release(clean);
     }
 }

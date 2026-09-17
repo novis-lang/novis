@@ -1,0 +1,63 @@
+--TEST--
+Every `Core\Random\Seeded` draw holds the invariant its `Core\Random` twin is pinned by, swept over a run of draws — spec § 11, `rule:core-api/shape-rules` R5
+--FILE--
+<?nvs
+// The other half of what the type promises: a seeded generator is reproducible
+// *and* is still the member it mirrors. Each count below is the invariant its
+// twin is held to in `random-every-draw-is-swept-for-its-invariants`, asked of
+// a whole run rather than of one draw, so a member that got a bound right most
+// of the time fails the count rather than passing a spot check.
+var $g = new Core\Random\Seeded(2024);
+array<int> $box = [10, 20, 30, 40];
+var $sorted = Core\Json::encode(Core\Arr::sort($box));
+
+int $i = 0;
+int $inside = 0;
+int $unit = 0;
+int $sized = 0;
+int $rendered = 0;
+int $distinct = 0;
+int $permutation = 0;
+array<int> $picks = [];
+for ($i = 0; $i < 64; $i = $i + 1) {
+    // Closed at both ends, as `Core\Random::int` is.
+    var $d = $g->int(1, 6);
+    $inside = $inside + ((($d >= 1) && ($d <= 6)) ? 1 : 0);
+
+    // Half-open in the other direction, as `Core\Random::float` is.
+    var $f = $g->float();
+    $unit = $unit + ((($f >= 0.0) && ($f < 1.0)) ? 1 : 0);
+
+    // `rule:types/conversion` makes `bytes as string` checked, so a buffer is
+    // measured through `Core\Encoding::toHex` and is twice its own length.
+    var $b = Core\Encoding::toHex($g->bytes(16));
+    $sized = $sized + ((Core\Str::length($b) == 32) ? 1 : 0);
+
+    // `token` counts the entropy drawn and never the characters rendered.
+    var $t = $g->token(8);
+    $rendered = $rendered + ((Core\Str::length($t) == 16) ? 1 : 0);
+
+    // `pick` answers a member of its argument; the whole run is compared
+    // against the box below rather than one draw at a time.
+    $picks = Core\Arr::append($picks, $g->pick($box) as int);
+
+    // `sample` draws distinct entries, and `shuffle` is a permutation rather
+    // than a fresh draw over the same element set.
+    var $two = $g->sample($box, 2);
+    $distinct = $distinct + ((Core\Arr::count(Core\Arr::unique($two)) == 2) ? 1 : 0);
+    var $s = $g->shuffle($box);
+    $permutation = $permutation + ((Core\Json::encode(Core\Arr::sort($s)) == $sorted) ? 1 : 0);
+}
+echo "int ", $inside, " float ", $unit, " bytes ", $sized, " token ", $rendered, "\n";
+echo "sample ", $distinct, " shuffle ", $permutation, "\n";
+echo "pick ", Core\Arr::count($picks), " ", Core\Arr::count(Core\Arr::diff($picks, $box)), "\n";
+
+// A seed is a sequence and not a constant: 64 picks at one seed reach more
+// than one entry. A generator that never wrote its advanced state back holds
+// every count above and fails this line.
+echo "picked ", (Core\Arr::count(Core\Arr::unique($picks)) > 1) ? "more than one entry" : "one entry", "\n";
+--EXPECT--
+int 64 float 64 bytes 64 token 64
+sample 64 shuffle 64
+pick 64 0
+picked more than one entry
