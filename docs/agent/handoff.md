@@ -14,8 +14,8 @@ rename. The floor gate runs one session in ten, which is why the driver's accept
 reached it.
 
 **The last two unowned items resolved the two different ways the stage allows.** The shared-store
-item took a chain entry: goal `cache-shared-dial` is goal 65, between `tds-bytes` and `gap-zero` (now
-66, `dossier` 67), because none of the three refusals needs a mechanism built — the secret registry
+item took a chain entry: goal `cache-shared-dial` sits between `tds-bytes` and `gap-zero`, which it
+displaced along with `dossier`, because none of the three refusals needs a mechanism built — the secret registry
 (`crates/nvs-config/src/secret.rs:161`), the one outbound TLS client, and a `Transport` enum that
 already exists to say which socket a store is reached over. `tests/db/compose.yaml:293`'s `redis`
 already serves TLS on `6380`, so that goal's real-store stage needs no compose edit.
