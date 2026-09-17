@@ -27,6 +27,16 @@
 //! value can answer — which node kind a tag denotes, and which property is
 //! `secret` — and it applies the caps it was given rather than choosing them.
 //!
+//! It reads that node kind off a [`Tag`] and off nothing else, which fixes one
+//! bound: **an enum case walks to its backing integer.** `rule:types/conversion`
+//! gives an enum no tag of its own — a case *is* an `int` by the time it is a
+//! [`Value`] — so one arriving through `mixed` is a `Scalar` int and shows the
+//! number it is rather than the case it was written as. [`Node::EnumCase`] is
+//! the model's kind for a producer that holds the static type and therefore
+//! knows which enum a number came from; recovering it from a walk would want
+//! the tag roster to tell an enum apart, which is the representation
+//! `rule:types/conversion` declines to spend.
+//!
 //! # What it spends
 //!
 //! One node per value reached, bounded by [`Caps`], plus one recursion frame
@@ -51,16 +61,6 @@
 //!    it.
 //!    Decided: Refuse at compile time storing a secret into an array element or shape field — Small and
 //!    closes the leak, but a program cannot keep, say, a list of API keys without a wrapper class.
-//!    — owner: decided-closures
-//! 2. **An enum case walks to its backing integer.** `rule:types/conversion` gives an
-//!    enum no tag of its own — it *is* an `int` at run time — so a case
-//!    arriving through `mixed` is indistinguishable from one here.
-//!    [`Node::EnumCase`] exists and is what a producer with a static
-//!    type would build; reaching it from a walk wants the tag roster to
-//!    distinguish an enum, which is a representation change `rule:types/conversion`
-//!    deliberately declined.
-//!    Decided: Keep the decided rule: through mixed an enum is its integer; statically typed dumps
-//!    already render the case — No change; a dump through mixed is less readable.
 //!    — owner: decided-closures
 
 use nvs_render::{Caps, Elision, Node, Rendered, Scalar};

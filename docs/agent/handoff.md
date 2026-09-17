@@ -5,32 +5,40 @@
 **Goal `decided-closures`, stage 2 — the runtime and the lowering.** Stage 1's floor is the closed goal
 `cache-shared-dial`'s checks, and they pass.
 
-`crates/nvs-runtime/src/lib.rs` gap 2 is **built and deleted**: `nvs_str_concat` and `nvs_str_concat_n`
-consume one reference to their leading operand and write into its buffer when nothing else holds it, so
-`$s = $s . $x` is linear. The protocol's one home is `nvs_ir::ir::InstKind::Concat`'s doc comment; the
-runtime body is `crates/nvs-runtime/src/string.rs`'s `concat_onto`. Three of the stage's four items are
-left, and nothing is blocked.
+Two of stage 2's items are off the register. `crates/nvs-runtime/src/decimal.rs` gap 1 is **built and
+deleted**: a division whose 128-bit scale fold overflows retries at 192 bits, exact everywhere, and the
+fold that fits keeps its `u128` arithmetic — `Decimal::long_divide_at_192` is the second path and `U192`
+is the width, both in `decimal.rs`. `crates/nvs-runtime/src/record.rs` gap 2 is **struck as a bound**:
+the walk reads a node kind off a `Tag` and an enum has none, so through `mixed` a case is its integer,
+and that is now the module's own prose rather than a numbered item.
+
+What keeps stage 2 red is the collector — `nvs_safepoint` still clears `COLLECT` and acts on nothing —
+and the `otlp` push in `nvs-server`. Nothing is blocked.
 
 ## Next group
 
-**Stage 2: the runtime and the lowering, continued** — one file set: `crates/nvs-runtime/src/decimal.rs`,
-`crates/nvs-runtime/src/record.rs`, `crates/nvs-runtime/src/lib.rs`, `crates/nvs-ir/src/lib.rs`.
+**Stage 2: the collector, near the memory ceiling** — one file set:
+`crates/nvs-runtime/src/ctx/safepoint.rs`, `crates/nvs-runtime/src/ctx/mod.rs`,
+`crates/nvs-runtime/src/object.rs`, `crates/nvs-runtime/src/array.rs`, `crates/nvs-runtime/src/lib.rs`.
 
-- [ ] **A 128-bit overflow retries at 192 bits** — `crates/nvs-runtime/src/decimal.rs:45`, the gap over
-      `Decimal::checked_div`'s scale fold; exact everywhere, the common path untouched, per
-      `rule:types/decimal` and ADR 0054 § *Consequences*.
-- [ ] **`record.rs` gap 2 is struck** — `crates/nvs-runtime/src/record.rs:55`: through `mixed` an enum is
-      its backing integer, so the bound becomes the module's own prose and the numbered item goes
-      (`rule:types/conversion`).
-- [ ] **The collector**, if the group's context allows a third slice — `crates/nvs-ir/src/lib.rs:614`
-      with `crates/nvs-runtime/src/lib.rs:199` and `crates/nvs-runtime/src/lib.rs:206`, one build, run
-      only near the memory ceiling (`rule:programs/memory-priority`).
+- [ ] **`COLLECT` runs a collection instead of being cleared** — `crates/nvs-runtime/src/ctx/safepoint.rs:536`,
+      where the flag is dropped beside `DEBUG_BREAK` and `MEMORY_LIMIT`, and
+      `crates/nvs-runtime/src/ctx/mod.rs:233` where it is declared. The decision is *a collector that
+      runs only near the memory ceiling*, so the normal request path pays nothing; what it spends per
+      request goes in the module doc per `rule:programs/memory-priority`. The test the stage names is
+      `a_cycle_is_reclaimed_near_the_memory_ceiling_while_the_request_runs`.
+- [ ] **The walk reuses dismantling rather than a second traversal** —
+      `crates/nvs-runtime/src/object.rs:3237` and `crates/nvs-runtime/src/array.rs:1299` are the two
+      `dismantle` bodies that already know how to reach a value's children, per
+      `rule:classes/no-destructors`.
+- [ ] **Both halves of the gap are deleted once it runs** — `crates/nvs-runtime/src/lib.rs:199` gap 5
+      and `crates/nvs-ir/src/lib.rs:614` item 14 say the same thing from either side of the crate edge.
 
 ## Backlog
 
-- Stage 2's remaining items: `record.rs` gap 1 (the compile-time refusal lives in `nvs-types`),
-  `routes.rs` gap 1 (measure first), `metrics.rs` gap 1 (the `otlp` pusher, `crates/nvs-server`), and
-  `nvs-ir/src/lib.rs` gap 18 — the last two share no files with the group above.
-- Stage 3 (`nvs-types`, `nvs-hir`, `nvs-syntax`, `nvs-diagnostics`) and stage 4 (`nvs-stdlib`), each
-  its own file set; stage 4's prepared-pattern channel is the goal's one ADR.
-- When this goal's last check goes green the driver takes goal `gap-zero`.
+- Stage 2's other check, its own file set: `an_otlp_endpoint_receives_the_registry_as_a_push` in
+  `nvs-server` — `docs/agent/loop-goal.toml:11558`.
+- `crates/nvs-runtime/src/record.rs:38` gap 1: refuse at compile time storing a `secret` into an array
+  element or a shape field — a `nvs-types` slice, not a runtime one.
+- Nothing in the workspace builds `nvs_render::Node::EnumCase`; the kind is consumer-only today, and no
+  rule asks a producer for it — `docs/rules/errors/diagnostic-record.md`.
