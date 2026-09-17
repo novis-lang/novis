@@ -64,6 +64,19 @@
 //! happened yet, and that drain sees it. A ring for a receptionist that is
 //! already running is the ordinary spurious wake every park site here tolerates.
 //!
+//! # A core that is already running can offer itself
+//!
+//! Everything above describes a core this module started. A core that already
+//! has a thread, a scheduler and a reactor — a serving core — needs none of
+//! that built for it a second time, and ADR 0184 § 5 is why it may not have it:
+//! those threads are pinned, and a second thread per core for placement work
+//! would oversubscribe exactly the cores the server's own latency depends on.
+//! So [`register_this_core`] puts an inbox in the set and spawns the identical
+//! receptionist on the caller's scheduler, and [`WorkerCores`] holds a member
+//! with no thread of its own to join. A set that can reach one never starts one,
+//! and the core asking is never the core answered — a child is started on a core
+//! *other than* its parent's, and a registered core is in the set it is asking.
+//!
 //! # A placed child is still its parent's child
 //!
 //! ADR 0184 § 4: it dies with its parent, and the parent's call does not return
@@ -88,7 +101,10 @@
 //! thread per core, started the first time work is placed and never afterwards
 //! reclaimed: O(cores), never O(requests served), and a process that places
 //! nothing has none — the same shape, and the same reason, as a worker with no
-//! blocking work having no pool threads. Per placement in flight, charged to the
+//! blocking work having no pool threads. A **registered** core costs no thread
+//! at all, only an inbox and one long-lived task on a core that was running
+//! anyway, so a deployment that places nothing pays nothing for having offered.
+//! Per placement in flight, charged to the
 //! tree that asked for it: one boxed job, one answer slot, one [`RemoteWake`],
 //! and on the far core one task and its pooled stack ([`crate::stack`]). The
 //! argument and the answer are copied at every node in both directions, which is
@@ -96,15 +112,13 @@
 //!
 //! # Known gaps
 //!
-//! A serving core does not register its own inbox here, so a placement under
-//! `nvs serve` reaches one of the lazily started cores below rather than the
-//! sibling serving core ADR 0184 § 5 decides on. That is the destination set the
-//! same record's *Revisiting* names as the fallback, taken here without the
-//! measurement that trigger describes and pre-authorized by the goal's standing
-//! decisions; `rule:concurrency/on-worker-runs-the-child-on-another-core` is
-//! written as what runs. Closing it is a serving core calling into this module
-//! as it starts rather than anything about the crossing, so it needs nothing a
-//! later milestone builds and goal `worker-placement` owns it.
+//! `nvs serve` does not call [`register_this_core`] yet, so a placement there
+//! still reaches one of the lazily started cores rather than the sibling serving
+//! core ADR 0184 § 5 decides on. The seam and the destination set are here; what
+//! is missing is the one call where a serving core starts, which is
+//! `crates/nvs-cli/src/serve.rs`'s to make and goal `worker-placement` owns.
+//! Until it does, `rule:concurrency/on-worker-runs-the-child-on-another-core`'s
+//! last paragraph is written as what runs.
 //!
 //! What reaches this from above is [`crate::placed`], and it reaches it for both
 //! of `spawn script`'s entry forms: a core here is started under the process's
@@ -114,6 +128,7 @@
 //! transport here.
 //! — owner: worker-placement
 
+use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
@@ -497,11 +512,17 @@ struct WorkerCores {
     next: usize,
 }
 
-/// One started core: its inbox, and the thread running its scheduler.
+/// One core in the set: its inbox, and the thread this set started for it.
+///
+/// `worker` is `None` for a core that was **registered** rather than started. A
+/// serving core already has a thread, a scheduler and a reactor of its own
+/// before any placement is written, and drains its inbox from a receptionist on
+/// that scheduler ([`WorkerCores::register`]), so what the set holds of one is
+/// the inbox alone — there is no thread here that is this set's to end.
 #[derive(Debug)]
 struct Core {
     inbox: Arc<Inbox>,
-    worker: Worker<()>,
+    worker: Option<Worker<()>>,
 }
 
 impl WorkerCores {
@@ -519,38 +540,105 @@ impl WorkerCores {
         }
     }
 
-    /// How many cores this set has started.
+    /// How many cores this set has started a thread for.
+    ///
+    /// Not the size of the destination set: a registered core is in that set and
+    /// costs this process no thread, which is the whole of what registering one
+    /// buys. [`Self::pick`] measures the bound against the set's size rather
+    /// than against this, because a core that is already reachable is a core
+    /// this set may not start a second of.
     fn started(&self) -> usize {
-        self.cores.len()
+        self.cores
+            .iter()
+            .filter(|core| core.worker.is_some())
+            .count()
     }
 
-    /// The inbox of a core to place work on, starting one if every core it has
-    /// is busy and the bound allows another.
+    /// Adds a core this set did not start, and answers the inbox it is to drain.
     ///
-    /// The idle test first, the bound second, the round robin last. At the bound
-    /// the placement joins a queue instead, which is the bound doing its job:
-    /// refusing the work would put an error on a spawn that means nothing but
-    /// "the machine is busy", and the alternative to *that* is one thread per
-    /// placement, which is what
-    /// `rule:concurrency/on-worker-runs-the-child-on-another-core` bounds at the
+    /// The draining is the caller's: a core that is already turning a scheduler
+    /// spawns a receptionist on it, so what crosses to it is the same [`Start`] a
+    /// started core reads and the only difference is whose thread reads it. That
+    /// is ADR 0184 § 5's destination — a serving core's thread exists and is
+    /// pinned already, and a second thread per core for placement work would
+    /// oversubscribe exactly the cores the server's latency depends on.
+    ///
+    /// It occupies a slot against the bound like any other core, so a process
+    /// that registers one per CPU starts none of its own.
+    fn register(&mut self) -> Arc<Inbox> {
+        let inbox = Inbox::new();
+        self.cores.push(Core {
+            inbox: Arc::clone(&inbox),
+            worker: None,
+        });
+        inbox
+    }
+
+    /// Takes a registered core back out and closes its inbox, so nothing is
+    /// written to a core whose receptionist has gone.
+    ///
+    /// Closing is the whole of what this set owes one: it answers the placements
+    /// already queued there, each through its own [`Answering`]'s `Drop`, and
+    /// there is no thread to join because there is none this set started.
+    fn deregister(&mut self, inbox: &Arc<Inbox>) {
+        self.cores.retain(|core| !Arc::ptr_eq(&core.inbox, inbox));
+        inbox.close();
+    }
+
+    /// The inbox of a core to place work on, starting one if every core it can
+    /// reach is busy and the bound allows another.
+    ///
+    /// `mine` is the placing core's own inbox where it registered one, and is
+    /// never the answer: a child is started on a core *other than its parent's*
+    /// (`rule:concurrency/on-worker-runs-the-child-on-another-core`), and a
+    /// serving core that offered itself is in the very set being asked.
+    ///
+    /// The idle test first, the bound second, the round robin last — and **a set
+    /// that can reach a registered core never grows itself**, which is ADR 0184
+    /// § 5: a registered core's thread is already running and already pinned, so
+    /// starting one beside it would oversubscribe exactly the core the placement
+    /// is trying to use. At the bound the placement joins a queue instead, which
+    /// is the bound doing its job: refusing the work would put an error on a
+    /// spawn that means nothing but "the machine is busy", and the alternative to
+    /// *that* is one thread per placement, which is what the rule bounds at the
     /// core count to avoid.
     ///
-    /// `None` only when the platform lists no CPU to pin a core to and the OS
-    /// refuses a thread for it; [`place`] then runs the work where it stands.
-    fn pick(&mut self) -> Option<Arc<Inbox>> {
-        if let Some(idle) = self.cores.iter().find(|core| core.inbox.live() == 0) {
+    /// `None` when there is no core here but the one asking — a platform that
+    /// lists no CPU to pin a core to and an OS that refuses a thread for it, and
+    /// a process whose registered cores are the single CPU it was given, where
+    /// `on: "worker"` is `on: "here"` by arithmetic. [`place`] then runs the work
+    /// where it stands.
+    fn pick(&mut self, mine: Option<&Arc<Inbox>>) -> Option<Arc<Inbox>> {
+        let elsewhere = |core: &Core| match mine {
+            Some(mine) => !Arc::ptr_eq(&core.inbox, mine),
+            None => true,
+        };
+        if let Some(idle) = self
+            .cores
+            .iter()
+            .find(|core| elsewhere(core) && core.inbox.live() == 0)
+        {
             return Some(Arc::clone(&idle.inbox));
         }
-        if self.cores.len() < self.bound && self.start_one() {
+        let reaches_a_registered_core = self
+            .cores
+            .iter()
+            .any(|core| elsewhere(core) && core.worker.is_none());
+        if !reaches_a_registered_core && self.cores.len() < self.bound && self.start_one() {
             return self.cores.last().map(|core| Arc::clone(&core.inbox));
         }
-        if self.cores.is_empty() {
-            return None;
+        // Round robin from where the last one left off, over the cores that are
+        // not the one asking. `held` is zero only for a set that has neither
+        // registered nor started anything, and then the loop does not run.
+        let held = self.cores.len();
+        for step in 1..=held {
+            let at = (self.next + step) % held;
+            if elsewhere(&self.cores[at]) {
+                self.next = at;
+                return Some(Arc::clone(&self.cores[at].inbox));
+            }
         }
-        self.next = (self.next + 1) % self.cores.len();
-        self.cores
-            .get(self.next)
-            .map(|core| Arc::clone(&core.inbox))
+        None
     }
 
     /// Starts one core and adds it to the set, answering whether it is there.
@@ -587,7 +675,10 @@ impl WorkerCores {
         }) else {
             return false;
         };
-        self.cores.push(Core { inbox, worker });
+        self.cores.push(Core {
+            inbox,
+            worker: Some(worker),
+        });
         true
     }
 }
@@ -602,7 +693,13 @@ impl Drop for WorkerCores {
         // and ending the receptionist cancels the running ones.
         for core in std::mem::take(&mut self.cores) {
             core.inbox.close();
-            let _ = core.worker.join();
+            // A thread this set started is one it may wait for; a registered
+            // core's thread is somebody else's, and the close above is all it is
+            // owed — the receptionist there reads it and returns on its own
+            // scheduler.
+            if let Some(worker) = core.worker {
+                let _ = worker.join();
+            }
         }
     }
 }
@@ -617,6 +714,18 @@ impl Drop for WorkerCores {
 fn cores() -> &'static Mutex<WorkerCores> {
     static CORES: OnceLock<Mutex<WorkerCores>> = OnceLock::new();
     CORES.get_or_init(|| Mutex::new(WorkerCores::new(bound())))
+}
+
+thread_local! {
+    /// The inbox this thread registered for its own core, if it registered one.
+    ///
+    /// The one thing a pick has to know about the *placing* core rather than
+    /// about the set, and the reason it is here rather than in [`WorkerCores`]:
+    /// which core is asking is a property of the thread, and the set is one
+    /// process-wide thing every core reads. A thread that registered nothing —
+    /// every `nvs run`, every test, and the lazily started cores themselves —
+    /// leaves it `None` and is excluded from nothing.
+    static MINE: RefCell<Option<Arc<Inbox>>> = const { RefCell::new(None) };
 }
 
 /// Runs `f` on another core and returns what it answered, giving this core back
@@ -686,6 +795,66 @@ where
 pub fn cores_started() -> (usize, usize) {
     let cores = lock(cores());
     (cores.started(), cores.bound)
+}
+
+/// A core this process offered as a placement destination, withdrawn when this
+/// is dropped.
+///
+/// A guard rather than a pair of calls because withdrawing is not optional: an
+/// inbox left in the set after its receptionist has gone is a core placements
+/// are written to and never drained from, and the parent parked on one would
+/// wait for an answer nobody is going to write.
+#[derive(Debug)]
+pub struct Registered {
+    inbox: Arc<Inbox>,
+}
+
+impl Drop for Registered {
+    fn drop(&mut self) {
+        // Matched rather than cleared, because this guard is `Send` and the
+        // thread that drops one need not be the thread that made it. A thread
+        // holding somebody else's inbox in `MINE` would exclude itself from a
+        // core it may perfectly well place on.
+        MINE.with(|mine| {
+            let mut mine = mine.borrow_mut();
+            if mine
+                .as_ref()
+                .is_some_and(|held| Arc::ptr_eq(held, &self.inbox))
+            {
+                *mine = None;
+            }
+        });
+        lock(cores()).deregister(&self.inbox);
+    }
+}
+
+/// Offers the core this thread is turning as a placement destination, and
+/// answers the guard that withdraws it.
+///
+/// The receptionist is spawned on `sched` — the caller's own scheduler, which is
+/// the difference this whole seam exists for. [`run_core`] spawns the identical
+/// task on a scheduler this module started; a core that already has one, has a
+/// reactor and is pinned needs neither of those built for it a second time, and
+/// ADR 0184 § 5 is why a serving fleet may not afford them.
+///
+/// # What it spends
+///
+/// One inbox and one long-lived task on this core, and no thread at all — which
+/// is what `rule:programs/memory-priority` asks to be said out loud, and the
+/// reason a deployment that places nothing pays nothing for having offered.
+pub fn register_this_core(sched: &mut Scheduler) -> Registered {
+    let inbox = lock(cores()).register();
+    // This thread's own core, so that a placement written here is answered a
+    // sibling and never this inbox — [`WorkerCores::pick`]'s `mine`.
+    MINE.with(|mine| *mine.borrow_mut() = Some(Arc::clone(&inbox)));
+    let mine = Arc::clone(&inbox);
+    // `TaskRoot::Worker` for [`run_core`]'s reason: the receptionist is
+    // worker-owned work with no request beneath it, so a fault in it retires
+    // this core's inbox rather than failing somebody's request.
+    sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Worker, move |_| {
+        receive(&mine);
+    });
+    Registered { inbox }
 }
 
 /// [`place`], against a named set of cores.
@@ -768,7 +937,8 @@ pub fn destination() -> Option<Destination> {
 /// [`destination`], against a named set of cores — [`post_on`]'s seam.
 fn destination_on(cores: &Mutex<WorkerCores>) -> Option<Destination> {
     let me = current_task()?;
-    let inbox = lock(cores).pick()?;
+    let mine = MINE.with(|mine| mine.borrow().clone());
+    let inbox = lock(cores).pick(mine.as_ref())?;
     // Rule 1's ordering, and the reason the core is picked first: the handle
     // exists before anything can be written to the inbox that would fire it.
     let wake = reactor::with_current(|reactor| reactor.remote_wake(me))?;
@@ -1150,6 +1320,121 @@ mod tests {
             2,
             "the set grew while it was draining"
         );
+    }
+
+    /// A core the set only registered takes placements, and this set starts no
+    /// thread for it.
+    ///
+    /// The shape a serving core has: its own scheduler, its own reactor, and the
+    /// receptionist draining the inbox as one task beside everything else it
+    /// runs. `started()` answering zero while the placement is running on it is
+    /// the point — the destination set grew and this process's thread count did
+    /// not.
+    #[test]
+    fn a_registered_core_runs_placements_on_a_scheduler_this_set_never_started() {
+        let cores = Arc::new(Mutex::new(WorkerCores::new(2)));
+        let inbox = lock(&cores).register();
+        assert_eq!(
+            lock(&cores).started(),
+            0,
+            "registering a core started a thread for it"
+        );
+
+        let mine = Arc::clone(&inbox);
+        let (up, arrived) = mpsc::channel();
+        let registered = std::thread::spawn(move || {
+            let (mut sched, _installed) = core();
+            let drained = Arc::clone(&mine);
+            up.send(std::thread::current().id())
+                .expect("the test went away");
+            sched.spawn(ctx(), TaskRoot::Worker, move |_| receive(&drained));
+            run_until_idle(&mut sched).expect("the loop failed");
+        });
+        let receptionist = arrived
+            .recv_timeout(Duration::from_secs(5))
+            .expect("the registered core never reached its loop");
+
+        // The placing side is a core of its own, as it is for any placement:
+        // `place_on` parks the task that asked, and a parked task needs a
+        // scheduler under it.
+        let placing = Arc::clone(&cores);
+        let placer = std::thread::spawn(move || {
+            let (mut sched, _installed) = core();
+            let answer: Collected<ThreadId> = Rc::new(Cell::new(None));
+            let collected = Rc::clone(&answer);
+            sched.spawn(ctx(), TaskRoot::Worker, move |_| {
+                collected.set(Some(place_on(&placing, || std::thread::current().id())));
+            });
+            run_until_idle(&mut sched).expect("the loop failed");
+            answer.take()
+        });
+
+        let Some(Answer::Value(ran_on)) = placer.join().expect("the placing core panicked") else {
+            panic!("the placement never answered");
+        };
+        assert_eq!(
+            ran_on, receptionist,
+            "the placement ran somewhere other than the core it was handed"
+        );
+        assert_eq!(
+            lock(&cores).started(),
+            0,
+            "a set that could reach a core started one of its own anyway"
+        );
+
+        lock(&cores).deregister(&inbox);
+        registered.join().expect("the registered core panicked");
+        assert!(
+            inbox.is_closed(),
+            "a withdrawn core is still being written to"
+        );
+    }
+
+    /// A set that can reach a core somebody else is running starts none of its
+    /// own, and never answers the placing core its own inbox.
+    ///
+    /// Both halves are ADR 0184 § 5: the destination under `nvs serve` is a
+    /// *sibling* serving core, and the threads it round-robins over are the ones
+    /// already running. A set whose only core is the one asking has nowhere to
+    /// put the work, which is the single-CPU arithmetic [`WorkerCores::pick`]'s
+    /// own doc names and the one place this answers `None`.
+    #[test]
+    fn a_registered_core_is_preferred_to_starting_one_and_is_never_its_own_destination() {
+        let mut cores = WorkerCores::new(4);
+        let mine = cores.register();
+        let sibling = cores.register();
+
+        let picked = cores.pick(Some(&mine)).expect("a set of two answered none");
+        assert!(
+            Arc::ptr_eq(&picked, &sibling),
+            "a core was handed its own inbox, which is `on: \"here\"` in costume"
+        );
+        assert_eq!(
+            cores.started(),
+            0,
+            "a set with a running core to reach started a thread beside it"
+        );
+
+        let mut alone = WorkerCores::new(1);
+        let only = alone.register();
+        assert!(
+            alone.pick(Some(&only)).is_none(),
+            "a process whose one core is the one asking placed a child on itself"
+        );
+        assert_eq!(
+            alone.started(),
+            0,
+            "the bound was spent by the core it holds"
+        );
+
+        // Nothing registered is the unchanged case: `nvs run` grows the set
+        // lazily, one core at a time, exactly as it did before any of this.
+        let mut lazily = WorkerCores::new(2);
+        assert!(
+            lazily.pick(None).is_some(),
+            "a set with room started nothing"
+        );
+        assert_eq!(lazily.started(), 1, "the first placement started no core");
     }
 
     #[test]
