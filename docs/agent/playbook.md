@@ -2328,6 +2328,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   read three regions and located one symbol answered with the anchor alone, so all three reads had
   to be sent again. Give `--locate` its own call, or drop it and read the regions whose anchors you
   already hold. [until: reviewed 2026-09-17]
+- **`cargo fmt` after a run of Edit-tool changes floods the session with full-file diffs.** The harness
+  reports every file a command touched that you had previously read, and a tree-wide `cargo fmt`
+  touches all of them at once — one call cost about 12k of context here, more than the edits it was
+  tidying. Format the crates you actually changed (`cargo fmt -p nvs-types -p nvs-ir`) or let
+  `verify.py`'s fmt leg report instead, and reach for the tree-wide one only when the wrap is already
+  written. [until: reviewed 2026-09-17]
 
 ## Running things
 
@@ -7722,6 +7728,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   observable as a *wrong answer*, state the requirement where the contract already lives, and say in
   the handoff that the site moved — never quietly take the sheet's other option.
   [until: reviewed 2026-09-17]
+- **One more element on `ClassLayout::methods`' row trips `clippy::type_complexity`.** That lint
+  scores a written type at `10 × nesting` per node, so the five-element tuple sits at 220 against a
+  threshold of 250 and a sixth `Vec<String>` puts it at 290 — `-D warnings` in a struct field, a `fn`
+  signature or a `let`, but never in a `type` alias's right-hand side. Widen one of these rosters by
+  naming the tuple, as `nvs_types::layout::MethodEntry` does, and re-export the name so a crate that
+  does not depend on `nvs-types` can still write it. [until: reviewed 2026-09-17]
 
 ## Divergences and refusals already pinned
 

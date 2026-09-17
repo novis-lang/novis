@@ -3,58 +3,59 @@
 ## State
 
 **Goal `decided-closures`, stage 4 — the library.** `python tools/owners.py --closes
-decided-closures` names **5**, unchanged this session: `nvs-diagnostics/src/embedded.rs:30`,
+decided-closures` still names **5**: `nvs-diagnostics/src/embedded.rs:30`,
 `nvs-stdlib/src/command.rs:74`, `nvs-syntax/src/lib.rs:96`, `nvs-types/src/defaults.rs:58`,
 `nvs-types/src/response.rs:29`. The other two stage-6 gates stay green.
 
-**The blocker `command.rs` gap 1 names is not a gap — it is a stated bound, so that gap is one
-slice and not two.** `crates/nvs-types/src/commands.rs` has no `# Known gaps` section at all: what
-was its gap 1 is now § *What crosses in a row, and what stays* (`commands.rs:64-77`), where a row
-carrying the *conversion* and never the type is permanent prose. Four citations of the number in
-that module, and one in `command.rs`'s own gap 1, now name that section. A bound refusing a second
-copy of the type lattice does not refuse the **reference** the `Decided:` sentence chose, so the
-build below is the one the sheet decided and nothing about it is re-opened.
+**`command.rs` gap 1's blocker is gone — the signature the help page needs is now on the row it
+already reaches.** `nvs_runtime::MethodRow::param_types` carries each declared parameter's
+*spelling* beside `param_names` (`crates/nvs-runtime/src/object.rs:654`), filled by
+`nvs_types::layout`'s declaration walk through `nvs_ir::ir::Class` and both of `nvs-codegen`'s
+binders — no new seam, and `crates/nvs-codegen/tests/objects.rs:428` pins `uint` and `?int` arriving
+at a descriptor, which is exactly what a `Tag` nibble cannot say. The roster's shape is stated once
+as `nvs_types::layout::MethodEntry` and re-exported through `nvs_types` and `nvs_ir`; the playbook
+bullet under *Writing Novis itself* owns why it is a name and not a written-out tuple.
 
-**Where the signature already is, which is what the next group otherwise re-derives.**
-`nvs-runtime` has no `nvs-types` dependency and says so (`crates/nvs-runtime/src/commands.rs:20`),
-so the reference cannot be a Rust one at the compiler's type. It does not need to be: the row
-already holds it as `Command::handler`, `Class::method` (`crates/nvs-runtime/src/commands.rs:235`),
-and `Ctx::class_desc` resolves a name against the program's own table first and the `Core` resolver
-second (`crates/nvs-runtime/src/ctx/mod.rs:1267`), reaching `MethodRow`
-(`crates/nvs-runtime/src/object.rs:625`). That row carries `arity`, `param_names` and `param_tags`
-— **and no declared type**: a `Tag` nibble cannot tell `int` from `uint` and cannot name an enum,
-which is exactly the page's missing sentence. So the one thing to build is a per-parameter declared
-spelling on the signature side; the lookup path is already there.
+**What the render still has to do, and everything it needs is local to `command.rs` now.**
+`Command::handler` is the `Class::method` label (`crates/nvs-runtime/src/commands.rs:235`),
+`ctx.class_desc(name) -> Option<*const ClassDesc>` (`crates/nvs-runtime/src/ctx/error.rs:277`) is the
+lookup, and `reflect.rs:2089` is the `#[expect(unsafe_code, reason = …)]` deref idiom to copy. A
+`CommandArg::param` finds its own spelling by its position in `MethodRow::param_names`. Gap 1's last
+sentence — that the declared default is withheld because a page naming one of the two reads as
+though the other were absent — is what makes rendering **both** the type and
+`CommandArg::default` the close rather than half of it.
 
 ## Next group
 
 **Stage 4: the help page names its parameters' types** — one file set:
-`crates/nvs-runtime/src/object.rs`, `crates/nvs-stdlib/src/command.rs`, and the two that fill a
-`MethodRow`, `crates/nvs-types/src/layout.rs` and `crates/nvs-codegen/src/lib.rs:1617`.
+`crates/nvs-stdlib/src/command.rs` alone, plus the `.nvst` cases beside it.
 
-- [ ] **Carry the declared spelling per parameter on `MethodRow` — `crates/nvs-runtime/src/object.rs:643`.**
-      Beside `param_names`, on its exact terms: either `arity` names long or empty, where empty
-      reads as "no declaration was read for this row". `nvs_types::layout` reads the declaration
-      and `nvs-codegen` copies it down, which is `codec`'s path
-      (`crates/nvs-runtime/src/object.rs:345`) and not a new
-      seam. `rule:tooling/commands-are-compiled` is what the page owes; state what it spends per
-      method per class in the field's own doc, per `rule:programs/memory-priority`.
-- [ ] **Render it, and delete the gap — `crates/nvs-stdlib/src/command.rs:74`.** `help` splits
-      `Command::handler` on `::`, asks `Ctx::class_desc`, and names each argument's type from the
-      row it gets back; a row that answers empty renders exactly the page rendered before, which is
-      every native and synthesized handler. The default is rendered with it, which is the half the
-      gap says reads as absent alone.
-- [ ] **Three `.nvst` cases, each a different question**, beside the page this one already pins —
-      `tests/conformance/core/command-help-is-generated-from-the-compiled-table.nvst:1`. A `uint`
-      option and an `int` one printing differently is the one a `Tag` could not have answered; an
-      enum parameter naming its cases is the second; a handler whose row carries no spelling
-      printing the older page is the boundary.
+- [ ] **Render the type and the default, and delete gap 1 — `crates/nvs-stdlib/src/command.rs:759`.**
+      `page_for` reaches the handler's row through `ctx` and `block`
+      (`crates/nvs-stdlib/src/command.rs:739`) grows the column; keep `usage_line`
+      (`crates/nvs-stdlib/src/command.rs:720`) as it is, since the usage line is the shape of a
+      command line and not a declaration. `page_for` has three call sites with no `ctx` — the unit
+      tests at `crates/nvs-stdlib/src/command.rs:1145` — so the resolved row arrives as a parameter
+      those pass `None` for. The module doc's § *What a page looks like* is the layout's one home
+      (`crates/nvs-stdlib/src/command.rs:11`) and § *What a completion script completes*
+      (`crates/nvs-stdlib/src/command.rs:47`) cites "gap 1 below", so both are rewritten in this
+      slice. `rule:tooling/commands-are-compiled` is what the page owes.
+- [ ] **Three `.nvst` cases, each a different question — `crates/nvs-stdlib/src/command.rs:216`.**
+      A page naming a `uint` flag's type and its default; a positional whose declared type is a
+      class or a nullable, so the spelling is one no `Tag` can reach; and the agreement case — every
+      argument the table lists is named with a type on the page, asserted by counting rather than
+      read off a line. `tests/conformance/core/` is where they land, never an `--ORACLE--` section.
+- [ ] **Widen `Core\Reflect\MethodInfo::parameters` to carry the type, or state it as a bound —
+      `crates/nvs-stdlib/src/reflect.rs:1643`.** That walk builds one `PARAMETER_INFO` per
+      `param_names` entry and the type is now beside it; whichever way it goes is a `Core` surface
+      decision, so it is the five edits of `docs/agent/conventions.md` § *A `Core` member* or a
+      sentence in the module doc — not a silent omission.
 
 ## Backlog
 
-- `crates/nvs-diagnostics/src/embedded.rs:30` gap 1 — `autoload` probing; still owned by this goal.
-- `crates/nvs-syntax/src/lib.rs:96` gap 1 — a bare inline shape type on a local declaration.
-- `crates/nvs-types/src/defaults.rs:58` gap 1 — a named constant as a parameter default.
-- `crates/nvs-types/src/response.rs:29` gap 1 — a mount's entry script.
-- Per-parameter type on `MethodRow` is what `Core\Reflect\MethodInfo::parameters` would also answer;
-  whether it takes it is `crates/nvs-stdlib/src/reflect.rs`'s call, not this group's.
+- `nvs-diagnostics/src/embedded.rs:30`, `nvs-syntax/src/lib.rs:96`, `nvs-types/src/defaults.rs:58`,
+  `nvs-types/src/response.rs:29` — the four stage-4 gaps this group does not touch, each with its
+  own `Decided:` sentence in its module doc.
+- `crates/nvs-runtime/src/object.rs:654` — `param_types` is empty for every native `Core` row, on
+  `param_names`' terms; `nvs_stdlib::registry::CoreMethod::params` is where a spelling for one
+  would have to come from if a reader ever needs it.
