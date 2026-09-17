@@ -46,7 +46,6 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 | Gap | Owner | Where the detail lives |
 |---|---|---|
 | `Core\Db::stream` on four drivers, `streamAs` whole, § 18's `serverVersion` | `gap-zero` | `crates/nvs-stdlib/src/db/mod.rs` gap 3 |
-| `rule:core-classes/html-to-source`'s computed `$reason` is not refused — was blocked on a full diagnostic band | `M7` | `crates/nvs-stdlib/src/html.rs` § *Known gaps* |
 | `queryAs<T>`'s three refusals are at run time; the band they waited on is open | `gap-zero` | `crates/nvs-stdlib/src/db/mod.rs` gap 4 |
 | `Core\Queue`'s `limits` and `grants` stay undeclared until an isolate enforces them | `gap-zero` | `crates/nvs-stdlib/src/queue.rs` gap 1 |
 | Nothing arms `DebugFlags::TRACE` and nothing reads the `debug.trace` grant, so a query span renders on sampling alone | `M10` | `crates/nvs-db/src/span.rs` gap 1 |
