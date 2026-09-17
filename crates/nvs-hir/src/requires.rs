@@ -500,7 +500,8 @@ fn canonical_path(src: &SourceFile) -> Option<PathBuf> {
     src.path().and_then(canonicalize)
 }
 
-/// The canonical form of a path the graph walk is about to key a file on.
+/// The canonical form of a path the graph walk is about to key a file on, and
+/// the one [`crate::autoload`] probes with for the same reason.
 ///
 /// One function rather than a bare `Path::canonicalize` because a bundled
 /// executable has no filesystem to canonicalize against: its payload *is* the
@@ -510,7 +511,7 @@ fn canonical_path(src: &SourceFile) -> Option<PathBuf> {
 /// it arrives here as the same `E_REQUIRE_TARGET_NOT_FOUND` an ordinary run
 /// would report. Outside a bundle the table is empty and this is the plain
 /// syscall.
-fn canonicalize(path: &Path) -> Option<PathBuf> {
+pub(crate) fn canonicalize(path: &Path) -> Option<PathBuf> {
     if nvs_diagnostics::embedded::is_active() {
         return nvs_diagnostics::embedded::canonicalize(path);
     }

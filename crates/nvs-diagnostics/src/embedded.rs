@@ -2,11 +2,14 @@
 //! byte source: the files a bundled executable resolves against instead of the
 //! filesystem.
 //!
-//! A bundle carries its whole `require` graph as source appended to the host
-//! binary (§ 2). At process start `nvs-cli` reads that payload and calls
-//! [`install`]; from then on the compiler's two ways of touching the disk for a
-//! *source* file — [`crate::SourceMap::load`] and `nvs_hir`'s canonicalization
-//! of a `require` target — answer out of this table first. Nothing else in the
+//! A bundle carries every source file a re-compilation of the program reads —
+//! the `require` graph, and everything the `autoload` roots declare — appended
+//! to the host binary (§ 2). At process start `nvs-cli` reads that payload and
+//! calls [`install`]; from then on every way the compiler touches the disk for
+//! a *source* file answers out of this table first: [`crate::SourceMap::load`]
+//! for the bytes, `nvs_hir`'s canonicalization of a `require` target or an
+//! `autoload` probe for the path, and [`read_dir`] with [`is_dir`] for the
+//! directory walk an `autoload` root is enumerated with. Nothing else in the
 //! pipeline changes, which is § 4's "the same `nvs run <entry>` code path with
 //! one different byte source for reads".
 //!
@@ -27,13 +30,17 @@
 //! diagnostic prints is the payload's own relative path, so a bundle's errors
 //! look like the source tree's, not like the machine that built it.
 //!
-//! **Known gap.** `autoload` probing (`rule:programs/no-runtime-autoload`) lists real directories and is
-//! not routed through here, so a bundled program that reaches a name only
-//! through an autoload root does not resolve it. `require` — which is what
-//! `rule:packaging/a-bundled-require-resolves-at-build-time` makes the closed-world rule about — does.
-//! Decided: Resolve autoload roots into the bundle at build time — A bundled program behaves like the
-//! source tree, and the root set is frozen into the build.
-//! — owner: decided-closures
+//! **The root set is frozen, not probed.** `autoload` is the other way a name
+//! reaches a file (`rule:programs/no-runtime-autoload`), and a root is a
+//! directory on the machine that built the bundle and nothing at all on the
+//! machine that runs it. `nvs-cli`'s `bundle::build` therefore embeds every
+//! file the roots declare rather than only the ones the graph walk reached, and
+//! [`read_dir`] answers the walk over them — so a bundled program resolves and
+//! enumerates exactly the names its source tree did, which is
+//! `rule:packaging/a-bundled-require-resolves-at-build-time` extended to the
+//! half `require` does not name. A root the build machine did not hold is not
+//! in there: a payload is one compilation's file set, and a directory placed
+//! beside the executable afterwards is no part of the program.
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Component, Path, PathBuf};
@@ -49,6 +56,12 @@ pub struct Payload {
     /// Every ancestor of every file, so [`canonicalize`] can answer for the
     /// directory a `require` is resolved relative to as well as for a file.
     dirs: HashSet<PathBuf>,
+    /// Each directory's own entries, as [`read_dir`] hands them back. Built
+    /// with `dirs` in one walk rather than scanned out of `files` per call,
+    /// because `autoload`'s enumeration asks this of every directory it
+    /// descends into and a scan would make that walk quadratic. It spends one
+    /// `String` per path in the payload, once per process.
+    children: HashMap<PathBuf, Vec<(String, bool)>>,
 }
 
 impl Payload {
@@ -76,23 +89,42 @@ pub fn install(root: &Path, files: Vec<(String, String)>) -> &'static Path {
     assert!(!files.is_empty(), "a payload has at least its entry file");
     let mut table = HashMap::with_capacity(files.len());
     let mut dirs = HashSet::new();
+    let mut children: HashMap<PathBuf, Vec<(String, bool)>> = HashMap::new();
     let mut entry = None;
     for (name, text) in files {
         let path = normalize(&root.join(&name));
-        let mut dir = path.parent();
-        while let Some(d) = dir {
+        // Up the ancestors, recording each one under its own parent on the
+        // way. The walk stops at the first directory already held, because
+        // everything above that one was recorded when it was.
+        let mut child = path.as_path();
+        let mut child_is_dir = false;
+        while let Some(d) = child.parent() {
+            if let Some(base) = child.file_name().and_then(|n| n.to_str()) {
+                children
+                    .entry(d.to_path_buf())
+                    .or_default()
+                    .push((base.to_owned(), child_is_dir));
+            }
             if !dirs.insert(d.to_path_buf()) {
                 break;
             }
-            dir = d.parent();
+            child = d;
+            child_is_dir = true;
         }
         entry.get_or_insert_with(|| path.clone());
         table.insert(path, (name, text));
+    }
+    // Sorted, so a listing is the same on every host that runs the bundle: a
+    // real `read_dir` yields in whatever order the filesystem holds, and a
+    // closed world has no reason to inherit that.
+    for listing in children.values_mut() {
+        listing.sort();
     }
     let payload = Payload {
         entry: entry.expect("checked non-empty above"),
         files: table,
         dirs,
+        children,
     };
     assert!(PAYLOAD.set(payload).is_ok(), "a payload is installed once");
     get().expect("just installed").entry()
@@ -134,6 +166,29 @@ pub fn canonicalize(path: &Path) -> Option<PathBuf> {
     (payload.files.contains_key(&path) || payload.dirs.contains(&path)).then_some(path)
 }
 
+/// A bundled directory's own entries — `(name, whether it is a directory)`,
+/// sorted — or `None` for any path this payload does not carry as a directory.
+///
+/// [`std::fs::read_dir`] for the closed world, and the shape is what
+/// `nvs_hir`'s `autoload` walk needs of a listing rather than what the
+/// filesystem offers: a name and whether to descend into it. A payload holds
+/// only files, so a directory that exists here has something under it, and an
+/// empty listing is not a state this can be in.
+#[must_use]
+pub fn read_dir(dir: &Path) -> Option<&'static [(String, bool)]> {
+    let payload = PAYLOAD.get()?;
+    payload.children.get(&normalize(dir)).map(Vec::as_slice)
+}
+
+/// Whether the payload carries `path` as a directory — [`Path::is_dir`] for the
+/// closed world, and `false` in an ordinary `nvs`.
+#[must_use]
+pub fn is_dir(path: &Path) -> bool {
+    PAYLOAD
+        .get()
+        .is_some_and(|payload| payload.dirs.contains(&normalize(path)))
+}
+
 /// `.` dropped and `..` popped, with no filesystem access.
 fn normalize(path: &Path) -> PathBuf {
     let mut out = PathBuf::new();
@@ -170,5 +225,10 @@ mod tests {
         assert!(!is_active());
         assert!(text(Path::new("/anything.nvs")).is_none());
         assert!(canonicalize(Path::new("/anything.nvs")).is_none());
+        // The directory half answers the same way, which is what keeps
+        // `autoload`'s walk on the filesystem in an ordinary `nvs`: a `None`
+        // here is "ask the disk", not "this directory is empty".
+        assert!(read_dir(Path::new("/anywhere")).is_none());
+        assert!(!is_dir(Path::new("/anywhere")));
     }
 }

@@ -64,6 +64,13 @@
 //! given and with `/` separators, so both legs of the test suite render one
 //! string.
 //!
+//! A bundled executable has no directories to probe, so every path this module
+//! touches goes through [`crate::requires::canonicalize`] or [`listing`], which
+//! answer out of `nvs_diagnostics::embedded`'s payload when there is one and out
+//! of the filesystem otherwise. The payload carries every file the roots
+//! declared at build time, which is what makes a bundled program resolve the
+//! names its source tree resolved.
+//!
 //! Path traversal is structurally impossible with no sanitizer, per § 1: a
 //! probed suffix is built only out of namespace segments, and
 //! `rule:core-api/identifier-casing` leaves
@@ -290,7 +297,7 @@ impl AutoloadMap {
             candidate.push(format!("{}.{SOURCE_EXTENSION}", suffix[suffix.len() - 1]));
             probe.tried.push(candidate.clone());
 
-            let Ok(canonical) = candidate.canonicalize() else {
+            let Some(canonical) = crate::requires::canonicalize(&candidate) else {
                 continue;
             };
             if !spelled_exactly(&canonical, root, suffix) {
@@ -451,19 +458,22 @@ fn collect_declared(
     out: &mut Vec<(QName, PathBuf)>,
     walked: &mut FxHashSet<PathBuf>,
 ) {
-    if !walked.insert(dir.canonicalize().unwrap_or_else(|_| dir.to_path_buf())) {
+    if !walked.insert(crate::requires::canonicalize(dir).unwrap_or_else(|| dir.to_path_buf())) {
         return;
     }
     // A root that does not exist reads as a root declaring nothing, the same
     // answer `canonical` leaves a probe under it with.
-    let Ok(listing) = std::fs::read_dir(dir) else {
+    let Some(entries) = listing(dir) else {
         return;
     };
 
-    for entry in listing.flatten() {
-        let name = entry.file_name().to_string_lossy().into_owned();
-        let path = entry.path();
-        if entry.file_type().is_ok_and(|kind| kind.is_dir()) {
+    for (path, is_directory) in entries {
+        let name = path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .into_owned();
+        if is_directory {
             if is_namespace_segment(&name) {
                 let mut nested = prefix.to_vec();
                 nested.push(name);
@@ -487,9 +497,49 @@ fn collect_declared(
         if !is_namespace_segment(&stem) {
             continue;
         }
-        let canonical = path.canonicalize().unwrap_or(path);
+        let canonical = crate::requires::canonicalize(&path).unwrap_or(path);
         out.push((QName::join(prefix, &stem), canonical));
     }
+}
+
+/// One directory's entries as this module reads them — `(path, whether it is a
+/// directory)` — or `None` for a directory there is nothing to list.
+///
+/// Inside a bundle the payload *is* the world
+/// (`rule:packaging/a-bundle-is-found-by-its-footer-before-argv-is-read`): it
+/// carries every file the roots declared when it was built, so the walk over it
+/// reaches the names the source tree reached and a real `read_dir` would reach
+/// whatever the machine running the bundle happens to have. That is the same
+/// split [`crate::requires::canonicalize`] makes for a single path, and the
+/// reason both are one function rather than a call site each.
+fn listing(dir: &Path) -> Option<Vec<(PathBuf, bool)>> {
+    if nvs_diagnostics::embedded::is_active() {
+        let entries = nvs_diagnostics::embedded::read_dir(dir)?;
+        return Some(
+            entries
+                .iter()
+                .map(|(name, is_directory)| (dir.join(name), *is_directory))
+                .collect(),
+        );
+    }
+    let entries = std::fs::read_dir(dir).ok()?;
+    Some(
+        entries
+            .flatten()
+            .map(|entry| {
+                let is_directory = entry.file_type().is_ok_and(|kind| kind.is_dir());
+                (entry.path(), is_directory)
+            })
+            .collect(),
+    )
+}
+
+/// [`Path::is_dir`], answered out of the payload inside a bundle.
+fn is_dir(path: &Path) -> bool {
+    if nvs_diagnostics::embedded::is_active() {
+        return nvs_diagnostics::embedded::is_dir(path);
+    }
+    path.is_dir()
 }
 
 /// One path the way [`AutoloadMap::render`] prints it: relative to `base`
@@ -525,7 +575,7 @@ fn report_duplicate(prefix: &str, first: Span, second: Span, diags: &mut Diagnos
 /// only some of its modules.
 fn canonical(base_dir: &Path, root: &str) -> PathBuf {
     let joined = base_dir.join(root);
-    joined.canonicalize().unwrap_or(joined)
+    crate::requires::canonicalize(&joined).unwrap_or(joined)
 }
 
 /// What one `autoload discover '<glob>'` expanded to.
@@ -573,7 +623,7 @@ fn discover(base_dir: &Path, glob: &str, span: Span, diags: &mut Diagnostics) ->
     for part in &parts[..star] {
         scanned.push(part);
     }
-    let Ok(listing) = std::fs::read_dir(&scanned) else {
+    let Some(entries) = listing(&scanned) else {
         diags.report(
             Diagnostic::error(
                 code::E_AUTOLOAD_GLOB_SHAPE,
@@ -585,20 +635,23 @@ fn discover(base_dir: &Path, glob: &str, span: Span, diags: &mut Diagnostics) ->
     };
 
     let mut out = Discovered::default();
-    for entry in listing.flatten() {
+    for (path, is_directory) in entries {
         // The `*` matches a *directory*; a plain file sitting beside them can
         // never become a root — the `is_dir` test below already refused it —
         // and reporting one as skipped would fill `--autoload-map` with every
         // source file in the tree.
-        if !entry.file_type().is_ok_and(|kind| kind.is_dir()) {
+        if !is_directory {
             continue;
         }
-        let name = entry.file_name().to_string_lossy().into_owned();
+        let name = path
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .into_owned();
         // Canonical from here down. `--autoload-map` prints every path
         // against a canonical base, and the tail pushed on below may not
         // exist to canonicalize on its own.
-        let matched = entry.path();
-        let matched = matched.canonicalize().unwrap_or(matched);
+        let matched = crate::requires::canonicalize(&path).unwrap_or(path);
         // § 1: a directory whose name is not a legal namespace segment is
         // skipped in silence. `.git` and `vendor` are always there.
         if !is_namespace_segment(&name) {
@@ -610,12 +663,13 @@ fn discover(base_dir: &Path, glob: &str, span: Span, diags: &mut Diagnostics) ->
         for part in &parts[star + 1..] {
             root.push(part);
         }
-        if !root.is_dir() {
+        if !is_dir(&root) {
             out.skipped
                 .push((root, "the glob's remaining segments name no directory"));
             continue;
         }
-        out.found.push((name, root.canonicalize().unwrap_or(root)));
+        let root = crate::requires::canonicalize(&root).unwrap_or(root);
+        out.found.push((name, root));
     }
     // `read_dir` yields in whatever order the filesystem hands back, and the
     // duplicate diagnostic below has to name the same two sites on every
