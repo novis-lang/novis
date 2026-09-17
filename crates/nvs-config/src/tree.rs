@@ -1268,13 +1268,14 @@ pub struct CacheProcess {
 /// Which store a fleet's coherent state lives in is a deployment decision, and every key here is
 /// `System`-class per `crate::directive`'s `cache.shared` row: a credential and an index are part
 /// of that one decision rather than three, because together they are what reaching the store an
-/// operator named takes. A `rediss://` store is refused rather than configured, and there is no
-/// key here for it: TLS says which transport this is rather than carrying a value over one, so it
-/// is the URL's scheme that will answer for it — `nvs_stdlib::cache`'s module doc owns why.
+/// operator named takes. There is no key here for TLS: it says which transport this is rather
+/// than carrying a value over one, so the URL's scheme answers for it — `nvs_stdlib::cache`'s
+/// module doc owns why.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct CacheShared {
-    /// `redis://host[:port]`, or `unix:/path/to.sock` for a store on this machine
+    /// `redis://host[:port]`, `rediss://host[:port]` for the same store behind the one outbound
+    /// TLS client, or `unix:/path/to.sock` for a store on this machine
     /// (`rule:config/unix-scheme-in-a-url-and-a-bare-path-in-a-host`, and [`crate::store::validate`]
     /// for the platform that has no transport for one). Absent, there is no shared tier and
     /// `Core\Cache::shared()` throws saying so rather than answering a store that would behave like

@@ -50,7 +50,6 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 | `queryAs<T>`'s three refusals are at run time; the band they waited on is open | `gap-zero` | `crates/nvs-stdlib/src/db/mod.rs` gap 4 |
 | `Core\Queue`'s `limits` and `grants` stay undeclared until an isolate enforces them | `gap-zero` | `crates/nvs-stdlib/src/queue.rs` gap 1 |
 | Nothing arms `DebugFlags::TRACE` and nothing reads the `debug.trace` grant, so a query span renders on sampling alone | `M10` | `crates/nvs-db/src/span.rs` gap 1 |
-| The shared cache tier has no TLS transport, so a `rediss://` store is refused with a sentence | `cache-shared-dial` | `crates/nvs-stdlib/src/cache.rs` gap 1 |
 | A MySQL unique or primary key over a bounded column wider than InnoDB's key budget is emitted whole and refused by the server, and no grade says so | `gap-zero` | `crates/nvs-db/src/ddl.rs` § *An engine's own limit is the dialect's rule* |
 
 ## Unowned

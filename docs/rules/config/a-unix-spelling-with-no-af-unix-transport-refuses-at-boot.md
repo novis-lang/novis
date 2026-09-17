@@ -11,6 +11,6 @@ is not waiting for this project — the deployment has to be spelled differently
 until someone notices is one a boot refusal would have prevented. So it sits with `backend = "local"`:
 refused where it is written, so a deployment cannot run believing it has a store it will never reach.
 
-**Silently reading it as loopback TCP is refused**, for the reason `rediss://` is refused rather than
-half-served: a configuration that reads as one transport and runs as another is worse than one that
-does not run, because the difference is invisible in exactly the review that would have caught it.
+**Silently reading it as loopback TCP is refused.** A configuration that reads as one transport and
+runs as another is worse than one that does not run, because the difference is invisible in exactly
+the review that would have caught it.

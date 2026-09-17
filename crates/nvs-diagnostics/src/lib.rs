@@ -1790,10 +1790,9 @@ pub mod code {
     /// refusing it at the key would claim the decision was wrong rather than that
     /// the build has not caught up; a Unix socket on a platform with no `AF_UNIX`
     /// is not waiting for this project, and the deployment has to be spelled
-    /// differently. Reading it as loopback TCP instead is refused for the reason
-    /// `Core\Cache` refuses `rediss://`: a configuration that reads as one
-    /// transport and runs as another is invisible in exactly the review that
-    /// would have caught it.
+    /// differently. Reading it as loopback TCP instead is refused because a
+    /// configuration that reads as one transport and runs as another is
+    /// invisible in exactly the review that would have caught it.
     pub const E_NO_UNIX_TRANSPORT: Code = Code::new("E0635");
 
     /// A `[server] workers` written as `0`.

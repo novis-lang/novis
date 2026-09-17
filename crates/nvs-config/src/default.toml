@@ -611,10 +611,12 @@
 #fill_wait = "5s"
 
 #[cache.shared]
-# Where the coherent tier lives: `redis://host[:port]`, or `unix:/path/to.sock` for a store on this
-# machine. Absent, there is no shared tier and `Core\Cache::shared()` throws saying so, rather than
-# answering a store that would behave like the local one. A `rediss://` store is refused rather
-# than configured — `nvs_stdlib::cache` owns why.
+# Where the coherent tier lives: `redis://host[:port]`, `rediss://host[:port]` for the same store
+# reached through this process's one outbound TLS client, or `unix:/path/to.sock` for a store on
+# this machine. Absent, there is no shared tier and `Core\Cache::shared()` throws saying so, rather
+# than answering a store that would behave like the local one. TLS is the scheme and never a key
+# here, because it says which transport this is rather than carrying a value over one; a private CA
+# goes in this deployment's trust anchors beside every other outbound call's.
 #url = "redis://127.0.0.1:6379"
 # The credential the store is behind, sent as `AUTH` before any command on every connection — and
 # again on the reconnect after a dropped socket, so a store behind a password is never reached
