@@ -75,9 +75,10 @@
 //!    (`nvs_runtime::commands::CommandArg::default`), so `[--retries]` could be
 //!    rendered as defaulting to `3`; what it still cannot say is that it is a
 //!    `uint`, because § 6's table deliberately does not carry a parameter's
-//!    declared type (`nvs_types::commands`'s own gap 1). Saying so needs the
-//!    *signature*, which the handler already holds and the row does not, and
-//!    inventing a second copy of it in the table is what that gap refuses. The
+//!    declared type (`nvs_types::commands` § *What crosses in a row, and what
+//!    stays*, where that is a stated bound rather than a gap). Saying so needs
+//!    the *signature*, which the handler already holds and the row does not, and
+//!    inventing a second copy of it in the table is what that bound refuses. The
 //!    default alone is not rendered because § 6 asks for neither and a page
 //!    naming one of the two reads as though the other were absent from the
 //!    declaration.

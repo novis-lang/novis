@@ -122,14 +122,16 @@ pub struct CommandArg {
     /// a positional argument, which carries no attribute to write one on.
     pub about: Option<String>,
     /// What this argument's text becomes before the handler is called — see
-    /// [`ArgConv`], and the module's gap 1 for why this and not the type.
+    /// [`ArgConv`], and the module's § *What crosses in a row, and what stays*
+    /// for why this and not the type.
     pub conv: ArgConv,
     /// The parameter's declared default, as the **text** a command line would
     /// have written to supply it — `Some("3")` for § 6's own
     /// `#[Option] uint $retries = 3`, and `None` for a parameter a command line
     /// must fill itself.
     ///
-    /// The text rather than the constant, for gap 1's reason one field along:
+    /// The text rather than the constant, for the reason the field one along
+    /// carries a conversion and not a type:
     /// the matcher already turns a word into the parameter's value through
     /// [`ArgConv`], so a defaulted argument reaching the handler through that
     /// same conversion *is* the value a written one would have been, and
@@ -591,9 +593,9 @@ pub(crate) fn check_table(table: &CommandTable, diags: &mut Diagnostics) {
 /// Asked from [`crate::attributes`]' per-method walk rather than from
 /// [`check_class_commands`], because that walk cannot see this mistake at all:
 /// it selects the methods a `#[Command]` marks, and a stray `#[Option]` is by
-/// definition on one of the others. This does not wait for the table gap 1 still
-/// owes — what a stray marker is stray of is the sibling attribute on its own
-/// method, which one declaration answers — and it is
+/// definition on one of the others. This waits for no table at all — what a
+/// stray marker is stray of is the sibling attribute on its own method, which
+/// one declaration answers — and it is
 /// [`crate::routes::check_stray_query`]'s question asked of the other pass's
 /// marker, the two written apart so each sits beside the attribute that gives
 /// its marker a meaning.
@@ -653,7 +655,8 @@ fn check_options(
         let name = strip_sigil(span_text(env.src, param.name)).to_owned();
         // Read for every parameter and not only for an `#[Option]`: a positional
         // argument's text is converted by the same rule, and the row is what
-        // carries the answer past this crate (the module's gap 1).
+        // carries the answer past this crate (the module's § *What crosses in
+        // a row, and what stays*).
         let declared = sig.and_then(|sig| sig.params.get(index).copied());
         let conv = declared.map_or(ArgConv::Text, |ty| conversion_of(ty, env));
         // Read for every parameter too, and for the same reason: § 6 infers
