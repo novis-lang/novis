@@ -7647,6 +7647,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   three renderings read the kind and no producer writes it. Build or strike the gap exactly as
   decided, and write the prose that replaces it from what you grepped, never from the rationale.
   [until: reviewed 2026-09-17]
+- **Building a gap can make a `designed` rule owed the same session, and the gap register does not
+  say so.** Striking `crates/nvs-runtime/src/lib.rs`'s "`nvs_safepoint` clears `COLLECT`" gap made
+  `rule:observability/gc-pause-is-its-own-event` — a rule that had been unreachable prose because the
+  collector did not exist — true of the routine that now does, and nothing in `owners.py`'s list
+  pointed at it. Before closing a gap that builds a *mechanism*, grep `docs/rules/` for the mechanism's
+  noun and check every `"status": "designed"` rule it hits: each is either owed in the same slice or a
+  gap that needs an owner. [until: reviewed 2026-09-17]
 
 ## Divergences and refusals already pinned
 

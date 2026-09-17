@@ -188,38 +188,18 @@
 //! **The request arena is refused rather than absent, and a helper suspends
 //! through `Ctx::yielder`/`Ctx::set_yielder`** — the shape ADR 0002
 //! § *Consequences* commits to. `rule:security/arena-is-an-ownership-root`
-//! rejects a region per isolate, so [`object`]'s per-context live list plus
-//! [`object::sweep`] are the ownership root instead.
+//! rejects a region per isolate, so [`object`]'s per-context live list plus its
+//! walk are the ownership root instead — run at teardown by [`object::sweep`],
+//! and while the request is still going by the collection a crossing of
+//! `rule:errors/on-limit`'s memory ceiling asks for. That module's docs are the
+//! home of the walk, of the two moments it is worth running, and of what each
+//! spends.
 //!
 //! ## Known gaps
 //!
 //! Each is a missing *representation*, not a missing decision, and each is
 //! named at the item it blocks:
 //!
-//! 5. **`nvs_safepoint` clears `COLLECT` and acts on nothing.** `CPU_LIMIT` and
-//!    `CANCEL` become [`FATAL`]; the flag asking for a collection is dropped,
-//!    since the cycle collector does not exist.
-//!    Decided: Collector that runs only near the memory ceiling — Pays nothing on the normal request
-//!    path and turns 'hit the ceiling' into 'collect, then continue', at the cost of building the
-//!    collector.
-//!    — owner: decided-closures
-//! 7. **A cycle is reclaimed at teardown, not while the request runs.** Every
-//!    object links into its context's live list, and dropping the context
-//!    sweeps whatever the root drain left there — `rule:security/isolate-teardown-is-a-drain-then-a-sweep`, with
-//!    [`object::sweep`] as the mechanism and that module's docs as its home.
-//!    One shape is still owed a collector: **a long-running CLI script that
-//!    builds cycles between teardowns** holds them until its context ends,
-//!    which is the shape a stop-the-world pass would serve and which no
-//!    milestone's plan carries. **A cycle closed through an `array<T>` is
-//!    swept**, since the tally reads the elements of an array its holder solely
-//!    owns as well as its field slots; what it still leaves alone is a cycle
-//!    closed through a **shared** array, whose other owner this walk cannot
-//!    name, and that errs towards leaving memory alone rather than towards
-//!    freeing what somebody holds.
-//!    Decided: Collector that runs only near the memory ceiling — Pays nothing on the normal request
-//!    path and turns 'hit the ceiling' into 'collect, then continue', at the cost of building the
-//!    collector.
-//!    — owner: decided-closures
 //! 8. **`nvs_safepoint` clears `DEBUG_BREAK` and acts on nothing.** The flag is
 //!    dropped where `CPU_LIMIT` and `CANCEL` become [`FATAL`], since `nvs dap` —
 //!    the adapter a stopped frame would be handed to — does not exist.

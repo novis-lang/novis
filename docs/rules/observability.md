@@ -3,7 +3,7 @@
 
 # Observability
 
-*6 of 32 rules below are **designed** rather than shipped, and are marked where they appear.*
+*5 of 32 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="observability-the-runtime-exports-what-it-already-measures"></a>
 
@@ -388,7 +388,7 @@ that turns either on midway through a statement gets a whole event or none, neve
 
 <a id="observability-gc-pause-is-its-own-event"></a>
 
-## A collector pause is a `gc` event recorded from the collector's run routine, never from the safepoint poll  *(designed — not yet in the compiler)*
+## A collector pause is a `gc` event recorded from the collector's run routine, never from the safepoint poll
 
 `rule:observability/gc-pause-is-its-own-event`
 

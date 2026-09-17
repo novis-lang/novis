@@ -313,7 +313,7 @@
     {
       "id": "observability/gc-pause-is-its-own-event",
       "title": "A collector pause is a `gc` event recorded from the collector's run routine, never from the safepoint poll",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0041",
         "0018"
@@ -323,7 +323,9 @@
         "testing/debug-probes",
         "observability/a-registry-is-per-core-and-nothing-reads-it"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "crates/nvs-runtime/src/ctx/trace.rs"
+      ]
     },
     {
       "id": "observability/spawn-is-its-own-event",

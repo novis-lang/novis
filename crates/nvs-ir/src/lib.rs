@@ -611,18 +611,6 @@
 //!    method row, through the one `nvs_runtime::closure`'s `check_param_tags`
 //!    implementation the `callable` bullet above already goes through.
 //!    — owner: M12
-//! 14. **`COLLECT` is cleared and otherwise ignored.**
-//!     [`ir::InstKind::Safepoint`] is emitted at function entry and every loop
-//!     back edge, and `nvs-codegen` lowers it to a real poll: `CPU_LIMIT` and
-//!     `CANCEL` stop the request, and the function-entry site also carries
-//!     `rule:errors/on-limit`'s call-stack compare. The flag asking for a
-//!     collection is dropped there, because there is no collector to run.
-//!     Nothing in this crate is what is missing; see
-//!     `nvs_runtime::nvs_safepoint`.
-//!     Decided: Collector that runs only near the memory ceiling — Pays nothing on the normal request
-//!     path and turns 'hit the ceiling' into 'collect, then continue', at the cost of building the
-//!     collector.
-//!     — owner: decided-closures
 //! 18. **An abandoned generator's `finally` runs; a throw escaping one is
 //!     dropped.** `{name}$gen::gen#unwind` is on every generator's state class
 //!     and in its method table, and `nvs_runtime::object::dismantle` calls it

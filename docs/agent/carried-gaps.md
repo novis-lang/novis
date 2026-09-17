@@ -111,15 +111,6 @@ where taking it is the work and the code that follows it is not.
   `nvs-codegen` — rather than whether it is wanted; Mach-O's leading underscore rides along with it,
   since neither is worth a format branch on its own. Until then every run on such a host compiles:
   slow, never wrong. `crates/nvs-cli/src/cache.rs` gaps 2–3. [until: reviewed 2026-09-10]
-- **`rule:security/arena-is-an-ownership-root`'s optional in-flight cycle
-  collector**, for a long-running CLI script that builds cycles *between* teardowns. That ADR's
-  *Consequences* says outright that it "remains open"; goal `carried-gaps`'s item 7 closes the *leak* at teardown
-  and does not build the collector. This is an **open decision, not an unclosed gap**, and it stays
-  here so that it stays visible. Its consequence shows up in one other place and that is not a
-  duplicate: `nvs_safepoint` clears `COLLECT` and acts on nothing, because this collector does not exist
-  (`crates/nvs-runtime/src/lib.rs` gap 5, `crates/nvs-ir/src/lib.rs` gap 14). The flag beside it,
-  `DEBUG_BREAK`, waits on `nvs dap` and is M10's, under a gap of its own in each of those two files.
-  [until: reviewed 2026-09-06]
 - **`rule:routing/a-shared-name-is-one-endpoint-everywhere` is shipped and unguarded.** Its three
   observations — `Core\Router::url` answers the one path, `Match::name` answers for every verb, the
   API document suffixes the operation with the verb — have no fixture: no `.nvst` under
