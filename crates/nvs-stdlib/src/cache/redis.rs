@@ -1003,21 +1003,77 @@ mod tests {
         server.join().expect("the fake store runs to completion");
     }
 
-    /// The dial is applied on **every** connection this client makes, never once
-    /// for the process: `AUTH` and `SELECT` go out ahead of the first command,
-    /// and ahead of the first command after a dropped socket.
-    ///
-    /// The reconnect is the half that matters and the half a handshake run at
-    /// boot fails. [`Connection::command`] makes it without being asked, so a
-    /// store that closed a socket under an idle core would otherwise answer the
-    /// next request's `GET` out of database zero, unauthenticated, and answer it
-    /// successfully — which is a wrong answer and not a failure.
-    #[test]
-    fn a_credential_and_an_index_go_out_on_every_connection() {
-        const AUTH: &[u8] = b"*2\r\n$4\r\nAUTH\r\n$6\r\ns3cret\r\n";
-        const SELECT: &[u8] = b"*2\r\n$6\r\nSELECT\r\n$1\r\n3\r\n";
-        const GET: &[u8] = b"*2\r\n$3\r\nGET\r\n$1\r\nk\r\n";
+    /// A dial carrying both halves a handshake applies, which the two cases
+    /// below read off the socket as [`AUTH`] and [`SELECT`].
+    fn credentialled(address: SocketAddr) -> Dial {
+        Dial {
+            target: Target::Tcp(address),
+            password: Some("s3cret".to_owned()),
+            database: Some(3),
+        }
+    }
 
+    /// The credential [`credentialled`] dials with, on the wire.
+    const AUTH: &[u8] = b"*2\r\n$4\r\nAUTH\r\n$6\r\ns3cret\r\n";
+    /// The index it dials at, on the wire.
+    const SELECT: &[u8] = b"*2\r\n$6\r\nSELECT\r\n$1\r\n3\r\n";
+    /// The command that opens the connection both steps precede.
+    const FIRST: &[u8] = b"*2\r\n$3\r\nGET\r\n$1\r\nk\r\n";
+
+    /// Both halves of the dial go out **ahead of the command that opened the
+    /// connection**, and `AUTH` goes out ahead of `SELECT`.
+    ///
+    /// The order is the claim, not an arrangement: a store behind a credential
+    /// refuses `SELECT` like every other command until it has one, so a client
+    /// that chose the database first would be refused by exactly the stores
+    /// the credential is there for. Nothing in a reply distinguishes that from
+    /// an index the store does not have.
+    #[test]
+    fn auth_and_select_precede_the_first_command_in_that_order() {
+        let (listener, address) = listening();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("the client dials once");
+            let mut sent = Vec::new();
+            sent.push(read_exactly(&mut stream, AUTH.len()));
+            stream.write_all(b"+OK\r\n").expect("the `AUTH` reply");
+            sent.push(read_exactly(&mut stream, SELECT.len()));
+            stream.write_all(b"+OK\r\n").expect("the `SELECT` reply");
+            sent.push(read_exactly(&mut stream, FIRST.len()));
+            stream.write_all(b"$2\r\nhi\r\n").expect("the `GET` reply");
+            sent
+        });
+
+        let mut connection = Connection::new(credentialled(address), Duration::from_secs(5));
+        let answer = connection
+            .get(b"k")
+            .expect("a `GET` behind a handshake the store answered");
+
+        let sent = server.join().expect("the fake store runs to completion");
+        assert_eq!(
+            sent,
+            vec![AUTH.to_vec(), SELECT.to_vec(), FIRST.to_vec()],
+            "the credential is proved and the index chosen before anything the program asked for"
+        );
+        assert_eq!(
+            answer,
+            Some(b"hi".to_vec()),
+            "and the answer came from the store the dial names"
+        );
+    }
+
+    /// The dial is applied on **every** connection this client makes, never
+    /// once for the process: a socket the store dropped is dialled again behind
+    /// the next command, and both steps go out on that one too.
+    ///
+    /// This is the half [`Connection::ensure`] is the handshake's one home for,
+    /// and the half a handshake applied at boot fails. The reconnection is made
+    /// without the program asking for it, so a store that closed a socket under
+    /// an idle core would otherwise answer the next request's `GET` out of
+    /// database zero, unauthenticated, and answer it *successfully* — a wrong
+    /// answer rather than a failure, which is the one outcome nothing upstream
+    /// can catch.
+    #[test]
+    fn a_reconnect_after_a_dropped_socket_sends_both_again() {
         let (listener, address) = listening();
         let server = std::thread::spawn(move || {
             let mut sent = Vec::new();
@@ -1027,7 +1083,7 @@ mod tests {
                 stream.write_all(b"+OK\r\n").expect("the `AUTH` reply");
                 sent.push(read_exactly(&mut stream, SELECT.len()));
                 stream.write_all(b"+OK\r\n").expect("the `SELECT` reply");
-                sent.push(read_exactly(&mut stream, GET.len()));
+                sent.push(read_exactly(&mut stream, FIRST.len()));
                 stream.write_all(b"$2\r\nhi\r\n").expect("the `GET` reply");
                 // The socket is dropped with the entry answered, which is a
                 // store closing a connection it has finished with: the next
@@ -1036,14 +1092,7 @@ mod tests {
             sent
         });
 
-        let mut connection = Connection::new(
-            Dial {
-                target: Target::Tcp(address),
-                password: Some("s3cret".to_owned()),
-                database: Some(3),
-            },
-            Duration::from_secs(5),
-        );
+        let mut connection = Connection::new(credentialled(address), Duration::from_secs(5));
         let dialled = connection
             .get(b"k")
             .expect("a `GET` on the socket just opened");
@@ -1057,10 +1106,10 @@ mod tests {
             vec![
                 AUTH.to_vec(),
                 SELECT.to_vec(),
-                GET.to_vec(),
+                FIRST.to_vec(),
                 AUTH.to_vec(),
                 SELECT.to_vec(),
-                GET.to_vec(),
+                FIRST.to_vec(),
             ],
             "the dial is applied to the reconnection too, or a dropped socket comes back \
              unauthenticated and pointed at a database nobody configured"
