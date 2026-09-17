@@ -1201,7 +1201,7 @@
         "0142",
         "0097"
       ],
-      "divergesFromPhp": "`redis://` and `unix:` are the only schemes `[cache.shared] url` reads — `rediss://` and a database index are refused with a sentence apiece",
+      "divergesFromPhp": "`redis://` and `unix:` are the only schemes `[cache.shared] url` reads — `rediss://` is refused with a sentence, and a database index is `[cache.shared] database` rather than a path on the URL",
       "seeAlso": [
         "config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it",
         "core-classes/db-unix-socket-path",

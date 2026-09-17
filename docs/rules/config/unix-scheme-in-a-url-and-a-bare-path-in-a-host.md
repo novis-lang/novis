@@ -9,8 +9,9 @@ host   = "/var/run/postgresql"        # a socket directory
 
 Two spellings because the two keys are two different things, and each takes the one that reads as
 itself. `[cache.shared] url` holds a URL and its parser already dispatches on scheme — it strips
-`redis://` and refuses `rediss://` and a database index with a sentence apiece — so `unix:` is one
-more arm on machinery that exists, and the value stays a URL as the key's name promises. The scheme
+`redis://`, refuses `rediss://` with a sentence, and refuses an index written as a path because
+`[cache.shared] database` is the one place an index is written — so `unix:` is one more arm on
+machinery that exists, and the value stays a URL as the key's name promises. The scheme
 names no protocol and does not need to: the block speaks RESP and nothing else, so its whole job is to
 say *which transport*.
 
