@@ -407,15 +407,9 @@ fn descriptors() -> &'static ClassTable {
             // registry surface.
             .chain(crate::ast::PRODUCTIONS.iter())
         {
-            // A **namespace** class is what is skipped here, and declaring no
-            // slots is not on its own what makes one: `Core\Socket` has
-            // instance members and no slots, because a connection's whole
-            // state is its isolate's — the peer and the topic queue are
-            // [`nvs_runtime::Ctx`] fields, so the receiver is a handle and
-            // there is nothing for it to carry. The question is whether the
-            // class has instances at all, which is either roster being
-            // non-empty.
-            if class.slots.is_empty() && class.instance.is_empty() {
+            // A **namespace** class is what is skipped here, and
+            // [`has_instances`] is the one question that tells one apart.
+            if !has_instances(class) {
                 continue;
             }
             // No parents: a `Core` class is not part of any hierarchy, so
@@ -456,6 +450,38 @@ fn descriptors() -> &'static ClassTable {
     })
 }
 
+/// Whether `class` has instances at all, which is what separates a `Core`
+/// class with a descriptor from a **namespace** class — a name for static
+/// members that no value is ever one of.
+///
+/// Either roster being non-empty is the answer, and declaring no slots is not
+/// on its own what makes a namespace class: `Core\Socket` has instance members
+/// and no slots, because a connection's whole state is its isolate's — the peer
+/// and the topic queue are [`nvs_runtime::Ctx`] fields, so the receiver is a
+/// handle and there is nothing for it to carry.
+fn has_instances(class: &CoreClass) -> bool {
+    !class.slots.is_empty() || !class.instance.is_empty()
+}
+
+/// [`has_instances`] asked by name, over the registry alone: whether `name` is
+/// a `Core` class a value can be an instance of.
+///
+/// This is the whole of what `nvs_types` needs to admit a written `Core` name
+/// as `instanceof`'s right-hand side — the class's *identity*, derived from the
+/// registry the way every other pass derives it, rather than a second roster
+/// that could disagree with [`descriptors`]'s skip. A name this answers `false`
+/// for has no descriptor here and never will, so the checker refuses the test
+/// where it is written instead of leaving `nvs-codegen` a symbol to fail to
+/// resolve.
+///
+/// [`INTERNAL_CLASSES`] and `crate::ast::PRODUCTIONS` are deliberately not
+/// consulted: they have descriptors but no registry row, so no source can name
+/// one and no checker has a question about them.
+#[must_use]
+pub fn class_has_instances(name: &str) -> bool {
+    registry::class(name).is_some_and(has_instances)
+}
+
 /// `class`'s descriptor.
 ///
 /// # Panics
@@ -470,15 +496,22 @@ fn descriptor(class: &CoreClass) -> *const ClassDesc {
     table.desc(id)
 }
 
-/// Every `Core` descriptor a compiled unit may write into its own data section,
-/// as `(class name, descriptor address)`.
+/// Every `Core` descriptor a compiled unit may relocate against, as
+/// `(class name, descriptor address)` — one pair per registered class with
+/// instances ([`has_instances`]).
 ///
-/// A hole-free `` html`…` `` folds to a `Core\Html\Markup` constant in the
-/// unit's constant pool (`rule:core-classes/html-literal`), and the class word
-/// of that constant is one of these addresses, written once while compiling and
-/// read by every core afterwards — which is the half of this module's
-/// § *Decision: the descriptors are one leaked table for the process* that a
-/// per-core table would fail.
+/// Two sites write one of these addresses into a unit. A hole-free `` html`…` ``
+/// folds to a `Core\Html\Markup` constant in the unit's constant pool
+/// (`rule:core-classes/html-literal`), and the class word of that constant is
+/// one of them; and `$v instanceof Core\Time\Date` tests against the class's own
+/// address, which is the identity comparison [`is_instance`] makes from this
+/// side. Both are written once while compiling and read by every core
+/// afterwards — the half of this module's § *Decision: the descriptors are one
+/// leaked table for the process* that a per-core table would fail.
+///
+/// A namespace class and a row-less internal class are both absent, for
+/// [`class_has_instances`]'s reasons: the first has no instances to test for,
+/// and the second no name a program can write.
 ///
 /// Separate from [`crate::symbols`] because that roster is *code*, under the
 /// name a call site calls it by; a descriptor is data, under a mangled name
@@ -486,7 +519,11 @@ fn descriptor(class: &CoreClass) -> *const ClassDesc {
 /// crates agree on the name there and on the address here.
 #[must_use]
 pub fn class_descriptors() -> Vec<(&'static str, *const ClassDesc)> {
-    vec![(crate::html::MARKUP_NAME, descriptor(&crate::html::MARKUP))]
+    registry::CLASSES
+        .iter()
+        .filter(|class| has_instances(class))
+        .map(|class| (class.name, descriptor(class)))
+        .collect()
 }
 
 /// The `Core` half of [`nvs_runtime::Ctx::class_desc`]: a class name to the
@@ -753,7 +790,7 @@ mod tests {
     #[test]
     fn one_descriptor_per_instance_class() {
         for class in registry::CLASSES {
-            if class.slots.is_empty() && class.instance.is_empty() {
+            if !has_instances(class) {
                 continue;
             }
             let first = descriptor(class);
@@ -767,6 +804,30 @@ mod tests {
             assert_eq!(desc.name(), class.name);
             assert_eq!(desc.field_count(), class.slots.len());
         }
+    }
+
+    /// The published roster and the question the checker asks are the same
+    /// skip: a name `nvs_types` admits as `instanceof`'s right-hand side has an
+    /// address `nvs-codegen` can relocate against, and a namespace class is in
+    /// neither — which is what keeps a refusal at the checker from becoming an
+    /// unresolved symbol at the backend.
+    #[test]
+    fn the_published_roster_is_what_the_checker_admits() {
+        let published: Vec<&str> = class_descriptors()
+            .into_iter()
+            .map(|(name, _)| name)
+            .collect();
+        for class in registry::CLASSES {
+            assert_eq!(
+                published.contains(&class.name),
+                class_has_instances(class.name),
+                "{} is published and admitted differently",
+                class.name
+            );
+        }
+        assert!(published.contains(&crate::html::MARKUP_NAME));
+        assert!(!class_has_instances(r"Core\Str"));
+        assert!(!class_has_instances(r"Core\Nothing\Registered"));
     }
 
     /// `rule:security/isolate-values-cross-by-copy`'s refusal is read off the
