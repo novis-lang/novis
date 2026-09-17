@@ -88,26 +88,15 @@
 //!   eaten and the path behind it parses as the ordinary import it looks like. `function` and `const`
 //!   remain ordinary name segments everywhere else, so `use function\Foo;` is a namespace whose first
 //!   segment is spelled `function` and is not this refusal.
-//!
-//! # Known gaps
-//!
-//! It has no decision record's reason to stay unsupported — it is just not built yet:
-//!
-//! - **A local variable declaration typed with a bare inline shape type** (`{x: int} $point;`) is not
-//!   parsed — statement-initial `{` already commits to a block (`rule:types/shape-type`), and unlike
-//!   the object-literal collision `rule:types/object-literal` names and this parser resolves, teaching
-//!   a *type*-prefix apart from a block would need lookahead past a matched, possibly-nested `{...}`
-//!   all the way to a following `$name`. Every other declaration slot
-//!   (parameter, return type, property, class constant, `foreach` binding) supports a bare shape type
-//!   fine; the workaround for a local is the one that rule's own example uses: `type Point = {x:
-//!   int}; Point $point;`. Half the tell a targeted error needs is already there:
-//!   `Parser::at_object_literal_in_block_position` looks one token past the `{` for `ident :`, and what
-//!   separates a shape-typed local from an object literal is the token after the *matched* `}` — a
-//!   variable. A block followed by an assignment (`{ echo 1; } $x = 1;`) is what that scan must not
-//!   claim.
-//!   Decided: Keep the alias form and give a targeted error — No parser cost, a clear message pointing
-//!   at `type Point = {...}; Point $p;`, and one slot is narrower than the rest.
-//!   — owner: decided-closures
+//! - **A local declaration typed with a bare inline shape** (`{x: int} $point;`) is refused rather
+//!   than parsed — `E_SHAPE_TYPED_LOCAL_NEEDS_AN_ALIAS`, whose help names the `type` alias form
+//!   `rule:types/shape-type`'s own example uses. A statement-initial `{` opens a block before it is
+//!   anything else, so this is the one declaration slot a bare shape cannot fill, while every other
+//!   one (parameter, return type, property, class constant, `foreach` binding) takes it. The tell is
+//!   `parser/stmt.rs`'s `Parser::at_shape_typed_local`: a braced run that opens like a field list
+//!   *and* a variable after the matched `}`. That is what leaves a block a variable happens to follow
+//!   (`{ echo 1; } $x = 1;`) with its ordinary parse, and a discarded object literal with
+//!   `rule:types/object-literal`'s own refusal.
 
 pub mod ast;
 mod casing;
