@@ -78,7 +78,9 @@
 //!    worse rather than better — the compile would be the process's while the
 //!    last `Rc`'s drop stayed the request's, which is the same credit with no
 //!    bound on it at all. It waits on per-request provenance, which is the
-//!    request arena.
+//!    request arena. [`crate::cldr`]'s prepared-pattern cache is this same
+//!    store one grammar along and closes with it: nothing about the question
+//!    is particular to what was compiled.
 //!    — owner: decided-closures
 
 use std::borrow::Cow;

@@ -207,22 +207,37 @@
 //! `every_language_cldr_gives_an_ordinal_rule_is_on_the_ordinal_roster`
 //! carries CLDR's own ordinal groups to catch.
 //!
-//! # Known gaps
+//! # A written pattern is compiled once per core, an assembled one per call
 //!
-//! 1. **A pattern is compiled per call.** `rule:expressions/intrinsic-literals`
-//!    makes `format`/`parse` intrinsics whose *literal* pattern is validated
-//!    and prepared while compiling, which is the same work [`compile`] does
-//!    and would move it off the request path; the reported diagnostic would
-//!    then be a compile error rather than the throw [`compile`] returns
-//!    today. Nothing about this module changes when that lands — it gains a
-//!    second caller.
-//!    Decided: Build the checker-to-IR channel and prepare literal patterns at compile time — Zero
-//!    request-path parsing and compile-time errors as the rule says; the channel is new plumbing
-//!    (shared with nvs-types' intrinsic gaps).
-//!    — owner: decided-closures
+//! `rule:expressions/intrinsic-literals` makes `Core\Time\DateTime::format` and
+//! `Core\Time::parse` intrinsics: a pattern written as a literal is compiled by
+//! [`validate`] *while checking*, so a malformed one is a diagnostic pointing
+//! at the letter rather than the throw [`compile`] answers an assembled one
+//! with, and the call site carries [`PREPARED_PATTERN`] as
+//! `crate::registry::PREPARED_MEMBERS`' argument 0. That word is what admits
+//! the text to [`compiled`]'s per-core cache.
+//!
+//! **A pattern the program assembled is never keyed there**, which is the whole
+//! reason the word is consulted rather than the text alone: what a program
+//! writes is a closed set fixed when it was compiled, while what a request
+//! assembles is not, so caching the second would make a core's footprint a
+//! function of the text requests send it. The bound is therefore O(written
+//! patterns per core) rather than O(requests served), and [`CACHE_CAPACITY`]
+//! caps even that — cleared wholesale when it fills, for the reason
+//! [`crate::regex`]'s own cache states at length.
+//!
+//! **What it spends:** one compiled pattern per distinct written pattern per
+//! core — a `Vec` of [`Piece`], one entry per field letter and literal run —
+//! held for the life of the core rather than of the request, and never more
+//! than [`CACHE_CAPACITY`] of them. That those bytes outlive the request that
+//! paid for them, and that no accounting bracket can take a store shaped this
+//! way, is [`crate::regex`]'s own known gap 1 — one question about both caches,
+//! answered in one place.
 
+use std::cell::RefCell;
 use std::cmp::Ordering;
 use std::ops::RangeInclusive;
+use std::rc::Rc;
 
 use jiff::Zoned;
 use jiff::civil;
@@ -635,6 +650,78 @@ fn localized_gmt(out: &mut String, offset: Offset, long: bool) {
         out.push(':');
         pad(out, minutes, 2);
     }
+}
+
+/// The word `crate::registry::PREPARED_MEMBERS`' argument 0 carries when the
+/// pattern beside it is a literal this build's checker already compiled.
+///
+/// A word of its own rather than a reuse of [`crate::regex`]'s first tier: one
+/// slot is shared by members reading different grammars, so a word minted for
+/// another one decodes here as nothing prepared — [`prepared`]'s equality —
+/// instead of as this module's fact.
+pub const PREPARED_PATTERN: i64 = 3;
+
+/// The absence, which every member on that roster spells the same way and
+/// [`crate::regex::PREPARED_NONE`] documents in full.
+pub use crate::regex::PREPARED_NONE;
+
+/// Whether `code` says the pattern beside it is one the compiler prepared.
+///
+/// A word this build does not know is read as "nothing was prepared" rather
+/// than refused, for the reason [`crate::regex::prepared_tier`] gives: a
+/// compiler-version skew then costs a compile, never a request.
+#[must_use]
+pub fn prepared(code: i64) -> bool {
+    code == PREPARED_PATTERN
+}
+
+/// [`prepared`] over the argument a helper holds rather than the word inside
+/// it — the spelling both members on that roster reach for.
+pub(crate) fn prepared_arg(word: &Value) -> bool {
+    prepared(word.as_int().unwrap_or(PREPARED_NONE))
+}
+
+/// How many compiled patterns one core holds before the cache is cleared —
+/// this module's own docs own the reasoning and what it spends.
+const CACHE_CAPACITY: usize = 64;
+
+thread_local! {
+    /// This core's compiled patterns, keyed by the pattern text alone: a
+    /// pattern compiles to one piece list and to nothing else, so there is no
+    /// second half of a key the way [`crate::regex`]'s flags and budget are.
+    /// Only a pattern the compiler prepared is ever keyed here, which is the
+    /// module docs' bound — a request cannot mint an entry.
+    static CACHE: RefCell<Vec<(String, Rc<Vec<Piece>>)>> = const { RefCell::new(Vec::new()) };
+}
+
+/// [`compile`], answered from this core's cache when the call site was handed
+/// [`PREPARED_PATTERN`], and compiled at the call when it was not.
+///
+/// # Errors
+///
+/// [`compile`]'s, unchanged. A prepared pattern is one the checker already
+/// accepted, so the refusal is reachable only on the path that prepared
+/// nothing — and it is still made there rather than assumed away.
+pub(crate) fn compiled(pattern: &str, prepared: bool) -> Result<Rc<Vec<Piece>>, String> {
+    if !prepared {
+        return compile(pattern).map(Rc::new);
+    }
+    if let Some(hit) = CACHE.with_borrow(|cache| {
+        cache
+            .iter()
+            .find(|(key, _)| key == pattern)
+            .map(|(_, pieces)| Rc::clone(pieces))
+    }) {
+        return Ok(hit);
+    }
+    let built = Rc::new(compile(pattern)?);
+    CACHE.with_borrow_mut(|cache| {
+        if cache.len() >= CACHE_CAPACITY {
+            cache.clear();
+        }
+        cache.push((pattern.to_owned(), Rc::clone(&built)));
+    });
+    Ok(built)
 }
 
 /// Compiles `pattern` into the pieces [`render`] and [`read`] walk, or the
@@ -2881,6 +2968,45 @@ mod tests {
         utc()
             .to_zoned(civil::DateTime::new(y, mo, d, h, mi, s, ns).unwrap())
             .unwrap()
+    }
+
+    /// A pattern written as a literal is compiled once per core; one the
+    /// program assembled is compiled at the call and left out of the cache.
+    #[test]
+    fn a_literal_cldr_pattern_is_prepared_at_compile_time_and_not_per_call() {
+        // The compile-time half: the checker reaches this module through
+        // `validate`, and one word is all it hands the call afterwards.
+        validate("yyyy-MM-dd HH:mm:ss").expect("a pattern");
+        assert!(prepared(PREPARED_PATTERN));
+        // The zero word and a word another grammar minted are one answer, so a
+        // word that reached the wrong helper costs a compile rather than a
+        // wrong pattern.
+        assert!(!prepared(PREPARED_NONE));
+        assert!(!prepared(crate::regex::PREPARED_LINEAR));
+
+        let first = compiled("yyyy-MM-dd HH:mm:ss", true).expect("a pattern");
+        let again = compiled("yyyy-MM-dd HH:mm:ss", true).expect("a pattern");
+        assert!(
+            Rc::ptr_eq(&first, &again),
+            "a prepared pattern was compiled a second time"
+        );
+
+        let built = compiled("EEEE, d MMMM yyyy", false).expect("a pattern");
+        let rebuilt = compiled("EEEE, d MMMM yyyy", false).expect("a pattern");
+        assert!(
+            !Rc::ptr_eq(&built, &rebuilt),
+            "a pattern the program assembled was keyed on this core's cache"
+        );
+    }
+
+    /// The cache is bounded and cleared wholesale when it fills, which is what
+    /// keeps a core's footprint O(written patterns) rather than O(calls).
+    #[test]
+    fn the_prepared_pattern_cache_never_grows_past_its_capacity() {
+        for nth in 0..=CACHE_CAPACITY {
+            compiled(&format!("'bounded-{nth}'"), true).expect("a pattern");
+        }
+        CACHE.with_borrow(|cache| assert!(cache.len() <= CACHE_CAPACITY, "{}", cache.len()));
     }
 
     /// § 4's own two example patterns, which is the shape every other test
