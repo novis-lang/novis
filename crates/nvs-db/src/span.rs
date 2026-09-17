@@ -62,19 +62,27 @@
 //!
 //! # Known gaps
 //!
-//! 1. **A span renders on a flag no grant turns on.** § 11 gates the output on
-//!    a capability, and `nvs_config::Capability::DebugTrace` — the `debug.trace`
-//!    grant `rule:testing/debug-probes` writes — is the one it means, but
-//!    nothing outside a test sets `DebugFlags::TRACE` from it. A recorded
-//!    request renders its span without the grant and an unrecorded one renders
-//!    none with it, because sampling is the other question
-//!    `nvs_runtime::Ctx::records_spans` asks and the grant reaches neither. The
-//!    two halves are both above this crate: the flag is
-//!    `nvs-runtime`'s and the grant `nvs-config`'s, and what is missing between
-//!    them is the place a request's capability set is read into its `Ctx`. It
-//!    is recorded here because § 11 is this span's own rule, and every other
-//!    probe the same bitset carries reaches the same flag the same way.
-//!    — owner: unowned
+//! 1. **A span renders on a flag no grant turns on.** § 11 has this event and
+//!    the `slow_query` line inert unless the capability is granted, and
+//!    `nvs_config::Capability::DebugTrace` — the `debug.trace` grant
+//!    `rule:testing/debug-probes` writes — is the one it means. Outside a test
+//!    nothing sets `DebugFlags::TRACE` and nothing reads the grant on the way
+//!    to a render: a sampled request renders its span without the grant and an
+//!    unsampled one renders none with it, because sampling is the other
+//!    question `nvs_runtime::Ctx::records_spans` asks and the grant reaches
+//!    neither. Both halves are above this crate, and neither is the one wire a
+//!    seam would close. The bit is armed from `[debug] mode`, which
+//!    `rule:testing/debug-mode-directive` states as a default and a ceiling and
+//!    which `crates/nvs-config/src/tree.rs` records as a key the directive
+//!    registry carries no row for; the grant says where a trace may be written
+//!    rather than whether one is taken, so reading it into a request's `Ctx`
+//!    gates a bit nothing can turn on and leaves the sampled path exactly as it
+//!    is. `Core\Debug` and the `[debug]` section are where a program first asks
+//!    for the bit, and the answer to which of the two gates a render is
+//!    testable only once they exist. It is recorded here because § 11 is this
+//!    span's own rule, and every other probe the same bitset carries reaches
+//!    the same flag the same way.
+//!    — owner: M10
 
 use std::time::{Duration, Instant};
 
