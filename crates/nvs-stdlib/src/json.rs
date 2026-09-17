@@ -98,6 +98,13 @@
 //! program catching a decode failure catches one shape of report whichever door
 //! it wrote.
 //!
+//! **Both halves walk that list rather than code emitted per class.** A
+//! compile-time pass records a deriving class's fields on its own descriptor,
+//! down to the constant an absent optional key is filled with, and the walks
+//! here read them off the class table they are already holding —
+//! `rule:core-classes/derive-generates-what-is-missing` owns what that costs
+//! and what it stores, which is nothing per object.
+//!
 //! Two answers differ, and each is the shape's own type saying so rather than a
 //! second convention: a shape is built slot by slot ([`build_shape`]), because
 //! it declares no constructor to run, and an absent optional key of one is
@@ -233,22 +240,6 @@
 //! The stack is the ancestor chain as well, so the cycle test and the path a
 //! message names a value with read off it rather than out of a second
 //! structure.
-//!
-//! # Known gaps
-//!
-//! 1. **Both halves walk a per-class field list rather than straight-line
-//!    code.** `rule:core-classes/derive-generates-what-is-missing` asks for IR emitted per derived class; what is built
-//!    is one compile-time-built descriptor per class, read by native Rust. No
-//!    reflection and nothing per object either way — the difference is one
-//!    bounded loop and one `String` compare per field, against a table that is
-//!    O(derived classes) in the artifact. What has to be decided is which of
-//!    the two the machinery stays; the descriptor is what the hand-written half
-//!    above is built against, its lookup being one more read of the class table
-//!    the walk is already holding.
-//!    Decided: Keep the descriptor and widen it (default constants on CodecField, a ClassDesc method
-//!    lookup for toJson); amend the rule — One native walker and small, local changes; costs one loop
-//!    and a string compare per field.
-//!    — owner: decided-closures
 
 use std::fmt;
 

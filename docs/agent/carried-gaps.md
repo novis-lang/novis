@@ -118,13 +118,6 @@ where taking it is the work and the code that follows it is not.
   has no suffix case. The rows themselves are guarded by `crates/nvs-types/tests/routes.rs`. Found by
   the docs migration's sweep (unit C8), which could record it and not write it.
   [until: exists tests/conformance/core/a-shared-route-name-is-one-endpoint-everywhere.nvst]
-- **The derive machinery is a descriptor read by native Rust**, and both halves of `Core\Json` walk a
-  per-class `nvs_runtime::CodecField` list rather than straight-line code emitted per class. The two
-  narrower holes that waited on which of the two it stays are closed against the descriptor — a
-  constructor parameter's default rides on the field as a constant, and a hand-written half is one
-  `ClassDesc::method` lookup at the walk's own class arm — so what is left is only whether the
-  machinery stays a descriptor at all. `crates/nvs-stdlib/src/json.rs` gap 1.
-  [until: gone crates/nvs-stdlib/src/json.rs:rather than straight-line]
 - **The queue's two tables are the runtime's own, and two questions about what they carry are open.**
   `nvs_jobs` gets its dedupe guarantee from a plain unique key over `dedupe_pending`, which
   `rule:core-classes/queue-storage-is-a-table` states and the runtime's own schema carries — but that

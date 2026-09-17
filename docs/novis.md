@@ -20370,12 +20370,13 @@ Opens a writer that builds a document a node at a time — replacing `XMLWriter`
 <a id="core-core-xml-node"></a>
 ### `Core\Xml\Node`
 
-Keywords: kind, name, text, attributes, children, source
+Keywords: kind, name, namespaceUri, text, attributes, children, source
 
 | Member | Signature |
 |---|---|
 | [`Core\Xml\Node->kind`](#core-core-xml-node-kind) | `kind(): Core\Xml\NodeKind` |
 | [`Core\Xml\Node->name`](#core-core-xml-node-name) | `name(): tainted string` |
+| [`Core\Xml\Node->namespaceUri`](#core-core-xml-node-namespaceuri) | `namespaceUri(): ?tainted string` |
 | [`Core\Xml\Node->text`](#core-core-xml-node-text) | `text(): tainted string` |
 | [`Core\Xml\Node->attributes`](#core-core-xml-node-attributes) | `attributes(): array<tainted string>` |
 | [`Core\Xml\Node->children`](#core-core-xml-node-children) | `children(): array<Core\Xml\Node>` |
@@ -20401,7 +20402,18 @@ $node->name(): tainted string
 
 The name this node was written under — an element's tag name, or a processing instruction's target. Empty for a text node, a comment and the document, which have no name to carry rather than an unknown one.
 
-**Returns** `tainted string` — The name exactly as the document spelled it, prefix included: `<x:a/>` answers `x:a`, because no namespace declaration is resolved. `tainted`, as everything read out of a parsed tree is.
+**Returns** `tainted string` — The name exactly as the document spelled it, prefix included: `<x:a/>` answers `x:a`, which is the name a serialiser writes back out. What the prefix means is `namespaceUri`. `tainted`, as everything read out of a parsed tree is.
+
+<a id="core-core-xml-node-namespaceuri"></a>
+#### `Core\Xml\Node->namespaceUri`
+
+```nvs skip
+$node->namespaceUri(): ?tainted string
+```
+
+The namespace this element's name is in — the URI the nearest enclosing `xmlns:x` bound its prefix to, or the one an `xmlns` bound names written without a prefix to. Resolved against the declarations in scope where the element sits, so an inner declaration shadows an outer one, and `name` stays the spelling the document wrote. The `xml` prefix answers the URI the XML specification fixes it to, which no document may rebind.
+
+**Returns** `?tainted string` — The namespace URI, `tainted` as everything read out of a parsed tree is. `null` for a node that is not an element, for an element no declaration covers, and for one under an `xmlns=""` that undeclared the default namespace — three answers rather than errors, because a document is free to use no namespace at all.
 
 <a id="core-core-xml-node-text"></a>
 #### `Core\Xml\Node->text`

@@ -2,52 +2,49 @@
 
 ## State
 
-**Goal `decided-closures`, stage 4 — the library — is under way.** The JSON encoder no longer
-recurses: `Encodable::written` runs a loop over `Stack`, a `Vec` of `Frame`s that is at once the
-descent, the ancestor chain a cycle is decided against and the path a message names a value with.
-`crates/nvs-stdlib/src/json.rs`'s § *The walk carries its own stack* is the home of what that spends
-per encode, and a `const` assertion beside `Frame` keeps the per-frame half of the figure true.
+**Goal `decided-closures`, stage 4 — the library — is under way, and stage 4's first acceptance
+check is green.** `Core\Xml\Node::namespaceUri` answers the URI the nearest enclosing `xmlns`
+declaration bound an element's prefix to, `name` still answers the spelling the document wrote, and
+the tree door and the streaming reader resolve alike. `crates/nvs-stdlib/src/xml.rs`'s § *A name is
+as written* is the home of what that spends.
 
-Every byte of a document is still `serde_json`'s: the structure goes through its `Formatter`, so the
-`pretty` profile's indentation is byte-for-byte what `to_string_pretty` wrote, and each scalar goes
-through a fresh serializer for its escaping and its number formatting. What the walk owns is the
-order values are visited in. `Ancestor`, `Step` and the `Serialize` impl are gone; `Standing` retains
-off the stack now, and `Stack`'s own `drop` releases what a `Cursor::Returned` holds when a refusal
-stops the walk with frames still open.
+**Its one deviation from the sheet, for the record.** The sheet priced xml gap 1 as a lookup that
+"costs a walk up the tree", with no per-node cost. A node holds its children and no parent — and a
+parent link would be a reference cycle in a refcounted tree — so an element cannot walk anywhere at
+run time. Taking the document as a parameter is refused outright by
+`a_parsed_tree_has_no_path_back_into_execution` (see the playbook). So the member is the decided one
+and the resolution happens while each door descends, carried on a sixth slot: one slot per node and
+one string per element in a namespace.
 
-`json.rs` gap 2 is struck — the ceiling is a catchable throw at every depth on any thread, not an
-abort once the native stack runs out. Gap 1 is the module's only remaining one. Stage 4's first
-acceptance check is down to a single missing name,
-`an_xml_element_answers_its_namespace_uri`; checks 2 and 3 are untouched. `python
-tools/owners.py --closes decided-closures` still names the goal's other gaps.
+`json.rs` has no known gaps left either — its decided widening landed a day earlier under another
+goal (`nvs_runtime::CodecField::default`, and the `toJson` lookup ahead of the derived list), so the
+item was struck rather than built and the rule fragment already reads as the code does. `python
+tools/owners.py --closes decided-closures` names 21 gaps now, down from 23.
 
 ## Next group
 
-**Stage 4: the JSON codec's last gap** — one file set: `crates/nvs-stdlib/src/json.rs`,
-`crates/nvs-runtime/src/object.rs` and the rule fragment the sheet says to amend. The module doc
-holds the `Decided:` sentence for all three.
+**Stage 4: the regex class's two closeable gaps** — one file set: `crates/nvs-stdlib/src/regex.rs`,
+`crates/nvs-config/src/tree.rs` and `crates/nvs-types/src/core_lib.rs`. The first two together are
+stage 4's third check's first test, `the_regex_step_budget_is_a_limits_directive_with_the_constant_as_its_default`.
 
-- [ ] **`crates/nvs-runtime/src/object.rs:936` — `CodecField` carries the field's declared default.**
-      The sheet's answer for gap 1 is "keep the descriptor and widen it", and the first half of that
-      widening is a default constant per codec field, compiled in beside the wire key and the slot so
-      the decoding walk materializes it rather than failing on an absent key
-      (`rule:core-classes/derive-generates-what-is-missing`).
-- [ ] **`crates/nvs-stdlib/src/json.rs:239` — read it, and delete gap 1's numbered item.**
-      The derived decoder is `hydrate`'s field walk in the same file; the encoding half already reads
-      `toJson` off the flattened method table, which is the `ClassDesc` lookup the sheet's other
-      clause asks for, so state that rather than building it twice. The item and its
-      `— owner: decided-closures` tag go when both halves are true.
-- [ ] **`docs/rules/core-classes/derive-generates-what-is-missing.md:1` — amend the rule.**
-      It still asks for IR emitted per derived class; what is built, and what the sheet decided to
-      keep, is one compile-time descriptor per class read by native Rust. A rule whose answer changed
-      is amended by its own process in the same slice and opens no record — goal
-      `decided-closures`'s § *Standing decisions*.
+- [ ] **`crates/nvs-config/src/tree.rs:171` — `[limits]` gains the regex step budget.** An ordinary
+      `Runtime`-class key (`rule:config/three-changeability-classes`), whose default is the constant
+      `crates/nvs-stdlib/src/regex.rs:807` states today, so a request may widen or narrow it and a
+      host may state it once.
+- [ ] **`crates/nvs-stdlib/src/regex.rs:807` — the budget is read from that directive.** Gap 2's
+      numbered item goes, and `rule:core-classes/regex-two-tiers`'s closing paragraph — which says
+      the default is a stated constant "because there is no configuration subsystem in front of it
+      yet" — is amended in the same slice, per the goal's standing decisions.
+- [ ] **`crates/nvs-types/src/core_lib.rs:377` — `qual_of` reads a parameter's declared `Qual`
+      whatever its type.** regex.rs gap 1: a `Pattern|string` union refuses a tainted argument by
+      the default rather than by a mark a reader can find (`rule:security/regex-pattern-is-a-sink`),
+      and a union has nowhere to hold `Qual::Launder`.
 
 ## Backlog
 
-- `crates/nvs-stdlib/src/xml.rs:133` — the computed `namespaceUri()` member, the last name stage 4's
-  first acceptance check is missing.
-- Stage 4 check 2: Zip64, a CRC, `Core\Random\Seeded`, a UUID's bytes, a UNC root, an EBML case —
-  `docs/agent/loop-goal.toml:11605`.
-- Stage 4 check 3: the regex step budget as a `limits` directive, and a literal CLDR pattern prepared
-  at compile time — `docs/agent/loop-goal.toml:11635`.
+- The prepared-pattern channel — `crates/nvs-stdlib/src/cldr.rs:212` and `time.rs:102`, stage 4's
+  third check's second test, and the goal's one ADR slot (next free 0192).
+- `crates/nvs-stdlib/src/regex.rs:89` gap 3, the compiled-pattern cache's accounting bracket — M6's,
+  per the goal sheet.
+- The other 18 gaps `python tools/owners.py --closes decided-closures` names, across
+  `nvs-diagnostics`, `nvs-stdlib`, `nvs-syntax` and `nvs-types`.
