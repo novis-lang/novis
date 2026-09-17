@@ -5413,6 +5413,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   ordinary call and never at a thunk. Use a member with no options bag for a callable-reference
   fixture, or assert through an ordinary call; the panic is in `crates/nvs-ir/src/lower/mod.rs`.
   [until: gone crates/nvs-ir/src/lower/mod.rs:shape parameter was erased]
+- **`parent::Name` in a type position does not parse, so a `reject` case naming it pins a
+  twenty-error cascade rather than the refusal it meant to.** The type grammar takes `Owner::Name`
+  and a bare `Name`; `parent::` is neither, so the parser stops at the `::` and re-reads the rest of
+  the method as class members, each with its own diagnostic. Assert what a subclass's *own* name
+  gives — `Sub::Id` is `E0405` — and leave `parent::`/`self::`/`static::` to a case about the type
+  grammar itself. [until: reviewed 2026-09-17]
 
 ## Splitting a file that got too big
 

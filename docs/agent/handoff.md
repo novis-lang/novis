@@ -2,49 +2,56 @@
 
 ## State
 
-**Goal `class-scoped-types`, stage 2 is complete — all four of its checks are green on disk.**
+**Goal `class-scoped-types`, stage 3: the two declaration refusals are landed, three of the five
+`reject` cases the stage check names are on disk and green.**
 
-- The parser takes `type Name = TypeExpr;` in a class, an interface and an enum body; `nvs-hir` keys a
-  body's alias by its owner plus the member name and refuses a cycle or a bare class through it.
-- `nvs-types` now resolves both spellings: `Owner::Name` asks `AliasTable::get_member` before the enum
-  case and the constant fold (`crates/nvs-types/src/lower.rs:343`), and a bare `Name` inside the
-  owner's body asks it before the namespace (`lower.rs:@resolve_name_type`). The stage 0 gap in
-  `lower_member_type`'s doc comment is closed, not carried.
-- **A tension stage 3 must not break:** `rule:types/alias-is-never-a-bare-class` refuses the *fully
-  bare* atom only, so the single-name expansion the left of a `::` is read through can only be written
-  wrapped — `type M = (Mode);`, which is what
-  `tests/conformance/lang/an-alias-left-of-a-double-colon-names-its-enum.nvst` pins. Tightening the
-  refusal through parentheses rewrites that case, and stage 5's rule fragment has to state which it is.
-- Two shapes stage 3 still owes, both found in stage 2: a modifier or an attribute group written in
-  front of a body's `type` parses and is dropped silently, and an alias in an **anonymous** class body
-  is never collected, since there is no owner name to key it by.
+- `E0133` refuses a modifier run or an attribute group written in front of a body's `type`, in a
+  class, an interface and an enum body alike, and keeps the declaration
+  (`crates/nvs-syntax/src/parser/decl.rs:@refuse_decoration_on_a_type_alias`). A modifier run in an
+  enum body reaches the member path, so that path no longer adds a second "not a case" refusal when
+  everything it parsed was an alias.
+- `type` written in a method body, a block or a closure body was **already** refused by name as
+  `E0233` before this session — only its `reject` case was missing, and it is written now.
+- Green on disk: `a-class-scoped-type-alias-takes-no-modifier.nvst`,
+  `a-type-alias-declared-inside-a-body-is-refused-by-name.nvst`,
+  `a-class-scoped-type-alias-of-a-bare-class-is-refused.nvst`.
+- **The two cases left each need code first**, which is why they are not written:
+  - *Not inherited* — the refusal works (`Sub::Id` and `Implementor::Handle` are `E0405`), but it is
+    reported **twice for one span**; the same miss in expression position is `E0309` once. Pinning
+    the duplicate would freeze it.
+  - *No collision* — a name shared with a constant or an enum case is **not refused at all** today:
+    `enum Colour: int { Red = 1, type Red = int; }` and
+    `class Holder { public const int ID = 1; type ID = int; }` both compile clean.
+- The pack did not print `rule:types/alias-is-never-a-bare-class`, which the bare-class case pins —
+  `[context] rules` is missing it.
 
 ## Next group
 
-**Stage 3: the two declaration refusals** — one file set: `crates/nvs-syntax/src/parser/decl.rs`,
-`crates/nvs-diagnostics/src/lib.rs`, `crates/nvs-types/src/locals.rs`.
+**Stage 3: the collision refusal and the duplicated unknown-member report** — one file set:
+`crates/nvs-hir/src/aliases.rs`, `crates/nvs-types/src/lower.rs`, `tests/conformance/reject/`.
 
-- [ ] **No modifier, no attribute group** — `crates/nvs-syntax/src/parser/decl.rs:685`
-      (`parse_class_member`) reports a new `E0133` where a `public`/`private`/`static`/`final` run or
-      an attribute group precedes a body's `type`, instead of parsing it and dropping it.
-      `rule:types/type-alias` and the goal's *Standing decisions* § *No visibility, ever*.
-- [ ] **Not in a body** — `type` inside a method, a closure or a block is refused by name at
-      `crates/nvs-types/src/locals.rs:1476`, the way a nested class is `E0233`, rather than falling
-      through as a statement error. `rule:types/type-alias`, guarded today by
-      `tests/conformance/lang/a-type-declared-inside-a-body-is-a-compile-error.nvst`.
-- [ ] **One `reject` case per refusal**, each pinning the diagnostic's own text, beside
-      `tests/conformance/reject/an-attribute-name-is-a-shape-typed-type-alias.nvst:1` — the
-      `rule:types/type-alias` case already there. The `--EXPECTF-ERROR--` indentation widens with the
-      line number (`docs/agent/conventions.md` § *A `.nvst` test case*).
+- [ ] **A name is a constant, a case or an alias, never two** — `crates/nvs-hir/src/aliases.rs:227`
+      (`record_members`) already holds the whole `&[ClassMember]` slice, so a constant sharing the
+      alias's name is visible there; an enum case is not, and has to come from that function's
+      caller at `crates/nvs-hir/src/aliases.rs:169`. A new `E0134`.
+      `rule:types/type-alias` and the goal's *Standing decisions* § *Resolution order at
+      `Owner::Name`*, which says the collision is refused at the declaration so no compiling
+      program depends on the lookup order.
+- [ ] **One `E0405` per site** — `crates/nvs-types/src/lower.rs:552` reports the unknown member for
+      `Owner::Name` in type position, and one parameter type produces it twice; find whether the
+      site runs twice or the report is not deduped, and fix whichever it is.
+      `rule:types/type-alias`.
+- [ ] **The last two `reject` cases**, written once the two above land, beside
+      `tests/conformance/reject/a-class-scoped-type-alias-of-a-bare-class-is-refused.nvst:1` —
+      `a-class-scoped-type-alias-is-not-inherited.nvst` and
+      `a-class-scoped-type-alias-does-not-share-a-name-with-a-constant-or-a-case.nvst`, the two
+      names the stage's check still reports missing. The house style for a `reject` expectation is
+      the `error[...]` line plus `%A`, which is what keeps the snippet's widening indentation out
+      of the file.
 
 ## Backlog
 
-- Stage 3's other half — no collision between an alias and a constant or an enum case under one owner
-  (`crates/nvs-hir/src/aliases.rs:227`), and `Child::Meta` not inherited from `Parent`
-  (`crates/nvs-types/src/lower.rs:343`). Same stage, different file set.
-- An alias in an anonymous class body is silently not collected — `crates/nvs-hir/src/aliases.rs:227`
-  keys by the owner's written name, and there is none. Refuse it or key it; stage 3 decides.
-- Stage 4: the formatter, `nvs meta --json` and the four LSP positions, per
-  `docs/agent/loop-goal.md` § *Stage 4*.
-- Stage 5: `rule:types/type-alias`'s fragment gains the member, and the decision record that owns the
-  reasoning — including which spellings reach a single name (see *State*).
+- `parent::Name` in a parameter type position does not parse and cascades; not a refusal this goal
+  owns (`rule:types/grammar`).
+- Stage 4 and stage 5 of `docs/agent/loop-goal.md` are untouched.
+- The alias's `[context] rules` needs `types/alias-is-never-a-bare-class` added.
