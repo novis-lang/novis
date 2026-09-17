@@ -37,6 +37,10 @@ use nvs_abi_probe::{Ctx, Helper, Probe, Value, call};
 #[path = "../shared/isolate.rs"]
 mod isolate;
 
+// The same table `benches/routing.rs` walks, for the same reason.
+#[path = "../shared/routes.rs"]
+mod routes;
+
 /// Holds this binary's guards apart, so each one measures a machine that is
 /// otherwise idle.
 ///
@@ -802,6 +806,60 @@ fn a_cpu_bound_fan_out_across_four_worker_cores_is_near_linear_by_the_margin_thi
          near-linear speedup across cores for exactly this shape of work; at this ratio the \
          children are sharing a core rather than spreading over them.",
         isolate::WIDTH
+    );
+}
+
+// ---------------------------------------------------------------------------
+// `rule:routing/path-grammar`'s trie, priced against the walk standing in for it
+// ---------------------------------------------------------------------------
+
+/// One row of a route table costs a small enough slice of a request that
+/// replacing the walk with a trie would buy nothing measurable.
+///
+/// `nvs_runtime::routes` compares against every row of the right verb, so its
+/// cost grows with the table rather than with the path. What decides whether
+/// that matters is not the per-row figure on its own but the figure times the
+/// rows an application declares, against what serving a request costs —
+/// `benches/serve-proxied.json`'s `nvs-serve-direct` arm, which is where the
+/// denominator lives and the only place it is written down.
+///
+/// The slope between two table sizes is what is measured, so the split of the
+/// path and the capture the answer carries — both per request and neither per
+/// row — cancel out. `benches/routing.rs` is the same measurement with
+/// criterion's precision; this one can fail a build.
+#[test]
+#[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
+fn a_route_table_walk_costs_a_fraction_of_the_request_it_rides_in() {
+    let _quiet = serialised();
+
+    // Roughly 10x the measured baseline, like every ceiling in this file. A
+    // regression past it is a row that began to allocate or to convert before
+    // it has matched, which is what would make the table's length start to
+    // show in a request.
+    const MAX_NS_PER_ROW: f64 = 30.0;
+
+    let (method, path) = routes::REQUEST;
+    let small = routes::table(8);
+    let large = routes::table(512);
+
+    let t_small = ns_per_op(200_000, 5, || {
+        black_box(small.match_request(black_box(method), black_box(path)));
+    });
+    let t_large = ns_per_op(20_000, 5, || {
+        black_box(large.match_request(black_box(method), black_box(path)));
+    });
+
+    let per_row = (t_large - t_small) / 504.0;
+    println!(
+        "route walk: {per_row:.2} ns per row (8 rows {t_small:.1} ns, 512 rows {t_large:.1} ns){}",
+        under(per_row, MAX_NS_PER_ROW)
+    );
+
+    assert!(
+        per_row < MAX_NS_PER_ROW,
+        "a route table row now costs {per_row:.2} ns to walk past, over the {MAX_NS_PER_ROW} ns \
+         guard. The linear walk is kept in place because the table's length does not show in a \
+         request; if this is a real regression, that argument is the one to revisit."
     );
 }
 

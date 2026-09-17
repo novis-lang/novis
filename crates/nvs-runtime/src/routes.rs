@@ -78,16 +78,26 @@
 //! of that rule, including what a capture whose octets are not UTF-8 becomes. A
 //! `uint` capture is unaffected either way: no digit has an encoded spelling.
 //!
-//! # Known gaps
+//! # The walk is a comparison over every row, and stays one
 //!
-//! 1. **The walk is a linear scan, not `rule:routing/path-grammar`'s trie.** § 1's measured
-//!    table is `matchit`'s, and this is a comparison over every row of the
-//!    right verb: the same answers, and a cost that grows with the table rather
-//!    than with the path. The shape a trie would replace is one function
-//!    ([`Routes::match_request`]) and the rank it already computes.
-//!    Decided: Measure on benches/serve-proxied.json first, build only if it shows — Spends work only
-//!    if routing is actually a cost, and needs a large-table bench arm.
-//!    — owner: decided-closures
+//! [`Routes::match_request`] compares the request against every row of the
+//! right verb rather than descending a trie, so what it costs grows with the
+//! **table** rather than with the path. That is a stated bound, not a gap. A
+//! row is a verb comparison, and for the rows that survive one, a literal
+//! segment or two before [`Route::fill`] gives up — cheap enough that the
+//! length of a table an application declares does not show in the request it
+//! rides inside, which is what a trie would have to beat to be worth the
+//! precedence rule it would have to re-derive.
+//!
+//! The figure lives in `benches/abi-probe/benches/routing.rs`, which walks
+//! tables differing only in how many rows they hold so that the slope between
+//! them is the per-row cost and the split of the path cancels out. The guard
+//! beside it in `benches/abi-probe/tests/perf_guards.rs` fails a build when a
+//! row leaves that cost class, and `benches/serve-proxied.json`'s
+//! `nvs-serve-direct` arm is the request the cost is a share of. What would
+//! overturn this is a row that allocates or converts before it has matched —
+//! which is what the guard watches — or a table orders of magnitude past what
+//! a program declares.
 
 use std::sync::Arc;
 
