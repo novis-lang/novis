@@ -413,6 +413,16 @@ pub(crate) fn run(
     // have made the count above one per core. Built once, before anything is
     // bound, and handed to every accept loop by clone.
     let compiler = Arc::new(Compiler::new(&snapshot.config));
+    // And published once for the process, here rather than on each core: a core
+    // `nvs_host` starts for a `spawn script` placed `on: "worker"` is not one of
+    // this fleet's and has no accept loop's stack to borrow a resolver from, so
+    // it reads this handle as it starts
+    // (`nvs_runtime::script`'s *Reaching a core that has not started yet*). One
+    // publish rather than one per core, because a guard restored out of order
+    // across threads would leave the slot holding whichever core finished last.
+    let _published = nvs_runtime::script::publish(nvs_runtime::script::SharedResolver::new(
+        Arc::clone(&compiler),
+    ));
     for mounted in table.mounts() {
         if let Err(message) = compiled_under(&compiler, mounted) {
             eprintln!("error: {message}");

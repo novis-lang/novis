@@ -2394,7 +2394,16 @@ fn run_run(
     // Held on this stack for the length of the run rather than leaked: `scoped`
     // owns why the seam's `&'static` does not oblige a `Box::leak`, and the unit
     // cache goes down with it here.
-    let compiler = script::Compiler::new(&for_compiler.config);
+    //
+    // Behind an `Arc` so the same cache also reaches a core `nvs_host` starts
+    // for a `spawn script` placed `on: "worker"`, which has no stack of this
+    // one's to borrow from — `nvs_runtime::script`'s *Reaching a core that has
+    // not started yet*. One handle for the process, withdrawn below when the run
+    // ends, so a source still compiles once however many cores read it.
+    let compiler = std::sync::Arc::new(script::Compiler::new(&for_compiler.config));
+    let shared = nvs_runtime::script::publish(nvs_runtime::script::SharedResolver::new(
+        std::sync::Arc::clone(&compiler),
+    ));
     // `rule:testing/in-process-request`'s seam nests inside the resolver's for the same length and
     // on the same terms — `runner::UnderTest` owns why the program under test
     // is this crate's to hold.
@@ -2419,9 +2428,10 @@ fn run_run(
         watched.publish_safepoint(charged);
         watched
     });
-    let ran = nvs_runtime::script::scoped(&compiler, || {
+    let ran = nvs_runtime::script::scoped(compiler.as_ref(), || {
         nvs_runtime::inproc::scoped(&under_test, || nvs_host::run_until_idle(&mut sched))
     });
+    drop(shared);
     // The run is over at this line, so the request stops being charged at it:
     // the registration goes first, and the watchdog after it joins its thread.
     // Everything below reads a context nothing is sampling any more.

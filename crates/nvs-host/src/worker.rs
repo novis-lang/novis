@@ -104,13 +104,14 @@
 //! decisions; `rule:concurrency/on-worker-runs-the-child-on-another-core` is
 //! written as what runs. Closing it is a serving core calling into this module
 //! as it starts rather than anything about the crossing, so it needs nothing a
-//! later milestone builds and goal `worker-placement` owns it with the entry-form
-//! half [`crate::placed`] states.
+//! later milestone builds and goal `worker-placement` owns it.
 //!
-//! What reaches this from above is [`crate::placed`], and it reaches it for one
-//! of `spawn script`'s two entry forms: a method crosses, a path starts on the
-//! parent's core. That module's own `# Known gaps` is that gap's one home, and
-//! nothing about it is a question for the transport here.
+//! What reaches this from above is [`crate::placed`], and it reaches it for both
+//! of `spawn script`'s entry forms: a core here is started under the process's
+//! published resolver, so a path is compiled on the core that runs it exactly as
+//! a method is prepared there. That module's *Both entry forms cross* is the one
+//! home of what each form needs, and nothing about either is a question for the
+//! transport here.
 //! — owner: worker-placement
 
 use std::collections::VecDeque;
@@ -559,13 +560,31 @@ impl WorkerCores {
     /// goes to a core that exists — which is the same shape as being at the
     /// bound. `affinity`'s module doc owns why a refusal to *pin* is not an
     /// error at all.
+    ///
+    /// The core is started **under the process's published resolver**, which is
+    /// the one thing it could not acquire for itself afterwards: a resolver is
+    /// per thread and this thread is this crate's, so the handle goes in where
+    /// the reactor and the receptionist do. What that shares is the unit cache
+    /// and nothing else, which is the sharing
+    /// `rule:security/isolate-shares-nothing` permits and the only one.
     fn start_one(&mut self) -> bool {
         let Some(cpu) = cpus().get(self.cores.len()).copied() else {
             return false;
         };
         let inbox = Inbox::new();
         let mine = Arc::clone(&inbox);
-        let Ok(worker) = Worker::spawn(cpu, move |sched| run_core(&mine, sched)) else {
+        // The process's resolver handle, read here rather than on the new
+        // thread. It has to be `Send` to reach one at all, which is what
+        // `nvs_runtime::script::SharedResolver` is; taking it at the moment the
+        // core is decided on is what makes the resolver a placement was measured
+        // against and the resolver its core runs under the same one. `None` is a
+        // process that published none — a `nvs check`, a test — and that core
+        // answers a path entry the way it always has.
+        let resolver = nvs_runtime::script::published();
+        let Ok(worker) = Worker::spawn(cpu, move |sched| match resolver {
+            Some(handle) => handle.scoped(|| run_core(&mine, sched)),
+            None => run_core(&mine, sched),
+        }) else {
             return false;
         };
         self.cores.push(Core { inbox, worker });
