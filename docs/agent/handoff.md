@@ -2,49 +2,44 @@
 
 ## State
 
-**Goal `decided-closures`, stage 3 — the checker and the front end.** `python tools/owners.py
---closes decided-closures` now names **2**, both stage 3: `crates/nvs-diagnostics/src/embedded.rs:30`
-(autoload roots into a bundle) and `crates/nvs-syntax/src/lib.rs:96` (a shape-typed local). Stage 4 —
-the library — owns none. The other two stage-6 gates stay green.
+**Goal `decided-closures`, stage 3 — one gap left in the whole goal.** `python tools/owners.py
+--closes decided-closures` now names **1**: `crates/nvs-diagnostics/src/embedded.rs:30`, autoload
+roots resolved into a bundle at build time. Stage 4 — the library — owns none, and the other two
+stage-6 gates are green.
 
-**What a parameter default may be now**, and its one home is `crates/nvs-types/src/defaults.rs`'s
-§ *What a default may be*: a literal, a `null` where the type admits one, an enum case and another
-class's `const` — the same set a property default takes, folded by the same
-`const_reference_default`. The call site emits it at the **parameter's own** IR type
-(`crates/nvs-ir/src/lower/call.rs:615`'s `position`), so a folded case is a `Ty::Enum` value and not
-a plain `int`; `crates/nvs-ir/tests/parameter_defaults.rs` is the only thing that can see that, for
-the playbook's reason. A `#[Command]` row carries such a default as the **case name**
-(`crates/nvs-types/src/commands.rs:752`), because `ArgConv::Enum` decided a command line spells a
-case by name and the backing integer is a word it would refuse.
-
-**The one-body-writer refusal now states its bound rather than carrying it as a gap.** A mount's
-entry script is answered by § 3's default, in `crates/nvs-types/src/response.rs:29`'s own prose and
-in `rule:security/response-body-is-one-typed-member`'s last paragraph, which this session amended to
-say where the error is reported.
+**`{x: int} $point;` is `E0134` now**, naming `type Point = {x: int}; Point $point;`. The tell is
+`crates/nvs-syntax/src/parser/stmt.rs`'s `at_shape_typed_local`: a braced run that opens like a field
+list *and* a variable after the **matched** `}`, so a block a variable happens to follow
+(`{ echo 1; } $x = 1;`) keeps its ordinary parse and a discarded object literal keeps `E0117`. It is
+the only place the parser looks further ahead than three tokens, bounded by that module's
+`SHAPE_TYPED_LOCAL_SCAN_LIMIT`, and the `Parser` doc comment states it. The language fact's home is
+`rule:types/shape-type`'s type-expression bullet: a local is the one slot where naming the shape
+first is required rather than optional.
 
 ## Next group
 
-**Stage 3: the shape-typed local's targeted error** — one file set:
-`crates/nvs-syntax/src/parser/` plus the code table in `crates/nvs-diagnostics/src/lib.rs` and one
-reject case.
+**Stage 3: autoload roots resolved into the bundle** — one file set: `crates/nvs-cli/src/bundle.rs`,
+`crates/nvs-hir/src/autoload.rs` and the gap paragraph in `crates/nvs-diagnostics/src/embedded.rs`.
 
-- [ ] **Give `{x: int} $point;` the targeted error its `Decided:` names** — a new `E01xx` code
-      (next free is `E0134`) reported where a statement-initial `{...}` is followed by a variable,
-      pointing at `type Point = {x: int}; Point $p;`. The tell is half-built already:
-      `crates/nvs-syntax/src/parser/expr.rs:1581` (`at_object_literal_in_block_position`) looks one
-      token past the `{`, and what this needs is the token after the **matched** `}` — scanned from
-      `crates/nvs-syntax/src/parser/stmt.rs:62`. `{ echo 1; } $x = 1;` is what the scan must not
-      claim. Rule: `rule:types/shape-type`, and `rule:types/object-literal` for the collision the
-      parser already resolves.
-- [ ] **Delete the gap item and its two tags at `crates/nvs-syntax/src/lib.rs:96`**, rewriting the
-      `# Known gaps` bullet as the module's own prose: the slot is narrower than the others, and the
-      error names the alias form. One `tests/conformance/reject/` case with `--EXPECTF-ERROR--`
-      pins the message, and a second asserts the block-then-assignment it must not claim.
+- [ ] **Freeze the autoload root set into the payload at build time** —
+      `crates/nvs-cli/src/bundle.rs:148` (`build`) collects the payload from the `require` graph
+      alone, which is why a bundled program that reaches a name only through a root does not resolve
+      it. `crates/nvs-hir/src/autoload.rs:351` (`enumerate`) already answers with every
+      `(QName, PathBuf)` the roots declare, which is the list to append. Rule:
+      `rule:programs/no-runtime-autoload` (the file graph closes while compiling) and
+      `rule:packaging/a-bundled-require-resolves-at-build-time`.
+- [ ] **Answer a bundled probe out of the payload rather than the disk** —
+      `crates/nvs-hir/src/autoload.rs:459` and `crates/nvs-hir/src/autoload.rs:576` are the two
+      `std::fs::read_dir` calls that list real directories; they read the embedded table first, the
+      way `crate::SourceMap::load` already does (`crates/nvs-diagnostics/src/embedded.rs:7`).
+      Rule: `rule:packaging/a-bundle-is-found-by-its-footer-before-argv-is-read`.
+- [ ] **Strike the gap and pin it** — delete the `**Known gap.**` paragraph and its `Decided:`/owner
+      tags at `crates/nvs-diagnostics/src/embedded.rs:30`, rewriting it as what the module now does,
+      and add the case that a bundled program reaches a class only an autoload root declares.
 
 ## Backlog
 
-- `crates/nvs-diagnostics/src/embedded.rs:30` gap 1 — resolve `autoload` roots into the bundle at
-  build time (`Decided:` there); the file set is `crates/nvs-cli`'s bundler plus that module.
-- `crates/nvs-types/src/defaults.rs`'s `decimal` paragraph — a `decimal` default is still refused;
-  it carries no owner and is not this goal's.
-- `python tools/owners.py --deferrals` is the proof any remaining gap needs if it goes to M9+.
+- That gap is the goal's last: `docs/agent/loop-goal.md` § *The six steps* names the three gates a
+  `DONE` claim runs first (`verify.py --doc`, `owners.py --closes`, `playbook.py --closes`).
+- `crates/nvs-syntax/src/lib.rs` now has no `# Known gaps` section at all — a future one starts the
+  heading again rather than editing a leftover.
