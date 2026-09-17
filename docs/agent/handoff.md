@@ -2,44 +2,50 @@
 
 ## State
 
-**Goal `decided-closures` is reached, and its floor is green.** Session 0003's DONE claim fell to one
-check — `python tools/plan.py --check`, on M7's `Carried by` cell, which had gone stale when the last
-goal carrying M7 walked. `python tools/plan.py --sync` rewrote it to `done`; `--check` is exit 0 and
-`--past` reports 11 of 11 past milestones complete.
+**Goal 67 — `is` is the one type test, and `instanceof` is gone — has just started; nothing of it has
+landed yet.** Goal `decided-closures`'s whole list is this goal's Stage 1 floor.
 
-The register is empty from every side: `python tools/owners.py --closes decided-closures` and `python
-tools/playbook.py --closes decided-closures` both answer "owns no …". `python tools/verify.py` is
-green and `python tools/verify.py --doc` resolves every link. Nothing else in the goal's acceptance
-list was red in that sweep — 670 of 671 checks passed.
+Everything is settled before the first session, and the first session writes the settlement down
+before any code moves: the decision record and the rulebook are stage 2, and the goal's prose spells
+out what the record's `Context`, `Decision`, `Alternatives rejected` and `Revisiting` hold, which rule
+it creates, which rule it deletes and which six it modifies. The one thing no session re-decides is
+the standing decision at the top of § *Standing decisions*: Novis diverges from PHP on `is` and
+`instanceof` for good, and no session compares either keyword with PHP again — the RFC was read once,
+its reading is frozen in the record, and it is not read again.
+
+Goal `core-class-tests`'s descriptor work is on `main` (stage 0's last bullet), so `is Core\Time\Date`
+already has a path to run on and nothing here builds a second one.
 
 ## Next group
 
-**Goal `one-type-test`, stage 2: the record and the rulebook** — the driver installs
-`docs/agent/goals/67-one-type-test.handoff.md` over this file at the switch, and that file is
-authoritative for the stage; these are its first three items, unchanged.
+**Stage 2: the record and the rulebook** — one file set: `docs/decisions/` (one new record at the
+next free number), `docs/rules/php-migration.json`, `docs/rules/types.json`,
+`docs/rules/php-migration/one-type-test.md` (new), and the six fragments the record modifies:
+`docs/rules/types/type-test.md`, `docs/rules/types/narrowing.md`,
+`docs/rules/types/class-reference-sites.md`, `docs/rules/php-migration/let-and-is-are-reserved.md`,
+`docs/rules/php-migration/a-declared-type-answers-before-the-program-runs.md`,
+`docs/rules/php-migration/every-divergence-is-deliberate-and-listed.md`.
 
-- [ ] **The record** — one new record at the next free number, to the shape
-      `docs/agent/goals/67-one-type-test.md:67` spells out: `changes.creates` is
-      `php-migration/one-type-test`, `changes.modifies` is the six fragments the goal names, §
-      *Context* freezes the one reading of PHP's RFC, § *Revisiting* names one Novis trigger and no
-      PHP one.
-- [ ] **The new fragment and its JSON entry** — `docs/rules/php-migration/one-type-test.md` at
-      `status: designed`, placed beside the `let-and-is-are-reserved` entry at
-      `docs/rules/php-migration.json:176`, its `divergesFromPhp` the one sentence `divergences.md`
-      prints.
-- [ ] **The six fragments rewritten** to the language that goal ships —
-      `docs/rules/types/type-test.md:1`, `docs/rules/types/narrowing.md:1`,
-      `docs/rules/types/class-reference-sites.md:1` and the three under `docs/rules/php-migration/`
-      the goal names — each `because` gaining the record's number, then `python tools/rules.py
-      --render`.
+- [ ] **The record** — written from `conventions.md` § *A decision record*; `changes.creates` is
+      `php-migration/one-type-test`, `changes.modifies` is the six above; § *Context* freezes the one
+      reading of PHP's RFC and the 8.6 deprecation; § *Revisiting* names one Novis trigger and no PHP
+      one.
+- [ ] **The new fragment and its JSON entry**, `status: designed`, placed beside
+      `let-and-is-are-reserved` in `php-migration.json`'s `rules` array, its `divergesFromPhp` the one
+      sentence `divergences.md` prints.
+- [ ] **`is-takes-pattern-matchings-type-patterns` deleted** — fragment and entry, every `seeAlso`
+      that names it swept, and if `changes:` has no key for a removal, one sentence in § *Decision*.
+- [ ] **The six fragments rewritten** to the language this goal ships, each `because` gaining the
+      record's number, then `python tools/rules.py --render`.
+- [ ] Stage 2's five checks green: `rules.py --check`, `rules.py --render --check`,
+      `records.py --check`, and the two `git grep`s.
 
 ## Backlog
 
-- `crates/nvs-cli/src/bundle.rs`'s remaining known gap: § 6's `.nvsx` entries are not embedded, owned
-  by M9 and blocked on Tier 1 extensions loading at all.
-- A bundle grows by every `.nvs` file under a declared root, stated in `bundle::build`'s doc comment;
-  nothing measures it and no cost guard names a bundle's size.
-- Nothing derives a milestone's `Carried by` cell at wrap time, so it can only go stale between a goal
-  being reached and the next `plan.py --check` (`tools/plan.py --sync` is the repair).
-- Goal `gap-zero` follows `one-type-test`; its gate declares the tree clean of owed work, so a
-  construct deleted after it would reopen sites it passed over (`docs/agent/goals/68-gap-zero.md`).
+- Stage 3 (the front end: `nvs-syntax`, `nvs-types`, `nvs-diagnostics`) and stage 4 (the lowering,
+  the codegen, the runtime rename), each its own file set; stage 4 cannot start before stage 3's
+  `ExprKind::TypeTest` carries the value arm.
+- Stage 5 (`nvs-stdlib`'s `Core\Ast` roster, the LSP, the formatter) and stage 6 (the test sweep and
+  the renames, each rename patched everywhere it is named in the same slice).
+- Stage 7 (the prose sweep, the rule flipped to `shipped`, the absence gate).
+- When this goal's last check goes green the driver takes goal `gap-zero`.

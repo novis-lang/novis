@@ -1,147 +1,249 @@
 ---
 milestone: post-parity
 ---
-# Loop goal 66 — every gap the decision sheet answered is built to its answer
+# Loop goal 67 — `is` is the one type test, and `instanceof` is gone
 
-No module-doc gap names this goal any more. Each of the forty-eight it starts with is **built** to the
-`Decided:` sentence it carries and its numbered item deleted, **struck** because that sentence made it a
-stated bound of the design rather than a hole, or **deferred** to a milestone at M9 or later whose own
-plan file states the scope — and a deferral is honest only when the item cannot be built without that
-milestone's work. `python tools/owners.py --closes decided-closures` is the gate, and it is red while any
-item names the goal: a tag is not a build.
+Novis has one type test, `$x is T`, and it asks every question the two operators used to split:
+`$x is Request` is the class test, `$x is $cls` is the dynamic class test against a `class<T>` value
+and narrows to `T`, and `int $n; $n is Request` compiles and folds to `false` like every other test
+the declaration settles. The spelling `instanceof` is refused where it is written, naming `is`; the
+descriptor walk it lowered to keeps running under a name that is not the keyword. The decision, the
+divergence from PHP, and the fact that **neither keyword is compared with PHP again** are one record
+and one rule, written first — and at the end of the goal the word `instanceof` survives only in that
+rule, in the refusal that names it, and in the frozen records.
 
 ## Why here
 
-Directly in front of goal `gap-zero`, in the slot goal `unowned-closures` held. That goal was reached
-with forty items tagged to it and none of them built, because its own gate was `owners.py`'s
-`unowned: 0` and tagging every item to the goal is what made the count zero; the floor check that names
-a goal which walked without closing its gaps reads a goal as retired only after the driver retires it,
-so it went red one goal late, under goal `class-scoped-types`. Those forty carry the user's own answers
-from the decision sheet of 2026-09-13, written as a `Decided:` sentence in each gap, so nothing here is
-re-decided — it is built. Eight more items ride with them: the ones deferred to M1, M6, M7 and M8, a
-milestone the program has passed, which `gap-zero` refuses on arrival and no live goal owned. Goal
-`gap-zero` builds nothing and cannot absorb any of them; this goal is where they close.
+Directly after goal `decided-closures` and before goal `gap-zero`. It needs goal `core-class-tests`,
+which laid the descriptor path a `Core` class is tested through — `is Core\Time\Date` runs on exactly
+that path, so nothing here builds a second one. It sits before `gap-zero` because that goal's gate
+declares the tree clean of owed work and the register closed, and a construct deleted *after* the
+declaration would reopen a hundred sites the gate had just passed over. It sits before `dossier`
+because that goal generates one goal per feature from the rulebook, and a rule naming `instanceof`
+would generate a goal for a spelling that no longer exists. Goal `decided-closures` builds what the
+register says and touches none of these files, so the two share nothing and the order between them
+is only that this one's sweep is cheaper on a tree whose gaps are already closed.
 
 ## Stage 0 — the catch-up
 
-None. Every item already names this goal — `grep -rn "owner: decided-closures" crates/` is the whole
-list — and forty of them already carry their `Decided:` sentence. The eight without one state what
-closes them in their own prose. An item a session reaches with no sentence and no stated build is a
-`BLOCKED` naming the gap: the one hold this goal expects.
+Sentences on disk this goal makes wrong, each with its home. None is edited ahead of the stage that
+owns it; the list exists so a session does not rediscover one and treat it as a gap.
+
+- `rule:php-migration/is-takes-pattern-matchings-type-patterns` § *Why `$x is $cls` is refused* says a bare
+  variable on the right of `is` is a top-level capture in PHP. The RFC as read for this goal — version
+  0.9, *in discussion* — permits binding only inside an object or array pattern and refuses a bare
+  variable as a whole pattern. The rule is deleted in stage 2 with the sentence in it.
+- `rule:types/type-test`'s *three refusals* table, row `$x is $cls` (`E0812`), and its paragraph
+  opening *That differs from `instanceof`*. Rewritten in stage 2.
+- `rule:types/narrowing`'s first sentence counts five spellings; there are four. Stage 2.
+- `rule:types/class-reference-sites`'s third row spells the site `$x instanceof $cls`. Stage 2.
+- `rule:php-migration/let-and-is-are-reserved`'s last paragraph says *`is` and `instanceof` test*.
+  Stage 2, where `instanceof` joins the paragraph as a refused spelling of the empty kind.
+- `rule:php-migration/a-declared-type-answers-before-the-program-runs`: its title, its `instanceof`
+  half and its `divergesFromPhp` sentence naming `1 instanceof Box` and `E0497`. Stage 2, reduced to
+  the `->` half.
+- `rule:php-migration/every-divergence-is-deliberate-and-listed`'s clause *`->` and `instanceof` before
+  the program runs*. Stage 2.
+- `crates/nvs-syntax/src/parser/ty.rs:@reject_value_in_type_test`'s help, which sends the reader to
+  `instanceof` for the dynamic test. Deleted in stage 3 with the refusal.
+- Goal `core-class-tests`'s descriptor work is on `main` and is what `is Core\Time\Date` runs on:
+  `nvs_types::expr::members::testable_class_name`, the `emit.rs` guard that admits a `Core` class's
+  process-wide descriptor, `nvs_stdlib::class_has_instances`, and the case
+  `tests/conformance/lang/instanceof-answers-for-a-core-class.nvst`. Stage 3 folds the first into the
+  type resolver's own answer for a `Core` class written as a type, stage 4 keeps the guard under the
+  renamed emitter, and stage 6 rewrites the case to `is`.
 
 ## Stage 1 — the floor
 
-Goal `cache-shared-dial`'s whole acceptance list, carried in verbatim by `tools/goal-switch.py`. Never
+Goal `decided-closures`'s whole acceptance list, carried in verbatim by `tools/goal-switch.py`. Never
 traded.
 
-## Stage 2 — the runtime and the lowering
+## Stage 2 — the record and the rulebook, first
 
-One file set: `crates/nvs-runtime/src/`, `crates/nvs-ir/src/`, `crates/nvs-server/src/metrics.rs`.
+**One slice, before any code changes**, so the tree states the decision from its first commit. The
+record is written from the shape in [conventions.md](conventions.md) § *A decision record*, claims
+the next free number, and its `changes:` block and the rules' `because` lists are written together.
 
-- **The in-flight collector**, one build for three items: `crates/nvs-ir/src/lib.rs` gap 14 (`COLLECT`
-  is cleared and ignored), `crates/nvs-runtime/src/lib.rs` gap 5 (`nvs_safepoint` acts on nothing) and
-  gap 7 (a cycle is reclaimed at teardown). *Decided: a collector that runs only near the memory
-  ceiling*, so the normal request pays nothing and a request that would trip its cap gets one pass first.
-  State what it spends per request in the runtime's module doc.
-- **`crates/nvs-runtime/src/lib.rs` gap 2** — `concat` and `concat_n` reuse a solely-owned left operand,
-  so `$s = $s . $x` is linear like append.
-- **`crates/nvs-runtime/src/decimal.rs` gap 1** — a division whose 128-bit fold overflows retries at 192
-  bits rather than throwing.
-- **`crates/nvs-ir/src/lib.rs` gap 18** — a throw escaping an abandoned generator's `finally` is reported
-  through the escalation ladder and replaces nothing.
-- **`crates/nvs-runtime/src/record.rs`**: gap 1 refuses at compile time a `secret` stored into an array
-  element or a shape field (the refusal is `nvs-types`'s; the gap lives where the walk that would meet
-  the value does); gap 2 is a bound — through `mixed` an enum is its integer — and is struck as prose.
-- **`crates/nvs-runtime/src/routes.rs` gap 1** — measured on `benches/serve-proxied.json` first; the trie
-  is built only if the linear walk shows, and otherwise the gap becomes a stated bound with the figure's
-  home named.
-- **`crates/nvs-runtime/src/metrics.rs` gap 1** — the `otlp` pusher behind `[metrics] endpoint`, goal
-  `m7-server-surface`'s stage 10, which that goal retired without building. No sentence, because none was
-  needed: the gap says what closes it.
+- **The record** — `docs/decisions/NNNN.md`, *`is` is the one type test, `instanceof` is a refused
+  spelling, and neither keyword is compared with PHP again*. Its `Context` freezes what was read once
+  and is never read again: PHP's Pattern Matching RFC at version 0.9, in discussion, which spells the
+  class test `$foo is Request` as an `instanceof` equivalent, refuses a bare variable as a whole pattern,
+  spells pinning `^$var` with `===`, and does not address a dynamic class name; and PHP 8.6's passed
+  deprecation of `is` as an identifier, whose stated motivation is that RFC. Its `Decision` is the
+  four sentences of the target above. Its `Alternatives rejected` are the two this goal replaced: a
+  `Core\Reflect::isInstance` call for the dynamic test, and keeping `instanceof` for that form alone.
+  Its `Revisiting` names **one** trigger and no PHP one: Novis wanting pattern syntax of its own, which
+  is a design question opened by a record of its own, decided on Novis's priorities.
+- **The new rule** — `php-migration/one-type-test`, created by the record, `status: designed` until
+  stage 7 flips it. It states, as the divergence's one home: `instanceof` is refused where it is
+  written and the diagnostic names the rewrite; `$x is $cls` is the dynamic class test against a
+  `class<T>` and narrows to `T`, where PHP's RFC refuses the spelling; a `string` or anything else on
+  the right of `is` that is a value and not a `class<T>` is `E0496`, with help naming `as class<T>`;
+  the converter (M11's, over `php-rs-parser`) rewrites `$x instanceof C` to `$x is C` and leaves
+  PHP's string and object right-hand sides to that refusal; and **no session re-reads the RFC, tracks
+  its vote, or compares either keyword with PHP again** — the shapes the deleted rule listed as
+  reserved (object patterns, array patterns, comparison patterns, pinning, `match ... is {`) keep
+  refusing as syntax Novis does not have, with no RFC named in the diagnostic, and any future pattern
+  syntax is Novis's own design question. Its `divergesFromPhp` field is the one sentence
+  `divergences.md` prints.
+- **The rule that goes** — `php-migration/is-takes-pattern-matchings-type-patterns`: its fragment
+  deleted, its `php-migration.json` entry removed, every `seeAlso` that names it swept. Record 0150
+  stays `accepted`, since it also created `types/type-test`; if `changes:` has no key for a removal,
+  § *Decision* of the new record states it in one sentence and the handoff says so.
+- **The six the record modifies**, each fragment rewritten to the language this goal ships, each
+  `because` gaining the record's number: `types/type-test` (the third refusal becomes the value form's
+  acceptance and the `E0496` case; the *differs from `instanceof`* paragraph goes; the sentence
+  *every other row is one tag comparison, or the descriptor walk* names the walk without the keyword),
+  `types/narrowing` (four spellings; `$x is $cls` narrows to `T`), `types/class-reference-sites` (third
+  row `$x is $cls`), `php-migration/let-and-is-are-reserved` (`instanceof` is a refused spelling with a
+  living rewrite, beside `let`'s empty kind; the living-spellings sentence reads *`is` tests*),
+  `php-migration/a-declared-type-answers-before-the-program-runs` (title and body reduced to `->`),
+  `php-migration/every-divergence-is-deliberate-and-listed` (the `->` clause alone, plus one clause
+  citing the new rule).
+- `python tools/rules.py --render`, then `--check` and `--render --check`, then `python
+  tools/records.py --check`.
 
-## Stage 3 — the checker and the front end
+## Stage 3 — the front end
 
-One file set: `crates/nvs-types/src/`, `crates/nvs-hir/src/`, `crates/nvs-syntax/src/`,
-`crates/nvs-diagnostics/src/`.
+One file set: `crates/nvs-syntax/src/parser/expr.rs`, `crates/nvs-syntax/src/parser/ty.rs`,
+`crates/nvs-syntax/src/ast.rs`, `crates/nvs-syntax/src/token.rs`, `crates/nvs-types/src/expr/members.rs`,
+`crates/nvs-types/src/expr/type_test.rs`, `crates/nvs-types/src/locals.rs`,
+`crates/nvs-types/src/expr_table.rs`, `crates/nvs-diagnostics/src/lib.rs`.
 
-- **`crates/nvs-diagnostics/src/embedded.rs` gap 1** — `autoload` roots are resolved into the bundle at
-  build time, so a bundled program behaves like the tree it was built from.
-- **`crates/nvs-hir/src/hierarchy.rs` gap 1** — `nvs-hir` is handed a roster of `Core` names at
-  construction, so every link error comes from one pass.
-- **`crates/nvs-hir/src/requires.rs` gap 1** — literal concatenations and `const`s in a `require` path
-  are folded before the graph walk.
-- **`crates/nvs-syntax/src/casing.rs` gap 1** — a `type` alias is PascalCase like a class. This is a rule
-  change: `rule:types/type-alias`'s fragment is amended in the same slice, and no record opens.
-- **`crates/nvs-syntax/src/lib.rs`**: gap 1 keeps the alias form and gives the targeted error; gaps 2
-  and 3 are M1's two — `use function` / `use const` get the refusal naming
-  `rule:classes/no-free-functions-or-constants`, and keyword-spelled segments past the first are covered
-  by conformance cases rather than spot-checked.
-- **`crates/nvs-types/src/defaults.rs` gap 1** — the call-site emitter carries the parameter's own IR
-  type, so the default is allowed.
-- **`crates/nvs-types/src/response.rs` gap 1** — the run-time default stays (`echo` is `text/html`, the
-  last body member wins) and is struck as the module's own prose.
+- **The grammar.** `ExprKind::InstanceOf` is deleted. `ExprKind::TypeTest` carries
+  `against: TestOperand`, with `TestOperand::Type(Type)` and `TestOperand::Value(Box<Expr>)`. After
+  `is`, a `$variable` token starts the value arm, parsed at the `|>` level exactly as the old
+  `instanceof` operand was, so `$x is $this->cls` and `$x is $cls` are both values; **every other
+  token starts a type**, which keeps a DNF type's opening `(` a type. `parse_instanceof` becomes
+  `parse_type_test`; `parse_type_test_operand` and `reject_value_in_type_test` go.
+- **The refusal.** `Keyword::InstanceOf` stays a token so the spelling can be named. Met where a
+  binary operator may stand, it reports a new code beside `E_RESERVED_FOR_FUTURE_USE` — *`instanceof`
+  is not a Novis operator; the type test is `is`* — with help *write `$x is Request`; a class
+  reference on the right is `$x is $cls`* — and consumes the right operand so the site costs one
+  diagnostic. Nothing else about the token changes; it was never a name.
+- **The checker.** `infer_type_test` gains the value arm: the operand must type as a `class<T>`, and
+  anything else goes through `reject_dynamic_class_name` — `E0496`, the one report `new $v()` and
+  `$v::f()` already share — so the site records `ExprInfo::ClassRefTest { base }`, `base` being `T`.
+  A subject whose declared type can hold no object records `SettledTypeTest { answer: false }` and no
+  diagnostic, as every other settled test does. `infer_instanceof`, `testable_class_name`,
+  `testable_core_class`, `instanceof_residue`, `instanceof_test` and `ExprInfo::InstanceOf` are
+  deleted; the `is` residue in `locals.rs` narrows the value form to `T` on the true edge. A `Core`
+  class or an enum on the right of `is` is whatever the type resolver already says of that name as a
+  written type — no `is`-specific refusal is added for either.
+- **The codes.** `E0496`'s doc comment is rewritten to its three sites and nothing else. `E0497` and
+  `E0812` are retired: their constants and doc comments deleted, their numbers never reassigned.
+- **Guard tests**, named in the `.toml`: the parser refuses `instanceof` naming `is` and parses a
+  variable after `is` as a value; the checker narrows the value form to its base, refuses a non-class
+  reference value, and folds a class test over a subject that holds no object.
 
-## Stage 4 — the library
+## Stage 4 — the lowering, the codegen and the runtime primitive
 
-One file set: `crates/nvs-stdlib/src/`.
+One file set: `crates/nvs-ir/src/lower/expr.rs`, `crates/nvs-ir/src/lower/exception.rs`,
+`crates/nvs-ir/src/ir.rs`, `crates/nvs-ir/src/print.rs`, `crates/nvs-codegen/src/emit.rs`,
+`crates/nvs-codegen/src/lib.rs`, `crates/nvs-runtime/src/object.rs`, `crates/nvs-runtime/src/lib.rs`.
 
-- **The prepared-pattern channel**, one build for two items: `cldr.rs` gap 1 and `time.rs` gap 1. A
-  literal pattern is prepared at compile time through a channel from the checker to the lowering; this is
-  the goal's one ADR slot.
-- **Builds to their sentence**: `ast.rs` gap 1 (a node carries a position — line, column, offset — and no
-  text); `command.rs` gap 1 (the help renderer reaches the handler's signature at render time);
-  `json.rs` gap 1 (the descriptor stays and widens) and gap 2 (the encoder walks an explicit heap stack
-  charged to the request, so depth is always a catchable throw); `lib.rs` gap 1 (both registry gates
-  widen past § 12, seeded by an outstanding-members ratchet file); `mime.rs` gap 1 (a shared `Ebml`
-  case); `path.rs` gap 1 (a UNC root is a third root shape beside the drive letter); `queue.rs` gap 1 (a
-  queue whose schema is behind is refused at boot) and gap 2 (the column arrives through `nvs queue
-  migrate`'s converge, and `Core\Queue\Stats` gains its fifth counter — a spec § 6 amendment);
-  `random.rs` gap 1 (`Core\Random\Seeded`, registered per spec § 11); `regex.rs` gap 1 (`qual_of` reads
-  the parameter's declared `Qual` whatever its type); `test.rs` gap 2 (the embedding contract states it,
-  and a `Ctx` asserts it when built); `uuid.rs` gap 1 (the bytes pair, a spec § 11 amendment); `xml.rs`
-  gap 1 (a computed `namespaceUri()` that walks ancestor `xmlns` declarations); `zip.rs` gap 1 (Zip64's
-  extra fields and end-of-directory record are read) and gap 2 (a CRC is verified by default and a
-  mismatch refused).
-- **Struck as stated bounds**: `cli.rs` gap 1 (a served request answers empty, neutral values, and the
-  contract says so); `db/mod.rs` gap 1 (the defaults apply, and a deployment that wants bounds writes a
-  block) and gap 2 (the split stands: a shape mismatch is a `ParseError`, as for `Json::decodeAs`);
-  `path.rs` gap 2 (a drive-relative path stays one relative component, and the grammar says so);
-  `test.rs` gap 1 (the runtime throw naming `assertEqualsDeep` stays).
-- **M6's two**, `regex.rs` gaps 2 and 3: the step budget becomes a `[limits]` directive with today's
-  constant as its default; the per-core compiled-pattern cache is charged to an accounting bracket, or
-  replaced by the prepared-pattern channel above if that reaches regex literals too.
-- **M7's and M8's four**: `html.rs` gap 1 and `response.rs` gap 1 are one gap seen from two sides — the
-  sink in force selects a rendering, per spec § 3's table; `reflect.rs` gap 1 (the four classes § 1's
-  roster still lacks) and gap 2 (a `protected` member reached reflectively from a subclass, on a second
-  bit carried down from `nvs_types::layout`).
+- `lower_instanceof` is deleted; `lower_type_test` gains the value arm, lowering the operand at
+  `Ty::ClassDesc` and emitting `TestedClass::Descriptor`, with the subject's release rule unchanged.
+- **The primitive is renamed so the keyword names nothing in `crates/`.** The instruction is what
+  `is C`, `is $cls`, `is callable`, `is iterable` and the `catch` chain all emit, so it is named for
+  the question it asks: `InstKind::InstanceOf` becomes `InstKind::ClassTest`, `RuntimeSig::InstanceOf`
+  becomes `ClassTest`, `Sigs::instanceof` becomes `class_test`, `emit_instanceof` becomes
+  `emit_class_test`, and `nvs_object_instanceof` / `nvs_value_instanceof` become `nvs_object_is_class`
+  / `nvs_value_is_class`. `TestedClass` keeps its name. The printer's mnemonic follows. Every doc
+  comment that explained itself by *the walk `instanceof` already emits* is rewritten as a whole to
+  name the instruction.
+- The unit tests in `nvs-ir` and `nvs-codegen` that spell the old names are renamed with them.
+
+## Stage 5 — the library, the LSP and the formatter
+
+One file set: `crates/nvs-stdlib/src/ast.rs`, `crates/nvs-stdlib/src/debug.rs`,
+`crates/nvs-stdlib/src/reflect.rs`, `crates/nvs-stdlib/src/lib.rs`, `crates/nvs-lsp/src/definition.rs`,
+`crates/nvs-lsp/src/semantic.rs`, `crates/nvs-lsp/src/hints.rs`, `crates/nvs-lsp/src/index.rs`,
+`crates/nvs-fmt/`.
+
+- **`Core\Ast`**: the node kind `InstanceOf` leaves the roster; the type-test node carries the value
+  operand as a child. `docs/spec/01-core-library.md`'s roster line and
+  `rule:core-classes/ast-is-inert` follow, the rule by its own process.
+- **`Core\Debug`** and **`Core\Reflect`**: module docs that explained a union or a subclass by way of
+  `instanceof` are rewritten to say the same of `is`.
+- **The LSP**: the `ExprInfo::InstanceOf` arms in definition, semantic tokens, hints and the index go;
+  go-to-definition on the type after `is` resolves through the type node it already resolves for a
+  declaration, and on `$x is $cls` through the binding. The `.lspt` case is rewritten and renamed.
+- **The formatter** formats `is $cls` as it formats `is T`; the fixture in
+  `crates/nvs-fmt/tests/novis_constructs.rs` is rewritten.
+
+## Stage 6 — the tests
+
+Every `.nvst`, `.lspt` and Rust guard test that spells `instanceof` is rewritten to `is`, and the
+assertions are kept — this stage changes spellings, never what is proved. A file whose **name** says
+`instanceof` is renamed, and in the same slice every path that names it is patched:
+`docs/agent/loop-goal.toml`, the `.toml` of every goal after this one, every `guardedBy` and
+`covers:` marker. `git grep` of the old basename over the tree is the check, and it is run before the
+slice is committed.
+
+- **The refusal cases become answers.** `reject/an-is-test-against-a-variable-names-a-value-not-a-type.nvst`
+  becomes `lang/an-is-test-against-a-class-reference-is-the-dynamic-class-test.nvst`: a `class<T>`
+  answers for the class it holds and for an implementor, narrows the subject to `T`, and a subject
+  that holds no object answers `false` without a diagnostic. `lang/instanceof-refuses-a-subject-that-can-hold-no-object.nvst`
+  is deleted; its scalar-subject rows join `lang/an-is-test-whose-answer-the-declaration-settles-is-not-a-diagnostic.nvst`
+  as the class row. `lang/instanceof-refuses-a-right-hand-side-that-is-not-a-class.nvst` becomes
+  `reject/a-value-that-is-not-a-class-reference-on-the-right-of-is-is-refused.nvst`, pinning `E0496`
+  for a `string` variable and keeping its `E0303` row; its enum row moves to the enum's own answer
+  case, and its `Core\Str` row pins whatever the type resolver says of that name.
+- **A new refusal case**: `reject/instanceof-is-spelled-is.nvst`, pinning the new code and its help.
+- **The differential twins go**: `tests/differential/class/instanceof-matches-php.nvst` and
+  `tests/differential/lang/instanceof-through-an-erased-subject-matches-phps.nvst` are deleted, because
+  PHP cannot run `is` and this goal ends every comparison. What they proved is already in
+  `class/instanceof-answers-for-every-supertype.nvst` and
+  `class/instanceof-through-an-erased-subject-answers-every-tag.nvst`, which are renamed for `is`.
+- `core/one-core-value-answers-the-same-from-is-instanceof-and-as.nvst` becomes the `is`-and-`as`
+  case, and goal `core-class-tests`'s `lang/instanceof-answers-for-a-core-class.nvst` becomes
+  `lang/an-is-test-against-a-core-class-answers-like-a-declared-one.nvst`.
+- The Rust guard tests in `crates/nvs-types/tests/`, `crates/nvs-codegen/tests/` and
+  `crates/nvs-ir/src/lower/tests.rs` are rewritten in place.
+
+## Stage 7 — the sweep and the gate
+
+- Every remaining home outside the code: `docs/reference/lang/20-types.md`, `30-expressions.md` and
+  `50-classes.md`; `docs/spec/02-php-migration.md`; `docs/agent/playbook.md`'s bullets that name the
+  keyword, each edited to what is now true or deleted when its trailer holds;
+  `docs/agent/guard-name-debt.md`; goal `core-class-tests`'s row in `docs/agent/goals/README.md`.
+  Not touched: `docs/decisions/`, `docs/adr/README.md` and any retired goal's `.md` — frozen history.
+- `php-migration/one-type-test` flips to `status: shipped`, and the render is re-run.
+- **The gate** is the absence check in the `.toml`: `git grep -i -w instanceof` over `crates/`,
+  `tests/`, `docs/reference/`, `docs/spec/`, `docs/rules/` and `docs/agent/playbook.md` finds nothing,
+  with exactly these homes excluded because each *has* to spell it — the token table and the parser
+  site that refuse it, the diagnostics crate's doc for that code, the parser test and the conformance
+  case that pin it, and the `php-migration` chapter that states the divergence.
 
 ## Standing decisions
 
-- **The user's rules, settled 2026-09-13**: every gap is closed or deferred to M9+, and a deferral is
-  honest only when the item cannot be built without that milestone's work. **Code ahead of a decision
-  wins; code behind one is a gap.** Where implemented, tested and verified code goes beyond or differs
-  from a decision record or an earlier decision, the code counts: the rule fragment, plan or module doc is
-  rewritten to match and the record stays frozen. Where the code lacks something a decision specifies,
-  that is a gap to build — never a reason to rewrite the decision down to what exists. Where it is
-  unclear which of the two it is, that is a `BLOCKED` for the user.
-- **A `Decided:` sentence is not re-opened.** A session that finds the chosen option harder than the
-  sheet priced builds it anyway, or records the obstacle in the handoff and takes the next item — never
-  the other option silently.
-- **An answer of "state it as a bound" strikes the gap**: the bound is written as the module's own prose
-  (what it does, and the limit), the numbered item and its tag are deleted, and the rule fragment is
-  amended if the rule promised otherwise. A bound is not a gap.
-- **A decision whose answer changes a rule** amends that rule's fragment by its own process in the same
-  slice, and opens no record: the sheet is the decision, and a rule's `because` may cite the gap it closed.
-- **Three answers differ from the sheet's recommendation, deliberately**, and each is built as decided:
-  `Core\Queue\Stats` gains a fifth counter (`queue.rs` gap 2, a spec § 6 amendment); `Core\Random\Seeded`
-  is registered per spec § 11 (`random.rs` gap 1); the `uuid.rs` bytes pair is a spec § 11 amendment.
-- **A gap leaves the register one of three ways and no fourth**: built and its item deleted; struck as
-  prose; re-tagged to a milestone at M9 or later whose plan file states the scope, which `python
-  tools/owners.py --deferrals` proves. Re-tagging to this goal, or to any goal, is not one of them: the
-  gate is `--closes`, and the driver asks it of every goal at its end.
-- **ADR slots**: one new record, and no other number — for the prepared-pattern channel from the checker
-  to the lowering, when stage 4 builds it.
-- **What it spends** is decided item by item and written in each module doc per
-  `rule:programs/memory-priority`; the sheet's options already priced it. The collector and the JSON
-  heap stack each state a per-request figure's home.
-- **Not this goal**: the terminal gate (goal `gap-zero`); anything a milestone at M9 or later owns.
+- **The user's decision, settled with this goal, and its scope.** Novis diverges from PHP on `is` and
+  `instanceof` for good. `is` is Novis's own operator, judged more understandable than what PHP does or
+  plans with the word; `instanceof` is refused naming `is`; `$x is $cls` is the dynamic class test.
+  **No session compares either keyword with PHP again**: the RFC is not re-read, its vote is not
+  tracked, and a future pattern syntax is a Novis design question opened by its own record. A session
+  that finds itself weighing what PHP would do here has left the goal.
+- **Migration is mechanical and is M11's.** The converter rewrites `$x instanceof C` to `$x is C`;
+  PHP's string and object right-hand sides are left to `E0496`'s help, which names `as class<T>`.
+  Nothing in this goal builds the converter.
+- **What is deleted is deleted, not deprecated.** No compatibility path, no alias, no `#[deprecated]`,
+  no retained `ExprKind`. A retired diagnostic code's number is never reassigned. The primitive is
+  renamed rather than kept under the keyword's name, because the gate is that the word names nothing
+  in `crates/` but the refusal.
+- **The value arm starts with `$`, and nothing else is a value.** A call or a constant on the right
+  of `is` is a type and resolves or fails as one; a program that wants a computed class reference
+  binds it to a local first. This is the whole grammar question, and it is not reopened.
+- **`E0496` is the one report for a value that is not a `class<T>` at any of its three sites**, `is`
+  included. No new code for the `is` site.
+- **Narrowing the value form to `T` is sound and is taken**: a `class<T>` holds `T` or an implementor,
+  so a subject that answers `true` is a `T`. False-edge narrowing stays untaken for every spelling, as
+  `rule:types/narrowing` says.
+- **A renamed test file is patched everywhere it is named in the same slice**, and the floor is not
+  traded by it: a path that moves is the same check under a new name, and `git grep` of the old
+  basename over the tree is what proves the rename is whole.
+- **What it spends**: nothing. Same instruction, same call, same walk; `rule:programs/memory-priority`
+  has no figure to record.
+- **ADR slots**: one, the record stage 2 writes, and no other number.
+- **Not this goal**: the converter (M11); pattern syntax of any kind; false-edge narrowing; any
+  change to `as`.
