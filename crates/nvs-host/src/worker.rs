@@ -77,6 +77,15 @@
 //! and the core asking is never the core answered — a child is started on a core
 //! *other than* its parent's, and a registered core is in the set it is asking.
 //!
+//! **Such a core ends with the process's drain, not with its inbox.** The thread
+//! is the caller's and the caller ends it once nothing on it is parked, so a
+//! receptionist waiting for a placement that is never coming would be a server
+//! that never exits. It stops receiving the moment the drain begins and returns
+//! once the placements it is holding have answered — the ending in between,
+//! because a drain is there to finish the requests already in flight and those
+//! are what placed the children still running here. The last of them rings the
+//! bell from its own guard, which is the wake that ending waits on.
+//!
 //! # A placed child is still its parent's child
 //!
 //! ADR 0184 § 4: it dies with its parent, and the parent's call does not return
@@ -110,30 +119,21 @@
 //! argument and the answer are copied at every node in both directions, which is
 //! the cost the placement buys and the reason `on: "here"` exists.
 //!
-//! # Known gaps
+//! # What reaches this from above
 //!
-//! `nvs serve` does not call [`register_this_core`] yet, so a placement there
-//! still reaches one of the lazily started cores rather than the sibling serving
-//! core ADR 0184 § 5 decides on. The seam and the destination set are here; what
-//! is missing is the one call where a serving core starts, which is
-//! `crates/nvs-cli/src/serve.rs`'s to make and goal `worker-placement` owns.
-//! Until it does, `rule:concurrency/on-worker-runs-the-child-on-another-core`'s
-//! last paragraph is written as what runs.
-//!
-//! What reaches this from above is [`crate::placed`], and it reaches it for both
+//! [`crate::placed`], and it reaches it for both
 //! of `spawn script`'s entry forms: a core here is started under the process's
 //! published resolver, so a path is compiled on the core that runs it exactly as
 //! a method is prepared there. That module's *Both entry forms cross* is the one
 //! home of what each form needs, and nothing about either is a question for the
 //! transport here.
-//! — owner: worker-placement
 
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError};
 
-use nvs_runtime::{Ctx, OutputSink, TaskPanic, TaskRoot};
+use nvs_runtime::{Ctx, Drain, OutputSink, TaskPanic, TaskRoot};
 
 use crate::Worker;
 use crate::affinity::cpus;
@@ -235,7 +235,12 @@ struct Inbox {
     /// whichever core writes next. `None` means one is already in flight, which
     /// is the module doc's *bell*: the drain it will cause has not happened yet,
     /// so it will see whatever was just written.
-    bell: Mutex<Option<RemoteWake>>,
+    ///
+    /// Behind an `Arc` for [`Answering`]'s sake, exactly as [`Inbox::live`] is:
+    /// the last placement a core is holding rings the bell from its own guard as
+    /// it ends, which is what a receptionist waiting for the core to empty is
+    /// parked on.
+    bell: Arc<Mutex<Option<RemoteWake>>>,
     /// How many placements this core has been given and not yet finished. The
     /// idle test [`WorkerCores::pick`] starts a core on, which is
     /// [`crate::blocking::BlockingPool::submit`]'s test with a count of work
@@ -265,7 +270,7 @@ impl Inbox {
     fn new() -> Arc<Self> {
         Arc::new(Self {
             queue: Mutex::new(VecDeque::new()),
-            bell: Mutex::new(None),
+            bell: Arc::new(Mutex::new(None)),
             live: Arc::new(AtomicUsize::new(0)),
             closed: AtomicBool::new(false),
         })
@@ -301,13 +306,10 @@ impl Inbox {
 
     /// Ends the receptionist's park, if it is the one holding the bell.
     ///
-    /// A failed poke loses the wake's promptness rather than the wake —
-    /// [`RemoteWake::wake`]'s own account of it — and a bell that is already in
-    /// flight needs no second one.
+    /// [`ring`] is the whole of it; this is the spelling for a caller that has
+    /// the inbox, and a placement ending on the core itself has only the bell.
     fn ring(&self) {
-        if let Some(wake) = lock(&self.bell).take() {
-            let _ = wake.wake();
-        }
+        ring(&self.bell);
     }
 
     /// Everything written since the last drain.
@@ -345,6 +347,13 @@ struct Answering<T> {
     wake: Option<RemoteWake>,
     placed: Arc<Placed>,
     live: Arc<AtomicUsize>,
+    /// The far core's bell, rung by the last placement there to end. That core's
+    /// receptionist is what reads it: a core whose process is draining goes once
+    /// [`Inbox::live`] reaches zero, and nothing else running there would tell it
+    /// that it has. The bell and not the [`Inbox`], because this travels inside a
+    /// queued [`Start`] and a handle on the inbox here would be the inbox holding
+    /// itself.
+    bell: Arc<Mutex<Option<RemoteWake>>>,
 }
 
 impl<T> Answering<T> {
@@ -372,7 +381,14 @@ impl<T> Drop for Answering<T> {
         // running the moment the poke lands, and a placement still counted as
         // live would keep `pick` from handing this core its next piece of work.
         self.placed.finished.store(true, Ordering::Relaxed);
-        self.live.fetch_sub(1, Ordering::Relaxed);
+        if self.live.fetch_sub(1, Ordering::Relaxed) == 1 {
+            // The last placement this core was holding, so the receptionist
+            // there is told — that is the one state it has a decision to make
+            // about, since a core with work left on it goes on receiving however
+            // the process is ending. Owed once rather than once per placement,
+            // which is a wake per placed child on a core with nothing to decide.
+            ring(&self.bell);
+        }
         // Last, and from the handle's own `Drop`: the answer is in the slot and
         // its lock is released before the parent can be resumed to read it.
         drop(self.wake.take());
@@ -842,17 +858,24 @@ impl Drop for Registered {
 /// One inbox and one long-lived task on this core, and no thread at all — which
 /// is what `rule:programs/memory-priority` asks to be said out loud, and the
 /// reason a deployment that places nothing pays nothing for having offered.
-pub fn register_this_core(sched: &mut Scheduler) -> Registered {
+///
+/// `draining` is this receptionist's ending, and it is the process's own: a core
+/// [`run_core`] started ends when the set closes its inbox, while this one runs
+/// on a thread the caller ends once nothing on it is parked. So the drain is
+/// what the receptionist here is told by, and the module doc's *Such a core ends
+/// with the process's drain* owns what it does when it is.
+pub fn register_this_core(sched: &mut Scheduler, draining: &Drain) -> Registered {
     let inbox = lock(cores()).register();
     // This thread's own core, so that a placement written here is answered a
     // sibling and never this inbox — [`WorkerCores::pick`]'s `mine`.
     MINE.with(|mine| *mine.borrow_mut() = Some(Arc::clone(&inbox)));
     let mine = Arc::clone(&inbox);
+    let ending = draining.clone();
     // `TaskRoot::Worker` for [`run_core`]'s reason: the receptionist is
     // worker-owned work with no request beneath it, so a fault in it retires
     // this core's inbox rather than failing somebody's request.
     sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Worker, move |_| {
-        receive(&mine);
+        receive(&mine, Some(&ending));
     });
     Registered { inbox }
 }
@@ -977,6 +1000,7 @@ where
         wake: Some(wake),
         placed: Arc::clone(&placed),
         live: Arc::clone(&inbox.live),
+        bell: Arc::clone(&inbox.bell),
     };
     let start = Start {
         placed: Arc::clone(&placed),
@@ -1027,7 +1051,7 @@ fn run_core(inbox: &Arc<Inbox>, sched: &mut Scheduler) {
     // beneath it, so a fault in it retires this core rather than failing
     // somebody's placement — `nvs_runtime::TaskRoot`'s own split.
     sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Worker, move |_| {
-        receive(&mine);
+        receive(&mine, None);
     });
     let _ = run_until_idle(sched);
 }
@@ -1040,7 +1064,18 @@ fn run_core(inbox: &Arc<Inbox>, sched: &mut Scheduler) {
 /// sweep runs after the drain so a cancellation that arrived with the start it
 /// cancels is seen on the same turn. The close test is last, so a core closed
 /// while it was holding work still answers that work before it goes.
-fn receive(inbox: &Arc<Inbox>) {
+///
+/// `ending` is the process's drain for a core that was registered rather than
+/// started, and `None` for one whose thread this module owns — whose ending is
+/// the set closing its inbox and nothing else. The module doc's *Such a core
+/// ends with the process's drain* is the whole of why the two differ.
+fn receive(inbox: &Arc<Inbox>, ending: Option<&Drain>) {
+    // One registration for this task's whole life rather than one per park,
+    // which is what [`crate::wake_at_drain`] is for: the receptionist outlives
+    // every placement it starts. `None` is a core with no drain to end on, and a
+    // drain that has already begun — which has fired the wake before this
+    // returns, and the test below reads on this first turn either way.
+    let _woken_at_drain = ending.and_then(reactor::wake_at_drain);
     let mut live: Vec<Arc<Placed>> = Vec::new();
     loop {
         arm(inbox);
@@ -1073,7 +1108,30 @@ fn receive(inbox: &Arc<Inbox>) {
         if inbox.is_closed() {
             return;
         }
+        // A drain empties this core rather than stopping it where it stands: the
+        // requests the drain is there to finish are the ones that placed what is
+        // still running here, so the count is what ends this and the drain alone
+        // is not. Closing on the way out is [`Registered`]'s invariant — an
+        // inbox in the set with no receptionist behind it is a core placements
+        // are written to and never drained from — and it closes the race with a
+        // placement posted between the test and the return, which `close`
+        // answers [`Answer::Stopped`] rather than queueing.
+        if ending.is_some_and(Drain::is_draining) && inbox.live() == 0 {
+            inbox.close();
+            return;
+        }
         suspend_current(Waiting::Parked);
+    }
+}
+
+/// Fires a bell somebody armed, if anybody is holding one.
+///
+/// A failed poke loses the wake's promptness rather than the wake —
+/// [`RemoteWake::wake`]'s own account of it — and a bell that is already in
+/// flight needs no second one, which is what taking the handle out answers.
+fn ring(bell: &Mutex<Option<RemoteWake>>) {
+    if let Some(wake) = lock(bell).take() {
+        let _ = wake.wake();
     }
 }
 
@@ -1347,7 +1405,7 @@ mod tests {
             let drained = Arc::clone(&mine);
             up.send(std::thread::current().id())
                 .expect("the test went away");
-            sched.spawn(ctx(), TaskRoot::Worker, move |_| receive(&drained));
+            sched.spawn(ctx(), TaskRoot::Worker, move |_| receive(&drained, None));
             run_until_idle(&mut sched).expect("the loop failed");
         });
         let receptionist = arrived
@@ -1387,6 +1445,84 @@ mod tests {
         assert!(
             inbox.is_closed(),
             "a withdrawn core is still being written to"
+        );
+    }
+
+    /// A registered core answers the placement it is holding when the process
+    /// begins draining, and its receptionist goes once it has.
+    ///
+    /// Both halves are why this ending is the drain and not the inbox closing. A
+    /// serving core is ended by `crates/nvs-cli/src/serve.rs` once nothing on it
+    /// is parked, so a receptionist waiting for a placement that is never coming
+    /// is a server that never exits — and one that returned the moment the drain
+    /// began would cancel the children of the very requests the drain exists to
+    /// finish. The loop the core runs here is that caller's, for the same
+    /// reason.
+    #[test]
+    fn a_draining_core_answers_what_it_holds_and_then_its_receptionist_goes() {
+        let draining = Drain::detached();
+        let cores = Arc::new(Mutex::new(WorkerCores::new(2)));
+        let inbox = lock(&cores).register();
+
+        let mine = Arc::clone(&inbox);
+        let ending = draining.clone();
+        let registered = std::thread::spawn(move || {
+            let (mut sched, _installed) = core();
+            sched.spawn(ctx(), TaskRoot::Worker, move |_| {
+                receive(&mine, Some(&ending));
+            });
+            // A report with something still parked is a turn to take and
+            // `parked == 0` is the end, which is the serving loop's own test.
+            loop {
+                let report = run_until_idle(&mut sched).expect("the loop failed");
+                if report.parked == 0 {
+                    break;
+                }
+            }
+        });
+
+        let (running, started) = mpsc::channel();
+        let (release, held) = mpsc::channel();
+        let placing = Arc::clone(&cores);
+        let placer = std::thread::spawn(move || {
+            let (mut sched, _installed) = core();
+            let answer: Collected<u8> = Rc::new(Cell::new(None));
+            let collected = Rc::clone(&answer);
+            sched.spawn(ctx(), TaskRoot::Worker, move |_| {
+                collected.set(Some(place_on(&placing, move || {
+                    running.send(()).expect("the test went away");
+                    held.recv().expect("the test went away");
+                    7
+                })));
+            });
+            loop {
+                let report = run_until_idle(&mut sched).expect("the loop failed");
+                if report.parked == 0 {
+                    break;
+                }
+            }
+            answer.take()
+        });
+
+        started
+            .recv_timeout(Duration::from_secs(5))
+            .expect("the placement never reached the registered core");
+        // Begun while the placement is running, which is the case under test:
+        // the drain arrives on a core that is holding somebody's child.
+        draining.begin();
+        release.send(()).expect("the placed child went away");
+
+        let Some(Answer::Value(answered)) = placer.join().expect("the placing core panicked")
+        else {
+            panic!("a drain took the answer of a placement that was already running");
+        };
+        assert_eq!(answered, 7, "the placement answered something it never ran");
+        registered
+            .join()
+            .expect("the registered core panicked, or never ended");
+        assert!(
+            inbox.is_closed(),
+            "a receptionist that has gone left its core being written to"
         );
     }
 
