@@ -1262,12 +1262,15 @@ pub struct CacheProcess {
     pub fill_wait: Option<String>,
 }
 
-/// `[cache.shared]` — where `Core\Cache::shared()` connects, and what bounds a command.
+/// `[cache.shared]` — where `Core\Cache::shared()` connects, what the store is reached with, and
+/// what bounds a command.
 ///
-/// The URL and the wait, and nothing beside them. Which store a fleet's coherent state lives in is
-/// a deployment decision and both keys are `System`-class, per `crate::directive`'s `cache.shared`
-/// row. Authentication, a database index and TLS are refused rather than configured — the reasons
-/// are `nvs_stdlib::cache`'s module doc, which is the one home for them.
+/// Which store a fleet's coherent state lives in is a deployment decision, and every key here is
+/// `System`-class per `crate::directive`'s `cache.shared` row: a credential and an index are part
+/// of that one decision rather than three, because together they are what reaching the store an
+/// operator named takes. A `rediss://` store is refused rather than configured, and there is no
+/// key here for it: TLS says which transport this is rather than carrying a value over one, so it
+/// is the URL's scheme that will answer for it — `nvs_stdlib::cache`'s module doc owns why.
 #[derive(Clone, Debug, Default, Deserialize, PartialEq)]
 #[serde(default, deny_unknown_fields)]
 pub struct CacheShared {
@@ -1277,6 +1280,23 @@ pub struct CacheShared {
     /// `Core\Cache::shared()` throws saying so rather than answering a store that would behave like
     /// the local one.
     pub url: Option<String>,
+    /// The credential the store is behind, sent as `AUTH` ahead of any command on every connection
+    /// a core opens — `nvs_stdlib::cache`'s `Dial` is where the whole of it is applied, including
+    /// on the reconnect after a dropped socket. Omitted, nothing is sent and the connect costs no
+    /// round trip, which is what a store with no password accepts. One value and no user half:
+    /// this is the store-wide credential its `AUTH` takes on its own.
+    pub password: Option<String>,
+    /// The file the credential is read out of, and the half a container injects
+    /// (`rule:config/a-secret-is-a-file-whose-content-is-the-value`): exactly one of the pair may
+    /// be set, the file's whole content is the value, and that value never enters the merged
+    /// table. [`crate::secret::SECRETS`] holds the row that reads it.
+    pub password_file: Option<String>,
+    /// Which of the store's databases this deployment's entries live in, sent as `SELECT` on every
+    /// connection beside the credential above. Omitted, the index the store opens a connection on,
+    /// which costs no round trip and is what every deployment that named only a `url` reaches. A
+    /// store that does not have the index written here refuses the connection in its own words,
+    /// because how many databases it keeps is the store's answer and not this file's.
+    pub database: Option<u32>,
     /// The bound on the handshake, and on each command. Omitted, the shipped five seconds.
     pub timeout: Option<String>,
 }

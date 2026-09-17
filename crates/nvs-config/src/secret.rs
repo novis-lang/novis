@@ -10,9 +10,10 @@
 //! newline is written with two.
 //!
 //! **Every pair is a row of [`SECRETS`]** and [`materialize`] is a sweep over that table, so a
-//! credential is covered by adding one row and not by editing a walk: `[db.<name>] password`
-//! ([ADR 0067] § 3a) and `[mail.<name>] password` (`rule:programs/framework-core-half`). § 7 speaks of a directive
-//! "the registry marks secret", and this table is that marking.
+//! credential is covered by adding one row and not by editing a walk — the database password
+//! ([ADR 0067] § 3a) and every credential written beside it since, in a block an operator names
+//! and in a block they do not. § 7 speaks of a directive "the registry marks secret", and this
+//! table is that marking.
 //!
 //! It is **not** another field on [`mod@crate::directive`]'s rows, for two reasons that both make
 //! that table the wrong shape rather than merely a different one. A
@@ -257,6 +258,37 @@ pub const SECRETS: &[SecretPair] = &[
         set: |config, _name, value| {
             if let Some(http) = config.http.as_mut() {
                 http.csrf_key = Some(value.to_owned());
+            }
+        },
+    },
+    // `rule:config/cache-shared-is-the-grant-over-the-configured-store`'s store, behind the
+    // password its `AUTH` takes: the same credential as the rows above, in a block an operator does
+    // not name, and delivered by the same mounted file. It is a pair rather than URL userinfo
+    // because a credential written into a URL is a credential in a string that is logged, and
+    // because that would be the second spelling this rule exists to refuse.
+    SecretPair {
+        block: "cache.shared",
+        value: "password",
+        sites: |config| {
+            config
+                .cache
+                .as_ref()
+                .and_then(|cache| cache.shared.as_ref())
+                .map(|shared| Site {
+                    name: "",
+                    file: shared.password_file.as_deref(),
+                    inline: shared.password.as_deref(),
+                })
+                .into_iter()
+                .collect()
+        },
+        set: |config, _name, value| {
+            if let Some(shared) = config
+                .cache
+                .as_mut()
+                .and_then(|cache| cache.shared.as_mut())
+            {
+                shared.password = Some(value.to_owned());
             }
         },
     },

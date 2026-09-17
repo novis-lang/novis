@@ -613,9 +613,24 @@
 #[cache.shared]
 # Where the coherent tier lives: `redis://host[:port]`, or `unix:/path/to.sock` for a store on this
 # machine. Absent, there is no shared tier and `Core\Cache::shared()` throws saying so, rather than
-# answering a store that would behave like the local one. Authentication, a database index and TLS
-# are refused rather than configured — `nvs_stdlib::cache` owns why.
+# answering a store that would behave like the local one. A `rediss://` store is refused rather
+# than configured — `nvs_stdlib::cache` owns why.
 #url = "redis://127.0.0.1:6379"
+# The credential the store is behind, sent as `AUTH` before any command on every connection — and
+# again on the reconnect after a dropped socket, so a store behind a password is never reached
+# without one. Unset, nothing is sent, which is what a store with no password accepts. It is never
+# written into the URL: a credential in a URL is a credential in a string that gets logged.
+#password = "hunter2"
+# The file the credential is read out of instead — exactly one of the pair, the file's whole
+# content is the value, and the value never enters the table `nvs config dump` writes. This is the
+# half a container injects, and it is trust-checked at boot: whoever can write it chooses the
+# credential this deployment connects with.
+#password_file = "/run/secrets/cache_password"
+# Which of the store's databases this deployment's entries live in, sent as `SELECT` on every
+# connection. Unset, the index the store opens on, which costs no round trip. A store that does not
+# have this index refuses the connection in its own words: how many databases it keeps is its
+# answer and not this file's.
+#database = 3
 # The bound on the handshake and on each command. Unset, the shipped five seconds.
 #timeout = "5s"
 

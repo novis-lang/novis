@@ -524,6 +524,68 @@ fn setting_both_halves_of_a_mail_endpoints_pair_is_refused() {
     );
 }
 
+/// A root naming `secrets/cache` as the shared store's password file, beside the URL that says
+/// which store it is the credential for.
+const CACHE_ROOT: &str =
+    "[cache.shared]\nurl = \"redis://cache.internal\"\npassword_file = \"secrets/cache\"\n";
+
+/// § 7 reaches the coherent tier: `[cache.shared] password` is a pair like every other, in a block
+/// an operator does not name, so `AUTH` carries a credential a container mounted as a file.
+///
+/// The `secrets` assertion is the one that matters, for the reason the mail case gives — that map
+/// is what `Core\Config::get` answers out of, and it is where `nvs_stdlib::cache` reads the
+/// credential it puts into the dial. A value that reached the typed tree alone would be dialled
+/// with at boot and gone at the first reload.
+#[test]
+fn the_shared_stores_password_arrives_as_a_file_too() {
+    let fs = Fake::with(&[
+        ("etc/nvs.toml", CACHE_ROOT),
+        ("etc/secrets/cache", "cache-hunter2\n"),
+    ]);
+    let resolved = tree_of(&fs, "etc/nvs.toml");
+    let shared = resolved
+        .config
+        .cache
+        .as_ref()
+        .and_then(|cache| cache.shared.as_ref());
+
+    assert_eq!(
+        shared.and_then(|shared| shared.password.as_deref()),
+        Some("cache-hunter2"),
+    );
+    assert_eq!(
+        resolved.secrets["cache.shared.password"].value, "cache-hunter2",
+        "filed under the key the value is of — the block names no segment, so that key is the \
+         block's own",
+    );
+    assert_eq!(
+        shared.and_then(|shared| shared.password_file.as_deref()),
+        Some("secrets/cache"),
+        "and the file stays named, so § 9's dump can say where the credential came from",
+    );
+}
+
+/// § 7's one-of-the-pair rule over a block with no name in it: the same refusal a `[db.<name>]`
+/// gets, naming `cache.shared` itself.
+#[test]
+fn setting_both_halves_of_the_shared_stores_pair_is_refused() {
+    let fs = Fake::with(&[
+        (
+            "etc/nvs.toml",
+            "[cache.shared]\npassword = \"inline\"\npassword_file = \"secrets/cache\"\n",
+        ),
+        ("etc/secrets/cache", "cache-hunter2\n"),
+    ]);
+    let diagnostic = refusal(&fs, "etc/nvs.toml");
+
+    assert_eq!(diagnostic.code, Some(code::E_BAD_SECRET_FILE));
+    assert!(
+        diagnostic.message.contains("cache.shared"),
+        "the refusal names the block that set both: {}",
+        diagnostic.message,
+    );
+}
+
 /// The credential-shaped field names this census recognizes.
 ///
 /// A list rather than a heuristic, and deliberately a short one: it is what to extend when a
