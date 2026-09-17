@@ -295,7 +295,11 @@ impl<'a> Lowering<'a> {
             );
             return;
         }
-        let (v, ty) = self.emit_const_arg(default, env, *cur);
+        // The parameter's own erased type, for the one constant whose IR type
+        // the position rather than the value decides: an enum case, folded to
+        // its backing integer by `nvs_types::defaults`.
+        let position = erase_checked_ty(sig.param_tys[index], checked_types);
+        let (v, ty) = self.emit_const_arg(default, Some(position), env, *cur);
         // A materialized default is always freshly built, never a read of
         // storage someone else owns — so `aliasing` is `false` here by
         // construction.
@@ -574,7 +578,7 @@ impl<'a> Lowering<'a> {
                          option"
                     )
                 });
-            let (v, ty) = self.emit_const_arg(default, env, *cur);
+            let (v, ty) = self.emit_const_arg(default, Some(expected), env, *cur);
             self.account_for_arg(v, ty, ownership, false, *cur);
             let v = self.coerce(*cur, v, ty, expected, env);
             out.values.push(v);
@@ -603,9 +607,26 @@ impl<'a> Lowering<'a> {
     /// constant of instance type inlines is the `Core` member that produces
     /// one. It is therefore the one entry that can fail, and it carries ADR
     /// 0002's error edge like any other call.
+    ///
+    /// `position` is the IR type of the slot the constant is being emitted
+    /// into, where the caller has one, and it decides exactly one thing: an
+    /// integer constant landing in a [`Ty::Enum`] slot is emitted **as that
+    /// enum**. `nvs_types::defaults` folds `Mode::Fast` to the case's backing
+    /// integer and loses the name doing it, so without the position an omitted
+    /// enum argument would be the one value in the IR whose type disagrees
+    /// with the parameter it fills — the same `InstKind::ConstInt` a written
+    /// `Mode::Fast` lowers to ([`Self::lower_expr`]'s enum-case arm), under
+    /// [`Ty::Int`]. The bits are identical either way ([`Ty::Enum`]'s own
+    /// doc), which is why this is a typing rule rather than a conversion, and
+    /// `crates/nvs-ir/tests/parameter_defaults.rs` is what holds it.
+    ///
+    /// `None` where the constant is its own position: a folded array's entries
+    /// and a shape's fields are placed by their own containers, and an inlined
+    /// class constant is the expression.
     pub(crate) fn emit_const_arg(
         &mut self,
         default: &nvs_types::ConstArg,
+        position: Option<Ty>,
         env: &mut Env,
         cur: BlockId,
     ) -> (ValueId, Ty) {
@@ -619,7 +640,7 @@ impl<'a> Lowering<'a> {
             let values: Vec<ValueId> = args
                 .iter()
                 .map(|arg| {
-                    let (v, ty) = self.emit_const_arg(arg, env, cur);
+                    let (v, ty) = self.emit_const_arg(arg, None, env, cur);
                     self.account_for_arg(v, ty, ArgOwnership::Borrowed, false, cur);
                     v
                 })
@@ -685,11 +706,20 @@ impl<'a> Lowering<'a> {
             nvs_types::ConstArg::Array(entries) => {
                 let mut values = Vec::with_capacity(entries.len());
                 for (key, entry) in entries {
-                    let (value, _) = self.emit_const_arg(entry, env, cur);
+                    let (value, _) = self.emit_const_arg(entry, None, env, cur);
                     values.push((key.clone(), value));
                 }
                 (Ty::Array, InstKind::ArrayNew { entries: values })
             }
+        };
+        // The one thing the position decides. A case's backing integer and the
+        // enum it is a case of are the same bits (`Ty::Enum`'s own doc), so
+        // nothing is converted here — the constant is simply emitted under the
+        // type the slot declares, exactly as a written case already is.
+        let ty = match (position, &kind) {
+            (Some(Ty::Enum(repr @ EnumRepr::Int)), InstKind::ConstInt(_))
+            | (Some(Ty::Enum(repr @ EnumRepr::Uint)), InstKind::ConstUint(_)) => Ty::Enum(repr),
+            _ => ty,
         };
         self.emit(cur, ty, kind)
     }
@@ -731,7 +761,7 @@ impl<'a> Lowering<'a> {
         );
         let mut reprs: FxHashMap<&str, Ty> = FxHashMap::default();
         for (name, value) in fields {
-            let (value, ty) = self.emit_const_arg(value, env, cur);
+            let (value, ty) = self.emit_const_arg(value, None, env, cur);
             reprs.insert(name.as_str(), ty);
             self.emit_field_set(cur, obj, class.clone(), name.clone(), value);
         }

@@ -230,7 +230,7 @@ impl<'a> Lowering<'a> {
             ExprKind::StaticCall { class, args, .. } => {
                 if let Some(ExprInfo::CoreConst { value }) = self.exprs.lookup(expr.span) {
                     let value = value.clone();
-                    return self.emit_const_arg(&value, env, *cur);
+                    return self.emit_const_arg(&value, None, env, *cur);
                 }
                 // `rule:programs/implementing`'s enumeration, answered in `nvs check` and
                 // recorded as the list of classes rather than as a constant,
@@ -310,7 +310,7 @@ impl<'a> Lowering<'a> {
                 // editor's question, not this one's.
                 Some(ExprInfo::ClassConst { value, .. }) => {
                     let value = value.clone();
-                    self.emit_const_arg(&value, env, *cur)
+                    self.emit_const_arg(&value, None, env, *cur)
                 }
                 // Unreachable: a read of a constant whose declaration folds to
                 // no value is `E0792` in `nvs_types::expr::members`, refused
@@ -342,7 +342,7 @@ impl<'a> Lowering<'a> {
             ExprKind::ClassNameConst { class } => match self.exprs.lookup(expr.span) {
                 Some(ExprInfo::CoreConst { value }) => {
                     let value = value.clone();
-                    self.emit_const_arg(&value, env, *cur)
+                    self.emit_const_arg(&value, None, env, *cur)
                 }
                 // `static::class` and `$obj::class` — the two sides that name
                 // a class only the run time knows. The checker recorded

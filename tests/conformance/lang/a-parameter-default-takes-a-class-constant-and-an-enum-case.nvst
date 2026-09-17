@@ -1,0 +1,49 @@
+--TEST--
+A parameter default takes the same compile-time constant set a property default does, and an omitted enum case arrives as a case rather than as its backing integer — `rule:attributes/payload-is-a-compile-time-constant`, `rule:enums/no-class-machinery`, `rule:enums/truthiness`
+--FILE--
+<?nvs
+// `rule:attributes/payload-is-a-compile-time-constant`'s constant set is a literal, another class's `const`, or an
+// enum case, and `nvs_types::defaults` folds all three at signature
+// collection for a parameter exactly as it does for a property. A parameter's
+// constant is then emitted at every call site that omits it, under the
+// parameter's own IR type.
+enum Mode { Off = 0, Fast = 3 }
+
+class Limits
+{
+    public const int COUNT = 12;
+    public const string NAME = "novis";
+}
+
+class Runner
+{
+    public static function describe(Mode $m = Mode::Fast, int $n = Limits::COUNT, string $tag = Limits::NAME): void
+    {
+        echo $tag, ":", $m as int, ":", $n, "\n";
+    }
+
+    // `rule:enums/truthiness`: a case is truthy whatever integer backs it, so
+    // a default of the `0` case is still true in a condition — which the `int`
+    // constant `0` would not be. That is the whole of what emitting the
+    // default at the parameter's own type buys.
+    public static function on(Mode $m = Mode::Off): bool
+    {
+        if ($m) {
+            return true;
+        }
+        return false;
+    }
+}
+
+Runner::describe();
+// Agreement: the omitted default and the written case are one value.
+Runner::describe(Mode::Fast);
+Runner::describe(Mode::Off, 1, "x");
+if (Runner::on()) {
+    echo "a case is truthy\n";
+}
+--EXPECT--
+novis:3:12
+novis:3:12
+x:0:1
+a case is truthy

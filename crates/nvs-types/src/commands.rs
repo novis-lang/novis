@@ -139,9 +139,10 @@ pub struct CommandArg {
     /// the constant lattice in `nvs-runtime` to say what one `String` says here.
     ///
     /// **What a default may be is [`crate::defaults`]' rule, not this module's**,
-    /// and that is why there is no non-literal case to decide about: a parameter
-    /// default is already a literal of its own declared type or it is
-    /// `E_PARAM_DEFAULT_NOT_LITERAL` wherever it is written. So this is read back
+    /// and that is why there is nothing to decide about a default this module
+    /// cannot spell: a parameter default is already a constant of its own
+    /// declared type or it is `E_PARAM_DEFAULT_NOT_LITERAL` wherever it is
+    /// written. So this is read back
     /// off the signature the same walk already holds
     /// ([`crate::signatures::MethodSig::defaults`]) and never folded a second
     /// time — a fold here could disagree with the one the call sites use.
@@ -667,7 +668,7 @@ fn check_options(
         let default = sig
             .and_then(|sig| sig.defaults.get(index))
             .and_then(Option::as_ref)
-            .and_then(default_text);
+            .and_then(|constant| default_text(constant, param, &conv, env));
         let Some(attr) =
             crate::testing::attribute_named(&param.attributes, crate::derive::OPTION, ctx, env)
         else {
@@ -736,7 +737,28 @@ fn check_options(
 /// a class has no literal in any spelling — an object comes from a call, and
 /// `parse` is a call. So an argument at either type stays required, and
 /// nothing here has to decide what a defaulted one would have meant.
-fn default_text(constant: &ConstArg) -> Option<String> {
+///
+/// **An enum default is the case's written name, not the integer it folded
+/// to.** [`ArgConv::Enum`] decided that a case's word is its name, so the text
+/// a defaulted enum parameter carries has to be the same word a command line
+/// would have typed — `crate::defaults` folds `Mode::Fast` to its backing
+/// value, and nobody types a backing value. The name is read off the written
+/// default rather than looked up among the cases, because the author already
+/// spelled the one they meant.
+fn default_text(
+    constant: &ConstArg,
+    param: &nvs_syntax::ast::Param,
+    conv: &ArgConv,
+    env: &Env<'_>,
+) -> Option<String> {
+    if matches!(conv, ArgConv::Enum { .. }) {
+        return match param.default.as_ref().map(|expr| &expr.kind) {
+            Some(nvs_syntax::ast::ExprKind::ClassConstAccess { name, .. }) => {
+                Some(span_text(env.src, *name).to_owned())
+            }
+            _ => None,
+        };
+    }
     match constant {
         ConstArg::Bool(value) => Some(value.to_string()),
         ConstArg::Int(value) => Some(value.to_string()),

@@ -1052,7 +1052,7 @@ fn collect_members(
                     .collect();
                 let inout: Vec<bool> = m.params.iter().map(|p| p.inout).collect();
                 let variadic = m.params.last().is_some_and(|p| p.variadic);
-                let defaults = collect_defaults(&m.params, &params, env);
+                let defaults = collect_defaults(&m.params, &params, ctx, env);
                 let return_ty = lower_optional_type(m.return_type.as_ref(), ctx, env);
                 let returns_static = writes_static_return(m.return_type.as_ref());
                 let interface_private = is_interface && m.modifiers.contains(&Modifier::Private);
@@ -1263,6 +1263,7 @@ fn reject_promotion_outside_constructor(
 fn collect_defaults(
     params: &[nvs_syntax::ast::Param],
     types: &[TypeId],
+    ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> Vec<Option<crate::defaults::ConstArg>> {
     let mut out: Vec<Option<crate::defaults::ConstArg>> = Vec::with_capacity(params.len());
@@ -1287,7 +1288,7 @@ fn collect_defaults(
             continue;
         };
         seen_optional = true;
-        out.push(crate::defaults::eval_param_default(expr, ty, env));
+        out.push(crate::defaults::eval_param_default(expr, ty, ctx, env));
     }
     out
 }
@@ -1928,6 +1929,48 @@ mod tests {
         let sig = sig_of(&table, "Box", "pair");
         assert_eq!(sig.required(), 2);
         assert_eq!(sig.defaults, vec![None, None]);
+    }
+
+    /// A named constant folds at a parameter exactly as it does at a property,
+    /// and the declared type still decides: the case is accepted where the
+    /// parameter declares its enum, and a class constant reaches a `uint`
+    /// parameter as `crate::defaults`'s grid places it.
+    #[test]
+    fn a_parameter_default_takes_an_enum_case_and_a_class_constant() {
+        let (table, _module, _interner, diags) = build(
+            "<?nvs\nenum Mode { Off = 0, Fast = 3 }\nclass Limits { public const int COUNT = 12; }\n\
+             class Box {\n  function run(Mode $m = Mode::Fast, int $n = Limits::COUNT, \
+             uint $span = Limits::COUNT): void {}\n}\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+        let sig = sig_of(&table, "Box", "run");
+        assert_eq!(sig.required(), 0);
+        assert_eq!(
+            sig.defaults,
+            vec![
+                // The case's backing integer: what `rule:enums/no-class-machinery` says the case
+                // already is, with the enum carried by the parameter's type.
+                Some(crate::defaults::ConstArg::Int(3)),
+                Some(crate::defaults::ConstArg::Int(12)),
+                Some(crate::defaults::ConstArg::Uint(12)),
+            ]
+        );
+    }
+
+    /// The declared type refuses a case of another enum, which is the half a
+    /// fixture asserting only the accepted rows would miss.
+    #[test]
+    fn a_parameter_default_refuses_a_case_of_another_enum() {
+        let (_table, _module, _interner, diags) = build(
+            "<?nvs\nenum Mode { Fast = 3 }\nenum Speed { Slow = 1 }\n\
+             class Box { function run(Mode $m = Speed::Slow): void {} }\n",
+        );
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_PARAM_DEFAULT_NOT_LITERAL)),
+            "{diags:?}"
+        );
     }
 
     #[test]

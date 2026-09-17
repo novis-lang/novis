@@ -26,8 +26,12 @@
 //! # What a default may be
 //!
 //! A literal of the parameter's own declared type — `bool`, `int`, `uint`,
-//! `float`, `string` — optionally negated (`= -1`). Anything else is
-//! `E_PARAM_DEFAULT_NOT_LITERAL`, naming what is accepted.
+//! `float`, `string` — optionally negated (`= -1`), a `null` where the
+//! declared type admits one, and the two *named* constants
+//! `rule:attributes/payload-is-a-compile-time-constant`
+//! puts beside a literal: an enum case (`Mode $m = Mode::Fast`) and another
+//! class's `const`. Anything else is `E_PARAM_DEFAULT_NOT_LITERAL`, naming what
+//! is accepted.
 //!
 //! # A *property*'s default is the same decoder, one position along
 //!
@@ -55,25 +59,22 @@
 //! `?int $length = null`, so a written default and a registered one are one
 //! mechanism here too.
 //!
-//! **Known gap, and it is the parameter half only:** a named constant — an
-//! enum case (`Mode $m = Mode::Fast`), another class's `const` — is accepted
-//! at a *property* default and still refused at a *parameter* one. The
-//! difference is where the constant lands. A property default becomes a
-//! `nvs_runtime::FieldDefault` materialized straight into a slot, where an
-//! enum case *is* the integer it was folded to and no IR type carries the
-//! distinction; a parameter default is emitted at the omitting call site by
-//! `nvs_ir::lower::emit_const_arg`, which would have to hand a
-//! [`ConstArg::Int`] to a `nvs_ir::ty::Ty::Enum` position. Widening
-//! [`literal_default`] itself is what closes that, once the emitter carries
-//! the position's own IR type rather than the constant's.
+//! **A named constant is accepted at both positions, and the emitter carrying
+//! the position's own IR type is what makes the parameter half work.** The
+//! fold is [`const_reference_default`] either way; where the two differ is
+//! where the constant lands. A property default becomes a
+//! `nvs_runtime::FieldDefault` written straight into a slot, where an enum
+//! case *is* the integer it was folded to. A parameter default is emitted at
+//! every omitting call site by `nvs_ir::lower::emit_const_arg`, which is
+//! handed the parameter's own `nvs_ir::ty::Ty` and materializes that same
+//! integer under `nvs_ir::ty::Ty::Enum` — the type a written `Mode::Fast`
+//! already lowers to, so no value in the IR carries a plain `int` where the
+//! signature declares an enum.
 //!
 //! A class constant is also only as wide as [`crate::consts`] folds it: an
 //! integer whose magnitude no `int` holds has no folded value at all
 //! (`rule:types/literal-types`), so `uint $n = Limits::MAX;` above `i64::MAX` is refused
 //! here even though the literal `= 18446744073709551615` is accepted.
-//! Decided: Allow it: the call-site emitter carries the parameter's own IR type — The property and
-//! parameter surfaces match, and every omitting call site's emitter changes.
-//! — owner: decided-closures
 //!
 //! **A `decimal` default is refused, and is now the shortest thing on this
 //! list to build:** `nvs_ir::ir::InstKind::ConstDecimal` exists, so
@@ -100,13 +101,13 @@ use crate::{Ctx, Env};
 pub enum ConstArg {
     /// `null` — what an **absent** argument is.
     ///
-    /// Produced only by [`crate::core_lib`], from
-    /// `nvs_stdlib::registry::Const::Null`, and only for an `rule:core-api/shape-rules` R2
+    /// Produced by [`crate::core_lib`], from
+    /// `nvs_stdlib::registry::Const::Null`, for an `rule:core-api/shape-rules` R2
     /// option whose spec signature gives it no "not given" spelling of its
-    /// own: `Core\Arr::sort`'s `by` and `comparator` are the first two. A
-    /// written `= null` is still refused — see this module's own known gap,
-    /// which is about the `?T` *parameter type* that would declare it, not
-    /// about the constant.
+    /// own — `Core\Arr::sort`'s `by` and `comparator` are the first two — and
+    /// by a written `= null` at any declared type that admits one, which
+    /// [`literal_default`] decides by asking
+    /// [`crate::ty::TypeInterner::is_nullable`] rather than by naming a shape.
     Null,
     /// **Not a value**: the never-written marker an omitting call site
     /// materializes for a **nullable** option or shape field —
@@ -237,23 +238,37 @@ pub enum ConstArg {
 /// which is what makes `uint $n = 3` and `float $f = 1` work without a
 /// widening rule of their own: the digits are read once, into the type the
 /// parameter actually holds.
+///
+/// A *named* constant — an enum case, another class's `const` — is folded by
+/// the same [`const_reference_default`] a property default reaches, so the two
+/// positions accept one constant set. What the name resolves to is the whole
+/// of what crosses: the call site emits the folded value at the parameter's
+/// own IR type (`nvs_ir::lower::emit_const_arg`), so `Mode $m = Mode::Fast`
+/// materializes the case's integer *as* that enum rather than as an `int`.
 pub(crate) fn eval_param_default(
     expr: &Expr,
     declared: TypeId,
+    ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> Option<ConstArg> {
-    let value = literal_default(expr, declared, env);
-    if value.is_none() {
+    let mut reported = false;
+    let value = if matches!(&expr.kind, ExprKind::ClassConstAccess { .. }) {
+        const_reference_default(expr, declared, ctx, &mut reported, env)
+    } else {
+        literal_default(expr, declared, env)
+    };
+    if value.is_none() && !reported {
         let want = env.interner.describe(declared);
         env.diags.report(
             Diagnostic::error(
                 code::E_PARAM_DEFAULT_NOT_LITERAL,
-                format!("a parameter default must be a `{want}` literal"),
+                format!("a parameter default must be a `{want}` constant"),
             )
-            .with_primary(expr.span, "not a literal of the declared type")
+            .with_primary(expr.span, "not a constant of the declared type")
             .with_help(
                 "a default is evaluated once, at the call site that omits it — write a \
-                 `bool`/`int`/`uint`/`float`/`string` literal, optionally negated",
+                 `bool`/`int`/`uint`/`float`/`string` literal, optionally negated, an enum \
+                 case or another class's `const`",
             ),
         );
     }

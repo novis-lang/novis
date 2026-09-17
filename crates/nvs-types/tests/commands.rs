@@ -394,6 +394,27 @@ fn a_declared_default_crosses_as_the_text_a_command_line_would_have_written() {
     );
 }
 
+/// An enum default crosses as the case's **name**, which is the one form
+/// `ArgConv::Enum` converts: the same decision that refuses `--level 10` for
+/// `Level::Warn` makes the folded backing value useless as a default's text,
+/// since nothing on the other side would accept it back.
+#[test]
+fn an_enum_default_crosses_as_the_case_name_a_command_line_types() {
+    let (diags, exprs) = check_src_table(
+        "<?nvs\nuse Core\\Command;\nuse Core\\Option;\nenum Mode { Off = 0, Fast = 3 }\n\
+         class Run {\n  #[Command(name: \"run\")]\n  public static function run(\n    \
+         #[Option] Mode $mode = Mode::Fast,\n  ): void {}\n}\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+    let run = exprs.commands().named("run").expect("the named command");
+    let defaults: Vec<Option<&str>> = run.args.iter().map(|arg| arg.default.as_deref()).collect();
+    assert_eq!(
+        defaults,
+        [Some("Fast")],
+        "a defaulted enum option carries the word, not the integer it folded to"
+    );
+}
+
 #[test]
 fn a_duplicate_command_name_is_a_diagnostic() {
     // The first of § 6's three compile errors, and the one no declaration can
