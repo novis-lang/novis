@@ -730,7 +730,10 @@ def report_head(sessions):
             f"   -- the pack, the handoff, the playbook, conventions.md, AGENTS.md -- which the\n"
             f"   driver had already piped in ahead of the prompt. Either the `[context]` manifest\n"
             f"   is missing a field the goal needs, or the pack carried it and it was not found.\n"
-            f"   Those are opposite fixes, so read the calls in `.loop/logs/` before making one."
+            f"   Those are opposite fixes, so read the calls in `.loop/logs/` before making one.\n"
+            f"   A third case reads like either and is neither: the pack prints the REST of the\n"
+            f"   handoff's group one 150-char line each, so a session taking a second slice pays\n"
+            f"   one `handoff.md:\"## Next group\"` peek by design. That call is not a defect."
         )
 
 
