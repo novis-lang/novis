@@ -20,8 +20,9 @@
 //! - [`hierarchy`] — [`HierarchyResolver`]: resolves every class/interface's
 //!   `extends`/`implements` and every class/trait's `use Trait, ...;` to real
 //!   [`Symbol`]s, into a [`ClassGraph`]; diagnoses an undeclared or
-//!   wrong-kind parent, a circular `extends`/trait-use chain, and a trait
-//!   method-name collision with no `insteadof` naming a winner.
+//!   wrong-kind parent — including a name under `Core` the caller's
+//!   [`CoreRoster`] does not list — a circular `extends`/trait-use chain, and
+//!   a trait method-name collision with no `insteadof` naming a winner.
 //!   [`implementors`] asks that graph the other way — which non-abstract
 //!   classes reach one interface — which is `rule:programs/implementing`'s enumeration.
 //! - [`members`] — [`MemberResolver`]: resolves every `Class::member`
@@ -67,7 +68,7 @@ pub mod symbol;
 pub use aliases::{AliasResolver, AliasTable};
 pub use autoload::{AutoloadMap, Probe};
 pub use hierarchy::{
-    ClassGraph, ClassLinks, HierarchyResolver, implementors, implements_interface,
+    ClassGraph, ClassLinks, CoreRoster, HierarchyResolver, implementors, implements_interface,
     relative_spelling, resolve_ref, seed_exception_tree, undeclared_name,
 };
 pub use members::{ClassMembers, MemberResolver, MemberTable};

@@ -303,12 +303,19 @@ pub(crate) fn qname_segments(src: &SourceFile, name: &Name) -> Vec<String> {
 /// Resolves one parsed file's namespace/`use`/declaration structure in one
 /// call. See [`Resolver`] for building a [`Module`] out of more than one
 /// file.
+///
+/// **Every name under `Core` is trusted here.** One file resolved on its own
+/// has no program around it and no caller holding the stdlib's roster, so this
+/// door passes [`crate::hierarchy::CoreRoster::Trusted`];
+/// [`crate::requires::resolve_program`] is the door that carries a roster, and
+/// so the one that refuses a `Core` name nothing declares.
 #[must_use]
 pub fn resolve_file(stmts: &[Stmt], src: &SourceFile, diags: &mut Diagnostics) -> Module {
     let mut resolver = Resolver::new();
     resolver.collect_declarations(stmts, src, diags);
     resolver.resolve_imports(diags);
-    let mut hierarchy = crate::hierarchy::HierarchyResolver::new();
+    let mut hierarchy =
+        crate::hierarchy::HierarchyResolver::new(crate::hierarchy::CoreRoster::Trusted);
     hierarchy.collect_links(stmts, src);
     let graph = hierarchy.resolve(&resolver.module().symbols, diags);
     let mut module = resolver.into_module();

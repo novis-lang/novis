@@ -1572,8 +1572,15 @@ fn front_end_granted(
     // Every other file's parse and `check_declarations` happen inside the
     // walk, as each `require` target is discovered; only the entry point is
     // this function's to load.
-    let (module, loaded, autoload) =
-        nvs_hir::resolve_program_linted(id, stmts, &mut map, &mut diags, strict_docs);
+    let core = nvs_stdlib::registry::link_targets();
+    let (module, loaded, autoload) = nvs_hir::resolve_program_linted(
+        id,
+        stmts,
+        &mut map,
+        nvs_hir::CoreRoster::Names(&core),
+        &mut diags,
+        strict_docs,
+    );
 
     let mut interner = nvs_types::TypeInterner::new();
     let mut exprs = nvs_types::ExprTypeTable::new();

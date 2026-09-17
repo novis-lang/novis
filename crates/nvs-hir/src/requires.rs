@@ -127,7 +127,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::aliases::AliasResolver;
 use crate::autoload::{self, AutoloadMap, Site};
-use crate::hierarchy::HierarchyResolver;
+use crate::hierarchy::{CoreRoster, HierarchyResolver};
 use crate::members::MemberResolver;
 use crate::qname::QName;
 use crate::resolve::{Module, Resolver};
@@ -194,14 +194,21 @@ pub struct Loaded {
 /// rather than dropped so `nvs check --autoload-map` can print it (`rule:programs/autoload`). It is complete for any program that reached the first probe — which
 /// is every program, since the walk consults the map once the `require` graph
 /// drains, whether or not a name is still waiting on it.
+///
+/// `core` is which names the `Core` namespace declares — a question no
+/// [`crate::SymbolTable`] can answer, because no source file may declare one.
+/// A caller holding the stdlib passes [`CoreRoster::Names`] and a link naming
+/// something outside it is refused; one with no stdlib in hand passes
+/// [`CoreRoster::Trusted`].
 #[must_use]
 pub fn resolve_program(
     entry_id: SourceId,
     entry_stmts: Vec<Stmt>,
     map: &mut SourceMap,
+    core: CoreRoster<'_>,
     diags: &mut Diagnostics,
 ) -> (Module, Vec<Loaded>, AutoloadMap) {
-    resolve_program_linted(entry_id, entry_stmts, map, diags, false)
+    resolve_program_linted(entry_id, entry_stmts, map, core, diags, false)
 }
 
 /// [`resolve_program`] with `rule:tooling/strict-docs`'s lint in front of it —
@@ -217,11 +224,12 @@ pub fn resolve_program_linted(
     entry_id: SourceId,
     entry_stmts: Vec<Stmt>,
     map: &mut SourceMap,
+    core: CoreRoster<'_>,
     diags: &mut Diagnostics,
     strict_docs: bool,
 ) -> (Module, Vec<Loaded>, AutoloadMap) {
     let mut resolver = Resolver::new();
-    let mut hierarchy = HierarchyResolver::new();
+    let mut hierarchy = HierarchyResolver::new(core);
     let mut members = MemberResolver::new();
     let mut aliases = AliasResolver::new();
 
@@ -1691,7 +1699,8 @@ mod tests {
         let entry_id = map.load(&entry_path).expect("load entry fixture");
         let mut diags = Diagnostics::new();
         let stmts = parse_file(map.file(entry_id), &mut diags);
-        let (module, loaded, _autoload) = resolve_program(entry_id, stmts, &mut map, &mut diags);
+        let (module, loaded, _autoload) =
+            resolve_program(entry_id, stmts, &mut map, CoreRoster::Trusted, &mut diags);
         (module, loaded, map, diags)
     }
 
@@ -2109,7 +2118,8 @@ class Unreached {}
         let id = map.add("virtual.nvs", "<?nvs\nrequire 'lib.nvs';\n");
         let mut diags = Diagnostics::new();
         let stmts = parse_file(map.file(id), &mut diags);
-        let (_module, _loaded, _autoload) = resolve_program(id, stmts, &mut map, &mut diags);
+        let (_module, _loaded, _autoload) =
+            resolve_program(id, stmts, &mut map, CoreRoster::Trusted, &mut diags);
         assert!(!diags.has_errors(), "{diags:?}");
     }
 
@@ -2213,7 +2223,7 @@ class Unreached {}
             let mut diags = Diagnostics::new();
             let stmts = parse_file(map.file(entry_id), &mut diags);
             let (_module, _loaded, autoload) =
-                resolve_program(entry_id, stmts, &mut map, &mut diags);
+                resolve_program(entry_id, stmts, &mut map, CoreRoster::Trusted, &mut diags);
             assert!(!diags.has_errors(), "{diags:?}");
             autoload.probe_trace().probed().to_vec()
         };
@@ -2283,7 +2293,8 @@ class Unreached {}
             .expect("load entry fixture");
         let mut diags = Diagnostics::new();
         let stmts = parse_file(map.file(entry_id), &mut diags);
-        let (module, loaded, autoload) = resolve_program(entry_id, stmts, &mut map, &mut diags);
+        let (module, loaded, autoload) =
+            resolve_program(entry_id, stmts, &mut map, CoreRoster::Trusted, &mut diags);
         assert!(!diags.has_errors(), "{diags:?}");
 
         let name = QName::parse(r"Framework\Core");

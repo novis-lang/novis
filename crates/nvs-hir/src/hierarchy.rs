@@ -35,15 +35,15 @@
 //! [`seed_exception_tree`] for why that is the graph's job rather than each
 //! consumer's.
 //!
-//! **Known gap:** a target under `Core` ([`QName::is_core`]) is trusted to
-//! exist, same as a `use` import. `is_core` is a spelling test, and this crate
-//! cannot hold a name to `nvs_stdlib::registry`'s roster the way
-//! `nvs_types::expr::calls` holds a `new` target to it: it depends on
-//! `nvs-diagnostics` and `nvs-syntax` and nothing else, which is the graph
-//! position that makes a class link resolvable before the stdlib exists.
-//! Decided: Hand nvs-hir a roster of Core names at construction — Every link error comes from one pass,
-//! at the cost of a slice of names passed in (no new crate dependency).
-//! — owner: decided-closures
+//! **A target under `Core` ([`QName::is_core`]) is resolved against a roster
+//! the caller hands in**, so every link error still comes from this one pass.
+//! The roster arrives as a [`CoreRoster`] rather than being read here because
+//! this crate depends on `nvs-diagnostics` and `nvs-syntax` and nothing else,
+//! which is the graph position that makes a class link resolvable before the
+//! stdlib exists. `nvs_stdlib::registry::link_targets` is what the front ends
+//! build one from, and that function owns the bound on which names are in it;
+//! a caller with no stdlib in hand passes [`CoreRoster::Trusted`], never an
+//! empty slice.
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
 use nvs_syntax::ast::{Modifier, Name, NamespaceDecl, Stmt, StmtKind};
@@ -52,6 +52,53 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use crate::qname::QName;
 use crate::resolve::{name_text, qname_segments};
 use crate::symbol::{SymbolKind, SymbolTable};
+
+/// Which names the `Core` namespace declares, as the link pass is told them.
+///
+/// `Core` is compiler-owned (`rule:core-api/reserved-namespace`), so no source
+/// file declares a name under it and the [`SymbolTable`] this pass checks
+/// against can never hold one. A roster is therefore the only authority there
+/// is, and it arrives from the caller rather than from `nvs_stdlib::registry`
+/// directly: this crate depends on `nvs-diagnostics` and `nvs-syntax` and
+/// nothing else, which is the graph position that makes a class link
+/// resolvable before the stdlib exists.
+///
+/// **There are two cases and no third, because an empty roster is a real
+/// answer.** A caller holding the stdlib passes [`Self::Names`], and a link
+/// naming something outside it is refused; a caller with no stdlib in hand —
+/// [`crate::resolve::resolve_file`] and every fixture helper that resolves a
+/// file on its own — passes [`Self::Trusted`], and every `Core` name is taken
+/// on faith the way a `use` import is. A bare slice could not tell those
+/// apart: `&[]` would mean "the `Core` namespace declares nothing" and refuse
+/// every link in those fixtures.
+#[derive(Clone, Copy, Debug, Default)]
+pub enum CoreRoster<'a> {
+    /// Every name under `Core` exists. What a caller that cannot see the
+    /// stdlib's roster is asking for, and never a claim that the roster is
+    /// empty.
+    #[default]
+    Trusted,
+    /// Exactly these names exist, fully qualified and spelled as source writes
+    /// them (`Core\Arr`). `nvs_stdlib::registry::class_names` is what builds
+    /// one.
+    Names(&'a [&'a str]),
+}
+
+impl CoreRoster<'_> {
+    /// Whether this roster says `qname` exists. Matched without regard to
+    /// ASCII case, the same comparison [`QName::is_core`] makes on the first
+    /// segment, so one roster answers every spelling of a name.
+    #[must_use]
+    pub fn holds(&self, qname: &QName) -> bool {
+        match self {
+            Self::Trusted => true,
+            Self::Names(names) => {
+                let written = qname.to_string();
+                names.iter().any(|name| name.eq_ignore_ascii_case(&written))
+            }
+        }
+    }
+}
 
 /// One class/interface's resolved links to other declarations. Never built
 /// for an enum: `rule:enums/no-class-machinery` already rejects `implements` on an enum at
@@ -170,15 +217,21 @@ impl PendingLinks {
 /// [`crate::resolve::Resolver`], for the same reason: a reference may name a
 /// declaration from another file.
 #[derive(Debug, Default)]
-pub struct HierarchyResolver {
+pub struct HierarchyResolver<'a> {
     pending: Vec<PendingLinks>,
+    core: CoreRoster<'a>,
 }
 
-impl HierarchyResolver {
-    /// A resolver with nothing collected yet.
+impl<'a> HierarchyResolver<'a> {
+    /// A resolver with nothing collected yet, holding the roster every link
+    /// under `Core` is resolved against. See [`CoreRoster`] for what a caller
+    /// with no stdlib in hand passes.
     #[must_use]
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(core: CoreRoster<'a>) -> Self {
+        Self {
+            pending: Vec::new(),
+            core,
+        }
     }
 
     /// Walks `stmts`, recording every class/interface's raw
@@ -264,7 +317,8 @@ impl HierarchyResolver {
 
             let extends_kinds = [pending.own_kind];
             for raw in &pending.extends {
-                if let Some(qname) = resolve_supertype(raw, pending, symbols, &extends_kinds, diags)
+                if let Some(qname) =
+                    resolve_supertype(raw, pending, symbols, self.core, &extends_kinds, diags)
                 {
                     links.extends.push(qname);
                 }
@@ -273,7 +327,7 @@ impl HierarchyResolver {
             let implements_kinds = [SymbolKind::Interface];
             for raw in &pending.implements {
                 if let Some(qname) =
-                    resolve_supertype(raw, pending, symbols, &implements_kinds, diags)
+                    resolve_supertype(raw, pending, symbols, self.core, &implements_kinds, diags)
                 {
                     links.implements.push(qname);
                 }
@@ -423,11 +477,29 @@ fn resolve_supertype(
     raw: &RawRef,
     pending: &PendingLinks,
     symbols: &SymbolTable,
+    core: CoreRoster<'_>,
     expected: &[SymbolKind],
     diags: &mut Diagnostics,
 ) -> Option<QName> {
     let qname = resolve_ref(&raw.text, &pending.namespace, &pending.imports);
-    if qname.is_core() || qname.is_reserved_global_interface() || qname.is_reserved_global_class() {
+    // A name under `Core` is asked of the roster, since `symbols` cannot hold
+    // one. The two reserved global rosters keep their spelling test instead:
+    // `crate::interfaces::RESERVED` and `crate::errors::TREE` are data this
+    // crate already carries, so nothing has to be handed in for them.
+    if qname.is_core() {
+        if core.holds(&qname) {
+            return Some(qname);
+        }
+        diags.report(
+            Diagnostic::error(
+                code::E_UNDEFINED_CLASS,
+                format!("`{qname}` is not a class the `Core` namespace declares"),
+            )
+            .with_primary(raw.span, "no such `Core` class"),
+        );
+        return None;
+    }
+    if qname.is_reserved_global_interface() || qname.is_reserved_global_class() {
         return Some(qname);
     }
     match symbols.get(&qname) {
@@ -597,7 +669,7 @@ mod tests {
     use nvs_syntax::parse_file;
 
     use super::*;
-    use crate::resolve::resolve_file;
+    use crate::resolve::{Resolver, resolve_file};
 
     fn resolve(src: &str) -> (ClassGraph, Diagnostics) {
         let mut map = SourceMap::new();
@@ -607,6 +679,75 @@ mod tests {
         assert!(!diags.has_errors(), "fixture failed to parse: {diags:?}");
         let module = resolve_file(&stmts, map.file(file), &mut diags);
         (module.graph, diags)
+    }
+
+    /// [`resolve`] with the roster named at the call, which
+    /// [`resolve_file`] cannot do: that door trusts `Core` by construction.
+    fn links(core: CoreRoster<'_>, src: &str) -> (ClassGraph, Diagnostics) {
+        let mut map = SourceMap::new();
+        let file = map.add("t.nvs", src);
+        let mut diags = Diagnostics::new();
+        let stmts = parse_file(map.file(file), &mut diags);
+        assert!(!diags.has_errors(), "fixture failed to parse: {diags:?}");
+        let mut resolver = Resolver::new();
+        resolver.collect_declarations(&stmts, map.file(file), &mut diags);
+        resolver.resolve_imports(&mut diags);
+        let mut hierarchy = HierarchyResolver::new(core);
+        hierarchy.collect_links(&stmts, map.file(file));
+        let module = resolver.into_module();
+        let graph = hierarchy.resolve(&module.symbols, &mut diags);
+        (graph, diags)
+    }
+
+    /// `rule:core-api/reserved-namespace` makes `Core` compiler-owned, so no
+    /// declaration can put a name there and the [`SymbolTable`] can never
+    /// answer for one. The roster the caller hands in is therefore the whole
+    /// authority: a link naming something on it resolves into the graph, and
+    /// one naming anything else is `E_UNDEFINED_CLASS` from this pass rather
+    /// than a spelling silently trusted.
+    ///
+    /// The third case is what a bare slice could not express. The same source
+    /// the roster refuses is accepted under [`CoreRoster::Trusted`], so a
+    /// caller with no stdlib in hand is not reading an empty roster as "the
+    /// `Core` namespace declares nothing".
+    #[test]
+    fn a_core_name_the_roster_lacks_is_refused_by_the_link_pass() {
+        const ROSTER: &[&str] = &[r"Core\Arr"];
+        let listed = "<?nvs\nclass Listish implements Core\\Arr {}\n";
+        let missing = "<?nvs\nclass Listish implements Core\\Arrr {}\n";
+        let declared = QName::parse("Listish");
+
+        let (graph, diags) = links(CoreRoster::Names(ROSTER), listed);
+        assert!(!diags.has_errors(), "a rostered name resolves: {diags:?}");
+        assert_eq!(
+            graph
+                .get(&declared)
+                .expect("the class has links")
+                .implements,
+            vec![QName::parse(r"Core\Arr")]
+        );
+
+        let (graph, diags) = links(CoreRoster::Names(ROSTER), missing);
+        assert!(
+            diags.iter().any(
+                |d| d.code == Some(code::E_UNDEFINED_CLASS) && d.message.contains(r"Core\Arrr")
+            ),
+            "a name the roster lacks is refused: {diags:?}"
+        );
+        assert!(
+            graph
+                .get(&declared)
+                .expect("the class has links")
+                .implements
+                .is_empty(),
+            "a refused link is left out of the graph"
+        );
+
+        let (_graph, diags) = links(CoreRoster::Trusted, missing);
+        assert!(
+            !diags.has_errors(),
+            "`Trusted` is not an empty roster: {diags:?}"
+        );
     }
 
     /// `rule:statements/a-qualified-name-is-absolute`, as the cases the rule has and nothing between

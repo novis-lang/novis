@@ -306,7 +306,14 @@ pub(crate) fn check_program_table(files: &[(&str, &str)]) -> (Diagnostics, ExprT
     let mut diags = Diagnostics::new();
     let stmts = nvs_syntax::parse_file(map.file(entry), &mut diags);
     assert!(!diags.has_errors(), "fixture failed to parse: {diags:?}");
-    let (module, loaded, _autoload) = nvs_hir::resolve_program(entry, stmts, &mut map, &mut diags);
+    let core = nvs_stdlib::registry::link_targets();
+    let (module, loaded, _autoload) = nvs_hir::resolve_program(
+        entry,
+        stmts,
+        &mut map,
+        nvs_hir::CoreRoster::Names(&core),
+        &mut diags,
+    );
     assert!(!diags.has_errors(), "fixture failed to resolve: {diags:?}");
     let program: Vec<nvs_types::ProgramFile<'_>> = loaded
         .iter()

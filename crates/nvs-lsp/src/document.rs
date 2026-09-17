@@ -422,7 +422,14 @@ pub fn analyse_file(documents: &Documents, path: &Path, version: i32) -> Option<
         index,
     } = parse(map.file(entry), &mut diags);
     check_declarations(&stmts, map.file(entry), &mut diags);
-    let (module, loaded, _autoload) = resolve_program(entry, stmts, &mut map, &mut diags);
+    let core = nvs_stdlib::registry::link_targets();
+    let (module, loaded, _autoload) = resolve_program(
+        entry,
+        stmts,
+        &mut map,
+        nvs_hir::CoreRoster::Names(&core),
+        &mut diags,
+    );
 
     let mut interner = TypeInterner::new();
     let mut exprs = ExprTypeTable::new();

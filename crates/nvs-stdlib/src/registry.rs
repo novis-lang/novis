@@ -2821,6 +2821,31 @@ pub fn class(name: &str) -> Option<&'static CoreClass> {
     CLASSES.iter().find(|class| class.name == name)
 }
 
+/// The `Core` interfaces `rule:core-classes/derive-attribute`'s attributes
+/// stand for. A class carrying `#[Json\Derive]` implements the first of them
+/// whether or not it writes the clause, and writing the clause is redundant
+/// but accepted — so both names are ones a link clause may resolve to, while
+/// neither is a [`CoreClass`] row, since a program calls no member on them.
+pub const DERIVE_INTERFACES: &[&str] = &[r"Core\Json\Codec", r"Core\Db\Codec"];
+
+/// Every `Core` name a class may write in an `extends`/`implements` clause:
+/// the classes above and [`DERIVE_INTERFACES`].
+///
+/// This is what a front end hands `nvs_hir::CoreRoster::Names`, which is the
+/// only authority on the question — `Core` is compiler-owned, so no source
+/// file declares a name there and no symbol table can answer for one. **A
+/// `Core` interface a future rule lets a program name joins
+/// [`DERIVE_INTERFACES`]**, which is the bound: this function reads the
+/// tables and holds nothing of its own.
+#[must_use]
+pub fn link_targets() -> Vec<&'static str> {
+    CLASSES
+        .iter()
+        .map(|class| class.name)
+        .chain(DERIVE_INTERFACES.iter().copied())
+        .collect()
+}
+
 /// Whether a `Core`-owned class renders as text —
 /// `rule:classes/stringable`'s question, asked here because a `Core` class has no other place to
 /// answer it: it declares no interfaces, so there is no `Stringable` for
