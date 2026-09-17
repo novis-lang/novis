@@ -195,14 +195,6 @@ where taking it is the work and the code that follows it is not.
   bit the roster can test. That answers for every `mixed` consumer at once rather than for this walk,
   and `rule:types/conversion` is where it lands. `crates/nvs-runtime/src/record.rs` gap 2.
   [until: reviewed 2026-09-10]
-- **Seven of `Core\Regex`'s eight pattern parameters refuse a `tainted` argument by default rather
-  than by a mark**, because `nvs_types::core_lib`'s `qual_of` answers `None` for a
-  `crate::registry::CoreTy::Union` and those seven take `Pattern|string`.
-  `rule:security/regex-pattern-is-a-sink`'s refusal holds either way, `None` and `Qual::Sink` both
-  refusing, so what is open is the spelling. What has to be decided is whether a union type carries a
-  `Qual` slot at all: without one a union that ever wanted `Qual::Launder` has nowhere to hold it,
-  which is a registry-shape question and not a `Core\Regex` one.
-  `crates/nvs-stdlib/src/regex.rs` gap 1. [until: reviewed 2026-09-10]
 
 - **`Core\Cli::arguments` is empty inside a served request**, because it answers whatever the launcher
   wrote with `nvs_runtime::Ctx::set_command_line` and only `nvs-cli` writes one. Empty is not wrong —
