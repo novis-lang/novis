@@ -86,11 +86,18 @@ pub(crate) use self::{
     literals::{check_array_key_type, check_object_literal, int_literal_digits},
     members::{
         can_hold_an_object, check_unset_target, is_this_receiver, reject_finish_marker_arm,
-        resolve_class_expr, testable_core_class,
+        resolve_class_expr,
     },
     operators::{reject_carrier_as_text, reject_disjoint_equality, require_stringable},
     quals::{reject_secret_attribute_constant, reject_secret_output},
 };
+
+/// Public because `nvs-ir` asks the same roster this crate does: a `Core` class
+/// name a downcast and a closure parameter's entry check can test a value
+/// against is exactly the one `instanceof` accepts, and one predicate answering
+/// both is what keeps the two passes from disagreeing about which names have a
+/// descriptor.
+pub use self::members::testable_core_class;
 
 /// Whether `ty` carries `rule:security/secret-qualifier`
 /// 's `secret` qualifier — the one thing outside this crate a *declared*

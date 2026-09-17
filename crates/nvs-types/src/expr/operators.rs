@@ -1808,14 +1808,19 @@ fn reject_unconvertible(from: TypeId, to: TypeId, span: Span, env: &mut Env<'_>)
 ///   receives, are the two spellings `rule:types/erased-member-access` leaves standing. Both erase
 ///   to one pointer representation, so the conversion runs nothing and the
 ///   check happens at the member access instead (`InstKind::SlotGet`).
-/// * **A `Core`-owned class**, which decides for itself: `rule:security/tainted-qualifier`'s
+/// * **`Core\Html\Markup`**, which decides for itself: `rule:security/tainted-qualifier`'s
 ///   `as Core\Html\Markup` is a source-literal `string` and has its own
 ///   diagnostic (`E_MARKUP_REQUIRES_LITERAL`, in [`crate::expr::quals`])
 ///   saying so. Exempted from the disjointness question exactly as
-///   [`require_stringable_object`] exempts them, and for the same reason — the
-///   owning rule is the rule, not this table. It is also the *only* `Core`
-///   target so exempted, because it is the only one decided by a rule rather
-///   than by a test.
+///   [`require_stringable_object`] exempts it, and for the same reason — the
+///   owning rule is the rule, not this table. It is a *lift*, which is why it
+///   is the one `Core` target decided by a rule rather than by a test.
+/// * **Any other `Core` class with a descriptor** — the roster
+///   [`crate::expr::testable_core_class`] answers for — which is a downcast
+///   target on exactly the terms a declared class is, and is asked the same
+///   disjointness question. The descriptor it tests against is the process-wide
+///   one `nvs_stdlib::class_descriptors` publishes rather than one the unit
+///   laid out, and `InstKind::InstanceOf` already takes it.
 /// * **The identical type**, returned by [`reject_unconvertible`] before this
 ///   is reached.
 ///
@@ -1830,12 +1835,12 @@ fn reject_unconvertible(from: TypeId, to: TypeId, span: Span, env: &mut Env<'_>)
 /// list was then read off a `Foo`'s allocation.
 ///
 /// A target naming **no testable class** — plain `object`, a shape, a
-/// `callable`, or a `Core` class, none of which has a descriptor to compare
-/// against — has no such test to run, so the operand has to be an object
-/// *already*. From anything wider the conversion could only assert the tag it
-/// cannot verify, which is the same type confusion one step earlier, and it is
-/// [`code::E_UNTESTABLE_CONVERSION_TARGET`] where it is written. `$plain as
-/// object` stays the free widening row it always was.
+/// `callable`, or a `Core` namespace class, none of which has a descriptor to
+/// compare against — has no such test to run, so the operand has to be an
+/// object *already*. From anything wider the conversion could only assert the
+/// tag it cannot verify, which is the same type confusion one step earlier, and
+/// it is [`code::E_UNTESTABLE_CONVERSION_TARGET`] where it is written. `$plain
+/// as object` stays the free widening row it always was.
 fn reject_unrelated_class_conversion(from: TypeId, to: TypeId, span: Span, env: &mut Env<'_>) {
     let Ty::Class(qname, _) = env.interner.get(to).clone() else {
         // Plain `object`, a shape and a `callable` are the other three
@@ -1848,16 +1853,21 @@ fn reject_unrelated_class_conversion(from: TypeId, to: TypeId, span: Span, env: 
         // `rule:core-classes/html-auto-escape`'s `as Core\Html\Markup` is that section's own row and
         // `crate::expr::quals` owns it end to end — a source-literal `string`
         // and nothing else, `E_MARKUP_REQUIRES_LITERAL` for anything computed.
-        // It is the one `Core` target whose conversion is decided by a rule
-        // rather than by a test, which is exactly the exemption this function
-        // records; every other `Core` class carries a descriptor the *process*
-        // owns and the unit does not declare, which `E_UNTESTABLE_CONVERSION_TARGET`'s
-        // own docs say is why the downcast cannot resolve it where
-        // `instanceof` can.
-        if qname.to_string() != crate::CORE_HTML_MARKUP_CLASS {
-            reject_untestable_object_target(from, to, span, env);
+        // It is a lift rather than a test, so it is the one `Core` target this
+        // function decides nothing about.
+        if qname.to_string() == crate::CORE_HTML_MARKUP_CLASS {
+            return;
         }
-        return;
+        // Every other `Core` class is a downcast target on a declared class's
+        // terms: `crate::expr::testable_core_class` is the roster whose
+        // descriptor the process publishes, so there is a class to test against
+        // and the disjointness question below is the right one to ask. A `Core`
+        // namespace class is on no roster — nothing is ever an instance of it —
+        // and keeps `E_UNTESTABLE_CONVERSION_TARGET`.
+        if !crate::expr::testable_core_class(&qname) {
+            reject_untestable_object_target(from, to, span, env);
+            return;
+        }
     }
     if !types_are_disjoint(from, to, env) {
         return;
@@ -1899,7 +1909,8 @@ fn reject_untestable_object_target(from: TypeId, to: TypeId, span: Span, env: &m
         .with_primary(span, "converted here")
         .with_help(
             "`rule:types/conversion` tabulates no conversion into an object, and this target names no class \
-             to test the value against: convert to a declared class instead, which is the one \
+             to test the value against: name a class values are made of instead — a declared \
+             one, or a `Core` class with instances such as `Core\\Time\\Date` — which is the \
              checked way out of `mixed`",
         ),
     );

@@ -431,7 +431,8 @@ fn testable_class_name(qname: &QName) -> bool {
 /// A **namespace** class answers no: it declares neither a slot nor an instance
 /// member, so nothing is ever an instance of it and the test has no descriptor
 /// to walk rather than an answer of `false`.
-pub(crate) fn testable_core_class(qname: &QName) -> bool {
+#[must_use]
+pub fn testable_core_class(qname: &QName) -> bool {
     qname.is_core()
         && (crate::core_lib::has_instances(qname)
             || nvs_hir::errors::is_exception_class(&qname.to_string()))
