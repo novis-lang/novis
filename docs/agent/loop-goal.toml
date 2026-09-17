@@ -126,6 +126,9 @@ modules = [
   # store issues, the record it keeps under it, and the two directives that decide where that
   # store is and how long a record survives.
   "crates/nvs-stdlib/src/session.rs",
+  # `nvs serve`: one worker per core, every socket `[server] listen` names, and every request
+  # running one entry file as `rule:security/isolate-shares-nothing`'s isolate.
+  "crates/nvs-cli/src/serve.rs",
 ]
 
 # The grant over the store, which this goal does not move, and the account every byte it spends is
