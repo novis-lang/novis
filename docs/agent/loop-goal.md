@@ -1,145 +1,142 @@
 ---
 milestone: post-parity
 ---
-# Loop goal 60 — every unowned gap is built to the answer its decision sheet gave
+# Loop goal 61 — a shape a class owns is named inside it
 
-No module-doc gap is `unowned` any more. Each one is **built**, **struck** because the user's answer made
-it a stated bound of the design rather than a hole, or **tagged to a future milestone** whose plan states
-its scope. The design calls that were holding them were taken by the user in one sitting on a decision
-sheet, and each answer is written in the gap's own module doc as a `Decided:` sentence before this goal
-starts, so no session re-decides one.
+A `type` alias can be declared as a member of a class, an interface or an enum, and the name it
+declares is reachable as `Owner::Name` from anywhere and as a bare `Name` inside the owner's own body.
+It is the same alias the file-scope form declares — transparent, compile-time only, refused for a bare
+class, gone before codegen — with a second place to declare it, so a shape that belongs to one class no
+longer has to sit at file scope beside the imports. The file-scope form stays exactly as it is.
 
 ## Why here
 
-Last of the closure goals, directly in front of goal `gap-zero`, because it is the only one that needs the
-user: goals `m4-refusals` through `m8-stdlib-depth` build what the past milestones' plans promised and
-need no answer from anyone, while roughly sixty of the gaps here waited on a design choice nobody had
-taken. The user chose on 2026-09-13 to answer them on a sheet rather than let the loop hold on each one.
-Goal `gap-zero` after it retires `unowned` as an owner kind, which is only safe once this goal has
-emptied it.
+Directly after goal `unowned-closures` and in front of goal `gap-zero`, because it is the last
+language-surface change the user has asked for before the terminal gate, and `gap-zero` refuses any
+module-doc gap that is not owed to a future milestone: a feature that lands half-built after it would
+have nowhere to record its remainder. It needs nothing the closure goals build. What it needs already
+exists — the alias table (`crates/nvs-hir/src/aliases.rs`), `Owner::Name` in type position
+(`crates/nvs-syntax/src/parser/ty.rs:538`, `crates/nvs-types/src/lower.rs:@lower_member_type`), and
+the class-member parser (`crates/nvs-syntax/src/parser/decl.rs:@parse_class_member_with_attrs`).
 
-## Stage 0 — the catch-up: every decision is written where its gap lives
+## Stage 0 — the catch-up
 
-**Done by hand before the first session**, from the user's decision sheet: every gap it covered carries
-a sentence `Decided: <the option> — <why, in one line>.` as the last prose line before its owner tag,
-and the tag names this goal. A gap a session reaches with **no** `Decided:` sentence and no obvious
-build is a `BLOCKED` naming the gap — the one hold this goal expects, and it means the sheet missed it.
+Two sentences on disk become wrong the moment stage 2 lands, and the slice that lands it rewrites them:
+
+- `docs/rules/types/type-alias.md:1-2` says an alias is declared "never inside a class". Stage 5's
+  record amends that fragment; the code must not land against a rule that still says the opposite for
+  more than the one group that lands both.
+- `crates/nvs-types/src/lower.rs:333-338` records a known gap in `lower_member_type`: the name left of
+  `::` is not resolved through the alias table first, so `type M = Mode; M::Read` resolves nothing.
+  Stage 2 rewrites that function and closes the gap in the same slice, because the function's new job
+  is exactly deciding what the left-hand name is.
 
 ## Stage 1 — the floor
 
-Goal `m8-stdlib-depth`'s whole acceptance list, carried in verbatim by `tools/goal-switch.py`. Never traded.
+Goal `unowned-closures`'s whole acceptance list, carried in verbatim by `tools/goal-switch.py`. Never traded.
 
-## Stage 2 — the lowering and the runtime
+## Stage 2 — the keystone: the member, its key, and the two spellings
 
-One file set: `crates/nvs-ir/src/lower/`, `crates/nvs-runtime/src/`, `crates/nvs-codegen/`.
+One file set: `crates/nvs-syntax/src/parser/decl.rs`, `crates/nvs-syntax/src/ast.rs`,
+`crates/nvs-hir/src/aliases.rs`, `crates/nvs-hir/src/resolve.rs`, `crates/nvs-types/src/lower.rs`.
 
-- **Security first.** `crates/nvs-ir/src/lib.rs` gap 11 — a `secret` compared against a `mixed` falls to
-  the short-circuiting `Identical` (`crates/nvs-ir/src/lower/operator.rs:896-910`); when the checker
-  recorded `ExprInfo::SecretEquality` and one side is `Ty::Tagged`, a helper untags a string or bytes
-  operand and compares in constant time, answering `false` for any other tag.
-  `crates/nvs-runtime/src/budget.rs:89` gap 1 (one allocation past the budget) to its decision.
-- **Builds with no choice left**: `crates/nvs-ir/src/lib.rs` gap 1 (a multi-condition `for`, and a label
-  at a foreign representation compared through `lower_binary` — `crates/nvs-ir/src/lower/control.rs:460-465`,
-  `:680-683`, `crates/nvs-ir/src/lower/expr.rs:1825-1827`) and gap 2 (the normalized subscript key on
-  `owned_temporaries`, `crates/nvs-ir/src/lower/mod.rs:2091-2101`) — **unless goal `m4-refusals` already
-  closed them as refusal sites; check first**; gap 21 (a hook marker on the descriptor's property row, read
-  by `nvs_object_key_get` and the erased write — `crates/nvs-runtime/src/object.rs:3403-3408`).
-- **Decided**: `crates/nvs-runtime/src/lib.rs` gaps 1, 2, 6, 7 (value tags, string reuse, runtime
-  exception context, the in-flight collector); `crates/nvs-ir/src/lib.rs` gap 18 (a throw from an
-  abandoned generator's `finally`); `crates/nvs-runtime/src/array.rs` gap 1, `commands.rs` gap 1,
-  `decimal.rs` gap 1, `routes.rs` gap 1.
+- **The member.** `ClassMemberKind` gains a `TypeAlias(TypeAliasDecl)` arm
+  (`crates/nvs-syntax/src/ast.rs:1631`), parsed where a class body dispatches on `const` and
+  `function` (`crates/nvs-syntax/src/parser/decl.rs:709-724`) by the same routine the file-scope form
+  uses (`decl.rs:@parse_type_alias_decl`). It is accepted in a class, an interface and an enum body,
+  and a `///` run above it attaches as it does to any member.
+- **The key.** The alias table is keyed by the owner's `QName` plus the member name — never by a
+  synthetic namespace path, because `Ns\Order\Meta` is also the spelling of a class `Meta` in namespace
+  `Ns\Order`, and the two must not share a key. The collector (`aliases.rs:@collect_in`) walks class
+  bodies for the member; the cycle check and `E_TYPE_ALIAS_CYCLE` apply to it unchanged, and
+  `check_alias_is_not_a_bare_class` (`resolve.rs:255`) runs on it unchanged, so `type Id = SomeClass;`
+  is `E0307` inside a body exactly as it is outside one.
+- **The two spellings.** `Owner::Name` in type position is `lower_member_type`'s third meaning
+  (`lower.rs:339`), tried first: an alias declared by the resolved owner expands and re-lowers, then
+  the enum case, then the constant fold, in that order. A bare `Name` inside the owner's body resolves
+  against the owner's own aliases before the namespace's (`lower.rs:@resolve_name_type`, through
+  `Ctx::current_class`). These are the only two spellings — see *Standing decisions*.
+- **The left of `::` resolves through the alias table first**, closing the stage 0 gap: a file-scope or
+  class-scoped alias whose expansion is a single name atom stands in for that name before the `::` is
+  read, and any other expansion left of `::` is `E_UNKNOWN_MEMBER` with a help naming what the alias
+  expands to.
+- **Proof**: a parser test that the member round-trips, an `nvs-hir` test that the table holds the
+  owner-keyed entry and refuses a cycle through it, and an `nvs-types` test that a value bound through
+  `Order::Meta`, through a bare `Meta` inside `Order`, and through the same shape written at file scope
+  is one type.
 
-## Stage 3 — the checker and the front end
+## Stage 3 — the refusals
 
-One file set: `crates/nvs-types/src/`, `crates/nvs-hir/src/`, `crates/nvs-syntax/src/`,
-`crates/nvs-diagnostics/src/`.
+Same file set as stage 2 plus `crates/nvs-diagnostics/src/lib.rs`.
 
-- **M1's two, which no goal on the chain had taken** (tagged `M1`, a milestone that must be complete):
-  `crates/nvs-syntax/src/lib.rs` gap 2 — `use function` / `use const` get the targeted refusal the gap
-  itself asks for, naming `rule:classes/no-free-functions-or-constants`, instead of a generic parse error;
-  gap 3 — keyword-spelled name segments past the first are covered by conformance cases rather than
-  spot-checked (`Parser::is_name_segment`). Both are retagged to this goal in stage 0.
-- **Decided**: `defaults.rs` gap 1; `derive.rs` gap 3;
-  `intrinsics.rs` gaps 1–5; `links.rs` gap 1 and `reasons.rs` gap 1 (with `crates/nvs-stdlib/src/router.rs`
-  gap 1, the same question); `response.rs` gap 1; `crates/nvs-syntax/src/casing.rs` gap 1,
-  `crates/nvs-syntax/src/lib.rs` gap 1; `crates/nvs-hir/src/hierarchy.rs` gap 1, `requires.rs` gap 1;
-  `crates/nvs-diagnostics/src/embedded.rs` gap 1.
+- **No modifier.** `public type`, `private type`, `static type` and every other modifier before `type`
+  in a body is one new diagnostic, naming the rule: a class-scoped alias has no visibility because it
+  has no runtime existence, and is reachable wherever its owner is.
+- **No collision.** An alias and a constant, or an alias and an enum case, sharing a name under one
+  owner is `E_DUPLICATE_DECLARATION` at the second declaration, because both are spelled `Owner::Name`
+  in type position and one spelling names one thing.
+- **Not inherited.** `Child::Meta` where only `Parent` declares `Meta` is `E_UNKNOWN_MEMBER`, with a
+  help naming `Parent::Meta` as the spelling that resolves. An interface's alias is likewise reached
+  through the interface's own name, never through an implementor's.
+- **Not in a body.** `type` inside a method, a closure or a block is refused where it is written, by
+  name, the way `E0233` refuses a nested class — not left to fall through as a statement error.
+- **Proof**: one conformance `reject` case per refusal, each pinning the diagnostic's own text.
 
-## Stage 4 — the library
+## Stage 4 — the tooling sees the member
 
-One file set: `crates/nvs-stdlib/src/`.
+One file set: `crates/nvs-fmt/src/`, `crates/nvs-cli/src/meta.rs`, `crates/nvs-lsp/src/definition.rs`,
+`crates/nvs-lsp/src/symbols.rs`, `crates/nvs-lsp/src/semantic.rs`, `crates/nvs-lsp/src/completion.rs`.
 
-- **M6's two, which no goal on the chain had taken** (tagged `M6`): `regex.rs` gap 2 — the step budget
-  becomes a `[limits]` directive with today's constant as its default; gap 3 — the per-core
-  compiled-pattern cache is charged to an accounting bracket, or replaced by the prepared-pattern
-  channel if stage 3 builds it for regex literals too. Both are retagged to this goal in stage 0.
-- **Decided**: `cli.rs` gap 1; `command.rs` gap 1; `db/mod.rs` gaps 1–2; `debug.rs` gaps 1–2; `json.rs`
-  gaps 1–5; `lib.rs` gap 1; `mime.rs` gap 1; `path.rs` gaps 1–2; `queue.rs` gaps 2–3; `random.rs` gap 1;
-  `regex.rs` gap 1; `test.rs` gaps 1–2; `uuid.rs` gap 1; `xml.rs` gap 1; `zip.rs` gaps 1–2;
-  `cldr.rs` gap 1 and `time.rs` gap 1 (the prepared-pattern channel, the same answer as `intrinsics.rs`
-  gap 2 in stage 3 — build it once).
+- **The formatter** lays the member out exactly one way, and a formatted file formats to itself.
+- **`nvs meta --json`** emits a class-scoped alias inside its owner's entry, under a `types` array, each
+  card the same shape `user_alias_json` already writes (`meta.rs:803`) with the name spelled
+  `Owner::Name` fully qualified.
+- **The LSP**: go-to-definition on `Owner::Name` in type position lands on the member
+  (`definition.rs:283`), document symbols nest it under its owner (`symbols.rs:102`), semantic tokens
+  colour it as a type (`semantic.rs:677`), and completion after `Owner::` in type position offers it
+  (`completion.rs:493`).
+- **Proof**: a named test in each of `nvs-fmt`, `nvs-cli` and `nvs-lsp`.
 
-## Stage 5 — the server, the configuration, the cache and the schema
+## Stage 5 — the rule and the record
 
-One file set: `crates/nvs-server/src/`, `crates/nvs-config/src/`, `crates/nvs-cli/src/cache.rs`,
-`crates/nvs-db/src/`.
+One file set: `docs/rules/types.json`, `docs/rules/types/`, `docs/decisions/`.
 
-- **Builds**: `crates/nvs-config/src/cache.rs` gap 1 (a `build.rs` stamping a hash of the compiler's
-  source into `compiler_version_hash`); `crates/nvs-server/src/bounds.rs` gap 1 (`[server]` keys for the
-  idle, lifetime, frame-size and open-connection bounds, beside `nvs_config::server::waits_for`).
-- **M6's `env_hash`** — `crates/nvs-cli/src/cache.rs` gap 1 (tagged `M6`): the unit key's environment
-  hash tells two builds of an unreleased tree apart, with the same source stamp as `nvs-config`'s build
-  hash above. Retagged to this goal in stage 0.
-- **Decided**: `crates/nvs-server/src/route.rs` gap 1 (where a forged CSRF token is refused);
-  `crates/nvs-cli/src/cache.rs` gaps 2–3 (`aarch64` and Mach-O); `crates/nvs-db/src/catalog.rs` gaps 1–3,
-  `ddl.rs` gaps 1–2, `schema.rs` gap 1.
-- **Goal `m7-server-surface`'s three open items**, re-owned here because that goal retired without
-  closing them: `crates/nvs-server/src/metrics.rs` gap 1 (the `otlp` pusher behind `[metrics] endpoint`,
-  its stage 10); `crates/nvs-server/src/schedule.rs` gap 1 (a fire's context carries the deployment's
-  configuration, so its `limits` sub-cap has a ceiling to narrow and `script` is granted, its stage 9);
-  `crates/nvs-server/src/trace.rs` gap 1 (the gate that files a `query`, an `http` and a `spawn` event
-  for a sampled request without `DebugFlags::TRACE`, its stage 11). The same goal's last
-  `docs/agent/carried-gaps.md` row comes here with them: spec § 13's `Core\Test` cell spells `request`'s
-  bag nowhere, and `crates/nvs-stdlib/src/test.rs`'s `REQUEST_OPTIONS` is the roster it should state.
-
-## Stage 6 — the honest deferrals
-
-Five items genuinely cannot be built before M10's debugger and reference index exist, and are **retagged
-`M10`**, with `docs/plan/m10.md` gaining the scope sentence where it does not already carry one:
-`crates/nvs-ir/src/lib.rs` gap 14 and `crates/nvs-runtime/src/lib.rs` gap 5's `DEBUG_BREAK` half (`nvs
-dap`, `docs/plan/m10.md:19`); `crates/nvs-lsp/src/completion.rs:191`'s items; `crates/nvs-lsp/src/hints.rs`
-gap 1; `crates/nvs-lsp/src/index.rs` gaps 1–4. The items already tagged to a future milestone are held
-to the same test: the six `crates/nvs-fmt/src/lib.rs` gaps (M10), `crates/nvs-ir/src/lib.rs` gap 7 and
-`crates/nvs-runtime/src/decimal.rs` gap 2 (M12), and `crates/nvs-cli/src/bundle.rs` gap 1 (M9) — each
-milestone's own file states the scope, or gains the sentence here. `python tools/owners.py --deferrals`
-is the proof.
+- **One new record and no other number**, claiming the next free number when it lands. Its `changes:`
+  block creates `types/class-scoped-alias` and modifies `types/type-alias`. The record argues the
+  three calls in *Standing decisions* — no visibility, lexical scope, no third spelling — and states
+  what the feature spends: nothing per request, one table entry per declaration at compile time.
+- **The fragments**: `types/class-scoped-alias` is the rule, opening on a sentence that stands alone
+  in `ground-rules.md`; `types/type-alias`'s first paragraph names both declaration sites. Both list
+  the stage 2–3 conformance cases in `guardedBy`, and `python tools/rules.py --render` rewrites the
+  generated chapter in the same commit.
+- **Proof**: `python tools/rules.py --check` is green, and the conformance cases the fragments name
+  exist and pass.
 
 ## Standing decisions
 
-- **The user's rules, settled 2026-09-13**: every gap is closed or deferred to M9+, and a deferral is
-  honest only when the item cannot be built without that milestone's work. **Code ahead of a decision
-  wins; code behind one is a gap.** Where implemented, tested and verified code goes *beyond* or
-  *differs from* a decision record or an earlier decision, the code counts: the rule fragment, plan or
-  module doc is rewritten to match and the record stays frozen. Where the code *lacks* something a
-  decision specifies, that is a gap to build — never a reason to rewrite the decision down to what
-  exists. Where it is unclear which of the two it is, that is a `BLOCKED` for the user.
-- **A `Decided:` sentence is not re-opened.** A session that finds the chosen option harder than the
-  sheet priced builds it anyway, or records the obstacle in the handoff and takes the next item — never
-  the other option silently.
-- **An answer of "state it as a bound" strikes the gap**: the bound is written as the module's own prose
-  (what it does, and the limit), with the rule fragment amended if the rule promised otherwise. A bound is
-  not a gap.
-- **A decision whose answer changes a rule** amends that rule's fragment by its own process in the same
-  slice, and opens no record: the sheet is the decision, and a rule's `because` may cite the gap it closed.
-- **Three answers differ from the sheet's recommendation, deliberately.** A runtime-raised exception
-  captures a full backtrace (`crates/nvs-runtime/src/lib.rs` gap 6), which amends
-  `rule:errors/throw-is-not-slower` for runtime-raised exceptions and states what a raise now costs;
-  `Core\Queue\Stats` gains a fifth counter (`crates/nvs-stdlib/src/queue.rs` gap 3, a spec § 6
-  amendment); `Core\Random\Seeded` is registered per spec § 11 (`crates/nvs-stdlib/src/random.rs` gap 1).
-  Each is built as decided and none is re-opened.
-- **ADR slots**: one new record, and no other number — for the prepared-pattern channel from the checker
-  to the lowering, if the user's answers to `intrinsics.rs` gap 2 and `cldr.rs`/`time.rs` gap 1 build it.
-- **What it spends** is decided item by item and written in each module doc per
-  `rule:programs/memory-priority`; the sheet's options already priced it.
-- **Not this goal**: anything a past milestone's plan promised (goals `m4-refusals` through
-  `m8-stdlib-depth`); the terminal gate (goal `gap-zero`).
+- **No visibility, ever.** A class-scoped alias takes no modifier and has no access rule: it is
+  reachable wherever its owner's name is. Deciding otherwise means inventing a leak rule for a name
+  that does not exist at runtime. If an implementation detail seems to want one, the answer is still
+  no, and the obstacle goes in the handoff.
+- **Lexical scope, no inheritance.** An alias is reached as `Owner::Name` from anywhere and as a bare
+  `Name` inside the owner's own body. It is not reached through a subclass, an implementor,
+  `self::`, `static::` or `parent::`. `self::Name` and `static::Name` in type position are not
+  spellings of it and are refused as they are today; a bare `Name` inside the body is the short form.
+- **Class, interface and enum bodies alike.** One rule for every body that has a class-shaped name is
+  simpler than one rule plus two refusals. Nothing about the member differs between the three.
+- **The file-scope form is untouched.** Its rule, its tests and its `nvs meta` emission do not
+  change; the new record modifies `types/type-alias` only to name the second site.
+- **Resolution order at `Owner::Name` in type position is alias, then enum case, then constant.**
+  A collision is refused at the declaration (stage 3), so a program that compiles never depends on the
+  order; the order exists so the diagnostic for an unknown name can say which of the three it looked
+  for.
+- **Transparency is not negotiable.** `Order::Meta` and `{total: decimal, note?: string}` are one type
+  in both directions. Nothing downstream of the checker — codegen, the value layout,
+  `Core\Reflect::typeOf`, an isolate crossing — sees the name, exactly as `rule:types/type-alias`
+  already states for the file-scope form.
+- **No known gap is left behind.** Every item above lands with its test in this goal; a bound that
+  turns out to be needed is written as a sentence in the rule fragment and pinned by a `reject` case,
+  never recorded as a gap for a later goal. The stage 0 `lower_member_type` gap is closed here, not
+  carried.
+- **Not this goal**: parametric aliases (`type Rows<T> = …`), a newtype, and any change to
+  `rule:types/alias-is-never-a-bare-class`.

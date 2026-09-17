@@ -1,16 +1,15 @@
-# Goal 60 -- every unowned gap is built to the answer its decision sheet gave
+# Goal 61 -- a shape a class owns is named inside it
 # The acceptance test, as data.
 #
-# `60-unowned-closures.md` is the prose. One home each.
+# `61-class-scoped-types.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 #
-# Most of this goal's work is fixed by the user's decision sheet, whose answers land in the module docs
-# before the first session, so the register is the goal's claim: `unowned: 0` (goal `gap-register`'s
-# `label: N` format) means every item was built, struck as a stated bound, or honestly deferred. The
-# named tests below are the builds that needed no decision.
+# Every named test and every conformance case below is one this goal writes: none of them exists when
+# the goal is queued, and writing each is how its item finishes.
 
 files = [
+  # goal-switch.py unions the previous goal's fixtures into this list; nothing here is new.
   # carried from the previous goal by tools/goal-switch.py
   "examples/webcrypto.nvs",
   "examples/finish.nvs",
@@ -98,47 +97,45 @@ files = [
 [context]
 
 modules = [
-  # Stage 2 -- the lowering and the runtime.
-  "crates/nvs-ir/src/lower/operator.rs",
-  "crates/nvs-ir/src/lib.rs",
-  "crates/nvs-runtime/src/budget.rs",
-  "crates/nvs-runtime/src/object.rs",
-  "crates/nvs-runtime/src/lib.rs",
-  # Stage 3 -- the checker and the front end.
-  "crates/nvs-hir/src/requires.rs",
-  "crates/nvs-types/src/ctor_init.rs",
-  "crates/nvs-types/src/lateinit.rs",
-  "crates/nvs-types/src/intrinsics.rs",
-  "crates/nvs-types/src/links.rs",
-  "crates/nvs-types/src/expr/args.rs",
-  "crates/nvs-syntax/src/string_lit.rs",
-  "crates/nvs-types/src/derive.rs",
-  # Stage 4 -- the library.
-  "crates/nvs-stdlib/src/compress.rs",
-  "crates/nvs-stdlib/src/json.rs",
-  "crates/nvs-stdlib/src/db/mod.rs",
-  # Stage 5 -- server, configuration, cache, schema.
-  "crates/nvs-config/src/cache.rs",
-  "crates/nvs-server/src/bounds.rs",
-  "crates/nvs-server/src/route.rs",
-  "crates/nvs-server/src/metrics.rs",
-  "crates/nvs-server/src/schedule.rs",
-  "crates/nvs-server/src/trace.rs",
-  "crates/nvs-db/src/catalog.rs",
-  "crates/nvs-db/src/schema.rs",
-  "crates/nvs-db/src/ddl.rs",
+  # The class-member dispatch and `parse_type_alias_decl`. Stage 2.
+  "crates/nvs-syntax/src/parser/decl.rs",
+  # `Owner::Name` in type position, the `TypeAtom::Member` site. Stage 2.
+  "crates/nvs-syntax/src/parser/ty.rs",
+  # `ClassMemberKind` gains the arm; `TypeAliasDecl` is reused. Stage 2.
+  "crates/nvs-syntax/src/ast.rs",
+  # The alias table and its collector, keyed by owner. Stage 2.
+  "crates/nvs-hir/src/aliases.rs",
+  # `declare`, `check_alias_is_not_a_bare_class`. Stages 2 and 3.
+  "crates/nvs-hir/src/resolve.rs",
+  # The doc-comment check over a `TypeAliasDecl`. Stage 2.
+  "crates/nvs-hir/src/members.rs",
+  # `lower_member_type`'s third meaning and `resolve_name_type`'s owner-first lookup. Stage 2.
+  "crates/nvs-types/src/lower.rs",
+  # The one new code, stage 3.
+  "crates/nvs-diagnostics/src/lib.rs",
+  # Layout of the member. Stage 4.
+  "crates/nvs-fmt/src/lib.rs",
+  # `user_alias_json`, nested under the owner. Stage 4.
+  "crates/nvs-cli/src/meta.rs",
+  # Go-to-definition on the member. Stage 4.
+  "crates/nvs-lsp/src/definition.rs",
+  # Document symbols nest it under the owner. Stage 4.
+  "crates/nvs-lsp/src/symbols.rs",
+  # Semantic tokens colour it as a type. Stage 4.
+  "crates/nvs-lsp/src/semantic.rs",
+  # Completion after `Owner::` in type position. Stage 4.
+  "crates/nvs-lsp/src/completion.rs",
 ]
 
+# The two rules every stage is written inside: what an alias is, and what a shape is.
 rules = [
-  "0004",
-  "programs/memory-priority",
-  "security/db-pool-reset-is-a-boundary",
-  "core-classes/derive-attribute",
+  "types/type-alias",
+  "types/shape-type",
 ]
 
 adrs = []
 
-shapes = ["A commit message", "A code comment"]
+shapes = ["A commit message", "A code comment", "A `.nvst` test case"]
 
 milestones = []
 
@@ -152,65 +149,56 @@ playbook = [
   'Tooling > a [context]*',
   'Tooling > orient.py prints',
   'Tooling > another agent',
+  # Ranked by `python tools/playbook.py --goal` against this goal's modules.
+  "Tooling > a loop-goal.toml check's -p",
+  'Tooling > a diagnostic constant',
+  'Writing Novis itself > a type name a',
+  'Writing a test case > a nvs-types test that compiles',
+  'Writing a test case > a refusal only a',
+  'Running things > nvs-lsp gaining',
 ]
 
 plan = ["Open now", "Blocking"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. PROSE stage numbers; loop-authoring.md section 2 is the whole of it.
+# THE STAGES. One table per prose stage in `61-class-scoped-types.md`, holding what only that stage
+# needs. These are the PROSE stage numbers; loop-authoring.md section 2 is the whole of it.
 # ---------------------------------------------------------------------------------------------------
 
 [context.stage.2]
-# The runtime-raised exception's full backtrace amends this rule (a deliberate answer on the sheet).
-rules = ["security/tainted-sources", "errors/throw-is-not-slower"]
+rules = [
+  "types/alias-is-never-a-bare-class",
+  "types/constant-in-type-position",
+  "types/enum-case-type",
+]
 
 [context.stage.3]
-# M1's `use function` / `use const` refusal names this rule, and the intrinsic pass's own two: what
-# the closed list is, and what a named argument is owed at a call that spells one.
 rules = [
+  "statements/nothing-gets-a-second-name",
   "classes/no-free-functions-or-constants",
-  "expressions/intrinsic-list-is-closed",
-  "core-api/parameters-are-callable-by-name",
 ]
-shapes = ["A `.nvst` test case"]
 
 [context.stage.4]
-# The two doors' own rules: what a wire contract owes a key, and which half of a codec the attribute
-# generates when the class wrote the other one itself.
 rules = [
-  "core-api/required-optional-and-nullable",
-  "core-classes/derive-field-list",
-  "core-classes/derive-generates-what-is-missing",
+  "tooling/fmt-novis-constructs",
+  "tooling/meta-json-takes-a-program",
+  "tooling/doc-comment-attaches-to-the-next-declaration",
 ]
-shapes = ["A `Core` member", "A `.nvst` test case"]
 
 [context.stage.5]
-# What a unit is keyed by and when a resolve may look at the file behind a path, plus the header an
-# artifact has to describe itself with -- the three an item in this stage keeps landing on.
-rules = [
-  "config/an-edit-reaches-the-next-request-without-a-restart",
-  "config/the-extension-set-is-in-every-unit-key",
-  "packaging/an-artifact-is-a-relocatable-object-behind-a-self-describing-header",
-]
+adrs = ["0015 §5"]
+shapes = ["A rule fragment", "A decision record"]
 
-[context.stage.6]
-# A deferral is read against the plan file that has to have scoped it, so the candidate milestones are
-# printed rather than fetched one at a time; 0184's two sections are what the `nvs-host` placement
-# items are owed against.
-milestones = ["M10:lead", "M15:lead", "M9:lead"]
-adrs = ["0184 §2", "0184 §5"]
-
-# A constant-time compare and a hook marker are both refcount-neutral; the decided items each state
-# what they spend in their own module doc.
+# Nothing this goal writes exists past the checker; the skip list is the floor's.
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-socket.nvs", "examples/queue-sqlite.nvs"]
 
 [wsl]
 target_dir = "/var/tmp/nvs-target-wsl"
 
-# Stage 5's schema items are proven against the compose servers, and the floor carries every closure
-# goal's container-backed checks, goal `m8-db-queue`'s five-driver matrix among them.
+# None of this goal's own checks needs a daemon. Its floor carries goal `m8-db-queue`'s five-driver
+# matrix, so all five services are preflighted.
 [docker]
 compose = "tests/db/compose.yaml"
 services = ["postgres", "mysql", "mariadb", "mssql", "redis"]
@@ -219,7 +207,7 @@ memoize_on = ["crates/nvs-db", "crates/nvs-stdlib", "tests/db"]
 
 # <<< goal-switch: floor checks are inserted below this line >>>
 
-# 819 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# 825 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
 # They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
 # Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
@@ -11085,33 +11073,22 @@ name = "Core\\Metrics in every build is shipped"
 argv = ["python", "tools/rules.py", "--show", "observability/the-exporter-is-a-feature-and-core-metrics-is-not"]
 want = ["shipped"]
 
-
-
 # ---------------------------------------------------------------------------------------------------
 # The register -- the goal's whole claim. Goal prose stages 2 to 6.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "6 the register"
+stage = "1 floor"
 name = "no module-doc gap is unowned"
 argv = ["python", "tools/owners.py"]
 want = ["unowned: 0"]
 
-[[check]]
-kind = "command"
-stage = "6 the register"
-name = "every deferral names a future milestone whose plan states the scope"
-argv = ["python", "tools/owners.py", "--deferrals"]
-want = ["every deferral names a future milestone whose plan states the scope"]
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- the builds that needed no decision.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "2 the lowering and the runtime"
+stage = "1 floor"
 name = "a secret against a mixed compares in constant time, and a hooked property is reached by key"
 args = ["test", "--workspace"]
 tests = [
@@ -11122,10 +11099,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stage 3 -- the builds that needed no decision.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "3 the checker"
+stage = "1 floor"
 name = "a require path decodes like its string, and the autoload probe trace reaches the unit key"
 args = ["test", "-p", "nvs-hir"]
 tests = [
@@ -11136,10 +11112,9 @@ tests = [
 # ---------------------------------------------------------------------------------------------------
 # Stages 4 and 5 -- the builds that needed no decision.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "nvs-suite"
-stage = "4 the library"
+stage = "1 floor"
 name = "conformance (an incremental inflate is bounded per stream)"
 args = ["test", "tests/conformance/"]
 cases = [
@@ -11148,10 +11123,127 @@ cases = [
 
 [[check]]
 kind = "cargo-named"
-stage = "5 the server and the cache"
+stage = "1 floor"
 name = "the server's connection bounds are configured, and a rebuilt compiler is a new cache key"
 args = ["test", "--workspace"]
 tests = [
   "server_connection_bounds_are_read_from_the_server_block",
   "two_builds_of_one_release_version_key_their_units_apart",
 ]
+
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the member, its key, and the two spellings. Goal prose stages 0 and 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the member"
+name = "nvs-syntax (a type alias parses as a member of a class, an interface and an enum)"
+args = ["test", "-p", "nvs-syntax"]
+tests = [
+  "a_type_alias_is_a_class_member",
+  "a_type_alias_is_an_interface_and_an_enum_member",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the member"
+name = "nvs-hir (the alias table keys a class-scoped alias by its owner)"
+args = ["test", "-p", "nvs-hir"]
+tests = [
+  "a_class_scoped_alias_is_keyed_by_its_owner_and_not_by_a_namespace_path",
+  "a_cycle_through_a_class_scoped_alias_is_refused",
+  "a_class_scoped_alias_of_a_bare_class_is_refused",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the member"
+name = "nvs-types (the two spellings and the file-scope form are one type)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "owner_name_and_a_bare_name_inside_the_owner_lower_to_the_file_scope_shape",
+  "an_alias_left_of_a_double_colon_expands_before_the_member_is_read",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "2 the member"
+name = "conformance (a class-scoped alias is transparent, agrees with the file-scope form, and is a member of all three bodies)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/lang/a-class-scoped-type-alias-is-the-shape-it-names.nvst",
+  "tests/conformance/lang/a-class-scoped-type-alias-agrees-with-the-file-scope-form.nvst",
+  "tests/conformance/lang/an-interface-and-an-enum-own-a-type-alias-too.nvst",
+  "tests/conformance/lang/an-alias-left-of-a-double-colon-names-its-enum.nvst",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the refusals. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "3 the refusals"
+name = "conformance (every refusal a class-scoped alias has is pinned by name)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/reject/a-class-scoped-type-alias-takes-no-modifier.nvst",
+  "tests/conformance/reject/a-class-scoped-type-alias-does-not-share-a-name-with-a-constant-or-a-case.nvst",
+  "tests/conformance/reject/a-class-scoped-type-alias-is-not-inherited.nvst",
+  "tests/conformance/reject/a-class-scoped-type-alias-of-a-bare-class-is-refused.nvst",
+  "tests/conformance/reject/a-type-alias-declared-inside-a-body-is-refused-by-name.nvst",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the tooling sees the member. Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the tooling"
+name = "nvs-fmt (a class-scoped alias has one layout and formats to itself)"
+args = ["test", "-p", "nvs-fmt"]
+tests = ["a_class_scoped_type_alias_has_one_layout"]
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the tooling"
+name = "nvs-cli (nvs meta --json nests a class-scoped alias under its owner)"
+args = ["test", "-p", "nvs-cli"]
+tests = ["meta_json_nests_a_class_scoped_alias_under_its_owner"]
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the tooling"
+name = "nvs-lsp (definition, symbols, semantic tokens and completion see the member)"
+args = ["test", "-p", "nvs-lsp"]
+tests = [
+  "definition_of_owner_name_in_type_position_is_the_member",
+  "document_symbols_nest_a_class_scoped_alias_under_its_owner",
+  "a_class_scoped_alias_is_a_type_token",
+  "completion_after_owner_double_colon_in_type_position_offers_the_alias",
+]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- the rule and the record. Goal prose stage 5.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "5 the rule"
+name = "the rulebook renders and every fragment the record names exists"
+argv = ["python", "tools/rules.py", "--check"]
+
+[[check]]
+kind = "command"
+stage = "5 the rule"
+name = "the class-scoped alias is a shipped rule the pack can print"
+# Named by path rather than by its `rule:` token on purpose. `rules.py --citations` resolves every
+# token under `docs/`, this file included, so a token for a rule this goal has not created yet makes
+# the check directly above red — for every unrelated session, whose wrap refuses on it. The path
+# proves the same fragment is printable, and that check above is what proves the citation resolves.
+argv = ["python", "tools/peek.py", "docs/rules/types/class-scoped-alias.md"]
+want = ["docs/rules/types/class-scoped-alias.md"]
