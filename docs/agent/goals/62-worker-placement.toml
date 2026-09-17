@@ -11254,7 +11254,7 @@ stage = "2 the seam"
 name = "conformance (a path child on a worker core is the child a method entry already is)"
 args = ["test", "tests/conformance/"]
 cases = [
-  "tests/conformance/isolate/a-path-entry-on-a-worker-core-answers-as-one-on-this-core-does.nvst",
+  "tests/conformance/isolate/a-path-entry-placed-on-a-worker-core-answers-as-one-here-does.nvst",
 ]
 
 
