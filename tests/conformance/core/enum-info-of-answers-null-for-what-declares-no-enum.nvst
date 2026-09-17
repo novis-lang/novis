@@ -1,0 +1,48 @@
+--TEST--
+`Core\Reflect\EnumInfo::of` answers `null` for a name the program declares no enum for, including a class's name, and two descriptions in one program each answer their own (`rule:enums/reflection`)
+--FILE--
+<?nvs
+// An absence rather than a failure — `Core\Reflect::forClass`'s own answer
+// shape, so asking is never something a caller has to catch.
+enum Status: int {
+    Active = 1,
+}
+
+enum Level: int {
+    Low = 0,
+    High = 9,
+}
+
+class Order {
+    public int $id = 0;
+}
+
+echo Core\Reflect\EnumInfo::of("Nope") == null ? "absent" : "present", "\n";
+
+// A class is not an enum. The two rosters are separate, so a class's own name
+// reaches nothing here even though `Core\Reflect::forClass` describes it.
+echo Core\Reflect\EnumInfo::of(Order::class) == null ? "absent" : "present", "\n";
+echo Core\Reflect::forClass(Order::class) == null ? "absent" : "present", "\n";
+
+// The empty name is a name like any other, and declares nothing.
+echo Core\Reflect\EnumInfo::of("") == null ? "absent" : "present", "\n";
+
+// Each description answers for the enum it was asked about and not for the
+// other one, which a shared or cached description would get wrong.
+?Core\Reflect\EnumInfo $first = Core\Reflect\EnumInfo::of(Status::class);
+?Core\Reflect\EnumInfo $second = Core\Reflect\EnumInfo::of(Level::class);
+if ($first != null) {
+    Core\Reflect\EnumInfo $status = $first;
+    echo $status->name(), " ", Core\Arr::count($status->cases()), "\n";
+}
+if ($second != null) {
+    Core\Reflect\EnumInfo $level = $second;
+    echo $level->name(), " ", Core\Arr::count($level->cases()), "\n";
+}
+--EXPECT--
+absent
+absent
+present
+absent
+Status 1
+Level 2

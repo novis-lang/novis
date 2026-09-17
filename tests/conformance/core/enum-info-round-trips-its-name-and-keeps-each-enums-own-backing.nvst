@@ -1,0 +1,54 @@
+--TEST--
+A `Core\Reflect\EnumInfo`'s name reaches the same description back through `of`, and several descriptions held at once each keep the backing of the enum its own name named (`rule:enums/reflection`, `rule:enums/one-backing-type`)
+--FILE--
+<?nvs
+// A description holds answers rather than a way back to what it describes, so
+// the only thing tying one to its enum is the name — and that name has to be
+// the spelling `of` accepts, or the description is a dead end.
+enum Signed: int {
+    One = 1,
+}
+
+enum Unsigned: uint {
+    Two = 2,
+}
+
+enum Defaulted {
+    Three = 3,
+}
+
+?Core\Reflect\EnumInfo $first = Core\Reflect\EnumInfo::of(Signed::class);
+if ($first != null) {
+    Core\Reflect\EnumInfo $signed = $first;
+    // Round trip: what `name` answers is what `of` takes.
+    ?Core\Reflect\EnumInfo $again = Core\Reflect\EnumInfo::of($signed->name());
+    if ($again != null) {
+        Core\Reflect\EnumInfo $second = $again;
+        echo $second->name() == $signed->name() ? "same" : "different", "\n";
+        echo $second->valueOf("One"), "\n";
+    }
+}
+
+// Three descriptions alive together. A bit read off the wrong one, or a shared
+// description, shows up here and not in a case that holds one at a time.
+?Core\Reflect\EnumInfo $a = Core\Reflect\EnumInfo::of(Signed::class);
+?Core\Reflect\EnumInfo $b = Core\Reflect\EnumInfo::of(Unsigned::class);
+?Core\Reflect\EnumInfo $c = Core\Reflect\EnumInfo::of(Defaulted::class);
+if ($a != null) {
+    Core\Reflect\EnumInfo $one = $a;
+    echo $one->name(), " ", $one->isUnsigned() ? "uint" : "int", "\n";
+}
+if ($b != null) {
+    Core\Reflect\EnumInfo $two = $b;
+    echo $two->name(), " ", $two->isUnsigned() ? "uint" : "int", "\n";
+}
+if ($c != null) {
+    Core\Reflect\EnumInfo $three = $c;
+    echo $three->name(), " ", $three->isUnsigned() ? "uint" : "int", "\n";
+}
+--EXPECT--
+same
+1
+Signed int
+Unsigned uint
+Defaulted int

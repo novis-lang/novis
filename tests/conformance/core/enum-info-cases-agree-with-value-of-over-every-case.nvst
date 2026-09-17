@@ -1,0 +1,55 @@
+--TEST--
+Every name `Core\Reflect\EnumInfo::cases` answers is one `valueOf` reads, the list is ascending by constant rather than in declaration order, and a `Core` enum is described on the same terms (`rule:enums/reflection`)
+--FILE--
+<?nvs
+// Asserted by counting rather than read off a line: a description that dropped
+// a case, repeated one, or answered a name `valueOf` cannot read still prints
+// plausibly case by case.
+enum Priority: int {
+    Urgent = 30,
+    Low = 10,
+    Normal = 20,
+    Backlog = -5,
+}
+
+?Core\Reflect\EnumInfo $found = Core\Reflect\EnumInfo::of(Priority::class);
+if ($found != null) {
+    Core\Reflect\EnumInfo $info = $found;
+
+    int $read = 0;
+    int $sum = 0;
+    int $previous = -1000;
+    bool $ascending = true;
+    foreach ($info->cases() as string $case) {
+        // `valueOf` answers `int|uint` because the backing is a property of the
+        // enum the *name* named, and this one wrote `: int`.
+        int $value = $info->valueOf($case) as int;
+        $read = $read + 1;
+        $sum = $sum + $value;
+        if ($value <= $previous) {
+            $ascending = false;
+        }
+        $previous = $value;
+    }
+    echo $read, "\n";
+    echo $sum, "\n";
+    echo $ascending ? "ascending" : "unordered", "\n";
+
+    // Declaration order is carried by nothing below the parser, so the roster
+    // is ordered by the one fact the runtime holds — which the source
+    // deliberately does not write in that order.
+    echo Core\Arr::first($info->cases()), "\n";
+    echo Core\Arr::last($info->cases()), "\n";
+}
+
+// A `Core` enum is seeded into the same table the program's own declarations
+// land in, so it is described the same way and needs no second door.
+?Core\Reflect\EnumInfo $core = Core\Reflect\EnumInfo::of("Core\\Reflect\\TypeKind");
+echo $core == null ? "absent" : "present", "\n";
+--EXPECT--
+4
+55
+ascending
+Backlog
+Urgent
+present

@@ -121,20 +121,47 @@
 //! [`CLASS_INFO`]'s half of this class, one call away and answering for a
 //! class rather than for a tag.
 //!
+//! # Decision: an enum is described by name, because there is nothing else to
+//! describe it from
+//!
+//! [`ENUM_INFO`] is the one description with no `forObject` twin and no
+//! descriptor behind it. `rule:enums/representation` makes a case *be* the
+//! integer behind it at run time, so no value carries which enum it came from
+//! and [`nvs_core_reflect_type_of`] answers `Int` for one; what the runtime
+//! carries instead is the shape itself, as a [`nvs_runtime::EnumDesc`] per
+//! declared enum, filled by `nvs-codegen` off `nvs_ir::ir::Program::enums`.
+//! `Core` enums are in that roster beside the program's own, because the
+//! checker's table is seeded with them and a second door for them would be a
+//! second thing to keep in step.
+//!
+//! **What it spends:** one `String` per case per declared enum, once per
+//! process and never per instance — an enum has none. Per `of` call, two
+//! arrays and one string per case, charged to the request that asked and
+//! released with the description, on [`describe`]'s terms exactly.
+//!
+//! `valueOf` answers a union, `int|uint`, and that is the one place this class
+//! costs a caller something: the backing is a property of the enum the *name*
+//! named, so a description reached by name cannot promise one of the two, and a
+//! caller that knows which it asked for writes `as int`. The alternative —
+//! answering `int` always — reports a `uint` case above `i64::MAX` as a wrapped
+//! negative, which is `rule:programs/memory-priority`'s second priority spent
+//! to save a conversion.
+//!
 //! # Known gaps
 //!
-//! 1. § 1's roster is short of four of the classes it names. [`METHOD_INFO`]
-//!    and [`PROPERTY_INFO`] are here, so `get_class_methods`, `method_exists`,
-//!    `get_object_vars` and `property_exists` all have their answers; the spec's
-//!    roster row (`docs/spec/01-core-library.md` § 13) is the home of the full
-//!    list, and each of the four is waiting on descriptor data no crate carries
-//!    yet rather than on a decision. `ParameterInfo` is the nearest — a
-//!    parameter's *name* is in no descriptor at all, [`nvs_runtime::MethodRow`]
-//!    carrying an arity and a tag per slot and no spelling.
-//!    `ConstantInfo`,
-//!    `AttributeInfo` and `EnumInfo` are the far three: a descriptor carries no
-//!    constants, no attributes and no enum cases at all, so each is a join from
-//!    `nvs_types` through `nvs-codegen` before it is a member here.
+//! 1. § 1's roster is short of two of the classes it names, `ConstantInfo` and
+//!    `AttributeInfo`. [`METHOD_INFO`], [`PROPERTY_INFO`], [`PARAMETER_INFO`]
+//!    and [`ENUM_INFO`] are here, so `get_class_methods`, `method_exists`,
+//!    `get_object_vars` and `property_exists` all have their answers and an
+//!    enum's case list has the only one it can have; the spec's roster row
+//!    (`docs/spec/01-core-library.md` § 13) is the home of the full list, and
+//!    the two left are waiting on descriptor data no crate carries rather than
+//!    on a decision. A [`nvs_runtime::ClassDesc`] carries no class constants
+//!    and no attributes at all, so each is a join from `nvs_types` through
+//!    `nvs-codegen` before it is a member here —
+//!    [`nvs_runtime::EnumDesc`] and `nvs_ir::ir::Program::enums` are the shape
+//!    that join takes, one list beside the descriptors rather than a field on
+//!    them, because neither fact belongs to an instance.
 //!    — owner: decided-closures
 //! 2. A `protected` member is reached reflectively from the declaring class's
 //!    own bodies and from nowhere else, where an ordinary call from a subclass
@@ -167,6 +194,9 @@ pub(crate) const PROPERTY_INFO_NAME: &str = "Core\\Reflect\\PropertyInfo";
 
 /// One described parameter's own name, as a program writes it.
 pub(crate) const PARAMETER_INFO_NAME: &str = "Core\\Reflect\\ParameterInfo";
+
+/// The described enum's own name, as a program writes it.
+pub(crate) const ENUM_INFO_NAME: &str = "Core\\Reflect\\EnumInfo";
 
 /// [`CLASS_INFO`]'s slot holding the described class's name.
 const NAME_SLOT: usize = 0;
@@ -203,6 +233,25 @@ const METHOD_PARAMETERS_SLOT: usize = 3;
 
 /// [`PARAMETER_INFO`]'s slot holding the parameter's name.
 const PARAMETER_NAME_SLOT: usize = 0;
+
+/// [`ENUM_INFO`]'s slot holding the described enum's name.
+const ENUM_NAME_SLOT: usize = 0;
+
+/// [`ENUM_INFO`]'s slot holding one string per declared case, ascending by the
+/// case's constant.
+const ENUM_CASES_SLOT: usize = 1;
+
+/// [`ENUM_INFO`]'s slot holding each case's constant, in
+/// [`ENUM_CASES_SLOT`]'s order and one entry for one.
+///
+/// A second roster rather than a name-keyed array, because the two answers have
+/// different types: the case list is `array<string>` and a constant is `int` or
+/// `uint` by [`ENUM_UNSIGNED_SLOT`]'s bit, and a single array would have to
+/// admit both in one element type to carry either.
+const ENUM_VALUES_SLOT: usize = 2;
+
+/// [`ENUM_INFO`]'s slot holding whether the backing type is `uint`.
+const ENUM_UNSIGNED_SLOT: usize = 3;
 
 /// `Core\Reflect` — the door onto a description, and nothing that acts.
 pub(crate) const CLASS: CoreClass = CoreClass {
@@ -936,6 +985,139 @@ const PARAMETER_NAME_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
+/// `Core\Reflect\EnumInfo` — `rule:enums/reflection`'s description of one
+/// declared `enum`: its name, its closed case list and which of
+/// `rule:enums/one-backing-type`'s two integer types the cases are constants
+/// of.
+///
+/// **The only description reached by name alone, and the only one with no
+/// `forObject` twin.** `rule:enums/representation` makes a case *be* the
+/// integer behind it at run time, so there is no value to ask and no descriptor
+/// to ask it of: what the runtime carries is the shape itself
+/// ([`nvs_runtime::EnumDesc`]), and `of` is the one door onto it.
+///
+/// It grants an enum nothing `rule:enums/no-class-machinery` withholds. Every
+/// member here is a reader over a slot the description was built with, there is
+/// no `get`, no `call` and no `construct` for [`CLASS_INFO`]'s acting half to
+/// be the twin of, and nothing it carries reaches back into the program.
+pub(crate) const ENUM_INFO: CoreClass = CoreClass {
+    name: ENUM_INFO_NAME,
+    methods: &[CoreMethod {
+        name: "of",
+        names: &["name"],
+        params: &[CoreTy::Text(Qual::Neutral)],
+        defaults: &[],
+        // `?EnumInfo`, on `Core\Reflect::forClass`'s terms exactly: a name the
+        // program declares no enum for is an absence (`rule:core-api/shape-rules` R6), not a failure.
+        return_ty: CoreTy::Nullable(&CoreTy::Instance(ENUM_INFO_NAME)),
+        symbol: "nvs_core_reflect_enum_info_of",
+        doc: Some(&ENUM_OF_DOC),
+    }],
+    instance: &[
+        CoreMethod {
+            name: "name",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "nvs_core_reflect_enum_info_name",
+            doc: Some(&ENUM_NAME_DOC),
+        },
+        CoreMethod {
+            name: "cases",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Str),
+            symbol: "nvs_core_reflect_enum_info_cases",
+            doc: Some(&ENUM_CASES_DOC),
+        },
+        CoreMethod {
+            name: "valueOf",
+            names: &["case"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            // The union is `rule:enums/one-backing-type`'s two options and no
+            // third: which one this enum answers with is `isUnsigned`, asked
+            // once rather than per case.
+            return_ty: CoreTy::Union(&[CoreTy::Int, CoreTy::Uint]),
+            symbol: "nvs_core_reflect_enum_info_value_of",
+            doc: Some(&ENUM_VALUE_OF_DOC),
+        },
+        CoreMethod {
+            name: "isUnsigned",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Bool,
+            symbol: "nvs_core_reflect_enum_info_is_unsigned",
+            doc: Some(&ENUM_IS_UNSIGNED_DOC),
+        },
+    ],
+    slots: &["name", "cases", "values", "unsigned"],
+    constants: &[],
+};
+
+/// `Core\Reflect\EnumInfo::of`'s reference card — `rule:core-api/reference-card`.
+const ENUM_OF_DOC: MethodDoc = MethodDoc {
+    short: "Describes the enum `$name` names. The only way to read an enum's case list, since \
+            `rule:enums/no-class-machinery` gives an enum no members of its own.",
+    params: &[ParamDoc {
+        name: "name",
+        desc: "The enum's name as its declaration writes it, namespace included and with no \
+               leading separator — what `Status::class` answers.",
+        shape: &[],
+    }],
+    ret: "A description of that enum, or `null` where the program declares none of that name.",
+    errors: &[],
+};
+
+/// `Core\Reflect\EnumInfo::name`'s reference card — `rule:core-api/reference-card`.
+const ENUM_NAME_DOC: MethodDoc = MethodDoc {
+    short: "The described enum's own name.",
+    params: &[],
+    ret: "The name as the declaration writes it — what was passed to `of`.",
+    errors: &[],
+};
+
+/// `Core\Reflect\EnumInfo::cases`'s reference card — `rule:core-api/reference-card`.
+const ENUM_CASES_DOC: MethodDoc = MethodDoc {
+    short: "Every case the enum declares, by name.",
+    params: &[],
+    ret: "One string per case, ascending by the case's constant and then by name. A declaration's \
+          own order is carried by nothing below the parser, so this order is the one the runtime \
+          can state rather than an approximation of the source.",
+    errors: &[],
+};
+
+/// `Core\Reflect\EnumInfo::valueOf`'s reference card — `rule:core-api/reference-card`.
+const ENUM_VALUE_OF_DOC: MethodDoc = MethodDoc {
+    short: "The constant behind one case.",
+    params: &[ParamDoc {
+        name: "case",
+        desc: "The case's own name, as `cases` answers it.",
+        shape: &[],
+    }],
+    ret: "The case's value, as an `int` or a `uint` by what `isUnsigned` answers. The union is \
+          what a description reached by *name* can promise — the backing belongs to the enum the \
+          name named — so a caller that knows which it asked for narrows with `as int`.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The enum declares no case of that name. `cases` is the list that cannot be wrong, \
+               so an unknown name here is a mistake in the asking rather than an absence to \
+               report.",
+    }],
+};
+
+/// `Core\Reflect\EnumInfo::isUnsigned`'s reference card — `rule:core-api/reference-card`.
+const ENUM_IS_UNSIGNED_DOC: MethodDoc = MethodDoc {
+    short: "Which of `rule:enums/one-backing-type`'s two integer types the cases are constants of.",
+    params: &[],
+    ret: "`true` for an enum written `: uint`, `false` for every other one — there is no third \
+          backing and no unbacked form.",
+    errors: &[],
+};
+
 /// `Core\Reflect\PropertyInfo` — one row of [`CLASS_INFO`]'s property roster: a
 /// property's name, its visibility and the type its declaration spells.
 ///
@@ -1110,6 +1292,41 @@ fn describe(desc: &ClassDesc) -> Value {
     )
 }
 
+/// One [`nvs_runtime::EnumDesc`] as the [`ENUM_INFO`] a program reads it
+/// through — [`describe`]'s twin for the type that has no descriptor.
+///
+/// Both rosters are built here rather than on the first `cases` or `valueOf`
+/// call, for [`describe`]'s reason exactly: a slot holding the shape itself
+/// would be a raw pointer, and this module's second decision makes every slot a
+/// value Novis already holds.
+///
+/// **What it spends:** per `of` call, two arrays and one string per declared
+/// case, charged to the request that asked and released with the description.
+fn describe_enum(desc: &nvs_runtime::EnumDesc) -> Value {
+    let mut cases = NvsArray::new();
+    let mut values = NvsArray::new();
+    for (case, value) in desc.cases() {
+        cases.append(Value::str(NvsStr::new(case.as_bytes())));
+        // Both narrowings are exact rather than checked: the widening to `i128`
+        // is what `nvs_ir::lower` did to an `i64` or a `u64` on the way down,
+        // and `rule:enums/one-backing-type` is what says which one it was.
+        values.append(if desc.unsigned() {
+            Value::uint(u64::try_from(*value).expect("a `uint`-backed case widened from a `u64`"))
+        } else {
+            Value::int(i64::try_from(*value).expect("an `int`-backed case widened from an `i64`"))
+        });
+    }
+    crate::instance::build(
+        &ENUM_INFO,
+        [
+            Value::str(NvsStr::new(desc.name().as_bytes())),
+            Value::array(cases),
+            Value::array(values),
+            Value::bool(desc.unsigned()),
+        ],
+    )
+}
+
 /// The [`TYPE_KIND`] case a tag is, or `None` for a tag no value carries.
 ///
 /// The one `None` is the whole of what [`TYPE_KIND`] leaves out, and it is
@@ -1182,6 +1399,17 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_reflect_parameter_info_name" => {
             (nvs_core_reflect_parameter_info_name as *const ()).cast()
         }
+        "nvs_core_reflect_enum_info_of" => (nvs_core_reflect_enum_info_of as *const ()).cast(),
+        "nvs_core_reflect_enum_info_name" => (nvs_core_reflect_enum_info_name as *const ()).cast(),
+        "nvs_core_reflect_enum_info_cases" => {
+            (nvs_core_reflect_enum_info_cases as *const ()).cast()
+        }
+        "nvs_core_reflect_enum_info_value_of" => {
+            (nvs_core_reflect_enum_info_value_of as *const ()).cast()
+        }
+        "nvs_core_reflect_enum_info_is_unsigned" => {
+            (nvs_core_reflect_enum_info_is_unsigned as *const ()).cast()
+        }
         "nvs_core_reflect_class_info_get" => (nvs_core_reflect_class_info_get as *const ()).cast(),
         "nvs_core_reflect_class_info_set" => (nvs_core_reflect_class_info_set as *const ()).cast(),
         "nvs_core_reflect_class_info_call" => {
@@ -1228,13 +1456,15 @@ fn slot_of(args: &[Value], class: &CoreClass, index: usize, member: &str) -> Res
 /// mistake and never a program's.
 fn roster_of(
     receiver: *mut nvs_runtime::ObjHeader,
+    class: &CoreClass,
     index: usize,
     member: &str,
 ) -> Result<std::mem::ManuallyDrop<NvsArray>, Fault> {
     let held = crate::instance::slot(receiver, index);
     let Some(ptr) = held.array_ptr() else {
         return Err(Fault::fatal(format!(
-            "{CLASS_INFO_NAME}::{member} expected {:?} in its roster slot, got tag {}",
+            "{}::{member} expected {:?} in its roster slot, got tag {}",
+            class.name,
             Tag::Array,
             held.tag_byte()
         )));
@@ -1383,7 +1613,7 @@ nvs_runtime::nvs_helper! {
         let described = crate::instance::slot(receiver, NAME_SLOT);
         let described = described.as_text();
         let inside = site_class(args[1]).is_some_and(|site| described == Some(site.as_str()));
-        let roster = roster_of(receiver, PROPERTIES_SLOT, member)?;
+        let roster = roster_of(receiver, &CLASS_INFO, PROPERTIES_SLOT, member)?;
         let mut names = NvsArray::new();
         for index in 0..roster.count() {
             let Some(row) = row_at(&roster, index) else {
@@ -1415,7 +1645,7 @@ nvs_runtime::nvs_helper! {
         let member = "hasProperty";
         let receiver = crate::instance::receiver(args[0], &CLASS_INFO, member)?;
         let name = text_of(&args[1], "Core\\Reflect\\ClassInfo::hasProperty")?;
-        let roster = roster_of(receiver, PROPERTIES_SLOT, member)?;
+        let roster = roster_of(receiver, &CLASS_INFO, PROPERTIES_SLOT, member)?;
         let found = (0..roster.count()).any(|index| {
             row_at(&roster, index).is_some_and(|row| {
                 crate::instance::slot(row, PROPERTY_NAME_SLOT).as_text() == Some(name)
@@ -1454,7 +1684,7 @@ nvs_runtime::nvs_helper! {
         let member = "hasMethod";
         let receiver = crate::instance::receiver(args[0], &CLASS_INFO, member)?;
         let name = text_of(&args[1], "Core\\Reflect\\ClassInfo::hasMethod")?;
-        let roster = roster_of(receiver, METHODS_SLOT, member)?;
+        let roster = roster_of(receiver, &CLASS_INFO, METHODS_SLOT, member)?;
         let found = (0..roster.count()).any(|index| {
             row_at(&roster, index).is_some_and(|row| {
                 crate::instance::slot(row, METHOD_NAME_SLOT).as_text() == Some(name)
@@ -1509,6 +1739,98 @@ nvs_runtime::nvs_helper! {
     /// `$`-sigil excluded.
     fn nvs_core_reflect_parameter_info_name(_ctx, args: [1]) {
         slot_of(args, &PARAMETER_INFO, PARAMETER_NAME_SLOT, "name")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Reflect\EnumInfo::of(string $name): ?Core\Reflect\EnumInfo` —
+    /// `rule:enums/reflection`'s description, reached by name.
+    ///
+    /// The name is resolved against the *running program's* enum roster
+    /// (`nvs_runtime::Ctx::enum_desc`), which carries every enum the checker
+    /// resolved for the unit — the program's own declarations and the `Core`
+    /// ones alike, since both are seeded into the one table the compiler filled.
+    /// That is the whole difference from
+    /// [`nvs_core_reflect_for_class`]: a `Core` class is a descriptor this
+    /// crate does not own, while a `Core` enum is a shape like any other.
+    fn nvs_core_reflect_enum_info_of(ctx, args: [1]) {
+        let name = text_of(&args[0], "Core\\Reflect\\EnumInfo::of")?;
+        let Some(desc) = ctx.enum_desc(name) else {
+            return Ok(Value::null());
+        };
+        Ok(describe_enum(desc))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Reflect\EnumInfo::name(): string` — the described enum's own name.
+    fn nvs_core_reflect_enum_info_name(_ctx, args: [1]) {
+        slot_of(args, &ENUM_INFO, ENUM_NAME_SLOT, "name")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Reflect\EnumInfo::cases(): array<string>` — every declared case's
+    /// name, in the order [`describe_enum`] built the roster in.
+    fn nvs_core_reflect_enum_info_cases(_ctx, args: [1]) {
+        slot_of(args, &ENUM_INFO, ENUM_CASES_SLOT, "cases")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Reflect\EnumInfo::isUnsigned(): bool` — whether the cases are
+    /// `uint` constants.
+    fn nvs_core_reflect_enum_info_is_unsigned(_ctx, args: [1]) {
+        slot_of(args, &ENUM_INFO, ENUM_UNSIGNED_SLOT, "isUnsigned")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Reflect\EnumInfo::valueOf(string $case): int|uint` — the constant
+    /// behind one case.
+    ///
+    /// A scan of the case roster rather than a keyed lookup, because the two
+    /// rosters are parallel and the position found in one is the position read
+    /// in the other — which is also what makes an unknown name answerable at
+    /// all. It is a throw and not a `null`, unlike `of`'s: `cases` is the list
+    /// that cannot be wrong, so a name that is not on it is a mistake in the
+    /// asking rather than a fact about the enum.
+    fn nvs_core_reflect_enum_info_value_of(_ctx, args: [2]) {
+        let member = "valueOf";
+        let receiver = crate::instance::receiver(args[0], &ENUM_INFO, member)?;
+        let wanted = text_of(&args[1], "Core\\Reflect\\EnumInfo::valueOf")?;
+        let cases = roster_of(receiver, &ENUM_INFO, ENUM_CASES_SLOT, member)?;
+        let at = (0..cases.count()).find(|index| {
+            cases
+                .value_at(*index)
+                .is_some_and(|value| value.as_text() == Some(wanted))
+        });
+        let Some(at) = at else {
+            let name = crate::instance::slot(receiver, ENUM_NAME_SLOT);
+            return Err(Fault::thrown_as(
+                ThrownClass::Logic,
+                format!(
+                    "enum `{}` declares no case `{wanted}`",
+                    name.as_text().unwrap_or("?")
+                ),
+            ));
+        };
+        let values = roster_of(receiver, &ENUM_INFO, ENUM_VALUES_SLOT, member)?;
+        let held = values.value_at(at).ok_or_else(|| {
+            Fault::fatal(format!(
+                "{ENUM_INFO_NAME}::{member} found case {at} with no constant beside it"
+            ))
+        })?;
+        #[expect(
+            unsafe_code,
+            reason = "the constant's reference belongs to the receiver, which is live \
+                      for the length of the call, and this value is being handed to the \
+                      caller — which is exactly `Value::retain`'s obligation"
+        )]
+        unsafe {
+            held.retain();
+        }
+        Ok(held)
     }
 }
 
@@ -2280,7 +2602,7 @@ mod tests {
     /// landing a class deletes its line in the same slice. Nothing is added
     /// without deleting this sentence — a roster the record names and this file
     /// silently omits is exactly the drift the gate exists for.
-    const NOT_YET_BUILT: &[&str] = &["ConstantInfo", "AttributeInfo", "EnumInfo"];
+    const NOT_YET_BUILT: &[&str] = &["ConstantInfo", "AttributeInfo"];
 
     /// Every `*Info` class ADR 0019 § 1 names is a registered class, or is one
     /// of [`NOT_YET_BUILT`].
