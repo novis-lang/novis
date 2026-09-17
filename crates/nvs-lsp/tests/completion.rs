@@ -174,6 +174,34 @@ fn a_namespace_segment_offers_the_registry_and_the_index_and_no_keywords() {
     );
 }
 
+/// A body owning a `type` alias beside a constant, with the alias named from a
+/// parameter's type — the one place `Owner::` is written that the parser builds
+/// no access node for.
+const OWNER: &str = "<?nvs\nclass Order {\n  type Meta = {total: int};\n  public const int MAX = \
+                     10;\n  public function of(Order::Meta $m): int { return 1; }\n}\n";
+
+/// `Owner::` in type position offers what may stand in a type — the `type`
+/// aliases the owner declares and its class constants — and nothing that
+/// cannot, so the method beside them is absent (`rule:types/type-alias`).
+///
+/// Asked twice, of a document that parses and of the same one being typed into,
+/// because the two are one question here: a written type is not a node, so the
+/// answer is read off the source in both and neither depends on what the parser
+/// made of the rest of the line.
+#[test]
+fn completion_after_owner_double_colon_in_type_position_offers_the_alias() {
+    assert_eq!(
+        rendered(OWNER, after(OWNER, "of(Order::")),
+        "MAX     constant  int\nMeta    typeParameter {total: int}\n"
+    );
+    let typing =
+        "<?nvs\nclass Order {\n  type Meta = {total: int};\n  public function of(Order::\n}\n";
+    assert_eq!(
+        rendered(typing, after(typing, "of(Order::")),
+        "Meta    typeParameter {total: int}\n"
+    );
+}
+
 /// An import, a class and an interface, each reachable at a bare cursor by a
 /// different one of the three spellings.
 const IN_REACH: &str =
@@ -504,9 +532,9 @@ fn sources() -> Vec<Source> {
 /// tree the front end already parsed; the workspace index, which is
 /// `textDocument/codeLens`' own query; the body scopes `nvs_types` recorded;
 /// and the reserved words, which are the grammar's own dispatch and are held
-/// to it by the module's `every_word_offered_is_one_the_lexer_reserves`. Three
-/// rows are dispatches and one is the constructor, and they name what they
-/// route to — which is what stops an arm being added with no row here.
+/// to it by the module's `every_word_offered_is_one_the_lexer_reserves`. The
+/// rows that are dispatches, and the one that is the constructor, name what
+/// they route to — which is what stops an arm being added with no row here.
 ///
 /// The PHP-name arm is the one row whose table is not built from the program
 /// under the cursor, and it is admitted by the same rule rather than beside it:
@@ -515,9 +543,11 @@ fn sources() -> Vec<Source> {
 /// this repository, and what the arm may *insert* is bounded by the registry
 /// (`rule:php-migration/an-item-inserts-only-a-registered-member`). No
 /// directory is walked and no annotation is read for it.
-const SOURCED: [(&str, &str); 17] = [
+const SOURCED: [(&str, &str); 19] = [
     ("at", "asked("),
     ("members_of", "registry::class("),
+    ("type_members_of", "registry::class("),
+    ("declared_type_members", "declared_type("),
     ("position", "words("),
     ("under", "registry::CLASSES"),
     ("in_reach", "symbols.declarations_in("),

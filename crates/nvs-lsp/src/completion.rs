@@ -170,6 +170,24 @@
 //! read is a name's own spelling, whose meaning `nvs_hir::QName` owns; the
 //! tree is still what says the cursor is in code at all, which is [`NOT_CODE`].
 //!
+//! # What a `::` in type position offers
+//!
+//! `Owner::Name` is written in type position too, and there it names a `type`
+//! alias the owner declares, one of its enum cases or one of its constants —
+//! never a method or a property, neither of which may stand in a type. The
+//! offered list is exactly those three, which is also the order the checker
+//! resolves them in (`rule:types/type-alias`).
+//!
+//! **This arm is reached off the source, because a type is not a node.** The
+//! index answers no question about a written type
+//! (`crate::definition::written_type_at`), and a type still being typed is not
+//! even a complete one, so there is nothing to ask the tree for beyond
+//! [`NOT_CODE`]'s question — is the cursor writing a program at all. What is
+//! read is the name run before the `::`, put through the one resolver
+//! (`crate::definition::resolved_name`). It is reached only where the two
+//! access arms above found no node, so a `::` the parser did build an access
+//! for is answered there and never here.
+//!
 //! # What a member's detail column says
 //!
 //! The declaration is the home, and there are two kinds of declaration. A user
@@ -230,7 +248,7 @@ use nvs_syntax::{IndexNode, NodePath};
 use nvs_types::{ExprInfo, Ty, TypeId};
 use rustc_hash::FxHashMap;
 
-use crate::definition::{declared_type, text_of};
+use crate::definition::{declared_type, imports_of, namespace_at, resolved_name, text_of};
 use crate::document::Analysed;
 use crate::index::{DeclKind, SymbolIndex};
 use crate::settings::PhpNames;
@@ -274,6 +292,7 @@ pub fn at(
     let path = analysed.index.at(offset);
     let mut items = match asked(analysed, &path, offset) {
         Asked::Member(class, reach) => members_of(analysed, &class, reach),
+        Asked::TypeMember(owner) => type_members_of(analysed, &owner),
         Asked::Namespace(prefix) => under(symbols, &prefix),
         Asked::Position => position(analysed, symbols, &path, offset, php),
         Asked::Nothing => return Vec::new(),
@@ -288,6 +307,9 @@ enum Asked {
     /// The member half of an access, off the class it resolved to and reaching
     /// the half of it the access shape names.
     Member(QName, Reach),
+    /// The member half of an `Owner::` written in **type** position, off the
+    /// owner the name before the `::` resolved to.
+    TypeMember(QName),
     /// A name reaching into the namespace these segments spell — what that
     /// namespace holds, and no word.
     Namespace(Vec<String>),
@@ -334,7 +356,7 @@ fn asked(analysed: &Analysed, path: &NodePath, offset: BytePos) -> Asked {
         return Asked::Namespace(prefix);
     }
     let Some((access, reach)) = access_in(path).or_else(|| ended_at(analysed, offset)) else {
-        return Asked::Position;
+        return owner_written(analysed, offset).map_or(Asked::Position, Asked::TypeMember);
     };
     let Some(receiver) = analysed.index.children_of(access).into_iter().next() else {
         return Asked::Nothing;
@@ -405,17 +427,23 @@ fn namespace_written(analysed: &Analysed, offset: BytePos) -> Option<Vec<String>
         .file(analysed.entry)
         .text()
         .get(..offset as usize)?;
-    let start = upto
-        .char_indices()
-        .rev()
-        .take_while(|(_, ch)| is_name(*ch))
-        .last()
-        .map_or(upto.len(), |(at, _)| at);
-    let (prefix, _) = upto[start..].rsplit_once('\\')?;
+    let (prefix, _) = name_run(upto).rsplit_once('\\')?;
     if prefix.is_empty() {
         return None;
     }
     Some(QName::parse(prefix).segments().to_vec())
+}
+
+/// The run of name characters ending at the end of `text`, which is the name
+/// the cursor there is writing.
+fn name_run(text: &str) -> &str {
+    let start = text
+        .char_indices()
+        .rev()
+        .take_while(|(_, ch)| is_name(*ch))
+        .last()
+        .map_or(text.len(), |(at, _)| at);
+    &text[start..]
 }
 
 /// Whether `ch` may appear in a qualified name.
@@ -779,13 +807,7 @@ fn typed_name(analysed: &Analysed, offset: BytePos) -> &str {
     else {
         return "";
     };
-    let start = upto
-        .char_indices()
-        .rev()
-        .take_while(|(_, ch)| is_name(*ch))
-        .last()
-        .map_or(upto.len(), |(at, _)| at);
-    &upto[start..]
+    name_run(upto)
 }
 
 /// One PHP built-in, as the shape its row and the registry gave it.
@@ -864,14 +886,88 @@ fn named_class(analysed: &Analysed, access: IndexNode, receiver: Span) -> Option
         .file(analysed.entry)
         .text()
         .get(receiver.range())?;
-    if text.is_empty() {
+    resolved_name(analysed, text, receiver.start)
+}
+
+/// The owner an `Owner::` written immediately before `offset` names, where the
+/// cursor stands in no access the parser built a node for.
+///
+/// The module doc's *What a `::` in type position offers* is the reasoning:
+/// the name is read off the source, and the tree is asked only whether the
+/// cursor is writing a program. A cursor inside **no** node is still writing
+/// one — a half-written type in a parameter list is a region the parser may
+/// have given up on entirely — so what is refused here is a node whose text is
+/// not code, and not the absence of one.
+fn owner_written(analysed: &Analysed, offset: BytePos) -> Option<QName> {
+    let before = offset.checked_sub(1)?;
+    if analysed
+        .index
+        .at(before)
+        .innermost()
+        .is_some_and(|node| NOT_CODE.contains(&node.kind))
+    {
         return None;
     }
-    Some(nvs_hir::resolve_ref(
-        text,
-        &namespace_at(analysed, receiver.start),
-        &imports_of(analysed),
-    ))
+    let upto = analysed
+        .map
+        .file(analysed.entry)
+        .text()
+        .get(..offset as usize)?;
+    let stem = upto
+        .get(..upto.len() - name_run(upto).len())?
+        .strip_suffix("::")?;
+    let owner = name_run(stem);
+    let at = BytePos::try_from(stem.len() - owner.len()).ok()?;
+    resolved_name(analysed, owner, at)
+}
+
+/// Every name of `owner` that may be written after `Owner::` in type position:
+/// the `type` aliases it declares, its enum cases and its class constants.
+///
+/// The same three rosters [`members_of`] chooses between, asked for the half of
+/// each that stands in a type. A `Core` class contributes its constants and a
+/// `Core` enum its cases; neither declares a `type` alias, which is a member of
+/// a written body and the registry holds none.
+fn type_members_of(analysed: &Analysed, owner: &QName) -> Vec<CompletionItem> {
+    let name = owner.to_string();
+    if let Some(core) = registry::class(&name) {
+        core.constants.iter().map(core_constant).collect()
+    } else if let Some(core) = registry::core_enum(&name) {
+        core_cases(core, Reach::Static)
+    } else {
+        declared_type_members(analysed, owner)
+    }
+}
+
+/// Every name a user-declared body writes that may stand after `Owner::` in a
+/// type, as it wrote them.
+///
+/// The constant arm is [`declared_member`]'s own, so a constant offered here
+/// and the same constant offered after `::` in an expression are one row
+/// spelled once.
+fn declared_type_members(analysed: &Analysed, owner: &QName) -> Vec<CompletionItem> {
+    let Some((stmt, file)) = declared_type(analysed, owner) else {
+        return Vec::new();
+    };
+    let (members, cases): (&[ClassMember], &[EnumCase]) = match &stmt.kind {
+        StmtKind::ClassDecl(decl) => (&decl.members, &[]),
+        StmtKind::InterfaceDecl(decl) => (&decl.members, &[]),
+        StmtKind::EnumDecl(decl) => (&decl.members, &decl.cases),
+        _ => return Vec::new(),
+    };
+    members
+        .iter()
+        .filter_map(|member| match &member.kind {
+            ClassMemberKind::TypeAlias(alias) => Some(item(
+                text_of(file, alias.name.span).to_owned(),
+                CompletionItemKind::TYPE_PARAMETER,
+                text_of(file, alias.ty.span).to_owned(),
+            )),
+            ClassMemberKind::Const(_) => declared_member(file, member, Reach::Static),
+            _ => None,
+        })
+        .chain(cases.iter().map(|case| enum_case(file, case)))
+        .collect()
 }
 
 /// The class one recorded `::` access resolved against.
@@ -887,55 +983,6 @@ fn resolved_class(info: &ExprInfo) -> Option<&QName> {
         ExprInfo::StaticProperty { class, .. } => class,
         _ => return None,
     })
-}
-
-/// The namespace `offset` is written inside, as its segments.
-///
-/// Walked off the entry document's own statements because `nvs-hir` applies a
-/// namespace as it collects declarations and keeps no map from a position back
-/// to one. The two forms are the ones its resolver reads: `namespace Name;`
-/// governs the rest of the file, and `namespace Name { … }` governs its block.
-fn namespace_at(analysed: &Analysed, offset: BytePos) -> Vec<String> {
-    let Some(loaded) = analysed
-        .loaded
-        .iter()
-        .find(|loaded| loaded.id == analysed.entry)
-    else {
-        return Vec::new();
-    };
-    let file = analysed.map.file(analysed.entry);
-    let mut current = Vec::new();
-    for stmt in &loaded.stmts {
-        let StmtKind::NamespaceDecl(decl) = &stmt.kind else {
-            continue;
-        };
-        let segments = decl.name.as_ref().map_or_else(Vec::new, |name| {
-            QName::parse(text_of(file, name.span)).segments().to_vec()
-        });
-        match &decl.body {
-            Some(block) if block.span.start <= offset && offset < block.span.end => {
-                return segments;
-            }
-            None if stmt.span.end <= offset => current = segments,
-            _ => {}
-        }
-    }
-    current
-}
-
-/// The entry document's own imports, in the shape `nvs_hir::resolve_ref` reads.
-///
-/// The whole graph's imports travel in one list, and a `use` belongs to the
-/// file that wrote it — a required file's import must not resolve a name
-/// written here.
-fn imports_of(analysed: &Analysed) -> FxHashMap<String, QName> {
-    analysed
-        .module
-        .imports
-        .iter()
-        .filter(|import| import.span.file == analysed.entry)
-        .map(|import| (import.short_name.clone(), import.target.clone()))
-        .collect()
 }
 
 /// The type the receiver at `span` holds.
