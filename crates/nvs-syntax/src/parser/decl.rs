@@ -485,6 +485,39 @@ impl<'src, 'd> Parser<'src, 'd> {
             && self.peek_at(2).kind == TokenKind::Equals
     }
 
+    /// A modifier run or an attribute group written in front of a body's
+    /// `type` is `E0133`. An alias is reachable wherever its owner's name is,
+    /// so there is no visibility to write, and nothing downstream of the
+    /// checker sees the name, so an attribute has nothing to attach to
+    /// (`rule:types/type-alias`). Both runs sit between the member's start and
+    /// the keyword, attributes first, so one span covers whichever was
+    /// written. The declaration itself is kept: only its decoration is
+    /// refused, the same discipline the `case` keyword in an enum body gets.
+    fn refuse_decoration_on_a_type_alias(
+        &mut self,
+        attributes: &[AttributeGroup],
+        modifiers: Option<Span>,
+    ) {
+        let Some(first) = attributes.first().map(|g| g.span).or(modifiers) else {
+            return;
+        };
+        let last = modifiers
+            .or_else(|| attributes.last().map(|g| g.span))
+            .unwrap_or(first);
+        self.diags.report(
+            Diagnostic::error(
+                code::E_TYPE_ALIAS_TAKES_NO_MODIFIER_OR_ATTRIBUTE,
+                "a `type` alias takes no modifier and no attribute group",
+            )
+            .with_primary(first.to(last), "remove this")
+            .with_help(
+                "an alias is reachable wherever its owner's name is, so it has no visibility, \
+                 and nothing after the checker sees the name, so an attribute has nothing to \
+                 attach to (`rule:types/type-alias`)",
+            ),
+        );
+    }
+
     /// The declaration from `type` through its `;`, shared by the file-scope
     /// form and the body member. `doc` is the run the caller already took: a
     /// member's hangs on its [`ClassMember`], so that site passes `None`.
@@ -722,7 +755,9 @@ impl<'src, 'd> Parser<'src, 'd> {
             out.push(self.parse_use_trait_member(start, attributes));
             return;
         }
+        let modifiers_at = self.peek().span;
         let modifiers = self.parse_modifiers();
+        let modifiers_span = (!modifiers.is_empty()).then(|| modifiers_at.to(self.last_span));
         if self.at_keyword(Keyword::Const) {
             let consts = self.parse_const_body(&attributes, &modifiers);
             let span = start.to(self.last_span);
@@ -742,8 +777,9 @@ impl<'src, 'd> Parser<'src, 'd> {
         // Asked before `can_start_type`, which reads the contextual `type` as a
         // property's class-named type. Neither a modifier nor an attribute group
         // is part of an alias declaration, so one written in front of the
-        // keyword is the member's span and nothing else.
+        // keyword is refused rather than parsed and dropped.
         if self.at_type_alias() {
+            self.refuse_decoration_on_a_type_alias(&attributes, modifiers_span);
             let alias = self.parse_type_alias_body(start, None);
             out.push(ClassMember {
                 span: start.to(self.last_span),
@@ -1272,6 +1308,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             } else if self.at_type_alias() {
                 // Ahead of the case arm, which would otherwise read the
                 // contextual `type` as the case's own name.
+                self.refuse_decoration_on_a_type_alias(&attributes, None);
                 let alias = self.parse_type_alias_body(before, None);
                 members.push(ClassMember {
                     span: alias.span,
@@ -1292,16 +1329,30 @@ impl<'src, 'd> Parser<'src, 'd> {
                 cases.push(self.finish_enum_case(before, doc, attributes));
                 self.eat(TokenKind::Comma);
             } else {
+                let first = members.len();
                 self.parse_class_member_with_attrs(before, attributes, &mut members);
-                let span = before.to(self.last_span);
-                self.diags.report(
-                    Diagnostic::error(
-                        code::E_ENUM_MEMBER_UNSUPPORTED,
-                        "an enum declares only cases and an optional backing type",
-                    )
-                    .with_primary(span, "not a case")
-                    .with_help("move this to a separate class (`rule:enums/no-class-machinery`)"),
-                );
+                // A modifier run in front of an enum's own `type` reaches here,
+                // because only the token after the run tells a member from a
+                // case. The alias is a member the enum is allowed to hold and
+                // `E0133` has already refused the run, so the refusal below
+                // would be a second diagnostic about the same declaration.
+                let alias_only = members.len() > first
+                    && members[first..]
+                        .iter()
+                        .all(|m| matches!(m.kind, ClassMemberKind::TypeAlias(_)));
+                if !alias_only {
+                    let span = before.to(self.last_span);
+                    self.diags.report(
+                        Diagnostic::error(
+                            code::E_ENUM_MEMBER_UNSUPPORTED,
+                            "an enum declares only cases and an optional backing type",
+                        )
+                        .with_primary(span, "not a case")
+                        .with_help(
+                            "move this to a separate class (`rule:enums/no-class-machinery`)",
+                        ),
+                    );
+                }
             }
             if self.peek().span == before && !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof)
             {

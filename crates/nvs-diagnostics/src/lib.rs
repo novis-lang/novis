@@ -240,6 +240,13 @@ pub mod code {
     /// which is worth a diagnostic rather than the silent no-op it would
     /// otherwise be.
     pub const E_TAINTED_SHAPE_HAS_NO_TEXT: Code = Code::new("E0132");
+    /// A modifier run or an attribute group written in front of a body's
+    /// `type` alias — `rule:types/type-alias`. An alias is reachable wherever
+    /// its owner's name is, so there is no visibility to write, and nothing
+    /// downstream of the checker ever sees the name, so an attribute has
+    /// nothing to attach to. Parsing the run and dropping it would accept a
+    /// declaration saying something the language does not have.
+    pub const E_TYPE_ALIAS_TAKES_NO_MODIFIER_OR_ATTRIBUTE: Code = Code::new("E0133");
 
     // --- E02xx rejected PHP constructs -------------------------------------
     // Novis accepts PHP 8.5 syntax as a *pragmatic* superset. These constructs
@@ -3836,7 +3843,10 @@ mod tests {
     /// than leave `brief.py`'s next-free line quietly wrong.
     #[test]
     fn the_newest_parser_code_is_the_bands_highest_number() {
-        assert_eq!(code::E_TAINTED_SHAPE_HAS_NO_TEXT.as_str(), "E0132");
+        assert_eq!(
+            code::E_TYPE_ALIAS_TAKES_NO_MODIFIER_OR_ATTRIBUTE.as_str(),
+            "E0133"
+        );
 
         let mut band = parser_band();
         assert!(band.len() > 3, "the band did not parse: {band:?}");
@@ -3846,7 +3856,7 @@ mod tests {
         assert_eq!(band, unique, "two parser-band codes share a number");
         assert_eq!(
             band.pop(),
-            Some(32),
+            Some(33),
             "the newest code is no longer the band's highest, so the number after \
              it is no longer the next free one",
         );

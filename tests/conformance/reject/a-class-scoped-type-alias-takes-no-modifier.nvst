@@ -1,0 +1,76 @@
+--TEST--
+a modifier run or an attribute group written in front of a body's `type` is `E0133`, in a class, an interface and an enum body alike — `rule:types/type-alias`
+--FILE--
+<?nvs
+// `rule:types/type-alias`: a class-scoped alias is reachable wherever its
+// owner's name is, so there is no visibility to write, and nothing after the
+// checker ever sees the name, so an attribute has nothing to attach to. The
+// parser therefore refuses the decoration and keeps the declaration, rather
+// than parsing a modifier run and dropping it.
+
+// The undecorated form first, so an alias that stops being accepted fails
+// here rather than as a missing refusal.
+class Accepted {
+    type Id = int|string;
+}
+
+class AModifier {
+    public type Id = int|string;
+}
+
+// A run is one refusal, not one per keyword.
+class TwoModifiers {
+    private static type Id = int|string;
+}
+
+// An interface body and an enum body are the same rule, not two more.
+interface AnAttributeGroup {
+    #[Deprecated]
+    type Id = int|string;
+}
+
+enum InAnEnum: int {
+    Red = 1,
+
+    #[Deprecated]
+    type Id = int|string;
+}
+
+// A modifier in an enum body reaches the member path, where only the token
+// after the run says what follows it. The alias is a member the enum owns,
+// so this is `E0133` alone and not a second "not a case" refusal.
+enum AModifierInAnEnum: int {
+    On = 1,
+
+    public static type Id = int|string;
+}
+
+// Both runs at once are one refusal spanning both.
+class Both {
+    #[Deprecated]
+    private type Id = int|string;
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0133]: a `type` alias takes no modifier and no attribute group
+   --> case.nvs:15:5
+%A
+error[E0133]: a `type` alias takes no modifier and no attribute group
+   --> case.nvs:20:5
+%A
+error[E0133]: a `type` alias takes no modifier and no attribute group
+   --> case.nvs:25:5
+%A
+error[E0133]: a `type` alias takes no modifier and no attribute group
+   --> case.nvs:32:5
+%A
+error[E0133]: a `type` alias takes no modifier and no attribute group
+   --> case.nvs:42:5
+%A
+error[E0133]: a `type` alias takes no modifier and no attribute group
+   --> case.nvs:47:5
+%A
+error: aborting due to 6 errors
