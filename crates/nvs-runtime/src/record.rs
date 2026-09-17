@@ -37,31 +37,27 @@
 //! the tag roster to tell an enum apart, which is the representation
 //! `rule:types/conversion` declines to spend.
 //!
+//! A declared property is the only place this walk can *see* the qualifier:
+//! [`ClassDesc::field_is_secret`] is a fact the class carries at run time, and
+//! `rule:errors/record-transformations`'s redaction row turns it into a
+//! [`Node::Redacted`] wherever the walk reaches it, a nested object's property
+//! included. Everywhere else the bit is a **static** one, erased before a
+//! [`Value`] exists — an `array<secret string>`'s element arrives here as a
+//! plain string — so confidentiality outside a property is answered in front
+//! of this walk and not inside it. Two rules do that, and the second is what
+//! keeps the first honest: `rule:security/secret-sinks-refuse` refuses an
+//! argument carrying a `secret` *anywhere* in it at every producer that takes
+//! a value, and `rule:security/secret-qualifier`'s container axis refuses the
+//! write that would put one into an array element or a shape field whose own
+//! type does not carry the qualifier
+//! (`nvs_types::expr::quals::reject_secret_into_container`), so a credential
+//! cannot be laundered into a container one statement before the call.
+//!
 //! # What it spends
 //!
 //! One node per value reached, bounded by [`Caps`], plus one recursion frame
 //! and one [`Seen`] entry per level of nesting. All of it is released with the
 //! record it built, so nothing here grows with records written.
-//!
-//! # Known gaps
-//!
-//! 1. **A `secret` value reaches this walk without a property to be declared
-//!    on.** `rule:errors/record-transformations`'s redaction row is closed at both of its own ends —
-//!    a `secret` argument is refused where the call is written
-//!    (`nvs_types::expr::quals::reject_secret_debug_argument`) and a
-//!    `secret`-typed *property* is a [`Node::Redacted`], read off
-//!    [`ClassDesc::field_is_secret`] — but neither end
-//!    reaches a `secret` value held in an `array<T>` element or in an `rule:types/object-top`
-//!    shape literal's field. Both are `rule:security/secret-qualifier`'s unmodelled container axis
-//!    rather than a hole here: the element type of an array of `secret string`
-//!    is not something the qualifier composes onto today, and a shape field's
-//!    type is *inferred* from its initializer rather than declared, so there
-//!    is no declaration for the bit to be carried off. A `secret` property of
-//!    a *nested* object is redacted, that object's own class having declared
-//!    it.
-//!    Decided: Refuse at compile time storing a secret into an array element or shape field — Small and
-//!    closes the leak, but a program cannot keep, say, a list of API keys without a wrapper class.
-//!    — owner: decided-closures
 
 use nvs_render::{Caps, Elision, Node, Rendered, Scalar};
 

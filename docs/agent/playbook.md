@@ -5484,6 +5484,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   outcomes from another module. Call `crate::tests::outbound_client()` before opening a session —
   it is the one place the client is built, and the `OnceLock` is what makes test order stop
   mattering. [until: gone crates/nvs-stdlib/src/lib.rs:outbound_client]
+- **An `nvs-types` fixture does not run `nvs_syntax::check_declarations`**, so a casing or
+  visibility refusal never reaches its diagnostics at all. `check_src_granted`
+  (`crates/nvs-types/tests/common/mod.rs:241`) additionally asserts that parse and resolve are
+  clean, so a refusal reported by either of those passes blows the fixture instead of being
+  asserted on. A case for a declaration-shaped rule either calls the pass it is about directly or
+  lives in `tests/conformance/reject/`, where the whole front end runs. [until: exists crates/nvs-types/tests/common/mod.rs:check_declarations]
 
 ## Splitting a file that got too big
 
