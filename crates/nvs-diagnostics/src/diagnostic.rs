@@ -16,6 +16,7 @@
 //! ```
 
 use std::collections::HashSet;
+use std::fmt;
 
 use crate::span::Span;
 
@@ -278,13 +279,30 @@ impl Diagnostic {
 /// a signature's types are lowered for the signature and again for the body
 /// that binds them, and the second copy of one mistake at one span tells a
 /// reader nothing while doubling every error count.
-#[derive(Debug, Default)]
+#[derive(Default)]
 pub struct Diagnostics {
     items: Vec<Diagnostic>,
     errors: usize,
     /// One key per diagnostic currently in `items`, kept in step with it by
     /// every method that adds or removes one.
     seen: HashSet<String>,
+}
+
+/// What was reported, and how much of it was fatal.
+///
+/// Written out rather than derived because `seen` is a `HashSet` and its
+/// iteration order is not the same twice: two sinks holding the very same
+/// diagnostics would print differently, which is a comparison this repository
+/// makes — `crates/nvs-syntax/src/parser/tests/mod.rs` holds one entry point's
+/// report against the other's. The set is derived from `items` and says nothing
+/// `items` does not, so leaving it out costs a reader nothing.
+impl fmt::Debug for Diagnostics {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Diagnostics")
+            .field("items", &self.items)
+            .field("errors", &self.errors)
+            .finish()
+    }
 }
 
 /// What makes two diagnostics the same one: every field a reader can see.
