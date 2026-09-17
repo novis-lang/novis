@@ -15,6 +15,8 @@
 //! assert!(d.is_error());
 //! ```
 
+use std::collections::HashSet;
+
 use crate::span::Span;
 
 /// How serious a diagnostic is.
@@ -270,11 +272,27 @@ impl Diagnostic {
 /// Collects diagnostics for one compilation.
 ///
 /// The compiler reports into this and keeps going wherever it can, so a single
-/// run surfaces every problem rather than only the first.
+/// run surfaces every problem rather than only the first — but it says each
+/// one **once**: a diagnostic identical to one already held is dropped by
+/// [`Diagnostics::report`]. Several passes reach the same written type, since
+/// a signature's types are lowered for the signature and again for the body
+/// that binds them, and the second copy of one mistake at one span tells a
+/// reader nothing while doubling every error count.
 #[derive(Debug, Default)]
 pub struct Diagnostics {
     items: Vec<Diagnostic>,
     errors: usize,
+    /// One key per diagnostic currently in `items`, kept in step with it by
+    /// every method that adds or removes one.
+    seen: HashSet<String>,
+}
+
+/// What makes two diagnostics the same one: every field a reader can see.
+/// Identical labels mean identical spans, so this can only collapse two
+/// reports of one mistake at one site, never two sites that happen to share a
+/// message.
+fn identity(d: &Diagnostic) -> String {
+    format!("{d:?}")
 }
 
 impl Diagnostics {
@@ -284,8 +302,11 @@ impl Diagnostics {
         Self::default()
     }
 
-    /// Records a diagnostic.
+    /// Records a diagnostic, unless one identical to it is already held.
     pub fn report(&mut self, d: Diagnostic) {
+        if !self.seen.insert(identity(&d)) {
+            return;
+        }
         if d.is_error() {
             self.errors += 1;
         }
@@ -336,6 +357,7 @@ impl Diagnostics {
     #[must_use]
     pub fn take(&mut self) -> Vec<Diagnostic> {
         self.errors = 0;
+        self.seen.clear();
         std::mem::take(&mut self.items)
     }
 
@@ -343,11 +365,15 @@ impl Diagnostics {
     /// speculative parse that decided to backtrack. `len` must be `<=
     /// self.len()` — it always is when it came from an earlier call to
     /// [`Self::len`] on this same sink.
+    /// A withdrawn diagnostic gives up its identity too, so the same one
+    /// reported again down the path the parser backtracked onto is recorded
+    /// rather than mistaken for a duplicate.
     pub fn truncate(&mut self, len: usize) {
         for d in self.items.drain(len..) {
             if d.is_error() {
                 self.errors -= 1;
             }
+            self.seen.remove(&identity(&d));
         }
     }
 }
@@ -385,6 +411,38 @@ mod tests {
         assert!(d.has_errors());
         assert_eq!(d.error_count(), 1);
         assert_eq!(d.len(), 2);
+    }
+
+    #[test]
+    fn one_mistake_reported_twice_is_held_once() {
+        let mut d = Diagnostics::new();
+        let twice = || {
+            Diagnostic::error(Code::new("E0405"), "`Sub` has no constant named `Id`")
+                .with_primary(Span::new(F, 10, 17), "referenced here")
+        };
+        d.report(twice());
+        d.report(twice());
+        assert_eq!(d.len(), 1);
+        assert_eq!(d.error_count(), 1);
+        // A different span is a different site, not a duplicate.
+        d.report(
+            Diagnostic::error(Code::new("E0405"), "`Sub` has no constant named `Id`")
+                .with_primary(Span::new(F, 40, 47), "referenced here"),
+        );
+        assert_eq!(d.len(), 2);
+    }
+
+    #[test]
+    fn a_truncated_diagnostic_can_be_reported_again() {
+        let mut d = Diagnostics::new();
+        let mark = d.len();
+        d.report(Diagnostic::error(Code::new("E0101"), "expected `;`"));
+        d.truncate(mark);
+        assert_eq!(d.len(), 0);
+        assert_eq!(d.error_count(), 0);
+        d.report(Diagnostic::error(Code::new("E0101"), "expected `;`"));
+        assert_eq!(d.len(), 1);
+        assert_eq!(d.error_count(), 1);
     }
 
     #[test]
