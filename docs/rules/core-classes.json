@@ -522,7 +522,10 @@
         "tests/conformance/core/core-ast-node-walk-is-a-whole-tree-asserted-by-counting.nvst",
         "tests/conformance/core/core-ast-nodes-is-children-closed-transitively.nvst",
         "tests/conformance/core/ast-parse-answers-a-typed-node-per-production.nvst",
-        "tests/conformance/core/ast-parse-file-reads-through-the-io-door-under-fs-read.nvst"
+        "tests/conformance/core/ast-parse-file-reads-through-the-io-door-under-fs-read.nvst",
+        "tests/conformance/core/core-ast-node-position-names-the-first-character-of-its-production.nvst",
+        "tests/conformance/core/core-ast-node-positions-hold-over-the-whole-walk-asserted-by-counting.nvst",
+        "tests/conformance/core/core-ast-node-column-counts-characters-where-offset-counts-bytes.nvst"
       ]
     },
     {

@@ -70,6 +70,8 @@
 //! two words for the kind, a span, an optional second span for the name, and
 //! two `Vec` headers, allocated per parse and dropped when the caller is done
 //! with it, plus one small allocation for each node that has a field at all.
+//! [`located`] holds one thing more — the parsed file itself, its text and its
+//! line table — for as long as its caller keeps asking nodes where they start.
 //! Nothing here is cached: a parse is a call, not a compilation unit.
 //!
 //! # The second consumer
@@ -259,6 +261,41 @@ impl Node {
     }
 }
 
+/// A parsed tree and the file it was parsed from, so a consumer holding no
+/// [`nvs_diagnostics::SourceFile`] can still ask where a node starts.
+///
+/// `Core\Ast` is that consumer: the nodes it hands a running program answer
+/// their own line, column and offset, and the arithmetic behind the first two
+/// is `nvs_diagnostics`' (`rule:ide/positions-have-one-home`) rather than a
+/// newline count written a second time in `nvs_stdlib`.
+#[derive(Debug)]
+pub struct Located {
+    /// The file's root node — [`of_source`]'s answer, unchanged.
+    pub tree: Node,
+    /// The map [`tree`](Self::tree) was parsed against, holding the line table
+    /// [`position`](Self::position) reads.
+    map: SourceMap,
+}
+
+impl Located {
+    /// Where `node` starts: its 1-based line, its 1-based column counted in
+    /// `char`s, and its byte offset into the source.
+    ///
+    /// The line and the column are 1-based because they are what a person is
+    /// shown beside a path, which is the whole reason a node carries them;
+    /// [`nvs_diagnostics::SourceFile::line_col`] counts from zero and this is
+    /// the one place the two conventions meet.
+    #[must_use]
+    pub fn position(&self, node: &Node) -> (u32, u32, u32) {
+        let (line, col) = self.map.file(node.span.file).line_col(node.span.start);
+        (
+            u32::try_from(line).unwrap_or(u32::MAX).saturating_add(1),
+            u32::try_from(col).unwrap_or(u32::MAX).saturating_add(1),
+            node.span.start,
+        )
+    }
+}
+
 /// Parses `source` exactly as the compiler parses a file of that name, and
 /// answers the walk over it.
 ///
@@ -268,37 +305,50 @@ impl Node {
 ///
 /// # Errors
 ///
+/// [`located`]'s, unchanged — this is that call with the map dropped.
+pub fn of_source(name: &str, source: &str) -> Result<Node, String> {
+    located(name, source).map(|parsed| parsed.tree)
+}
+
+/// [`of_source`], keeping the file it parsed against so a caller can ask a node
+/// where it starts.
+///
+/// # Errors
+///
 /// The first error diagnostic, as `line N, column M: message` — a parse that
 /// reported an error is a failure here rather than a tree with
 /// [`StmtKind::Error`] in it, because a caller asking for a description of
 /// source it cannot compile is asking about source it should be told about.
-pub fn of_source(name: &str, source: &str) -> Result<Node, String> {
+pub fn located(name: &str, source: &str) -> Result<Located, String> {
     if source.len() > MAX_SOURCE_LEN {
         return Err("source exceeds 4 GiB".to_owned());
     }
     let mut map = SourceMap::new();
     let id = map.add(name, source);
-    let file = map.file(id);
-    let mut diags = Diagnostics::new();
-    let stmts = parse_file(file, &mut diags);
-    if let Some(first) = diags.iter().find(|d| d.is_error()) {
-        let where_ = first.primary_span().map_or_else(String::new, |span| {
-            let (line, col) = file.line_col(span.start);
-            format!("line {}, column {}: ", line + 1, col + 1)
-        });
-        return Err(format!("{where_}{}", first.message));
-    }
-    Ok(Node {
-        kind: "File",
-        span: stmts
-            .iter()
-            .map(|s| s.span)
-            .reduce(Span::to)
-            .unwrap_or_else(|| Span::at(file.id(), 0)),
-        name: None,
-        children: of_stmts(&stmts),
-        fields: Vec::new(),
-    })
+    let tree = {
+        let file = map.file(id);
+        let mut diags = Diagnostics::new();
+        let stmts = parse_file(file, &mut diags);
+        if let Some(first) = diags.iter().find(|d| d.is_error()) {
+            let where_ = first.primary_span().map_or_else(String::new, |span| {
+                let (line, col) = file.line_col(span.start);
+                format!("line {}, column {}: ", line + 1, col + 1)
+            });
+            return Err(format!("{where_}{}", first.message));
+        }
+        Node {
+            kind: "File",
+            span: stmts
+                .iter()
+                .map(|s| s.span)
+                .reduce(Span::to)
+                .unwrap_or_else(|| Span::at(id, 0)),
+            name: None,
+            children: of_stmts(&stmts),
+            fields: Vec::new(),
+        }
+    };
+    Ok(Located { tree, map })
 }
 
 /// The nodes of a file that is already parsed, in source order.

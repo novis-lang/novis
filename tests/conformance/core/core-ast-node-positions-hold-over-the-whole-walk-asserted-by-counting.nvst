@@ -1,0 +1,66 @@
+--TEST--
+Every Core\Ast\Node in a walk starts at or after the node holding it and after the sibling before it, asserted by counting rather than read off a line — `rule:core-classes/ast-is-inert`
+--FILE--
+<?nvs
+// The *sweep* shape. Printing a handful of positions asks whether they look
+// right; this asks whether the property holds for every node of a nested tree
+// at once, so a member that resolved one production's position against the
+// wrong span still fails here while every printed line elsewhere stays
+// plausible.
+//
+// Three numbers carry it. `pairs` is how many parent-and-child pairs were
+// actually compared, and it must equal the node count — every node but the
+// root is exactly one node's child, so a sweep that skipped a subtree is a
+// count that no longer matches rather than a silent pass. The other two are
+// the violations, and both are zero.
+//
+// The source has no `$` in it on purpose: this file's own string literal
+// interpolates, and a parsed program's variables would be read as this
+// program's.
+var $src = "<?nvs\nclass C {\n    public function m(): int {\n        if (1 > 0) {\n            return 2 + 3;\n        }\n        return 4;\n    }\n}\necho 5;\n";
+var $tree = Core\Ast::parse($src);
+var $walk = $tree->nodes();
+
+int $pairs = 0;
+int $beforeParent = 0;
+int $outOfOrder = 0;
+int $columnBack = 0;
+
+// The root's own children first: the file is in no other node's `children()`,
+// so the walk below never reaches this pair.
+int $last = -1;
+foreach ($tree->children() as Core\Ast\Node $child) {
+    $pairs = $pairs + 1;
+    if ($child->offset() < $tree->offset()) { $beforeParent = $beforeParent + 1; }
+    if ($child->offset() < $last) { $outOfOrder = $outOfOrder + 1; }
+    $last = $child->offset();
+}
+
+// Then every node the file contains, against its own children — line and
+// offset both, because a position resolved from the wrong span can still land
+// on a plausible line while the offset says otherwise.
+foreach ($walk as Core\Ast\Node $node) {
+    int $prev = -1;
+    foreach ($node->children() as Core\Ast\Node $child) {
+        $pairs = $pairs + 1;
+        if ($child->offset() < $node->offset()) { $beforeParent = $beforeParent + 1; }
+        if ($child->line() < $node->line()) { $beforeParent = $beforeParent + 1; }
+        if ($child->line() == $node->line() && $child->column() < $node->column()) {
+            $columnBack = $columnBack + 1;
+        }
+        if ($child->offset() < $prev) { $outOfOrder = $outOfOrder + 1; }
+        $prev = $child->offset();
+    }
+}
+
+echo "nodes=", Core\Arr::count($walk), "\n";
+echo "pairs=", $pairs, "\n";
+echo "before-parent=", $beforeParent, "\n";
+echo "column-back=", $columnBack, "\n";
+echo "out-of-order=", $outOfOrder, "\n";
+--EXPECT--
+nodes=15
+pairs=15
+before-parent=0
+column-back=0
+out-of-order=0

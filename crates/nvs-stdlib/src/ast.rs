@@ -57,39 +57,31 @@
 //! # Decision: the tree is inert because there is nothing in it to run
 //!
 //! § 3's "no path from an AST value back into execution" is structural here,
-//! not a promise. A [`NODE`] instance holds two ordinary Novis values — a kind
-//! string and an array of more nodes — and `nvs_syntax::walk::Node`, the only
-//! thing that crosses out of `nvs-syntax`, holds no `Expr`, no `Span` and no
-//! borrow of the source. So there is no handle for a later member to accept
-//! and no descriptor for one to look up: `eval` stays absent by having nothing
-//! to be spelled with, which is the same argument
-//! `rule:security/closed-doors` makes for the other
-//! three doors.
+//! not a promise. A [`NODE`] instance holds ordinary Novis values — a kind
+//! string, an array of more nodes, and the three integers saying where in the
+//! source it starts — and `nvs_syntax::walk::Node`, the only thing that
+//! crosses out of `nvs-syntax`, holds no `Expr` and no borrow of the source:
+//! its span is a pair of offsets into text this crate never keeps. So there is
+//! no handle for a later member to accept and no descriptor for one to look
+//! up: `eval` stays absent by having nothing to be spelled with, which is the
+//! same argument `rule:security/closed-doors` makes for the other three doors.
 //!
-//! The cost is that a node cannot answer its own source text, which a
-//! pretty-printer wants — known gap 1. That is a slot away, and adding it is
-//! the point at which `parse`'s `$source` stops being
-//! [`Qual::Neutral`](crate::registry::Qual::Neutral).
+//! **A node answers where it is and never what it says.** `line()`, `column()`
+//! and `offset()` are what a `#[Test]` walking the tree names a `file:line`
+//! with — a structural rule that cannot point is a check rather than a report
+//! — and they carry none of the source's own bytes, which is why `parse`'s
+//! `$source` stays [`Qual::Neutral`](crate::registry::Qual::Neutral). A member
+//! answering a node's own text is what would end that, and there is none.
 //!
-//! **What it spends:** one object per node in the parsed file, plus one array
-//! per node with children, charged to the request that called `parse` and
-//! released with the tree. A source file is bounded by the caller's own
-//! memory ceiling and the parser's 96-level nesting limit bounds the depth,
-//! so both this walk and [`nvs_core_ast_node_nodes`]'s recurse on a bounded
-//! stack.
-//!
-//! # Known gaps
-//!
-//! 1. A node carries no position and no text, so a walk can count and classify
-//!    but not quote. The inertness decision above is what adding it costs.
-//!    Closing this is also what makes userland architecture rules real: a
-//!    `#[Test]` that walks the tree can fail today, but cannot name the
-//!    `file:line` it failed about, and a structural rule that cannot point is
-//!    a check rather than a report (docs/adr/tooling-parity.md, the Deptrac
-//!    row).
-//!    Decided: Position (line/column/offset) only — Architecture tests can point at file:line, and the
-//!    input stays qualifier-neutral because no text comes back out.
-//!    — owner: decided-closures
+//! **What it spends:** one object per node in the parsed file — five slots, of
+//! which the kind string and the children array are the two that allocate —
+//! plus one array per node with children, charged to the request that called
+//! `parse` and released with the tree. The line and column are read at parse
+//! time from the parsed file's own line table, which `parse` holds for the
+//! length of the call and drops with it (`nvs_syntax::walk::Located`). A
+//! source file is bounded by the caller's own memory ceiling and the parser's
+//! 96-level nesting limit bounds the depth, so both this walk and
+//! [`nvs_core_ast_node_nodes`]'s recurse on a bounded stack.
 
 use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, ThrownClass, Value};
 
@@ -107,16 +99,27 @@ const KIND_SLOT: usize = 0;
 /// [`NODE`]'s slot holding the nodes this one directly contains.
 const CHILDREN_SLOT: usize = 1;
 
+/// [`NODE`]'s slot holding the 1-based line the production starts on.
+const LINE_SLOT: usize = 2;
+
+/// [`NODE`]'s slot holding the 1-based column the production starts at,
+/// counted in characters.
+const COLUMN_SLOT: usize = 3;
+
+/// [`NODE`]'s slot holding the byte offset the production starts at.
+const OFFSET_SLOT: usize = 4;
+
 /// `Core\Ast` — one member, because parsing is one question.
 pub(crate) const CLASS: CoreClass = CoreClass {
     name: NAME,
     methods: &[CoreMethod {
         name: "parse",
         names: &["source"],
-        // Neutral, and not a sink: the answer names productions rather than
-        // carrying the argument's content, and nothing executes what it
-        // describes (`rule:core-classes/ast-is-inert`). The day known gap 1 lets a node answer its
-        // own text is the day this becomes `Qual::Contagious`.
+        // Neutral, and not a sink: the answer names productions and says where
+        // each one starts, never carrying the argument's content, and nothing
+        // executes what it describes (`rule:core-classes/ast-is-inert`). A
+        // member answering a node's own text is what would make this
+        // `Qual::Contagious`, and the module doc says why there is none.
         params: &[CoreTy::Text(Qual::Neutral)],
         defaults: &[],
         return_ty: CoreTy::Instance(NODE_NAME),
@@ -149,7 +152,7 @@ const PARSE_DOC: MethodDoc = MethodDoc {
 /// The slots a node holds, shared by [`NODE`] and by every [`PRODUCTIONS`]
 /// entry so a member body reads by index and never asks which class its
 /// receiver is.
-const NODE_SLOTS: &[&str] = &["kind", "children"];
+const NODE_SLOTS: &[&str] = &["kind", "children", "line", "column", "offset"];
 
 /// `Core\Ast\Node` — the type [`CLASS`]'s member and this class's own two
 /// collections are declared as, and the members every parsed node answers.
@@ -187,6 +190,33 @@ pub(crate) const NODE: CoreClass = CoreClass {
             return_ty: CoreTy::Array(&CoreTy::Instance(NODE_NAME)),
             symbol: "nvs_core_ast_node_nodes",
             doc: Some(&NODES_DOC),
+        },
+        CoreMethod {
+            name: "line",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Int,
+            symbol: "nvs_core_ast_node_line",
+            doc: Some(&LINE_DOC),
+        },
+        CoreMethod {
+            name: "column",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Int,
+            symbol: "nvs_core_ast_node_column",
+            doc: Some(&COLUMN_DOC),
+        },
+        CoreMethod {
+            name: "offset",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Int,
+            symbol: "nvs_core_ast_node_offset",
+            doc: Some(&OFFSET_DOC),
         },
     ],
     slots: NODE_SLOTS,
@@ -352,6 +382,33 @@ const NODES_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
+/// `Core\Ast\Node::line`'s reference card — `rule:core-api/reference-card`.
+const LINE_DOC: MethodDoc = MethodDoc {
+    short: "The 1-based line this production starts on, so a rule that walks the tree can report a \
+            `file:line` rather than only a verdict.",
+    params: &[],
+    ret: "The line of the node's first character, counting the file's first line as 1.",
+    errors: &[],
+};
+
+/// `Core\Ast\Node::column`'s reference card — `rule:core-api/reference-card`.
+const COLUMN_DOC: MethodDoc = MethodDoc {
+    short: "The 1-based column this production starts at, counted in characters rather than bytes.",
+    params: &[],
+    ret: "The column of the node's first character, counting the line's first character as 1. \
+          Characters, so a line holding a `ß` before the node still points at it.",
+    errors: &[],
+};
+
+/// `Core\Ast\Node::offset`'s reference card — `rule:core-api/reference-card`.
+const OFFSET_DOC: MethodDoc = MethodDoc {
+    short: "The byte offset this production starts at, from the beginning of the parsed source.",
+    params: &[],
+    ret: "The 0-based offset into the string `parse` was given, which is what a caller holding \
+          that string slices with. The node never answers the slice itself.",
+    errors: &[],
+};
+
 /// One instance per node of the walk, built bottom-up, each of its own
 /// production's class.
 ///
@@ -359,16 +416,20 @@ const NODES_DOC: MethodDoc = MethodDoc {
 /// limit already bounds the depth at 96 levels — see `nvs_syntax::parser`'s
 /// depth guard, which is the reason this cannot be handed a tree deep enough
 /// to matter.
-fn instance_of(node: &nvs_syntax::walk::Node) -> Value {
+fn instance_of(node: &nvs_syntax::walk::Node, parsed: &nvs_syntax::walk::Located) -> Value {
     let mut children = NvsArray::new();
     for child in &node.children {
-        children.append(instance_of(child));
+        children.append(instance_of(child, parsed));
     }
+    let (line, column, offset) = parsed.position(node);
     crate::instance::build(
         class_of(node.kind),
         [
             Value::str(NvsStr::new(node.kind.as_bytes())),
             Value::array(children),
+            Value::int(i64::from(line)),
+            Value::int(i64::from(column)),
+            Value::int(i64::from(offset)),
         ],
     )
 }
@@ -433,6 +494,9 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_ast_node_kind" => (nvs_core_ast_node_kind as *const ()).cast(),
         "nvs_core_ast_node_children" => (nvs_core_ast_node_children as *const ()).cast(),
         "nvs_core_ast_node_nodes" => (nvs_core_ast_node_nodes as *const ()).cast(),
+        "nvs_core_ast_node_line" => (nvs_core_ast_node_line as *const ()).cast(),
+        "nvs_core_ast_node_column" => (nvs_core_ast_node_column as *const ()).cast(),
+        "nvs_core_ast_node_offset" => (nvs_core_ast_node_offset as *const ()).cast(),
         _ => return None,
     })
 }
@@ -460,14 +524,14 @@ nvs_runtime::nvs_helper! {
         })?;
         // The name is what a diagnostic would print for this text, and there
         // is no file behind it — the member is the whole of its provenance.
-        let tree = nvs_syntax::walk::of_source("Core\\Ast::parse", source)
+        let parsed = nvs_syntax::walk::located("Core\\Ast::parse", source)
             .map_err(|message| {
                 Fault::thrown_as(
                     ThrownClass::Parse,
                     format!("Core\\Ast::parse(): {message}"),
                 )
             })?;
-        Ok(instance_of(&tree))
+        Ok(instance_of(&parsed.tree, &parsed))
     }
 }
 
@@ -503,12 +567,41 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+nvs_runtime::nvs_helper! {
+    /// `Core\Ast\Node::line(): int` — the slot, resolved when the tree was
+    /// built.
+    ///
+    /// The three position members read slots rather than computing anything:
+    /// the line table belongs to the parse, which is over by the time a program
+    /// holds the node.
+    fn nvs_core_ast_node_line(_ctx, args: [1]) {
+        slot_of(args, LINE_SLOT, "line")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Ast\Node::column(): int` — the slot, in characters.
+    fn nvs_core_ast_node_column(_ctx, args: [1]) {
+        slot_of(args, COLUMN_SLOT, "column")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Ast\Node::offset(): int` — the slot, in bytes.
+    fn nvs_core_ast_node_offset(_ctx, args: [1]) {
+        slot_of(args, OFFSET_SLOT, "offset")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use nvs_diagnostics::{Diagnostic, Diagnostics, SourceMap};
     use nvs_runtime::{Ctx, NvsObj, NvsStr, OutputSink, THROWN, Tag, Value, call};
 
-    use super::{CHILDREN_SLOT, KIND_SLOT, NAME, NODE, NODE_NAME, PRODUCTIONS, class_of};
+    use super::{
+        CHILDREN_SLOT, COLUMN_SLOT, KIND_SLOT, LINE_SLOT, NAME, NODE, NODE_NAME, OFFSET_SLOT,
+        PRODUCTIONS, class_of,
+    };
     use crate::registry::{CLASSES, CoreTy};
 
     /// The namespace every production's class name carries, which is the one
@@ -687,12 +780,12 @@ mod tests {
     ///    ran a tree would not be declared here — it would be declared next
     ///    to whatever ran it.
     /// 2. **A walk of the tree reaches nothing but the tree.** Every member a
-    ///    node has answers a string or more nodes, so no amount of walking
-    ///    produces a value of another class, and there is no `Core\Ast`
-    ///    handle a later member could take.
+    ///    node has answers a string, an integer or more nodes, so no amount of
+    ///    walking produces a value of another class, and there is no
+    ///    `Core\Ast` handle a later member could take.
     /// 3. **The values are ordinary data at run time too**, over a real
-    ///    parse: every slot is a `Tag::Str` or a `Tag::Array` of objects, and
-    ///    no closure, callable or resource is anywhere in it.
+    ///    parse: every slot is a `Tag::Str`, a `Tag::Int` or a `Tag::Array` of
+    ///    objects, and no closure, callable or resource is anywhere in it.
     #[test]
     fn a_parsed_ast_is_inert_data_with_no_path_back_into_execution() {
         for class in CLASSES {
@@ -711,11 +804,11 @@ mod tests {
 
         for member in NODE.members() {
             let answers_itself = mentions(&member.return_ty, NODE_NAME);
-            let answers_text = matches!(member.return_ty, CoreTy::Str);
+            let answers_scalar = matches!(member.return_ty, CoreTy::Str | CoreTy::Int);
             assert!(
-                answers_itself || answers_text,
+                answers_itself || answers_scalar,
                 "{NODE_NAME}::{} answers something that is neither the tree nor \
-                 text, so walking the tree reaches outside it",
+                 a scalar, so walking the tree reaches outside it",
                 member.name
             );
         }
@@ -754,6 +847,18 @@ mod tests {
             Some(Tag::Str),
             "a node's kind is text — the grammar's name for the production"
         );
+        for (slot, what) in [
+            (LINE_SLOT, "line"),
+            (COLUMN_SLOT, "column"),
+            (OFFSET_SLOT, "offset"),
+        ] {
+            assert_eq!(
+                crate::instance::slot(receiver, slot).tag(),
+                Some(Tag::Int),
+                "a node's {what} is a number — where the production starts, and \
+                 never a handle to the source it starts in"
+            );
+        }
         let children = crate::instance::slot(receiver, CHILDREN_SLOT);
         assert_eq!(
             children.tag(),

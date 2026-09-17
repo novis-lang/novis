@@ -1,0 +1,42 @@
+--TEST--
+A Core\Ast\Node's column is in characters and its offset is in bytes, so two lines differing only in character width agree on the column — `rule:core-classes/ast-is-inert`, `rule:ide/positions-have-one-home`
+--FILE--
+<?nvs
+// The *agreement* shape, over the one question the three position members
+// answer differently: `column()` counts characters and `offset()` counts
+// bytes. Two statements are written with the same shape and the same number of
+// characters, one of them holding a two-byte `ä` and a three-byte `€`, and the
+// assertion is that the columns agree while the byte distances do not — a
+// column computed from the offset alone reads right on the ASCII line and puts
+// every later column on the wide one past where the text is.
+var $src = "<?nvs\necho \"ae\", 7;\necho \"ä€\", 7;\n";
+var $tree = Core\Ast::parse($src);
+var $walk = $tree->nodes();
+
+// Each line's `echo` is at column 1, so its offset is the line's own start —
+// which is what turns an offset into a byte column below without this case
+// counting the source a second time.
+var $plainEcho = $walk[0];
+var $plainInt = $walk[2];
+var $wideEcho = $walk[3];
+var $wideInt = $walk[5];
+
+int $plainStart = $plainEcho->offset() - ($plainEcho->column() - 1);
+int $wideStart = $wideEcho->offset() - ($wideEcho->column() - 1);
+
+echo "columns ", $plainInt->column(), " ", $wideInt->column(), "\n";
+echo "byte columns ", $plainInt->offset() - $plainStart + 1, " ",
+    $wideInt->offset() - $wideStart + 1, "\n";
+echo $plainInt->column() == $wideInt->column() ? "the same column on both lines" : "the column moved with the bytes", "\n";
+echo "bytes the two characters add: ",
+    ($wideInt->offset() - $wideStart) - ($plainInt->offset() - $plainStart), "\n";
+
+// And the lines themselves are counted from 1, one apart, so nothing above is
+// two readings of the same line.
+echo $plainInt->line(), " ", $wideInt->line(), "\n";
+--EXPECT--
+columns 12 12
+byte columns 12 15
+the same column on both lines
+bytes the two characters add: 3
+2 3

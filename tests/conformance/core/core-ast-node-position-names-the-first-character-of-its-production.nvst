@@ -1,0 +1,49 @@
+--TEST--
+A Core\Ast\Node's line, column and offset are its production's first character, named at both ends of the file — `rule:core-classes/ast-is-inert`
+--FILE--
+<?nvs
+// The *bound* shape, over the two positions a reader can count off the source
+// by hand: the first production in the file and the last. A member reporting a
+// node's *end*, or the enclosing statement's start, prints plausibly against
+// either one alone — the first node of a file shares its position with the
+// statement holding it, and the last is the only place an end-of-production
+// reading is unmistakable.
+//
+// The source is one literal so the numbers below are read off it directly:
+// `<?nvs` and its newline are six bytes, so line 2 starts at offset 6.
+var $src = "<?nvs\necho 1 + 2;\nif (1) { echo 3; }\n";
+var $tree = Core\Ast::parse($src);
+
+// The root is the file, which starts where its first statement does rather
+// than at the `<?nvs` the parser consumed to reach it.
+echo $tree->kind(), " ", $tree->line(), ":", $tree->column(), " @", $tree->offset(), "\n";
+
+// One line each for the whole walk, in source order: a nested production's
+// position is its own first character and never its parent's.
+foreach ($tree->nodes() as Core\Ast\Node $each) {
+    echo $each->kind(), " ", $each->line(), ":", $each->column(), " @", $each->offset(), "\n";
+}
+
+// The two ends as a pair, which is what the printed block alone does not
+// assert: the root's position is its first child's, and the last node of the
+// walk starts after every node before it, on a later line.
+var $walk = $tree->nodes();
+var $first = $walk[0];
+var $last = $walk[Core\Arr::count($walk) - 1];
+echo $tree->offset() == $first->offset() ? "the file starts where its first statement does" : "the file starts elsewhere", "\n";
+echo $last->offset() > $first->offset() ? "the last node starts after the first" : "the walk is out of order", "\n";
+echo $last->line() > $first->line() ? "and on a later line" : "and on the same line", "\n";
+--EXPECT--
+File 2:1 @6
+Echo 2:1 @6
+Binary 2:6 @11
+Int 2:6 @11
+Int 2:10 @15
+If 3:1 @18
+Int 3:5 @22
+Block 3:8 @25
+Echo 3:10 @27
+Int 3:15 @32
+the file starts where its first statement does
+the last node starts after the first
+and on a later line

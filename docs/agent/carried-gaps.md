@@ -166,15 +166,6 @@ where taking it is the work and the code that follows it is not.
   family the HTML parser fills too and HTML has no namespaces to put there. Goal `xml-tree` is
   retired and no milestone's plan names namespaces. `crates/nvs-stdlib/src/xml.rs` gap 1.
   [until: gone crates/nvs-stdlib/src/xml.rs:prefix and all]
-- **A `Core\Ast` node carries no position and no source text, so a walk classifies but cannot
-  quote.** A `#[Test]` that walks the tree can fail today and cannot name the `file:line` it failed
-  about, and a structural rule that cannot point is a check rather than a report
-  (`docs/adr/tooling-parity.md`, the Deptrac row). What has to be decided is a qualifier question
-  rather than a slot: that module's § *Decision: the tree is inert because there is nothing in it to
-  run* says a node answering its own source text is the point at which `parse`'s `$source` stops
-  being `Qual::Neutral`, so the text comes back out `tainted` and every consumer of it becomes a
-  sink question. `crates/nvs-stdlib/src/ast.rs` gap 1.
-  [until: gone crates/nvs-stdlib/src/ast.rs:carries no position and no text]
 - **A `secret` value held in an `array<T>` element or in a shape literal's field is dumped in full**,
   because redaction reads a *declared* property's bit off `nvs_runtime::ClassDesc::field_is_secret`
   and neither container has a declaration to read: `rule:security/secret-qualifier` does not compose

@@ -23299,13 +23299,16 @@ Parses `$source` with the compiler's own parser and answers the file's node tree
 <a id="core-core-ast-node"></a>
 ### `Core\Ast\Node`
 
-Keywords: kind, children, nodes
+Keywords: kind, children, nodes, line, column, offset
 
 | Member | Signature |
 |---|---|
 | [`Core\Ast\Node->kind`](#core-core-ast-node-kind) | `kind(): string` |
 | [`Core\Ast\Node->children`](#core-core-ast-node-children) | `children(): array<Core\Ast\Node>` |
 | [`Core\Ast\Node->nodes`](#core-core-ast-node-nodes) | `nodes(): array<Core\Ast\Node>` |
+| [`Core\Ast\Node->line`](#core-core-ast-node-line) | `line(): int` |
+| [`Core\Ast\Node->column`](#core-core-ast-node-column) | `column(): int` |
+| [`Core\Ast\Node->offset`](#core-core-ast-node-offset) | `offset(): int` |
 
 <a id="core-core-ast-node-kind"></a>
 #### `Core\Ast\Node->kind`
@@ -23339,6 +23342,39 @@ $node->nodes(): array<Core\Ast\Node>
 Every node this one contains, however deeply — `children` closed transitively, which is the whole walk when the receiver is the file.
 
 **Returns** `array<Core\Ast\Node>` — The subtree in source order, the receiver excluded: both this and `children` answer what the node *contains*, and a node does not contain itself.
+
+<a id="core-core-ast-node-line"></a>
+#### `Core\Ast\Node->line`
+
+```nvs skip
+$node->line(): int
+```
+
+The 1-based line this production starts on, so a rule that walks the tree can report a `file:line` rather than only a verdict.
+
+**Returns** `int` — The line of the node's first character, counting the file's first line as 1.
+
+<a id="core-core-ast-node-column"></a>
+#### `Core\Ast\Node->column`
+
+```nvs skip
+$node->column(): int
+```
+
+The 1-based column this production starts at, counted in characters rather than bytes.
+
+**Returns** `int` — The column of the node's first character, counting the line's first character as 1. Characters, so a line holding a `ß` before the node still points at it.
+
+<a id="core-core-ast-node-offset"></a>
+#### `Core\Ast\Node->offset`
+
+```nvs skip
+$node->offset(): int
+```
+
+The byte offset this production starts at, from the beginning of the parsed source.
+
+**Returns** `int` — The 0-based offset into the string `parse` was given, which is what a caller holding that string slices with. The node never answers the slice itself.
 
 <a id="core-core-db"></a>
 ### `Core\Db`

@@ -737,6 +737,14 @@ surface: a `Core` class sits in no hierarchy and `instanceof` against one is ref
 production is what `Core\Reflect::forObject` answers and `kind()` is the same production spelled
 short.
 
+**A node says where it is and never what it says.** `line()`, `column()` and `offset()` name the
+first character of the production — the line and column counted from 1, the column in characters and
+the offset in bytes — so a `#[Test]` that walks the tree reports a `file:line` rather than only a
+verdict, and a structural rule becomes a report rather than a check. No member answers a node's own
+source text: the position is derived from the argument rather than carried out of it, which is what
+keeps `parse`'s `$source` qualifier-neutral, and a caller wanting the text holds the string it passed
+and slices it at the offset itself.
+
 **A parsed tree is inert. There is no path from an AST value back into execution.** `eval` does not
 exist and stays rejected: a string has no stable identity, no cache key, and no capability-grantable
 path. A program can walk a tree, print it, or rewrite it into a new source string to hand to a human
