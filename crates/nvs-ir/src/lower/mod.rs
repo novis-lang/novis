@@ -964,7 +964,40 @@ pub fn lower_program(
         classes,
         statics: static_props(layouts, exprs, checked_types),
         shape_codecs,
+        enums: enum_shapes(enums),
     }
+}
+
+/// Every enum the checker resolved, as the list `nvs-codegen` hands to
+/// `nvs_runtime::ClassTable::define_enum` — `rule:enums/reflection`'s whole
+/// carriage from the front end to the runtime.
+///
+/// The table's own entries, unfiltered: a program can ask
+/// `Core\Reflect\EnumInfo::of` for a `Core` enum as readily as for one of its
+/// own, and the seeded rows are the only source either way. Sorted by label so
+/// a unit's roster does not move with a hash map's iteration order, which a
+/// golden test would otherwise read as a change.
+fn enum_shapes(enums: &EnumTable) -> Vec<crate::ir::Enum> {
+    let mut shapes: Vec<_> = enums
+        .iter()
+        .map(|(qname, info)| crate::ir::Enum {
+            label: qname.to_string(),
+            unsigned: info.backing == nvs_types::enums::EnumBacking::Uint,
+            cases: info
+                .cases
+                .iter()
+                .map(|(name, value)| {
+                    let widened = match *value {
+                        nvs_types::enums::EnumValue::Int(signed) => i128::from(signed),
+                        nvs_types::enums::EnumValue::Uint(unsigned) => i128::from(unsigned),
+                    };
+                    (name.clone(), widened)
+                })
+                .collect(),
+        })
+        .collect();
+    shapes.sort_by(|a, b| a.label.cmp(&b.label));
+    shapes
 }
 
 /// Every inline shape the unit wrote as a type argument, as the table

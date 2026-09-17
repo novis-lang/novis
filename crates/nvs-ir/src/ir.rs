@@ -27,6 +27,38 @@ pub struct Program {
     /// shape's contract is a table of its own rather than a field of the class
     /// its descriptor names.
     pub shape_codecs: Vec<ShapeCodec>,
+    /// Every `enum` the checker resolved for this unit — the program's own
+    /// declarations and the `Core` ones its table is seeded with alike, in no
+    /// particular order. See [`Enum`].
+    pub enums: Vec<Enum>,
+}
+
+/// One declared `enum`'s whole shape, on its way to
+/// `nvs_runtime::ClassTable::define_enum`.
+///
+/// Not a [`Class`], and the difference is the reason this list exists at all:
+/// `rule:enums/representation` makes a case *be* the integer behind it, so an
+/// enum has no descriptor, no instance and nothing compiled code reaches. What
+/// a unit still has to carry is the shape itself, because
+/// `rule:enums/reflection` reports it at run time and the checker is the only
+/// place it exists.
+///
+/// Copied off `nvs_types::enums::EnumTable` rather than collected out of the
+/// functions that lowered, for [`ShapeCodec`]'s reason exactly: a declaration
+/// is a fact about the program, and a unit that mentions one of its cases
+/// nowhere still declares it.
+#[derive(Clone, Debug)]
+pub struct Enum {
+    /// The enum's rendered name, spelled the way [`Class::label`] is.
+    pub label: String,
+    /// Whether the backing type is `uint` — `rule:enums/one-backing-type`'s
+    /// other option, and the whole of what decides which integer type a case's
+    /// value reads back as.
+    pub unsigned: bool,
+    /// Every declared case as `(name, value)`, widened to `i128` so one field
+    /// carries both backings with no lossy cast. Ordering is
+    /// `nvs_runtime::ClassTable::define_enum`'s, which is where it is settled.
+    pub cases: Vec<(String, i128)>,
 }
 
 /// The wire contract of one inline shape a call site wrote as a type argument —

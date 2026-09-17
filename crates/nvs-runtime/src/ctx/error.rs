@@ -103,6 +103,17 @@ impl ErrorClass {
             self.table.id_of(name)?,
         ))
     }
+
+    /// The shape of the `enum` named `name` in the *same* table, or `None` if
+    /// the unit declares none.
+    ///
+    /// A borrow rather than a handle, unlike [`Self::sibling`]: an enum has no
+    /// descriptor whose address anything holds, so there is nothing to keep
+    /// alive past the read and the answer is copied out of it on the spot.
+    #[must_use]
+    pub fn enum_desc(&self, name: &str) -> Option<&crate::EnumDesc> {
+        self.table.enum_desc(name)
+    }
 }
 
 /// What is behind a pending non-[`crate::OK`] status.
@@ -264,6 +275,21 @@ impl Ctx {
             .and_then(|class| class.sibling(name))
             .map(|class| class.desc())
             .or_else(|| (self.core_classes?)(name))
+    }
+
+    /// The shape of the `enum` named `name`, or `None` if the running program
+    /// declares none — `rule:enums/reflection`'s one reader, reached by
+    /// `Core\Reflect\EnumInfo::of`.
+    ///
+    /// One table, no resolver fallback: [`Self::class_desc`] needs one because
+    /// a `Core` class is a descriptor this crate does not own, while every
+    /// enum the checker knows — the program's own and `Core`'s alike — is
+    /// seeded into the one table `nvs-codegen` fills.
+    #[must_use]
+    pub fn enum_desc(&self, name: &str) -> Option<&crate::EnumDesc> {
+        self.runtime_error_class
+            .as_ref()
+            .and_then(|class| class.enum_desc(name))
     }
 
     /// The same table as a **handle that keeps it alive by itself** — one

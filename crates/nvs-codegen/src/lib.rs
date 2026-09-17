@@ -956,7 +956,7 @@ impl Descriptors {
     /// Builds every descriptor `program` declares, parents first.
     #[must_use]
     pub fn of(program: &Program) -> Self {
-        let classes = Classes::build(&program.classes, &program.shape_codecs);
+        let classes = Classes::build(&program.classes, &program.shape_codecs, &program.enums);
         let by_symbol = classes
             .descriptors()
             .map(|(label, desc)| (class_desc_symbol(label), desc.cast::<u8>()))
@@ -1297,7 +1297,11 @@ impl Classes {
     /// an error: an `extends` the front end already diagnosed leaves one
     /// behind, and a second unexplained failure here would only bury the
     /// first.
-    fn build(classes: &[nvs_ir::ir::Class], shapes: &[nvs_ir::ir::ShapeCodec]) -> Self {
+    fn build(
+        classes: &[nvs_ir::ir::Class],
+        shapes: &[nvs_ir::ir::ShapeCodec],
+        enums: &[nvs_ir::ir::Enum],
+    ) -> Self {
         let mut out = Self::default();
         let by_label: FxHashMap<&str, &nvs_ir::ir::Class> = classes
             .iter()
@@ -1317,6 +1321,14 @@ impl Classes {
         // is a pass of its own at all.
         out.define_shape_codecs(shapes);
         out.link_codecs(classes);
+        // Beside the descriptors rather than among them: `rule:enums/reflection`
+        // is the one reader of this roster, and nothing it holds is relocated
+        // against, since an enum case at run time is the integer behind it and
+        // compiled code never names the shape at all.
+        for shape in enums {
+            out.table
+                .define_enum(shape.label.clone(), shape.unsigned, shape.cases.clone());
+        }
         out
     }
 
@@ -1961,7 +1973,7 @@ impl<M: Module> UnitBuilder<M> {
     /// defined function; `finalize_definitions` is what would object if one
     /// were never defined.
     fn compile_all(&mut self, program: &Program) -> Result<(), CodegenError> {
-        self.classes = Classes::build(&program.classes, &program.shape_codecs);
+        self.classes = Classes::build(&program.classes, &program.shape_codecs, &program.enums);
         // Publish every descriptor before any body is emitted, for the same
         // reason the function declarations below come first: a lowering may
         // name a class declared further down, and by relocation time every
@@ -2603,7 +2615,7 @@ mod tests {
         let program = lower("<?nvs\nint $x = 1;\n");
         assert_eq!(Descriptors::of(&program).resolve(&name), Some(published));
         assert!(
-            Classes::build(&program.classes, &program.shape_codecs)
+            Classes::build(&program.classes, &program.shape_codecs, &program.enums)
                 .desc(nvs_runtime::CARRIER_HTML_MARKUP)
                 .is_none(),
             "the unit's own table answers for the carrier, so the import is not one"

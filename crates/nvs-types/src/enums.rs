@@ -125,6 +125,16 @@ impl EnumTable {
     pub fn case(&self, qname: &QName, case: &str) -> Option<EnumValue> {
         self.by_name.get(qname)?.cases.get(case).copied()
     }
+
+    /// Every entry, in no particular order — what `nvs_ir::lower` copies down
+    /// so `rule:enums/reflection` has a case list to report at run time.
+    ///
+    /// Unordered because the map is: a declaration's own order survives nothing
+    /// below the parser, so the order a reader sees is settled once, by
+    /// `nvs_runtime::ClassTable::define_enum`, rather than half here.
+    pub fn iter(&self) -> impl Iterator<Item = (&QName, &EnumInfo)> {
+        self.by_name.iter()
+    }
 }
 
 /// Resolves every `enum` declaration in every file of the program, reporting

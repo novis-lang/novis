@@ -860,6 +860,77 @@ pub struct EnumCases {
     pub values: Vec<i128>,
 }
 
+/// One declared `enum`'s whole shape — its rendered name, which of
+/// `rule:enums/one-backing-type`'s two integer types its cases are constants
+/// of, and every case by name.
+///
+/// [`ClassDesc`]'s counterpart for the one type that has no descriptor:
+/// `rule:enums/representation` makes an enum case *be* the integer behind it at
+/// run time, so nothing about a running value can be asked what enum it came
+/// from and there is no class to hang the answer on. `rule:enums/reflection` is
+/// the one reader — `Core\Reflect\EnumInfo::of` reports a name and a closed
+/// case list as ordinary structural metadata — and the shape is carried here
+/// because the front end is the only place it exists: `nvs_types::enums`
+/// resolves it, `nvs_ir::ir::Program::enums` carries it down, and
+/// [`ClassTable::define_enum`] is what fills this.
+///
+/// It grants an enum nothing: no dispatch, no identity, nothing that acts on a
+/// value. Everything here is what the declaration already published to the
+/// checker.
+///
+/// **Cost:** one `String` per case plus the value, per declared enum, once per
+/// process and never per instance — an enum has none.
+#[derive(Clone, Debug)]
+pub struct EnumDesc {
+    /// The enum's rendered name, spelled as `Name::class` renders it and as
+    /// `nvs_ir` labels a class — `Enum` or `Ns\Enum`.
+    name: String,
+    /// Whether the backing type is `uint`, which is the whole of what decides
+    /// whether a case's value reads back as a [`Value::int`] or a
+    /// [`Value::uint`].
+    unsigned: bool,
+    /// Every declared case as `(name, value)`, ascending by value and then by
+    /// name. Ordered rather than hashed because it is answered as a list: the
+    /// declaration's own order is not carried by anything below the parser, and
+    /// a total order the runtime can state is worth more to a caller than one
+    /// it would have to sort itself.
+    ///
+    /// Widened to `i128` for [`EnumCases::values`]' reason exactly — one field
+    /// answers for both backings with no lossy cast.
+    cases: Vec<(String, i128)>,
+}
+
+impl EnumDesc {
+    /// The enum's rendered name.
+    #[must_use]
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Whether the cases are constants of `uint` rather than of `int`.
+    #[must_use]
+    pub const fn unsigned(&self) -> bool {
+        self.unsigned
+    }
+
+    /// Every declared case as `(name, value)`, in [`Self::cases`]' stated
+    /// order.
+    #[must_use]
+    pub fn cases(&self) -> &[(String, i128)] {
+        &self.cases
+    }
+
+    /// The value of the case named `case`, or `None` if this enum declares
+    /// none.
+    #[must_use]
+    pub fn value_of(&self, case: &str) -> Option<i128> {
+        self.cases
+            .iter()
+            .find(|(name, _)| name == case)
+            .map(|(_, value)| *value)
+    }
+}
+
 /// What one position of a [`CodecTy::List`] field holds — the element's own
 /// wire type, and, where that is another list, its element in turn.
 ///
@@ -1478,6 +1549,15 @@ pub struct ClassTable {
         reason = "each contract's address must survive later definitions;                   see `classes` above"
     )]
     shape_codecs: Vec<Box<ShapeCodec>>,
+    /// Every `enum` the unit's files declare, plus every `Core` enum the
+    /// checker seeded its table with — see [`EnumDesc`].
+    ///
+    /// Unboxed, unlike the two above, and that is the whole difference between
+    /// them: no address of one is ever baked into machine code, because an enum
+    /// case at run time is the integer behind it and compiled code never
+    /// reaches this at all. The one reader is `Core\Reflect\EnumInfo::of`,
+    /// which arrives by name.
+    enums: Vec<EnumDesc>,
 }
 
 /// A table is `Send` and `Sync` because a compiled unit is read by every core.
@@ -1492,7 +1572,8 @@ pub struct ClassTable {
 /// The claim these make, and each half of why it holds:
 ///
 /// - **Nothing here is interiorly mutable.** Every field of a [`ClassDesc`], a
-///   [`MethodRow`] and a [`ShapeCodec`] is a plain owned value or a raw pointer;
+///   [`MethodRow`], a [`ShapeCodec`] and an [`EnumDesc`] is a plain owned value
+///   or a raw pointer;
 ///   the `Cell`s in this module are all in [`ObjHeader`] and [`LiveList`], which
 ///   are per-instance and per-request and reach nothing a table owns. So two
 ///   cores holding `&ClassTable` are two readers of frozen memory.
@@ -2035,6 +2116,40 @@ impl ClassTable {
             .get(id.0)
             .expect("a class id always belongs to the table that handed it out");
         &raw const **desc
+    }
+
+    /// Records one declared `enum`'s shape — [`EnumDesc`]'s whole write path.
+    ///
+    /// `cases` arrives as the declaration resolved it and is sorted here, by
+    /// value and then by name, so [`EnumDesc::cases`]' stated order is a
+    /// property of the table rather than of whichever pass filled it.
+    ///
+    /// Hands back no token, unlike [`ClassTable::define`]: there is nothing to
+    /// fill in a second pass, because an enum names no other type.
+    pub fn define_enum(
+        &mut self,
+        name: impl Into<String>,
+        unsigned: bool,
+        cases: Vec<(String, i128)>,
+    ) {
+        let mut cases = cases;
+        cases.sort_by(|a, b| a.1.cmp(&b.1).then_with(|| a.0.cmp(&b.0)));
+        self.enums.push(EnumDesc {
+            name: name.into(),
+            unsigned,
+            cases,
+        });
+    }
+
+    /// The enum named `name`, or `None` if this unit declares none.
+    ///
+    /// A linear scan, on [`ClassTable::id_of`]'s reasoning: the one caller is
+    /// `Core\Reflect\EnumInfo::of`, which a program reaches for to describe a
+    /// type rather than in a loop over values, and a second index would cost
+    /// every unit to save that call nothing it can measure.
+    #[must_use]
+    pub fn enum_desc(&self, name: &str) -> Option<&EnumDesc> {
+        self.enums.iter().find(|desc| desc.name == name)
     }
 
     /// How many classes are defined.
