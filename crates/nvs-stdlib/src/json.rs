@@ -18,10 +18,13 @@
 //!   [`Value`]s *directly* — nothing is ever materialized twice. That is what
 //!   keeps [``rule:programs/memory-priority``](/docs/decisions/0004.md)'s
 //!   priority 3 honest on a member every request path uses.
-//! * **The serializer's escaping and number formatting are the crate's.** Novis
-//!   writes no JSON grammar of its own at all: [`Encodable`] answers
-//!   `serialize_i64`/`serialize_str`/`serialize_map` and the crate decides what
-//!   bytes those are.
+//! * **Every byte of the document is the crate's.** Novis writes no JSON
+//!   grammar of its own at all: one scalar at a time goes through the crate's
+//!   serializer for its escaping and its number formatting, and the structure
+//!   around them — the braces, the commas, the `pretty` profile's indentation —
+//!   is `serde_json`'s own [`Formatter`]. What [`Encodable`] owns is the
+//!   *order* values are visited in, which is what § *The walk carries its own
+//!   stack* is about.
 //!
 //! Pure Rust, no build script, no C — `rule:packaging/a-c-dependency-answers-two-questions`'s two questions do not even
 //! arise.
@@ -56,8 +59,8 @@
 //!   nesting.
 //! * **A value the walk is already inside throws**, naming the dotted chain of
 //!   keys that closed the cycle —
-//!   `rule:classes/an-encoder-ends-a-cycle-by-identity`, carried by
-//!   [`Encodable`]'s ancestor frames. The chain is what encloses the value and
+//!   `rule:classes/an-encoder-ends-a-cycle-by-identity`, decided against the
+//!   [`Stack`] the walk descends on. The chain is what encloses the value and
 //!   not everything already written, so an object two properties both hold is
 //!   written out twice: JSON can express repetition and not sharing. Nothing
 //!   is substituted into the document to stand for the cycle, because this
@@ -187,7 +190,7 @@
 //! field walk would refuse for not being an object.
 //!
 //! **The encoding half parts at the same place, one condition ahead of the
-//! field list.** [`Encodable::serialize_object`] asks the class table for
+//! field list.** [`Stack::object`] asks the class table for
 //! [`ENCODE`] before it reads the derived codec, so a class that wrote `toJson`
 //! encodes as that member answers, and one carrying `#[Json\Derive]` as well
 //! keeps its own encoder while the derived field list stays the decoder's. What
@@ -211,6 +214,26 @@
 //! member raises travels out on [`Reentry`] rather than as `serde`'s own error,
 //! which is a string and would lose the class a `catch` names.
 //!
+//! # The walk carries its own stack
+//!
+//! The encoder descends on a `Vec` of [`Frame`]s rather than on native ones:
+//! one value is written per turn of a loop, and a container pushes a frame the
+//! next turn steps into. So [`DEPTH_CEILING`] is a bound the encoder actually
+//! keeps — a document nested past it is a catchable throw whatever thread the
+//! request is running on, rather than an abort once that thread's stack happens
+//! to run out, which is a process-wide failure on behalf of one request.
+//!
+//! **What it spends:** one `Vec` per encode, at most `DEPTH_CEILING - 1` frames
+//! long and each frame under 64 bytes — the `const` assertion beside [`Frame`]
+//! is what keeps that second half true. So tens of kilobytes for a document
+//! actually nested to the ceiling, a few frames for the ones programs write,
+//! and nothing at all left behind: it is released with the call, which is the
+//! O(in-flight) shape `rule:programs/memory-priority` asks for.
+//!
+//! The stack is the ancestor chain as well, so the cycle test and the path a
+//! message names a value with read off it rather than out of a second
+//! structure.
+//!
 //! # Known gaps
 //!
 //! 1. **Both halves walk a per-class field list rather than straight-line
@@ -226,28 +249,15 @@
 //!    lookup for toJson); amend the rule — One native walker and small, local changes; costs one loop
 //!    and a string compare per field.
 //!    — owner: decided-closures
-//! 2. **The encoder's real bound is the native stack, not [`DEPTH_CEILING`].**
-//!    [`Encodable`] recurses through `serde_json`'s serializer, and a document
-//!    nested deeply enough runs the thread's stack out well before the ceiling
-//!    is reached — an abort, not a throw. What the refusal above took away is
-//!    the half of that a program reaches by accident: a value holding itself
-//!    ends at its first repeat instead of descending until something stops it.
-//!    What is left is a document that is legal and merely very deep, and what
-//!    has to be decided is whether the walk carries an explicit stack — which
-//!    makes the bound an allocation the request is charged for — or the ceiling
-//!    is read from the space
-//!    `rule:concurrency/a-task-stack-is-reserved-wide-and-pooled` reserves.
-//!    Goal `resource-ceilings` names the stack ceiling out of its own scope, so
-//!    it is not that goal's.
-//!    Decided: Walk with an explicit heap stack charged to the request — Always a catchable throw at
-//!    the ceiling; the stack is a small allocation billed to the request.
-//!    — owner: decided-closures
 
 use std::fmt;
 
-use nvs_runtime::{CodecTy, EnumCases, Fault, NvsArray, NvsObj, NvsStr, Tag, ThrownClass, Value};
+use nvs_runtime::{
+    ClassDesc, CodecTy, EnumCases, Fault, NvsArray, NvsObj, NvsStr, Tag, ThrownClass, Value,
+};
 use serde::de::{DeserializeSeed, Deserializer, MapAccess, SeqAccess, Visitor};
-use serde::ser::{Error as _, Serialize, SerializeMap, SerializeSeq, Serializer};
+use serde::ser::{Error as _, Serialize};
+use serde_json::ser::{CompactFormatter, Formatter, PrettyFormatter};
 
 use crate::registry::{
     Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
@@ -564,16 +574,16 @@ const ENCODE: &str = "toJson";
 /// The walk's door back into compiled code, and the way a [`Fault`] raised
 /// behind it gets out.
 ///
-/// Two things a `serde::Serialize` cannot hold for itself. The context is a
-/// **pointer** because `Serialize::serialize` takes `&self` and every
-/// [`Encodable`] on the walk is a `Copy` value of one, so there is no `&mut` to
-/// thread down; it is re-derived for exactly the length of one call and never
-/// held across a nested walk, which is the same shape every helper's own ABI
-/// boundary gives a `Ctx`. The fault is behind a cell because `S::Error` is a
-/// string and a thrown class is not: the walk stops with an ordinary `serde`
-/// error and the [`Fault`] — a [`Fault::Pending`] whose exception object is
-/// already recorded on the context — is picked up by [`rendered`] on the way
-/// out.
+/// Two things the walk cannot hold for itself. The context is a **pointer**
+/// because one [`Reentry`] is shared by every level of a descent and by a
+/// hand-written [`ENCODE`] running inside it, so there is no `&mut` to thread
+/// down; it is re-derived for exactly the length of one call and never held
+/// across a nested walk, which is the same shape every helper's own ABI
+/// boundary gives a `Ctx`. The fault is behind a cell because a
+/// `serde_json::Error` is a string and a thrown class is not: the walk stops
+/// with an ordinary one and the [`Fault`] — a [`Fault::Pending`] whose
+/// exception object is already recorded on the context — is picked up by
+/// [`rendered`] on the way out.
 #[derive(Debug)]
 pub(crate) struct Reentry {
     /// The context the member that is encoding holds.
@@ -615,13 +625,14 @@ impl Reentry {
     }
 }
 
-/// One Novis value being written as JSON, at a known nesting level and inside
-/// a known chain of ancestors.
+/// One whole document being written as JSON: the value at its root, and the
+/// door back into compiled code every level under it shares.
 ///
 /// `Copy`, and holding the [`Value`] by value rather than by reference: a
 /// `Value` is sixteen bytes the caller owns for the length of the call, and
 /// every array this walks into is reached through a *borrowed* handle
-/// ([`crate::arr::borrowed`]) that takes no reference of its own.
+/// ([`crate::arr::borrowed`]) that takes no reference of its own. Where the
+/// walk has got to lives on [`Stack`] rather than here.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct Encodable<'a> {
     value: Value,
@@ -629,185 +640,232 @@ pub(crate) struct Encodable<'a> {
     /// rather than held, so every level of one walk shares the one context and
     /// the one place a raised fault lands.
     walk: &'a Reentry,
-    /// This value's own nesting level, counted as [`DEFAULT_MAX_DEPTH`]
-    /// counts: the document is 1.
-    depth: u32,
-    /// The step that reached this value, and `None` for the document: the
-    /// segment it contributes to [`Encodable::path`].
-    step: Option<Step<'a>>,
-    /// The objects and arrays this value is inside, innermost first, which is
-    /// what `rule:classes/an-encoder-ends-a-cycle-by-identity` decides a cycle
-    /// by.
-    ancestors: Option<&'a Ancestor<'a>>,
 }
 
-/// One object or array the walk is currently inside.
+/// One container the walk is inside, and where it has got to in it.
 ///
-/// A borrowed cons list rather than a set or a `Vec`: a frame lives in the
-/// stack frame of the arm that walked into it, which lasts exactly as long as
-/// that value's elements are being written, so the encoder allocates nothing
-/// for this. The chain is the path from the document down rather than
-/// everything seen, so the membership test is linear in the nesting level —
-/// bounded by [`DEPTH_CEILING`], which the arms check first.
-#[derive(Clone, Copy, Debug)]
-struct Ancestor<'a> {
+/// The stack of these **is** the descent: a document's nesting is a `Vec` on
+/// the heap rather than a chain of native frames, so what bounds an encode is
+/// [`DEPTH_CEILING`] and not whatever stack the thread happens to have been
+/// given. It is also the ancestor chain
+/// `rule:classes/an-encoder-ends-a-cycle-by-identity` decides a cycle against,
+/// and the path a message names a value with.
+#[derive(Debug)]
+struct Frame {
     /// The allocation's address, which is a live value's identity. An object
     /// and an array are distinct allocations, so one `usize` answers for both.
     id: usize,
-    /// The same allocation as the value that holds a reference to it, which is
-    /// what [`Standing`] retains before a hand-written member runs.
+    /// The container as the value that holds a reference to it — what
+    /// [`Standing`] retains before a hand-written member runs, and the handle
+    /// every step of this frame is re-borrowed from, so the frame holds no
+    /// borrow of its own and the `Vec` stays plain data.
     value: Value,
-    /// The step that reached this frame, and `None` for the document.
-    step: Option<Step<'a>>,
-    /// The frame one level further out.
-    outer: Option<&'a Ancestor<'a>>,
+    /// Where the walk has got to inside it.
+    at: Cursor,
+    /// Whether an entry has been written already, which is the `first` every
+    /// [`Formatter`] separator asks for.
+    wrote: bool,
 }
 
-/// One segment of the chain from the document to a value.
+/// A frame at its widest, which is the half of [`Stack`]'s per-request cost
+/// the code enforces — this module's § *The walk carries its own stack* states
+/// the product.
+const _: () = assert!(std::mem::size_of::<Frame>() <= 64);
+
+/// Where a [`Frame`] has got to: the entry it is in, and the one to look at
+/// next.
 ///
-/// A key borrowed from the descriptor or the array rather than an owned
-/// `String`, and a position held as the number it is, so walking into an
-/// element costs no allocation on a path no message ever asks for.
-#[derive(Clone, Copy, Debug)]
-enum Step<'a> {
-    /// An object's wire key, a shape's field name, or a non-list array's key.
-    Key(&'a str),
-    /// A list element's position.
-    Index(usize),
+/// The entry it is in is held as a *position* rather than as a key, because
+/// the key is the array's or the descriptor's own and re-reading it costs
+/// nothing until a message asks for a path, which almost no encode does.
+#[derive(Debug)]
+enum Cursor {
+    /// An array's entries: the slot to look at next, the slot the walk is in,
+    /// and whether this array's keys made it a JSON array rather than a JSON
+    /// object.
+    Entries { next: usize, at: usize, list: bool },
+    /// An `rule:types/object-literal` shape's slots, written under each field's
+    /// own name.
+    Shape { next: usize, at: usize },
+    /// A declared class's derived codec fields, by position in
+    /// [`ClassDesc::codec`].
+    Fields { next: usize, at: usize },
+    /// What a hand-written [`ENCODE`] answered, written where the object was:
+    /// one value, no punctuation of its own, and no path segment either.
+    Returned { produced: Value, written: bool },
+}
+
+/// The document being written, and the crate's own writer for every byte of it.
+///
+/// `serde_json`'s [`Formatter`] decides each structural byte — the braces, the
+/// commas, the `pretty` profile's indentation — and one scalar at a time goes
+/// through the crate's serializer for its escaping and its number formatting.
+/// The calls below are made in the order `serde_json`'s own serializer makes
+/// them, so a [`PrettyFormatter`], whose indentation is state it carries
+/// between them, writes what `serde_json::to_string_pretty` would have.
+struct Sink<F> {
+    out: Vec<u8>,
+    fmt: F,
+}
+
+/// What a write into [`Sink`]'s buffer cannot be.
+const INFALLIBLE: &str = "a `Vec<u8>` sink never fails a write";
+
+impl<F: Formatter> Sink<F> {
+    /// One scalar, spelled by the crate: its escaping, its number formatting.
+    ///
+    /// A fresh serializer per scalar rather than one held across the walk,
+    /// which is what lets the structure above it be a loop instead of a
+    /// recursion. The bytes are the same either way — a scalar has no
+    /// punctuation for a formatter to profile.
+    ///
+    /// # Errors
+    ///
+    /// Whatever the crate refuses to write, which for the tags reaching here is
+    /// nothing.
+    fn scalar<T: Serialize + ?Sized>(&mut self, value: &T) -> Result<(), serde_json::Error> {
+        serde_json::to_writer(&mut self.out, value)
+    }
+
+    fn open_array(&mut self) {
+        self.fmt.begin_array(&mut self.out).expect(INFALLIBLE);
+    }
+
+    fn close_array(&mut self) {
+        self.fmt.end_array(&mut self.out).expect(INFALLIBLE);
+    }
+
+    fn open_element(&mut self, first: bool) {
+        self.fmt
+            .begin_array_value(&mut self.out, first)
+            .expect(INFALLIBLE);
+    }
+
+    fn close_element(&mut self) {
+        self.fmt.end_array_value(&mut self.out).expect(INFALLIBLE);
+    }
+
+    fn open_object(&mut self) {
+        self.fmt.begin_object(&mut self.out).expect(INFALLIBLE);
+    }
+
+    fn close_object(&mut self) {
+        self.fmt.end_object(&mut self.out).expect(INFALLIBLE);
+    }
+
+    /// The separator, the key and the colon that reach one entry's value.
+    ///
+    /// # Errors
+    ///
+    /// As [`Sink::scalar`]'s, the key being a string like any other.
+    fn key(&mut self, first: bool, name: &str) -> Result<(), serde_json::Error> {
+        self.fmt
+            .begin_object_key(&mut self.out, first)
+            .expect(INFALLIBLE);
+        self.scalar(name)?;
+        self.fmt.end_object_key(&mut self.out).expect(INFALLIBLE);
+        self.fmt
+            .begin_object_value(&mut self.out)
+            .expect(INFALLIBLE);
+        Ok(())
+    }
+
+    fn close_entry(&mut self) {
+        self.fmt.end_object_value(&mut self.out).expect(INFALLIBLE);
+    }
+}
+
+/// The walk's own stack, on the heap.
+///
+/// Empty at the document and never longer than [`DEPTH_CEILING_FRAMES`],
+/// because the arms refuse to descend past that — so the walk's native cost is
+/// one frame whatever the document does, and the ceiling is a bound the encoder
+/// keeps rather than a number the thread's stack decides first.
+#[derive(Debug)]
+struct Stack {
+    frames: Vec<Frame>,
+}
+
+impl Drop for Stack {
+    /// What a [`Cursor::Returned`] still holds, released.
+    ///
+    /// The ordinary path releases as it pops ([`Stack::close`]); this is the
+    /// refusal path, where the walk stops with frames still open. A popped
+    /// frame is gone from the `Vec`, so nothing is released twice.
+    fn drop(&mut self) {
+        for frame in self.frames.drain(..) {
+            if let Cursor::Returned { produced, .. } = frame.at {
+                #[expect(
+                    unsafe_code,
+                    reason = "`call_method` handed this frame a fresh reference and \
+                              the walk above it kept none of it"
+                )]
+                unsafe {
+                    produced.release();
+                }
+            }
+        }
+    }
 }
 
 impl<'a> Encodable<'a> {
     /// A whole document — the value at the top level, which is where
     /// [`DEFAULT_MAX_DEPTH`] counts from.
     ///
-    /// A constructor rather than public fields because the depth is the
-    /// invariant: a caller outside this module has no business choosing a
-    /// nesting level, and [`crate::log`] — the second writer of a JSON value
-    /// in this crate, and the reason this type is `pub(crate)` at all — writes
-    /// a `fields` bag that is a document exactly as `Core\Json::encode`'s
+    /// A constructor rather than public fields because a document is the only
+    /// thing this may be: a caller outside this module has no business starting
+    /// a walk part-way down, and [`crate::log`] — the second writer of a JSON
+    /// value in this crate, and the reason this type is `pub(crate)` at all —
+    /// writes a `fields` bag that is a document exactly as `Core\Json::encode`'s
     /// argument is. One encoder, so a `float` or a nested array cannot be
     /// spelled two ways depending on which member wrote it.
     pub(crate) fn document(walk: &'a Reentry, value: Value) -> Self {
-        Self {
-            value,
-            walk,
-            depth: 1,
-            step: None,
-            ancestors: None,
-        }
+        Self { value, walk }
     }
 
-    /// One of this value's elements, one level deeper and one frame further in.
-    fn child(self, inside: &'a Ancestor<'a>, step: Step<'a>, value: Value) -> Self {
-        Self {
-            value,
-            walk: self.walk,
-            depth: self.depth + 1,
-            step: Some(step),
-            ancestors: Some(inside),
-        }
-    }
-
-    /// What this value's own [`ENCODE`] answered, at this value's position.
+    /// The whole document, written through `fmt`'s punctuation.
     ///
-    /// One level deeper and one frame further in, exactly as an element is, so
-    /// a member answering with the object it was called on is the cycle
-    /// [`Self::cycle`] already ends and a chain of them is bounded by
-    /// [`DEPTH_CEILING`] rather than by the native stack. It contributes **no**
-    /// path segment: the document holds this value where the object was, so a
-    /// message naming a value inside it names the object's own path and not a
-    /// step no key spells.
-    fn returned(self, inside: &'a Ancestor<'a>, value: Value) -> Self {
-        Self {
-            value,
-            walk: self.walk,
-            depth: self.depth + 1,
-            step: None,
-            ancestors: Some(inside),
-        }
-    }
-
-    /// This value as the frame its own elements are inside, identified by the
-    /// address of the allocation the arm is about to walk.
-    fn frame(self, id: usize) -> Ancestor<'a> {
-        Ancestor {
-            id,
-            value: self.value,
-            step: self.step,
-            outer: self.ancestors,
-        }
-    }
-
-    /// Every value the walk is standing on, innermost first: this one, then
-    /// each container it is inside up to the document.
+    /// A loop over [`Stack`] rather than a recursion: one value is written per
+    /// turn, and a container pushes a frame the next turn steps into, so the
+    /// only thing a document's nesting spends is that `Vec`. Every
+    /// [`Formatter`] call is made in the order `serde_json`'s own serializer
+    /// makes it — separator, key, colon, value, end — because a
+    /// [`PrettyFormatter`] carries its indentation between them.
     ///
-    /// The chain is the path and not everything already written, so this is as
-    /// long as the nesting level and no longer — [`DEPTH_CEILING`], which the
-    /// arms check before they descend.
-    fn standing_on(self) -> impl Iterator<Item = Value> + 'a {
-        std::iter::once(self.value).chain(
-            std::iter::successors(self.ancestors, |frame| frame.outer).map(|frame| frame.value),
-        )
-    }
-
-    /// The refusal `rule:classes/an-encoder-ends-a-cycle-by-identity` asks for
-    /// when the allocation at `id` is one this walk is already inside, and
-    /// `None` when it is not.
+    /// # Errors
     ///
-    /// The test is against the ancestor chain and never against everything
-    /// already written: an object two properties both hold is shared rather
-    /// than cyclic, and a format that cannot express sharing has no answer but
-    /// to write it twice. Only a repeat on the current path is a walk that
-    /// would not end, and it ends here — named by the chain that closed it,
-    /// with no marker invented in a document somebody else's reader parses.
-    fn cycle<E: serde::ser::Error>(self, id: usize) -> Option<E> {
-        let mut outer = self.ancestors;
-        while let Some(frame) = outer {
-            if frame.id == id {
-                // The document itself where there is no path to name, which is
-                // the value a hand-written [`ENCODE`] answered with at the top
-                // level: [`Self::returned`] contributes no segment, so the
-                // whole chain to it can be empty where an element's never is.
-                let path = self.path();
-                let at = if path.is_empty() {
-                    "the document".to_owned()
-                } else {
-                    format!("`{path}`")
-                };
-                return Some(E::custom(format!(
-                    "a value that holds itself has no JSON encoding — {at} is a value \
-                     it is already inside"
-                )));
-            }
-            outer = frame.outer;
-        }
-        None
-    }
-
-    /// The dotted chain of keys and positions from the document to this value,
-    /// spelled as a decode's issue path is ([`path_of`]).
-    fn path(self) -> String {
-        use std::fmt::Write as _;
-
-        let mut steps = vec![self.step];
-        let mut outer = self.ancestors;
-        while let Some(frame) = outer {
-            steps.push(frame.step);
-            outer = frame.outer;
-        }
-        let mut path = String::new();
-        for step in steps.into_iter().rev().flatten() {
-            if !path.is_empty() {
-                path.push('.');
-            }
-            match step {
-                Step::Key(key) => path.push_str(key),
-                Step::Index(at) => {
-                    write!(path, "{at}").expect("writing a usize into a String never fails");
+    /// The refusal that stopped the walk. Where a hand-written [`ENCODE`] is
+    /// what refused, its [`Fault`] is on [`Reentry`] for [`rendered`] to
+    /// prefer, and this is the message nobody reads.
+    fn written<F: Formatter>(self, fmt: F) -> Result<String, serde_json::Error> {
+        let mut sink = Sink {
+            out: Vec::new(),
+            fmt,
+        };
+        let mut stack = Stack { frames: Vec::new() };
+        let mut next = Some(self.value);
+        loop {
+            if let Some(value) = next.take() {
+                if !stack.value(self.walk, value, &mut sink)? {
+                    stack.finished(&mut sink);
                 }
+            } else if stack.frames.is_empty() {
+                break;
+            } else if let Some(value) = stack.advance(&mut sink)? {
+                next = Some(value);
+            } else {
+                stack.close(&mut sink);
+                stack.finished(&mut sink);
             }
         }
-        path
+        #[expect(
+            unsafe_code,
+            reason = "every byte above came from `serde_json`, which emits UTF-8 \
+                      — the same step and the same reason as that crate's own \
+                      `to_string`"
+        )]
+        let written = unsafe { String::from_utf8_unchecked(sink.out) };
+        Ok(written)
     }
 }
 
@@ -826,60 +884,278 @@ impl<'a> Encodable<'a> {
 ///
 /// A guard rather than two loops around the call site, so an unwind releases
 /// exactly what it took.
-struct Standing<'a>(Encodable<'a>);
+struct Standing<'a> {
+    /// The value the member is about to be called on.
+    value: Value,
+    /// Every container it is inside, which is the walk's own stack.
+    frames: &'a [Frame],
+}
 
 impl<'a> Standing<'a> {
-    /// The path under `node`, retained — `node`'s own value included, since the
+    /// The path under `value`, retained — `value` itself included, since the
     /// member is about to be called on it.
-    fn under(node: Encodable<'a>) -> Self {
-        for value in node.standing_on() {
+    fn under(value: Value, frames: &'a [Frame]) -> Self {
+        for held in standing_on(value, frames) {
             #[expect(
                 unsafe_code,
                 reason = "every value on the path is live where this walk reached \
                           it, and the reference taken here is dropped in `drop`"
             )]
             unsafe {
-                value.retain();
+                held.retain();
             }
         }
-        Self(node)
+        Self { value, frames }
     }
 }
 
 impl Drop for Standing<'_> {
     fn drop(&mut self) {
-        for value in self.0.standing_on() {
+        for held in standing_on(self.value, self.frames) {
             #[expect(
                 unsafe_code,
                 reason = "exactly the references `under` took, dropped once: the \
-                          chain is a borrowed cons list nothing on the walk edits"
+                          stack is not edited while a member runs"
             )]
             unsafe {
-                value.release();
+                held.release();
             }
         }
     }
 }
 
-impl Serialize for Encodable<'_> {
-    fn serialize<S: Serializer>(&self, ser: S) -> Result<S::Ok, S::Error> {
-        match self.value.tag() {
-            Some(Tag::Null) => ser.serialize_unit(),
-            Some(Tag::Bool) => ser.serialize_bool(self.value.as_bool().unwrap_or(false)),
-            Some(Tag::Int) => ser.serialize_i64(self.value.as_int().unwrap_or(0)),
-            Some(Tag::Uint) => ser.serialize_u64(self.value.as_uint().unwrap_or(0)),
+/// Every value the walk is standing on, innermost first: `value`, then each
+/// container it is inside up to the document.
+///
+/// The stack is the path and not everything already written, so this is as long
+/// as the nesting level and no longer — [`DEPTH_CEILING`], which the arms check
+/// before they descend.
+fn standing_on(value: Value, frames: &[Frame]) -> impl Iterator<Item = Value> + '_ {
+    std::iter::once(value).chain(frames.iter().rev().map(|frame| frame.value))
+}
+
+/// [`DEPTH_CEILING`] as the length [`Stack`] is capped at: the document is
+/// level 1, so the deepest container allowed to descend leaves one frame short
+/// of the ceiling.
+#[expect(
+    clippy::cast_possible_truncation,
+    reason = "DEPTH_CEILING is a small constant; `a_document_at_the_ceiling_decodes` \
+              pins its value"
+)]
+const DEPTH_CEILING_FRAMES: usize = DEPTH_CEILING as usize - 1;
+
+/// One refusal, as the error every door into this encoder answers with.
+///
+/// The walk writes the document's structure itself, so no serializer is left to
+/// raise this — the type stays `serde_json`'s because a caller words its own
+/// message out of one ([`document`]) and because a scalar the crate itself
+/// refuses arrives as the same type.
+fn refuse(why: impl fmt::Display) -> serde_json::Error {
+    serde_json::Error::custom(why)
+}
+
+/// A live object's handle and the descriptor its class compiled in, and `None`
+/// where `value` is not an object.
+///
+/// Both are borrows nothing here drops: the handle takes no reference of its
+/// own, and a descriptor is owned by the compiled unit that defined the class,
+/// which outlives every instance of it.
+fn described(value: Value) -> Option<(std::mem::ManuallyDrop<NvsObj>, &'static ClassDesc)> {
+    let ptr = value.obj_ptr()?;
+    #[expect(
+        unsafe_code,
+        reason = "the value owns a reference to a live allocation, so it is live \
+                  for this borrow; the handle is never dropped, so the reference \
+                  is not released twice"
+    )]
+    let object = std::mem::ManuallyDrop::new(unsafe { NvsObj::from_raw(ptr) });
+    #[expect(
+        unsafe_code,
+        reason = "a live object's descriptor is owned by the compiled unit that \
+                  defined its class, which outlives every instance of it"
+    )]
+    let desc = unsafe { &*object.class() };
+    Some((object, desc))
+}
+
+/// One more segment on a dotted path.
+fn step(path: &mut String, name: &str) {
+    if !path.is_empty() {
+        path.push('.');
+    }
+    path.push_str(name);
+}
+
+impl Frame {
+    /// The next value this frame has for the walk, with everything that reaches
+    /// it already written: the separator, and for an object the key and the
+    /// colon. `None` once the frame is spent.
+    ///
+    /// # Errors
+    ///
+    /// An array key that is not UTF-8 — JSON has nowhere to put one — and a
+    /// slot the class descriptor does not name.
+    fn advance<F: Formatter>(
+        &mut self,
+        sink: &mut Sink<F>,
+    ) -> Result<Option<Value>, serde_json::Error> {
+        let first = !self.wrote;
+        let held = self.value;
+        match &mut self.at {
+            Cursor::Returned { produced, written } => {
+                if *written {
+                    return Ok(None);
+                }
+                *written = true;
+                Ok(Some(*produced))
+            }
+            Cursor::Entries { next, at, list } => {
+                let ptr = held
+                    .array_ptr()
+                    .ok_or_else(|| refuse("a `Tag::Array` value is always an array"))?;
+                let array = crate::arr::borrowed(ptr);
+                let Some(slot) = array.next_slot(*next) else {
+                    return Ok(None);
+                };
+                let value = array
+                    .value_at(slot)
+                    .expect("next_slot only names live entries");
+                *at = slot;
+                *next = slot + 1;
+                if *list {
+                    sink.open_element(first);
+                } else {
+                    let key = array
+                        .key_at(slot)
+                        .expect("next_slot only names live entries");
+                    let name = std::str::from_utf8(key.as_bytes()).map_err(|_| {
+                        refuse("an array key that is not UTF-8 has no JSON encoding")
+                    })?;
+                    sink.key(first, name)?;
+                }
+                Ok(Some(value))
+            }
+            Cursor::Shape { next, at } => {
+                let (object, desc) = described(held)
+                    .ok_or_else(|| refuse("a `Tag::Object` value is always an object"))?;
+                while *next < desc.field_count() {
+                    let slot = *next;
+                    *next += 1;
+                    let value = object.field(slot);
+                    // An optional field the document a hydration read did not
+                    // carry (`rule:types/shape-type`) is the never-written
+                    // storage state, so the key that was absent on the way in
+                    // is absent on the way out. Nothing else can put a slot in
+                    // that state — a shape literal writes every one of its
+                    // fields — and reading it from Novis is that rule's own
+                    // catchable throw, which is not this encoder's answer to
+                    // give.
+                    if value.tag() == Some(Tag::Unset) {
+                        continue;
+                    }
+                    let name = desc
+                        .field_name(slot)
+                        .ok_or_else(|| refuse("a slot below the field count is named"))?;
+                    *at = slot;
+                    sink.key(first, name)?;
+                    return Ok(Some(value));
+                }
+                Ok(None)
+            }
+            Cursor::Fields { next, at } => {
+                let (object, desc) = described(held)
+                    .ok_or_else(|| refuse("a `Tag::Object` value is always an object"))?;
+                let Some(field) = desc.codec().get(*next) else {
+                    return Ok(None);
+                };
+                *at = *next;
+                *next += 1;
+                sink.key(first, &field.key)?;
+                // A borrowed read, exactly as `nvs_ir::InstKind::FieldGet` is:
+                // the object holds the reference for the length of this call
+                // and nothing here hands the value on to Novis code.
+                Ok(Some(object.field(field.slot)))
+            }
+        }
+    }
+
+    /// This frame's step towards the value inside it, appended to `path`.
+    ///
+    /// Read off the cursor rather than held beside it, so a walk no message
+    /// ever asks a path of spends nothing on one. A [`Cursor::Returned`]
+    /// contributes nothing: the document holds the member's answer where the
+    /// object was, so a value inside it is named by the object's own path and
+    /// not by a step no key spells.
+    fn segment(&self, path: &mut String) {
+        match self.at {
+            Cursor::Returned { .. } => {}
+            Cursor::Entries { at, .. } => {
+                let Some(ptr) = self.value.array_ptr() else {
+                    return;
+                };
+                let array = crate::arr::borrowed(ptr);
+                let Some(key) = array.key_at(at) else {
+                    return;
+                };
+                if let Ok(name) = std::str::from_utf8(key.as_bytes()) {
+                    step(path, name);
+                }
+            }
+            Cursor::Shape { at, .. } => {
+                let Some((_, desc)) = described(self.value) else {
+                    return;
+                };
+                if let Some(name) = desc.field_name(at) {
+                    step(path, name);
+                }
+            }
+            Cursor::Fields { at, .. } => {
+                let Some((_, desc)) = described(self.value) else {
+                    return;
+                };
+                if let Some(field) = desc.codec().get(at) {
+                    step(path, &field.key);
+                }
+            }
+        }
+    }
+}
+
+impl Stack {
+    /// One value written where the walk has reached, answering whether it
+    /// opened a frame of its own rather than writing a whole value.
+    ///
+    /// The scalar arms are the crate's spelling of each tag; the two container
+    /// arms push and let the loop step in.
+    ///
+    /// # Errors
+    ///
+    /// A value with no JSON encoding at all — a `bytes` buffer, a non-finite
+    /// `float`, an instance of a class that declared no codec — and whatever
+    /// the descent itself refuses.
+    fn value<F: Formatter>(
+        &mut self,
+        walk: &Reentry,
+        value: Value,
+        sink: &mut Sink<F>,
+    ) -> Result<bool, serde_json::Error> {
+        match value.tag() {
+            Some(Tag::Null) => sink.scalar(&())?,
+            Some(Tag::Bool) => sink.scalar(&value.as_bool().unwrap_or(false))?,
+            Some(Tag::Int) => sink.scalar(&value.as_int().unwrap_or(0))?,
+            Some(Tag::Uint) => sink.scalar(&value.as_uint().unwrap_or(0))?,
             Some(Tag::Float) => {
-                let number = self.value.as_float().unwrap_or(0.0);
+                let number = value.as_float().unwrap_or(0.0);
                 if !number.is_finite() {
                     // Spelled the way `echo` would spell it — `INF`, not
                     // Rust's `inf` — so the value the message quotes back is
                     // the one the program can see for itself.
-                    return Err(S::Error::custom(format!(
+                    return Err(refuse(format!(
                         "`{}` has no JSON spelling — JSON has no `NaN` and no `Infinity`",
                         nvs_runtime::php_float_to_string(number)
                     )));
                 }
-                ser.serialize_f64(number)
+                sink.scalar(&number)?;
             }
             // `rule:types/decimal`'s scalar is exact and JSON's one number type is
             // an `f64` in every consumer that reads it — this module's own, in
@@ -890,44 +1166,43 @@ impl Serialize for Encodable<'_> {
             // digits at the seam, which is the same refusal to degrade the
             // integer band above is written for.
             Some(Tag::Decimal) => {
-                let text = self
-                    .value
+                let text = value
                     .as_decimal()
-                    .ok_or_else(|| S::Error::custom("a `Tag::Decimal` value is always a decimal"))?
+                    .ok_or_else(|| refuse("a `Tag::Decimal` value is always a decimal"))?
                     .to_string();
-                ser.serialize_str(&text)
+                sink.scalar(text.as_str())?;
             }
-            Some(Tag::Str) => ser.serialize_str(self.text()?),
-            Some(Tag::Array) => self.serialize_array(ser),
-            Some(Tag::Object) => self.serialize_object(ser),
+            // `rule:types/bytes` makes a `string` guaranteed-valid UTF-8 and
+            // [`Tag::Bytes`] is its own tag over the shared allocation, so "the
+            // caller passed binary data into a text format" is the arm below
+            // rather than a failure here — what is left is the tag check
+            // itself, which is exactly what [`Value::as_text`] is.
+            Some(Tag::Str) => {
+                let text = value
+                    .as_text()
+                    .ok_or_else(|| refuse("a `Tag::Str` value always has text"))?;
+                sink.scalar(text)?;
+            }
+            Some(Tag::Array) => return self.array(value, sink),
+            Some(Tag::Object) => return self.object(walk, value, sink),
             // The tag is named rather than numbered: `bytes` is the arm a
-            // program actually reaches (see [`Self::text`]), and a caller who
-            // handed a buffer to a text format needs to be told *that* rather
-            // than told a number only this crate can read.
-            Some(tag) => Err(S::Error::custom(format!(
-                "a `{}` value has no JSON encoding",
-                tag.describe()
-            ))),
-            None => Err(S::Error::custom(format!(
-                "tag {} has no JSON encoding",
-                self.value.tag_byte()
-            ))),
+            // program actually reaches, and a caller who handed a buffer to a
+            // text format needs to be told *that* rather than told a number
+            // only this crate can read.
+            Some(tag) => {
+                return Err(refuse(format!(
+                    "a `{}` value has no JSON encoding",
+                    tag.describe()
+                )));
+            }
+            None => {
+                return Err(refuse(format!(
+                    "tag {} has no JSON encoding",
+                    value.tag_byte()
+                )));
+            }
         }
-    }
-}
-
-impl Encodable<'_> {
-    /// This value's string payload as UTF-8.
-    ///
-    /// `rule:types/bytes` makes a `string` guaranteed-valid UTF-8 and [`Tag::Bytes`] is
-    /// its own tag over the shared allocation, so "the caller passed binary
-    /// data into a text format" is caught one level up — a `bytes` value never
-    /// reaches here, it falls into the `_` arm of the match above. What is left
-    /// is the tag check itself, which is exactly what [`Value::as_text`] is.
-    fn text<E: serde::ser::Error>(&self) -> Result<&str, E> {
-        self.value
-            .as_text()
-            .ok_or_else(|| E::custom("a `Tag::Str` value always has text"))
+        Ok(false)
     }
 
     /// An object, as the document its class declares: the [`ENCODE`] it wrote
@@ -953,16 +1228,16 @@ impl Encodable<'_> {
     /// names rather than a program does —
     /// `rule:core-classes/derive-generates-what-is-missing` owns the first and
     /// that section the second.
-    fn serialize_object<S: Serializer>(&self, ser: S) -> Result<S::Ok, S::Error> {
-        if self.depth >= DEPTH_CEILING_U32 {
-            return Err(S::Error::custom(format!(
-                "a value nested past {DEPTH_CEILING} levels has no JSON encoding"
-            )));
-        }
-        let ptr = self
-            .value
+    fn object<F: Formatter>(
+        &mut self,
+        walk: &Reentry,
+        value: Value,
+        sink: &mut Sink<F>,
+    ) -> Result<bool, serde_json::Error> {
+        self.room()?;
+        let ptr = value
             .obj_ptr()
-            .ok_or_else(|| S::Error::custom("a `Tag::Object` value is always an object"))?;
+            .ok_or_else(|| refuse("a `Tag::Object` value is always an object"))?;
         // Before a field is read, so the walk turns back at the first repeat
         // rather than at the ceiling above —
         // `rule:classes/an-encoder-ends-a-cycle-by-identity`. An instance is
@@ -972,20 +1247,8 @@ impl Encodable<'_> {
         if let Some(cycle) = self.cycle(id) {
             return Err(cycle);
         }
-        let inside = self.frame(id);
-        #[expect(
-            unsafe_code,
-            reason = "the value owns a reference to a live allocation, so it is live \
-                      for this borrow; the handle is never dropped, so the reference \
-                      is not released twice"
-        )]
-        let object = std::mem::ManuallyDrop::new(unsafe { NvsObj::from_raw(ptr) });
-        #[expect(
-            unsafe_code,
-            reason = "a live object's descriptor is owned by the compiled unit that \
-                      defined its class, which outlives every instance of it"
-        )]
-        let desc = unsafe { &*object.class() };
+        let (_, desc) =
+            described(value).ok_or_else(|| refuse("a `Tag::Object` value is always an object"))?;
         // `rule:types/object-literal`'s shape, before the codec is read: a shape is a bag of
         // named fields with no declaration to hang `#[Json\Derive]` on, so the
         // refusal below has nothing to ask it for — `rule:core-classes/derive-generates-what-is-missing`. Its slots are
@@ -996,25 +1259,14 @@ impl Encodable<'_> {
         // one class. Key order is that label's, which is sorted, so a shape's
         // document is byte-deterministic on `rule:core-classes/derive-field-list`'s terms.
         if desc.is_shape() {
-            let mut map = ser.serialize_map(Some(desc.field_count()))?;
-            for slot in 0..desc.field_count() {
-                let held = object.field(slot);
-                // An optional field the document a hydration read did not carry
-                // (`rule:types/shape-type`) is the never-written storage state,
-                // so the key that was absent on the way in is absent on the way
-                // out. Nothing else can put a slot in that state — a shape
-                // literal writes every one of its fields — and reading it from
-                // Novis is that rule's own catchable throw, which is not this
-                // encoder's answer to give.
-                if held.tag() == Some(Tag::Unset) {
-                    continue;
-                }
-                let name = desc
-                    .field_name(slot)
-                    .ok_or_else(|| S::Error::custom("a slot below the field count is named"))?;
-                map.serialize_entry(name, &self.child(&inside, Step::Key(name), held))?;
-            }
-            return map.end();
+            sink.open_object();
+            self.frames.push(Frame {
+                id,
+                value,
+                at: Cursor::Shape { next: 0, at: 0 },
+                wrote: false,
+            });
+            return Ok(true);
         }
         // `Core\Time\Instant`, whose wire form is RFC 3339 text rather than the
         // object its two slots would spell — this module's § *A value type
@@ -1022,14 +1274,15 @@ impl Encodable<'_> {
         // [`crate::time::instant_from_iso`] is the half that reads it back. A `Core` value type declares no member a codec could be
         // generated from, so the refusal below would otherwise be the only
         // answer a wire type of its own already has.
-        if crate::instance::is_instance(self.value, &crate::time::INSTANT) {
-            let text = crate::time::instant_iso(self.value).ok_or_else(|| {
-                S::Error::custom(
+        if crate::instance::is_instance(value, &crate::time::INSTANT) {
+            let text = crate::time::instant_iso(value).ok_or_else(|| {
+                refuse(
                     "a `Core\\Time\\Instant` holds a second and a nanosecond that are \
                      no point on the timeline",
                 )
             })?;
-            return ser.serialize_str(&text);
+            sink.scalar(text.as_str())?;
+            return Ok(false);
         }
         // `rule:core-classes/derive-generates-what-is-missing` read at the one
         // place the two encoders part, and read first: the derive fills in the
@@ -1039,40 +1292,33 @@ impl Encodable<'_> {
         // The table is the flattened chain, so a class inheriting the member
         // encodes through it.
         if desc.method(ENCODE).is_some() {
-            let produced = self.answered(desc.name())?;
-            let written = Serialize::serialize(&self.returned(&inside, produced), ser);
-            // The member's answer is a reference this frame owns and the walk
-            // above kept none of it, so it is released here whether that walk
-            // wrote a document or refused one.
-            #[expect(
-                unsafe_code,
-                reason = "`call_method` hands back a fresh reference this frame \
-                          owns, and nothing else released it"
-            )]
-            unsafe {
-                produced.release();
-            }
-            return written;
+            let produced = self.answered(walk, value, desc.name())?;
+            self.frames.push(Frame {
+                id,
+                value,
+                at: Cursor::Returned {
+                    produced,
+                    written: false,
+                },
+                wrote: false,
+            });
+            return Ok(true);
         }
-        let fields = desc.codec();
-        if fields.is_empty() {
-            return Err(S::Error::custom(format!(
+        if desc.codec().is_empty() {
+            return Err(refuse(format!(
                 "an instance of `{}` has no JSON encoding — a class participates by \
                  carrying `#[Json\\Derive]` or by writing `{ENCODE}` itself",
                 desc.name()
             )));
         }
-        let mut map = ser.serialize_map(Some(fields.len()))?;
-        for field in fields {
-            // A borrowed read, exactly as `nvs_ir::InstKind::FieldGet` is: the
-            // object holds the reference for the length of this call and
-            // nothing here hands the value on to Novis code.
-            map.serialize_entry(
-                &field.key,
-                &self.child(&inside, Step::Key(&field.key), object.field(field.slot)),
-            )?;
-        }
-        map.end()
+        sink.open_object();
+        self.frames.push(Frame {
+            id,
+            value,
+            at: Cursor::Fields { next: 0, at: 0 },
+            wrote: false,
+        });
+        Ok(true)
     }
 
     /// What this value's class answers for it through the [`ENCODE`] it wrote
@@ -1091,8 +1337,13 @@ impl Encodable<'_> {
     /// left on [`Reentry`] for [`rendered`] to answer with — so a `LogicError` a
     /// `toJson` threw reaches the program as that class rather than as this
     /// encoder's refusal.
-    fn answered<E: serde::ser::Error>(self, class: &str) -> Result<Value, E> {
-        let standing = Standing::under(self);
+    fn answered(
+        &self,
+        walk: &Reentry,
+        value: Value,
+        class: &str,
+    ) -> Result<Value, serde_json::Error> {
+        let standing = Standing::under(value, &self.frames);
         let called = {
             #[expect(
                 unsafe_code,
@@ -1100,20 +1351,20 @@ impl Encodable<'_> {
                           for the whole walk, and this walk holds no reference of \
                           its own: the one built here lives for this call alone"
             )]
-            let ctx = unsafe { &mut *self.walk.ctx };
-            nvs_runtime::call_method(ctx, self.value, ENCODE, &[], "Core\\Json::encode")
+            let ctx = unsafe { &mut *walk.ctx };
+            nvs_runtime::call_method(ctx, value, ENCODE, &[], "Core\\Json::encode")
         };
         drop(standing);
         match called {
-            Ok(Some(value)) => Ok(value),
+            Ok(Some(produced)) => Ok(produced),
             // Unreachable from source with no diagnostic to name: `None` is the
             // answer for a class with no such method, and the arm that reached
             // this door read that same method table one condition earlier.
-            Ok(None) => Err(E::custom(format!(
+            Ok(None) => Err(refuse(format!(
                 "internal error: `{class}` answers `{ENCODE}` where the encoder asked its \
                  class table and not where it called"
             ))),
-            Err(fault) => Err(self.walk.stopped_by(fault, class)),
+            Err(fault) => Err(walk.stopped_by(fault, class)),
         }
     }
 
@@ -1124,18 +1375,17 @@ impl Encodable<'_> {
     /// One rule, not an option: an Novis array is PHP's one ordered-map type, so
     /// *something* has to decide, and `json_encode`'s own list test is the
     /// answer every program migrating from PHP already expects.
-    fn serialize_array<S: Serializer>(&self, ser: S) -> Result<S::Ok, S::Error> {
+    fn array<F: Formatter>(
+        &mut self,
+        value: Value,
+        sink: &mut Sink<F>,
+    ) -> Result<bool, serde_json::Error> {
         use std::fmt::Write as _;
 
-        if self.depth >= DEPTH_CEILING_U32 {
-            return Err(S::Error::custom(format!(
-                "a value nested past {DEPTH_CEILING} levels has no JSON encoding"
-            )));
-        }
-        let ptr = self
-            .value
+        self.room()?;
+        let ptr = value
             .array_ptr()
-            .ok_or_else(|| S::Error::custom("a `Tag::Array` value is always an array"))?;
+            .ok_or_else(|| refuse("a `Tag::Array` value is always an array"))?;
         // An array is copied where an object is referenced, so this arm alone
         // cannot close a cycle — but the allocation copy-on-write shares is
         // reachable from an object that is inside it, and then the walk does
@@ -1146,7 +1396,6 @@ impl Encodable<'_> {
         if let Some(cycle) = self.cycle(id) {
             return Err(cycle);
         }
-        let inside = self.frame(id);
         let array = crate::arr::borrowed(ptr);
 
         let mut list = true;
@@ -1168,47 +1417,135 @@ impl Encodable<'_> {
         }
 
         if list {
-            let mut seq = ser.serialize_seq(Some(array.count()))?;
-            let mut from = 0usize;
-            let mut at = 0usize;
-            while let Some(slot) = array.next_slot(from) {
-                let value = array
-                    .value_at(slot)
-                    .expect("next_slot only names live entries");
-                seq.serialize_element(&self.child(&inside, Step::Index(at), value))?;
-                from = slot + 1;
-                at += 1;
-            }
-            return seq.end();
+            sink.open_array();
+        } else {
+            sink.open_object();
         }
+        self.frames.push(Frame {
+            id,
+            value,
+            at: Cursor::Entries {
+                next: 0,
+                at: 0,
+                list,
+            },
+            wrote: false,
+        });
+        Ok(true)
+    }
 
-        let mut map = ser.serialize_map(Some(array.count()))?;
-        let mut from = 0usize;
-        while let Some(slot) = array.next_slot(from) {
-            let key = array
-                .key_at(slot)
-                .expect("next_slot only names live entries");
-            let value = array
-                .value_at(slot)
-                .expect("next_slot only names live entries");
-            let name = std::str::from_utf8(key.as_bytes()).map_err(|_| {
-                S::Error::custom("an array key that is not UTF-8 has no JSON encoding")
-            })?;
-            map.serialize_entry(name, &self.child(&inside, Step::Key(name), value))?;
-            from = slot + 1;
+    /// Room for one more level.
+    ///
+    /// # Errors
+    ///
+    /// The nesting refusal past [`DEPTH_CEILING`], which is a throw and never
+    /// an abort: what this bounds is the `Vec` above and not the thread's own
+    /// stack.
+    fn room(&self) -> Result<(), serde_json::Error> {
+        if self.frames.len() >= DEPTH_CEILING_FRAMES {
+            return Err(refuse(format!(
+                "a value nested past {DEPTH_CEILING} levels has no JSON encoding"
+            )));
         }
-        map.end()
+        Ok(())
+    }
+
+    /// The refusal `rule:classes/an-encoder-ends-a-cycle-by-identity` asks for
+    /// when the allocation at `id` is one this walk is already inside, and
+    /// `None` when it is not.
+    ///
+    /// The test is against the stack and never against everything already
+    /// written: an object two properties both hold is shared rather than
+    /// cyclic, and a format that cannot express sharing has no answer but to
+    /// write it twice. Only a repeat on the current path is a walk that would
+    /// not end, and it ends here — named by the chain that closed it, with no
+    /// marker invented in a document somebody else's reader parses.
+    fn cycle(&self, id: usize) -> Option<serde_json::Error> {
+        if !self.frames.iter().any(|frame| frame.id == id) {
+            return None;
+        }
+        // The document itself where there is no path to name, which is the
+        // value a hand-written [`ENCODE`] answered with at the top level: a
+        // [`Cursor::Returned`] contributes no segment, so the whole chain to it
+        // can be empty where an element's never is.
+        let path = self.path();
+        let at = if path.is_empty() {
+            "the document".to_owned()
+        } else {
+            format!("`{path}`")
+        };
+        Some(refuse(format!(
+            "a value that holds itself has no JSON encoding — {at} is a value \
+             it is already inside"
+        )))
+    }
+
+    /// The dotted chain of keys and positions from the document to the value
+    /// the walk is at, spelled as a decode's issue path is ([`path_of`]).
+    fn path(&self) -> String {
+        let mut path = String::new();
+        for frame in &self.frames {
+            frame.segment(&mut path);
+        }
+        path
+    }
+
+    /// The next value the innermost frame has, and `None` where it is spent.
+    ///
+    /// # Errors
+    ///
+    /// As [`Frame::advance`]'s.
+    fn advance<F: Formatter>(
+        &mut self,
+        sink: &mut Sink<F>,
+    ) -> Result<Option<Value>, serde_json::Error> {
+        match self.frames.last_mut() {
+            Some(frame) => frame.advance(sink),
+            None => Ok(None),
+        }
+    }
+
+    /// One whole value written, told to the level it belongs to — the comma the
+    /// next entry needs, and the `has_value` a [`PrettyFormatter`] closes a
+    /// container on.
+    fn finished<F: Formatter>(&mut self, sink: &mut Sink<F>) {
+        let Some(frame) = self.frames.last_mut() else {
+            return;
+        };
+        match frame.at {
+            Cursor::Returned { .. } => {}
+            Cursor::Entries { list: true, .. } => sink.close_element(),
+            _ => sink.close_entry(),
+        }
+        frame.wrote = true;
+    }
+
+    /// The innermost frame closed and popped: its own closing bracket, and what
+    /// a [`Cursor::Returned`] owns released.
+    ///
+    /// The member's answer is a reference that frame owns and the walk above it
+    /// kept none of, so it goes here whether that walk wrote a document or
+    /// refused one — [`Stack`]'s own `drop` is the refusing half.
+    fn close<F: Formatter>(&mut self, sink: &mut Sink<F>) {
+        let Some(frame) = self.frames.pop() else {
+            return;
+        };
+        match frame.at {
+            Cursor::Entries { list: true, .. } => sink.close_array(),
+            Cursor::Returned { produced, .. } => {
+                #[expect(
+                    unsafe_code,
+                    reason = "`call_method` hands back a fresh reference this frame \
+                              owns, and nothing else released it"
+                )]
+                unsafe {
+                    produced.release();
+                }
+            }
+            _ => sink.close_object(),
+        }
     }
 }
-
-/// [`DEPTH_CEILING`] as the counter's own width — encoding has no `maxDepth`
-/// option, so the ceiling is the only bound it has.
-#[expect(
-    clippy::cast_possible_truncation,
-    reason = "DEPTH_CEILING is a small constant; `a_document_at_the_ceiling_decodes` \
-              pins its value"
-)]
-const DEPTH_CEILING_U32: u32 = DEPTH_CEILING as u32;
 
 /// Every non-ASCII `char` of `text` rewritten as its `\uXXXX` escape —
 /// `{escapeUnicode: true}`. This module's own docs own why a post-pass is
@@ -1298,9 +1635,9 @@ fn rendered(
     let walk = Reentry::new(ctx);
     let subject = Encodable::document(&walk, value);
     let written = if pretty {
-        serde_json::to_string_pretty(&subject)
+        subject.written(PrettyFormatter::new())
     } else {
-        serde_json::to_string(&subject)
+        subject.written(CompactFormatter)
     };
     written.map_err(|why| walk.raised().unwrap_or_else(|| refused(&why)))
 }
@@ -3196,7 +3533,8 @@ mod tests {
     fn a_document_at_the_ceiling_decodes() {
         let depth = usize::try_from(DEPTH_CEILING).expect("the ceiling fits a usize");
         let text = format!("{}1{}", "[".repeat(depth - 1), "]".repeat(depth - 1));
-        let value = decoded(&text, DEPTH_CEILING_U32).expect("the ceiling is decodable");
+        let max = u32::try_from(DEPTH_CEILING).expect("the ceiling fits a u32");
+        let value = decoded(&text, max).expect("the ceiling is decodable");
         #[expect(unsafe_code, reason = "this frame holds the only reference")]
         unsafe {
             value.release();
@@ -3246,13 +3584,14 @@ mod tests {
     fn encoded(value: Value) -> Result<String, String> {
         let mut ctx = nvs_runtime::Ctx::buffered();
         let walk = Reentry::new(&mut ctx);
-        serde_json::to_string(&Encodable::document(&walk, value)).map_err(|why| why.to_string())
+        Encodable::document(&walk, value)
+            .written(CompactFormatter)
+            .map_err(|why| why.to_string())
     }
 
     /// A class whose slots are `fields`, each carrying a `mixed` wire key of
-    /// its own name — the smallest thing [`Encodable::serialize_object`] will
-    /// walk, since a class with an empty codec is refused before a field is
-    /// read.
+    /// its own name — the smallest thing [`Stack::object`] will walk, since a
+    /// class with an empty codec is refused before a field is read.
     ///
     /// The table is leaked because a [`ClassDesc`]'s *address* is its identity
     /// and has to outlive every instance made from it; `crate::request`'s
@@ -3898,43 +4237,75 @@ mod tests {
         }
     }
 
+    /// `levels` arrays nested one inside the next, the innermost holding `1`.
+    ///
+    /// Building and freeing are both iterative in the runtime
+    /// (`nvs_runtime::array`'s § *freeing is iterative*), so a depth like this
+    /// costs a test nothing but the encoder's own descent.
+    fn nested_arrays(levels: usize) -> Value {
+        let mut value = Value::int(1);
+        for _ in 0..levels {
+            let mut level = NvsArray::new();
+            level.set(NvsStr::new(b"0"), value);
+            value = Value::array(level);
+        }
+        value
+    }
+
     /// The depth cap still bounds what the ancestor chain does not: a document
     /// that is acyclic and merely deeper than any encoder should walk is
     /// refused as nesting, and never reported as a cycle.
-    ///
-    /// On a thread that sizes its own stack, because what the ceiling bounds is
-    /// *nesting* while the frames the walk spends are the serializer's and the
-    /// profile's — this module's gap 7 owns that difference, and what this test
-    /// pins is the message rather than a frame budget. Every value is built and
-    /// released inside that thread: a refcount is a per-thread fact.
     #[test]
     fn a_document_deeper_than_the_ceiling_still_reports_depth_and_not_a_cycle() {
-        let walk = std::thread::Builder::new()
-            .stack_size(16 << 20)
-            .spawn(|| {
-                let depth = usize::try_from(DEPTH_CEILING).expect("the ceiling fits a usize");
-                let mut value = Value::int(1);
-                for _ in 0..depth {
-                    let mut level = NvsArray::new();
-                    level.set(NvsStr::new(b"0"), value);
-                    value = Value::array(level);
-                }
-                let why =
-                    encoded(value).expect_err("a document past the ceiling has no JSON encoding");
-                #[expect(unsafe_code, reason = "this frame holds the only reference")]
-                unsafe {
-                    value.release();
-                }
-                why
-            })
-            .expect("a test thread is spawnable");
-
-        let why = walk.join().expect("the walk refuses rather than panicking");
+        let depth = usize::try_from(DEPTH_CEILING).expect("the ceiling fits a usize");
+        let value = nested_arrays(depth);
+        let why = encoded(value).expect_err("a document past the ceiling has no JSON encoding");
+        #[expect(unsafe_code, reason = "this frame holds the only reference")]
+        unsafe {
+            value.release();
+        }
         assert!(
             why.contains(&format!("nested past {DEPTH_CEILING} levels")),
             "{why}"
         );
         assert!(!why.contains("already inside"), "{why}");
+    }
+
+    /// The deepest document the ceiling admits encodes on a thread whose native
+    /// stack could not have held one frame per level, because the levels are a
+    /// `Vec` on the heap and the walk's native cost is one frame.
+    ///
+    /// The stack here is a fraction of what a recursion through `serde_json`'s
+    /// serializer needed for the same document, which is the claim; what pins
+    /// the answer is the text, so a walk that ended early fails rather than
+    /// merely survives. Every value is built and released inside that thread: a
+    /// refcount is a per-thread fact.
+    #[test]
+    fn json_nesting_is_bounded_by_the_heap_stack_not_the_native_one() {
+        // The deepest legal document: the innermost scalar sits at the ceiling,
+        // so the arrays above it are one fewer.
+        let levels = usize::try_from(DEPTH_CEILING).expect("the ceiling fits a usize") - 1;
+        let walk = std::thread::Builder::new()
+            .stack_size(256 << 10)
+            .spawn(move || {
+                let value = nested_arrays(levels);
+                let written = encoded(value);
+                #[expect(unsafe_code, reason = "this thread holds the only reference")]
+                unsafe {
+                    value.release();
+                }
+                written
+            })
+            .expect("a test thread is spawnable");
+
+        let text = walk
+            .join()
+            .expect("the walk has no native stack to run out of")
+            .expect("the deepest document the ceiling admits has a JSON encoding");
+        assert_eq!(
+            text,
+            format!("{}1{}", "[".repeat(levels), "]".repeat(levels))
+        );
     }
 
     /// The audit's finding, asserted rather than described: one cyclic object

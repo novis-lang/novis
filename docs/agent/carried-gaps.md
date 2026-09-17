@@ -125,14 +125,6 @@ where taking it is the work and the code that follows it is not.
   `ClassDesc::method` lookup at the walk's own class arm — so what is left is only whether the
   machinery stays a descriptor at all. `crates/nvs-stdlib/src/json.rs` gap 1.
   [until: gone crates/nvs-stdlib/src/json.rs:rather than straight-line]
-- **`Core\Json::encode`'s real bound is the native stack rather than its own `DEPTH_CEILING`**, so a
-  document that is legal and merely very deep aborts the process where every other refusal throws.
-  Goal `resource-ceilings` names the stack ceiling out of its own scope, so this is nobody's: what
-  has to be decided is whether the walk carries an explicit stack, which makes the bound an
-  allocation the request is charged for, or the ceiling is read from the space
-  `rule:concurrency/a-task-stack-is-reserved-wide-and-pooled` reserves.
-  `crates/nvs-stdlib/src/json.rs` gap 2.
-  [until: gone crates/nvs-stdlib/src/json.rs:The encoder's real bound is the native stack]
 - **The queue's two tables are the runtime's own, and two questions about what they carry are open.**
   `nvs_jobs` gets its dedupe guarantee from a plain unique key over `dedupe_pending`, which
   `rule:core-classes/queue-storage-is-a-table` states and the runtime's own schema carries — but that
