@@ -224,13 +224,15 @@ rules = [
 shapes = ["A `.nvst` test case"]
 
 [context.stage.4]
-# Regex's two tiers and the directive class its budget joins, the sink the pattern is, and the
-# auto-escape rule the rendering-per-sink gap sits under.
+# Regex's two tiers and the directive class its budget joins, the sink the pattern is, the
+# auto-escape rule the rendering-per-sink gap sits under, and the derive rule the JSON codec's
+# first gap amends in the slice that decides it.
 rules = [
   "core-classes/regex-two-tiers",
   "config/three-changeability-classes",
   "security/regex-pattern-is-a-sink",
   "core-classes/html-auto-escape",
+  "core-classes/derive-generates-what-is-missing",
 ]
 shapes = ["A `Core` member", "A `.nvst` test case"]
 
