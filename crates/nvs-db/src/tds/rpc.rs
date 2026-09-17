@@ -1043,4 +1043,31 @@ mod tests {
             assert!(crate::encode(Value::float(outside)).is_ok());
         }
     }
+
+    /// The other side of the keystone: a `bytes` now carries a form, and the
+    /// values that carry none are still refused at [`encode`] rather than
+    /// written as something the server would read as text.
+    ///
+    /// The refusal names the **tag** and never the value, which is what lets a
+    /// case assert it without quoting a program's data back into a message.
+    /// An object and a closure take the same arm and are not built here: this
+    /// crate forbids `unsafe`, and an instance comes from `NvsObj::new`, which
+    /// is one — so the arm is asked through the tags a safe caller can mint.
+    #[test]
+    fn an_array_and_a_non_finite_float_are_still_refused_by_the_tds_encoder() {
+        // Leaked on purpose: `Value::release` is `unsafe` and forbidden here,
+        // as [`crate::pg`]'s array decoder says where it meets the same wall.
+        let array = Value::array(nvs_runtime::NvsArray::new());
+        let refused = encode(array).expect_err("an `array` has no T-SQL form");
+        assert_eq!(refused.kind(), io::ErrorKind::InvalidInput);
+        assert!(
+            refused.to_string().contains(&array.tag_byte().to_string()),
+            "the refusal names the tag: {refused}"
+        );
+
+        for outside in [f64::INFINITY, f64::NEG_INFINITY, f64::NAN] {
+            let refused = encode(Value::float(outside)).expect_err("no `float` holds it");
+            assert_eq!(refused.kind(), io::ErrorKind::InvalidInput);
+        }
+    }
 }
