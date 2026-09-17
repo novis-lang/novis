@@ -2993,6 +2993,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   believing that failure — `verify.py` tells you itself that the binary passed alone — and if it is
   the only red, it is not yours to fix inside an unrelated group.
   [until: reviewed 2026-09-17]
+- **`verify.py`'s "failed beside the other test binaries and passed alone" can be a hash-order
+  flake rather than a shared resource.** A test comparing two values through `format!("{:?}")`
+  prints any `HashSet` field in an order that differs per process, so it fails at random and passes
+  the rerun the tool does to check — which reads exactly like a shared port or temp path. Read the
+  two sides of the assertion first: the same elements in a different order means the `Debug` impl is
+  what needs fixing, not the isolation. [until: reviewed 2026-09-17]
 
 ## Writing a test case
 
@@ -7544,6 +7550,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   writes one guarded statement instead, repeating its lookup rather than holding it in a variable:
   `crates/nvs-db/src/ddl.rs`'s `drop_default_constraint` is that shape.
   [until: gone crates/nvs-db/src/direct.rs:never one string with several]
+- **A type written in a signature sits under no node, so no LSP request finds a cursor in one.**
+  `nvs_syntax::walk` builds a node per expression and none per type, and `Analysed` carries `exprs`
+  alone, so `definition::named_at` and `completion::asked` both start from an expression node and
+  answer nothing in type position. Scan the entry file's declarations for the written `Type` spans
+  covering the offset, the way `definition::clause_at` scans the clause names no node covers.
+  [until: test definition_of_owner_name_in_type_position_is_the_member]
 
 ## Divergences and refusals already pinned
 
