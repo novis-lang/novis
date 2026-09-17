@@ -1,0 +1,54 @@
+<?nvs
+// The coherent tier over TLS, at a database index that is not zero: the same
+// two members as `examples/cache.nvs`, against a store
+// `examples/cache-shared-tls.toml` reaches encrypted and switches before the
+// first command.
+//
+// [ADR 0142](/docs/decisions/0142.md) is why neither
+// shows up here: the grant is `cache.shared`, which names the *store* and asks
+// no address, so a store reached over TLS at index seven is not a special case
+// of it. Nothing below mentions the transport or the index, and that is the
+// claim — a program written against the shared tier is already written against
+// all three spellings of it.
+//
+// What the second line below can see, and what it cannot: `greeting` is
+// `examples/cache.nvs`'s entry, written with no lifetime at index zero of this
+// same Redis, and reading it *before* this program writes anything is how a
+// connection says which database it is on. A client that never sent `SELECT`
+// would answer that read with `hello` and then agree with itself about every
+// write after it, which is why the read comes first and why the key is one this
+// fixture never writes. That the two steps also go out *in order*, and again on
+// the socket the store drops, is
+// `auth_and_select_precede_the_first_command_in_that_order` and
+// `a_reconnect_after_a_dropped_socket_sends_both_again` in
+// `crates/nvs-stdlib/src/cache/redis.rs`, which can see the wire itself.
+//
+// The two lines this prints are frozen in `docs/agent/loop-goal.toml`
+// (stage 5); the source is not.
+
+var $shared = Core\Cache::shared();
+
+// Index zero's entry, asked for before anything here has written a key.
+var $atZero = $shared->get('greeting');
+
+// Out of the request heap and back into it, over a socket nothing on the way
+// can read. The value is compared rather than the absence, because "the store
+// answered" is the weaker half of what a round trip proves. The key is a
+// constant for `examples/cache-shared-socket.nvs`'s reason: the shared store
+// does not forget when this process exits, so a drawn key would leave one entry
+// per run behind at an index nothing else sweeps.
+$shared->put('tls-greeting', 'hello');
+var $seen = $shared->get('tls-greeting');
+if ($seen == 'hello') {
+    echo 'put and get agree over TLS', "\n";
+} else {
+    echo 'the store did not answer with what it was given', "\n";
+}
+
+// The entry above is on a connection that was switched away from zero before it
+// carried anything: this one read zero's own key and did not find it.
+if ($seen == 'hello' && $atZero == null) {
+    echo 'the entry is at the configured index and not at zero', "\n";
+} else {
+    echo 'the connection answered out of index zero', "\n";
+}

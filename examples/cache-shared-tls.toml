@@ -1,0 +1,39 @@
+# The configuration `examples/cache-shared-tls.nvs` runs under, and the two things in it the
+# repository's own `nvs.toml` does not say: the coherent tier is reached over TLS, and it is reached
+# at a database index that is not zero.
+#
+# It is a file of its own for `examples/cache-shared-socket.toml`'s reason — `[cache.shared]` is
+# unscoped (`rule:config/cache-shared-is-the-grant-over-the-configured-store`), so a deployment has
+# one shared store and a second one cannot be spelled beside the first. `nvs run --config` names this
+# tree and disables the search for `./nvs.toml`, which is why every block the fixture needs is here.
+#
+# The store is `tests/db/compose.yaml`'s `redis` service through its third listener: the same server
+# `nvs.toml` reaches in the clear on `16379`, serving TLS on `16380` under the `certs` service's
+# chain. Nothing about the store moves — the entry this fixture writes and the one `examples/cache.nvs`
+# writes are in one Redis, at two indices, which is what makes the second line of its output a claim
+# rather than a restatement of this file.
+
+[[app]]
+entry = "cache-shared-tls.nvs"
+
+# The grant names the store an operator configured and asks nothing about where it is or how it is
+# reached, so TLS costs it the same nothing a socket does: one line, unchanged.
+[app.capabilities.cache]
+shared = true
+
+# The `certs` service issues a private CA, so no public root vouches for this store and the process's
+# own list is where its anchor goes — `rediss://` carries no key for one and asks for no relaxation
+# (`rule:security/tls-trust-is-relaxed-only-under-a-host-grant`). `bundled` is kept beside it because
+# adding a store's issuer is not a decision to stop believing everybody else's, and the path resolves
+# against this file (`rule:config/a-relative-path-resolves-against-the-file-it-is-written-in`). The
+# file itself is a copy an operator makes from the volume, which `tests/db/compose.yaml`'s header
+# spells as one `docker compose cp`.
+[http.client.tls]
+roots = ["bundled", "../tests/db/ca.crt"]
+
+# `rediss://` is the transport, `database` is the index, and neither is a value carried over the
+# other: the scheme says how the socket is opened, and the key says which of the store's sixteen
+# databases the connection is switched to before the first command.
+[cache.shared]
+url = "rediss://127.0.0.1:16380"
+database = 7
