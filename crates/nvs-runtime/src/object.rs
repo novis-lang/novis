@@ -241,9 +241,15 @@
 //! wherever the block was reused. [`assert_linked_where_it_says`] is the home
 //! of what that does and does not cover.
 //!
-//! **A collector is still owed for the shape this does not reach**: a
-//! long-running CLI script that builds cycles *between* teardowns holds them
-//! until its context ends. See [`crate`]'s own known gaps.
+//! **The shape teardown does not reach is collected in flight instead**: a
+//! long-running script that builds cycles *between* teardowns has them
+//! reclaimed by [`collect`], from the poll at which its allocations crossed
+//! `rule:errors/on-limit`'s memory ceiling. Two bounds come with that door and
+//! neither is a gap. A request under **no** ceiling arms no threshold, so
+//! nothing ever asks it to collect and its cycles wait for teardown as before;
+//! and a request *refused* an allocation is over its ceiling by
+//! [`crate::budget`]'s sticky verdict, which a collection afterwards does not
+//! take back, since the bytes were never handed over for it to give back.
 //!
 //! # Decision: an immortal instance is on no list at all
 //!
@@ -2115,6 +2121,18 @@ pub struct ObjHeader {
 pub struct LiveList {
     /// The most recently allocated object, or null when nothing is live.
     head: Cell<*mut ObjHeader>,
+    /// Whether [`reclaim`] is walking this list right now, so that a walk
+    /// reached from inside one is refused rather than entered.
+    ///
+    /// The re-entry is reachable in flight and unreachable at teardown, and
+    /// what makes it reachable is the dismantling itself: an abandoned
+    /// generator's unwind entry point is Novis code, and that code's own back
+    /// edges poll the safepoint that asks for a collection. A second walk
+    /// would be *sound* — every member the outer one condemned holds the
+    /// outer walk's own reference, so the inner tally reads it as held from
+    /// outside — but it is unbounded, since the inner walk dismantles too.
+    /// One word, written by a walk and read by nothing else.
+    walking: Cell<bool>,
 }
 
 impl LiveList {
@@ -2321,7 +2339,48 @@ unsafe fn assert_linked_where_it_says(object: *mut ObjHeader) {
 
 /// Dismantles what the root drain left on `list` and could not free —
 /// `rule:security/isolate-teardown-is-a-drain-then-a-sweep`
-/// 's cyclic garbage.
+/// 's cyclic garbage — and empties the list of whatever survived that.
+///
+/// The teardown half of [`reclaim`], whose docs own the walk the two halves
+/// share. The [`Detach`] guard is the whole of what makes it the teardown
+/// half: a survivor is taken off a list that is about to be freed with the
+/// context, which is exactly what a context still running must not do to its
+/// own.
+pub(crate) fn sweep(list: &LiveList) {
+    // Survivors are detached before this returns, whichever way it leaves.
+    let _detach = Detach(list);
+    reclaim(list);
+}
+
+/// Reclaims the cyclic garbage on `list` **while its context is still
+/// running**, and answers how many objects that was.
+///
+/// The in-flight half of [`reclaim`], and the whole of the difference is that
+/// nothing is detached: a survivor stays linked where it is, because the list
+/// it sits on belongs to a context that goes on allocating into it.
+///
+/// **Reached only near the memory ceiling**, which is the decision this
+/// collector is built under. [`crate::budget`]'s threshold raises
+/// [`SafepointFlags::COLLECT`](crate::SafepointFlags) at the allocation that
+/// crossed the ceiling, and `Ctx::collect_if_asked` — the one door in — runs
+/// this from the poll that would otherwise have reported the breach. A request
+/// that stays under its ceiling walks no list, and a request under no ceiling
+/// arms no threshold and therefore never asks, which is what the normal
+/// request path pays for a collector: nothing.
+///
+/// **Why a *running* context may be walked at all**, given that the walk frees
+/// what no member's field slot accounts for: every reference a compiled frame
+/// holds is a counted one, so an object some frame is standing on reads as
+/// held from outside the list and is marked live along with everything under
+/// it. A borrow reaches its value through a root that some frame counts, so
+/// keeping the root is what keeps what the borrow names.
+pub(crate) fn collect(list: &LiveList) -> usize {
+    reclaim(list)
+}
+
+/// Dismantles the members of `list` that nothing outside it can reach, and
+/// answers how many that was — [`sweep`]'s walk and [`collect`]'s, which are
+/// one walk because they are one question asked at two moments.
 ///
 /// # Why this is not simply "everything still on the list"
 ///
@@ -2373,22 +2432,34 @@ unsafe fn assert_linked_where_it_says(object: *mut ObjHeader) {
 /// only through that member's array is marked live by walk 3, or widening the
 /// tally would have turned a survivor into garbage rather than the reverse.
 ///
-/// **No user code runs.** A suspended generator's unwind entry point reaches
-/// its context through [`crate::ctx::with_current`], and at a context's own
-/// teardown there is none — which is what makes the order within a dead cycle
-/// unobservable, as the ADR says.
+/// **At teardown no user code runs**, which is what makes the order within a
+/// dead cycle unobservable there, as the ADR says: a suspended generator's
+/// unwind entry point reaches its context through
+/// [`crate::ctx::with_current`], and at a context's own teardown there is
+/// none. In flight there is, and walk 5 runs it — the same entry point the
+/// ordinary release of an abandoned generator already runs between two
+/// statements, on the same terms. What that code must not do is re-enter this
+/// walk, and [`LiveList::walking`] is what stops it.
 ///
 /// **What it spends:** one `Vec` and one `HashMap` sized by the number of live
-/// objects, at teardown only, plus one pass over their field slots per walk.
-/// Teardown is already O(live values) by `rule:security/isolate-teardown-is-a-drain-then-a-sweep`, and nothing on the
-/// request path pays any of this.
-pub(crate) fn sweep(list: &LiveList) {
+/// objects, plus one pass over their field slots per walk — spent only where
+/// the request was about to stop anyway. At teardown, which is already
+/// O(live values) by `rule:security/isolate-teardown-is-a-drain-then-a-sweep`;
+/// and in flight at a poll whose ceiling the allocator had already crossed,
+/// where the alternative was a `FATAL`. A request inside its ceiling pays
+/// nothing, per `rule:programs/memory-priority`.
+fn reclaim(list: &LiveList) -> usize {
+    if list.walking.replace(true) {
+        // Reached from inside walk 5's own dismantling — see
+        // [`LiveList::walking`]. The outer walk owns every member it condemned
+        // and is about to free them; there is nothing here for a second one.
+        return 0;
+    }
+    let _walking = Walking(list);
     let members = list.members();
     if members.is_empty() {
-        return;
+        return 0;
     }
-    // Survivors are detached before this returns, whichever way it leaves.
-    let _detach = Detach(list);
     let mut seat = std::collections::HashMap::with_capacity(members.len());
     for (at, &member) in members.iter().enumerate() {
         // The other half of the stamp, and the exact one: every member of this
@@ -2427,8 +2498,8 @@ pub(crate) fn sweep(list: &LiveList) {
     for (at, &member) in members.iter().enumerate() {
         assert!(
             held[at] <= refcount(member),
-            "the sweep's tally counted more references to an object than it \
-             has — see `sweep`'s docs in `crates/nvs-runtime/src/object.rs`"
+            "the walk's tally counted more references to an object than it \
+             has — see `reclaim`'s docs in `crates/nvs-runtime/src/object.rs`"
         );
     }
 
@@ -2455,8 +2526,9 @@ pub(crate) fn sweep(list: &LiveList) {
         .filter_map(|(at, member)| (!live[at]).then_some(member))
         .collect();
     if garbage.is_empty() {
-        return;
+        return 0;
     }
+    let reclaimed = garbage.len();
     for &member in &garbage {
         bump(member);
     }
@@ -2484,6 +2556,17 @@ pub(crate) fn sweep(list: &LiveList) {
         unsafe {
             crate::release::release_value(Value::from_obj_ptr(member));
         }
+    }
+    reclaimed
+}
+
+/// Lowers [`LiveList::walking`] however the walk it brackets leaves, so that a
+/// panic out of a dismantle does not leave a context unable to collect again.
+struct Walking<'list>(&'list LiveList);
+
+impl Drop for Walking<'_> {
+    fn drop(&mut self) {
+        self.0.walking.set(false);
     }
 }
 
@@ -5389,6 +5472,103 @@ mod tests {
         // array, the array releases `kept`, and `kept`'s teardown runs then.
         drop(holder);
         assert_eq!(named.refcount(), 1);
+    }
+
+    #[test]
+    fn a_cycle_is_reclaimed_near_the_memory_ceiling_while_the_request_runs() {
+        // The collector's whole reason to exist, end to end: the allocation
+        // that crossed `rule:errors/on-limit`'s ceiling raises the poll and the
+        // collection together, and the poll reclaims what the refcounts could
+        // not before it reads the counter — so a request whose ceiling a dead
+        // cycle was holding carries on instead of stopping.
+        let (table, animal, dog, _greets) = hierarchy();
+        // Named from outside the ring, for `a_swept_cycles_native_teardown_runs`'
+        // reason: its count is what says the members' own teardown ran, without
+        // this test reading a header the walk has freed. Allocated before the
+        // ceiling is armed, so the one allocation here that asks
+        // `crate::budget::affords` cannot be the one refused — a refusal is
+        // sticky and no collection takes it back.
+        let held = NvsStr::new(b"a string only the abandoned cycle holds");
+        let mut ctx = Ctx::new(crate::ctx::OutputSink::Sink);
+        // Just above what the request already holds, so the pair below is what
+        // crosses it. Two headers and their slots are more than this slack.
+        ctx.set_memory_limit(ctx.memory_used() + 64);
+        let current = crate::ctx::CurrentCtx::install(&mut ctx);
+        #[expect(unsafe_code, reason = "the table outlives the objects")]
+        unsafe {
+            let left = NvsObj::new(table.desc(animal));
+            let right = NvsObj::new(table.desc(dog));
+            left.set_field(0, Value::object(right.clone()));
+            right.set_field(0, Value::object(left.clone()));
+            right.set_field(1, Value::str(held.clone()));
+        }
+        drop(current);
+        // Both handles went out of scope holding each other at one, so nothing
+        // outside the ring refers to either and no reference count says so.
+        assert_eq!(ctx.live_objects(), 2);
+        assert_eq!(held.refcount(), 2);
+        assert!(
+            ctx.safepoint_flags()
+                .contains(crate::SafepointFlags::COLLECT),
+            "the allocator asks for the collection where it crosses the ceiling"
+        );
+        assert!(
+            ctx.memory_breach().is_some(),
+            "the request is over its ceiling"
+        );
+
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
+        let status = unsafe { crate::nvs_safepoint(&raw mut ctx) };
+
+        assert_eq!(
+            status,
+            crate::OK,
+            "the collection is what leaves it running"
+        );
+        assert_eq!(ctx.live_objects(), 0);
+        assert_eq!(held.refcount(), 1);
+        assert!(ctx.pending().is_none());
+        assert!(
+            ctx.safepoint_flags().is_empty(),
+            "a request back inside its ceiling leaves the poll with nothing standing"
+        );
+    }
+
+    #[test]
+    fn an_in_flight_collection_leaves_a_survivor_on_its_live_list() {
+        // The one difference between the two walks, and the direction that
+        // corrupts a heap if it is got wrong: `sweep` detaches what it did not
+        // free because the list dies with the context, and a collection must
+        // not, because the context goes on allocating into it. A survivor left
+        // detached would reach its own dismantle with nothing to unlink from.
+        let (table, animal, dog, _greets) = hierarchy();
+        let mut ctx = Ctx::new(crate::ctx::OutputSink::Sink);
+        let current = crate::ctx::CurrentCtx::install(&mut ctx);
+        #[expect(unsafe_code, reason = "the table outlives the objects")]
+        let survivor = unsafe {
+            let survivor = NvsObj::new(table.desc(animal));
+            let left = NvsObj::new(table.desc(dog));
+            let right = NvsObj::new(table.desc(dog));
+            left.set_field(0, Value::object(right.clone()));
+            right.set_field(0, Value::object(left.clone()));
+            survivor
+        };
+        drop(current);
+        assert_eq!(ctx.live_objects(), 3);
+
+        ctx.request_safepoint(crate::SafepointFlags::COLLECT);
+        assert!(ctx.collect_if_asked(), "the ring is reclaimed");
+        assert_eq!(
+            ctx.live_objects(),
+            1,
+            "and the survivor is still on the list"
+        );
+
+        // Which is what lets it leave by the ordinary door: the last reference
+        // goes, `dismantle` unlinks it, and the list is empty without the
+        // context having ended.
+        drop(survivor);
+        assert_eq!(ctx.live_objects(), 0);
     }
 
     #[test]

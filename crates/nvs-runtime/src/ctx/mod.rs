@@ -229,7 +229,17 @@ bitflags::bitflags! {
     pub struct SafepointFlags: u64 {
         /// The request has exceeded its CPU-time budget.
         const CPU_LIMIT = 1 << 0;
-        /// The cycle collector wants to stop the world.
+        /// A growing allocation has crossed the memory ceiling, so the cyclic
+        /// garbage this request is holding is worth walking for.
+        ///
+        /// Raised by [`crate::budget`]'s threshold beside
+        /// [`Self::MEMORY_LIMIT`], and answered by [`Ctx::collect_if_asked`]
+        /// at the poll that bit brings the request to — ahead of the counter
+        /// the breach is read from, so a ceiling hit that a dead cycle was
+        /// holding becomes a collection rather than a stop. That the two bits
+        /// share one raiser is the whole of *a collector that runs only near
+        /// the memory ceiling*: nothing else asks, so a request inside its
+        /// ceiling never walks its live list at all.
         const COLLECT = 1 << 2;
         /// A debugger wants to break here.
         const DEBUG_BREAK = 1 << 3;

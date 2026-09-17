@@ -441,7 +441,22 @@ where
     if let Some(fault) = breach {
         #[expect(unsafe_code, reason = "same contract, and the borrow above has ended")]
         let ctx = unsafe { &mut *ctx };
-        return report_memory_breach(ctx, fault);
+        // The ceiling's second chance, and it is asked only here — on the one
+        // path that was about to stop the request — so a member call under the
+        // ceiling pays nothing for the collector's existence. What was asked
+        // for is a walk of this context's cyclic garbage
+        // (`crate::object::collect`), and the counter is read again after it:
+        // bytes a dead cycle was holding are the request's again, and the
+        // member's body runs. `Ctx::collect_if_asked` owns why the ask can
+        // only have come from a crossing of this very ceiling.
+        let breach = if ctx.collect_if_asked() {
+            ctx.memory_breach()
+        } else {
+            Some(fault)
+        };
+        if let Some(fault) = breach {
+            return report_memory_breach(ctx, fault);
+        }
     }
     let outcome = panic::catch_unwind(AssertUnwindSafe(|| {
         #[expect(

@@ -70,8 +70,10 @@ pub enum TraceKind {
     /// A call site's entry or exit — `rule:testing/debug-probes`'s probe pair, and with
     /// [`TraceKind::Query`] one of the kinds anything in the tree records.
     Call,
-    /// A cycle-collector pause — `rule:observability/gc-pause-is-its-own-event`. The collector's run routine
-    /// does not record one yet.
+    /// A cycle-collector pause — `rule:observability/gc-pause-is-its-own-event`,
+    /// filed by [`Ctx::close_gc_pause`] from inside the run
+    /// [`Ctx::collect_if_asked`] brackets, with the start, the duration and the
+    /// number of objects freed.
     Gc,
     /// A spawned child's start, filled in at its join —
     /// `rule:observability/spawn-is-its-own-event`, opened by [`Ctx::open_spawn`]
@@ -384,6 +386,39 @@ impl Ctx {
         }
     }
 
+    /// Reads the clock a `rule:observability/gc-pause-is-its-own-event` event
+    /// opens with, or answers `None` — having read no clock — for a run that
+    /// records nothing ([`Ctx::records_spans`]) and does not time
+    /// ([`DebugFlags::PROFILE`]).
+    ///
+    /// The pair with [`Ctx::close_gc_pause`] is [`Ctx::open_spawn`]'s, one
+    /// question shorter: a collection has no join to be filled in at, so the
+    /// event is filed whole at the end and there is nothing to reserve a slot
+    /// for. Asked from inside [`Ctx::collect_if_asked`] **after** the flag that
+    /// brings a request there, which is what the rule means by recording from
+    /// the collector's routine and never from the poll: a back edge that finds
+    /// no collection asked for reads no clock and tests no debug bit.
+    pub(crate) fn open_gc_pause(&self) -> Option<Duration> {
+        (self.records_spans() || self.debug.contains(DebugFlags::PROFILE))
+            .then(|| SPAWN_EPOCH.elapsed())
+    }
+
+    /// Files the `gc` event [`Ctx::open_gc_pause`] read the clock for, with the
+    /// duration of the run and the number of objects it freed —
+    /// `rule:observability/gc-pause-is-its-own-event`'s whole field set.
+    ///
+    /// A pause of zero objects is filed like any other. What the event buys is
+    /// attribution, and a walk that found nothing still took the time it took.
+    pub(crate) fn close_gc_pause(&mut self, started: Duration, freed: usize) {
+        let ended = SPAWN_EPOCH.elapsed();
+        let took = ended.saturating_sub(started);
+        self.trace.push(TraceEvent {
+            kind: TraceKind::Gc,
+            callee: format!("gc started={started:?} took={took:?} freed={freed}"),
+            status: None,
+        });
+    }
+
     /// The call-site trace gathered so far, in the order the probes fired —
     /// empty for a request that ran with [`DebugFlags::TRACE`] off
     /// throughout. See the field's own doc comment for why this accumulates
@@ -657,6 +692,38 @@ mod tests {
             ctx.trace()[0].status,
             None,
             "the status field is a call site's, and a spawn is not a call"
+        );
+    }
+
+    #[test]
+    fn a_collection_run_files_a_gc_event_and_an_unrecorded_run_reads_no_clock() {
+        // `rule:observability/gc-pause-is-its-own-event`, at the one site that
+        // can hold it: the event is the collector's run, and the poll that
+        // found nothing to collect never gets this far.
+        let mut ctx = Ctx::buffered();
+        ctx.request_safepoint(crate::SafepointFlags::COLLECT);
+        assert!(
+            !ctx.collect_if_asked(),
+            "there is nothing on this context's list to reclaim"
+        );
+        assert!(
+            ctx.trace().is_empty(),
+            "both bits are off, so the run reads no clock and files nothing"
+        );
+
+        // `PROFILE` alone arms it, for `open_spawn`'s reason: a pause folded
+        // into a function's self time is exactly what the profile must not do.
+        ctx.set_debug_flags(DebugFlags::PROFILE);
+        ctx.request_safepoint(crate::SafepointFlags::COLLECT);
+        assert!(!ctx.collect_if_asked());
+        assert_eq!(ctx.trace().len(), 1, "the run files its own event");
+        assert_eq!(ctx.trace()[0].kind, TraceKind::Gc);
+        let filed = &ctx.trace()[0].callee;
+        assert!(filed.starts_with("gc started="), "{filed}");
+        assert!(filed.contains(" took="), "{filed}");
+        assert!(
+            filed.ends_with(" freed=0"),
+            "a walk that freed nothing says so rather than reading as a call: {filed}"
         );
     }
 

@@ -234,6 +234,44 @@ impl Ctx {
             .fetch_and(!flags.bits(), std::sync::atomic::Ordering::Relaxed);
     }
 
+    /// Runs [`crate::object::collect`] over this context's own live list if
+    /// [`SafepointFlags::COLLECT`] is standing, and answers whether it
+    /// reclaimed anything.
+    ///
+    /// **The one door into the in-flight collector**, and the whole of what
+    /// makes it a collector that runs only near the memory ceiling: the flag
+    /// is raised by [`crate::budget`]'s threshold, at the allocation that
+    /// crossed the ceiling and nowhere else, so a request inside its ceiling
+    /// reaches this and finds nothing to do — and the two callers that ask at
+    /// all ([`crate::nvs_safepoint`] and [`crate::run_helper`]) ask only where
+    /// they were about to report the breach.
+    ///
+    /// Lowered before the walk rather than after it, so that the allocations
+    /// the walk itself makes can raise the flag again for the crossing they
+    /// are, rather than being answered by the walk that provoked them.
+    ///
+    /// The list is this context's alone. A request tree shares the word this
+    /// reads, so a crossing anywhere under it brings *whichever* isolate is
+    /// running to a poll — and each then collects what it owns, which is the
+    /// same division of the budget `rule:security/isolate-shares-nothing`
+    /// already gives it.
+    pub(crate) fn collect_if_asked(&mut self) -> bool {
+        if !self.safepoint_flags().contains(SafepointFlags::COLLECT) {
+            return false;
+        }
+        self.lower_safepoint(SafepointFlags::COLLECT);
+        // `rule:observability/gc-pause-is-its-own-event`'s event, opened here
+        // and not in the poll above it: this side of the flag test is the
+        // collector's run and the other side is the hot path. The clock is read
+        // only where something records it — [`Ctx::open_gc_pause`].
+        let started = self.open_gc_pause();
+        let freed = crate::object::collect(&self.live);
+        if let Some(started) = started {
+            self.close_gc_pause(started, freed);
+        }
+        freed > 0
+    }
+
     /// A handle on the two words this request tree can be stopped through, for
     /// a thread that does not own the request.
     ///
@@ -421,7 +459,8 @@ pub(super) struct TreeShare {
 /// `rule:errors/escalation-ladder` makes it not
 /// a `Throwable` at the type level, so no Novis `catch` can see it.
 ///
-/// Not every flag acts; see the crate docs' known gap 5.
+/// Every flag but one acts: `DEBUG_BREAK` is cleared and ignored, which is the
+/// crate docs' known gap 8 and waits on `nvs dap`.
 ///
 /// # Safety
 ///
@@ -437,10 +476,11 @@ pub unsafe extern "C" fn nvs_safepoint(ctx: *mut Ctx) -> i32 {
         unsafe_code,
         reason = "the caller guarantees `ctx` is valid for this call; nothing \
                   here can panic, so no `catch_unwind` is needed to keep the \
-                  unwind out of the JIT frame above — the one thing reached \
-                  from here that is not a load and a compare is `rule:errors/on-limit`'s \
-                  handler, whose own helper calls are each contained by \
-                  `run_helper`"
+                  unwind out of the JIT frame above — the two things reached \
+                  from here that are not a load and a compare are \
+                  `rule:errors/on-limit`'s handler and the collection a \
+                  crossing of its memory ceiling asks for, and every helper \
+                  call either of them makes is contained by `run_helper`"
     )]
     let ctx = unsafe { &mut *ctx };
 
@@ -474,6 +514,13 @@ pub unsafe extern "C" fn nvs_safepoint(ctx: *mut Ctx) -> i32 {
         ctx.set_pending("the request exceeded its CPU-time limit");
         return crate::FATAL;
     }
+    // Ahead of the memory branch below, which is the whole point of it: the
+    // flag was raised by the allocation that crossed
+    // `rule:errors/on-limit`'s ceiling, and reclaiming the cyclic garbage
+    // before the counter is read is what turns hitting the ceiling into
+    // collecting and carrying on. [`Ctx::collect_if_asked`] owns why this
+    // costs a request inside its ceiling one load.
+    ctx.collect_if_asked();
     // `rule:errors/on-limit`'s memory limit, asked here as well as at every helper
     // boundary ([`crate::run_helper`]): this poll sits between two Novis
     // statements, which is the one place a limit can stop a program that is
@@ -533,7 +580,10 @@ pub unsafe extern "C" fn nvs_safepoint(ctx: *mut Ctx) -> i32 {
     // memory bit is lowered with the two housekeeping ones: a request whose
     // allocation crossed the ceiling and whose release brought it back again
     // would otherwise take this slow path at every back edge it has left, for a
-    // breach the branch above has already declined to report.
+    // breach the branch above has already declined to report. The collect bit
+    // is here for the same reading of the same fact — any ask still standing
+    // was raised by the walk's own allocations, above a ceiling this request
+    // is no longer over.
     ctx.lower_safepoint(
         SafepointFlags::COLLECT | SafepointFlags::DEBUG_BREAK | SafepointFlags::MEMORY_LIMIT,
     );
@@ -818,9 +868,27 @@ mod tests {
     }
 
     #[test]
-    fn an_unimplemented_safepoint_request_is_cleared_rather_than_acted_on() {
+    fn a_debug_break_request_is_cleared_rather_than_acted_on() {
+        // The one flag the poll still drops — the crate docs' known gap 8,
+        // waiting on `nvs dap`. Its neighbour `COLLECT` is answered now, and
+        // `crate::object`'s tests are where that is shown.
         let mut ctx = Ctx::buffered();
-        ctx.request_safepoint(SafepointFlags::COLLECT | SafepointFlags::DEBUG_BREAK);
+        ctx.request_safepoint(SafepointFlags::DEBUG_BREAK);
+        #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
+        let status = unsafe { nvs_safepoint(&raw mut ctx) };
+        assert_eq!(status, crate::OK);
+        assert!(ctx.safepoint_flags().is_empty());
+        assert!(ctx.pending().is_none());
+    }
+
+    #[test]
+    fn a_collect_request_is_answered_and_lowered_by_the_poll() {
+        // The flag's own half of the collector, with nothing on the list to
+        // find: the poll runs the walk, lowers the ask and carries on, so a
+        // request brought here by a crossing that a release had already given
+        // back is not left polling at every back edge it has left.
+        let mut ctx = Ctx::buffered();
+        ctx.request_safepoint(SafepointFlags::COLLECT);
         #[expect(unsafe_code, reason = "exercising the compiled-code entry point")]
         let status = unsafe { nvs_safepoint(&raw mut ctx) };
         assert_eq!(status, crate::OK);

@@ -90,7 +90,10 @@
 //! **The allocator itself is what bounds the rest.** A request whose ceiling
 //! is armed carries it here as an absolute balance — [`armed_ceiling`] — and
 //! [`add`] compares every *growing* allocation against it. A crossing raises
-//! [`SafepointFlags::MEMORY_LIMIT`](crate::SafepointFlags) in the word that
+//! [`SafepointFlags::MEMORY_LIMIT`](crate::SafepointFlags) — and beside it
+//! [`SafepointFlags::COLLECT`](crate::SafepointFlags), which is where the
+//! in-flight cycle collector runs and the only place it does ([`publish`]) —
+//! in the word that
 //! request's tree polls, which is why a loop allocating only through the
 //! ctx-less helpers — `nvs_str_concat`, `nvs_array_append` — stops at its own
 //! next back edge rather than at whatever member it happens to call next. The
@@ -447,8 +450,16 @@ pub(crate) fn displace(next: Armed) -> Armed {
     displaced
 }
 
-/// Raises [`SafepointFlags::MEMORY_LIMIT`](crate::SafepointFlags) in the word
-/// the armed request's tree polls.
+/// Raises [`SafepointFlags::MEMORY_LIMIT`](crate::SafepointFlags) and
+/// [`SafepointFlags::COLLECT`](crate::SafepointFlags) in the word the armed
+/// request's tree polls.
+///
+/// **Both bits, because this is the only place that knows the ceiling was
+/// crossed**, and the collector is the one that runs only there: the poll the
+/// first bit brings the request to is where the second is answered, so a cycle
+/// holding the bytes is reclaimed before the counter decides whether the
+/// request stops. `crate::object::collect` owns what that walk costs and
+/// `Ctx::collect_if_asked` is the door it goes through.
 ///
 /// Out of line from [`add`], because it is reached only by an allocation that
 /// has already crossed the ceiling. It allocates nothing and takes no lock,
@@ -472,7 +483,7 @@ fn publish() {
     // and this shared reference does not alias one.
     let word = unsafe { &*word };
     word.fetch_or(
-        crate::SafepointFlags::MEMORY_LIMIT.bits(),
+        (crate::SafepointFlags::MEMORY_LIMIT | crate::SafepointFlags::COLLECT).bits(),
         std::sync::atomic::Ordering::Relaxed,
     );
 }
