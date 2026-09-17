@@ -77,6 +77,22 @@ pub struct ClassLayout {
     ///
     /// **Cost:** one `bool` per field slot per class, once per compiled unit.
     pub public_fields: Vec<bool>,
+    /// Whether each field slot is declared `protected`, in [`Self::fields`]'
+    /// own order and beside [`Self::public_fields`] rather than folded into
+    /// it: two bits spell the three levels, and it is the *level* rather than
+    /// the readable/not pair that
+    /// `rule:security/reflection-enforces-visibility`
+    /// needs. A `private` slot is the one both bits are false for, and it is
+    /// reached only from the declaring class's own bodies, where a `protected`
+    /// one is reached from every class in the hierarchy that declares it too —
+    /// which is what an ordinary member access at each of those sites does.
+    ///
+    /// `nvs_ir::ir::Class::protected_fields` carries it down,
+    /// `nvs_runtime::ClassDesc::field_is_protected` answers it and
+    /// `nvs_runtime::visibility` is what asks.
+    ///
+    /// **Cost:** one `bool` per field slot per class, once per compiled unit.
+    pub protected_fields: Vec<bool>,
     /// Each field slot's declared type as the declaration spells it, in
     /// [`Self::fields`]' own order, and the **empty string** for a slot no
     /// declaration laid out — the exception tree's, whose types live as
@@ -99,7 +115,8 @@ pub struct ClassLayout {
     /// separately (`nvs_runtime::ClassDesc::conforms_to`).
     pub conforms: Vec<String>,
     /// Every method callable on an instance of this class, as `(method name,
-    /// declaring class label, is `public`, parameter names)` — its own first,
+    /// declaring class label, is `public`, is `protected`, parameter names)` —
+    /// its own first,
     /// then the nearest ancestor declaring each name it does not. Only methods
     /// with a *body*: an abstract or bodiless interface method has no code to
     /// name.
@@ -110,12 +127,15 @@ pub struct ClassLayout {
     /// interface default (`rule:classes/interface-default-methods`). A depth-first walk that takes
     /// `extends` before `implements` produces exactly that order.
     ///
-    /// The visibility bit is carried because it has no source below the front
-    /// end and one dispatch needs it: a call whose receiver names no class is
-    /// outside every class by construction, so `nvs_runtime::MethodRow` — the
-    /// far end of this table — answers a non-`public` member with a throw
-    /// rather than with the address. Every other visibility question is
-    /// answered where the call is written, against the signature table.
+    /// The visibility bits are carried because the keyword has no source below
+    /// the front end and one dispatch needs the level: a call whose receiver
+    /// names no class is checked where it lands rather than where it was
+    /// written, so `nvs_runtime::MethodRow` — the far end of this table — is
+    /// what `nvs_runtime::visibility` reads that level off. Two bits rather
+    /// than one three-valued field, for [`Self::protected_fields`]' reason
+    /// exactly, and `private` is the pair both are false for. Every visibility
+    /// question a receiver whose class is written down asks is answered at the
+    /// call site instead, against the signature table.
     ///
     /// The parameter names ride with the row for that bit's reason one step
     /// further, and they are [`Self::field_types`]' reason exactly: a
@@ -131,7 +151,7 @@ pub struct ClassLayout {
     ///
     /// **Cost:** one `String` per declared parameter per method per class,
     /// once per compiled unit, never per request.
-    pub methods: Vec<(String, String, bool, Vec<String>)>,
+    pub methods: Vec<(String, String, bool, bool, Vec<String>)>,
     /// Every property hook an instance of this class answers, as `(property
     /// name, hook label, is the `set` accessor)` — its own first, then the
     /// nearest ancestor declaring each `(property, accessor)` pair it does
@@ -208,7 +228,7 @@ impl ClassLayoutTable {
 /// wrote them: `(method name, is `public`, parameter names)` per entry, which
 /// is [`own_methods`]' answer before [`flatten_methods`] walks a chain of them
 /// into [`ClassLayout::methods`].
-type OwnMethods = FxHashMap<QName, Vec<(String, bool, Vec<String>)>>;
+type OwnMethods = FxHashMap<QName, Vec<(String, bool, bool, Vec<String>)>>;
 
 /// Builds the layout of every class and interface declared in any file of
 /// `files`, plus the two rosters no source declares — `nvs_hir::errors`'
@@ -233,7 +253,7 @@ pub fn build_class_layouts(
     files: &[crate::ProgramFile<'_>],
     graph: &ClassGraph,
 ) -> ClassLayoutTable {
-    let mut own: FxHashMap<QName, Vec<(String, bool, String)>> = FxHashMap::default();
+    let mut own: FxHashMap<QName, Vec<(String, bool, bool, String)>> = FxHashMap::default();
     let mut own_methods: OwnMethods = FxHashMap::default();
     let mut own_hooks: FxHashMap<QName, Vec<(String, String, bool)>> = FxHashMap::default();
     // The exception tree first: it has no source declaration to collect from
@@ -248,7 +268,7 @@ pub fn build_class_layouts(
         // it in a currency no text of these slots exists in.
         let fields = nvs_hir::errors::own_properties(name)
             .iter()
-            .map(|p| ((*p).to_owned(), true, String::new()))
+            .map(|p| ((*p).to_owned(), true, false, String::new()))
             .collect();
         // These constructors are synthesized rather than written
         // (`nvs_ir::lower::exception`), so they are the methods with a body
@@ -262,7 +282,7 @@ pub fn build_class_layouts(
             // seeds this constructor in the call site's currency — a message
             // and an options bag — while the lowered body takes the flattened
             // values, so no one declaration spells its parameters.
-            vec![("constructor".to_owned(), true, Vec::new())]
+            vec![("constructor".to_owned(), true, false, Vec::new())]
         } else {
             Vec::new()
         };
@@ -302,10 +322,12 @@ pub fn build_class_layouts(
         flatten_fields(qname, graph, &own, &mut slots, &mut seen);
         let mut fields = Vec::with_capacity(slots.len());
         let mut public_fields = Vec::with_capacity(slots.len());
+        let mut protected_fields = Vec::with_capacity(slots.len());
         let mut field_types = Vec::with_capacity(slots.len());
-        for (name, public, ty) in slots {
+        for (name, public, protected, ty) in slots {
             fields.push(name);
             public_fields.push(public);
+            protected_fields.push(protected);
             field_types.push(ty);
         }
 
@@ -326,6 +348,7 @@ pub fn build_class_layouts(
             ClassLayout {
                 fields,
                 public_fields,
+                protected_fields,
                 field_types,
                 conforms: conforms.iter().map(QName::to_string).collect(),
                 methods,
@@ -342,7 +365,7 @@ fn collect_own(
     stmts: &[Stmt],
     src: &SourceFile,
     namespace: &[String],
-    out: &mut FxHashMap<QName, Vec<(String, bool, String)>>,
+    out: &mut FxHashMap<QName, Vec<(String, bool, bool, String)>>,
     methods: &mut OwnMethods,
     hooks: &mut FxHashMap<QName, Vec<(String, String, bool)>>,
 ) {
@@ -384,9 +407,10 @@ fn collect_own(
     }
 }
 
-/// One declaration's own method names, each with whether it is `public` and
-/// the names of the parameters it declares — only those with a body, since a
-/// bodiless one has no compiled code for a descriptor to point at.
+/// One declaration's own method names, each with the two bits that spell its
+/// visibility and the names of the parameters it declares — only those with a
+/// body, since a bodiless one has no compiled code for a descriptor to point
+/// at.
 ///
 /// The parameters are read here for [`own_properties`]' reason: the spelling
 /// is a keyword's neighbour and lives exactly as long. A promoted one is a
@@ -404,13 +428,14 @@ fn collect_own(
 fn own_methods(
     members: &[nvs_syntax::ast::ClassMember],
     src: &SourceFile,
-) -> Vec<(String, bool, Vec<String>)> {
+) -> Vec<(String, bool, bool, Vec<String>)> {
     members
         .iter()
         .filter_map(|member| match &member.kind {
             ClassMemberKind::Method(m) if m.body.is_some() => Some((
                 span_text(src, m.name).to_owned(),
                 is_public(&m.modifiers),
+                is_protected(&m.modifiers),
                 m.params
                     .iter()
                     .map(|p| crate::strip_sigil(span_text(src, p.name)).to_owned())
@@ -470,13 +495,22 @@ fn is_public(modifiers: &[Modifier]) -> bool {
     !modifiers.contains(&Modifier::Private) && !modifiers.contains(&Modifier::Protected)
 }
 
+/// Whether `modifiers` make the member they decorate `protected` — the second
+/// of the two bits [`ClassLayout::protected_fields`] and [`ClassLayout::methods`]
+/// carry, read from the keyword rather than derived from [`is_public`]'s
+/// answer: `private` and `protected` are both "not public", and only one of
+/// them is reached from a subclass's own bodies.
+fn is_protected(modifiers: &[Modifier]) -> bool {
+    modifiers.contains(&Modifier::Protected)
+}
+
 /// One declaration's own instance-property names, in declaration order, each
-/// with whether it is `public` and the type it declares — a written `public
-/// int $n;` and a promoted constructor parameter alike, each where it stands
-/// among the members.
+/// with the two bits that spell its visibility and the type it declares — a
+/// written `public int $n;` and a promoted constructor parameter alike, each
+/// where it stands among the members.
 ///
-/// The visibility bit is [`own_methods`]' bit, read the same way by
-/// [`is_public`]: `rule:security/reflection-enforces-visibility`'s reflective read has to face the check ordinary
+/// The visibility bits are [`own_methods`]' bits, read the same way by
+/// [`is_public`] and [`is_protected`]: `rule:security/reflection-enforces-visibility`'s reflective read has to face the check ordinary
 /// code faces, and nothing below this crate can see a keyword. The type rides
 /// with it because the spelling is a keyword's neighbour and lives exactly as
 /// long — see [`declared_type`] and [`ClassLayout::field_types`].
@@ -490,7 +524,7 @@ fn is_public(modifiers: &[Modifier]) -> bool {
 fn own_properties(
     members: &[nvs_syntax::ast::ClassMember],
     src: &SourceFile,
-) -> Vec<(String, bool, String)> {
+) -> Vec<(String, bool, bool, String)> {
     members
         .iter()
         .flat_map(|member| match &member.kind {
@@ -498,6 +532,7 @@ fn own_properties(
                 vec![(
                     crate::strip_sigil(span_text(src, p.name)).to_owned(),
                     is_public(&p.modifiers),
+                    is_protected(&p.modifiers),
                     declared_type(src, Some(&p.ty)),
                 )]
             }
@@ -509,6 +544,7 @@ fn own_properties(
                     (
                         crate::strip_sigil(span_text(src, p.name)).to_owned(),
                         is_public(&p.modifiers),
+                        is_protected(&p.modifiers),
                         declared_type(src, p.ty.as_ref()),
                     )
                 })
@@ -547,8 +583,8 @@ fn is_static(p: &PropertyMember) -> bool {
 fn flatten_fields(
     qname: &QName,
     graph: &ClassGraph,
-    own: &FxHashMap<QName, Vec<(String, bool, String)>>,
-    fields: &mut Vec<(String, bool, String)>,
+    own: &FxHashMap<QName, Vec<(String, bool, bool, String)>>,
+    fields: &mut Vec<(String, bool, bool, String)>,
     seen: &mut Vec<QName>,
 ) {
     if seen.contains(qname) {
@@ -574,7 +610,7 @@ fn flatten_fields(
             // narrower one is the safe direction for a question `rule:security/reflection-enforces-visibility`
             // makes a privilege check, and its declared type is the slot's for
             // the same reason: one field, one type.
-            if !fields.iter().any(|(held, _, _)| *held == slot.0) {
+            if !fields.iter().any(|(held, _, _, _)| *held == slot.0) {
                 fields.push(slot.clone());
             }
         }
@@ -582,7 +618,8 @@ fn flatten_fields(
 }
 
 /// Appends every method `qname` answers to `methods`, as `(name, declaring
-/// class label, is `public`, parameter names)` — its own first, then its
+/// class label, is `public`, is `protected`, parameter names)` — its own
+/// first, then its
 /// superclass chain's, then any interface default it inherits. The first entry
 /// for a name wins, which is what makes an override beat the declaration it
 /// overrides, and it carries that declaration's own visibility and parameter
@@ -594,7 +631,7 @@ fn flatten_methods(
     qname: &QName,
     graph: &ClassGraph,
     own: &OwnMethods,
-    methods: &mut Vec<(String, String, bool, Vec<String>)>,
+    methods: &mut Vec<(String, String, bool, bool, Vec<String>)>,
     walked: &mut Vec<QName>,
 ) {
     if walked.contains(qname) {
@@ -603,9 +640,15 @@ fn flatten_methods(
     walked.push(qname.clone());
     let label = qname.to_string();
     if let Some(names) = own.get(qname) {
-        for (name, public, params) in names {
-            if !methods.iter().any(|(have, _, _, _)| have == name) {
-                methods.push((name.clone(), label.clone(), *public, params.clone()));
+        for (name, public, protected, params) in names {
+            if !methods.iter().any(|(have, _, _, _, _)| have == name) {
+                methods.push((
+                    name.clone(),
+                    label.clone(),
+                    *public,
+                    *protected,
+                    params.clone(),
+                ));
             }
         }
     }

@@ -306,6 +306,7 @@ fn closure_taking(invoke: nvs_runtime::NvsFn, arity: i64) -> Value {
             param_tags: 0,
             param_names: Vec::new(),
             public: true,
+            protected: false,
             native: false,
         }],
     );

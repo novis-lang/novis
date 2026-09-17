@@ -1,0 +1,118 @@
+--TEST--
+A `protected` member is reached reflectively from a subclass's body and from the declaring class's own, and refused from outside the hierarchy — `rule:security/reflection-enforces-visibility`
+--FILE--
+<?nvs
+// `rule:security/reflection-enforces-visibility`: a reflective read faces the
+// check ordinary code at that call site faces. `protected` and `private` are
+// both "not public", and this is the case that holds them apart — an ordinary
+// body in a subclass reaches the first and not the second, so a reflective read
+// written there answers the same way.
+class Ledger {
+    public string $name = "ledger";
+    protected string $balance = "120.00";
+    private string $secret = "audit-key";
+
+    protected function total(): string {
+        return $this->balance;
+    }
+
+    public function ownProtected(): mixed {
+        var $described = Core\Reflect::forObject($this);
+        return $described->get($this, "balance");
+    }
+
+    public function ownPrivate(): mixed {
+        var $described = Core\Reflect::forObject($this);
+        return $described->get($this, "secret");
+    }
+}
+
+class Branch extends Ledger {
+    public function readProtected(Ledger $of): mixed {
+        var $described = Core\Reflect::forObject($of);
+        return $described->get($of, "balance");
+    }
+
+    // The `private` half from the same site, which is the whole point of two
+    // bits: one refusal here and none above means the level travelled, where a
+    // single readable/not bit would have to answer both the same way.
+    public function readPrivate(Ledger $of): string {
+        var $described = Core\Reflect::forObject($of);
+        try {
+            var $held = $described->get($of, "secret");
+            return "private reached";
+        } catch (RuntimeError $refused) {
+            return "private refused";
+        }
+    }
+
+    public function callProtected(Ledger $of): mixed {
+        var $described = Core\Reflect::forObject($of);
+        return $described->call($of, "total", []);
+    }
+
+    // The walk and the read agree at this site too: every name it hands back
+    // from here is one `get` opens from here.
+    public function walk(Ledger $of): string {
+        var $described = Core\Reflect::forObject($of);
+        foreach ($described->readableProperties() as string $property) {
+            echo "subclass sees ", $property, "\n";
+        }
+        return "walked";
+    }
+}
+
+// A class outside the hierarchy that spells the same property name: that its
+// own declaration would resolve the name says nothing about this one, which is
+// why the relation is asked and not the spelling alone.
+class Auditor {
+    protected string $balance = "0.00";
+
+    public function peek(Ledger $of): string {
+        var $described = Core\Reflect::forObject($of);
+        try {
+            var $held = $described->get($of, "balance");
+            return "stranger reached";
+        } catch (RuntimeError $refused) {
+            return "stranger refused";
+        }
+    }
+}
+
+var $ledger = new Ledger();
+echo "declaring class protected: ", $ledger->ownProtected(), "\n";
+echo "declaring class private: ", $ledger->ownPrivate(), "\n";
+
+var $branch = new Branch();
+echo "subclass protected: ", $branch->readProtected($ledger), "\n";
+echo "subclass private: ", $branch->readPrivate($ledger), "\n";
+echo "subclass call: ", $branch->callProtected($ledger), "\n";
+echo $branch->walk($ledger), "\n";
+
+var $auditor = new Auditor();
+echo $auditor->peek($ledger), "\n";
+
+// A top-level statement is written inside no class at all, which is the site
+// every member below `public` is closed to.
+var $described = Core\Reflect::forObject($ledger);
+try {
+    var $held = $described->get($ledger, "balance");
+    echo "outside reached", "\n";
+} catch (RuntimeError $refused) {
+    echo "outside refused", "\n";
+}
+foreach ($described->readableProperties() as string $property) {
+    echo "outside sees ", $property, "\n";
+}
+--EXPECT--
+declaring class protected: 120.00
+declaring class private: audit-key
+subclass protected: 120.00
+subclass private: private refused
+subclass call: 120.00
+subclass sees name
+subclass sees balance
+walked
+stranger refused
+outside refused
+outside sees name

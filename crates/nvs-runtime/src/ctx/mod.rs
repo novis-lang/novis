@@ -187,6 +187,7 @@ mod limits;
 mod output;
 mod safepoint;
 mod trace;
+mod visibility;
 mod wiring;
 
 // A glob re-export takes each item at its own visibility, so what these

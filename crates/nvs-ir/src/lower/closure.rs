@@ -296,6 +296,7 @@ pub(crate) fn lower_closure(
             // slot reading as unreadable is the direction `field_is_public`
             // wants.
             public_fields: Vec::new(),
+            protected_fields: Vec::new(),
             // And for the same reason again: a capture's type was written on
             // the variable it closes over, not on a property declaration.
             field_types: Vec::new(),
@@ -312,7 +313,7 @@ pub(crate) fn lower_closure(
             // No parameter names either: the body is the literal's, and the
             // row is synthesized — `nvs_types::layout::ClassLayout::methods`'
             // empty case.
-            methods: vec![(FN_INVOKE.to_owned(), class.clone(), true, Vec::new())],
+            methods: vec![(FN_INVOKE.to_owned(), class.clone(), true, false, Vec::new())],
             // Nor a property to hook: every slot is a capture.
             hooks: Vec::new(),
             // A closure is not a declaration and carries no attribute, and
@@ -802,6 +803,7 @@ pub(crate) fn lower_callable(
             field_reprs: Vec::new(),
             secret_fields: Vec::new(),
             public_fields: Vec::new(),
+            protected_fields: Vec::new(),
             field_types: Vec::new(),
             // A first-class callable is a closure, so it carries the same
             // edges an `fn` literal's class does — the one every closure has
@@ -810,7 +812,7 @@ pub(crate) fn lower_callable(
             conforms: std::iter::once(super::CLOSURE_MARKER.to_owned())
                 .chain(exprs.callable_markers_at(*span).iter().cloned())
                 .collect(),
-            methods: vec![(FN_INVOKE.to_owned(), class.clone(), true, Vec::new())],
+            methods: vec![(FN_INVOKE.to_owned(), class.clone(), true, false, Vec::new())],
             // Nor a property to hook: every slot is a capture.
             hooks: Vec::new(),
             codec: Vec::new(),

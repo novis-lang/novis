@@ -77,6 +77,7 @@ fn closure_of(invoke: nvs_runtime::NvsFn) -> Value {
             param_tags: 0,
             param_names: Vec::new(),
             public: true,
+            protected: false,
             native: false,
         }],
     );

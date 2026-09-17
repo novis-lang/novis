@@ -191,6 +191,18 @@ pub struct Class {
     /// **Cost:** one `bool` per field slot per class, once per compiled unit,
     /// not per request.
     pub public_fields: Vec<bool>,
+    /// A straight copy of `nvs_types::layout::ClassLayout::protected_fields`,
+    /// which owns why the level rather than the readable/not pair is what
+    /// travels: `rule:security/reflection-enforces-visibility` gives a
+    /// `protected` member to every class in the hierarchy that declares it and
+    /// a `private` one to the declaring class alone, and the two are one
+    /// answer to [`Self::public_fields`]. `nvs-codegen` hands it to
+    /// `nvs_runtime::ClassTable::set_protected_fields`, and
+    /// `nvs_runtime::visibility` reads it off the instance's descriptor.
+    ///
+    /// **Cost:** one `bool` per field slot per class, once per compiled unit,
+    /// not per request.
+    pub protected_fields: Vec<bool>,
     /// Each field slot's declared type as its declaration spells it, in
     /// [`Self::fields`]' own order — or **empty**, on [`Self::public_fields`]'
     /// terms exactly: "nothing told this class", never "every slot is
@@ -209,9 +221,10 @@ pub struct Class {
     /// transitively, as labels. Excludes the class itself.
     pub conforms: Vec<String>,
     /// Every method an instance of this class answers, as `(method name,
-    /// declaring class label, is `public`, parameter names)` — a straight copy
-    /// of `nvs_types::layout::ClassLayout::methods`, which owns the precedence
-    /// rule, the visibility bit and what an empty name list means.
+    /// declaring class label, is `public`, is `protected`, parameter names)` —
+    /// a straight copy of `nvs_types::layout::ClassLayout::methods`, which owns
+    /// the precedence rule, the visibility bits and what an empty name list
+    /// means.
     /// `nvs-codegen` turns each row into the `nvs_runtime::MethodRow` the
     /// runtime descriptor's method table holds, which is what
     /// [`InstKind::CallVirtual`] dispatches through, joining the compiled
@@ -223,7 +236,7 @@ pub struct Class {
     ///
     /// **Cost:** one `String` per declared parameter per method per class,
     /// once per compiled unit, not per request.
-    pub methods: Vec<(String, String, bool, Vec<String>)>,
+    pub methods: Vec<(String, String, bool, bool, Vec<String>)>,
     /// Every property hook an instance of this class answers, as `(property
     /// name, hook label, is the `set` accessor)` — a straight copy of
     /// `nvs_types::layout::ClassLayout::hooks`, which owns the precedence rule

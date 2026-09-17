@@ -529,6 +529,7 @@ pub(crate) fn lower_generator(
         field_reprs: Vec::new(),
         secret_fields: Vec::new(),
         public_fields: Vec::new(),
+        protected_fields: Vec::new(),
         field_types: Vec::new(),
         // `Iterable`/`Iterator` are compiler-declared and have no layout
         // entry of their own, so `nvs_codegen::Classes::define` drops an
@@ -545,16 +546,23 @@ pub(crate) fn lower_generator(
         // empty case.
         methods: {
             let mut methods = vec![
-                (GEN_ADVANCE.to_owned(), class.clone(), true, Vec::new()),
+                (
+                    GEN_ADVANCE.to_owned(),
+                    class.clone(),
+                    true,
+                    false,
+                    Vec::new(),
+                ),
                 (
                     GEN_CURRENT_METHOD.to_owned(),
                     class.clone(),
                     true,
+                    false,
                     Vec::new(),
                 ),
             ];
             if !owed.is_empty() {
-                methods.push((GEN_UNWIND_METHOD.to_owned(), class, true, Vec::new()));
+                methods.push((GEN_UNWIND_METHOD.to_owned(), class, true, false, Vec::new()));
             }
             methods
         },

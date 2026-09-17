@@ -163,16 +163,6 @@
 //!    that join takes, one list beside the descriptors rather than a field on
 //!    them, because neither fact belongs to an instance.
 //!    — owner: decided-closures
-//! 2. A `protected` member is reached reflectively from the declaring class's
-//!    own bodies and from nowhere else, where an ordinary call from a subclass
-//!    reaches it too. [`nvs_runtime::ClassDesc`] carries one bit per member and
-//!    not the level behind it, so the class a site is inside is compared for
-//!    equality rather than walked up the graph the way
-//!    `nvs_types::signatures`'s `is_visible_from` walks it. What closes it is a
-//!    second bit carried down from `nvs_types::layout`, next to the one
-//!    [`nvs_runtime::ClassDesc::field_is_public`] answers; until then the
-//!    narrower answer is the one that refuses rather than the one that leaks.
-//!    — owner: decided-closures
 
 use nvs_runtime::{ClassDesc, Fault, NvsArray, NvsObj, NvsStr, Tag, ThrownClass, Value};
 
@@ -1596,36 +1586,60 @@ nvs_runtime::nvs_helper! {
     /// walk, replacing `get_object_vars`.
     ///
     /// The rule is stated over the **call site** and not over the description,
-    /// so one description answers two ways: inside the described class every
-    /// declared name, which is what an ordinary body there reads, and anywhere
-    /// else the `public` ones alone. The last argument —
+    /// so one description answers as many ways as there are places to ask
+    /// from: inside the described class every declared name, from another
+    /// class in its hierarchy the `protected` ones beside the `public`, and
+    /// anywhere else the `public` ones alone — each being what an ordinary body
+    /// at that site reads. The last argument —
     /// [`crate::registry::CALL_SITE_MEMBERS`]' constant, which no program can
     /// write — is what picks between them, and a site inside no class at all
     /// arrives as the zero word and is answered as outside.
+    ///
+    /// The level comes off the described class's own descriptor
+    /// ([`nvs_runtime::Ctx::field_is_visible_from`]) and not off the roster row
+    /// beside the name, which carries the `public` bit and not the level behind
+    /// it. A description of a class this program does not declare has no
+    /// descriptor to ask and falls back to that bit, which is the narrower
+    /// answer for the family that has no `protected` property to report.
     ///
     /// Filtered out of the roster rather than held in a slot, because two sites
     /// asking one description are owed two lists and a slot can hold one. What
     /// that spends is the module doc's § *what it spends*: one array of one
     /// string per name, per call.
-    fn nvs_core_reflect_class_info_readable_properties(_ctx, args: [2]) {
+    fn nvs_core_reflect_class_info_readable_properties(ctx, args: [2]) {
         let member = "readableProperties";
         let receiver = crate::instance::receiver(args[0], &CLASS_INFO, member)?;
         let described = crate::instance::slot(receiver, NAME_SLOT);
         let described = described.as_text();
-        let inside = site_class(args[1]).is_some_and(|site| described == Some(site.as_str()));
+        let site = site_class(args[1]);
+        let inside = site.as_ref().is_some_and(|site| described == Some(site.as_str()));
+        #[expect(
+            unsafe_code,
+            reason = "`class_desc` answers with a pointer into the compiled unit's class table, \
+                      which outlives this context and is never rewritten while a member of it is \
+                      running"
+        )]
+        let desc = described
+            .and_then(|name| ctx.class_desc(name))
+            .map(|desc| unsafe { &*desc });
         let roster = roster_of(receiver, &CLASS_INFO, PROPERTIES_SLOT, member)?;
         let mut names = NvsArray::new();
         for index in 0..roster.count() {
             let Some(row) = row_at(&roster, index) else {
                 continue;
             };
-            if !inside && crate::instance::slot(row, PROPERTY_PUBLIC_SLOT).as_bool() != Some(true) {
-                continue;
-            }
             let held = crate::instance::slot(row, PROPERTY_NAME_SLOT);
             let Some(name) = held.as_text() else {
                 continue;
             };
+            let visible = if let Some(desc) = desc {
+                ctx.field_is_visible_from(desc, name, site.as_deref())
+            } else {
+                inside || crate::instance::slot(row, PROPERTY_PUBLIC_SLOT).as_bool() == Some(true)
+            };
+            if !visible {
+                continue;
+            }
             names.append(Value::str(NvsStr::new(name.as_bytes())));
         }
         Ok(Value::array(names))
@@ -1875,12 +1889,18 @@ nvs_runtime::nvs_helper! {
     /// misspelling with the same refusal as a `private` read, which is
     /// precisely the confusion `examples/reflect.nvs` catches on `RuntimeError`
     /// rather than on `Throwable` to avoid.
-    fn nvs_core_reflect_class_info_get(_ctx, args: [4]) {
+    ///
+    /// The visibility question is [`nvs_runtime::Ctx::field_is_visible_from`]'s
+    /// whole answer and not a comparison written here: the site reaches a
+    /// `private` property from the declaring class's own bodies and a
+    /// `protected` one from every class in that hierarchy declaring it, which
+    /// is what an ordinary read at each of those sites does.
+    fn nvs_core_reflect_class_info_get(ctx, args: [4]) {
         let member = "get";
         let receiver = crate::instance::receiver(args[0], &CLASS_INFO, member)?;
         let name = text_of(&args[2], "Core\\Reflect\\ClassInfo::get")?;
         let (subject, class) = subject_of(receiver, args[1], member)?;
-        let inside = site_class(args[3]).is_some_and(|site| site == class);
+        let site = site_class(args[3]);
         #[expect(
             unsafe_code,
             reason = "the argument owns a reference to a live allocation, so it is \
@@ -1892,8 +1912,10 @@ nvs_runtime::nvs_helper! {
         let (slot, visible) = unsafe {
             let object = std::mem::ManuallyDrop::new(NvsObj::from_raw(subject));
             let desc = &*object.class();
-            let slot = desc.field_slot(name, 0);
-            (slot, slot.is_some_and(|at| desc.field_is_public(at)))
+            (
+                desc.field_slot(name, 0),
+                ctx.field_is_visible_from(desc, name, site.as_deref()),
+            )
         };
         let Some(slot) = slot else {
             return Err(Fault::thrown_as(
@@ -1901,7 +1923,7 @@ nvs_runtime::nvs_helper! {
                 format!("{CLASS_INFO_NAME}::get(): `{class}` has no property named `{name}`"),
             ));
         };
-        if !visible && !inside {
+        if !visible {
             return Err(Fault::thrown(format!(
                 "{CLASS_INFO_NAME}::get(): `{class}::{name}` is not readable from outside the \
                  class, and reflection does not lift that"
@@ -1950,7 +1972,7 @@ nvs_runtime::nvs_helper! {
         let receiver = crate::instance::receiver(args[0], &CLASS_INFO, member)?;
         let name = text_of(&args[2], "Core\\Reflect\\ClassInfo::set")?;
         let (subject, class) = subject_of(receiver, args[1], member)?;
-        let inside = site_class(args[4]).is_some_and(|site| site == class);
+        let site = site_class(args[4]);
         #[expect(
             unsafe_code,
             reason = "the argument owns a reference to a live allocation, so it is \
@@ -1962,8 +1984,10 @@ nvs_runtime::nvs_helper! {
         let (slot, visible) = unsafe {
             let object = std::mem::ManuallyDrop::new(NvsObj::from_raw(subject));
             let desc = &*object.class();
-            let slot = desc.field_slot(name, 0);
-            (slot, slot.is_some_and(|at| desc.field_is_public(at)))
+            (
+                desc.field_slot(name, 0),
+                ctx.field_is_visible_from(desc, name, site.as_deref()),
+            )
         };
         if slot.is_none() {
             return Err(Fault::thrown_as(
@@ -1971,7 +1995,7 @@ nvs_runtime::nvs_helper! {
                 format!("{CLASS_INFO_NAME}::set(): `{class}` has no property named `{name}`"),
             ));
         }
-        if !visible && !inside {
+        if !visible {
             return Err(Fault::thrown(format!(
                 "{CLASS_INFO_NAME}::set(): `{class}::{name}` is not writable from outside the \
                  class, and reflection does not lift that"
@@ -2190,6 +2214,10 @@ mod tests {
             param_tags: 0,
             param_names: Vec::new(),
             public,
+            // `private`, which is the pair both bits are false for: this
+            // fixture's point is the member a site outside the class is
+            // refused, and `protected` would hand it to one.
+            protected: false,
             native: false,
         };
         classes.set_methods(id, vec![row("open", true), row("sealed", false)]);
@@ -2371,6 +2399,7 @@ mod tests {
                     param_tags: 0xff,
                     param_names: Vec::new(),
                     public: true,
+                    protected: false,
                     native: false,
                 }],
             );

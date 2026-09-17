@@ -458,6 +458,22 @@ pub struct ClassDesc {
     /// [`ClassTable::set_public_fields`]. **Cost:** one `bool` per field per
     /// class, once per process, not per instance.
     public_fields: Vec<bool>,
+    /// Whether each field slot is declared `protected`, in slot order.
+    /// **Empty** for a class nothing has told, which reads as "no slot is
+    /// `protected`" on [`Self::public_fields`]' terms exactly: both bits false
+    /// is `private`, and refusing is the safe direction for a question
+    /// `rule:security/reflection-enforces-visibility`
+    /// makes a privilege check.
+    ///
+    /// Beside the readable bit rather than folded into it, because the rule is
+    /// stated over the *level*: a `protected` member is reached from every
+    /// class in the hierarchy that declares it, where a `private` one answers
+    /// to the declaring class alone, and one bit cannot tell those apart.
+    /// `nvs_types::layout` decides it, `nvs_ir::ir::Class::protected_fields`
+    /// carries it, [`ClassTable::set_protected_fields`] fills it and
+    /// [`crate::Ctx::field_is_visible_from`] is its one reader. **Cost:** one
+    /// `bool` per field per class, once per process, not per instance.
+    protected_fields: Vec<bool>,
     /// Each field slot's declared type, spelled as the declaration spells it —
     /// empty for a class no declaration laid out, on [`Self::public_fields`]'
     /// terms exactly.
@@ -612,6 +628,15 @@ pub struct MethodRow {
     /// synthesized method (an exception constructor, a generator's state
     /// machine, an `rule:classes/delegation-by-field` forward) callable.
     pub public: bool,
+    /// Whether the member is `protected` — [`Self::public`]'s neighbour, and
+    /// the bit that makes the level readable rather than just the
+    /// readable/not pair: a `protected` method is called from every class in
+    /// the hierarchy that declares it, where a `private` one answers to the
+    /// declaring class alone. Both bits false is `private`, and a row nothing
+    /// told is `public`, so a synthesized method stays callable on
+    /// [`Self::public`]'s terms exactly.
+    /// [`crate::Ctx::method_is_visible_from`] is what reads the pair.
+    pub protected: bool,
     /// Whether [`Self::code`] is a **native** `rule:errors/propagation` helper rather than a
     /// compiled Novis function — true for exactly the `Core`-owned members
     /// `nvs_stdlib::instance` puts in this table.
@@ -1279,6 +1304,21 @@ impl ClassDesc {
         self.public_fields.get(index).copied().unwrap_or(false)
     }
 
+    /// Whether slot `index` is declared `protected` — the bit that tells a
+    /// member a subclass's own bodies reach from one only the declaring class
+    /// does, which is the difference
+    /// `rule:security/reflection-enforces-visibility`
+    /// rests on and [`Self::field_is_public`] alone cannot carry.
+    ///
+    /// `false` for a slot nothing told this class, in [`Self::field_is_public`]'s
+    /// direction and for its reason: the pair both bits are false for is
+    /// `private`, so an unanswered slot is the one that refuses.
+    /// [`crate::Ctx::field_is_visible_from`] is what asks.
+    #[must_use]
+    pub fn field_is_protected(&self, index: usize) -> bool {
+        self.protected_fields.get(index).copied().unwrap_or(false)
+    }
+
     /// The type slot `index` is declared with, as its declaration spells it —
     /// `"?int"`, `"array<string>"`, `"App\\User"`.
     ///
@@ -1676,6 +1716,7 @@ impl ClassTable {
             field_tags: Vec::new(),
             secret_fields: Vec::new(),
             public_fields: Vec::new(),
+            protected_fields: Vec::new(),
             field_types: Vec::new(),
             render: std::ptr::null(),
             compare: std::ptr::null(),
@@ -1807,6 +1848,35 @@ impl ClassTable {
             public.len()
         );
         desc.public_fields = public;
+    }
+
+    /// Fills in `id`'s per-slot `protected` bits — see
+    /// [`ClassDesc::protected_fields`].
+    ///
+    /// Separate from [`ClassTable::set_public_fields`] for that method's own
+    /// reason: the two are different readings of one declaration, and a class
+    /// may carry the first without the second — which is exactly what a class
+    /// with no `protected` property is.
+    ///
+    /// # Panics
+    ///
+    /// If `id` does not belong to this table, or if `protected` is not one
+    /// entry per slot — a length disagreement would answer one property's
+    /// level with another's, which opens the member
+    /// `rule:security/reflection-enforces-visibility` exists to keep shut.
+    pub fn set_protected_fields(&mut self, id: ClassId, protected: Vec<bool>) {
+        let desc = self
+            .classes
+            .get_mut(id.0)
+            .expect("a class id always belongs to the table that handed it out");
+        assert!(
+            protected.len() == desc.fields.len(),
+            "`{}` has {} field slots but {} declared `protected` bits",
+            desc.name,
+            desc.fields.len(),
+            protected.len()
+        );
+        desc.protected_fields = protected;
     }
 
     /// Fills in `id`'s per-slot declared type names — see
@@ -4710,6 +4780,7 @@ mod tests {
             param_tags: 0,
             param_names: Vec::new(),
             public: true,
+            protected: false,
             native: false,
         }
     }
@@ -4965,6 +5036,7 @@ mod tests {
                     param_tags: 0x25,
                     param_names: Vec::new(),
                     public: true,
+                    protected: false,
                     native: false,
                 },
                 // The superclass's own `greet`, appended after it exactly as
@@ -4976,6 +5048,7 @@ mod tests {
                     param_tags: 0,
                     param_names: Vec::new(),
                     public: false,
+                    protected: false,
                     native: false,
                 },
                 MethodRow {
@@ -4985,6 +5058,7 @@ mod tests {
                     param_tags: 0,
                     param_names: Vec::new(),
                     public: false,
+                    protected: false,
                     native: false,
                 },
             ],

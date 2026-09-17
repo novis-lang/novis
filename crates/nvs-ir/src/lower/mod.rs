@@ -776,6 +776,10 @@ pub fn lower_program(
                 // order it is aligned to — `nvs_types::layout` decided it where
                 // the declaration's keyword still exists.
                 public_fields: layout.public_fields.clone(),
+                // The bit beside it that tells a `protected` slot from a
+                // `private` one, copied for the same reason and aligned to the
+                // same order.
+                protected_fields: layout.protected_fields.clone(),
                 // The declared type beside it, aligned to the same slot order
                 // and copied for the same reason: the spelling lives where the
                 // declaration does.
@@ -830,6 +834,7 @@ pub fn lower_program(
         field_reprs: Vec::new(),
         secret_fields: Vec::new(),
         public_fields: Vec::new(),
+        protected_fields: Vec::new(),
         field_types: Vec::new(),
         conforms: Vec::new(),
         methods: Vec::new(),
@@ -857,6 +862,7 @@ pub fn lower_program(
         field_reprs: Vec::new(),
         secret_fields: Vec::new(),
         public_fields: Vec::new(),
+        protected_fields: Vec::new(),
         field_types: Vec::new(),
         conforms: Vec::new(),
         methods: Vec::new(),
@@ -932,7 +938,7 @@ pub fn lower_program(
         if class
             .methods
             .iter()
-            .any(|(name, _, _, _)| *name == delegation.method)
+            .any(|(name, _, _, _, _)| *name == delegation.method)
         {
             continue;
         }
@@ -954,6 +960,7 @@ pub fn lower_program(
             delegation.method.clone(),
             delegation.class.clone(),
             true,
+            false,
             Vec::new(),
         ));
         functions.push(function);
@@ -2025,8 +2032,10 @@ impl<'a> Lowering<'a> {
             // `rule:types/object-literal` gives a shape literal no visibility keyword to write
             // and no class to be private to: every slot was written by the
             // literal that built it and every one is readable, which is the one
-            // answer `Core\Reflect`'s walk can give a shape.
+            // answer `Core\Reflect`'s walk can give a shape — and none is
+            // `protected`, there being no class for one to be protected from.
             public_fields: vec![true; field_count],
+            protected_fields: vec![false; field_count],
             // Empty rather than one entry per slot, which is `ir::Class`'s
             // "nothing told this class": a shape literal declares no type to
             // spell, its slots being typed by what was written into them.
@@ -3671,6 +3680,7 @@ fn nested_shapes(
             field_reprs: vec![Ty::Tagged; field_count],
             secret_fields: vec![false; field_count],
             public_fields: vec![true; field_count],
+            protected_fields: vec![false; field_count],
             field_types: Vec::new(),
             conforms: Vec::new(),
             methods: Vec::new(),

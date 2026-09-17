@@ -1473,6 +1473,7 @@ mod tests {
                 param_tags: 0,
                 param_names: Vec::new(),
                 public: true,
+                protected: false,
                 native: false,
             }],
         );

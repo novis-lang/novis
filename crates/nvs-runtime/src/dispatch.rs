@@ -321,15 +321,15 @@ pub fn call_erased_method(
 /// construction, and that is the whole of what the visibility question can be
 /// asked against there. It is `Some` for one caller — `Core\Reflect\ClassInfo`'s
 /// acting members, which the compiler hands their own call site through
-/// `nvs_stdlib::registry::CALL_SITE_MEMBERS` — and a non-`public` member is
-/// reachable exactly when that site is the class the method belongs to. A site
-/// naming any other class is refused the way the anonymous one is.
+/// `nvs_stdlib::registry::CALL_SITE_MEMBERS`.
 ///
-/// Exact class and not the inheritance walk `nvs_types::signatures`'s
-/// `is_visible_from` runs, because a descriptor carries one bit per member and
-/// not the level behind it: a `protected` method reached from a subclass is
-/// refused here where an ordinary call at that site is allowed.
-/// `nvs_stdlib::reflect`'s known gaps own that difference, which fails closed.
+/// Which sites a non-`public` member is then reachable from is
+/// [`crate::Ctx::method_is_visible_from`]'s question rather than this
+/// function's, and it is the hierarchy walk `nvs_types::signatures`'s
+/// `is_visible_from` makes where a receiver's class is written down: a
+/// `private` method answers to the class it belongs to and a `protected` one
+/// to every class in that hierarchy declaring it. A site naming a class
+/// outside it is refused the way the anonymous one is.
 ///
 /// # Errors
 ///
@@ -396,7 +396,7 @@ pub fn call_erased_method_from(
         ));
     };
     let callee = format!("`{class}::{name}`");
-    if !row.public && site != Some(class) {
+    if !ctx.method_is_visible_from(desc, row, site) {
         let outside = site.map_or_else(
             || "a `mixed` receiver is outside every class".to_owned(),
             |site| format!("the call is written inside `{site}`"),

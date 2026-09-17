@@ -1033,7 +1033,7 @@ impl Descriptors {
             let methods = entry
                 .methods
                 .iter()
-                .filter_map(|(method, declaring, public, params)| {
+                .filter_map(|(method, declaring, public, protected, params)| {
                     let label = format!("{declaring}::{method}");
                     let (symbol, shape) = functions.get(&label)?;
                     Some(nvs_runtime::MethodRow {
@@ -1046,6 +1046,7 @@ impl Descriptors {
                         // what an empty list means.
                         param_names: params.clone(),
                         public: *public,
+                        protected: *protected,
                         // Every row here is a compiled Novis function, for the
                         // reason its JIT counterpart gives.
                         native: false,
@@ -1265,12 +1266,13 @@ struct ClassEntry {
     /// declaring class is valid for every subclass.
     slots: FxHashMap<String, usize>,
     /// This class's own id in `Classes::table`, and every method it answers as
-    /// `(method name, declaring class label, is `public`, parameter names)` —
+    /// `(method name, declaring class label, is `public`, is `protected`,
+    /// parameter names)` —
     /// kept until [`UnitBuilder::finish`], which is the first moment a compiled
     /// function has an address to put in the runtime descriptor's method table.
     /// See `nvs_runtime::ClassTable::set_methods`.
     id: nvs_runtime::ClassId,
-    methods: Vec<(String, String, bool, Vec<String>)>,
+    methods: Vec<(String, String, bool, bool, Vec<String>)>,
     /// Every property hook it answers as `(property name, hook label, is the
     /// `set` accessor)`, kept for [`Self::methods`]' reason and spent at the
     /// same moment — see `nvs_runtime::ClassTable::set_hooks`. The label is
@@ -1528,6 +1530,16 @@ impl Classes {
         if class.public_fields.len() == class.fields.len() && !class.public_fields.is_empty() {
             self.table
                 .set_public_fields(id, class.public_fields.clone());
+        }
+        // The bit that tells a `protected` slot from a `private` one, on the
+        // same terms and guarded the same way: both bits false is `private`,
+        // so a class that reaches this table with the first list and not the
+        // second reads as one with no `protected` property, which is what a
+        // synthesized class is.
+        if class.protected_fields.len() == class.fields.len() && !class.protected_fields.is_empty()
+        {
+            self.table
+                .set_protected_fields(id, class.protected_fields.clone());
         }
         // The declared type beside it, at the same granularity and guarded the
         // same way: `Core\Reflect\PropertyInfo` names the type a slot was
@@ -2164,7 +2176,7 @@ impl UnitBuilder<JITModule> {
             let methods = entry
                 .methods
                 .iter()
-                .filter_map(|(method, declaring, public, params)| {
+                .filter_map(|(method, declaring, public, protected, params)| {
                     let label = format!("{declaring}::{method}");
                     let id = self.functions.get(&label)?;
                     // The shape is recorded under the very label the address
@@ -2179,6 +2191,7 @@ impl UnitBuilder<JITModule> {
                         // The AOT binder's join exactly, off the same roster.
                         param_names: params.clone(),
                         public: *public,
+                        protected: *protected,
                         // Every row here is a compiled Novis function, which
                         // owns its parameters — `nvs-stdlib` is the only
                         // producer of a native one.
