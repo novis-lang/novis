@@ -1,0 +1,51 @@
+--TEST--
+A namespace declaration binds under the element that wrote it, so an inner one shadows an outer one and an empty default undeclares it — spec § 17, `rule:core-classes/html-parsing`
+--FILE--
+<?nvs
+class Ns {
+    public static function show(Core\Xml\Node $node): void {
+        ?tainted string $uri = $node->namespaceUri();
+        if ($uri != null) {
+            echo $node->name(), " -> ", $uri, "\n";
+        } else {
+            echo $node->name(), " -> none\n";
+        }
+    }
+}
+
+class Walk {
+    public static function under(Core\Xml\Node $node): void {
+        if ($node->kind() == Core\Xml\NodeKind::Element) {
+            Ns::show($node);
+        }
+        foreach ($node->children() as Core\Xml\Node $child) {
+            Walk::under($child);
+        }
+    }
+}
+
+// `b` rebinds the default namespace for itself and its children, and `e` after
+// it is back under the root's: a declaration is scoped to a subtree rather than
+// to the rest of the document, which is the whole difference from a setting.
+Core\Xml\Node $default = Core\Xml::parse(
+    "<r xmlns=\"urn:d\"><a/><b xmlns=\"urn:b\"><c/></b><d xmlns=\"\"/><e/></r>"
+);
+Walk::under($default);
+
+// A prefix rebinds the same way, and the innermost declaration is the one that
+// answers: `x` means one thing inside `q` and another outside it.
+Core\Xml\Node $prefixed = Core\Xml::parse(
+    "<p xmlns:x=\"urn:1\"><x:q xmlns:x=\"urn:2\"><x:r/></x:q><x:s/></p>"
+);
+Walk::under($prefixed);
+--EXPECT--
+r -> urn:d
+a -> urn:d
+b -> urn:b
+c -> urn:b
+d -> none
+e -> urn:d
+p -> none
+x:q -> urn:2
+x:r -> urn:2
+x:s -> urn:1

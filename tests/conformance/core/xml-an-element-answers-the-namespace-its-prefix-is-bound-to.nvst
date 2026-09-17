@@ -1,0 +1,55 @@
+--TEST--
+`Core\Xml\Node::namespaceUri` answers the URI the enclosing declaration bound an element's prefix to, while `name` still answers the spelling the document wrote — spec § 17, `rule:core-classes/html-parsing`
+--FILE--
+<?nvs
+// The two questions a qualified name raises, asked separately: what the
+// document spelled, and what that spelling means where it sits.
+class Ns {
+    public static function show(Core\Xml\Node $node): void {
+        ?tainted string $uri = $node->namespaceUri();
+        if ($uri != null) {
+            echo $node->name(), " -> ", $uri, "\n";
+        } else {
+            echo $node->name(), " -> none\n";
+        }
+    }
+}
+
+// Every element of a tree, in document order — a document node is not one, so
+// the walk starts inside it rather than at it.
+class Walk {
+    public static function under(Core\Xml\Node $node): void {
+        if ($node->kind() == Core\Xml\NodeKind::Element) {
+            Ns::show($node);
+        }
+        foreach ($node->children() as Core\Xml\Node $child) {
+            Walk::under($child);
+        }
+    }
+}
+
+// A declaration covers the element that wrote it and everything under it, so
+// `b` is in the default namespace and `x:c` is in `x`'s, though neither
+// declares anything: the answer is a property of where an element sits.
+Core\Xml\Node $document = Core\Xml::parse(
+    "<r xmlns=\"urn:d\" xmlns:x=\"urn:x\"><x:a/><b><x:c/></b></r>"
+);
+Walk::under($document);
+
+// The prefix is still part of the name, which is what a serialiser writes back
+// out: resolving it is a second question and never a rewriting of the first.
+Core\Xml\Node $prefixed = Core\Xml::parse("<x:a xmlns:x=\"urn:x\"/>");
+echo $prefixed->source(), "\n";
+
+// A document declaring nothing puts nothing in a namespace — an answer rather
+// than an error, since a document is free to use none.
+Core\Xml\Node $plain = Core\Xml::parse("<plain><inner/></plain>");
+Walk::under($plain);
+--EXPECT--
+r -> urn:d
+x:a -> urn:x
+b -> urn:d
+x:c -> urn:x
+<x:a xmlns:x="urn:x"></x:a>
+plain -> none
+inner -> none

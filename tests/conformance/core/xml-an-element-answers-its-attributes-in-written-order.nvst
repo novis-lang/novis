@@ -47,8 +47,9 @@ foreach ($row->children() as Core\Xml\Node $child) {
 }
 echo "row text: \"", $row->text(), "\"\n";
 
-// A name is compared whole and spelled as written, prefix included: no
-// namespace declaration is resolved, which this module's known gap 3 owns.
+// A name is compared whole and spelled as written, prefix included: a
+// declaration is an attribute like any other here, and what the prefix means is
+// `namespaceUri`'s question rather than this one.
 Core\Xml\Node $prefixed = Core\Xml::parse("<x:a xmlns:x=\"urn:e\" x:k=\"v\"/>");
 Core\Xml\Node $element = Root::of($prefixed);
 echo "prefixed: ", $element->name(), "\n";

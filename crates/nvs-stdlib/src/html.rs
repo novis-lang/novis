@@ -1202,7 +1202,7 @@ nvs_runtime::nvs_helper! {
                 args[0].tag_byte()
             )));
         };
-        Ok(crate::xml::instance_of(parse(document)))
+        Ok(crate::xml::instance_of(parse(document), &[]))
     }
 }
 

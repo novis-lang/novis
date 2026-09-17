@@ -1292,8 +1292,9 @@ mod tests {
     /// safer than a downloaded one. `Core\Mime::detect` is deliberately absent
     /// beside them, and that is the same test read the other way: it answers a
     /// case of a closed enum, and a case carries no octet of its subject.
-    /// The newest four are `Core\Xml\Node`'s — `name`, `text`, `attributes` and
-    /// `source` — and they are the roster read over a *document*: what a
+    /// The newest are `Core\Xml\Node`'s — `name`, `text`, `attributes`,
+    /// `namespaceUri` and `source` — and they are the roster read over a
+    /// *document*: what a
     /// parse answers is untrusted whatever the text handed to `Core\Xml::parse`
     /// was, so the mark is unconditional rather than contagious, and that is
     /// why the parameter is `Qual::Neutral` and not `Qual::Contagious`.
@@ -1498,6 +1499,11 @@ mod tests {
                     "array<tainted string>".to_owned(),
                 ),
                 (r"Core\Xml\Node", "name", "tainted string".to_owned()),
+                (
+                    r"Core\Xml\Node",
+                    "namespaceUri",
+                    "null|tainted string".to_owned(),
+                ),
                 (r"Core\Xml\Node", "source", "tainted string".to_owned()),
                 (r"Core\Xml\Node", "text", "tainted string".to_owned()),
                 (r"Core\Zip", "entries", "array<tainted string>".to_owned(),),
@@ -1517,7 +1523,8 @@ mod tests {
              of the mount serving the request, the two payloads a connection's peer \
              sent, what a socket the program opened itself read back, what one \
              datagram carried, the names and octets read out of an archive, and \
-             the four strings a node of a parsed document answers with. \
+             the strings a node of a parsed document answers with, its \
+             namespace among them. \
              `content()` is not one of them and is not a gap: \
              its answer is a walk, and the `tainted bytes` is on the element `Iterable<T>` \
              yields. Where the answer is a \

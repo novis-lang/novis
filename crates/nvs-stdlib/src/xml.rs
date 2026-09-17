@@ -123,16 +123,28 @@
 //! dropping them would be a guess about which whitespace mattered — the guess
 //! `rule:errors/ambiguous-input-refused` is the general answer to.
 //!
-//! # Known gaps
+//! # A name is as written, and what its prefix means sits beside it
 //!
-//! 1. **A name is the name as written, prefix and all.** `<x:a/>` answers
-//!    `x:a`, and no `xmlns` declaration is resolved to a namespace URI. A
-//!    program comparing qualified names is comparing the document's own
-//!    spelling, which is right for a document it controls and not enough for
-//!    one it does not.
-//!    Decided: A computed member (namespaceUri()) that walks ancestor xmlns declarations on demand — No
-//!    change to the shared node family or per-node cost; a lookup costs a walk up the tree.
-//!    — owner: decided-closures
+//! [`nvs_core_xml_node_name`] answers `x:a`: the document's own spelling,
+//! prefix and all, which is what [`nvs_core_xml_node_source`] has to write back
+//! out. What the prefix *means* is [`nvs_core_xml_node_namespace_uri`] — the
+//! URI the nearest enclosing `xmlns:x` bound it to, the default `xmlns` for a
+//! name written without a prefix, and `null` where nothing bound it or where
+//! the binding is the empty one that undeclares. The `xml` prefix answers
+//! [`XML_NAMESPACE`], which no document may rebind.
+//!
+//! **Every element resolves its own while it is being built**, and carries the
+//! answer. A node holds its children and no parent, so an element has no way
+//! back up to the declaration that covers it, and a parent link would be a
+//! reference cycle in a refcounted tree — but both doors hold the scope on the
+//! way down, [`instance_of`] as the declarations it carries into the subtree it
+//! is building and a reader as the ones it keeps per open element beside their
+//! names. So a lookup is a slot read, and the two doors answer alike.
+//!
+//! **What it spends**, per `rule:programs/memory-priority`: one slot on every
+//! node, and one string per element that is in a namespace — O(nodes in the
+//! document), beside a tree whose names and text already are, and released
+//! with it.
 
 use nvs_runtime::{Fault, NvsArray, NvsStr, ObjHeader, ThrownClass, Value};
 
@@ -242,18 +254,20 @@ const TEXT_SLOT: usize = 2;
 const ATTRIBUTES_SLOT: usize = 3;
 /// See [`KIND_SLOT`].
 const CHILDREN_SLOT: usize = 4;
+/// See [`KIND_SLOT`].
+const NAMESPACE_SLOT: usize = 5;
 
 /// `rule:core-classes/html-parsing`'s one node family, as the value a program
-/// holds — five members over five slots and no static member at all, because a
-/// node is only ever produced by a parse.
+/// holds — the questions a walk asks, over the slots a parse filled, and no
+/// static member at all, because a node is only ever produced by a parse.
 ///
-/// Five of the six members are a slot read: the document has been read by the
-/// time a node exists, so there is nothing left to compute and nothing left to
-/// fail. Which slots carry anything depends on the node's [`Kind`], and each
-/// member's card says which — a text node has no attributes and an element
-/// carries no text of its own, both of which are answers rather than errors.
-/// The sixth is [`nvs_core_xml_node_source`], which walks the subtree and
-/// writes it back out, and is the one that can refuse.
+/// Every member but one is a slot read: the document has been read by the time
+/// a node exists, so there is nothing left to compute and nothing left to fail.
+/// Which slots carry anything depends on the node's [`Kind`], and each member's
+/// card says which — a text node has no attributes and an element carries no
+/// text of its own, both of which are answers rather than errors. The exception
+/// is [`nvs_core_xml_node_source`], which walks the subtree and writes it back
+/// out, and is the one that can refuse.
 pub(crate) const NODE: CoreClass = CoreClass {
     name: NODE_NAME,
     methods: &[],
@@ -275,6 +289,15 @@ pub(crate) const NODE: CoreClass = CoreClass {
             return_ty: CoreTy::TaintedStr,
             symbol: "nvs_core_xml_node_name",
             doc: Some(&NAME_DOC),
+        },
+        CoreMethod {
+            name: "namespaceUri",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Nullable(&CoreTy::TaintedStr),
+            symbol: "nvs_core_xml_node_namespace_uri",
+            doc: Some(&NAMESPACE_URI_DOC),
         },
         CoreMethod {
             name: "text",
@@ -313,7 +336,14 @@ pub(crate) const NODE: CoreClass = CoreClass {
             doc: Some(&SOURCE_DOC),
         },
     ],
-    slots: &["kind", "name", "text", "attributes", "children"],
+    slots: &[
+        "kind",
+        "name",
+        "text",
+        "attributes",
+        "children",
+        "namespace",
+    ],
     constants: &[],
 };
 
@@ -334,8 +364,24 @@ const NAME_DOC: MethodDoc = MethodDoc {
             no name to carry rather than an unknown one.",
     params: &[],
     ret: "The name exactly as the document spelled it, prefix included: `<x:a/>` answers `x:a`, \
-          because no namespace declaration is resolved. `tainted`, as everything read out of a \
-          parsed tree is.",
+          which is the name a serialiser writes back out. What the prefix means is \
+          `namespaceUri`. `tainted`, as everything read out of a parsed tree is.",
+    errors: &[],
+};
+
+/// `Core\Xml\Node::namespaceUri`'s reference card — `rule:core-api/reference-card`.
+const NAMESPACE_URI_DOC: MethodDoc = MethodDoc {
+    short: "The namespace this element's name is in — the URI the nearest enclosing `xmlns:x` \
+            bound its prefix to, or the one an `xmlns` bound names written without a prefix to. \
+            Resolved against the declarations in scope where the element sits, so an inner \
+            declaration shadows an outer one, and `name` stays the spelling the document wrote. \
+            The `xml` prefix answers the URI the XML specification fixes it to, which no document \
+            may rebind.",
+    params: &[],
+    ret: "The namespace URI, `tainted` as everything read out of a parsed tree is. `null` for a \
+          node that is not an element, for an element no declaration covers, and for one under an \
+          `xmlns=\"\"` that undeclared the default namespace — three answers rather than errors, \
+          because a document is free to use no namespace at all.",
     errors: &[],
 };
 
@@ -482,7 +528,9 @@ pub(crate) const READER: CoreClass = CoreClass {
             doc: Some(&DEPTH_DOC),
         },
     ],
-    slots: &["document", "cursor", "depth", "stack", "open", "rooted"],
+    slots: &[
+        "document", "cursor", "depth", "stack", "open", "rooted", "scopes",
+    ],
     constants: &[],
 };
 
@@ -548,6 +596,8 @@ const STACK_SLOT: usize = 3;
 const OPEN_SLOT: usize = 4;
 /// See [`DOCUMENT_SLOT`].
 const ROOTED_SLOT: usize = 5;
+/// See [`DOCUMENT_SLOT`].
+const SCOPES_SLOT: usize = 6;
 
 /// `Core\Xml\Writer`'s registry rows — the other half of the stream, which
 /// builds a document a node at a time and never holds one to walk.
@@ -962,6 +1012,7 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_xml_parse" => (nvs_core_xml_parse as *const ()).cast(),
         "nvs_core_xml_node_kind" => (nvs_core_xml_node_kind as *const ()).cast(),
         "nvs_core_xml_node_name" => (nvs_core_xml_node_name as *const ()).cast(),
+        "nvs_core_xml_node_namespace_uri" => (nvs_core_xml_node_namespace_uri as *const ()).cast(),
         "nvs_core_xml_node_text" => (nvs_core_xml_node_text as *const ()).cast(),
         "nvs_core_xml_node_attributes" => (nvs_core_xml_node_attributes as *const ()).cast(),
         "nvs_core_xml_node_children" => (nvs_core_xml_node_children as *const ()).cast(),
@@ -1171,6 +1222,11 @@ struct Reader<'a> {
 struct Open<'a> {
     /// The open names, of which the first [`Self::depth`] are live.
     names: &'a mut NvsArray,
+    /// The namespace declarations each of those elements wrote, at the same
+    /// index as its name and as the attributes it wrote them as — the scope a
+    /// node read next sits in, which a tree door instead carries down the
+    /// [`Building`] stack.
+    scopes: &'a mut NvsArray,
     /// How many elements are open.
     depth: usize,
 }
@@ -1187,16 +1243,26 @@ impl Open<'_> {
         Some(self.names.get_index(at)?.as_text()?.to_owned())
     }
 
-    /// Opens `name`.
+    /// Opens `node`, keeping its name and the namespace declarations it wrote.
     ///
-    /// The write cannot move the array: the reader owns the only reference to
-    /// its own stack, since no member hands it out, so
+    /// The write cannot move either array: the reader owns the only reference
+    /// to its own stack, since no member hands it out, so
     /// [`NvsArray::set_index`]'s copy-on-write separation never fires and the
     /// handle stays the one the slot names.
-    fn push(&mut self, name: &str) {
+    fn push(&mut self, node: &Parsed) {
         let at = i64::try_from(self.depth).expect("`DEPTH_CEILING` is far under `i64::MAX`");
         self.names
-            .set_index(at, Value::str(NvsStr::new(name.as_bytes())));
+            .set_index(at, Value::str(NvsStr::new(node.name.as_bytes())));
+        let mut declarations = NvsArray::new();
+        for (attribute, value) in &node.attributes {
+            if declared(attribute).is_some() {
+                declarations.set(
+                    NvsStr::new(attribute.as_bytes()),
+                    Value::str(NvsStr::new(value.as_bytes())),
+                );
+            }
+        }
+        self.scopes.set_index(at, Value::array(declarations));
         self.depth += 1;
     }
 
@@ -1715,7 +1781,7 @@ impl<'a> Reader<'a> {
                              document may be"
                         ));
                     }
-                    open.push(&node.name);
+                    open.push(&node);
                 }
                 return Ok(Some((node, depth)));
             }
@@ -1793,9 +1859,45 @@ fn parse(document: &str) -> Result<Parsed, String> {
     Reader::new(document).document()
 }
 
+/// The namespace the XML specification binds the `xml` prefix to for good: a
+/// document may neither declare it nor rebind it, so an `xml:lang` is in this
+/// namespace wherever it is written and whatever is in scope around it.
+pub(crate) const XML_NAMESPACE: &str = "http://www.w3.org/XML/1998/namespace";
+
+/// The prefix `attribute` declares a namespace for — `""` where it is the
+/// `xmlns` that binds names written without one, the prefix itself for an
+/// `xmlns:x`, and `None` for an attribute that declares nothing.
+fn declared(attribute: &str) -> Option<&str> {
+    match attribute.strip_prefix("xmlns") {
+        Some("") => Some(""),
+        Some(rest) => rest.strip_prefix(':').filter(|prefix| !prefix.is_empty()),
+        None => None,
+    }
+}
+
+/// The namespace `name` is in under `scope`, whose entries are the declarations
+/// that cover it as `(prefix, uri)` pairs, outermost first.
+///
+/// The innermost declaration of a prefix wins, which is what makes a nested
+/// `xmlns` a rebinding rather than a conflict. An empty URI is the `xmlns=""`
+/// that undeclares the default namespace, and answers as no namespace rather
+/// than as one whose name is the empty string.
+fn resolved(scope: &[(String, String)], name: &str) -> Option<String> {
+    let prefix = name.split_once(':').map_or("", |(prefix, _)| prefix);
+    if prefix == "xml" {
+        return Some(XML_NAMESPACE.to_owned());
+    }
+    scope
+        .iter()
+        .rev()
+        .find(|(declared, _)| declared.as_str() == prefix)
+        .map(|(_, uri)| uri.clone())
+        .filter(|uri| !uri.is_empty())
+}
+
 /// One node part-way through becoming a [`NODE`] instance: the node itself with
-/// its children taken off it, the ones still to be built, and the ones already
-/// built.
+/// its children taken off it, the ones still to be built, the ones already
+/// built, and what the scope it was opened in said about its name.
 ///
 /// [`instance_of`]'s stack frame, in the heap where it costs nothing but bytes.
 #[derive(Debug)]
@@ -1807,22 +1909,49 @@ struct Building {
     pending: Vec<Parsed>,
     /// The children already built, in document order.
     built: NvsArray,
+    /// The namespace this node's name resolved to, read while the walk was
+    /// standing on it and the scope was its own.
+    namespace: Option<String>,
+    /// How many declarations were in scope before this node's own were pushed,
+    /// which is what the scope is cut back to once it is built.
+    mark: usize,
 }
 
 impl Building {
-    /// `node` with its children moved into the two lists.
-    fn new(mut node: Parsed) -> Self {
+    /// `node` with its children moved into the two lists, its own declarations
+    /// pushed onto `scope`, and its namespace read off what that leaves.
+    ///
+    /// The stack of these frames is the ancestor chain at every moment, so the
+    /// scope beside it is exactly the declarations covering the node being
+    /// opened — which is why an element resolves here rather than by walking
+    /// for a parent it does not hold.
+    fn opened(mut node: Parsed, scope: &mut Vec<(String, String)>) -> Self {
+        let mark = scope.len();
+        let mut namespace = None;
+        if node.kind == Kind::Element {
+            for (attribute, value) in &node.attributes {
+                if let Some(prefix) = declared(attribute) {
+                    scope.push((prefix.to_owned(), value.clone()));
+                }
+            }
+            namespace = resolved(scope, &node.name);
+        }
         let mut pending = std::mem::take(&mut node.children);
         pending.reverse();
         Self {
             node,
             pending,
             built: NvsArray::new(),
+            namespace,
+            mark,
         }
     }
 }
 
-/// One [`Parsed`] subtree as the [`NODE`] instance a program holds.
+/// One [`Parsed`] subtree as the [`NODE`] instance a program holds, under the
+/// namespace declarations `inherited` from wherever it is being spliced in —
+/// none for a whole document, and the open elements' own for the one node a
+/// reader answers with.
 ///
 /// **Iterative, over a heap stack rather than the native one**, and that is the
 /// whole reason it is written this way: [`DEPTH_CEILING`] is a thousand and a
@@ -1836,20 +1965,23 @@ impl Building {
 /// ceiling and by [`crate::html`]'s parse flattening one past it — this
 /// function is simply no longer the thing that has to survive the bound being
 /// wrong.
-pub(crate) fn instance_of(node: Parsed) -> Value {
-    let mut stack = vec![Building::new(node)];
+pub(crate) fn instance_of(node: Parsed, inherited: &[(String, String)]) -> Value {
+    let mut scope = inherited.to_vec();
+    let mut stack = vec![Building::opened(node, &mut scope)];
     loop {
         let top = stack
             .last_mut()
             .expect("the loop returns the moment the last frame is popped");
         if let Some(next) = top.pending.pop() {
-            stack.push(Building::new(next));
+            let frame = Building::opened(next, &mut scope);
+            stack.push(frame);
             continue;
         }
         let done = stack
             .pop()
             .expect("the frame just read back is still the last one");
-        let value = built(done.node, done.built);
+        scope.truncate(done.mark);
+        let value = built(done.node, done.namespace, done.built);
         match stack.last_mut() {
             Some(parent) => parent.built.append(value),
             None => return value,
@@ -1858,7 +1990,7 @@ pub(crate) fn instance_of(node: Parsed) -> Value {
 }
 
 /// One node with its children already built, as the [`NODE`] instance.
-fn built(node: Parsed, children: NvsArray) -> Value {
+fn built(node: Parsed, namespace: Option<String>, children: NvsArray) -> Value {
     let mut attributes = NvsArray::new();
     for (name, value) in node.attributes {
         attributes.set(
@@ -1874,6 +2006,7 @@ fn built(node: Parsed, children: NvsArray) -> Value {
             Value::str(NvsStr::new(node.text.as_bytes())),
             Value::array(attributes),
             Value::array(children),
+            namespace.map_or_else(Value::null, |uri| Value::str(NvsStr::new(uri.as_bytes()))),
         ],
     )
 }
@@ -1962,8 +2095,14 @@ fn read(receiver: Value) -> Result<Value, Fault> {
         .array_ptr()
         .ok_or_else(|| wrong_slot(&READER, "read", STACK_SLOT, held))?;
     let mut stack = crate::arr::borrowed(stack);
+    let held = crate::instance::slot(object, SCOPES_SLOT);
+    let scopes = held
+        .array_ptr()
+        .ok_or_else(|| wrong_slot(&READER, "read", SCOPES_SLOT, held))?;
+    let mut scopes = crate::arr::borrowed(scopes);
     let mut open = Open {
         names: &mut stack,
+        scopes: &mut scopes,
         depth: count_slot(&READER, object, OPEN_SLOT, "read")?,
     };
 
@@ -1986,7 +2125,46 @@ fn read(receiver: Value) -> Result<Value, Fault> {
         return Ok(Value::null());
     };
     crate::instance::set_slot(object, DEPTH_SLOT, counted(at));
-    Ok(instance_of(node))
+    let carried = inherited(open.scopes, at);
+    Ok(instance_of(node, &carried))
+}
+
+/// The namespace declarations the elements open above `depth` wrote, outermost
+/// first — the scope a node a reader has just read sits in.
+///
+/// A streaming walk holds its ancestors where a tree door holds its descendants
+/// (`rule:core-classes/xml-tree-and-stream`), so this is the same list
+/// [`Building::opened`] carries down a tree, read back off the slots a reader
+/// keeps it in between two calls.
+fn inherited(scopes: &NvsArray, depth: usize) -> Vec<(String, String)> {
+    let mut carried = Vec::new();
+    for open in 0..depth {
+        let at = i64::try_from(open).expect("`DEPTH_CEILING` is far under `i64::MAX`");
+        let Some(held) = scopes.get_index(at) else {
+            continue;
+        };
+        let Some(declarations) = held.array_ptr() else {
+            continue;
+        };
+        let declarations = crate::arr::borrowed(declarations);
+        let mut from = 0usize;
+        while let Some(slot) = declarations.next_slot(from) {
+            from = slot + 1;
+            let Some(key) = declarations.key_at(slot) else {
+                continue;
+            };
+            let Ok(attribute) = std::str::from_utf8(key.as_bytes()) else {
+                continue;
+            };
+            let uri = declarations
+                .value_at(slot)
+                .and_then(|value| value.as_text().map(str::to_owned));
+            if let (Some(prefix), Some(uri)) = (declared(attribute), uri) {
+                carried.push((prefix.to_owned(), uri));
+            }
+        }
+    }
+    carried
 }
 
 // ============================================================================
@@ -2010,7 +2188,7 @@ nvs_runtime::nvs_helper! {
             )));
         };
         match parse(document) {
-            Ok(tree) => Ok(instance_of(tree)),
+            Ok(tree) => Ok(instance_of(tree, &[])),
             // The sentence is the reader's and the period is here, so no
             // message inside it has to remember to end like one.
             Err(why) => Err(Fault::thrown_as(
@@ -2037,6 +2215,19 @@ nvs_runtime::nvs_helper! {
     /// instruction's target.
     fn nvs_core_xml_node_name(_ctx, args: [1]) {
         held(args[0], NAME_SLOT, "name")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `$node->namespaceUri(): ?tainted string` — the namespace this element's
+    /// name is in, or `null` where nothing put it in one.
+    ///
+    /// A slot read like its siblings: the scope an element sits in is known
+    /// while the tree is being built and is gone afterwards, so the answer is
+    /// resolved there rather than walked for here (the module's § *A name is as
+    /// written*).
+    fn nvs_core_xml_node_namespace_uri(_ctx, args: [1]) {
+        held(args[0], NAMESPACE_SLOT, "namespaceUri")
     }
 }
 
@@ -2309,6 +2500,7 @@ nvs_runtime::nvs_helper! {
                 Value::array(NvsArray::new()),
                 counted(0),
                 Value::bool(false),
+                Value::array(NvsArray::new()),
             ],
         ))
     }
@@ -3067,8 +3259,8 @@ mod tests {
 
     use super::{
         ATTRIBUTES_SLOT, CHILDREN_SLOT, CLASS, DOCTYPE_REFUSAL, KIND, KIND_NAME, KIND_SLOT, Kind,
-        NAME, NAME_SLOT, NODE, NODE_NAME, Parsed, TEXT_SLOT, WRITER, WRITER_NAME, WRITER_OPTIONS,
-        parse,
+        NAME, NAME_SLOT, NAMESPACE_SLOT, NODE, NODE_NAME, Parsed, TEXT_SLOT, WRITER, WRITER_NAME,
+        WRITER_OPTIONS, parse,
     };
     use crate::registry::{CLASSES, CoreClass, CoreTy, Qual};
 
@@ -3457,7 +3649,7 @@ mod tests {
         match ty {
             CoreTy::Instance(name) => *name == NODE_NAME,
             CoreTy::Enum(name) => *name == KIND_NAME,
-            CoreTy::Array(inner) => is_inert(inner),
+            CoreTy::Array(inner) | CoreTy::Nullable(inner) => is_inert(inner),
             CoreTy::TaintedStr => true,
             _ => false,
         }
@@ -3541,6 +3733,11 @@ mod tests {
                 "a node's {what} is text"
             );
         }
+        let namespace = crate::instance::slot(receiver, NAMESPACE_SLOT);
+        assert!(
+            matches!(namespace.tag(), Some(Tag::Str | Tag::Null)),
+            "a node's namespace is text or nothing at all"
+        );
         for (slot, each) in [(ATTRIBUTES_SLOT, Some(Tag::Str)), (CHILDREN_SLOT, None)] {
             let held = crate::instance::slot(receiver, slot);
             assert_eq!(held.tag(), Some(Tag::Array), "a node holds its own array");
@@ -3557,6 +3754,122 @@ mod tests {
                 }
                 from = at + 1;
             }
+        }
+    }
+
+    /// An element as `name=namespace`, with `none` for one in no namespace —
+    /// both read through the members a program calls, so the answer asserted
+    /// is the answer a program gets.
+    fn described(node: Value, ctx: &mut Ctx) -> String {
+        let name = call(super::nvs_core_xml_node_name, ctx, &[node]).expect("a node has a name");
+        let uri = call(super::nvs_core_xml_node_namespace_uri, ctx, &[node])
+            .expect("a node answers its namespace");
+        let described = format!(
+            "{}={}",
+            name.as_text().expect("a name is text"),
+            uri.as_text().unwrap_or("none")
+        );
+        #[expect(
+            unsafe_code,
+            reason = "both answers are references this test was handed and now owns"
+        )]
+        unsafe {
+            name.release();
+            uri.release();
+        }
+        described
+    }
+
+    /// Every element under `node`, described, in document order.
+    fn elements(node: Value, ctx: &mut Ctx, into: &mut Vec<String>) {
+        let receiver = node.obj_ptr().expect("a node is an object");
+        if crate::instance::slot(receiver, KIND_SLOT).as_int() == Some(Kind::Element.ordinal()) {
+            into.push(described(node, ctx));
+        }
+        let children = crate::instance::slot(receiver, CHILDREN_SLOT);
+        let children = children.array_ptr().expect("the slot is an array");
+        let children = crate::arr::borrowed(children);
+        let mut from = 0usize;
+        while let Some(at) = children.next_slot(from) {
+            from = at + 1;
+            let child = children
+                .value_at(at)
+                .expect("next_slot only names live entries");
+            elements(child, ctx, into);
+        }
+    }
+
+    /// An element answers the namespace its name is in, resolved against the
+    /// declarations in scope where it sits rather than against its own
+    /// attributes alone — and the two doors onto the family answer alike.
+    ///
+    /// Asserted over a sweep rather than off one element, because the
+    /// interesting answers are the ones a nesting decides: an inner `xmlns`
+    /// rebinds the default for a subtree, an `xmlns=""` undeclares it, a
+    /// prefix declared on the root covers a descendant that declares nothing,
+    /// and `xml` is bound with no declaration anywhere.
+    #[test]
+    fn an_xml_element_answers_its_namespace_uri() {
+        let document = "<r xmlns=\"urn:d\" xmlns:x=\"urn:x\">\
+                        <x:a/><b xmlns=\"urn:b\"><c/></b><d xmlns=\"\"/><x:e xml:lang=\"en\"/>\
+                        <f y=\"1\"/></r>";
+        let expected = vec![
+            "r=urn:d".to_owned(),
+            "x:a=urn:x".to_owned(),
+            "b=urn:b".to_owned(),
+            "c=urn:b".to_owned(),
+            "d=none".to_owned(),
+            "x:e=urn:x".to_owned(),
+            "f=urn:d".to_owned(),
+        ];
+
+        let source = Value::str(NvsStr::new(document.as_bytes()));
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let tree =
+            call(super::nvs_core_xml_parse, &mut ctx, &[source]).expect("that document is one");
+        let mut walked = Vec::new();
+        elements(tree, &mut ctx, &mut walked);
+        assert_eq!(
+            walked, expected,
+            "an element answers the namespace in scope where it sits"
+        );
+
+        // The streaming door holds its ancestors where the tree door holds its
+        // descendants, so this is the same question asked of the other one.
+        let reader = call(super::nvs_core_xml_reader, &mut ctx, &[source]).expect("a reader opens");
+        let mut streamed = Vec::new();
+        loop {
+            let node = call(super::nvs_core_xml_reader_read, &mut ctx, &[reader])
+                .expect("that document is well-formed all the way through");
+            if node.tag() == Some(Tag::Null) {
+                break;
+            }
+            let receiver = node.obj_ptr().expect("a node is an object");
+            if crate::instance::slot(receiver, KIND_SLOT).as_int() == Some(Kind::Element.ordinal())
+            {
+                streamed.push(described(node, &mut ctx));
+            }
+            #[expect(
+                unsafe_code,
+                reason = "the node is the reference `read` answered with, and this test owns it"
+            )]
+            unsafe {
+                node.release();
+            }
+        }
+        assert_eq!(
+            streamed, walked,
+            "a reader resolves what the tree door resolves, element for element"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the references the two doors answered with"
+        )]
+        unsafe {
+            reader.release();
+            tree.release();
+            source.release();
         }
     }
 

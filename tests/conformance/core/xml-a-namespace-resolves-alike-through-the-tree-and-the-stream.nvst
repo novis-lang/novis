@@ -1,0 +1,87 @@
+--TEST--
+The tree door and the streaming one resolve a namespace alike, the `xml` prefix is bound with no declaration anywhere, and a node that is not an element is in none — spec § 17, `rule:core-classes/xml-tree-and-stream`
+--FILE--
+<?nvs
+class Ns {
+    public static function show(Core\Xml\Node $node): void {
+        ?tainted string $uri = $node->namespaceUri();
+        if ($uri != null) {
+            echo $node->name(), " -> ", $uri, "\n";
+        } else {
+            echo $node->name(), " -> none\n";
+        }
+    }
+}
+
+// The tree half: every element under a node the parse answered with.
+class Walk {
+    public static function under(Core\Xml\Node $node): void {
+        if ($node->kind() == Core\Xml\NodeKind::Element) {
+            Ns::show($node);
+        }
+        foreach ($node->children() as Core\Xml\Node $child) {
+            Walk::under($child);
+        }
+    }
+}
+
+// The stream half: the same elements, arriving one at a time. A reader holds
+// the elements it has open where the tree holds what is under them, so the
+// scope an element sits in is known at both doors.
+class Stream {
+    public static function show(Core\Xml\Reader $reader): void {
+        while (true) {
+            ?Core\Xml\Node $node = $reader->read();
+            if ($node != null) {
+                if ($node->kind() == Core\Xml\NodeKind::Element) {
+                    Ns::show($node);
+                }
+            } else {
+                break;
+            }
+        }
+    }
+}
+
+// Whatever is not an element has no name to put in a namespace — the document
+// node and the text node here, counted rather than read off a line, so a
+// member answering plausibly for one of them still fails.
+class Count {
+    public static function unnamespaced(Core\Xml\Node $node): uint {
+        uint $seen = 0;
+        if ($node->kind() != Core\Xml\NodeKind::Element) {
+            ?tainted string $uri = $node->namespaceUri();
+            if ($uri == null) {
+                $seen = 1;
+            }
+        }
+        foreach ($node->children() as Core\Xml\Node $child) {
+            $seen = $seen + Count::unnamespaced($child);
+        }
+        return $seen;
+    }
+}
+
+string $source = "<r xmlns=\"urn:d\"><xml:a/>text<b xmlns:y=\"urn:y\"><y:c/></b></r>";
+
+echo "tree:\n";
+Core\Xml\Node $document = Core\Xml::parse($source);
+Walk::under($document);
+
+echo "stream:\n";
+Core\Xml\Reader $reader = Core\Xml::reader($source);
+Stream::show($reader);
+
+echo "not elements, in no namespace: ", Count::unnamespaced($document), "\n";
+--EXPECT--
+tree:
+r -> urn:d
+xml:a -> http://www.w3.org/XML/1998/namespace
+b -> urn:d
+y:c -> urn:y
+stream:
+r -> urn:d
+xml:a -> http://www.w3.org/XML/1998/namespace
+b -> urn:d
+y:c -> urn:y
+not elements, in no namespace: 2
