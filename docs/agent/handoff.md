@@ -2,21 +2,17 @@
 
 ## State
 
-**Goal `class-scoped-types` is reached, and the floor check that held its DONE claim is green.** All
-five stages are green, and the three gates a goal meets only at its end were re-run this session:
-`python tools/verify.py --doc` resolves every link, and `python tools/owners.py --closes
-class-scoped-types` and `python tools/playbook.py --closes class-scoped-types` each report the goal
-owns nothing.
+**Goal 62 — both entry forms reach a worker core, and a serving core offers itself — has just started; nothing of it has landed yet.** Goal `class-scoped-types`'s whole list is this goal's Stage 1 floor.
 
-**The `abi-probe` floor failure was the guard, not the tree.** `a_cpu_bound_fan_out_across_four_worker_cores_is_near_linear_by_the_margin_this_test_names`
-measured 0.65x inside the full `perf_guards` binary and 3.8x run alone: libtest had the other guards
-on the cores it was fanning out onto. Every guard in that file now takes `serialised()` before it
-measures, the binary is green in `6s`, and the fan-out reads the same figure in the binary as alone.
-The playbook bullet under *Writing a test case* owns the trap.
-
-**Next is goal `worker-placement`.** Its own `docs/agent/goals/62-worker-placement.handoff.md` is
-what `goal-switch.py` installs; the group below is that file's, carried here so nothing is lost if
-the switch is made by hand.
+The design is settled in ADR 0184 and in the goal's *Standing decisions*, and no record is opened: § 2
+is what crosses, § 5 is which core and what bounds the set, and § *Diagnostics* is why a placement that
+cannot be honoured fails the spawn instead of quietly running the child here. What a session must not
+re-decide: the unit table stays `nvs-cli`'s and a `Resolver` gains no operation answering "the unit this
+thread is running" — that was refused where the seam is written
+(`crates/nvs-runtime/src/script.rs:71-77`). The cache is already cross-core capable;
+`nvs_cli::script::Compiler` holds its two maps behind `RwLock`s and a serving fleet shares one
+`Arc<Compiler>` (`crates/nvs-cli/src/serve.rs:703`), so what this goal adds is a way to reach it from a
+core that has not started yet, not a second table.
 
 ## Next group
 
@@ -30,9 +26,9 @@ the switch is made by hand.
       starts for itself. Add the form a placing core writes and a started core installs on its own
       thread, leaving `resolve`'s answer and `ResolveError` exactly as they are.
       `rule:security/isolate-shares-nothing` is what bounds what may be shared this way.
-- [ ] **The started core installs it** — `crates/nvs-host/src/worker.rs:745`'s `destination` is where
-      a core is chosen and a scheduler thread is started for the first placement; that start is where
-      the published resolver goes in, beside the reactor the inbox poke reaches.
+- [ ] **The started core installs it** — `crates/nvs-host/src/worker.rs:745`'s `destination` is where a
+      core is chosen and a scheduler thread is started for the first placement; that start is where the
+      published resolver goes in, beside the reactor the inbox poke reaches.
 - [ ] **`crosses` stops asking which form the entry is** —
       `crates/nvs-host/src/placed.rs:107` is `entry.is_method() && ctx.class_table().is_some()`; the
       class-table half stays, because it is a fact about the context rather than about the entry.
@@ -42,7 +38,14 @@ the switch is made by hand.
 
 ## Backlog
 
-- `crates/nvs-cli/src/cache.rs`'s `a_warm_start_is_faster_than_a_cold_one_by_the_margin_this_test_names`
-  is the same shape of ratio guard with no lock under it; its playbook bullet still says re-run alone.
-- The pack's `modules` map describes no path under `benches/abi-probe/`, which hosts the floor's
-  guards; the playbook trap naming that directory covered it, so it cost nothing here.
+- **Stage 3, the destination set** — `crates/nvs-host/src/worker.rs`, `crates/nvs-cli/src/serve.rs`,
+  `crates/nvs-cli/src/worker.rs`: a serving core registers its inbox as it starts, so a placement under
+  `nvs serve` reaches a sibling serving core round-robin rather than starting a lazily started core
+  beside it. ADR 0184 § 5. Shares `worker.rs` with stage 2 and is cheap right after it.
+- **The rule, in the slice that makes it wrong** — `rule:concurrency/on-worker-runs-the-child-on-another-core`'s
+  last two paragraphs are written as what runs and both stop being true; amend the fragment in the
+  slice that lands the behaviour, not after it.
+- **`crates/nvs-runtime/src/script.rs`'s test-resolver comment** — it says a real implementor is
+  `!Sync` and goes through `scoped` for that reason. What `scoped` buys is a lifetime; stage 2 makes
+  the distinction load-bearing and the comment is rewritten with it.
+- When this goal's last check goes green the driver takes goal `gap-zero`.
