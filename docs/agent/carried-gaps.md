@@ -52,6 +52,8 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 | A child written as a path runs on its parent's core however it is placed, so `on: "worker"` buys it nothing | `worker-placement` | `crates/nvs-host/src/placed.rs` § *Known gaps* |
 | A serving core offers itself as no destination, so a placement under `nvs serve` starts a worker core beside the ones already serving | `worker-placement` | `crates/nvs-host/src/worker.rs` § *Known gaps* |
 | A decoded `Core` instance is a `mixed` a program cannot narrow, so the round trip is reachable only through `mixed` | `core-class-tests` | `crates/nvs-runtime/src/graph.rs` gap 1 |
+| Nothing arms `DebugFlags::TRACE` and nothing reads the `debug.trace` grant, so a query span renders on sampling alone | `M10` | `crates/nvs-db/src/span.rs` gap 1 |
+| SQL Server is the one driver a `bytes` parameter does not reach, the read half of the same row being whole | `tds-bytes` | `crates/nvs-db/src/tds/mod.rs` gap 1 |
 
 ## Unowned
 
@@ -181,24 +183,6 @@ where taking it is the work and the code that follows it is not.
   widens a surface the spec fixed rather than repairing it.
   `crates/nvs-stdlib/src/uuid.rs` gap 1.
   [until: gone crates/nvs-stdlib/src/uuid.rs:owner: unowned]
-- **SQL Server refuses a `bytes` parameter, and unrefusing it is a plan-cache decision.** The read
-  half of ADR 0067 § 9's row is whole on that driver; the bind half is the one place a `bytes` does
-  not reach a server, because every TDS parameter goes out as one `nvarchar` for the server to cast
-  and `varbinary` is the type no text form casts back to. A real `@params` entry makes
-  `sp_prepexec`'s declaration a function of the *values* a call binds, which § 1's cache key —
-  SQL text plus expansion arity — does not distinguish. What has to be decided is whether that key
-  grows the bound types, or the `bytes` binds outside the cache. Goal `m8-db-queue` takes the row
-  side and stage 10's gate names every tag it closes, so it does not claim this one.
-  `crates/nvs-db/src/tds/mod.rs` gap 1.
-  [until: gone crates/nvs-db/src/tds/mod.rs:owner: unowned]
-- **Nothing reads a `debug.trace` grant into the flag every probe is gated on.** `Capability::DebugTrace`
-  is in the vocabulary and `DebugFlags::TRACE` is the bit codegen branches on, and outside a test
-  nothing sets the second from the first — so a query span, an HTTP span and every call probe render
-  on a flag a program cannot ask for. What has to be decided is where the read lives: once per
-  request as the capability set is resolved into the `Ctx`, or on the probe path each time, which is
-  the difference between a grant that can be tightened mid-request and one fixed at dispatch.
-  `crates/nvs-db/src/span.rs` gap 1.
-  [until: gone crates/nvs-db/src/span.rs:owner: unowned]
 - **Bounds for a pool no `[db]` block describes.** `[db.<name>.pool]` reaches every connection whose
   settings hash is that block's, and the unscoped `[db] pool = false` reaches every connection the
   process opens, but a literal naming an endpoint an operator wrote no block for — or naming a hashed
