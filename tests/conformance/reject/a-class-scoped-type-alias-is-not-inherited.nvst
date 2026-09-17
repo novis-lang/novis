@@ -1,0 +1,52 @@
+--TEST--
+a class-scoped `type` alias is reached through the owner that declares it, so `Sub::Name` where only an ancestor declares `Name` is `E0405` naming the spelling that resolves — `rule:types/type-alias`
+--FILE--
+<?nvs
+// `rule:types/type-alias`: a class-scoped alias is reached as `Owner::Name`
+// from anywhere and as a bare `Name` inside the owner's own body, and through
+// nothing else — not a subclass, not an implementor. The refusal names the
+// owner that does declare it, because that is the spelling that resolves and
+// the fix is to write it.
+interface Contract {
+    type Handle = array<uint>;
+}
+
+class Base {
+    type Id = array<uint>;
+}
+
+class Sub extends Base {}
+
+class Implementor implements Contract {}
+
+// The accepted half first: through the declaring owner's own name, and as a
+// bare name inside that owner's body.
+class Uses {
+    public static function throughTheOwner(Base::Id $ids): void {}
+
+    public static function throughTheInterface(Contract::Handle $handle): void {}
+}
+
+class Reaches {
+    type Id = array<uint>;
+
+    public static function bare(Id $ids): void {}
+}
+
+class Refused {
+    public static function throughASubclass(Sub::Id $ids): void {}
+
+    public static function throughAnImplementor(Implementor::Handle $handle): void {}
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0405]: `Sub` has no `type` named `Id`
+   --> case.nvs:34:45
+%A
+error[E0405]: `Implementor` has no `type` named `Handle`
+   --> case.nvs:36:49
+%A
+error: aborting due to 2 errors

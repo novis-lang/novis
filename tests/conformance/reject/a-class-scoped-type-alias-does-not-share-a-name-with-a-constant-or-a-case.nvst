@@ -1,0 +1,58 @@
+--TEST--
+a class-scoped `type` alias sharing a name with a class constant or an enum case is `E0304` at the later of the two declarations — `rule:types/type-alias`, `rule:statements/nothing-gets-a-second-name`
+--FILE--
+<?nvs
+// `rule:types/type-alias`: an alias, an enum case and a class constant are
+// all spelled `Owner::Name` in type position, and
+// `rule:statements/nothing-gets-a-second-name` gives one name one meaning, so
+// one body may not declare two of them under one name. The refusal is at the
+// declaration, so no program that compiles depends on which of the three a
+// lookup at `Owner::Name` would have found first.
+
+// The accepted half first: two names in one body, and one name in two bodies,
+// are both fine — a name is owned by the body that declares it.
+class Accepted {
+    public const int ID = 1;
+    type Ids = array<uint>;
+}
+
+enum AlsoAccepted: int {
+    Red = 1,
+
+    type Colours = array<uint>;
+}
+
+// The constant before the alias, and the alias before the constant: the
+// refusal is at whichever of the two is written second.
+class AConstantFirst {
+    public const int ID = 1;
+    type ID = array<uint>;
+}
+
+class AnAliasFirst {
+    type ID = array<uint>;
+    public const int ID = 1;
+}
+
+// An enum case is the same collision for the same reason: a case is reached
+// as `Owner::Name` in type position too.
+enum ACase: int {
+    Red = 1,
+
+    type Red = array<uint>;
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0304]: `AConstantFirst::ID` is already declared as a class constant
+   --> case.nvs:25:22
+%A
+error[E0304]: `AnAliasFirst::ID` is already declared as a `type` alias
+   --> case.nvs:30:10
+%A
+error[E0304]: `ACase::Red` is already declared as an enum case
+   --> case.nvs:37:5
+%A
+error: aborting due to 3 errors
