@@ -127,15 +127,18 @@
 //! those two read [`answerable`] rather than [`watched`], and that is the whole
 //! of what the queue costs this module.
 //!
-//! # Known gaps
+//! # A served request's words are empty, and that is the contract
 //!
-//! 1. **A served request has no words to read.** [`nvs_core_cli_arguments`]
-//!    answers whatever the launcher wrote with `Ctx::set_command_line`, and
-//!    only `nvs-cli` writes one — so the member is empty rather than wrong
-//!    inside a request, and nothing this module can reach would fill it.
-//!    Decided: Answer empty/neutral values and state it as the contract — Matches PHP (no $argv under a
-//!    web SAPI) and adds no failure mode.
-//!    — owner: decided-closures
+//! [`nvs_core_cli_arguments`] answers whatever the launcher wrote with
+//! `Ctx::set_command_line`, and `nvs-cli` is the launcher that writes one — so
+//! inside an HTTP request the member answers an empty list rather than
+//! throwing. Empty is the true answer and not a stand-in for a missing one: the
+//! words a process was started with are the launcher's fact, and a served
+//! request was not started with any, so there is nothing this module could
+//! reach to fill the list with. PHP has the same shape under a web SAPI, where
+//! `$argv` is simply absent, and the neutral answer is the direction with no
+//! failure mode in it — a library that reads its own arguments to pick a
+//! default goes on working when the same code is reached from a handler.
 
 use nvs_runtime::terminal::{Answer, ColorDepth, Echo, Stream};
 use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, Value};
