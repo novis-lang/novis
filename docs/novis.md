@@ -20724,7 +20724,7 @@ One entry's octets, decompressed **under a bound that cannot be switched off** �
 
 **Returns** `tainted bytes` — The entry's octets, never a truncation — an entry that would pass either half of the bound throws instead of answering the prefix it had reached. Tainted, for the reason the names are: octets out of an archive are somebody else's.
 
-**Throws** `ParseError` — Everything `entries` refuses, plus: no entry has that name, the entry is compressed by a method this class does not read, its stream is not well formed, or its output would pass either half of the bound.
+**Throws** `ParseError` — Everything `entries` refuses, plus: no entry has that name, the entry is compressed by a method this class does not read, its stream is not well formed, its octets do not match the CRC-32 the archive recorded, or its output would pass either half of the bound.
 
 <a id="core-core-zip-extract"></a>
 #### `Core\Zip::extract`
@@ -20744,7 +20744,7 @@ Writes an archive's entries under `$destination` and answers how many files it w
 
 **Returns** `uint` — The number of files written. A directory entry is created and not counted, since what a caller compares against is the number of files it now has.
 
-**Throws** `ParseError` — Everything `entries` refuses, plus an entry whose output would pass either half of the bound — per entry or across the archive, which is one rule.; `RuntimeError` — `fs.read` or `fs.write` is not granted for the destination, or a directory under it resolved to somewhere outside it, which is a link that appeared while the extraction was running.; `IOError` — The creation or the write itself failed: a name an entry asked for is already taken, since a file is created exclusively rather than overwritten, or the disk refused. Never a refusal this class made — those name the rule.
+**Throws** `ParseError` — Everything `entries` refuses, plus an entry whose octets do not match the CRC-32 the archive recorded, or whose output would pass either half of the bound — per entry or across the archive, which is one rule.; `RuntimeError` — `fs.read` or `fs.write` is not granted for the destination, or a directory under it resolved to somewhere outside it, which is a link that appeared while the extraction was running.; `IOError` — The creation or the write itself failed: a name an entry asked for is already taken, since a file is created exclusively rather than overwritten, or the disk refused. Never a refusal this class made — those name the rule.
 
 <a id="core-core-http"></a>
 ### `Core\Http`

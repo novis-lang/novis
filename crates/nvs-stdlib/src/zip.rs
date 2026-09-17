@@ -68,33 +68,34 @@
 //! archive and a failing disk are different questions, and a caller that
 //! cannot tell them apart retries the one it should have refused.
 //!
+//! **Zip64 is read from the records that carry it.** An archive past 4 GiB or
+//! past 65535 entries writes `0xFFFFFFFF` in the size and offset fields this
+//! reader walks, puts the real values in a zip64 extra field on each record,
+//! and hands its entry count and its directory's offset to a zip64 end record
+//! that a locator in front of the ordinary end record points at. Both are
+//! read, so such an archive is read rather than refused as malformed, and one
+//! whose narrow field is the sentinel while the wide record it names is absent
+//! is refused rather than walked from the sentinel itself. The bound is still
+//! measured as the output grows rather than taken from either header, so
+//! nothing here trusts a claimed size whichever record wrote it.
+//!
+//! **An entry's octets are checked against the CRC-32 the archive recorded**,
+//! on the one route every member reads through, so a corrupt entry is refused
+//! rather than answered or written. There is no argument that turns it off,
+//! for the reason the four refusals have none, and it costs one pass over
+//! output already in hand next to the decompression that produced it. A
+//! *stored* entry is the half this catches: a deflate stream that has been
+//! corrupted already fails to decode.
+//!
 //! **What this spends** (`rule:programs/memory-priority`): one entry's output
 //! at a time, bounded by the ceiling above and attributable to the request
 //! that asked for it. An extraction holds one entry and not the archive, for
 //! the same reason. The central directory is walked into a `Vec` of entries
 //! whose size is the archive's own entry count; nothing holds the decompressed
-//! archive.
-//!
-//! # Known gaps
-//!
-//! 1. **Zip64 is not read.** An archive over 4 GiB, or with more than 65535
-//!    entries, records its sizes in a zip64 extra field and writes
-//!    `0xFFFFFFFF` in the field this reads; such an archive is refused as
-//!    malformed rather than misread. The bound is measured rather than taken
-//!    from a header, so nothing here trusts the claimed size either way.
-//!    Decided: Yes: read the Zip64 extra fields and end-of-directory record — Matches PHP's ZipArchive;
-//!    a second header format to parse and fuzz.
-//!    — owner: decided-closures
-//! 2. **An entry's CRC is not checked**, by `read` or by `extract`. A deflate
-//!    stream that has been corrupted fails to decode and is refused; a stored
-//!    entry that has been corrupted is answered, and written, as it stands.
-//!    This class exists for what an archive is *allowed* to do rather than for
-//!    whether it survived a disk, and a corrupt entry reaching a file is a
-//!    question about the disk it came off rather than about the archive's
-//!    policy.
-//!    Decided: Verify by default and refuse a mismatch — Corruption never reaches the caller; one CRC
-//!    pass per entry, cheap next to decompression.
-//!    — owner: decided-closures
+//! archive. Zip64 adds no allocation to that — the wide values land in the
+//! fields the narrow ones would have, and what a zip64 archive costs over a
+//! narrow one is a bounded walk of one record's extra area per entry — and the
+//! CRC is a rolling checksum over octets already held.
 
 use std::io::{Read as _, Write as _};
 use std::path::{Path, PathBuf};
@@ -232,8 +233,9 @@ const READ_DOC: MethodDoc = MethodDoc {
     errors: &[ErrorDoc {
         error: "ParseError",
         desc: "Everything `entries` refuses, plus: no entry has that name, the entry is compressed \
-               by a method this class does not read, its stream is not well formed, or its output \
-               would pass either half of the bound.",
+               by a method this class does not read, its stream is not well formed, its octets do \
+               not match the CRC-32 the archive recorded, or its output would pass either half of \
+               the bound.",
     }],
 };
 
@@ -278,8 +280,9 @@ const EXTRACT_DOC: MethodDoc = MethodDoc {
     errors: &[
         ErrorDoc {
             error: "ParseError",
-            desc: "Everything `entries` refuses, plus an entry whose output would pass either half \
-                   of the bound — per entry or across the archive, which is one rule.",
+            desc: "Everything `entries` refuses, plus an entry whose octets do not match the \
+                   CRC-32 the archive recorded, or whose output would pass either half of the \
+                   bound — per entry or across the archive, which is one rule.",
         },
         ErrorDoc {
             error: "RuntimeError",
@@ -328,6 +331,27 @@ const END_WIDTH: usize = 22;
 /// of the archive it can sit.
 const MAX_COMMENT: usize = 0xFFFF;
 
+/// The zip64 end-of-central-directory record's signature.
+const ZIP64_END_SIGNATURE: u32 = 0x0606_4b50;
+
+/// The zip64 *locator*'s signature — the record between the central directory
+/// and the ordinary end record that says where the zip64 end record begins.
+const ZIP64_LOCATOR_SIGNATURE: u32 = 0x0706_4b50;
+
+/// The locator's width, which is fixed: it carries neither a name nor a
+/// comment, so it sits exactly this far in front of the end record.
+const ZIP64_LOCATOR_WIDTH: usize = 20;
+
+/// The zip64 extended-information extra field's header id.
+const ZIP64_EXTRA_ID: u16 = 0x0001;
+
+/// The value a 32-bit field carries when the real one is in a zip64 record or
+/// extra field instead.
+const WIDE_U32: u32 = 0xFFFF_FFFF;
+
+/// The same for the 16-bit field the end record counts entries in.
+const WIDE_U16: u16 = 0xFFFF;
+
 /// The stored method: the entry's octets are the entry.
 const STORED: u16 = 0;
 
@@ -352,6 +376,11 @@ pub(crate) struct Entry {
     pub(crate) name: String,
     /// The compression method, one of [`STORED`] or [`DEFLATE`].
     method: u16,
+    /// The CRC-32 the archive recorded for the entry's decompressed octets,
+    /// taken from the central directory rather than the local header for the
+    /// reason the sizes are: a streaming writer leaves the local header's
+    /// zeroed and records them only here.
+    crc: u32,
     /// The entry's compressed size — the ratio half's input.
     compressed: usize,
     /// Where the entry's local header begins.
@@ -370,6 +399,15 @@ fn u32_at(archive: &[u8], at: usize) -> Option<u32> {
     Some(u32::from_le_bytes([raw[0], raw[1], raw[2], raw[3]]))
 }
 
+/// The little-endian `u64` at `at`, or `None` where the archive ends first —
+/// the width every value zip64 widens is recorded in.
+fn u64_at(archive: &[u8], at: usize) -> Option<u64> {
+    let raw = archive.get(at..at.checked_add(8)?)?;
+    Some(u64::from_le_bytes([
+        raw[0], raw[1], raw[2], raw[3], raw[4], raw[5], raw[6], raw[7],
+    ]))
+}
+
 /// Where the end-of-central-directory record begins.
 ///
 /// Backwards from the end, because the record is last and may be followed by a
@@ -383,6 +421,97 @@ fn end_record(archive: &[u8]) -> Option<usize> {
         .find(|at| u32_at(archive, *at) == Some(END_SIGNATURE))
 }
 
+/// How many entries the central directory holds, and where it begins.
+///
+/// The two are read together because they are written together: an archive
+/// past either 32-bit limit writes the sentinel in whichever of the end
+/// record's fields needs one and the real values in a zip64 end record, which
+/// the locator immediately in front of the end record points at. Taking one
+/// field narrow beside another wide is how a reader walks off the end of a
+/// directory it half believed.
+///
+/// An end record that says it is zip64 and has no zip64 record behind it is
+/// refused: the sentinel is not a value, and reading it as one would put the
+/// walk at offset `0xFFFFFFFF` of an archive that never claimed to be that
+/// large.
+fn span(archive: &[u8], end: usize) -> Result<(u64, u64), Fault> {
+    let narrow = || malformed("its end record is truncated");
+    let count = u16_at(archive, end + 10).ok_or_else(narrow)?;
+    let begins = u32_at(archive, end + 16).ok_or_else(narrow)?;
+    if count != WIDE_U16 && begins != WIDE_U32 {
+        return Ok((u64::from(count), u64::from(begins)));
+    }
+    let locator = end
+        .checked_sub(ZIP64_LOCATOR_WIDTH)
+        .filter(|start| u32_at(archive, *start) == Some(ZIP64_LOCATOR_SIGNATURE))
+        .ok_or_else(|| {
+            malformed("its end record says it is zip64 and no zip64 locator precedes it")
+        })?;
+    let record = usize::try_from(
+        u64_at(archive, locator + 8).ok_or_else(|| malformed("its zip64 locator is truncated"))?,
+    )
+    .map_err(|_| malformed("its zip64 end record sits past the end of the archive"))?;
+    if u32_at(archive, record) != Some(ZIP64_END_SIGNATURE) {
+        return Err(malformed(
+            "its zip64 locator does not point at a zip64 end record",
+        ));
+    }
+    let wide = || malformed("its zip64 end record is truncated");
+    Ok((
+        u64_at(archive, record + 32).ok_or_else(wide)?,
+        u64_at(archive, record + 48).ok_or_else(wide)?,
+    ))
+}
+
+/// The zip64 extended-information field's payload inside one record's extra
+/// area, or `None` where the record carries no such field.
+///
+/// The area is a run of `(id, width, payload)` headers in no fixed order, so it
+/// is walked rather than indexed. A header whose width runs past the area ends
+/// the walk — a field that does not fit is not a field, and the record is then
+/// read from whatever its narrow fields say, which is either a real value or a
+/// sentinel [`Wide::field`] refuses.
+fn zip64_extra(area: &[u8]) -> Option<&[u8]> {
+    let mut at = 0;
+    while let (Some(id), Some(width)) = (u16_at(area, at), u16_at(area, at + 2)) {
+        let payload = area.get(at + 4..at + 4 + usize::from(width))?;
+        if id == ZIP64_EXTRA_ID {
+            return Some(payload);
+        }
+        at += 4 + usize::from(width);
+    }
+    None
+}
+
+/// The wide values a record's `0xFFFFFFFF` fields stand in for.
+///
+/// A cursor rather than a struct, because the payload holds only the fields
+/// whose narrow half is the sentinel, in the order the format fixes them: the
+/// uncompressed size, the compressed size, the local header's offset, then the
+/// disk the entry starts on. So a caller asks for them in that order, wanted or
+/// not, and one asked for out of order reads another field's octets.
+struct Wide<'a> {
+    /// The zip64 extra field's payload — empty where the record carries none.
+    payload: &'a [u8],
+    /// How much of it the fields already asked for have consumed.
+    at: usize,
+}
+
+impl Wide<'_> {
+    /// `narrow` where it is a value, and the next eight octets of the payload
+    /// where it is the sentinel that says the value is here instead.
+    fn field(&mut self, narrow: u32) -> Result<u64, Fault> {
+        if narrow != WIDE_U32 {
+            return Ok(u64::from(narrow));
+        }
+        let wide = u64_at(self.payload, self.at).ok_or_else(|| {
+            malformed("a record's size or offset is a zip64 field its extra area does not carry")
+        })?;
+        self.at += 8;
+        Ok(wide)
+    }
+}
+
 /// Every entry the archive's central directory names, each already judged.
 ///
 /// This is the only route to an entry in this module, which is what makes the
@@ -392,13 +521,11 @@ fn end_record(archive: &[u8]) -> Option<usize> {
 pub(crate) fn directory(archive: &[u8]) -> Result<Vec<Entry>, Fault> {
     let end = end_record(archive)
         .ok_or_else(|| malformed("it has no end-of-central-directory record"))?;
-    let count = usize::from(
-        u16_at(archive, end + 10).ok_or_else(|| malformed("its end record is truncated"))?,
-    );
-    let mut at = usize::try_from(
-        u32_at(archive, end + 16).ok_or_else(|| malformed("its end record is truncated"))?,
-    )
-    .map_err(|_| malformed("its central directory begins past the end of the archive"))?;
+    let (entries, begins) = span(archive, end)?;
+    let count = usize::try_from(entries)
+        .map_err(|_| malformed("its end record names more entries than this host can hold"))?;
+    let mut at = usize::try_from(begins)
+        .map_err(|_| malformed("its central directory begins past the end of the archive"))?;
 
     let mut out: Vec<Entry> = Vec::with_capacity(count.min(4096));
     for _ in 0..count {
@@ -410,7 +537,11 @@ pub(crate) fn directory(archive: &[u8]) -> Result<Vec<Entry>, Fault> {
         let field = |offset: usize| u16_at(archive, at + offset);
         let method =
             field(10).ok_or_else(|| malformed("a central-directory record is truncated"))?;
+        let crc = u32_at(archive, at + 16)
+            .ok_or_else(|| malformed("a central-directory record is truncated"))?;
         let compressed = u32_at(archive, at + 20)
+            .ok_or_else(|| malformed("a central-directory record is truncated"))?;
+        let uncompressed = u32_at(archive, at + 24)
             .ok_or_else(|| malformed("a central-directory record is truncated"))?;
         let name_len = usize::from(
             field(28).ok_or_else(|| malformed("a central-directory record is truncated"))?,
@@ -430,11 +561,25 @@ pub(crate) fn directory(archive: &[u8]) -> Result<Vec<Entry>, Fault> {
             .ok_or_else(|| malformed("an entry's name runs past the end of the archive"))?;
         let name = std::str::from_utf8(raw)
             .map_err(|_| malformed("an entry's name is not UTF-8, and a `string` is"))?;
+        let extra = archive
+            .get(at + 46 + name_len..at + 46 + name_len + extra_len)
+            .ok_or_else(|| malformed("an entry's extra field runs past the end of the archive"))?;
+        // The uncompressed size is asked for and dropped rather than skipped:
+        // it is this class's one unread field, and the two the class does read
+        // sit behind it in the payload.
+        let mut wide = Wide {
+            payload: zip64_extra(extra).unwrap_or_default(),
+            at: 0,
+        };
+        wide.field(uncompressed)?;
+        let compressed = wide.field(compressed)?;
+        let local = wide.field(local)?;
 
         refuse_hostile(name, external, &out)?;
         out.push(Entry {
             name: name.to_owned(),
             method,
+            crc,
             compressed: usize::try_from(compressed)
                 .map_err(|_| malformed("an entry's compressed size does not fit this host"))?,
             at: usize::try_from(local).map_err(|_| {
@@ -553,6 +698,12 @@ impl Budget {
     /// a bomb and surviving one: the decoder is driven as a `Read` and stopped
     /// one octet past the ceiling, so a hostile entry costs the ceiling and
     /// never the gigabyte it declared.
+    ///
+    /// What came out is then checked against the CRC-32 the archive recorded
+    /// for it, and a mismatch refuses rather than answers. That check is here
+    /// rather than in each member because this is the one route: `read`
+    /// answers what it returns and `extract` writes it, so a corrupt entry has
+    /// no spelling that reaches either.
     pub(crate) fn read(&mut self, archive: &[u8], entry: &Entry) -> Result<Vec<u8>, Fault> {
         let frame = frame(archive, entry)?;
         let ceiling = Bound {
@@ -582,6 +733,20 @@ impl Budget {
         };
         if out.len() as u64 > ceiling {
             return Err(over_bound(&entry.name, frame.len(), self, ceiling));
+        }
+        let mut sum = crc32fast::Hasher::new();
+        sum.update(&out);
+        let sum = sum.finalize();
+        if sum != entry.crc {
+            return Err(refuses_entry(
+                &format!(
+                    "its octets do not match the CRC-32 the archive recorded for them \
+                     ({sum:#010x} against {:#010x}), so what is in the archive is not what was \
+                     put there",
+                    entry.crc
+                ),
+                &entry.name,
+            ));
         }
         self.left = self.left.saturating_sub(out.len() as u64);
         Ok(out)
@@ -933,6 +1098,16 @@ mod tests {
         }
     }
 
+    /// The CRC-32 an archive records for an entry's octets. A builder here has
+    /// to get it right or every archive it writes is a corrupt one, which is
+    /// the same fact `an_extracted_entry_whose_crc_mismatches_is_refused`
+    /// asserts from the other side.
+    fn crc_of(data: &[u8]) -> u32 {
+        let mut sum = crc32fast::Hasher::new();
+        sum.update(data);
+        sum.finalize()
+    }
+
     /// A zip archive carrying `written`, stored rather than deflated.
     ///
     /// Written here rather than fetched from a fixture directory so that a
@@ -948,9 +1123,10 @@ mod tests {
             let at = u32::try_from(out.len()).expect("a test archive is small");
             let name = entry.name.as_bytes();
             let size = u32::try_from(entry.data.len()).expect("a test entry is small");
+            let crc = crc_of(&entry.data);
             out.extend_from_slice(&LOCAL_SIGNATURE.to_le_bytes());
             out.extend_from_slice(&[20, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
-            out.extend_from_slice(&0_u32.to_le_bytes());
+            out.extend_from_slice(&crc.to_le_bytes());
             out.extend_from_slice(&size.to_le_bytes());
             out.extend_from_slice(&size.to_le_bytes());
             out.extend_from_slice(
@@ -964,7 +1140,7 @@ mod tests {
 
             directory.extend_from_slice(&CENTRAL_SIGNATURE.to_le_bytes());
             directory.extend_from_slice(&[20, 3, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
-            directory.extend_from_slice(&0_u32.to_le_bytes());
+            directory.extend_from_slice(&crc.to_le_bytes());
             directory.extend_from_slice(&size.to_le_bytes());
             directory.extend_from_slice(&size.to_le_bytes());
             directory.extend_from_slice(
@@ -1045,6 +1221,199 @@ mod tests {
                 .read(&raw, &entries[1])
                 .expect("a stored entry reads"),
             b"second"
+        );
+    }
+
+    /// The same entries written the way a zip64 writer writes them: every size
+    /// and every local-header offset is the `0xFFFFFFFF` sentinel with the real
+    /// value in a zip64 extra field, and the end record hands its entry count
+    /// and its directory's offset to a zip64 end record a locator points at.
+    ///
+    /// Written whole rather than by patching [`archive`]'s output, because what
+    /// is asserted is that *every* one of those values comes out of the wide
+    /// record: a patch that missed one would leave the narrow field it forgot
+    /// readable, and the case would pass on the field it never widened.
+    fn zip64(written: &[Written]) -> Vec<u8> {
+        let mut out: Vec<u8> = Vec::new();
+        let mut directory: Vec<u8> = Vec::new();
+        let mut count = 0_u64;
+        for entry in written {
+            let at = u64::try_from(out.len()).expect("a test archive is small");
+            let name = entry.name.as_bytes();
+            let size = u64::try_from(entry.data.len()).expect("a test entry is small");
+            let crc = crc_of(&entry.data);
+            let name_len = u16::try_from(name.len()).expect("a test entry's name is short");
+
+            // The local header, carrying a zip64 extra field of its own. The
+            // sizes here are never read — the central directory's are — so what
+            // this pins is that an entry's data is found past its extra area
+            // rather than at a fixed offset from its name.
+            out.extend_from_slice(&LOCAL_SIGNATURE.to_le_bytes());
+            out.extend_from_slice(&[45, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+            out.extend_from_slice(&crc.to_le_bytes());
+            out.extend_from_slice(&WIDE_U32.to_le_bytes());
+            out.extend_from_slice(&WIDE_U32.to_le_bytes());
+            out.extend_from_slice(&name_len.to_le_bytes());
+            out.extend_from_slice(&20_u16.to_le_bytes());
+            out.extend_from_slice(name);
+            out.extend_from_slice(&ZIP64_EXTRA_ID.to_le_bytes());
+            out.extend_from_slice(&16_u16.to_le_bytes());
+            out.extend_from_slice(&size.to_le_bytes());
+            out.extend_from_slice(&size.to_le_bytes());
+            out.extend_from_slice(&entry.data);
+
+            // And the central record, whose extra field carries all three of
+            // the values its narrow fields sentinel out, in the format's order.
+            directory.extend_from_slice(&CENTRAL_SIGNATURE.to_le_bytes());
+            directory.extend_from_slice(&[45, 3, 45, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+            directory.extend_from_slice(&crc.to_le_bytes());
+            directory.extend_from_slice(&WIDE_U32.to_le_bytes());
+            directory.extend_from_slice(&WIDE_U32.to_le_bytes());
+            directory.extend_from_slice(&name_len.to_le_bytes());
+            directory.extend_from_slice(&28_u16.to_le_bytes());
+            directory.extend_from_slice(&0_u16.to_le_bytes());
+            directory.extend_from_slice(&0_u16.to_le_bytes());
+            directory.extend_from_slice(&0_u16.to_le_bytes());
+            directory.extend_from_slice(&(entry.mode << 16).to_le_bytes());
+            directory.extend_from_slice(&WIDE_U32.to_le_bytes());
+            directory.extend_from_slice(name);
+            directory.extend_from_slice(&ZIP64_EXTRA_ID.to_le_bytes());
+            directory.extend_from_slice(&24_u16.to_le_bytes());
+            directory.extend_from_slice(&size.to_le_bytes());
+            directory.extend_from_slice(&size.to_le_bytes());
+            directory.extend_from_slice(&at.to_le_bytes());
+            count += 1;
+        }
+
+        let offset = u64::try_from(out.len()).expect("a test archive is small");
+        let size = u64::try_from(directory.len()).expect("a test directory is small");
+        out.extend_from_slice(&directory);
+
+        // The zip64 end record, which is where the count and the offset the end
+        // record below sentinels out actually are. Its declared width is what
+        // follows the width field itself.
+        let record = u64::try_from(out.len()).expect("a test archive is small");
+        out.extend_from_slice(&ZIP64_END_SIGNATURE.to_le_bytes());
+        out.extend_from_slice(&44_u64.to_le_bytes());
+        out.extend_from_slice(&45_u16.to_le_bytes());
+        out.extend_from_slice(&45_u16.to_le_bytes());
+        out.extend_from_slice(&0_u32.to_le_bytes());
+        out.extend_from_slice(&0_u32.to_le_bytes());
+        out.extend_from_slice(&count.to_le_bytes());
+        out.extend_from_slice(&count.to_le_bytes());
+        out.extend_from_slice(&size.to_le_bytes());
+        out.extend_from_slice(&offset.to_le_bytes());
+
+        // The locator, which is the only reason the record above can be found.
+        out.extend_from_slice(&ZIP64_LOCATOR_SIGNATURE.to_le_bytes());
+        out.extend_from_slice(&0_u32.to_le_bytes());
+        out.extend_from_slice(&record.to_le_bytes());
+        out.extend_from_slice(&1_u32.to_le_bytes());
+
+        out.extend_from_slice(&END_SIGNATURE.to_le_bytes());
+        out.extend_from_slice(&0_u16.to_le_bytes());
+        out.extend_from_slice(&0_u16.to_le_bytes());
+        out.extend_from_slice(&WIDE_U16.to_le_bytes());
+        out.extend_from_slice(&WIDE_U16.to_le_bytes());
+        out.extend_from_slice(&WIDE_U32.to_le_bytes());
+        out.extend_from_slice(&WIDE_U32.to_le_bytes());
+        out.extend_from_slice(&0_u16.to_le_bytes());
+        out
+    }
+
+    /// An archive written the zip64 way reads: each entry's sizes and its local
+    /// header's offset come out of its own extra field, and the entry count and
+    /// the directory's offset out of the zip64 end record.
+    ///
+    /// Two entries, so the second's offset is a value the narrow field could
+    /// not have carried by accident — a reader taking the sentinel for an
+    /// offset lands nowhere, but one taking a zeroed field for one would find
+    /// the *first* entry's header and answer the wrong octets while looking
+    /// right. The refusals and the bound are the same reader's, so a hostile
+    /// entry is refused here too, and an archive that says it is zip64 with no
+    /// zip64 record behind it is refused rather than read from the sentinels.
+    #[test]
+    fn a_zip64_archive_is_read_through_its_extra_fields_and_end_record() {
+        let raw = zip64(&[
+            Written::plain("notes/one.txt", "first"),
+            Written::plain("notes/two.txt", "second"),
+        ]);
+        let entries = directory(&raw).expect("a zip64 archive reads");
+        assert_eq!(
+            entries
+                .iter()
+                .map(|entry| entry.name.as_str())
+                .collect::<Vec<_>>(),
+            ["notes/one.txt", "notes/two.txt"]
+        );
+        assert_eq!(
+            Budget::new(ROOMY)
+                .read(&raw, &entries[0])
+                .expect("the first entry reads"),
+            b"first"
+        );
+        assert_eq!(
+            Budget::new(ROOMY)
+                .read(&raw, &entries[1])
+                .expect("the second entry reads"),
+            b"second"
+        );
+
+        let hostile = zip64(&[Written::plain("../escape", "x")]);
+        let message = refusal(directory(&hostile).expect_err("a traversing entry is refused"));
+        assert!(
+            message.contains("traverses out of the archive"),
+            "{message}"
+        );
+
+        let mut lying = raw.clone();
+        let locator = lying.len() - END_WIDTH - ZIP64_LOCATOR_WIDTH;
+        lying[locator..locator + 4].copy_from_slice(&0_u32.to_le_bytes());
+        let message = refusal(
+            directory(&lying).expect_err("a sentinel with no zip64 record behind it is refused"),
+        );
+        assert!(
+            message.contains("no zip64 locator precedes it"),
+            "{message}"
+        );
+    }
+
+    /// An entry whose octets do not match the CRC-32 the archive recorded is
+    /// refused rather than answered — and so never written, since `extract`
+    /// reads through the same [`Budget::read`] this asserts on.
+    ///
+    /// The corruption is a flipped octet in a *stored* entry, which is the half
+    /// a checksum is the only catch for: a deflate stream that has been
+    /// corrupted already fails to decode, so a reader with no checksum at all
+    /// still looks right on one. The archive lists either way, because its
+    /// central directory is untouched.
+    #[test]
+    fn an_extracted_entry_whose_crc_mismatches_is_refused() {
+        let sound = archive(&[Written::plain("notes/one.txt", "first")]);
+        let at = sound
+            .windows(5)
+            .position(|window| window == b"first")
+            .expect("the stored entry's octets are in the archive");
+        let mut corrupt = sound.clone();
+        corrupt[at] = b'F';
+
+        let entries = directory(&corrupt).expect("the central directory is intact, so it lists");
+        let message = refusal(
+            Budget::new(ROOMY)
+                .read(&corrupt, &entries[0])
+                .expect_err("a corrupt entry is refused"),
+        );
+        assert!(message.contains("CRC-32"), "{message}");
+        assert!(message.contains("notes/one.txt"), "{message}");
+
+        // The same entry sound reads, so what is asserted is the mismatch and
+        // not a reader that refuses whatever it is given.
+        let entries = directory(&sound).expect("the archive reads");
+        assert_eq!(
+            Budget::new(ROOMY)
+                .read(&sound, &entries[0])
+                .expect("a sound entry reads"),
+            b"first"
         );
     }
 

@@ -176,24 +176,6 @@ where taking it is the work and the code that follows it is not.
   would have taken it is live: `database` and `schema` are retired with M8's database half carried.
   `crates/nvs-stdlib/src/db/mod.rs` gap 2.
   [until: gone crates/nvs-stdlib/src/db/mod.rs:spec § 10's error tree]
-- **Zip64 is not read, so no archive over 4 GiB or past 65535 entries has a spelling.** One records
-  its sizes in an extra field and writes `0xFFFFFFFF` where this reader looks, and is refused as
-  malformed rather than misread, so nothing about it is unsafe — the bound is measured rather than
-  taken from a header either way. What has to be decided is whether Novis reads one at all:
-  `rule:core-classes/decompression-bound`'s ceiling defaults to 64 MiB, so an archive that size is
-  already past what any default extracts whole, and the question is whether *listing* one, and
-  pulling a small entry from it, buys enough to carry a second header format. Goal `formats` is
-  retired and no milestone's plan names it. `crates/nvs-stdlib/src/zip.rs` gap 1.
-  [until: gone crates/nvs-stdlib/src/zip.rs:Zip64 is not read]
-- **A stored entry's CRC is not checked, so a corrupted one is answered as content.** A deflate entry
-  that has been corrupted fails to decode and is refused; a stored one is handed back, and written,
-  as it stands. The module reads its own job as what an archive is *allowed* to do rather than
-  whether it survived a disk, but nothing states that as a rule, and the recorded CRC is not exposed
-  either, so a caller cannot make the check the class declines to — `Core\Hash`'s `Digest::Crc32`
-  (`docs/spec/01-core-library.md:825`) computes exactly this value and has nothing to compare against.
-  What has to be decided is which of the three it is: verified by default, an argument, or a non-goal
-  with the recorded value handed out. `crates/nvs-stdlib/src/zip.rs` gap 2.
-  [until: gone crates/nvs-stdlib/src/zip.rs:An entry's CRC is not checked]
 - **EBML's magic is distinctive and the table has no row for it, so a `.webm` and a `.mkv` both
   answer `Unknown`.** The two containers share one magic and are told apart by the `DocType`
   element, which is a parse rather than the prefix comparison
