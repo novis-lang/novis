@@ -291,6 +291,15 @@ enum Command {
         // `nvs_runtime::FaultSite` documents each site.
         #[arg(long, value_name = "SITE")]
         fault_inject: Option<FaultSiteArg>,
+        /// Count what the program did — statements executed, calls made,
+        /// allocations, bytes — and print the four totals on stderr at exit.
+        ///
+        /// The counts are the same on every machine for the same program and
+        /// binary, which is what `tools/dossier.py --record-perf` keeps them
+        /// for (`rule:testing/bench-counters`). Stdout is untouched, so a
+        /// program's own output is what it always was.
+        #[arg(long, conflicts_with_all = ["dump_ir", "dump_asm"])]
+        count: bool,
         /// Answer the request this file describes, rather than run as a
         /// program that is answering none.
         ///
@@ -1132,6 +1141,7 @@ fn run_hosted(argv: &[String]) -> ExitCode {
             dump_ir,
             dump_asm,
             fault_inject,
+            count,
             request,
             arguments,
         }) => run_run(
@@ -1139,6 +1149,7 @@ fn run_hosted(argv: &[String]) -> ExitCode {
             dump_ir,
             dump_asm,
             fault_inject,
+            count,
             request.as_deref(),
             &cli.config,
             arguments,
@@ -1244,6 +1255,7 @@ fn main() -> ExitCode {
             dump_ir,
             dump_asm,
             fault_inject,
+            count,
             request,
             arguments,
         } => run_run(
@@ -1251,6 +1263,7 @@ fn main() -> ExitCode {
             dump_ir,
             dump_asm,
             fault_inject,
+            count,
             request.as_deref(),
             &cli.config,
             arguments,
@@ -2013,6 +2026,7 @@ fn run_run(
     dump_ir: bool,
     dump_asm: bool,
     fault_inject: Option<FaultSiteArg>,
+    count: bool,
     request: Option<&std::path::Path>,
     config: &[PathBuf],
     arguments: Vec<String>,
@@ -2249,6 +2263,13 @@ fn run_run(
     if let Some(site) = fault_inject {
         ctx.inject_fault(site.into());
     }
+    // `--count`: the probe sites every compiled unit already carries count
+    // instead of recording, for the length of the run. Set before the spawn
+    // because the context moves into the task below, and read back off the
+    // `Finished` the scheduler hands back.
+    if count {
+        ctx.set_debug_flags(nvs_runtime::DebugFlags::COUNT);
+    }
     // `rule:concurrency/a-child-belongs-to-the-calling-task` and `rule:concurrency/limit-and-deadline-are-the-only-bounds`: the program is a *task*, because the children a
     // `Core\Task::all` inside it asks for are children of the calling task and
     // `nvs_host::spawn_child` reads that caller off the scheduler rather than
@@ -2436,6 +2457,17 @@ fn run_run(
     // and the clock it is handed is this thread's because this is the thread
     // the program runs on.
     let (view, cpu_limit) = ceiling;
+    // The allocator's counters are this thread's and never reset, so the
+    // run's share is the difference across it. Taken here, after the reactor
+    // and the compiler are up, so what is counted is the program and the
+    // scheduler under it rather than the process's own start-up; the same
+    // subtraction `tools/dossier.py` then makes against the empty program.
+    let allocated_before = count.then(|| {
+        (
+            nvs_runtime::budget::allocations(),
+            nvs_runtime::budget::allocated_bytes(),
+        )
+    });
     let charged = nvs_host::RunningRequest::new(view, nvs_host::ThreadClock::current(), cpu_limit);
     let watchdog = charged.is_some().then(nvs_host::Watchdog::new);
     let watched = watchdog.as_ref().map(|watchdog| {
@@ -2475,6 +2507,19 @@ fn run_run(
     if let Err(error) = ctx.flush_output() {
         eprintln!("error: could not flush output: {error}");
         return ExitCode::FAILURE;
+    }
+
+    // `--count`'s one line, on stderr so stdout stays the program's. Printed
+    // whatever the outcome below: a program that threw still did what it did.
+    if let Some((allocations, bytes)) = allocated_before {
+        let counted = ctx.counted();
+        eprintln!(
+            "count: statements={} calls={} allocations={} bytes={}",
+            counted.statements,
+            counted.calls,
+            nvs_runtime::budget::allocations().wrapping_sub(allocations),
+            nvs_runtime::budget::allocated_bytes().wrapping_sub(bytes),
+        );
     }
 
     // `rule:http-server/containment-does-not-end-at-the-helper`'s outer boundary caught a panic under the task root. For a
