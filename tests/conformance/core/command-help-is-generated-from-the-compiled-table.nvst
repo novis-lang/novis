@@ -23,6 +23,13 @@ class Deployer {
 // A `Cli\Text` renders as the bytes it already holds (`rule:security/capture-answers-the-carrier`). An option
 // that wrote a `short:` claims two spellings: the usage line summarizes it by
 // the long one and the `options:` block names both.
+//
+// The middle column is each parameter's declared type, which the table does
+// not carry: the page reaches the handler's own signature through the
+// `Class::method` label the row holds. `$dryRun` names `bool` and not
+// `bool = false`, because § 6 gives an option declared `bool` by its being
+// written and the declaration's own default is not what an unwritten flag
+// takes.
 echo "" . Core\Command::help("deploy");
 echo "--\n";
 // `null` is the program's own page: which commands there are, rather than what
@@ -34,10 +41,10 @@ usage: deploy <target> [--dryRun]
 Push the current build
 
 arguments:
-  <target>
+  <target>  string
 
 options:
-  -n, --dryRun  Print what would happen
+  -n, --dryRun  bool  Print what would happen
 --
 usage: <command> [arguments]
 

@@ -14,15 +14,16 @@
 //! the layout is this module's call and this is its one home:
 //!
 //! ```text
-//! usage: greet <name> [--loud]
+//! usage: greet <name> [--loud] [--times]
 //!
 //! Greet somebody by name
 //!
 //! arguments:
-//!   <name>
+//!   <name>  string  Who to greet
 //!
 //! options:
-//!   --loud  Shout it
+//!   --loud   bool      Shout it
+//!   --times  uint = 3  How many times
 //! ```
 //!
 //! A **positional argument** is `<param>` and an **option** is `[--spelling]`,
@@ -33,7 +34,30 @@
 //! option that declares both a short and a long spelling is *summarized* by its
 //! long one in the usage line and lists all of them in the `options:` block: one
 //! line that names every spelling is unreadable at four options, and the block
-//! below it is where the full answer belongs.
+//! below it is where the full answer belongs. Each block aligns its own
+//! columns, so a long spelling under `options:` does not indent `arguments:`.
+//!
+//! The middle column is the **declaration** — the parameter's type, and
+//! `= <value>` after it where the declaration wrote a default. It is the one
+//! column the table cannot answer out of itself: a row carries what a parameter
+//! is *called* and the conversion the checker picked for it, never the type it
+//! was declared at (`nvs_types::commands` § *What crosses in a row, and what
+//! stays*, where that is a stated bound). The page reaches the handler's own
+//! signature instead, through the `Class::method` label the row already holds —
+//! [`nvs_runtime::MethodRow::param_types`], found by the parameter's name — so
+//! there is one source of truth and no second copy of a signature in the table.
+//!
+//! **Both halves of a declaration or neither**, which is why the default was
+//! withheld until the type could be reached: a page naming `= 3` and no type
+//! reads as though the declaration had written none. So a page rendered with no
+//! way to reach the class table, and a parameter whose handler's row no
+//! declaration was read for, print no declaration column at all rather than
+//! half of one.
+//!
+//! A **flag** names its type and never a default. § 6 gives an option declared
+//! `bool` by its being *written*, so the one nobody wrote is `false` whatever
+//! its declaration says (`nvs_runtime::commands::CommandArg::default`), and
+//! `bool = true` on a page would name a default the matcher does not honour.
 //!
 //! `help(null)` is the program's own page — the command list rather than one
 //! command's arguments — because a CLI's bare `--help` names its subcommands,
@@ -51,9 +75,13 @@
 //! completes two positions and no others**: the command word, from the table's
 //! own names, and the option spellings of whichever command the first word
 //! already selected. It completes no *value* — not a positional argument's and
-//! not an option's — because the table says what a parameter is called and not
-//! what it may hold (gap 1 below), so any value a script offered would be
-//! invented rather than generated.
+//! not an option's. A declared type is not a set of values: the page can say
+//! `uint` and a script would have to offer a number, so what it offered would
+//! be invented rather than generated. **That is a bound and not an omission**,
+//! and it holds for the two conversions that *do* carry their words — a union
+//! of literals and an enum's cases, `nvs_runtime::commands::ArgConv::OneOf` and
+//! `ArgConv::Enum` — because a script completing some values and staying silent
+//! about others teaches its user that the ones it left out are wrong.
 //!
 //! Each is written in the shell's own idiom rather than in a common shape bent
 //! four ways: a `bash` function over `COMP_WORDS` behind `complete -F`, a `zsh`
@@ -68,26 +96,9 @@
 //! one fact the table does not carry: [`nvs_runtime::Ctx::program_name`] owns
 //! which name that is for each way a program can be started, and why
 //! `nvs-stdlib` is handed it rather than reading `argv[0]` (`rule:security/capability-check-at-the-door`).
-//!
-//! # Known gaps
-//!
-//! 1. **A page names no types.** The row carries a declared default now
-//!    (`nvs_runtime::commands::CommandArg::default`), so `[--retries]` could be
-//!    rendered as defaulting to `3`; what it still cannot say is that it is a
-//!    `uint`, because § 6's table deliberately does not carry a parameter's
-//!    declared type (`nvs_types::commands` § *What crosses in a row, and what
-//!    stays*, where that is a stated bound rather than a gap). Saying so needs
-//!    the *signature*, which the handler already holds and the row does not, and
-//!    inventing a second copy of it in the table is what that bound refuses. The
-//!    default alone is not rendered because § 6 asks for neither and a page
-//!    naming one of the two reads as though the other were absent from the
-//!    declaration.
-//!    Decided: The help renderer reaches the handler's signature at render time (row holds a reference,
-//!    not a copy) — One source of truth; the table needs a way to point at the signature.
-//!    — owner: decided-closures
 
 use nvs_runtime::commands::{ArgConv, CaseValue, Command, CommandArg, CommandTable};
-use nvs_runtime::{Decimal, Fault, NvsStr, Tag, ThrownClass, Value};
+use nvs_runtime::{Decimal, Fault, MethodRow, NvsStr, Tag, ThrownClass, Value};
 
 use crate::registry::{CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual};
 
@@ -236,7 +247,7 @@ nvs_runtime::nvs_helper! {
                         ),
                     ));
                 };
-                page_for(row)
+                page_for(row, signature_of(ctx, row))
             }
         };
         Ok(crate::cli::built(Value::str(NvsStr::new(page.as_bytes()))))
@@ -296,7 +307,13 @@ nvs_runtime::nvs_helper! {
         }
         let values = match matched(&row, &line[1..]) {
             Ok(values) => values,
-            Err(problem) => return usage(ctx, &format!("{problem}\n\n{}", page_for(&row))),
+            Err(problem) => {
+                // The page before the call, not inside its argument list: the
+                // signature is a shared borrow of the context `usage` then
+                // writes through.
+                let page = page_for(&row, signature_of(ctx, &row));
+                return usage(ctx, &format!("{problem}\n\n{page}"));
+            }
         };
         // The one conversion `matched` leaves undone, because it is the one
         // needing a context rather than only a word. `parse_each` is the home of
@@ -304,7 +321,8 @@ nvs_runtime::nvs_helper! {
         let values = match parse_each(ctx, &row, values) {
             Ok(values) => values,
             Err(Refused::Usage(problem)) => {
-                return usage(ctx, &format!("{problem}\n\n{}", page_for(&row)));
+                let page = page_for(&row, signature_of(ctx, &row));
+                return usage(ctx, &format!("{problem}\n\n{page}"));
             }
             Err(Refused::Fault(fault)) => return Err(fault),
         };
@@ -733,45 +751,136 @@ fn usage_line(row: &Command) -> String {
     line
 }
 
+/// One line of a `heading:` block: the spelling the page lists it under, the
+/// declaration behind it, and the author's own `about:`.
+///
+/// `declared` is the empty string for a line the page has no declaration for,
+/// which is what collapses the middle column for a whole block rather than
+/// leaving one line short of the others — see the module doc for why it is both
+/// halves of a declaration or neither.
+struct Entry<'a> {
+    left: String,
+    declared: String,
+    about: Option<&'a str>,
+}
+
 /// One `heading:` and its indented, column-aligned entries, or nothing at all
 /// for a heading with no entry under it — an empty section reads as a claim
 /// that the command has no arguments, which is what the *absence* says.
-fn block(heading: &str, entries: &[(String, Option<&str>)]) -> String {
+///
+/// Each column is as wide as this block's own widest entry, and a column every
+/// entry left empty takes no width at all.
+fn block(heading: &str, entries: &[Entry<'_>]) -> String {
     if entries.is_empty() {
         return String::new();
     }
     let widest = entries
         .iter()
-        .map(|(left, _)| left.len())
+        .map(|entry| entry.left.len())
+        .max()
+        .unwrap_or(0);
+    let declared_width = entries
+        .iter()
+        .map(|entry| entry.declared.len())
         .max()
         .unwrap_or(0);
     let mut out = format!("\n{heading}:\n");
-    for (left, about) in entries {
-        match about {
-            Some(about) => out.push_str(&format!("  {left:<widest$}  {about}\n")),
-            None => out.push_str(&format!("  {left}\n")),
+    for entry in entries {
+        let mut line = format!("  {:<widest$}", entry.left);
+        if declared_width > 0 {
+            line.push_str(&format!("  {:<declared_width$}", entry.declared));
         }
+        if let Some(about) = entry.about {
+            line.push_str("  ");
+            line.push_str(about);
+        }
+        // The padding is what aligns the *next* column, so a line whose later
+        // columns are empty ends at its last word rather than at the width.
+        out.push_str(line.trim_end());
+        out.push('\n');
     }
     out
 }
 
-/// One command's page.
-fn page_for(row: &Command) -> String {
+/// What the declaration wrote for `arg`, as a page names it: the parameter's
+/// type, with `= <default>` after it where the command line may leave the
+/// argument out. The empty string where the page cannot read the type, since it
+/// is both halves or neither — the module doc owns that rule and the flag's
+/// exception to the second half.
+fn declaration_of(arg: &CommandArg, signature: Option<&MethodRow>) -> String {
+    let Some(signature) = signature else {
+        return String::new();
+    };
+    let Some(slot) = signature
+        .param_names
+        .iter()
+        .position(|name| *name == arg.param)
+    else {
+        return String::new();
+    };
+    let Some(declared) = signature
+        .param_types
+        .get(slot)
+        .filter(|declared| !declared.is_empty())
+    else {
+        return String::new();
+    };
+    match &arg.default {
+        Some(default) if !(arg.is_option() && arg.conv == ArgConv::Flag) => {
+            format!("{declared} = {default}")
+        }
+        _ => declared.clone(),
+    }
+}
+
+/// The handler's own row in the class table, which is where a parameter's
+/// declared type is and the only place it is.
+///
+/// [`Command::handler`] is the `Class::method` label the compiler wrote, so the
+/// reach is the one [`nvs_runtime::call_static`] already takes to dispatch —
+/// `None` for a context holding no such class, which is a page with no
+/// declaration column rather than a refusal: `help` answers for a table the
+/// compiler built, and a class table it cannot see is not the caller's mistake.
+fn signature_of<'a>(ctx: &'a nvs_runtime::Ctx, row: &Command) -> Option<&'a MethodRow> {
+    let (class, method) = row.handler.split_once("::")?;
+    let desc = ctx.class_desc(class)?;
+    #[expect(
+        unsafe_code,
+        reason = "`class_desc` answers with a pointer into the compiled unit's class table, \
+                  which outlives this context and is never rewritten while a member of it is \
+                  running"
+    )]
+    let desc = unsafe { &*desc };
+    desc.method_row(method)
+}
+
+/// One command's page, over the handler's signature where the caller could
+/// reach one — [`signature_of`] is how, and [`declaration_of`] is what the
+/// middle column becomes without it.
+fn page_for(row: &Command, signature: Option<&MethodRow>) -> String {
     let mut page = format!("{}\n", usage_line(row));
     if let Some(about) = &row.about {
         page.push_str(&format!("\n{about}\n"));
     }
-    let positionals: Vec<(String, Option<&str>)> = row
+    let positionals: Vec<Entry<'_>> = row
         .args
         .iter()
         .filter(|arg| !arg.is_option())
-        .map(|arg| (format!("<{}>", arg.param), arg.about.as_deref()))
+        .map(|arg| Entry {
+            left: format!("<{}>", arg.param),
+            declared: declaration_of(arg, signature),
+            about: arg.about.as_deref(),
+        })
         .collect();
-    let options: Vec<(String, Option<&str>)> = row
+    let options: Vec<Entry<'_>> = row
         .args
         .iter()
         .filter(|arg| arg.is_option())
-        .map(|arg| (arg.spellings.join(", "), arg.about.as_deref()))
+        .map(|arg| Entry {
+            left: arg.spellings.join(", "),
+            declared: declaration_of(arg, signature),
+            about: arg.about.as_deref(),
+        })
         .collect();
     page.push_str(&block("arguments", &positionals));
     page.push_str(&block("options", &options));
@@ -786,10 +895,16 @@ fn overview(table: &CommandTable) -> String {
         page.push_str("\nthis program declares no command\n");
         return page;
     }
-    let commands: Vec<(String, Option<&str>)> = table
+    // No declaration column: a command is not a parameter, so there is no type
+    // to name beside its name.
+    let commands: Vec<Entry<'_>> = table
         .rows()
         .iter()
-        .map(|row| (row.name.clone(), row.about.as_deref()))
+        .map(|row| Entry {
+            left: row.name.clone(),
+            declared: String::new(),
+            about: row.about.as_deref(),
+        })
         .collect();
     page.push_str(&block("commands", &commands));
     page
@@ -1139,10 +1254,13 @@ mod tests {
 
     /// Both blocks appear, aligned, and the option's own `about:` rides with
     /// every spelling it answers to rather than with the summarized one.
+    ///
+    /// No signature, so no declaration column — the half of the module doc's
+    /// "both or neither" a caller holding no context lands on.
     #[test]
     fn a_page_carries_both_blocks_and_every_spelling() {
         assert_eq!(
-            page_for(&deploy()),
+            page_for(&deploy(), None),
             "usage: deploy <target> [--dryRun]\n\
              \n\
              Push the current build\n\
@@ -1165,7 +1283,98 @@ mod tests {
             handler: "App::version".to_owned(),
             args: Vec::new(),
         };
-        assert_eq!(page_for(&row), "usage: version\n");
+        assert_eq!(page_for(&row, None), "usage: version\n");
+    }
+
+    /// The declaration column is read off the handler's own row, so a page
+    /// names the type the *source* wrote rather than the conversion the table
+    /// carries — `uint` and `int` pick one `ArgConv` between them, and a page
+    /// derived from that arm could not tell them apart.
+    #[test]
+    fn a_page_names_the_type_each_parameter_was_declared_at() {
+        let mut declared = deploy_row();
+        declared.param_names = vec!["target".to_owned(), "dryRun".to_owned()];
+        declared.param_types = vec!["string".to_owned(), "bool".to_owned()];
+        let ctx = dispatching(&["deploy"], vec![declared]);
+        let row = deploy();
+        assert_eq!(
+            page_for(&row, signature_of(&ctx, &row)),
+            "usage: deploy <target> [--dryRun]\n\
+             \n\
+             Push the current build\n\
+             \n\
+             arguments:\n\
+             \x20 <target>  string\n\
+             \n\
+             options:\n\
+             \x20 -n, --dryRun  bool  Print what would happen\n"
+        );
+    }
+
+    /// A declared default rides with the type it was declared beside, and a
+    /// flag's is withheld: § 6 gives an option declared `bool` by its being
+    /// written, so `= true` on that line would name a default the matcher does
+    /// not honour — the same divergence
+    /// [`an_unwritten_argument_takes_its_declared_default`] asserts on the
+    /// values.
+    ///
+    /// A parameter the handler's row does not name keeps its line and loses
+    /// its declaration, which is what makes the column a page's answer about
+    /// each parameter rather than about the command.
+    #[test]
+    fn a_default_rides_with_its_type_and_a_flag_names_neither() {
+        let row = Command {
+            name: "fetch".to_owned(),
+            about: None,
+            handler: "Deployer::fetch".to_owned(),
+            args: vec![
+                CommandArg {
+                    param: "url".to_owned(),
+                    spellings: Vec::new(),
+                    about: None,
+                    conv: ArgConv::Text,
+                    default: Some("https://example.test".to_owned()),
+                },
+                CommandArg {
+                    param: "retries".to_owned(),
+                    spellings: vec!["--retries".to_owned()],
+                    about: None,
+                    conv: ArgConv::Uint,
+                    default: Some("3".to_owned()),
+                },
+                CommandArg {
+                    param: "loud".to_owned(),
+                    spellings: vec!["--loud".to_owned()],
+                    about: None,
+                    conv: ArgConv::Flag,
+                    default: Some("true".to_owned()),
+                },
+                CommandArg {
+                    param: "quiet".to_owned(),
+                    spellings: vec!["--quiet".to_owned()],
+                    about: None,
+                    conv: ArgConv::Flag,
+                    default: None,
+                },
+            ],
+        };
+        let mut declared = deploy_row();
+        declared.name = "fetch".to_owned();
+        declared.param_names = vec!["url".to_owned(), "retries".to_owned(), "loud".to_owned()];
+        declared.param_types = vec!["string".to_owned(), "uint".to_owned(), "bool".to_owned()];
+        let ctx = dispatching(&["fetch"], vec![declared]);
+        assert_eq!(
+            page_for(&row, signature_of(&ctx, &row)),
+            "usage: fetch [<url>] [--retries] [--loud] [--quiet]\n\
+             \n\
+             arguments:\n\
+             \x20 <url>  string = https://example.test\n\
+             \n\
+             options:\n\
+             \x20 --retries  uint = 3\n\
+             \x20 --loud     bool\n\
+             \x20 --quiet\n"
+        );
     }
 
     /// A context that was handed no table and a program that declares no
@@ -1791,7 +2000,7 @@ mod tests {
                 "every shell's script names the command `{}` the page lists",
                 row.name
             );
-            let command_page = page_for(row);
+            let command_page = page_for(row, None);
             for spelling in spellings(row) {
                 assert!(
                     command_page.contains(spelling),
