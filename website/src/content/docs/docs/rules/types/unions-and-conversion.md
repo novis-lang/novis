@@ -15,9 +15,9 @@ next:
 
 <p class="nv-section-lead">What a union permits, the four spellings of narrowing, and the single conversion operator that replaced the cast.</p>
 
-<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">7</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">6</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">1</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">4</span><span class="nv-count-label">differ from PHP</span></div></div>
+<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">8</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">7</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">1</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">4</span><span class="nv-count-label">differ from PHP</span></div></div>
 
-<ol class="nv-rule-list"><li><a href="#unions-and-mixed">A union permits only what every member permits, and <code>mixed</code> is the one position checked nowhere</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#type-test"><code>$x is T</code> tests whether a value holds a <code>T</code>, answers <code>bool</code>, and never refuses because the answer is knowable</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#narrowing">Narrowing is flow-sensitive and branch-local, and there are exactly five spellings of it</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#conversion"><code>expr as T</code> is the only conversion, and it produces a <code>T</code> or throws</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#no-legacy-cast">PHP's <code>(T)expr</code> cast does not parse, and the diagnostic names the <code>as</code> that replaces it</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#type-alias">A <code>type</code> alias is a transparent, compile-time-only synonym for a type expression</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#alias-is-never-a-bare-class">A <code>type</code> alias may not name a single bare class</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li></ol>
+<ol class="nv-rule-list"><li><a href="#unions-and-mixed">A union permits only what every member permits, and <code>mixed</code> is the one position checked nowhere</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#type-test"><code>$x is T</code> tests whether a value holds a <code>T</code>, answers <code>bool</code>, and never refuses because the answer is knowable</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#narrowing">Narrowing is flow-sensitive and branch-local, and there are exactly five spellings of it</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#conversion"><code>expr as T</code> is the only conversion, and it produces a <code>T</code> or throws</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#no-legacy-cast">PHP's <code>(T)expr</code> cast does not parse, and the diagnostic names the <code>as</code> that replaces it</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#type-alias">A <code>type</code> alias is a transparent, compile-time-only synonym for a type expression</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#alias-is-never-a-bare-class">A <code>type</code> alias may not name a single bare class</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#class-scoped-alias">A <code>type</code> alias is also a member of a class, interface or enum, reached as <code>Owner::Name</code> and as a bare <code>Name</code> inside its owner</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li></ol>
 
 <div class="nv-rule" id="unions-and-mixed">
 
@@ -188,6 +188,10 @@ case-subset type is reached ([`types/enum-case-type`](/docs/rules/types/text-and
 have to be stated again for `!=`, `&&`, `||` and negation, where `as` says the same thing in one
 place.
 
+The subject of every spelling is a **binding**, named. A property, an element or any other place is
+never the thing narrowed: `$e->previous != null` proves nothing about the next read of
+`$e->previous`, so a nullable one is reached through `?->` or bound to a local and tested there.
+
 Narrowing never changes a binding's declared type ([`types/declaration`](/docs/rules/types/declarations-and-numbers/#declaration "Every binding declares its type, and no binding's type ever changes")); it changes what the
 checker knows about it on one path. A value that has to *stay* narrowed is a second binding at the
 type you want, or a checked `as` ([`types/conversion`](/docs/rules/types/unions-and-conversion/#conversion "expr as T is the only conversion, and it produces a T or throws")).
@@ -302,8 +306,10 @@ before it parses.
 <a class="nv-rule-id" href="#type-alias"><code>types/type-alias</code></a>
 </div>
 
-`type Name = TypeExpr;` declares a compile-time-only synonym for a type expression, at file and
-namespace scope alongside `use` and `namespace` — never inside a class, and never inside a body.
+`type Name = TypeExpr;` declares a compile-time-only synonym for a type expression, written either at
+file and namespace scope alongside `use` and `namespace` or as a member of a class, interface or enum
+body ([`types/class-scoped-alias`](/docs/rules/types/unions-and-conversion/#class-scoped-alias "A type alias is also a member of a class, interface or enum, reached as Owner::Name and as a bare Name inside its owner")) — never inside a method body, a block or a closure body, where
+it is `E0233` by name like any other declaration written where control flow can reach it.
 
 ```php
 type UserId = uint;
@@ -329,7 +335,7 @@ Aliases are resolved eagerly and a cycle is a diagnostic — `type A = B; type B
 check time rather than left to loop or bottom out at `mixed`. They are non-parametric:
 `type Rows<T> = …` is out of scope while user-defined generics are.
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/types/unions-and-conversion/#alias-is-never-a-bare-class" title="A type alias may not name a single bare class"><code>types/alias-is-never-a-bare-class</code></a> <a href="/docs/rules/types/declarations-and-numbers/#grammar" title="The type grammar is a closed set of atoms under unions and intersections"><code>types/grammar</code></a> <a href="/docs/rules/types/objects-and-shapes/#shape-type" title="{name: T} in type position is a structural shape checked by width subtyping, and {name?: T} marks a key that may be absent"><code>types/shape-type</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0015.md">record 0015</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0007.md">record 0007</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0036.md">record 0036</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0011.md">record 0011</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/a-type-declared-inside-a-body-is-a-compile-error.nvst"><code>tests/conformance/lang/a-type-declared-inside-a-body-is-a-compile-error.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/reject/an-attribute-name-is-a-shape-typed-type-alias.nvst"><code>tests/conformance/reject/an-attribute-name-is-a-shape-typed-type-alias.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-hir/src/aliases.rs"><code>crates/nvs-hir/src/aliases.rs</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/types/unions-and-conversion/#class-scoped-alias" title="A type alias is also a member of a class, interface or enum, reached as Owner::Name and as a bare Name inside its owner"><code>types/class-scoped-alias</code></a> <a href="/docs/rules/types/unions-and-conversion/#alias-is-never-a-bare-class" title="A type alias may not name a single bare class"><code>types/alias-is-never-a-bare-class</code></a> <a href="/docs/rules/types/declarations-and-numbers/#grammar" title="The type grammar is a closed set of atoms under unions and intersections"><code>types/grammar</code></a> <a href="/docs/rules/types/objects-and-shapes/#shape-type" title="{name: T} in type position is a structural shape checked by width subtyping, and {name?: T} marks a key that may be absent"><code>types/shape-type</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0015.md">record 0015</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0007.md">record 0007</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0036.md">record 0036</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0011.md">record 0011</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0190.md">record 0190</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/a-type-declared-inside-a-body-is-a-compile-error.nvst"><code>tests/conformance/lang/a-type-declared-inside-a-body-is-a-compile-error.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/reject/a-type-alias-declared-inside-a-body-is-refused-by-name.nvst"><code>tests/conformance/reject/a-type-alias-declared-inside-a-body-is-refused-by-name.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/reject/an-attribute-name-is-a-shape-typed-type-alias.nvst"><code>tests/conformance/reject/an-attribute-name-is-a-shape-typed-type-alias.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-hir/src/aliases.rs"><code>crates/nvs-hir/src/aliases.rs</code></a></dd></div></dl>
 
 </div>
 
@@ -358,5 +364,59 @@ give a short name to a **shape** — a union, an intersection, a parameterised a
 never to a single already-named class.
 
 <dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/types/unions-and-conversion/#type-alias" title="A type alias is a transparent, compile-time-only synonym for a type expression"><code>types/type-alias</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0015.md">record 0015</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-hir/src/resolve.rs"><code>crates/nvs-hir/src/resolve.rs</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="class-scoped-alias">
+
+## A `type` alias is also a member of a class, interface or enum, reached as `Owner::Name` and as a bare `Name` inside its owner
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<a class="nv-rule-id" href="#class-scoped-alias"><code>types/class-scoped-alias</code></a>
+</div>
+
+A `type` alias is also a member of a class, interface or enum body, taking no visibility modifier,
+reached as `Owner::Name` from anywhere and as a bare `Name` inside its owner's own body, and never
+inherited.
+
+```php
+final class Order {
+    type Meta = {total: decimal, note?: string};
+
+    public function meta(): Meta { … }          // the short form, inside the owner
+}
+
+function show(Order::Meta $m): void { … }       // the qualified form, anywhere
+```
+
+Everything [`types/type-alias`](/docs/rules/types/unions-and-conversion/#type-alias "A type alias is a transparent, compile-time-only synonym for a type expression") says about an alias holds here unchanged: it is transparent in
+both directions, it is erased before codegen, a cycle is a diagnostic, and it may not name one bare
+class-shaped atom ([`types/alias-is-never-a-bare-class`](/docs/rules/types/unions-and-conversion/#alias-is-never-a-bare-class "A type alias may not name a single bare class")). The member is accepted in a class, an
+interface and an enum body alike — an interface's alias is not a contract an implementor satisfies,
+and an enum's alias has nothing to do with its cases.
+
+- **No visibility, ever.** A modifier run or an attribute group written in front of a body's `type`
+  is `E0133`. Visibility restricts reaching a name a running program has, and an alias has none; a
+  `private` alias would hide the name while leaving the type it expands to writable by anyone.
+- **No inheritance.** `Sub::Name`, where only an ancestor of `Sub` declares `Name`, is `E0405`
+  naming the owner that does. A class constant is inherited because a subclass genuinely has one; an
+  alias is an entry on nothing, and inheriting it would give one type as many names as its owner has
+  descendants — what [`statements/nothing-gets-a-second-name`](/docs/rules/statements/names-and-require/#nothing-gets-a-second-name "A declaration is reachable under exactly the name it was declared with") closes.
+- **Two spellings and no third.** `self::Name` and `static::Name` in type position are not spellings
+  of this member and stay refused. An alias is resolved before there is a receiver, so `static::`
+  could only ever mean the lexical class, which the bare `Name` already says.
+- **A name is one thing.** A body's alias sharing a name with a class constant or an enum case is
+  `E0304` at the later of the two declarations. `Owner::Name` in type position is therefore read as
+  an alias, then an enum case, then a class constant, and no program that compiles depends on that
+  order — it exists so the diagnostic for a name that resolves to nothing can say what was looked
+  for.
+
+The member costs nothing per request, because nothing about it survives the checker, and one
+alias-table entry per declaration at compile time, keyed by the owner's `QName` and the member name
+rather than by a namespace path — `Ns\Order\Meta` is also the spelling of a class `Meta` in namespace
+`Ns\Order`, and the two must not share a key.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/types/unions-and-conversion/#type-alias" title="A type alias is a transparent, compile-time-only synonym for a type expression"><code>types/type-alias</code></a> <a href="/docs/rules/types/unions-and-conversion/#alias-is-never-a-bare-class" title="A type alias may not name a single bare class"><code>types/alias-is-never-a-bare-class</code></a> <a href="/docs/rules/types/objects-and-shapes/#shape-type" title="{name: T} in type position is a structural shape checked by width subtyping, and {name?: T} marks a key that may be absent"><code>types/shape-type</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0190.md">record 0190</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/a-class-scoped-type-alias-agrees-with-the-file-scope-form.nvst"><code>tests/conformance/lang/a-class-scoped-type-alias-agrees-with-the-file-scope-form.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/a-class-scoped-type-alias-is-the-shape-it-names.nvst"><code>tests/conformance/lang/a-class-scoped-type-alias-is-the-shape-it-names.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/an-interface-and-an-enum-own-a-type-alias-too.nvst"><code>tests/conformance/lang/an-interface-and-an-enum-own-a-type-alias-too.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/reject/a-class-scoped-type-alias-takes-no-modifier.nvst"><code>tests/conformance/reject/a-class-scoped-type-alias-takes-no-modifier.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/reject/a-class-scoped-type-alias-is-not-inherited.nvst"><code>tests/conformance/reject/a-class-scoped-type-alias-is-not-inherited.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/reject/a-class-scoped-type-alias-does-not-share-a-name-with-a-constant-or-a-case.nvst"><code>tests/conformance/reject/a-class-scoped-type-alias-does-not-share-a-name-with-a-constant-or-a-case.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/reject/a-class-scoped-type-alias-of-a-bare-class-is-refused.nvst"><code>tests/conformance/reject/a-class-scoped-type-alias-of-a-bare-class-is-refused.nvst</code></a></dd></div></dl>
 
 </div>

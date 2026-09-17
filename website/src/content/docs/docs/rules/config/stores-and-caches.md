@@ -240,6 +240,14 @@ env_hash }`. It is derived from the same `content_hash` the in-memory key carrie
 are hashed once for both. It is constant for the life of a configuration and costs the request path
 nothing.
 
+`compiler_version_hash` is **the running compiler executable, not the release version**: its path, its
+byte length and its modification time, read once per process. A version string is one string for every
+build of an unreleased tree, so keying on it alone would let a rebuilt compiler read back artifacts its
+predecessor emitted — correctly checksummed bytes of this same version, emitted by different codegen.
+A compiler that cannot examine its own binary keys apart from every one that can. The binary's contents
+would be the exact identity and are not read: a pass over tens of megabytes at every process start buys
+only the case where something can rewrite the compiler in place, which is already the compiler.
+
 That is the whole of extension reload: a changed set changes `env_hash`, every unit key changes with
 it, every lookup is an ordinary miss, and the lazy per-path revalidation of
 [`config/an-edit-reaches-the-next-request-without-a-restart`](/docs/rules/config/reloading-and-control/#an-edit-reaches-the-next-request-without-a-restart "An edited source file reaches the next request that resolves it, through lazy revalidation and one pointer swap, never a watcher or a restart") recompiles each unit on the compile
@@ -302,7 +310,8 @@ from an operator's, so it keeps its own default under either mode.
 </div>
 
 The on-disk artifact cache is governed by five directives in `[opcache]`: `file_cache` (bool, default
-on), `file_cache_dir` (a path, root-owned, defaulting to a fixed per-build location), `file_cache_max_size`
+on), `file_cache_dir` (a path, root-owned, defaulting to a fixed location inside the account running the
+compile), `file_cache_max_size`
 (bytes), and the `file_cache_gc_probability` / `file_cache_gc_divisor` pair, which mirrors PHP's own
 `session.gc_probability`/`gc_divisor` because eviction rides the cold-compile path at a small
 probability rather than costing a warm hit anything.

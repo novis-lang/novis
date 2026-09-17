@@ -304,6 +304,15 @@ maximum frame size, maximum message size, idle timeout, total lifetime, send tim
 queue depth. A connection is the one thing a server holds that no request ever ends, so a bound left
 to a later configuration pass is a bound absent on every deployment that did not know to write it.
 
+**A deployment moves a bound and cannot remove one.** The `[server.connection]` block writes over the
+ones a connection is framed inside — how many the process holds open, the frame and message caps, the
+idle and lifetime windows, the send wait — and every key it leaves out keeps the shipped number, so a
+partly-written block is a decision per key rather than one decision about the table. Neither `false`,
+which removes a ceiling everywhere else in the configuration, nor zero, which is that value from the
+other side, is a value any of those keys has: both are refused while the file is being read, before a
+listener exists. The block is `Boot`-class with the rest of `[server]`, so a connection already open
+keeps what it was accepted under.
+
 Each bound ends in a **defined close** rather than a reset, and the connection's own loop takes it:
 `receive()` answers `null` and the peer is told which bound it met. A connection that exceeds its
 memory, CPU or lifetime budget is reported as that and never as an out-of-memory.

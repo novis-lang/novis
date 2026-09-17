@@ -361,9 +361,9 @@ one exception. A file nobody references changes nothing, and when a reference is
 *referencing* file's content hash changes and the cache key misses on its own. The exception is
 **shadowing**: adding `src/Thing.nvs` when `App\Thing` currently resolves to
 `vendor/compat/Thing.nvs` changes the answer with no existing file touched. So a unit records the
-**ordered list of paths it probed, including the misses**; a negative entry is an ordinary path
-entry in the revalidation table, and the trace folds into the unit's cache key exactly as the target
-triple does.
+**ordered list of paths it probed, including the misses**; a probed miss is revalidated on the same
+terms as a file the unit compiled, under the same directives and the same rate cap, and the trace
+folds into the unit's cache key exactly as the target triple does.
 
 A **discovery query** ([`programs/implementing`](/docs/rules/programs/names-and-files/#implementing "Core\Program::implementing<T>() is the one enumeration, and it expands while compiling")) makes a unit depend on directory *contents*:
 adding a module that nothing references must change the generated list. So every directory listed
@@ -377,18 +377,19 @@ window for N listed directories — tens, not thousands — and exactly zero und
 which is what production runs. For a compiled build and the wasm target the question does not
 arise; resolution happens once, at build time.
 
-**Half on disk.** The resolver records the trace — every path probed, in order, misses included — and
-hands it back with the `autoload` map it already returns (`nvs_hir::autoload::ProbeTrace`). Nothing
-reads it yet: turning a probed miss into a negative path entry, and folding the trace's digest in
-beside the content hash, is the revalidation table's own half. A discovery query's listed directories
-are not collected at all.
+**The `autoload` half is on disk; the discovery query's is not.** The resolver records the trace —
+every path probed, in order, misses included (`nvs_hir::autoload::ProbeTrace`) — and the in-memory
+unit table keys on its digest beside the content hash and the environment, then re-asks those paths
+under the gate the content `stat` rides, so a file written where one of them missed sends that unit
+to a compile (`nvs_cli::script`). A discovery query's listed directories are not collected at all,
+and nothing hashes the discovered names.
 
 <aside class="nv-rule-diverges">
 <p class="nv-rule-diverges-label">Where this differs from PHP</p>
 <p>OPcache revalidates the files it compiled; here adding a file that shadows an already-resolved name, or a module nothing references yet, invalidates the unit although no hashed file changed</p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/programs/names-and-files/#autoload" title="autoload maps a prefix to roots, resolved relative to the file that declares it"><code>programs/autoload</code></a> <a href="/docs/rules/programs/names-and-files/#implementing" title="Core\Program::implementing&lt;T&gt;() is the one enumeration, and it expands while compiling"><code>programs/implementing</code></a> <a href="/docs/rules/config/reloading-and-control/#an-edit-reaches-the-next-request-without-a-restart" title="An edited source file reaches the next request that resolves it, through lazy revalidation and one pointer swap, never a watcher or a restart"><code>config/an-edit-reaches-the-next-request-without-a-restart</code></a> <a href="/docs/rules/config/stores-and-caches/#opcache-revalidation-is-system-class" title="opcache.validate and its rate cap are System, and validate's startup default is chosen by the run mode"><code>config/opcache-revalidation-is-system-class</code></a> <a href="/docs/rules/config/stores-and-caches/#the-extension-set-is-in-every-unit-key" title="The extension set is folded into one env_hash that both compiled-unit cache keys carry, so an extension change is an ordinary cache miss"><code>config/the-extension-set-is-in-every-unit-key</code></a> <a href="/docs/rules/packaging/the-artifact-cache/#an-artifact-is-one-immutable-content-addressed-file" title="A compiled unit is one immutable file whose address is its content and its environment"><code>packaging/an-artifact-is-one-immutable-content-addressed-file</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0061.md">record 0061</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0042.md">record 0042</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/an-autoload-prefix-probes-its-second-root-only-after-the-first-misses.nvst"><code>tests/conformance/lang/an-autoload-prefix-probes-its-second-root-only-after-the-first-misses.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/an-explicit-autoload-prefix-shadows-a-discover-glob.nvst"><code>tests/conformance/lang/an-explicit-autoload-prefix-shadows-a-discover-glob.nvst</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/programs/names-and-files/#autoload" title="autoload maps a prefix to roots, resolved relative to the file that declares it"><code>programs/autoload</code></a> <a href="/docs/rules/programs/names-and-files/#implementing" title="Core\Program::implementing&lt;T&gt;() is the one enumeration, and it expands while compiling"><code>programs/implementing</code></a> <a href="/docs/rules/config/reloading-and-control/#an-edit-reaches-the-next-request-without-a-restart" title="An edited source file reaches the next request that resolves it, through lazy revalidation and one pointer swap, never a watcher or a restart"><code>config/an-edit-reaches-the-next-request-without-a-restart</code></a> <a href="/docs/rules/config/stores-and-caches/#opcache-revalidation-is-system-class" title="opcache.validate and its rate cap are System, and validate's startup default is chosen by the run mode"><code>config/opcache-revalidation-is-system-class</code></a> <a href="/docs/rules/config/stores-and-caches/#the-extension-set-is-in-every-unit-key" title="The extension set is folded into one env_hash that both compiled-unit cache keys carry, so an extension change is an ordinary cache miss"><code>config/the-extension-set-is-in-every-unit-key</code></a> <a href="/docs/rules/packaging/the-artifact-cache/#an-artifact-is-one-immutable-content-addressed-file" title="A compiled unit is one immutable file whose address is its content and its environment"><code>packaging/an-artifact-is-one-immutable-content-addressed-file</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0061.md">record 0061</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0042.md">record 0042</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/an-autoload-prefix-probes-its-second-root-only-after-the-first-misses.nvst"><code>tests/conformance/lang/an-autoload-prefix-probes-its-second-root-only-after-the-first-misses.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/an-explicit-autoload-prefix-shadows-a-discover-glob.nvst"><code>tests/conformance/lang/an-explicit-autoload-prefix-shadows-a-discover-glob.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-cli/src/script.rs"><code>crates/nvs-cli/src/script.rs</code></a></dd></div></dl>
 
 </div>
 

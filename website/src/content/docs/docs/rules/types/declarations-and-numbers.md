@@ -36,6 +36,14 @@ one: a local at its declaration, a `foreach` key and value, a `for` header's ini
 ([`iteration/for-init-clause`](/docs/rules/iteration/#for-init-clause "A for init clause is one typed declaration or a list of expressions, never both")), and a destructuring target. A local may write `var` instead
 ([`types/var-inference`](/docs/rules/types/declarations-and-numbers/#var-inference "var takes a local's type from its initializer and fixes it there for good")); nothing else may omit a type.
 
+The return slot is owed by every declaration a caller reads, an abstract method and an interface
+member included, and **the constructor is the one exception**: it answers with the instance rather
+than with a value, which is why a valued `return` in one is refused, so it writes no return type and
+a written `: void` there is accepted while saying nothing the declaration did not. An
+expression-bodied closure is the other place the slot may stand empty, and for the opposite reason —
+its body is a single expression, which is its own answer, while a block-bodied one owes the
+annotation like any method ([`types/closure-literal`](/docs/rules/types/closures/#closure-literal "fn is the only closure literal, with an expression body or a block body")).
+
 A binding is declared **once**. A later assignment is bare, and is legal only where the name is
 already declared in the enclosing function; re-declaring a live name is a diagnostic naming the first
 declaration, and there is no shadowing. Declaration is function-scoped as in PHP — a binding declared
