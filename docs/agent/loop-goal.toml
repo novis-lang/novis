@@ -123,6 +123,16 @@ modules = [
   # `E_INSTANCEOF_NOT_A_CLASS` and `E_UNTESTABLE_CONVERSION_TARGET`: both rosters, as the codes
   # state them. Stages 0 and 3.
   "crates/nvs-diagnostics/src/lib.rs",
+  # Emits one `nvs_ir::Function` as Cranelift IR.
+  "crates/nvs-codegen/src/emit.rs",
+  # Seeding the checker's signature table with `Core`.
+  "crates/nvs-types/src/core_lib.rs",
+  # A minimal bidirectional expression checker: the dispatch, and the modules each rule lives in.
+  "crates/nvs-types/src/expr/mod.rs",
+  # Per-function-body local-variable checking: `rule:types/declaration`'s declare-once rule
+  # ("there is no shadowing") and flow-sensitive definite assignment ("reading a binding on a path
+  # that may not have reached its initialiser is a compile error").
+  "crates/nvs-types/src/locals.rs",
 ]
 
 # What a conversion is, what `mixed` narrows through, and what the memory it takes has to be.
