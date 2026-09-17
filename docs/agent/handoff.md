@@ -2,50 +2,50 @@
 
 ## State
 
-**Goal 65 — a password, a database index and TLS reach the shared store — has just started; nothing of it has landed yet.** Goal `tds-bytes`'s whole list is this goal's Stage 1 floor.
+**Goal `cache-shared-dial`, stage 2 landed: the dial is one value and every connection applies the whole
+of it.** `crates/nvs-stdlib/src/cache.rs:2161`'s `Dial` carries the target, the credential and the
+database index; `redis::Connection` holds one where it held a `Target`; `open_shared` compares it to
+decide reuse-or-replace; and `Connection::ensure` sends `AUTH` then `SELECT` on every socket it opens,
+including the silent reconnect `Connection::command` makes behind a dropped one.
 
-What is settled before the first session: none of the three needs a mechanism built. The secret
-plumbing is `crates/nvs-config/src/secret.rs:161`'s `SECRETS`, one `SecretPair` row per
-`value`/`value_file` pair; the TLS client is `nvs_host::tls::NvsTls`, the process's only one
-(`rule:security/one-tls-client`), already dialled over a plain socket at
-`crates/nvs-stdlib/src/http/transport.rs:1633`; and `Transport`
-(`crates/nvs-stdlib/src/cache/redis.rs:433`) is already the enum that says which socket a store is
-reached over. `tests/db/compose.yaml:293`'s `redis` serves TLS on `6380` today, published at
-`127.0.0.1:16380`, so stage 5 needs no compose edit.
+Nothing sets either value yet — `Dial::to` is the store a URL named and nothing beside it, which is what
+both readers of a URL (`open_configured` and `Lease::open`) build today. Stage 3 is the two sources.
 
-A session must not re-decide three things (the goal's *Standing decisions*): the credential is the
-`password`/`password_file` pair and never URL userinfo, the index is the `database` key and never a URL
-path, and no trust relaxation reaches this store.
+Stage 0's catch-up sentences are all still on disk and still true of the shipped configuration surface;
+each is rewritten in the slice that makes it wrong, per the goal file. The floor is goal `tds-bytes`'s
+list, untouched.
+
+The pack's `[context] modules` did not print `crates/nvs-stdlib/src/ratelimit.rs` or
+`crates/nvs-stdlib/src/session.rs`, both of which build a `redis::Connection` in their test modules; this
+session's own commits touch them, so the driver's sweep closes it.
 
 ## Next group
 
-**Stage 2: the dial** — one file set: `crates/nvs-stdlib/src/cache.rs`,
-`crates/nvs-stdlib/src/cache/redis.rs`.
+**Stage 3: two keys, as registry rows** — one file set: `crates/nvs-config/src/secret.rs`,
+`crates/nvs-config/src/tree.rs`, `crates/nvs-config/src/default.toml`,
+`crates/nvs-stdlib/src/cache.rs`.
 
-- [ ] **The dial is one value, not three** — `crates/nvs-stdlib/src/cache.rs:2115`'s `Target` says
-      which socket and nothing else, and `crates/nvs-stdlib/src/cache/redis.rs:448`'s
-      `Transport::dial` takes it. What the dial takes becomes transport, credential and index
-      together, settled once where the URL is read.
-- [ ] **`connect` applies the whole of it** — `crates/nvs-stdlib/src/cache/redis.rs:172` dials on the
-      first command and again after a dropped socket, so it is the one place all three are applied.
-      A session that authenticates anywhere else has built the reconnect bug this stage exists to
-      stop.
-- [ ] **A store configured with neither dials as it did** — the same file, the arm where `password`
-      and `database` are both absent, which is every deployment on the chain today and must not gain
-      a round trip.
+- [ ] **`[cache.shared] password` is a `SecretPair` row** — `crates/nvs-config/src/secret.rs:161`'s
+      `SECRETS`, gaining its `password_file` sibling and every property
+      `rule:config/a-secret-is-a-file-whose-content-is-the-value` already states for the two pairs above
+      it: exactly one of the pair, the file's whole content, never in the merged table, `<secret>` in
+      `nvs config dump`.
+- [ ] **`[cache.shared] database` is an ordinary key** — `crates/nvs-config/src/tree.rs:1273`'s
+      `CacheShared`, beside `url` and `timeout`, a non-negative integer, with an index the store does not
+      have reported as the store's own refusal. Its block doc and
+      `crates/nvs-config/src/default.toml`'s commented `[cache.shared]` keys name two keys and must name
+      all four. `crates/nvs-config/src/directive.rs:189`'s `cache.shared` row is already `System` and
+      covers both, per the goal's stage 3.
+- [ ] **The door reads both into the dial** — `crates/nvs-stdlib/src/cache.rs:2228`'s `open_configured`
+      builds the `Dial` where it reads the URL, so both belong there beside `endpoint`. `Lease::open` in
+      the same file is the second reader and has no `Ctx`: it takes the URL and the timeout as text
+      (`bound_of`), so the credential reaches it the same way or the fleet lease dials uncredentialed.
 
 ## Backlog
 
-- **Stage 3, the two keys** — `crates/nvs-config/src/secret.rs:161`'s `SECRETS` gains the pair and
-  `crates/nvs-config/src/tree.rs:1273`'s `CacheShared` gains `database`, both `System`-class in
-  `crate::directive`'s `cache.shared` row. File set: `crates/nvs-config/src/`.
-- **Stage 4, the transport arm** — `crates/nvs-stdlib/src/cache/redis.rs:433`'s `Transport` gains a
-  TLS arm over `NvsTcp`, agreeing with `crates/nvs-stdlib/src/http/transport.rs:1633` rather than
-  inventing a second door. Same file set as stage 2.
-- **Stage 5, every connection and a real store** — the scripted store at
-  `crates/nvs-stdlib/src/cache.rs:2770` for the order and the reconnect, then
-  `examples/cache-shared-tls.nvs` against the container.
-- **Stage 0's six sentences** — each rewritten in the slice that makes it wrong, not after it; the
-  goal's *Stage 0* lists them with their files, and `crates/nvs-stdlib/src/cache.rs:155` gap 1 is the
-  last of them.
-- When this goal's last check goes green the driver takes goal `gap-zero`.
+- Stage 4 — `rediss://` as `Target`'s and `Transport`'s third arm over `nvs_host::tls::NvsTls`
+  (goal file § *Stage 4*).
+- Stage 5 — `AUTH`/`SELECT` over a real store and an `examples/cache-shared-socket.nvs` sibling
+  (goal file § *Stage 5*).
+- Stage 0's catch-up list — `crates/nvs-stdlib/src/cache.rs:155` gap 1, `READS`, the URL refusal's text,
+  `CacheShared`'s doc, `default.toml`, the `docs/agent/carried-gaps.md` § *Owned* row.

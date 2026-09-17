@@ -5470,6 +5470,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   channel a parameter list of opaque octets has — so `&[Some(&[0xFF, 0xFE])]`, written to pin the
   refusal, now binds one octet of binary instead. Start a case's *invalid* octets at `0xFE`, which
   no UTF-8 sequence begins with either and no form claims. [until: reviewed 2026-09-17]
+- **A reconnect case over the shared store must let the first command land first.**
+  `crates/nvs-stdlib/src/cache/redis.rs`'s `Connection::command` replays only a command that met an
+  already-open stream, so a scripted store that drops the socket before answering the *first* command
+  makes the client fail where a case wanted it to re-dial, and the failure reads as a broken handshake
+  rather than as a script that never reached the reconnect. Answer once, drop the socket, and assert on
+  what the second command put on the second connection.
+  [until: gone crates/nvs-stdlib/src/cache/redis.rs:failure.sent && replay]
 
 ## Splitting a file that got too big
 
