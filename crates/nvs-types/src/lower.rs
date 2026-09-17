@@ -167,7 +167,7 @@ fn lower_atom(atom: &TypeAtom, span: Span, depth: u32, ctx: &Ctx<'_>, env: &mut 
             env.interner.string_literal(value)
         }
         TypeAtom::IntLiteral(lit) => lower_int_literal_type(*lit, env),
-        TypeAtom::Member(name, member) => lower_member_type(name, *member, span, ctx, env),
+        TypeAtom::Member(name, member) => lower_member_type(name, *member, span, depth, ctx, env),
         _ => env.interner.mixed(),
     }
 }
@@ -316,36 +316,57 @@ fn negate_magnitude(magnitude: u64) -> Option<i64> {
     i64::try_from(magnitude).ok().and_then(i64::checked_neg)
 }
 
-/// `Foo::BAR` in type position — `rule:types/constant-in-type-position` and `rule:types/enum-case-type`'s one atom with two meanings,
-/// told apart here because telling them apart is what resolution is for.
+/// `Foo::BAR` in type position — one atom with three meanings, told apart here
+/// because telling them apart is what resolution is for.
 ///
-/// An **enum** name gives § 3's [`crate::ty::Ty::EnumCase`]: a narrowed subtype
-/// of the enum, never its backing value, so a bare `int` still cannot satisfy
-/// it. Anything else is § 2's class constant, which folds to *its own literal
-/// type* — sugar, and safe precisely because a scalar `const` is not a distinct
-/// nominal type, so `Foo::TYPE_A` genuinely is the string `"a"`.
+/// An **alias the owner declares** comes first: `rule:types/type-alias`'s
+/// class-scoped member expands and re-lowers, the way [`resolve_name_type`]
+/// substitutes a file-scope one, so `Order::Meta` and the shape it names are
+/// one type in both directions. An **enum** name then gives
+/// `rule:types/enum-case-type`'s [`crate::ty::Ty::EnumCase`]: a narrowed
+/// subtype of the enum, never its backing value, so a bare `int` still cannot
+/// satisfy it. Anything else is `rule:types/constant-in-type-position`'s class
+/// constant, which folds to *its own literal type* — sugar, and safe precisely
+/// because a scalar `const` is not a distinct nominal type, so `Foo::TYPE_A`
+/// genuinely is the string `"a"`. The order decides only which of the three an
+/// unknown name is reported against.
 ///
 /// The enum test is [`crate::expr::members::infer_class_const`]'s, verbatim: a
 /// `Core`-owned enum has no [`SymbolKind::Enum`] entry — nothing declared it —
 /// but it is in the same [`crate::enums::EnumTable`], seeded from
 /// `nvs_stdlib::registry::ENUMS`.
 ///
-/// **Known gap:** the left-hand name is resolved directly rather than through
-/// [`Env::aliases`] first, so a `type M = Mode;` alias written as `M::Read`
-/// resolves nothing. Unlike [`resolve_name_type`], which substitutes an alias's
-/// expansion and re-lowers it, an alias here would have to expand to a *name*
-/// atom specifically before the `::` could mean anything — a narrow enough case
-/// that it waits for a program that wants it.
+/// The name *left* of the `::` is read through [`Env::aliases`] first: an alias
+/// standing for a single name atom stands in for that name before the member is
+/// read, and any other expansion has no member to read at all, which is
+/// `E_UNKNOWN_MEMBER` with a help naming what the alias expands to.
 fn lower_member_type(
     name: &Name,
     member: Span,
     span: Span,
+    depth: u32,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> TypeId {
     let text = span_text(env.src, name.span);
-    let qname = nvs_hir::resolve_ref(text, ctx.namespace, ctx.imports);
     let case = span_text(env.src, member).to_owned();
+
+    let qname = match alias_left_of_member(text, ctx, env) {
+        Some(expansion) => match name_atom_of(&expansion, ctx, env) {
+            Some(stood_in) => stood_in,
+            None => {
+                return report_expansion_has_no_member(
+                    &expansion, text, &case, span, depth, ctx, env,
+                );
+            }
+        },
+        None => nvs_hir::resolve_ref(text, ctx.namespace, ctx.imports),
+    };
+
+    if let Some(alias_ty) = env.aliases.get_member(&qname, &case) {
+        let alias_ty = alias_ty.clone();
+        return lower_type_at_depth(&alias_ty, depth, ctx, env);
+    }
 
     let is_enum = matches!(env.symbols.get(&qname), Some(sym) if sym.kind == SymbolKind::Enum)
         || (qname.is_core() && env.enums.get(&qname).is_some());
@@ -364,6 +385,78 @@ fn lower_member_type(
         };
     }
     lower_class_const_type(&qname, &case, span, env)
+}
+
+/// The expansion the name left of a `::` stands for, when that name is itself a
+/// `type` alias.
+///
+/// The enclosing body's own member is looked up before the file-scope name the
+/// namespace and imports resolve to — the order `nvs_hir::aliases` already uses
+/// for a bare name, and the same one [`resolve_name_type`] applies to a name
+/// with no `::` after it. Nothing is inherited, so an owner declaring no such
+/// member falls straight through to the namespace.
+fn alias_left_of_member(text: &str, ctx: &Ctx<'_>, env: &Env<'_>) -> Option<nvs_syntax::ast::Type> {
+    if let Some(owner) = ctx.current_class
+        && let Some(ty) = env.aliases.get_member(owner, text)
+    {
+        return Some(ty.clone());
+    }
+    let qname = nvs_hir::resolve_ref(text, ctx.namespace, ctx.imports);
+    env.aliases.get(&qname).cloned()
+}
+
+/// The single class, interface or enum name `ty` is, if it is nothing else.
+///
+/// Parentheses are transparent here for the same reason they are everywhere
+/// else in the grammar, and a name written with type arguments is not one of
+/// these: an argument list means a generic class, whose members are not reached
+/// through the alias that named it.
+fn name_atom_of(ty: &Type, ctx: &Ctx<'_>, env: &Env<'_>) -> Option<nvs_hir::QName> {
+    let mut kind = &ty.kind;
+    while let TypeKind::Paren(inner) = kind {
+        kind = &inner.kind;
+    }
+    let TypeKind::Atom(TypeAtom::Name(name, args)) = kind else {
+        return None;
+    };
+    if !args.is_empty() {
+        return None;
+    }
+    let text = span_text(env.src, name.span);
+    Some(nvs_hir::resolve_ref(text, ctx.namespace, ctx.imports))
+}
+
+/// `E_UNKNOWN_MEMBER` for `Alias::Name` where the alias expands to something
+/// with no members to read — an array, a union, a shape, a scalar.
+///
+/// The expansion is lowered before it is named, so the help says what the
+/// author's own alias means rather than repeating the spelling they already
+/// wrote. Recovering as `mixed` matches every other unreadable member here:
+/// there is no narrower type that could honestly be meant.
+fn report_expansion_has_no_member(
+    expansion: &Type,
+    text: &str,
+    case: &str,
+    span: Span,
+    depth: u32,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> TypeId {
+    let expanded = lower_type_at_depth(expansion, depth, ctx, env);
+    let shown = env.interner.describe(expanded);
+    env.diags.report(
+        Diagnostic::error(
+            code::E_UNKNOWN_MEMBER,
+            format!("`{text}` expands to `{shown}`, which has no member named `{case}`"),
+        )
+        .with_primary(span, "read through a `type` alias here")
+        .with_help(format!(
+            "`rule:types/type-alias` makes an alias its expansion everywhere, so `{text}::{case}` \
+             reads `{case}` from `{shown}`; only an alias standing for a single class, interface \
+             or enum name has a member to read"
+        )),
+    );
+    env.interner.mixed()
 }
 
 /// `rule:types/constant-in-type-position`'s fold, for a name that resolved to something other than an
@@ -676,6 +769,19 @@ fn resolve_name_type(
     }
     if !args.is_empty() {
         report_not_generic(&qname, span, env);
+    }
+
+    // `rule:types/type-alias`'s short spelling: inside its owner's own body a
+    // bare `Name` means that body's own alias before it means the namespace's,
+    // which is the one `Order::Meta` reaches from anywhere. Tried in that order
+    // here because `nvs_hir::aliases` already resolves it in that order inside
+    // another alias's expansion, and one name cannot mean two things depending
+    // on which layer read it.
+    if let Some(owner) = ctx.current_class
+        && let Some(alias_ty) = env.aliases.get_member(owner, text)
+    {
+        let alias_ty = alias_ty.clone();
+        return lower_type_at_depth(&alias_ty, depth, ctx, env);
     }
 
     if let Some(alias_ty) = env.aliases.get(&qname) {
