@@ -7550,12 +7550,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   writes one guarded statement instead, repeating its lookup rather than holding it in a variable:
   `crates/nvs-db/src/ddl.rs`'s `drop_default_constraint` is that shape.
   [until: gone crates/nvs-db/src/direct.rs:never one string with several]
-- **A type written in a signature sits under no node, so no LSP request finds a cursor in one.**
-  `nvs_syntax::walk` builds a node per expression and none per type, and `Analysed` carries `exprs`
-  alone, so `definition::named_at` and `completion::asked` both start from an expression node and
-  answer nothing in type position. Scan the entry file's declarations for the written `Type` spans
-  covering the offset, the way `definition::clause_at` scans the clause names no node covers.
-  [until: test definition_of_owner_name_in_type_position_is_the_member]
+- **A new item-producing function in `nvs-lsp`'s completion fails a test that names no arm you
+  touched.** `every_completion_source_names_a_compiler_table` reads that module's own source and
+  compares every function returning a `CompletionItem` against the `SOURCED` table beside it, so an
+  arm added without a row fails in `crates/nvs-lsp/tests/completion.rs` rather than where it was
+  written. Add the row — the function's name, and a needle from its body naming the compiler table it
+  reads — and widen the array's declared length.
+  [until: gone crates/nvs-lsp/tests/completion.rs:const SOURCED]
 
 ## Divergences and refusals already pinned
 

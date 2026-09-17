@@ -2,55 +2,49 @@
 
 ## State
 
-**Goal `class-scoped-types`, stage 4 is half landed: the formatter, `nvs meta --json` and two of the
-four LSP requests see the member.**
+**Goal `class-scoped-types`, stage 4 is landed: the formatter, `nvs meta --json` and all four LSP
+requests see the member.** Stage 5 — the rule and the record — is the only stage left, and nothing
+is blocked.
 
-- **The formatter needed no change.** A `type` member is a declaration the syntax index places, so
-  `indent.rs` gives it its body's depth in a class, an interface and an enum alike, and the Allman
-  brace of its owner is `brace.rs`'s already. The runs *inside* the type expression are left alone —
-  `{total: decimal}` in type position is outside `space.rs`'s one-space rule, which is
-  `crates/nvs-fmt/src/lib.rs`'s own known gap 5 and the same answer the file-scope form gets.
-- **`nvs meta --json` nests an alias under its owner**, in a `types` array of the body's own, in the
-  card shape the file-scope roster already writes and named `Owner::Name`. An alias never joins
-  `members`, and a body owning none has no `types` key.
-- **The LSP outline and its semantic tokens see the member**: both were one missing
-  `ClassMemberKind::TypeAlias` arm in a body walk, and both take the kind the file-scope form takes.
-- **Stage 3's dedup left one flake behind, now fixed**: `Diagnostics` derived `Debug` over the
-  `HashSet` the dedup keeps, so two sinks holding the very same diagnostics printed differently and
-  `the_strict_entry_point_reports_exactly_what_it_reported_before` failed at random. The sink writes
-  its own `Debug` now and the set is left out of it.
-- **Left in stage 4: go-to-definition and completion, which share one missing mechanism** — nothing
-  in `nvs-lsp` can tell what *type* a cursor is inside. See the playbook bullet under *Writing Novis
-  itself*; it is the first item below. Stage 5 (the rule and the record) is untouched. Nothing is
-  blocked.
+- **The LSP had no way to say what type a cursor is in, and now has one.**
+  `crates/nvs-lsp/src/definition.rs:@written_type_at` walks the positions a *declaration* writes a
+  type at, because `nvs_syntax::walk` builds no node for one; the module doc lists them, and a type
+  written inside an expression (`as`, `is`, a closure literal) is deliberately not among them.
+- **`Owner::Name` in type position is answered by `@type_member_at`**, which `named_at` now ends in:
+  a new `Target::TypeAlias` when the owner declares one, the `Target::Constant` an enum case or a
+  class constant already was otherwise, and the owner itself when the caret is in the owner half.
+- **What a written name means at a cursor has one home**: `resolved_name`, `namespace_at` and
+  `imports_of` are `definition.rs`'s, and `completion.rs` reads them from there.
+- **Completion after `Owner::` in type position** offers the owner's aliases, class constants and
+  enum cases and nothing that cannot stand in a type. It is read off the source for the same reason
+  the walk exists, so it answers in a document being typed into as well as one that parses.
 
 ## Next group
 
-**Stage 4: the tooling sees the member, phase-gated** — one file set: `crates/nvs-lsp/src/definition.rs`,
-`crates/nvs-lsp/src/completion.rs`.
+**Stage 5: the rule and the record** — one file set: `docs/rules/types.json`,
+`docs/rules/types/type-alias.md`, `docs/decisions/`.
 
-- [ ] **A cursor in a written type answers which type it is in** — `crates/nvs-lsp/src/definition.rs:484`
-      (`clause_at`) is the shape to copy: the entry file's declarations, scanned for the `Type` spans
-      covering the offset, because `nvs_syntax::walk` builds no node for a type. Enumerate the type
-      positions a signature has (parameter, return, property, typed local, an alias's own right-hand
-      side) rather than every one the grammar allows, and say in the module doc which those are.
-      `rule:ide/the-index-answers-the-cursor`.
-- [ ] **Go-to-definition on `Owner::Name` in type position lands on the member** —
-      `crates/nvs-lsp/src/definition.rs:189` (`Target`) gains an alias arm and
-      `crates/nvs-lsp/src/definition.rs:237` (`MemberKind`) the list it is looked for in, so
-      `crates/nvs-lsp/src/definition.rs:262` (`site`) answers the member's own name span through
-      `declared_member`. Test `definition_of_owner_name_in_type_position_is_the_member`.
-      `rule:types/type-alias`.
-- [ ] **Completion after `Owner::` in type position offers the alias** —
-      `crates/nvs-lsp/src/completion.rs:321` (`asked`) decides off an access *node*, which type
-      position has none of, and `crates/nvs-lsp/src/completion.rs:975` (`declared_members`) is where
-      the owner's members are listed. Test
-      `completion_after_owner_double_colon_in_type_position_offers_the_alias`.
-      `rule:types/type-alias`.
+- [ ] **One new record and no other number** — `docs/rules/types/type-alias.md:1` is what its
+      `changes:` block modifies, and the number is the next free one at the moment it is created
+      (`docs/decisions/0189.md:1` is the highest on disk now; re-derive it rather than trusting this
+      line). It argues the three calls in the goal's § *Standing decisions* — no visibility, lexical
+      scope, no third spelling — and states what the feature spends: nothing per request, one table
+      entry per declaration at compile time.
+- [ ] **The fragments** — `docs/rules/types/type-alias.md:1-2` still says an alias is declared "never
+      inside a class", which stage 0 named as the sentence stage 2 made wrong; its first paragraph
+      names both declaration sites instead, and a new `types/class-scoped-alias` opens on a sentence
+      that stands alone in `ground-rules.md`. Both list the stage 2–3 conformance cases in
+      `guardedBy`. `docs/rules/types.json:1` is the chapter index they are registered in.
+- [ ] **The gates** — `python tools/rules.py --render` rewrites the generated chapter in the same
+      commit, `python tools/rules.py --check` is green, and `python tools/verify.py --doc` runs before
+      the DONE claim. `docs/rules/types.json:1`.
 
 ## Backlog
 
-- Stage 5: one new record and the `types/class-scoped-alias` fragment — `docs/agent/loop-goal.md` § *Stage 5*.
+- `crates/nvs-lsp/src/index.rs:@occurrences` records no use for a name written in type position, so
+  `references` on `Owner::Name` lists nothing the type positions wrote.
+- `crates/nvs-lsp/src/index.rs:@member_names` gives a `type` member no declaration row, so the
+  outline nests one the reference index cannot name.
 - `[context] modules` did not print `crates/nvs-lsp/src/document.rs` (`Analysed`, which every request
   reads) or `crates/nvs-lsp/src/render.rs` (how a symbol kind and a token are spelled in a test's
   expected string); both were needed to write stage 4's LSP work.
