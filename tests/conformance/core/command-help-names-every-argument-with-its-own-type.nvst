@@ -1,0 +1,59 @@
+--TEST--
+Every argument `Core\Command::help` lists is named with the type its own parameter was declared at, asserted by counting rather than read off a line — `rule:tooling/commands-are-compiled`
+--FILE--
+<?nvs
+// Four parameters, four declarations, and no two of them alike: a positional,
+// a flag, and the two whole-number types one conversion arm apart. A page that
+// named the type of the parameters it happened to find and stayed silent about
+// the rest still prints plausibly line by line, which is why the assertion
+// below is a count over the whole block and not an expected page.
+class Deploy {
+    #[Core\Command(name: "deploy", about: "Push the current build")]
+    public static function deploy(
+        string $target,
+        #[Core\Option(short: "n", about: "Print what would happen")] bool $dryRun = false,
+        #[Core\Option] uint $retries = 3,
+        #[Core\Option] int $level = 0,
+    ): uint {
+        return 0;
+    }
+}
+
+string $page = "" . Core\Command::help("deploy");
+
+// An entry is an indented line, which is what both blocks render and what
+// nothing else on the page is: the usage line, the `about:` and the two
+// headings all start at the left margin.
+int $entries = 0;
+foreach (Core\Str::lines($page) as string $line) {
+    if (Core\Str::startsWith($line, "  ")) {
+        $entries = $entries + 1;
+    }
+}
+
+// The pairing is what makes this an agreement rather than a tally: each
+// spelling has to be named on the same line as its *own* type, so a renderer
+// that emitted a column of types in the wrong order counts short here while
+// naming every word the declaration wrote.
+array<string> $names = ["<target>", "--dryRun", "--retries", "--level"];
+array<string> $types = ["string", "bool", "uint", "int"];
+
+int $paired = 0;
+int $index = 0;
+foreach ($names as string $name) {
+    string $type = $types[$index];
+    foreach (Core\Str::lines($page) as string $line) {
+        if (Core\Str::contains($line, $name) && Core\Str::contains($line, $type)) {
+            $paired = $paired + 1;
+        }
+    }
+    $index = $index + 1;
+}
+
+echo "entries=", $entries, "\n";
+echo "paired=", $paired, "\n";
+echo "agree=", $entries == $paired ? "yes" : "no", "\n";
+--EXPECT--
+entries=4
+paired=4
+agree=yes
