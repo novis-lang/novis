@@ -2,19 +2,17 @@
 
 ## State
 
-**Goal `worker-placement` is met: every stage is green and the goal owns no gap row any more.**
-Stage 3 is the destination set proven rather than built. `crates/nvs-cli/src/serve.rs:1218`'s
-`offer_this_core_for_placements` is the named step `serve_on_worker` takes beside its accept loops,
-and `a_serving_core_registers_its_inbox_as_it_starts` reaches it from a pinned worker, places from a
-second core and reads `nvs_host::worker::cores_started()`: the placement runs on the registered core
-and the set grew while this process's thread count did not (ADR 0184 § 5).
+**Goal `worker-placement` is met: the one red floor check is green and every stage claim stands.**
+The failure was a title, not owed work. `crates/nvs-runtime/src/script.rs:90` now reads
+*Reaching a core that starts later*: the section describes the published `SharedResolver` handle a
+core installs as it starts, which is landed, while `owners.py`'s `OWED` pattern matched `not … yet`
+in the old heading and counted it as owed work written where no owner tag reaches it. The three
+citations of that title moved with it — `crates/nvs-cli/src/main.rs:2400`,
+`crates/nvs-cli/src/serve.rs:420`, `crates/nvs-runtime/src/script.rs:302`.
 
-Stage 3's `nvs-host` check names
-`a_registered_core_is_preferred_to_starting_one_and_is_never_its_own_destination` in both toml
-copies — the test that already carried the claim, rather than the drafted name no crate declared.
-`docs/agent/carried-gaps.md` owns no `worker-placement` row: both module docs had already dropped
-their gap sections, so the rows were what was left. `owners.py --closes` and `playbook.py --closes`
-are clean and `verify.py --doc` is green. Nothing is blocked.
+`python tools/owners.py` reports `sections outside Known gaps: 0`, `owners.py --closes
+worker-placement` and `playbook.py --closes worker-placement` each report the goal owns nothing, and
+`verify.py --doc` is green. Nothing is blocked.
 
 ## Next group
 
@@ -26,5 +24,6 @@ are clean and `verify.py --doc` is green. Nothing is blocked.
       `worker-placement` carries into it except what `docs/agent/carried-gaps.md` still holds.
 
 ## Backlog
-- Nothing of this goal is left open; what survives a switch lives in
-  [carried-gaps.md](carried-gaps.md).
+
+- `crates/nvs-runtime/src/graph.rs:74` gap 1 — a decoded `Core` instance is a `mixed` a program
+  cannot narrow — is goal `core-class-tests`' own, per `python tools/owners.py`.
