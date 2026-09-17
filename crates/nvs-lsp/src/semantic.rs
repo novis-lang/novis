@@ -721,6 +721,12 @@ impl Named<'_> {
                 // The legend names no kind for a class constant, so only its
                 // value is walked.
                 ClassMemberKind::Const(declared) => self.expr(&declared.value),
+                // A `type` alias a body owns is a type, coloured as the
+                // file-scope form is: the two declaration sites declare one
+                // kind of name (`rule:types/type-alias`), and a reader telling
+                // `Owner::Meta` from `Owner::META` at a glance is what the
+                // colour is for.
+                ClassMemberKind::TypeAlias(alias) => self.name(&alias.name, Kind::Type),
                 ClassMemberKind::Method(method) => {
                     self.push(method.name, Kind::Method);
                     self.params(&method.params);
@@ -1113,6 +1119,22 @@ mod tests {
         assert_eq!(
             coloured("<?nvs\ntype Id = uint;\nenum Status: int {\n  case Draft = 1;\n}\n"),
             "2:6+2 type\n3:6+6 enum\n4:8+5 enumMember\n"
+        );
+    }
+
+    /// And an alias a body owns is the same token as the file-scope form,
+    /// inside a class and inside an enum alike: one declaration site more, and
+    /// not one kind more (`rule:types/type-alias`). The type each stands for is
+    /// coloured by nobody here — a type is a property of the node that writes
+    /// it and never a node of its own, which is this walk's own shape.
+    #[test]
+    fn a_class_scoped_alias_is_a_type_token() {
+        assert_eq!(
+            coloured(
+                "<?nvs\nclass Order {\n  type Meta = {total: int};\n}\nenum Status {\n  type \
+                 Pair = array<Status>;\n  Open,\n}\n"
+            ),
+            "2:7+5 class\n3:8+4 type\n5:6+6 enum\n6:8+4 type\n7:3+4 enumMember\n"
         );
     }
 

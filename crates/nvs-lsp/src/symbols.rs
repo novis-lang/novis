@@ -207,6 +207,12 @@ fn members(
                 ClassMemberKind::Property(property) => (property.name, SymbolKind::PROPERTY),
                 ClassMemberKind::Const(declared) => (declared.name, SymbolKind::CONSTANT),
                 ClassMemberKind::Method(method) => (method.name, SymbolKind::METHOD),
+                // A `type` alias a body owns takes the kind the file-scope
+                // form takes, for the reason given where that one is built:
+                // LSP names none for an alias, and an outline that left the
+                // member out would leave `Owner::Name` unreachable from the
+                // file's own shape.
+                ClassMemberKind::TypeAlias(alias) => (alias.name.span, SymbolKind::TYPE_PARAMETER),
                 // `Error` is recovery, and the wildcard is what
                 // `ClassMemberKind` being `#[non_exhaustive]` asks for: a
                 // member shape this crate has not heard of shows nothing
@@ -345,5 +351,23 @@ mod tests {
             "Status enum\n  Draft enumMember\n  Live enumMember\n"
         );
         assert_eq!(outlined("<?nvs\nvar $x = 1;\n"), "none\n");
+    }
+
+    /// A `type` alias a body owns is in the outline under its owner, in every
+    /// body that can declare one — the member is reached as `Owner::Name`, and
+    /// the outline is where that owner is read off the file's own shape
+    /// (`rule:types/type-alias`). The file-scope form is unmoved beside it.
+    #[test]
+    fn document_symbols_nest_a_class_scoped_alias_under_its_owner() {
+        assert_eq!(
+            outlined(
+                "<?nvs\ntype Id = uint;\nclass Order {\n  type Meta = {total: int};\n  public \
+                 function total(): int { return 1; }\n}\ninterface Shipper {\n  type Label = \
+                 {code: string};\n}\nenum Status {\n  type Pair = array<Status>;\n  Open,\n}\n"
+            ),
+            "Id typeParameter\nOrder class\n  Meta typeParameter\n  total method\nShipper \
+             interface\n  Label typeParameter\nStatus enum\n  Pair typeParameter\n  Open \
+             enumMember\n"
+        );
     }
 }
