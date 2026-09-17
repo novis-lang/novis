@@ -376,10 +376,11 @@
       "id": "types/type-alias",
       "title": "A `type` alias is a transparent, compile-time-only synonym for a type expression",
       "status": "shipped",
-      "because": ["0015", "0007", "0036", "0011"],
-      "seeAlso": ["types/alias-is-never-a-bare-class", "types/grammar", "types/shape-type"],
+      "because": ["0015", "0007", "0036", "0011", "0190"],
+      "seeAlso": ["types/class-scoped-alias", "types/alias-is-never-a-bare-class", "types/grammar", "types/shape-type"],
       "guardedBy": [
         "tests/conformance/lang/a-type-declared-inside-a-body-is-a-compile-error.nvst",
+        "tests/conformance/reject/a-type-alias-declared-inside-a-body-is-refused-by-name.nvst",
         "tests/conformance/reject/an-attribute-name-is-a-shape-typed-type-alias.nvst",
         "crates/nvs-hir/src/aliases.rs"
       ]
@@ -391,6 +392,22 @@
       "because": ["0015"],
       "seeAlso": ["types/type-alias"],
       "guardedBy": ["crates/nvs-hir/src/resolve.rs"]
+    },
+    {
+      "id": "types/class-scoped-alias",
+      "title": "A `type` alias is also a member of a class, interface or enum, reached as `Owner::Name` and as a bare `Name` inside its owner",
+      "status": "shipped",
+      "because": ["0190"],
+      "seeAlso": ["types/type-alias", "types/alias-is-never-a-bare-class", "types/shape-type"],
+      "guardedBy": [
+        "tests/conformance/lang/a-class-scoped-type-alias-agrees-with-the-file-scope-form.nvst",
+        "tests/conformance/lang/a-class-scoped-type-alias-is-the-shape-it-names.nvst",
+        "tests/conformance/lang/an-interface-and-an-enum-own-a-type-alias-too.nvst",
+        "tests/conformance/reject/a-class-scoped-type-alias-takes-no-modifier.nvst",
+        "tests/conformance/reject/a-class-scoped-type-alias-is-not-inherited.nvst",
+        "tests/conformance/reject/a-class-scoped-type-alias-does-not-share-a-name-with-a-constant-or-a-case.nvst",
+        "tests/conformance/reject/a-class-scoped-type-alias-of-a-bare-class-is-refused.nvst"
+      ]
     },
     {
       "id": "types/callable-is-a-closure",

@@ -1,5 +1,7 @@
-`type Name = TypeExpr;` declares a compile-time-only synonym for a type expression, at file and
-namespace scope alongside `use` and `namespace` — never inside a class, and never inside a body.
+`type Name = TypeExpr;` declares a compile-time-only synonym for a type expression, written either at
+file and namespace scope alongside `use` and `namespace` or as a member of a class, interface or enum
+body (`rule:types/class-scoped-alias`) — never inside a method body, a block or a closure body, where
+it is `E0233` by name like any other declaration written where control flow can reach it.
 
 ```php
 type UserId = uint;

@@ -3,7 +3,7 @@
 
 # Types
 
-*1 of 47 rules below are **designed** rather than shipped, and are marked where they appear.*
+*1 of 48 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="types-declaration"></a>
 
@@ -990,8 +990,10 @@ before it parses.
 
 `rule:types/type-alias`
 
-`type Name = TypeExpr;` declares a compile-time-only synonym for a type expression, at file and
-namespace scope alongside `use` and `namespace` — never inside a class, and never inside a body.
+`type Name = TypeExpr;` declares a compile-time-only synonym for a type expression, written either at
+file and namespace scope alongside `use` and `namespace` or as a member of a class, interface or enum
+body ([`types/class-scoped-alias`](types.md#types-class-scoped-alias)) — never inside a method body, a block or a closure body, where
+it is `E0233` by name like any other declaration written where control flow can reach it.
 
 ```php
 type UserId = uint;
@@ -1017,7 +1019,7 @@ Aliases are resolved eagerly and a cycle is a diagnostic — `type A = B; type B
 check time rather than left to loop or bottom out at `mixed`. They are non-parametric:
 `type Rows<T> = …` is out of scope while user-defined generics are.
 
-<sub>See also [`types/alias-is-never-a-bare-class`](types.md#types-alias-is-never-a-bare-class), [`types/grammar`](types.md#types-grammar), [`types/shape-type`](types.md#types-shape-type). Decided in [0015](../decisions/0015.md), [0007](../decisions/0007.md), [0036](../decisions/0036.md), [0011](../decisions/0011.md).</sub>
+<sub>See also [`types/class-scoped-alias`](types.md#types-class-scoped-alias), [`types/alias-is-never-a-bare-class`](types.md#types-alias-is-never-a-bare-class), [`types/grammar`](types.md#types-grammar), [`types/shape-type`](types.md#types-shape-type). Decided in [0015](../decisions/0015.md), [0007](../decisions/0007.md), [0036](../decisions/0036.md), [0011](../decisions/0011.md), [0190](../decisions/0190.md).</sub>
 
 <a id="types-alias-is-never-a-bare-class"></a>
 
@@ -1041,6 +1043,55 @@ give a short name to a **shape** — a union, an intersection, a parameterised a
 never to a single already-named class.
 
 <sub>See also [`types/type-alias`](types.md#types-type-alias). Decided in [0015](../decisions/0015.md).</sub>
+
+<a id="types-class-scoped-alias"></a>
+
+## A `type` alias is also a member of a class, interface or enum, reached as `Owner::Name` and as a bare `Name` inside its owner
+
+`rule:types/class-scoped-alias`
+
+A `type` alias is also a member of a class, interface or enum body, taking no visibility modifier,
+reached as `Owner::Name` from anywhere and as a bare `Name` inside its owner's own body, and never
+inherited.
+
+```php
+final class Order {
+    type Meta = {total: decimal, note?: string};
+
+    public function meta(): Meta { … }          // the short form, inside the owner
+}
+
+function show(Order::Meta $m): void { … }       // the qualified form, anywhere
+```
+
+Everything [`types/type-alias`](types.md#types-type-alias) says about an alias holds here unchanged: it is transparent in
+both directions, it is erased before codegen, a cycle is a diagnostic, and it may not name one bare
+class-shaped atom ([`types/alias-is-never-a-bare-class`](types.md#types-alias-is-never-a-bare-class)). The member is accepted in a class, an
+interface and an enum body alike — an interface's alias is not a contract an implementor satisfies,
+and an enum's alias has nothing to do with its cases.
+
+- **No visibility, ever.** A modifier run or an attribute group written in front of a body's `type`
+  is `E0133`. Visibility restricts reaching a name a running program has, and an alias has none; a
+  `private` alias would hide the name while leaving the type it expands to writable by anyone.
+- **No inheritance.** `Sub::Name`, where only an ancestor of `Sub` declares `Name`, is `E0405`
+  naming the owner that does. A class constant is inherited because a subclass genuinely has one; an
+  alias is an entry on nothing, and inheriting it would give one type as many names as its owner has
+  descendants — what [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name) closes.
+- **Two spellings and no third.** `self::Name` and `static::Name` in type position are not spellings
+  of this member and stay refused. An alias is resolved before there is a receiver, so `static::`
+  could only ever mean the lexical class, which the bare `Name` already says.
+- **A name is one thing.** A body's alias sharing a name with a class constant or an enum case is
+  `E0304` at the later of the two declarations. `Owner::Name` in type position is therefore read as
+  an alias, then an enum case, then a class constant, and no program that compiles depends on that
+  order — it exists so the diagnostic for a name that resolves to nothing can say what was looked
+  for.
+
+The member costs nothing per request, because nothing about it survives the checker, and one
+alias-table entry per declaration at compile time, keyed by the owner's `QName` and the member name
+rather than by a namespace path — `Ns\Order\Meta` is also the spelling of a class `Meta` in namespace
+`Ns\Order`, and the two must not share a key.
+
+<sub>See also [`types/type-alias`](types.md#types-type-alias), [`types/alias-is-never-a-bare-class`](types.md#types-alias-is-never-a-bare-class), [`types/shape-type`](types.md#types-shape-type). Decided in [0190](../decisions/0190.md).</sub>
 
 <a id="types-callable-is-a-closure"></a>
 
