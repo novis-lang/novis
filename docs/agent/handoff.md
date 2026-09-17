@@ -3,49 +3,44 @@
 ## State
 
 **Goal `decided-closures`, stage 4 — the library — is under way.**
-`crates/nvs-stdlib/src/uuid.rs` has no `# Known gaps` section left: the octet pair is built, so
-`python tools/owners.py --closes decided-closures` names 27 gaps where it named 28. `zip.rs`
-(session 0001), `path.rs` (0002) and `random.rs` (0003) were cleared the same way.
+`crates/nvs-stdlib/src/mime.rs` has no `# Known gaps` section left, so
+`python tools/owners.py --closes decided-closures` names 26 gaps where it named 27. `zip.rs`
+(session 0001), `path.rs` (0002), `random.rs` (0003) and `uuid.rs` (0004) were cleared the same way,
+and `docs/agent/carried-gaps.md`'s EBML bullet is gone with the gap it indexed.
 
-`Core\Uuid::fromBytes(bytes $b): Uuid` and `$uuid->toBytes(): bytes` carry the sixteen octets, most
-significant first, and spec § 11's second table now writes both rows. A **width** is the whole of
-what `fromBytes` refuses — every 128-bit pattern is a UUID — and the throw names the width it was
-handed, which is the literal `conformance_coverage.rs`'s error-path gate reads and
-`uuid-from-bytes-holds-sixteen-on-both-sides.nvst` freezes.
+**Stage 4's first acceptance check is green**: `Core\Mime\Type::Ebml` is the case an EBML container
+answers, spelled `video/matroska` — the one IANA type true of a Matroska file and of a WebM one,
+WebM being a Matroska profile. It never narrows to `video/webm`, because which of the two a file is
+lives in the `DocType` element, which is a parse and not a prefix.
 
-**Stage 4's three acceptance checks are still red, and all of them for the first reason** — the
-member does not exist yet. Of the first check's six tests only `an_ebml_container_is_reported_as_ebml`
-is still missing, which is the group below; the other five are on disk.
+Checks 2 and 3 of the stage are still red, both for the first reason — the member does not exist yet.
 
 ## Next group
 
-**Stage 4: `Core\Mime`'s shared EBML case, which closes the stage's first acceptance check** — one
-file set: `crates/nvs-stdlib/src/mime.rs`, its `.nvst` cases under `tests/conformance/core/`, and
-§ 17's detection prose in `docs/spec/01-core-library.md`. No rule owns it; the gap's own `Decided:`
-sentence is the specification, and it is the same shape the class's existing `Zip` case already
-takes — one honest answer about the octets rather than a guess between two containers.
+**Stage 4: `Core\Queue`'s two gaps, which are two of stage 4's second acceptance check** — one file
+set: `crates/nvs-stdlib/src/queue.rs`, its `.nvst` cases under `tests/conformance/core/`, and § 6's
+`stats` prose plus § 2's schema in `docs/spec/01-core-library.md`. No rule owns the counter;
+`rule:concurrency/enqueue-commits-with-your-write` owns the queue the boot check refuses to serve.
+Both gaps' own `Decided:` sentences are the specification, and both move the same schema converge.
 
-- [ ] **`crates/nvs-stdlib/src/mime.rs:89` — add the `Ebml` case to the `Core\Mime\Type` enum, with
-      its `CaseDoc`, and the `\x1a\x45\xdf\xa3` row to `crates/nvs-stdlib/src/mime.rs:421`'s
-      `SIGNATURES`.** The case answers `video/webm` for neither container: telling WebM from
-      Matroska means reading the `DocType` element, which is a parse and not a prefix, so the case
-      is named for the *format* the magic identifies exactly as `Zip` is. The acceptance name is
-      `an_ebml_container_is_reported_as_ebml`. Delete the numbered gap at
-      `crates/nvs-stdlib/src/mime.rs:52` when it lands, and check whether § 17's own sentence about
-      what deliberately has no case still reads true — `crates/nvs-stdlib/src/mime.rs:44` says that
-      row defers to this module doc.
-- [ ] **Three `.nvst` cases, one asking a different question each.** The floor is
-      `crates/nvs-stdlib/tests/conformance_coverage.rs:155`'s
-      `every_core_class_has_a_conformance_floor_of_three`, and an enum case is reached by writing
-      `Core\Mime\Type::Ebml` in one of them. A `.nvst` builds the magic with
-      `Core\Encoding::fromHex`, as `uuid-octets-and-canonical-text-are-one-value.nvst` does.
+- [ ] **`crates/nvs-stdlib/src/queue.rs:75` — a fifth counter on `Core\Queue\Stats`**, the column
+      added through the `nvs queue migrate` converge in `schema` and summed in `COUNTS_POSTGRES`
+      beside the four § 6 already names. The sheet's answer is the spec § 6 amendment, so § 6's
+      table gains the row in the same slice. The acceptance name is `queue_stats_has_a_fifth_counter`.
+      Delete the numbered gap when it lands.
+- [ ] **`crates/nvs-stdlib/src/queue.rs:64` — refuse to serve a queue whose schema is behind,
+      checked at boot**, which is what is left of gap 1: `nvs_jobs_dedupe` makes the statement
+      race-free wherever the schema carries it, and the one case it does not is a deployment that
+      never ran `nvs queue migrate`. Costs no request time by construction — the check is at boot.
+      The acceptance name is `a_queue_whose_schema_is_behind_is_refused_at_boot`.
 
 ## Backlog
 
-- `crates/nvs-stdlib/src/json.rs:229` gap 2, the encoder's heap stack — stage 4 check 2.
-- `crates/nvs-stdlib/src/queue.rs:75` gap 2, `Core\Queue\Stats`'s fifth counter — stage 4 check 2.
 - `crates/nvs-stdlib/src/xml.rs:128` gap 1, an element's namespace URI — stage 4 check 2.
+- `crates/nvs-stdlib/src/json.rs:229` gap 2, the encoder's heap stack — stage 4 check 2.
 - `crates/nvs-stdlib/src/regex.rs:83` gap 2, the step budget as a `[limits]` directive — stage 4
   check 3, and the one ADR slot this goal may open.
 - `crates/nvs-stdlib/src/cldr.rs:212` gap 1, a literal pattern prepared once — stage 4 check 3.
+- `Core\Mime` has four conformance cases where the floor is three; a fifth asking the same question
+  as one of them is not owed.
 - `python tools/owners.py --closes decided-closures` lists the other 22.

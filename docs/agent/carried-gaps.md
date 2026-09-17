@@ -176,16 +176,6 @@ where taking it is the work and the code that follows it is not.
   would have taken it is live: `database` and `schema` are retired with M8's database half carried.
   `crates/nvs-stdlib/src/db/mod.rs` gap 2.
   [until: gone crates/nvs-stdlib/src/db/mod.rs:spec § 10's error tree]
-- **EBML's magic is distinctive and the table has no row for it, so a `.webm` and a `.mkv` both
-  answer `Unknown`.** The two containers share one magic and are told apart by the `DocType`
-  element, which is a parse rather than the prefix comparison
-  `crates/nvs-stdlib/src/mime.rs`'s table is built out of, so answering `video/webm` for either
-  would be confidently wrong rather than usefully silent. What has to be decided is the third option
-  nobody has taken: a shared `Core\Mime\Type::Ebml` case, naming the container the octets actually
-  show the way `Zip` does — honest, and a case a caller cannot narrow — against leaving a format
-  with a perfectly good magic detecting as nothing at all. No rule owns `Core\Mime`, and spec § 17's
-  row defers the roster to that module doc. `crates/nvs-stdlib/src/mime.rs` gap 1.
-  [until: gone crates/nvs-stdlib/src/mime.rs:EBML's magic is shared]
 - **`Core\Xml` reads a qualified name as its spelling, so no `xmlns` declaration is resolved.**
   `<x:a/>` answers `x:a`, which is right for a document a program controls and not enough for one it
   does not: two documents meaning the same thing under different prefixes compare unequal. What has

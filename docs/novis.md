@@ -24532,6 +24532,7 @@ What `Core\Mime::detect` read out of a run of octets. Closed, so a program compa
 | `Core\Mime\Type::Zstd` | `application/zstd`, `Core\Codec::Zstd`'s frame. |
 | `Core\Mime\Type::Xz` | `application/x-xz`. |
 | `Core\Mime\Type::Wasm` | `application/wasm`, a binary WebAssembly module. |
+| `Core\Mime\Type::Ebml` | `video/matroska`, the EBML container every `.mkv` and every `.webm` is — WebM being a Matroska profile. Which of the two a file is lives in its `DocType` element, which a signature cannot reach, so this case never narrows to `video/webm`. |
 
 <a id="enum-core-xml-nodekind"></a>
 #### `Core\Xml\NodeKind`
