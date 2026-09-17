@@ -1160,6 +1160,12 @@ pub enum PreparedFact {
     /// pattern compiles on, settled by the same `nvs_stdlib::regex::validate`
     /// the refusal above it came from.
     RegexTier(nvs_stdlib::regex::Tier),
+    /// That a literal CLDR date pattern is one `nvs_stdlib::cldr::validate`
+    /// compiled while checking. It carries no payload because the compiled
+    /// form *is* the payload and stays where it was built: what the member is
+    /// told is that its pattern was written rather than assembled, which is
+    /// what admits the text to that module's per-core cache.
+    CldrPattern,
 }
 
 /// Every [`ExprInfo`] [`crate::check::check_program`] recorded this run,
@@ -1813,12 +1819,16 @@ impl ExprTypeTable {
         self.prepared.get(&call).copied()
     }
 
-    /// Every pattern this run settled a tier for, in no particular order —
-    /// for a caller counting them rather than asking about one site.
+    /// Every pattern this run settled a *tier* for, in no particular order —
+    /// for a caller counting them rather than asking about one site. A
+    /// preparation of another grammar answers no tier and is not one of them.
     pub fn regex_tiers(&self) -> impl Iterator<Item = nvs_stdlib::regex::Tier> + '_ {
-        self.prepared.values().map(|prepared| match prepared.fact {
-            PreparedFact::RegexTier(tier) => tier,
-        })
+        self.prepared
+            .values()
+            .filter_map(|prepared| match prepared.fact {
+                PreparedFact::RegexTier(tier) => Some(tier),
+                PreparedFact::CldrPattern => None,
+            })
     }
 
     /// The same settlements carrying the span each was read from, for a caller
@@ -1826,9 +1836,12 @@ impl ExprTypeTable {
     /// them — the span is the literal's own, so slicing the source at it gives
     /// the pattern back as it was written.
     pub fn regex_tier_sites(&self) -> impl Iterator<Item = (Span, nvs_stdlib::regex::Tier)> + '_ {
-        self.prepared.values().map(|prepared| match prepared.fact {
-            PreparedFact::RegexTier(tier) => (prepared.literal, tier),
-        })
+        self.prepared
+            .values()
+            .filter_map(|prepared| match prepared.fact {
+                PreparedFact::RegexTier(tier) => Some((prepared.literal, tier)),
+                PreparedFact::CldrPattern => None,
+            })
     }
 
     /// Records one synthesized `by $field` forward — see [`Delegation`], whose

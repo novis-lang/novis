@@ -1864,6 +1864,11 @@ pub enum Prepared {
     /// saves a call: the linear engine's parser has already refused this text
     /// once, while checking.
     RegexBacktracking,
+    /// A literal CLDR date pattern the checker compiled — the word that saves
+    /// the compile itself: a written pattern belongs to a set fixed when the
+    /// program was, so `nvs_stdlib::cldr` holds it per core rather than
+    /// building it per call.
+    CldrPattern,
 }
 
 impl Prepared {
@@ -1874,6 +1879,7 @@ impl Prepared {
         match self {
             Self::RegexLinear => nvs_types::CORE_REGEX_PREPARED_LINEAR,
             Self::RegexBacktracking => nvs_types::CORE_REGEX_PREPARED_BACKTRACKING,
+            Self::CldrPattern => nvs_types::CORE_CLDR_PREPARED_PATTERN,
         }
     }
 }

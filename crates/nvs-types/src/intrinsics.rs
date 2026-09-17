@@ -506,8 +506,19 @@ pub(crate) fn check_call(
                 Some(Restriction::CivilFields) => nvs_stdlib::cldr::validate_civil(&text),
                 None => nvs_stdlib::cldr::validate(&text),
             };
-            if let Err(message) = refused {
-                report_malformed(span, &message, env);
+            match refused {
+                // What crosses is that the pattern was *written*, which is the
+                // whole of what the member can use: the compiled pieces belong
+                // to the core that builds them, and `nvs_stdlib::cldr` owns why
+                // a pattern the program assembled is compiled at the call.
+                Ok(()) => env.exprs.record_prepared(
+                    call_span,
+                    Prepared {
+                        literal: span,
+                        fact: PreparedFact::CldrPattern,
+                    },
+                ),
+                Err(message) => report_malformed(span, &message, env),
             }
         }
         // `rule:core-classes/regex-literal-tiering`'s compile-time fact, both halves of it: the pattern is

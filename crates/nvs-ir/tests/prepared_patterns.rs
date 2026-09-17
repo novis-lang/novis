@@ -143,6 +143,41 @@ var $fancy = Core\\Regex::compile('(?<=USD )\\d+');
 }
 
 #[test]
+fn a_cldr_pattern_reaches_both_of_the_members_that_read_one() {
+    // The roster's second grammar, and both paths a call reaches it by: a
+    // static member and an instance one, whose word is emitted ahead of the
+    // receiver rather than after it. The assembled pattern is the same third
+    // shape the regex fixture writes, and it is a `var` read rather than a
+    // literal for the same reason.
+    let program = compile(
+        "<?nvs
+var $written = 'yyyy-MM-dd';
+var $zone = Core\\Time\\Zone::of('UTC');
+var $read = Core\\Time::parse('2026-09-17 00:00:00', 'yyyy-MM-dd HH:mm:ss', $zone);
+var $shown = $read->format('yyyy-MM-dd');
+var $loose = $read->format($written);
+",
+    );
+
+    assert_eq!(
+        prepared(&program),
+        vec![
+            Some(Prepared::CldrPattern),
+            Some(Prepared::CldrPattern),
+            None,
+        ],
+        "a written date pattern did not reach the call it was compiled at"
+    );
+    let calls = core_calls(&program, "nvs_core_time_datetime_format");
+    assert_eq!(calls.len(), 2, "the fixture lowered no `format` call");
+    assert_eq!(
+        calls[0].len(),
+        3,
+        "`format` takes the prepared word, its receiver and its pattern"
+    );
+}
+
+#[test]
 fn a_member_off_the_roster_is_handed_no_prepared_word() {
     // `matches` reads the same pattern language and is not on the roster: it
     // takes the pattern as an ordinary argument and compiles it at the call.

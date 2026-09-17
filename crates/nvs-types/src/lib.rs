@@ -218,6 +218,10 @@ pub use layout::{ClassLayout, ClassLayoutTable, build_class_layouts};
 /// of — that crate reaches the compiler's exception tree through this crate,
 /// exactly as it reaches every `Core` symbol below.
 pub use nvs_hir::errors::FINISH_MARKER as CORE_SCRIPT_FINISH_CLASS;
+/// The word `nvs_stdlib::registry::PREPARED_MEMBERS`' argument 0 carries for a
+/// literal CLDR date pattern, reached from `nvs-ir` through this crate exactly
+/// as every other `Core` symbol below is.
+pub use nvs_stdlib::cldr::PREPARED_PATTERN as CORE_CLDR_PREPARED_PATTERN;
 pub use nvs_stdlib::cli::{
     NAME as CORE_CLI_TEXT_CLASS, TEXT_CONCAT_SYMBOL as CORE_CLI_TEXT_CONCAT,
 };

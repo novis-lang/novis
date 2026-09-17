@@ -3195,7 +3195,17 @@ pub fn takes_call_site(class: &str, method: &str) -> bool {
 /// what a producer is handed is where it was *called*, and what a prepared
 /// member is handed is what its own argument said. A member that ever wanted
 /// each would take this word first, which is the order `nvs-ir` emits them in.
-pub const PREPARED_MEMBERS: &[(&str, &str)] = &[(crate::regex::NAME, "compile")];
+///
+/// **One slot, several grammars.** A row's word is its own grammar's, and the
+/// words are minted from one space — [`crate::regex::PREPARED_LINEAR`] and
+/// [`crate::cldr::PREPARED_PATTERN`] are different integers — so a word that
+/// reached the wrong helper decodes as nothing prepared rather than as that
+/// helper's own fact. The zero is the only word every row spells alike.
+pub const PREPARED_MEMBERS: &[(&str, &str)] = &[
+    (crate::regex::NAME, "compile"),
+    (crate::time::DATETIME_NAME, "format"),
+    (crate::time::TIME_NAME, "parse"),
+];
 
 /// Whether `class::method` is one of [`PREPARED_MEMBERS`].
 #[must_use]
