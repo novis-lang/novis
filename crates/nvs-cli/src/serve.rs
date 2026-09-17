@@ -1404,7 +1404,7 @@ fn queue_on_this_core(
 /// the core that arms the workers and before it has an accept loop; no request path reaches any of
 /// it, and a queue nobody arms never opens a socket at all.
 ///
-/// **A block that cannot be opened is refused here too**, where [`crate::worker::open`] warns and
+/// **A block that cannot be opened is refused here too**, where `worker::open` warns and
 /// starts no worker. That is the right answer for a connection lost after a boot that once
 /// succeeded, and the wrong one for the boot itself: a server that came up having silently armed
 /// nothing is the deployment this whole question exists to stop.
