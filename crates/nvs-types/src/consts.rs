@@ -44,7 +44,7 @@
 use nvs_diagnostics::SourceFile;
 use nvs_hir::QName;
 use nvs_syntax::ast::{
-    ClassDecl, ClassMemberKind, ConstMember, ExprKind, NamespaceDecl, Stmt, StmtKind, Type,
+    ClassDecl, ClassMemberKind, ConstMember, Expr, ExprKind, NamespaceDecl, Stmt, StmtKind, Type,
     TypeAtom, TypeKind, UnaryOp,
 };
 use rustc_hash::FxHashMap;
@@ -277,13 +277,19 @@ pub(crate) fn type_carries_secret(ty: &Type) -> bool {
 
 /// One `const T NAME = expr;`, folded.
 ///
-/// Two readers, one fold. This table is the first, and
-/// [`crate::layout::ClassLayout::constants`] is the second: a reflective
-/// description hands a constant's value back as a value, so the roster it is
-/// built from needs the same four literals this resolves and the same
-/// [`ConstValue::Ineligible`] for everything else. Sharing the function rather
-/// than the table is what keeps one grammar — a second fold would be a second
-/// answer to `const X = -1;` waiting to differ.
+/// Three readers, one fold. This table is the first,
+/// [`crate::layout::ClassLayout::constants`] is the second and
+/// [`crate::layout::ClassAttribute`]'s payload — through [`fold_expr`] — is the
+/// third: a reflective description hands a constant's value back as a value, so
+/// the roster it is built from needs the same four literals this resolves and
+/// the same [`ConstValue::Ineligible`] for everything else. Sharing the function
+/// rather than the table is what keeps one grammar — a second fold would be a
+/// second answer to `const X = -1;` waiting to differ.
+pub(crate) fn fold_const(c: &ConstMember, src: &SourceFile) -> ConstValue {
+    fold_expr(&c.value, src)
+}
+
+/// One written expression, folded to the constant it is.
 ///
 /// The accepted shapes are exactly [`crate::enums::literal_value`]'s, plus
 /// the three other literals a written value can be: a bare `int` literal, a
@@ -293,13 +299,22 @@ pub(crate) fn type_carries_secret(ty: &Type) -> bool {
 /// const-evaluated — `rule:types/constant-in-type-position` folds a constant that *is* a literal, and a
 /// general constant-expression evaluator is a second evaluator in the language
 /// for no requirement.
-pub(crate) fn fold_const(c: &ConstMember, src: &SourceFile) -> ConstValue {
-    let (negated, inner) = match &c.value.kind {
+///
+/// Reached from a class constant's right-hand side and from an attribute
+/// payload's field value. The second admits more spellings than this folds —
+/// `rule:attributes/payload-is-a-compile-time-constant` also takes a class
+/// constant, an enum case and `Foo::class`, each of which needs the attach
+/// site's own scope to resolve and is therefore
+/// [`crate::retrieval`]'s to fold. What arrives here with no scope is
+/// [`ConstValue::Ineligible`], which is the same answer this gives a literal
+/// too wide to hold: a value the reader reports as absent rather than as wrong.
+pub(crate) fn fold_expr(value: &Expr, src: &SourceFile) -> ConstValue {
+    let (negated, inner) = match &value.kind {
         ExprKind::Unary {
             op: UnaryOp::Neg,
             expr: inner,
         } => (true, &**inner),
-        _ => (false, &c.value),
+        _ => (false, value),
     };
     match &inner.kind {
         ExprKind::Str(span) if !negated => {

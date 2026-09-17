@@ -788,6 +788,10 @@ pub fn lower_program(
                 // and already folded — the front end is the only layer that
                 // still has the declaration's right-hand side to fold.
                 constants: layout.constants.clone(),
+                // The attach sites beside them, own-only and already folded,
+                // for the same reason: the front end is the only layer that
+                // still has the `#[...]` payload to fold.
+                attributes: layout.attributes.clone(),
                 conforms: layout.conforms.clone(),
                 methods: layout.methods.clone(),
                 // The accessors beside them, on the same terms: the front end
@@ -840,6 +844,7 @@ pub fn lower_program(
         public_fields: Vec::new(),
         protected_fields: Vec::new(),
         constants: Vec::new(),
+        attributes: Vec::new(),
         field_types: Vec::new(),
         conforms: Vec::new(),
         methods: Vec::new(),
@@ -869,6 +874,7 @@ pub fn lower_program(
         public_fields: Vec::new(),
         protected_fields: Vec::new(),
         constants: Vec::new(),
+        attributes: Vec::new(),
         field_types: Vec::new(),
         conforms: Vec::new(),
         methods: Vec::new(),
@@ -2047,8 +2053,10 @@ impl<'a> Lowering<'a> {
             // spell, its slots being typed by what was written into them.
             field_types: Vec::new(),
             // A shape literal has no declaration body, so it declares no
-            // constant — empty here is the fact and not an omission.
+            // constant and carries no attach site — empty here is the fact and
+            // not an omission.
             constants: Vec::new(),
+            attributes: Vec::new(),
             // `rule:types/object-literal`: a shape literal's class has no methods, no
             // supertypes and no `implements`, it carries no attribute, and
             // every one of its slots is written by the literal that built it
@@ -3692,6 +3700,7 @@ fn nested_shapes(
             protected_fields: vec![false; field_count],
             field_types: Vec::new(),
             constants: Vec::new(),
+            attributes: Vec::new(),
             conforms: Vec::new(),
             methods: Vec::new(),
             hooks: Vec::new(),

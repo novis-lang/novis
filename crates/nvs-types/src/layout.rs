@@ -185,6 +185,77 @@ pub struct ClassLayout {
     /// **Cost:** one [`ClassConstant`] per constant per class, once per
     /// compiled unit, never per request.
     pub constants: Vec<ClassConstant>,
+    /// Every `#[...]` attached to this declaration or to one of its own
+    /// members, in source order — the class first, then each member's in
+    /// declaration order.
+    ///
+    /// **Own-only, where [`Self::constants`] beside it is flattened**, and the
+    /// difference is the difference between the two things: a constant is a
+    /// *name a program may write on this class*, which `Foo::BAR` resolves up
+    /// the chain, while an attribute is a fact about *where it was written*.
+    /// A roster that inherited one would report a base class's attach site as
+    /// this class's, which is the one thing
+    /// `rule:attributes/structural-retrieval`'s target spellings never do.
+    ///
+    /// **Cost:** one [`ClassAttribute`] per attach site per class, once per
+    /// compiled unit, never per request.
+    pub attributes: Vec<ClassAttribute>,
+}
+
+/// One attached attribute, as much of it as a reflective description reads
+/// back: which declaration it is written on, the name the named form gave it,
+/// and its payload folded field by field.
+///
+/// A second reading of the same `#[...]` the checker's own
+/// `crate::retrieval` walk indexes, and deliberately a coarser one.
+/// That walk answers `Core\Attributes::get<T>` — a *structural* match against a
+/// shape type, folded away at compile time so the running program holds no
+/// table at all — and it borrows the AST to do it. This roster is the other
+/// question: `Core\Reflect\ClassInfo::attributes` names the attach sites of a
+/// class the checker never saw, so what it needs is owned data on the
+/// descriptor. The payload is where the two part company, and
+/// [`Self::fields`] says how.
+#[derive(Clone, Debug)]
+pub struct ClassAttribute {
+    /// The member the attribute is written on — the **empty string** for the
+    /// class or interface declaration itself.
+    ///
+    /// A property's name with no `$` sigil, or a method's name; a parameter's
+    /// attach site names the method here and the parameter in
+    /// [`Self::parameter`], which is
+    /// `rule:attributes/structural-retrieval`'s own pair of target spellings
+    /// kept as a pair rather than folded into one invented one.
+    pub member: String,
+    /// The parameter of [`Self::member`] the attribute is written on, or the
+    /// empty string for every other attach site.
+    pub parameter: String,
+    /// The `type` alias the named form names, or the **empty string** for the
+    /// bare form.
+    ///
+    /// Carried as what was written rather than as a resolved name: the name
+    /// checks the literal where it is *written* and is never part of how a
+    /// caller asks for it (`rule:attributes/structural-retrieval`), so a
+    /// description that resolved it would be reporting the checker's answer to
+    /// a question the reader did not ask.
+    pub name: String,
+    /// The payload's fields in source order, each folded by
+    /// [`crate::consts::fold_expr`].
+    ///
+    /// [`ConstValue::Ineligible`] is a value's absence and not a field's, on
+    /// [`ClassConstant::value`]'s terms exactly — the field keeps its row, and
+    /// `Core\Reflect\AttributeInfo::field` reports the bound rather than a name
+    /// it does not know. Two shapes reach it here that a constant's right-hand
+    /// side never does: a payload value that is a class constant, an enum case
+    /// or `Foo::class`, each of which resolves through the *attach site's*
+    /// namespace and `use` table, which this pass does not build.
+    /// `crate::retrieval` is where that scope lives, and it is a
+    /// checker pass over borrowed AST rather than a roster to copy.
+    ///
+    /// No `secret` bit rides here, where [`ClassConstant::secret`] needs one: a
+    /// `secret` class constant reaching a payload is refused where it is
+    /// written (`E0727`, `rule:attributes/payload-is-a-compile-time-constant`),
+    /// so no qualified value is ever in one to hand back.
+    pub fields: Vec<(String, ConstValue)>,
 }
 
 /// One class constant, as much of it as a reflective description reads back:
@@ -318,6 +389,7 @@ pub fn build_class_layouts(
     let mut own_methods: OwnMethods = FxHashMap::default();
     let mut own_hooks: FxHashMap<QName, Vec<(String, String, bool)>> = FxHashMap::default();
     let mut own_constants: FxHashMap<QName, Vec<ClassConstant>> = FxHashMap::default();
+    let mut own_attributes: FxHashMap<QName, Vec<ClassAttribute>> = FxHashMap::default();
     // The exception tree first: it has no source declaration to collect from
     // (`nvs_hir::errors`), and a user class extending it needs its four slots
     // already claimed before its own are appended.
@@ -371,10 +443,13 @@ pub fn build_class_layouts(
             file.stmts,
             file.src,
             &[],
-            &mut own,
-            &mut own_methods,
-            &mut own_hooks,
-            &mut own_constants,
+            &mut Own {
+                properties: &mut own,
+                methods: &mut own_methods,
+                hooks: &mut own_hooks,
+                constants: &mut own_constants,
+                attributes: &mut own_attributes,
+            },
         );
     }
 
@@ -427,23 +502,30 @@ pub fn build_class_layouts(
                 methods,
                 hooks,
                 constants,
+                // Own-only, so there is no flattening walk beside the three
+                // above — `ClassLayout::attributes` owns why.
+                attributes: own_attributes.get(qname).cloned().unwrap_or_default(),
             },
         );
     }
     table
 }
 
+/// The rosters [`collect_own`] fills as it descends, gathered into one
+/// parameter because one walk is what fills all of them: a map apiece would be
+/// five walks over the same statements, each re-deriving the namespace the
+/// others already resolved.
+struct Own<'r> {
+    properties: &'r mut FxHashMap<QName, Vec<(String, bool, bool, String)>>,
+    methods: &'r mut OwnMethods,
+    hooks: &'r mut FxHashMap<QName, Vec<(String, String, bool)>>,
+    constants: &'r mut FxHashMap<QName, Vec<ClassConstant>>,
+    attributes: &'r mut FxHashMap<QName, Vec<ClassAttribute>>,
+}
+
 /// Records each declared class's/interface's *own* instance properties, in
 /// declaration order.
-fn collect_own(
-    stmts: &[Stmt],
-    src: &SourceFile,
-    namespace: &[String],
-    out: &mut FxHashMap<QName, Vec<(String, bool, bool, String)>>,
-    methods: &mut OwnMethods,
-    hooks: &mut FxHashMap<QName, Vec<(String, String, bool)>>,
-    constants: &mut FxHashMap<QName, Vec<ClassConstant>>,
-) {
+fn collect_own(stmts: &[Stmt], src: &SourceFile, namespace: &[String], out: &mut Own<'_>) {
     let mut current = namespace.to_vec();
     for stmt in stmts {
         match &stmt.kind {
@@ -453,17 +535,25 @@ fn collect_own(
                     .map_or_else(Vec::new, |n| qname_segments(src, n));
                 match body {
                     Some(block) => {
-                        collect_own(&block.stmts, src, &scoped, out, methods, hooks, constants);
+                        collect_own(&block.stmts, src, &scoped, out);
                     }
                     None => current = scoped,
                 }
             }
             StmtKind::ClassDecl(decl) => {
                 let qname = QName::join(&current, span_text(src, decl.name.span));
-                out.insert(qname.clone(), own_properties(&decl.members, src));
-                methods.insert(qname.clone(), own_methods(&decl.members, src));
-                hooks.insert(qname.clone(), own_hooks(&qname, &decl.members, src));
-                constants.insert(qname.clone(), own_constants(&decl.members, src));
+                out.properties
+                    .insert(qname.clone(), own_properties(&decl.members, src));
+                out.methods
+                    .insert(qname.clone(), own_methods(&decl.members, src));
+                out.hooks
+                    .insert(qname.clone(), own_hooks(&qname, &decl.members, src));
+                out.constants
+                    .insert(qname.clone(), own_constants(&decl.members, src));
+                out.attributes.insert(
+                    qname.clone(),
+                    own_attributes(&decl.attributes, &decl.members, src),
+                );
             }
             // An interface declares no instance property (`rule:classes/interface-default-methods` gives
             // it method bodies, not state), but it still needs an entry: it is
@@ -473,17 +563,28 @@ fn collect_own(
             // same way a class's are.
             StmtKind::InterfaceDecl(decl) => {
                 let qname = QName::join(&current, span_text(src, decl.name.span));
-                out.insert(qname.clone(), Vec::new());
-                methods.insert(qname.clone(), own_methods(&decl.members, src));
+                out.properties.insert(qname.clone(), Vec::new());
+                out.methods
+                    .insert(qname.clone(), own_methods(&decl.members, src));
                 // An interface declares no *hooked* property either, its
                 // properties being none at all; the entry is still made, on
                 // the terms above.
-                hooks.insert(qname.clone(), own_hooks(&qname, &decl.members, src));
+                out.hooks
+                    .insert(qname.clone(), own_hooks(&qname, &decl.members, src));
                 // Constants are the one roster an interface fills as a class
                 // does: `interface Limits { const int MAX = 10; }` is a name
                 // every implementor answers, so the walk reads the same
                 // members here that it reads there.
-                constants.insert(qname.clone(), own_constants(&decl.members, src));
+                out.constants
+                    .insert(qname.clone(), own_constants(&decl.members, src));
+                // Attributes likewise: `rule:attributes/attach-sites-and-forms`
+                // names an interface and its members among the sites, and an
+                // interface is a declaration a reflective description reaches
+                // through `forClass` like any other.
+                out.attributes.insert(
+                    qname.clone(),
+                    own_attributes(&decl.attributes, &decl.members, src),
+                );
             }
             _ => {}
         }
@@ -595,6 +696,83 @@ fn own_constants(members: &[nvs_syntax::ast::ClassMember], src: &SourceFile) -> 
             _ => None,
         })
         .collect()
+}
+
+/// One declaration's own attach sites, in source order: the declaration's own
+/// `#[...]` groups first, then each member's, and each method's parameters'
+/// after that method's own.
+///
+/// The site walk `crate::retrieval` makes over the same members,
+/// made a second time and for the other reader: that one indexes an attach site
+/// by the target a `Core\Attributes::get` call names and borrows the AST to do
+/// it, where this one owns what it reads because it is headed for a class
+/// descriptor that outlives every source file. The two agree on *which* sites
+/// exist because they read the same member kinds — a class's or interface's
+/// own groups, a property's, a method's, and a method parameter's — and that
+/// list is `rule:attributes/attach-sites-and-forms`'.
+///
+/// A class constant's own groups are not among them, and that is the rule's
+/// roster rather than an omission here.
+fn own_attributes(
+    groups: &[nvs_syntax::ast::AttributeGroup],
+    members: &[nvs_syntax::ast::ClassMember],
+    src: &SourceFile,
+) -> Vec<ClassAttribute> {
+    let mut out = Vec::new();
+    push_attributes(&mut out, groups, "", "", src);
+    for member in members {
+        match &member.kind {
+            ClassMemberKind::Property(p) => {
+                let name = crate::strip_sigil(span_text(src, p.name));
+                push_attributes(&mut out, &p.attributes, name, "", src);
+            }
+            ClassMemberKind::Method(m) => {
+                let method = span_text(src, m.name);
+                push_attributes(&mut out, &m.attributes, method, "", src);
+                for param in &m.params {
+                    let name = crate::strip_sigil(span_text(src, param.name));
+                    push_attributes(&mut out, &param.attributes, method, name, src);
+                }
+            }
+            _ => {}
+        }
+    }
+    out
+}
+
+/// Appends one attach site's attributes to `out`, flattening the groups: two
+/// `#[A] #[B]` lines and one `#[A, B]` attach the same two attributes to the
+/// same declaration, so a roster that kept the grouping would be reporting
+/// the source's line breaks.
+fn push_attributes(
+    out: &mut Vec<ClassAttribute>,
+    groups: &[nvs_syntax::ast::AttributeGroup],
+    member: &str,
+    parameter: &str,
+    src: &SourceFile,
+) {
+    for group in groups {
+        for attr in &group.attributes {
+            out.push(ClassAttribute {
+                member: member.to_owned(),
+                parameter: parameter.to_owned(),
+                name: attr
+                    .name
+                    .as_ref()
+                    .map_or_else(String::new, |n| span_text(src, n.span).to_owned()),
+                fields: attr
+                    .fields
+                    .iter()
+                    .map(|field| {
+                        (
+                            span_text(src, field.name).to_owned(),
+                            crate::consts::fold_expr(&field.value, src),
+                        )
+                    })
+                    .collect(),
+            });
+        }
+    }
 }
 
 /// Appends every class constant `qname` answers to `constants` — its own

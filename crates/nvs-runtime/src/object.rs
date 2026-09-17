@@ -501,6 +501,22 @@ pub struct ClassDesc {
     /// **Cost:** one [`ConstantDesc`] per constant per class, once per process,
     /// not per instance and not per request.
     constants: Vec<ConstantDesc>,
+    /// Every `#[...]` written on this class's own declaration or on one of its
+    /// own members, in source order — empty for a class no declaration laid
+    /// out, on [`Self::public_fields`]' terms exactly.
+    ///
+    /// Beside the constants for their reason: an attach site claims no slot
+    /// either. Own-only where that roster is flattened, which
+    /// `nvs_types::layout::ClassLayout::attributes` owns:
+    /// an attribute is a fact about where it was written, so a base class's
+    /// site is never this class's. `nvs_ir::ir::Class::attributes` carries it,
+    /// [`ClassTable::set_class_attributes`] fills it, and
+    /// `Core\Reflect\ClassInfo::attributes` is what reads it back.
+    ///
+    /// **Cost:** one [`AttributeDesc`] per attach site per class, plus one
+    /// [`ConstantValue`] per payload field, once per process, not per instance
+    /// and not per request.
+    attributes: Vec<AttributeDesc>,
     /// The address of the **native** function that renders an instance of this
     /// class as a `string`, or null for every class that has none — which is
     /// every class a program declares, and every `Core` class the spec gives
@@ -1027,6 +1043,38 @@ pub enum ConstantValue {
     Opaque,
 }
 
+/// One attached attribute on a [`ClassDesc`] — which declaration it is written
+/// on, the name the named form gave it, and its payload folded field by field.
+///
+/// [`ConstantDesc`]'s shape one declaration out, and the visibility bits are
+/// what it does not need: an attribute is written where the declaration is and
+/// carries no modifier of its own, and a `secret` value cannot reach a payload
+/// at all — `rule:attributes/payload-is-a-compile-time-constant` refuses one
+/// where it is written, so there is no qualifier for a reflective read to
+/// launder away. `nvs_types::layout::ClassAttribute` is the row this is
+/// converted from, and owns the rest of why.
+#[derive(Clone, Debug)]
+pub struct AttributeDesc {
+    /// The member the attribute is written on — the empty string for the class
+    /// or interface declaration itself, a property's or method's name
+    /// otherwise.
+    pub member: String,
+    /// The parameter of [`Self::member`] it is written on, or the empty string
+    /// for every other attach site.
+    pub parameter: String,
+    /// The `type` alias the named form names, or the empty string for the bare
+    /// form.
+    pub name: String,
+    /// The payload's fields in source order, each folded to the same currency
+    /// a class constant travels in.
+    ///
+    /// [`ConstantValue::Opaque`] is a value's absence and not a field's, on
+    /// [`ConstantDesc::value`]'s terms exactly: the field keeps its row, and
+    /// `Core\Reflect\AttributeInfo::field` reports the bound rather than a name
+    /// it does not know.
+    pub fields: Vec<(String, ConstantValue)>,
+}
+
 /// What one position of a [`CodecTy::List`] field holds — the element's own
 /// wire type, and, where that is another list, its element in turn.
 ///
@@ -1395,6 +1443,13 @@ impl ClassDesc {
     #[must_use]
     pub fn constants(&self) -> &[ConstantDesc] {
         &self.constants
+    }
+
+    /// Every attach site this class's own declaration carries, in source order
+    /// — see [`Self::attributes`].
+    #[must_use]
+    pub fn attributes(&self) -> &[AttributeDesc] {
+        &self.attributes
     }
 
     /// The constant named `name`, or `None` where this class declares and
@@ -1809,6 +1864,7 @@ impl ClassTable {
             protected_fields: Vec::new(),
             field_types: Vec::new(),
             constants: Vec::new(),
+            attributes: Vec::new(),
             render: std::ptr::null(),
             compare: std::ptr::null(),
             unwind: std::ptr::null(),
@@ -1987,6 +2043,23 @@ impl ClassTable {
             .get_mut(id.0)
             .expect("a class id always belongs to the table that handed it out");
         desc.constants = constants;
+    }
+
+    /// Fills in `id`'s attach sites — see [`ClassDesc::attributes`].
+    ///
+    /// No length assertion, on [`ClassTable::set_class_constants`]' terms: this
+    /// roster is aligned to nothing either, each row naming the declaration it
+    /// was written on rather than occupying a position that stands for one.
+    ///
+    /// # Panics
+    ///
+    /// If `id` does not belong to this table.
+    pub fn set_class_attributes(&mut self, id: ClassId, attributes: Vec<AttributeDesc>) {
+        let desc = self
+            .classes
+            .get_mut(id.0)
+            .expect("a class id always belongs to the table that handed it out");
+        desc.attributes = attributes;
     }
 
     /// Fills in `id`'s per-slot declared type names — see

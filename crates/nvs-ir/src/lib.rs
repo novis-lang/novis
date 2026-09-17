@@ -626,6 +626,11 @@ pub mod print;
 pub mod ty;
 
 pub use ir::{Function, Program};
+/// An attached attribute's site and its folded payload, re-exported on
+/// [`ClassConstant`]'s terms: [`ir::Class::attributes`] is a straight copy of
+/// the front end's roster and `nvs-codegen` has to be able to name what it
+/// holds.
+pub use nvs_types::ClassAttribute;
 /// A class constant's declaration and its folded value, re-exported because
 /// [`ir::Class::constants`] is a straight copy of the front end's roster and
 /// `nvs-codegen` — which reads that field but deliberately does not depend on

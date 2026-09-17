@@ -217,6 +217,20 @@ pub struct Class {
     /// **Cost:** one row per declared constant per class, once per compiled
     /// unit, not per request.
     pub constants: Vec<nvs_types::ClassConstant>,
+    /// A straight copy of `nvs_types::layout::ClassLayout::attributes`, which
+    /// owns why the roster is own-only where the constants above are flattened,
+    /// and what a payload field's folded value is.
+    /// `nvs-codegen` turns each row into a `nvs_runtime::AttributeDesc` on the
+    /// class's descriptor, and `Core\Reflect\ClassInfo::attributes` is what
+    /// reads it back.
+    ///
+    /// Empty for every class this crate synthesizes, on [`Self::constants`]'
+    /// terms exactly: nothing wrote a `#[...]` on a closure environment, rather
+    /// than a declaration that carries none.
+    ///
+    /// **Cost:** one row per attach site per class, plus one folded value per
+    /// payload field, once per compiled unit, not per request.
+    pub attributes: Vec<nvs_types::ClassAttribute>,
     /// Each field slot's declared type as its declaration spells it, in
     /// [`Self::fields`]' own order — or **empty**, on [`Self::public_fields`]'
     /// terms exactly: "nothing told this class", never "every slot is

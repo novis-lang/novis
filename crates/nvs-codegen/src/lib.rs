@@ -1558,6 +1558,13 @@ impl Classes {
             self.table
                 .set_class_constants(id, class.constants.iter().map(constant_desc).collect());
         }
+        // The class's attach sites, on the same terms and guarded the same way:
+        // a roster keyed by the declaration each row names, aligned to no slot
+        // order, so there is no length for a check to compare.
+        if !class.attributes.is_empty() {
+            self.table
+                .set_class_attributes(id, class.attributes.iter().map(attribute_desc).collect());
+        }
         let slots = class
             .fields
             .iter()
@@ -1643,21 +1650,51 @@ impl Classes {
 /// lose a value. It runs once per declared constant per compiled unit, at the
 /// same point in `define_class` as the field rosters beside it.
 fn constant_desc(constant: &nvs_ir::ClassConstant) -> nvs_runtime::ConstantDesc {
-    use nvs_ir::ConstValue;
-    use nvs_runtime::ConstantValue;
-
     nvs_runtime::ConstantDesc {
         name: constant.name.clone(),
         public: constant.public,
         protected: constant.protected,
         secret: constant.secret,
-        value: match &constant.value {
-            ConstValue::Str(text) => ConstantValue::Str(text.clone()),
-            ConstValue::Int(value) => ConstantValue::Int(*value),
-            ConstValue::Bool(value) => ConstantValue::Bool(*value),
-            ConstValue::Float(value) => ConstantValue::Float(*value),
-            ConstValue::Ineligible => ConstantValue::Opaque,
-        },
+        value: constant_value(&constant.value),
+    }
+}
+
+/// One folded value in the runtime's own currency.
+///
+/// Shared by [`constant_desc`] and [`attribute_desc`] rather than written
+/// twice: a class constant's right-hand side and an attribute payload's field
+/// are folded by one function in the front end
+/// (`nvs_types::consts::fold_expr`), so a second match here would be a second
+/// answer to `-1` waiting to differ from the first.
+fn constant_value(value: &nvs_ir::ConstValue) -> nvs_runtime::ConstantValue {
+    use nvs_ir::ConstValue;
+    use nvs_runtime::ConstantValue;
+
+    match value {
+        ConstValue::Str(text) => ConstantValue::Str(text.clone()),
+        ConstValue::Int(value) => ConstantValue::Int(*value),
+        ConstValue::Bool(value) => ConstantValue::Bool(*value),
+        ConstValue::Float(value) => ConstantValue::Float(*value),
+        ConstValue::Ineligible => ConstantValue::Opaque,
+    }
+}
+
+/// One attached attribute, converted into the runtime's own currency.
+///
+/// [`constant_desc`]'s job one declaration out, sharing [`constant_value`] with
+/// it field by field: a payload field and a class constant are the same folded
+/// value, and `nvs_runtime::AttributeDesc` owns why no visibility or `secret`
+/// bit rides beside them.
+fn attribute_desc(attribute: &nvs_ir::ClassAttribute) -> nvs_runtime::AttributeDesc {
+    nvs_runtime::AttributeDesc {
+        member: attribute.member.clone(),
+        parameter: attribute.parameter.clone(),
+        name: attribute.name.clone(),
+        fields: attribute
+            .fields
+            .iter()
+            .map(|(name, value)| (name.clone(), constant_value(value)))
+            .collect(),
     }
 }
 

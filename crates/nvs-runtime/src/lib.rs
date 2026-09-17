@@ -324,14 +324,15 @@ pub use identity::{
     numeric_identical, numeric_ordering, nvs_array_eq, value_hash, value_identical,
 };
 pub use object::{
-    COMPARE_TO, CONSTRUCTOR, ClassDesc, ClassId, ClassTable, CodecElement, CodecField, CodecTy,
-    ConstantDesc, ConstantValue, EnumCases, EnumDesc, FIELD_STRIDE, FIELDS_OFFSET, FieldDefault,
-    HookRow, MethodRow, NvsObj, OBJ_ALIGN, OBJ_CLASS_OFFSET, OBJ_REFCOUNT_OFFSET, ObjHeader,
-    ShapeCodec, construct, field_offset, immortal_object_bytes, nvs_abstract_method,
-    nvs_class_method, nvs_object_class_name, nvs_object_field_get, nvs_object_field_set,
-    nvs_object_instanceof, nvs_object_key_get, nvs_object_key_set, nvs_object_new,
-    nvs_object_release, nvs_object_retain, nvs_object_slot_get, nvs_object_slot_optional_get,
-    nvs_object_slot_probe, nvs_object_slot_set, nvs_value_instanceof, write_erased_property,
+    AttributeDesc, COMPARE_TO, CONSTRUCTOR, ClassDesc, ClassId, ClassTable, CodecElement,
+    CodecField, CodecTy, ConstantDesc, ConstantValue, EnumCases, EnumDesc, FIELD_STRIDE,
+    FIELDS_OFFSET, FieldDefault, HookRow, MethodRow, NvsObj, OBJ_ALIGN, OBJ_CLASS_OFFSET,
+    OBJ_REFCOUNT_OFFSET, ObjHeader, ShapeCodec, construct, field_offset, immortal_object_bytes,
+    nvs_abstract_method, nvs_class_method, nvs_object_class_name, nvs_object_field_get,
+    nvs_object_field_set, nvs_object_instanceof, nvs_object_key_get, nvs_object_key_set,
+    nvs_object_new, nvs_object_release, nvs_object_retain, nvs_object_slot_get,
+    nvs_object_slot_optional_get, nvs_object_slot_probe, nvs_object_slot_set, nvs_value_instanceof,
+    write_erased_property,
 };
 pub use peer::{
     Closing, Delivery, INBOX_CAP, Inbox, PeerError, PeerFrame, PeerSocket, slow_subscribers_closed,
