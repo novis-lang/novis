@@ -167,6 +167,21 @@ TREE_DIRS = ("crates/", "tools/", "docs/", "tests/", "benches/", "examples/", "f
 #: it only knew about `:\d+`, and an optimization pass paid to re-derive that it was not.
 PATH_TRIM = re.compile(r"(:re:.*|:@[\w:.-]+|:\d+([-+]\d+)?|[.,;:)\]'\"]+)$")
 
+#: A bullet naming two siblings at once -- `crates/nvs-runtime/{src,tests}`, which is the spelling
+#: the `grep` in the same sentence takes -- is naming both of them, and both have to be in the tree
+#: for the trap to stand. Expand the comma-list and ask the disk about each: unexpanded, the brace
+#: reads as a path nothing has, and that is a stale-path signal no pass can ever clear.
+BRACES = re.compile(r"^([^{}]*)\{([^{}]+)\}([^{}]*)$")
+
+
+def brace_expand(cand: str) -> list[str]:
+    """`a/{b,c}/d` as the two paths it names; anything else unchanged."""
+    match = BRACES.match(cand)
+    if not match:
+        return [cand]
+    head, inner, tail = match.groups()
+    return [f"{head}{part.strip()}{tail}" for part in inner.split(",") if part.strip()]
+
 #: Bullets whose missing path is the whole point of the trap -- they quote a path that is gone, or
 #: that was never right, *because that is what the bullet is about*. Keyed by the exact
 #: `(selector, path)` pair, so any other path in the same bullet, and this path in any other
@@ -1085,12 +1100,14 @@ def run_check(text: str, every: list[dict]) -> int:
             # the trap that the layout it names is the one the tree did NOT take.
             if not cand.startswith(TREE_DIRS) or any(m in cand for m in ("*", "<", "…", "...")):
                 continue
-            if not (ROOT / cand).exists():
-                why = DELIBERATE_STALE.get((b["selector"], cand))
+            for one in brace_expand(cand):
+                if (ROOT / one).exists():
+                    continue
+                why = DELIBERATE_STALE.get((b["selector"], one))
                 if why is not None:
-                    deliberate.append((b["selector"], cand, why))
+                    deliberate.append((b["selector"], one, why))
                 else:
-                    gone.append(cand)
+                    gone.append(one)
         if gone:
             stale += 1
             print(f"  {b['selector']}")
