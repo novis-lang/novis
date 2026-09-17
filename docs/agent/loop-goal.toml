@@ -1,14 +1,14 @@
-# Goal 63 -- a `Core` class is a name a type test can walk
+# Goal 64 -- a `bytes` parameter binds on every driver
 # The acceptance test, as data.
 #
-# `63-core-class-tests.md` is the prose. One home each.
+# `64-tds-bytes.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 
 files = [
   # Every `examples/*.nvs` fixture an `exact` check below names. goal-switch.py unions the previous
-  # goal's list into this one; this goal adds none of its own, because what it changes is which
-  # programs compile and the conformance tree is where that is read.
+  # goal's list into this one; this goal adds none of its own, because what it changes is what one
+  # driver puts on the wire and a unit test against a scripted server is where that is read.
   # carried from the previous goal by tools/goal-switch.py
   "examples/webcrypto.nvs",
   "examples/finish.nvs",
@@ -96,56 +96,39 @@ files = [
 [context]
 
 modules = [
-  # `infer_instanceof` and the module doc's roster of `E0496` right-hand sides -- the refusal this
-  # goal removes, and the two beside it that stay. Stage 2.
-  "crates/nvs-types/src/expr/members.rs",
-  # `reject_unconvertible` and `reject_uncheckable_element_type`: the `E0711` roster of targets
-  # naming no class to test against. Stage 3.
-  "crates/nvs-types/src/expr/operators.rs",
-  # `ExprInfo::InstanceOf` -- what a recorded test carries to `nvs-ir`, and why it is recorded at
-  # all. Stage 2.
-  "crates/nvs-types/src/expr_table.rs",
-  # `class_descriptors`: the `(name, *const ClassDesc)` pairs already published to the backend, and
-  # the address the test walks. Stage 2.
-  "crates/nvs-stdlib/src/instance.rs",
-  # `class_desc(label)`, how the backend reaches a descriptor by name. Stage 2.
-  "crates/nvs-codegen/src/lib.rs",
-  # `TestShape` and the lowering of a recorded test -- where a checked test becomes one. Stage 2.
-  "crates/nvs-ir/src/lower/expr.rs",
-  # `lower_checked_downcast`, the conversion table's fall-through, and `lower_markup_lift`'s own arm
-  # that must not be reached through it. Stage 3.
-  "crates/nvs-ir/src/lower/convert.rs",
-  # `Ctx::class_desc`: the `Core` resolver consulted after the program's table, which is why a
-  # decoded instance arrives back under its own descriptor. Stage 2.
-  "crates/nvs-runtime/src/ctx/error.rs",
-  # The graph copy, and the `# Known gaps` block this goal closes. Stages 0 and 4.
-  "crates/nvs-runtime/src/graph.rs",
-  # `E_INSTANCEOF_NOT_A_CLASS` and `E_UNTESTABLE_CONVERSION_TARGET`: both rosters, as the codes
-  # state them. Stages 0 and 3.
-  "crates/nvs-diagnostics/src/lib.rs",
-  # Emits one `nvs_ir::Function` as Cranelift IR.
-  "crates/nvs-codegen/src/emit.rs",
-  # Seeding the checker's signature table with `Core`.
-  "crates/nvs-types/src/core_lib.rs",
-  # A minimal bidirectional expression checker: the dispatch, and the modules each rule lives in.
-  "crates/nvs-types/src/expr/mod.rs",
-  # Per-function-body local-variable checking: `rule:types/declaration`'s declare-once rule
-  # ("there is no shadowing") and flow-sensitive definite assignment ("reading a binding on a path
-  # that may not have reached its initialiser is a compile error").
-  "crates/nvs-types/src/locals.rs",
-  # `rule:types/closure-literal`'s closure literals, lowered to an object of a synthesized class
-  # with one field per capture.
-  "crates/nvs-ir/src/lower/closure.rs",
+  # `encode`, `bind`, `declarations`, `text_param` and `text_of`: every site of the refusal, and the
+  # `@params` text a statement is compiled against. Stages 2 and 3.
+  "crates/nvs-db/src/tds/rpc.rs",
+  # `TdsPlan::declared` -- the declaration a plan was compiled against, compared on every lookup --
+  # and `start_statement`, the sequencing one statement goes out under. Stages 2 and 3.
+  "crates/nvs-db/src/tds/plan.rs",
+  # The driver's own map, and the `# Known gaps` block this goal closes. Stages 0 and 4.
+  "crates/nvs-db/src/tds/mod.rs",
+  # `decode_column`: the read side of ADR 0067 § 9's row, already whole, which stage 4 reads back
+  # through. Stage 4.
+  "crates/nvs-db/src/tds/value.rs",
+  # The wire's type tokens -- what a `varbinary` marker and its length are on this protocol. Stage 3.
+  "crates/nvs-db/src/tds/types.rs",
+  # The scripted server a unit test drives, which is how a wire shape is asserted without a daemon.
+  # Stage 4.
+  "crates/nvs-db/src/tds/testing.rs",
+  # `StatementCache` and the TDS connection's own cache field: § 1's key, stated once for every
+  # driver. Stage 3.
+  "crates/nvs-db/src/conn.rs",
+  # The driver that already binds a `bytes`: `encode`'s binary path, as the shape to agree with
+  # rather than to invent. Stage 2.
+  "crates/nvs-db/src/pg.rs",
 ]
 
-# What a conversion is, what `mixed` narrows through, and what the memory it takes has to be.
+# What a column's type means in both directions, what one API over five backends promises, and what
+# the memory a decision takes has to be.
 rules = [
-  "types/unions-and-mixed",
-  "types/conversion",
+  "core-classes/db-column-types",
+  "core-classes/db-one-api",
   "programs/memory-priority",
 ]
 
-# Empty on purpose: no record argues this goal, and the one it may open is named in the prose.
+# Empty on purpose: the sections that argue this goal belong to single stages, below.
 adrs = []
 
 shapes = ["A commit message", "A code comment"]
@@ -162,18 +145,20 @@ playbook = [
   'Tooling > a [context]*',
   'Tooling > orient.py prints',
   'Tooling > another agent',
-  # Ranked by `python tools/playbook.py --goal` against this goal's modules.
+  # Ranked by `python tools/playbook.py --manifest` against this goal's modules.
   "Tooling > a loop-goal.toml check's -p",
-  'Tooling > a diagnostic constant',
-  'Writing Novis itself > a type name a',
-  'Writing a test case > a refusal only a',
+  'Writing Novis itself > nvsdb::encode is',
+  "Writing Novis itself > a crate's known-gap",
+  'Writing Novis itself > adding a driver',
+  'Writing a test case > a tds',
+  'Running things > python tools/db-matrix.py',
 ]
 
 plan = ["Open now", "Blocking"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `63-core-class-tests.md`, holding what only that stage needs.
+# THE STAGES. One table per prose stage in `64-tds-bytes.md`, holding what only that stage needs.
 #
 # `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
 # the base above -- an overlay adds and never replaces, so the base is what a session needs whatever
@@ -181,22 +166,22 @@ plan = ["Open now", "Blocking"]
 # of its own needs no table. Narrowable: rules, adrs, spec, shapes, playbook, milestones.
 #
 # These are the PROSE stage numbers, the `## Stage N` headings in this goal's `.md`. They are not
-# the `[[check]]` blocks' `stage = "2 the testable name"` labels, which may group several prose
-# stages under one acceptance line. loop-authoring.md section 2 is the whole of it.
+# the `[[check]]` blocks' `stage = "2 the bound form"` labels, which may group several prose stages
+# under one acceptance line. loop-authoring.md section 2 is the whole of it.
 # ---------------------------------------------------------------------------------------------------
 
 [context.stage.2]
-# What a class reference is at each of the sites that takes one, and what a written name may be.
-rules = ["types/class-reference-sites", "types/type-test"]
+# The type map read in both directions: the row a `bytes` is, and the sentence that says the table is
+# read outwards too.
+adrs = ["0067 §9"]
 
 [context.stage.3]
-# The lift that is not a downcast, and the rule that keeps it one.
-rules = ["core-classes/html-auto-escape", "types/type-test"]
+# The key every driver's statement cache holds, which this stage does not move.
+adrs = ["0067 §1"]
 
 [context.stage.4]
-# The third spelling, what a program may ask about a value it holds as `mixed`, and what the walk
-# whose module doc this stage rewrites is allowed to carry.
-rules = ["types/type-test", "types/erased-member-access", "security/isolate-values-cross-by-copy"]
+# What one API over five backends owes a program that binds the same list at each of them.
+rules = ["core-classes/db-transactions"]
 
 # Nothing this goal writes exists past the checker; the skip list is the floor's.
 [valgrind]
@@ -205,8 +190,8 @@ skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-so
 [wsl]
 target_dir = "/var/tmp/nvs-target-wsl"
 
-# The floor's, not this goal's own: the acceptance list carried in from goal `worker-placement`
-# reaches every driver, and the driver preflights the daemon before this goal's first session.
+# This goal's own as well as its floor's: stage 4 asserts that a real SQL Server accepts the bind,
+# which is `tools/db-matrix.py`'s leg and nothing a scripted server can answer for.
 [docker]
 compose = "tests/db/compose.yaml"
 services = ["postgres", "mysql", "mariadb", "mssql", "redis"]
@@ -215,7 +200,7 @@ memoize_on = ["crates/nvs-db", "crates/nvs-stdlib", "tests/db"]
 
 # <<< goal-switch: floor checks are inserted below this line >>>
 
-# 839 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# 844 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
 # They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
 # Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
@@ -11294,15 +11279,12 @@ tests = [
   "a_serving_core_registers_its_inbox_as_it_starts",
 ]
 
-
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- the keystone: a `Core` class is a testable class name. Goal prose stage 2.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "2 the testable name"
+stage = "1 floor"
 name = "nvs-types (a Core class is a written name `instanceof` accepts, and the test is recorded)"
 args = ["test", "-p", "nvs-types"]
 tests = [
@@ -11313,21 +11295,19 @@ tests = [
 
 [[check]]
 kind = "nvs-suite"
-stage = "2 the testable name"
+stage = "1 floor"
 name = "conformance (a mixed holding a Core instance answers `instanceof` by naming the class)"
 args = ["test", "tests/conformance/"]
 cases = [
   "tests/conformance/core/a-mixed-holding-a-core-instance-is-tested-by-name.nvst",
 ]
 
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 3 -- the conversion target, and the lift that is not one. Goal prose stage 3.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "3 the conversion target"
+stage = "1 floor"
 name = "nvs-types (a Core class is a conversion target, and object/shape/callable still are not)"
 args = ["test", "-p", "nvs-types"]
 tests = [
@@ -11337,7 +11317,7 @@ tests = [
 
 [[check]]
 kind = "nvs-suite"
-stage = "3 the conversion target"
+stage = "1 floor"
 name = "conformance (a mixed narrows to the Core class it holds, and a markup lift is still a lift)"
 args = ["test", "tests/conformance/"]
 cases = [
@@ -11345,16 +11325,68 @@ cases = [
   "tests/conformance/core/a-string-lifted-to-markup-is-not-a-downcast.nvst",
 ]
 
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 4 -- the three spellings agree, and the gap is closed. Goal prose stage 4.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "nvs-suite"
-stage = "4 one question, three spellings"
+stage = "1 floor"
 name = "conformance (`is`, `instanceof` and `as` answer the same question about one Core value)"
 args = ["test", "tests/conformance/"]
 cases = [
   "tests/conformance/core/one-core-value-answers-the-same-from-is-instanceof-and-as.nvst",
 ]
+
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the keystone: a bound value carries its form. Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the bound form"
+name = "nvs-db (a `bytes` is a bound value with a form, and the values with none are still refused)"
+args = ["test", "-p", "nvs-db"]
+tests = [
+  "a_bound_bytes_carries_a_binary_form_rather_than_a_refusal",
+  "an_array_an_object_and_a_non_finite_float_are_still_refused_by_the_tds_encoder",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the declaration, and the bytes on the wire. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the declaration"
+name = "nvs-db (a binary marker is declared `varbinary` and written as itself)"
+args = ["test", "-p", "nvs-db"]
+tests = [
+  "a_bound_parameter_renders_as_t_sql_reads_it_and_a_bytes_is_declared_varbinary",
+  "a_plan_declared_for_a_bytes_is_not_reused_for_a_text_value_at_that_marker",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the round trip, scripted and real. Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the round trip"
+name = "nvs-db (a `bytes` bound to the scripted server comes back as the bytes that went out)"
+args = ["test", "-p", "nvs-db"]
+tests = [
+  "tds_round_trips_a_bytes_through_varbinary",
+]
+
+# The matrix is the only place a driver claim meets a real server, and the one that says this bind is
+# not merely well-formed.
+[[check]]
+kind = "command"
+stage = "4 the round trip"
+name = "the five-driver matrix, with a `bytes` bound on each"
+argv = ["python", "tools/db-matrix.py", "--all"]
+want = ["mysql: ok", "mariadb: ok", "postgres: ok", "mssql: ok", "sqlite: ok"]

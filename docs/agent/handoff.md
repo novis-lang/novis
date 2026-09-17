@@ -2,51 +2,43 @@
 
 ## State
 
-**Goal `core-class-tests` is met.** A `Core` class with instances is a written class name all three
-type tests walk, against the process-wide descriptor `nvs_stdlib::class_descriptors` publishes:
-`$v is Core\Time\Date`, `$v instanceof Core\Time\Date` and `$v as Core\Time\Date` compile, answer at
-run time and narrow the subject on the true edge. `verify.py` is 11 of 11 green — 4748 tests, 2024
-conformance cases.
+**Goal 64 — a `bytes` parameter binds on every driver — has just started; nothing of it has landed yet.** Goal `core-class-tests`'s whole list is this goal's Stage 1 floor.
 
-What moved this session, one sentence each. `nvs_types::expr::operators`'s
-`reject_unrelated_class_conversion` (`crates/nvs-types/src/expr/operators.rs:1853`) now sends only a
-`Core` **namespace** class to `E0711` and asks every other `Core` class the same disjointness question a
-declared class gets; `testable_core_class` (`crates/nvs-types/src/expr/members.rs:435`) is `pub` so
-`nvs-ir` asks the one roster rather than a copy; and `declared_class`
-(`crates/nvs-ir/src/lower/closure.rs:366`) answers for that roster, which is all
-`lower_checked_downcast` needed — `InstKind::InstanceOf` already carried the name and `emit_instanceof`
-already relocated it.
-
-**Still refused, on purpose**: a `Core` namespace class as a test or a conversion target (`E0496`,
-`E0711`), the dynamic right-hand side, an enum, `as ?Core\Class` (`E0473`, which refuses the nullable
-spelling over *any* class target), and `new Core\X()`. `rule:core-classes/html-auto-escape` keeps
-`"lit" as Core\Html\Markup` a lift: a lift's operand is a `Ty::Str`, so it never reaches the downcast
-arm, which wants a `Ty::Tagged`. `crates/nvs-runtime/src/graph.rs`'s known gap is closed and its
-`carried-gaps.md` row deleted.
+What is settled before the first session: the read half is built — `decode_column`
+(`crates/nvs-db/src/tds/value.rs`) answers `varbinary`, `binary` and `image` as `bytes` — and so is the
+mechanism a declaration that varies with the bound *values* needs. `TdsPlan::declared`
+(`crates/nvs-db/src/tds/plan.rs:38`) carries the `@params` text a plan was compiled against and compares
+it on every lookup, unpreparing a plan a call does not fit, which is what `declarations`
+(`crates/nvs-db/src/tds/rpc.rs:315`) already needed to widen a marker to `nvarchar(max)`. A session must
+not re-decide two things because of that: ADR 0067 § 1's cache key — SQL text plus expansion arity —
+stays as it is for every driver, and a `bytes` is never rendered into the SQL text as a `0x…` literal
+(the goal's *Standing decisions*).
 
 ## Next group
 
-**Follow-on, unscheduled — one file set: `crates/nvs-ir/src/lower/closure.rs`,
-`crates/nvs-types/src/expr/members.rs`.**
+**Stage 2: the bound form** — one file set: `crates/nvs-db/src/tds/rpc.rs`, `crates/nvs-db/src/pg.rs`.
 
-- [ ] **A closure parameter declared `Core\X` now class-checks, and nothing pins it** —
-      `crates/nvs-ir/src/lower/closure.rs:404`'s `check_param_class` takes `declared_class`'s answer,
-      which since this goal is `Some` for a `Core` class with instances, so a wrong argument raises a
-      `LogicError` where it used to be checked for objecthood alone. `rule:types/class-reference-sites`
-      is what specifies it; the entry check is reached from
-      `crates/nvs-ir/src/lower/closure.rs:833`.
-- [ ] **`new Core\X()` is refused for a reason no case states** —
-      `crates/nvs-types/src/expr/members.rs:388`'s `undeclared_name` path is what a written `Core` class
-      hits at a `new`, which reads as "undeclared" rather than as the deliberate refusal it is.
-      `rule:types/class-reference-sites`.
-- [ ] **The isolate round trip is asserted only through `mixed`** —
-      `crates/nvs-stdlib/src/instance.rs:521`'s descriptors are what a decoded instance is rebuilt
-      under, and no case names the class on the far side of a crossing.
-      `rule:security/isolate-values-cross-by-copy`.
+- [ ] **A bound value says which form it is** — `crates/nvs-db/src/tds/rpc.rs:153`'s `bind` answers
+      `Vec<Option<Vec<u8>>>` of UCS-2 text, which is why every marker can share one `nvarchar`
+      declaration and why a `bytes` has nowhere to be. The element gains its form — text or binary —
+      and nothing else about the list moves. `rule:core-classes/db-column-types` is what the two forms
+      answer to.
+- [ ] **`encode` stops refusing a `bytes`** — `crates/nvs-db/src/tds/rpc.rs:452` reads the value's tag
+      and returns `InvalidInput` for a `bytes`; that arm produces the binary form instead, which is
+      where the decision is made once and before anything is written. `crates/nvs-db/src/pg.rs:1817` is
+      the driver that already does it, and the shape to agree with rather than invent.
+- [ ] **Both halves of the refusal go together** — `crates/nvs-db/src/tds/rpc.rs:372`'s `text_param`
+      and `:269`'s `text_of` state the same refusal one layer down, and a value that gets past one and
+      not the other is a value this driver sends wrong (the goal's *Standing decisions*).
 
 ## Backlog
 
-- `as ?Core\Class` is `E0473` like every class target, which `rule:types/conversion`'s general `as ?T`
-  sentence does not mention — `docs/rules/types/conversion`.
-- `Core\Html\Markup` is on `testable_core_class`'s roster and reaches `declared_class`; only the
-  operand's representation keeps the lift and the downcast apart — `crates/nvs-ir/src/lower/closure.rs`.
+- **Stage 3, the declaration and the wire** — `crates/nvs-db/src/tds/rpc.rs:315`'s `declarations` gives
+  a binary marker its own `varbinary` entry and `text_param` writes it as itself; the plans are told
+  apart by the comparison `crates/nvs-db/src/tds/plan.rs:38` already makes. Same file set as stage 2.
+- **Stage 4, the round trip** — `crates/nvs-db/src/tds/testing.rs`'s scripted server for the wire
+  shape, then `python tools/db-matrix.py --all` for the claim that a real SQL Server accepts it.
+- **Stage 0's five sentences** — each is rewritten in the slice that makes it wrong, not after it; the
+  goal's *Stage 0* lists them with their files, and `crates/nvs-db/src/tds/mod.rs:88` gap 1 is the last
+  of them.
+- When this goal's last check goes green the driver takes goal `gap-zero`.

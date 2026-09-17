@@ -1,98 +1,99 @@
 ---
 milestone: post-parity
 ---
-# Loop goal 63 — a `Core` class is a name a type test can walk
+# Loop goal 64 — a `bytes` parameter binds on every driver
 
-`$v instanceof Core\Time\Date` and `$v as Core\Time\Date` answer at run time instead of being refused
-where they are written, so a `mixed` holding a `Core` instance narrows to the class it actually holds.
-A value that arrives as a `mixed` — decoded back from an isolate's answer, handed over by `Core\Debug`,
-taken by any member declaring `mixed` — becomes usable by naming its class, the same way a value of a
-class the program declares already does. Afterwards `crates/nvs-runtime/src/graph.rs` owns no gap.
+A `bytes` value bound to a statement reaches SQL Server as a `varbinary` parameter, the way it already
+reaches the other four backends, so [ADR 0067 § 9](../decisions/0067.md)'s `BINARY`/`BLOB`/`BYTEA`
+row is whole in both directions on every driver and one program binds one value list wherever it is
+pointed. Afterwards `crates/nvs-db/src/tds/mod.rs` owns no gap.
 
 ## Why here
 
-Directly after goal `worker-placement` and in front of goal `gap-zero`, because both halves of the
-answer are already built and only the checker's roster is missing. The descriptor a test would walk is
-published: `nvs_stdlib::instance::class_descriptors` (`crates/nvs-stdlib/src/instance.rs:488`) hands the
-backend a `(name, *const ClassDesc)` pair for every `Core` class, which is how a folded `` html`…` ``
-constant already reaches one. The run-time side is built too — `nvs_runtime::Ctx::class_desc`
-(`crates/nvs-runtime/src/ctx/error.rs:261`) asks the `Core` resolver after the program's own table, which
-is why a decoded `Core\Time\Date` arrives back under its own descriptor with its slots intact. What
-refuses the program is one roster in `nvs-types`, in two places: `infer_instanceof`
-(`crates/nvs-types/src/expr/members.rs:298`) reports `E0496` for a `Core` class because it "has no
-descriptor laid out for the test to walk", and `reject_unconvertible`
-(`crates/nvs-types/src/expr/operators.rs:1765`) reports `E0711` for the same class as a conversion
-target with no class to test against.
+Directly after goal `core-class-tests` and in front of goal `gap-zero`, because that goal's gate is
+that no register item names a goal and `crates/nvs-db/src/tds/mod.rs` gap 1 names this one. Goal
+`m8-db-queue` took the row side of the same ADR and its stage gate names every tag it closed, so this
+one was never its.
 
-Goal `gap-zero` is what needs it: that goal's gate is that no register item names a goal, and
-`crates/nvs-runtime/src/graph.rs` gap 1 names this one. It could not have been written earlier: the
-crossing that hands a program a decoded `Core` instance is what made the question reachable, and it is
-that crate's own walk (`crates/nvs-runtime/src/graph.rs`).
+It is here rather than earlier because what the gap called an open question is already answered on
+disk. The read half is whole — `decode_column` (`crates/nvs-db/src/tds/value.rs`) answers `varbinary`,
+`binary` and `image` as `bytes` like every other driver. And the write half's hard part, a `@params`
+declaration that is a function of the *values* a call binds rather than of the statement alone, is
+built: `TdsPlan::declared` (`crates/nvs-db/src/tds/plan.rs:38`) carries the declaration a plan was
+compiled against and compares it on every lookup, treating a mismatch as a miss that unprepares the
+plan it did not fit. That exists because `declarations` (`crates/nvs-db/src/tds/rpc.rs:315`) already
+widens a marker to `nvarchar(max)` past `NVARCHAR_CHARS`, which is the same problem in a narrower
+shape. So § 1's cache key does not have to move to carry a `bytes`, and this goal is a driver's
+encoder rather than a rule change for five drivers.
 
 ## Stage 0 — the catch-up
 
 The sentences on disk that go wrong the day this goal is green, each with the file that holds them:
 
-- `crates/nvs-types/src/expr/members.rs:44-49` — *a `Core` class has no descriptor laid out for the test
-  to walk, so all three are `E0496`*. Three refusals share that code and only this one stops being true;
-  the dynamic form and the enum stay exactly as they are.
-- `crates/nvs-ir/src/lib.rs:558-562` — *Every other object target names no class to test against — plain
-  `object`, a shape, a `callable`, a `Core` class*. The roster loses its last member and keeps the rest.
-- `crates/nvs-runtime/src/graph.rs:72-86` — the `# Known gaps` block this goal closes, rewritten as what
-  the round trip then does rather than as what it cannot do.
-- `crates/nvs-diagnostics/src/lib.rs`'s docs on `E_INSTANCEOF_NOT_A_CLASS` and
-  `E_UNTESTABLE_CONVERSION_TARGET`, wherever they name a `Core` class as a member of either roster.
+- `crates/nvs-db/src/tds/mod.rs:88` — gap 1 itself, and the sentence above the `# Known gaps` block
+  that calls the refusal *this driver's only departure* from § 9's table.
+- `crates/nvs-db/src/tds/rpc.rs:123-128` — *a parameter that is not UTF-8 is refused rather than
+  reinterpreted*. The reason stays whole — `nvarchar` → `varbinary` on SQL Server is a reinterpretation
+  and never a conversion — and what changes is that a `bytes` is no longer a value with no form to
+  send.
+- `crates/nvs-db/src/tds/rpc.rs:143-152` and `:448-451` — `bind`'s doc and `encode`'s `# Errors`, both
+  of which list a `bytes` among the values with no form on this protocol.
+- `crates/nvs-db/src/tds/rpc.rs:269-283` — `text_of`'s refusal message, which names the `bytes` it
+  refuses and says an encoding of its own is what it would need.
+- `docs/agent/carried-gaps.md` § *Owned* — the row naming this goal, struck when the gap closes.
 
 ## Stage 1 — the floor
 
-Goal `worker-placement`'s whole acceptance list, carried in verbatim by `tools/goal-switch.py`. Never traded.
+Goal `core-class-tests`'s whole acceptance list, carried in verbatim by `tools/goal-switch.py`. Never traded.
 
-## Stage 2 — the keystone: a `Core` class is a testable class name
+## Stage 2 — the keystone: a bound value carries its form
 
-The one question `nvs-types` asks — *does this name resolve to a class whose descriptor a test can walk?*
-— answers yes for a `Core` class. `infer_instanceof` stops reporting `E0496` for one and records the
-resolved name in `ExprInfo::InstanceOf` the way it already records a declared class, so `nvs-ir` reaches
-the descriptor address `class_descriptors` publishes and the run-time test is the walk it already does.
-Nothing about the descriptor set moves, and `nvs-types` gains no second table: what it needs is the
-class's *identity*, which the registry already answers for every other purpose.
+`bind` (`crates/nvs-db/src/tds/rpc.rs:153`) answers one list of already-UCS-2 text, which is why every
+parameter can go out under one `nvarchar` declaration and why a `bytes` has nowhere to be. The keystone
+is that list's element saying which form it is — text or binary — produced where `encode`
+(`crates/nvs-db/src/tds/rpc.rs:452`) reads the value's tag, so the decision is made once, before
+anything is written, exactly where the refusal is made today.
 
-Everything after this is mechanical, which is why it is the keystone: once a `Core` name is testable, the
-conversion target below is the same question asked through a different operator.
+Everything after this is mechanical: the declaration and the wire write both read that form, and
+neither has a second question to ask.
 
-## Stage 3 — the conversion target, and the lift that is not one
+## Stage 3 — the declaration, and the bytes on the wire
 
-`mixed as Core\Time\Date` becomes `rule:types/unions-and-mixed`'s checked downcast over the descriptor
-stage 2 made reachable — `nvs_ir::lower::Lowering::lower_checked_downcast`
-(`crates/nvs-ir/src/lower/convert.rs:1171`) is the lowering, unchanged in shape. `reject_unconvertible`'s
-roster keeps `object`, a shape and a `callable`, each of which still names no class.
+`declarations` (`crates/nvs-db/src/tds/rpc.rs:315`) gives a binary marker its own `varbinary` entry
+beside the `nvarchar` ones, and `text_param` (`crates/nvs-db/src/tds/rpc.rs:372`) writes a binary value
+as itself rather than as UCS-2. Two calls binding the same statement with a `bytes` at different
+markers are told apart by the comparison `TdsPlan::declared` already makes, so a plan compiled for one
+declaration is never handed a call the other shape.
 
-`string as Core\Html\Markup` does not move. `rule:core-classes/html-auto-escape` makes it a **lift**
-rather than a test — the operand is a source literal or it is `E0417` — and it stays
-`Lowering::lower_markup_lift`'s own arm, never reached through the downcast this stage opens.
+`rule:core-classes/db-column-types` is what both halves answer to, and the refusal `encode` and
+`text_param` each state where it is stops being true in the same slice.
 
-## Stage 4 — the three spellings agree
+## Stage 4 — the round trip is pinned, on a scripted server and a real one
 
-`rule:types/type-test` owns `is`, and whatever it already answers for a `Core` class is what the two
-operators above must agree with: one question, three spellings, and no program that can ask it two ways
-and get two answers. The conformance cases are written over the same class from all three, and
-`crates/nvs-runtime/src/graph.rs`'s module doc is rewritten as what the round trip now does.
+A `bytes` bound and read back is equal to what went out, over `crates/nvs-db/src/tds/testing.rs`'s
+scripted server for the wire shape and over `python tools/db-matrix.py --all` for the claim that a real
+SQL Server accepts it. `rule:core-classes/db-one-api`'s promise is that one program binds one value
+list whatever it is pointed at, so the case is the same case the other drivers already pass.
 
 ## Standing decisions
 
-- **The descriptor set does not move, and no second table is built.**
-  `nvs_stdlib::instance::class_descriptors` stays the one publisher of a `Core` class's descriptor
-  address, and `nvs_runtime::Ctx::class_desc` stays the one lookup. A session that finds the checker
-  needs the identity in a different shape derives it from the registry rather than declaring a copy.
-- **A `Core` class is final for the test.** The walk answers the class itself and whatever its descriptor
-  already declares; this goal adds no inheritance edge, no interface and no member to any `Core` class.
-- **`string as Core\Html\Markup` stays a lift**, per `rule:core-classes/html-auto-escape`. A session that
-  finds the downcast reaching it has widened the wrong roster.
-- **Not this goal**: `new Core\X()` and a static call through a value, which `reject_dynamic_class_name`
-  refuses for the unrelated no-computed-names reason; what the `Core` registry contains; and the
-  crossing itself, which `rule:security/isolate-values-cross-by-copy` owns.
-- **What it spends** is written per module, per `rule:programs/memory-priority`: the descriptor table is
-  per process and already built, and a test that answers costs the walk it already costs for a declared
-  class.
-- **ADR slots**: one record, taking the next free number, and only if the shape the checker needs for a
-  `Core` class's identity is a design choice rather than a lookup. Reading the registry the way every
-  other pass reads it opens none.
+- **§ 1's cache key does not move.** SQL text plus expansion arity stays the key on every driver. A
+  `bytes` at a different marker is told apart by `TdsPlan::declared`'s existing comparison, which is
+  one driver's reason to reject a hit rather than another way to spell the key. A session that finds
+  itself adding bound types to the key has changed five drivers to fix one.
+- **No interpolation, in any form.** § 1's *emulated prepares do not exist in any form* binds here too:
+  a `bytes` goes out as a bound `varbinary` parameter and is never rendered into the SQL text as a
+  `0x…` literal, however much simpler that would be to write.
+- **The refusal is closed in both places or in neither.** `encode` and `text_param` each state it where
+  they are, and a value that gets past one and not the other is a value the driver sends wrong.
+- **The read side does not move.** `decode_column` already answers § 9's row; this goal adds no column
+  type, no `Tag` and no member.
+- **What it spends**, per `rule:programs/memory-priority` and written into the module that takes it: a
+  bound `bytes` travels as its own bytes instead of as the UCS-2 text it has no form for, and the
+  per-connection plan cache holds the declaration string it already holds, one per plan shape.
+- **Not this goal**: the other four drivers, whose `bytes` already binds; `Core\Db::stream` and the
+  schema half, which `gap-zero`'s register names against their own owners; and anything about how a
+  `bytes` is spelled in the language.
+- **ADR slots**: none. §§ 1 and 9 state both halves already, and the declaration comparison is
+  `TdsPlan::declared`'s own doc. A rule fragment this goal makes wrong is amended in the slice that
+  makes it wrong.
