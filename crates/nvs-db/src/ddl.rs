@@ -57,6 +57,20 @@
 //!   `MAX` type is not a key column there. The statement is still emitted,
 //!   because § 8 says a step is shown in full even when it will not run, and
 //!   § 5's grading is where it becomes a refusal rather than a failure.
+//! - **MySQL bounds an index key, so a wide column is indexed by a prefix of
+//!   it.** InnoDB admits 3072 bytes of one key where the vocabulary's text
+//!   widths are characters, so the columns of an index share that budget and a
+//!   text or bytes column wider than its share carries the prefix length that
+//!   fits: a `text(2000)` column enters a single-column index as its first 768
+//!   characters. [`index_columns`] is the whole rule, and it is an index's
+//!   alone — a prefix over a unique or primary key would enforce something
+//!   stricter than the schema asked for, which is [`crate::schema`]'s own
+//!   argument for refusing an unbounded column in any key at all. So a unique
+//!   or primary key over a *bounded* column wider than the budget is emitted
+//!   whole and MySQL refuses it, exactly as the SQL Server case above: § 8
+//!   shows the step in full, and § 5's grading is where a statement the server
+//!   will not take becomes a refusal rather than a failure. Nothing grades
+//!   that one yet.
 //! - **A SQL Server unique key over a nullable column is a filtered index**,
 //!   because its `UNIQUE` constraint is the one spelling of the four that reads
 //!   that column's nulls as equal and refuses the second of them.
@@ -184,7 +198,7 @@ fn create_table_statement(name: &str, table: &Table, dialect: Dialect) -> String
             clauses.push(format!(
                 "INDEX {} ({})",
                 delimited(key.name().as_str(), dialect),
-                key_columns(key.columns(), dialect)
+                index_columns(table, key.columns(), dialect)
             ));
         }
     }
@@ -237,13 +251,14 @@ fn null_filter(table: &Table, key: &Key, dialect: Dialect) -> Option<String> {
 }
 
 /// One `CREATE INDEX`, for the three dialects that declare one outside the
-/// table it belongs to.
+/// table it belongs to — and for MySQL's own [`add_key`], which reaches an
+/// index on a table that already exists by this door rather than by a clause.
 fn create_index(table: &Table, key: &Key, dialect: Dialect) -> String {
     format!(
         "CREATE INDEX {} ON {} ({});",
         delimited(key.name().as_str(), dialect),
         delimited(table.name().as_str(), dialect),
-        key_columns(key.columns(), dialect)
+        index_columns(table, key.columns(), dialect)
     )
 }
 
@@ -457,6 +472,86 @@ fn key_columns(columns: &[Ident], dialect: Dialect) -> String {
         .map(|name| delimited(name.as_str(), dialect))
         .collect::<Vec<String>>()
         .join(", ")
+}
+
+/// The bytes InnoDB admits in one index key.
+///
+/// The `DYNAMIC` row format's limit, which is the format MySQL 8 and MariaDB
+/// 10.2 and later create a table in unless told otherwise. The older `COMPACT`
+/// format's 767 is deliberately not what is written here: a prefix bounds what
+/// the index holds, so writing a shorter one than the server admits costs every
+/// index over a wide column its selectivity on a server that never needed it.
+const MYSQL_KEY_BYTES: u32 = 3072;
+
+/// The bytes one `utf8mb4` character can cost, which is what makes a declared
+/// character width and a key budget two different units.
+const MYSQL_CHAR_BYTES: u32 = 4;
+
+/// An index's columns as MySQL will accept them, and the other three dialects'
+/// plain [`key_columns`] list.
+///
+/// MySQL is the one dialect that bounds an index key, and it bounds it in
+/// *bytes* where the vocabulary states a text width in characters: a
+/// `VARCHAR(2000)` column is 8000 bytes of key, and the server refuses the
+/// index rather than shortening it for you. The columns of one index share
+/// [`MYSQL_KEY_BYTES`], so each is measured against an equal part of it and a
+/// text or bytes column wider than its part carries the prefix that fits —
+/// counted in characters for text and in bytes for binary, which is the unit
+/// MySQL reads each in. Nothing else in the vocabulary can exceed its part:
+/// the widest non-text spelling [`mysql_type`] writes is `CHAR(36)`, 144
+/// bytes, and an index MySQL admits at all has at most sixteen columns.
+///
+/// **An index only.** A prefix over a *unique* key would enforce something
+/// stricter than the schema asked for, since two values sharing their leading
+/// characters would collide under it — which is [`crate::schema`]'s own
+/// argument for refusing an unbounded column in any key, and why no unbounded
+/// column reaches here either.
+fn index_columns(table: &Table, columns: &[Ident], dialect: Dialect) -> String {
+    if dialect != Dialect::MySql {
+        return key_columns(columns, dialect);
+    }
+    let width = u32::try_from(columns.len()).unwrap_or(u32::MAX);
+    let share = (MYSQL_KEY_BYTES / width).max(1);
+    columns
+        .iter()
+        .map(|name| {
+            let written = delimited(name.as_str(), dialect);
+            match table
+                .column(name)
+                .and_then(|column| mysql_prefix(column.ty(), share))
+            {
+                Some(prefix) => format!("{written}({prefix})"),
+                None => written,
+            }
+        })
+        .collect::<Vec<String>>()
+        .join(", ")
+}
+
+/// How much of a column one MySQL index holds, in the unit MySQL counts that
+/// column in, or `None` where it holds the whole of it.
+///
+/// `share` is the bytes of [`MYSQL_KEY_BYTES`] this column may spend. A text
+/// column's prefix is a count of characters and a binary one's is a count of
+/// bytes, which is why only the text case divides by [`MYSQL_CHAR_BYTES`]. An
+/// unbounded column is wider than any share; [`crate::schema`] refuses one in a
+/// key before it arrives here, and answering it anyway is what keeps this total
+/// rather than a second statement of that refusal.
+fn mysql_prefix(ty: &ScalarType, share: u32) -> Option<u32> {
+    match ty {
+        ScalarType::Text { max } => {
+            let characters = (share / MYSQL_CHAR_BYTES).max(1);
+            match max {
+                Some(max) if *max <= characters => None,
+                _ => Some(characters),
+            }
+        }
+        ScalarType::Bytes { max } => match max {
+            Some(max) if *max <= share => None,
+            _ => Some(share),
+        },
+        _ => None,
+    }
 }
 
 /// The identity column SQLite writes as the rowid, if this table has one.
@@ -1485,6 +1580,86 @@ mod tests {
             }
         }
         assert_eq!(distinct.len(), 4, "five drivers, four dialects");
+    }
+
+    /// `rule:core-classes/schema-plan`: MySQL bounds an index key, so a column
+    /// wider than its share of that bound is indexed by a prefix of itself.
+    ///
+    /// The prefix is the emitter's and not the schema's: the same [`Table`]
+    /// emits a plain column list on the other three, which bound an index key
+    /// differently or not at all. [`index_columns`]'s doc is why a unique key
+    /// over the same column carries none, and the pair index is what pins the
+    /// budget as shared rather than per column — `token` holds 384 characters
+    /// beside `name` where it holds 768 alone.
+    #[test]
+    fn mysql_gives_an_indexed_text_column_a_prefix_length() {
+        let table = Table::new(
+            "wide",
+            vec![
+                Column::new("id", ScalarType::Int(IntWidth::Big)).unwrap(),
+                Column::new("token", ScalarType::Text { max: Some(2000) }).unwrap(),
+                Column::new("name", ScalarType::Text { max: Some(64) }).unwrap(),
+                Column::new("raw", ScalarType::Bytes { max: Some(4000) }).unwrap(),
+            ],
+        )
+        .unwrap()
+        .primary_key(&["id"])
+        .unwrap()
+        .index("wide_token_idx", &["token"])
+        .unwrap()
+        .index("wide_raw_idx", &["raw"])
+        .unwrap()
+        .index("wide_name_idx", &["name"])
+        .unwrap()
+        .index("wide_pair_idx", &["token", "name"])
+        .unwrap()
+        .unique("wide_token_key", &["token"])
+        .unwrap();
+
+        let mysql = create_table(&table, Dialect::MySql).join("\n");
+
+        // 3072 bytes of key, four of them to a `utf8mb4` character.
+        assert!(
+            mysql.contains("INDEX `wide_token_idx` (`token`(768))"),
+            "{mysql}"
+        );
+        // A binary column's prefix is counted in bytes rather than characters.
+        assert!(
+            mysql.contains("INDEX `wide_raw_idx` (`raw`(3072))"),
+            "{mysql}"
+        );
+        // `VARCHAR(64)` is 256 bytes of key and spends no more than it has.
+        assert!(mysql.contains("INDEX `wide_name_idx` (`name`)"), "{mysql}");
+        // Two columns halve the budget, so the wide one holds 1536/4 of it.
+        assert!(
+            mysql.contains("INDEX `wide_pair_idx` (`token`(384), `name`)"),
+            "{mysql}"
+        );
+        // A prefix over a unique key would be a stricter constraint than asked.
+        assert!(
+            mysql.contains("CONSTRAINT `wide_token_key` UNIQUE (`token`)"),
+            "{mysql}"
+        );
+
+        // An index built on a table that already exists is the same rule
+        // reached by the other door.
+        let index = table
+            .indexes()
+            .iter()
+            .find(|key| key.name().as_str() == "wide_token_idx")
+            .unwrap();
+        assert_eq!(
+            create_index(&table, index, Dialect::MySql),
+            "CREATE INDEX `wide_token_idx` ON `wide` (`token`(768));"
+        );
+
+        for dialect in [Dialect::PostgreSql, Dialect::Sqlite, Dialect::SqlServer] {
+            let statements = create_table(&table, dialect).join("\n");
+            assert!(
+                !statements.contains("(768)") && !statements.contains("(3072)"),
+                "no dialect but MySQL writes a prefix length: {statements}"
+            );
+        }
     }
 
     /// `rule:core-classes/schema-plan`: one of MySQL's departures — the index is inside the
