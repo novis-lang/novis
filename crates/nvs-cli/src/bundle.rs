@@ -4,11 +4,11 @@
 //!
 //! ## What is appended
 //!
-//! § 2's payload is **source, not artifacts**: the entry file plus every file
-//! its `require` graph statically resolves to, as a flat list of
-//! `(relative path, length, bytes)`, with no archive format and no
-//! compression. § 4 puts a fixed-size footer after it, so the whole appended
-//! region is
+//! § 2's payload is **source, not artifacts**: the entry file, every file its
+//! `require` graph statically resolves to, and every file its `autoload` roots
+//! declare, as a flat list of `(relative path, length, bytes)`, with no archive
+//! format and no compression. § 4 puts a fixed-size footer after it, so the
+//! whole appended region is
 //!
 //! ```text
 //! [ host binary ][ manifest ][ footer ]
@@ -61,6 +61,7 @@
 //!   load at all today, so there is nothing for the flat list to carry.
 //!   — owner: M9
 
+use std::collections::HashSet;
 use std::fs;
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
@@ -145,6 +146,20 @@ pub(crate) fn run(bundle: Bundle) -> ExitCode {
 /// path the walk cannot resolve is already `E_REQUIRE_TARGET_NOT_FOUND`, and a
 /// program that does not compile produces no artifact at all rather than one
 /// that fails on the user's machine.
+///
+/// What is collected is the file set a *re-compilation* of this program reads,
+/// and the `require` graph is only half of it: a bundled process runs the same
+/// front end over the payload, so every file the `autoload` roots declare is
+/// frozen in here too, `nvs_hir::AutoloadMap::enumerate`'s answer taken at
+/// build time because a root is a real directory on the machine that built the
+/// bundle and nothing at all on the machine that runs it
+/// (`rule:programs/no-runtime-autoload`: the file graph closes while
+/// compiling). A file under a root that no name reaches is carried as well,
+/// since that is what the source tree offers `Core\Program::implementing<T>()`
+/// and `rule:routing/routes-are-compiled-not-registered`'s route table. What it
+/// spends is the source bytes of every `.nvs` file under a declared root, once,
+/// in the artifact — a program autoloading a directory it does not use ships
+/// that directory.
 pub(crate) fn build(entry: &Path, out: Option<&Path>) -> ExitCode {
     let checked = match super::front_end(entry) {
         Ok(checked) => checked,
@@ -162,6 +177,29 @@ pub(crate) fn build(entry: &Path, out: Option<&Path>) -> ExitCode {
             return ExitCode::FAILURE;
         };
         sources.push((path, src.text().to_owned()));
+    }
+
+    // `enumerate` is sorted by name and canonicalizes what it finds, as the
+    // loop above does, so the payload's tail is the same list in the same order
+    // on every host that builds it and a file the graph walk already loaded is
+    // recognised rather than embedded twice. A program that declared no
+    // `autoload` walks no directory here.
+    let mut seen: HashSet<PathBuf> = sources.iter().map(|(path, _)| path.clone()).collect();
+    for (_, path) in checked.autoload.enumerate() {
+        if !seen.insert(path.clone()) {
+            continue;
+        }
+        let text = match fs::read_to_string(&path) {
+            Ok(text) => text,
+            Err(err) => {
+                eprintln!(
+                    "error: {} is declared by an autoload root and cannot be read to bundle it: {err}",
+                    path.display()
+                );
+                return ExitCode::FAILURE;
+            }
+        };
+        sources.push((path, text));
     }
 
     let Some(root) = common_root(&sources) else {
