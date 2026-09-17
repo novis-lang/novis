@@ -2300,6 +2300,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   ambiguous, and the check names the *goal file* rather than the playbook the edit landed in. End
   the selector in `*` to take every match, in `docs/agent/loop-goal.toml` and in the
   `docs/agent/goals/<goal>.toml` copy both. [until: reviewed 2026-09-17]
+- **A stage whose tests carry names its `[[check]] tests = [...]` does not use is not landed, and
+  nothing says so until the `DONE`.** A `cargo test` filter that matches no test passes, so two
+  stages of goal `cache-shared-dial` were green for sessions under names the frozen check never
+  named. Read the goal's own `[[check]]` block before writing a stage's tests, and spell each test
+  what the toml already calls it. [until: gone tools/session.py:done_claim]
 
 ## Running things
 

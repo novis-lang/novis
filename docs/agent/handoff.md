@@ -2,53 +2,53 @@
 
 ## State
 
-**Goal `cache-shared-dial`, stage 4 landed: `rediss://` is the third transport, and gap 1 is
-closed.** `[cache.shared] url` reads three schemes — `crates/nvs-stdlib/src/cache.rs:477`'s `READS`
-is the one string every refusal quotes — and `Target::Tls { address, name }`
-(`crates/nvs-stdlib/src/cache.rs:2164`) carries the resolved address beside the name the peer's
-certificate is checked against. `Transport::dial` (`crates/nvs-stdlib/src/cache/redis.rs:526`)
-connects the same `NvsTcp`, sets the socket's own deadline and hands it to `NvsTls::over`: no
-relaxation is asked for, per `rule:security/tls-trust-is-relaxed-only-under-a-host-grant`, and it is
-`rule:security/one-tls-client`'s client and not a second.
+**Goal `cache-shared-dial` is met.** `[cache.shared]` reads three schemes, a `password`/`password_file`
+pair and a `database` index; the dial carries all of it as one value
+(`crates/nvs-stdlib/src/cache/redis.rs:141`), and `Connection::ensure`
+(`crates/nvs-stdlib/src/cache/redis.rs:180`) is the one place it is applied — on every connection,
+including the one nobody asked for.
 
-Two spellings that give one value two homes are refused with a sentence naming the key instead: a
-path (`[cache.shared] database`) and, new here, userinfo (`[cache.shared] password`). The userinfo
-refusal builds its own text rather than going through `refuse`, which quotes the URL — a refusal
-about a credential in a URL would otherwise be the first thing to carry it.
+Stage 5 closed both halves. On the wire,
+`auth_and_select_precede_the_first_command_in_that_order` and
+`a_reconnect_after_a_dropped_socket_sends_both_again` (`crates/nvs-stdlib/src/cache/redis.rs:1030`)
+read the bytes off a scripted store: the two steps precede the command that opened the connection,
+in that order, and the store's second accept gets both again. Against a real store,
+`examples/cache-shared-tls.nvs` dials `rediss://127.0.0.1:16380` at `database = 7` and reads
+`greeting` — `examples/cache.nvs`'s entry at index zero of that same Redis — before it writes
+anything, so the index line is a claim and not a restatement of its config: run against
+`database = 0` the fixture prints `the connection answered out of index zero` instead. The store's
+private CA reaches the client as `[http.client.tls] roots = ["bundled", "../tests/db/ca.crt"]` in
+the fixture's own tree, which is the standing decision's "add it to the process's roots" and not a
+key on `[cache.shared]`.
 
-`crate::tests::outbound_client` (`crates/nvs-stdlib/src/lib.rs:481`) is now the one place the
-process's outbound TLS client is built; `http::transport::tests::trusted` calls it. The playbook
-bullet above is why.
+Stages 2 and 3 were green under test names the acceptance data does not use, which is invisible to
+`cargo test` and refuses the `DONE`; all five now carry the frozen names, and the playbook bullet
+above is why. `python tools/verify.py` is green, `--doc` is green, and `owners.py --closes` /
+`playbook.py --closes` name nothing for this goal.
 
 ## Next group
 
-**Stage 5: the handshake is part of every connection, and a real store agrees** — one file set:
-`crates/nvs-stdlib/src/cache/redis.rs`, `examples/cache-shared-tls.nvs`,
-`examples/cache-shared-tls.toml`.
+**Stage 5 is closed, so the next group belongs to the goal the chain names after this one** — the
+driver's goal switch writes it. If the acceptance sweep comes back red on a stage-5 check, the file
+set is `crates/nvs-stdlib/src/cache/redis.rs` and the `examples/cache-shared-tls.*` pair, and the
+first thing to check is the precondition in `## Backlog` below rather than the client.
 
-- [ ] **`AUTH` then `SELECT` go out before the first command, and again after a dropped socket** —
-      `crates/nvs-stdlib/src/cache/redis.rs:209`'s `handshake`, reached from
-      `crates/nvs-stdlib/src/cache/redis.rs:180`'s `ensure`, asserted by a fake store in the test
-      module at `crates/nvs-stdlib/src/cache/redis.rs:840` as
-      `auth_and_select_precede_the_first_command_in_that_order` and
-      `a_reconnect_after_a_dropped_socket_sends_both_again`. The reconnect half is the claim the
-      keystone exists for: a handshake applied at boot passes the first and fails the second.
-      `rule:config/cache-shared-is-the-grant-over-the-configured-store` is the door it comes
-      through.
-- [ ] **`examples/cache-shared-tls.nvs` and its own `examples/cache-shared-tls.toml`** — the
-      acceptance fixture the driver reports missing, written under
-      `examples/cache-shared-socket.toml:1`'s reading (its own tree, because `[cache.shared]` is
-      unscoped). It dials `rediss://127.0.0.1:16380` — `tests/db/compose.yaml:293`'s `redis`
-      already serves TLS there under the `certs` chain, with no compose edit — at a non-zero
-      `database`, and prints exactly `put and get agree over TLS` then `the entry is at the
-      configured index and not at zero`.
+- [x] **`AUTH` then `SELECT` go out before the first command, and again after a dropped socket** —
+      two cases at `crates/nvs-stdlib/src/cache/redis.rs:1030` and
+      `crates/nvs-stdlib/src/cache/redis.rs:1065`, under
+      `rule:config/cache-shared-is-the-grant-over-the-configured-store`.
+- [x] **`examples/cache-shared-tls.nvs` and its own `examples/cache-shared-tls.toml`** — the store
+      `tests/db/compose.yaml:293` serves on `16380`, at a non-zero index, with the negative control
+      described above.
+- [x] **The five tests stages 2 and 3 are checked by carry the names the toml froze** —
+      `crates/nvs-stdlib/src/cache.rs:4178`, `crates/nvs-config/tests/secret.rs:540` and
+      `crates/nvs-config/tests/resolve.rs:1353`.
 
 ## Backlog
 
-- The goal prose's stage-5 anchor `crates/nvs-stdlib/src/cache.rs:2770` names a `getSecret` doc
-  comment, not a scripted store; the wire claims belong in `crates/nvs-stdlib/src/cache/redis.rs`'s
-  test module (`docs/agent/loop-goal.md` § *Stage 5*).
-- `[cache.shared] database` has no boot-time validation of its own; the tree's `u32` is the whole
-  refusal and a store's own `-ERR` is the rest (`docs/agent/loop-goal.md` § *Stage 3*).
-- `website/src/data/rules.json` and `website/src/content/docs/.../stores-and-caches.md` still carry
-  the pre-TLS divergence sentence; `python tools/rules.py --render` does not write the mirror.
+- `tests/db/ca.crt` is gitignored and reissued with the `certs` volume, so a machine that has not
+  run the one `docker compose cp` in `tests/db/compose.yaml`'s header fails the TLS fixture at boot
+  rather than at the handshake — that file's header owns the command.
+- `Core\Session`'s `shared` backend gained all three of this goal's halves without a line of its
+  own, and has no fixture that says so — `docs/agent/goals/65-cache-shared-dial.md` § *Standing
+  decisions* is why that was left out.
