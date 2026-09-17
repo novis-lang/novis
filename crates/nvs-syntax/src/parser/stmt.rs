@@ -251,12 +251,7 @@ impl<'src, 'd> Parser<'src, 'd> {
             TokenKind::Keyword(Keyword::Function) if self.at_named_function_decl() => {
                 self.parse_toplevel_function_reject(start, Vec::new())
             }
-            _ if self.at_contextual("type")
-                && self.peek_at(1).kind == TokenKind::Ident
-                && self.peek_at(2).kind == TokenKind::Equals =>
-            {
-                self.parse_type_alias_decl(start)
-            }
+            _ if self.at_type_alias() => self.parse_type_alias_decl(start),
             // `(int)$x;` etc. at statement start is also a syntactically
             // valid (if pointless) redundantly-parenthesized local
             // declaration with no initializer — `(int)` parses fine as a

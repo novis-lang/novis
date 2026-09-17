@@ -468,20 +468,37 @@ impl<'src, 'd> Parser<'src, 'd> {
 
     pub(super) fn parse_type_alias_decl(&mut self, start: Span) -> Stmt {
         let doc = self.take_doc_comment(start);
-        self.bump(); // 'type' (contextual — see `Self::parse_statement`)
+        let alias = self.parse_type_alias_body(start, doc);
+        Stmt {
+            span: alias.span,
+            kind: StmtKind::TypeAliasDecl(alias),
+        }
+    }
+
+    /// `type` is contextual at each of the sites an alias is written — file
+    /// scope, and a class, interface or enum body — so the three tokens that
+    /// tell the declaration from an identifier expression, a property or an
+    /// enum case are asked for in one place.
+    pub(super) fn at_type_alias(&mut self) -> bool {
+        self.at_contextual("type")
+            && self.peek_at(1).kind == TokenKind::Ident
+            && self.peek_at(2).kind == TokenKind::Equals
+    }
+
+    /// The declaration from `type` through its `;`, shared by the file-scope
+    /// form and the body member. `doc` is the run the caller already took: a
+    /// member's hangs on its [`ClassMember`], so that site passes `None`.
+    fn parse_type_alias_body(&mut self, start: Span, doc: Option<DocComment>) -> TypeAliasDecl {
+        self.bump(); // 'type' (contextual — see `Self::at_type_alias`)
         let name = self.parse_decl_name("a type alias name");
         self.expect(TokenKind::Equals, "`=`");
         let ty = self.parse_type();
         self.expect(TokenKind::Semicolon, "`;`");
-        let span = start.to(self.last_span);
-        Stmt {
-            span,
-            kind: StmtKind::TypeAliasDecl(TypeAliasDecl {
-                span,
-                doc,
-                name,
-                ty,
-            }),
+        TypeAliasDecl {
+            span: start.to(self.last_span),
+            doc,
+            name,
+            ty,
         }
     }
 
@@ -720,6 +737,19 @@ impl<'src, 'd> Parser<'src, 'd> {
         }
         if self.at_keyword(Keyword::Function) {
             out.push(self.parse_method_member(start, attributes, modifiers));
+            return;
+        }
+        // Asked before `can_start_type`, which reads the contextual `type` as a
+        // property's class-named type. Neither a modifier nor an attribute group
+        // is part of an alias declaration, so one written in front of the
+        // keyword is the member's span and nothing else.
+        if self.at_type_alias() {
+            let alias = self.parse_type_alias_body(start, None);
+            out.push(ClassMember {
+                span: start.to(self.last_span),
+                doc: None,
+                kind: ClassMemberKind::TypeAlias(alias),
+            });
             return;
         }
         if self.can_start_type() {
@@ -1196,22 +1226,23 @@ impl<'src, 'd> Parser<'src, 'd> {
         ty
     }
 
-    /// An enum body mixes cases (bare names) with, if the input is
-    /// malformed, member-shaped constructs that `rule:enums/no-class-machinery` rejects
-    /// outright — a method, a property, a constant, a trait `use`. Both are
-    /// parsed, since attributes may precede either and only the token after
-    /// them tells them apart; mirrors [`Self::parse_block`]'s force-progress
-    /// guard.
+    /// An enum body mixes cases (bare names) with the `type` aliases the enum
+    /// owns and, if the input is malformed, member-shaped constructs that
+    /// `rule:enums/no-class-machinery` rejects outright — a method, a property,
+    /// a constant, a trait `use`. All three are parsed, since attributes may
+    /// precede any of them and only the token after them tells them apart;
+    /// mirrors [`Self::parse_block`]'s force-progress guard.
     pub(super) fn parse_enum_body(&mut self) -> (Vec<EnumCase>, Vec<ClassMember>) {
         self.expect(TokenKind::LBrace, "`{`");
         let mut cases = Vec::new();
         let mut members = Vec::new();
         while !self.at(TokenKind::RBrace) && !self.at(TokenKind::Eof) {
             let before = self.peek().span;
-            // A case takes its `///` run like any other declaration. The
-            // member arm below does not: what it parsed is refused outright, so
-            // there is no node for a run to hang on — and taking it here is
-            // already what keeps it from being reported as documenting nothing.
+            // A case takes its `///` run like any other declaration, and so
+            // does an alias the enum owns. The rejected-member arm below does
+            // not: what it parsed is refused outright, so there is no node for
+            // a run to hang on — and taking it here is already what keeps it
+            // from being reported as documenting nothing.
             let doc = self.take_doc_comment(before);
             let attributes = self.parse_attribute_groups();
             if matches!(self.peek().kind, TokenKind::Keyword(Keyword::Case)) {
@@ -1238,6 +1269,15 @@ impl<'src, 'd> Parser<'src, 'd> {
                 if self.eat(TokenKind::Semicolon).is_none() {
                     self.eat(TokenKind::Comma);
                 }
+            } else if self.at_type_alias() {
+                // Ahead of the case arm, which would otherwise read the
+                // contextual `type` as the case's own name.
+                let alias = self.parse_type_alias_body(before, None);
+                members.push(ClassMember {
+                    span: alias.span,
+                    doc,
+                    kind: ClassMemberKind::TypeAlias(alias),
+                });
             } else if matches!(self.peek().kind, TokenKind::Ident)
                 || (matches!(self.peek().kind, TokenKind::Keyword(_))
                     && matches!(

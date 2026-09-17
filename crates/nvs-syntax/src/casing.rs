@@ -538,6 +538,10 @@ fn check_members(members: &[ClassMember], src: &SourceFile, diags: &mut Diagnost
                 );
                 check_method(m, src, diags);
             }
+            // This pass asks nothing of an alias at either site one is written:
+            // the file-scope form has no arm here either, and the two are one
+            // production, so they get one answer.
+            ClassMemberKind::TypeAlias(_) => {}
             ClassMemberKind::Error => {}
         }
     }

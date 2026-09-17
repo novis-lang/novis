@@ -528,6 +528,61 @@ fn type_alias_declaration() {
     parse_stmt_ok("type Id = SomeClass;");
 }
 
+/// A class, an interface and an enum body each own aliases
+/// (`rule:types/type-alias`), by the same production the file-scope form uses,
+/// and the `///` run above one attaches to the member as it does to any other.
+#[test]
+fn a_type_alias_is_a_member_of_every_body_that_takes_one() {
+    for owner in ["class Order", "interface Priced", "enum Status"] {
+        let src = format!(
+            "<?nvs\n{owner} {{\n    /// What an order's meta holds.\n    \
+             type Meta = {{total: decimal, note?: string}};\n}}\n"
+        );
+        let mut map = SourceMap::new();
+        let id = map.add("t.nvs", src.clone());
+        let mut diags = Diagnostics::new();
+        let stmts = parse_file(map.file(id), &mut diags);
+        assert!(!diags.has_errors(), "`{owner}`: {diags:?}");
+        assert_eq!(stmts.len(), 1, "`{owner}`: {stmts:?}");
+        let members = match &stmts[0].kind {
+            StmtKind::ClassDecl(class) => &class.members,
+            StmtKind::InterfaceDecl(iface) => &iface.members,
+            StmtKind::EnumDecl(e) => &e.members,
+            other => panic!("expected a body declaration: {other:?}"),
+        };
+        assert_eq!(members.len(), 1, "`{owner}`: {members:?}");
+        assert!(
+            members[0].doc.is_some(),
+            "the run documents the member: {:?}",
+            members[0]
+        );
+        let ClassMemberKind::TypeAlias(alias) = &members[0].kind else {
+            panic!("expected a type alias member: {:?}", members[0]);
+        };
+        assert_eq!(text(&map, id, alias.name.span), "Meta");
+        assert!(
+            matches!(alias.ty.kind, TypeKind::Atom(TypeAtom::Shape(_))),
+            "{alias:?}"
+        );
+        assert!(alias.doc.is_none(), "the member carries the run: {alias:?}");
+    }
+}
+
+/// An enum's cases still parse as cases beside an alias: `type` is contextual,
+/// and only the `Name =` after it tells the declaration from a case whose own
+/// name is being spelled.
+#[test]
+fn an_enum_case_named_beside_an_alias_is_still_a_case() {
+    let (s, diags) =
+        parse_stmt_with_diags("enum Status { type Pair = array<int>; Active, Banned }");
+    assert!(!diags.has_errors(), "{diags:?}");
+    let StmtKind::EnumDecl(e) = s.kind else {
+        panic!("expected an enum decl: {s:?}");
+    };
+    assert_eq!(e.cases.len(), 2, "{:?}", e.cases);
+    assert_eq!(e.members.len(), 1, "{:?}", e.members);
+}
+
 /// A constant declares its type like every other binding, so PHP 8.3's
 /// untyped spelling is refused where it is written — and only there: a
 /// top-level `const` is already `E0216` whole, and one with no visibility is

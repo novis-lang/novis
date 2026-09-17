@@ -1605,8 +1605,10 @@ pub struct EnumDecl {
     pub implements: Vec<Name>,
     /// The declared cases, in source order.
     pub cases: Vec<EnumCase>,
-    /// Any member other than a case — always rejected (`rule:enums/no-class-machinery`): an
-    /// enum declares only cases and an optional backing type.
+    /// Any member other than a case. A `type` alias the enum owns is kept
+    /// ([`ClassMemberKind::TypeAlias`]); every other member shape is rejected
+    /// (`rule:enums/no-class-machinery`), an enum declaring only cases, an
+    /// optional backing type and its own aliases.
     pub members: Vec<ClassMember>,
 }
 
@@ -1651,6 +1653,10 @@ pub enum ClassMemberKind {
     Const(ConstMember),
     /// A method declaration, abstract (`body: None`) or concrete.
     Method(MethodMember),
+    /// A `type Name = TypeExpr;` alias the body owns, reached as `Owner::Name`
+    /// from anywhere and as a bare `Name` inside the owner
+    /// (`rule:types/type-alias`).
+    TypeAlias(TypeAliasDecl),
     /// A placeholder produced during error recovery — also what a rejected
     /// class-body `use TraitName, ...;` becomes, since `rule:classes/no-traits` leaves no
     /// AST node to carry it.
@@ -1832,16 +1838,19 @@ pub enum AutoloadKind {
 }
 
 /// `type Name = TypeExpr;` (`rule:types/grammar`.5 / `rule:types/type-alias`), at
-/// file/namespace scope, never inside a class body. `TypeExpr` uses the
-/// full `rule:types/grammar` grammar unconditionally — the restriction that it may
-/// not be a single bare class/interface/enum atom (`rule:types/alias-is-never-a-bare-class`) is a
-/// resolution-time check (M2), not a parse-time one; `type Id = SomeClass;`
-/// parses exactly like any other alias.
+/// file/namespace scope or as a member of a class, interface or enum body
+/// ([`ClassMemberKind::TypeAlias`]). The two sites parse identically: `TypeExpr`
+/// uses the full `rule:types/grammar` grammar unconditionally, and the
+/// restriction that it may not be a single bare class/interface/enum atom
+/// (`rule:types/alias-is-never-a-bare-class`) is a resolution-time check, not a
+/// parse-time one, so `type Id = SomeClass;` parses exactly like any other
+/// alias.
 #[derive(Clone, Debug, PartialEq)]
 pub struct TypeAliasDecl {
     /// The whole declaration.
     pub span: Span,
-    /// The `///` run above it, if one is attached.
+    /// The `///` run above it, if one is attached. A body member's run hangs on
+    /// its [`ClassMember`] instead, so the member form leaves this `None`.
     pub doc: Option<DocComment>,
     /// The alias's declared name.
     pub name: Name,

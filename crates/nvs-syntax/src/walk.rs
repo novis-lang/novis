@@ -876,6 +876,10 @@ fn member(m: &ClassMember) -> Node {
             push_method(&mut kids, f);
             "Method"
         }
+        ClassMemberKind::TypeAlias(a) => {
+            name = Some(a.name.span);
+            "TypeAliasDecl"
+        }
         ClassMemberKind::Error => "Error",
     };
     Node {
