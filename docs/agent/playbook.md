@@ -5491,11 +5491,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   it is the one place the client is built, and the `OnceLock` is what makes test order stop
   mattering. [until: gone crates/nvs-stdlib/src/lib.rs:outbound_client]
 - **An `nvs-types` fixture reaches the checker and never the declaration pass, so a casing or
-  visibility refusal is invisible to every helper in `tests/common/mod.rs`.** `check_src` and its
-  siblings run `parse_file` → `resolve_file` → `check_program`, and `check_declarations` — where
-  `rule:core-api/identifier-casing` is answered — is in none of them, so the fixture reads an empty
-  `Diagnostics` and looks like unbuilt work. Call `common::check_declarations_only` for a
-  declaration-shape refusal. [until: gone crates/nvs-types/tests/common/mod.rs:check_declarations_only]
+  visibility refusal is invisible to every helper in `crates/nvs-types/tests/common/mod.rs`.**
+  `check_src` and its siblings run `parse_file` → `resolve_file` → `check_program`, and
+  `check_declarations` — where `rule:core-api/identifier-casing` is answered — is in none of them,
+  so the fixture reads an empty `Diagnostics` and looks like unbuilt work. Call
+  `common::check_declarations_only` for a declaration-shape refusal. [until: gone crates/nvs-types/tests/common/mod.rs:check_declarations_only]
 - **A conformance case that *constructs* its subjects can pin a shape nobody wrote down.**
   `path-agrees-a-trailing-or-repeated-separator-is-nothing.nvst` doubles every separator of six
   paths, so widening `Core\Path`'s grammar with a UNC root turned one constructed path into a
