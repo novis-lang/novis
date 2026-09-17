@@ -11268,7 +11268,7 @@ stage = "3 the destination"
 name = "nvs-host (a registered core is reached before a new one is started)"
 args = ["test", "-p", "nvs-host"]
 tests = [
-  "a_registered_core_is_chosen_before_one_is_started",
+  "a_registered_core_is_preferred_to_starting_one_and_is_never_its_own_destination",
 ]
 
 [[check]]
