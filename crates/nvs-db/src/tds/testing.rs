@@ -606,8 +606,12 @@ pub(super) struct SentParam {
     pub(super) type_id: u8,
     /// The width the `TYPE_INFO` declared: `NO_LENGTH` is the `MAX` form.
     pub(super) declared: u16,
-    /// The value as text, and `None` for the null of whichever form.
+    /// The value as text, and `None` for the null of whichever form and for
+    /// every argument that went out binary.
     pub(super) text: Option<String>,
+    /// The value as the octets it was written as, for a `varbinary` argument
+    /// alone: the form that has no text to read it back as.
+    pub(super) octets: Option<Vec<u8>>,
 }
 
 /// Walks a request the way a server does: past its headers, then one
@@ -645,7 +649,7 @@ pub(super) fn sent_rpc(request: &[u8]) -> (u16, Vec<SentParam>) {
         let by_ref = request[at + 1] == PARAM_BY_REF;
         let type_id = request[at + 2];
         at += 3;
-        let (declared, text) = match type_id {
+        let (declared, text, octets) = match type_id {
             TY_INTN => {
                 let declared = u16::from(request[at]);
                 let length = usize::from(request[at + 1]);
@@ -654,54 +658,29 @@ pub(super) fn sent_rpc(request: &[u8]) -> (u16, Vec<SentParam>) {
                     let bytes = &request[at - length..at];
                     i32::from_le_bytes(bytes.try_into().unwrap()).to_string()
                 });
-                (declared, text)
+                (declared, text, None)
             }
             TY_NVARCHAR => {
                 let declared = u16::from_le_bytes([request[at], request[at + 1]]);
                 assert_eq!(request[at + 2..at + 7], NO_COLLATION);
                 at += 7;
-                let mut bytes = Vec::new();
-                let null;
-                if declared == NO_LENGTH {
-                    let total = u64::from_le_bytes(request[at..at + 8].try_into().unwrap());
-                    at += 8;
-                    null = total == PLP_NULL;
-                    if !null {
-                        loop {
-                            let chunk = usize::try_from(u32::from_le_bytes(
-                                request[at..at + 4].try_into().unwrap(),
-                            ))
-                            .unwrap();
-                            at += 4;
-                            if chunk == 0 {
-                                break;
-                            }
-                            bytes.extend_from_slice(&request[at..at + chunk]);
-                            at += chunk;
-                        }
-                        assert_eq!(
-                            u64::try_from(bytes.len()).unwrap(),
-                            total,
-                            "the declared total is the truth, not a sentinel"
-                        );
-                    }
-                } else {
-                    let length = usize::from(u16::from_le_bytes([request[at], request[at + 1]]));
-                    at += 2;
-                    null = length == usize::from(NO_LENGTH);
-                    if !null {
-                        bytes.extend_from_slice(&request[at..at + length]);
-                        at += length;
-                    }
-                }
-                let units: Vec<u16> = bytes
-                    .chunks_exact(2)
-                    .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
-                    .collect();
-                (
-                    declared,
-                    (!null).then(|| String::from_utf16(&units).expect("what we wrote")),
-                )
+                let bytes = variable_body(request, &mut at, declared);
+                let text = bytes.map(|bytes| {
+                    let units: Vec<u16> = bytes
+                        .chunks_exact(2)
+                        .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
+                        .collect();
+                    String::from_utf16(&units).expect("what we wrote")
+                });
+                (declared, text, None)
+            }
+            // The same two body shapes with no `COLLATION` in front of them,
+            // which is the whole difference on the way out as well.
+            TY_BIGVARBINARY => {
+                let declared = u16::from_le_bytes([request[at], request[at + 1]]);
+                at += 2;
+                let octets = variable_body(request, &mut at, declared);
+                (declared, None, octets)
             }
             other => panic!("this driver sends no argument of type 0x{other:02X}"),
         };
@@ -710,9 +689,54 @@ pub(super) fn sent_rpc(request: &[u8]) -> (u16, Vec<SentParam>) {
             type_id,
             declared,
             text,
+            octets,
         });
     }
     (proc_id, params)
+}
+
+/// One argument's body, read the way its `TYPE_INFO` declared it: `PLP` chunks
+/// to the terminator at [`NO_LENGTH`], a `USHORTLEN` run otherwise, and `None`
+/// for the null of whichever of the two.
+///
+/// Shared by the character and binary arms of [`sent_rpc`] because the two write
+/// the same two shapes — a walk written twice would be two chances to assert a
+/// value's extent wrongly.
+fn variable_body(request: &[u8], at: &mut usize, declared: u16) -> Option<Vec<u8>> {
+    let mut bytes = Vec::new();
+    if declared == NO_LENGTH {
+        let total = u64::from_le_bytes(request[*at..*at + 8].try_into().unwrap());
+        *at += 8;
+        if total == PLP_NULL {
+            return None;
+        }
+        loop {
+            let chunk = usize::try_from(u32::from_le_bytes(
+                request[*at..*at + 4].try_into().unwrap(),
+            ))
+            .unwrap();
+            *at += 4;
+            if chunk == 0 {
+                break;
+            }
+            bytes.extend_from_slice(&request[*at..*at + chunk]);
+            *at += chunk;
+        }
+        assert_eq!(
+            u64::try_from(bytes.len()).unwrap(),
+            total,
+            "the declared total is the truth, not a sentinel"
+        );
+    } else {
+        let length = usize::from(u16::from_le_bytes([request[*at], request[*at + 1]]));
+        *at += 2;
+        if length == usize::from(NO_LENGTH) {
+            return None;
+        }
+        bytes.extend_from_slice(&request[*at..*at + length]);
+        *at += length;
+    }
+    Some(bytes)
 }
 
 /// A `RETURNVALUE` as a server writes one: no length in front of it, so its

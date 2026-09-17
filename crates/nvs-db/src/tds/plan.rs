@@ -23,13 +23,15 @@ pub struct TdsPlan {
     /// statement that binds nothing.
     ///
     /// **§ 1's key is one component short on this protocol.** [`declarations`]
-    /// widens a marker to `nvarchar(max)` for a value past [`NVARCHAR_CHARS`],
-    /// so one statement run first with a short value and then with a long one
-    /// wants two different plans under a key — the SQL text and the arity —
-    /// that cannot tell them apart. A long value bound against a plan declared
-    /// narrow is *truncated* by SQL Server rather than refused, which is silent
-    /// data loss, so this is carried and compared and a mismatch is a miss that
-    /// unprepares the plan it did not fit. The key itself is left alone: § 1
+    /// widens a marker to `nvarchar(max)` for a value past [`NVARCHAR_CHARS`]
+    /// and declares it `varbinary` for a value [`encode`] marked binary, so one
+    /// statement run first with a short text value and then with a long one or
+    /// with a `bytes` wants two different plans under a key — the SQL text and
+    /// the arity — that cannot tell them apart. A long value bound against a
+    /// plan declared narrow is *truncated* by SQL Server rather than refused,
+    /// which is silent data loss, so this is carried and compared and a
+    /// mismatch is a miss that unprepares the plan it did not fit. The key
+    /// itself is left alone: § 1
     /// states it once, for every driver, and this is one driver's reason to
     /// reject a hit rather than another way to spell the key.
     ///
@@ -884,6 +886,56 @@ mod tests {
                 .expect("a declaration")
                 .contains("nvarchar(max)"),
             "the new plan is compiled against the declaration the value needs"
+        );
+        assert_eq!(cache.len(), 1, "the stale entry is dropped, not shadowed");
+    }
+
+    /// The same comparison over the other thing a declaration varies with: a
+    /// `bytes` declares its marker `varbinary`, so one statement binding one at
+    /// `@p1` and then at `@p2` wants two plans under the one key § 1 gives it.
+    ///
+    /// The key is deliberately not widened to carry a type per marker —
+    /// [`TdsPlan::declared`] is one driver's reason to reject a hit, where the
+    /// key is every driver's.
+    #[test]
+    fn one_statement_binding_a_bytes_at_two_markers_is_two_plans_under_one_key() {
+        const SQL: &str = "insert into t values (@p1, @p2)";
+        let binary = [BINARY_MARK, 0x00, 0xFF];
+
+        let mut wire =
+            answering_each(&[prepexec_answer(9), procedure_answer(), prepexec_answer(10)]);
+        let state = Cell::new(State::Idle);
+        let mut cache = plans(4);
+
+        drop(
+            start_statement(
+                &mut wire,
+                &state,
+                &mut cache,
+                SQL,
+                &[Some(&binary), Some(b"a")],
+            )
+            .expect("the `bytes` at the first marker"),
+        );
+        drop(
+            start_statement(
+                &mut wire,
+                &state,
+                &mut cache,
+                SQL,
+                &[Some(b"a"), Some(&binary)],
+            )
+            .expect("the same statement with the forms the other way round"),
+        );
+
+        let sent = flushed(&wire.peer().sent);
+        assert_eq!(sent.len(), 3, "the hit was rejected, so this one prepares");
+        assert_eq!(sent_rpc(&sent[1].2).0, PROC_SP_UNPREPARE);
+        let (_, params) = sent_rpc(&sent[2].2);
+        assert_eq!(
+            params[1].text.as_deref(),
+            Some("@p1 nvarchar(4000),@p2 varbinary(8000)"),
+            "the second plan is compiled against the forms the second call binds"
         );
         assert_eq!(cache.len(), 1, "the stale entry is dropped, not shadowed");
     }

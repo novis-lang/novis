@@ -81,30 +81,12 @@
 //! RPC, and [`begin`]'s own doc owns the rules that are this dialect's alone —
 //! a session-scoped isolation level this driver has to put back, and no
 //! read-only transaction to offer at all. Every member `rule:core-classes/db-one-api` declares is
-//! therefore reachable on this backend.
-//!
-//! # Known gaps
-//!
-//! 1. **A `bytes` parameter is refused**, which is this driver's only departure
-//!    from [ADR 0067 § 9](/docs/decisions/0067.md)'s table — the *read* side of
-//!    that row is whole, since [`decode_column`] answers `varbinary`, `binary`
-//!    and `image` as `bytes` like every other driver. Both halves of the refusal
-//!    say so where they are, [`encode`] and [`text_param`], and
-//!    `a_bound_parameter_renders_as_t_sql_reads_it_and_a_bytes_is_refused` pins
-//!    it. Closing it is not a rendering change: every parameter goes out as one
-//!    `nvarchar` and the server casts it ([`start_statement`]), and `varbinary`
-//!    is the one type no text form casts back to — so a `bytes` needs its own
-//!    entry in `sp_prepexec`'s `@params` declaration, which makes that
-//!    declaration a function of the *values* a call binds rather than of the
-//!    statement alone. § 1 keys the plan cache on SQL text plus expansion arity,
-//!    so two calls binding the same statement with a `bytes` in different
-//!    positions name one key. They are told apart without moving it:
-//!    [`TdsPlan`] already carries the `@params` text a plan was compiled
-//!    against and makes a mismatch a miss that unprepares the plan it did not
-//!    fit, which is what widening a marker to `nvarchar(max)` needed first. So what is left is this driver's encoder — a form per bound value,
-//!    a `varbinary` entry in the declaration, and the bytes written as
-//!    themselves.
-//!    — owner: tds-bytes
+//! therefore reachable on this backend, and [ADR 0067 §
+//! 9](/docs/decisions/0067.md)'s table is whole in both directions: a `bytes`
+//! is read by [`decode_column`] from `varbinary`, `binary` and `image`, and
+//! bound as a `varbinary` parameter of its own — [`encode`] decides the form
+//! and [`binary_param`] writes it, so the declaration varies with the values a
+//! call binds and [`TdsPlan`] is what tells two plan shapes apart.
 
 use std::borrow::Cow;
 use std::cell::Cell;

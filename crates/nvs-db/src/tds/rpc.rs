@@ -1,11 +1,19 @@
 //! The requests this driver sends: `sp_prepexec`, `sp_execute`, `sp_unprepare`
 //! and a bare batch, with the parameter encoding they carry.
 //!
-//! Every parameter goes out as one `nvarchar` and the server casts it, which is
-//! what makes a declaration a function of the statement rather than of the
-//! values — [`mod@super`]'s doc owns the one type that does not fit and why
-//! closing that gap is a cache-key question. [`all_headers`] is the transaction
-//! descriptor every request after a `BEGIN` must carry.
+//! A parameter goes out in one of two forms [`Bound`] names: `nvarchar` for
+//! everything the server can cast from text, and `varbinary` for [ADR 0067 §
+//! 9](/docs/decisions/0067.md)'s `bytes`, which no text form recovers. The
+//! declaration is therefore a function of the values a call binds and not of
+//! the statement alone, which is what [`TdsPlan::declared`](super::TdsPlan)
+//! compares rather than § 1's cache key carrying a type per marker.
+//! [`all_headers`] is the transaction descriptor every request after a `BEGIN`
+//! must carry.
+//!
+//! **What this spends** (`rule:programs/memory-priority`): one octet per bound
+//! `bytes` while it crosses the parameter list as [`BINARY_MARK`]-marked
+//! octets, released with the statement, and a declaration string per plan the
+//! cache already held.
 
 use super::*;
 
@@ -90,6 +98,22 @@ pub(super) const INTN_BYTES: u8 = 4;
 /// it is declared and sent as `nvarchar(max)`, which arrives in `PLP` chunks.
 pub(super) const NVARCHAR_CHARS: u16 = 4000;
 
+/// The widest `varbinary` that is not a `MAX` one, in bytes — [`NVARCHAR_CHARS`]'s
+/// opposite number for [`Bound::Binary`], and counted in octets because that type
+/// has no characters to count.
+pub(super) const VARBINARY_BYTES: u16 = 8000;
+
+/// The octet [`encode`] puts in front of a `bytes` so [`bind`] can tell the two
+/// forms apart, which is what lets a driver whose parameters cross as opaque
+/// octets carry a form at all.
+///
+/// **It is `0xFF` because no UTF-8 sequence begins with that octet.** The two
+/// forms are therefore disjoint by construction rather than by convention: a
+/// value carrying the mark could never have been text this driver accepted —
+/// [`text_of`] refuses it — so nothing that used to bind one way binds the other
+/// now, and a marker cannot be forged by a value that is genuinely text.
+pub(super) const BINARY_MARK: u8 = 0xFF;
+
 /// A parameter's `COLLATION`, all zeroes, which is TDS's spelling of *the
 /// server's own default*.
 ///
@@ -109,28 +133,30 @@ pub(super) const NO_COLLATION: [u8; 5] = [0; 5];
 /// trip here — where § 1 records two for MySQL — and a cached one is one as
 /// well, with no SQL on the wire at all.
 ///
-/// **Every parameter goes out as `nvarchar` and the server casts it**, which is
-/// [`crate::mysql::execute`]'s `MYSQL_TYPE_VAR_STRING` account reached through a
-/// different protocol: the values arrive here already encoded as text by the
-/// layer that knows what they are, and no byte of one is ever parsed as SQL —
-/// § 1's no-emulated-prepares rule holds as a property of this function, since
-/// `sql` is a separate argument to the procedure and never a string a value is
-/// spliced into. The `@params` declaration beside it is what makes the cast the
-/// *server's* decision rather than a guess: it names each marker's type, and
-/// [`Dialect::marker`] is asked for the names so that the declaration and the
-/// rewritten SQL cannot drift apart.
+/// **A parameter with a text form goes out as `nvarchar` and the server casts
+/// it**, which is [`crate::mysql::execute`]'s `MYSQL_TYPE_VAR_STRING` account
+/// reached through a different protocol: the values arrive here already encoded
+/// by the layer that knows what they are, and no byte of one is ever parsed as
+/// SQL — § 1's no-emulated-prepares rule holds as a property of this function,
+/// since `sql` is a separate argument to the procedure and never a string a
+/// value is spliced into. The `@params` declaration beside it is what makes the
+/// cast the *server's* decision rather than a guess: it names each marker's
+/// type, and [`Dialect::marker`] is asked for the names so that the declaration
+/// and the rewritten SQL cannot drift apart.
 ///
-/// **A parameter that is not UTF-8 is refused rather than reinterpreted.** § 9's
-/// `bytes` maps to `varbinary`, and `nvarchar` → `varbinary` on SQL Server is a
-/// reinterpretation of UCS-2 code units rather than a parse — so a binary
-/// parameter needs an encoding of its own, which is the encoder's slice and not
-/// this one's. Refusing is what keeps that gap visible instead of silently
-/// storing the wrong bytes.
+/// **§ 9's `bytes` is the one row with no text form, so it is declared
+/// `varbinary` and written as its own octets** — `nvarchar` → `varbinary` on
+/// SQL Server is a reinterpretation of UCS-2 code units rather than a parse, so
+/// there is nothing for a cast to recover. That makes the declaration a function
+/// of the values a call binds, which is the mismatch
+/// [`TdsPlan::declared`](super::TdsPlan) already compares on every lookup.
+/// Octets that are neither UTF-8 nor [`BINARY_MARK`]-marked are refused rather
+/// than reinterpreted.
 ///
 /// # Errors
 ///
-/// `InvalidInput` for a parameter that is not UTF-8, and for one whose UCS-2
-/// form is past [`MAX_MESSAGE`].
+/// `InvalidInput` for a parameter that is neither of the two forms, and for one
+/// whose wire form is past [`MAX_MESSAGE`].
 pub fn sp_prepexec_request(
     sql: &str,
     params: &[Option<&[u8]>],
@@ -140,22 +166,45 @@ pub fn sp_prepexec_request(
     prepexec_request(sql, &bound, declarations(&bound).as_deref(), descriptor)
 }
 
-/// Every bound value as the UCS-2 [`text_param`] writes, or the refusal that
-/// names the marker one of them was bound at.
+/// One bound value in the form it goes out in, which is the one question
+/// [`declarations`] and the wire write both read and neither asks twice.
+///
+/// [ADR 0067 § 9](/docs/decisions/0067.md)'s table has two forms a
+/// parameter can take on this protocol and no third: everything with a text
+/// rendering goes out as `nvarchar` for the server to cast, and a `bytes` goes
+/// out as the octets it is, because `varbinary` is the one type no text form
+/// casts back to. The form is decided in [`encode`], where the value's tag is
+/// still in hand, and carried from there to the two places that act on it.
+pub(super) enum Bound {
+    /// UCS-2LE, under an `nvarchar` declaration — every § 9 row but one.
+    Text(Vec<u8>),
+    /// The value's own octets, under a `varbinary` declaration — § 9's
+    /// `BINARY`/`BLOB`/`BYTEA` row.
+    Binary(Vec<u8>),
+}
+
+/// Every bound value in the form [`Bound`] names, or the refusal that names the
+/// marker one of them was bound at.
 ///
 /// Done once per statement and before anything is written, so a refusal costs
 /// no bytes on the wire and choosing between § 1's request shapes does not
 /// repeat the conversion.
 ///
+/// A value [`encode`] marked is binary and the mark is dropped here, since it
+/// is a form and never a byte of the value; everything else is text and is
+/// widened to the UCS-2 the wire carries a character value in.
+///
 /// # Errors
 ///
-/// `InvalidInput` for a value that is not UTF-8 — [`text_of`]'s refusal.
-pub(super) fn bind(params: &[Option<&[u8]>]) -> io::Result<Vec<Option<Vec<u8>>>> {
+/// `InvalidInput` for an unmarked value that is not UTF-8 — [`text_of`]'s
+/// refusal.
+pub(super) fn bind(params: &[Option<&[u8]>]) -> io::Result<Vec<Option<Bound>>> {
     let mut bound = Vec::with_capacity(params.len());
     for (index, value) in params.iter().enumerate() {
         bound.push(match value {
             None => None,
-            Some(bytes) => Some(ucs2_of(text_of(bytes, index + 1)?)),
+            Some([BINARY_MARK, octets @ ..]) => Some(Bound::Binary(octets.to_vec())),
+            Some(bytes) => Some(Bound::Text(ucs2_of(text_of(bytes, index + 1)?))),
         });
     }
     Ok(bound)
@@ -182,7 +231,7 @@ pub(super) fn rpc_header(proc_id: u16, descriptor: u64) -> Vec<u8> {
 /// this is the shape to send.
 pub(super) fn prepexec_request(
     sql: &str,
-    bound: &[Option<Vec<u8>>],
+    bound: &[Option<Bound>],
     declared: Option<&str>,
     descriptor: u64,
 ) -> io::Result<Vec<u8>> {
@@ -211,7 +260,7 @@ pub(super) fn prepexec_request(
 /// As [`text_param`], for the same values.
 pub(super) fn execute_request(
     handle: i32,
-    bound: &[Option<Vec<u8>>],
+    bound: &[Option<Bound>],
     descriptor: u64,
 ) -> io::Result<Vec<u8>> {
     let mut out = rpc_header(PROC_SP_EXECUTE, descriptor);
@@ -252,28 +301,42 @@ pub(super) fn batch_request(sql: &str, descriptor: u64) -> Vec<u8> {
 }
 
 /// One argument per marker, in § 5's order, for whichever procedure takes
-/// them.
+/// them, each written in the form [`bind`] gave it.
+///
+/// A null is sent as the `nvarchar` one: it carries no octets, so there is
+/// nothing about it that wants the binary form, and [`declarations`] declares it
+/// the same way for the same reason.
 ///
 /// # Errors
 ///
-/// As [`text_param`].
-pub(super) fn values(out: &mut Vec<u8>, bound: &[Option<Vec<u8>>]) -> io::Result<()> {
+/// As [`text_param`] and [`binary_param`].
+pub(super) fn values(out: &mut Vec<u8>, bound: &[Option<Bound>]) -> io::Result<()> {
     for (index, value) in bound.iter().enumerate() {
-        text_param(out, value.as_deref(), &Dialect::SqlServer.marker(index + 1))?;
+        let what = Dialect::SqlServer.marker(index + 1);
+        match value {
+            Some(Bound::Text(ucs2)) => text_param(out, Some(ucs2), &what)?,
+            Some(Bound::Binary(octets)) => binary_param(out, octets, &what)?,
+            None => text_param(out, None, &what)?,
+        }
     }
     Ok(())
 }
 
 /// One bound value as text, or the refusal that names the marker it was bound
 /// at.
+///
+/// What reaches here is every value [`encode`] did not mark binary, so octets
+/// that are not UTF-8 are neither of this driver's two forms: reading them as
+/// UCS-2 would be a reinterpretation and never a conversion, and a `bytes`
+/// arrives marked rather than raw.
 pub(super) fn text_of(value: &[u8], marker: usize) -> io::Result<&str> {
     std::str::from_utf8(value).map_err(|_| {
         io::Error::new(
             io::ErrorKind::InvalidInput,
             format!(
-                "the value bound at {} is not UTF-8, and this driver sends every parameter as \
-                 `nvarchar` — `rule:core-classes/db-column-types`'s `bytes` needs an encoding of its own here rather \
-                 than a reinterpretation of these bytes as UCS-2",
+                "the value bound at {} is not UTF-8 and is not marked binary, so it is neither \
+                 form this driver sends — `rule:core-classes/db-column-types`'s `bytes` reaches \
+                 here from `nvs_db::tds::encode` and these octets did not",
                 Dialect::SqlServer.marker(marker)
             ),
         )
@@ -285,10 +348,16 @@ pub(super) fn ucs2_of(text: &str) -> Vec<u8> {
     text.encode_utf16().flat_map(u16::to_le_bytes).collect()
 }
 
-/// Whether a value needs the `MAX` form — the one decision `@params` and the
-/// parameter itself have to agree on, so it is asked once and here.
+/// Whether a text value needs the `MAX` form — the one decision `@params` and
+/// the parameter itself have to agree on, so it is asked once and here.
 pub(super) fn is_wide(ucs2: &[u8]) -> bool {
     ucs2.len() > usize::from(NVARCHAR_CHARS) * 2
+}
+
+/// [`is_wide`] for [`Bound::Binary`], where the width is the octets themselves
+/// rather than two per character.
+pub(super) fn is_long(octets: &[u8]) -> bool {
+    octets.len() > usize::from(VARBINARY_BYTES)
 }
 
 /// A request's `ALL_HEADERS`: the transaction descriptor TDS 7.2 and later
@@ -312,7 +381,16 @@ pub(super) fn all_headers(out: &mut Vec<u8>, descriptor: u64) {
 /// `sp_prepexec`'s `@params`: § 5's markers with the type each is sent as, or
 /// `None` for a statement that binds nothing — which the procedure reads as a
 /// plan with no parameters, and an empty string would not.
-pub(super) fn declarations(bound: &[Option<Vec<u8>>]) -> Option<String> {
+///
+/// **What this answers is a function of the values and not of the statement
+/// alone**, in two ways: a text value past [`NVARCHAR_CHARS`] widens its marker
+/// to the `MAX` form, and a [`Bound::Binary`] declares `varbinary` where every
+/// other row of § 9's table declares `nvarchar`. § 1's cache is keyed on the SQL
+/// text and the expansion arity, which cannot tell those apart, so
+/// [`TdsPlan::declared`](super::TdsPlan) carries this string and compares it on
+/// every lookup — one driver's reason to reject a hit rather than another way to
+/// spell the key.
+pub(super) fn declarations(bound: &[Option<Bound>]) -> Option<String> {
     if bound.is_empty() {
         return None;
     }
@@ -322,11 +400,14 @@ pub(super) fn declarations(bound: &[Option<Vec<u8>>]) -> Option<String> {
             out.push(',');
         }
         out.push_str(&Dialect::SqlServer.marker(index + 1));
-        // A null is declared narrow: it carries no characters, so nothing about
-        // it wants the `MAX` form, and the plan a later execution of the same
-        // statement reuses is the one compiled against the narrow declaration.
+        // A null is declared as a narrow `nvarchar`: it carries nothing, so
+        // neither the `MAX` form nor the binary one is anything about it, and
+        // the plan a later execution of the same statement reuses is the one
+        // compiled against that declaration.
         match value {
-            Some(ucs2) if is_wide(ucs2) => out.push_str(" nvarchar(max)"),
+            Some(Bound::Binary(octets)) if is_long(octets) => out.push_str(" varbinary(max)"),
+            Some(Bound::Binary(_)) => out.push_str(&format!(" varbinary({VARBINARY_BYTES})")),
+            Some(Bound::Text(ucs2)) if is_wide(ucs2) => out.push_str(" nvarchar(max)"),
             _ => out.push_str(&format!(" nvarchar({NVARCHAR_CHARS})")),
         }
     }
@@ -418,27 +499,81 @@ pub(super) fn text_param(out: &mut Vec<u8>, value: Option<&[u8]>, what: &str) ->
     Ok(())
 }
 
-/// One bound parameter as the octets [`text_param`] carries it in:
-/// [`crate::encode`]'s and [`crate::mysql::encode`]'s opposite number on this
-/// protocol, and a text rendering of its own rather than a copy of either.
+/// A `VARBINARY` argument, in whichever of its two forms the value fits:
+/// `USHORTLEN` up to [`VARBINARY_BYTES`], and `PLP` past it.
 ///
-/// **Every parameter goes out as one `nvarchar` and the server casts it to
-/// whatever the statement compares it against** — [`start_statement`] says why
-/// that is a fact about `sp_prepexec`'s `@params` and not an escaping decision —
-/// so this renders text exactly as the other two do, and differs from them
-/// wherever T-SQL reads a literal differently:
+/// [`text_param`]'s shape with the two differences this type has: the octets go
+/// out as themselves rather than widened to UCS-2, and there is no `COLLATION`
+/// at all, a binary value having no sort order to declare. `what` is the marker
+/// it was bound at, for the refusal alone.
+///
+/// A null never arrives here — [`values`] sends one as the `nvarchar` null — so
+/// this writes a value or nothing.
+///
+/// # Errors
+///
+/// `InvalidInput` for a value past [`MAX_MESSAGE`], [`text_param`]'s ceiling for
+/// its reason.
+pub(super) fn binary_param(out: &mut Vec<u8>, octets: &[u8], what: &str) -> io::Result<()> {
+    param_header(out, false);
+    out.push(TY_BIGVARBINARY);
+
+    let long = is_long(octets);
+    if long {
+        out.extend_from_slice(&NO_LENGTH.to_le_bytes());
+    } else {
+        out.extend_from_slice(&VARBINARY_BYTES.to_le_bytes());
+    }
+
+    if octets.len() > MAX_MESSAGE {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!(
+                "the value bound at {what} is {} byte(s) of `bytes`, past the {MAX_MESSAGE} a TDS \
+                 message holds",
+                octets.len()
+            ),
+        ));
+    }
+    let length = u32::try_from(octets.len()).expect("checked against MAX_MESSAGE above");
+    if long {
+        // One chunk and its terminator, as the `MAX` text form is written: the
+        // value is in hand, so the declared total is the truth rather than
+        // `PLP_UNKNOWN`.
+        out.extend_from_slice(&u64::from(length).to_le_bytes());
+        out.extend_from_slice(&length.to_le_bytes());
+        out.extend_from_slice(octets);
+        out.extend_from_slice(&0u32.to_le_bytes());
+    } else {
+        let short = u16::try_from(length).expect("narrower than VARBINARY_BYTES octets");
+        out.extend_from_slice(&short.to_le_bytes());
+        out.extend_from_slice(octets);
+    }
+    Ok(())
+}
+
+/// One bound parameter as the octets [`bind`] reads a form off:
+/// [`crate::encode`]'s and [`crate::mysql::encode`]'s opposite number on this
+/// protocol, and a rendering of its own rather than a copy of either.
+///
+/// **Every parameter with a text form goes out as one `nvarchar` and the server
+/// casts it to whatever the statement compares it against** —
+/// [`start_statement`] says why that is a fact about `sp_prepexec`'s `@params`
+/// and not an escaping decision — so this renders text exactly as the other two
+/// do, and differs from them wherever T-SQL reads a literal differently:
 ///
 /// - A `bool` is `1`/`0`, MySQL's rendering rather than PostgreSQL's: `bit` is
 ///   a numeric type here and the cast of `'t'` is an error, not a `false`.
 /// - A non-finite `float` is refused, for the reason MySQL's is. T-SQL has no
 ///   `Infinity` or `NaN` literal, and `float` holds neither value.
-/// - A `bytes` is refused, and that is this driver's one gap against
-///   [ADR 0067 § 9](/docs/decisions/0067.md)'s table rather than a
-///   rendering choice: `varbinary` has no text input form a cast recovers —
-///   `'0x61'` casts to the four characters and not to the octet — so a `bytes`
-///   needs a parameter of its own type, which is a marker this driver does not
-///   write yet. [`text_param`] refuses the same value one layer down for the
-///   same reason, so the gap is closed in one place or in neither.
+/// - A `bytes` is not rendered at all, which is [ADR 0067 §
+///   9](/docs/decisions/0067.md)'s table rather than an exception to it:
+///   `varbinary` has no text input form a cast recovers — `'0x61'` casts to the
+///   four characters and not to the octet — so the octets go out as themselves,
+///   under [`BINARY_MARK`], and [`binary_param`] writes them beside the
+///   `nvarchar` arguments. Never as a `0x…` literal in the statement, which is §
+///   1's *no emulated prepares* and would be an injection this driver spelled
+///   itself.
 ///
 /// A `Core\Db\InList` never reaches here for [`crate::encode`]'s reason: § 5's
 /// marker has expanded into one bound value per element by the time a statement
@@ -446,9 +581,9 @@ pub(super) fn text_param(out: &mut Vec<u8>, value: Option<&[u8]>, what: &str) ->
 ///
 /// # Errors
 ///
-/// `InvalidInput` for a value with no form to send — a `bytes`, an array, an
-/// object, a closure, and the three non-finite floats — where the whole answer
-/// is the tag and never the value, for the reason [`malformed`] gives.
+/// `InvalidInput` for a value with no form to send — an array, an object, a
+/// closure, and the three non-finite floats — where the whole answer is the tag
+/// and never the value, for the reason [`malformed`] gives.
 pub fn encode(value: Value) -> io::Result<Option<Vec<u8>>> {
     let rendered = match value.tag() {
         Some(Tag::Null) => return Ok(None),
@@ -488,12 +623,16 @@ pub fn encode(value: Value) -> io::Result<Option<Vec<u8>>> {
         Some(Tag::Str) => {
             return Ok(Some(value.as_str_bytes().unwrap_or_default().to_vec()));
         }
+        // The one value with no text rendering, so it goes out as itself under
+        // [`BINARY_MARK`]. The mark is one octet per bound `bytes` and is
+        // dropped by [`bind`]; what it buys is the form travelling with the
+        // value through a parameter list that is octets and nothing else.
         Some(Tag::Bytes) => {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "a `bytes` has no SQL Server parameter yet: every value this driver binds goes \
-                 out as an `nvarchar`, and `varbinary` has no text form a cast recovers",
-            ));
+            let octets = value.as_bytes().unwrap_or_default();
+            let mut marked = Vec::with_capacity(octets.len() + 1);
+            marked.push(BINARY_MARK);
+            marked.extend_from_slice(octets);
+            return Ok(Some(marked));
         }
         _ => {
             return Err(io::Error::new(
@@ -536,6 +675,7 @@ mod tests {
                 type_id: TY_INTN,
                 declared: u16::from(INTN_BYTES),
                 text: None,
+                octets: None,
             },
             "the handle goes out null and by reference, for the server to fill in"
         );
@@ -646,17 +786,80 @@ mod tests {
         assert_eq!(params[2].text.as_deref(), Some(&*long));
     }
 
+    /// An unmarked value that is not UTF-8 is refused, and the refusal names the
+    /// marker: [`BINARY_MARK`] is what says *binary*, and octets that are
+    /// neither text nor marked are a value this driver has no form for.
     #[test]
     fn a_parameter_that_is_not_utf8_is_refused_by_the_marker_it_was_bound_at() {
         let refused = sp_prepexec_request(
             "select @p1, @p2",
-            &[Some(b"fine"), Some(&[0xFF, 0xFE])],
+            &[Some(b"fine"), Some(&[0xFE, 0xFF])],
             NO_TRANSACTION,
         )
-        .expect_err("this driver has no binary parameter yet");
+        .expect_err("octets that are neither UTF-8 nor marked binary");
 
         assert_eq!(refused.kind(), io::ErrorKind::InvalidInput);
         assert!(refused.to_string().contains("@p2"), "{refused}");
+    }
+
+    /// The keystone, at the wire: a marked value is declared `varbinary` and
+    /// written as its own octets, beside `nvarchar` markers in the same
+    /// declaration, and the mark itself is a form and never a byte of the value.
+    #[test]
+    fn a_marked_value_is_declared_varbinary_and_sent_as_its_own_octets() {
+        let octets = [0x00, 0x61, 0xFF, 0xFE];
+        let mut marked = vec![BINARY_MARK];
+        marked.extend_from_slice(&octets);
+
+        let request = sp_prepexec_request(
+            "insert into t values (@p1, @p2)",
+            &[Some(b"text"), Some(&marked)],
+            NO_TRANSACTION,
+        )
+        .expect("one text value and one binary one");
+        let (_, params) = sent_rpc(&request);
+
+        assert_eq!(
+            params[1].text.as_deref(),
+            Some("@p1 nvarchar(4000),@p2 varbinary(8000)"),
+            "the declaration says which form each marker takes"
+        );
+        assert_eq!(params[3].type_id, TY_NVARCHAR);
+        assert_eq!(params[4].type_id, TY_BIGVARBINARY);
+        assert_eq!(params[4].declared, VARBINARY_BYTES);
+        assert_eq!(params[4].octets.as_deref(), Some(&octets[..]));
+    }
+
+    /// Both sides of the binary bound, as
+    /// `a_value_past_four_thousand_characters_is_declared_and_sent_as_max` holds
+    /// them for text: 8,000 octets is the widest `varbinary` that is not a `MAX`
+    /// one, and 8,001 is not a narrower one.
+    #[test]
+    fn a_binary_value_past_eight_thousand_octets_is_declared_and_sent_as_max() {
+        for (length, declared, spelling) in [
+            (
+                usize::from(VARBINARY_BYTES),
+                VARBINARY_BYTES,
+                "varbinary(8000)",
+            ),
+            (
+                usize::from(VARBINARY_BYTES) + 1,
+                NO_LENGTH,
+                "varbinary(max)",
+            ),
+        ] {
+            let octets = vec![0xC3; length];
+            let mut marked = vec![BINARY_MARK];
+            marked.extend_from_slice(&octets);
+
+            let request = sp_prepexec_request("select @p1", &[Some(&marked)], NO_TRANSACTION)
+                .expect("one binary value");
+            let (_, params) = sent_rpc(&request);
+
+            assert_eq!(params[1].text.as_deref(), Some(&*format!("@p1 {spelling}")));
+            assert_eq!(params[3].declared, declared, "{length} octet(s)");
+            assert_eq!(params[3].octets.as_deref(), Some(&octets[..]));
+        }
     }
 
     #[test]
@@ -771,7 +974,7 @@ mod tests {
         assert_eq!(refused.kind(), io::ErrorKind::InvalidInput);
 
         let idle = Cell::new(State::Idle);
-        let refused = start_statement(&mut wire, &idle, &mut cache, "select @p1", &[Some(&[0xFF])])
+        let refused = start_statement(&mut wire, &idle, &mut cache, "select @p1", &[Some(&[0xFE])])
             .expect_err("a parameter that is not UTF-8");
         assert_eq!(refused.kind(), io::ErrorKind::InvalidInput);
         assert_eq!(idle.get(), State::Idle, "nothing was written");
@@ -785,12 +988,11 @@ mod tests {
     /// `t` is not a `bit` here and `Infinity` is not a `float`, so an encoder
     /// written by copying PostgreSQL's passes every assertion that only reads
     /// this one's output: the agreement is the bug, which is why those rows say
-    /// `assert_ne!`. The `bytes` row is the same shape and is a *gap* rather
-    /// than a rendering — [`encode`]'s doc owns why — so it is pinned as a
-    /// refusal beside a driver that binds the same value, and the day this
-    /// driver grows a `varbinary` marker this line is what fails.
+    /// `assert_ne!`. The `bytes` row is the same shape and the sharpest of them:
+    /// PostgreSQL renders those octets as `bytea` hex text and this driver does
+    /// not render them at all, so the two answers must differ.
     #[test]
-    fn a_bound_parameter_renders_as_t_sql_reads_it_and_a_bytes_is_refused() {
+    fn a_bound_parameter_renders_as_t_sql_reads_it_and_a_bytes_goes_out_marked() {
         let sent = [
             (Value::bool(true), b"1".to_vec()),
             (Value::bool(false), b"0".to_vec()),
@@ -820,13 +1022,21 @@ mod tests {
             "`t` is not a `bit`, so the two drivers must not agree here"
         );
 
+        // § 9's `bytes` row: the octets themselves under the mark that says
+        // which form they are, and never PostgreSQL's hex rendering of them.
+        let bytes = Value::bytes(nvs_runtime::NvsStr::new(&[0x00, 0x61, 0xFF]));
+        let marked = encode(bytes)
+            .expect("a `bytes` binds here")
+            .expect("not null");
+        assert_eq!(marked, [BINARY_MARK, 0x00, 0x61, 0xFF]);
+        assert_ne!(
+            Some(marked),
+            crate::encode(bytes).expect("PostgreSQL binds it too"),
+            "`\\x0061ff` is not a `varbinary`, so the two drivers must not agree here"
+        );
+
         // The values PostgreSQL binds and this driver refuses: the three floats
-        // no `float` column holds, and § 9's `bytes` row, which is this
-        // driver's one gap against the table.
-        let octets = Value::bytes(nvs_runtime::NvsStr::new(&[0x00, 0x61, 0xFF]));
-        let refused = encode(octets).expect_err("no `nvarchar` carries these octets");
-        assert_eq!(refused.kind(), io::ErrorKind::InvalidInput);
-        assert!(crate::encode(octets).is_ok());
+        // no `float` column holds.
         for outside in [f64::INFINITY, f64::NEG_INFINITY, f64::NAN] {
             let refused = encode(Value::float(outside)).expect_err("no `float` holds it");
             assert_eq!(refused.kind(), io::ErrorKind::InvalidInput);
