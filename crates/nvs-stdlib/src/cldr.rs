@@ -230,9 +230,10 @@
 //! core — a `Vec` of [`Piece`], one entry per field letter and literal run —
 //! held for the life of the core rather than of the request, and never more
 //! than [`CACHE_CAPACITY`] of them. That those bytes outlive the request that
-//! paid for them, and that no accounting bracket can take a store shaped this
-//! way, is [`crate::regex`]'s own known gap 1 — one question about both caches,
-//! answered in one place.
+//! paid for them, what the request that clears the cache is credited with in
+//! exchange, and why no accounting bracket takes a store shaped this way, are
+//! [`crate::regex`]'s § *What a compiled pattern costs, and where it is held* —
+//! one question about both caches, answered in one place.
 
 use std::cell::RefCell;
 use std::cmp::Ordering;

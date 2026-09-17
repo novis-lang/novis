@@ -64,24 +64,23 @@
 //! [`CACHE_CAPACITY`] live patterns on one core is one this cache was never
 //! going to serve.
 //!
-//! # Known gaps
-//!
-//! 1. **This core's compiled-pattern cache is a cross-request store no
-//!    accounting bracket can take.** [`CACHE`] holds an `Rc` the compiling
-//!    request holds too, so a pattern's bytes have two owners and nothing can
-//!    put its allocation and its release on the same balance, which is what
-//!    `nvs_runtime::budget::Detached` asks of every store that opens one. What
-//!    it costs today is the request whose write fills the cache and clears it:
-//!    it is credited with every pattern earlier requests compiled, lowering the
-//!    balance its own ceiling is armed against, bounded by [`CACHE_CAPACITY`]
-//!    patterns. Bracketing it the way `Core\Cache`'s tier is bracketed would be
-//!    worse rather than better — the compile would be the process's while the
-//!    last `Rc`'s drop stayed the request's, which is the same credit with no
-//!    bound on it at all. It waits on per-request provenance, which is the
-//!    request arena. [`crate::cldr`]'s prepared-pattern cache is this same
-//!    store one grammar along and closes with it: nothing about the question
-//!    is particular to what was compiled.
-//!    — owner: decided-closures
+//! **Whose bytes they are, and the bound on that.** A compiled program is
+//! charged to the request that compiled it and outlives that request, so the
+//! one whose write fills the cache and clears it is credited with the programs
+//! earlier requests paid for: its `Ctx::memory_used` reading falls by that
+//! much, and the `[limits] memory` ceiling armed against that reading gives it
+//! that much extra headroom, bounded each time by the [`CACHE_CAPACITY`]
+//! programs this core holds. No accounting bracket takes that away. [`CACHE`]
+//! hands out an `Rc` the calling request holds too, so
+//! `nvs_runtime::budget::Detached` — which asks a store for symmetry, the
+//! allocation and the release on one balance — has no pair to take, and
+//! bracketing the compile the way `Core\Cache`'s tier is bracketed would leave
+//! the last `Rc`'s drop the request's, which is the same credit with no bound
+//! on it at all. What is never at stake is who wrote the text: a pattern is a
+//! sink taking the plain `string` (`rule:security/regex-pattern-is-a-sink`), so
+//! the set a core caches is the program's own and never one a request composed.
+//! [`crate::cldr`]'s prepared-pattern cache is this same store one grammar
+//! along, under this same bound.
 
 use std::borrow::Cow;
 use std::cell::RefCell;
