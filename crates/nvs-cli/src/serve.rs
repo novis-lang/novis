@@ -1215,6 +1215,23 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
         });
     }
 
+    // This core offers itself as a placement destination, which is ADR 0184
+    // § 5's answer to *which core*: the threads this process is already turning
+    // are pinned, and a second thread per core for `on: "worker"` work would
+    // oversubscribe exactly the cores a served request's latency depends on. So
+    // every serving core registers one inbox and one receptionist task beside
+    // the accept loops above, the destination set fills with cores that already
+    // exist, and a placement written here is started on a sibling rather than on
+    // a thread started for it.
+    //
+    // The guard is held to the end of this function because withdrawing is not
+    // optional: an inbox left in the set after its core has gone is one
+    // placements are written to and never drained from. What ends the
+    // receptionist itself is the drain below — a core whose receptionist parked
+    // for a placement that is never coming would never reach `parked == 0`, and
+    // `nvs_host::worker::register_this_core` owns that half.
+    let _registered = nvs_host::worker::register_this_core(sched, draining.bit());
+
     // **`run_until_idle` is not this loop by itself, and a server is the first
     // caller for which that matters.** It returns as soon as one blocking poll
     // wakes nothing — which is what a connection's own socket reports once the

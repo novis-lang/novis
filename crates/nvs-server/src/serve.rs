@@ -527,14 +527,17 @@ impl Draining {
         self.0.is_draining()
     }
 
-    /// The bit itself, for the one caller that needs more of it than this
-    /// handle carries: [`serve_on_this_core`] registers a wake against it so
-    /// that a loop parked in `accept` is told, rather than finding out when the
-    /// next connection arrives.
+    /// The bit itself, for a caller that needs to **park** on the drain rather
+    /// than read it: [`serve_on_this_core`] registers a wake against it so that
+    /// a loop parked in `accept` is told rather than finding out when the next
+    /// connection arrives, and `nvs_host::worker::register_this_core` gives the
+    /// receptionist a serving core offers itself through the same ending.
     ///
-    /// Crate-private, so the rule above still holds from outside: what a caller
-    /// beyond this crate can do to a drain is begin it and read it.
-    pub(crate) fn bit(&self) -> &Drain {
+    /// [`nvs_runtime::Drain::wake_at_drain`] is the whole of what this adds over
+    /// the handle — beginning a drain and reading one are already here — and
+    /// what is behind it is the process's own bit, which
+    /// [`nvs_runtime::Drain::process`] hands to anybody who asks for it.
+    pub fn bit(&self) -> &Drain {
         &self.0
     }
 }

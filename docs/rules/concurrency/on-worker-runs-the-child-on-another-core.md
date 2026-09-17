@@ -39,9 +39,12 @@ core rather than placing it where nothing could compile it;
 Which core it is, is decided by the set that offers one, and **worker cores are started lazily and
 bounded at the core count**: a core's scheduler thread starts the first time a program places a child on
 one, so a program that places none has no thread, exactly as a worker with no blocking work has no pool
-threads. `nvs serve` is no exception today — a serving core does not offer itself as a destination, so a
-placement there starts one of these cores rather than reaching the sibling serving core ADR 0184 § 5
-argues for, which is the destination set that record's *Revisiting* names. Either way the cost is one
+threads. **Under `nvs serve` the set is the serving cores themselves**: each one registers its own inbox
+and drains it from a receptionist beside its accept loops, so a placement reaches the sibling serving core
+ADR 0184 § 5 argues for and no thread is started beside threads that are already pinned. A core that
+offered itself that way stops receiving when the process begins draining and goes once the placements it
+is holding have answered, because those belong to the requests the drain is there to finish. Either way
+the cost is one
 scheduler thread per core at most: O(cores), never O(requests served), and which core ran a child is not
 readable from the child, so the destination set is the only thing that changes when a serving core
 registers one.
