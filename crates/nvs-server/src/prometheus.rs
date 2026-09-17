@@ -242,7 +242,12 @@ pub fn scrape(cores: &[Registry]) -> String {
 }
 
 /// Every core's series, added up.
-fn merged(cores: &[Registry]) -> BTreeMap<Series, Value> {
+///
+/// `pub(crate)` because both exporters make the same merge: § *The merge is
+/// arithmetic* is a property of the registry and not of the format, so the push
+/// in [`crate::otlp`] adds the cores up here rather than beside a second copy of
+/// [`add`] that could drift from this one.
+pub(crate) fn merged(cores: &[Registry]) -> BTreeMap<Series, Value> {
     let mut merged: BTreeMap<Series, Value> = BTreeMap::new();
     for core in cores {
         for (series, value) in core.series() {

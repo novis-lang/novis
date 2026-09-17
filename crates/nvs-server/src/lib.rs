@@ -96,7 +96,7 @@
 //! `rule:observability/the-exporter-is-a-feature-and-core-metrics-is-not` puts
 //! both encoders behind the `exporter` feature, on by default, so a binary that
 //! only ever runs a program from the command line carries neither the exposition
-//! writer nor the span pusher.
+//! writer nor either pusher.
 //! [`metrics`] is beside them in **every** build, because a `Core\Metrics` call
 //! that compiled in one build and not another would make the `Core` namespace
 //! conditional; a build without the feature still accumulates every series and
@@ -173,7 +173,10 @@ pub use io::{ConnectionIo, Phase};
 pub use metrics::{Family, Histogram, Kind, Refused, Registry, Series, Value};
 pub use mount::{Dispatch, Existing, OnDisk, Resolved, Selection, Table, What};
 #[cfg(feature = "exporter")]
-pub use otlp::{Endpoint, Pending, Recorded, push_queued_on_this_core, queue};
+pub use otlp::{
+    Endpoint, Pending, Recorded, Signal, push_queued_on_this_core, push_registry_on_this_core,
+    queue,
+};
 #[cfg(feature = "exporter")]
 pub use prometheus::{scrape, scrape_every_core, serve_scrapes_on_this_core};
 pub use schedule::{Armed, Fires, Leases, arm, tick_on_this_core};

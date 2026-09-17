@@ -1,6 +1,7 @@
 //! `rule:observability/the-exporters-are-crates`'s push half: the spans a
-//! sampled request derived, encoded as OTLP and posted to the collector
-//! `[trace] endpoint` names.
+//! sampled request derived and the series every core accumulated, encoded as
+//! OTLP and posted to the collectors `[trace] endpoint` and `[metrics]
+//! endpoint` name.
 //!
 //! # Why the encoder is here
 //!
@@ -11,18 +12,30 @@
 //! predicate — it brings a runtime and a client of its own — and what is left
 //! once those are refused is a protobuf encoder of a few dozen bytes per span
 //! and one HTTP request. That is this module, written against the OTLP
-//! specification's `trace/v1` messages, and it changes nothing above it:
-//! [`crate::trace::spans`] derives the graph whether or not anybody ships it.
+//! specification's `trace/v1` and `metrics/v1` messages, and it changes nothing
+//! above it: [`crate::trace::spans`] derives the graph and
+//! [`crate::metrics::Registry`] accumulates the series whether or not anybody
+//! ships either.
 //!
-//! # The queue is the whole of what a request touches
+//! # The two signals, and what a request touches
 //!
-//! A request hands its spans to [`queue`] — through [`crate::trace::record`],
-//! which is the one caller and the one place a door and a scheduled run share —
-//! and is finished with them: a lock, a push and a stamp, with no socket, no
-//! encoder and no collector anywhere on that path. Everything else — encoding, dialling, waiting on an answer —
-//! happens on the drain task [`push_queued_on_this_core`] runs, so a collector
-//! that is slow or gone is a collector that is slow or gone and never a
-//! response that took longer.
+//! A span is a **record**, so it is queued: a request hands its spans to
+//! [`queue`] — through [`crate::trace::record`], which is the one caller and the
+//! one place a door and a scheduled run share — and is finished with them: a
+//! lock, a push and a stamp, with no socket, no encoder and no collector
+//! anywhere on that path. Everything else — encoding, dialling, waiting on an
+//! answer — happens on the drain task [`push_queued_on_this_core`] runs, so a
+//! collector that is slow or gone is a collector that is slow or gone and never
+//! a response that took longer.
+//!
+//! A series is a **current value**, so it is not queued at all.
+//! [`push_registry_on_this_core`] reads every core's registry on its own
+//! cadence ([`INTERVAL`]) and encodes what it finds, which is the same gather
+//! [`crate::prometheus::scrape_every_core`] makes for a collector that pulls —
+//! `rule:observability/a-registry-is-per-core-and-nothing-reads-it`'s merge is
+//! arithmetic, and a push does it at a moment of its own choosing rather than
+//! at one a scraper chose. Nothing a request does is on that path either: a
+//! `Core\Metrics` write reaches this core's registry and stops there.
 //!
 //! The queue is bounded ([`QUEUE_CEILING`]) because the alternative is a
 //! process whose memory is a function of how far behind its collector is, which
@@ -47,7 +60,11 @@
 //! Process-wide: one queue, at most [`QUEUE_CEILING`] spans, plus one encoded
 //! batch and one connection while a push is in flight. Per request: nothing but
 //! the [`crate::trace::spans`] the request already held, moved into the queue
-//! rather than copied. Nothing here grows with requests served, which is
+//! rather than copied. The registry push holds no store of its own — a copy of
+//! every core's series and one encoded message for as long as one push takes,
+//! both O(cores × series) and both released at the end of it, which is the
+//! figure [`crate::prometheus`] states for the scrape and for its reason.
+//! Nothing here grows with requests served, which is
 //! `rule:programs/memory-priority`'s per-process reading of what an exporter
 //! costs.
 //!
@@ -81,6 +98,7 @@ use nvs_host::{NvsConnection, NvsTcp};
 use nvs_runtime::host::Woken;
 
 use crate::io::ConnectionIo;
+use crate::metrics::{Histogram, Registry, Series, Value};
 use crate::serve::Draining;
 use crate::trace::{Span, SpanKind};
 
@@ -101,13 +119,26 @@ pub const QUEUE_CEILING: usize = 8 * 1024;
 /// individually, rather than in one the size of the whole backlog.
 pub const BATCH: usize = 512;
 
-/// How long the drain waits before asking an empty queue again.
+/// How long a drain parks at a time.
 ///
-/// The task parks for this rather than being woken by [`queue`], because a wake
-/// per sampled request would put the exporter's bookkeeping back on the path
-/// this module exists to keep clear of it. What it costs is this core waking
-/// four times a second with nothing to do.
+/// The span drain parks for this rather than being woken by [`queue`], because
+/// a wake per sampled request would put the exporter's bookkeeping back on the
+/// path this module exists to keep clear of it. The registry push parks the
+/// same way, in slices of [`INTERVAL`], so a drain that begins mid-interval is
+/// noticed in a quarter of a second rather than at the end of a minute — a
+/// process that has stopped serving still has to stop. What it costs is a core
+/// waking four times a second with nothing to do.
 const IDLE: Duration = Duration::from_millis(250);
+
+/// How long between one push of the registry and the next.
+///
+/// The OpenTelemetry specification's own default export interval, and fixed
+/// rather than configured for the reason `[metrics] listen` carries no scrape
+/// interval either: on the pull side the cadence a series is read at is the
+/// collector's, and a key here would be a second copy of it that an operator
+/// has to keep in step with their backend's resolution for no gain over the
+/// number the backend already expects.
+pub const INTERVAL: Duration = Duration::from_secs(60);
 
 /// How long a collector has to accept the connection.
 ///
@@ -119,12 +150,43 @@ const DIAL: Duration = Duration::from_secs(5);
 /// The media type OTLP/HTTP's default encoding is sent as.
 const PROTOBUF: &str = "application/x-protobuf";
 
-/// The path OTLP/HTTP puts traces on, appended to an endpoint written as a base
-/// URL.
-const TRACES: &str = "/v1/traces";
-
 /// The port OTLP/HTTP is served on where an endpoint names none.
 const OTLP_PORT: u16 = 4318;
+
+/// Which signal an endpoint carries.
+///
+/// OTLP/HTTP puts each signal on a path of its own, and § 6 gives each a block
+/// of its own to be written in, so the two things an [`Endpoint`] needs that
+/// differ between them — the path a base URL takes, and the key a refusal
+/// quotes back — are both read from this.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum Signal {
+    /// Spans, on `/v1/traces`, from `[trace] endpoint`.
+    Traces,
+    /// The registry, on `/v1/metrics`, from `[metrics] endpoint`.
+    Metrics,
+}
+
+impl Signal {
+    /// The path OTLP/HTTP puts this signal on, appended to an endpoint written
+    /// as a base URL.
+    #[must_use]
+    pub fn path(self) -> &'static str {
+        match self {
+            Self::Traces => "/v1/traces",
+            Self::Metrics => "/v1/metrics",
+        }
+    }
+
+    /// The key that named the endpoint, for a refusal to quote back.
+    #[must_use]
+    pub fn key(self) -> &'static str {
+        match self {
+            Self::Traces => "`[trace] endpoint`",
+            Self::Metrics => "`[metrics] endpoint`",
+        }
+    }
+}
 
 /// One sampled request's spans, stamped when the request handed them over.
 ///
@@ -193,11 +255,7 @@ impl Pending {
         if spans.is_empty() {
             return;
         }
-        let at = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_or(0, |since| {
-                u64::try_from(since.as_nanos()).unwrap_or(u64::MAX)
-            });
+        let at = stamped();
         let arriving = spans.len();
         let mut waiting = match self.waiting.lock() {
             Ok(waiting) => waiting,
@@ -305,11 +363,11 @@ pub fn queue() -> &'static Pending {
     QUEUE.get_or_init(|| Pending::new(QUEUE_CEILING))
 }
 
-/// Where `[trace] endpoint` points, resolved.
+/// Where an `endpoint` key points, resolved.
 ///
 /// The address is resolved once, by the boot that read the key, because
 /// `to_socket_addrs` blocks and the drain runs on a core that is also serving
-/// requests. `[trace]` is `System`-class
+/// requests. Both blocks are `System`-class
 /// (`rule:observability/metrics-and-trace-blocks-are-system`), so the value in
 /// force is the one the boot read either way.
 #[derive(Clone, Debug)]
@@ -320,24 +378,25 @@ pub struct Endpoint {
     /// behind a name-based proxy is routed by that and not by the address it
     /// resolved to.
     authority: String,
-    /// The request target, `/v1/traces` where the endpoint named no path.
+    /// The request target, [`Signal::path`] where the endpoint named no path.
     target: String,
 }
 
 impl Endpoint {
-    /// What `written` names.
+    /// What `written` names, for the signal it was written to carry.
     ///
-    /// An endpoint written as a base URL gets OTLP/HTTP's own `/v1/traces`
-    /// appended, which is the specification's rule for a URL that is not
+    /// An endpoint written as a base URL gets OTLP/HTTP's own path for that
+    /// signal appended, which is the specification's rule for a URL that is not
     /// signal-specific, and one that already names a path is dialled exactly as
     /// written.
     ///
     /// # Errors
     ///
-    /// One line naming what is wrong with it: a scheme this build cannot speak,
-    /// no host at all, a port that is not a number, or a name that does not
-    /// resolve.
-    pub fn of(written: &str) -> Result<Self, String> {
+    /// One line naming what is wrong with it, under the key that wrote it: a
+    /// scheme this build cannot speak, no host at all, a port that is not a
+    /// number, or a name that does not resolve.
+    pub fn of(written: &str, signal: Signal) -> Result<Self, String> {
+        let key = signal.key();
         let rest = match written.split_once("://") {
             Some(("http", rest)) => rest,
             // No TLS listener and no outbound TLS in this crate
@@ -347,20 +406,19 @@ impl Endpoint {
             // it.
             Some(("https", _)) => {
                 return Err(format!(
-                    "`[trace] endpoint` names `{written}` and this server speaks no outbound TLS: \
-                     push to a collector on this host, or to a local proxy that holds the \
-                     certificate"
+                    "{key} names `{written}` and this server speaks no outbound TLS: push to a \
+                     collector on this host, or to a local proxy that holds the certificate"
                 ));
             }
             Some((scheme, _)) => {
                 return Err(format!(
-                    "`[trace] endpoint` names the scheme `{scheme}`, and OTLP over HTTP is the one \
-                     this build pushes with: write an `http://` URL"
+                    "{key} names the scheme `{scheme}`, and OTLP over HTTP is the one this build \
+                     pushes with: write an `http://` URL"
                 ));
             }
             None => {
                 return Err(format!(
-                    "`[trace] endpoint` names `{written}`, which is not a URL: write one, as \
+                    "{key} names `{written}`, which is not a URL: write one, as \
                      `http://127.0.0.1:{OTLP_PORT}`"
                 ));
             }
@@ -370,9 +428,7 @@ impl Endpoint {
             None => (rest, ""),
         };
         if authority.is_empty() {
-            return Err(format!(
-                "`[trace] endpoint` names `{written}`, which has no host in it"
-            ));
+            return Err(format!("{key} names `{written}`, which has no host in it"));
         }
         let dialled = if authority.contains(':') {
             authority.to_owned()
@@ -381,18 +437,16 @@ impl Endpoint {
         };
         let address = dialled
             .to_socket_addrs()
-            .map_err(|error| {
-                format!("`[trace] endpoint` names `{written}`, which does not resolve: {error}")
-            })?
+            .map_err(|error| format!("{key} names `{written}`, which does not resolve: {error}"))?
             .next()
             .ok_or_else(|| {
-                format!("`[trace] endpoint` names `{written}`, which resolves to no address at all")
+                format!("{key} names `{written}`, which resolves to no address at all")
             })?;
         Ok(Self {
             address,
             authority: authority.to_owned(),
             target: if path.is_empty() || path == "/" {
-                TRACES.to_owned()
+                signal.path().to_owned()
             } else {
                 path.to_owned()
             },
@@ -454,7 +508,7 @@ pub fn push_queued_on_this_core(
             }
             continue;
         }
-        match delivered(endpoint, waits, &batch) {
+        match delivered(endpoint, waits, encode(&batch)) {
             Ok(()) => {
                 if !answering {
                     report(&format!("the collector at {endpoint} is answering again"));
@@ -478,18 +532,113 @@ pub fn push_queued_on_this_core(
     }
 }
 
-/// One batch, encoded and posted, and what the collector said about it.
+/// Pushes every core's series to `endpoint`, every [`INTERVAL`], until the drain
+/// begins.
+///
+/// The sibling of [`push_queued_on_this_core`] on the other signal, and the
+/// asymmetry between them is what a series is: there is no queue here, because
+/// a counter has a current value rather than a backlog. What this task reads is
+/// [`crate::metrics::every_core`] — the same gather a scrape makes, merged by
+/// [`crate::prometheus`]'s own arithmetic — at a moment of its own choosing,
+/// which is the only difference between a push and a pull of the same numbers.
+///
+/// **A push that fails is not retried and nothing is held.** The next interval
+/// carries the same counters, further along, so a collector that missed one
+/// window loses resolution and no totals: a retry queue would be spending
+/// memory to re-send a number that is about to be superseded. That is the
+/// property a cumulative series has and a span does not, which is why the two
+/// halves of this module recover from an outage differently.
+///
+/// `report` is told on each transition between a collector that answers and one
+/// that does not, and never per push, exactly as the span drain reports.
+pub fn push_registry_on_this_core(
+    endpoint: &Endpoint,
+    waits: Waits,
+    draining: &Draining,
+    mut report: impl FnMut(&str),
+) {
+    let since = stamped();
+    let mut answering = true;
+    loop {
+        let stopping = draining.is_draining();
+        // A process whose cores built no registry has nothing to say, and an
+        // empty `MetricsData` would be a connection per interval carrying it.
+        let cores = crate::metrics::every_core();
+        if !cores.is_empty() {
+            match delivered(endpoint, waits, encode_registry(&cores, since, stamped())) {
+                Ok(()) => {
+                    if !answering {
+                        report(&format!("the collector at {endpoint} is answering again"));
+                        answering = true;
+                    }
+                }
+                Err(failed) => {
+                    if answering {
+                        report(&format!(
+                            "the collector at {endpoint} took no series: {failed}. The next push \
+                             carries the same counters further along, and none is held"
+                        ));
+                        answering = false;
+                    }
+                }
+            }
+        }
+        // The last push is the one taken on the way out: the counters a process
+        // ends on are the ones an operator reads a restart against.
+        if stopping || !waited(draining) {
+            break;
+        }
+    }
+}
+
+/// Parks until the next push is due, or until the drain begins — `false` where
+/// the task was cancelled instead.
+///
+/// [`INTERVAL`] in slices of [`IDLE`] rather than in one park, because a park
+/// the length of an export interval is one a shutdown waits out. A drain that
+/// begins mid-interval brings the next push forward to now, which is the final
+/// one.
+fn waited(draining: &Draining) -> bool {
+    let mut left = INTERVAL;
+    while !left.is_zero() {
+        if draining.is_draining() {
+            return true;
+        }
+        let slice = left.min(IDLE);
+        if matches!(nvs_host::sleep(slice), Woken::Cancelled) {
+            return false;
+        }
+        left -= slice;
+    }
+    true
+}
+
+/// The wall clock in nanoseconds since the epoch, which is how OTLP stamps
+/// everything.
+fn stamped() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |since| {
+            u64::try_from(since.as_nanos()).unwrap_or(u64::MAX)
+        })
+}
+
+/// One encoded message, posted, and what the collector said about it.
+///
+/// Both signals dial through here, because what differs between them is the
+/// bytes and the target the endpoint already carries: one connection, one
+/// `POST`, one status.
 ///
 /// # Errors
 ///
 /// A collector that could not be reached, an exchange that failed, or a status
 /// that is not a success — all of which mean the same thing to the caller, which
-/// is that these spans are gone.
-fn delivered(endpoint: &Endpoint, waits: Waits, batch: &[Recorded]) -> Result<(), String> {
+/// is that this message is gone.
+fn delivered(endpoint: &Endpoint, waits: Waits, body: Vec<u8>) -> Result<(), String> {
     let stream = NvsTcp::connect_timeout(endpoint.address, DIAL)
         .map_err(|failed| format!("could not connect: {failed}"))?;
     let io = ConnectionIo::new(NvsConnection::Tcp(stream), waits);
-    let posting = post(io, &endpoint.authority, &endpoint.target, encode(batch));
+    let posting = post(io, &endpoint.authority, &endpoint.target, body);
     let answered = nvs_host::block_on(posting)
         .ok_or_else(|| "the push task was cancelled mid-exchange".to_owned())?
         .map_err(|failed| format!("the exchange failed: {failed}"))?;
@@ -661,7 +810,156 @@ pub fn encode(batch: &[Recorded]) -> Vec<u8> {
     out
 }
 
-/// `Resource`: what produced these spans, which is this process.
+/// Every core's series as one OTLP `MetricsData` message, gathered at `at` and
+/// running from `since`.
+///
+/// One `ResourceMetrics` and one `ScopeMetrics` for the reason [`encode`] has
+/// one of each: the resource is this process and the scope is this runtime, and
+/// a core is not a dimension of either — `rule:observability/a-registry-is-per-core-and-nothing-reads-it`
+/// says a core is an implementation of a counter and not a label on it, so what
+/// goes on the wire is the merge and never the cores.
+///
+/// **One `Metric` per series and not per family.** OTLP's data point carries its
+/// own attributes, so a family's members could share a `Metric` — but they are
+/// merged into a map keyed by name *and* labels, and grouping them again would
+/// be a second pass to recover something the wire does not need. A collector
+/// reading two `Metric` messages of one name sees the same series set either
+/// way.
+///
+/// `since` is the moment this process began exporting, which is what a
+/// cumulative point's start time means: a backend reads a reset by watching it
+/// move, and a start that moved with each push would make every counter look
+/// like a fresh process.
+#[must_use]
+pub fn encode_registry(cores: &[Registry], since: u64, at: u64) -> Vec<u8> {
+    let mut out = Vec::new();
+    // `MetricsData.resource_metrics`.
+    nested(&mut out, 1, |resource_metrics| {
+        // `ResourceMetrics.resource`.
+        nested(resource_metrics, 1, resource);
+        // `ResourceMetrics.scope_metrics`.
+        nested(resource_metrics, 2, |scope_metrics| {
+            // `ScopeMetrics.scope`.
+            nested(scope_metrics, 1, scope);
+            for (series, value) in crate::prometheus::merged(cores) {
+                // `ScopeMetrics.metrics`.
+                nested(scope_metrics, 2, |out| {
+                    metric(out, &series, &value, since, at);
+                });
+            }
+        });
+    });
+    out
+}
+
+/// One `Metric`: its name, and the one data point this series currently holds.
+///
+/// A counter is a monotonic `Sum` and a gauge is a `Gauge`, which is the
+/// distinction [`crate::metrics::Kind`] already draws and the one a backend
+/// needs to know whether a drop is a reset or a reading. Both, and the
+/// histogram, are **cumulative**: the registry accumulates from the moment a
+/// core built it and never resets between pushes, so delta temporality would be
+/// a subtraction this module would have to remember the last push to make.
+fn metric(out: &mut Vec<u8>, series: &Series, value: &Value, since: u64, at: u64) {
+    // `Metric.name`.
+    text(out, 1, &series.name);
+    match value {
+        // `Metric.sum`.
+        Value::Counter(total) => nested(out, 7, |sum| {
+            // `Sum.data_points`.
+            nested(sum, 1, |point| {
+                number_point(point, series, since, at, |point| {
+                    // `NumberDataPoint.as_int`.
+                    tag(point, 6, 1);
+                    point.extend_from_slice(&total.to_le_bytes());
+                });
+            });
+            // `Sum.aggregation_temporality`, then `Sum.is_monotonic`.
+            number(sum, 2, CUMULATIVE);
+            number(sum, 3, 1);
+        }),
+        // `Metric.gauge`.
+        Value::Gauge(held) => nested(out, 5, |gauge| {
+            // `Gauge.data_points`.
+            nested(gauge, 1, |point| {
+                number_point(point, series, since, at, |point| {
+                    // `NumberDataPoint.as_double`.
+                    double(point, 4, *held);
+                });
+            });
+        }),
+        // `Metric.histogram`.
+        Value::Histogram(histogram) => nested(out, 9, |out| {
+            // `Histogram.data_points`.
+            nested(out, 1, |point| {
+                histogram_point(point, series, histogram, since, at);
+            });
+            // `Histogram.aggregation_temporality`.
+            number(out, 2, CUMULATIVE);
+        }),
+    }
+}
+
+/// A `NumberDataPoint`'s common half — its attributes and its window — with
+/// `written` putting the value itself in the `oneof`.
+fn number_point(
+    out: &mut Vec<u8>,
+    series: &Series,
+    since: u64,
+    at: u64,
+    written: impl FnOnce(&mut Vec<u8>),
+) {
+    // `NumberDataPoint.start_time_unix_nano`, then `.time_unix_nano`.
+    fixed64(out, 2, since);
+    fixed64(out, 3, at);
+    written(out);
+    for (name, value) in &series.labels {
+        // `NumberDataPoint.attributes`.
+        attribute(out, 7, name, value);
+    }
+}
+
+/// One `HistogramDataPoint`: the buckets, the sum and the count.
+///
+/// The counts go out **cumulative**, exactly as [`crate::prometheus`] writes
+/// them and for that module's reason — both formats want a running total and
+/// [`crate::metrics::Histogram`] holds one count per bucket, because a merge can
+/// add those and cannot subtract them back. The last slot is `+Inf` and has no
+/// boundary, which is why there is one more count than there are bounds.
+fn histogram_point(out: &mut Vec<u8>, series: &Series, histogram: &Histogram, since: u64, at: u64) {
+    // `HistogramDataPoint.start_time_unix_nano`, then `.time_unix_nano`.
+    fixed64(out, 2, since);
+    fixed64(out, 3, at);
+    // `HistogramDataPoint.count`, then `.sum`.
+    fixed64(out, 4, histogram.count);
+    double(out, 5, histogram.sum);
+    // `HistogramDataPoint.bucket_counts`, packed as proto3 writes a repeated
+    // fixed-width field.
+    let mut running = 0_u64;
+    nested(out, 6, |counts| {
+        for count in &histogram.counts {
+            running = running.saturating_add(*count);
+            counts.extend_from_slice(&running.to_le_bytes());
+        }
+    });
+    // `HistogramDataPoint.explicit_bounds`.
+    nested(out, 7, |bounds| {
+        for bound in histogram.bounds {
+            bounds.extend_from_slice(&bound.to_le_bytes());
+        }
+    });
+    for (name, value) in &series.labels {
+        // `HistogramDataPoint.attributes`.
+        attribute(out, 9, name, value);
+    }
+}
+
+/// `AggregationTemporality.CUMULATIVE`: a point is measured from the start time
+/// it carries rather than from the last push.
+const CUMULATIVE: u64 = 2;
+
+/// `Resource`: what produced this, which is this process, whichever signal it
+/// is.
 fn resource(out: &mut Vec<u8>) {
     attribute(out, 1, "service.name", "novis");
     attribute(out, 1, "telemetry.sdk.name", "novis");
@@ -669,7 +967,7 @@ fn resource(out: &mut Vec<u8>) {
     attribute(out, 1, "telemetry.sdk.version", env!("CARGO_PKG_VERSION"));
 }
 
-/// `InstrumentationScope`: what instrumented them, which is this crate.
+/// `InstrumentationScope`: what instrumented it, which is this crate.
 fn scope(out: &mut Vec<u8>) {
     text(out, 1, "nvs-server");
     text(out, 2, env!("CARGO_PKG_VERSION"));
@@ -746,8 +1044,15 @@ fn number(out: &mut Vec<u8>, field: u32, value: u64) {
     varint(out, value);
 }
 
-/// A `fixed64` field, which is how OTLP carries a nanosecond timestamp.
+/// A `fixed64` field, which is how OTLP carries a nanosecond timestamp and a
+/// bucket count.
 fn fixed64(out: &mut Vec<u8>, field: u32, value: u64) {
+    tag(out, field, 1);
+    out.extend_from_slice(&value.to_le_bytes());
+}
+
+/// A `double` field, which is the same eight bytes carrying an IEEE 754 value.
+fn double(out: &mut Vec<u8>, field: u32, value: f64) {
     tag(out, field, 1);
     out.extend_from_slice(&value.to_le_bytes());
 }
@@ -780,8 +1085,9 @@ mod tests {
 
     use nvs_runtime::{TraceContext, TraceEvent, TraceKind};
 
-    use super::{BATCH, Endpoint, Pending, encode, post};
+    use super::{BATCH, Endpoint, Pending, Signal, encode, encode_registry, post};
     use crate::io::Nonblocking;
+    use crate::metrics::Registry;
     use crate::trace::{Span, spans};
 
     /// A sampled inbound `traceparent`, so the derivation below produces a
@@ -845,6 +1151,90 @@ mod tests {
             }
         }
         found
+    }
+
+    /// The payloads of every eight-byte `field` at the top level of `message`,
+    /// as the bits they were written with.
+    ///
+    /// The `fixed64`, `sfixed64` and `double` halves of a data point are all one
+    /// wire type, so one reader takes them and the caller says which it asked
+    /// for by what it does with the bits — [`fields`]'s counterpart for
+    /// everything OTLP does not length-delimit.
+    fn eights(message: &[u8], field: u32) -> Vec<u64> {
+        let mut found = Vec::new();
+        let mut at = 0;
+        while at < message.len() {
+            let (tag, read) = varint(message, at);
+            at = read;
+            let (number, wire) = (u32::try_from(tag >> 3).unwrap_or(0), tag & 7);
+            match wire {
+                0 => at = varint(message, at).1,
+                1 => {
+                    if number == field {
+                        let mut bits = [0; 8];
+                        bits.copy_from_slice(&message[at..at + 8]);
+                        found.push(u64::from_le_bytes(bits));
+                    }
+                    at += 8;
+                }
+                2 => {
+                    let (len, read) = varint(message, at);
+                    at = read + usize::try_from(len).unwrap_or(0);
+                }
+                5 => at += 4,
+                _ => break,
+            }
+        }
+        found
+    }
+
+    /// The values of every varint `field` at the top level of `message` — an
+    /// enum or a flag, which is what OTLP writes that way.
+    fn varints(message: &[u8], field: u32) -> Vec<u64> {
+        let mut found = Vec::new();
+        let mut at = 0;
+        while at < message.len() {
+            let (tag, read) = varint(message, at);
+            at = read;
+            let (number, wire) = (u32::try_from(tag >> 3).unwrap_or(0), tag & 7);
+            match wire {
+                0 => {
+                    let (value, read) = varint(message, at);
+                    at = read;
+                    if number == field {
+                        found.push(value);
+                    }
+                }
+                1 => at += 8,
+                2 => {
+                    let (len, read) = varint(message, at);
+                    at = read + usize::try_from(len).unwrap_or(0);
+                }
+                5 => at += 4,
+                _ => break,
+            }
+        }
+        found
+    }
+
+    /// The `Metric` in `metrics` whose name is `name`.
+    fn by_name<'a>(metrics: &[&'a [u8]], name: &str) -> &'a [u8] {
+        metrics
+            .iter()
+            .find(|metric| fields(metric, 1) == [name.as_bytes()])
+            .unwrap_or_else(|| panic!("`{name}` did not reach the wire"))
+    }
+
+    /// The `KeyValue` attributes of a data point under `field`, as pairs.
+    fn labelled(point: &[u8], field: u32) -> Vec<(String, String)> {
+        fields(point, field)
+            .iter()
+            .map(|pair| {
+                let key = String::from_utf8_lossy(fields(pair, 1)[0]).into_owned();
+                let any = fields(pair, 2)[0];
+                (key, String::from_utf8_lossy(fields(any, 1)[0]).into_owned())
+            })
+            .collect()
     }
 
     /// One varint out of `message` at `at`: its value, and where the next field
@@ -951,7 +1341,8 @@ mod tests {
         assert_eq!(pending.waiting(), 0, "the batch left the queue");
 
         let (address, received) = collector();
-        let endpoint = Endpoint::of(&format!("http://{address}")).expect("the endpoint");
+        let endpoint =
+            Endpoint::of(&format!("http://{address}"), Signal::Traces).expect("the endpoint");
         assert_eq!(
             endpoint.target(),
             "/v1/traces",
@@ -993,6 +1384,142 @@ mod tests {
         }
     }
 
+    /// `rule:observability/a-registry-is-per-core-and-nothing-reads-it`'s
+    /// registry leaving the process as a push: two cores' series, merged by the
+    /// arithmetic a scrape uses, arrive at the endpoint as one OTLP
+    /// `MetricsData` message on `/v1/metrics`.
+    ///
+    /// The three kinds are asserted because each is a different OTLP message —
+    /// a monotonic `Sum`, a `Gauge` and a `Histogram` — and getting one of them
+    /// wrong is a series a backend reads as the wrong thing rather than one it
+    /// refuses. What is not asserted is the count of messages: a registry
+    /// carries § 1's unlabelled families from the moment it is built, so what
+    /// the wire owes is one `Metric` per merged series and not a number written
+    /// down here.
+    #[test]
+    fn an_otlp_endpoint_receives_the_registry_as_a_push() {
+        // Two cores that counted the same labelled series, which is what the
+        // merge exists for, and the unlabelled gauge every registry is born
+        // holding.
+        let labels = [
+            ("method", "GET"),
+            ("status", "200"),
+            ("route", "/orders/{id}"),
+        ];
+        let mut cores = Vec::new();
+        for (requests, took, tasks) in [(2, 0.03, 3.0), (5, 0.3, 4.0)] {
+            let mut core = Registry::new(64);
+            core.increment("nvs_requests_total", requests, &labels)
+                .expect("a declared counter");
+            core.observe("nvs_request_duration_seconds", took, &labels)
+                .expect("a declared histogram");
+            core.gauge("nvs_tasks_in_flight", tasks, &[])
+                .expect("a declared gauge");
+            cores.push(core);
+        }
+        let merged = crate::prometheus::merged(&cores);
+
+        let (address, received) = collector();
+        let endpoint =
+            Endpoint::of(&format!("http://{address}"), Signal::Metrics).expect("the endpoint");
+        assert_eq!(
+            endpoint.target(),
+            "/v1/metrics",
+            "a base URL takes this signal's own path"
+        );
+        let stream = TcpStream::connect(endpoint.address()).expect("the collector");
+        let (since, at) = (1_000, 61_000);
+        let status = pushed(
+            stream,
+            &address,
+            endpoint.target(),
+            encode_registry(&cores, since, at),
+        );
+        assert_eq!(status, 200);
+
+        let (head, body) = received
+            .recv_timeout(Duration::from_secs(10))
+            .expect("the push arrived");
+        assert_eq!(
+            head.lines().next().unwrap_or_default(),
+            "POST /v1/metrics HTTP/1.1",
+            "head: {head}"
+        );
+        assert!(
+            head.to_ascii_lowercase()
+                .contains("content-type: application/x-protobuf"),
+            "head: {head}"
+        );
+
+        let resources = fields(&body, 1);
+        assert_eq!(resources.len(), 1, "one resource, which is this process");
+        let scopes = fields(resources[0], 2);
+        assert_eq!(scopes.len(), 1, "a core is not a scope");
+        let metrics = fields(scopes[0], 2);
+        assert_eq!(
+            metrics.len(),
+            merged.len(),
+            "a merged series did not reach the wire"
+        );
+
+        // A counter is a cumulative, monotonic `Sum` carrying both cores' total
+        // as an integer, and its labels as the point's own attributes.
+        let sum = fields(by_name(&metrics, "nvs_requests_total"), 7);
+        assert_eq!(varints(sum[0], 2), [2], "cumulative temporality");
+        assert_eq!(varints(sum[0], 3), [1], "a counter is monotonic");
+        let point = fields(sum[0], 1);
+        assert_eq!(
+            eights(point[0], 6),
+            [7],
+            "2 + 5 did not arrive as one total"
+        );
+        assert_eq!(eights(point[0], 2), [since], "the export's start moved");
+        assert_eq!(eights(point[0], 3), [at]);
+        assert_eq!(
+            labelled(point[0], 7),
+            [
+                ("method".to_owned(), "GET".to_owned()),
+                ("route".to_owned(), "/orders/{id}".to_owned()),
+                ("status".to_owned(), "200".to_owned()),
+            ],
+            "the labels are the point's attributes, sorted as the series holds them"
+        );
+
+        // A gauge is a `Gauge` of doubles, summed across the cores exactly as a
+        // scrape sums it.
+        let gauge = fields(by_name(&metrics, "nvs_tasks_in_flight"), 5);
+        let point = fields(gauge[0], 1);
+        let held = f64::from_bits(eights(point[0], 4)[0]);
+        assert!((held - 7.0).abs() < f64::EPSILON, "the gauge is {held}");
+
+        // A histogram ships its buckets cumulative, which is the format's shape
+        // and not the registry's.
+        let histogram = fields(by_name(&metrics, "nvs_request_duration_seconds"), 9);
+        assert_eq!(varints(histogram[0], 2), [2], "cumulative temporality");
+        let point = fields(histogram[0], 1);
+        assert_eq!(eights(point[0], 4), [2], "both observations");
+        let total = f64::from_bits(eights(point[0], 5)[0]);
+        assert!((total - 0.33).abs() < 1e-9, "the sum is {total}");
+        let counts: Vec<u64> = fields(point[0], 6)[0]
+            .chunks_exact(8)
+            .map(|bits| u64::from_le_bytes(bits.try_into().expect("eight bytes")))
+            .collect();
+        let bounds: Vec<f64> = fields(point[0], 7)[0]
+            .chunks_exact(8)
+            .map(|bits| f64::from_le_bytes(bits.try_into().expect("eight bytes")))
+            .collect();
+        assert_eq!(
+            counts.len(),
+            bounds.len() + 1,
+            "the `+Inf` bucket has no boundary"
+        );
+        assert_eq!(counts.last(), Some(&2), "the last bucket is the count");
+        assert!(
+            counts.windows(2).all(|pair| pair[0] <= pair[1]),
+            "the buckets are not cumulative: {counts:?}"
+        );
+    }
+
     /// `rule:programs/memory-priority`'s bound on the queue and the module
     /// doc's § *A collector that is not there*, together: what cannot be
     /// delivered is counted and dropped, and neither the drop nor the collector
@@ -1026,7 +1553,8 @@ mod tests {
             let listener = TcpListener::bind("127.0.0.1:0").expect("a loopback port");
             listener.local_addr().expect("the bound address")
         };
-        let endpoint = Endpoint::of(&format!("http://{closed}")).expect("the endpoint");
+        let endpoint =
+            Endpoint::of(&format!("http://{closed}"), Signal::Traces).expect("the endpoint");
         assert!(
             TcpStream::connect(endpoint.address()).is_err(),
             "something answered on a port that was just closed"
@@ -1054,20 +1582,26 @@ mod tests {
         );
     }
 
-    /// The endpoint grammar: a base URL takes OTLP/HTTP's own path, one that
-    /// names a path keeps it, a missing port is the protocol's own, and the two
-    /// schemes this build cannot push over are refused where they are written
-    /// rather than at the first batch.
+    /// The endpoint grammar: a base URL takes OTLP/HTTP's own path *for its
+    /// signal*, one that names a path keeps it, a missing port is the
+    /// protocol's own, and the two schemes this build cannot push over are
+    /// refused where they are written rather than at the first batch — under
+    /// the key that wrote them, which is the only thing the two signals differ
+    /// by here.
     #[test]
     fn an_endpoint_is_a_base_url_and_a_scheme_this_build_speaks() {
-        let base = Endpoint::of("http://127.0.0.1:4318").expect("a base URL");
+        let base = Endpoint::of("http://127.0.0.1:4318", Signal::Traces).expect("a base URL");
         assert_eq!(base.target(), "/v1/traces");
         assert_eq!(base.address().port(), 4318);
 
-        let named = Endpoint::of("http://127.0.0.1:4318/otlp/v1/traces").expect("a written path");
+        let series = Endpoint::of("http://127.0.0.1:4318", Signal::Metrics).expect("a base URL");
+        assert_eq!(series.target(), "/v1/metrics", "the other signal's path");
+
+        let named = Endpoint::of("http://127.0.0.1:4318/otlp/v1/traces", Signal::Traces)
+            .expect("a written path");
         assert_eq!(named.target(), "/otlp/v1/traces");
 
-        let bare = Endpoint::of("http://127.0.0.1").expect("no port");
+        let bare = Endpoint::of("http://127.0.0.1", Signal::Traces).expect("no port");
         assert_eq!(bare.address().port(), 4318, "OTLP/HTTP's own port");
 
         for refused in [
@@ -1075,8 +1609,10 @@ mod tests {
             "grpc://127.0.0.1:4317",
             "127.0.0.1:4318",
         ] {
-            let why = Endpoint::of(refused).expect_err(refused);
+            let why = Endpoint::of(refused, Signal::Traces).expect_err(refused);
             assert!(why.contains("`[trace] endpoint`"), "{why}");
+            let why = Endpoint::of(refused, Signal::Metrics).expect_err(refused);
+            assert!(why.contains("`[metrics] endpoint`"), "{why}");
         }
     }
 
