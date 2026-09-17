@@ -121,6 +121,8 @@ pub(crate) fn run(bundle: Bundle) -> ExitCode {
         false,
         false,
         None,
+        // No `--count` either: a bundle has no command line of its own to ask for one on.
+        false,
         // A bundle is a program, and a program answers a request only where
         // something handed it one: there is no `nvs run` in front of this to
         // have carried a `--request`, and a word on this command line is the

@@ -172,6 +172,8 @@ impl Ctx {
             headers: Vec::new(),
             inbound: None,
             stmt_hits: Vec::new(),
+            counted_stmts: 0,
+            counted_calls: 0,
             trace: Vec::new(),
             yielder: std::ptr::null(),
             fault: None,

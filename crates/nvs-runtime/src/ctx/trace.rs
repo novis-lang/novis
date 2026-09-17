@@ -267,6 +267,23 @@ impl Ctx {
         &self.stmt_hits
     }
 
+    /// The statements executed and the compiled call sites entered while
+    /// [`DebugFlags::COUNT`] was on — [`nvs_probe_stmt`]'s and
+    /// [`nvs_probe_call_enter`]'s whole effect under that bit. Both are zero
+    /// for a request that ran with it off throughout.
+    ///
+    /// A call is a compiled call site — a Novis method calling a Novis method.
+    /// A `Core` member is a helper and is not a call site, so a bench over one
+    /// counts the loop around it; what the member did inside is visible only to
+    /// the allocator's own counters (`budget::allocations`) and to the clock.
+    #[must_use]
+    pub fn counted(&self) -> Counted {
+        Counted {
+            statements: self.counted_stmts,
+            calls: self.counted_calls,
+        }
+    }
+
     /// Records one call-site trace event — [`nvs_probe_call_enter`]/
     /// [`nvs_probe_call_exit`]'s whole effect under [`DebugFlags::TRACE`].
     ///
@@ -508,6 +525,19 @@ pub unsafe extern "C" fn nvs_probe_stmt(ctx: *mut Ctx, stmt: u32) {
     if ctx.debug.contains(DebugFlags::COVERAGE) {
         ctx.record_stmt_hit(stmt);
     }
+    if ctx.debug.contains(DebugFlags::COUNT) {
+        ctx.counted_stmts += 1;
+    }
+}
+
+/// What [`Ctx::counted`] answers: `rule:testing/bench-counters`'s two
+/// probe-site counts, read once at the end of a run.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Counted {
+    /// Statement boundaries crossed.
+    pub statements: u64,
+    /// Compiled call sites entered.
+    pub calls: u64,
 }
 
 /// Reads a callee label a compiled call site passed as a pointer/length pair
@@ -571,6 +601,9 @@ pub unsafe extern "C" fn nvs_probe_call_enter(ctx: *mut Ctx, name: *const u8, le
     let (ctx, label) = unsafe { (&mut *ctx, callee_label(name, len)) };
     if ctx.debug.contains(DebugFlags::TRACE) {
         ctx.record_trace(&label, None);
+    }
+    if ctx.debug.contains(DebugFlags::COUNT) {
+        ctx.counted_calls += 1;
     }
 }
 
@@ -893,6 +926,44 @@ mod tests {
         probe(&mut ctx, 2);
 
         assert_eq!(ctx.stmt_hits(), [0, 1]);
+    }
+
+    /// `rule:testing/bench-counters`'s counting mode is its own bit: it counts
+    /// while set, records nothing per site or per call, and leaves the
+    /// coverage table and the trace exactly as a request with it off would.
+    #[test]
+    fn count_totals_statements_and_calls_and_files_nothing() {
+        let mut ctx = Ctx::buffered();
+        let name = b"Math::double";
+        let probes = |ctx: &mut Ctx| {
+            #[expect(unsafe_code, reason = "exercising the compiled-code entry points")]
+            unsafe {
+                nvs_probe_stmt(&raw mut *ctx, 0);
+                nvs_probe_stmt(&raw mut *ctx, 1);
+                nvs_probe_call_enter(&raw mut *ctx, name.as_ptr(), name.len());
+                nvs_probe_call_exit(&raw mut *ctx, name.as_ptr(), name.len(), crate::OK);
+            }
+        };
+
+        probes(&mut ctx);
+        assert_eq!(
+            ctx.counted(),
+            Counted::default(),
+            "nothing is counted with the bit off"
+        );
+
+        ctx.set_debug_flags(DebugFlags::COUNT);
+        probes(&mut ctx);
+        probes(&mut ctx);
+        assert_eq!(
+            ctx.counted(),
+            Counted {
+                statements: 4,
+                calls: 2
+            }
+        );
+        assert!(ctx.stmt_hits().is_empty(), "counting is not coverage");
+        assert!(ctx.trace().is_empty(), "counting is not tracing");
     }
 
     /// `rule:observability/four-kinds-become-a-span`'s three derived kinds are

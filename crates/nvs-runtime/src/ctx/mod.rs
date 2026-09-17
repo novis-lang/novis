@@ -283,6 +283,10 @@ bitflags::bitflags! {
         const TRACE = 1 << 2;
         /// Accumulate self/inclusive time around every call.
         const PROFILE = 1 << 3;
+        /// Count statements executed and calls made, as two integers and
+        /// nothing per site beyond the increment — `rule:testing/bench-counters`'s
+        /// counting mode, which a bench under `nvs run --count` reads at exit.
+        const COUNT = 1 << 4;
     }
 }
 
@@ -1226,6 +1230,15 @@ pub struct Ctx {
     /// for now is proving the mechanism: the probe fires at exactly the
     /// statements a request executed, and nowhere else.
     stmt_hits: Vec<u64>,
+    /// `rule:testing/bench-counters`'s two counts, kept only under
+    /// [`DebugFlags::COUNT`]: statements executed and compiled call sites
+    /// entered. Two words rather than `stmt_hits` and `trace`, because a bench
+    /// runs a loop hundreds of thousands of times and the question at its end
+    /// is a total, not a per-site table or a per-call record — and because the
+    /// counts are the same on every machine, which is what makes them worth
+    /// keeping beside a wall-clock figure that is not.
+    counted_stmts: u64,
+    counted_calls: u64,
     /// `rule:observability/four-kinds-become-a-span`'s events and
     /// `rule:testing/debug-probes`'s call-site trace, in the order they were
     /// filed.
