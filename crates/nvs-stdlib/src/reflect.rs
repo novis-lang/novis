@@ -33,8 +33,9 @@
 //!
 //! **What it spends:** per `forClass` or `forObject` call, one array and one
 //! [`PROPERTY_INFO`] of three slots per declared property, one array and one
-//! [`METHOD_INFO`] of three slots per declared method, and one array and one
-//! [`CONSTANT_INFO`] of three slots per class constant, charged to the
+//! [`METHOD_INFO`] of three slots per declared method, one array and one
+//! [`CONSTANT_INFO`] of three slots per class constant, and the attach-site
+//! roster the attribute decision below prices, charged to the
 //! request that asked and released with the description. A program that
 //! describes the same class in a loop pays per call; the alternative is a
 //! per-core cache keyed by descriptor address, which nothing yet needs. Both
@@ -151,24 +152,46 @@
 //! negative, which is `rule:programs/memory-priority`'s second priority spent
 //! to save a conversion.
 //!
-//! # Known gaps
+//! # Decision: an attach site is described where it was written, and the
+//! payload is the constant set
 //!
-//! 1. § 1's roster is short of one of the classes it names, `AttributeInfo`.
-//!    [`METHOD_INFO`], [`PROPERTY_INFO`], [`PARAMETER_INFO`], [`CONSTANT_INFO`]
-//!    and [`ENUM_INFO`] are here, so `get_class_methods`, `method_exists`,
-//!    `get_object_vars`, `property_exists` and
-//!    `ReflectionClass::getReflectionConstants` all have their answers and an
-//!    enum's case list has the only one it can have; the spec's roster row
-//!    (`docs/spec/01-core-library.md` § 13) is the home of the full list, and
-//!    the one left is waiting on descriptor data no crate carries rather than
-//!    on a decision. A [`nvs_runtime::ClassDesc`] carries no attributes at all,
-//!    so it is a join from `nvs_types` through `nvs-codegen` before it is a
-//!    member here — [`nvs_runtime::ConstantDesc`] and
-//!    `nvs_types::layout::ClassLayout::constants` are the shape that join
-//!    takes, a roster on the descriptor itself, because an attribute is
-//!    attached to a declaration and answers to the class rather than to any
-//!    instance of it.
-//!    — owner: decided-closures
+//! [`ATTRIBUTE_INFO`] is the roster [`describe`] builds from
+//! [`nvs_runtime::ClassDesc::attributes`], and it is **own-only** where the
+//! constants beside it are flattened over the ancestors: a constant is a name a
+//! program may write on this class, which `Foo::BAR` resolves up the chain,
+//! while an attribute is a fact about the declaration it is written on.
+//! `nvs_types::layout::ClassAttribute` owns that reading, and the row keeps the
+//! declaration it names — the empty string for the class itself, a member's
+//! name, and a parameter's beside its method's — rather than folding the four
+//! of `rule:attributes/structural-retrieval`'s target spellings into one
+//! invented one.
+//!
+//! **This is not `Core\Attributes`, and the two never meet.** That retrieval is
+//! *structural*: it matches an attached literal against a shape type and is
+//! replaced by its answer at compile time, so a running program holds no table
+//! for it at all (`nvs_types::retrieval`). This is the reflective question
+//! instead — *what is attached to this class, which the checker never saw* —
+//! and it is answered the only way a description can be, off the descriptor.
+//! A program that knows the shape it wants should ask the first: it costs
+//! nothing at run time and is type-checked where it is written.
+//!
+//! A payload field's value is [`nvs_runtime::ConstantValue`], the same currency
+//! a class constant travels in, because
+//! `rule:attributes/payload-is-a-compile-time-constant` admits the literals
+//! `nvs_types::consts` already folds. The three spellings it admits that need
+//! the attach site's own namespace to resolve — a class constant, an enum case
+//! and `Foo::class` — read as *no folded value* here, which is
+//! `Core\Reflect\ConstantInfo::hasValue`'s stated bound one declaration over,
+//! and [`nvs_core_reflect_attribute_info_field`] reports it as the bound it is.
+//! No `secret` bit rides with the payload, where a constant needs one: a
+//! `secret` value is refused where the payload is written (`E0727`), so none is
+//! ever in one to hand back.
+//!
+//! **What it spends:** one [`nvs_runtime::AttributeDesc`] per attach site per
+//! class and one `ConstantValue` per payload field, once per process; per
+//! `forClass` or `forObject` call, one array and one [`ATTRIBUTE_INFO`] of five
+//! slots per attach site, plus two arrays and one string per payload field,
+//! charged to the request that asked and released with the description.
 
 use nvs_runtime::{ClassDesc, Fault, NvsArray, NvsObj, NvsStr, Tag, ThrownClass, Value};
 
@@ -197,6 +220,9 @@ pub(crate) const CONSTANT_INFO_NAME: &str = "Core\\Reflect\\ConstantInfo";
 /// The described enum's own name, as a program writes it.
 pub(crate) const ENUM_INFO_NAME: &str = "Core\\Reflect\\EnumInfo";
 
+/// One described attach site's own name, as a program writes it.
+pub(crate) const ATTRIBUTE_INFO_NAME: &str = "Core\\Reflect\\AttributeInfo";
+
 /// [`CLASS_INFO`]'s slot holding the described class's name.
 const NAME_SLOT: usize = 0;
 
@@ -208,6 +234,31 @@ const METHODS_SLOT: usize = 2;
 
 /// [`CLASS_INFO`]'s slot holding one [`CONSTANT_INFO`] per class constant.
 const CONSTANTS_SLOT: usize = 3;
+
+/// [`CLASS_INFO`]'s slot holding one [`ATTRIBUTE_INFO`] per attach site the
+/// class's own declaration carries.
+const ATTRIBUTES_SLOT: usize = 4;
+
+/// [`ATTRIBUTE_INFO`]'s slot holding the name the named form gave the
+/// attribute, or the empty string for the bare form.
+const ATTRIBUTE_NAME_SLOT: usize = 0;
+
+/// [`ATTRIBUTE_INFO`]'s slot holding the member the attribute is written on, or
+/// the empty string for the class declaration itself.
+const ATTRIBUTE_TARGET_SLOT: usize = 1;
+
+/// [`ATTRIBUTE_INFO`]'s slot holding the parameter the attribute is written on,
+/// or the empty string for every other attach site.
+const ATTRIBUTE_PARAMETER_SLOT: usize = 2;
+
+/// [`ATTRIBUTE_INFO`]'s slot holding the payload's field names, in source
+/// order.
+const ATTRIBUTE_FIELDS_SLOT: usize = 3;
+
+/// [`ATTRIBUTE_INFO`]'s slot holding one folded value per name in
+/// [`ATTRIBUTE_FIELDS_SLOT`], in that slot's own order — `null` where the
+/// declaration's value is one Novis does not fold here.
+const ATTRIBUTE_VALUES_SLOT: usize = 4;
 
 /// [`PROPERTY_INFO`]'s slot holding the property's name.
 const PROPERTY_NAME_SLOT: usize = 0;
@@ -527,6 +578,15 @@ pub(crate) const CLASS_INFO: CoreClass = CoreClass {
             doc: Some(&HAS_METHOD_DOC),
         },
         CoreMethod {
+            name: "attributes",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Instance(ATTRIBUTE_INFO_NAME)),
+            symbol: "nvs_core_reflect_class_info_attributes",
+            doc: Some(&ATTRIBUTES_DOC),
+        },
+        CoreMethod {
             name: "get",
             names: &["object", "name"],
             params: &[CoreTy::Mixed, CoreTy::Text(Qual::Neutral)],
@@ -584,7 +644,7 @@ pub(crate) const CLASS_INFO: CoreClass = CoreClass {
             doc: Some(&CONSTRUCT_DOC),
         },
     ],
-    slots: &["name", "properties", "methods", "constants"],
+    slots: &["name", "properties", "methods", "constants", "attributes"],
     constants: &[],
 };
 
@@ -1354,6 +1414,155 @@ const CONSTANT_HAS_VALUE_DOC: MethodDoc = MethodDoc {
     errors: &[],
 };
 
+/// One attach site of a description's roster — `Core\Reflect\AttributeInfo`.
+///
+/// [`CONSTANT_INFO`]'s shape for the thing that is not a member at all. A
+/// constant's row is a name and a visibility; an attribute has neither, being
+/// written above a declaration rather than declared, so what its row carries
+/// instead is *where* it was written — the member and, for a parameter's site,
+/// the parameter — and the payload it attaches.
+///
+/// The payload is two parallel slots rather than one array keyed by name, on
+/// [`ENUM_INFO`]'s terms exactly: a `Core` instance's slot holds a value Novis
+/// already holds, and a map is not one of those. [`ATTRIBUTE_FIELDS_SLOT`] is
+/// the roster, in source order, and [`nvs_core_reflect_attribute_info_field`]
+/// is the acting door onto the value — the same split `constants` and
+/// `constant` already make, minus the visibility check, which a payload has
+/// nothing to be judged by.
+pub(crate) const ATTRIBUTE_INFO: CoreClass = CoreClass {
+    name: ATTRIBUTE_INFO_NAME,
+    methods: &[],
+    instance: &[
+        CoreMethod {
+            name: "name",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "nvs_core_reflect_attribute_info_name",
+            doc: Some(&ATTRIBUTE_NAME_DOC),
+        },
+        CoreMethod {
+            name: "target",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "nvs_core_reflect_attribute_info_target",
+            doc: Some(&ATTRIBUTE_TARGET_DOC),
+        },
+        CoreMethod {
+            name: "parameter",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Str,
+            symbol: "nvs_core_reflect_attribute_info_parameter",
+            doc: Some(&ATTRIBUTE_PARAMETER_DOC),
+        },
+        CoreMethod {
+            name: "fields",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Array(&CoreTy::Str),
+            symbol: "nvs_core_reflect_attribute_info_fields",
+            doc: Some(&ATTRIBUTE_FIELDS_DOC),
+        },
+        CoreMethod {
+            name: "field",
+            names: &["name"],
+            params: &[CoreTy::Text(Qual::Neutral)],
+            defaults: &[],
+            // `mixed`, on `ClassInfo::constant`'s terms: which of the four
+            // literal types a payload field folded to is not known where the
+            // call is written, the class being named at run time.
+            return_ty: CoreTy::Mixed,
+            symbol: "nvs_core_reflect_attribute_info_field",
+            doc: Some(&ATTRIBUTE_FIELD_DOC),
+        },
+    ],
+    slots: &["name", "target", "parameter", "fields", "values"],
+    constants: &[],
+};
+
+/// `Core\Reflect\ClassInfo::attributes`'s reference card — `rule:core-api/reference-card`.
+const ATTRIBUTES_DOC: MethodDoc = MethodDoc {
+    short: "Every `#[...]` written on the class's own declaration or on one of its own members.",
+    params: &[],
+    ret: "One row per attach site, in source order — the declaration's own first, then each \
+          member's, and a method's parameters' after that method's. **Own-only**, where \
+          `constants` is flattened over the ancestors: an attribute is a fact about the \
+          declaration it is written on, so a base class's site is never reported as this \
+          class's. Asking for a payload by its *shape* is `Core\\Attributes::get`, which is \
+          checked where it is written and costs nothing at run time; this is the reflective \
+          question, for a class the caller does not name in source.",
+    errors: &[],
+};
+
+/// `Core\Reflect\AttributeInfo::name`'s reference card — `rule:core-api/reference-card`.
+const ATTRIBUTE_NAME_DOC: MethodDoc = MethodDoc {
+    short: "The `type` alias the named form gave the attribute, as it is written.",
+    params: &[],
+    ret: "The written name, or the **empty string** for the bare `#[{...}]` form. Unresolved on \
+          purpose: the name checks the literal where it is written and is never how a caller \
+          asks for one, so a resolved name here would report the checker's answer to a question \
+          nobody asked.",
+    errors: &[],
+};
+
+/// `Core\Reflect\AttributeInfo::target`'s reference card — `rule:core-api/reference-card`.
+const ATTRIBUTE_TARGET_DOC: MethodDoc = MethodDoc {
+    short: "The member the attribute is written on.",
+    params: &[],
+    ret: "A property's name with no `$` sigil, or a method's name — or the **empty string** for \
+          the class or interface declaration itself. A parameter's site names its method here \
+          and the parameter in `parameter`.",
+    errors: &[],
+};
+
+/// `Core\Reflect\AttributeInfo::parameter`'s reference card — `rule:core-api/reference-card`.
+const ATTRIBUTE_PARAMETER_DOC: MethodDoc = MethodDoc {
+    short: "The parameter of `target` the attribute is written on.",
+    params: &[],
+    ret: "The parameter's name with no `$` sigil, or the **empty string** for every attach site \
+          that is not a parameter's. The pair is what tells `#[X] public function f(...)` from \
+          `public function f(#[X] int $n)`, which name one declaration each and not the same one.",
+    errors: &[],
+};
+
+/// `Core\Reflect\AttributeInfo::fields`'s reference card — `rule:core-api/reference-card`.
+const ATTRIBUTE_FIELDS_DOC: MethodDoc = MethodDoc {
+    short: "The payload's field names, in the order the attribute writes them.",
+    params: &[],
+    ret: "One string per field, including a field whose value Novis does not fold here — the \
+          name is as much a fact about the attach site as the value is, and `field` is what \
+          reports the difference.",
+    errors: &[],
+};
+
+/// `Core\Reflect\AttributeInfo::field`'s reference card — `rule:core-api/reference-card`.
+const ATTRIBUTE_FIELD_DOC: MethodDoc = MethodDoc {
+    short: "One payload field's value, folded at compile time.",
+    params: &[ParamDoc {
+        name: "name",
+        desc: "The field's own name, as `fields` answers it.",
+        shape: &[],
+    }],
+    ret: "The value as a `string`, `int`, `bool` or `float` — the four a payload's literal folds \
+          to.",
+    errors: &[ErrorDoc {
+        error: "LogicError",
+        desc: "The attribute's payload has no field of that name, so the ask is a mistake rather \
+               than an absence to report — `fields` is the list that cannot be wrong. Or the \
+               field's value is one Novis does not fold into a description: a class constant, an \
+               enum case or `Foo::class`, each of which resolves through the namespace the \
+               attribute was *written* in, plus the literals `Core\\Reflect\\ConstantInfo` \
+               reports the same way. `Core\\Attributes::get` reads all of those, at compile time \
+               and by shape.",
+    }],
+};
+
 /// A `string` argument of `member`, as text.
 ///
 /// A [`Fault::fatal`] for the wrong tag, on `crate::json`'s own `text_of`
@@ -1397,6 +1606,12 @@ fn text_of<'a>(value: &'a Value, member: &str) -> Result<&'a str, Fault> {
 /// so a member nothing declared in source keeps its row with that roster empty
 /// while [`METHOD_PARAMETER_COUNT_SLOT`] still answers what the compiled code
 /// takes — that field's own doc comment owns which rows those are.
+///
+/// The attach-site roster is the one that is not a walk over the class's
+/// members at all: each [`nvs_runtime::AttributeDesc`] names the declaration it
+/// was written on, so the rows are copied in the order the descriptor holds
+/// them, which is source order. Its payload becomes two parallel slots per row,
+/// and [`constant_value`] is what fills the second.
 fn describe(desc: &ClassDesc) -> Value {
     let mut properties = NvsArray::new();
     for slot in 0..desc.field_count() {
@@ -1452,6 +1667,25 @@ fn describe(desc: &ClassDesc) -> Value {
             ],
         ));
     }
+    let mut attributes = NvsArray::new();
+    for attribute in desc.attributes() {
+        let mut names = NvsArray::new();
+        let mut values = NvsArray::new();
+        for (name, value) in &attribute.fields {
+            names.append(Value::str(NvsStr::new(name.as_bytes())));
+            values.append(constant_value(value));
+        }
+        attributes.append(crate::instance::build(
+            &ATTRIBUTE_INFO,
+            [
+                Value::str(NvsStr::new(attribute.name.as_bytes())),
+                Value::str(NvsStr::new(attribute.member.as_bytes())),
+                Value::str(NvsStr::new(attribute.parameter.as_bytes())),
+                Value::array(names),
+                Value::array(values),
+            ],
+        ));
+    }
     crate::instance::build(
         &CLASS_INFO,
         [
@@ -1459,8 +1693,27 @@ fn describe(desc: &ClassDesc) -> Value {
             Value::array(properties),
             Value::array(methods),
             Value::array(constants),
+            Value::array(attributes),
         ],
     )
+}
+
+/// One folded constant as the value a program reads it as, with
+/// [`nvs_runtime::ConstantValue::Opaque`] answering `null`.
+///
+/// The `null` is a slot's filler and never an answer: it stands in a payload's
+/// value roster so the two slots stay aligned name for name, and
+/// [`nvs_core_reflect_attribute_info_field`] turns reading one into the throw
+/// the bound deserves. No payload value folds to `null` itself — a written
+/// `null` is not one of the four literals — so the two cannot be confused.
+fn constant_value(value: &nvs_runtime::ConstantValue) -> Value {
+    match value {
+        nvs_runtime::ConstantValue::Str(text) => Value::str(NvsStr::new(text.as_bytes())),
+        nvs_runtime::ConstantValue::Int(value) => Value::int(*value),
+        nvs_runtime::ConstantValue::Bool(value) => Value::bool(*value),
+        nvs_runtime::ConstantValue::Float(value) => Value::float(*value),
+        nvs_runtime::ConstantValue::Opaque => Value::null(),
+    }
 }
 
 /// One [`nvs_runtime::EnumDesc`] as the [`ENUM_INFO`] a program reads it
@@ -1551,6 +1804,24 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         }
         "nvs_core_reflect_class_info_constant" => {
             (nvs_core_reflect_class_info_constant as *const ()).cast()
+        }
+        "nvs_core_reflect_class_info_attributes" => {
+            (nvs_core_reflect_class_info_attributes as *const ()).cast()
+        }
+        "nvs_core_reflect_attribute_info_name" => {
+            (nvs_core_reflect_attribute_info_name as *const ()).cast()
+        }
+        "nvs_core_reflect_attribute_info_target" => {
+            (nvs_core_reflect_attribute_info_target as *const ()).cast()
+        }
+        "nvs_core_reflect_attribute_info_parameter" => {
+            (nvs_core_reflect_attribute_info_parameter as *const ()).cast()
+        }
+        "nvs_core_reflect_attribute_info_fields" => {
+            (nvs_core_reflect_attribute_info_fields as *const ()).cast()
+        }
+        "nvs_core_reflect_attribute_info_field" => {
+            (nvs_core_reflect_attribute_info_field as *const ()).cast()
         }
         "nvs_core_reflect_constant_info_name" => {
             (nvs_core_reflect_constant_info_name as *const ()).cast()
@@ -1967,6 +2238,111 @@ nvs_runtime::nvs_helper! {
                 ));
             }
         })
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Reflect\ClassInfo::attributes(): array<Core\Reflect\AttributeInfo>`
+    /// — ADR 0019 § 1's fourth roster, and the one no PHP `Reflection*` member
+    /// it replaces had an equivalent for.
+    ///
+    /// Answered off the slot [`describe`] filled, on `constants`' terms: naming
+    /// an attach site reads the program's shape, and reading a payload value is
+    /// [`nvs_core_reflect_attribute_info_field`]'s.
+    fn nvs_core_reflect_class_info_attributes(_ctx, args: [1]) {
+        slot_of(args, &CLASS_INFO, ATTRIBUTES_SLOT, "attributes")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Reflect\AttributeInfo::name(): string` — the name the named form
+    /// gave the attribute, unresolved.
+    fn nvs_core_reflect_attribute_info_name(_ctx, args: [1]) {
+        slot_of(args, &ATTRIBUTE_INFO, ATTRIBUTE_NAME_SLOT, "name")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Reflect\AttributeInfo::target(): string` — the member the
+    /// attribute is written on, empty for the class declaration itself.
+    fn nvs_core_reflect_attribute_info_target(_ctx, args: [1]) {
+        slot_of(args, &ATTRIBUTE_INFO, ATTRIBUTE_TARGET_SLOT, "target")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Reflect\AttributeInfo::parameter(): string` — the parameter of
+    /// `target` it is written on, empty for every other attach site.
+    fn nvs_core_reflect_attribute_info_parameter(_ctx, args: [1]) {
+        slot_of(args, &ATTRIBUTE_INFO, ATTRIBUTE_PARAMETER_SLOT, "parameter")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Reflect\AttributeInfo::fields(): array<string>` — the payload's
+    /// field names in source order.
+    fn nvs_core_reflect_attribute_info_fields(_ctx, args: [1]) {
+        slot_of(args, &ATTRIBUTE_INFO, ATTRIBUTE_FIELDS_SLOT, "fields")
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Reflect\AttributeInfo::field(string $name): mixed` — one payload
+    /// field's folded value.
+    ///
+    /// Two refusals in one order, and it is
+    /// [`nvs_core_reflect_class_info_constant`]'s: the name has to be one this
+    /// payload carries, and only then is the value asked for. A member that
+    /// tested the value first would answer a misspelling with the unfolded
+    /// field's refusal, which is a different fact about a different field.
+    ///
+    /// No visibility check, where that member makes one: an attribute is
+    /// written above a declaration and carries no modifier of its own, and
+    /// `rule:attributes/payload-is-a-compile-time-constant` refuses a `secret`
+    /// value where the payload is written — so there is nothing here to judge
+    /// and nothing qualified to launder.
+    fn nvs_core_reflect_attribute_info_field(_ctx, args: [2]) {
+        let member = "field";
+        let receiver = crate::instance::receiver(args[0], &ATTRIBUTE_INFO, member)?;
+        let name = text_of(&args[1], "Core\\Reflect\\AttributeInfo::field")?;
+        let names = roster_of(receiver, &ATTRIBUTE_INFO, ATTRIBUTE_FIELDS_SLOT, member)?;
+        let values = roster_of(receiver, &ATTRIBUTE_INFO, ATTRIBUTE_VALUES_SLOT, member)?;
+        let found = (0..names.count()).find(|index| {
+            names
+                .value_at(*index)
+                .is_some_and(|held| held.as_text() == Some(name))
+        });
+        let Some(index) = found else {
+            return Err(Fault::thrown_as(
+                ThrownClass::Logic,
+                format!(
+                    "{ATTRIBUTE_INFO_NAME}::field(): this attribute's payload has no field named \
+                     `{name}` — `fields` is the list it does carry"
+                ),
+            ));
+        };
+        let held = values.value_at(index).unwrap_or_else(Value::null);
+        if held.tag() == Some(Tag::Null) {
+            return Err(Fault::thrown_as(
+                ThrownClass::Logic,
+                format!(
+                    "{ATTRIBUTE_INFO_NAME}::field(): `{name}` is written with a value Novis does \
+                     not fold into a description, so there is none to read — \
+                     `Core\\Attributes::get` reads a payload by shape, at compile time, and \
+                     resolves the names this cannot"
+                ),
+            ));
+        }
+        #[expect(
+            unsafe_code,
+            reason = "the value's reference belongs to the receiver's roster, which is live for \
+                      the length of the call, and this value is being handed to the caller — \
+                      which is exactly `Value::retain`'s obligation"
+        )]
+        unsafe {
+            held.retain();
+        }
+        Ok(held)
     }
 }
 
@@ -2946,7 +3322,7 @@ mod tests {
     /// landing a class deletes its line in the same slice. Nothing is added
     /// without deleting this sentence — a roster the record names and this file
     /// silently omits is exactly the drift the gate exists for.
-    const NOT_YET_BUILT: &[&str] = &["AttributeInfo"];
+    const NOT_YET_BUILT: &[&str] = &[];
 
     /// Every `*Info` class ADR 0019 § 1 names is a registered class, or is one
     /// of [`NOT_YET_BUILT`].

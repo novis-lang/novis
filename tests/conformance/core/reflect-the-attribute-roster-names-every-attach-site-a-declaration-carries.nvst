@@ -1,0 +1,59 @@
+--TEST--
+`Core\Reflect\ClassInfo::attributes` names every attach site a declaration carries and `Core\Reflect\AttributeInfo` says which declaration each is written on — `rule:core-classes/reflect` and `rule:attributes/attach-sites-and-forms`
+--FILE--
+<?nvs
+// `rule:attributes/attach-sites-and-forms` fixes four sites, and the roster
+// carries all four: the class's own, a property's, a method's and a
+// parameter's. The pair `target`/`parameter` is what tells the last two apart —
+// an attribute above a method and one before its parameter both name the
+// method, and only one of them names a parameter.
+type Route = {path: string};
+
+#[Route(path: "/users")]
+#[{audit: true}]
+class Controller {
+    #[{column: "name"}]
+    public string $name = "";
+
+    #[Route(path: "/show")]
+    public function show(#[{inject: "repo"}] int $id): int {
+        return $id;
+    }
+}
+
+var $described = Core\Reflect::forObject(new Controller());
+var $roster = $described->attributes();
+
+// The count is asserted beside the rows because a roster that dropped the
+// parameter's site still prints four plausible lines. Both forms are here for
+// the same reason: the name is what was *written*, and the bare form's empty
+// string is an answer rather than an omission.
+echo Core\Arr::count($roster), "\n";
+foreach ($roster as Core\Reflect\AttributeInfo $attribute) {
+    echo $attribute->name() == "" ? "bare" : $attribute->name(), " on ",
+         $attribute->target() == "" ? "<class>" : $attribute->target();
+    if ($attribute->parameter() != "") { echo "($", $attribute->parameter(), ")"; }
+    echo " fields=", Core\Arr::count($attribute->fields()), "\n";
+}
+
+// `field` is the acting door, on `Core\Reflect\ClassInfo::constant`'s terms:
+// naming a field reads the program's shape and always answers, reading one asks
+// for the fold. Encoded rather than echoed so the value's *type* is asserted
+// beside it — a fold that answered `"7"` for `7` passes neither half.
+foreach ($roster as Core\Reflect\AttributeInfo $one) {
+    foreach ($one->fields() as string $field) {
+        echo "  ", $field, "=", Core\Json::encode($one->field($field)), "\n";
+    }
+}
+--EXPECT--
+5
+Route on <class> fields=1
+bare on <class> fields=1
+bare on name fields=1
+Route on show fields=1
+bare on show($id) fields=1
+  path="/users"
+  audit=true
+  column="name"
+  path="/show"
+  inject="repo"

@@ -1,0 +1,66 @@
+--TEST--
+A description's attribute roster carries only what its own declaration wrote, where the constant roster beside it is flattened over the ancestors — `rule:core-classes/reflect` and `rule:attributes/attach-sites-and-forms`
+--FILE--
+<?nvs
+// The two rosters answer different questions and so walk the chain
+// differently, which is the one thing about `attributes` a caller has to know.
+// A constant is a *name a program may write on this class*, and `Base::MAX`
+// resolves up the chain, so a roster that dropped an inherited one would
+// describe a different class than the one running. An attribute is a fact about
+// the declaration it is **written on**, so a roster that inherited one would
+// report a base class's attach site as this class's. This case asks both the
+// same question at once, because either rule read off its own line alone still
+// prints plausibly.
+#[{layer: "base"}]
+class Base {
+    public const int MAX = 5;
+
+    #[{column: "id"}]
+    public int $id = 0;
+}
+
+#[{layer: "derived"}]
+class Derived extends Base {}
+
+// The class that declares nothing: an empty roster is the fact, and it is what
+// separates "inherits none" from "inherits its base's".
+class Bare extends Base {}
+
+interface Tagged {
+    #[{contract: true}]
+    public function tag(): string;
+}
+
+var $base = Core\Reflect::forObject(new Base());
+var $derived = Core\Reflect::forObject(new Derived());
+var $bare = Core\Reflect::forObject(new Bare());
+
+echo Core\Arr::count($base->attributes()), " ",
+     Core\Arr::count($derived->attributes()), " ",
+     Core\Arr::count($bare->attributes()), "\n";
+echo Core\Arr::count($base->constants()), " ",
+     Core\Arr::count($derived->constants()), " ",
+     Core\Arr::count($bare->constants()), "\n";
+
+foreach ($derived->attributes() as Core\Reflect\AttributeInfo $one) {
+    echo "derived: ", $one->name() == "" ? "bare" : $one->name(),
+         " target=[", $one->target(), "] parameter=[", $one->parameter(), "] ",
+         Core\Json::encode($one->field("layer")), "\n";
+}
+
+// An interface is a declaration a description reaches like any other, and
+// `rule:attributes/attach-sites-and-forms` names it and its members among the
+// four sites — so its members' attach sites are here on the same terms.
+var $tagged = Core\Reflect::forClass("Tagged");
+if ($tagged != null) {
+    foreach ($tagged->attributes() as Core\Reflect\AttributeInfo $one) {
+        echo "interface: target=", $one->target(), " ",
+             Core\Json::encode($one->field("contract")), " fields=",
+             Core\Arr::count($one->fields()), "\n";
+    }
+}
+--EXPECT--
+2 1 0
+1 1 1
+derived: bare target=[] parameter=[] "derived"
+interface: target=tag true fields=1

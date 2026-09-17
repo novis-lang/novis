@@ -195,6 +195,7 @@ Conventions the whole file uses:
 | [`Core\Reflect\PropertyInfo`](#core-core-reflect-propertyinfo) |  |
 | [`Core\Reflect\ParameterInfo`](#core-core-reflect-parameterinfo) |  |
 | [`Core\Reflect\ConstantInfo`](#core-core-reflect-constantinfo) |  |
+| [`Core\Reflect\AttributeInfo`](#core-core-reflect-attributeinfo) |  |
 | [`Core\Reflect\EnumInfo`](#core-core-reflect-enuminfo) |  |
 | [`Core\Ast`](#core-core-ast) |  |
 | [`Core\Ast\Node`](#core-core-ast-node) |  |
@@ -22749,7 +22750,7 @@ Which of the language's representations `$value` currently holds. The single rep
 <a id="core-core-reflect-classinfo"></a>
 ### `Core\Reflect\ClassInfo`
 
-Keywords: name, properties, readableProperties, hasProperty, methods, constants, constant, hasMethod, get, set, call, construct
+Keywords: name, properties, readableProperties, hasProperty, methods, constants, constant, hasMethod, attributes, get, set, call, construct
 
 | Member | Signature |
 |---|---|
@@ -22761,6 +22762,7 @@ Keywords: name, properties, readableProperties, hasProperty, methods, constants,
 | [`Core\Reflect\ClassInfo->constants`](#core-core-reflect-classinfo-constants) | `constants(): array<Core\Reflect\ConstantInfo>` |
 | [`Core\Reflect\ClassInfo->constant`](#core-core-reflect-classinfo-constant) | `constant(string $name): mixed` |
 | [`Core\Reflect\ClassInfo->hasMethod`](#core-core-reflect-classinfo-hasmethod) | `hasMethod(string $name): bool` |
+| [`Core\Reflect\ClassInfo->attributes`](#core-core-reflect-classinfo-attributes) | `attributes(): array<Core\Reflect\AttributeInfo>` |
 | [`Core\Reflect\ClassInfo->get`](#core-core-reflect-classinfo-get) | `get(mixed $object, string $name): mixed` |
 | [`Core\Reflect\ClassInfo->set`](#core-core-reflect-classinfo-set) | `set(mixed $object, string $name, mixed $value): void` |
 | [`Core\Reflect\ClassInfo->call`](#core-core-reflect-classinfo-call) | `call(mixed $object, string $name, array<mixed> $arguments): mixed` |
@@ -22867,6 +22869,17 @@ Reports whether the described class declares or inherits a method named `$name`.
 | `$name` | `string` (neutral) | The method's name, as the declaration writes it and as `methods` spells it. |
 
 **Returns** `bool` — `true` for a method the class answers for at any visibility, `false` for a name it declares none of — so a refusal to call tells a `private` method from a misspelling.
+
+<a id="core-core-reflect-classinfo-attributes"></a>
+#### `Core\Reflect\ClassInfo->attributes`
+
+```nvs skip
+$classInfo->attributes(): array<Core\Reflect\AttributeInfo>
+```
+
+Every `#[...]` written on the class's own declaration or on one of its own members.
+
+**Returns** `array<Core\Reflect\AttributeInfo>` — One row per attach site, in source order — the declaration's own first, then each member's, and a method's parameters' after that method's. **Own-only**, where `constants` is flattened over the ancestors: an attribute is a fact about the declaration it is written on, so a base class's site is never reported as this class's. Asking for a payload by its *shape* is `Core\Attributes::get`, which is checked where it is written and costs nothing at run time; this is the reflective question, for a class the caller does not name in source.
 
 <a id="core-core-reflect-classinfo-get"></a>
 #### `Core\Reflect\ClassInfo->get`
@@ -23104,6 +23117,80 @@ $constantInfo->hasValue(): bool
 Whether the constant's declared value is one Novis folds at compile time, and so one `Core\Reflect\ClassInfo::constant` can hand back.
 
 **Returns** `bool` — `true` for a `string`, `int`, `bool` or `float` literal — `false` for an `array` or object constant, and for an integer no `int` holds. Novis folds a constant that *is* a literal and runs no second constant-expression evaluator, so this reports a stated bound rather than an unknown, and it is `false` for exactly the constants the checker also refuses in type position.
+
+<a id="core-core-reflect-attributeinfo"></a>
+### `Core\Reflect\AttributeInfo`
+
+Keywords: name, target, parameter, fields, field
+
+| Member | Signature |
+|---|---|
+| [`Core\Reflect\AttributeInfo->name`](#core-core-reflect-attributeinfo-name) | `name(): string` |
+| [`Core\Reflect\AttributeInfo->target`](#core-core-reflect-attributeinfo-target) | `target(): string` |
+| [`Core\Reflect\AttributeInfo->parameter`](#core-core-reflect-attributeinfo-parameter) | `parameter(): string` |
+| [`Core\Reflect\AttributeInfo->fields`](#core-core-reflect-attributeinfo-fields) | `fields(): array<string>` |
+| [`Core\Reflect\AttributeInfo->field`](#core-core-reflect-attributeinfo-field) | `field(string $name): mixed` |
+
+<a id="core-core-reflect-attributeinfo-name"></a>
+#### `Core\Reflect\AttributeInfo->name`
+
+```nvs skip
+$attributeInfo->name(): string
+```
+
+The `type` alias the named form gave the attribute, as it is written.
+
+**Returns** `string` — The written name, or the **empty string** for the bare `#[{...}]` form. Unresolved on purpose: the name checks the literal where it is written and is never how a caller asks for one, so a resolved name here would report the checker's answer to a question nobody asked.
+
+<a id="core-core-reflect-attributeinfo-target"></a>
+#### `Core\Reflect\AttributeInfo->target`
+
+```nvs skip
+$attributeInfo->target(): string
+```
+
+The member the attribute is written on.
+
+**Returns** `string` — A property's name with no `$` sigil, or a method's name — or the **empty string** for the class or interface declaration itself. A parameter's site names its method here and the parameter in `parameter`.
+
+<a id="core-core-reflect-attributeinfo-parameter"></a>
+#### `Core\Reflect\AttributeInfo->parameter`
+
+```nvs skip
+$attributeInfo->parameter(): string
+```
+
+The parameter of `target` the attribute is written on.
+
+**Returns** `string` — The parameter's name with no `$` sigil, or the **empty string** for every attach site that is not a parameter's. The pair is what tells `#[X] public function f(...)` from `public function f(#[X] int $n)`, which name one declaration each and not the same one.
+
+<a id="core-core-reflect-attributeinfo-fields"></a>
+#### `Core\Reflect\AttributeInfo->fields`
+
+```nvs skip
+$attributeInfo->fields(): array<string>
+```
+
+The payload's field names, in the order the attribute writes them.
+
+**Returns** `array<string>` — One string per field, including a field whose value Novis does not fold here — the name is as much a fact about the attach site as the value is, and `field` is what reports the difference.
+
+<a id="core-core-reflect-attributeinfo-field"></a>
+#### `Core\Reflect\AttributeInfo->field`
+
+```nvs skip
+$attributeInfo->field(string $name): mixed
+```
+
+One payload field's value, folded at compile time.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$name` | `string` (neutral) | The field's own name, as `fields` answers it. |
+
+**Returns** `mixed` — The value as a `string`, `int`, `bool` or `float` — the four a payload's literal folds to.
+
+**Throws** `LogicError` — The attribute's payload has no field of that name, so the ask is a mistake rather than an absence to report — `fields` is the list that cannot be wrong. Or the field's value is one Novis does not fold into a description: a class constant, an enum case or `Foo::class`, each of which resolves through the namespace the attribute was *written* in, plus the literals `Core\Reflect\ConstantInfo` reports the same way. `Core\Attributes::get` reads all of those, at compile time and by shape.
 
 <a id="core-core-reflect-enuminfo"></a>
 ### `Core\Reflect\EnumInfo`

@@ -2131,6 +2131,7 @@ pub const CLASSES: &[CoreClass] = &[
     // reason: what a row carries past its name and its bit is a fact no other
     // row has — whether the declaration folded to a value at all.
     crate::reflect::CONSTANT_INFO,
+    crate::reflect::ATTRIBUTE_INFO,
     // `rule:enums/reflection`'s description of the one type that has no
     // descriptor: an enum case at run time is the integer behind it, so there
     // is no value to describe and no `forObject` twin — the name is the only

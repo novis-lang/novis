@@ -1,0 +1,67 @@
+--TEST--
+`Core\Reflect\AttributeInfo::field` hands back the four literals a payload folds to and refuses the two ways it can have none, while `Core\Attributes::get` reads the one it cannot — `rule:attributes/payload-is-a-compile-time-constant` and `rule:core-classes/reflect`
+--FILE--
+<?nvs
+// `rule:attributes/payload-is-a-compile-time-constant` admits three *named*
+// constants beside the literals, and each resolves through the namespace the
+// attribute was **written** in. A reflective description carries no such scope —
+// it is handed a class the checker never saw — so those three read as *no
+// folded value*, which is the bound `Core\Reflect\ConstantInfo::hasValue`
+// states one declaration over. This case asserts both sides of it: every
+// literal reads back with its own type, and the class constant refuses.
+class Limits {
+    public const int MAX = 5;
+}
+
+#[{count: 3, label: "nightly", ratio: 1.5, live: true, cap: Limits::MAX}]
+class Job {}
+
+var $described = Core\Reflect::forObject(new Job());
+foreach ($described->attributes() as Core\Reflect\AttributeInfo $one) {
+    // The bare form on the class itself: no written name, no member, no
+    // parameter. All three empty is one answer and not three absences.
+    echo "name=[", $one->name(), "] target=[", $one->target(), "] parameter=[",
+         $one->parameter(), "]\n";
+
+    // Every field keeps its row, the unfoldable one included — the name is as
+    // much a fact about the attach site as the value is.
+    echo Core\Arr::count($one->fields()), "\n";
+    foreach ($one->fields() as string $field) {
+        string $shown = "<no folded value>";
+        try {
+            // Encoded rather than echoed so each value's *type* is asserted
+            // beside it: an `int` that read back as text passes neither half.
+            $shown = Core\Json::encode($one->field($field));
+        } catch (LogicError $unfolded) {
+            $shown = "<no folded value>";
+        }
+        echo "  ", $field, "=", $shown, "\n";
+    }
+
+    // The other refusal, and the reason the two are separate throws: a name the
+    // payload does not carry is a mistake in the asking, where a name it does
+    // carry with nothing to fold is a fact about the declaration. A member that
+    // conflated them would report a misspelling as a stated bound.
+    try {
+        var $missing = $one->field("nosuch");
+        echo "read a name it does not carry", "\n";
+    } catch (LogicError $wrong) {
+        echo "no such field", "\n";
+    }
+}
+
+// The door that *does* resolve the three named constants, and the reason the
+// refusal above costs a program nothing: `Core\Attributes::get` matches by
+// shape at compile time, through the scope the payload was written in.
+?{cap: int} $folded = Core\Attributes::get<{cap: int}>(Job::constructor(...));
+if ($folded != null) { echo "cap=", $folded->cap as string, "\n"; }
+--EXPECT--
+name=[] target=[] parameter=[]
+5
+  count=3
+  label="nightly"
+  ratio=1.5
+  live=true
+  cap=<no folded value>
+no such field
+cap=5
