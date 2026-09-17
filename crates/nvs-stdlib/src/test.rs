@@ -40,6 +40,17 @@
 //! ADR's, and a second reading of them here would be a second set of
 //! PHP-divergence decisions nothing keeps in step.
 //!
+//! **The object row's refusal is made when the comparison runs, not where it is
+//! written.** Two objects under `assertEquals` whose `$actual` class declares no
+//! `compareTo` are a catchable throw naming `assertEqualsDeep`, and that is the
+//! bound this module holds to rather than the compile error
+//! `rule:testing/assertions-are-typed` could also be read as promising:
+//! refusing the program at its call site wants the argument's class graph,
+//! which `nvs_types` holds and this crate does not, and the mistake surfaces
+//! the moment the test runs — which is the next thing that happens to a
+//! `#[Test]` method. The type mismatch beside it *is* a compile error, made by
+//! the `T` above.
+//!
 //! # The three predicate rows, and the two types they had to decide
 //!
 //! § 4's example writes `assertTrue`, `assertNull` and `assertCount` beside the
@@ -88,26 +99,6 @@
 //! writers are [`held`] and [`failed`], and every member here goes through one
 //! of them on every edge. `Core\Test::expectFailure(callable)` is the only way
 //! an entry ever leaves it.
-//!
-//! # Known gaps
-//!
-//! 1. **§ 4's two compile errors are runtime throws for now.** A non-
-//!    `Comparable` object under `assertEquals` is refused where it is *written*
-//!    by the ADR, and is a catchable throw naming `assertEqualsDeep` here; that
-//!    refusal is `nvs_types`' to make and wants the class graph this crate does
-//!    not hold. The mismatch error is already made, by the `T` above.
-//!    Decided: No: keep the runtime throw naming assertEqualsDeep — No rule change; the mistake shows
-//!    up when the test runs, which is soon anyway.
-//!    — owner: decided-closures
-//! 2. **`assertThrows` matches a class by name, so a failure with no class
-//!    installed matches nothing.** `nvs_runtime::Ctx::pending_conforms_to`
-//!    reads the ancestry off a descriptor, and a helper-raised failure carries
-//!    none until `Ctx::set_runtime_error_class` has installed one — which a
-//!    compiled unit always has, so this is reachable only from a host embedding
-//!    the runtime without one.
-//!    Decided: No: state it in the embedding contract and assert it when a Ctx is built — One
-//!    assertion; the silent non-match becomes impossible.
-//!    — owner: decided-closures
 //!
 //! # What these members do with a qualifier
 //!
@@ -2360,7 +2351,10 @@ nvs_runtime::nvs_helper! {
     /// constant — so the match is by name and no class value has to exist for
     /// a member to take one. What decides it is
     /// [`nvs_runtime::Ctx::pending_conforms_to`], whose own docs own the
-    /// decision that an **ancestor** matches.
+    /// decision that an **ancestor** matches and the wiring that reading rests
+    /// on: a context holding no exception class table has no ancestry to read,
+    /// which that method asserts on rather than letting it arrive here as a
+    /// non-match (`nvs_runtime::ctx::wiring`).
     ///
     /// The three edges are [`nvs_core_test_assert_does_not_throw`]'s, judged
     /// the other way round: a body that returned is the failure, a body that
@@ -2596,10 +2590,11 @@ fn held(ctx: &mut Ctx, member: &'static str) -> Value {
 ///
 /// # Errors
 ///
-/// A catchable [`Fault::thrown`] naming `assertEqualsDeep` where the receiver's
-/// class declares no `compareTo` — this module's known gap 1, since the ADR
-/// refuses that program where it is *written*. Or the callee's own failure,
-/// propagated as [`Fault::Pending`] by `nvs_runtime::call_method`.
+/// A catchable [`Fault::thrown`] naming `assertEqualsDeep` where both operands
+/// are objects and `$actual`'s class declares no `compareTo` — the module doc's
+/// object row states why that refusal is made here rather than at the call
+/// site. Or the callee's own failure, propagated as [`Fault::Pending`] by
+/// `nvs_runtime::call_method`.
 fn equals(ctx: &mut Ctx, actual: Value, expected: Value) -> Result<bool, Fault> {
     if actual.tag() != Some(Tag::Object) || expected.tag() != Some(Tag::Object) {
         return Ok(identity::value_identical(actual, expected));

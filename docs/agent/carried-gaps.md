@@ -240,21 +240,8 @@ where taking it is the work and the code that follows it is not.
   and nothing a program outside one can reach. What has to be decided is which of the two the language
   means, since a class registered under § 11 would be the thing § 12's attribute exists to make
   unnecessary. `crates/nvs-stdlib/src/random.rs` gap 1. [until: reviewed 2026-09-10]
-- **`Core\Test::assertEquals` names `assertEqualsDeep` at run time where
-  `rule:testing/assertions-are-typed` refuses at compile time**, because the refusal wants the
-  argument's class graph and `nvs-stdlib` holds none — `nvs_types` does, and
-  `crates/nvs-types/src/core_lib.rs:84` already seeds `Comparable` onto the `Core` classes carrying
-  `compareTo`. What has to be decided is whether an assertion joins
-  `rule:expressions/intrinsic-list-is-closed`'s closed list of the `Core` members whose argument the
-  checker reads, since that list is closed by rule and a member added to it is a rule change rather
-  than a check. `crates/nvs-stdlib/src/test.rs` gap 1. [until: reviewed 2026-09-10]
-- **`assertThrows` matches nothing when no exception class table is installed**, because
-  `nvs_runtime::Ctx::pending_conforms_to` reads ancestry off a descriptor and a helper-raised failure
-  carries none until `Ctx::set_runtime_error_class` has run — which a compiled unit always does, so
-  only a host embedding the runtime itself reaches it. What has to be decided is whether such a host
-  is a supported configuration: if it is, this member owes a refusal rather than a silent non-match,
-  and if it is not, the requirement belongs to whatever states the embedding contract rather than to
-  an assertion. `crates/nvs-stdlib/src/test.rs` gap 2. [until: reviewed 2026-09-10]
+
+
 - **`rule:classes/definite-property-initialization` is checked over the part of a constructor body the
   walk can see, and three corners sit outside it.** A property backed by a `set` hook is exempted
   rather than checked against whether the hook commits a value; `scan_expr` descends into a handful of
