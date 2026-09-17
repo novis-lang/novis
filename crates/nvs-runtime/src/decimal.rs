@@ -42,16 +42,6 @@
 //!
 //! # Known gaps
 //!
-//! * **A division whose intermediate exceeds 128 bits throws rather than
-//!   rounding.** [`Decimal::checked_div`] folds the two operands' scales into one
-//!   numerator or denominator before dividing, and that fold is a
-//!   `checked_mul` over `u128`; a quotient that would still have fit is
-//!   therefore refused in the corner where both a wide mantissa and a wide
-//!   scale difference meet. Closing it wants a 192-bit intermediate, which is
-//!   the same wider intermediate ADR 0054 § *Consequences* already predicts.
-//!   Decided: Retry at 192 bits only when the 128-bit fold overflows — Exact everywhere, and the common
-//!   path keeps today's cost; it adds a second code path.
-//!   — owner: decided-closures
 //! * **Nothing inlines.** That ADR expects `+`, `-` and comparison at equal
 //!   scale to become i128 instructions in the emitted code; today every
 //!   operator is an out-of-line helper call. That is a latency question
@@ -118,33 +108,184 @@ pub enum Discard {
     AboveHalf,
 }
 
+impl Discard {
+    /// Where what a division left over sits against half a unit in the last
+    /// place produced — the one place that comparison is made.
+    fn of(remainder: u128, denominator: u128) -> Self {
+        if remainder == 0 {
+            return Self::Nothing;
+        }
+        match remainder.checked_mul(2) {
+            // Twice the remainder overflowed where the denominator did not, so
+            // it is the larger of the two.
+            None => Self::AboveHalf,
+            Some(twice) => Self::at(twice.cmp(&denominator)),
+        }
+    }
+
+    /// The same comparison at [`U192`], for the division that took the wider
+    /// intermediate.
+    fn of_wide(remainder: U192, denominator: U192) -> Self {
+        if remainder.is_zero() {
+            return Self::Nothing;
+        }
+        match remainder.checked_double() {
+            None => Self::AboveHalf,
+            Some(twice) => Self::at(twice.cmp(&denominator)),
+        }
+    }
+
+    /// Twice the remainder placed against the denominator, which is the whole
+    /// of what either width has to say.
+    fn at(order: Ordering) -> Self {
+        match order {
+            Ordering::Less => Self::BelowHalf,
+            Ordering::Equal => Self::Half,
+            Ordering::Greater => Self::AboveHalf,
+        }
+    }
+}
+
 /// The state [`Decimal::long_divide`] stops in, which each of its callers
-/// reads its own way.
+/// reads its own way. What was thrown away is carried as the answer a rounding
+/// mode reads rather than as the pair it was computed from, so the two widths
+/// the division runs at meet here and nowhere later.
 struct LongDivision {
     negative: bool,
     mantissa: u128,
     scale: u8,
-    remainder: u128,
-    denominator: u128,
+    discard: Discard,
 }
 
-impl LongDivision {
-    /// Where what is left over sits against half a unit in the last place
-    /// produced — the one place that comparison is made.
-    fn discarded(&self) -> Discard {
-        if self.remainder == 0 {
-            return Discard::Nothing;
+/// A 192-bit unsigned integer, held as two `u128` halves of which the upper
+/// one carries 64 significant bits.
+///
+/// It exists for [`Decimal::long_divide_at_192`] and nothing else, so it
+/// carries exactly the operations that division performs and no more. 192 bits
+/// is the width at which every `decimal` division is exact: the widest
+/// intermediate any of them folds is a 96-bit mantissa against a scale
+/// difference of at most 28, which is `(2^96 - 1) × 10^28` and under 2^190.
+///
+/// `hi` is a `u128` rather than the `u64` it otherwise is because
+/// [`Self::shifted_left`] lets it reach one bit past 64 in the middle of a
+/// division step, before the subtraction that brings it back.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+struct U192 {
+    hi: u128,
+    lo: u128,
+}
+
+impl U192 {
+    const ZERO: Self = Self { hi: 0, lo: 0 };
+
+    /// The 64 bits each half is read in.
+    const LOW_MASK: u128 = (1u128 << 64) - 1;
+
+    const fn from_u128(value: u128) -> Self {
+        Self { hi: 0, lo: value }
+    }
+
+    /// The value where it fits 128 bits — which every quotient a `decimal` can
+    /// hold does, and not every quotient this width can carry.
+    const fn to_u128(self) -> Option<u128> {
+        if self.hi == 0 { Some(self.lo) } else { None }
+    }
+
+    const fn is_zero(self) -> bool {
+        self.hi == 0 && self.lo == 0
+    }
+
+    /// `self × 10^n`, or `None` past 192 bits.
+    fn checked_mul_pow10(self, n: u32) -> Option<Self> {
+        (0..n).try_fold(self, |value, _| value.checked_mul_10())
+    }
+
+    /// `self × 10`, or `None` past 192 bits.
+    fn checked_mul_10(self) -> Option<Self> {
+        let low = (self.lo & Self::LOW_MASK) * 10;
+        let high = (self.lo >> 64) * 10 + (low >> 64);
+        let hi = self.hi * 10 + (high >> 64);
+        (hi <= Self::LOW_MASK).then_some(Self {
+            hi,
+            lo: ((high & Self::LOW_MASK) << 64) | (low & Self::LOW_MASK),
+        })
+    }
+
+    /// `self × 2`, or `None` past 192 bits.
+    fn checked_double(self) -> Option<Self> {
+        let doubled = self.shifted_left();
+        (doubled.hi <= Self::LOW_MASK).then_some(doubled)
+    }
+
+    /// `self × 2` with the upper half left free to carry the bit that takes it
+    /// past 64, which [`Self::div_rem`] leans on and no value outlives.
+    fn shifted_left(self) -> Self {
+        Self {
+            hi: (self.hi << 1) | (self.lo >> 127),
+            lo: self.lo << 1,
         }
-        match self.remainder.checked_mul(2) {
-            // Twice the remainder overflowed where the denominator did not, so
-            // it is the larger of the two.
-            None => Discard::AboveHalf,
-            Some(twice) => match twice.cmp(&self.denominator) {
-                Ordering::Less => Discard::BelowHalf,
-                Ordering::Equal => Discard::Half,
-                Ordering::Greater => Discard::AboveHalf,
-            },
+    }
+
+    /// `self - other`, where the caller has already compared the two.
+    fn wrapping_sub(self, other: Self) -> Self {
+        let (lo, borrow) = self.lo.overflowing_sub(other.lo);
+        Self {
+            hi: self
+                .hi
+                .wrapping_sub(other.hi)
+                .wrapping_sub(u128::from(borrow)),
+            lo,
         }
+    }
+
+    fn bit(self, index: u32) -> bool {
+        if index < 128 {
+            (self.lo >> index) & 1 == 1
+        } else {
+            (self.hi >> (index - 128)) & 1 == 1
+        }
+    }
+
+    fn set_bit(&mut self, index: u32) {
+        if index < 128 {
+            self.lo |= 1 << index;
+        } else {
+            self.hi |= 1 << (index - 128);
+        }
+    }
+
+    /// `(self / divisor, self % divisor)` by shift and subtract, one bit at a
+    /// time, for a divisor every call site has already found non-zero.
+    ///
+    /// A machine has no 192-bit divide to reach for, and this path is entered
+    /// only by the division whose 128-bit fold overflowed, so the bit loop
+    /// buys exactness at a cost the common path never sees.
+    fn div_rem(self, divisor: Self) -> (Self, Self) {
+        let mut quotient = Self::ZERO;
+        let mut remainder = Self::ZERO;
+        for index in (0..192u32).rev() {
+            remainder = remainder.shifted_left();
+            if self.bit(index) {
+                remainder.lo |= 1;
+            }
+            if remainder >= divisor {
+                remainder = remainder.wrapping_sub(divisor);
+                quotient.set_bit(index);
+            }
+        }
+        (quotient, remainder)
+    }
+}
+
+impl Ord for U192 {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.hi.cmp(&other.hi).then_with(|| self.lo.cmp(&other.lo))
+    }
+}
+
+impl PartialOrd for U192 {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
@@ -404,7 +545,7 @@ impl Decimal {
     pub fn checked_div(self, other: Self) -> Option<Self> {
         let division = self.long_divide(other, None)?;
         let mut mantissa = division.mantissa;
-        if rounds_away(division.discarded(), mantissa) {
+        if rounds_away(division.discard, mantissa) {
             mantissa = mantissa.checked_add(1)?;
         }
         Self::new(division.negative, mantissa, division.scale)
@@ -422,7 +563,7 @@ impl Decimal {
     #[must_use]
     pub fn checked_div_exact(self, other: Self) -> Option<Self> {
         let division = self.long_divide(other, None)?;
-        if division.remainder != 0 {
+        if division.discard != Discard::Nothing {
             return None;
         }
         Self::new(division.negative, division.mantissa, division.scale)
@@ -444,7 +585,7 @@ impl Decimal {
         }
         let division = self.long_divide(other, Some(scale))?;
         let value = Self::new(division.negative, division.mantissa, division.scale)?;
-        Some((value, division.discarded()))
+        Some((value, division.discard))
     }
 
     /// The one long division under [`Self::checked_div`],
@@ -468,23 +609,31 @@ impl Decimal {
                 negative,
                 mantissa: 0,
                 scale: limit.unwrap_or(0),
-                remainder: 0,
-                denominator: other.mantissa,
+                discard: Discard::Nothing,
             });
         }
         // Fold both scales into one side, so what is left is the plain
         // rational `numerator / denominator` and the quotient's scale is
         // exactly the number of fractional digits produced below.
-        let (mut numerator, mut denominator) = (self.mantissa, other.mantissa);
-        match i32::from(other.scale) - i32::from(self.scale) {
-            shift if shift > 0 => {
-                numerator = numerator.checked_mul(pow10(shift.unsigned_abs())?)?;
-            }
-            shift if shift < 0 => {
-                denominator = denominator.checked_mul(pow10(shift.unsigned_abs())?)?;
-            }
-            _ => {}
-        }
+        let shift = i32::from(other.scale) - i32::from(self.scale);
+        let factor = pow10(shift.unsigned_abs())?;
+        let folded = match shift.cmp(&0) {
+            Ordering::Greater => self
+                .mantissa
+                .checked_mul(factor)
+                .map(|n| (n, other.mantissa)),
+            Ordering::Less => other
+                .mantissa
+                .checked_mul(factor)
+                .map(|d| (self.mantissa, d)),
+            Ordering::Equal => Some((self.mantissa, other.mantissa)),
+        };
+        let Some((numerator, denominator)) = folded else {
+            // The fold is the only step of this division that refuses a
+            // quotient the type could have held, so it is the only one the
+            // wider intermediate is ever paid for.
+            return self.long_divide_at_192(other, limit, negative, shift);
+        };
         let mut mantissa = numerator / denominator;
         let mut remainder = numerator % denominator;
         if mantissa > MAX_MANTISSA {
@@ -523,8 +672,68 @@ impl Decimal {
             negative,
             mantissa,
             scale,
-            remainder,
-            denominator,
+            discard: Discard::of(remainder, denominator),
+        })
+    }
+
+    /// [`Self::long_divide`] over again at 192 bits, entered only where the
+    /// 128-bit scale fold overflowed — the wider intermediate ADR 0054
+    /// § *Consequences* predicts, and the reason a quotient that fits 96 bits
+    /// is never refused for want of room to reach it.
+    ///
+    /// Every quantity here is bounded by that fold, `(2^96 - 1) × 10^28`,
+    /// which is under 2^190: the digit loop only ever multiplies a remainder
+    /// already smaller than the denominator, and a mantissa already known to
+    /// fit 96 bits. The two paths answer the same division and part only in
+    /// the width they reach it at, so a `decimal` is exact over the whole of
+    /// its range and rounds in one place, `rule:types/arithmetic`'s half to even.
+    ///
+    /// **What it spends:** nothing per request and nothing per value — the
+    /// wider intermediate is two `u128` temporaries in one stack frame, and
+    /// the division whose fold fit never builds one.
+    fn long_divide_at_192(
+        self,
+        other: Self,
+        limit: Option<u8>,
+        negative: bool,
+        shift: i32,
+    ) -> Option<LongDivision> {
+        let widen =
+            |mantissa: u128| U192::from_u128(mantissa).checked_mul_pow10(shift.unsigned_abs());
+        let (numerator, denominator) = if shift > 0 {
+            (widen(self.mantissa)?, U192::from_u128(other.mantissa))
+        } else {
+            (U192::from_u128(self.mantissa), widen(other.mantissa)?)
+        };
+        let (quotient, mut remainder) = numerator.div_rem(denominator);
+        let mut mantissa = quotient.to_u128()?;
+        if mantissa > MAX_MANTISSA {
+            return None;
+        }
+        let fixed = limit.is_some();
+        let stop = limit.unwrap_or(MAX_SCALE);
+        let mut scale = 0u8;
+        while scale < stop && (fixed || !remainder.is_zero()) {
+            let digit = remainder.checked_mul_10().and_then(|carried| {
+                let (digit, rest) = carried.div_rem(denominator);
+                let next = mantissa.checked_mul(10)?.checked_add(digit.to_u128()?)?;
+                (next <= MAX_MANTISSA).then_some((next, rest))
+            });
+            let Some((next, rest)) = digit else {
+                if fixed {
+                    return None;
+                }
+                break;
+            };
+            mantissa = next;
+            remainder = rest;
+            scale += 1;
+        }
+        Some(LongDivision {
+            negative,
+            mantissa,
+            scale,
+            discard: Discard::of_wide(remainder, denominator),
         })
     }
 
@@ -867,6 +1076,45 @@ mod tests {
         assert_eq!(dec("0.5").checked_div(dec("2")), Some(dec("0.25")));
         assert_eq!(dec("0").checked_div(dec("3")), Some(Decimal::zero()));
         assert_eq!(dec("1").checked_div(dec("0")), None);
+    }
+
+    #[test]
+    fn a_decimal_division_past_128_bits_retries_at_192_and_is_exact() {
+        // A 96-bit mantissa folded against a scale difference of 28 overflows
+        // `u128` where the quotient still fits a `decimal`, on both sides: the
+        // dividend's scale is the narrower one here, so the fold goes into the
+        // numerator.
+        let widest = Decimal::new(false, MAX_MANTISSA, 0).expect("at the bound");
+        let one = Decimal::new(false, 10u128.pow(28), MAX_SCALE).expect("one, at full scale");
+        assert_eq!(widest.checked_div(one), Some(widest));
+        assert_eq!(widest.checked_div_exact(one), Some(widest));
+
+        // Exactly half at the last digit the mantissa admits, rounded to the
+        // even neighbour — 2^95, where truncating would answer 2^95 - 1.
+        let two = Decimal::new(false, 2 * 10u128.pow(28), MAX_SCALE).expect("two, at full scale");
+        assert_eq!(widest.checked_div(two), Decimal::new(false, 1u128 << 95, 0));
+        assert_eq!(widest.checked_div_exact(two), None);
+
+        // The other fold: the divisor's scale is the narrower one, so the
+        // 10^28 goes into the denominator instead.
+        let padded = dec("0.4500000000000000000000000000");
+        assert_eq!(padded.scale(), MAX_SCALE);
+        assert_eq!(
+            padded.checked_div(dec("45000000000")),
+            Decimal::new(false, 1, 11)
+        );
+        assert_eq!(
+            padded.checked_div_at_scale(dec("45000000000"), 11),
+            Some((
+                Decimal::new(false, 1, 11).expect("in range"),
+                Discard::Nothing
+            ))
+        );
+
+        // A wider intermediate is not a wider `decimal`: a quotient past 96
+        // bits is refused at 192 as it was at 128.
+        let tiny = Decimal::new(false, 1, MAX_SCALE).expect("in range");
+        assert_eq!(widest.checked_div(tiny), None);
     }
 
     #[test]
