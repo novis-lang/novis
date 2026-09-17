@@ -196,25 +196,27 @@ fn bounded(
 
 /// The `[limits]` keys of a per-app block, named and in the tree's own order — the same keys
 /// [`ceilings`] returns, in the same order, so the two zip row for row.
-fn defaults(limits: &Limits) -> [(&'static str, Option<&Setting>); 5] {
+fn defaults(limits: &Limits) -> [(&'static str, Option<&Setting>); 6] {
     [
         ("memory", limits.memory.as_ref()),
         ("cpu_time", limits.cpu_time.as_ref()),
         ("wall_time", limits.wall_time.as_ref()),
         ("max_tasks", limits.max_tasks.as_ref()),
         ("max_output", limits.max_output.as_ref()),
+        ("max_regex_steps", limits.max_regex_steps.as_ref()),
     ]
 }
 
 /// The same keys of a `[limits.hard]`, carrying their names — one table, so a new limit is a row
 /// here rather than a scattering of places to forget.
-pub(crate) fn ceilings(set: &LimitSet) -> [(&'static str, Option<&Setting>); 5] {
+pub(crate) fn ceilings(set: &LimitSet) -> [(&'static str, Option<&Setting>); 6] {
     [
         ("memory", set.memory.as_ref()),
         ("cpu_time", set.cpu_time.as_ref()),
         ("wall_time", set.wall_time.as_ref()),
         ("max_tasks", set.max_tasks.as_ref()),
         ("max_output", set.max_output.as_ref()),
+        ("max_regex_steps", set.max_regex_steps.as_ref()),
     ]
 }
 

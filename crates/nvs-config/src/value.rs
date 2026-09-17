@@ -124,7 +124,11 @@ pub fn unit_of(key: &str) -> Option<Unit> {
         "cpu_time" | "wall_time" | "fatal_reserve_time" => Some(Unit::Duration),
         // The ratio half is a multiplier rather than a fraction — output per octet of input — so
         // it is a `Count` and not `Unit::Ratio`, whose values run between zero and one.
-        "max_tasks" | "max_script_depth" | "max_decompression_ratio" => Some(Unit::Count),
+        // The backtracking tier's step budget is a count of steps for the reason `max_tasks` is a
+        // count of tasks: a number of things, with no unit anyone would suffix it with.
+        "max_tasks" | "max_script_depth" | "max_decompression_ratio" | "max_regex_steps" => {
+            Some(Unit::Count)
+        }
         _ => None,
     }
 }

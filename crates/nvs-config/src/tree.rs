@@ -181,6 +181,12 @@ pub struct Limits {
     pub max_tasks: Option<Setting>,
     /// `Runtime` — bytes written to the response.
     pub max_output: Option<Setting>,
+    /// `Runtime` — how many steps `rule:core-classes/regex-two-tiers`'s backtracking tier may spend
+    /// on one subject before it throws. Unset, the budget `crates/nvs-stdlib/src/regex.rs` states,
+    /// which is the figure that engine's own adversarial-pattern tests are written against. The
+    /// linear tier reads nothing here, because it runs under no budget at all, so this bounds only
+    /// the patterns the linear engine cannot express.
+    pub max_regex_steps: Option<Setting>,
     /// `System` — `rule:errors/on-limit`'s reserved slice: the bytes carved out of [`memory`](Self::memory)
     /// at request start and left for the tier-1 handler, which is the one thing that may still
     /// allocate once the rest of the ceiling is gone. `System` rather than `Runtime` because it is
@@ -233,6 +239,8 @@ pub struct LimitSet {
     pub max_tasks: Option<Setting>,
     /// The ceiling on response bytes.
     pub max_output: Option<Setting>,
+    /// The ceiling on backtracking steps.
+    pub max_regex_steps: Option<Setting>,
 }
 
 /// `[mode]` — `rule:http-server/the-mode-ceiling-defaults-to-the-startup-mode`, whose keys `rule:config/three-changeability-classes` gives different classes.

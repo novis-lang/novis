@@ -45,7 +45,7 @@
 # ----------------------------------------------------------------------------------------------
 
 #[limits]
-# `Runtime` — the four a request may set wider or narrower at runtime, up to the matching
+# `Runtime` — the keys a request may set wider or narrower at runtime, up to the matching
 # `[limits.hard]` ceiling. Unset, there is no cap of that kind at all: the runtime reads a missing
 # value as no ceiling, so the numbers below are spellings rather than the shipped bounds, and a
 # deployment that wants one writes it. A duration or a size takes a suffix or a bare number of
@@ -54,9 +54,13 @@
 #cpu_time = "30s"                   # CPU time
 #wall_time = "60s"                  # wall time
 #max_output = "32M"                 # bytes written to the response
-# `Runtime`, and named to a request like the four above — but no scheduler or budget reads it yet,
+# `Runtime`, and named to a request like the ones above — but no scheduler or budget reads it yet,
 # so writing it bounds nothing today (`rule:security/isolate-budget-is-the-trees` is what it is for).
 #max_tasks = 16                     # concurrent tasks
+# `Runtime` — how many steps the backtracking regex tier may spend on one subject before it throws
+# (`rule:core-classes/regex-two-tiers`). Unset, the budget `nvs_stdlib::regex` ships. The linear
+# tier runs under none, so this bounds only the patterns the linear engine cannot express.
+#max_regex_steps = 1000000          # backtracking steps per subject
 # `System` — the slice carved out of `memory` and `cpu_time` at request start and left for the
 # tier-1 fatal handler, which is the one thing that may still allocate once the rest of the ceiling
 # is gone (`rule:errors/on-limit`). A request may not set either one, and neither has a
@@ -76,7 +80,7 @@
 #max_decompression_ratio = 100
 
 #[limits.hard]
-# The ceiling a request may not raise itself past, for the four `Runtime` keys that have one. `false`
+# The ceiling a request may not raise itself past, for the `Runtime` keys that have one. `false`
 # removes the ceiling for that key. A request that asks for more gets `false` back from
 # `Core\Config::set` and keeps the value it had.
 #memory = "1G"
@@ -84,6 +88,7 @@
 #wall_time = "300s"
 #max_tasks = 64
 #max_output = "128M"
+#max_regex_steps = 5000000
 
 
 # ----------------------------------------------------------------------------------------------
@@ -702,6 +707,7 @@
 #wall_time = "600s"
 #max_tasks = 16
 #max_output = "64M"
+#max_regex_steps = 5000000
 
 #[schedule.grants.script]
 # This entry's grants, key for key the same as `[capabilities.*]` above and read the same way: what
@@ -853,6 +859,7 @@
 #wall_time = "60s"
 #max_output = "32M"
 #max_tasks = 16
+#max_regex_steps = 1000000
 #fatal_reserve_memory = "2M"
 #fatal_reserve_time = "250ms"
 #max_script_depth = 64
@@ -866,6 +873,7 @@
 #wall_time = "300s"
 #max_tasks = 64
 #max_output = "128M"
+#max_regex_steps = 5000000
 
 #[app.capabilities.script]
 # This application's grants, key for key `[capabilities.*]`'s and read the same way: what is not

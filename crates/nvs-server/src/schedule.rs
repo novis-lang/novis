@@ -466,6 +466,7 @@ fn sub_cap(limits: &LimitSet) -> Vec<(String, String)> {
         wall_time,
         max_tasks,
         max_output,
+        max_regex_steps,
     } = limits;
     [
         ("memory", memory),
@@ -473,6 +474,7 @@ fn sub_cap(limits: &LimitSet) -> Vec<(String, String)> {
         ("wall_time", wall_time),
         ("max_tasks", max_tasks),
         ("max_output", max_output),
+        ("max_regex_steps", max_regex_steps),
     ]
     .into_iter()
     .filter_map(|(key, written)| {

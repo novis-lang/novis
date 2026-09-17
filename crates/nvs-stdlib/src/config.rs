@@ -86,7 +86,8 @@ const GET_DOC: MethodDoc = MethodDoc {
     params: &[ParamDoc {
         name: "name",
         desc: "The directive's dotted name, `log.level`. A bare limit name — `memory`, \
-               `cpu_time`, `wall_time`, `max_tasks`, `max_output` — names the `[limits]` entry.",
+               `cpu_time`, `wall_time`, `max_tasks`, `max_output`, `max_regex_steps` — names the \
+               `[limits]` entry.",
         shape: &[],
     }],
     ret: "The value as text, however the file spelled it, or `null` where nothing set one and \

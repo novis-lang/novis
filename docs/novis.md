@@ -16944,7 +16944,7 @@ The configuration value in force for this request, replacing `ini_get`. A direct
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$name` | `string` (neutral) | The directive's dotted name, `log.level`. A bare limit name — `memory`, `cpu_time`, `wall_time`, `max_tasks`, `max_output` — names the `[limits]` entry. |
+| `$name` | `string` (neutral) | The directive's dotted name, `log.level`. A bare limit name — `memory`, `cpu_time`, `wall_time`, `max_tasks`, `max_output`, `max_regex_steps` — names the `[limits]` entry. |
 
 **Returns** `?string` — The value as text, however the file spelled it, or `null` where nothing set one and for a name that holds a table or a list rather than a value.
 
@@ -25338,13 +25338,15 @@ ceiling.
 | `wall_time` | duration | elapsed time from start to finish, waiting included |
 | `max_tasks` | count | concurrent tasks |
 | `max_output` | size | bytes written to the response |
+| `max_regex_steps` | count | how many steps the backtracking regex tier may spend on one subject before it throws; the linear tier runs under no budget |
 | `fatal_reserve_memory` | size | the slice of `memory` kept back for the limit handler (`Core\Fatal::onLimit`); not raisable, no ceiling |
 | `fatal_reserve_time` | duration | the slice of `cpu_time` kept back for the same handler |
 | `max_script_depth` | count | how deep `spawn script` may nest (default 64); not raisable |
 | `max_decompressed` | size | the most one `Core\Compress` or `Core\Zip` decompression may produce (default 64M); not raisable, and `false` does not remove it |
 | `max_decompression_ratio` | count | the other half of the same bound — output per octet of input (default 1000). A call asks for less through its own arguments and never for more |
 
-`[limits.hard]` takes the first five keys only. Breaching a limit is **not an exception**: nothing
+`[limits.hard]` takes only the keys a request may raise: `memory`, `cpu_time`, `wall_time`,
+`max_tasks`, `max_output` and `max_regex_steps`. Breaching a limit is **not an exception**: nothing
 in the program can `catch` it. The request is stopped, the handler registered with
 `Core\Fatal::onLimit` runs out of the reserve if there is one, `FATAL: …` is written to standard
 error, and `nvs run` exits `1`. What was already written to standard output stays written.
