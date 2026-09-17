@@ -2319,6 +2319,15 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `nvs-runtime` and nothing above them, and the error reads as a missing dependency rather than a
   deliberate boundary. Re-export the type from `crates/nvs-ir/src/lib.rs` and name it `nvs_ir::…`
   in codegen. [until: reviewed 2026-09-17]
+- **A `peek.py` `re:` target carrying a context number multiplies that context by every file the
+  glob matches.** `"crates/nvs-stdlib/src/*.rs:re:Core.Request:2"` came back as 45 KB in one call,
+  because the two lines of context are applied per hit and a crate-wide glob had dozens of them.
+  Ask for the matching line alone first — a bare `re:pat` — and add the context number only once
+  the target has narrowed to one file. [until: reviewed 2026-09-17]
+- **`peek.py --locate` silently discards the positional targets in the same call.** A call that
+  read three regions and located one symbol answered with the anchor alone, so all three reads had
+  to be sent again. Give `--locate` its own call, or drop it and read the regions whose anchors you
+  already hold. [until: reviewed 2026-09-17]
 
 ## Running things
 
