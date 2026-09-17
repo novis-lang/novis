@@ -1414,14 +1414,21 @@ impl FleetLease {
 /// The lease `arm` and the ticker are handed, or [`None`] when there is no
 /// shared store configured or the one there is will not answer.
 ///
-/// `[cache.shared]`'s two keys as the operator wrote them: `nvs_stdlib::Lease`
-/// owns how a URL and a timeout are read, because it is the same pair
-/// `Core\Cache::shared()` reads and a second reading of them here would be a
-/// second dialect of one block.
+/// `[cache.shared]`'s keys as the operator wrote them: `nvs_stdlib::Lease` owns
+/// how the block is read, because it is the same block `Core\Cache::shared()`
+/// reads and a second reading of it here would be a second dialect of one
+/// block. The credential arrives already materialized — `nvs_config`'s snapshot
+/// puts a `password_file`'s content back onto this tree — so there is no file
+/// for this binary to open.
 fn fleet_lease(config: &nvs_config::Config) -> Option<FleetLease> {
     let shared = config.cache.as_ref()?.shared.as_ref()?;
     let url = shared.url.as_deref()?;
-    match nvs_stdlib::Lease::open(url, shared.timeout.as_deref()) {
+    match nvs_stdlib::Lease::open(
+        url,
+        shared.password.as_deref(),
+        shared.database,
+        shared.timeout.as_deref(),
+    ) {
         Ok(store) => Some(FleetLease {
             store: std::cell::RefCell::new(store),
             token: format!("{}:{}", std::process::id(), Zoned::now()).into_bytes(),

@@ -875,8 +875,10 @@ mod tests {
             (first, second)
         });
 
-        let mut connection =
-            Connection::new(Dial::to(Target::Tcp(address)), Duration::from_secs(5));
+        let mut connection = Connection::new(
+            Dial::configured(Target::Tcp(address), None, None),
+            Duration::from_secs(5),
+        );
         connection.ensure().expect("the fake store is listening");
         connection
             .set_expiring(b"k", b"hi", Duration::from_secs(90))
@@ -914,8 +916,10 @@ mod tests {
             (set, get)
         });
 
-        let mut connection =
-            Connection::new(Dial::to(Target::Tcp(address)), Duration::from_secs(5));
+        let mut connection = Connection::new(
+            Dial::configured(Target::Tcp(address), None, None),
+            Duration::from_secs(5),
+        );
         connection.ensure().expect("the fake store is listening");
         connection
             .set(b"k", b"hi")
@@ -945,8 +949,10 @@ mod tests {
                 .expect("the refusal");
         });
 
-        let mut connection =
-            Connection::new(Dial::to(Target::Tcp(address)), Duration::from_secs(5));
+        let mut connection = Connection::new(
+            Dial::configured(Target::Tcp(address), None, None),
+            Duration::from_secs(5),
+        );
         connection.ensure().expect("the fake store is listening");
         assert_eq!(connection.get(b"k").expect("absence is an answer"), None);
 
@@ -1047,8 +1053,10 @@ mod tests {
             first
         });
 
-        let mut connection =
-            Connection::new(Dial::to(Target::Tcp(address)), Duration::from_secs(5));
+        let mut connection = Connection::new(
+            Dial::configured(Target::Tcp(address), None, None),
+            Duration::from_secs(5),
+        );
         assert_eq!(connection.get(b"k").expect("absence is an answer"), None);
 
         let first = server.join().expect("the fake store runs to completion");
@@ -1094,7 +1102,7 @@ mod tests {
             });
 
             let mut connection = Connection::new(
-                Dial::to(Target::Socket(path.clone())),
+                Dial::configured(Target::Socket(path.clone()), None, None),
                 Duration::from_secs(5),
             );
             connection.ensure().expect("the fake store is listening");
@@ -1158,7 +1166,10 @@ mod tests {
     #[allow(clippy::print_stderr)]
     fn lease_case(label: &str) -> Option<(Connection, Connection, Vec<u8>)> {
         let address = SocketAddr::from((Ipv4Addr::LOCALHOST, REDIS));
-        let mut first = Connection::new(Dial::to(Target::Tcp(address)), Duration::from_secs(5));
+        let mut first = Connection::new(
+            Dial::configured(Target::Tcp(address), None, None),
+            Duration::from_secs(5),
+        );
         if let Err(why) = first.ensure() {
             eprintln!(
                 "the {label} lease case asserted nothing: no store at {address} ({why}). \
@@ -1167,7 +1178,10 @@ mod tests {
             );
             return None;
         }
-        let mut second = Connection::new(Dial::to(Target::Tcp(address)), Duration::from_secs(5));
+        let mut second = Connection::new(
+            Dial::configured(Target::Tcp(address), None, None),
+            Duration::from_secs(5),
+        );
         second
             .ensure()
             .expect("a second connection to a store that has already answered one");

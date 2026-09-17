@@ -946,8 +946,10 @@ mod tests {
             sent
         });
 
-        let mut connection =
-            Connection::new(Dial::to(Target::Tcp(address)), Duration::from_secs(5));
+        let mut connection = Connection::new(
+            Dial::configured(Target::Tcp(address), None, None),
+            Duration::from_secs(5),
+        );
         connection.ensure().expect("the fake store is listening");
         let derived = window(5, 1_000_000_000, 5, "consume").expect("5 per second");
         let reply = connection
@@ -1186,8 +1188,10 @@ mod tests {
             drop(stream);
         });
 
-        let mut connection =
-            Connection::new(Dial::to(Target::Tcp(address)), Duration::from_secs(5));
+        let mut connection = Connection::new(
+            Dial::configured(Target::Tcp(address), None, None),
+            Duration::from_secs(5),
+        );
         connection.ensure().expect("the fake store is listening");
         let failed = connection.eval(SCRIPT, b"k", &[b"1000", b"1000", b"1"]);
         assert!(

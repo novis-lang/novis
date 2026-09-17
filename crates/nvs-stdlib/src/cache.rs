@@ -152,17 +152,16 @@
 //!
 //! # Known gaps
 //!
-//! 1. **A shared store behind a password, a database index or TLS.** The URL
-//!    this reads is `redis://host[:port]` and nothing else, and each of the
-//!    three is refused with a sentence rather than half-served: `AUTH` needs
-//!    `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s secret
-//!    plumbing to carry the credential, a database index is a second namespace
-//!    nothing yet names, and a `rediss://` store is a second caller of the TLS
-//!    client `crate::http::transport` dials through. Each is a key beside
-//!    `[cache.shared] url` before it is a connection, and all three are applied
-//!    at the one dial — including the silent reconnect after a dropped socket —
-//!    which is what makes them one decision rather than three pieces of
-//!    plumbing.
+//! 1. **A shared store behind TLS.** The URL this reads is
+//!    `redis://host[:port]` or `unix:/path/to.sock`, and a `rediss://` store is
+//!    refused with a sentence rather than half-served: it is a second caller of
+//!    the TLS client `crate::http::transport` dials through, and a scheme this
+//!    one accepted and then spoke in the clear would be a plaintext connection
+//!    wearing a TLS spelling. It is the transport itself rather than a value
+//!    carried over one, which is why it is a scheme and not a key beside
+//!    `[cache.shared] url` — and, like the credential and the index already
+//!    here, it belongs to the [`Dial`] every connect applies, including the
+//!    silent reconnect after a dropped socket.
 //!    — owner: cache-shared-dial
 
 use std::borrow::Borrow;
@@ -445,6 +444,16 @@ const SHARED_TIER: &str = "shared";
 /// `redis://host[:port]` or `unix:/path/to.sock`. Absent, there is no shared tier
 /// and `shared()` says so.
 const URL: &str = "cache.shared.url";
+
+/// `[cache.shared] password` — the credential the store is behind, which arrives
+/// here already materialized: `rule:config/a-secret-is-a-file-whose-content-is-the-value`
+/// reads the `_file` half at boot and `Core\Config` answers this key with the
+/// value, so there is one spelling to ask for and no file to open on a request.
+const PASSWORD: &str = "cache.shared.password";
+
+/// `[cache.shared] database` — which of the store's databases this deployment's
+/// entries live in. Absent, the one the store opens a connection on.
+const DATABASE: &str = "cache.shared.database";
 
 /// The scheme [`socket`]'s spelling of [`URL`] carries, from the crate that owns
 /// the key — `rule:config/unix-scheme-in-a-url-and-a-bare-path-in-a-host` names
@@ -2009,9 +2018,10 @@ fn bound_of(written: Option<&str>) -> Duration {
 /// A thrown `RuntimeError` naming what this client reads, for a URL carrying a
 /// scheme it does not speak, a path, or a port that is not one. Each of the
 /// three is refused rather than ignored: a `rediss://` treated as `redis://`
-/// would be a plaintext connection wearing a TLS spelling, and a database index
-/// dropped on the floor would put the entries somewhere the operator did not
-/// ask for. Plus everything [`socket`] refuses, for the second spelling.
+/// would be a plaintext connection wearing a TLS spelling, and an index written
+/// as a path is a second spelling of `[cache.shared] database`, which is two
+/// sources for one value and the thing that key exists to be the only one of.
+/// Plus everything [`socket`] refuses, for the second spelling.
 fn endpoint(url: &str, member: &str) -> Result<Target, Fault> {
     let refuse = |why: &str| {
         Fault::thrown(format!(
@@ -2031,7 +2041,9 @@ fn endpoint(url: &str, member: &str) -> Result<Target, Fault> {
     let authority = authority.trim_end_matches('/');
     if authority.contains('/') {
         return Err(refuse(
-            "a database index is a namespace nothing here names yet",
+            "a database index is written as `[cache.shared] database` and never as a path here, \
+             because one value spelled two ways is one nobody can read without being told which \
+             spelling wins",
         ));
     }
     // An IPv6 literal is written `[::1]` and carries colons of its own, so the
@@ -2174,12 +2186,21 @@ pub(crate) struct Dial {
 }
 
 impl Dial {
-    /// The store at `target`, with nothing configured beside the URL naming it.
-    pub(crate) const fn to(target: Target) -> Self {
+    /// The store at `target`, behind `password` and at `database` — the whole of
+    /// what `[cache.shared]` says, as the one value the wire applies.
+    ///
+    /// The only constructor the shipped code has, so a door that read a URL and
+    /// stopped there says so by passing nothing twice rather than by reaching
+    /// for a shorter one that would quietly drop a key added later.
+    pub(crate) fn configured(
+        target: Target,
+        password: Option<String>,
+        database: Option<u32>,
+    ) -> Self {
         Self {
             target,
-            password: None,
-            database: None,
+            password,
+            database,
         }
     }
 }
@@ -2210,9 +2231,9 @@ fn open_shared(dial: Dial, timeout: Duration, member: &str) -> Result<(), Fault>
 }
 
 /// Opens this core's connection to the configured shared store — the **door**,
-/// as the module doc's third decision defines one: the directive is read here,
-/// the grant is asked for here, the URL becomes the [`Dial`] here, and the
-/// connection is made to that and to nothing the store answers with later.
+/// as the module doc's third decision defines one: the directives are read here,
+/// the grant is asked for here, the whole block becomes the [`Dial`] here, and
+/// the connection is made to that and to nothing the store answers with later.
 ///
 /// `remedy` is the clause a caller appends to the unconfigured refusal, because
 /// what to do instead is the caller's own contract: `Core\Cache::shared()` can
@@ -2239,7 +2260,47 @@ pub(crate) fn open_configured(ctx: &Ctx, member: &str, remedy: &str) -> Result<(
     // question is put beside the effect it authorizes.
     nvs_runtime::capability::require(ctx, Cap::CacheShared, Scope::Unscoped, member)?;
 
-    open_shared(Dial::to(endpoint(&url, member)?), timeout_of(ctx), member)
+    open_shared(
+        dial_of(ctx, endpoint(&url, member)?),
+        timeout_of(ctx),
+        member,
+    )
+}
+
+/// The whole of what this deployment configured for the store at `target`.
+///
+/// Settled here, where the URL is read, because that is what makes [`Dial`] one
+/// value: [`redis::Connection::ensure`] applies all of it on every socket it
+/// opens, including the one it opens again after a dropped socket, so a
+/// credential or an index picked up anywhere else would be a reconnect the store
+/// answers as somebody else.
+///
+/// An index that is not a number is the one the store opens on rather than a
+/// refusal, which is [`timeout_of`]'s reasoning: `[cache.shared] database`
+/// parses as an integer where `nvs.toml` is loaded, so a request throwing over
+/// it would be a request failing over a file the operator can no longer see.
+fn dial_of(ctx: &Ctx, target: Target) -> Dial {
+    Dial::configured(
+        target,
+        credential(ctx),
+        configured(ctx, DATABASE).and_then(|index| index.parse().ok()),
+    )
+}
+
+/// `[cache.shared] password` as the operator wrote it, or `None` for a store
+/// behind none.
+///
+/// Not [`configured`], which trims. A credential is kept byte for byte
+/// (`rule:config/a-secret-is-a-file-whose-content-is-the-value`, whose boot says
+/// `W1007` about an edge space rather than removing it), and a reader that
+/// trimmed one would send an `AUTH` the store refuses while the file it was
+/// mounted from holds exactly the right bytes — which is the bug
+/// `crate::mail`'s own reader was written against. Blank is still absent,
+/// because `password = ""` is an operator clearing the key.
+fn credential(ctx: &Ctx) -> Option<String> {
+    ctx.config()
+        .and_then(|config| config.get(PASSWORD))
+        .filter(|written| !written.trim().is_empty())
 }
 
 /// One command on this core's connection to the shared store, for `owner`'s
@@ -2329,8 +2390,12 @@ impl std::fmt::Debug for Lease {
 impl Lease {
     /// A lease over the store `[cache.shared] url` names, dialled now.
     ///
-    /// `timeout` is that block's own key as written, so a lease command waits
-    /// the same bound every other command to this store waits.
+    /// Every argument is that block's own key as the operator wrote it: the
+    /// bound, so a lease command waits what every other command to this store
+    /// waits, and the credential and the index, so the fleet's connection is the
+    /// same [`Dial`] a request's is. A lease that dialled the URL alone would be
+    /// the one connection in the process reaching the store as nobody, against
+    /// whichever database it opens on.
     ///
     /// Dialled here rather than at the first fire because a store that cannot be
     /// reached is something an operator should hear while they are still reading
@@ -2343,14 +2408,25 @@ impl Lease {
     /// failure for a store that is not answering. Both are the caller's to
     /// report: a boot that cannot reach the store still serves requests, and
     /// what it does instead is leave every `fleet` entry unarmed and say so.
-    pub fn open(url: &str, timeout: Option<&str>) -> Result<Self, String> {
+    pub fn open(
+        url: &str,
+        password: Option<&str>,
+        database: Option<u32>,
+        timeout: Option<&str>,
+    ) -> Result<Self, String> {
         let target = endpoint(url, LEASE_MEMBER).map_err(|refused| match refused {
             Fault::Thrown(_, why) => why.into_owned(),
             // `endpoint` builds nothing else. A variant it does not construct
             // still has to read as a refusal rather than reach an `unreachable`.
             other => format!("{LEASE_MEMBER}: {other:?}"),
         })?;
-        let mut connection = redis::Connection::new(Dial::to(target), bound_of(timeout));
+        // Blank is absent here as it is at the door: `password = ""` is an
+        // operator clearing the key, and anything else is theirs byte for byte.
+        let password = password
+            .filter(|written| !written.trim().is_empty())
+            .map(str::to_owned);
+        let dial = Dial::configured(target, password, database);
+        let mut connection = redis::Connection::new(dial, bound_of(timeout));
         connection.ensure()?;
         Ok(Self { connection })
     }
@@ -2776,10 +2852,10 @@ mod tests {
     use super::{
         CLASS, Ctx, DEFAULT_FILL_WAIT, DEFAULT_MAX_SIZE, ENTRIES, ENTRY_OVERHEAD, GET_DOC,
         LOCAL_DOC, Lifetime, MAX_SIZE, PROCESS, PROCESS_DOC, PROCESS_FILL_WAIT, PROCESS_MAX_SIZE,
-        SEAL_DOMAIN, SHARDS, SHARED_DOC, Value, bound, charged, elected, endpoint, local_cap,
-        open_configured, process_cap, process_forget, process_get, process_put, scoped, sealed_key,
-        sealed_plaintext, sealed_value, shard_cap, shard_of, store_forget, store_get, store_put,
-        wait_of, waited,
+        SEAL_DOMAIN, SHARDS, SHARED_DOC, Value, bound, charged, dial_of, elected, endpoint,
+        local_cap, open_configured, process_cap, process_forget, process_get, process_put, scoped,
+        sealed_key, sealed_plaintext, sealed_value, shard_cap, shard_of, store_forget, store_get,
+        store_put, wait_of, waited,
     };
 
     /// Taken by every case that touches the process tier, first thing.
@@ -4033,6 +4109,44 @@ mod tests {
             nvs_config::capability::denied_by_default("127.0.0.1".parse().expect("a literal"))
                 .is_some(),
             "the table still denies loopback for every door that asks it — one fewer does"
+        );
+    }
+
+    /// The door settles the **whole** block into one [`super::Dial`]: the store
+    /// the URL names, the credential it is behind, and the index its entries
+    /// live in — which is what `redis::Connection::ensure` applies on every
+    /// socket it opens, including the one it opens again by itself.
+    ///
+    /// The credential is written with a trailing space on purpose. A value is
+    /// kept byte for byte
+    /// (`rule:config/a-secret-is-a-file-whose-content-is-the-value`), and the
+    /// reader that trims one sends an `AUTH` the store refuses while the file it
+    /// was mounted from holds the right bytes — a failure that shows up as the
+    /// store's `-WRONGPASS` and nowhere near the reader that caused it.
+    #[test]
+    fn the_configured_block_becomes_one_dial() {
+        let ctx = deployed(
+            "[capabilities]\ncache.shared = true\n\n[cache.shared]\n\
+             url = \"redis://127.0.0.1:6379\"\npassword = \"hunter2 \"\ndatabase = 3\n",
+        );
+
+        let dial = dial_of(
+            &ctx,
+            super::Target::Tcp("127.0.0.1:6379".parse().expect("a literal")),
+        );
+        assert_eq!(dial.password.as_deref(), Some("hunter2 "));
+        assert_eq!(dial.database, Some(3));
+
+        let bare = deployed("[cache.shared]\nurl = \"redis://127.0.0.1:6379\"\n");
+        let plain = dial_of(
+            &bare,
+            super::Target::Tcp("127.0.0.1:6379".parse().expect("a literal")),
+        );
+        assert_eq!(
+            (plain.password, plain.database),
+            (None, None),
+            "a deployment that configured only a URL dials exactly as it did before there was \
+             anything to apply, and spends no round trip on either step",
         );
     }
 
