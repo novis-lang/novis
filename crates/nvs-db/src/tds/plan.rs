@@ -940,6 +940,64 @@ mod tests {
         assert_eq!(cache.len(), 1, "the stale entry is dropped, not shadowed");
     }
 
+    /// [ADR 0067 § 9](/docs/decisions/0067.md)'s `bytes` row over one
+    /// connection, which is what `rule:core-classes/db-column-types` promises a program: the
+    /// octets bound go out as themselves under [`BINARY_MARK`], and the
+    /// `varbinary` the server answers with decodes back to the same `bytes`.
+    ///
+    /// The scripted server is what makes this one assertion rather than two.
+    /// A case ending at the request says what this driver wrote and a case
+    /// starting at a `COLMETADATA` says what it reads, and neither of them says
+    /// the two are the same octets — which is the only claim a program binding
+    /// a file and selecting it back is making.
+    #[test]
+    fn tds_round_trips_a_bytes_through_varbinary() {
+        const SQL: &str = "select b from t where b = @p1";
+        let octets = [0x00, 0x61, 0xFF, 0xFE];
+        let bound = encode(Value::bytes(NvsStr::new(&octets)))
+            .expect("a `bytes` § 9 binds")
+            .expect("a value and not SQL NULL");
+
+        let mut answer = col_metadata(&[column(
+            &binary_type(TY_BIGVARBINARY, NO_LENGTH),
+            "b",
+            COLUMN_NULLABLE,
+        )]);
+        answer.extend_from_slice(&row_token(&[plp_value(
+            u64::try_from(octets.len()).expect("a short value"),
+            &[&octets],
+        )]));
+        answer.extend_from_slice(&prepexec_answer(9));
+
+        let mut wire = answering_each(&[answer]);
+        let state = Cell::new(State::Idle);
+        let mut cache = plans(4);
+
+        let mut rows = start_statement(&mut wire, &state, &mut cache, SQL, &[Some(&bound)])
+            .expect("a result set the server described");
+        let read = drain_rows(&mut rows).expect("one row and the procedure's end");
+        assert_eq!(read.len(), 1);
+        let back = decode_column(&rows.columns()[0], read[0].column(0).flatten())
+            .expect("a `varbinary` column § 9 maps to `bytes`")
+            .expect("a value and not SQL NULL");
+
+        let sent = flushed(&wire.peer().sent);
+        let (proc_id, params) = sent_rpc(&sent[0].2);
+        assert_eq!(proc_id, PROC_SP_PREPEXEC);
+        assert_eq!(
+            params[1].text.as_deref(),
+            Some("@p1 varbinary(8000)"),
+            "the marker was declared binary rather than text"
+        );
+        assert_eq!(
+            back.as_bytes(),
+            params[3].octets.as_deref(),
+            "what came back is the octets that went out, and not a rendering of them"
+        );
+        assert_eq!(back.as_bytes(), Some(&octets[..]));
+        assert_eq!(state.get(), State::Idle, "a drained answer is poolable");
+    }
+
     /// [ADR 0067 § 4](/docs/decisions/0067.md)'s batch on this
     /// protocol: one prepare, one execution per set, and the sum of what each
     /// one counted.
