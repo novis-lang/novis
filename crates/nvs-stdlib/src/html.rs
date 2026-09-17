@@ -69,7 +69,7 @@
 //! `Core\Secret::reveal`'s own position on the same question
 //! ([`crate::secret`]).
 //!
-//! # Known gaps
+//! # Every door onto a `Markup`, and the sink that needs none
 //!
 //! [`MARKUP`] is registered *and* reachable: every way
 //! `rule:core-classes/html-auto-escape` and `rule:core-classes/html-literal`
@@ -80,14 +80,20 @@
 //! first two's poor relation into the ordinary one, and the pair a markup
 //! literal's own lowering reaches, [`ESCAPE_TEXT_SYMBOL`] and
 //! [`MARKUP_TEXT_SYMBOL`], which answer a hole's bytes rather than a carrier
-//! per hole. What still waits is the sink's **automatic** lift — every
-//! non-`Markup` interpolation into an HTML response escaped and wrapped with
-//! no call written at the site — and it waits on that response existing, which
-//! is the same wait `Core\Request` is on. The *predicate* `rule:security/launderer-answers-a-carrier` reads
-//! does not wait on it: § 5 already decided the sink launders on its own, and
-//! the return type is written against that decision rather than against what
-//! is on disk.
-//! — owner: decided-closures
+//! per hole.
+//!
+//! **The sink's automatic lift is none of them, and none of it is here.** Every
+//! non-`Markup` value `echo` is handed inside an HTTP request is escaped with
+//! no call written at the site, and the decision is the *sink's*: `nvs_runtime`'s
+//! `write_rendered` reads the transform off the carrier already named by the sink
+//! in force — `Core\Html\Markup` for the `OutputSink::Body` an isolate answering
+//! a request builds, and the terminal's substitution for every other one — so no
+//! `echo` site and no member on this class arbitrates it.
+//! `rule:tooling/echo-always-has-a-sink` is that table and those two modules'
+//! own comments are the home of which column is read where. What this module
+//! owes that path is the escape itself and only that: [`nvs_core_html_escape`]
+//! and the sink both call `nvs_render::html::escape`, which is what makes the
+//! launderer and the sink incapable of disagreeing about what an `&` becomes.
 //!
 //! # Why the escape set is fixed at five, with no argument
 //!
