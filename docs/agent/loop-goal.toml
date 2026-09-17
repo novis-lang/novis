@@ -125,6 +125,18 @@ modules = [
   "crates/nvs-lsp/src/semantic.rs",
   # Completion after `Owner::` in type position. Stage 4.
   "crates/nvs-lsp/src/completion.rs",
+  # The declaration checks that need only the AST: identifier casing
+  # (`rule:core-api/identifier-casing`, tightened by
+  # `rule:classes/no-leading-underscore-identifiers`) and the visibility
+  # `rule:core-api/written-visibility` requires at every member declaration.
+  "crates/nvs-syntax/src/casing.rs",
+  # Statements: every control-flow form, `echo`, `unset`, `rule:types/grammar`.1's typed local
+  # declaration and § 3.3's destructuring — and the three places the parser has to guess and take
+  # it back.
+  "crates/nvs-syntax/src/parser/stmt.rs",
+  # The parse tree as a walkable shape: one entry per node, its production's name and the nodes it
+  # contains — what `rule:core-classes/ast-is-inert`'s `Core\Ast::parse` hands a running program.
+  "crates/nvs-syntax/src/walk.rs",
 ]
 
 # The two rules every stage is written inside: what an alias is, and what a shape is.
