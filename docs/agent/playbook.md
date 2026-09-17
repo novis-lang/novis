@@ -5502,6 +5502,14 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   different root and four members stopped agreeing about it. After a grammar change read the cases
   that *build* their inputs before the ones that write them out; `tools/verify.py`'s `.nvst` step is
   where it surfaces, a step after the unit tests that all passed. [until: reviewed 2026-09-17]
+- **An oversized allocation refuses differently under `try.py` than under `nvs test`.** A scratch
+  `Core\Random::bytes(9223372036854775807)` run through `python tools/try.py` dies as
+  `FATAL: the request exceeded its memory limit`, while the same line inside a `tests/conformance/`
+  case throws the allocator's own catchable `…is larger than any buffer this process could hold` —
+  the two runners hand the request different ceilings, and the scratch pad's answer is the wrong one
+  to freeze into an `--EXPECT--`. Author the row wherever you like, then run it with
+  `target/debug/nvs test <case>.nvst` before believing what it printed.
+  [until: reviewed 2026-09-17]
 
 ## Splitting a file that got too big
 

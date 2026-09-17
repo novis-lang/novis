@@ -85,6 +85,7 @@ Conventions the whole file uses:
 | [`Core\ObjectSet<T>`](#core-core-objectset) | a set of objects held by identity — the typed replacement for `SplObjectStorage` used as a set |
 | [`Core\Heap<T>`](#core-core-heap) | a priority queue that answers its smallest element first — `SplPriorityQueue`, `SplMinHeap` and `SplMaxHeap` in one class |
 | [`Core\Random`](#core-core-random) | cryptographically secure random integers, floats, bytes, tokens and array draws |
+| [`Core\Random\Seeded`](#core-core-random-seeded) |  |
 | [`Core\Uuid`](#core-core-uuid) | a 128-bit UUID value — random v4, time-ordered v7, parsed from canonical text |
 | [`Core\Hash`](#core-core-hash) | digests and HMACs over text or bytes, answered as raw `bytes` — the algorithm is an argument, never part of the member's name |
 | [`Core\Hash\Stream`](#core-core-hash-stream) | an incremental digest — fed piece by piece with `update`, closed once with `finish` |
@@ -13577,11 +13578,16 @@ Whether the heap holds nothing — the question to ask before `peek` or `pop`, w
 
 Keywords: rand, mt_rand, random_int, lcg_value, mt_getrandmax, random_bytes, openssl_random_pseudo_bytes, bin2hex, array_rand, shuffle, str_shuffle, srand, mt_srand, Random\Randomizer, CSPRNG, nonce, session token, int, float, bytes, token, pick, sample, shuffle
 
-`Core\Random` is always a CSPRNG: there is no seeded or insecure generator under any name, and no
+`Core\Random` is always a CSPRNG: there is no seeded or insecure generator under this name, and no
 `srand`. `int` draws from a closed range and throws on an empty one rather than swapping the bounds;
 `pick`, `sample` and `shuffle` draw from an array and answer values — a fresh array for `shuffle`,
 `null` from `pick` on an empty one. `token` is the hex text of `bytes`, two characters per byte, for a
 session identifier or a reset link.
+
+Reproducibility is a separate **type**, `Core\Random\Seeded`, built from an explicit seed with `new`
+and carrying the same seven members: one seed is one sequence, every run, which is what a simulation
+or a fixture wants and what a session token must never be. Because it is a type rather than a mode,
+a parameter declaring which generator it takes cannot be handed the other one by mistake.
 
 ```nvs
 <?nvs
@@ -13607,6 +13613,11 @@ try {
 } catch (RuntimeError $empty) {
     echo "empty range\n";
 }
+
+var $left = new Core\Random\Seeded(42);
+var $right = new Core\Random\Seeded(42);
+echo $left->token(4) == $right->token(4) ? "one seed, one sequence" : "diverged", "\n";
+echo $left->int(1, 6) == $right->int(1, 6) ? "and it stays that way" : "diverged", "\n";
 ```
 ```output
 7
@@ -13619,6 +13630,8 @@ ace
 in [0, 1)
 nothing to pick
 empty range
+one seed, one sequence
+and it stays that way
 ```
 
 | Member | Signature |
@@ -13741,6 +13754,146 @@ Answers every entry of `$a` in a uniformly random order, replacing `shuffle` and
 | `$a` | `array<T>` | The array to reorder. |
 
 **Returns** `array<T>` — A fresh list of all the values under `0, 1, …` keys — the subject's keys are discarded, as `shuffle` renumbers — and `$a` is unchanged.
+
+<a id="core-core-random-seeded"></a>
+### `Core\Random\Seeded`
+
+Keywords: int, float, bytes, token, pick, sample, shuffle
+
+| Member | Signature |
+|---|---|
+| `new Core\Random\Seeded` | `new Core\Random\Seeded(int $seed): Core\Random\Seeded` |
+| [`Core\Random\Seeded->int`](#core-core-random-seeded-int) | `int(int $min, int $max): int` |
+| [`Core\Random\Seeded->float`](#core-core-random-seeded-float) | `float(): float` |
+| [`Core\Random\Seeded->bytes`](#core-core-random-seeded-bytes) | `bytes(uint $count): bytes` |
+| [`Core\Random\Seeded->token`](#core-core-random-seeded-token) | `token(uint $bytes = 32): string` |
+| [`Core\Random\Seeded->pick`](#core-core-random-seeded-pick) | `pick(array<T> $a): ?T` |
+| [`Core\Random\Seeded->sample`](#core-core-random-seeded-sample) | `sample(array<T> $a, uint $count): array<T>` |
+| [`Core\Random\Seeded->shuffle`](#core-core-random-seeded-shuffle) | `shuffle(array<T> $a): array<T>` |
+
+<a id="core-core-random-seeded-constructor"></a>
+#### `Core\Random\Seeded::constructor`
+
+```nvs skip
+new Core\Random\Seeded(int $seed): Core\Random\Seeded
+```
+
+Builds a generator whose sequence `$seed` fixes — the reproducible half of spec § 11, replacing `srand` and `mt_srand` with a value rather than a mode.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$seed` | `int` | The seed the sequence is drawn from; every `int` is one, including `0`. |
+
+<a id="core-core-random-seeded-int"></a>
+#### `Core\Random\Seeded->int`
+
+```nvs skip
+$seeded->int(int $min, int $max): int
+```
+
+Draws an integer uniformly from `[$min, $max]`, inclusive at both ends, from this generator's own sequence — `Core\Random::int`'s answer, reproducibly.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$min` | `int` | The lowest value the draw may answer. |
+| `$max` | `int` | The highest value the draw may answer. |
+
+**Returns** `int` — An `int` in the range, without bias; `$min` itself when the two bounds are equal.
+
+**Throws** `RuntimeError` — `$min` is above `$max` — the range is empty, and the bounds are not swapped.
+
+<a id="core-core-random-seeded-float"></a>
+#### `Core\Random\Seeded->float`
+
+```nvs skip
+$seeded->float(): float
+```
+
+Draws a float uniformly from the half-open interval `[0, 1)` from this generator's own sequence — `Core\Random::float`'s answer, reproducibly.
+
+**Returns** `float` — A `float` with 53 random bits; `0.0` is drawable and `1.0` is not.
+
+<a id="core-core-random-seeded-bytes"></a>
+#### `Core\Random\Seeded->bytes`
+
+```nvs skip
+$seeded->bytes(uint $count): bytes
+```
+
+Draws `$count` bytes from this generator's own sequence as a raw buffer — a fixture, never a key, since a reproducible buffer is a secret anyone holding the seed has.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$count` | `uint` | How many bytes to draw; at least one. |
+
+**Returns** `bytes` — A `bytes` value of exactly `$count` octets, unrendered.
+
+**Throws** `RuntimeError` — `$count` is `0`, as `Core\Random::bytes`'s own draw of nothing is, or is larger than a buffer this process can allocate.
+
+<a id="core-core-random-seeded-token"></a>
+#### `Core\Random\Seeded->token`
+
+```nvs skip
+$seeded->token(uint $bytes = 32): string
+```
+
+Draws `$bytes` bytes from this generator's own sequence and renders them as lower-case hex — a stable identifier for a fixture, never a session token.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$bytes` | `uint` (default `32`) | How many bytes of entropy to draw, `32` by default — the answer is twice as many characters. |
+
+**Returns** `string` — A `string` of `2 * $bytes` hex digits, `0`–`9` and `a`–`f`.
+
+**Throws** `RuntimeError` — `$bytes` is `0`, or the draw or its rendering is larger than a buffer this process can allocate.
+
+<a id="core-core-random-seeded-pick"></a>
+#### `Core\Random\Seeded->pick`
+
+```nvs skip
+$seeded->pick(array<T> $a): ?T
+```
+
+Draws one entry of `$a` uniformly from this generator's own sequence and answers its value — `Core\Random::pick`'s answer, reproducibly.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$a` | `array<T>` | The array to draw from. |
+
+**Returns** `?T` — One entry's value; `null` when `$a` is empty, which over an `array<?T>` is indistinguishable from drawing a `null` entry.
+
+<a id="core-core-random-seeded-sample"></a>
+#### `Core\Random\Seeded->sample`
+
+```nvs skip
+$seeded->sample(array<T> $a, uint $count): array<T>
+```
+
+Draws `$count` distinct entries of `$a` uniformly from this generator's own sequence — `Core\Random::sample`'s answer, reproducibly.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$a` | `array<T>` | The array to draw from. |
+| `$count` | `uint` | How many distinct entries to draw; at most the array's size. |
+
+**Returns** `array<T>` — A fresh list of the drawn values under `0, 1, …` keys, in drawn order; the subject's keys are discarded, and `$a` is unchanged.
+
+**Throws** `RuntimeError` — `$count` is above the number of entries `$a` holds.
+
+<a id="core-core-random-seeded-shuffle"></a>
+#### `Core\Random\Seeded->shuffle`
+
+```nvs skip
+$seeded->shuffle(array<T> $a): array<T>
+```
+
+Answers every entry of `$a` in an order drawn from this generator's own sequence — `Core\Random::shuffle`'s answer, reproducibly.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$a` | `array<T>` | The array to reorder. |
+
+**Returns** `array<T>` — A fresh list of all the values under `0, 1, …` keys — the subject's keys are discarded — and `$a` is unchanged.
 
 <a id="core-core-uuid"></a>
 ### `Core\Uuid`

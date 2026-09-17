@@ -3,58 +3,55 @@
 ## State
 
 **Goal `decided-closures`, stage 4 — the library — is under way.**
-`crates/nvs-stdlib/src/path.rs` has no `# Known gaps` section left: gap 1 is built and gap 2 is
-struck as a stated bound, so `python tools/owners.py --closes decided-closures` names two fewer
-gaps than it did. `crates/nvs-stdlib/src/zip.rs` was cleared the same way in session 0001.
+`crates/nvs-stdlib/src/random.rs` has no `# Known gaps` section left: gap 1 is built, so `python
+tools/owners.py --closes decided-closures` names one fewer gap than it did. `zip.rs` (session 0001)
+and `path.rs` (session 0002) were cleared the same way.
 
-`Core\Path` now parses three root shapes rather than one. `Parts::drive` is `Parts::root`, a
-`Root` enum — `Unnamed`, `Drive`, `Unc { server, share }` — and every member that re-renders a
-path renders the root back, so `\\server\share\f` survives `normalize`, `split`/`join` and
-`dirname` with its doubled separator. `crates/nvs-stdlib/src/zip.rs:609`'s absolute-entry refusal
-reads the enum instead of the old `drive` field and refuses exactly what it did before. `C:log` is
-now stated as a bound in the module's own prose rather than carried as a gap: it is one relative
-component, because reading `C:` as a root would make `Path::split('a:b')` answer `['a:', 'b']`.
+`Core\Random\Seeded` is registered: spec § 11's reproducible generator as an instance class with a
+`registry::CONSTRUCTORS` entry, so `new Core\Random\Seeded(42)` resolves and holds a SplitMix64
+state in one `int` slot. Its seven members mirror `Core\Random`'s, each reading that slot, drawing,
+and writing the advanced state back **after** the draw — so a refused call leaves the sequence where
+it found it. The draws themselves are now functions over `Generator` that both classes call, while
+each member keeps its own argument decoding and its own refusal sentences: a message names the class
+it came from, and `conformance_coverage.rs`'s error-path gate reads a literal at the `Fault::` site
+rather than a format hole.
 
 **Stage 4's three acceptance checks are still red, and all of them for the first reason** — the
-member does not exist yet. `a_unc_path_round_trips_as_a_third_root_shape` is green as of this
-session; the rest of that check's tests wait on the classes below.
+member does not exist yet. Of the first check's six tests only
+`a_uuid_round_trips_through_its_sixteen_bytes` is still missing, which is the group below.
 
 ## Next group
 
-**Stage 4: `Core\Random\Seeded`, the reproducible generator as its own type** — one file set:
-`crates/nvs-stdlib/src/random.rs` plus its `.nvst` cases, which `-p nvs-stdlib` runs. The seeded
-*engine* is already written and tested — `crates/nvs-stdlib/src/random.rs:429`'s `SplitMix` is what
-a `#[Test(seed:)]` isolate draws from — so what is missing is the **type**, not the arithmetic. No
-rule owns the class; the gap's own `Decided:` sentence and spec § 11 are the specification, and
-`docs/agent/loop-goal.md` § *Standing decisions* names this one as a deliberate divergence from the
-sheet's recommendation.
+**Stage 4: `Core\Uuid`'s bytes pair, and the spec amendment that admits it** — one file set:
+`crates/nvs-stdlib/src/uuid.rs`, its `.nvst` cases under `tests/conformance/core/`, and § 11's
+second table in `docs/spec/01-core-library.md`. No rule owns the pair; the gap's own `Decided:`
+sentence is the specification, and `docs/agent/loop-goal.md` § *Standing decisions* names it as one
+of the three answers that differ from the sheet's recommendation.
 
-- [ ] **`crates/nvs-stdlib/src/random.rs:65` — register `Core\Random\Seeded` as an instance class
-      whose members mirror `Core\Random`'s seven.** Constructed from an explicit `int` seed, each
-      member drawing from `SplitMix` rather than `rand::rng()`. The five edits are
-      `docs/agent/conventions.md` § *A `Core` member*; the instance half is `CoreClass::instance`
-      and `CoreClass::slots` at `crates/nvs-stdlib/src/registry.rs:1363`, with
-      `crates/nvs-stdlib/src/cache.rs:323` (`Core\Cache\Store`, `slots: &["tier"]`) as the worked
-      example of a `Core`-owned instance and `crates/nvs-stdlib/src/lib.rs:11` for the
-      `registry::CLASSES` line a new class adds. The acceptance name is
-      `core_random_seeded_gives_the_same_sequence_for_the_same_seed`. Say what one instance spends
-      in the module doc's `# What it spends` section, which already prices the thread-local
-      generator (`rule:programs/memory-priority`), and delete the numbered gap when it lands.
-- [ ] **`crates/nvs-stdlib/src/random.rs:79` — rewrite `# The one exception` for the new type.**
-      That section says a declared seed is the *only* way to reach a predictable generator; once
-      `Seeded` exists it is the second, and the argument that survives is that the distinction is
-      a type a reader can see. Same file, same slice-set; `docs/novis.md`'s `Core\Random` chapter
-      says there is no seeded generator under any name and is wrong the moment the row lands.
+- [ ] **`crates/nvs-stdlib/src/uuid.rs:134` — add the bytes pair: `Core\Uuid::fromBytes(bytes $b)`
+      as a static member answering `CoreTy::Instance(NAME)`, and `toBytes(): bytes` as an instance
+      member beside `toString`.** The five edits are `docs/agent/conventions.md` § *A `Core`
+      member*; the class already builds instances, so the slot layout at
+      `crates/nvs-stdlib/src/uuid.rs:134`'s `CLASS` is what both read, and
+      `crates/nvs-stdlib/src/random.rs:105` is this goal's own worked example of an instance member
+      pair landing together. Sixteen bytes exactly, and a `bytes` value of any other length is an
+      R4 throw naming the length it got. The acceptance name is
+      `a_uuid_round_trips_through_its_sixteen_bytes`. Delete the numbered gap at
+      `crates/nvs-stdlib/src/uuid.rs:102` when it lands, and say what the pair spends in the module
+      doc's `# What it spends` (`rule:programs/memory-priority`) — it is one `NvsStr` per call.
+- [ ] **`docs/spec/01-core-library.md:789` — § 11's second table gains the two rows.** The standing
+      decision calls this a spec amendment, so the table is the one that moves rather than the
+      registry mirroring something nobody wrote.
+      `crates/nvs-stdlib/tests/spec_registry_coverage.rs`'s
+      `every_registry_rows_names_are_the_specs_signature_column` compares the Signature cell's
+      `$names` against the row's `names` and fails on a drift, so write the cell and the row in one
+      slice.
 
 ## Backlog
 
-- `crates/nvs-stdlib/src/uuid.rs` — the bytes pair, a spec § 11 amendment
-  (`docs/agent/loop-goal.md` § *Standing decisions*); check
-  `a_uuid_round_trips_through_its_sixteen_bytes`.
-- `crates/nvs-stdlib/src/mime.rs` — an EBML container is reported as EBML; check
-  `an_ebml_container_is_reported_as_ebml`.
-- Stage 4's second and third checks — `json.rs`'s heap stack, `queue.rs`'s fifth counter and boot
-  refusal, `xml.rs`'s namespace URI, `regex.rs`'s budget directive and the prepared-pattern channel
-  (the goal's one ADR slot).
-- `python tools/owners.py --closes decided-closures` is the gate the goal ends on; it still names
-  the gaps above.
+- The rest of stage 4, after the pair: `queue.rs`'s fifth counter and boot refusal, `json.rs`'s heap
+  stack, `xml.rs`'s namespace URI, `regex.rs`'s budget directive and `cldr.rs`'s prepared pattern —
+  `docs/agent/loop-goal.toml:11621` and `:11633` are the two checks that name them.
+- `Core\Random\Seeded` has no chapter of its own under `docs/reference/core/`; its members render
+  from their cards and the type is introduced in `Random.md`, which is the shape `Core\Cache\Store`
+  already takes. A `Random-Seeded.md` would be the wider fix if the generated page reads thin.

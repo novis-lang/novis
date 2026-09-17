@@ -3,11 +3,16 @@ summary: cryptographically secure random integers, floats, bytes, tokens and arr
 keywords: rand, mt_rand, random_int, lcg_value, mt_getrandmax, random_bytes, openssl_random_pseudo_bytes, bin2hex, array_rand, shuffle, str_shuffle, srand, mt_srand, Random\Randomizer, CSPRNG, nonce, session token
 ---
 
-`Core\Random` is always a CSPRNG: there is no seeded or insecure generator under any name, and no
+`Core\Random` is always a CSPRNG: there is no seeded or insecure generator under this name, and no
 `srand`. `int` draws from a closed range and throws on an empty one rather than swapping the bounds;
 `pick`, `sample` and `shuffle` draw from an array and answer values — a fresh array for `shuffle`,
 `null` from `pick` on an empty one. `token` is the hex text of `bytes`, two characters per byte, for a
 session identifier or a reset link.
+
+Reproducibility is a separate **type**, `Core\Random\Seeded`, built from an explicit seed with `new`
+and carrying the same seven members: one seed is one sequence, every run, which is what a simulation
+or a fixture wants and what a session token must never be. Because it is a type rather than a mode,
+a parameter declaring which generator it takes cannot be handed the other one by mistake.
 
 ```nvs
 <?nvs
@@ -33,6 +38,11 @@ try {
 } catch (RuntimeError $empty) {
     echo "empty range\n";
 }
+
+var $left = new Core\Random\Seeded(42);
+var $right = new Core\Random\Seeded(42);
+echo $left->token(4) == $right->token(4) ? "one seed, one sequence" : "diverged", "\n";
+echo $left->int(1, 6) == $right->int(1, 6) ? "and it stays that way" : "diverged", "\n";
 ```
 ```output
 7
@@ -45,4 +55,6 @@ ace
 in [0, 1)
 nothing to pick
 empty range
+one seed, one sequence
+and it stays that way
 ```
