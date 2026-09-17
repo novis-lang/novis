@@ -13898,7 +13898,7 @@ Answers every entry of `$a` in an order drawn from this generator's own sequence
 <a id="core-core-uuid"></a>
 ### `Core\Uuid`
 
-Keywords: uniqid, com_create_guid, uuid_is_valid, ramsey/uuid, GUID, RFC 9562, RFC 4122, v4, v7, primary key, identifier, v4, v7, parse, tryParse, toString
+Keywords: uniqid, com_create_guid, uuid_is_valid, ramsey/uuid, GUID, RFC 9562, RFC 4122, v4, v7, primary key, identifier, v4, v7, parse, tryParse, fromBytes, toString, toBytes
 
 A `Uuid` is an opaque 128-bit value, not a string: `v4` draws a random one, `v7` a time-ordered one
 whose leading bits are a millisecond timestamp — the right database key and the wrong public
@@ -13948,7 +13948,9 @@ braces refused
 | [`Core\Uuid::v7`](#core-core-uuid-v7) | `v7(): Core\Uuid` |
 | [`Core\Uuid::parse`](#core-core-uuid-parse) | `parse(string $s): Core\Uuid` |
 | [`Core\Uuid::tryParse`](#core-core-uuid-tryparse) | `tryParse(string $s): ?Core\Uuid` |
+| [`Core\Uuid::fromBytes`](#core-core-uuid-frombytes) | `fromBytes(bytes $b): Core\Uuid` |
 | [`Core\Uuid->toString`](#core-core-uuid-tostring) | `toString(): string` |
+| [`Core\Uuid->toBytes`](#core-core-uuid-tobytes) | `toBytes(): bytes` |
 
 <a id="core-core-uuid-v4"></a>
 #### `Core\Uuid::v4`
@@ -14004,6 +14006,23 @@ Core\Uuid::tryParse(string $s): ?Core\Uuid
 
 **Returns** `?Core\Uuid` — The `Uuid` for the canonical hyphenated form in either case; `null` for anything else.
 
+<a id="core-core-uuid-frombytes"></a>
+#### `Core\Uuid::fromBytes`
+
+```nvs skip
+Core\Uuid::fromBytes(bytes $b): Core\Uuid
+```
+
+Reads sixteen octets as a UUID — the form a native `UUID` column and a binary protocol carry one in, with no canonical text on the way, replacing the `getBytes`/`fromBytes` pair of the userland libraries.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$b` | `bytes` (neutral) | The sixteen octets, most significant first, as `$uuid->toBytes()` writes them. |
+
+**Returns** `Core\Uuid` — The `Uuid` those 128 bits are; every pattern is one, the nil and the max included, so a length is all this checks.
+
+**Throws** `RuntimeError` — `$b` is not exactly sixteen bytes long; the message names the length it got.
+
 <a id="core-core-uuid-tostring"></a>
 #### `Core\Uuid->toString`
 
@@ -14014,6 +14033,17 @@ $uuid->toString(): string
 Renders the receiver in RFC 9562's canonical lower-case hyphenated `8-4-4-4-12` form — the only way its text comes back out, and what `echo $uuid` writes.
 
 **Returns** `string` — The 36-character text, lower case whatever case `parse` read.
+
+<a id="core-core-uuid-tobytes"></a>
+#### `Core\Uuid->toBytes`
+
+```nvs skip
+$uuid->toBytes(): bytes
+```
+
+Writes the receiver's sixteen octets, most significant first — `toString`'s twin for a native `UUID` column, a binary protocol or a hash input, where the canonical text would be 36 bytes spelling the same 128 bits.
+
+**Returns** `bytes` — Sixteen bytes, which `Core\Uuid::fromBytes` reads back as this same UUID.
 
 <a id="core-core-hash"></a>
 ### `Core\Hash`

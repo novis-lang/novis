@@ -792,7 +792,9 @@ have no equivalent, because seeding the global generator is exactly what that se
 | `Uuid::v7` | `v7(): Uuid` | nothing — time-ordered, for database keys | neutral |
 | `Uuid::parse` | `parse(string $s): Uuid` | manual validation | |
 | `Uuid::tryParse` | `tryParse(string $s): ?Uuid` | `uuid_is_valid`, userland `isValid` helpers | |
+| `Uuid::fromBytes` | `fromBytes(bytes $b): Uuid` | userland `fromBytes`, the `hex2bin` round trip | |
 | `$uuid->toString` | `$uuid->toString(): string` | `(string)` on a userland UUID object | neutral |
+| `$uuid->toBytes` | `$uuid->toBytes(): bytes` | userland `getBytes`, `hex2bin(str_replace("-", "", …))` | neutral |
 | `Hash::of` | `of(bytes\|string $data, Digest $digest): bytes` | `hash`, `md5`, `sha1`, `crc32`, `openssl_digest` | neutral |
 | `Hash::hmac` | `hmac(bytes\|string $data, secret bytes $key, StrongDigest $digest): bytes` | `hash_hmac` | neutral |
 | `Hash::equals` | `equals(bytes $a, bytes $b): bool` | `hash_equals` — constant-time | neutral |
@@ -803,7 +805,10 @@ have no equivalent, because seeding the global generator is exactly what that se
 A `Core\Uuid` is an opaque 128-bit **value**, not a string that has been checked once: `toString` renders
 RFC 9562's canonical lower-case `8-4-4-4-12` form and is the only way text comes back out, which is what
 lets a route segment (`rule:routing/routes-are-compiled-not-registered`) and a database column
-(`rule:core-classes/db-statement-members`) state that they take one.
+(`rule:core-classes/db-statement-members`) state that they take one. `toBytes` and `fromBytes` carry the
+same 128 bits as sixteen octets, most significant first — the form a native `UUID` column and a binary
+protocol take, where the canonical text would be 36 bytes spelling bits the caller is already holding.
+A length is the whole of what `fromBytes` refuses, because every 128-bit pattern is a UUID.
 
 **Asking whether text is a UUID is `Uuid::tryParse($s) != null`** — `parse` with `null` where it throws,
 one of the two `tryParse`s `rule:core-api/shape-rules` R5 admits
