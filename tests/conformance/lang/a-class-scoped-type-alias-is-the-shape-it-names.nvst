@@ -1,0 +1,32 @@
+--TEST--
+A class-scoped `type` alias is the shape it names, reached as a bare `Name` inside its owner and as `Owner::Name` from anywhere — `rule:types/type-alias` and `rule:types/shape-type`
+--FILE--
+<?nvs
+class Order {
+    type Meta = {total: int, note?: string};
+
+    // Inside the owner's own body the member is reached by its bare name: the
+    // short spelling, and the only other one there is.
+    public static function total(Meta $m): int {
+        return $m->total;
+    }
+}
+
+class Report {
+    // From anywhere else it is `Owner::Name`. Nothing is imported and nothing
+    // is inherited — the owner's own name is what reaches it.
+    public static function total(Order::Meta $m): int {
+        return $m->total;
+    }
+}
+
+// `rule:types/shape-type`'s width subtyping applies through the alias exactly
+// as it does to the shape written out: the optional key may be absent, and an
+// extra key is still accepted.
+echo Order::total({total: 7}), "\n";
+echo Report::total({total: 40, note: "paid"}), "\n";
+echo Report::total({total: 2, note: "x", extra: true}), "\n";
+--EXPECT--
+7
+40
+2

@@ -1,0 +1,38 @@
+--TEST--
+A class-scoped alias and the same expansion written at file scope are one type, in both directions and with no conversion at either crossing — `rule:types/type-alias`
+--FILE--
+<?nvs
+type Loose = {total: int, note?: string};
+
+class Order {
+    type Meta = {total: int, note?: string};
+
+    public static function meta(): Meta {
+        return {total: 3, note: "paid"};
+    }
+}
+
+class Ledger {
+    public static function file(Loose $m): int {
+        return $m->total;
+    }
+
+    public static function member(Order::Meta $m): int {
+        return $m->total;
+    }
+}
+
+// What the member's type produced flows into the file-scope one and back:
+// transparency means there is only one type there once the checker has run,
+// so neither crossing has anything to convert.
+var $m = Order::meta();
+echo Ledger::file($m), "\n";
+echo Ledger::member($m), "\n";
+
+// And the other direction, through a local declared with the file-scope name.
+Loose $named = Order::meta();
+echo Ledger::member($named), "\n";
+--EXPECT--
+3
+3
+3

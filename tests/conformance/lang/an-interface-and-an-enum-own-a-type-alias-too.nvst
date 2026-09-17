@@ -1,0 +1,46 @@
+--TEST--
+An interface and an enum own a `type` member exactly as a class does, reached through their own name — `rule:types/type-alias`
+--FILE--
+<?nvs
+interface Priced {
+    type Money = {amount: int, currency: string};
+
+    public function price(): Money;
+}
+
+enum Status {
+    type Label = {text: string};
+
+    Active, Banned
+}
+
+class Ticket implements Priced {
+    // The implementor reaches the interface's member through the interface's
+    // own name: an alias is not inherited, and `Ticket::Money` names nothing.
+    public function price(): Priced::Money {
+        return {amount: 12, currency: "EUR"};
+    }
+}
+
+class Desk {
+    public static function label(Status::Label $l): string {
+        return $l->text;
+    }
+
+    public static function pick(Status $s): string {
+        return $s == Status::Active ? "Active" : "Banned";
+    }
+}
+
+var $t = new Ticket();
+echo $t->price()->amount, "\n";
+echo Desk::label({text: "open"}), "\n";
+
+// The cases beside the member are untouched by it: `type` is contextual, and
+// only the `Name =` after it tells a declaration from a case.
+Status $s = Status::Active;
+echo Desk::pick($s), "\n";
+--EXPECT--
+12
+open
+Active
