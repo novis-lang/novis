@@ -7066,7 +7066,9 @@ tests = [
   "a_sqlite_delete_removes_a_receipt_from_either_table_and_a_claimed_job_from_neither",
   "a_sqlite_purge_selects_the_finished_set_and_never_more_rows_than_its_bound",
   "a_sqlite_purge_of_the_dead_letter_table_asks_the_tag_and_the_age_of_that_table",
-  "sqlite_stats_answer_four_integers_over_an_empty_queue_and_a_worked_one",
+  # The counter count is inside this name, and `Core\Queue\Stats` gained a fifth counter under goal
+  # `decided-closures`, so the name moves with the roster rather than the test being renamed back.
+  "sqlite_stats_answer_five_integers_over_an_empty_queue_and_a_worked_one",
   "queue_statements_agree_with_the_state_enum",
 ]
 
