@@ -132,14 +132,6 @@ where taking it is the work and the code that follows it is not.
   has no suffix case. The rows themselves are guarded by `crates/nvs-types/tests/routes.rs`. Found by
   the docs migration's sweep (unit C8), which could record it and not write it.
   [until: exists tests/conformance/core/a-shared-route-name-is-one-endpoint-everywhere.nvst]
-- **`nvs-runtime`'s missing representations, which nothing on the chain asks for.**
-  Every string producer but `nvs_str_append`'s in-place path allocates its result, so what has to be
-  decided there is whether each gains the sole-ownership check `NvsArray`'s copy-on-write already
-  pays for; and an exception this crate raises carries a message and no backtrace, where the
-  decision is whether a raise captures one at all — `rule:errors/throw-is-not-slower` prices a
-  throw at a return that allocates nothing, and a capture is the other side of that trade.
-  `crates/nvs-runtime/src/lib.rs` § *Known gaps* carries the tags.
-  [until: gone crates/nvs-runtime/src/lib.rs:owner: unowned]
 - **The derive machinery is a descriptor read by native Rust**, and both halves of `Core\Json` walk a
   per-class `nvs_runtime::CodecField` list rather than straight-line code emitted per class. The two
   narrower holes that waited on which of the two it stays are closed against the descriptor — a
@@ -178,13 +170,6 @@ where taking it is the work and the code that follows it is not.
   whether §§ 13–20 stay measured one module doc at a time with this file as the index of what nobody
   owns. `crates/nvs-stdlib/src/lib.rs` gap 1.
   [until: gone crates/nvs-stdlib/src/lib.rs:§§ 13–20 hold whatever]
-- **`Core\Uuid` has no `bytes` round trip**, so a driver binding a native `UUID` column carries the
-  36-character text between the two. Nothing under it is missing — `nvs_runtime::Tag::Bytes` is a
-  live tag and a `Core` instance holds whatever Novis holds — so what has to be decided is whether
-  spec § 11's second table gains the pair at all: all four members it names are built, and a fifth
-  widens a surface the spec fixed rather than repairing it.
-  `crates/nvs-stdlib/src/uuid.rs` gap 1.
-  [until: gone crates/nvs-stdlib/src/uuid.rs:owner: unowned]
 - **Bounds for a pool no `[db]` block describes.** `[db.<name>.pool]` reaches every connection whose
   settings hash is that block's, and the unscoped `[db] pool = false` reaches every connection the
   process opens, but a literal naming an endpoint an operator wrote no block for — or naming a hashed

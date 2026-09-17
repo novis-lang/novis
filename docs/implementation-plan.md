@@ -49,17 +49,15 @@
 > goal after them the chain has already walked. What a crate still owes is its own module doc's `#
 > Known gaps`; the corpus and bench figures are `python tools/disk.py`'s and the perf notes'.
 >
-> **Blocking:** One hold, and it stops the run: goal `unowned-closures` was reached with 40
-> module-doc gaps still tagged to it and none of them built, so the check it carried forward — `no
-> module-doc gap names a goal that walked without closing it` — is red in every later goal's floor.
-> Whether the chain gains a goal to build them, they are struck as stated bounds, or they are
-> re-tagged to a milestone is the user's call, because the user answered each one on the decision
-> sheet. Otherwise nothing waits on a decision — every design call a goal reaches is pre-authorized
-> in its own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
-> others. One standing precondition, and not a block: the goals whose floor carries container-backed
-> checks need a reachable Docker daemon, and [the goals directory](agent/goals/) preflights it per
-> entry rather than letting a session discover it mid-run. Picking every dependency but the two the
-> user named is pre-authorized under `rule:packaging/a-c-dependency-answers-two-questions`.
+> **Blocking:** Nothing waits on a decision. The hold goal `unowned-closures` left — forty
+> sheet-answered gaps tagged to it and none built — is goal `decided-closures` now, in front of
+> `gap-zero`, and the driver's owner gate refuses to reach a goal while a gap still names it, so no
+> goal can walk that way again. Every design call a goal reaches is pre-authorized in its own §
+> *Standing decisions*, and each goal names the numbered ADRs it may open and no others. One
+> standing precondition, and not a block: the goals whose floor carries container-backed checks need
+> a reachable Docker daemon, and [the goals directory](agent/goals/) preflights it per entry rather
+> than letting a session discover it mid-run. Picking every dependency but the two the user named is
+> pre-authorized under `rule:packaging/a-c-dependency-answers-two-questions`.
 
 **How the plan relates to the ADRs.** The plan is the record of *what* gets built, in what order, and how
 each milestone is verified. It states decisions but does not argue them. The reasoning lives in
@@ -91,16 +89,16 @@ somebody has already followed.
 | Carried by | Milestone | What it builds | Loop-days |
 |---|---|---|---|
 | done | [M0](plan/m0.md) | Project setup (~3 days) | 0.3 |
-| goals `surface`, `type-test` | [M1](plan/m1.md) | Front end (~3 weeks) | 0.7 |
+| done | [M1](plan/m1.md) | Front end (~3 weeks) | 0.7 |
 | done | [M2](plan/m2.md) | HIR, types, IR (~4 weeks) | 1.5 |
 | done | [M3](plan/m3.md) | Baseline Cranelift backend → **Hello World** (~3 weeks) | 0.5 |
 | done | [M4](plan/m4.md) | Language completeness — a usable CLI language (~10 weeks) | ~3 |
 | done | [M4S](plan/m4s.md) | The `Core` API contract and its pure half (~5 weeks) | ~1.5 |
 | done | [M4B](plan/m4b.md) | Minimal `nvs-lsp`, syntax highlighting and the VS Code extension (~3 weeks) | ~1.5 |
 | done | [M5](plan/m5.md) | Concurrency and script isolates (~5 weeks) | ~3.5 |
-| goals `governance`, `resource-ceilings`, `config-is-written` | [M6](plan/m6.md) | Config, limits, capabilities, disk cache (~3 weeks) | ~1 |
+| done | [M6](plan/m6.md) | Config, limits, capabilities, disk cache (~3 weeks) | ~1 |
 | goals `server`, `request-json`, `input-shapes`, `parses`, `per-core`, `serve-runs-the-queue`, `event-streams`, `finish-response`, `m7-server-surface` | [M7](plan/m7.md) | Built-in HTTP server (~4 weeks) | ~2 |
-| goals `core-part-ii`, `database`, `test-request`, `unix-sockets`, `net-os-signal`, `formats`, `encoder-cycles`, `record-origin`, `xml-tree`, `signed-urls`, `queue-purge`, `sqlite-queue`, `markup-literal`, `webcrypto`, `http-client`, `process-cache`, `outbound-proxy`, `websocket-client`, `m8-db-queue`, `m8-stdlib-depth` | [M8](plan/m8.md) | Stdlib and databases (~16 weeks) | ~6.5 |
+| done | [M8](plan/m8.md) | Stdlib and databases (~16 weeks) | ~6.5 |
 | backlog 1 | [M9](plan/m9.md) | Extension system, and the `nvs:ext@1.0.0` world it freezes (~6 weeks) | ~2.5 |
 | goals `agent-surface`, `workspace-index`, `editor-surfaces`, `fmt`, `template-format` | [M10](plan/m10.md) | Developer tooling and IDE integration (~14 weeks; scope shifted by `rule:ide/every-feature-is-staged-behind-its-dependency`, net change undetermined) | ~8 |
 | backlog 3 | [M11](plan/m11.md) | PHP transpiler (~10 weeks) | ~3 |

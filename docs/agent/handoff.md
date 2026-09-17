@@ -2,49 +2,41 @@
 
 ## State
 
-**Goal `class-scoped-types` is complete — all five stages are landed and green.** Stage 5 put the
-decision and the rule on disk: `docs/decisions/0190.md` creates `types/class-scoped-alias` and
-modifies `types/type-alias`, `python tools/rules.py --render` rewrote the chapter and
-`ground-rules.md`, and `--check` and `python tools/records.py --check` are both clean.
+**Goal `class-scoped-types` is complete, and the hold on the run is lifted.** All five stages are
+landed and green; what held the run was the floor's `no module-doc gap names a goal that walked
+without closing it`, red on forty items goal `unowned-closures` had tagged to itself and never built.
 
-**The run is held on something this goal did not cause.** The floor carries
-`no module-doc gap names a goal that walked without closing it`, and `python tools/owners.py`
-answers `40 owned by a retired goal`: every one of them names goal `unowned-closures`, which was
-reached at session 0003. 31 of the 40 carry the user's own `Decided:` sentence — `zip.rs` gap 1 is
-`Decided: Yes: read the Zip64 extra fields and end-of-directory record`, and nothing reads them —
-so the goal went green having *tagged* its work rather than built it. Goal `gap-zero`
-(`docs/agent/goals/66-gap-zero.md:20`) says what this means in as many words: *"This goal builds
-nothing. If its gate is red when the run arrives, a closure goal went green without closing an item,
-and the item is named."* The gate is red one goal early, and 40 items are named.
+**The hold was a driver bug, and it is fixed.** That floor check reads a goal as retired off its
+`.toml` being gone, which `chain.py --retire` does *after* the goal is reached, so an item tagged to
+the reaching goal is goal-owned on the sweep that reaches it and retired-owner one goal later. The
+goal's own gate was `owners.py`'s `unowned: 0`, which tagging alone satisfies. Now `tools/loop.py`'s
+`owner_gate` runs `python tools/owners.py --closes <slug>` and `python tools/playbook.py --closes
+<slug>` on the sweep that would reach a goal, beside the rustdoc gate, and holds the goal open while
+either names a gap; `orient.py` prints the finding under *THE OWNER GATE IS RED*.
 
-`gap-zero` cannot absorb them and no live goal is a plausible owner, so the disposition is the
-user's: a new chain goal before `gap-zero` that builds them to their own `Decided:` sentences, a
-strike of the ones that are really stated bounds, or an M9+ re-tag. **Nothing else about the tree is
-blocked**, and every check but this one passes.
+**The forty-eight items have an owner again**: goal `decided-closures`, inserted at 66 of 68 in front
+of `gap-zero`, takes the forty with their `Decided:` sentences and the eight owed to M1, M6, M7 and
+M8 that no live goal held. Its gate is `--closes`, which a tag cannot meet. `python tools/owners.py`
+reads `retired-owner: 0` and `past-milestone: 0`, `plan.py --sync` marked M1, M6 and M8 `done`, and
+`chain.py --check` and `plan.py --check` are clean.
 
 ## Next group
 
-**Stage 1: the floor's retired owner** — one file set: `docs/agent/goals/`, and the 40 `# Known
-gaps` blocks `python tools/owners.py` lists under *OWNERS THAT WENT GREEN WITHOUT CLOSING THE GAP*.
+**Claim the goal** — one file set: `docs/agent/goals/61-class-scoped-types.toml`.
 
-- [ ] **Take the user's disposition and put it in the chain** — `docs/agent/goals/60-unowned-closures.md:1`
-      is the goal that walked, and `docs/agent/goals/66-gap-zero.md:20` is why nothing later can
-      absorb its debt. If the answer is a goal, `python tools/chain.py --new <slug> --before 66` is
-      what makes one; its spec is thin on purpose, because each gap's `Decided:` sentence is already
-      its specification.
-- [ ] **Re-owner the 40 tags in one patch** — `crates/nvs-stdlib/src/zip.rs:87` and
-      `crates/nvs-syntax/src/casing.rs:71` are two of them; `grep -rn "owner: unowned-closures"
-      crates/` is the whole list, and `python tools/splice.py --patch` takes all 40 files at once.
-      A gap that is struck instead loses its whole numbered item, not just its tag.
-- [ ] **Prove the floor** — `tools/owners.py:1`. The check wants `, 0 owned by a retired goal` in
-      the summary line; nothing else in that output may move, so `unowned: 0` and `untagged: 0` are
-      read in the same run.
+- [ ] **Run the two goal-end gates and write `DONE`** — `docs/agent/goals/61-class-scoped-types.toml:9483`
+      is the floor check that held the run, green now; `python tools/verify.py --doc`, then `python
+      tools/owners.py --closes class-scoped-types` (owns none) and `python tools/playbook.py --closes
+      class-scoped-types` (owns none) are what the driver asks before it switches to goal
+      `worker-placement`.
 
 ## Backlog
 
-- The 8 gaps deferred to a milestone the program has already passed (M1, M6, M7, M8) fail the same
-  register's other report — `python tools/owners.py`, § *DEFERRED TO A MILESTONE …*.
 - `docs/rules/types/type-alias.md` still describes only the file-scope form's `use`/FQN resolution
   in its third paragraph; the class-scoped site's resolution is in `rule:types/class-scoped-alias`.
-- Goal `class-scoped-types`'s own `[context]` manifest never needed widening this session — the
-  pack printed every rule, record section and anchor stage 5 used.
+- Goal `decided-closures`'s `[context] modules` names 33 files, one per file holding an item it owns;
+  the driver will say it would pass at 18. Narrowing it is a person's call once the first sessions
+  show which stage's files are opened together.
+- `crates/nvs-host/src/net.rs:1792` is a race, not a regression: the test binds port 0, drops the
+  listener and connects, and a sibling test binary can take that port in between. It failed once
+  beside the other binaries this session and passed alone; a retry on a stolen port would close it.
