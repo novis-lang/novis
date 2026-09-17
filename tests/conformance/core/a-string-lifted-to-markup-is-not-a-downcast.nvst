@@ -1,0 +1,30 @@
+--TEST--
+`"lit" as Core\Html\Markup` stays the lift `rule:core-classes/html-auto-escape` owns, and is not the checked downcast every other `Core` class target now takes
+--FILE--
+<?nvs
+// The lift builds a `Markup` out of bytes the developer wrote. Nothing is
+// tested, because a source-literal `string` is trusted by the rule rather than
+// by a descriptor comparison — which is what makes this the one `Core` target
+// decided by a rule rather than by a test. A computed operand is refused where
+// it is written, and `markup-refuses-a-computed-operand-and-a-half-markup-sum`
+// is where that refusal is pinned.
+Core\Html\Markup $m = "<b>bold</b>" as Core\Html\Markup;
+echo Core\Html::toSource($m, "the case reads the bytes back"), "|\n";
+
+// The downcast is the other shape, and it tests: the same operator over a
+// `mixed` and a `Core` class with instances compares the value's runtime class
+// against the descriptor the process publishes, then throws or hands the
+// instance back.
+mixed $date = Core\Time\Date::at(2026, 9, 17);
+echo ($date as Core\Time\Date)->format("yyyy-MM-dd"), "|\n";
+
+// A lifted `Markup` reaches the test the same way any other instance does, so
+// the two shapes agree about what the value is once it exists.
+mixed $carrier = $m;
+if ($carrier instanceof Core\Html\Markup) {
+    echo "a markup|\n";
+}
+--EXPECT--
+<b>bold</b>|
+2026-09-17|
+a markup|

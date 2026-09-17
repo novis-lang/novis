@@ -1,0 +1,45 @@
+--TEST--
+`is`, `instanceof` and `as` ask one question about a `Core` value and agree on the answer — `rule:types/type-test`, `rule:types/class-reference-sites`, `rule:types/conversion`
+--FILE--
+<?nvs
+// All three read the same descriptor: the process-wide one
+// `nvs_stdlib::class_descriptors` publishes for a `Core` class with instances.
+// `is` and `instanceof` answer `bool`, `as` answers the instance or throws, so
+// what differs between them is what they do with the answer and never the
+// answer itself.
+mixed $date = Core\Time\Date::at(2026, 9, 17);
+
+echo ($date is Core\Time\Date) as string, "|\n";
+echo ($date instanceof Core\Time\Date) as string, "|\n";
+echo ($date as Core\Time\Date)->format("yyyy-MM-dd"), "|\n";
+
+// And they agree on `false` for a class the value is not, one spelling at a
+// time: a `Core` class answers for itself alone, so a sibling is no closer
+// than a declared class is.
+mixed $uri = Core\Uri::parse("https://example.test/a");
+echo ($uri is Core\Time\Date) as string, "|\n";
+echo ($uri instanceof Core\Time\Date) as string, "|\n";
+try {
+    Core\Time\Date $wrong = $uri as Core\Time\Date;
+    echo "converted|\n";
+} catch (Throwable $e) {
+    echo "threw|\n";
+}
+
+// Both tests narrow their subject on the true edge, so the member call inside
+// either branch needs no conversion at all (`rule:types/narrowing`).
+if ($uri is Core\Uri) {
+    echo $uri->host(), "|\n";
+}
+if ($uri instanceof Core\Uri) {
+    echo $uri->scheme(), "|\n";
+}
+--EXPECT--
+1|
+1|
+2026-09-17|
+|
+|
+threw|
+example.test|
+https|

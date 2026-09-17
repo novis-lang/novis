@@ -1,0 +1,48 @@
+--TEST--
+A `mixed` holding a `Core` instance is got back by naming its class, and the test narrows it to that class — `rule:types/class-reference-sites`
+--FILE--
+<?nvs
+// `array<mixed>` is where instances of unrelated classes travel together, and
+// `rule:types/unions-and-mixed` makes naming the class the only way back out of one.
+// Each element here is an instance a `Core` member built.
+array<mixed> $things = [
+    Core\Time\Date::at(2026, 9, 17),
+    Core\Uri::parse("https://example.test/a?b=c"),
+    Core\Regex::match("order 4711 shipped", "\\d+"),
+    "a string is no instance",
+    7,
+];
+
+// The true edge narrows, so the member call needs no `as` and has no throw
+// path: the value is a `Core\Time\Date` inside the branch that asked
+// (`rule:types/narrowing`).
+foreach ($things as mixed $one) {
+    if ($one instanceof Core\Time\Date) {
+        echo "date ", $one->format("yyyy-MM-dd"), "|\n";
+    } else if ($one instanceof Core\Uri) {
+        echo "uri ", $one->host(), "|\n";
+    } else if ($one instanceof Core\Regex\Match) {
+        echo "match ", $one->text(), "|\n";
+    } else {
+        echo "no core instance|\n";
+    }
+}
+
+// A `Core` class answers for itself and for nothing else — there is no
+// hierarchy under one to walk, so a sibling class and a declared class both
+// answer `false` over the same value.
+mixed $date = Core\Time\Date::at(2026, 9, 17);
+if (!($date instanceof Core\Uri)) {
+    echo "a date is no uri|\n";
+}
+if ($date instanceof Core\Time\Date) {
+    echo "a date is a date|\n";
+}
+--EXPECT--
+date 2026-09-17|
+uri example.test|
+match 4711|
+no core instance|
+no core instance|
+a date is no uri|
+a date is a date|

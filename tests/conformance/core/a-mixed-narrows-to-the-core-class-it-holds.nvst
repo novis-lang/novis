@@ -1,0 +1,41 @@
+--TEST--
+`mixed as Core\Class` is `rule:types/unions-and-mixed`'s checked way out of `mixed` for a `Core` class too: it yields the instance or throws
+--FILE--
+<?nvs
+// The conversion is a test and a throw, not an assertion: the value's runtime
+// class is compared against the descriptor `Core\Time\Date` publishes, exactly
+// as `instanceof` compares it (`rule:types/conversion`).
+mixed $date = Core\Time\Date::at(2026, 9, 17);
+Core\Time\Date $back = $date as Core\Time\Date;
+echo $back->format("yyyy-MM-dd"), "|\n";
+
+// The result is the class, so its members are reachable with no second test
+// and no nullable to unwrap.
+mixed $uri = Core\Uri::parse("https://example.test/a?b=c");
+echo ($uri as Core\Uri)->host(), "|\n";
+
+// A value of another type throws where it is written rather than reaching the
+// binding — including another `Core` class's instance, because a `Core` class
+// answers for itself and has no hierarchy under it to walk.
+try {
+    Core\Time\Date $wrong = $uri as Core\Time\Date;
+    echo "converted|\n";
+} catch (Throwable $e) {
+    echo "a uri is no date|\n";
+}
+mixed $seven = 7;
+try {
+    Core\Time\Date $scalar = $seven as Core\Time\Date;
+    echo "converted|\n";
+} catch (Throwable $e) {
+    echo "an int is no date|\n";
+}
+
+// `as ?Class` is no more a conversion here than it is for a declared class:
+// `E0473` refuses the nullable spelling over any class target, and
+// `instanceof` is what asks the question without throwing.
+--EXPECT--
+2026-09-17|
+example.test|
+a uri is no date|
+an int is no date|
