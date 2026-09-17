@@ -7596,6 +7596,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   script` path that falls through to the calling core answers `ResolveError::NoResolver` while the
   identical placed one succeeds. Wrap the caller in `SharedResolver::scoped`, as `nvs-cli` does for
   the core it booted on. [until: gone crates/nvs-runtime/src/script.rs:pub fn publish]
+- **A `Core` class's registry row may carry a name that is a constant from another module, so grepping
+  `registry.rs` for the literal class name finds nothing and the row looks absent.** `Core\Html\Markup`
+  is `crate::html::MARKUP` in `registry::CLASSES` under `MARKUP_NAME`, which is
+  `nvs_runtime::CARRIER_HTML_MARKUP` — a search for `Core\\Html\\Markup` in `registry.rs` returns zero
+  hits, which nearly cost a filter over `CLASSES` the one class the `` html`…` `` constant needs. Grep
+  the owning module for `pub const CLASS`/`NAME`, or `registry.rs` for `crate::<module>::`, and confirm
+  membership there rather than by the class's spelled name. [until: reviewed 2026-12-01]
 
 ## Divergences and refusals already pinned
 

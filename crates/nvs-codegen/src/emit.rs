@@ -2666,7 +2666,15 @@ impl Emitter<'_, '_> {
     ) -> Result<Value, CodegenError> {
         let desc = match class {
             TestedClass::Named(class) => {
-                if self.classes.desc(class).is_none() {
+                // A `Core` class's descriptor is the process's rather than this
+                // unit's (`nvs_stdlib::class_descriptors`), so the unit declares
+                // no row for it and the symbol below is an import resolved
+                // against [`crate::core_desc_symbols`] — the same relocation a
+                // folded `` html`…` `` constant already carries. `nvs_types`'
+                // `expr::members::testable_class_name` admits exactly the names
+                // one of the two tables answers to, so a miss in both is a bug
+                // in this workspace and not a program's mistake.
+                if self.classes.desc(class).is_none() && !nvs_stdlib::class_has_instances(class) {
                     return Err(CodegenError::Unsupported(format!(
                         "`instanceof {class}`, whose class this unit declares no descriptor for"
                     )));

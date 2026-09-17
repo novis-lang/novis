@@ -1,0 +1,47 @@
+--TEST--
+`instanceof` answers for a `Core` class the way it answers for a declared one, and a `Core` class is final for the test — `rule:types/class-reference-sites`
+--FILE--
+<?nvs
+final class Box {
+    public int $n = 1;
+}
+
+// A `mixed` is where a `Core` instance arrives — decoded back from an isolate's
+// answer, handed over by `Core\Debug`, returned by a member that declares one —
+// and naming its class is how a program gets it back.
+mixed $date = Core\Time\Date::at(2026, 9, 17);
+mixed $box = new Box();
+var $uri = Core\Uri::parse("https://example.test/a?b=c");
+
+// The true edge narrows, which is the whole point of asking: a `mixed` that
+// answers is a `Core\Time\Date` after the test, with its members reachable and
+// no `as` to throw (`rule:types/narrowing`).
+if ($date instanceof Core\Time\Date) {
+    echo $date->format("yyyy-MM-dd"), "|\n";
+}
+if ($uri instanceof Core\Uri) {
+    echo "a uri|\n";
+}
+
+// The test reads the value's own descriptor, so a `Core` class answers for
+// itself and for nothing else: there is no hierarchy under one to walk, and a
+// declared class and a `Core` class never answer for each other.
+if (!($box instanceof Core\Time\Date)) {
+    echo "a box is no date|\n";
+}
+if (!($date instanceof Core\Time\DateTime)) {
+    echo "a date is no datetime|\n";
+}
+if (!($date instanceof Box)) {
+    echo "a date is no box|\n";
+}
+if (!($box instanceof Core\Uri)) {
+    echo "a box is no uri|\n";
+}
+--EXPECT--
+2026-09-17|
+a uri|
+a box is no date|
+a date is no datetime|
+a date is no box|
+a box is no uri|
