@@ -1033,25 +1033,28 @@ impl Descriptors {
             let methods = entry
                 .methods
                 .iter()
-                .filter_map(|(method, declaring, public, protected, params)| {
-                    let label = format!("{declaring}::{method}");
-                    let (symbol, shape) = functions.get(&label)?;
-                    Some(nvs_runtime::MethodRow {
-                        name: method.clone(),
-                        code: code.address_of(symbol)?,
-                        arity: shape.arity,
-                        param_tags: shape.param_tags,
-                        // The spellings beside the shape, from the one layer
-                        // that saw the declaration — `nvs_types::layout` owns
-                        // what an empty list means.
-                        param_names: params.clone(),
-                        public: *public,
-                        protected: *protected,
-                        // Every row here is a compiled Novis function, for the
-                        // reason its JIT counterpart gives.
-                        native: false,
-                    })
-                })
+                .filter_map(
+                    |(method, declaring, public, protected, params, param_types)| {
+                        let label = format!("{declaring}::{method}");
+                        let (symbol, shape) = functions.get(&label)?;
+                        Some(nvs_runtime::MethodRow {
+                            name: method.clone(),
+                            code: code.address_of(symbol)?,
+                            arity: shape.arity,
+                            param_tags: shape.param_tags,
+                            // The spellings beside the shape, from the one layer
+                            // that saw the declaration — `nvs_types::layout` owns
+                            // what an empty list means.
+                            param_names: params.clone(),
+                            param_types: param_types.clone(),
+                            public: *public,
+                            protected: *protected,
+                            // Every row here is a compiled Novis function, for the
+                            // reason its JIT counterpart gives.
+                            native: false,
+                        })
+                    },
+                )
                 .collect();
             self.classes.table.set_methods(entry.id, methods);
             // The accessors, joined the same way and skipped on the same
@@ -1272,7 +1275,7 @@ struct ClassEntry {
     /// function has an address to put in the runtime descriptor's method table.
     /// See `nvs_runtime::ClassTable::set_methods`.
     id: nvs_runtime::ClassId,
-    methods: Vec<(String, String, bool, bool, Vec<String>)>,
+    methods: Vec<nvs_ir::MethodEntry>,
     /// Every property hook it answers as `(property name, hook label, is the
     /// `set` accessor)`, kept for [`Self::methods`]' reason and spent at the
     /// same moment — see `nvs_runtime::ClassTable::set_hooks`. The label is
@@ -2248,28 +2251,31 @@ impl UnitBuilder<JITModule> {
             let methods = entry
                 .methods
                 .iter()
-                .filter_map(|(method, declaring, public, protected, params)| {
-                    let label = format!("{declaring}::{method}");
-                    let id = self.functions.get(&label)?;
-                    // The shape is recorded under the very label the address
-                    // is, in the one pass that saw the function, so the two
-                    // halves of a row cannot describe two different callees.
-                    let shape = self.shapes.get(&label).copied().unwrap_or_default();
-                    Some(nvs_runtime::MethodRow {
-                        name: method.clone(),
-                        code: self.module.get_finalized_function(*id),
-                        arity: shape.arity,
-                        param_tags: shape.param_tags,
-                        // The AOT binder's join exactly, off the same roster.
-                        param_names: params.clone(),
-                        public: *public,
-                        protected: *protected,
-                        // Every row here is a compiled Novis function, which
-                        // owns its parameters — `nvs-stdlib` is the only
-                        // producer of a native one.
-                        native: false,
-                    })
-                })
+                .filter_map(
+                    |(method, declaring, public, protected, params, param_types)| {
+                        let label = format!("{declaring}::{method}");
+                        let id = self.functions.get(&label)?;
+                        // The shape is recorded under the very label the address
+                        // is, in the one pass that saw the function, so the two
+                        // halves of a row cannot describe two different callees.
+                        let shape = self.shapes.get(&label).copied().unwrap_or_default();
+                        Some(nvs_runtime::MethodRow {
+                            name: method.clone(),
+                            code: self.module.get_finalized_function(*id),
+                            arity: shape.arity,
+                            param_tags: shape.param_tags,
+                            // The AOT binder's join exactly, off the same roster.
+                            param_names: params.clone(),
+                            param_types: param_types.clone(),
+                            public: *public,
+                            protected: *protected,
+                            // Every row here is a compiled Novis function, which
+                            // owns its parameters — `nvs-stdlib` is the only
+                            // producer of a native one.
+                            native: false,
+                        })
+                    },
+                )
                 .collect();
             self.classes.table.set_methods(entry.id, methods);
             // The accessors, on the AOT binder's terms exactly — the label a

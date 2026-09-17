@@ -214,7 +214,7 @@ pub use expr_table::{
     ResolvedCall, UrlPiece,
 };
 pub use layout::{
-    ClassAttribute, ClassConstant, ClassLayout, ClassLayoutTable, build_class_layouts,
+    ClassAttribute, ClassConstant, ClassLayout, ClassLayoutTable, MethodEntry, build_class_layouts,
 };
 /// The class `Core\Script::finish()` raises, for `nvs-ir` to build an instance
 /// of — that crate reaches the compiler's exception tree through this crate,

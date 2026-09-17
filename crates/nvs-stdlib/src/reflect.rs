@@ -2904,6 +2904,7 @@ mod tests {
             arity: 0,
             param_tags: 0,
             param_names: Vec::new(),
+            param_types: Vec::new(),
             public,
             // `private`, which is the pair both bits are false for: this
             // fixture's point is the member a site outside the class is
@@ -3089,6 +3090,7 @@ mod tests {
                     // opinion about a signature this test declares.
                     param_tags: 0xff,
                     param_names: Vec::new(),
+                    param_types: Vec::new(),
                     public: true,
                     protected: false,
                     native: false,

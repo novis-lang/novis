@@ -637,6 +637,10 @@ pub use nvs_types::ClassAttribute;
 /// `nvs-types` — has to be able to name what it holds.
 pub use nvs_types::ClassConstant;
 pub use nvs_types::consts::ConstValue;
+/// One row of [`ir::Class::methods`], re-exported on [`ClassConstant`]'s terms
+/// and for its reason: that field is a straight copy of the front end's roster
+/// and `nvs-codegen` keeps its own copy of it under the same name.
+pub use nvs_types::layout::MethodEntry;
 pub use ty::Ty;
 
 use nvs_diagnostics::{SourceFile, Span};

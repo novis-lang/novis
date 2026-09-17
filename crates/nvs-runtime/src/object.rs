@@ -616,11 +616,11 @@ pub struct ClassDesc {
 /// project start* owns why this rides on the descriptor rather than on a
 /// per-method thunk.
 ///
-/// **Cost:** the two words, the `bool` and the name vector's header are 40
-/// bytes per method per class, plus one `String` per parameter a source
-/// declaration spelled — once per process and not per instance, and still
-/// short of what the thunk this replaces would have spent a compiled function
-/// each on.
+/// **Cost:** the two words, the `bool`s and the two roster headers are 64
+/// bytes per method per class, plus one `String` for each parameter a source
+/// declaration named and one for each type it wrote — once per process and not
+/// per instance, and still short of what the thunk this replaces would have
+/// spent a compiled function each on.
 #[derive(Clone, Debug)]
 pub struct MethodRow {
     /// The method name, as written. The table is sorted on this.
@@ -652,6 +652,28 @@ pub struct MethodRow {
     /// and [`Self::param_tags`] types them, and neither can name one — and
     /// `Core\Reflect\MethodInfo::parameters` is what asks for it.
     pub param_names: Vec<String>,
+    /// What each declared parameter's type is *spelled* as, in
+    /// [`Self::param_names`]' order and on its terms exactly: either
+    /// [`Self::arity`] names long or **empty**, the receiver excluded, and the
+    /// **empty string** for a parameter that wrote no type at all, which on a
+    /// method is source the front end has already refused.
+    /// The text is the declaration's own, whitespace collapsed — `?int`,
+    /// `array<User>`, `uint` — which is
+    /// `nvs_types::layout::ClassLayout::field_types`' currency for a property.
+    ///
+    /// Beside [`Self::param_tags`] rather than derived from it, because a tag
+    /// is a representation and a declaration is a type: one nibble cannot tell
+    /// `int` from `uint`, cannot name an enum and cannot separate two classes.
+    /// `Core\Command`'s help page is what asks — a page that knows a command's
+    /// handler is `Class::method` reaches this table for the row and has no
+    /// other source for the word a flag's type is written with
+    /// (`rule:tooling/commands-are-compiled`).
+    ///
+    /// **Cost:** one `String` per declared parameter per method per class, once
+    /// per process and never per instance — the same figure
+    /// [`Self::param_names`] beside it spends, and a row nothing spelled holds
+    /// an empty vector's header alone.
+    pub param_types: Vec<String>,
     /// Whether the member is `public` — the one visibility question a receiver
     /// that names no class can ask, since such a site is outside every class
     /// by construction. Answered at the declaration by `nvs_types::layout` and
@@ -4962,6 +4984,7 @@ mod tests {
             arity: 0,
             param_tags: 0,
             param_names: Vec::new(),
+            param_types: Vec::new(),
             public: true,
             protected: false,
             native: false,
@@ -5218,6 +5241,7 @@ mod tests {
                     // `string` then `int`, parameter 0 in the low nibble.
                     param_tags: 0x25,
                     param_names: Vec::new(),
+                    param_types: Vec::new(),
                     public: true,
                     protected: false,
                     native: false,
@@ -5230,6 +5254,7 @@ mod tests {
                     arity: 0,
                     param_tags: 0,
                     param_names: Vec::new(),
+                    param_types: Vec::new(),
                     public: false,
                     protected: false,
                     native: false,
@@ -5240,6 +5265,7 @@ mod tests {
                     arity: 0,
                     param_tags: 0,
                     param_names: Vec::new(),
+                    param_types: Vec::new(),
                     public: false,
                     protected: false,
                     native: false,

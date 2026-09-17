@@ -1746,6 +1746,7 @@ mod tests {
                 // other caller, whose list came out of a program's own map.
                 param_tags: 0,
                 param_names: Vec::new(),
+                param_types: Vec::new(),
                 public: true,
                 protected: false,
                 native: false,

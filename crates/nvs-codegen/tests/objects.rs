@@ -426,6 +426,63 @@ echo (new Loud(\"!\"))->greet(\"a\", 1);
     );
 }
 
+/// `rule:tooling/commands-are-compiled`'s help page asks the other parameter
+/// question, and this is the layer that answers it: a parameter's declared type
+/// reaches the runtime descriptor as the text the declaration wrote, because
+/// `nvs_runtime::MethodRow::param_tags` types a parameter in the runtime's own
+/// representation and one nibble tells neither `int` from `uint` nor one class
+/// from another.
+///
+/// The spellings are read against the names rather than alone: two rosters that
+/// disagreed in length would each still answer plausibly on its own line while
+/// pairing every parameter after the first with the wrong type.
+#[test]
+fn a_methods_declared_parameter_types_reach_its_descriptor_beside_the_names() {
+    let unit = compile(
+        "<?nvs
+class Sink {
+    public function accept(string $who, ?int $times): string { return $who; }
+}
+class Louder extends Sink {
+    public function constructor(private string $mark) {}
+    public function retry(uint $retries): uint { return $retries; }
+}
+echo (new Louder(\"!\"))->accept(\"a\", 1);
+",
+    )
+    .expect("the fixture compiles");
+
+    let louder = unit.class_desc("Louder").expect("the class is declared");
+    // A type the tag word cannot spell — `uint` and `int` share a nibble, which
+    // is the whole reason the text travels.
+    let retry = louder.method_row("retry").expect("its own method");
+    assert_eq!(retry.param_types, ["uint"]);
+    // And one the tag word cannot spell for the other reason: a nullable is the
+    // same representation as what it wraps plus a case for the absence.
+    let accept = louder.method_row("accept").expect("inherited from Sink");
+    assert_eq!(accept.param_names, ["who", "times"]);
+    assert_eq!(accept.param_types, ["string", "?int"]);
+    // The two rosters are one roster read twice: same length as each other and
+    // as the arity they ride with, the receiver excluded from all three.
+    assert_eq!(accept.param_types.len(), accept.param_names.len());
+    assert_eq!(accept.param_types.len(), accept.arity as usize);
+    // A promoted parameter is typed where it is written, standing in its own
+    // place.
+    let constructor = louder.method_row("constructor").expect("it declares one");
+    assert_eq!(constructor.param_types, ["string"]);
+
+    // A row no declaration was read for reports the absence in both rosters
+    // rather than half of one: the exception tree's constructor is synthesized.
+    let thrown = unit
+        .class_desc("LogicError")
+        .expect("the exception tree is always defined");
+    let synthesized = thrown
+        .method_row("constructor")
+        .expect("the tree declares one");
+    assert!(synthesized.param_types.is_empty());
+    assert!(synthesized.param_names.is_empty());
+}
+
 #[test]
 fn a_throw_out_of_a_frame_holding_an_object_releases_it() {
     // The landing block's cleanup, for an object rather than a string: the

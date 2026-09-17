@@ -379,6 +379,7 @@ fn dispatch_table(class: &str) -> Vec<nvs_runtime::MethodRow> {
                     arity: 0,
                     param_tags: 0,
                     param_names: Vec::new(),
+                    param_types: Vec::new(),
                     public: true,
                     protected: false,
                     native: true,

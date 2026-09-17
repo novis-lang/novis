@@ -57,6 +57,16 @@ fn qname_segments(src: &SourceFile, name: &nvs_syntax::ast::Name) -> Vec<String>
     QName::parse(span_text(src, name.span)).segments().to_vec()
 }
 
+/// One row of [`ClassLayout::methods`]: `(method name, declaring class label,
+/// is `public`, is `protected`, parameter names, parameter type spellings)`.
+///
+/// A name rather than the tuple written out at each of the four layers that
+/// carry it — this crate, `nvs_ir::ir::Class`, `nvs-codegen`'s own roster and
+/// the pattern each of them destructures it with — so the shape is stated once
+/// and a layer cannot come to disagree with the one above it about which
+/// element is which. The field's own doc is what every element means.
+pub type MethodEntry = (String, String, bool, bool, Vec<String>, Vec<String>);
+
 /// One class's or interface's instance-field slot order and supertype set.
 #[derive(Clone, Debug, Default)]
 pub struct ClassLayout {
@@ -115,9 +125,8 @@ pub struct ClassLayout {
     /// deliberately excluding the class itself — `instanceof` checks identity
     /// separately (`nvs_runtime::ClassDesc::conforms_to`).
     pub conforms: Vec<String>,
-    /// Every method callable on an instance of this class, as `(method name,
-    /// declaring class label, is `public`, is `protected`, parameter names)` —
-    /// its own first,
+    /// Every method callable on an instance of this class, as a
+    /// [`MethodEntry`] — its own first,
     /// then the nearest ancestor declaring each name it does not. Only methods
     /// with a *body*: an abstract or bodiless interface method has no code to
     /// name.
@@ -150,9 +159,23 @@ pub struct ClassLayout {
     /// are the two such rows, and neither has written parameters to spell.
     /// `Core\Reflect\MethodInfo::parameters` is what reads them back.
     ///
-    /// **Cost:** one `String` per declared parameter per method per class,
+    /// The type spellings ride beside the names, in the same order and in
+    /// [`Self::field_types`]' currency exactly: the text the declaration wrote
+    /// with its whitespace collapsed, and the **empty string** for a parameter
+    /// that wrote no type, which on a method is source
+    /// `nvs_syntax::check_declarations` has already refused — only a closure
+    /// literal may leave one out, and a closure declares no class member. The
+    /// list is the names' own length or empty, and
+    /// empty reads there exactly as it reads for the names, which is why the
+    /// two travel as one row rather than as a pair a reader would have to check
+    /// for agreement. `Core\Command`'s help page is what asks for them: a
+    /// `nvs_runtime::Tag` nibble cannot tell `int` from `uint` and cannot name
+    /// an enum, so a page rendering `[--retries]` has no other source for the
+    /// word `uint`.
+    ///
+    /// **Cost:** two `String`s per declared parameter per method per class,
     /// once per compiled unit, never per request.
-    pub methods: Vec<(String, String, bool, bool, Vec<String>)>,
+    pub methods: Vec<MethodEntry>,
     /// Every property hook an instance of this class answers, as `(property
     /// name, hook label, is the `set` accessor)` — its own first, then the
     /// nearest ancestor declaring each `(property, accessor)` pair it does
@@ -356,11 +379,16 @@ impl ClassLayoutTable {
     }
 }
 
-/// What one declaration says about its own methods, keyed by the class that
-/// wrote them: `(method name, is `public`, parameter names)` per entry, which
-/// is [`own_methods`]' answer before [`flatten_methods`] walks a chain of them
-/// into [`ClassLayout::methods`].
-type OwnMethods = FxHashMap<QName, Vec<(String, bool, bool, Vec<String>)>>;
+/// What one declaration says about one of its own methods: `(method name, is
+/// `public`, is `protected`, parameter names, parameter type spellings)` — a
+/// [`MethodEntry`] without the declaring class label, which is the one element
+/// the declaration itself does not spell and [`flatten_methods`] joins on.
+type OwnMethod = (String, bool, bool, Vec<String>, Vec<String>);
+
+/// What every declaration says about its own methods, keyed by the class that
+/// wrote them — [`own_methods`]' answer before [`flatten_methods`] walks a
+/// chain of them into [`ClassLayout::methods`].
+type OwnMethods = FxHashMap<QName, Vec<OwnMethod>>;
 
 /// Builds the layout of every class and interface declared in any file of
 /// `files`, plus the two rosters no source declares — `nvs_hir::errors`'
@@ -411,12 +439,19 @@ pub fn build_class_layouts(
         let methods = if nvs_hir::errors::declares_constructor(name) {
             // Public: spec § 10's tree is constructed by every program that
             // throws, and a synthesized member writes no modifier — see
-            // `own_methods` on why absent reads as `public`. No parameter
-            // names, which is `ClassLayout::methods`' empty case: `crate::error_lib`
-            // seeds this constructor in the call site's currency — a message
-            // and an options bag — while the lowered body takes the flattened
-            // values, so no one declaration spells its parameters.
-            vec![("constructor".to_owned(), true, false, Vec::new())]
+            // `own_methods` on why absent reads as `public`. Neither parameter
+            // roster is filled, which is `ClassLayout::methods`' empty case:
+            // `crate::error_lib` seeds this constructor in the call site's
+            // currency — a message and an options bag — while the lowered body
+            // takes the flattened values, so no one declaration spells its
+            // parameters or types them.
+            vec![(
+                "constructor".to_owned(),
+                true,
+                false,
+                Vec::new(),
+                Vec::new(),
+            )]
         } else {
             Vec::new()
         };
@@ -592,13 +627,15 @@ fn collect_own(stmts: &[Stmt], src: &SourceFile, namespace: &[String], out: &mut
 }
 
 /// One declaration's own method names, each with the two bits that spell its
-/// visibility and the names of the parameters it declares — only those with a
-/// body, since a bodiless one has no compiled code for a descriptor to point
-/// at.
+/// visibility and the name and declared type of every parameter it writes —
+/// only those with a body, since a bodiless one has no compiled code for a
+/// descriptor to point at.
 ///
-/// The parameters are read here for [`own_properties`]' reason: the spelling
-/// is a keyword's neighbour and lives exactly as long. A promoted one is a
-/// parameter like any other and keeps its place in the list, where
+/// The parameters are read here for [`own_properties`]' reason: both spellings
+/// are a keyword's neighbour and live exactly as long, and [`declared_type`] is
+/// the one that renders the type, so a parameter and a property report their
+/// declarations in one currency. A promoted one is a
+/// parameter like any other and keeps its place in both lists, where
 /// [`own_properties`] also claims a slot for it, and the receiver is not among
 /// them — `nvs_runtime::MethodRow::arity`, which this list is read against,
 /// counts what the source wrote.
@@ -609,10 +646,7 @@ fn collect_own(stmts: &[Stmt], src: &SourceFile, namespace: &[String], out: &mut
 /// that is being refused anyway, and the same reading is what keeps a
 /// synthesized method — an exception constructor, `rule:iteration/generators`'s state machine
 /// — callable, none of them writing a modifier.
-fn own_methods(
-    members: &[nvs_syntax::ast::ClassMember],
-    src: &SourceFile,
-) -> Vec<(String, bool, bool, Vec<String>)> {
+fn own_methods(members: &[nvs_syntax::ast::ClassMember], src: &SourceFile) -> Vec<OwnMethod> {
     members
         .iter()
         .filter_map(|member| match &member.kind {
@@ -623,6 +657,10 @@ fn own_methods(
                 m.params
                     .iter()
                     .map(|p| crate::strip_sigil(span_text(src, p.name)).to_owned())
+                    .collect(),
+                m.params
+                    .iter()
+                    .map(|p| declared_type(src, p.ty.as_ref()))
                     .collect(),
             )),
             _ => None,
@@ -955,7 +993,7 @@ fn flatten_methods(
     qname: &QName,
     graph: &ClassGraph,
     own: &OwnMethods,
-    methods: &mut Vec<(String, String, bool, bool, Vec<String>)>,
+    methods: &mut Vec<MethodEntry>,
     walked: &mut Vec<QName>,
 ) {
     if walked.contains(qname) {
@@ -964,14 +1002,15 @@ fn flatten_methods(
     walked.push(qname.clone());
     let label = qname.to_string();
     if let Some(names) = own.get(qname) {
-        for (name, public, protected, params) in names {
-            if !methods.iter().any(|(have, _, _, _, _)| have == name) {
+        for (name, public, protected, params, param_types) in names {
+            if !methods.iter().any(|(have, _, _, _, _, _)| have == name) {
                 methods.push((
                     name.clone(),
                     label.clone(),
                     *public,
                     *protected,
                     params.clone(),
+                    param_types.clone(),
                 ));
             }
         }

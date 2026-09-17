@@ -543,7 +543,7 @@ pub(crate) fn lower_generator(
         conforms: vec![nvs_hir_iterator_label()],
         // Public, all three: a state class is unspellable and its members are
         // named by `foreach`'s own lowering and by `dismantle`, neither of
-        // which is inside any class. None carries parameter names — each is
+        // which is inside any class. None carries a parameter roster — each is
         // synthesized, which is `nvs_types::layout::ClassLayout::methods`'
         // empty case.
         methods: {
@@ -554,6 +554,7 @@ pub(crate) fn lower_generator(
                     true,
                     false,
                     Vec::new(),
+                    Vec::new(),
                 ),
                 (
                     GEN_CURRENT_METHOD.to_owned(),
@@ -561,10 +562,18 @@ pub(crate) fn lower_generator(
                     true,
                     false,
                     Vec::new(),
+                    Vec::new(),
                 ),
             ];
             if !owed.is_empty() {
-                methods.push((GEN_UNWIND_METHOD.to_owned(), class, true, false, Vec::new()));
+                methods.push((
+                    GEN_UNWIND_METHOD.to_owned(),
+                    class,
+                    true,
+                    false,
+                    Vec::new(),
+                    Vec::new(),
+                ));
             }
             methods
         },
