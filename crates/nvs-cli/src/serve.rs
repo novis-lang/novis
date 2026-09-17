@@ -1215,22 +1215,12 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
         });
     }
 
-    // This core offers itself as a placement destination, which is ADR 0184
-    // § 5's answer to *which core*: the threads this process is already turning
-    // are pinned, and a second thread per core for `on: "worker"` work would
-    // oversubscribe exactly the cores a served request's latency depends on. So
-    // every serving core registers one inbox and one receptionist task beside
-    // the accept loops above, the destination set fills with cores that already
-    // exist, and a placement written here is started on a sibling rather than on
-    // a thread started for it.
-    //
-    // The guard is held to the end of this function because withdrawing is not
-    // optional: an inbox left in the set after its core has gone is one
-    // placements are written to and never drained from. What ends the
-    // receptionist itself is the drain below — a core whose receptionist parked
-    // for a placement that is never coming would never reach `parked == 0`, and
-    // `nvs_host::worker::register_this_core` owns that half.
-    let _registered = nvs_host::worker::register_this_core(sched, draining.bit());
+    // This core offers itself as a placement destination, beside the accept
+    // loops above and on the same scheduler. The guard is held to the end of
+    // this function because withdrawing is not optional: an inbox left in the
+    // set after its core has gone is one placements are written to and never
+    // drained from. Everything else about it is the offer's own doc.
+    let _registered = offer_this_core_for_placements(sched, draining.bit());
 
     // **`run_until_idle` is not this loop by itself, and a server is the first
     // caller for which that matters.** It returns as soon as one blocking poll
@@ -1256,6 +1246,34 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
         return false;
     }
     !stopped.get()
+}
+
+/// This core, offered to the process as a placement destination for as long as
+/// the answer is held.
+///
+/// ADR 0184 § 5's answer to *which core* a child spawned `on: "worker"` is
+/// started on (`rule:concurrency/on-worker-runs-the-child-on-another-core`):
+/// the threads a served deployment is already turning are pinned, and a second
+/// thread per core for placement work would oversubscribe exactly the cores a
+/// served request's latency depends on. So every serving core registers one
+/// inbox and one receptionist task beside its own accept loops, the destination
+/// set fills with cores that already exist, and a placement written on one of
+/// them is started on a sibling rather than on a thread started for it.
+///
+/// `draining` ends the receptionist rather than this guard, and the caller here
+/// hands it the process's own bit: a core whose receptionist parked for a
+/// placement that is never coming would never reach `parked == 0`, so what ends
+/// it is the drain that ends the accept loops beside it.
+/// [`nvs_host::worker::register_this_core`] owns that half.
+///
+/// What it spends is one inbox and one long-lived task per serving core and no
+/// thread at all, so a deployment that places nothing pays nothing for having
+/// offered (`rule:programs/memory-priority`).
+fn offer_this_core_for_placements(
+    sched: &mut nvs_host::Scheduler,
+    draining: &nvs_runtime::Drain,
+) -> nvs_host::worker::Registered {
+    nvs_host::worker::register_this_core(sched, draining)
 }
 
 /// What this core arms of `rule:core-classes/queue-storage-is-a-table`'s `[queue]`: the bounds the
@@ -2716,6 +2734,103 @@ mod tests {
             std::net::TcpStream::connect(addr)
                 .unwrap_or_else(|error| panic!("{addr} stopped listening: {error}"));
         }
+    }
+
+    /// A serving core offers itself as a placement destination as it starts,
+    /// and a process that can reach one starts no core beside it.
+    ///
+    /// [`super::offer_this_core_for_placements`] is the line under test — what
+    /// [`super::serve_on_worker`] does beside its accept loops, on the
+    /// scheduler this command already turns — and the process's destination set
+    /// is what it is observable through with no socket bound: a placement
+    /// written on another core runs on the registered one, and
+    /// [`nvs_host::worker::cores_started`] is unmoved by it. Both halves are ADR
+    /// 0184 § 5, whose destination under `nvs serve` is a sibling serving core
+    /// and whose threads are the ones already serving.
+    ///
+    /// A detached drain rather than the process's bit, because what ends the
+    /// receptionist here is the offer being withdrawn: the process's bit is one
+    /// other cases in this binary begin, and a case resting on it would be
+    /// answering a neighbour's drain.
+    #[test]
+    fn a_serving_core_registers_its_inbox_as_it_starts() {
+        let cpus = nvs_host::cpus();
+        if cpus.is_empty() {
+            // No `CpuId` to pin to is the one host `run` serves from this
+            // thread instead, and there is no serving core here to offer one.
+            return;
+        }
+        let started = nvs_host::worker::cores_started();
+        let ending = nvs_runtime::Drain::detached();
+        let (up, arrived) = std::sync::mpsc::channel();
+        let serving = nvs_host::Worker::spawn(cpus[0], move |sched| {
+            let _installed = nvs_host::reactor::install(
+                nvs_host::Reactor::new().expect("the OS refused a poll"),
+            );
+            let registered = super::offer_this_core_for_placements(sched, &ending);
+            up.send((std::thread::current().id(), registered))
+                .expect("the test went away");
+            // The serving loop's own end: a report with something still parked
+            // is a turn to take, and `parked == 0` is this core being done.
+            loop {
+                let report = nvs_host::run_until_idle(sched).expect("the loop failed");
+                if report.parked == 0 {
+                    break;
+                }
+            }
+        })
+        .expect("the platform started a worker");
+        let (receptionist, registered) = arrived
+            .recv_timeout(Duration::from_secs(5))
+            .expect("the serving core never registered its inbox");
+
+        // The placing side is a core of its own, as it is for any placement:
+        // `place` parks the task that asked, and a parked task needs a
+        // scheduler and a reactor under it.
+        let placer = nvs_host::Worker::spawn(cpus[cpus.len() - 1], |sched| {
+            let _installed = nvs_host::reactor::install(
+                nvs_host::Reactor::new().expect("the OS refused a poll"),
+            );
+            let answer: Rc<Cell<Option<std::thread::ThreadId>>> = Rc::new(Cell::new(None));
+            let collected = Rc::clone(&answer);
+            sched.spawn(Ctx::new(OutputSink::Sink), TaskRoot::Worker, move |_| {
+                if let nvs_host::worker::Answer::Value(ran_on) =
+                    nvs_host::worker::place(|| std::thread::current().id())
+                {
+                    collected.set(Some(ran_on));
+                }
+            });
+            loop {
+                let report = nvs_host::run_until_idle(sched).expect("the loop failed");
+                if report.parked == 0 {
+                    break;
+                }
+            }
+            answer.take()
+        })
+        .expect("the platform started a worker");
+
+        let ran_on = placer
+            .join()
+            .expect("the placing core panicked")
+            .expect("the placement never answered");
+        assert_eq!(
+            ran_on, receptionist,
+            "a placement ran somewhere other than the serving core that offered itself"
+        );
+        assert_eq!(
+            nvs_host::worker::cores_started(),
+            started,
+            "a process that could reach a serving core started one of its own anyway"
+        );
+
+        // Withdrawn from this thread, which the guard allows and is what ends
+        // the receptionist: the inbox closes, its bell rings, and the serving
+        // core's loop reaches `parked == 0`.
+        drop(registered);
+        serving
+            .join()
+            .expect("the serving core panicked, or never ended");
     }
 
     /// `rule:http-server/a-unix-socket-listener` from both of the ends it
