@@ -250,7 +250,10 @@ fn counted(plan: &Plan) -> String {
 }
 
 /// The database behind `conn`, as the schema value it introspects into.
-fn introspected(conn: &mut Connection, named: &str) -> Result<Schema, ExitCode> {
+///
+/// `pub(crate)` for the boot: [`crate::serve`] asks the same question of the connection a `[queue]`
+/// block names, and one catalog read owes an operator one refusal however it was reached.
+pub(crate) fn introspected(conn: &mut Connection, named: &str) -> Result<Schema, ExitCode> {
     nvs_db::direct::schema_of(conn).map_err(|why| {
         eprintln!("error: `[db.{named}]` could not be read: {why}");
         ExitCode::FAILURE
@@ -392,7 +395,9 @@ macro_rules! open_over_tcp {
 /// converged first against a developer's own file, and refusing to do that would
 /// make the one backend that needs no container the one this command could not
 /// reach.
-fn open(
+/// `pub(crate)` for the caller that already holds a block: [`opened`] resolves one out of the files
+/// on disk, and the boot in [`crate::serve`] has the merged tree in hand and no roots to read.
+pub(crate) fn open(
     name: &str,
     block: &nvs_config::tree::Database,
     driver: nvs_db::Driver,

@@ -69,7 +69,10 @@ use crate::render_diagnostics;
 /// `rule:core-classes/db-connection-is-named` closes. There is no third refusal: § 2's schema is
 /// one value and `nvs_db::ddl` emits it in every dialect, so no backend is one this command has to
 /// turn away for having no schema written for it.
-fn dialect_of(name: &str, written: Option<&str>) -> Option<nvs_db::Driver> {
+///
+/// `pub(crate)` because the boot in [`crate::serve`] asks it of the same block before it serves a
+/// queue at all, and a driver an operator misspelled is the same mistake wherever it is read.
+pub(crate) fn dialect_of(name: &str, written: Option<&str>) -> Option<nvs_db::Driver> {
     let Some(written) = written else {
         eprintln!("error: `[db.{name}]` names no `driver`, so it is not openable at all");
         return None;

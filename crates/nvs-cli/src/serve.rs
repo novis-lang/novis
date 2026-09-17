@@ -1153,7 +1153,11 @@ fn serve_on_worker(sched: &mut nvs_host::Scheduler, core: Core) -> bool {
     }
     // `rule:concurrency/one-process-serves-requests-schedules-and-jobs`'s third
     // subsystem, armed where the ticker is and for the ticker's reasons.
-    let queue_workers = arm_queue_workers(sched, &snapshot, ticks, &draining);
+    let Ok(queue_workers) = arm_queue_workers(sched, &snapshot, ticks, &draining) else {
+        // Printed and drained where the refusal was decided, so this core ends here rather than
+        // taking a listener, and the boot's exit code is every core's answer together.
+        return false;
+    };
     if queue_workers > 0 {
         println!(
             "arming {queue_workers} queue worker{}",
@@ -1343,7 +1347,8 @@ fn offer_this_core_for_placements(
 }
 
 /// What this core arms of `rule:core-classes/queue-storage-is-a-table`'s `[queue]`: the bounds the
-/// boot resolved and the `[db.<name>]` block whose tables those jobs live in, or nothing.
+/// boot resolved and the `[db.<name>]` block whose tables those jobs live in, nothing where there
+/// is no queue to arm, or the refusal an operator reads instead of a server.
 ///
 /// **`ticks` gates this for the reason it gates the roster above.** `workers` is a count per
 /// *instance* and never per core (`rule:concurrency/who-runs-a-job-is-configuration`), so arming it
@@ -1357,21 +1362,71 @@ fn offer_this_core_for_placements(
 /// which is what makes moving queue work between the two binaries operational and never
 /// behavioural. `workers = 0` is § 2's enqueue-only deployment and arms nothing, which is also what
 /// a tree writing no `[queue]` block at all costs.
+///
+/// **The storage is asked about here because this is the last place an answer can still refuse.**
+/// [`queue_storage_is_current`] is that question, and it is asked of a queue this core is about to
+/// arm and of no other: an enqueue-only deployment and a tree writing no `[queue]` block reach
+/// none of it, because the filter above has already answered them.
 fn queue_on_this_core(
     config: &nvs_config::Config,
     ticks: bool,
-) -> Option<(nvs_config::queue::QueueBounds, nvs_config::tree::Database)> {
+) -> Result<Option<(nvs_config::queue::QueueBounds, nvs_config::tree::Database)>, ExitCode> {
     if !ticks {
-        return None;
+        return Ok(None);
     }
-    nvs_config::queue::queue_for(config, &std::collections::BTreeMap::new())
+    let armed = nvs_config::queue::queue_for(config, &std::collections::BTreeMap::new())
         .ok()
         .flatten()
         .filter(|bounds| bounds.workers > 0)
         .and_then(|bounds| {
             let block = config.db.get(&bounds.connection)?.clone();
             Some((bounds, block))
-        })
+        });
+    let Some((bounds, block)) = armed else {
+        return Ok(None);
+    };
+    queue_storage_is_current(&bounds.connection, &block)?;
+    Ok(Some((bounds, block)))
+}
+
+/// Whether `[db.<name>]` holds everything [`nvs_stdlib::queue::schema`] asks of it, as the boot's
+/// own refusal where it does not.
+///
+/// **A queue behind its schema is the one deployment that fails silently.** Every missing table and
+/// column fails the first statement that names it, but a database without the dedupe key admits a
+/// second pending job under one key and says nothing at all, which is
+/// `rule:core-classes/queue-storage-is-a-table`'s guarantee gone from a server that looks healthy.
+/// [`nvs_stdlib::queue::schema_shortfall`] is the judgement, and its lines are printed in the order
+/// it answers with — that key first, for exactly this reason.
+///
+/// The introspection is [`crate::schema::introspected`]'s, over a connection opened for it and
+/// dropped with this frame. **What it spends is one connection and one catalog read per boot**, on
+/// the core that arms the workers and before it has an accept loop; no request path reaches any of
+/// it, and a queue nobody arms never opens a socket at all.
+///
+/// **A block that cannot be opened is refused here too**, where [`crate::worker::open`] warns and
+/// starts no worker. That is the right answer for a connection lost after a boot that once
+/// succeeded, and the wrong one for the boot itself: a server that came up having silently armed
+/// nothing is the deployment this whole question exists to stop.
+fn queue_storage_is_current(
+    name: &str,
+    block: &nvs_config::tree::Database,
+) -> Result<(), ExitCode> {
+    let Some(driver) = crate::queue::dialect_of(name, block.driver.as_deref()) else {
+        return Err(ExitCode::FAILURE);
+    };
+    let mut conn = crate::schema::open(name, block, driver)?;
+    let live = crate::schema::introspected(&mut conn, name)?;
+    let missing = nvs_stdlib::queue::schema_shortfall(&live);
+    if missing.is_empty() {
+        return Ok(());
+    }
+    eprintln!("error: `[db.{name}]` is behind the queue's schema, so this instance will not serve");
+    for line in missing {
+        eprintln!("note: it holds no {line}");
+    }
+    eprintln!("note: `nvs queue migrate --connection {name}` writes what is missing");
+    Err(ExitCode::FAILURE)
 }
 
 /// [`crate::worker::start`]'s tasks on this core's scheduler, and how many of them there are.
@@ -1389,14 +1444,26 @@ fn queue_on_this_core(
 /// No lease and no `nvs_server::Leases`, unlike `arm`: `rule:concurrency/claiming-is-one-statement`
 /// puts the mutual exclusion in the database, so a fleet of instances each running their own
 /// workers is the intended deployment rather than the hazard a `fleet` schedule entry would be.
+///
+/// **A refusal ends the process and not this core.** [`queue_on_this_core`] answers with one when
+/// the queue's storage is behind, and the drain begins before this returns: the cores that are
+/// already accepting read that same bit and have no other way to hear it, while this one returns
+/// having spawned nothing and takes no listener at all.
 fn arm_queue_workers(
     sched: &mut nvs_host::Scheduler,
     snapshot: &Arc<nvs_config::Snapshot>,
     ticks: bool,
     draining: &nvs_server::Draining,
-) -> u32 {
-    let Some((bounds, block)) = queue_on_this_core(&snapshot.config, ticks) else {
-        return 0;
+) -> Result<u32, ExitCode> {
+    let armed = match queue_on_this_core(&snapshot.config, ticks) {
+        Ok(armed) => armed,
+        Err(refused) => {
+            crate::stop::deliver_to(draining);
+            return Err(refused);
+        }
+    };
+    let Some((bounds, block)) = armed else {
+        return Ok(0);
     };
     crate::worker::start(
         sched,
@@ -1405,7 +1472,7 @@ fn arm_queue_workers(
         &block,
         snapshot,
     );
-    bounds.workers
+    Ok(bounds.workers)
 }
 
 /// `nvs_server::Leases` over the shared tier — § 3's lease, which this binary is
@@ -2390,13 +2457,41 @@ mod tests {
         Listen::Tcp(written.parse::<SocketAddr>().expect("a literal address"))
     }
 
-    /// A tree whose `[queue]` names a SQLite file, which is a block that needs no
-    /// server to be reachable — and is never opened here anyway, since a worker's
-    /// handshake is its first act once it is *given a turn* and no case below
-    /// runs one. A TOML literal string, because a Windows path is backslashes and
-    /// a basic string would read them as escapes.
+    /// A tree whose `[queue]` names a SQLite file converged to the queue's own
+    /// schema, which is a block that needs no server to be reachable and is what
+    /// `nvs queue migrate` leaves behind. The boot does open it: arming asks what
+    /// the storage holds before it starts a worker, and a file holding nothing is
+    /// [`queue_over_bare_sqlite`] and a refusal.
     fn queue_over_sqlite(workers: u32, name: &str) -> String {
+        let written = queue_over_bare_sqlite(workers, name);
+        let config = config_of(&written);
+        let block = config.db.get("jobs").expect("the block this case writes");
+        let mut conn = crate::schema::open("jobs", block, nvs_db::Driver::Sqlite)
+            .expect("a SQLite path opens where the process stands");
+        let have = nvs_db::direct::schema_of(&mut conn).expect("an empty file introspects");
+        let plan = nvs_db::diff(
+            &nvs_stdlib::queue::schema(),
+            &have,
+            nvs_db::Dialect::of(conn.driver()),
+        );
+        for step in plan.runnable() {
+            for sql in step.sql() {
+                nvs_db::direct::run(&mut conn, sql).expect("the queue's own DDL on an empty file");
+            }
+        }
+        written
+    }
+
+    /// The same tree over a file nothing has migrated: a SQLite path holding no
+    /// table at all, which is the deployment a boot refuses to serve.
+    ///
+    /// The file is removed rather than reused, so what the boot introspects is
+    /// what this case wrote and never what an earlier run of it left behind. A
+    /// TOML literal string, because a Windows path is backslashes and a basic
+    /// string would read them as escapes.
+    fn queue_over_bare_sqlite(workers: u32, name: &str) -> String {
         let path = std::env::temp_dir().join(format!("nvs-serve-{name}.db"));
+        let _ = std::fs::remove_file(&path);
         format!(
             "[db.jobs]\ndriver = 'sqlite'\npath = '{}'\n\n[queue]\nconnection = 'jobs'\nworkers = \
              {workers}\n",
@@ -3195,7 +3290,8 @@ mod tests {
             &snapshot,
             true,
             &nvs_server::Draining::detached(),
-        );
+        )
+        .expect("a queue converged to its own schema is served");
         assert_eq!(
             armed, 2,
             "the boot snapshot's `[queue] workers = 2` armed {armed} worker(s)"
@@ -3219,17 +3315,50 @@ mod tests {
     #[test]
     fn workers_is_armed_once_per_instance_and_never_once_per_core() {
         let config = config_of(&queue_over_sqlite(4, "once-per-instance"));
-        let (bounds, _) =
-            super::queue_on_this_core(&config, true).expect("the core that ticks arms the queue");
+        let (bounds, _) = super::queue_on_this_core(&config, true)
+            .expect("a queue converged to its own schema is served")
+            .expect("the core that ticks arms the queue");
         assert_eq!(
             bounds.workers, 4,
             "the ticking core armed {} worker(s) where the operator wrote four",
             bounds.workers
         );
         assert!(
-            super::queue_on_this_core(&config, false).is_none(),
+            matches!(super::queue_on_this_core(&config, false), Ok(None)),
             "a core that does not tick armed a second set of workers, so `workers` is a count per \
              core rather than per instance"
+        );
+    }
+
+    /// A queue whose storage nothing has migrated is refused before a worker is
+    /// armed, and the refusal is this process's stop rather than this core's.
+    ///
+    /// **Three assertions because the refusal is three things**, and the first
+    /// alone would pass on a build that armed the workers anyway and on one that
+    /// left every other core serving. `rule:core-classes/queue-storage-is-a-table`'s
+    /// "at most one pending job per key" is a unique key on a table: a database
+    /// without it takes a second pending job under one key and reports nothing,
+    /// which is why the boot asks rather than leaving it to the first push that
+    /// races.
+    #[test]
+    fn a_queue_behind_its_schema_is_refused_before_a_worker_is_armed() {
+        let snapshot = snapshot_of(&queue_over_bare_sqlite(2, "behind-at-boot"));
+        let draining = nvs_server::Draining::detached();
+        let mut sched = nvs_host::Scheduler::new();
+        let armed = super::arm_queue_workers(&mut sched, &snapshot, true, &draining);
+        assert!(
+            armed.is_err(),
+            "a queue over a file holding no table at all was served"
+        );
+        assert_eq!(
+            sched.tracked_tasks(),
+            0,
+            "the refused boot left {} queue task(s) on the scheduler",
+            sched.tracked_tasks()
+        );
+        assert!(
+            draining.is_draining(),
+            "the refusal ended this core alone, leaving every other one accepting"
         );
     }
 
@@ -3239,7 +3368,7 @@ mod tests {
     fn a_tree_with_no_queue_block_arms_no_worker_and_spawns_no_task() {
         let snapshot = snapshot_of("[server]\nlisten = ['127.0.0.1:8000']\n");
         assert!(
-            super::queue_on_this_core(&snapshot.config, true).is_none(),
+            matches!(super::queue_on_this_core(&snapshot.config, true), Ok(None)),
             "a tree writing no `[queue]` block resolved one anyway"
         );
         let mut sched = nvs_host::Scheduler::new();
@@ -3248,7 +3377,8 @@ mod tests {
             &snapshot,
             true,
             &nvs_server::Draining::detached(),
-        );
+        )
+        .expect("a tree with no queue has no storage to be behind");
         assert_eq!(armed, 0, "{armed} worker(s) armed off a tree with no queue");
         assert_eq!(
             sched.tracked_tasks(),
@@ -3266,9 +3396,13 @@ mod tests {
     /// The resolution is asserted to succeed as well as to arm nothing, because a
     /// refusal would also arm nothing — and would take the whole boot with it,
     /// over a tree that is spelled the way the rule spells it.
+    ///
+    /// The file is the unmigrated one on purpose: an instance that arms no worker
+    /// asks its storage nothing, so a tree holding no queue table at all is served
+    /// here where the same tree with `workers = 2` is refused.
     #[test]
     fn workers_zero_arms_no_worker_and_is_not_an_error() {
-        let config = config_of(&queue_over_sqlite(0, "enqueue-only"));
+        let config = config_of(&queue_over_bare_sqlite(0, "enqueue-only"));
         let resolved = nvs_config::queue::queue_for(&config, &BTreeMap::new())
             .expect("`workers = 0` is a deployment and not a refusal");
         assert_eq!(
@@ -3277,8 +3411,8 @@ mod tests {
             "the tree's `workers = 0` did not survive resolution"
         );
         assert!(
-            super::queue_on_this_core(&config, true).is_none(),
-            "an enqueue-only instance armed a worker"
+            matches!(super::queue_on_this_core(&config, true), Ok(None)),
+            "an enqueue-only instance armed a worker, or asked a database it arms nothing against"
         );
     }
 
