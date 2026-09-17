@@ -80,13 +80,7 @@
 //!    Decided: Yes: qual_of reads the parameter's declared Qual whatever its type — The refusal becomes
 //!    readable, and a union can hold Launder; one registry-shape change.
 //!    — owner: decided-closures
-//! 2. **The step budget is a constant, not a directive.** `rule:core-classes/regex-two-tiers` puts
-//!    the default in `nvs.toml` under `rule:config/three-changeability-classes`'s ordinary rules, and no
-//!    key for it parses: `crates/nvs-config/src/tree.rs` is the one home for
-//!    what does, and it names none. [`BACKTRACK_BUDGET`] is that default,
-//!    stated once, and reading it from config is a change to that one line.
-//!    — owner: decided-closures
-//! 3. **This core's compiled-pattern cache is a cross-request store no
+//! 2. **This core's compiled-pattern cache is a cross-request store no
 //!    accounting bracket can take.** [`CACHE`] holds an `Rc` the compiling
 //!    request holds too, so a pattern's bytes have two owners and nothing can
 //!    put its allocation and its release on the same balance, which is what
@@ -105,7 +99,7 @@ use std::borrow::Cow;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use nvs_runtime::{Fault, HelperResult, NvsArray, NvsStr, Tag, Value};
+use nvs_runtime::{Ctx, Fault, HelperResult, NvsArray, NvsStr, Tag, Value};
 
 use crate::granularity::{Cursor, DEFAULT};
 use crate::registry::{
@@ -797,14 +791,49 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
 // The two tiers
 // ============================================================================
 
-/// `rule:core-classes/regex-two-tiers`'s step budget for the backtracking tier, and gap 3's constant.
+/// `rule:core-classes/regex-two-tiers`'s step budget for the backtracking tier,
+/// as the number `[limits] max_regex_steps` falls back to.
 ///
 /// `fancy-regex`'s own default, kept rather than lowered: it is the figure
 /// that crate's adversarial-pattern tests are written against, and picking a
 /// different one here would be a number with no measurement behind it. What
 /// matters for the ADR is that exhausting it *throws*, which
 /// [`budget_exhausted`] is.
+///
+/// This is what a request **starts with** and not a ceiling: the directive is
+/// `Runtime`-class (`rule:config/three-changeability-classes`), so a request
+/// may widen or narrow it for itself, and a host that wants a bound on how far
+/// writes `[limits.hard] max_regex_steps`.
 const BACKTRACK_BUDGET: usize = 1_000_000;
+
+/// `[limits] max_regex_steps` — the directive [`step_budget`] reads.
+const STEPS_KEY: &str = "max_regex_steps";
+
+/// The step budget this request runs its backtracking patterns under:
+/// `[limits] max_regex_steps`, or [`BACKTRACK_BUDGET`] where the configuration
+/// states nothing usable.
+///
+/// Read per call rather than once per request, because `Core\Config::set` may
+/// have moved it since the last pattern and a request that widened its own
+/// budget has to get the wider one on the next compile.
+///
+/// **`false` is not a spelling for an unbounded tier.**
+/// `rule:config/three-changeability-classes` spells "no ceiling" that way for
+/// the limits a request may raise; a pattern allowed to backtrack forever is
+/// the hang `rule:core-classes/regex-two-tiers` exists to stop, so it reads as
+/// the shipped budget instead. A malformed value reads the same way, for the
+/// reason `Ctx`'s own limit readers answer their defaults: the file was parsed
+/// and refused once already, at the boundary that could name the line.
+fn step_budget(ctx: &Ctx) -> usize {
+    let Some(written) = ctx.config().and_then(|config| config.get(STEPS_KEY)) else {
+        return BACKTRACK_BUDGET;
+    };
+    let setting = nvs_config::Setting::Text(written);
+    match nvs_config::Quantity::parse(STEPS_KEY, nvs_config::Unit::Count, &setting) {
+        Ok(nvs_config::Quantity::Count(steps)) => usize::try_from(steps).unwrap_or(usize::MAX),
+        _ => BACKTRACK_BUDGET,
+    }
+}
 
 /// How many compiled patterns one core holds before the cache is cleared —
 /// this module's own docs own the reasoning and what it spends.
@@ -824,16 +853,30 @@ enum Compiled {
     Backtracking(fancy_regex::Regex),
 }
 
+/// One [`CACHE`] entry: the three things that key a compiled program — the
+/// pattern text, the [`PATTERN`] flags and the step budget it was built under —
+/// and the program itself.
+type Cached = (String, u8, usize, Rc<Compiled>);
+
 thread_local! {
-    /// This core's compiled patterns, keyed by the pattern text **and the
-    /// flags it was compiled under** — the same text under two [`PATTERN`]
-    /// flag sets is two programs, and one key would hand the second call the
-    /// first one's answer.
+    /// This core's compiled patterns, keyed by the pattern text, **the flags it
+    /// was compiled under** and **the step budget it was built with** — the
+    /// same text under two [`PATTERN`] flag sets is two programs, and
+    /// [`step_budget`] is baked into the backtracking engine when it is built
+    /// rather than read per match, so one key would hand the second call the
+    /// first one's answer and the second request the first one's ceiling.
+    ///
+    /// The budget is part of the key rather than checked on a hit because the
+    /// alternative is a compiled program whose ceiling is whichever request
+    /// reached this core first, which is one request running under another's
+    /// configuration. What it spends is one `usize` per entry and a second
+    /// compile on a core serving two budgets, which happens only where a
+    /// request moved its own.
     ///
     /// A `Vec` rather than a map: it is capacity-bounded and scanned
     /// linearly, which for a few hundred short keys beats hashing them, and
     /// it keeps the "clear when full" policy a one-liner.
-    static CACHE: RefCell<Vec<(String, u8, Rc<Compiled>)>> = const { RefCell::new(Vec::new()) };
+    static CACHE: RefCell<Vec<Cached>> = const { RefCell::new(Vec::new()) };
 }
 
 /// `pattern` as the engines are given it: the text a program wrote, wrapped in
@@ -889,8 +932,8 @@ fn effective(pattern: &str, flags: u8) -> Cow<'_, str> {
 /// The other refusal is a pattern the linear engine *does* express and cannot
 /// fit under its own size limit; [`build`]'s routing rule says why that is a
 /// throw rather than a quiet move to the second tier.
-fn compiled(pattern: &str, flags: u8, member: &str) -> Result<Rc<Compiled>, Fault> {
-    compiled_prepared(pattern, flags, member, None)
+fn compiled(pattern: &str, flags: u8, member: &str, budget: usize) -> Result<Rc<Compiled>, Fault> {
+    compiled_prepared(pattern, flags, member, None, budget)
 }
 
 /// [`compiled`], for the one member whose call site carries
@@ -906,17 +949,20 @@ fn compiled_prepared(
     flags: u8,
     member: &str,
     prepared: Option<Tier>,
+    budget: usize,
 ) -> Result<Rc<Compiled>, Fault> {
     if let Some(hit) = CACHE.with_borrow(|cache| {
         cache
             .iter()
-            .find(|(key, keyed_flags, _)| key == pattern && *keyed_flags == flags)
-            .map(|(_, _, compiled)| Rc::clone(compiled))
+            .find(|(key, keyed_flags, keyed_budget, _)| {
+                key == pattern && *keyed_flags == flags && *keyed_budget == budget
+            })
+            .map(|(_, _, _, compiled)| Rc::clone(compiled))
     }) {
         return Ok(hit);
     }
 
-    let built = build(pattern, flags, prepared)
+    let built = build(pattern, flags, prepared, budget)
         .map_err(|why| Fault::thrown(format!("Core\\Regex::{member}(): {why}")))?;
 
     let built = Rc::new(built);
@@ -924,7 +970,7 @@ fn compiled_prepared(
         if cache.len() >= CACHE_CAPACITY {
             cache.clear();
         }
-        cache.push((pattern.to_owned(), flags, Rc::clone(&built)));
+        cache.push((pattern.to_owned(), flags, budget, Rc::clone(&built)));
     });
     Ok(built)
 }
@@ -978,14 +1024,19 @@ fn compiled_prepared(
 /// The sentence [`compiled`] throws, without the member prefix a call site
 /// adds: the caller that has one is the runtime, and the caller that does not
 /// is [`validate`].
-fn build(pattern: &str, flags: u8, prepared: Option<Tier>) -> Result<Compiled, String> {
+fn build(
+    pattern: &str,
+    flags: u8,
+    prepared: Option<Tier>,
+    budget: usize,
+) -> Result<Compiled, String> {
     let spelled = effective(pattern, flags);
     if prepared == Some(Tier::Backtracking) {
-        return backtracking(pattern, &spelled);
+        return backtracking(pattern, &spelled, budget);
     }
     match regex::Regex::new(&spelled) {
         Ok(linear) => Ok(Compiled::Linear(linear)),
-        Err(regex::Error::Syntax(_)) => backtracking(pattern, &spelled),
+        Err(regex::Error::Syntax(_)) => backtracking(pattern, &spelled, budget),
         Err(limit) => Err(format!(
             "`{pattern}` is a pattern the linear engine expresses but is too large for it \
              to build: {limit}"
@@ -993,19 +1044,22 @@ fn build(pattern: &str, flags: u8, prepared: Option<Tier>) -> Result<Compiled, S
     }
 }
 
-/// `spelled` on `rule:core-classes/regex-two-tiers`'s second tier, with § 2's
-/// step budget on it — [`build`]'s second arm and its prepared shortcut reach
-/// the same two lines rather than spelling them twice.
+/// `spelled` on `rule:core-classes/regex-two-tiers`'s second tier, with the
+/// caller's step budget on it — [`build`]'s second arm and its prepared
+/// shortcut reach the same two lines rather than spelling them twice.
+///
+/// The budget is fixed when the program is built and cannot be moved per
+/// match, which is why [`CACHE`] keys on it.
 ///
 /// # Errors
 ///
 /// The sentence [`build`] answers with for a pattern neither engine compiles;
 /// it quotes `pattern` as the program wrote it rather than [`effective`]'s
 /// flag-wrapped form.
-fn backtracking(pattern: &str, spelled: &str) -> Result<Compiled, String> {
+fn backtracking(pattern: &str, spelled: &str, budget: usize) -> Result<Compiled, String> {
     Ok(Compiled::Backtracking(
         fancy_regex::RegexBuilder::new(spelled)
-            .backtrack_limit(BACKTRACK_BUDGET)
+            .backtrack_limit(budget)
             .build()
             .map_err(|err| {
                 format!("`{pattern}` is not a pattern either engine can compile: {err}")
@@ -1037,7 +1091,10 @@ fn backtracking(pattern: &str, spelled: &str) -> Result<Compiled, String> {
 /// backtracking = "deny"`, which refuses the second tier outright rather than
 /// re-routing anything into it, and which this fold does not read.
 pub fn validate(pattern: &str) -> Result<Tier, String> {
-    build(pattern, NO_FLAGS, None).map(|compiled| match compiled {
+    // The shipped budget and not a configured one: a fold runs while checking,
+    // where there is no request whose `[limits]` to read, and the budget cannot
+    // change which tier a pattern lands on anyway.
+    build(pattern, NO_FLAGS, None, BACKTRACK_BUDGET).map(|compiled| match compiled {
         Compiled::Linear(_) => Tier::Linear,
         Compiled::Backtracking(_) => Tier::Backtracking,
     })
@@ -1116,10 +1173,10 @@ pub fn prepared_tier(code: i64) -> Option<Tier> {
 /// point the pattern has already compiled, so the only remaining runtime
 /// failures are the budget and a stack overflow in the backtracker, and both
 /// mean "this pattern cannot be run against this subject."
-fn budget_exhausted(member: &str, pattern: &str, err: &fancy_regex::Error) -> Fault {
+fn budget_exhausted(member: &str, pattern: &str, budget: usize, err: &fancy_regex::Error) -> Fault {
     Fault::thrown(format!(
         "Core\\Regex::{member}(): `{pattern}` exhausted the backtracking budget of \
-         {BACKTRACK_BUDGET} steps against this subject ({err})"
+         {budget} steps against this subject ({err})"
     ))
 }
 
@@ -1255,7 +1312,7 @@ nvs_runtime::nvs_helper! {
     /// which is [`build`]'s own account of what a prepared tier can change. A
     /// word this build does not know is [`prepared_tier`]'s `None` and costs
     /// nothing but the routing it would have derived anyway.
-    fn nvs_core_regex_compile(_ctx, args: [6]) {
+    fn nvs_core_regex_compile(ctx, args: [6]) {
         let prepared = prepared_tier(args[0].as_int().unwrap_or(PREPARED_NONE));
         let pattern = text(&args[1], "compile", "the pattern")?;
         let mut flags = NO_FLAGS;
@@ -1269,7 +1326,7 @@ nvs_runtime::nvs_helper! {
                 flags |= flag;
             }
         }
-        compiled_prepared(pattern, flags, "compile", prepared)?;
+        compiled_prepared(pattern, flags, "compile", prepared, step_budget(ctx))?;
         Ok(crate::instance::build(
             &PATTERN,
             [
@@ -1286,15 +1343,16 @@ nvs_runtime::nvs_helper! {
     ///
     /// The pattern is unanchored, as PHP's is: it asks whether the subject
     /// *contains* a match, and `^`/`$` are how a call asks for more.
-    fn nvs_core_regex_matches(_ctx, args: [2]) {
+    fn nvs_core_regex_matches(ctx, args: [2]) {
         let subject = text(&args[0], "matches", "the subject")?;
         let given = pattern_of(&args[1], "matches")?;
         let pattern = text(&given.text, "matches", "the pattern")?;
-        let found = match &*compiled(pattern, given.flags, "matches")? {
+        let budget = step_budget(ctx);
+        let found = match &*compiled(pattern, given.flags, "matches", budget)? {
             Compiled::Linear(re) => re.is_match(subject),
             Compiled::Backtracking(re) => re
                 .is_match(subject)
-                .map_err(|err| budget_exhausted("matches", pattern, &err))?,
+                .map_err(|err| budget_exhausted("matches", pattern, budget, &err))?,
         };
         Ok(Value::bool(found))
     }
@@ -1425,14 +1483,15 @@ nvs_runtime::nvs_helper! {
     /// spelling — there is no `0`/`false`/`1` return to read, and no error code
     /// beside it, because a pattern that cannot run throws
     /// ([`budget_exhausted`], [`compiled`]).
-    fn nvs_core_regex_match(_ctx, args: [3]) {
+    fn nvs_core_regex_match(ctx, args: [3]) {
         let subject = text(&args[0], "match", "the subject")?;
         let given = pattern_of(&args[1], "match")?;
         let pattern = text(&given.text, "match", "the pattern")?;
         let from = integer(&args[2], "match", "the `from` option")?;
         let start = start_byte(subject, from);
 
-        let compiled = compiled(pattern, given.flags, "match")?;
+        let budget = step_budget(ctx);
+        let compiled = compiled(pattern, given.flags, "match", budget)?;
         let names = names_of(&compiled);
         let found = match &*compiled {
             Compiled::Linear(re) => re
@@ -1440,7 +1499,7 @@ nvs_runtime::nvs_helper! {
                 .map(|caps| linear_groups(&caps)),
             Compiled::Backtracking(re) => re
                 .captures_from_pos(subject, start)
-                .map_err(|err| budget_exhausted("match", pattern, &err))?
+                .map_err(|err| budget_exhausted("match", pattern, budget, &err))?
                 .map(|caps| backtracking_groups(&caps)),
         };
         Ok(found.map_or_else(Value::null, |captured| {
@@ -1463,12 +1522,13 @@ nvs_runtime::nvs_helper! {
     /// positions for *k* matches costs one walk of the subject rather than
     /// *k* of its prefixes: the matches arrive in increasing byte order, which
     /// is exactly what [`Cursor`] asks for.
-    fn nvs_core_regex_match_all(_ctx, args: [2]) {
+    fn nvs_core_regex_match_all(ctx, args: [2]) {
         let subject = text(&args[0], "matchAll", "the subject")?;
         let given = pattern_of(&args[1], "matchAll")?;
         let pattern = text(&given.text, "matchAll", "the pattern")?;
 
-        let compiled = compiled(pattern, given.flags, "matchAll")?;
+        let budget = step_budget(ctx);
+        let compiled = compiled(pattern, given.flags, "matchAll", budget)?;
         let names = names_of(&compiled);
         let mut offsets = DEFAULT.cursor(subject);
         let mut out = NvsArray::new();
@@ -1481,7 +1541,7 @@ nvs_runtime::nvs_helper! {
             Compiled::Backtracking(re) => {
                 for caps in re.captures_iter(subject) {
                     let caps =
-                        caps.map_err(|err| budget_exhausted("matchAll", pattern, &err))?;
+                        caps.map_err(|err| budget_exhausted("matchAll", pattern, budget, &err))?;
                     out.append(built_match(&mut offsets, &names, &backtracking_groups(&caps)));
                 }
             }
@@ -1602,7 +1662,7 @@ nvs_runtime::nvs_helper! {
     /// `limit` counts *replacements*, defaults to every one, and a limit of
     /// `0` replaces nothing — which is the reading the option's `uint` type
     /// forces and the one PHP's own `preg_replace` gives it.
-    fn nvs_core_regex_replace(_ctx, args: [4]) {
+    fn nvs_core_regex_replace(ctx, args: [4]) {
         let subject = text(&args[0], "replace", "the subject")?;
         let given = pattern_of(&args[1], "replace")?;
         let pattern = text(&given.text, "replace", "the pattern")?;
@@ -1616,11 +1676,12 @@ nvs_runtime::nvs_helper! {
         let count = usize::try_from(limit).unwrap_or(usize::MAX);
         let count = if limit == u64::MAX { 0 } else { count };
 
-        let replaced = match &*compiled(pattern, given.flags, "replace")? {
+        let budget = step_budget(ctx);
+        let replaced = match &*compiled(pattern, given.flags, "replace", budget)? {
             Compiled::Linear(re) => re.replacen(subject, count, replacement).into_owned(),
             Compiled::Backtracking(re) => re
                 .try_replacen(subject, count, replacement)
-                .map_err(|err| budget_exhausted("replace", pattern, &err))?
+                .map_err(|err| budget_exhausted("replace", pattern, budget, &err))?
                 .into_owned(),
         };
         produced(&replaced)
@@ -1701,7 +1762,8 @@ nvs_runtime::nvs_helper! {
         }
         let count = usize::try_from(limit).unwrap_or(usize::MAX);
 
-        let compiled = compiled(pattern, given.flags, "replaceWith")?;
+        let budget = step_budget(ctx);
+        let compiled = compiled(pattern, given.flags, "replaceWith", budget)?;
         let names = names_of(&compiled);
         let mut found: Vec<Captured<'_>> = Vec::new();
         match &*compiled {
@@ -1713,7 +1775,7 @@ nvs_runtime::nvs_helper! {
             Compiled::Backtracking(re) => {
                 for caps in re.captures_iter(subject).take(count) {
                     let caps =
-                        caps.map_err(|err| budget_exhausted("replaceWith", pattern, &err))?;
+                        caps.map_err(|err| budget_exhausted("replaceWith", pattern, budget, &err))?;
                     found.push(backtracking_groups(&caps));
                 }
             }
@@ -1742,6 +1804,7 @@ fn pieces_of<'a>(
     subject: &'a str,
     pieces: Option<usize>,
     pattern: &str,
+    budget: usize,
 ) -> Result<Vec<&'a str>, Fault> {
     match (compiled, pieces) {
         (Compiled::Linear(re), Some(pieces)) => Ok(re.splitn(subject, pieces).collect()),
@@ -1749,11 +1812,11 @@ fn pieces_of<'a>(
         (Compiled::Backtracking(re), Some(pieces)) => re
             .splitn(subject, pieces)
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|err| budget_exhausted("split", pattern, &err)),
+            .map_err(|err| budget_exhausted("split", pattern, budget, &err)),
         (Compiled::Backtracking(re), None) => re
             .split(subject)
             .collect::<Result<Vec<_>, _>>()
-            .map_err(|err| budget_exhausted("split", pattern, &err)),
+            .map_err(|err| budget_exhausted("split", pattern, budget, &err)),
     }
 }
 
@@ -1782,20 +1845,21 @@ nvs_runtime::nvs_helper! {
     /// option: the first returns a differently-shaped array from the same
     /// member, which `rule:core-api/shape-rules` R7 refuses, and the second is what `matchAll`
     /// answers.
-    fn nvs_core_regex_split(_ctx, args: [4]) {
+    fn nvs_core_regex_split(ctx, args: [4]) {
         let subject = text(&args[0], "split", "the subject")?;
         let given = pattern_of(&args[1], "split")?;
         let pattern = text(&given.text, "split", "the pattern")?;
         let limit = integer(&args[2], "split", "the `limit` option")?;
         let keep_empty = boolean(&args[3], "split", "the `keepEmpty` option")?;
 
-        let compiled = compiled(pattern, given.flags, "split")?;
+        let budget = step_budget(ctx);
+        let compiled = compiled(pattern, given.flags, "split", budget)?;
         let mut pieces = if limit >= 0 {
             // A limit of `0` means one piece, not none — see the docs above.
             let wanted = usize::try_from(limit).unwrap_or(usize::MAX).max(1);
-            pieces_of(&compiled, subject, Some(wanted), pattern)?
+            pieces_of(&compiled, subject, Some(wanted), pattern, budget)?
         } else {
-            let all = pieces_of(&compiled, subject, None, pattern)?;
+            let all = pieces_of(&compiled, subject, None, pattern, budget)?;
             let dropped = usize::try_from(limit.unsigned_abs()).unwrap_or(usize::MAX);
             let kept = all.len().saturating_sub(dropped);
             all.into_iter().take(kept).collect()
@@ -1859,7 +1923,7 @@ mod tests {
     /// on.
     #[test]
     fn a_match_carries_every_declared_group_named_and_numbered() {
-        let compiled = compiled(r"(?<word>[a-z]+)(\d+)?", NO_FLAGS, "match").expect("compiles");
+        let compiled = built(r"(?<word>[a-z]+)(\d+)?", NO_FLAGS, "match").expect("compiles");
         let names = names_of(&compiled);
         let Compiled::Linear(re) = &*compiled else {
             panic!("a plain pattern lands in the linear tier")
@@ -1942,7 +2006,7 @@ mod tests {
                 .copied()
                 .filter(|pattern| {
                     !matches!(
-                        build(pattern, flags, None).expect("a linear pattern compiles"),
+                        tiered(pattern, flags, None).expect("a linear pattern compiles"),
                         Compiled::Linear(_)
                     )
                 })
@@ -1958,7 +2022,7 @@ mod tests {
             .copied()
             .filter(|pattern| {
                 !matches!(
-                    build(pattern, NO_FLAGS, None).expect("the second tier compiles it"),
+                    tiered(pattern, NO_FLAGS, None).expect("the second tier compiles it"),
                     Compiled::Backtracking(_)
                 )
             })
@@ -1975,7 +2039,7 @@ mod tests {
         // function of how large its automaton happens to be, which nothing in
         // the source says and no reader could predict.
         let too_big = r"\p{L}".repeat(5_000);
-        let refused = build(&too_big, NO_FLAGS, None)
+        let refused = tiered(&too_big, NO_FLAGS, None)
             .expect_err("5,000 unicode classes is past the size limit");
         assert!(refused.contains("too large for it to build"), "{refused}");
     }
@@ -2002,7 +2066,7 @@ mod tests {
         // A lookbehind told what it is goes straight to the engine that
         // expresses it, landing where the untold path lands.
         assert!(matches!(
-            build(r"(?<=USD )\d+", NO_FLAGS, Some(Tier::Backtracking))
+            tiered(r"(?<=USD )\d+", NO_FLAGS, Some(Tier::Backtracking))
                 .expect("the second tier compiles a lookbehind"),
             Compiled::Backtracking(_)
         ));
@@ -2012,7 +2076,7 @@ mod tests {
         // linear engine does, so a pattern wrongly claimed for it still
         // compiles and still matches.
         assert!(matches!(
-            build("[a-z]+", NO_FLAGS, Some(Tier::Backtracking))
+            tiered("[a-z]+", NO_FLAGS, Some(Tier::Backtracking))
                 .expect("the backtracker expresses a character class too"),
             Compiled::Backtracking(_)
         ));
@@ -2022,7 +2086,7 @@ mod tests {
     /// nothing — `rule:core-classes/regex-syntax`'s "never silently ignored".
     #[test]
     fn a_pattern_neither_engine_accepts_throws() {
-        let err = compiled("(unclosed", NO_FLAGS, "matches")
+        let err = built("(unclosed", NO_FLAGS, "matches")
             .expect_err("an unclosed group is not a pattern");
         assert!(format!("{err:?}").contains("(unclosed"), "{err:?}");
     }
@@ -2041,7 +2105,7 @@ mod tests {
     /// bound. A subject inside the budget still answers.
     #[test]
     fn a_backtracking_pattern_runs_under_a_throwing_step_budget() {
-        let held = compiled(CATASTROPHIC, NO_FLAGS, "matches").expect("compiles");
+        let held = built(CATASTROPHIC, NO_FLAGS, "matches").expect("compiles");
         let Compiled::Backtracking(re) = &*held else {
             panic!("a backreference is not a pattern the linear engine expresses")
         };
@@ -2055,7 +2119,9 @@ mod tests {
 
         // The budget the program was built with is the one the throw names,
         // so a message can never quote a bound that is not the enforced one.
-        let Fault::Thrown(class, message) = budget_exhausted("matches", CATASTROPHIC, &err) else {
+        let Fault::Thrown(class, message) =
+            budget_exhausted("matches", CATASTROPHIC, BACKTRACK_BUDGET, &err)
+        else {
             panic!("§ 2 is an ordinary catchable throw, not a resource-limit fatal")
         };
         assert!(matches!(class, nvs_runtime::ThrownClass::Runtime));
@@ -2075,7 +2141,7 @@ mod tests {
     /// the error into an empty result.
     #[test]
     fn a_step_budget_exhaustion_throws_rather_than_returning_no_match() {
-        let held = compiled(CATASTROPHIC, NO_FLAGS, "matches").expect("compiles");
+        let held = built(CATASTROPHIC, NO_FLAGS, "matches").expect("compiles");
         let Compiled::Backtracking(re) = &*held else {
             panic!("a backreference is not a pattern the linear engine expresses")
         };
@@ -2091,8 +2157,8 @@ mod tests {
     /// once — this module's own docs own what that spends.
     #[test]
     fn one_pattern_is_compiled_once_per_core() {
-        let first = compiled(r"^cached-\w+$", NO_FLAGS, "matches").expect("compiles");
-        let again = compiled(r"^cached-\w+$", NO_FLAGS, "matches").expect("compiles");
+        let first = built(r"^cached-\w+$", NO_FLAGS, "matches").expect("compiles");
+        let again = built(r"^cached-\w+$", NO_FLAGS, "matches").expect("compiles");
         assert!(Rc::ptr_eq(&first, &again));
     }
 
@@ -2102,8 +2168,8 @@ mod tests {
     /// pins through the members, one flag at a time.
     #[test]
     fn the_flags_are_part_of_the_key_and_reach_the_engine() {
-        let plain = compiled("^flagged-a+$", NO_FLAGS, "compile").expect("compiles");
-        let folded = compiled("^flagged-a+$", FLAG_CASE_INSENSITIVE, "compile").expect("compiles");
+        let plain = built("^flagged-a+$", NO_FLAGS, "compile").expect("compiles");
+        let folded = built("^flagged-a+$", FLAG_CASE_INSENSITIVE, "compile").expect("compiles");
         assert!(!Rc::ptr_eq(&plain, &folded));
 
         let matched = |held: &Compiled, subject: &str| match held {
@@ -2130,7 +2196,7 @@ mod tests {
         assert!(matches!(effective("a$", NO_FLAGS), Cow::Borrowed("a$")));
 
         let run = |pattern: &str, flags: u8, subject: &str| {
-            let held = compiled(pattern, flags, "compile").expect("compiles");
+            let held = built(pattern, flags, "compile").expect("compiles");
             match &*held {
                 Compiled::Linear(re) => re.find(subject).map(|found| found.as_str().to_owned()),
                 Compiled::Backtracking(re) => re
@@ -2157,8 +2223,67 @@ mod tests {
     #[test]
     fn the_cache_never_grows_past_its_capacity() {
         for nth in 0..=CACHE_CAPACITY {
-            compiled(&format!("bounded-{nth}"), NO_FLAGS, "matches").expect("compiles");
+            built(&format!("bounded-{nth}"), NO_FLAGS, "matches").expect("compiles");
         }
         CACHE.with_borrow(|cache| assert!(cache.len() <= CACHE_CAPACITY, "{}", cache.len()));
+    }
+
+    /// [`compiled`] at the shipped budget, which is what every case above
+    /// wants: none of them is about a configured one, and threading the
+    /// constant through each call would say so once per line.
+    fn built(pattern: &str, flags: u8, member: &str) -> Result<Rc<Compiled>, Fault> {
+        compiled(pattern, flags, member, BACKTRACK_BUDGET)
+    }
+
+    /// [`build`] at the same budget, for the cases that ask which tier a
+    /// pattern lands on — a question no budget changes.
+    fn tiered(pattern: &str, flags: u8, prepared: Option<Tier>) -> Result<Compiled, String> {
+        build(pattern, flags, prepared, BACKTRACK_BUDGET)
+    }
+
+    /// The budget is `[limits] max_regex_steps` and an unconfigured request
+    /// gets [`BACKTRACK_BUDGET`].
+    ///
+    /// Four readings and then the engine: nothing written is the constant, a
+    /// narrower number and a wider one are each taken as written, and `false`
+    /// is not a spelling for a tier that may backtrack forever. The last two
+    /// assertions are what makes the directive more than a parsed key — the
+    /// number reaches the built program, and two budgets on one core are two
+    /// entries in [`CACHE`] rather than one request running under another's
+    /// ceiling.
+    #[test]
+    fn the_regex_step_budget_is_a_limits_directive_with_the_constant_as_its_default() {
+        assert_eq!(step_budget(&Ctx::buffered()), BACKTRACK_BUDGET);
+
+        let configured = |written: &str| {
+            let mut ctx = Ctx::buffered();
+            ctx.set_config(crate::tests::granting(written));
+            step_budget(&ctx)
+        };
+        assert_eq!(configured("[limits]\nmax_regex_steps = 64\n"), 64);
+        assert_eq!(
+            configured("[limits]\nmax_regex_steps = 4000000\n"),
+            4_000_000
+        );
+        assert_eq!(
+            configured("[limits]\nmax_regex_steps = false\n"),
+            BACKTRACK_BUDGET,
+            "`false` is not a spelling for a tier that may backtrack forever"
+        );
+
+        let narrow = compiled(CATASTROPHIC, NO_FLAGS, "matches", 64).expect("compiles");
+        let Compiled::Backtracking(re) = &*narrow else {
+            panic!("a backreference is not a pattern the linear engine expresses")
+        };
+        assert!(
+            re.is_match(&format!("{}b", "a".repeat(40))).is_err(),
+            "a narrowed budget is the one the engine runs under"
+        );
+
+        let shipped = built(CATASTROPHIC, NO_FLAGS, "matches").expect("compiles");
+        assert!(
+            !Rc::ptr_eq(&shipped, &narrow),
+            "the budget is part of the cache key, or one request runs under another's"
+        );
     }
 }
