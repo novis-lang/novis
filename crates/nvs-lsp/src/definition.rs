@@ -39,6 +39,26 @@
 //! is what [`type_at`] answers there, which is the request that asks what
 //! something *is* rather than where the name came from.
 //!
+//! **A written type is not in the tree, so it is walked for.** A type name is a
+//! property of the node that writes it, which is why nothing above looks for a
+//! node called `TypeName` — and it is why [`written_type_at`] enumerates the
+//! positions a type is *written* at rather than asking the index anything.
+//! Those positions are a declaration's own: a `type` alias's right-hand side at
+//! either declaration site, a property's and a class constant's declared type,
+//! a method's parameter and return types, a property hook's parameter, a
+//! `foreach` binding's and a `catch` clause's, and a typed local's wherever a
+//! statement sequence holds one. A type written inside an *expression* — `as`,
+//! `is`, a closure literal's signature — is reached through none of those and
+//! is answered by nothing here.
+//!
+//! What that walk exists for is [`type_member_at`]. `Owner::Name` in type
+//! position is the one type atom that names a **member**, and which member it
+//! names is what the owner declares: a `type` alias of that owner, one of its
+//! enum cases, or one of its constants, in that order — an order that decides
+//! nothing a compiling program can observe, because a body declaring two of
+//! them under one name is refused where the second is written
+//! (`rule:types/type-alias`).
+//!
 //! **The whole graph, not the entry alone.** The cursor is always in the open
 //! document ([`crate::selection`]'s reasoning), but what it names may be
 //! declared in a required file — so the span answered here carries its own
@@ -50,8 +70,12 @@ use std::path::PathBuf;
 use lsp_types::Range;
 use nvs_diagnostics::{BytePos, PositionEncoding, SourceFile, Span};
 use nvs_hir::QName;
-use nvs_syntax::ast::{ClassMember, ClassMemberKind, DocComment, EnumCase, Stmt, StmtKind};
+use nvs_syntax::ast::{
+    ClassMember, ClassMemberKind, DocComment, EnumCase, MethodMember, Param, PropertyHook,
+    PropertyHookBody, Stmt, StmtKind, Type, TypeAtom, TypeKind,
+};
 use nvs_types::{ExprInfo, ResolvedCall, Ty, TypeId, TypeInterner};
+use rustc_hash::FxHashMap;
 
 use crate::document::Analysed;
 use crate::position::range_at;
@@ -225,6 +249,17 @@ pub(crate) enum Target<'a> {
         /// The constant's own name.
         name: &'a str,
     },
+    /// A `type` alias a body owns, on [`Target::Constant`]'s terms and told
+    /// apart from one by what its owner declares rather than by how the source
+    /// spells it: `Owner::Name` is one spelling for all three member kinds
+    /// reachable in type position, and it is the only position an alias is
+    /// reachable from at all (`rule:types/type-alias`).
+    TypeAlias {
+        /// The declaring class, interface or enum.
+        class: &'a QName,
+        /// The alias's own name.
+        name: &'a str,
+    },
 }
 
 /// Which of a declaration's member lists a name is looked for in.
@@ -241,6 +276,9 @@ enum MemberKind {
     Property,
     /// A class constant, whose name the source writes bare.
     Constant,
+    /// A `type` alias a body owns, whose name the source writes bare and in
+    /// type position alone.
+    TypeAlias,
 }
 
 /// One declaration, as the two cursor requests read it.
@@ -268,6 +306,7 @@ pub(crate) fn site<'a>(analysed: &'a Analysed, target: &Target<'_>) -> Option<Si
         ),
         Target::Property { class, name } => (*class, Some((*name, MemberKind::Property))),
         Target::Constant { class, name } => (*class, Some((*name, MemberKind::Constant))),
+        Target::TypeAlias { class, name } => (*class, Some((*name, MemberKind::TypeAlias))),
     };
     let symbol = analysed.module.symbols.get(class)?;
     let file = analysed.map.file(symbol.decl_span.file);
@@ -373,6 +412,9 @@ fn declared_member<'a>(
         (ClassMemberKind::Const(constant), MemberKind::Constant) => {
             text_of(file, constant.name) == name
         }
+        (ClassMemberKind::TypeAlias(alias), MemberKind::TypeAlias) => {
+            text_of(file, alias.name.span) == name
+        }
         _ => false,
     })
 }
@@ -407,6 +449,7 @@ fn member_name(member: &ClassMember) -> Option<Span> {
         ClassMemberKind::Method(method) => Some(method.name),
         ClassMemberKind::Property(property) => Some(property.name),
         ClassMemberKind::Const(constant) => Some(constant.name),
+        ClassMemberKind::TypeAlias(alias) => Some(alias.name.span),
         _ => None,
     }
 }
@@ -465,6 +508,7 @@ pub(crate) fn named_at(analysed: &Analysed, offset: BytePos) -> Option<(Target<'
             }
         })
         .or_else(|| clause_at(analysed, offset))
+        .or_else(|| type_member_at(analysed, offset))
 }
 
 /// The supertype an `extends` or `implements` clause of the entry document
@@ -593,4 +637,303 @@ pub(crate) fn target_of(info: &ExprInfo) -> Option<Target<'_>> {
         ExprInfo::ClassConst { class, name, .. } => Target::Constant { class, name },
         _ => return None,
     })
+}
+
+/// What an `Owner::Name` written in type position at `offset` names, and the
+/// span the source wrote that half of it at.
+///
+/// The second kind of name the expression walk cannot see, beside a clause's
+/// ([`clause_at`]): a type is not an expression either. Which member the name
+/// picks out is the module doc's order — the owner's own `type` alias first,
+/// then the enum case or the constant [`site`] already looks a
+/// [`Target::Constant`] up as.
+///
+/// **A cursor in the owner half answers the owner**, exactly as a cursor on the
+/// qualifier of `Status::Draft` answers the enum: the two halves of one
+/// spelling are two names and the caret says which one is being asked about.
+pub(crate) fn type_member_at(analysed: &Analysed, offset: BytePos) -> Option<(Target<'_>, Span)> {
+    let ty = written_type_at(analysed, offset)?;
+    let TypeKind::Atom(TypeAtom::Member(written, member)) = &ty.kind else {
+        return None;
+    };
+    let file = analysed.map.file(analysed.entry);
+    let resolved = resolved_name(analysed, text_of(file, written.span), written.span.start)?;
+    let owner = &analysed.module.symbols.get(&resolved)?.qname;
+    if !covers(*member, offset) {
+        return Some((Target::Type(owner), written.span));
+    }
+    let name = text_of(file, *member);
+    let target = if analysed.module.aliases.get_member(owner, name).is_some() {
+        Target::TypeAlias { class: owner, name }
+    } else {
+        Target::Constant { class: owner, name }
+    };
+    Some((target, *member))
+}
+
+/// What the name `text`, written at `at` in the entry document, means — and
+/// `None` for an empty spelling, which is a cursor that has written no name at
+/// all rather than one that named the root.
+///
+/// `nvs_hir::resolve_ref` is the whole of the decision
+/// (`rule:statements/one-function-resolves-every-name`); what is added here is
+/// the two things it takes and a cursor answer has to find for itself, which
+/// are [`namespace_at`] and [`imports_of`].
+pub(crate) fn resolved_name(analysed: &Analysed, text: &str, at: BytePos) -> Option<QName> {
+    if text.is_empty() {
+        return None;
+    }
+    Some(nvs_hir::resolve_ref(
+        text,
+        &namespace_at(analysed, at),
+        &imports_of(analysed),
+    ))
+}
+
+/// The namespace `offset` is written inside, as its segments.
+///
+/// Walked off the entry document's own statements because `nvs-hir` applies a
+/// namespace as it collects declarations and keeps no map from a position back
+/// to one. The two forms are the ones its resolver reads: `namespace Name;`
+/// governs the rest of the file, and the bracketed form governs its block.
+pub(crate) fn namespace_at(analysed: &Analysed, offset: BytePos) -> Vec<String> {
+    let Some(loaded) = analysed
+        .loaded
+        .iter()
+        .find(|loaded| loaded.id == analysed.entry)
+    else {
+        return Vec::new();
+    };
+    let file = analysed.map.file(analysed.entry);
+    let mut current = Vec::new();
+    for stmt in &loaded.stmts {
+        let StmtKind::NamespaceDecl(decl) = &stmt.kind else {
+            continue;
+        };
+        let segments = decl.name.as_ref().map_or_else(Vec::new, |name| {
+            QName::parse(text_of(file, name.span)).segments().to_vec()
+        });
+        match &decl.body {
+            Some(block) if block.span.start <= offset && offset < block.span.end => {
+                return segments;
+            }
+            None if stmt.span.end <= offset => current = segments,
+            _ => {}
+        }
+    }
+    current
+}
+
+/// The entry document's own imports, in the shape `nvs_hir::resolve_ref` reads.
+///
+/// The whole graph's imports travel in one list, and a `use` belongs to the
+/// file that wrote it — a required file's import must not resolve a name
+/// written here.
+pub(crate) fn imports_of(analysed: &Analysed) -> FxHashMap<String, QName> {
+    analysed
+        .module
+        .imports
+        .iter()
+        .filter(|import| import.span.file == analysed.entry)
+        .map(|import| (import.short_name.clone(), import.target.clone()))
+        .collect()
+}
+
+/// The written type the cursor at `offset` is inside, innermost first, and
+/// `None` for a cursor inside none.
+///
+/// The positions walked are the module doc's, and they are a **declaration's**:
+/// a type reached only through an expression is not among them. Innermost for
+/// [`named_at`]'s reason — `array<Order::Meta>` covers one offset with two
+/// written types, and the nearer one is what the caret is pointing at.
+pub(crate) fn written_type_at(analysed: &Analysed, offset: BytePos) -> Option<&Type> {
+    let entry = analysed
+        .loaded
+        .iter()
+        .find(|loaded| loaded.id == analysed.entry)?;
+    stmts_type(&entry.stmts, offset)
+}
+
+/// The written type at `offset` in one statement sequence.
+fn stmts_type(stmts: &[Stmt], offset: BytePos) -> Option<&Type> {
+    stmts.iter().find_map(|stmt| stmt_type(stmt, offset))
+}
+
+/// The written type at `offset` in one statement, and nothing for a statement
+/// the offset is outside.
+///
+/// The span test is what makes this one path down the file rather than a walk
+/// of all of it: a statement the cursor is not in holds no type the cursor
+/// could be inside. A top-level `function` or `const` is deliberately absent
+/// for `rule:ide/rejected-syntax-gets-no-colour`'s reason — the construct is
+/// refused, so the server answers nothing about the names written inside it.
+fn stmt_type(stmt: &Stmt, offset: BytePos) -> Option<&Type> {
+    if !covers(stmt.span, offset) {
+        return None;
+    }
+    match &stmt.kind {
+        StmtKind::TypeAliasDecl(decl) => type_in(&decl.ty, offset),
+        StmtKind::ClassDecl(decl) => members_type(&decl.members, offset),
+        StmtKind::InterfaceDecl(decl) => members_type(&decl.members, offset),
+        StmtKind::EnumDecl(decl) => members_type(&decl.members, offset),
+        StmtKind::NamespaceDecl(decl) => stmts_type(&decl.body.as_ref()?.stmts, offset),
+        StmtKind::LocalDecl { ty, .. } => type_in(ty.as_ref()?, offset),
+        StmtKind::Block(block) => stmts_type(&block.stmts, offset),
+        StmtKind::If { then, else_, .. } => {
+            stmt_type(then, offset).or_else(|| stmt_type(else_.as_deref()?, offset))
+        }
+        StmtKind::While { body, .. } | StmtKind::DoWhile { body, .. } => stmt_type(body, offset),
+        StmtKind::For { init, body, .. } => init
+            .decl()
+            .and_then(|decl| stmt_type(decl, offset))
+            .or_else(|| stmt_type(body, offset)),
+        StmtKind::Foreach {
+            key, value, body, ..
+        } => key
+            .as_ref()
+            .and_then(|binding| type_in(binding.ty.as_ref()?, offset))
+            .or_else(|| type_in(value.ty.as_ref()?, offset))
+            .or_else(|| stmt_type(body, offset)),
+        StmtKind::Switch { cases, .. } => {
+            cases.iter().find_map(|arm| stmts_type(&arm.body, offset))
+        }
+        StmtKind::Try {
+            body,
+            catches,
+            finally,
+        } => stmts_type(&body.stmts, offset)
+            .or_else(|| {
+                catches.iter().find_map(|catch| {
+                    type_in(&catch.ty, offset).or_else(|| stmts_type(&catch.body.stmts, offset))
+                })
+            })
+            .or_else(|| stmts_type(&finally.as_ref()?.stmts, offset)),
+        _ => None,
+    }
+}
+
+/// The written type at `offset` among one body's members.
+fn members_type(members: &[ClassMember], offset: BytePos) -> Option<&Type> {
+    members.iter().find_map(|member| match &member.kind {
+        ClassMemberKind::Property(property) => {
+            type_in(&property.ty, offset).or_else(|| hooks_type(property.hooks.as_deref()?, offset))
+        }
+        ClassMemberKind::Const(constant) => type_in(constant.ty.as_ref()?, offset),
+        ClassMemberKind::TypeAlias(alias) => type_in(&alias.ty, offset),
+        ClassMemberKind::Method(method) => method_type(method, offset),
+        _ => None,
+    })
+}
+
+/// The written type at `offset` in one method's signature or its body.
+fn method_type(method: &MethodMember, offset: BytePos) -> Option<&Type> {
+    params_type(&method.params, offset)
+        .or_else(|| type_in(method.return_type.as_ref()?, offset))
+        .or_else(|| stmts_type(&method.body.as_ref()?.stmts, offset))
+}
+
+/// The written type at `offset` in one parameter list.
+fn params_type(params: &[Param], offset: BytePos) -> Option<&Type> {
+    params
+        .iter()
+        .find_map(|param| type_in(param.ty.as_ref()?, offset))
+}
+
+/// The written type at `offset` in one property's hook block.
+///
+/// A hook is a method in the two ways that matter here: `set(Order::Meta $m)`
+/// writes a parameter type, and a block-bodied hook writes statements. The
+/// short `=> expr;` form writes an expression and so writes no type this walk
+/// reaches.
+fn hooks_type(hooks: &[PropertyHook], offset: BytePos) -> Option<&Type> {
+    hooks.iter().find_map(|hook| {
+        hook.param
+            .as_ref()
+            .and_then(|param| type_in(param.ty.as_ref()?, offset))
+            .or_else(|| match hook.body.as_ref()? {
+                PropertyHookBody::Block(block) => stmts_type(&block.stmts, offset),
+                PropertyHookBody::Expr(_) => None,
+            })
+    })
+}
+
+/// The innermost written type covering `offset` inside `ty`, and `None` for an
+/// offset outside it.
+fn type_in(ty: &Type, offset: BytePos) -> Option<&Type> {
+    if !covers(ty.span, offset) {
+        return None;
+    }
+    let inner = match &ty.kind {
+        TypeKind::Nullable(inner) | TypeKind::Paren(inner) => type_in(inner, offset),
+        TypeKind::Union(members) | TypeKind::Intersection(members) => {
+            members.iter().find_map(|member| type_in(member, offset))
+        }
+        TypeKind::Atom(atom) => atom_type(atom, offset),
+        _ => None,
+    };
+    Some(inner.unwrap_or(ty))
+}
+
+/// The innermost written type covering `offset` among one atom's own
+/// arguments, and `None` for an atom that writes none.
+fn atom_type(atom: &TypeAtom, offset: BytePos) -> Option<&Type> {
+    match atom {
+        TypeAtom::Array(Some(arg)) | TypeAtom::ClassRef(arg) | TypeAtom::PropertyKey(arg) => {
+            type_in(arg, offset)
+        }
+        TypeAtom::Shape(fields) => fields.iter().find_map(|field| type_in(&field.ty, offset)),
+        TypeAtom::CallableSig { params, ret } => params
+            .iter()
+            .find_map(|param| type_in(param, offset))
+            .or_else(|| type_in(ret, offset)),
+        TypeAtom::Name(_, args) => args.iter().find_map(|arg| type_in(arg, offset)),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::document::{Documents, analyse, uri_of};
+
+    /// A class and an enum that each own a `type` alias, named from two of the
+    /// positions a type is written at: a parameter's and a typed local's.
+    const OWNERS: &str = "<?nvs\nclass Order {\n  type Meta = {total: int};\n  public function \
+                          of(Order::Meta $m): int { return 1; }\n}\nenum Status {\n  type Pair = \
+                          array<Status>;\n  Open,\n}\nStatus::Pair $p = [Status::Open];\n";
+
+    /// Where a cursor just past the first `written` in `source` jumps to, as
+    /// `line:character` — the declared name's own range, which is the caret an
+    /// editor puts there — and `none` where it jumps nowhere.
+    fn jump(source: &str, written: &str) -> String {
+        let uri = uri_of(&std::env::temp_dir().join("nvs-definition-case.nvs"))
+            .expect("a temp path is UTF-8");
+        let mut documents = Documents::new();
+        documents.open(uri.clone(), 1, source.to_owned());
+        let analysed = analyse(&documents, &uri).expect("an open document analyses");
+        let found = source.find(written).expect("the document writes it") + written.len();
+        let offset = u32::try_from(found).expect("a test document is short");
+        at(&analysed, offset, PositionEncoding::Utf8).map_or_else(
+            || "none".to_owned(),
+            |declared| {
+                format!(
+                    "{}:{}",
+                    declared.range.start.line, declared.range.start.character
+                )
+            },
+        )
+    }
+
+    /// `Owner::Name` in type position lands on the member, and the owner half
+    /// of the same spelling lands on the owner — in a class body and an enum
+    /// body alike (`rule:types/type-alias`). The last case is the bound: a type
+    /// that names no member is not a member reference, so the request answers
+    /// nothing rather than the nearest declaration.
+    #[test]
+    fn definition_of_owner_name_in_type_position_is_the_member() {
+        assert_eq!(jump(OWNERS, "of(Order::Me"), "2:7");
+        assert_eq!(jump(OWNERS, "of(Ord"), "1:6");
+        assert_eq!(jump(OWNERS, "Status::Pa"), "6:7");
+        assert_eq!(jump(OWNERS, "Order::Meta $m): i"), "none");
+    }
 }

@@ -862,7 +862,9 @@ fn symbol_of(target: &Target<'_>) -> String {
         Target::Type(qname) => qname.to_string(),
         Target::Method(call) => format!("{}::{}", call.class, call.method),
         Target::Property { class, name } => format!("{class}::${name}"),
-        Target::Constant { class, name } => format!("{class}::{name}"),
+        Target::Constant { class, name } | Target::TypeAlias { class, name } => {
+            format!("{class}::{name}")
+        }
     }
 }
 
