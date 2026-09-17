@@ -8,7 +8,8 @@
       "title": "Every departure from PHP's observable behaviour is listed as a divergence, and each exists only because PHP left a binding untyped",
       "status": "shipped",
       "because": [
-        "0007"
+        "0007",
+        "0192"
       ],
       "divergesFromPhp": "the imported `.phpt` corpus passes at a structurally lower rate than a compatibility-first design would, and a failure in a listed class is intentional rather than a regression",
       "seeAlso": [
@@ -21,31 +22,29 @@
         "php-migration/absent-storage-is-never-a-zero-value",
         "php-migration/a-declared-type-answers-before-the-program-runs",
         "php-migration/an-element-write-needs-storage-to-write-back-into",
-        "php-migration/a-body-never-falls-off-its-end"
+        "php-migration/a-body-never-falls-off-its-end",
+        "php-migration/one-type-test"
       ],
       "guardedBy": []
     },
     {
       "id": "php-migration/a-declared-type-answers-before-the-program-runs",
-      "title": "`->` on a receiver that can hold no object, and `instanceof` on a subject that can hold none, are refused where they are written",
+      "title": "`->` on a receiver that can hold no object is refused where it is written",
       "status": "shipped",
       "because": [
         "0007",
-        "0150"
+        "0150",
+        "0192"
       ],
-      "divergesFromPhp": "`$i->name` on an `int` and `1 instanceof Box` are compile errors (`E0495`, `E0497`) rather than a warning yielding `null` and a `false`; only `mixed`, `object`, a shape and a union holding a class keep PHP's run-time answer",
+      "divergesFromPhp": "`$i->name` on an `int` is a compile error (`E0495`) rather than a warning yielding `null`; only `mixed` keeps PHP's run-time answer, through a name-keyed fetch that throws",
       "seeAlso": [
         "types/erased-member-access",
-        "types/narrowing",
         "types/unions-and-mixed",
-        "types/class-reference",
         "types/type-test",
         "expressions/disjoint-comparison-refused"
       ],
       "guardedBy": [
-        "tests/conformance/lang/a-property-through-a-receiver-that-holds-no-object-is-a-compile-error.nvst",
-        "tests/conformance/lang/instanceof-refuses-a-subject-that-can-hold-no-object.nvst",
-        "tests/conformance/class/instanceof-through-an-erased-subject-answers-every-tag.nvst"
+        "tests/conformance/lang/a-property-through-a-receiver-that-holds-no-object-is-a-compile-error.nvst"
       ]
     },
     {
@@ -178,7 +177,8 @@
       "status": "designed",
       "because": [
         "0124",
-        "0150"
+        "0150",
+        "0192"
       ],
       "divergesFromPhp": "`let` and `is` cannot name anything (deprecated as identifiers in 8.6), so a converted program renames them",
       "seeAlso": [
@@ -189,21 +189,21 @@
         "classes/reserved-spellings-are-lower-case",
         "security/no-eval",
         "php-migration/a-deprecation-is-a-refusal",
-        "php-migration/is-takes-pattern-matchings-type-patterns"
+        "php-migration/one-type-test"
       ],
       "guardedBy": []
     },
     {
-      "id": "php-migration/is-takes-pattern-matchings-type-patterns",
-      "title": "`is` implements the type-pattern half of PHP's Pattern Matching RFC and reserves every other row of it",
+      "id": "php-migration/one-type-test",
+      "title": "`instanceof` is refused where it is written, `is` is the one type test, and neither keyword is compared with PHP again",
       "status": "designed",
       "because": [
-        "0150"
+        "0192"
       ],
-      "divergesFromPhp": "PHP reserved `is` for pattern matching and has not voted it; Novis ships the settled type-pattern half now, refuses `is 3.14` for want of a float literal type, and leaves binding, destructuring, array patterns, comparison patterns and pinning unclaimed",
+      "divergesFromPhp": "PHP keeps `instanceof` beside the `is` it has reserved; Novis refuses the spelling outright and names the rewrite, and gives `$x is $cls` the dynamic class test PHP's Pattern Matching RFC leaves unclaimed",
       "seeAlso": [
         "types/type-test",
-        "types/literal-types",
+        "types/narrowing",
         "types/class-reference-sites",
         "php-migration/let-and-is-are-reserved",
         "php-migration/every-divergence-is-deliberate-and-listed"

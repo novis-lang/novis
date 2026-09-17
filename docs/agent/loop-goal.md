@@ -29,7 +29,7 @@ is only that this one's sweep is cheaper on a tree whose gaps are already closed
 Sentences on disk this goal makes wrong, each with its home. None is edited ahead of the stage that
 owns it; the list exists so a session does not rediscover one and treat it as a gap.
 
-- `rule:php-migration/is-takes-pattern-matchings-type-patterns` § *Why `$x is $cls` is refused* says a bare
+- `php-migration/is-takes-pattern-matchings-type-patterns` § *Why `$x is $cls` is refused* said a bare
   variable on the right of `is` is a top-level capture in PHP. The RFC as read for this goal — version
   0.9, *in discussion* — permits binding only inside an object or array pattern and refuses a bare
   variable as a whole pattern. The rule is deleted in stage 2 with the sentence in it.

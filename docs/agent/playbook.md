@@ -1796,13 +1796,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   with `git status` still clean, because the commit-side normalization makes them equal. Run `git
   ls-files --eol <path>` before believing such a diff, and build a frozen fixture with the Write
   tool rather than `cp`, because `nvs fmt` writes LF. [until: reviewed 2026-10-12]
-- **A `[1 floor]` example check can be red because a container is not listening, and the ledger shows
-  a config *warning* as the reason.** `[docker] memoize_on` in `docs/agent/loop-goal.toml` skips the
-  compose bring-up while those crates are untouched, so a host that rebooted mid-run leaves postgres
-  and redis down and every store-backed example fails at its first connection — with a `W1008` or
-  another warning reported in its place, because only the first line of stderr is shown. Run `docker
-  compose -f tests/db/compose.yaml up -d` and the example by hand before reading the tree.
-  [until: gone docs/agent/loop-goal.toml:memoize_on]
 - **A `nvs-fmt` stage that reads the text between two nodes is reading comments too.** The gap
   between two children of one production is trivia as well as code, so a scan for a separator in it
   finds the `,`, `{` or `=>` inside a comment — and an arm boundary taken from one puts a rewrite in
@@ -2346,6 +2339,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   --check` reports a structural finding naming a milestone, run `python tools/plan.py --past` to see
   which milestone completed and `python tools/plan.py --sync` to write the cell; it is one edit and
   never the work the goal was doing. [until: reviewed 2026-09-18]
+- **Deleting a rule strands `rule:` citations in files nothing may rewrite — a frozen record's body,
+  a retired goal's `.md` — and `records.py --check` also refuses the dead id in the creating record's
+  `changes.creates`.** `rules.py --check` scans `docs/**/*.md` whole, so "frozen history is never
+  edited" and "no citation dangles" cannot both hold. Drop the `rule:` prefix in the frozen prose —
+  the id still reads as a name — and delete it from `changes.creates`, which is the machine-read
+  relation, not the reasoning. [until: reviewed 2026-09-18]
 
 ## Running things
 

@@ -10,7 +10,7 @@ and this goal is its implementation: the grammar, the checker, the three refusal
 and the codegen.
 
 `rule:types/type-test` is the operator and owns its accepted set.
-`rule:php-migration/is-takes-pattern-matchings-type-patterns` is the standing contract with PHP and is
+`php-migration/is-takes-pattern-matchings-type-patterns` is the standing contract with PHP and is
 what this goal must not quietly widen. **Neither is this goal's to re-open.**
 
 Its floor is goal `signed-urls`'s whole list. It also depends on goal `surface`, which is where `is` becomes a reserved
@@ -128,7 +128,7 @@ two divergence rows — a `uint` answering `is uint` and not `is int`, and `byte
 - **This goal opens no new ADR number.** [ADR 0150](../../decisions/0150.md) is accepted and is the
   whole design, so every call these stages reach has a section of it to read. A gap found in it is an
   edit to `rule:types/type-test`'s fragment through a record whose `changes:` block names it, never an
-  overlay here. `rule:php-migration/is-takes-pattern-matchings-type-patterns` is the contract with PHP
+  overlay here. `php-migration/is-takes-pattern-matchings-type-patterns` is the contract with PHP
   and is not this goal's to widen — the lead paragraph says so and it is repeated here because a
   widening looks like a convenience at the moment a case fails.
 - **The result is `bool` for every subject, and the `instanceof` analogy is the trap.** 0150 § 6 is the

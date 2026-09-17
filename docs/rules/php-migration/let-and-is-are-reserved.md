@@ -4,18 +4,18 @@ once, because the cost of reserving now is near zero while the cost of taking ei
 breaking rename. A converted program renames any `let` or `is` it used as a name, and the rewrite is
 mechanical.
 
-**The two are reserved for unrelated reasons, and only one of them still has no construct.** PHP's
-*Deprecations for PHP 8.6* RFC gives each its own motivation: `let` for the block-scoping construct,
-whose own RFC was declined, and `is` for the Pattern Matching RFC, by name.
+**The two are reserved for unrelated reasons, and only one of them still has no construct.**
 
 - **`let` is the empty kind** — the family of `eval`, `goto` and `list`, where the spelling is held
   and nothing is behind it, so nothing a user wrote has to be renamed out from under a future
-  decision.
-- **`is` is not.** It is the type test, `$x is T` (`rule:types/type-test`), which takes the settled
-  half of the RFC PHP reserved the word for and leaves the rest of it unclaimed
-  (`rule:php-migration/is-takes-pattern-matchings-type-patterns`).
+  decision. Its block-scoping RFC was declined in PHP and nothing replaces it here.
+- **`is` is not.** It is the type test, `$x is T` (`rule:types/type-test`), and the only one there is.
+- **`instanceof` is neither**, and is the third spelling this rule's diagnostics have to know about:
+  it is a word Novis refuses where a PHP program writes it, naming `is` as the rewrite
+  (`rule:php-migration/one-type-test`). It was never a name in either language, so nothing is
+  reserved by refusing it — the token exists only so the refusal can spell it.
 
 The diagnostics name the living spellings: `var` declares an inferred local
-(`rule:types/var-inference`), `is` and `instanceof` test (`rule:types/narrowing`) and `as` converts
+(`rule:types/var-inference`), `is` tests (`rule:types/narrowing`) and `as` converts
 (`rule:expressions/nullable-conversion`). Like every reserved word, both match in lower case only
 (`rule:classes/reserved-spellings-are-lower-case`).

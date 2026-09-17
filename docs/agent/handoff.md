@@ -2,50 +2,59 @@
 
 ## State
 
-**Goal 67 — `is` is the one type test, and `instanceof` is gone — has just started; nothing of it has
-landed yet.** Goal `decided-closures`'s whole list is this goal's Stage 1 floor.
+**Goal `one-type-test`, stage 2 is landed.** [ADR 0192](../decisions/0192.md) is written and accepted,
+`rule:php-migration/one-type-test` is created (`status: designed`, it flips at stage 7),
+`php-migration/is-takes-pattern-matchings-type-patterns` is deleted — fragment, entry and every
+`seeAlso` — and the six fragments the record modifies are rewritten to the language this goal ships.
+The chapters, `ground-rules.md` and `divergences.md` are re-rendered.
 
-Everything is settled before the first session, and the first session writes the settlement down
-before any code moves: the decision record and the rulebook are stage 2, and the goal's prose spells
-out what the record's `Context`, `Decision`, `Alternatives rejected` and `Revisiting` hold, which rule
-it creates, which rule it deletes and which six it modifies. The one thing no session re-decides is
-the standing decision at the top of § *Standing decisions*: Novis diverges from PHP on `is` and
-`instanceof` for good, and no session compares either keyword with PHP again — the RFC was read once,
-its reading is frozen in the record, and it is not read again.
+**The rulebook now leads the tree, on purpose.** No code moved: `instanceof` still parses, `E0497`
+still refuses a scalar subject and `E0812` still refuses `$x is $cls`. Stages 3 to 6 close that gap;
+nothing is blocked, and `python tools/verify.py` was 11 of 11 green at this commit.
 
-Goal `core-class-tests`'s descriptor work is on `main` (stage 0's last bullet), so `is Core\Time\Date`
-already has a path to run on and nothing here builds a second one.
+Two frozen files had to be touched for `rules.py --check`, in the shape the new playbook bullet
+gives: `docs/decisions/0150.md` (the deleted id out of `changes.creates`, one body citation
+de-prefixed) and `docs/agent/goals/33-type-test.md` (two citations de-prefixed). The website's rule
+mirror is now stale for these rules and nothing gates it, as its own playbook bullet says.
 
 ## Next group
 
-**Stage 2: the record and the rulebook** — one file set: `docs/decisions/` (one new record at the
-next free number), `docs/rules/php-migration.json`, `docs/rules/types.json`,
-`docs/rules/php-migration/one-type-test.md` (new), and the six fragments the record modifies:
-`docs/rules/types/type-test.md`, `docs/rules/types/narrowing.md`,
-`docs/rules/types/class-reference-sites.md`, `docs/rules/php-migration/let-and-is-are-reserved.md`,
-`docs/rules/php-migration/a-declared-type-answers-before-the-program-runs.md`,
-`docs/rules/php-migration/every-divergence-is-deliberate-and-listed.md`.
+**Stage 3: the front end** — one file set: `crates/nvs-syntax/src/parser/expr.rs`,
+`crates/nvs-syntax/src/parser/ty.rs`, `crates/nvs-syntax/src/ast.rs`, `crates/nvs-syntax/src/token.rs`,
+`crates/nvs-types/src/expr/type_test.rs`, `crates/nvs-types/src/expr/members.rs`,
+`crates/nvs-types/src/expr/mod.rs`, `crates/nvs-types/src/locals.rs`,
+`crates/nvs-types/src/expr_table.rs`, `crates/nvs-diagnostics/src/lib.rs`. The goal's `.toml` names
+the four guard tests this stage owes, by function name, under `stage = "3 the front end"`.
 
-- [ ] **The record** — written from `conventions.md` § *A decision record*; `changes.creates` is
-      `php-migration/one-type-test`, `changes.modifies` is the six above; § *Context* freezes the one
-      reading of PHP's RFC and the 8.6 deprecation; § *Revisiting* names one Novis trigger and no PHP
-      one.
-- [ ] **The new fragment and its JSON entry**, `status: designed`, placed beside
-      `let-and-is-are-reserved` in `php-migration.json`'s `rules` array, its `divergesFromPhp` the one
-      sentence `divergences.md` prints.
-- [ ] **`is-takes-pattern-matchings-type-patterns` deleted** — fragment and entry, every `seeAlso`
-      that names it swept, and if `changes:` has no key for a removal, one sentence in § *Decision*.
-- [ ] **The six fragments rewritten** to the language this goal ships, each `because` gaining the
-      record's number, then `python tools/rules.py --render`.
-- [ ] Stage 2's five checks green: `rules.py --check`, `rules.py --render --check`,
-      `records.py --check`, and the two `git grep`s.
+- [ ] **The grammar** — `ExprKind::InstanceOf` deleted at `crates/nvs-syntax/src/ast.rs:932`;
+      `ExprKind::TypeTest` carries `against: TestOperand` (`Type` | `Value(Box<Expr>)`);
+      `parse_instanceof` at `crates/nvs-syntax/src/parser/expr.rs:553` becomes `parse_type_test`, a
+      `$variable` after `is` starting the value arm at the `|>` level and every other token a type;
+      `reject_value_in_type_test` at `crates/nvs-syntax/src/parser/ty.rs:190` goes.
+      `rule:types/type-test` § *The value arm* is the shape.
+- [ ] **The refusal** — `Keyword::InstanceOf` stays a token (`crates/nvs-syntax/src/token.rs:425`) so
+      the spelling can be named; met where a binary operator may stand it reports **`E0253`**, the
+      number ADR 0192 § 7 fixes, added beside `E_RESERVED_FOR_FUTURE_USE` at
+      `crates/nvs-diagnostics/src/lib.rs:514`, and consumes its right operand.
+- [ ] **The checker** — the value arm in `infer_type_test` at
+      `crates/nvs-types/src/expr/type_test.rs:73`: a `class<T>` operand records
+      `ExprInfo::ClassRefTest { base }`, anything else is `E0496`; a subject that can hold no object
+      records a settled `false` and no diagnostic. `infer_instanceof`
+      (`crates/nvs-types/src/expr/members.rs:303`), `testable_class_name` (`:414`) and
+      `instanceof_residue` (`crates/nvs-types/src/locals.rs:477`) go, with the dispatch arm at
+      `crates/nvs-types/src/expr/mod.rs:417`; the `is` residue narrows the value form to `T` on the
+      true edge (`rule:types/narrowing`).
+- [ ] **The codes** — `E0496`'s doc comment at `crates/nvs-diagnostics/src/lib.rs:1331` rewritten to
+      its three sites (`rule:types/class-reference-sites`), and its `E_INSTANCEOF_*` constant name
+      with it; `E0497` (`crates/nvs-diagnostics/src/lib.rs:1340`) and `E0812` (`:3559`) retired,
+      constants and doc comments deleted, numbers never reassigned.
 
 ## Backlog
 
-- Stage 3 (the front end: `nvs-syntax`, `nvs-types`, `nvs-diagnostics`) and stage 4 (the lowering,
-  the codegen, the runtime rename), each its own file set; stage 4 cannot start before stage 3's
-  `ExprKind::TypeTest` carries the value arm.
-- Stage 5 (`nvs-stdlib`'s `Core\Ast` roster, the LSP, the formatter) and stage 6 (the test sweep and
-  the renames, each rename patched everywhere it is named in the same slice).
-- Stage 7 (the prose sweep, the rule flipped to `shipped`, the absence gate).
-- When this goal's last check goes green the driver takes goal `gap-zero`.
+- Stage 4: the primitive renamed — `InstKind::InstanceOf` → `ClassTest` and the runtime entry points
+  with it (goal prose § *Stage 4*).
+- Stage 5: `Core\Ast`'s roster, `Core\Debug`/`Core\Reflect` docs, the LSP arms, the formatter fixture.
+- Stage 6: every `.nvst`/`.lspt`/Rust guard test respelled, and the renames patched everywhere named.
+- Stage 7: the prose sweep, `status: shipped`, and the `git grep -i -w instanceof` absence gate.
+- The website rule mirror is stale for the rules this stage touched; nothing gates it, and a by-hand
+  re-render is the only fix (playbook, *Tooling*).

@@ -2,11 +2,8 @@
 `$x is $cls` is refused, because the right-hand side of `is` is a type and a variable names a value — `instanceof` is the dynamic class test (`rule:types/type-test`, `rule:types/class-reference-sites`)
 --FILE--
 <?nvs
-// The refusal that keeps the spelling free. PHP's Pattern Matching RFC
-// binds a variable in this position
-// (`rule:php-migration/is-takes-pattern-matchings-type-patterns`), so `is`
-// cannot quietly read one as a class name here and stay compatible with the
-// RFC we implement a row of.
+// The right-hand side of `is` is a type, and a variable there names a value
+// rather than one.
 class Animal {}
 
 mixed $pet = new Animal();

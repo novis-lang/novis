@@ -798,10 +798,12 @@ diagnostic, not a runtime check.
 `$x is T` asks whether a value currently holds a `T` and answers `bool`, for any type a value can
 inhabit. It is **strict** — nothing is coerced on the way to the answer — and it is **total**: it
 always compiles, and a result the checker can settle by itself folds to a constant rather than
-becoming a diagnostic.
+becoming a diagnostic. It is Novis's only type test: there is no second operator for the class case
+([`php-migration/one-type-test`](php-migration.md#php-migration-one-type-test)).
 
 The right-hand side is a **type**, parsed by the same production `as` uses
-([`types/conversion`](types.md#types-conversion)), not an expression. `is` is the question `as` was standing in for and never
+([`types/conversion`](types.md#types-conversion)), not an expression — with the single exception of § *The value arm* below,
+which a `$` opens and nothing else does. `is` is the question `as` was standing in for and never
 answered: `"7" as ?int` is `7`, because `string → int` is a conversion row, while `"7" is int` is
 `false`, because a `string` is not an `int`. One asks what a value can *become*, the other what it
 *is*.
@@ -825,8 +827,9 @@ if ($m is int) {
 | a literal type | `$x is 5`, `$x is 'yay'`, `$x is true` |
 | a class constant or an enum case | `$x is Mode::Read`, `$x is self::Wild` |
 | an enum | `$x is Rank` |
-| `mixed` | `$x is mixed` — always `true`, and the RFC's wildcard |
+| `mixed` | `$x is mixed` — always `true`, the wildcard |
 | a union or an intersection of any of those | `$x is int\|float`, `$x is Countable&Traversable` |
+| a class reference held in a binding | `$x is $cls` — § *The value arm* |
 
 `array<T>` with a named element type, and a shape, each cost an O(n) walk — the same walk
 `as array<T>` already performs, in a spelling that answers instead of throwing. An enum is its cases:
@@ -834,26 +837,36 @@ if ($m is int) {
 compare per case, and [`enums/representation`](enums.md#enums-representation) owns what that can tell apart — a value that reached
 `mixed` is its backing integer, so a case is not distinguishable there from that integer nor from
 another enum's case of the same value. Every other row is one tag comparison, or the descriptor walk
-`instanceof` already does.
+the class-test instruction performs.
 
 There is no float literal type to test against ([`types/literal-types`](types.md#types-literal-types)), so `$x is 3.14` is
 refused by that rule and not by this one.
 
-## The three refusals
+## The value arm
+
+A `$` after `is` opens the one arm that is a value rather than a type: `$x is $cls` is the **dynamic
+class test**, where `$cls` is a `class<T>` ([`types/class-reference`](types.md#types-class-reference)). It tests the class the
+subject holds against the descriptor the reference carries — the same descriptor walk a written class
+name lowers to — and narrows the subject to `T` on the true edge. `$x is $this->cls` is the same arm;
+every other token after `is` starts a type, which keeps a DNF type's opening `(` a type.
+
+A value on the right that is **not** a `class<T>` is `E0496`, the one report `new $v(...)` and
+`$v::f(...)` already share, with its help naming `as class<T>`
+([`types/class-reference-sites`](types.md#types-class-reference-sites)). A program that wants a computed class reference binds it to a
+local and converts it there; a call or a constant after `is` is read as a type and resolves or fails
+as one.
+
+## The two refusals
 
 | refused | code | why |
 |---|---|---|
 | `$x is tainted string`, `is secret bytes` | `E0813` | [`security/tainted-qualifier`](security.md#security-tainted-qualifier) erases both qualifiers before codegen. There is no runtime bit, so the question has no answer — not merely a knowable one |
 | `$x is void`, `$x is never` | `E0811` | no value inhabits either |
-| `$x is $cls` | `E0812` | that is a *value*, not a type. `$x instanceof $cls` is the dynamic class test ([`types/class-reference-sites`](types.md#types-class-reference-sites)), and the spelling stays refused because PHP's grammar binds a variable there ([`php-migration/is-takes-pattern-matchings-type-patterns`](php-migration.md#php-migration-is-takes-pattern-matchings-type-patterns)) |
 
 Nothing else is refused. In particular a test whose answer the declaration already settles is **not**:
-`int $n; $n is int` compiles and is `true`, and `int $n; $n is string` compiles and is `false`. That
-differs from `instanceof`, which refuses a subject that can hold no object at all (`E0497`,
-[`php-migration/a-declared-type-answers-before-the-program-runs`](php-migration.md#php-migration-a-declared-type-answers-before-the-program-runs)) — but `instanceof` needs a class
-to test against and a scalar has none, so the operator is genuinely *inapplicable* there. `is` is
-applicable everywhere, because every value has a representation. A knowable answer is not a
-meaningless question.
+`int $n; $n is int` compiles and is `true`, `int $n; $n is string` compiles and is `false`, and
+`int $n; $n is Request` compiles and is `false` like the rest. `is` is applicable to every subject,
+because every value has a representation, and a knowable answer is not a meaningless question.
 
 Narrowing is the second reason. Once `is` narrows, a guard written inside an already-narrowed branch
 is statically true by construction, and refusing that would let a flow analysis turn working code into
@@ -861,9 +874,9 @@ a compile error.
 
 ## What it narrows
 
-`is` narrows its subject on the **true edge**, and is the fifth spelling in [`types/narrowing`](types.md#types-narrowing) —
-which owns every other property of narrowing, including that it changes what is known about a binding
-and never its declared type.
+`is` narrows its subject on the **true edge**, and is one of the four spellings in
+[`types/narrowing`](types.md#types-narrowing) — which owns every other property of narrowing, including that it changes what
+is known about a binding and never its declared type.
 
 ## Where it answers differently from PHP
 
@@ -873,25 +886,28 @@ migration spelling. `string` and `bytes` are separate the same way
 ([`types/string-is-utf8`](types.md#types-string-is-utf8), [`types/bytes`](types.md#types-bytes)), so binary data answers `is bytes` where PHP's
 `is_string()` is true. Both are consequences of a finer type system rather than of this operator, and
 `is` is simply the first spelling that makes them reachable from a mechanical rewrite of PHP source.
+What that rewrite does with `instanceof` is [`php-migration/one-type-test`](php-migration.md#php-migration-one-type-test)'s.
 
-<sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/literal-types`](types.md#types-literal-types), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`php-migration/is-takes-pattern-matchings-type-patterns`](php-migration.md#php-migration-is-takes-pattern-matchings-type-patterns). Decided in [0150](../decisions/0150.md).</sub>
+<sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/literal-types`](types.md#types-literal-types), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`php-migration/one-type-test`](php-migration.md#php-migration-one-type-test). Decided in [0150](../decisions/0150.md), [0192](../decisions/0192.md).</sub>
 
 <a id="types-narrowing"></a>
 
-## Narrowing is flow-sensitive and branch-local, and there are exactly five spellings of it
+## Narrowing is flow-sensitive and branch-local, and there are exactly four spellings of it
 
 `rule:types/narrowing`
 
-Narrowing is flow-sensitive and **branch-local**, and there are five spellings of it: `is`,
-`instanceof`, a `== null` test, a comparison against a literal-typed value, and `match (true)`. A
-`switch (true)` narrows per arm the same way. A write inside a narrowed block widens the binding
-again, because the narrowing described the value that was there, not the slot.
+Narrowing is flow-sensitive and **branch-local**, and there are four spellings of it: `is`, a
+`== null` test, a comparison against a literal-typed value, and `match (true)`. A `switch (true)`
+narrows per arm the same way. A write inside a narrowed block widens the binding again, because the
+narrowing described the value that was there, not the slot.
 
-`is` is the general one — it tests a value against any type a value can inhabit, where `instanceof`
-tests only a class ([`types/type-test`](types.md#types-type-test) owns both the accepted set and why the two coexist). Every
-spelling narrows on the **true edge alone**. Subtracting a union member on the failing edge is
-deliberately not done by any of the five: it is a separable improvement, and one that has to be taken
-for all of them at once or not at all.
+`is` is the general one — it tests a value against any type a value can inhabit, and it is the only
+type test there is ([`types/type-test`](types.md#types-type-test)). Its value arm narrows too: `$x is $cls`, where `$cls` is
+a `class<T>`, narrows the subject to **`T`** on the true edge, which is sound because a `class<T>`
+holds `T` or an implementor of it ([`types/class-reference-sites`](types.md#types-class-reference-sites)). Every spelling narrows on the
+**true edge alone**. Subtracting a union member on the failing edge is deliberately not done by any of
+the four: it is a separable improvement, and one that has to be taken for all of them at once or not
+at all.
 
 Nothing else narrows. In particular an equality against an enum case does not — `$m == Mode::Read`
 leaves `$m` at its declared type in the branch it guards, and `$m as Mode::Read|Mode::Write` is how a
@@ -907,7 +923,7 @@ Narrowing never changes a binding's declared type ([`types/declaration`](types.m
 checker knows about it on one path. A value that has to *stay* narrowed is a second binding at the
 type you want, or a checked `as` ([`types/conversion`](types.md#types-conversion)).
 
-<sub>See also [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/conversion`](types.md#types-conversion), [`types/enum-case-type`](types.md#types-enum-case-type), [`types/type-test`](types.md#types-type-test). Decided in [0007](../decisions/0007.md), [0047](../decisions/0047.md), [0066](../decisions/0066.md), [0150](../decisions/0150.md).</sub>
+<sub>See also [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/conversion`](types.md#types-conversion), [`types/enum-case-type`](types.md#types-enum-case-type), [`types/type-test`](types.md#types-type-test), [`types/class-reference-sites`](types.md#types-class-reference-sites). Decided in [0007](../decisions/0007.md), [0047](../decisions/0047.md), [0066](../decisions/0066.md), [0150](../decisions/0150.md), [0192](../decisions/0192.md).</sub>
 
 <a id="types-conversion"></a>
 
@@ -1561,7 +1577,7 @@ Three spellings accept a `class<T>` operand, and nothing else:
 |---|---|---|
 | `new $cls(...)` | `T`'s constructor | the dynamic-new instruction `new static` already uses |
 | `$cls::f(...)` | `T`'s static or instance member roster | a virtual call |
-| `$x instanceof $cls` | nothing; the descriptor is the test | a descriptor-valued `instanceof` |
+| `$x is $cls` | nothing; the descriptor is the test | a descriptor-valued class test |
 
 Every other operand type keeps `E0496`, with its help naming `as class<T>`. A bare `string` is
 therefore still refused at all three sites — one refusal, with a fix the author can take.
@@ -1574,10 +1590,15 @@ PHP and never *different* from PHP: every program it accepts, PHP runs the same 
 deliberately checked at the `new` rather than at the class declaration — a subclass never instantiated
 through a class reference is nobody's problem.
 
+`$x is $cls` is the dynamic class test, and it narrows its subject to `T` on the true edge
+([`types/narrowing`](types.md#types-narrowing)) — the value it tests holds `T` or an implementor, so the narrowing is what
+the reference already promised. PHP spells this site `instanceof`, which Novis refuses
+([`php-migration/one-type-test`](php-migration.md#php-migration-one-type-test)).
+
 `$obj->$name` is untouched by any of this: a class reference answers "which class", never "which
 member" ([`types/property-key-access`](types.md#types-property-key-access)).
 
-<sub>See also [`types/class-reference`](types.md#types-class-reference), [`types/property-key-access`](types.md#types-property-key-access). Decided in [0125](../decisions/0125.md), [0007](../decisions/0007.md), [0126](../decisions/0126.md).</sub>
+<sub>See also [`types/class-reference`](types.md#types-class-reference), [`types/property-key-access`](types.md#types-property-key-access), [`types/type-test`](types.md#types-type-test), [`php-migration/one-type-test`](php-migration.md#php-migration-one-type-test). Decided in [0125](../decisions/0125.md), [0007](../decisions/0007.md), [0126](../decisions/0126.md), [0192](../decisions/0192.md).</sub>
 
 <a id="types-class-constant"></a>
 

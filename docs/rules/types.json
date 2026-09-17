@@ -325,17 +325,17 @@
       "id": "types/type-test",
       "title": "`$x is T` tests whether a value holds a `T`, answers `bool`, and never refuses because the answer is knowable",
       "status": "designed",
-      "because": ["0150"],
+      "because": ["0150", "0192"],
       "divergesFromPhp": "`int` and `uint` are separate tags, so a `BIGINT UNSIGNED` value answers `is uint` and not `is int` where `is_int()` was true for both, and `string` and `bytes` are separate the same way; `is 3.14` is refused outright, there being no float literal type",
-      "seeAlso": ["types/narrowing", "types/conversion", "types/unions-and-mixed", "types/literal-types", "types/class-reference-sites", "php-migration/is-takes-pattern-matchings-type-patterns"],
-      "guardedBy": []
+      "seeAlso": ["types/narrowing", "types/conversion", "types/unions-and-mixed", "types/literal-types", "types/class-reference-sites", "php-migration/one-type-test"],
+      "guardedBy": ["tests/conformance/class/instanceof-through-an-erased-subject-answers-every-tag.nvst"]
     },
     {
       "id": "types/narrowing",
-      "title": "Narrowing is flow-sensitive and branch-local, and there are exactly five spellings of it",
+      "title": "Narrowing is flow-sensitive and branch-local, and there are exactly four spellings of it",
       "status": "shipped",
-      "because": ["0007", "0047", "0066", "0150"],
-      "seeAlso": ["types/unions-and-mixed", "types/conversion", "types/enum-case-type", "types/type-test"],
+      "because": ["0007", "0047", "0066", "0150", "0192"],
+      "seeAlso": ["types/unions-and-mixed", "types/conversion", "types/enum-case-type", "types/type-test", "types/class-reference-sites"],
       "guardedBy": [
         "tests/conformance/lang/a-null-test-narrows-a-nullable-local.nvst",
         "tests/conformance/lang/an-instanceof-narrows-its-subject-on-the-true-edge.nvst",
@@ -602,8 +602,8 @@
       "id": "types/class-reference-sites",
       "title": "Three sites accept a `class<T>`, and every other operand is still refused there",
       "status": "shipped",
-      "because": ["0125", "0007", "0126"],
-      "seeAlso": ["types/class-reference", "types/property-key-access"],
+      "because": ["0125", "0007", "0126", "0192"],
+      "seeAlso": ["types/class-reference", "types/property-key-access", "types/type-test", "php-migration/one-type-test"],
       "guardedBy": [
         "tests/conformance/class/a-class-reference-carries-a-static-call-and-an-instanceof.nvst",
         "tests/conformance/reject/a-subclass-with-another-constructor-refuses-a-dynamic-new.nvst",

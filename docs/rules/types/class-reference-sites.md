@@ -4,7 +4,7 @@ Three spellings accept a `class<T>` operand, and nothing else:
 |---|---|---|
 | `new $cls(...)` | `T`'s constructor | the dynamic-new instruction `new static` already uses |
 | `$cls::f(...)` | `T`'s static or instance member roster | a virtual call |
-| `$x instanceof $cls` | nothing; the descriptor is the test | a descriptor-valued `instanceof` |
+| `$x is $cls` | nothing; the descriptor is the test | a descriptor-valued class test |
 
 Every other operand type keeps `E0496`, with its help naming `as class<T>`. A bare `string` is
 therefore still refused at all three sites — one refusal, with a fix the author can take.
@@ -16,6 +16,11 @@ implementor of `T` declares a constructor incompatible with `T`'s (`E0794`). Thi
 PHP and never *different* from PHP: every program it accepts, PHP runs the same way. It is
 deliberately checked at the `new` rather than at the class declaration — a subclass never instantiated
 through a class reference is nobody's problem.
+
+`$x is $cls` is the dynamic class test, and it narrows its subject to `T` on the true edge
+(`rule:types/narrowing`) — the value it tests holds `T` or an implementor, so the narrowing is what
+the reference already promised. PHP spells this site `instanceof`, which Novis refuses
+(`rule:php-migration/one-type-test`).
 
 `$obj->$name` is untouched by any of this: a class reference answers "which class", never "which
 member" (`rule:types/property-key-access`).

@@ -12,8 +12,8 @@
 `rule:php-migration/every-divergence-is-deliberate-and-listed`
 
 PHP-compatible observable behaviour is the second priority, so a departure from it is never discovered
-later: every one is listed, PHP's behaviour beside Novis's. Each is reachable in PHP only *because* a
-binding somewhere is untyped, and each is what a declared type answers instead.
+later: every one is listed, PHP's behaviour beside Novis's. Almost every one is reachable in PHP only
+*because* a binding somewhere is untyped, and is what a declared type answers instead.
 
 The list, by where each is stated: array keys are always `string` ([`types/arrays`](types.md#types-arrays)); `int` and
 `uint` are distinct types, reported distinctly ([`types/uint`](types.md#types-uint)); every binding is declared and its
@@ -23,52 +23,47 @@ integer overflow, a fractional value where an integer is wanted, and an `int` to
 all throw ([`types/arithmetic`](types.md#types-arithmetic)); a return type is mandatory on every function, method and closure,
 `void` or `never` stated when there is no value ([`types/declaration`](types.md#types-declaration)); absent storage never reads
 as a zero value ([`php-migration/absent-storage-is-never-a-zero-value`](php-migration.md#php-migration-absent-storage-is-never-a-zero-value)); a declared type answers
-`->` and `instanceof` before the program runs
+`->` before the program runs
 ([`php-migration/a-declared-type-answers-before-the-program-runs`](php-migration.md#php-migration-a-declared-type-answers-before-the-program-runs)); an element write needs storage
 to write back into ([`php-migration/an-element-write-needs-storage-to-write-back-into`](php-migration.md#php-migration-an-element-write-needs-storage-to-write-back-into)); a body
 never falls off its end ([`php-migration/a-body-never-falls-off-its-end`](php-migration.md#php-migration-a-body-never-falls-off-its-end)); and a spread carrying a
 string key after an integer-looking one is accepted where PHP fatals, the variadic tail being the
 array itself ([`types/arrays`](types.md#types-arrays)).
 
+**One divergence is not of that kind**, and it is listed here so the exception is not mistaken for an
+oversight: `instanceof` is refused where it is written and `$x is T` is the one type test
+([`php-migration/one-type-test`](php-migration.md#php-migration-one-type-test)). No untyped binding makes it reachable — it is a choice of
+spelling, taken because one operator answers what PHP splits across two. It costs a converted program
+a mechanical rewrite and never a silent change of meaning, since the refused word does not compile.
+
 The consequence to plan around: the imported `.phpt` corpus passes at a **structurally lower** rate
 than a compatibility-first design would, and a failure in one of these classes is intentional
 divergence, not a bug. The tracked number distinguishes the two, or it reads as regression.
 
-<sub>See also [`types/declaration`](types.md#types-declaration), [`types/conversion`](types.md#types-conversion), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/arithmetic`](types.md#types-arithmetic), [`types/arrays`](types.md#types-arrays), [`types/uint`](types.md#types-uint), [`php-migration/absent-storage-is-never-a-zero-value`](php-migration.md#php-migration-absent-storage-is-never-a-zero-value), [`php-migration/a-declared-type-answers-before-the-program-runs`](php-migration.md#php-migration-a-declared-type-answers-before-the-program-runs), [`php-migration/an-element-write-needs-storage-to-write-back-into`](php-migration.md#php-migration-an-element-write-needs-storage-to-write-back-into), [`php-migration/a-body-never-falls-off-its-end`](php-migration.md#php-migration-a-body-never-falls-off-its-end). Decided in [0007](../decisions/0007.md).</sub>
+<sub>See also [`types/declaration`](types.md#types-declaration), [`types/conversion`](types.md#types-conversion), [`types/no-legacy-cast`](types.md#types-no-legacy-cast), [`types/arithmetic`](types.md#types-arithmetic), [`types/arrays`](types.md#types-arrays), [`types/uint`](types.md#types-uint), [`php-migration/absent-storage-is-never-a-zero-value`](php-migration.md#php-migration-absent-storage-is-never-a-zero-value), [`php-migration/a-declared-type-answers-before-the-program-runs`](php-migration.md#php-migration-a-declared-type-answers-before-the-program-runs), [`php-migration/an-element-write-needs-storage-to-write-back-into`](php-migration.md#php-migration-an-element-write-needs-storage-to-write-back-into), [`php-migration/a-body-never-falls-off-its-end`](php-migration.md#php-migration-a-body-never-falls-off-its-end), [`php-migration/one-type-test`](php-migration.md#php-migration-one-type-test). Decided in [0007](../decisions/0007.md), [0192](../decisions/0192.md).</sub>
 
 <a id="php-migration-a-declared-type-answers-before-the-program-runs"></a>
 
-## `->` on a receiver that can hold no object, and `instanceof` on a subject that can hold none, are refused where they are written
+## `->` on a receiver that can hold no object is refused where it is written
 
 `rule:php-migration/a-declared-type-answers-before-the-program-runs`
 
 `$i->name` where `$i` is declared `int` is refused where it is written (`E0495`); PHP warns *"Attempt
 to read property"* and yields `null`. A union naming no single class takes the same code, having no
-one property set to resolve against. `1 instanceof Box`, or `instanceof` over a declared scalar, an
-`array<T>`, an enum or a union naming no class, is refused the same way (`E0497`); PHP answers
-`false`, having no declaration to read. The subject's declaration has ruled the question out, so the
-test is dead code that reads as a live one — the same call
+one property set to resolve against. The receiver's declaration has ruled the question out, so the
+access is dead code that reads as a live one — the same call
 [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused) makes for `==` over two statically disjoint types.
 
-**What is refused is a subject that can hold no object at all, not a test whose answer is knowable**,
-and the two are easy to run together when reading this rule quickly. `$leaf instanceof Leaf` where
-`$leaf` is declared `Leaf` is statically true and **accepted**; so is `$leaf instanceof Other` for an
-unrelated class, which is statically false. `instanceof` is refused only where it is *inapplicable* —
-it needs a class to test against and a scalar has none. The general test that is applicable to every
-subject, and so refuses none, is `is` ([`types/type-test`](types.md#types-type-test)).
+**What is refused is a receiver that can hold no object at all, not an access whose outcome is
+knowable.** The type test is the other way round and refuses nothing: `$x is T` is applicable to every
+subject, and an answer its declaration settles folds to a constant rather than reporting
+([`types/type-test`](types.md#types-type-test)).
 
 `mixed` is the exception and keeps PHP's timing: it is the one unchecked position, so `$m->name`
 defers to [`types/erased-member-access`](types.md#types-erased-member-access)'s name-keyed fetch, which throws — in PHP's own wording —
-for a receiver that turns out not to be an object and for a name its class does not carry. `mixed`,
-`object`, a shape and any union holding a class keep the run-time `instanceof` test, and every
-non-object tag answers `false` there exactly as PHP does.
+for a receiver that turns out not to be an object and for a name its class does not carry.
 
-The class side is not a divergence. PHP's dynamic `$x instanceof $name` is spelled over a class
-reference — `$x instanceof $cls`, where `$cls` is a `class<T>` ([`types/class-reference`](types.md#types-class-reference)) — and
-tests the class that value holds; a bare `string` on the right is `E0496`, the name having been
-checked at the `as` that produced the reference, not at the test.
-
-<sub>See also [`types/erased-member-access`](types.md#types-erased-member-access), [`types/narrowing`](types.md#types-narrowing), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/class-reference`](types.md#types-class-reference), [`types/type-test`](types.md#types-type-test), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused). Decided in [0007](../decisions/0007.md), [0150](../decisions/0150.md).</sub>
+<sub>See also [`types/erased-member-access`](types.md#types-erased-member-access), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/type-test`](types.md#types-type-test), [`expressions/disjoint-comparison-refused`](expressions.md#expressions-disjoint-comparison-refused). Decided in [0007](../decisions/0007.md), [0150](../decisions/0150.md), [0192](../decisions/0192.md).</sub>
 
 <a id="php-migration-absent-storage-is-never-a-zero-value"></a>
 
@@ -234,81 +229,74 @@ once, because the cost of reserving now is near zero while the cost of taking ei
 breaking rename. A converted program renames any `let` or `is` it used as a name, and the rewrite is
 mechanical.
 
-**The two are reserved for unrelated reasons, and only one of them still has no construct.** PHP's
-*Deprecations for PHP 8.6* RFC gives each its own motivation: `let` for the block-scoping construct,
-whose own RFC was declined, and `is` for the Pattern Matching RFC, by name.
+**The two are reserved for unrelated reasons, and only one of them still has no construct.**
 
 - **`let` is the empty kind** — the family of `eval`, `goto` and `list`, where the spelling is held
   and nothing is behind it, so nothing a user wrote has to be renamed out from under a future
-  decision.
-- **`is` is not.** It is the type test, `$x is T` ([`types/type-test`](types.md#types-type-test)), which takes the settled
-  half of the RFC PHP reserved the word for and leaves the rest of it unclaimed
-  ([`php-migration/is-takes-pattern-matchings-type-patterns`](php-migration.md#php-migration-is-takes-pattern-matchings-type-patterns)).
+  decision. Its block-scoping RFC was declined in PHP and nothing replaces it here.
+- **`is` is not.** It is the type test, `$x is T` ([`types/type-test`](types.md#types-type-test)), and the only one there is.
+- **`instanceof` is neither**, and is the third spelling this rule's diagnostics have to know about:
+  it is a word Novis refuses where a PHP program writes it, naming `is` as the rewrite
+  ([`php-migration/one-type-test`](php-migration.md#php-migration-one-type-test)). It was never a name in either language, so nothing is
+  reserved by refusing it — the token exists only so the refusal can spell it.
 
 The diagnostics name the living spellings: `var` declares an inferred local
-([`types/var-inference`](types.md#types-var-inference)), `is` and `instanceof` test ([`types/narrowing`](types.md#types-narrowing)) and `as` converts
+([`types/var-inference`](types.md#types-var-inference)), `is` tests ([`types/narrowing`](types.md#types-narrowing)) and `as` converts
 ([`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion)). Like every reserved word, both match in lower case only
 ([`classes/reserved-spellings-are-lower-case`](classes.md#classes-reserved-spellings-are-lower-case)).
 
-<sub>See also [`types/var-inference`](types.md#types-var-inference), [`types/narrowing`](types.md#types-narrowing), [`types/type-test`](types.md#types-type-test), [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`classes/reserved-spellings-are-lower-case`](classes.md#classes-reserved-spellings-are-lower-case), [`security/no-eval`](security.md#security-no-eval), [`php-migration/a-deprecation-is-a-refusal`](php-migration.md#php-migration-a-deprecation-is-a-refusal), [`php-migration/is-takes-pattern-matchings-type-patterns`](php-migration.md#php-migration-is-takes-pattern-matchings-type-patterns). Decided in [0124](../decisions/0124.md), [0150](../decisions/0150.md).</sub>
+<sub>See also [`types/var-inference`](types.md#types-var-inference), [`types/narrowing`](types.md#types-narrowing), [`types/type-test`](types.md#types-type-test), [`expressions/nullable-conversion`](expressions.md#expressions-nullable-conversion), [`classes/reserved-spellings-are-lower-case`](classes.md#classes-reserved-spellings-are-lower-case), [`security/no-eval`](security.md#security-no-eval), [`php-migration/a-deprecation-is-a-refusal`](php-migration.md#php-migration-a-deprecation-is-a-refusal), [`php-migration/one-type-test`](php-migration.md#php-migration-one-type-test). Decided in [0124](../decisions/0124.md), [0150](../decisions/0150.md), [0192](../decisions/0192.md).</sub>
 
-<a id="php-migration-is-takes-pattern-matchings-type-patterns"></a>
+<a id="php-migration-one-type-test"></a>
 
-## `is` implements the type-pattern half of PHP's Pattern Matching RFC and reserves every other row of it  *(designed — not yet in the compiler)*
+## `instanceof` is refused where it is written, `is` is the one type test, and neither keyword is compared with PHP again  *(designed — not yet in the compiler)*
 
-`rule:php-migration/is-takes-pattern-matchings-type-patterns`
+`rule:php-migration/one-type-test`
 
-Novis's `is` implements the **type-pattern half** of PHP's Pattern Matching RFC and deliberately
-claims none of the rest, because PHP reserved the spelling for that RFC by name and has not yet voted
-on it. PHP 8.6 deprecates `is` as an identifier, and the *Deprecations for PHP 8.6* RFC gives one
-motivation and no other: to reserve it for pattern matching. That is a claim on the spelling, so
-Novis's job is to be a subset that stays true rather than a superset that has to be taken back.
+Novis has one type test, `$x is T`, and `instanceof` is refused where it is written: the diagnostic
+names the rewrite — *write `$x is Request`; a class reference on the right is `$x is $cls`* — and the
+converter performs it mechanically. PHP keeps both operators, and this is a deliberate divergence
+taken for good in 0192: `is` asks every question the pair used to split, so a language with both would
+be carrying a keyword for a special case of its own operator.
 
-[`types/type-test`](types.md#types-type-test) is the operator and owns its table. This rule owns the **relationship**: what
-we took, what we left, and what a future session must read before claiming any of it.
+[`types/type-test`](types.md#types-type-test) is the operator and owns its table. This rule owns everything about **either
+keyword and PHP**, and it is the only place any of it is written.
 
-## Taken, and identical to the RFC
+## What a converted program meets
 
-Type patterns (`is string`, `is Request`, `is ?array`, `is int|float`, `is iterable`, `is true`,
-`is mixed`), unions and intersections under DNF, literal patterns (`is 5`, `is 'yay'`,
-`is "beep"|"boop"`, `is null`), and class-constant patterns (`is MyEnum::Case`, `is self::Wild`).
-Every one of those is already a `Type` in our grammar, and the RFC's semantics for them are strict —
-the same strictness `is_int()` has — which is what `is` answers with.
+| PHP | Novis | why |
+|---|---|---|
+| `$x instanceof C` | `$x is C` | the converter rewrites it; the two answer identically for a class name |
+| `$x instanceof $cls` where `$cls` is a `string` | `E0496`, help *`as class<T>`* | a class reference is checked where it is made, not at the test ([`types/class-reference-sites`](types.md#types-class-reference-sites)) |
+| `$x instanceof $obj` | `E0496`, the same report | an object is not a class reference; `$obj::class as class<T>` is the spelling |
+| `$x is C` used as an identifier | renamed | [`php-migration/let-and-is-are-reserved`](php-migration.md#php-migration-let-and-is-are-reserved) |
 
-One row is not taken: `is 3.14`. [`types/literal-types`](types.md#types-literal-types) has no float literal type on purpose, so
-the test is refused rather than answered differently. A refusal is the safe side of a divergence.
+The converter is M11's, over `php-rs-parser`, and rewrites only the first row. The other two are left
+to `E0496` on purpose: a string or an object on the right of `instanceof` is a place where PHP resolves
+a name at run time, and the fix is a conversion the author picks the type for, not one a rewriter can
+guess.
 
-## Reserved, and not designed
+## What `$x is $cls` means here, and why it is not PHP's
 
-Variable binding and capture (`$p is Point(x: 3, y: $y)`), object destructuring, array sequence and
-associative patterns, comparison patterns (`is >5 & <10`), pinning (`^$var`), and `match ($x) is {…}`.
-Each parses to a refusal naming itself as reserved.
+`$x is $cls` tests the class a value holds against the descriptor a `class<T>` carries, and narrows
+its subject to `T` on the true edge ([`types/narrowing`](types.md#types-narrowing)). The value arm starts with `$`; every
+other token after `is` starts a type. PHP's Pattern Matching RFC refuses a bare variable as a whole
+pattern and so has no dynamic class test through `is` at all — the spelling is unclaimed there rather
+than claimed differently, which is why taking it costs nothing a converted program can trip over.
 
-These are precisely the rows the RFC has **not** settled: it is in discussion rather than voted, and
-the binding shorthand and the placement of `is` inside `match()` are both under open objection. A
-meaning invented for any of them now is a meaning that has to be taken back, and the taking back is a
-breaking change to a spelling that already compiles.
+## The RFC is not read again
 
-## Why `$x is $cls` is refused rather than useful
+PHP 8.6 deprecates `is` as an identifier to reserve it for pattern matching, and that RFC is in
+discussion. **No session re-reads it, tracks its vote, or compares either keyword with PHP again.**
+What was read once is frozen in 0192 § 1, and a session that finds itself weighing what PHP would do
+with either word has left the rule.
 
-A bare variable on the right of `is` is a **capture** in PHP's grammar — it binds and always matches —
-and the pinned form `^$var` compares with identity, which asks whether the subject *is* that descriptor
-rather than an instance of it. So PHP has no dynamic class test through `is`, and the RFC says `is` and
-`instanceof` coexist rather than one replacing the other.
+The shapes a pattern grammar would need — object and array patterns, comparison patterns, pinning,
+`match ($x) is {…}` — keep refusing as syntax Novis does not have, and **no diagnostic names an RFC**.
+Any future pattern syntax is a Novis design question, opened by its own record and decided on Novis's
+priorities.
 
-Novis could give `$x is $cls` the dynamic meaning, since it has no binding patterns. It does not,
-because that is the worst divergence available: the same line would mean two different things in the
-two languages and compile silently in both. `$x instanceof $cls` is the dynamic class test
-([`types/class-reference-sites`](types.md#types-class-reference-sites)), and it is the one thing `is` structurally cannot express.
-
-## What this rule is for
-
-Before any session claims a reserved row above, it re-reads the RFC as accepted rather than as
-described here — the contested parts are the ones most likely to have moved — and records the result.
-[`types/type-test`](types.md#types-type-test)'s three refusals and this rule's reserved list are one decision seen from two
-sides, and neither is edited without the other.
-
-<sub>See also [`types/type-test`](types.md#types-type-test), [`types/literal-types`](types.md#types-literal-types), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`php-migration/let-and-is-are-reserved`](php-migration.md#php-migration-let-and-is-are-reserved), [`php-migration/every-divergence-is-deliberate-and-listed`](php-migration.md#php-migration-every-divergence-is-deliberate-and-listed). Decided in [0150](../decisions/0150.md).</sub>
+<sub>See also [`types/type-test`](types.md#types-type-test), [`types/narrowing`](types.md#types-narrowing), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`php-migration/let-and-is-are-reserved`](php-migration.md#php-migration-let-and-is-are-reserved), [`php-migration/every-divergence-is-deliberate-and-listed`](php-migration.md#php-migration-every-divergence-is-deliberate-and-listed). Decided in [0192](../decisions/0192.md).</sub>
 
 <a id="php-migration-a-deprecation-is-a-refusal"></a>
 

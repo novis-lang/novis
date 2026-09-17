@@ -183,7 +183,7 @@ rules = [
   "types/class-reference-sites",
   "php-migration/let-and-is-are-reserved",
   "php-migration/a-declared-type-answers-before-the-program-runs",
-  "php-migration/is-takes-pattern-matchings-type-patterns",
+  "php-migration/one-type-test",
 ]
 shapes = ["A rule fragment", "A decision record", "Citing a document"]
 
