@@ -522,13 +522,11 @@ pub(crate) const STREAM: CoreClass = CoreClass {
         names: &["chunk"],
         // A union rather than `Core\Socket`'s two members, because a chunk of a
         // response body is one thing written two ways where a WebSocket frame's
-        // two payload kinds are two things on the wire. What it costs is the
-        // classification: [`CoreTy::classification`] answers `None` for a
-        // union, so this parameter refuses a `tainted` argument
-        // (`rule:security/unclassified-parameter-refuses-tainted`) where
-        // `Core\Response::text` accepts one. That is the fail-closed direction
-        // of the two, and it is the only mark a union leaves room for — the
-        // card below says so where a caller reads it.
+        // two payload kinds are two things on the wire. The classification is
+        // written on both arms and the union answers it
+        // ([`CoreTy::classification`]): [`Qual::Neutral`], so a `tainted`
+        // chunk is admitted exactly as `Core\Response::text` admits one and
+        // nothing comes back out to carry the qualifier.
         params: &[CoreTy::Union(&[
             CoreTy::Text(Qual::Neutral),
             CoreTy::Blob(Qual::Neutral),
@@ -572,9 +570,9 @@ const STREAM_WRITE_DOC: MethodDoc = MethodDoc {
     params: &[ParamDoc {
         name: "chunk",
         desc: "The bytes to send, unchanged, as text or as `bytes`. An empty chunk reaches no \
-               wire and is not an error. A `tainted` value is refused at compile time: a \
-               parameter taking two shapes carries no classification, and refusing is the safe \
-               half of that.",
+               wire and is not an error. A `tainted` value is accepted, as it is at \
+               `Core\\Response::text`: the chunk goes out to the client that sent it and \
+               nothing is answered for the qualifier to carry.",
         shape: &[],
     }],
     ret: "Nothing. The chunk has been handed to the connection by the time this returns.",

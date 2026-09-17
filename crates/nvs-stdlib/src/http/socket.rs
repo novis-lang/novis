@@ -195,15 +195,15 @@ impl Drop for Open {
 /// `rule:http-server/an-outbound-socket-is-opened-like-an-outbound-call`'s
 /// conversation: what a program does with a socket once it has one.
 ///
-/// # Two send members, because two payload kinds and one qualifier question
+/// # Two send members, because the payload kinds are two
 ///
 /// `send` and `sendBytes` are [`crate::socket::CLASS`]'s shapes and are here
-/// for its reason, which is the qualifier rather than symmetry:
-/// [`CoreTy::classification`] answers `None` for a [`CoreTy::Union`], and a
-/// text-like parameter carrying no classification refuses a `tainted`
-/// argument — so a parameter spelled `string|bytes` would have made `send` a
-/// sink by accident, and the loop that forwards what the peer just sent would
-/// not compile. Two classified parameters say what a union cannot.
+/// for its reason: RFC 6455 frames text and binary separately, so the member a
+/// call picks is the opcode it means. Both parameters carry
+/// [`Qual::Neutral`] — a frame is not an instruction on this side of the wire
+/// — and a `string|bytes` parameter would answer that same mark off its arms
+/// ([`CoreTy::classification`]), so the loop that forwards what the peer just
+/// sent compiles either way.
 ///
 /// # `receive` answers `null` once, and that is the peer's close
 ///

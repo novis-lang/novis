@@ -379,11 +379,14 @@ fn qual_of(ty: &CoreTy) -> Option<Qual> {
         CoreTy::Variadic(elem) => qual_of(elem),
         // Which spellings carry one is the registry's own question and this is
         // not a second answer to it: every other walk here reads a row, and a
-        // leaf list restated on this side is how the two drift. What this adds
-        // is the variadic rule above, which the registry has no reason to know
-        // — an `array<text>` element and an options bag's members are
-        // unclassified for the reason `MethodSig::param_quals` records, and a
-        // `None` refuses a qualified argument exactly as `Sink` does.
+        // leaf list restated on this side is how the two drift. That is also
+        // why a union needs nothing here — the registry folds its arms into
+        // the parameter's mark, so this reads a declared classification
+        // whatever the parameter's type. What this adds is the variadic rule
+        // above, which the registry has no reason to know — an `array<text>`
+        // element and an options bag's members are unclassified for the reason
+        // `MethodSig::param_quals` records, and a `None` refuses a qualified
+        // argument exactly as `Sink` does.
         _ => ty.classification(),
     }
 }
@@ -417,12 +420,13 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         // qualifier back out.
         //
         // **What has no mark is a nested spelling.** `qual_of` answers `None`
-        // for a `CoreTy::Union`, for an `array<text>` element and for an
-        // options bag's members, and `None` refuses a qualified argument
-        // exactly as `Sink` does. That is safe and over-strict — it is how
-        // `Core\Regex`'s seven `Pattern|string` parameters refuse a tainted
-        // pattern without a row saying so — and it is the reason a union can
-        // never be given an *accepting* mark without widening this function.
+        // for an `array<text>` element and for an options bag's members, and
+        // `None` refuses a qualified argument exactly as `Sink` does. A
+        // `CoreTy::Union` is not one of those: it answers the mark its arms
+        // declare, so `Core\Regex`'s `Pattern|string` parameters are a sink
+        // because their text arm is written that way —
+        // `nvs_stdlib::registry::CoreTy::Union` owns that rule and what two
+        // disagreeing arms answer.
         CoreTy::Str | CoreTy::Text(_) => interner.string(),
         // `rule:security/isolate-shares-nothing`'s entry operand accepts two written shapes and is a
         // *syntactic* rule over them, so there is no declared type that states

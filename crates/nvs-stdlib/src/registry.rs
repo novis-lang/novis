@@ -210,6 +210,24 @@ pub enum Qual {
     Reveal,
 }
 
+impl Qual {
+    /// Whether two marks are the same one.
+    ///
+    /// The derived `PartialEq` answers this everywhere else; this exists
+    /// because [`CoreTy::classification`] is a `const fn` and asks it while
+    /// folding a union's arms together, where `==` is not available.
+    const fn same_as(self, other: Self) -> bool {
+        matches!(
+            (self, other),
+            (Self::Contagious, Self::Contagious)
+                | (Self::Sink, Self::Sink)
+                | (Self::Neutral, Self::Neutral)
+                | (Self::Launder, Self::Launder)
+                | (Self::Reveal, Self::Reveal)
+        )
+    }
+}
+
 /// One type in a `Core` member's signature.
 ///
 /// Deliberately smaller than `nvs_types::ty::Ty`: this describes what the
@@ -558,6 +576,19 @@ pub enum CoreTy {
     /// one that showed the restriction was about `null` rather than about
     /// literals. `a_nullable_option_omits_as_the_never_written_marker` holds
     /// the pairing.
+    ///
+    /// **Its classification is the one its arms declare.** A union is the one
+    /// parameter spelling with no cell of its own, so [`Self::classification`]
+    /// folds its members: the marks the arms carry, where they agree, are the
+    /// parameter's — `Core\Regex`'s `Pattern|string` is
+    /// `rule:security/regex-pattern-is-a-sink`'s sink because its text arm is
+    /// written [`Qual::Sink`], and `Core\Compress`'s `bytes|string` is
+    /// [`Qual::Contagious`] because both of its arms are. A union whose arms
+    /// disagree, or whose text arm is an unclassified spelling, carries no
+    /// classification and so refuses a qualified argument
+    /// (`rule:security/unclassified-parameter-refuses-tainted`). A mark
+    /// therefore goes on the arm that can hold it, which is also where a union
+    /// wanting [`Qual::Launder`] writes one.
     Union(&'static [CoreTy]),
     /// **One `int` literal** — `rule:types/literal-types`'s integer atom, whose only use is inside a [`Self::Union`] that
     /// spells out a closed set of numbers.
@@ -1115,6 +1146,11 @@ impl CoreTy {
     /// carries none — every type that is not a `string`/`bytes` *parameter*,
     /// and the unclassified [`Self::Str`]/[`Self::Bytes`] spellings, whose
     /// `None` is the refusal rather than an omission.
+    ///
+    /// A [`Self::Union`] answers the mark its arms declare, which is the one
+    /// place a parameter's classification is not written beside the parameter
+    /// itself — that variant's own docs hold the rule and what a disagreement
+    /// answers.
     #[must_use]
     pub const fn classification(&self) -> Option<Qual> {
         match self {
@@ -1128,7 +1164,50 @@ impl CoreTy {
             // of them a sink and there is no cell for a row to say otherwise
             // in. See [`Self::Entry`].
             Self::Entry => Some(Qual::Sink),
+            Self::Union(members) => Self::union_classification(members, None),
             _ => None,
+        }
+    }
+
+    /// Whether this is one of the `string`/`bytes` spellings that has no cell
+    /// to write a classification in.
+    ///
+    /// The distinction the union walk needs and the parameter gate makes:
+    /// these four *could* carry a mark and do not, which
+    /// `rule:security/unclassified-parameter-refuses-tainted` turns into a
+    /// refusal, where an `int` or a class instance was never a qualifier
+    /// question at all. The leaf list is here because both readers ask.
+    const fn is_unclassified_string(&self) -> bool {
+        matches!(
+            self,
+            Self::Str | Self::Bytes | Self::SecretStr | Self::SecretBytes
+        )
+    }
+
+    /// The mark a union's arms declare, carrying the one found so far.
+    ///
+    /// An arm with no cell — an `int`, a class instance, an enum case —
+    /// contributes nothing, so `Pattern|string` answers what its text arm
+    /// says. An arm that could carry a mark and does not makes the whole union
+    /// unclassified, and so do two arms that disagree: both answer `None`,
+    /// which refuses a qualified argument exactly as [`Qual::Sink`] does, and
+    /// a union that means anything else says so on every arm that can hold it.
+    const fn union_classification(members: &[Self], found: Option<Qual>) -> Option<Qual> {
+        match members {
+            [] => found,
+            [head, rest @ ..] => {
+                if head.is_unclassified_string() {
+                    return None;
+                }
+                match (head.classification(), found) {
+                    (None, carried) => Self::union_classification(rest, carried),
+                    (Some(mark), None) => Self::union_classification(rest, Some(mark)),
+                    (Some(mark), Some(carried)) if mark.same_as(carried) => {
+                        Self::union_classification(rest, Some(carried))
+                    }
+                    _ => None,
+                }
+            }
         }
     }
 
@@ -4284,11 +4363,10 @@ mod tests {
     fn every_member_parameter_carries_a_qualifier_classification() {
         fn unclassified(ty: &CoreTy) -> bool {
             match ty {
-                CoreTy::Str | CoreTy::Bytes | CoreTy::SecretBytes | CoreTy::SecretStr => true,
                 CoreTy::Nullable(inner) | CoreTy::Variadic(inner) => unclassified(inner),
                 CoreTy::Union(members) => members.iter().any(unclassified),
                 CoreTy::Options(options) => options.iter().any(|option| unclassified(&option.ty)),
-                _ => false,
+                other => other.is_unclassified_string(),
             }
         }
 
@@ -4329,6 +4407,68 @@ mod tests {
                  UNCLASSIFIED; delete that line, because the list only shrinks"
             );
         }
+    }
+
+    /// A union parameter answers the mark its arms declare, both halves:
+    /// `Core\Regex`'s `Pattern|string` positions are
+    /// `rule:security/regex-pattern-is-a-sink`'s sink because their text arm
+    /// says so, and a union that declares nothing usable answers `None`, which
+    /// refuses.
+    ///
+    /// The table asks the second half where the registry has no row to ask it
+    /// of: a disagreement between two arms, and an arm that could carry a mark
+    /// and does not.
+    #[test]
+    fn a_union_parameter_carries_the_classification_its_arms_declare() {
+        let mut positions = 0;
+        for method in crate::regex::CLASS.members() {
+            for param in method.params {
+                if matches!(param, CoreTy::Union(_)) {
+                    positions += 1;
+                    assert_eq!(
+                        param.classification(),
+                        Some(Qual::Sink),
+                        "`Core\\Regex::{}`'s `Pattern|string` no longer reads as a sink, so its \
+                         refusal of a tainted pattern is back to being the default",
+                        method.name
+                    );
+                }
+            }
+        }
+        assert!(
+            positions >= 6,
+            "{positions} `Pattern|string` position(s) found, and the rows that take one are the \
+             reason this reads a mark out of a union at all"
+        );
+
+        const KEY: &[CoreTy] = &[CoreTy::Int, CoreTy::Str];
+        const NEUTRAL_KEY: &[CoreTy] = &[CoreTy::Int, CoreTy::Text(Qual::Neutral)];
+        const DATA: &[CoreTy] = &[
+            CoreTy::Blob(Qual::Contagious),
+            CoreTy::Text(Qual::Contagious),
+        ];
+        const DISAGREEING: &[CoreTy] = &[CoreTy::Blob(Qual::Sink), CoreTy::Text(Qual::Neutral)];
+
+        assert_eq!(
+            CoreTy::Union(KEY).classification(),
+            None,
+            "an `int|string` whose text arm is the unclassified spelling declares nothing"
+        );
+        assert_eq!(
+            CoreTy::Union(NEUTRAL_KEY).classification(),
+            Some(Qual::Neutral),
+            "one arm carries the mark and the `int` beside it was never a qualifier question"
+        );
+        assert_eq!(
+            CoreTy::Union(DATA).classification(),
+            Some(Qual::Contagious),
+            "two arms agreeing are the mark, not a disagreement"
+        );
+        assert_eq!(
+            CoreTy::Union(DISAGREEING).classification(),
+            None,
+            "two arms disagreeing answer the refusing default rather than either one"
+        );
     }
 
     /// [`implements_parses`] at the one class that satisfies it, and at every

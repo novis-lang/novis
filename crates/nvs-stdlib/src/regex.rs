@@ -39,7 +39,7 @@
 //! compile of a backtracking pattern in a process goes straight to the engine
 //! that can express it instead of deriving the routing a second time. What is
 //! missing is `[regex] backtracking = "deny"`, which has no `[regex]` block to
-//! live in — gap 2 below wants a key in the same absent block.
+//! live in.
 //!
 //! # What a compiled pattern costs, and where it is held
 //!
@@ -66,21 +66,7 @@
 //!
 //! # Known gaps
 //!
-//! 1. **`rule:security/regex-pattern-is-a-sink`'s sink is enforced, and seven of the eight rows enforce
-//!    it without saying so.** `compile`'s pattern parameter carries
-//!    `Qual::Sink`; the seven members that take `Pattern|string` carry no
-//!    classification at all, because `nvs_types::core_lib`'s `qual_of` answers
-//!    `None` for a [`crate::registry::CoreTy::Union`]. `None` and `Sink`
-//!    refuse a qualified argument alike — `nvs_types::expr::quals`'
-//!    `admits_tainted_argument` — so a `tainted` pattern is refused at all
-//!    eight, which is what that ADR asks for. What is left is the *spelling*:
-//!    a union has nowhere to hold a mark, so those seven refuse by the default
-//!    rather than by a rule a reader can find, and a union that ever wanted
-//!    [`Qual::Launder`] would have no slot for it.
-//!    Decided: Yes: qual_of reads the parameter's declared Qual whatever its type — The refusal becomes
-//!    readable, and a union can hold Launder; one registry-shape change.
-//!    — owner: decided-closures
-//! 2. **This core's compiled-pattern cache is a cross-request store no
+//! 1. **This core's compiled-pattern cache is a cross-request store no
 //!    accounting bracket can take.** [`CACHE`] holds an `Rc` the compiling
 //!    request holds too, so a pattern's bytes have two owners and nothing can
 //!    put its allocation and its release on the same balance, which is what
@@ -500,10 +486,15 @@ const PATTERN_FLAGS_SLOT: usize = 1;
 /// `Regex::compile` exists for the call that wants flags or wants the
 /// pattern's validity checked at one place. [`pattern_of`] is where the two
 /// meet again.
+///
 /// Its `string` half is `rule:security/unclassified-parameter-refuses-tainted`'s **sink**: a pattern is one of `rule:core-api/shape-rules`
 /// R11's four grammars, so its content becomes an instruction the engine
 /// executes and a `tainted` one is refused at the call. `Core\Regex::quote` is
-/// the [`Qual::Launder`] that answers for it.
+/// the [`Qual::Launder`] that answers for it. That arm is the whole union's
+/// classification — [`CoreTy::Union`] folds its arms — so these rows refuse a
+/// tainted pattern by the mark written here, exactly as `compile`'s own
+/// `string` parameter does, rather than by the default an unclassified
+/// parameter gets.
 const PATTERN_OR_STRING: &[CoreTy] = &[CoreTy::Instance(PATTERN_NAME), CoreTy::Text(Qual::Sink)];
 
 /// `Core\Regex::compile`'s four flags, all defaulting to off.

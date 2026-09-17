@@ -265,13 +265,13 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             doc: Some(&RECEIVE_DOC),
         },
         // RFC 6455's two payload kinds are two members and not one parameter
-        // spelled `string|bytes`, and the reason is the qualifier rather than
-        // taste: [`CoreTy::classification`] answers `None` for a
-        // [`CoreTy::Union`], and a text-like parameter carrying no
-        // classification refuses a `tainted` argument — so the union spelling
-        // would have made `send` a sink by accident, and § 3's own loop, which
-        // forwards what the peer sent, would not compile. Two classified
-        // parameters say what a union cannot.
+        // spelled `string|bytes`: a text frame and a binary frame are two
+        // things on the wire, and the opcode a call picks is the member it
+        // calls rather than the tag of the value it passes. The qualifier does
+        // not argue either way — each parameter carries [`Qual::Neutral`], and
+        // a union of the two would answer the same mark
+        // ([`CoreTy::classification`]), so § 3's own loop, which forwards what
+        // the peer sent, compiles under either spelling.
         CoreMethod {
             name: "send",
             names: &["frame"],
