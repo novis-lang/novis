@@ -86,24 +86,32 @@
 //! fails to autoload (`rule:programs/autoload`), so the direction to widen in
 //! is always "harvest more", never "filter harder".
 //!
-//! **A statically known path is a literal, or literals concatenated.**
-//! [`literal_require_path`] cooks a plain `'...'`/`"..."` token and folds a `.`
-//! between two halves that are themselves statically known, so
-//! `require 'lib/' . 'db.nvs';` is resolved and bundled exactly as the
-//! one-literal spelling is. Everything else is the dynamic fallback: a
-//! heredoc/nowdoc token, an interpolation, an `as` conversion, a variable.
+//! **A statically known path is literal text, class constants, and `.` between
+//! them.** [`require_path_segments`] cooks a plain `'...'`/`"..."` token into
+//! literal text, reads a `Class::CONST` as the constant standing there, and
+//! folds a `.` between two halves that are themselves segments, so
+//! `require 'lib/' . 'db.nvs';` and `require Paths::LIB . 'db.nvs';` are
+//! resolved and bundled exactly as the one-literal spelling is. Everything
+//! else is the dynamic fallback: a heredoc/nowdoc token, an interpolation, an
+//! `as` conversion, a variable.
 //!
-//! **Known gaps:**
-//! - A `const` in a `require` path is not folded, so
-//!   `require Paths::LIB . 'db.nvs';` is dynamic where the concatenation alone
-//!   would not be. A class constant is the only constant Novis has
-//!   (`rule:classes/no-free-functions-or-constants`), so reading one means
-//!   resolving a class — and the table that answers that is the one this walk
-//!   is building, out of files a `require` this walk has not folded yet may be
-//!   what loads.
-//!   Decided: Fold literal concatenations and consts before the graph walk — More requires are resolved
-//!   and bundled at build time, at the cost of a small constant folder that runs before the checker's.
-//!   — owner: decided-closures
+//! **The constant folder runs ahead of the walk, and sees the files the walk
+//! has already read.** A class constant is the only constant Novis has
+//! (`rule:classes/no-free-functions-or-constants`), so reading one means
+//! resolving a class, and the symbol table that answers that is the one this
+//! walk is building — out of files a `require` it has not folded yet may be
+//! what loads. So [`collect_consts`] is a pass of its own, over declaration
+//! positions alone, filling a [`ConstTable`] from each file the moment the walk
+//! reaches it, and each `require` target is folded against that table as it
+//! stands rather than in one batch taken up front. **That is the bound, and it
+//! is the order a running program would see it in:** a file's own constants are
+//! there before any of its own paths are folded, and so are the constants of a
+//! file an *earlier* `require` in it loaded, while a constant declared in a
+//! file this walk reaches later — or reaches only through an `autoload` probe —
+//! leaves the path dynamic rather than being chased. The class side of
+//! `Class::CONST` is a written name, never `self`, a variable or an expression.
+//! Nothing here checks that the class exists or that the constant is visible
+//! from the `require`: the checker reports both, against the same expression.
 
 use std::path::{Path, PathBuf};
 
@@ -230,6 +238,12 @@ pub fn resolve_program_linted(
         done.insert(path.clone());
         by_path.insert(path.clone(), entry_id);
     }
+    // The constant folder's table: every foldable constant the files walked so
+    // far declare, which is what a `require` path naming one is resolved
+    // against. Keyed by declaring class, because
+    // `rule:classes/no-free-functions-or-constants` leaves a class constant as
+    // the only constant a path can name.
+    let mut consts = ConstTable::default();
 
     let mut work: Vec<(SourceId, Vec<Stmt>, Vec<PathBuf>)> =
         vec![(entry_id, entry_stmts, entry_chain)];
@@ -254,6 +268,10 @@ pub fn resolve_program_linted(
                 hierarchy.collect_links(&stmts, src);
                 members.collect_members(&stmts, src);
                 aliases.collect_aliases(&stmts, src);
+                // Before this file's own `require` paths are folded below, so
+                // a constant it declares is one of them however far down the
+                // file it is written.
+                collect_consts(&stmts, src, &mut consts);
             }
 
             let mut harvest = Harvest::default();
@@ -295,7 +313,15 @@ pub fn resolve_program_linted(
                 // as-typed parent; every other file in the graph was already
                 // loaded by its canonical path.
                 let canonical_base = canonicalize(&base_dir);
-                for (literal, span) in targets {
+                for (segments, span) in targets {
+                    // Folded one target at a time rather than all of them
+                    // before the loop: a constant declared in the file a
+                    // previous target loaded is in the table by now. A
+                    // constant nothing walked so far declares makes the path
+                    // not statically known, which the runtime fallback owns.
+                    let Some(literal) = resolve_segments(&segments, &consts) else {
+                        continue;
+                    };
                     let target = base_dir.join(&literal);
                     let Some(canonical) = canonicalize(&target) else {
                         diags.report(
@@ -347,6 +373,10 @@ pub fn resolve_program_linted(
                     file_requires.push((span, new_id));
                     let new_stmts = parse_file(map.file(new_id), diags);
                     check_declarations(&new_stmts, map.file(new_id), diags);
+                    // Read here rather than when this file is popped off
+                    // `work`, so the next target of the file being walked can
+                    // name a constant this one just loaded.
+                    collect_consts(&new_stmts, map.file(new_id), &mut consts);
                     let mut new_chain = chain.clone();
                     new_chain.push(canonical);
                     work.push((new_id, new_stmts, new_chain));
@@ -571,8 +601,11 @@ fn check_path_case(
 /// parameter on every walk function's signature.
 #[derive(Default)]
 struct Harvest {
-    /// Each statically-known `require` target's cooked path text and span.
-    requires: Vec<(String, Span)>,
+    /// Each statically-known `require` target's path, as the segments it is
+    /// built out of, and its span. Segments rather than one cooked string
+    /// because a constant in the path cannot be answered where it is read —
+    /// see [`Segment`].
+    requires: Vec<(Vec<Segment>, Span)>,
     /// Each `autoload` declaration, cooked, still needing the declaring
     /// file's own directory bound to it — [`autoload::Site`]'s `base_dir`.
     autoloads: Vec<(autoload::SiteKind, Span)>,
@@ -1175,8 +1208,8 @@ fn walk_expr(expr: &Expr, src: &SourceFile, out: &mut Harvest) {
 
     match &expr.kind {
         ExprKind::Require { path } => {
-            if let Some(literal) = literal_require_path(path, src) {
-                out.requires.push((literal, path.span));
+            if let Some(segments) = require_path_segments(path, src, &out.namespace, &out.imports) {
+                out.requires.push((segments, path.span));
             }
             // A dynamic path may still nest its own sub-expressions worth
             // walking for a further, statically-resolvable `require` inside
@@ -1381,33 +1414,196 @@ fn walk_expr(expr: &Expr, src: &SourceFile, out: &mut Harvest) {
     }
 }
 
-/// Extracts a `require` path's literal text, if the expression is built out of
-/// plain `'...'`/`"..."` strings with no interpolation — unwrapping any
-/// surrounding `(...)` first, so `require ('config.nvs');` resolves the same as
-/// `require 'config.nvs';`.
+/// One piece of a statically known `require` path: literal text, or the class
+/// constant whose value stands there.
 ///
-/// **A `.` between two static halves is one of them.** `require __DIR__` is not
-/// the spelling Novis has, so a program that builds a path out of a prefix
-/// writes the prefix as a literal and concatenates — `require 'lib/' . 'db.nvs';`
-/// — and folding the operator here is what keeps that program's target
-/// statically known rather than a dynamic fallback. The fold is the whole of
-/// the constant folding this walk does: each operand is this same function, so
-/// a chain of any length resolves and one dynamic operand anywhere in it makes
-/// the whole path dynamic again.
-fn literal_require_path(expr: &Expr, src: &SourceFile) -> Option<String> {
+/// A path is kept as segments rather than as a finished string because the
+/// constant half cannot be answered where the path is read: the class
+/// declaring it may live in a file a `require` earlier in this same file
+/// loads. So the read records what it saw, and [`resolve_segments`] answers it
+/// against the [`ConstTable`] as it stands when that path's own target is
+/// resolved.
+#[derive(Debug)]
+enum Segment {
+    /// Cooked literal text, escapes and all.
+    Text(String),
+    /// `Class::CONST`, as the resolved class and the constant's written name.
+    Const(QName, String),
+}
+
+/// The constants a `require` path may name, keyed by the class declaring them:
+/// `Paths::LIB` is `table[Paths]["LIB"]`.
+///
+/// Only the ones that fold are in here. A constant whose value is not literal
+/// text — an `int`, an array, an interpolation, a call — is not a path segment
+/// at all, so leaving it out is what makes a missing entry mean "this path is
+/// not statically known" and nothing narrower.
+type ConstTable = FxHashMap<QName, FxHashMap<String, String>>;
+
+/// Fills `out` with every foldable constant one file declares, in declaration
+/// order — so a constant naming one declared above it resolves, and one naming
+/// a constant below it does not.
+///
+/// A pass of its own rather than part of [`find_require_literals`], because it
+/// reads declaration positions alone: the `namespace`/`use` sequence a class
+/// name resolves through, the class and interface declarations, and their
+/// `const` members. That is what lets a whole file's constants be in the table
+/// before the first of its `require` paths is folded. An `enum`'s members are
+/// not read, because `rule:enums/no-class-machinery` refuses a constant on one.
+fn collect_consts(stmts: &[Stmt], src: &SourceFile, out: &mut ConstTable) {
+    let mut namespace: Vec<String> = Vec::new();
+    let mut imports: FxHashMap<String, QName> = FxHashMap::default();
+    collect_consts_in(stmts, src, &mut namespace, &mut imports, out);
+}
+
+/// [`collect_consts`] over one statement sequence, carrying the namespace and
+/// imports in force through it the way [`Harvest`] carries them for the name
+/// walk.
+fn collect_consts_in(
+    stmts: &[Stmt],
+    src: &SourceFile,
+    namespace: &mut Vec<String>,
+    imports: &mut FxHashMap<String, QName>,
+    out: &mut ConstTable,
+) {
+    for stmt in stmts {
+        match &stmt.kind {
+            StmtKind::NamespaceDecl(NamespaceDecl { name, body, .. }) => {
+                let outer_ns = std::mem::take(namespace);
+                let outer_imports = std::mem::take(imports);
+                *namespace = name
+                    .as_ref()
+                    .and_then(|n| src.span_text(n.span))
+                    .map(|text| QName::parse(text).segments().to_vec())
+                    .unwrap_or_default();
+                // A `namespace Name { ... }` block scopes its own imports and
+                // hands the enclosing sequence back what it had; a bare
+                // `namespace Name;` changes both for the rest of the file,
+                // which is what *not* restoring them does.
+                if let Some(block) = body {
+                    collect_consts_in(&block.stmts, src, namespace, imports, out);
+                    *namespace = outer_ns;
+                    *imports = outer_imports;
+                }
+            }
+            StmtKind::UseDecl(use_decl) => {
+                if let Some(text) = src.span_text(use_decl.path.span) {
+                    let target = QName::parse(text);
+                    imports.insert(target.short_name().to_owned(), target);
+                }
+            }
+            StmtKind::ClassDecl(decl) => {
+                collect_class_consts(&decl.name, &decl.members, src, namespace, imports, out);
+            }
+            StmtKind::InterfaceDecl(decl) => {
+                collect_class_consts(&decl.name, &decl.members, src, namespace, imports, out);
+            }
+            // Nothing else declares a constant a path can name. A statement
+            // that *nests* a declaration is not read either: a class written
+            // inside a block is not the shape this folder answers for, and a
+            // path naming its constant stays dynamic.
+            _ => {}
+        }
+    }
+}
+
+/// Records the foldable constants of one class or interface declaration under
+/// the [`QName`] it declares, the same name [`crate::resolve`] enters in the
+/// symbol table.
+///
+/// Each value is folded against `out` as it stands, which is what keeps the
+/// declaration order above meaningful and makes a constant naming itself, or a
+/// pair naming each other, terminate with no entry rather than recursing.
+fn collect_class_consts(
+    declared: &Name,
+    members: &[ClassMember],
+    src: &SourceFile,
+    namespace: &[String],
+    imports: &FxHashMap<String, QName>,
+    out: &mut ConstTable,
+) {
+    let Some(text) = src.span_text(declared.span) else {
+        return;
+    };
+    let class = QName::join(namespace, text);
+    for member in members {
+        let ClassMemberKind::Const(constant) = &member.kind else {
+            continue;
+        };
+        let Some(name) = src.span_text(constant.name) else {
+            continue;
+        };
+        let Some(segments) = require_path_segments(&constant.value, src, namespace, imports) else {
+            continue;
+        };
+        let Some(value) = resolve_segments(&segments, out) else {
+            continue;
+        };
+        out.entry(class.clone())
+            .or_default()
+            .insert(name.to_owned(), value);
+    }
+}
+
+/// Joins a path's segments into the one path text they denote, or `None` when a
+/// constant among them is not in `consts` — the dynamic fallback, which is the
+/// same answer a variable in the path gets.
+fn resolve_segments(segments: &[Segment], consts: &ConstTable) -> Option<String> {
+    let mut path = String::new();
+    for segment in segments {
+        match segment {
+            Segment::Text(text) => path.push_str(text),
+            Segment::Const(class, name) => path.push_str(consts.get(class)?.get(name.as_str())?),
+        }
+    }
+    Some(path)
+}
+
+/// Reads the segments a `require` path is built out of, if every one of them is
+/// statically known — unwrapping any surrounding `(...)` first, so
+/// `require ('config.nvs');` resolves the same as `require 'config.nvs';`.
+///
+/// Three spellings are a segment and nothing else is. A plain `'...'`/`"..."`
+/// token is literal text. A `Class::CONST` whose class side is a written name
+/// is that constant, resolved through the namespace and imports in force here
+/// exactly as [`record_name`] resolves any other written name. And a `.`
+/// between two halves that are themselves segments is their concatenation:
+/// `require __DIR__` is not the spelling Novis has, so a program building a
+/// path out of a prefix writes the prefix as a literal or a constant and
+/// concatenates, and folding the operator here is what keeps that program's
+/// target statically known rather than a dynamic fallback. A chain of any
+/// length resolves, and one dynamic operand anywhere in it makes the whole
+/// path dynamic again.
+fn require_path_segments(
+    expr: &Expr,
+    src: &SourceFile,
+    namespace: &[String],
+    imports: &FxHashMap<String, QName>,
+) -> Option<Vec<Segment>> {
     let mut inner = expr;
     while let ExprKind::Paren(next) = &inner.kind {
         inner = next;
     }
     match &inner.kind {
-        ExprKind::Str(span) => cook_quoted(src, *span),
+        ExprKind::Str(span) => Some(vec![Segment::Text(cook_quoted(src, *span)?)]),
+        ExprKind::ClassConstAccess { class, name } => {
+            let ExprKind::ConstFetch(written) = &class.kind else {
+                return None;
+            };
+            let class =
+                crate::hierarchy::resolve_ref(src.span_text(written.span)?, namespace, imports);
+            Some(vec![Segment::Const(
+                class,
+                src.span_text(*name)?.to_owned(),
+            )])
+        }
         ExprKind::Binary {
             op: BinaryOp::Concat,
             lhs,
             rhs,
         } => {
-            let mut folded = literal_require_path(lhs, src)?;
-            folded.push_str(&literal_require_path(rhs, src)?);
+            let mut folded = require_path_segments(lhs, src, namespace, imports)?;
+            folded.extend(require_path_segments(rhs, src, namespace, imports)?);
             Some(folded)
         }
         _ => None,
@@ -1421,8 +1617,8 @@ fn literal_require_path(expr: &Expr, src: &SourceFile) -> Option<String> {
 /// front end's one escape grammar, so a path and an ordinary string literal
 /// written the same way denote the same bytes, octal, hex and `\u{...}`
 /// escapes included. What this adds is the *spelling* filter: a heredoc/nowdoc
-/// token's raw text starts with `<`, and that falls through to `None`, the
-/// dynamic-fallback case the module docs' first known gap names.
+/// token's raw text starts with `<`, and that falls through to `None`, which is
+/// the dynamic fallback.
 ///
 /// A literal whose escapes do not fully cook — a `\u{...}` past the Unicode
 /// ceiling, a byte escape that is not valid UTF-8 — still yields a value here,
@@ -1735,6 +1931,57 @@ class Unreached {}
         assert!(
             !module.symbols.contains(&crate::qname::QName::parse("Db")),
             "a dynamic operand makes the whole path dynamic"
+        );
+    }
+
+    #[test]
+    fn a_require_path_folds_a_const_and_a_literal_concatenation() {
+        let dir = TempDir::new("concat-const");
+        dir.write("lib/db.nvs", "<?nvs\nclass Db {}\n");
+        dir.write(
+            "main.nvs",
+            "<?nvs\nclass Paths { public const string LIB = 'lib/'; }\nrequire Paths::LIB . 'db.nvs';\n",
+        );
+
+        let (module, diags) = resolve_entry(&dir, "main.nvs");
+        assert!(!diags.has_errors(), "{diags:?}");
+        assert!(
+            module.symbols.contains(&crate::qname::QName::parse("Db")),
+            "a constant the file declares folds like the literal it holds"
+        );
+    }
+
+    #[test]
+    fn a_const_an_earlier_require_loaded_folds_the_next_path() {
+        let dir = TempDir::new("concat-const-earlier");
+        dir.write(
+            "paths.nvs",
+            "<?nvs\nclass Paths { public const string LIB = 'lib/'; }\n",
+        );
+        dir.write("lib/db.nvs", "<?nvs\nclass Db {}\n");
+        dir.write(
+            "main.nvs",
+            "<?nvs\nrequire 'paths.nvs';\nrequire Paths::LIB . 'db.nvs';\n",
+        );
+
+        let (module, diags) = resolve_entry(&dir, "main.nvs");
+        assert!(!diags.has_errors(), "{diags:?}");
+        assert!(
+            module.symbols.contains(&crate::qname::QName::parse("Db")),
+            "the folder reads each file as the walk reaches it, in target order"
+        );
+    }
+
+    #[test]
+    fn a_require_path_naming_an_undeclared_const_stays_dynamic() {
+        let dir = TempDir::new("concat-const-unknown");
+        dir.write("lib/db.nvs", "<?nvs\nclass Db {}\n");
+        dir.write("main.nvs", "<?nvs\nrequire Paths::LIB . 'db.nvs';\n");
+
+        let (module, _diags) = resolve_entry(&dir, "main.nvs");
+        assert!(
+            !module.symbols.contains(&crate::qname::QName::parse("Db")),
+            "a constant no file walked declares leaves the path for the runtime"
         );
     }
 

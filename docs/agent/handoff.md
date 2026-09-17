@@ -2,46 +2,62 @@
 
 ## State
 
-**Goal `decided-closures`, stage 3 — the checker and the front end.** Of that stage's three
-acceptance checks, `nvs-types` and `nvs-syntax` are green; `nvs-hir`'s two tests are not written yet
-and are the next group.
+**Goal `decided-closures`, stage 3 — the checker and the front end.** `nvs-types` and `nvs-syntax`
+are green; `nvs-hir`'s check names two tests and the first of them is now landed, so the stage's
+last red check needs only `a_core_name_the_roster_lacks_is_refused_by_the_link_pass`.
 
-The front end's four gaps are down to one. A `type` alias's name is PascalCase at both sites one is
-written (`crates/nvs-syntax/src/casing.rs`, category `"type alias"`, one production so one answer),
-and `rule:core-api/identifier-casing`'s scope table and `rule:types/type-alias` were amended in that
-slice. PHP's `use function` / `use const` are refused by name — `E0252`
-(`E_IMPORT_OF_FUNCTION_OR_CONST_UNSUPPORTED`) on the keyword, the path behind it still parsed — while
-`function` stays an ordinary name segment everywhere else, which is what
-`crates/nvs-syntax/src/token.rs`'s new `keywords!` table makes testable: the enum, `from_lowercase`,
-`name()` and `ALL` all come from one row per word, so a sweep over every spelling cannot go stale.
+A `require` path now folds class constants as well as literal concatenations
+(`crates/nvs-hir/src/requires.rs`): a path is read into `Segment`s — cooked literal text, or a
+`Class::CONST` resolved through the namespace and imports in force — and each target is folded
+against a `ConstTable` **as it stands when that target is resolved**, which is what makes
+`require 'paths.nvs'; require Paths::LIB . 'db.nvs';` resolve. `collect_consts` is a declaration-only
+pass filling that table from each file the moment the walk reaches it. The bound is the module doc's
+own prose, and requires.rs has no `# Known gaps` section left.
 
-`python tools/owners.py --closes decided-closures` names 35 gaps, one of them in `nvs-syntax`
-(`crates/nvs-syntax/src/lib.rs:96`, the shape-typed local). Nothing is blocked.
+`python tools/owners.py --closes decided-closures` names 34 gaps. Nothing is blocked.
 
 ## Next group
 
-**Stage 4 of the goal prose, stage `3 the checker` of the checks: `nvs-hir`'s two gaps** — one file
-set: `crates/nvs-hir/src/`, with that crate's own tests. Landing both turns the stage's last red
-check green.
+**Stage 4 of the goal prose, stage `3 the checker` of the checks: `nvs-hir`'s remaining gap, the
+`Core` roster** — one file set: `crates/nvs-hir/src/hierarchy.rs` and the entry points that would
+hand it the roster. It is two slices because the parameter and the refusal are separable and the
+parameter alone touches five other crates. `python tools/peek.py --locate` resolves every anchor
+below in one call.
 
-- [ ] **`crates/nvs-hir/src/requires.rs:104` — fold a `const` and a literal concatenation in a
-      `require` path before the graph walk.** `rule:statements/require-is-the-only-inclusion-construct`
-      is what a static path buys; the walk is `crates/nvs-hir/src/requires.rs:349` and its two
-      siblings, which call `check_declarations` per file, and the folder runs before the checker's own.
-      A class constant is the only constant there is, so reading one means resolving a class out of the
-      table this walk is building — the decided answer is a small folder ahead of the walk, not a
-      second resolver. The acceptance check names
-      `a_require_path_folds_a_const_and_a_literal_concatenation` under `cargo test -p nvs-hir`.
-- [ ] **`crates/nvs-hir/src/hierarchy.rs:44` — hand `nvs-hir` a roster of `Core` names at
-      construction.** Today a target under `Core` is trusted because `QName::is_core` is a spelling
-      test and this crate may not name `nvs_stdlib::registry` (`rule:core-api/core-means-always-present`
-      is what the roster asserts); the decided answer passes the names in as a slice, so every link
-      error comes from one pass and no dependency is added. The acceptance check names
-      `a_core_name_the_roster_lacks_is_refused_by_the_link_pass`.
+- [ ] **`crates/nvs-hir/src/hierarchy.rs:44` — thread a roster of `Core` names into the link pass,
+      behaviour unchanged.** `rule:core-api/reserved-namespace` is what makes `Core` compiler-owned
+      and so makes a roster the authority on which of its names exist. The trust branch to feed is
+      `crates/nvs-hir/src/hierarchy.rs:430` (`resolve_supertype`'s `is_core()` early return, beside
+      the two reserved-global tests, which stay). The roster's source is
+      `crates/nvs-stdlib/src/registry.rs:1439` (`CLASSES`, one `.name` per row); `nvs-hir` depends on
+      `nvs-diagnostics` and `nvs-syntax` only and must keep doing so, so the names arrive as a slice
+      the caller builds. Construction sites inside the crate:
+      `crates/nvs-hir/src/requires.rs:216` and `crates/nvs-hir/src/resolve.rs:311`. Public entries to
+      widen: `crates/nvs-hir/src/requires.rs:190` (`resolve_program`), `:208`
+      (`resolve_program_linted`), and `resolve_file` in `crates/nvs-hir/src/resolve.rs`. Call sites
+      outside: `crates/nvs-cli/src/main.rs:1576`, `crates/nvs-lsp/src/document.rs:425`,
+      `crates/nvs-types/tests/common/mod.rs:309`, `crates/nvs-codegen/src/lib.rs:2566`,
+      `crates/nvs-codegen/tests/common/mod.rs:50`, and four in `crates/nvs-ir/src/lower/tests.rs`
+      (`:23`, `:80`, `:114`, `:2260`). **Decide first what a caller with no stdlib passes** — an
+      empty slice that means "no `Core` name exists" refuses every `Core` link in those fixtures,
+      so the honest shapes are a two-case roster type or a real slice at each site; whichever is
+      chosen, say so in the module doc, because "empty means trust" is the invariant a later reader
+      cannot see.
+- [ ] **`crates/nvs-hir/src/hierarchy.rs:430` — refuse a `Core` link target the roster lacks, and
+      strike the gap.** `E_UNDEFINED_CLASS` through `crate::hierarchy::undeclared_name`, the same
+      diagnostic a userland name gets, so every link error comes from one pass. The acceptance check
+      names `a_core_name_the_roster_lacks_is_refused_by_the_link_pass` under `cargo test -p nvs-hir`;
+      `crates/nvs-hir/src/hierarchy.rs:608` is where that crate's tests build a module. Watch for
+      false refusals: only `extends`/`implements` reach this branch, and a legal `Core` target that
+      `CLASSES` does not hold (a reserved *global* interface is not one — `Comparable` and its
+      siblings are `crates/nvs-hir/src/interfaces.rs:44`) would start failing programs that compile
+      today. Rewrite the module doc's `**Known gap:**` paragraph as what the pass now does.
 
 ## Backlog
 
-- `crates/nvs-syntax/src/lib.rs:96` — the shape-typed local's targeted error; that bullet now names
-  the tell and the false positive the scan must not claim.
-- `crates/nvs-stdlib/` holds most of the goal's remaining gaps — `python tools/owners.py --closes
-  decided-closures` is the list, `docs/agent/loop-goal.md` § *Standing decisions* the three ways out.
+- 34 gaps still name this goal — `python tools/owners.py --closes decided-closures` is the list.
+- `crates/nvs-syntax/src/lib.rs:96` gap 1, the shape-typed local, is the front end's last one.
+- Goal stage 5's prepared-pattern channel has the goal's one ADR slot — `docs/agent/loop-goal.md`
+  § *Standing decisions*.
+- `crates/nvs-hir/src/requires.rs` gap 2 (`Probe::tried` in the unit key) belongs to a different
+  goal — `docs/agent/goals/60-unowned-closures.md:57`.
