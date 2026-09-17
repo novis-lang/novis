@@ -204,7 +204,7 @@
 //!    `setHeader` off a request are the quiet half of the same gap: each
 //!    declares onto a context nobody will ask, so the call means nothing and
 //!    says nothing.
-//!    — owner: M7
+//!    — owner: decided-closures
 
 use nvs_runtime::{Fault, Tag, Value};
 

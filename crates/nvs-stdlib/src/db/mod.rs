@@ -253,7 +253,7 @@
 //!    why every slot it then reads is filled.
 //!    Decided: Nowhere: the defaults apply, and a deployment that wants bounds writes a block — No new
 //!    surface; mismatched literals silently get defaults unless a first-use notice is added.
-//!    — owner: unowned-closures
+//!    — owner: decided-closures
 //! 2. **`Db\DbError` is not in spec § 10's error tree, so it declares no
 //!    `issues`.** A per-column refusal is thrown as a `ParseError` naming the
 //!    columns instead, because that is the class the property is declared on,
@@ -281,7 +281,7 @@
 //!    socket's.
 //!    Decided: Split stands: a shape mismatch is a ParseError, as for Json::decodeAs — One class for
 //!    'data does not fit the type' across Json and Db, and no spec change.
-//!    — owner: unowned-closures
+//!    — owner: decided-closures
 
 use std::net::{SocketAddr, ToSocketAddrs as _};
 

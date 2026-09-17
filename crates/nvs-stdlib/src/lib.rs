@@ -140,7 +140,7 @@
 //!    Decided: Widen both gates past § 12, with an outstanding-members ratchet file seeded with every
 //!    unwritten row — Every missing member becomes visible and can only shrink; seeding the file is a
 //!    one-time listing job.
-//!    — owner: unowned-closures
+//!    — owner: decided-closures
 
 pub mod arr;
 mod ast;

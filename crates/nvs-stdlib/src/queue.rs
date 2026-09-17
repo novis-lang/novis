@@ -71,7 +71,7 @@
 //!    deployment that never ran `nvs queue migrate`, which is the one case the key is absent in.
 //!    Decided: Refuse to serve a queue whose schema is behind, checked at boot — Never racy and costs
 //!    no request time; a deployment that skipped migrate fails to start.
-//!    — owner: unowned-closures
+//!    — owner: decided-closures
 //! 2. **`stats` counts the four things § 6 names and no fifth**, and a fifth would be a column in
 //!    § 2's schema before it is a member here. The sharp edge is a dead-lettered job's own
 //!    attempts: § 6 *moves* that row to [`DEAD_TABLE`], whose columns this module deliberately does
@@ -79,7 +79,7 @@
 //!    and counts the depth separately rather than inventing a column for the sum to reach.
 //!    Decided: Yes: add the column through the `nvs queue migrate` converge and a fifth stats counter —
 //!    More observability; a schema change and a spec § 6 amendment.
-//!    — owner: unowned-closures
+//!    — owner: decided-closures
 
 use std::collections::BTreeMap;
 use std::time::{SystemTime, UNIX_EPOCH};

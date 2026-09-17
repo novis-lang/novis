@@ -37,7 +37,7 @@
 //! member written beside it wins the `Content-Type` it declared last.
 //! Decided: Keep the run-time default (`echo` is text/html, the last body member wins) — No new
 //! surface, and the mixed case stays legal with defined behaviour.
-//! — owner: unowned-closures
+//! — owner: decided-closures
 //!
 //! **The reach inside a handler is that handler's own body**, closures written
 //! in it included — an `fn` literal writes the same response, and

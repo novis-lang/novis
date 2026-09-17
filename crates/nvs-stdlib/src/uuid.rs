@@ -110,7 +110,7 @@
 //!    names are here and a fifth widens the surface rather than repairing it.
 //!    Decided: Add the pair (spec § 11 amendment) — Drivers and binary protocols skip text conversion,
 //!    and ramsey/uuid users expect getBytes; one more surface pair.
-//!    — owner: unowned-closures
+//!    — owner: decided-closures
 
 use rand::Rng;
 use uuid::{Builder, Uuid};

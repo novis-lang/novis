@@ -98,7 +98,7 @@
 //!    not hold. The mismatch error is already made, by the `T` above.
 //!    Decided: No: keep the runtime throw naming assertEqualsDeep — No rule change; the mistake shows
 //!    up when the test runs, which is soon anyway.
-//!    — owner: unowned-closures
+//!    — owner: decided-closures
 //! 2. **`assertThrows` matches a class by name, so a failure with no class
 //!    installed matches nothing.** `nvs_runtime::Ctx::pending_conforms_to`
 //!    reads the ancestry off a descriptor, and a helper-raised failure carries
@@ -107,7 +107,7 @@
 //!    the runtime without one.
 //!    Decided: No: state it in the embedding contract and assert it when a Ctx is built — One
 //!    assertion; the silent non-match becomes impossible.
-//!    — owner: unowned-closures
+//!    — owner: decided-closures
 //!
 //! # What these members do with a qualifier
 //!

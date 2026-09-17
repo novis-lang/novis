@@ -33,7 +33,7 @@
 //! `rule:packaging/a-bundled-require-resolves-at-build-time` makes the closed-world rule about — does.
 //! Decided: Resolve autoload roots into the bundle at build time — A bundled program behaves like the
 //! source tree, and the root set is frozen into the build.
-//! — owner: unowned-closures
+//! — owner: decided-closures
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Component, Path, PathBuf};

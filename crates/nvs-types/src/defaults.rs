@@ -73,7 +73,7 @@
 //! here even though the literal `= 18446744073709551615` is accepted.
 //! Decided: Allow it: the call-site emitter carries the parameter's own IR type — The property and
 //! parameter surfaces match, and every omitting call site's emitter changes.
-//! — owner: unowned-closures
+//! — owner: decided-closures
 //!
 //! **A `decimal` default is refused, and is now the shortest thing on this
 //! list to build:** `nvs_ir::ir::InstKind::ConstDecimal` exists, so

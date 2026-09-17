@@ -89,7 +89,7 @@
 //!    row).
 //!    Decided: Position (line/column/offset) only — Architecture tests can point at file:line, and the
 //!    input stays qualifier-neutral because no text comes back out.
-//!    — owner: unowned-closures
+//!    — owner: decided-closures
 
 use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, ThrownClass, Value};
 

@@ -51,7 +51,7 @@
 //!    it.
 //!    Decided: Refuse at compile time storing a secret into an array element or shape field — Small and
 //!    closes the leak, but a program cannot keep, say, a list of API keys without a wrapper class.
-//!    — owner: unowned-closures
+//!    — owner: decided-closures
 //! 2. **An enum case walks to its backing integer.** `rule:types/conversion` gives an
 //!    enum no tag of its own — it *is* an `int` at run time — so a case
 //!    arriving through `mixed` is indistinguishable from one here.
@@ -61,7 +61,7 @@
 //!    deliberately declined.
 //!    Decided: Keep the decided rule: through mixed an enum is its integer; statically typed dumps
 //!    already render the case — No change; a dump through mixed is less readable.
-//!    — owner: unowned-closures
+//!    — owner: decided-closures
 
 use nvs_render::{Caps, Elision, Node, Rendered, Scalar};
 

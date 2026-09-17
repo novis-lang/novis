@@ -43,7 +43,7 @@
 //! position that makes a class link resolvable before the stdlib exists.
 //! Decided: Hand nvs-hir a roster of Core names at construction — Every link error comes from one pass,
 //! at the cost of a slice of names passed in (no new crate dependency).
-//! — owner: unowned-closures
+//! — owner: decided-closures
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
 use nvs_syntax::ast::{Modifier, Name, NamespaceDecl, Stmt, StmtKind};

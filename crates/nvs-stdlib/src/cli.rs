@@ -135,7 +135,7 @@
 //!    inside a request, and nothing this module can reach would fill it.
 //!    Decided: Answer empty/neutral values and state it as the contract — Matches PHP (no $argv under a
 //!    web SAPI) and adds no failure mode.
-//!    — owner: unowned-closures
+//!    — owner: decided-closures
 
 use nvs_runtime::terminal::{Answer, ColorDepth, Echo, Stream};
 use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, Value};

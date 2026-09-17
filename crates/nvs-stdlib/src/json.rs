@@ -225,7 +225,7 @@
 //!    Decided: Keep the descriptor and widen it (default constants on CodecField, a ClassDesc method
 //!    lookup for toJson); amend the rule — One native walker and small, local changes; costs one loop
 //!    and a string compare per field.
-//!    — owner: unowned-closures
+//!    — owner: decided-closures
 //! 2. **The encoder's real bound is the native stack, not [`DEPTH_CEILING`].**
 //!    [`Encodable`] recurses through `serde_json`'s serializer, and a document
 //!    nested deeply enough runs the thread's stack out well before the ceiling
@@ -241,7 +241,7 @@
 //!    it is not that goal's.
 //!    Decided: Walk with an explicit heap stack charged to the request — Always a catchable throw at
 //!    the ceiling; the stack is a small allocation billed to the request.
-//!    — owner: unowned-closures
+//!    — owner: decided-closures
 
 use std::fmt;
 

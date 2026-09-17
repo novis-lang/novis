@@ -84,7 +84,7 @@
 //!    from a header, so nothing here trusts the claimed size either way.
 //!    Decided: Yes: read the Zip64 extra fields and end-of-directory record — Matches PHP's ZipArchive;
 //!    a second header format to parse and fuzz.
-//!    — owner: unowned-closures
+//!    — owner: decided-closures
 //! 2. **An entry's CRC is not checked**, by `read` or by `extract`. A deflate
 //!    stream that has been corrupted fails to decode and is refused; a stored
 //!    entry that has been corrupted is answered, and written, as it stands.
@@ -94,7 +94,7 @@
 //!    policy.
 //!    Decided: Verify by default and refuse a mismatch — Corruption never reaches the caller; one CRC
 //!    pass per entry, cheap next to decompression.
-//!    — owner: unowned-closures
+//!    — owner: decided-closures
 
 use std::io::{Read as _, Write as _};
 use std::path::{Path, PathBuf};

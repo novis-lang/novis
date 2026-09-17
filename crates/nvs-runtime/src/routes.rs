@@ -87,7 +87,7 @@
 //!    ([`Routes::match_request`]) and the rank it already computes.
 //!    Decided: Measure on benches/serve-proxied.json first, build only if it shows — Spends work only
 //!    if routing is actually a cost, and needs a large-table bench arm.
-//!    — owner: unowned-closures
+//!    — owner: decided-closures
 
 use std::sync::Arc;
 

@@ -107,7 +107,7 @@
 //!    Decided: Build the checker-to-IR channel and prepare literal patterns at compile time — Zero
 //!    request-path parsing and compile-time errors as the rule says; the channel is new plumbing
 //!    (shared with nvs-types' intrinsic gaps).
-//!    — owner: unowned-closures
+//!    — owner: decided-closures
 //!
 //! # What these members do with a qualifier
 //!

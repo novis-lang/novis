@@ -205,14 +205,14 @@
 //!    copy-on-write is the shape it would take.
 //!    Decided: Concat and concat_n reuse a solely-owned left operand — Makes `$s = $s . $x` linear like
 //!    `.=`, at the cost of an ownership hand-off in the lowering for those two calls.
-//!    — owner: unowned-closures
+//!    — owner: decided-closures
 //! 5. **`nvs_safepoint` clears `COLLECT` and acts on nothing.** `CPU_LIMIT` and
 //!    `CANCEL` become [`FATAL`]; the flag asking for a collection is dropped,
 //!    since the cycle collector does not exist.
 //!    Decided: Collector that runs only near the memory ceiling — Pays nothing on the normal request
 //!    path and turns 'hit the ceiling' into 'collect, then continue', at the cost of building the
 //!    collector.
-//!    — owner: unowned-closures
+//!    — owner: decided-closures
 //! 7. **A cycle is reclaimed at teardown, not while the request runs.** Every
 //!    object links into its context's live list, and dropping the context
 //!    sweeps whatever the root drain left there — `rule:security/isolate-teardown-is-a-drain-then-a-sweep`, with
@@ -229,7 +229,7 @@
 //!    Decided: Collector that runs only near the memory ceiling — Pays nothing on the normal request
 //!    path and turns 'hit the ceiling' into 'collect, then continue', at the cost of building the
 //!    collector.
-//!    — owner: unowned-closures
+//!    — owner: decided-closures
 //! 8. **`nvs_safepoint` clears `DEBUG_BREAK` and acts on nothing.** The flag is
 //!    dropped where `CPU_LIMIT` and `CANCEL` become [`FATAL`], since `nvs dap` —
 //!    the adapter a stopped frame would be handed to — does not exist.

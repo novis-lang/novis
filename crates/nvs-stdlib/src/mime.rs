@@ -55,7 +55,7 @@
 //!    would be confidently wrong rather than usefully silent.
 //!    Decided: A shared Ebml case (like the existing Zip case) — Honest about what the bytes show and
 //!    stays a prefix table; the caller cannot tell WebM from MKV.
-//!    — owner: unowned-closures
+//!    — owner: decided-closures
 
 use nvs_runtime::{Fault, NvsStr, Value};
 

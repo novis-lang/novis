@@ -87,7 +87,7 @@
 //! does not wait on it: § 5 already decided the sink launders on its own, and
 //! the return type is written against that decision rather than against what
 //! is on disk.
-//! — owner: M7
+//! — owner: decided-closures
 //!
 //! # Why the escape set is fixed at five, with no argument
 //!

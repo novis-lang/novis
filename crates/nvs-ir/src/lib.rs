@@ -622,7 +622,7 @@
 //!     Decided: Collector that runs only near the memory ceiling — Pays nothing on the normal request
 //!     path and turns 'hit the ceiling' into 'collect, then continue', at the cost of building the
 //!     collector.
-//!     — owner: unowned-closures
+//!     — owner: decided-closures
 //! 18. **An abandoned generator's `finally` runs; a throw escaping one is
 //!     dropped.** `{name}$gen::gen#unwind` is on every generator's state class
 //!     and in its method table, and `nvs_runtime::object::dismantle` calls it
@@ -643,7 +643,7 @@
 //!     Decided: Report it through the escalation ladder, without replacing anything — The error is
 //!     logged and visible the way an uncaught one is, the exception already in flight is left alone,
 //!     and it needs a hook from object dismantling into the ladder.
-//!     — owner: unowned-closures
+//!     — owner: decided-closures
 //! 19. **`DEBUG_BREAK` is cleared and otherwise ignored.** The poll
 //!     [`ir::InstKind::Safepoint`] lowers to drops that flag where `CPU_LIMIT`
 //!     and `CANCEL` stop the request: there is no debugger to hand the frame

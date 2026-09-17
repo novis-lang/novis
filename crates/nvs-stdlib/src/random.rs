@@ -74,7 +74,7 @@
 //!    test runs in, which is the same argument it makes for the clock.
 //!    Decided: Register Core\Random\Seeded per spec § 11 — Reproducible sequences for simulations and
 //!    fixtures; a predictable generator becomes reachable from production code.
-//!    — owner: unowned-closures
+//!    — owner: decided-closures
 //!
 //! # The one exception, and no program outside a test can select it
 //!

@@ -99,17 +99,17 @@
 //!   int}; Point $point;`.
 //!   Decided: Keep the alias form and give a targeted error — No parser cost, a clear message pointing
 //!   at `type Point = {...}; Point $p;`, and one slot is narrower than the rest.
-//!   — owner: unowned-closures
+//!   — owner: decided-closures
 //! - **`use function` and `use const`** are not parsed — `function` and `const` are ordinary name
 //!   segments, so `use function Foo\bar;` reads `function` as the imported name and then fails on
 //!   `Foo` with a generic parse error. What a real corpus needs here is the *refusal* rather than the
 //!   feature: `rule:classes/no-free-functions-or-constants` leaves neither spelling anything to
 //!   import.
-//!   — owner: M1
+//!   — owner: decided-closures
 //! - **`Core\Static`-style keyword-segment name collisions past the first segment** are still only
 //!   spot-checked. Every segment takes a keyword spelling by construction — `Parser::is_name_segment`
 //!   is `Ident | Keyword(_)` — so what is thin here is the coverage, not the grammar.
-//!   — owner: M1
+//!   — owner: decided-closures
 
 pub mod ast;
 mod casing;

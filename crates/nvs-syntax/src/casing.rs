@@ -68,7 +68,7 @@
 //!   enforced here rather than guessing one.
 //!   Decided: PascalCase, like classes — An alias reads like the type it names, and it is a rule change
 //!   plus a four-line check.
-//!   — owner: unowned-closures
+//!   — owner: decided-closures
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
 

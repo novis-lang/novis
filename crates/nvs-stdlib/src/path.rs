@@ -54,7 +54,7 @@
 //!    root shape beside [`Parts::drive`], not a change of interface.
 //!    Decided: Yes: add a third root shape beside the drive letter — Round-trips correctly; one more
 //!    root case in the path parser and its tests.
-//!    — owner: unowned-closures
+//!    — owner: decided-closures
 //! 2. **A drive-*relative* path is not modelled.** `C:log` — Windows' "the
 //!    current directory *on* drive C" — has no separator after the colon, so
 //!    [`split_drive`] declines it and the whole thing is one component named
@@ -63,7 +63,7 @@
 //!    relative path, which is worse.
 //!    Decided: No: keep it one relative component and state it as the grammar — Round-trips and never
 //!    splits a:b wrongly; loses the Windows-specific meaning.
-//!    — owner: unowned-closures
+//!    — owner: decided-closures
 //!
 //! # What these members do with a qualifier
 //!

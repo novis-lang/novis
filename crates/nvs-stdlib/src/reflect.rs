@@ -135,7 +135,7 @@
 //!    `AttributeInfo` and `EnumInfo` are the far three: a descriptor carries no
 //!    constants, no attributes and no enum cases at all, so each is a join from
 //!    `nvs_types` through `nvs-codegen` before it is a member here.
-//!    — owner: M8
+//!    — owner: decided-closures
 //! 2. A `protected` member is reached reflectively from the declaring class's
 //!    own bodies and from nowhere else, where an ordinary call from a subclass
 //!    reaches it too. [`nvs_runtime::ClassDesc`] carries one bit per member and
@@ -145,7 +145,7 @@
 //!    second bit carried down from `nvs_types::layout`, next to the one
 //!    [`nvs_runtime::ClassDesc::field_is_public`] answers; until then the
 //!    narrower answer is the one that refuses rather than the one that leaks.
-//!    — owner: M8
+//!    — owner: decided-closures
 
 use nvs_runtime::{ClassDesc, Fault, NvsArray, NvsObj, NvsStr, Tag, ThrownClass, Value};
 

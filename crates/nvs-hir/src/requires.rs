@@ -103,7 +103,7 @@
 //!   what loads.
 //!   Decided: Fold literal concatenations and consts before the graph walk — More requires are resolved
 //!   and bundled at build time, at the cost of a small constant folder that runs before the checker's.
-//!   — owner: unowned-closures
+//!   — owner: decided-closures
 
 use std::path::{Path, PathBuf};
 

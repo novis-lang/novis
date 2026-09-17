@@ -79,13 +79,13 @@
 //!    [`Qual::Launder`] would have no slot for it.
 //!    Decided: Yes: qual_of reads the parameter's declared Qual whatever its type — The refusal becomes
 //!    readable, and a union can hold Launder; one registry-shape change.
-//!    — owner: unowned-closures
+//!    — owner: decided-closures
 //! 2. **The step budget is a constant, not a directive.** `rule:core-classes/regex-two-tiers` puts
 //!    the default in `nvs.toml` under `rule:config/three-changeability-classes`'s ordinary rules, and no
 //!    key for it parses: `crates/nvs-config/src/tree.rs` is the one home for
 //!    what does, and it names none. [`BACKTRACK_BUDGET`] is that default,
 //!    stated once, and reading it from config is a change to that one line.
-//!    — owner: M6
+//!    — owner: decided-closures
 //! 3. **This core's compiled-pattern cache is a cross-request store no
 //!    accounting bracket can take.** [`CACHE`] holds an `Rc` the compiling
 //!    request holds too, so a pattern's bytes have two owners and nothing can
@@ -99,7 +99,7 @@
 //!    last `Rc`'s drop stayed the request's, which is the same credit with no
 //!    bound on it at all. It waits on per-request provenance, which is the
 //!    request arena.
-//!    — owner: M6
+//!    — owner: decided-closures
 
 use std::borrow::Cow;
 use std::cell::RefCell;

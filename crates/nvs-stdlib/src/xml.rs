@@ -132,7 +132,7 @@
 //!    one it does not.
 //!    Decided: A computed member (namespaceUri()) that walks ancestor xmlns declarations on demand — No
 //!    change to the shared node family or per-node cost; a lookup costs a walk up the tree.
-//!    — owner: unowned-closures
+//!    — owner: decided-closures
 
 use nvs_runtime::{Fault, NvsArray, NvsStr, ObjHeader, ThrownClass, Value};
 

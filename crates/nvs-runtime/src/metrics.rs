@@ -107,7 +107,7 @@
 //!    has no pusher, so a tree naming `exporter = "otlp"` builds a registry
 //!    nothing ships. That module is the half a build without the `exporter`
 //!    feature loses, and this one is in every build either way.
-//!    — owner: unowned-closures
+//!    — owner: decided-closures
 
 use std::cell::RefCell;
 use std::collections::BTreeMap;
