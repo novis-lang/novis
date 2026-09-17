@@ -243,7 +243,12 @@ impl Ctx {
     /// make "which classes can this request throw" a property of the embedder.
     ///
     /// A caller that never installs one gets the degraded behaviour
-    /// [`Pending`] describes, never a crash.
+    /// [`Pending`] describes, and no release build ever crashes for it — but
+    /// the call is not optional, and [`crate::ctx::wiring`] is where it sits
+    /// among the things a host writes before any Novis code runs. The omission
+    /// is observable as a *wrong answer* rather than only as less detail:
+    /// [`Self::pending_conforms_to`] then reports that a failure is not an
+    /// instance of the class it is one of, which a debug build asserts on.
     pub fn set_runtime_error_class(&mut self, class: ErrorClass) {
         self.runtime_error_class = Some(class);
     }
@@ -577,13 +582,27 @@ impl Ctx {
     /// The ancestry itself is read off the descriptor
     /// ([`crate::ClassDesc::conforms_to_name`]) rather than off a second copy
     /// of `nvs_hir::errors::TREE` here, so the two cannot disagree about what
-    /// `ParseError` descends from. `false` where nothing is pending, and where
-    /// no exception class was ever installed to resolve one against.
+    /// `ParseError` descends from. `false` where nothing is pending.
+    ///
+    /// A pending failure carrying **no descriptor** is the other `false`, and
+    /// it is a host that skipped part of its wiring rather than a question with
+    /// an answer: [`crate::ctx::wiring`] makes the class table something
+    /// written before any Novis code runs, and without one every class name
+    /// answers `false` for a failure that is an instance of it. A debug build
+    /// asserts the configuration here, which is the one place the omission is
+    /// observable as a wrong answer; a release build keeps
+    /// [`Self::set_runtime_error_class`]'s "never a crash".
     #[must_use]
     pub fn pending_conforms_to(&self, name: &str) -> bool {
         let Some(desc) = self.pending_desc() else {
             return false;
         };
+        debug_assert!(
+            !desc.is_null(),
+            "no exception class table is installed: `Ctx::set_runtime_error_class` is part of \
+             the wiring a host writes before any Novis code runs, and a failure with no \
+             descriptor conforms to nothing — including to the class it is an instance of"
+        );
         if desc.is_null() {
             return false;
         }
@@ -782,6 +801,21 @@ impl Ctx {
 mod tests {
     use super::*;
     use crate::throwable::Frame;
+
+    /// [`crate::ctx::wiring`] makes the compiled unit's class table part of
+    /// what a host writes before any Novis code runs, and an ancestry question
+    /// is where skipping it stops being a degradation: a pending failure with
+    /// no descriptor conforms to nothing, so `Core\Test::assertThrows` would
+    /// report a non-match for a failure that is an instance of the class it
+    /// named. A debug build refuses the configuration instead of answering.
+    #[test]
+    #[cfg(debug_assertions)]
+    #[should_panic(expected = "no exception class table is installed")]
+    fn an_ancestry_question_with_no_class_table_refuses_the_configuration() {
+        let mut ctx = Ctx::buffered();
+        ctx.set_pending("the world said no");
+        let _ = ctx.pending_conforms_to("RuntimeError");
+    }
 
     /// `rule:core-classes/db-error`'s retry loop reads a refusal's `kind` off a failure it has
     /// not decided about yet, so the read leaves the pending exactly as it

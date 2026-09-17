@@ -12,6 +12,18 @@
 //! clock, the seeded random state and the scripted answers are all *the host
 //! deciding what a request observes*, which is what every other setter in this
 //! file is too.
+//!
+//! **The compiled unit's exception class table is part of this wiring too, and
+//! it is not optional.** `nvs_codegen::Classes::install_in` is the one call
+//! that writes it — four obligations share that call, and its own docs carry
+//! them — and it reaches [`Ctx::set_runtime_error_class`] here. A context that
+//! never took a table answers *every* ancestry question about a failure with
+//! `false`, because a helper-raised failure has no descriptor to read ancestry
+//! off, so the omission shows up as a wrong answer and not merely as less
+//! detail: `Core\Test::assertThrows` reports a non-match for a failure that is
+//! an instance of the class it named. Embedding the runtime without a table is
+//! therefore not a supported configuration, and
+//! [`Ctx::pending_conforms_to`] asserts it in a debug build.
 
 use super::*;
 
