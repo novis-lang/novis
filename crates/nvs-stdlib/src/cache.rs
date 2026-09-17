@@ -4175,7 +4175,7 @@ mod tests {
     /// was mounted from holds the right bytes — a failure that shows up as the
     /// store's `-WRONGPASS` and nowhere near the reader that caused it.
     #[test]
-    fn the_configured_block_becomes_one_dial() {
+    fn a_dial_carries_the_credential_and_the_index_beside_the_transport() {
         let ctx = deployed(
             "[capabilities]\ncache.shared = true\n\n[cache.shared]\n\
              url = \"redis://127.0.0.1:6379\"\npassword = \"hunter2 \"\ndatabase = 3\n",
@@ -4187,7 +4187,18 @@ mod tests {
         );
         assert_eq!(dial.password.as_deref(), Some("hunter2 "));
         assert_eq!(dial.database, Some(3));
+    }
 
+    /// A deployment that wrote only `[cache.shared] url` settles into a dial
+    /// carrying neither half, so the connection it opens spends no round trip
+    /// applying nothing and reaches the store exactly as it did before either
+    /// key existed.
+    ///
+    /// Beside the case above rather than inside it: a pair of assertions that
+    /// only read a configured credential back would pass just as well if the
+    /// dial invented one, and every deployment on this chain today is this one.
+    #[test]
+    fn a_store_configured_with_neither_dials_exactly_as_it_did() {
         let bare = deployed("[cache.shared]\nurl = \"redis://127.0.0.1:6379\"\n");
         let plain = dial_of(
             &bare,
