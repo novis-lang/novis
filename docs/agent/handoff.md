@@ -2,53 +2,54 @@
 
 ## State
 
-**Goal `decided-closures`, stage 4 — the library — is under way, and stage 4's third check's first
-test is green.** `rule:core-classes/regex-two-tiers`'s step budget is `[limits] max_regex_steps`, an
-ordinary `Runtime` directive whose default is the constant `crates/nvs-stdlib/src/regex.rs` states,
-so a request may widen or narrow its own and a `[limits.hard]` entry is how a host bounds that. The
-rule's fragment says so now; the gap it recorded is deleted.
+**Goal `decided-closures`, stage 4 — the library.** A union parameter now carries a classification:
+`CoreTy::classification` folds a union's arms, so the mark is read off the arm that has a cell for it
+(`crates/nvs-stdlib/src/registry.rs:1155`). `qual_of` needed no change — it already delegates — which
+is the decided answer to `crates/nvs-stdlib/src/regex.rs` gap 1 reached from the other side: the
+registry's own gate has always *required* the mark on the arm, so the arms were the slot.
 
-**The budget is part of this core's compiled-pattern cache key**, beside the text and the flags.
-`fancy-regex` bakes the limit in when it builds the program, so a shared entry would run one request
-under another's ceiling — `crates/nvs-stdlib/src/regex.rs`'s `CACHE` doc is the home of that and of
-what it spends. `false` reads as the shipped budget: there is no spelling for a tier that may
-backtrack forever.
+**`Core\Regex`'s `Pattern|string` positions refuse a tainted pattern by `Qual::Sink` now**, the one
+written on `PATTERN_OR_STRING`'s text arm, rather than by the refusing default. `compile`'s own
+`string` parameter and every union beside it read the same way, and the new registry test
+`a_union_parameter_carries_the_classification_its_arms_declare` holds both halves.
 
-**The carried floor check that had been red since session 0005 is repointed, not a regression in the
-tree.** `Core\Queue\Stats` gained its fifth counter under this goal and `queue_sqlite.rs` renamed
-its case with it, so the name goal `sqlite-queue` drafted named a test no crate declares.
-`python tools/owners.py --closes decided-closures` names 20 gaps now, down from 21.
+**Seven parameters widen, and that is the change with teeth.** A union whose arms declared `Neutral`
+or `Contagious` admitted nothing before; it does now — `Core\Cli::write`, `Core\Compress`'s
+`bytes|string` pair, `Arr::hasKey`, `Arr::column`, `Db\Rows::column`, `Regex\Match::group`,
+`Response\Stream::write`. Each mark was written by the row's author and ignored by the checker;
+`cli.rs:428`'s `WRITABLE` doc argued for exactly this admission. The `secret` axis is untouched.
+The two comments that argued from the old `None` (`socket.rs:267`, `http/socket.rs:198`) and the card
+that promised a refusal (`response.rs:573`) say what is true now.
 
-**`[context] modules` prints no `nvs-config` or `nvs-server` module**, though this item's own anchor
-was `crates/nvs-config/src/tree.rs:171` — the map block said nothing about the file the work opened.
-Adding `crates/nvs-config/src/*.rs` and `crates/nvs-server/src/schedule.rs` to that field is what
-closes it.
+**`rule:security/unclassified-parameter-refuses-tainted` gained the union paragraph**, which is its
+home. `rule:security/jwe-compact-subset`'s "a union carries no classification" clause was a mechanism
+claim, not the decision, and now gives the reason that survives it. ADR 0179 stays frozen.
+`python tools/owners.py --closes decided-closures` names 19 gaps, down from 20.
 
 ## Next group
 
-**Stage 4: the two patterns compiled per call, and the sink spelling regex left open** — one file
-set: `crates/nvs-stdlib/src/cldr.rs`, `crates/nvs-stdlib/src/time.rs`,
-`crates/nvs-types/src/core_lib.rs`.
+**Stage 4: the prepared-pattern channel gains its second and third callers** — one file set:
+`crates/nvs-stdlib/src/registry.rs`, `crates/nvs-stdlib/src/cldr.rs`, `crates/nvs-stdlib/src/time.rs`,
+and `nvs-ir`'s lowering. The channel is **already built** for `Core\Regex::compile`, so this is a
+roster entry and a second descriptor rather than new plumbing: `crates/nvs-ir/tests/prepared_patterns.rs`
+is what it looks like working, and the goal's reserved ADR slot may end up unspent.
 
-- [ ] **`crates/nvs-types/src/core_lib.rs:377` — `qual_of` reads a parameter's declared `Qual`
-      whatever its type.** The decided answer to `crates/nvs-stdlib/src/regex.rs:69` gap 1: the seven
-      members taking `Pattern|string` refuse a tainted pattern today by the `None` default rather
-      than by a rule a reader can find, and a `CoreTy::Union` has nowhere to hold a mark
-      (`rule:security/regex-pattern-is-a-sink`). One registry-shape change, and the refusal becomes
-      readable.
+- [ ] **`crates/nvs-stdlib/src/registry.rs:3198` — `PREPARED_MEMBERS` is one row, and the CLDR
+      pattern members are the next ones.** What a prepared argument is and how it reaches the helper:
+      `crates/nvs-ir/src/ir.rs:1851` and `crates/nvs-ir/src/lower/mod.rs:2222`
+      (`rule:expressions/intrinsic-literals`).
 - [ ] **`crates/nvs-stdlib/src/cldr.rs:212` — a literal date pattern is prepared while checking.**
-      Stage 4's third check's second test, `a_literal_cldr_pattern_is_prepared_at_compile_time_and_not_per_call`.
-      The channel is the one `crates/nvs-stdlib/src/regex.rs:@prepared_tier` already runs on
-      (`rule:expressions/intrinsic-literals`'s fold), and the goal's one ADR slot is reserved for it.
+      The same work `cldr`'s `compile` does, moved off the request path, with the diagnostic becoming
+      a compile error. Stage 4's check
+      `a_literal_cldr_pattern_is_prepared_at_compile_time_and_not_per_call` is this item's test.
 - [ ] **`crates/nvs-stdlib/src/time.rs:102` — `$d->format` and `Core\Time::parse` read that same
-      channel.** The same gap in the other module, and the reason the ADR is one record rather than
-      two: both members walk `cldr.rs`'s pattern grammar.
+      prepared pattern.** One gap with the one above; the module gains a caller and nothing else.
 
 ## Backlog
 
-- 20 module-doc gaps still name this goal — `python tools/owners.py --closes decided-closures`.
-- `crates/nvs-stdlib/src/regex.rs:83` gap 2 (the cache is a cross-request store) waits on the request
-  arena, and is a deferral rather than a build — that module's own doc states what it costs today.
-- `[context] modules` in `docs/agent/loop-goal.toml` names no `nvs-config` or `nvs-server` module.
-- ADR 0192 is unclaimed, reserved by `docs/agent/loop-goal.md` § *Standing decisions* for the
-  prepared-pattern channel.
+- Stage 4's other two checks are goal items not yet taken — Zip64/CRC/seeded/UUID/UNC/EBML, and JSON
+  depth on a heap stack plus the queue's boot refusal (`docs/agent/loop-goal.toml:11607`, `:11625`).
+- `crates/nvs-stdlib/src/regex.rs:69` gap 1 (the cache's accounting bracket) waits on the request
+  arena and is the only gap that file still owns.
+- `[context] modules` was left alone on purpose: the driver's `context-sync.py` sweeps it from the
+  paths a session's own commits touched.

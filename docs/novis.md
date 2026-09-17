@@ -7613,7 +7613,7 @@ Whether `$a` holds an entry under `$key`, as `array_key_exists` does — and as 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$a` | `array<T>` | The array to look in. |
-| `$key` | `int\|string` | The key, an `int` or a `string`; `1` and `"1"` name one entry. |
+| `$key` | `int\|string` (neutral) | The key, an `int` or a `string`; `1` and `"1"` name one entry. |
 
 **Returns** `bool` — `true` when the key is present, whatever value it holds.
 
@@ -9563,7 +9563,7 @@ Answers whether `$pattern` matches anywhere in `$subject` — `preg_match` used 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$subject` | `string` (neutral) | The text to search. |
-| `$pattern` | `Core\Regex\Pattern\|string` | A `Pattern` from `Core\Regex::compile`, or a pattern string compiled with no flags; the pattern is a sink, so a `tainted` string is refused at the call. |
+| `$pattern` | `Core\Regex\Pattern\|string` (sink) | A `Pattern` from `Core\Regex::compile`, or a pattern string compiled with no flags; the pattern is a sink, so a `tainted` string is refused at the call. |
 
 **Returns** `bool` — `true` when the subject contains at least one match, `false` otherwise.
 
@@ -9581,7 +9581,7 @@ Finds the first match of `$pattern` in `$subject` at or after `from`, as a `Matc
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$subject` | `string` | The text to search. |
-| `$pattern` | `Core\Regex\Pattern\|string` | A `Pattern` from `Core\Regex::compile`, or a pattern string compiled with no flags; the pattern is a sink, so a `tainted` string is refused at the call. |
+| `$pattern` | `Core\Regex\Pattern\|string` (sink) | A `Pattern` from `Core\Regex::compile`, or a pattern string compiled with no flags; the pattern is a sink, so a `tainted` string is refused at the call. |
 | `{from: …}` | `int` (default `0`) | The grapheme index the search starts at; negative counts from the end, and an index past the end starts at the end. |
 
 **Returns** `?Core\Regex\Match` — The first `Match`, or `null` when the pattern matches nowhere at or after `from`.
@@ -9600,7 +9600,7 @@ Finds every non-overlapping match of `$pattern` in `$subject`, one `Match` each 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$subject` | `string` | The text to search. |
-| `$pattern` | `Core\Regex\Pattern\|string` | A `Pattern` from `Core\Regex::compile`, or a pattern string compiled with no flags; the pattern is a sink, so a `tainted` string is refused at the call. |
+| `$pattern` | `Core\Regex\Pattern\|string` (sink) | A `Pattern` from `Core\Regex::compile`, or a pattern string compiled with no flags; the pattern is a sink, so a `tainted` string is refused at the call. |
 
 **Returns** `array<Core\Regex\Match>` — The matches in subject order; an empty array when the pattern matches nowhere.
 
@@ -9618,7 +9618,7 @@ Replaces up to `limit` matches of `$pattern` in `$subject` with `$replacement`, 
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$subject` | `string` | The text to search. |
-| `$pattern` | `Core\Regex\Pattern\|string` | A `Pattern` from `Core\Regex::compile`, or a pattern string compiled with no flags; the pattern is a sink, so a `tainted` string is refused at the call. |
+| `$pattern` | `Core\Regex\Pattern\|string` (sink) | A `Pattern` from `Core\Regex::compile`, or a pattern string compiled with no flags; the pattern is a sink, so a `tainted` string is refused at the call. |
 | `$replacement` | `string` | The template each match becomes; a reference to a group the pattern does not declare expands to the empty string, and PHP's `\1` spelling is not a reference. |
 | `{limit: …}` | `uint` (default `18446744073709551615`) | How many matches to replace, counted from the start of the subject; the default is every one, and `0` replaces nothing. |
 
@@ -9638,7 +9638,7 @@ Replaces up to `limit` matches of `$pattern` in `$subject` with what `$fn` answe
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$subject` | `string` | The text to search. |
-| `$pattern` | `Core\Regex\Pattern\|string` | A `Pattern` from `Core\Regex::compile`, or a pattern string compiled with no flags; the pattern is a sink, so a `tainted` string is refused at the call. |
+| `$pattern` | `Core\Regex\Pattern\|string` (sink) | A `Pattern` from `Core\Regex::compile`, or a pattern string compiled with no flags; the pattern is a sink, so a `tainted` string is refused at the call. |
 | `$fn` | `callable(Core\Regex\Match): string` | A `callable(Match): string` called once per replaced match, in subject order, after every match has been found. |
 | `{limit: …}` | `uint` (default `18446744073709551615`) | How many matches to replace, counted from the start of the subject; the default is every one, `0` replaces nothing, and `$fn` is never called for a match beyond it. |
 
@@ -9658,7 +9658,7 @@ Splits `$subject` at every match of `$pattern`, as `preg_split` does, under `Cor
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$subject` | `string` | The text to split. |
-| `$pattern` | `Core\Regex\Pattern\|string` | A `Pattern` from `Core\Regex::compile`, or a pattern string compiled with no flags; the pattern is a sink, so a `tainted` string is refused at the call. |
+| `$pattern` | `Core\Regex\Pattern\|string` (sink) | A `Pattern` from `Core\Regex::compile`, or a pattern string compiled with no flags; the pattern is a sink, so a `tainted` string is refused at the call. |
 | `{limit: …}` | `int` (default `9223372036854775807`) | `Core\Str::split`'s three-sign rule: positive is at most that many pieces with the last holding the remainder, negative drops that many pieces off the end, and `0` yields the subject unsplit — not `preg_split`'s reading of `0` and `-1` as no limit. |
 | `{keepEmpty: …}` | `bool` (default `true`) | Whether empty pieces are kept; `false` is `PREG_SPLIT_NO_EMPTY`, and drops them after `limit` has been applied. |
 
@@ -9729,7 +9729,7 @@ Answers one group's text by number or by name — `$matches[$group]` read after 
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$group` | `int\|string` | The group's number, `0` for the whole match, or its name. |
+| `$group` | `int\|string` (neutral) | The group's number, `0` for the whole match, or its name. |
 
 **Returns** `?string` — The group's text, or `null` where the pattern declares the group and this match did not reach it.
 
@@ -15720,7 +15720,7 @@ Runs one request through the program under test in this process — the compiled
 | `$method` | `Core\Http\Method` | The verb the synthetic request carries, matched against the table exactly as an arrived one is. |
 | `$path` | `string` (neutral) | The path to ask for, mount prefix already stripped — what a handler's `#[Route]` is declared against. A `?` and everything after it is the query. |
 | `{headers: …}` | `array<string>` (default `[]`) | The field lines the request carries, keyed by name and spelled as the program under test will read them back. A `content-type` or a `content-length` written here stands; one written for neither is derived from `body`. |
-| `{body: …}` | `string\|bytes` (default `null`) | The octets the request carries, framed by nothing and typed by nothing. Text goes as it is written, and a body that is not text at all — the kind `Core\Request::bytes` exists for — goes as `bytes`. A call naming no body describes a request carrying none, which is not a request carrying an empty one. |
+| `{body: …}` | `string\|bytes` (default `null`, neutral) | The octets the request carries, framed by nothing and typed by nothing. Text goes as it is written, and a body that is not text at all — the kind `Core\Request::bytes` exists for — goes as `bytes`. A call naming no body describes a request carrying none, which is not a request carrying an empty one. |
 | `{mount: …}` | `string` (default `""`, neutral) | The prefix the door is to have stripped off `path` before the program saw it — what `Core\Request::mount()` answers, and what `Core\Router::url` writes in front of every link the request builds. A call naming none describes a request served at the root, which is what a program run off the command line is too. |
 
 **Returns** `Core\Test\Response` — The status the program declared and the bytes it wrote. A path the table does not claim is still answered: nothing here dispatches, so the program decides what a miss means.
@@ -15741,7 +15741,7 @@ Says what one outbound URL answers with, and takes this test off the network —
 | `$url` | `string` (sink) | The URL this answer serves: the whole of it, or a prefix ending in `*`. Nothing is resolved and no host is looked up — this is the text a call's own URL is compared against. |
 | `$status` | `uint` | The status the call answers with, as a wire status line can write it: three digits, `100` to `999`. |
 | `{json: …}` | `mixed` (default `(omitted)`) | A value the answer carries as a JSON document, written exactly as `Core\Json::encode` would write it. The answer declares `application/json` for it unless the `headers` bag names a content type itself. |
-| `{body: …}` | `string\|bytes` (default `null`) | The body the answer carries, for a reply that is not a JSON document — text, or the octets of a reply that is not text at all, which is what `Core\Http\Response::bytes` reads back and `::text` refuses. An answer may name this or `json` and not both. |
+| `{body: …}` | `string\|bytes` (default `null`, neutral) | The body the answer carries, for a reply that is not a JSON document — text, or the octets of a reply that is not text at all, which is what `Core\Http\Response::bytes` reads back and `::text` refuses. An answer may name this or `json` and not both. |
 | `{headers: …}` | `array<string\|array<string>>` (default `[]`) | The headers the answer carries, keyed by name — the same shape `Core\Http\Options` writes a request's headers in, plus one arm it has no use for: an array of strings under a name is a reply that carried that field on that many lines, which is what `Core\Http\Response::headers` reads back. A name is matched case-insensitively, as a header name is. |
 
 **Returns** `void` — Nothing. Answers accumulate, so a test registers as many as it has calls; a URL answered exactly wins over one answered by a prefix, and the longest prefix wins among prefixes.
@@ -16393,7 +16393,7 @@ Writes `$value` to a standard stream, replacing `fwrite(STDOUT, …)` and `print
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$value` | `string\|Core\Cli\Text` | The text to write. A `tainted` one is written like any other — the substitution is what makes the terminal safe, so nothing has to be laundered first — while a `secret` one is refused at compile time. |
+| `$value` | `string\|Core\Cli\Text` (neutral) | The text to write. A `tainted` one is written like any other — the substitution is what makes the terminal safe, so nothing has to be laundered first — while a `secret` one is refused at compile time. |
 | `{stream: …}` | `Core\Cli\Stream` (default `Core\Cli\Stream::Out`) | Which standard stream to write to. `Out` when omitted; `Err` writes to this request's diagnostic channel, which a `Core\Out::capture` does not take. `In` throws. |
 | `{newline: …}` | `bool` (default `false`) | Whether to append one `LF` after the value. `false` when omitted, so the member writes exactly what it was handed. |
 
@@ -18219,7 +18219,7 @@ Writes one chunk of the body, waiting while the client is still reading the last
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$chunk` | `string\|bytes` | The bytes to send, unchanged, as text or as `bytes`. An empty chunk reaches no wire and is not an error. A `tainted` value is refused at compile time: a parameter taking two shapes carries no classification, and refusing is the safe half of that. |
+| `$chunk` | `string\|bytes` (neutral) | The bytes to send, unchanged, as text or as `bytes`. An empty chunk reaches no wire and is not an error. A `tainted` value is accepted, as it is at `Core\Response::text`: the chunk goes out to the client that sent it and nothing is answered for the qualifier to carry. |
 
 **Returns** `void` — Nothing. The chunk has been handed to the connection by the time this returns.
 
@@ -19937,7 +19937,7 @@ Signs `$claims` into a JWT that expires `$lifetime` from now, under `$key` and t
 |---|---|---|
 | `$claims` | `array<string>` | The application's own claims, by name. `exp` and `iat` are written by this member and are refused here; every other name is carried through unchanged. |
 | `$lifetime` | `Core\Time\Duration` | How long the token stays valid — `15m`, `1h`, `7d`. It must be positive: a token that has already expired is a program bug, not a token. |
-| `$key` | `secret bytes\|Core\Crypto\KeyPair` | A shared secret of at least 32 octets, which signs HS256 — `Core\Crypto::generateKey()` answers one, and a longer secret agreed with another service is accepted as it stands. Or a `Core\Crypto\KeyPair`, which signs ES256, EdDSA, RS256 or PS256 by its kind. There is no algorithm argument: the key is the choice. |
+| `$key` | `secret bytes\|Core\Crypto\KeyPair` (neutral) | A shared secret of at least 32 octets, which signs HS256 — `Core\Crypto::generateKey()` answers one, and a longer secret agreed with another service is accepted as it stands. Or a `Core\Crypto\KeyPair`, which signs ES256, EdDSA, RS256 or PS256 by its kind. There is no algorithm argument: the key is the choice. |
 | `{kid: …}` | `string` (default `null`, neutral) | The key's name in the header, for a recipient holding several. Omitted by default, and written verbatim — it names a key and selects nothing. |
 | `{typ: …}` | `string` (default `null`, neutral) | The header's `typ`, `JWT` when omitted. RFC 9068's access tokens spell it `at+jwt`. |
 | `{embedKey: …}` | `bool` (default `false`) | Writes the pair's public half into the header as RFC 7638's minimal JWK, which is what a DPoP proof carries. Off by default, and a bug under a shared secret, which has no public half. |
@@ -21030,7 +21030,7 @@ Fetches `$url` under a finite budget, over the address the outbound policy pinne
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$url` | `string\|Core\Http\Target` | Where the request goes: a URL the program itself authored, or the `Core\Http\Target` that `Core\Http::allowUrl` pinned. A `tainted` value is refused here and accepted only at that launderer. |
+| `$url` | `string\|Core\Http\Target` (sink) | Where the request goes: a URL the program itself authored, or the `Core\Http\Target` that `Core\Http::allowUrl` pinned. A `tainted` value is refused here and accepted only at that launderer. |
 | `{deadline: …}` | `Core\Time\Duration` (default `null`) | The whole call's budget, covering the connection, every redirect hop, every retry attempt and every backoff between them. Omitted, the runtime's `[http.client] deadline` applies; there is no spelling for no deadline at all. |
 | `{connectTimeout: …}` | `Core\Time\Duration` (default `null`) | How long the connection alone may take, inside `deadline` rather than beside it. |
 | `{headers: …}` | `array<secret string>` (default `[]`) | Extra request headers, by name. A `secret` is admitted here — a credential has to reach the API it authenticates to — and a `tainted` value is not. The runtime's own headers are added around these. |
@@ -21045,7 +21045,7 @@ Fetches `$url` under a finite budget, over the address the outbound policy pinne
 | `{multipart: …}` | `array<secret tainted string\|Core\Http\Part>` (default `null`) | The parts to send as `multipart/form-data`, by name. |
 | `{identity: …}` | `Core\Http\Identity` (default `null`) | The client certificate to present when the server asks for one, read by `Core\Http\Identity::read`. Nothing is presented to a server that does not ask. Two identities never share a pooled connection, and neither does a call that names none. |
 | `{tlsCa: …}` | `string` (default `null`, neutral) | The PEM certificates to trust for this call, in place of the runtime's own roots. Needs the URL's host in the `capabilities.tls` `anchors` grant, and a call whose host is not in it throws before connecting. |
-| `{tlsPin: …}` | `string\|array<string>` (default `null`) | One `sha256//<base64>` public-key pin, or several: the peer is accepted when its SubjectPublicKeyInfo hashes to one of them and no chain is built, which is how a self-signed origin is reached. Needs the host in the `pin` grant. |
+| `{tlsPin: …}` | `string\|array<string>` (default `null`, neutral) | One `sha256//<base64>` public-key pin, or several: the peer is accepted when its SubjectPublicKeyInfo hashes to one of them and no chain is built, which is how a self-signed origin is reached. Needs the host in the `pin` grant. |
 | `{tlsVerifyHost: …}` | `bool` (default `true`) | Written as `false`, the chain is still built and checked and only the name is skipped. Needs the host in the `any_name` grant. |
 | `{tlsVerify: …}` | `bool` (default `true`) | Written as `false`, neither the chain nor the name is checked — the handshake signature still is, so the peer holds the key it presented, but nothing says whose key it is. Needs the host in the `insecure` grant. |
 | `{tlsMinVersion: …}` | `string` (default `null`, neutral) | The version floor this call speaks over, `"1.2"` or `"1.3"`. It needs no grant because it can only tighten, and a value below the runtime's `[http.client.tls] min_version` throws. |
@@ -21067,7 +21067,7 @@ Sends a `POST` to `$url` under a finite budget. Its retries need `retryIdempoten
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$url` | `string\|Core\Http\Target` | Where the request goes: a URL the program itself authored, or the `Core\Http\Target` that `Core\Http::allowUrl` pinned. A `tainted` value is refused here and accepted only at that launderer. |
+| `$url` | `string\|Core\Http\Target` (sink) | Where the request goes: a URL the program itself authored, or the `Core\Http\Target` that `Core\Http::allowUrl` pinned. A `tainted` value is refused here and accepted only at that launderer. |
 | `{deadline: …}` | `Core\Time\Duration` (default `null`) | The whole call's budget, covering the connection, every redirect hop, every retry attempt and every backoff between them. Omitted, the runtime's `[http.client] deadline` applies; there is no spelling for no deadline at all. |
 | `{connectTimeout: …}` | `Core\Time\Duration` (default `null`) | How long the connection alone may take, inside `deadline` rather than beside it. |
 | `{headers: …}` | `array<secret string>` (default `[]`) | Extra request headers, by name. A `secret` is admitted here — a credential has to reach the API it authenticates to — and a `tainted` value is not. The runtime's own headers are added around these. |
@@ -21082,7 +21082,7 @@ Sends a `POST` to `$url` under a finite budget. Its retries need `retryIdempoten
 | `{multipart: …}` | `array<secret tainted string\|Core\Http\Part>` (default `null`) | The parts to send as `multipart/form-data`, by name. |
 | `{identity: …}` | `Core\Http\Identity` (default `null`) | The client certificate to present when the server asks for one, read by `Core\Http\Identity::read`. Nothing is presented to a server that does not ask. Two identities never share a pooled connection, and neither does a call that names none. |
 | `{tlsCa: …}` | `string` (default `null`, neutral) | The PEM certificates to trust for this call, in place of the runtime's own roots. Needs the URL's host in the `capabilities.tls` `anchors` grant, and a call whose host is not in it throws before connecting. |
-| `{tlsPin: …}` | `string\|array<string>` (default `null`) | One `sha256//<base64>` public-key pin, or several: the peer is accepted when its SubjectPublicKeyInfo hashes to one of them and no chain is built, which is how a self-signed origin is reached. Needs the host in the `pin` grant. |
+| `{tlsPin: …}` | `string\|array<string>` (default `null`, neutral) | One `sha256//<base64>` public-key pin, or several: the peer is accepted when its SubjectPublicKeyInfo hashes to one of them and no chain is built, which is how a self-signed origin is reached. Needs the host in the `pin` grant. |
 | `{tlsVerifyHost: …}` | `bool` (default `true`) | Written as `false`, the chain is still built and checked and only the name is skipped. Needs the host in the `any_name` grant. |
 | `{tlsVerify: …}` | `bool` (default `true`) | Written as `false`, neither the chain nor the name is checked — the handshake signature still is, so the peer holds the key it presented, but nothing says whose key it is. Needs the host in the `insecure` grant. |
 | `{tlsMinVersion: …}` | `string` (default `null`, neutral) | The version floor this call speaks over, `"1.2"` or `"1.3"`. It needs no grant because it can only tighten, and a value below the runtime's `[http.client.tls] min_version` throws. |
@@ -21104,7 +21104,7 @@ Sends a `PUT` to `$url` under a finite budget. Idempotent by definition, so its 
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$url` | `string\|Core\Http\Target` | Where the request goes: a URL the program itself authored, or the `Core\Http\Target` that `Core\Http::allowUrl` pinned. A `tainted` value is refused here and accepted only at that launderer. |
+| `$url` | `string\|Core\Http\Target` (sink) | Where the request goes: a URL the program itself authored, or the `Core\Http\Target` that `Core\Http::allowUrl` pinned. A `tainted` value is refused here and accepted only at that launderer. |
 | `{deadline: …}` | `Core\Time\Duration` (default `null`) | The whole call's budget, covering the connection, every redirect hop, every retry attempt and every backoff between them. Omitted, the runtime's `[http.client] deadline` applies; there is no spelling for no deadline at all. |
 | `{connectTimeout: …}` | `Core\Time\Duration` (default `null`) | How long the connection alone may take, inside `deadline` rather than beside it. |
 | `{headers: …}` | `array<secret string>` (default `[]`) | Extra request headers, by name. A `secret` is admitted here — a credential has to reach the API it authenticates to — and a `tainted` value is not. The runtime's own headers are added around these. |
@@ -21119,7 +21119,7 @@ Sends a `PUT` to `$url` under a finite budget. Idempotent by definition, so its 
 | `{multipart: …}` | `array<secret tainted string\|Core\Http\Part>` (default `null`) | The parts to send as `multipart/form-data`, by name. |
 | `{identity: …}` | `Core\Http\Identity` (default `null`) | The client certificate to present when the server asks for one, read by `Core\Http\Identity::read`. Nothing is presented to a server that does not ask. Two identities never share a pooled connection, and neither does a call that names none. |
 | `{tlsCa: …}` | `string` (default `null`, neutral) | The PEM certificates to trust for this call, in place of the runtime's own roots. Needs the URL's host in the `capabilities.tls` `anchors` grant, and a call whose host is not in it throws before connecting. |
-| `{tlsPin: …}` | `string\|array<string>` (default `null`) | One `sha256//<base64>` public-key pin, or several: the peer is accepted when its SubjectPublicKeyInfo hashes to one of them and no chain is built, which is how a self-signed origin is reached. Needs the host in the `pin` grant. |
+| `{tlsPin: …}` | `string\|array<string>` (default `null`, neutral) | One `sha256//<base64>` public-key pin, or several: the peer is accepted when its SubjectPublicKeyInfo hashes to one of them and no chain is built, which is how a self-signed origin is reached. Needs the host in the `pin` grant. |
 | `{tlsVerifyHost: …}` | `bool` (default `true`) | Written as `false`, the chain is still built and checked and only the name is skipped. Needs the host in the `any_name` grant. |
 | `{tlsVerify: …}` | `bool` (default `true`) | Written as `false`, neither the chain nor the name is checked — the handshake signature still is, so the peer holds the key it presented, but nothing says whose key it is. Needs the host in the `insecure` grant. |
 | `{tlsMinVersion: …}` | `string` (default `null`, neutral) | The version floor this call speaks over, `"1.2"` or `"1.3"`. It needs no grant because it can only tighten, and a value below the runtime's `[http.client.tls] min_version` throws. |
@@ -21141,7 +21141,7 @@ Sends a `PATCH` to `$url` under a finite budget. A partial update repeated is a 
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$url` | `string\|Core\Http\Target` | Where the request goes: a URL the program itself authored, or the `Core\Http\Target` that `Core\Http::allowUrl` pinned. A `tainted` value is refused here and accepted only at that launderer. |
+| `$url` | `string\|Core\Http\Target` (sink) | Where the request goes: a URL the program itself authored, or the `Core\Http\Target` that `Core\Http::allowUrl` pinned. A `tainted` value is refused here and accepted only at that launderer. |
 | `{deadline: …}` | `Core\Time\Duration` (default `null`) | The whole call's budget, covering the connection, every redirect hop, every retry attempt and every backoff between them. Omitted, the runtime's `[http.client] deadline` applies; there is no spelling for no deadline at all. |
 | `{connectTimeout: …}` | `Core\Time\Duration` (default `null`) | How long the connection alone may take, inside `deadline` rather than beside it. |
 | `{headers: …}` | `array<secret string>` (default `[]`) | Extra request headers, by name. A `secret` is admitted here — a credential has to reach the API it authenticates to — and a `tainted` value is not. The runtime's own headers are added around these. |
@@ -21156,7 +21156,7 @@ Sends a `PATCH` to `$url` under a finite budget. A partial update repeated is a 
 | `{multipart: …}` | `array<secret tainted string\|Core\Http\Part>` (default `null`) | The parts to send as `multipart/form-data`, by name. |
 | `{identity: …}` | `Core\Http\Identity` (default `null`) | The client certificate to present when the server asks for one, read by `Core\Http\Identity::read`. Nothing is presented to a server that does not ask. Two identities never share a pooled connection, and neither does a call that names none. |
 | `{tlsCa: …}` | `string` (default `null`, neutral) | The PEM certificates to trust for this call, in place of the runtime's own roots. Needs the URL's host in the `capabilities.tls` `anchors` grant, and a call whose host is not in it throws before connecting. |
-| `{tlsPin: …}` | `string\|array<string>` (default `null`) | One `sha256//<base64>` public-key pin, or several: the peer is accepted when its SubjectPublicKeyInfo hashes to one of them and no chain is built, which is how a self-signed origin is reached. Needs the host in the `pin` grant. |
+| `{tlsPin: …}` | `string\|array<string>` (default `null`, neutral) | One `sha256//<base64>` public-key pin, or several: the peer is accepted when its SubjectPublicKeyInfo hashes to one of them and no chain is built, which is how a self-signed origin is reached. Needs the host in the `pin` grant. |
 | `{tlsVerifyHost: …}` | `bool` (default `true`) | Written as `false`, the chain is still built and checked and only the name is skipped. Needs the host in the `any_name` grant. |
 | `{tlsVerify: …}` | `bool` (default `true`) | Written as `false`, neither the chain nor the name is checked — the handshake signature still is, so the peer holds the key it presented, but nothing says whose key it is. Needs the host in the `insecure` grant. |
 | `{tlsMinVersion: …}` | `string` (default `null`, neutral) | The version floor this call speaks over, `"1.2"` or `"1.3"`. It needs no grant because it can only tighten, and a value below the runtime's `[http.client.tls] min_version` throws. |
@@ -21178,7 +21178,7 @@ Sends a `DELETE` to `$url` under a finite budget.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$url` | `string\|Core\Http\Target` | Where the request goes: a URL the program itself authored, or the `Core\Http\Target` that `Core\Http::allowUrl` pinned. A `tainted` value is refused here and accepted only at that launderer. |
+| `$url` | `string\|Core\Http\Target` (sink) | Where the request goes: a URL the program itself authored, or the `Core\Http\Target` that `Core\Http::allowUrl` pinned. A `tainted` value is refused here and accepted only at that launderer. |
 | `{deadline: …}` | `Core\Time\Duration` (default `null`) | The whole call's budget, covering the connection, every redirect hop, every retry attempt and every backoff between them. Omitted, the runtime's `[http.client] deadline` applies; there is no spelling for no deadline at all. |
 | `{connectTimeout: …}` | `Core\Time\Duration` (default `null`) | How long the connection alone may take, inside `deadline` rather than beside it. |
 | `{headers: …}` | `array<secret string>` (default `[]`) | Extra request headers, by name. A `secret` is admitted here — a credential has to reach the API it authenticates to — and a `tainted` value is not. The runtime's own headers are added around these. |
@@ -21193,7 +21193,7 @@ Sends a `DELETE` to `$url` under a finite budget.
 | `{multipart: …}` | `array<secret tainted string\|Core\Http\Part>` (default `null`) | The parts to send as `multipart/form-data`, by name. |
 | `{identity: …}` | `Core\Http\Identity` (default `null`) | The client certificate to present when the server asks for one, read by `Core\Http\Identity::read`. Nothing is presented to a server that does not ask. Two identities never share a pooled connection, and neither does a call that names none. |
 | `{tlsCa: …}` | `string` (default `null`, neutral) | The PEM certificates to trust for this call, in place of the runtime's own roots. Needs the URL's host in the `capabilities.tls` `anchors` grant, and a call whose host is not in it throws before connecting. |
-| `{tlsPin: …}` | `string\|array<string>` (default `null`) | One `sha256//<base64>` public-key pin, or several: the peer is accepted when its SubjectPublicKeyInfo hashes to one of them and no chain is built, which is how a self-signed origin is reached. Needs the host in the `pin` grant. |
+| `{tlsPin: …}` | `string\|array<string>` (default `null`, neutral) | One `sha256//<base64>` public-key pin, or several: the peer is accepted when its SubjectPublicKeyInfo hashes to one of them and no chain is built, which is how a self-signed origin is reached. Needs the host in the `pin` grant. |
 | `{tlsVerifyHost: …}` | `bool` (default `true`) | Written as `false`, the chain is still built and checked and only the name is skipped. Needs the host in the `any_name` grant. |
 | `{tlsVerify: …}` | `bool` (default `true`) | Written as `false`, neither the chain nor the name is checked — the handshake signature still is, so the peer holds the key it presented, but nothing says whose key it is. Needs the host in the `insecure` grant. |
 | `{tlsMinVersion: …}` | `string` (default `null`, neutral) | The version floor this call speaks over, `"1.2"` or `"1.3"`. It needs no grant because it can only tighten, and a value below the runtime's `[http.client.tls] min_version` throws. |
@@ -21215,7 +21215,7 @@ Asks `$url` for its headers alone, under the same budget a `get` would have.
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$url` | `string\|Core\Http\Target` | Where the request goes: a URL the program itself authored, or the `Core\Http\Target` that `Core\Http::allowUrl` pinned. A `tainted` value is refused here and accepted only at that launderer. |
+| `$url` | `string\|Core\Http\Target` (sink) | Where the request goes: a URL the program itself authored, or the `Core\Http\Target` that `Core\Http::allowUrl` pinned. A `tainted` value is refused here and accepted only at that launderer. |
 | `{deadline: …}` | `Core\Time\Duration` (default `null`) | The whole call's budget, covering the connection, every redirect hop, every retry attempt and every backoff between them. Omitted, the runtime's `[http.client] deadline` applies; there is no spelling for no deadline at all. |
 | `{connectTimeout: …}` | `Core\Time\Duration` (default `null`) | How long the connection alone may take, inside `deadline` rather than beside it. |
 | `{headers: …}` | `array<secret string>` (default `[]`) | Extra request headers, by name. A `secret` is admitted here — a credential has to reach the API it authenticates to — and a `tainted` value is not. The runtime's own headers are added around these. |
@@ -21230,7 +21230,7 @@ Asks `$url` for its headers alone, under the same budget a `get` would have.
 | `{multipart: …}` | `array<secret tainted string\|Core\Http\Part>` (default `null`) | The parts to send as `multipart/form-data`, by name. |
 | `{identity: …}` | `Core\Http\Identity` (default `null`) | The client certificate to present when the server asks for one, read by `Core\Http\Identity::read`. Nothing is presented to a server that does not ask. Two identities never share a pooled connection, and neither does a call that names none. |
 | `{tlsCa: …}` | `string` (default `null`, neutral) | The PEM certificates to trust for this call, in place of the runtime's own roots. Needs the URL's host in the `capabilities.tls` `anchors` grant, and a call whose host is not in it throws before connecting. |
-| `{tlsPin: …}` | `string\|array<string>` (default `null`) | One `sha256//<base64>` public-key pin, or several: the peer is accepted when its SubjectPublicKeyInfo hashes to one of them and no chain is built, which is how a self-signed origin is reached. Needs the host in the `pin` grant. |
+| `{tlsPin: …}` | `string\|array<string>` (default `null`, neutral) | One `sha256//<base64>` public-key pin, or several: the peer is accepted when its SubjectPublicKeyInfo hashes to one of them and no chain is built, which is how a self-signed origin is reached. Needs the host in the `pin` grant. |
 | `{tlsVerifyHost: …}` | `bool` (default `true`) | Written as `false`, the chain is still built and checked and only the name is skipped. Needs the host in the `any_name` grant. |
 | `{tlsVerify: …}` | `bool` (default `true`) | Written as `false`, neither the chain nor the name is checked — the handshake signature still is, so the peer holds the key it presented, but nothing says whose key it is. Needs the host in the `insecure` grant. |
 | `{tlsMinVersion: …}` | `string` (default `null`, neutral) | The version floor this call speaks over, `"1.2"` or `"1.3"`. It needs no grant because it can only tighten, and a value below the runtime's `[http.client.tls] min_version` throws. |
@@ -21253,7 +21253,7 @@ Sends `$method` to `$url` under a finite budget — the row for a verb chosen at
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$method` | `Core\Http\Method` | The verb to send, as a `Core\Http\Method` case. A `Post` or a `Patch` retried without `retryIdempotencyKey` throws before the first attempt, which the member whose verb is its own name refuses while compiling instead. |
-| `$url` | `string\|Core\Http\Target` | Where the request goes: a URL the program itself authored, or the `Core\Http\Target` that `Core\Http::allowUrl` pinned. A `tainted` value is refused here and accepted only at that launderer. |
+| `$url` | `string\|Core\Http\Target` (sink) | Where the request goes: a URL the program itself authored, or the `Core\Http\Target` that `Core\Http::allowUrl` pinned. A `tainted` value is refused here and accepted only at that launderer. |
 | `{deadline: …}` | `Core\Time\Duration` (default `null`) | The whole call's budget, covering the connection, every redirect hop, every retry attempt and every backoff between them. Omitted, the runtime's `[http.client] deadline` applies; there is no spelling for no deadline at all. |
 | `{connectTimeout: …}` | `Core\Time\Duration` (default `null`) | How long the connection alone may take, inside `deadline` rather than beside it. |
 | `{headers: …}` | `array<secret string>` (default `[]`) | Extra request headers, by name. A `secret` is admitted here — a credential has to reach the API it authenticates to — and a `tainted` value is not. The runtime's own headers are added around these. |
@@ -21268,7 +21268,7 @@ Sends `$method` to `$url` under a finite budget — the row for a verb chosen at
 | `{multipart: …}` | `array<secret tainted string\|Core\Http\Part>` (default `null`) | The parts to send as `multipart/form-data`, by name. |
 | `{identity: …}` | `Core\Http\Identity` (default `null`) | The client certificate to present when the server asks for one, read by `Core\Http\Identity::read`. Nothing is presented to a server that does not ask. Two identities never share a pooled connection, and neither does a call that names none. |
 | `{tlsCa: …}` | `string` (default `null`, neutral) | The PEM certificates to trust for this call, in place of the runtime's own roots. Needs the URL's host in the `capabilities.tls` `anchors` grant, and a call whose host is not in it throws before connecting. |
-| `{tlsPin: …}` | `string\|array<string>` (default `null`) | One `sha256//<base64>` public-key pin, or several: the peer is accepted when its SubjectPublicKeyInfo hashes to one of them and no chain is built, which is how a self-signed origin is reached. Needs the host in the `pin` grant. |
+| `{tlsPin: …}` | `string\|array<string>` (default `null`, neutral) | One `sha256//<base64>` public-key pin, or several: the peer is accepted when its SubjectPublicKeyInfo hashes to one of them and no chain is built, which is how a self-signed origin is reached. Needs the host in the `pin` grant. |
 | `{tlsVerifyHost: …}` | `bool` (default `true`) | Written as `false`, the chain is still built and checked and only the name is skipped. Needs the host in the `any_name` grant. |
 | `{tlsVerify: …}` | `bool` (default `true`) | Written as `false`, neither the chain nor the name is checked — the handshake signature still is, so the peer holds the key it presented, but nothing says whose key it is. Needs the host in the `insecure` grant. |
 | `{tlsMinVersion: …}` | `string` (default `null`, neutral) | The version floor this call speaks over, `"1.2"` or `"1.3"`. It needs no grant because it can only tighten, and a value below the runtime's `[http.client.tls] min_version` throws. |
@@ -21291,7 +21291,7 @@ Sends `$method` to `$url` and answers once the head has arrived, leaving the bod
 | Parameter | Type | Meaning |
 |---|---|---|
 | `$method` | `Core\Http\Method` | The verb to send, as a `Core\Http\Method` case. A `Post` or a `Patch` retried without `retryIdempotencyKey` throws before the first attempt, which the member whose verb is its own name refuses while compiling instead. |
-| `$url` | `string\|Core\Http\Target` | Where the request goes: a URL the program itself authored, or the `Core\Http\Target` that `Core\Http::allowUrl` pinned. A `tainted` value is refused here and accepted only at that launderer. |
+| `$url` | `string\|Core\Http\Target` (sink) | Where the request goes: a URL the program itself authored, or the `Core\Http\Target` that `Core\Http::allowUrl` pinned. A `tainted` value is refused here and accepted only at that launderer. |
 | `{deadline: …}` | `Core\Time\Duration` (default `null`) | The whole call's budget, covering the connection, every redirect hop, every retry attempt and every backoff between them. Omitted, the runtime's `[http.client] deadline` applies; there is no spelling for no deadline at all. |
 | `{connectTimeout: …}` | `Core\Time\Duration` (default `null`) | How long the connection alone may take, inside `deadline` rather than beside it. |
 | `{headers: …}` | `array<secret string>` (default `[]`) | Extra request headers, by name. A `secret` is admitted here — a credential has to reach the API it authenticates to — and a `tainted` value is not. The runtime's own headers are added around these. |
@@ -21306,7 +21306,7 @@ Sends `$method` to `$url` and answers once the head has arrived, leaving the bod
 | `{multipart: …}` | `array<secret tainted string\|Core\Http\Part>` (default `null`) | The parts to send as `multipart/form-data`, by name. |
 | `{identity: …}` | `Core\Http\Identity` (default `null`) | The client certificate to present when the server asks for one, read by `Core\Http\Identity::read`. Nothing is presented to a server that does not ask. Two identities never share a pooled connection, and neither does a call that names none. |
 | `{tlsCa: …}` | `string` (default `null`, neutral) | The PEM certificates to trust for this call, in place of the runtime's own roots. Needs the URL's host in the `capabilities.tls` `anchors` grant, and a call whose host is not in it throws before connecting. |
-| `{tlsPin: …}` | `string\|array<string>` (default `null`) | One `sha256//<base64>` public-key pin, or several: the peer is accepted when its SubjectPublicKeyInfo hashes to one of them and no chain is built, which is how a self-signed origin is reached. Needs the host in the `pin` grant. |
+| `{tlsPin: …}` | `string\|array<string>` (default `null`, neutral) | One `sha256//<base64>` public-key pin, or several: the peer is accepted when its SubjectPublicKeyInfo hashes to one of them and no chain is built, which is how a self-signed origin is reached. Needs the host in the `pin` grant. |
 | `{tlsVerifyHost: …}` | `bool` (default `true`) | Written as `false`, the chain is still built and checked and only the name is skipped. Needs the host in the `any_name` grant. |
 | `{tlsVerify: …}` | `bool` (default `true`) | Written as `false`, neither the chain nor the name is checked — the handshake signature still is, so the peer holds the key it presented, but nothing says whose key it is. Needs the host in the `insecure` grant. |
 | `{tlsMinVersion: …}` | `string` (default `null`, neutral) | The version floor this call speaks over, `"1.2"` or `"1.3"`. It needs no grant because it can only tighten, and a value below the runtime's `[http.client.tls] min_version` throws. |
@@ -21330,13 +21330,13 @@ Opens a WebSocket to `$url` and answers it once the peer's `101` has arrived —
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$url` | `string\|Core\Http\Target` | The peer to open the socket to, as a `ws` or `wss` URL the program itself authored, or the `Core\Http\Target` that `Core\Http::allowUrl` pinned. An `http` or `https` URL is refused here and a `tainted` one is accepted only at that launderer. |
+| `$url` | `string\|Core\Http\Target` (sink) | The peer to open the socket to, as a `ws` or `wss` URL the program itself authored, or the `Core\Http\Target` that `Core\Http::allowUrl` pinned. An `http` or `https` URL is refused here and a `tainted` one is accepted only at that launderer. |
 | `{deadline: …}` | `Core\Time\Duration` (default `null`) | The opening handshake's budget, covering the connection and every address tried, and ending at the `101`. What bounds the conversation after it is `idle` and `maxDuration`. Omitted, the runtime's `[http.client] deadline` applies; there is no spelling for no deadline at all. |
 | `{connectTimeout: …}` | `Core\Time\Duration` (default `null`) | How long the connection alone may take, inside `deadline` rather than beside it. |
 | `{headers: …}` | `array<secret string>` (default `[]`) | Extra request headers, by name. A `secret` is admitted here — a credential has to reach the API it authenticates to — and a `tainted` value is not. The runtime's own headers are added around these. |
 | `{identity: …}` | `Core\Http\Identity` (default `null`) | The client certificate to present when the server asks for one, read by `Core\Http\Identity::read`. Nothing is presented to a server that does not ask. Two identities never share a pooled connection, and neither does a call that names none. |
 | `{tlsCa: …}` | `string` (default `null`, neutral) | The PEM certificates to trust for this call, in place of the runtime's own roots. Needs the URL's host in the `capabilities.tls` `anchors` grant, and a call whose host is not in it throws before connecting. |
-| `{tlsPin: …}` | `string\|array<string>` (default `null`) | One `sha256//<base64>` public-key pin, or several: the peer is accepted when its SubjectPublicKeyInfo hashes to one of them and no chain is built, which is how a self-signed origin is reached. Needs the host in the `pin` grant. |
+| `{tlsPin: …}` | `string\|array<string>` (default `null`, neutral) | One `sha256//<base64>` public-key pin, or several: the peer is accepted when its SubjectPublicKeyInfo hashes to one of them and no chain is built, which is how a self-signed origin is reached. Needs the host in the `pin` grant. |
 | `{tlsVerifyHost: …}` | `bool` (default `true`) | Written as `false`, the chain is still built and checked and only the name is skipped. Needs the host in the `any_name` grant. |
 | `{tlsVerify: …}` | `bool` (default `true`) | Written as `false`, neither the chain nor the name is checked — the handshake signature still is, so the peer holds the key it presented, but nothing says whose key it is. Needs the host in the `insecure` grant. |
 | `{tlsMinVersion: …}` | `string` (default `null`, neutral) | The version floor this call speaks over, `"1.2"` or `"1.3"`. It needs no grant because it can only tighten, and a value below the runtime's `[http.client.tls] min_version` throws. |
@@ -23608,7 +23608,7 @@ One column's value from every row, in the server's order — `PDO::fetchAll` und
 
 | Parameter | Type | Meaning |
 |---|---|---|
-| `$key` | `int\|string` | The column: an `int` is its position in the server's own description, counted from zero, and a `string` is its label. |
+| `$key` | `int\|string` (neutral) | The column: an `int` is its position in the server's own description, counted from zero, and a `string` is its label. |
 
 **Returns** `array<mixed>` — An `array<mixed>` with one entry per row, empty for a result with no rows.
 
