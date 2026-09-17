@@ -2300,11 +2300,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   ambiguous, and the check names the *goal file* rather than the playbook the edit landed in. End
   the selector in `*` to take every match, in `docs/agent/loop-goal.toml` and in the
   `docs/agent/goals/<goal>.toml` copy both. [until: reviewed 2026-09-17]
-- **A stage whose tests carry names its `[[check]] tests = [...]` does not use is not landed, and
-  nothing says so until the `DONE`.** A `cargo test` filter that matches no test passes, so two
-  stages of goal `cache-shared-dial` were green for sessions under names the frozen check never
-  named. Read the goal's own `[[check]]` block before writing a stage's tests, and spell each test
-  what the toml already calls it. [until: gone tools/session.py:done_claim]
 
 ## Running things
 
@@ -7640,6 +7635,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   hits, which nearly cost a filter over `CLASSES` the one class the `` html`…` `` constant needs. Grep
   the owning module for `pub const CLASS`/`NAME`, or `registry.rs` for `crate::<module>::`, and confirm
   membership there rather than by the class's spelled name. [until: reviewed 2026-12-01]
+- **Changing what an `extern "C"` primitive owns breaks its Rust-side test callers as a use-after-free,
+  not as a type error.** A test hands those primitives raw pointers, so nothing checks who owns the
+  reference: a case that goes on using an operand the call now consumes reads freed memory, and it
+  surfaces as a misaligned-pointer abort in an unrelated assertion. Grep every call in
+  `crates/nvs-runtime/{src,tests}` before the edit and give each one a reference of its own —
+  `string.rs`'s `lent` helper is the shape. [until: reviewed 2026-09-17]
 
 ## Divergences and refusals already pinned
 
