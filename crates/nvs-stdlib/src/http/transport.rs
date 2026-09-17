@@ -5062,35 +5062,14 @@ pub(crate) mod tests {
         );
     }
 
-    /// The anchor these two `https` cases run under: a self-signed `localhost`
-    /// certificate, with the PEM an operator's `roots` file holds written to
-    /// disk and installed as the process's one outbound client.
+    /// The anchor every `https` case here runs under: the self-signed
+    /// `localhost` certificate `crate::tests::outbound_client` trusts.
     ///
-    /// A `OnceLock` because `nvs_host::tls::configure` settles exactly that —
-    /// one client for the process — and answers a second call `AlreadyExists`.
-    /// The file is written rather than the certificate handed over directly,
-    /// because the seam under test starts at the path an operator wrote and a
-    /// case that skipped the encoding would be asserting against a path nothing
-    /// runs.
+    /// It is built there rather than here because the client is the *process's*
+    /// and `cache`'s TLS store reaches the same one — that module doc is the
+    /// home of the reasoning.
     fn trusted() -> &'static (CertificateDer<'static>, Vec<u8>) {
-        static TRUSTED: std::sync::OnceLock<(CertificateDer<'static>, Vec<u8>)> =
-            std::sync::OnceLock::new();
-        TRUSTED.get_or_init(|| {
-            let issued = rcgen::generate_simple_self_signed(vec!["localhost".to_owned()])
-                .expect("the loopback certificate could not be generated");
-            let path =
-                std::env::temp_dir().join(format!("nvs-http-roots-{}.pem", std::process::id()));
-            std::fs::write(&path, issued.cert.pem()).expect("the roots file could not be written");
-            nvs_host::tls::configure(&nvs_host::tls::ClientPolicy {
-                roots: vec![path.to_string_lossy().into_owned()],
-                ..nvs_host::tls::ClientPolicy::default()
-            })
-            .expect("the process's outbound client had already been built");
-            (
-                issued.cert.der().clone(),
-                issued.signing_key.serialize_der(),
-            )
-        })
+        crate::tests::outbound_client()
     }
 
     /// A loopback origin that terminates TLS under `cert` and answers `reply`

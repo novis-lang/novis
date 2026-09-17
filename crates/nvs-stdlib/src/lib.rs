@@ -478,6 +478,45 @@ mod tests {
         })
     }
 
+    /// The process's one outbound TLS client, and the self-signed `localhost`
+    /// certificate it trusts — declared here for [`granting`]'s reason and one
+    /// of its own.
+    ///
+    /// `rule:security/one-tls-client` is one client per process, and
+    /// `nvs_host::tls::configure` settles exactly that: it answers a second call
+    /// `AlreadyExists`, and it refuses outright once any session has run. So a
+    /// case in `http::transport` that needs a trusted origin and one in `cache`
+    /// that needs a handshake to go out at all cannot each build one — whichever
+    /// ran first would decide the other's outcome from another module. This
+    /// function is the one place it is built, and every case that needs a
+    /// session calls it before opening one.
+    ///
+    /// The `OnceLock` is what makes the order not matter. The file is written
+    /// rather than the certificate handed over directly, because the seam under
+    /// test starts at the path an operator wrote and a case that skipped the
+    /// encoding would be asserting against a path nothing runs.
+    pub(crate) fn outbound_client() -> &'static (rustls::pki_types::CertificateDer<'static>, Vec<u8>)
+    {
+        static TRUSTED: std::sync::OnceLock<(rustls::pki_types::CertificateDer<'static>, Vec<u8>)> =
+            std::sync::OnceLock::new();
+        TRUSTED.get_or_init(|| {
+            let issued = rcgen::generate_simple_self_signed(vec!["localhost".to_owned()])
+                .expect("the loopback certificate could not be generated");
+            let path =
+                std::env::temp_dir().join(format!("nvs-http-roots-{}.pem", std::process::id()));
+            std::fs::write(&path, issued.cert.pem()).expect("the roots file could not be written");
+            nvs_host::tls::configure(&nvs_host::tls::ClientPolicy {
+                roots: vec![path.to_string_lossy().into_owned()],
+                ..nvs_host::tls::ClientPolicy::default()
+            })
+            .expect("the process's outbound client had already been built");
+            (
+                issued.cert.der().clone(),
+                issued.signing_key.serialize_der(),
+            )
+        })
+    }
+
     /// Every registered member — and every constructible class's `new` symbol
     /// — resolves to an address, which is the check the `symbols` panic
     /// exists for, run once rather than left to whichever program first calls

@@ -84,6 +84,7 @@ use std::time::{Duration, Instant};
 use nvs_host::net::NvsTcp;
 #[cfg(unix)]
 use nvs_host::net::NvsUnix;
+use nvs_host::tls::NvsTls;
 
 use super::{Dial, Target};
 
@@ -476,20 +477,31 @@ impl Connection {
     }
 }
 
-/// The two transports one store may be reached over, behind the three
-/// operations everything above this line uses: a deadline, a write and a read.
+/// The transports one store may be reached over, behind the three operations
+/// everything above this line uses: a deadline, a write and a read.
 ///
 /// An enum rather than a type parameter on [`Connection`], because which
 /// transport a deployment configured is not something any caller knows at compile
 /// time — [`Target`] is read out of `nvs.toml` — and a generic would push that
 /// choice through every one of [`super`]'s signatures to buy nothing here: the
-/// bytes are the same bytes either way.
+/// bytes are the same bytes either way. That holds for the TLS arm too: what a
+/// session changes is which bytes leave the socket and nothing above it, so
+/// every command in this module is written once.
 ///
 /// The Unix arm is `#[cfg(unix)]` and [`Target::Socket`] is too, so this match is
 /// exhaustive on both platforms with no arm that exists only to refuse.
 enum Transport {
     /// A store that named a host, reached over TCP.
     Tcp(NvsTcp),
+    /// A store that named a host under `rediss://`, reached over the same TCP
+    /// with `rule:security/one-tls-client`'s session on top of it.
+    ///
+    /// Boxed, which is the direction that helps both arms: a session's state is
+    /// an order of magnitude larger than a socket, and inline it would be the
+    /// size of every [`Connection`] this process holds including each plaintext
+    /// one. What the indirection costs is one pointer hop per record, on a path
+    /// that is already decrypting one.
+    Tls(Box<NvsTls<NvsTcp>>),
     /// A store that named a path, reached over a Unix-domain socket.
     #[cfg(unix)]
     Unix(NvsUnix),
@@ -498,13 +510,33 @@ enum Transport {
 impl Transport {
     /// Dials `target`, bounded by `timeout` as the TCP half always was.
     ///
+    /// The TLS arm is that same connect and then a handshake, and it asks for no
+    /// relaxation: verification against the compiled-in anchors is
+    /// [`NvsTls::over`]'s only behaviour, and
+    /// `rule:security/tls-trust-is-relaxed-only-under-a-host-grant` puts every
+    /// weakening behind a grant proved at a call site with a host, which a store
+    /// an operator configured is not.
+    ///
+    /// The handshake is bounded by the socket's own deadline rather than by a
+    /// second clock, which is `nvs_host::tls`'s contract: one clock, on the
+    /// thing that waits, set before the session and set again by the command
+    /// that follows.
+    ///
     /// # Errors
     ///
     /// The platform's connect failure — including `TimedOut`, which a local
-    /// connect reaches only through a listener whose backlog is full.
+    /// connect reaches only through a listener whose backlog is full — or, for a
+    /// TLS store, the handshake's: `InvalidData` for a certificate no anchor
+    /// vouches for or a name it does not answer to, and `TimedOut` for a peer
+    /// that did not finish in time.
     fn dial(target: &Target, timeout: Duration) -> std::io::Result<Self> {
         match target {
             Target::Tcp(address) => NvsTcp::connect_timeout(*address, timeout).map(Self::Tcp),
+            Target::Tls { address, name } => {
+                let mut stream = NvsTcp::connect_timeout(*address, timeout)?;
+                stream.set_deadline(Some(Instant::now() + timeout));
+                NvsTls::over(stream, name).map(|session| Self::Tls(Box::new(session)))
+            }
             #[cfg(unix)]
             Target::Socket(path) => NvsUnix::connect_timeout(path, timeout).map(Self::Unix),
         }
@@ -514,6 +546,7 @@ impl Transport {
     fn set_deadline(&mut self, at: Option<Instant>) {
         match self {
             Self::Tcp(stream) => stream.set_deadline(at),
+            Self::Tls(stream) => stream.set_deadline(at),
             #[cfg(unix)]
             Self::Unix(stream) => stream.set_deadline(at),
         }
@@ -525,6 +558,7 @@ impl Read for Transport {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         match self {
             Self::Tcp(stream) => stream.read(buf),
+            Self::Tls(stream) => stream.read(buf),
             #[cfg(unix)]
             Self::Unix(stream) => stream.read(buf),
         }
@@ -536,15 +570,18 @@ impl Write for Transport {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         match self {
             Self::Tcp(stream) => stream.write(buf),
+            Self::Tls(stream) => stream.write(buf),
             #[cfg(unix)]
             Self::Unix(stream) => stream.write(buf),
         }
     }
 
-    /// Pushes what is held, which for both of these is nothing the stream keeps.
+    /// Pushes what is held, which is nothing on a plain socket and a record
+    /// `rustls` has buffered on a session.
     fn flush(&mut self) -> std::io::Result<()> {
         match self {
             Self::Tcp(stream) => stream.flush(),
+            Self::Tls(stream) => stream.flush(),
             #[cfg(unix)]
             Self::Unix(stream) => stream.flush(),
         }
@@ -1063,6 +1100,67 @@ mod tests {
         assert_eq!(
             first, GET,
             "a store with nothing to apply spends no round trip applying it"
+        );
+    }
+
+    /// `rule:security/one-tls-client` on the wire: a store an operator spelled
+    /// `rediss://` hands its socket to `nvs_host::tls` and speaks nothing in the
+    /// clear, which is the failure the scheme was refused rather than
+    /// half-served for.
+    ///
+    /// What the fake store asserts is the **first bytes off the socket**: a TLS
+    /// record of type `0x16` carrying a handshake of type `0x01`, and not a
+    /// `SET` or an `AUTH`. That is the whole claim, and it is the one an
+    /// exchange against a real store could not make — a client that dropped the
+    /// session and sent RESP would pass every assertion a Redis server makes.
+    ///
+    /// The second half is that the connection **fails**: the fake store speaks
+    /// no TLS, so a client that treated a refused handshake as something to
+    /// carry on past would come back holding a stream, and that is the shape of
+    /// the bug. The refusal names the store as its URL spelled it.
+    ///
+    /// `crate::tests::outbound_client` is reached first because there is one
+    /// client per process and this case would otherwise build it — that
+    /// function's own doc is why, and it is the same client
+    /// `crate::http::transport`'s cases run against.
+    #[test]
+    fn a_rediss_url_hands_the_socket_to_the_one_outbound_tls_client() {
+        crate::tests::outbound_client();
+        let (listener, address) = listening();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("the client dials once");
+            let mut opening = [0_u8; 6];
+            stream
+                .read_exact(&mut opening)
+                .expect("the client's first bytes");
+            opening
+        });
+
+        let target = super::super::endpoint(
+            &format!("rediss://127.0.0.1:{}", address.port()),
+            "Core\\Cache::shared()",
+        )
+        .expect("`rediss://` is a scheme this client reads");
+        let mut connection =
+            Connection::new(Dial::configured(target, None, None), Duration::from_secs(5));
+
+        let refused = connection
+            .ensure()
+            .expect_err("a listener that speaks no TLS completes no handshake");
+        assert!(
+            refused.contains(&format!("127.0.0.1:{}", address.port())),
+            "the refusal names the store the URL spelled: {refused}"
+        );
+
+        let opening = server.join().expect("the fake store runs to completion");
+        assert_eq!(
+            opening[0], 0x16,
+            "the first byte off the socket is a TLS handshake record and not RESP"
+        );
+        assert_eq!(opening[1], 0x03, "and its record version is a TLS one");
+        assert_eq!(
+            opening[5], 0x01,
+            "and the handshake it carries is a `ClientHello`"
         );
     }
 
