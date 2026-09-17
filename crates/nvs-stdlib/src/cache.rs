@@ -2101,8 +2101,8 @@ fn socket(_path: &str) -> Result<Target, &'static str> {
 
 /// Where this core's connection to the shared store goes.
 ///
-/// The key [`open_shared`] compares to decide reuse-or-replace, which is what a
-/// reloaded configuration looks like from there. It widened from a
+/// The transport half of the [`Dial`] [`open_shared`] compares to decide
+/// reuse-or-replace, and the half a URL settles on its own. It is not a
 /// [`SocketAddr`] because
 /// `rule:config/unix-scheme-in-a-url-and-a-bare-path-in-a-host`'s second
 /// spelling has no address for one to hold, and it lives here rather than beside
@@ -2139,11 +2139,56 @@ impl std::fmt::Display for Target {
     }
 }
 
-/// Makes this core's connection the one to `target`, and dials it.
+/// Everything one connection to the shared store is made with: which socket it
+/// is, and what is applied over that socket before any command.
 ///
-/// A connection already open to that same target is kept — the ordinary case,
-/// since every request on this core asks for the same configured store. One to a
-/// *different* target is replaced, which is what a reloaded configuration looks
+/// One value rather than three arguments, because
+/// [`redis::Connection::ensure`] dials on the first command and silently again
+/// after a dropped socket: a credential or an index applied anywhere but there
+/// is a reconnect that comes back unauthenticated and pointed at whichever index
+/// the store hands out. It is settled where the URL is read — [`open_configured`]
+/// for a request's connection and [`Lease::open`] for the fleet's — and the wire
+/// applies the whole of it every time it dials.
+///
+/// It is also the key [`open_shared`] compares to decide reuse-or-replace, which
+/// is what a reloaded configuration looks like from there: a store whose
+/// credential changed is one to reach again, not the same connection kept.
+///
+/// What it holds is one `String` per process for a store behind a credential and
+/// nothing per entry, which is `rule:programs/memory-priority`'s accounting for
+/// the tier that is one socket per core.
+#[derive(PartialEq, Eq)]
+pub(crate) struct Dial {
+    /// Which socket, which is the whole of what a URL says.
+    target: Target,
+    /// The credential the store is behind, sent as `AUTH` ahead of every command
+    /// on a connection this dial opens.
+    ///
+    /// This type carries no `Debug` on purpose: one derived here would put the
+    /// credential into the output of everything that prints a connection.
+    password: Option<String>,
+    /// The database index this store's entries live in, sent as `SELECT` on
+    /// every connection. Absent is the index the store opens on, which is what a
+    /// deployment that configured only a URL reaches and costs no round trip.
+    database: Option<u32>,
+}
+
+impl Dial {
+    /// The store at `target`, with nothing configured beside the URL naming it.
+    pub(crate) const fn to(target: Target) -> Self {
+        Self {
+            target,
+            password: None,
+            database: None,
+        }
+    }
+}
+
+/// Makes this core's connection the one `dial` describes, and dials it.
+///
+/// A connection already open on an equal dial is kept — the ordinary case, since
+/// every request on this core asks for the same configured store. One open on
+/// any different dial is replaced, which is what a reloaded configuration looks
 /// like from here, and it is the whole reason [`Target`] carries the address or
 /// the path rather than only what one of the two transports can say.
 ///
@@ -2152,10 +2197,10 @@ impl std::fmt::Display for Target {
 /// A thrown `IOError` for a store that cannot be reached, which is the second
 /// half of [`SHARED_DOC`]'s card: an unreachable store throws at the door rather
 /// than answering a handle whose every operation would fail.
-fn open_shared(target: Target, timeout: Duration, member: &str) -> Result<(), Fault> {
+fn open_shared(dial: Dial, timeout: Duration, member: &str) -> Result<(), Fault> {
     SHARED.with_borrow_mut(|held| {
-        if held.as_ref().is_none_or(|open| open.target() != &target) {
-            *held = Some(redis::Connection::new(target, timeout));
+        if held.as_ref().is_none_or(|open| open.dial() != &dial) {
+            *held = Some(redis::Connection::new(dial, timeout));
         }
         held.as_mut()
             .expect("the connection was just written")
@@ -2166,7 +2211,7 @@ fn open_shared(target: Target, timeout: Duration, member: &str) -> Result<(), Fa
 
 /// Opens this core's connection to the configured shared store — the **door**,
 /// as the module doc's third decision defines one: the directive is read here,
-/// the grant is asked for here, the URL becomes a [`Target`] here, and the
+/// the grant is asked for here, the URL becomes the [`Dial`] here, and the
 /// connection is made to that and to nothing the store answers with later.
 ///
 /// `remedy` is the clause a caller appends to the unconfigured refusal, because
@@ -2194,7 +2239,7 @@ pub(crate) fn open_configured(ctx: &Ctx, member: &str, remedy: &str) -> Result<(
     // question is put beside the effect it authorizes.
     nvs_runtime::capability::require(ctx, Cap::CacheShared, Scope::Unscoped, member)?;
 
-    open_shared(endpoint(&url, member)?, timeout_of(ctx), member)
+    open_shared(Dial::to(endpoint(&url, member)?), timeout_of(ctx), member)
 }
 
 /// One command on this core's connection to the shared store, for `owner`'s
@@ -2276,7 +2321,7 @@ impl std::fmt::Debug for Lease {
     /// open: what a caller can act on is which store its keys are taken in.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Lease")
-            .field("target", self.connection.target())
+            .field("target", &self.connection.dial().target)
             .finish()
     }
 }
@@ -2305,7 +2350,7 @@ impl Lease {
             // still has to read as a refusal rather than reach an `unreachable`.
             other => format!("{LEASE_MEMBER}: {other:?}"),
         })?;
-        let mut connection = redis::Connection::new(target, bound_of(timeout));
+        let mut connection = redis::Connection::new(Dial::to(target), bound_of(timeout));
         connection.ensure()?;
         Ok(Self { connection })
     }

@@ -85,7 +85,7 @@ use nvs_host::net::NvsTcp;
 #[cfg(unix)]
 use nvs_host::net::NvsUnix;
 
-use super::Target;
+use super::{Dial, Target};
 
 /// The port a `redis://host` with no `:port` on it names.
 pub(super) const DEFAULT_PORT: u16 = 6379;
@@ -127,16 +127,17 @@ return {0}
 
 /// One core's connection to the shared store.
 ///
-/// The target is the one [`super`]'s door read out of the configuration and is
-/// never resolved again here —
+/// The dial is the one [`super`]'s door settled out of the configuration, and
+/// its address is never resolved again here —
 /// `rule:http-server/redirects-are-off-and-every-hop-is-re-pinned`'s
 /// rule that every attempt of one approval reuses the approved address, which is
 /// what closes the window a second DNS answer would open. A socket target has no
 /// address and so nothing to re-resolve, which is the same property arrived at
 /// for free.
 pub(crate) struct Connection {
-    /// Where the store was approved to be reached.
-    target: Target,
+    /// Which store was approved to be reached, and everything applied over the
+    /// socket to reach it.
+    dial: Dial,
     /// Every wait's bound: the handshake's, and each command's.
     timeout: Duration,
     /// Absent before the first dial and after a failed command.
@@ -144,19 +145,19 @@ pub(crate) struct Connection {
 }
 
 impl Connection {
-    /// A connection to `target`, not yet dialled.
-    pub(crate) const fn new(target: Target, timeout: Duration) -> Self {
+    /// A connection on `dial`, not yet made.
+    pub(crate) const fn new(dial: Dial, timeout: Duration) -> Self {
         Self {
-            target,
+            dial,
             timeout,
             stream: None,
         }
     }
 
-    /// Where this one goes — what [`super`] compares a later approval
+    /// What this one is made with — what [`super`] compares a later approval
     /// against before reusing it.
-    pub(crate) const fn target(&self) -> &Target {
-        &self.target
+    pub(crate) const fn dial(&self) -> &Dial {
+        &self.dial
     }
 
     /// Dials, unless this connection already holds a stream.
@@ -169,8 +170,8 @@ impl Connection {
         if self.stream.is_some() {
             return Ok(());
         }
-        let stream = Transport::dial(&self.target, self.timeout)
-            .map_err(|err| format!("connecting to {} failed: {err}", self.target))?;
+        let stream = Transport::dial(&self.dial.target, self.timeout)
+            .map_err(|err| format!("connecting to {} failed: {err}", self.dial.target))?;
         self.stream = Some(stream);
         Ok(())
     }
@@ -394,7 +395,7 @@ impl Connection {
     /// stream has no way back. Each carries whether the request had already left
     /// this process, which is what [`Connection::command`] replays on.
     fn exchange(&mut self, request: &[u8]) -> Result<Reply, Failure> {
-        let target = &self.target;
+        let target = &self.dial.target;
         let deadline = Instant::now() + self.timeout;
         let stream = self.stream.as_mut().ok_or_else(|| Failure {
             sent: false,
@@ -754,7 +755,7 @@ mod tests {
     use std::net::{Ipv4Addr, SocketAddr, TcpListener};
     use std::time::Duration;
 
-    use super::{Connection, Target};
+    use super::{Connection, Dial, Target};
 
     /// A listener on loopback and the address it took — the shape
     /// `crate::http::transport`'s own cases use, and the reason this module
@@ -818,7 +819,8 @@ mod tests {
             (first, second)
         });
 
-        let mut connection = Connection::new(Target::Tcp(address), Duration::from_secs(5));
+        let mut connection =
+            Connection::new(Dial::to(Target::Tcp(address)), Duration::from_secs(5));
         connection.ensure().expect("the fake store is listening");
         connection
             .set_expiring(b"k", b"hi", Duration::from_secs(90))
@@ -856,7 +858,8 @@ mod tests {
             (set, get)
         });
 
-        let mut connection = Connection::new(Target::Tcp(address), Duration::from_secs(5));
+        let mut connection =
+            Connection::new(Dial::to(Target::Tcp(address)), Duration::from_secs(5));
         connection.ensure().expect("the fake store is listening");
         connection
             .set(b"k", b"hi")
@@ -886,7 +889,8 @@ mod tests {
                 .expect("the refusal");
         });
 
-        let mut connection = Connection::new(Target::Tcp(address), Duration::from_secs(5));
+        let mut connection =
+            Connection::new(Dial::to(Target::Tcp(address)), Duration::from_secs(5));
         connection.ensure().expect("the fake store is listening");
         assert_eq!(connection.get(b"k").expect("absence is an answer"), None);
 
@@ -935,8 +939,10 @@ mod tests {
                 (set, get)
             });
 
-            let mut connection =
-                Connection::new(Target::Socket(path.clone()), Duration::from_secs(5));
+            let mut connection = Connection::new(
+                Dial::to(Target::Socket(path.clone())),
+                Duration::from_secs(5),
+            );
             connection.ensure().expect("the fake store is listening");
             connection
                 .set(b"k", b"hi")
@@ -998,7 +1004,7 @@ mod tests {
     #[allow(clippy::print_stderr)]
     fn lease_case(label: &str) -> Option<(Connection, Connection, Vec<u8>)> {
         let address = SocketAddr::from((Ipv4Addr::LOCALHOST, REDIS));
-        let mut first = Connection::new(Target::Tcp(address), Duration::from_secs(5));
+        let mut first = Connection::new(Dial::to(Target::Tcp(address)), Duration::from_secs(5));
         if let Err(why) = first.ensure() {
             eprintln!(
                 "the {label} lease case asserted nothing: no store at {address} ({why}). \
@@ -1007,7 +1013,7 @@ mod tests {
             );
             return None;
         }
-        let mut second = Connection::new(Target::Tcp(address), Duration::from_secs(5));
+        let mut second = Connection::new(Dial::to(Target::Tcp(address)), Duration::from_secs(5));
         second
             .ensure()
             .expect("a second connection to a store that has already answered one");
