@@ -14,8 +14,16 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// The two-file `require` graph both tests bundle.
+/// The two-file `require` graph the first two tests bundle.
 const APP: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/bundle/app.nvs");
+
+/// The program whose file set is its `autoload` root: one class the prefix map
+/// reaches, one only `Core\Program::implementing<T>()` does, and no `require`
+/// at all.
+const AUTOLOAD_APP: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/tests/fixtures/bundle-autoload/app.nvs"
+);
 
 /// § 4's footer: `b"NVSB"`, a `u16` and two `u64`s.
 const FOOTER_LEN: usize = 22;
@@ -26,13 +34,20 @@ const FOOTER_LEN: usize = 22;
 /// concurrently under `cargo test`, and a bundle half-written by one is not
 /// something the other should ever be able to observe.
 fn bundle(name: &str) -> PathBuf {
+    bundle_of(APP, name)
+}
+
+/// [`bundle`] for any entry point, which is what the `autoload` half needs: the
+/// claim there is about a *different program's* file set, not about a different
+/// way of building the same one.
+fn bundle_of(entry: &str, name: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("nvs-bundle-{name}"));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).expect("a private directory under the temp dir");
     let exe = dir.join(if cfg!(windows) { "app.exe" } else { "app" });
 
     let out = Command::new(env!("CARGO_BIN_EXE_nvs"))
-        .args(["build", "--compile", APP, "-o"])
+        .args(["build", "--compile", entry, "-o"])
         .arg(&exe)
         .output()
         .expect("the `nvs` binary this test was built beside runs");
@@ -144,6 +159,81 @@ fn a_bundle_carries_the_statically_resolved_require_graph_as_source() {
             "{name} is source text and not a compiled artifact"
         );
     }
+}
+
+/// § 2's other half: what the `autoload` roots declare is frozen into the
+/// payload at build time, a file no name reaches included
+/// (`rule:programs/no-runtime-autoload`).
+///
+/// The claim is about the *root set* rather than about reachability, so the
+/// file the assertion turns on is `modules/Spare.nvs`, which nothing in the
+/// program names: a bundler collecting the files the graph walk loaded carries
+/// `Widget` and drops it, and every other line of this program still passes.
+#[test]
+fn a_bundle_carries_every_file_the_autoload_roots_declare() {
+    let files = payload(&bundle_of(AUTOLOAD_APP, "autoload"));
+
+    assert_eq!(files[0].0, "app.nvs", "the entry point is entry zero");
+    let mut names: Vec<&str> = files.iter().map(|(name, _)| name.as_str()).collect();
+    names.sort_unstable();
+    assert_eq!(
+        names,
+        [
+            "app.nvs",
+            "modules/Part.nvs",
+            "modules/Spare.nvs",
+            "modules/Widget.nvs"
+        ],
+        "the entry and everything the one root declares, keeping the layout the roots are \
+         written against"
+    );
+}
+
+/// A bundled program resolves a name through an `autoload` root, and
+/// enumerates that root, exactly as the source tree does — the machine running
+/// it has no `modules/` directory at all.
+///
+/// The interpreted run is the oracle rather than a frozen string, for the
+/// reason the `require` case below gives: identical means stdout, stderr and
+/// status together.
+#[test]
+fn a_bundled_class_is_reached_and_enumerated_through_an_autoload_root() {
+    let exe = bundle_of(AUTOLOAD_APP, "autoload-run");
+
+    let bundled = Command::new(&exe)
+        .output()
+        .expect("the bundle is an executable this host can run");
+    let interpreted = Command::new(env!("CARGO_BIN_EXE_nvs"))
+        .args(["run", AUTOLOAD_APP])
+        .output()
+        .expect("the `nvs` binary this test was built beside runs");
+
+    assert_eq!(
+        String::from_utf8_lossy(&bundled.stdout),
+        String::from_utf8_lossy(&interpreted.stdout),
+        "the same program, so the same standard output"
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&bundled.stderr),
+        String::from_utf8_lossy(&interpreted.stderr),
+        "and nothing extra on standard error"
+    );
+    assert_eq!(
+        bundled.status.code(),
+        interpreted.status.code(),
+        "and the same exit status"
+    );
+
+    let stdout = String::from_utf8_lossy(&bundled.stdout);
+    assert!(
+        stdout.contains("greeting from the autoload root"),
+        "the prefix map reached a class inside the bundle: {stdout:?}"
+    );
+    assert!(
+        stdout.contains("part spare"),
+        "and the root's enumeration answered out of the payload rather than a directory \
+         this host does not have: {stdout:?}"
+    );
 }
 
 /// `rule:packaging/nvs-build-compile-appends-the-program-to-a-copy-of-the-host`'s *Verification*, first row: a bundled executable runs identically

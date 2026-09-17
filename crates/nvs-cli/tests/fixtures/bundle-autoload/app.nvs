@@ -1,0 +1,15 @@
+<?nvs
+// § 2's payload is the file set a *re-compilation* reads, and no `require`
+// here names a single one of the files under `modules/`. `App\Widget` is
+// reached by the prefix map alone; `Core\Program::implementing<T>()` then
+// reaches `App\Spare`, which nothing names at all — the enumeration of the
+// whole root that a bundle carrying only the `require` graph would answer
+// empty on the machine that runs it.
+autoload 'App' from './modules';
+
+echo App\Widget::line(), "\n";
+
+var $found = Core\Program::implementing<App\Part>();
+foreach ($found as App\Part $part) {
+    echo "part ", $part->tag(), "\n";
+}

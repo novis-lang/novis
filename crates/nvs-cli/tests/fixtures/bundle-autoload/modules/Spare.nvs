@@ -1,0 +1,13 @@
+<?nvs
+namespace App;
+
+// Nothing in the program names this class. It is in the answer only because
+// the root declares it, so a bundle that froze the reached files rather than
+// the root set drops it and still prints a plausible line for `App\Widget`.
+class Spare implements Part
+{
+    public function tag(): string
+    {
+        return "spare";
+    }
+}
