@@ -59,19 +59,10 @@
 //! caller wrote. Nothing is held between calls, except the counters `stats` answers with for as
 //! long as its caller keeps the record.
 //!
-//! # Known gaps
-//!
-//! 1. **`key`'s "at most one pending job per key" is enforced by the statement, and by the unique
-//!    key only where the schema has been applied.** [`INSERT_POSTGRES`]'s `existing` arm reads the table
-//!    inside the same statement that writes it, which is correct against every other `push` on a
-//!    *serialized* transaction and racy against a concurrent one at `read committed`. [`schema`]
-//!    carries the constraint under the name `nvs_jobs_dedupe`, a plain unique key over the
-//!    `dedupe_pending` column every statement here maintains, and the statement is race-free
-//!    against a schema carrying it without changing shape — so what is left of this gap is a
-//!    deployment that never ran `nvs queue migrate`, which is the one case the key is absent in.
-//!    Decided: Refuse to serve a queue whose schema is behind, checked at boot — Never racy and costs
-//!    no request time; a deployment that skipped migrate fails to start.
-//!    — owner: decided-closures
+//! **`key`'s "at most one pending job per key" is the unique key [`schema`] declares**, and
+//! [`INSERT_POSTGRES`]'s `existing` arm is race-free against a database carrying it. A deployment
+//! that never ran `nvs queue migrate` is the one case the key is absent in, and
+//! [`schema_shortfall`] is what a boot asks before it serves such a queue at all.
 
 use std::collections::BTreeMap;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -133,6 +124,14 @@ const JOBS_TABLE: &str = "nvs_jobs";
 /// by the worker that will write one: a column has to exist before anything can move a row into it,
 /// so the schema is the earlier of the two decisions and the only one there is room for.
 const DEAD_TABLE: &str = "nvs_dead_jobs";
+
+/// The name [`schema`] gives `rule:core-classes/queue-storage-is-a-table`'s dedupe guarantee: one
+/// unique key over the `dedupe_pending` column every statement here maintains.
+///
+/// Named once because two readers need it. [`schema`] declares the key under it, and
+/// [`schema_shortfall`] puts that key ahead of everything else a database is missing, since it is
+/// the one absence a running queue cannot see for itself.
+const DEDUPE_KEY: &str = "nvs_jobs_dedupe";
 
 /// `Core\Queue\State::Pending`'s ordinal, which is what a freshly pushed row's `state` is.
 ///
@@ -224,7 +223,7 @@ const KEY_WIDTH: u32 = 255;
 /// nothing on any of the five: four read a unique key's nulls as distinct outright, and SQL Server
 /// reads two nulls as equal but never sees this key as a constraint at all —
 /// `rule:core-classes/a-unique-key-reads-nulls-as-distinct` is the filtered index `nvs_db::ddl`
-/// writes in the constraint's place there. So the guarantee gap 2 names is the same one on every
+/// writes in the constraint's place there. So the dedupe guarantee is the same one on every
 /// backend `Core\Queue` runs a statement against, and it is one sentence rather than four.
 ///
 /// **A nullable column rather than a `not null` one with a sentinel**, which is what SQL Server
@@ -339,7 +338,7 @@ pub fn schema() -> nvs_db::Schema {
         ],
     )
     .and_then(|table| table.primary_key(&["id"]))
-    .and_then(|table| table.unique("nvs_jobs_dedupe", &["dedupe_pending"]))
+    .and_then(|table| table.unique(DEDUPE_KEY, &["dedupe_pending"]))
     .and_then(|table| table.index("nvs_jobs_due", &["queue", "state", "run_at"]))
     .and_then(|table| table.index("nvs_jobs_tag", &["queue", "tag"]))
     .expect("the jobs table names its own columns in its own keys");
@@ -367,6 +366,91 @@ pub fn schema() -> nvs_db::Schema {
     .expect("the dead-letter table names its own columns in its own keys");
 
     nvs_db::Schema::new(vec![jobs, dead]).expect("two tables, named apart")
+}
+
+/// What a database lacks of everything [`schema`] asks for, as lines a caller can print.
+///
+/// The empty answer is the only one a queue may be served on, and a boot that finds anything here
+/// refuses to start. `rule:core-classes/queue-storage-is-a-table`'s "at most one pending job per
+/// key" is the unique key over `dedupe_pending`: on a database carrying it [`INSERT_POSTGRES`] is
+/// race-free at `read committed`, and on a deployment that never ran `nvs queue migrate` the same
+/// statement reads as though it held and admits a second pending job under one key. Answering the
+/// question once, off a schema the boot already read, is what makes that a failure to start rather
+/// than a race a request discovers, and it costs no request time at all.
+///
+/// **A key is matched by the columns it covers and reported under [`schema`]'s name for it.** The
+/// guarantee is the uniqueness rule over the column, not the identifier it was created as, so a
+/// server holding it under a name of its own is converged — a comparison by name would refuse a
+/// boot that is fine, which is the failure mode a boot check can least afford.
+///
+/// **The dedupe key leads the answer.** Every other absence fails a statement the first time one
+/// runs, where a missing [`DEDUPE_KEY`] is silent until two pushes race, so it is the line an
+/// operator reads first. A missing table subsumes what it holds: nothing under it is listed twice.
+///
+/// **What it spends:** one `String` per missing thing, built once per boot and dropped by the
+/// caller that printed it. Nothing is held, and no request path reaches this.
+#[must_use]
+pub fn schema_shortfall(live: &nvs_db::Schema) -> Vec<String> {
+    fn over(columns: &[nvs_db::Ident]) -> String {
+        let names: Vec<&str> = columns.iter().map(nvs_db::Ident::as_str).collect();
+        format!("(`{}`)", names.join("`, `"))
+    }
+    fn covered(held: &[nvs_db::Key], want: &nvs_db::Key) -> bool {
+        held.iter().any(|key| key.columns() == want.columns())
+    }
+
+    // Rank 0 is the dedupe key and rank 1 is everything else, so one stable sort over the pairs is
+    // the whole of the ordering and the declaration order survives inside each rank.
+    let mut missing: Vec<(u8, String)> = Vec::new();
+    for want in schema().tables() {
+        let name = want.name();
+        let Some(held) = live.table(name) else {
+            missing.push((1, format!("table `{name}`")));
+            continue;
+        };
+        for column in want.columns() {
+            if held.column(column.name()).is_none() {
+                missing.push((1, format!("column `{name}`.`{}`", column.name())));
+            }
+        }
+        if held.primary_key_columns() != want.primary_key_columns() {
+            missing.push((
+                1,
+                format!(
+                    "the primary key of `{name}` over {}",
+                    over(want.primary_key_columns())
+                ),
+            ));
+        }
+        for key in want.unique_keys() {
+            if !covered(held.unique_keys(), key) {
+                let rank = u8::from(key.name().as_str() != DEDUPE_KEY);
+                missing.push((
+                    rank,
+                    format!(
+                        "unique key `{}` on `{name}` over {}",
+                        key.name(),
+                        over(key.columns())
+                    ),
+                ));
+            }
+        }
+        for key in want.indexes() {
+            if !covered(held.indexes(), key) {
+                missing.push((
+                    1,
+                    format!(
+                        "index `{}` on `{name}` over {}",
+                        key.name(),
+                        over(key.columns())
+                    ),
+                ));
+            }
+        }
+    }
+
+    missing.sort_by_key(|(rank, _)| *rank);
+    missing.into_iter().map(|(_, line)| line).collect()
 }
 
 /// `rule:concurrency/queue-four-members`'s `push`, as one statement.
@@ -656,9 +740,9 @@ pub struct Split {
 ///
 /// **A deduped push answers the pending job's id from [`Split::first`], and [`Split::then`] does
 /// not run at all** — [`INSERT_POSTGRES`]'s trailing `union all` moved out of the SQL and into
-/// the caller, not a second meaning. Gap 3 reads exactly as it does there: two concurrent pushes of
-/// an unseen key at `read committed` both find nothing, and the second insert is refused by
-/// `nvs_jobs_dedupe` rather than admitted by a guard that read the table a moment earlier.
+/// the caller, not a second meaning. The dedupe race reads exactly as it does there: two concurrent
+/// pushes of an unseen key at `read committed` both find nothing, and the second insert is refused
+/// by [`DEDUPE_KEY`] rather than admitted by a guard that read the table a moment earlier.
 ///
 /// **A push with no key runs [`Split::then`] alone**, and [`push_in_two`] owns why that is not
 /// merely two round trips saved: `dedupe_pending = null` is a range scan here where
@@ -5078,12 +5162,12 @@ mod tests {
         CANCEL_MYSQL, CANCEL_POSTGRES, CANCEL_SQLITE, CANCEL_SQLSERVER, CLAIM_MYSQL,
         CLAIM_POSTGRES, CLAIM_SQLITE, CLAIM_SQLSERVER, CLASS, COUNTS_MYSQL, COUNTS_POSTGRES,
         COUNTS_SQLITE, COUNTS_SQLSERVER, DEAD_LETTER_MYSQL, DEAD_LETTER_POSTGRES,
-        DEAD_LETTER_SQLSERVER, DEAD_TABLE, DEFAULT_PURGE_LIMIT, DELETE_MYSQL, DELETE_POSTGRES,
-        DELETE_SQLITE, Fault, INSERT_MYSQL, INSERT_POSTGRES, INSERT_SQLITE, INSERT_SQLSERVER,
-        JOBS_TABLE, MESSAGE_CAP, PENDING, PURGE_DEAD_MYSQL, PURGE_DEAD_POSTGRES, PURGE_DEAD_SQLITE,
-        PURGE_MYSQL, PURGE_POSTGRES, PURGE_SQLITE, PURGE_STATE_ARG, QUEUES_MYSQL, QUEUES_POSTGRES,
-        RETRY_CAP_MS, RETRY_MYSQL, RETRY_POSTGRES, RETRY_SQLSERVER, STATE, STATS,
-        STATS_ATTEMPTS_AT, STATS_ATTEMPTS_SLOT, STATS_CLAIMED_AT, STATS_CLAIMED_SLOT,
+        DEAD_LETTER_SQLSERVER, DEAD_TABLE, DEDUPE_KEY, DEFAULT_PURGE_LIMIT, DELETE_MYSQL,
+        DELETE_POSTGRES, DELETE_SQLITE, Fault, INSERT_MYSQL, INSERT_POSTGRES, INSERT_SQLITE,
+        INSERT_SQLSERVER, JOBS_TABLE, MESSAGE_CAP, PENDING, PURGE_DEAD_MYSQL, PURGE_DEAD_POSTGRES,
+        PURGE_DEAD_SQLITE, PURGE_MYSQL, PURGE_POSTGRES, PURGE_SQLITE, PURGE_STATE_ARG,
+        QUEUES_MYSQL, QUEUES_POSTGRES, RETRY_CAP_MS, RETRY_MYSQL, RETRY_POSTGRES, RETRY_SQLSERVER,
+        STATE, STATS, STATS_ATTEMPTS_AT, STATS_ATTEMPTS_SLOT, STATS_CLAIMED_AT, STATS_CLAIMED_SLOT,
         STATS_DEAD_AT, STATS_DEAD_ATTEMPTS_AT, STATS_DEAD_ATTEMPTS_SLOT, STATS_DEAD_SLOT,
         STATS_PENDING_AT, STATS_PENDING_SLOT, STATUS_MYSQL, STATUS_POSTGRES, STATUS_SQLITE,
         STATUS_SQLSERVER, SUCCEEDED_MYSQL, SUCCEEDED_POSTGRES, SUCCEEDED_SQLSERVER, Selection,
@@ -5357,7 +5441,7 @@ mod tests {
                 "{dialect}: `CLAIM_POSTGRES` seeks by queue, then state, then due-ness, which is the order \
                  of this index"
             );
-            // Gap 3's constraint, asked as what it must *be*: one uniqueness rule, named
+            // The dedupe constraint, asked as what it must *be*: one uniqueness rule, named
             // `nvs_jobs_dedupe`, over the column the statements maintain. Which rows it covers is
             // not the DDL's business any more — `dedupe_pending` is null for every row that is not
             // pending — and a constraint over `dedupe_key` instead would refuse a second push of a
@@ -5366,7 +5450,7 @@ mod tests {
                 jobs.contains("UNIQUE")
                     && jobs.contains("nvs_jobs_dedupe")
                     && jobs.contains("dedupe_pending"),
-                "{dialect}: gap 2's constraint is unique over `dedupe_pending`, which is the column \
+                "{dialect}: the dedupe constraint is unique over `dedupe_pending`, which is the column \
                  `INSERT_POSTGRES` writes the key into while the job is pending"
             );
 
@@ -6542,6 +6626,114 @@ mod tests {
         }
     }
 
+    /// [`schema`] as a server holds it: every table rebuilt through the builders that declared it,
+    /// with each name in `dropped` — a table's or a key's — left out, and each pair in `renamed`
+    /// re-declaring a key under a different identifier over the same columns.
+    ///
+    /// Rebuilt rather than written out because a hand-written copy of the queue's seventeen columns
+    /// would be a second schema to keep right, and a test asking what a database *lacks* has to
+    /// start from one that lacks nothing.
+    fn as_held(dropped: &[&str], renamed: &[(&str, &str)]) -> nvs_db::Schema {
+        fn names(columns: &[nvs_db::Ident]) -> Vec<&str> {
+            columns.iter().map(nvs_db::Ident::as_str).collect()
+        }
+        let under = |name: &str| -> Option<String> {
+            if dropped.contains(&name) {
+                return None;
+            }
+            Some(
+                renamed
+                    .iter()
+                    .find(|(from, _)| *from == name)
+                    .map_or_else(|| name.to_owned(), |(_, to)| (*to).to_owned()),
+            )
+        };
+
+        let wanted = super::schema();
+        let mut tables = Vec::new();
+        for want in wanted.tables() {
+            if dropped.contains(&want.name().as_str()) {
+                continue;
+            }
+            let mut table =
+                nvs_db::schema::Table::new(want.name().as_str(), want.columns().to_vec())
+                    .expect("a table rebuilds from the columns it already carries");
+            table = table
+                .primary_key(&names(want.primary_key_columns()))
+                .expect("a table's own primary key names its own columns");
+            for key in want.unique_keys() {
+                if let Some(name) = under(key.name().as_str()) {
+                    table = table
+                        .unique(&name, &names(key.columns()))
+                        .expect("a unique key rebuilds over the columns it already covers");
+                }
+            }
+            for key in want.indexes() {
+                if let Some(name) = under(key.name().as_str()) {
+                    table = table
+                        .index(&name, &names(key.columns()))
+                        .expect("an index rebuilds over the columns it already covers");
+                }
+            }
+            tables.push(table);
+        }
+        nvs_db::Schema::new(tables).expect("the rebuilt tables are the ones `schema` named apart")
+    }
+
+    /// `rule:core-classes/queue-storage-is-a-table`'s guarantee asked of the *database*, before a
+    /// queue is served at all, rather than of the statement while a request runs.
+    ///
+    /// **Asserted on the empty answer as hard as on the full one.** A judgement that names
+    /// something missing on a converged database refuses every boot there is, which is the worse
+    /// failure of the two: a queue that will not start is an outage where a queue missing its key
+    /// is a race. So the converged case, the renamed key and a database two things behind are one
+    /// test — each of the three is what the other two would not catch.
+    ///
+    /// **And on the order**, because the line an operator reads first is the point of it:
+    /// [`DEDUPE_KEY`] is the absence a running queue cannot see, where a missing column or index
+    /// fails the first statement that names it.
+    #[test]
+    fn a_queue_whose_schema_is_behind_is_refused_at_boot() {
+        assert!(
+            super::schema_shortfall(&as_held(&[], &[])).is_empty(),
+            "a database converged to `schema` is behind on nothing, so nothing refuses its boot"
+        );
+
+        let renamed = super::schema_shortfall(&as_held(&[], &[(DEDUPE_KEY, "pending_once")]));
+        assert!(
+            renamed.is_empty(),
+            "the guarantee is the uniqueness over `dedupe_pending`, not the identifier it was \
+             created under: {renamed:?}"
+        );
+
+        let no_key = super::schema_shortfall(&as_held(&[DEDUPE_KEY], &[]));
+        assert_eq!(
+            no_key.len(),
+            1,
+            "a database short of the dedupe key alone is short of exactly that: {no_key:?}"
+        );
+        assert!(
+            no_key[0].contains(DEDUPE_KEY) && no_key[0].contains("dedupe_pending"),
+            "the line names the key and the column it is over, which is what an operator migrates \
+             towards: {no_key:?}"
+        );
+
+        let behind = super::schema_shortfall(&as_held(&[DEDUPE_KEY, DEAD_TABLE], &[]));
+        assert!(
+            behind[0].contains(DEDUPE_KEY),
+            "the dedupe key leads the answer whatever else is missing: {behind:?}"
+        );
+        assert_eq!(
+            behind.len(),
+            2,
+            "a missing table is one line and not one per column and index under it: {behind:?}"
+        );
+        assert!(
+            behind[1].contains(DEAD_TABLE),
+            "the table a server has not got is named as a table: {behind:?}"
+        );
+    }
+
     /// `rule:core-classes/queue-storage-is-a-table`: every driver has a schema, where two of them
     /// had no dialect at all.
     ///
@@ -6575,7 +6767,7 @@ mod tests {
     /// **one** spelling, and every dialect emits that one key over that one column.
     ///
     /// This is the retirement's own open question asserted rather than argued. The two lists reach
-    /// gap 2's guarantee by two constructs the vocabulary refuses — a partial index and a stored
+    /// the dedupe guarantee by two constructs the vocabulary refuses — a partial index and a stored
     /// generated column — so the assertion that matters is not that the constraint exists but that
     /// what carries it is a plain column and a plain unique key, asked for once and emitted by
     /// exactly one statement per dialect. A queue that grew its own spelling again fails here.
@@ -6624,7 +6816,7 @@ mod tests {
             );
             assert!(
                 !key[0].contains("where state") && !key[0].contains("GENERATED ALWAYS AS ("),
-                "{} reached gap 2's guarantee by a construct the vocabulary does not hold",
+                "{} reached the dedupe guarantee by a construct the vocabulary does not hold",
                 driver.display_name()
             );
         }
