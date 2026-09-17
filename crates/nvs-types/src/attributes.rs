@@ -192,7 +192,7 @@ fn check_attribute(attr: &Attribute, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     // so no binding can be read and none can be captured.
     let mut live = FxHashSet::default();
     let scope = LocalScope::new();
-    let actual = check_object_literal(&attr.fields, &mut live, &scope, ctx, env);
+    let actual = check_object_literal(&attr.fields, None, &mut live, &scope, ctx, env);
     if !is_assignable(actual, shape, env.interner, env.graph, env.signatures) {
         report_mismatch(attr.payload, shape, actual, env);
     }

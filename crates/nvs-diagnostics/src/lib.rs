@@ -3708,6 +3708,25 @@ pub mod code {
     /// expression, which is its own answer.
     pub const E_METHOD_RETURN_TYPE_REQUIRED: Code = Code::new("E0823");
 
+    /// A `secret` value written into a container element or field whose own
+    /// type does not carry the qualifier.
+    ///
+    /// `rule:security/secret-qualifier` puts the bit on a type, and a container
+    /// keeps it only where the container's own element or field type spells it:
+    /// an `array<T>` literal joins nothing, so `[$secret]` placed at an
+    /// `array<mixed>` drops the qualifier at the bracket, and a shape literal's
+    /// inferred field type drops it at the assignment into a field declared
+    /// something wider. Refused at the write, which is the last place the
+    /// qualifier is visible — `rule:errors/record-transformations`'s redaction
+    /// row reads a *declared* type, so a secret that reaches a record through a
+    /// container has nothing left to be redacted off.
+    ///
+    /// `rule:security/secret-sinks-refuse` names three positions a credential
+    /// legitimately reaches — a bound database parameter, a process argv, an
+    /// outbound request — and each is written as an argument, so an argument
+    /// list is where this steps aside and the call's own rules decide.
+    pub const E_SECRET_INTO_CONTAINER: Code = Code::new("E0824");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");

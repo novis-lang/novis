@@ -188,6 +188,7 @@ pub fn check_program_granted(
             write_target_levels: FxHashMap::default(),
             coalesce_guarded: FxHashSet::default(),
             body_writers: crate::response::BodyWriters::default(),
+            in_call_argument: false,
         };
         let mut frame = ScriptFrame {
             scope: LocalScope::new(),

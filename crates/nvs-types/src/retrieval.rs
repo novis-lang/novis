@@ -514,7 +514,8 @@ fn matching<'a>(sites: &[Site<'a>], want: TypeId, env: &mut Env<'a>) -> Vec<Site
         let mut live = FxHashSet::default();
         let scope = LocalScope::new();
         let written = site_ctx(&table.scopes[site.scope]);
-        let actual = check_object_literal(&site.attr.fields, &mut live, &scope, &written, env);
+        let actual =
+            check_object_literal(&site.attr.fields, None, &mut live, &scope, &written, env);
         if is_assignable(actual, want, env.interner, env.graph, env.signatures) {
             matched.push(*site);
         }

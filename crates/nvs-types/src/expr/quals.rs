@@ -60,6 +60,15 @@
 //! has usually arrived by the spreading described above rather than being
 //! written on the operand itself.
 //!
+//! [`reject_secret_into_container`] is deliberately not counted among those
+//! sinks: a sink refuses a value about to be *disclosed*, and this refuses one
+//! about to be *stored* where the qualifier stops being visible —
+//! `rule:security/secret-qualifier`'s container axis, asked at an array
+//! element and at a shape field, with [`reject_secret_element_write`] the same
+//! question at `$a["k"] = $secret`. It is the one refusal here that an
+//! argument list steps past, because the three positions
+//! `rule:security/secret-sinks-refuse` leaves open are all written as one.
+//!
 //! Part of [`super`]'s one expression checker, split across this directory so
 //! a session editing one rule does not carry the rest in context. Every item
 //! moved here unchanged; an item is `pub(crate)` where it reaches across these
@@ -520,12 +529,14 @@ pub(crate) fn reject_secret_throwable_message(
 /// `echo Core\Debug::render($secret)` as the way round both bullets.
 ///
 /// Scoped to the arguments this call actually writes, in written order, so a
-/// `dump($a, $secret, $b)` names the one it is about. Two shapes it does not
-/// reach and neither is a gap in this rule: a `...$xs` spread hands over a
-/// subject whose *element* type carries the qualifier, and a `secret` value
-/// stored in a property or an array element reaches the walk rather than the
-/// site — the first is `rule:security/secret-qualifier`'s unmodelled container axis, the second is
-/// the Redacted node this row's other half owns.
+/// `dump($a, $secret, $b)` names the one it is about, and asked with
+/// [`contains_secret`]: a dump is written *through* the composites it is
+/// handed, so an `array<secret string>` is as disclosing as the element, and
+/// the argument that carries one is the same shape the serialiser sink
+/// refuses. What it does not reach is a `secret` value held in a *property*,
+/// which reaches the walk rather than the site and is the Redacted node this
+/// row's other half owns — and a `...$xs` spread, which hands over a subject
+/// whose *element* type carries the qualifier.
 pub(crate) fn reject_secret_debug_argument(
     qname: &QName,
     member: &str,
@@ -540,7 +551,7 @@ pub(crate) fn reject_secret_debug_argument(
         return;
     };
     for (arg, &ty) in list.iter().zip(arg_types) {
-        if !is_secret(ty, env.interner) {
+        if !contains_secret(ty, env.interner) {
             continue;
         }
         env.diags.report(
@@ -590,6 +601,99 @@ pub(crate) fn contains_secret(ty: TypeId, interner: &TypeInterner) -> bool {
     }
 }
 
+/// `rule:security/secret-qualifier`'s container axis: a `secret` value may be
+/// written into an array element or a shape field only where the position's own
+/// type carries the qualifier.
+///
+/// Not one of the sinks above, and the difference is the whole of why it exists
+/// — a sink refuses a value about to be *disclosed*, and this refuses one about
+/// to be *stored somewhere the qualifier stops being visible*. The two
+/// containers lose it at different moments and the same test answers both.
+/// [`check_array_literal`](super::literals::check_array_literal) joins no
+/// element types, so `[$secret]` placed at an `array<mixed>` drops the bit at
+/// the bracket; [`check_object_literal`](super::literals::check_object_literal)
+/// infers a field type and *keeps* it, so `{token: $secret}` drops it one step
+/// later, where the literal meets a field declared wider. Asking the position
+/// what it carries covers both, and accepts the spellings that keep it:
+/// `array<secret string>` and `{token: secret string}` are ordinary types the
+/// grammar already writes, and a value read back out of either is still
+/// `secret`.
+///
+/// **An argument list steps aside**, through [`Env::in_call_argument`].
+/// `rule:security/secret-sinks-refuse` names three positions a credential
+/// legitimately reaches — a bound database parameter, a process argv, an
+/// outbound request — and every one of them is written as an `array<mixed>`
+/// argument, so refusing there would make the qualifier unusable for its own
+/// purpose. What an argument owes is that rule's sinks, above.
+///
+/// A `placed` of `None` is a position with no declared type at all, and only
+/// an array element reaches it: a field with no declared shape above it is not
+/// asked, its literal's own inferred type being where the qualifier goes next.
+///
+/// The `placed` type is asked with [`contains_secret`] rather than
+/// [`is_secret`], so an `array<array<secret string>>` keeps its inner element
+/// and a union spelling one arm `secret` is a position that carries it. A
+/// position that already reported its own mismatch is not asked at all — the
+/// caller guards on the diagnostic count, the way
+/// [`check_spread_element`](super::literals::check_spread_element) does, so
+/// `array<string> $a = [$secret];` stays the one `E0401` it has always been.
+pub(crate) fn reject_secret_into_container(
+    value: &Expr,
+    value_ty: TypeId,
+    placed: Option<TypeId>,
+    position: &str,
+    env: &mut Env<'_>,
+) {
+    if env.in_call_argument || !contains_secret(value_ty, env.interner) {
+        return;
+    }
+    if placed.is_some_and(|ty| contains_secret(ty, env.interner)) {
+        return;
+    }
+    let holds = match placed {
+        Some(ty) => format!("`{}` keeps no qualifier", env.interner.describe(ty)),
+        None => "no element type is declared here, so this holds `mixed`".to_owned(),
+    };
+    env.diags.report(
+        Diagnostic::error(
+            code::E_SECRET_INTO_CONTAINER,
+            format!("a `secret` value cannot be stored in {position}: {holds}"),
+        )
+        .with_primary(value.span, "this value is `secret`")
+        .with_help(
+            "the container's own type is what carries the qualifier onward — declare it \
+             `array<secret string>` for an element, or `{name: secret string}` for a field — or \
+             hand the value over deliberately with `Core\\Secret::reveal(..., \"reason\")`. A \
+             bound database parameter, a process argv and an outbound request each take a \
+             `secret` as a written argument and need neither (`rule:security/secret-sinks-refuse`)",
+        ),
+    );
+}
+
+/// [`reject_secret_into_container`] at the other spelling of the same write:
+/// `$a["k"] = $secret`, where the element type is the assignment's own target
+/// type and there is no literal to read a position off.
+///
+/// Scoped to a subscript target, which is `rule:security/secret-qualifier`'s
+/// container axis; a property is the *declared* end of
+/// `rule:errors/record-transformations`'s redaction row and answers for itself.
+/// Reached from the plain `=` and from a compound one alike, because `.=` over
+/// a `secret` operand produces a `secret` result
+/// (`rule:security/secret-propagation`) and a refusal one character wide is not
+/// a refusal.
+pub(crate) fn reject_secret_element_write(
+    target: &Expr,
+    target_ty: TypeId,
+    value: &Expr,
+    value_ty: TypeId,
+    env: &mut Env<'_>,
+) {
+    if !matches!(target.unparenthesized().kind, ExprKind::Index { .. }) {
+        return;
+    }
+    reject_secret_into_container(value, value_ty, Some(target_ty), "an array element", env);
+}
+
 /// `rule:security/secret-sinks-refuse`'s serialiser sink: `Core\Json::encode` refuses a `secret`
 /// anywhere in the value it is handed.
 ///
@@ -605,10 +709,11 @@ pub(crate) fn contains_secret(ty: TypeId, interner: &TypeInterner) -> bool {
 /// container axis rather than this rule: an `["token" => $s]` with no
 /// expectation on it infers `array<mixed>`
 /// ([`check_array_literal`](super::literals::check_array_literal) joins
-/// nothing), so the qualifier is gone before the call is looked at, and it is
-/// equally gone one statement later through a variable — which no call-site
-/// rule could recover. `rule:security/secret-qualifier` names that gap as its own; the fix is an
-/// element type for a literal, not a second walk here.
+/// nothing), so the qualifier is gone before the call is looked at. The axis
+/// answers it where the value is written instead
+/// ([`reject_secret_into_container`]), which is why the literal cannot be
+/// built one statement earlier and handed over through a variable — and why
+/// this rule needs no second walk over an expression it reads a type off.
 ///
 /// The way out is written at the field rather than at the call —
 /// `Core\Secret::reveal(..., "reason")` on the one value that must travel — so

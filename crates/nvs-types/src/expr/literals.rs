@@ -803,15 +803,39 @@ pub(crate) fn check_heredoc_run_issues(
 /// what flows onward a genuine set rather than a shape no reader agrees on.
 pub(crate) fn check_object_literal(
     fields: &[ObjectLiteralField],
+    expected: Option<TypeId>,
     live: &mut FxHashSet<String>,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> TypeId {
+    // The expectation is read for one question only —
+    // `rule:security/secret-qualifier`'s, below. What a field *infers* is
+    // deliberately unchanged: a literal's fields are its own, and a position
+    // that wants something else says so through the assignment that follows.
+    // `without_null` for [`check_array_literal`]'s reason: a `?{…}` position
+    // declares the shape, and `null` is the other thing it may hold.
+    let expected = expected.map(|id| env.interner.without_null(id));
     let mut out: Vec<ShapeField> = Vec::with_capacity(fields.len());
     for field in fields {
         let name = span_text(env.src, field.name).to_owned();
         let field_ty = check_expr(&field.value, None, live, scope, ctx, env);
+        // Unlike an array element, a field's inferred type *keeps* the
+        // qualifier, so what this catches is the declared field one step on:
+        // `{token: $secret}` at a `{token: mixed}` is where the bit stops
+        // being visible. A literal with no shape declared for it is asked
+        // nothing — it carries the qualifier onward in its own inferred type,
+        // and a position that then widens it to `mixed` is the widening every
+        // `mixed` binding in the language allows, not this axis.
+        if let Some(declared) = declared_field_type(expected, &name, env) {
+            reject_secret_into_container(
+                &field.value,
+                field_ty,
+                Some(declared),
+                &format!("the field `{name}`"),
+                env,
+            );
+        }
         if out.iter().any(|seen| seen.name == name) {
             report_duplicate_shape_field(field, &name, env);
             continue;
@@ -822,6 +846,20 @@ pub(crate) fn check_object_literal(
         out.push(ShapeField::required(name, field_ty));
     }
     env.interner.shape(out)
+}
+
+/// The type a *declared* shape gives the field named `name`, where the
+/// position declared a shape at all.
+///
+/// [`check_object_literal`]'s one use of its expectation, and the whole of
+/// what `rule:security/secret-qualifier`'s container question needs: a field
+/// the declared shape does not name has no declaration to carry a qualifier,
+/// which reads the same as no expectation at all.
+fn declared_field_type(expected: Option<TypeId>, name: &str, env: &Env<'_>) -> Option<TypeId> {
+    let Ty::Shape(fields) = env.interner.get(expected?) else {
+        return None;
+    };
+    fields.iter().find(|field| field.name == name).map(|f| f.ty)
 }
 
 /// The `E0494` half of [`check_object_literal`], which owns why.
@@ -871,7 +909,23 @@ pub(crate) fn check_array_literal(
             let key_ty = check_expr(key, None, live, scope, ctx, env);
             check_array_key_type(key_ty, key.span, env);
         }
-        check_expr(&item.value, elem_expected, live, scope, ctx, env);
+        // `rule:security/secret-qualifier`'s container axis, at the element
+        // that is about to lose the bit: this literal joins no element types,
+        // so the placed `array<T>`'s own `T` is the whole of what carries one
+        // onward. Guarded on the diagnostic count for
+        // [`check_spread_element`]'s reason — an element that already reported
+        // a mismatch against `T` is one mistake, not two.
+        let before = env.diags.len();
+        let elem_ty = check_expr(&item.value, elem_expected, live, scope, ctx, env);
+        if env.diags.len() == before {
+            reject_secret_into_container(
+                &item.value,
+                elem_ty,
+                elem_expected,
+                "an array element",
+                env,
+            );
+        }
     }
     match (expected, elem_expected) {
         (Some(id), Some(_)) => id,

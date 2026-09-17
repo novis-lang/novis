@@ -271,3 +271,106 @@ fn a_plain_value_passed_to_a_throwable_is_fine() {
     let diags = check_in_method(r#"throw new LogicError("plain message");"#);
     assert!(!diags.has_errors(), "{diags:?}");
 }
+
+#[test]
+fn a_secret_stored_into_an_array_element_is_refused_at_compile_time() {
+    // `rule:security/secret-qualifier`'s container axis. An array literal
+    // joins no element types, so the placed `array<T>`'s own `T` is the whole
+    // of what carries the qualifier past the bracket — and the two later
+    // spellings of the same write are here because a refusal one statement or
+    // one character wide is not a refusal.
+    for written in [
+        "array<mixed> $bag = [$token];",
+        "array<mixed> $bag = [];\n         $bag[\"t\"] = $token;",
+        "array<mixed> $bag = [];\n         $bag[\"t\"] .= $token;",
+    ] {
+        let diags = check_in_method(&format!(
+            "secret string $token = \"literal\";\n         {written}\n"
+        ));
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_SECRET_INTO_CONTAINER)),
+            "{written}: {diags:?}"
+        );
+    }
+
+    // The container that says what it carries is the way to write it, and a
+    // value read back out of one is still `secret` — which is what makes the
+    // refusal above a redirection rather than a wall.
+    let declared = check_in_method(
+        "secret string $token = \"literal\";\n\
+         array<secret string> $bag = [$token];\n\
+         $bag[\"t\"] = $token;\n\
+         secret string $back = $bag[\"t\"];\n",
+    );
+    assert!(!declared.has_errors(), "{declared:?}");
+
+    // An element that already failed against the declared type is one
+    // mistake: `E0401` owns it, and this rule is not asked.
+    let mismatch = check_in_method(
+        "secret string $token = \"literal\";\n\
+         array<string> $bag = [$token];\n",
+    );
+    assert!(
+        !mismatch
+            .iter()
+            .any(|d| d.code == Some(code::E_SECRET_INTO_CONTAINER)),
+        "{mismatch:?}"
+    );
+}
+
+#[test]
+fn a_secret_stored_into_a_shape_field_is_refused_where_the_field_is_declared_wider() {
+    // The other half of the same axis, losing the qualifier one step later: a
+    // shape literal *infers* its field types, so `{token: $token}` carries the
+    // bit until it meets a field declared wider than it.
+    let refused = check_src(
+        "<?nvs\n\
+         type Bag = {token: mixed};\n\
+         class T {\n  function m(): void {\n\
+         secret string $token = \"literal\";\n\
+         Bag $bag = {token: $token};\n\
+         }\n}\n",
+    );
+    assert!(
+        refused
+            .iter()
+            .any(|d| d.code == Some(code::E_SECRET_INTO_CONTAINER)),
+        "{refused:?}"
+    );
+
+    let declared = check_src(
+        "<?nvs\n\
+         type Keep = {token: secret string};\n\
+         class T {\n  function m(): void {\n\
+         secret string $token = \"literal\";\n\
+         Keep $bag = {token: $token};\n\
+         secret string $back = $bag->token;\n\
+         }\n}\n",
+    );
+    assert!(!declared.has_errors(), "{declared:?}");
+
+    // Nothing is declared over this literal, so nothing is asked of it: its
+    // own inferred field type is `secret string`, and the widening a `mixed`
+    // binding then does is the one every `mixed` binding in the language does.
+    let inferred = check_in_method(
+        "secret string $token = \"literal\";\n\
+         mixed $bag = {token: $token};\n",
+    );
+    assert!(!inferred.has_errors(), "{inferred:?}");
+}
+
+#[test]
+fn a_secret_bound_as_a_database_parameter_is_still_accepted() {
+    // `rule:security/secret-sinks-refuse` leaves three positions open — a
+    // bound database parameter, a process argv, an outbound request — and all
+    // three are written as an `array<mixed>` argument, so the container
+    // refusal steps aside for the whole of an argument list. Refusing here
+    // would make the qualifier unusable for its own purpose.
+    let diags = check_in_method(
+        "secret string $token = \"literal\";\n\
+         mixed $rows = Core\\Db::connect(\"main\")->query(\"select ? \", [$token]);\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+}

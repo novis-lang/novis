@@ -58,6 +58,27 @@ pub(crate) fn check_args_typed(
     let CallArgs::List(list) = args else {
         return (Vec::new(), Vec::new(), sig);
     };
+    // `rule:security/secret-qualifier`'s container refusal steps aside for the
+    // whole of an argument list, nested literals included — see
+    // [`Env::in_call_argument`], which is set here because this is the one
+    // place that knows an expression is an argument at all.
+    let outer = std::mem::replace(&mut env.in_call_argument, true);
+    let checked = check_arg_list(list, sig, call_span, live, scope, ctx, env);
+    env.in_call_argument = outer;
+    checked
+}
+
+/// [`check_args_typed`]'s body, once the list is in hand and the argument
+/// flag is up — separate only so that flag has one place to be put back.
+fn check_arg_list(
+    list: &[Arg],
+    sig: Option<MethodSig>,
+    call_span: Span,
+    live: &mut FxHashSet<String>,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> (Vec<TypeId>, Vec<ArgSlot>, Option<MethodSig>) {
     let Some(sig) = sig else {
         let types = list
             .iter()

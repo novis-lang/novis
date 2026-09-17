@@ -284,7 +284,9 @@ pub(crate) fn infer(
         ExprKind::ArrayLiteral(items) => {
             check_array_literal(items, expected, live, scope, ctx, env)
         }
-        ExprKind::ObjectLiteral(fields) => check_object_literal(fields, live, scope, ctx, env),
+        ExprKind::ObjectLiteral(fields) => {
+            check_object_literal(fields, expected, live, scope, ctx, env)
+        }
         ExprKind::Unary { op, expr: inner } => {
             // `infer`, not `check_expr`: the operand inherits an *expectation*
             // rather than a position it has to satisfy, so a `-$n` under a

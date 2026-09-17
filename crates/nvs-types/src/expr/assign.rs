@@ -581,7 +581,15 @@ pub(crate) fn check_assign(
         mark_write_target_levels(target, true, env);
         let target_ty = check_expr(target, None, live, scope, ctx, env);
         check_write_target(target, ctx, env);
-        check_expr(value, Some(target_ty), live, scope, ctx, env);
+        let before = env.diags.len();
+        let value_ty = check_expr(value, Some(target_ty), live, scope, ctx, env);
+        // `rule:security/secret-qualifier`'s container axis at `$a["k"] =
+        // $secret`, guarded on the diagnostic count for the reason
+        // [`super::literals::check_array_literal`]'s element is: a value that
+        // already failed against the element type is one mistake.
+        if env.diags.len() == before {
+            reject_secret_element_write(target, target_ty, value, value_ty, env);
+        }
         target_ty
     }
 }
@@ -1046,7 +1054,12 @@ pub(crate) fn check_compound_assign(
     let result = binary_result(op, target_ty, value_ty, span, env);
     if !is_assignable(result, target_ty, env.interner, env.graph, env.signatures) {
         report_mismatch(span, target_ty, result, env);
+        return target_ty;
     }
+    // The operator's *result* is what lands in the element, and `.=` over a
+    // `secret` operand produces a `secret` one (`rule:security/secret-propagation`),
+    // so this spelling of the write owes the same refusal the plain one does.
+    reject_secret_element_write(target, target_ty, value, result, env);
     target_ty
 }
 

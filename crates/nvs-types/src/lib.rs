@@ -541,6 +541,22 @@ pub(crate) struct Env<'a> {
     /// rule is about one body, and a second body's writers are not this one's.
     /// [`crate::response`] owns which bodies it is armed for.
     pub body_writers: crate::response::BodyWriters,
+    /// Whether the expression being checked sits inside a call's argument list.
+    ///
+    /// One rule reads it: `rule:security/secret-qualifier`'s container refusal
+    /// (`crate::expr::quals::reject_secret_into_container`), which steps aside
+    /// for an argument because `rule:security/secret-sinks-refuse` names three
+    /// positions a credential legitimately reaches — a bound database
+    /// parameter, a process argv, an outbound request — and all three are
+    /// written as an `array<mixed>` argument. What decides an argument is the
+    /// call's own rules, which are the sink refusals in that module.
+    ///
+    /// Set and put back around a whole argument list by
+    /// [`crate::expr::args::check_args_typed`], the way [`Self::exit_targets`]
+    /// is around a closure body: a container literal nested inside an argument
+    /// is still inside that argument, and the flag has to survive the recursion
+    /// rather than be re-derived at each level.
+    pub in_call_argument: bool,
 }
 
 pub(crate) fn span_text(src: &SourceFile, span: Span) -> &str {

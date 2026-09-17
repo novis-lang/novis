@@ -759,6 +759,7 @@ pub fn build_signatures(
             write_target_levels: FxHashMap::default(),
             coalesce_guarded: FxHashSet::default(),
             body_writers: crate::response::BodyWriters::default(),
+            in_call_argument: false,
         };
         collect_stmts(file.stmts, &[], &FxHashMap::default(), &mut table, &mut env);
     }
