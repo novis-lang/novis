@@ -9,6 +9,13 @@
 //! [`Type`] before anything downstream ever sees the alias's name at all.
 //! This module builds that expansion.
 //!
+//! An alias is written at either of two sites, and they share everything but
+//! the key they are filed under: at file or namespace scope, under its own
+//! [`QName`], and as a member of a class, interface or enum body, under that
+//! owner plus the member's own name. A bare `Name` inside a member's expansion
+//! means the owner's own alias before it means the namespace's, and
+//! `Owner::Name` reaches one from anywhere; nothing is inherited.
+//!
 //! Same two-pass shape as [`crate::hierarchy::HierarchyResolver`]:
 //! [`AliasResolver::collect_aliases`] walks a file's `type` declarations,
 //! recording each one's raw expansion together with the namespace/`use`
@@ -38,17 +45,46 @@
 //! references.
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
-use nvs_syntax::ast::{NamespaceDecl, Stmt, StmtKind, Type, TypeAtom, TypeKind};
+use nvs_syntax::ast::{
+    ClassMember, ClassMemberKind, NamespaceDecl, Stmt, StmtKind, Type, TypeAliasDecl, TypeAtom,
+    TypeKind,
+};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::hierarchy::resolve_ref;
 use crate::qname::QName;
 use crate::resolve::{name_text, qname_segments};
 
-/// Every `type` alias's fully-substituted expansion, keyed by its [`QName`].
+/// What one alias is filed under — the two sites `rule:types/type-alias` lets
+/// a `type` declaration be written at.
+///
+/// A member is keyed by its owner *plus* its own name rather than by a
+/// synthetic `Ns\Order\Meta` path, because that path is also the spelling of a
+/// class `Meta` declared in namespace `Ns\Order`, and the two must not share a
+/// key.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+enum AliasKey {
+    /// A file- or namespace-scope alias, under its own fully qualified name.
+    Name(QName),
+    /// A class, interface or enum member, under its owner and the member name.
+    Member(QName, String),
+}
+
+impl std::fmt::Display for AliasKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Name(qname) => write!(f, "{qname}"),
+            Self::Member(owner, name) => write!(f, "{owner}::{name}"),
+        }
+    }
+}
+
+/// Every `type` alias's fully-substituted expansion: the file-scope ones by
+/// [`QName`], and the members a body owns by their owner and their own name.
 #[derive(Debug, Default)]
 pub struct AliasTable {
     by_name: FxHashMap<QName, Type>,
+    by_owner: FxHashMap<QName, FxHashMap<String, Type>>,
 }
 
 impl AliasTable {
@@ -58,23 +94,32 @@ impl AliasTable {
         Self::default()
     }
 
-    /// The fully-substituted expansion for one declared alias, if this name
+    /// The fully-substituted expansion for one file-scope alias, if this name
     /// is one.
     #[must_use]
     pub fn get(&self, qname: &QName) -> Option<&Type> {
         self.by_name.get(qname)
     }
 
-    /// How many aliases were resolved.
+    /// The fully-substituted expansion for `Owner::Name`, if that owner
+    /// declares an alias by that name. Nothing is inherited: an owner answers
+    /// for the aliases written in its own body and no others
+    /// (`rule:types/type-alias`).
+    #[must_use]
+    pub fn get_member(&self, owner: &QName, name: &str) -> Option<&Type> {
+        self.by_owner.get(owner)?.get(name)
+    }
+
+    /// How many aliases were resolved, both sites together.
     #[must_use]
     pub fn len(&self) -> usize {
-        self.by_name.len()
+        self.by_name.len() + self.by_owner.values().map(FxHashMap::len).sum::<usize>()
     }
 
     /// Whether nothing was resolved.
     #[must_use]
     pub fn is_empty(&self) -> bool {
-        self.by_name.is_empty()
+        self.len() == 0
     }
 }
 
@@ -86,6 +131,9 @@ struct PendingAlias {
     decl_span: Span,
     namespace: Vec<String>,
     imports: FxHashMap<String, QName>,
+    /// The body this alias is a member of, if it is one — what a bare `Name`
+    /// inside the expansion is looked up against before the namespace.
+    owner: Option<QName>,
 }
 
 /// Collects a [`AliasTable`] from one or more files' `type` alias
@@ -95,10 +143,10 @@ struct PendingAlias {
 /// collected later.
 #[derive(Debug, Default)]
 pub struct AliasResolver {
-    pending: FxHashMap<QName, PendingAlias>,
+    pending: FxHashMap<AliasKey, PendingAlias>,
     /// Declaration order, so the top-level resolve loop (and any diagnostics
     /// it produces) doesn't depend on hash-map iteration order.
-    order: Vec<QName>,
+    order: Vec<AliasKey>,
     /// Every type-atom `Name`'s extracted source text, by its span — recorded
     /// at collection time so resolution needs no [`SourceFile`] afterward,
     /// the same trick [`crate::hierarchy::HierarchyResolver`] uses for a
@@ -145,25 +193,77 @@ impl AliasResolver {
                     imports.insert(target.short_name().to_owned(), target);
                 }
                 StmtKind::TypeAliasDecl(decl) => {
-                    record_names(&decl.ty, src, &mut self.names);
                     let qname = QName::join(&current_ns, name_text(src, &decl.name));
-                    if let std::collections::hash_map::Entry::Vacant(entry) =
-                        self.pending.entry(qname.clone())
-                    {
-                        entry.insert(PendingAlias {
-                            ty: decl.ty.clone(),
-                            decl_span: decl.name.span,
-                            namespace: current_ns.clone(),
-                            imports: imports.clone(),
-                        });
-                        self.order.push(qname);
-                    }
+                    self.record(
+                        AliasKey::Name(qname),
+                        decl,
+                        src,
+                        &current_ns,
+                        &imports,
+                        None,
+                    );
                     // A second declaration of the same name is already
                     // diagnosed as `E_DUPLICATE_DECLARATION` by the symbol
                     // table; the first one wins here too, for consistency.
                 }
+                // A body's own aliases, keyed by the body that owns them. Every
+                // body that has a class-shaped name takes them, and takes them
+                // the same way.
+                StmtKind::ClassDecl(decl) => {
+                    self.record_members(&decl.members, decl.name, src, &current_ns, &imports);
+                }
+                StmtKind::InterfaceDecl(decl) => {
+                    self.record_members(&decl.members, decl.name, src, &current_ns, &imports);
+                }
+                StmtKind::EnumDecl(decl) => {
+                    self.record_members(&decl.members, decl.name, src, &current_ns, &imports);
+                }
                 _ => {}
             }
+        }
+    }
+
+    /// Every `type` member of one body, under the owner that declares them.
+    fn record_members(
+        &mut self,
+        members: &[ClassMember],
+        owner_name: nvs_syntax::ast::Name,
+        src: &SourceFile,
+        namespace: &[String],
+        imports: &FxHashMap<String, QName>,
+    ) {
+        let owner = QName::join(namespace, name_text(src, &owner_name));
+        for member in members {
+            let ClassMemberKind::TypeAlias(alias) = &member.kind else {
+                continue;
+            };
+            let key = AliasKey::Member(owner.clone(), name_text(src, &alias.name).to_owned());
+            self.record(key, alias, src, namespace, imports, Some(owner.clone()));
+        }
+    }
+
+    /// One alias's raw expansion under `key`, with the scope it was written in.
+    /// The first declaration under a key wins; a second is a duplicate the
+    /// symbol table already reports.
+    fn record(
+        &mut self,
+        key: AliasKey,
+        decl: &TypeAliasDecl,
+        src: &SourceFile,
+        namespace: &[String],
+        imports: &FxHashMap<String, QName>,
+        owner: Option<QName>,
+    ) {
+        record_names(&decl.ty, src, &mut self.names);
+        if let std::collections::hash_map::Entry::Vacant(entry) = self.pending.entry(key.clone()) {
+            entry.insert(PendingAlias {
+                ty: decl.ty.clone(),
+                decl_span: decl.name.span,
+                namespace: namespace.to_vec(),
+                imports: imports.clone(),
+                owner,
+            });
+            self.order.push(key);
         }
     }
 
@@ -181,12 +281,21 @@ impl AliasResolver {
             stack: Vec::new(),
             diags,
         };
-        for qname in &self.order {
-            resolve_one(qname, &mut ctx);
+        for key in &self.order {
+            resolve_one(key, &mut ctx);
         }
-        AliasTable {
-            by_name: ctx.resolved,
+        let mut table = AliasTable::new();
+        for (key, ty) in ctx.resolved {
+            match key {
+                AliasKey::Name(qname) => {
+                    table.by_name.insert(qname, ty);
+                }
+                AliasKey::Member(owner, name) => {
+                    table.by_owner.entry(owner).or_default().insert(name, ty);
+                }
+            }
         }
+        table
     }
 }
 
@@ -215,6 +324,16 @@ fn record_names(ty: &Type, src: &SourceFile, out: &mut FxHashMap<Span, String>) 
                 record_names(arg, src, out);
             }
         }
+        // `Owner::Name`, which is an alias reference when the owner declares
+        // one by that name — and a class constant or an enum case otherwise.
+        // Both halves are recorded, since which it is takes the owner resolved.
+        TypeKind::Atom(TypeAtom::Member(owner, member)) => {
+            out.insert(owner.span, name_text(src, owner).to_owned());
+            out.insert(
+                *member,
+                src.span_text(*member).unwrap_or_default().to_owned(),
+            );
+        }
         _ => {}
     }
 }
@@ -223,16 +342,28 @@ fn record_names(ty: &Type, src: &SourceFile, out: &mut FxHashMap<Span, String>) 
 /// diagnostics sink [`resolve_one`]/[`substitute`] need, threaded through one
 /// argument instead of several.
 struct ResolveCtx<'a> {
-    pending: &'a FxHashMap<QName, PendingAlias>,
+    pending: &'a FxHashMap<AliasKey, PendingAlias>,
     names: &'a FxHashMap<Span, String>,
-    resolved: FxHashMap<QName, Type>,
+    resolved: FxHashMap<AliasKey, Type>,
     /// Every name that took part in a detected cycle — resolves to `mixed`
     /// from here on, without being recomputed or re-diagnosed.
-    errored: FxHashSet<QName>,
+    errored: FxHashSet<AliasKey>,
     /// The chain of aliases currently being expanded, root to leaf — a name
     /// already on this stack when reached again is the cycle.
-    stack: Vec<QName>,
+    stack: Vec<AliasKey>,
     diags: &'a mut Diagnostics,
+}
+
+/// Where one alias's expansion is read from: the namespace and imports active
+/// at its declaration, and the body that owns it when it is a member. A bare
+/// `Name` inside a member's expansion means the owner's own alias first, which
+/// is the short spelling `rule:types/type-alias` gives a member inside its own
+/// body.
+#[derive(Clone, Copy)]
+struct Scope<'a> {
+    namespace: &'a [String],
+    imports: &'a FxHashMap<String, QName>,
+    owner: Option<&'a QName>,
 }
 
 fn mixed_at(span: Span) -> Type {
@@ -242,19 +373,19 @@ fn mixed_at(span: Span) -> Type {
     }
 }
 
-fn resolve_one(qname: &QName, ctx: &mut ResolveCtx<'_>) -> Type {
-    if let Some(ty) = ctx.resolved.get(qname) {
+fn resolve_one(key: &AliasKey, ctx: &mut ResolveCtx<'_>) -> Type {
+    if let Some(ty) = ctx.resolved.get(key) {
         return ty.clone();
     }
-    let Some(pending) = ctx.pending.get(qname) else {
+    let Some(pending) = ctx.pending.get(key) else {
         unreachable!("resolve_one is only called for a name known to be a pending alias");
     };
-    if ctx.errored.contains(qname) {
-        return mark_mixed(qname, pending.decl_span, ctx);
+    if ctx.errored.contains(key) {
+        return mark_mixed(key, pending.decl_span, ctx);
     }
-    if let Some(pos) = ctx.stack.iter().position(|q| q == qname) {
+    if let Some(pos) = ctx.stack.iter().position(|q| q == key) {
         let mut chain: Vec<String> = ctx.stack[pos..].iter().map(ToString::to_string).collect();
-        chain.push(qname.to_string());
+        chain.push(key.to_string());
         ctx.diags.report(
             Diagnostic::error(
                 code::E_TYPE_ALIAS_CYCLE,
@@ -268,7 +399,7 @@ fn resolve_one(qname: &QName, ctx: &mut ResolveCtx<'_>) -> Type {
         // Every name in the cycle, `qname` included, resolves to `mixed` from
         // here on — none of them ever bottoms out in a concrete type, so
         // none of them can be resolved a second, more specific way either.
-        let cycle_members: Vec<QName> = ctx.stack[pos..].to_vec();
+        let cycle_members: Vec<AliasKey> = ctx.stack[pos..].to_vec();
         for cyclic in &cycle_members {
             let span = ctx
                 .pending
@@ -276,27 +407,32 @@ fn resolve_one(qname: &QName, ctx: &mut ResolveCtx<'_>) -> Type {
                 .map_or(pending.decl_span, |p| p.decl_span);
             mark_mixed(cyclic, span, ctx);
         }
-        return mark_mixed(qname, pending.decl_span, ctx);
+        return mark_mixed(key, pending.decl_span, ctx);
     }
 
-    ctx.stack.push(qname.clone());
-    let substituted = substitute(&pending.ty, &pending.namespace, &pending.imports, ctx);
+    let scope = Scope {
+        namespace: &pending.namespace,
+        imports: &pending.imports,
+        owner: pending.owner.as_ref(),
+    };
+    ctx.stack.push(key.clone());
+    let substituted = substitute(&pending.ty, scope, ctx);
     ctx.stack.pop();
 
-    if ctx.errored.contains(qname) {
-        return mark_mixed(qname, pending.decl_span, ctx);
+    if ctx.errored.contains(key) {
+        return mark_mixed(key, pending.decl_span, ctx);
     }
-    ctx.resolved.insert(qname.clone(), substituted.clone());
+    ctx.resolved.insert(key.clone(), substituted.clone());
     substituted
 }
 
-/// Records `qname` as part of a cycle and caches its expansion as `mixed`,
+/// Records `key` as part of a cycle and caches its expansion as `mixed`,
 /// so a later lookup sees a real (if degenerate) entry rather than a miss —
 /// a miss would otherwise be indistinguishable from "not an alias at all".
-fn mark_mixed(qname: &QName, span: Span, ctx: &mut ResolveCtx<'_>) -> Type {
-    ctx.errored.insert(qname.clone());
+fn mark_mixed(key: &AliasKey, span: Span, ctx: &mut ResolveCtx<'_>) -> Type {
+    ctx.errored.insert(key.clone());
     let fallback = mixed_at(span);
-    ctx.resolved.insert(qname.clone(), fallback.clone());
+    ctx.resolved.insert(key.clone(), fallback.clone());
     fallback
 }
 
@@ -306,22 +442,17 @@ fn mark_mixed(qname: &QName, span: Span, ctx: &mut ResolveCtx<'_>) -> Type {
 /// (recursively substituted) expansion. Everything else — a scalar, `self`/
 /// `static`/`parent`, a name that resolves to a class/interface/enum instead
 /// — is cloned as-is.
-fn substitute(
-    ty: &Type,
-    namespace: &[String],
-    imports: &FxHashMap<String, QName>,
-    ctx: &mut ResolveCtx<'_>,
-) -> Type {
+fn substitute(ty: &Type, scope: Scope<'_>, ctx: &mut ResolveCtx<'_>) -> Type {
     match &ty.kind {
         TypeKind::Nullable(inner) => Type {
-            kind: TypeKind::Nullable(Box::new(substitute(inner, namespace, imports, ctx))),
+            kind: TypeKind::Nullable(Box::new(substitute(inner, scope, ctx))),
             span: ty.span,
         },
         TypeKind::Union(items) => Type {
             kind: TypeKind::Union(
                 items
                     .iter()
-                    .map(|item| substitute(item, namespace, imports, ctx))
+                    .map(|item| substitute(item, scope, ctx))
                     .collect(),
             ),
             span: ty.span,
@@ -330,18 +461,18 @@ fn substitute(
             kind: TypeKind::Intersection(
                 items
                     .iter()
-                    .map(|item| substitute(item, namespace, imports, ctx))
+                    .map(|item| substitute(item, scope, ctx))
                     .collect(),
             ),
             span: ty.span,
         },
         TypeKind::Paren(inner) => Type {
-            kind: TypeKind::Paren(Box::new(substitute(inner, namespace, imports, ctx))),
+            kind: TypeKind::Paren(Box::new(substitute(inner, scope, ctx))),
             span: ty.span,
         },
         TypeKind::Atom(TypeAtom::Array(Some(inner))) => Type {
             kind: TypeKind::Atom(TypeAtom::Array(Some(Box::new(substitute(
-                inner, namespace, imports, ctx,
+                inner, scope, ctx,
             ))))),
             span: ty.span,
         },
@@ -349,9 +480,7 @@ fn substitute(
         // other argument position's: an alias standing for a class expands
         // inside it exactly as it does inside `array<T>`.
         TypeKind::Atom(TypeAtom::ClassRef(inner)) => Type {
-            kind: TypeKind::Atom(TypeAtom::ClassRef(Box::new(substitute(
-                inner, namespace, imports, ctx,
-            )))),
+            kind: TypeKind::Atom(TypeAtom::ClassRef(Box::new(substitute(inner, scope, ctx)))),
             span: ty.span,
         },
         // `rule:types/callable-signature`: a parameter and a return type are
@@ -361,39 +490,71 @@ fn substitute(
             kind: TypeKind::Atom(TypeAtom::CallableSig {
                 params: params
                     .iter()
-                    .map(|param| substitute(param, namespace, imports, ctx))
+                    .map(|param| substitute(param, scope, ctx))
                     .collect(),
-                ret: Box::new(substitute(ret, namespace, imports, ctx)),
+                ret: Box::new(substitute(ret, scope, ctx)),
             }),
             span: ty.span,
         },
         TypeKind::Atom(TypeAtom::Name(name, args)) => {
             let text = ctx.names.get(&name.span).map(String::as_str).unwrap_or("");
-            let qname = resolve_ref(text, namespace, imports);
             // A name *written with* type arguments is never an alias
             // expansion site: `rule:statements/nothing-gets-a-second-name` keeps a `type` alias a synonym for a
             // whole type expression, with no parameters of its own, so
             // `Alias<int>` is an error the checker reports rather than
             // something to expand here. Its arguments still get substituted,
             // so an alias used *as* an argument still expands.
-            if args.is_empty() && ctx.pending.contains_key(&qname) {
-                resolve_one(&qname, ctx)
-            } else if args.is_empty() {
-                ty.clone()
-            } else {
-                Type {
+            if !args.is_empty() {
+                return Type {
                     kind: TypeKind::Atom(TypeAtom::Name(
                         *name,
-                        args.iter()
-                            .map(|arg| substitute(arg, namespace, imports, ctx))
-                            .collect(),
+                        args.iter().map(|arg| substitute(arg, scope, ctx)).collect(),
                     )),
                     span: ty.span,
-                }
+                };
+            }
+            match bare_name_key(text, scope, ctx) {
+                Some(key) => resolve_one(&key, ctx),
+                None => ty.clone(),
+            }
+        }
+        // `Owner::Name`: an alias the resolved owner declares, or — when it
+        // declares none by that name — the class constant or enum case that
+        // spelling also means, left as written for the checker to decide.
+        TypeKind::Atom(TypeAtom::Member(owner_name, member)) => {
+            let owner_text = ctx
+                .names
+                .get(&owner_name.span)
+                .map(String::as_str)
+                .unwrap_or("");
+            let member_text = ctx.names.get(member).map(String::as_str).unwrap_or("");
+            let key = AliasKey::Member(
+                resolve_ref(owner_text, scope.namespace, scope.imports),
+                member_text.to_owned(),
+            );
+            if ctx.pending.contains_key(&key) {
+                resolve_one(&key, ctx)
+            } else {
+                ty.clone()
             }
         }
         _ => ty.clone(),
     }
+}
+
+/// Which alias, if any, a bare `Name` written in `scope` means: the owner's own
+/// member first, then the file-scope name the namespace and imports resolve it
+/// to (`rule:types/type-alias`). Nothing is inherited, so an owner that
+/// declares no such member falls straight through to the namespace.
+fn bare_name_key(text: &str, scope: Scope<'_>, ctx: &ResolveCtx<'_>) -> Option<AliasKey> {
+    if let Some(owner) = scope.owner {
+        let member = AliasKey::Member(owner.clone(), text.to_owned());
+        if ctx.pending.contains_key(&member) {
+            return Some(member);
+        }
+    }
+    let qname = AliasKey::Name(resolve_ref(text, scope.namespace, scope.imports));
+    ctx.pending.contains_key(&qname).then_some(qname)
 }
 
 #[cfg(test)]
@@ -449,6 +610,85 @@ mod tests {
         };
         assert!(is_atom(&members[0], &TypeAtom::Uint));
         assert!(is_atom(&members[1], &TypeAtom::Float));
+    }
+
+    #[test]
+    fn a_bodys_alias_is_keyed_by_its_owner_and_never_by_a_namespace_path() {
+        let (table, diags) = resolve(
+            "<?nvs\nnamespace Ns;\nclass Order { type Meta = decimal; }\ntype Meta = uint;\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+        let member = table
+            .get_member(&QName::parse(r"Ns\Order"), "Meta")
+            .expect("the owner-keyed entry");
+        assert!(is_atom(member, &TypeAtom::Decimal));
+        // The file-scope `Meta` in the same namespace is a different alias, and
+        // the path that would collide with a class `Meta` names neither.
+        assert!(is_atom(
+            table.get(&QName::parse(r"Ns\Meta")).unwrap(),
+            &TypeAtom::Uint
+        ));
+        assert!(table.get(&QName::parse(r"Ns\Order\Meta")).is_none());
+    }
+
+    #[test]
+    fn every_body_that_takes_an_alias_gets_an_owner_keyed_entry() {
+        let (table, diags) = resolve(
+            "<?nvs\nclass Order { type Meta = decimal; }\n\
+             interface Priced { type Meta = uint; }\n\
+             enum Status { type Meta = float; Active }\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+        assert_eq!(table.len(), 3);
+        for (owner, atom) in [
+            ("Order", TypeAtom::Decimal),
+            ("Priced", TypeAtom::Uint),
+            ("Status", TypeAtom::Float),
+        ] {
+            let ty = table
+                .get_member(&QName::parse(owner), "Meta")
+                .unwrap_or_else(|| panic!("{owner} declares an alias"));
+            assert!(is_atom(ty, &atom), "{owner}: {ty:?}");
+        }
+    }
+
+    #[test]
+    fn a_bare_name_in_a_body_means_the_owners_alias_before_the_namespaces() {
+        let (table, diags) = resolve(
+            "<?nvs\ntype Meta = uint;\n\
+             class Order { type Meta = decimal; type Wrapped = array<Meta>; }\n\
+             type Outer = array<Meta>;\n",
+        );
+        assert!(!diags.has_errors(), "{diags:?}");
+        let wrapped = table.get_member(&QName::parse("Order"), "Wrapped").unwrap();
+        let TypeKind::Atom(TypeAtom::Array(Some(inner))) = &wrapped.kind else {
+            panic!("expected array<...>, got {wrapped:?}");
+        };
+        assert!(is_atom(inner, &TypeAtom::Decimal));
+        // Outside the body the same spelling is the file-scope alias.
+        let outer = table.get(&QName::parse("Outer")).unwrap();
+        let TypeKind::Atom(TypeAtom::Array(Some(inner))) = &outer.kind else {
+            panic!("expected array<...>, got {outer:?}");
+        };
+        assert!(is_atom(inner, &TypeAtom::Uint));
+    }
+
+    #[test]
+    fn a_cycle_through_a_bodys_own_aliases_is_diagnosed() {
+        // Both spellings of a member reference take part: `B` is the bare form
+        // inside the owner, `Order::A` the qualified one.
+        let (table, diags) =
+            resolve("<?nvs\nclass Order { type A = array<B>; type B = array<Order::A>; }\n");
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_TYPE_ALIAS_CYCLE)),
+            "{diags:?}"
+        );
+        for name in ["A", "B"] {
+            let ty = table.get_member(&QName::parse("Order"), name).unwrap();
+            assert!(is_atom(ty, &TypeAtom::Mixed), "{name}: {ty:?}");
+        }
     }
 
     #[test]

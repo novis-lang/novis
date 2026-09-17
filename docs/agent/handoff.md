@@ -2,48 +2,42 @@
 
 ## State
 
-**Goal 61 — a shape a class owns is named inside it — has just started; nothing of it has landed yet.** Goal `unowned-closures`'s whole list is this goal's Stage 1 floor.
+**Goal `class-scoped-types`, stage 2: the member and its key have landed; the checker half has not.**
 
-The design is settled in the goal's *Standing decisions* and needs no record before the code lands: a
-`type` alias becomes a member of a class, an interface or an enum body, with no modifier, reached as
-`Owner::Name` from anywhere and as a bare `Name` inside the owner's own body, never through a subclass
-or an implementor. It is the same transparent alias the file-scope form declares, keyed in the alias
-table by its owner rather than by a namespace path. The one record this goal opens is written in stage
-5, after the code and its tests exist, and claims whatever number is free then.
+- The parser takes `type Name = TypeExpr;` in a class, an interface and an enum body as
+  `ClassMemberKind::TypeAlias`, from the same production the file-scope form uses.
+- `nvs-hir`'s alias table files a body's alias under its owner plus the member name, expands both
+  spellings inside another expansion (a bare `Name` first against the owner, `Owner::Name` from
+  anywhere), and `E_TYPE_ALIAS_CYCLE` covers a chain through either.
+  `rule:types/alias-is-never-a-bare-class` runs on a member unchanged.
+- **Nothing in `nvs-types` reads the member yet**, so a class-scoped alias resolves nowhere in a
+  program: that is the next group, and it is what makes the goal's own conformance cases possible.
+- Two shapes stage 3 must answer, both discovered here: a modifier or an attribute group written in
+  front of a body's `type` parses and is dropped silently, and an alias in an **anonymous** class
+  body is never collected, since there is no owner name to key it by.
 
 ## Next group
 
-**Stage 2: the member, its key, and the two spellings** — one file set:
-`crates/nvs-syntax/src/parser/decl.rs`, `crates/nvs-syntax/src/ast.rs`, `crates/nvs-hir/src/aliases.rs`,
-`crates/nvs-hir/src/resolve.rs`, `crates/nvs-types/src/lower.rs`.
+**Stage 2: the two spellings, in the checker** — one file set: `crates/nvs-types/src/lower.rs`.
 
-- [ ] **The member** — `crates/nvs-syntax/src/ast.rs:@ClassMemberKind` gains `TypeAlias(TypeAliasDecl)`;
-      `crates/nvs-syntax/src/parser/decl.rs:@parse_class_member_with_attrs` dispatches on the contextual
-      `type` keyword beside `const` and `function` into `@parse_type_alias_decl`. A class, an interface
-      and an enum body all accept it; the parser test round-trips all three.
-- [ ] **The key** — `crates/nvs-hir/src/aliases.rs:@collect_in` walks class bodies and records the
-      member under the owner's `QName` plus the member name; `crates/nvs-hir/src/resolve.rs:@declare`
-      declares it and `@check_alias_is_not_a_bare_class` runs on it. The `nvs-hir` tests pin the key,
-      the cycle and the bare-class refusal.
-- [ ] **The two spellings** — `crates/nvs-types/src/lower.rs:@lower_member_type` tries the owner's
-      alias before the enum case and the constant fold, and resolves the name left of `::` through the
-      alias table first (closing the known gap its doc comment records);
-      `@resolve_name_type` looks a bare name up against `Ctx::current_class`'s aliases before the
-      namespace's. The `nvs-types` test and the four stage 2 conformance cases prove it.
-- [ ] **Stage 0's two sentences** — rewrite `lower_member_type`'s doc comment as a whole, and leave
-      `docs/rules/types/type-alias.md:1-2` to stage 5's record, noting in this handoff that the code is
-      ahead of the fragment until then.
+- [ ] **`Owner::Name`** — `crates/nvs-types/src/lower.rs:339` (`lower_member_type`) asks
+      `AliasTable::get_member(owner, name)` before the enum case and before the constant fold, and
+      re-lowers the expansion it gets. `rule:types/type-alias`, against
+      `rule:types/enum-case-type` and `rule:types/constant-in-type-position` for the order.
+- [ ] **A bare `Name` inside the owner's body** — `crates/nvs-types/src/lower.rs:654`
+      (`resolve_name_type`) tries the current class's own aliases, through `Ctx::current_class`,
+      before the namespace's. `rule:types/type-alias`.
+- [ ] **The left of `::` resolves through the alias table first** —
+      `crates/nvs-types/src/lower.rs:339` again, where the owner is resolved: an alias
+      whose expansion is a single name atom stands in for that name before the `::` is read, and any
+      other expansion left of `::` is `E_UNKNOWN_MEMBER` with a help naming what it expands to.
+- [ ] **Stage 0's two sentences** — rewrite `lower_member_type`'s doc comment at
+      `crates/nvs-types/src/lower.rs:339` as a whole once the three above are in.
 
 ## Backlog
 
-- **Stage 3, the refusals** — the stage 2 file set plus `crates/nvs-diagnostics/src/lib.rs`: one new
-  code for a modifier before `type` in a body; `E_DUPLICATE_DECLARATION` for an alias sharing a name
-  with a constant or a case; `E_UNKNOWN_MEMBER` with a help naming the declaring owner for
-  `Child::Meta`; a by-name refusal for `type` inside a body. Five `reject` cases. Cheap to take right
-  after stage 2, since the files are already loaded.
-- **Stage 4, the tooling** — `crates/nvs-fmt/src/lib.rs`, `crates/nvs-cli/src/meta.rs`, and the four
-  `crates/nvs-lsp/src/` modules. Shares nothing with stages 2–3; its own session.
-- **Stage 5, the rule and the record** — `docs/rules/types.json`, `docs/rules/types/`,
-  `docs/decisions/`: one new record, the `types/class-scoped-alias` fragment, the amended
-  `types/type-alias` fragment, `python tools/rules.py --render`. Its own session.
-- When this goal's last check goes green the driver takes goal `worker-placement`.
+- Stage 3's refusals, plus the two shapes above — `docs/agent/loop-goal.md` § *Stage 3*.
+- Stage 4: `nvs meta`, the four `nvs-lsp` passes and `nvs-fmt` all skip the new member today, through
+  a `#[non_exhaustive]` wildcard — `docs/agent/loop-goal.md` § *Stage 4*.
+- The `[context] modules` manifest does not name `crates/nvs-hir/src/hierarchy.rs`, whose
+  `resolve_ref` the alias collector resolves every name through.

@@ -3,7 +3,10 @@
 //! See the crate's module docs for what this covers and what M2 still needs.
 
 use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
-use nvs_syntax::ast::{Name, NamespaceDecl, Stmt, StmtKind, TypeAliasDecl, TypeAtom, TypeKind};
+use nvs_syntax::ast::{
+    ClassMember, ClassMemberKind, Name, NamespaceDecl, Stmt, StmtKind, TypeAliasDecl, TypeAtom,
+    TypeKind,
+};
 use rustc_hash::FxHashMap;
 
 use crate::qname::QName;
@@ -138,12 +141,15 @@ impl Resolver {
                 }
                 StmtKind::ClassDecl(decl) => {
                     self.declare(SymbolKind::Class, &current_ns, &decl.name, src, diags);
+                    check_body_aliases(&decl.members, diags);
                 }
                 StmtKind::InterfaceDecl(decl) => {
                     self.declare(SymbolKind::Interface, &current_ns, &decl.name, src, diags);
+                    check_body_aliases(&decl.members, diags);
                 }
                 StmtKind::EnumDecl(decl) => {
                     self.declare(SymbolKind::Enum, &current_ns, &decl.name, src, diags);
+                    check_body_aliases(&decl.members, diags);
                 }
                 StmtKind::TypeAliasDecl(decl) => {
                     self.declare(SymbolKind::TypeAlias, &current_ns, &decl.name, src, diags);
@@ -244,6 +250,18 @@ impl Resolver {
     #[must_use]
     pub const fn module(&self) -> &Module {
         &self.module
+    }
+}
+
+/// The aliases a body owns are not file-scope names, so nothing declares them
+/// in the symbol table — [`crate::aliases`] keys them by their owner instead.
+/// What is asked of them here is what is asked of the file-scope form: the
+/// declaration itself gets one answer at both sites it is written.
+fn check_body_aliases(members: &[ClassMember], diags: &mut Diagnostics) {
+    for member in members {
+        if let ClassMemberKind::TypeAlias(alias) = &member.kind {
+            check_alias_is_not_a_bare_class(alias, diags);
+        }
     }
 }
 
