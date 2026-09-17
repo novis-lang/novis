@@ -97,17 +97,18 @@
 //! names this class and `nvs_stdlib::instance`'s descriptor renderer where it
 //! names none.
 //!
-//! # Known gaps
+//! # A written pattern is prepared, an assembled one is not
 //!
-//! 1. **`$d->format` and `Core\Time::parse` compile their pattern per call.**
-//!    `rule:expressions/intrinsic-literals` makes both intrinsics whose literal
-//!    pattern is prepared while compiling; [`crate::cldr`]'s own gap 1 owns
-//!    what that changes and what it does not, and `nvs-types`' intrinsic pass
-//!    is where the preparing has to land before either of them can read it.
-//!    Decided: Build the checker-to-IR channel and prepare literal patterns at compile time — Zero
-//!    request-path parsing and compile-time errors as the rule says; the channel is new plumbing
-//!    (shared with nvs-types' intrinsic gaps).
-//!    — owner: decided-closures
+//! `$d->format` and `Core\Time::parse` are `rule:expressions/intrinsic-literals`'s
+//! intrinsics: a pattern written as a literal is compiled while checking, so a
+//! malformed one is a diagnostic rather than a throw, and the call carries
+//! [`crate::cldr::PREPARED_PATTERN`] as
+//! `crate::registry::PREPARED_MEMBERS`' argument 0 — which is what lets this
+//! core compile that pattern once and keep it. A pattern the program assembled
+//! carries [`crate::cldr::PREPARED_NONE`], is compiled at the call and is kept
+//! nowhere; [`crate::cldr`]'s own docs own why the second is not cached. The
+//! `format` members `Core\Time\Date` and `Core\Time\TimeOfDay` own are off that
+//! roster and take the second path always.
 //!
 //! # What these members do with a qualifier
 //!
@@ -4023,12 +4024,16 @@ nvs_runtime::nvs_helper! {
     /// ([`crate::cldr`]), replacing `date`, `gmdate`, `idate`, `strftime` and
     /// `date_format` at once.
     ///
-    /// The pattern is compiled per call; `rule:expressions/intrinsic-literals` is what moves that to
-    /// compile time for a literal one, and [`crate::cldr`]'s gap 1 owns it.
-    fn nvs_core_time_datetime_format(_ctx, args: [2]) {
-        let at = zoned_of(args, 0, "format")?;
-        let pattern = text_of(args, 1, "Core\\Time\\DateTime::format")?;
-        let pieces = crate::cldr::compile(pattern)
+    /// **Argument 0 is [`crate::registry::PREPARED_MEMBERS`]' word**, ahead of
+    /// the receiver: [`crate::cldr::PREPARED_PATTERN`] for a pattern the call
+    /// site wrote, which this core compiles once and keeps, and
+    /// [`crate::cldr::PREPARED_NONE`] for one the program assembled, which is
+    /// compiled here and kept nowhere. This module's own docs own that split.
+    fn nvs_core_time_datetime_format(_ctx, args: [3]) {
+        let ready = crate::cldr::prepared_arg(&args[0]);
+        let at = zoned_of(args, 1, "format")?;
+        let pattern = text_of(args, 2, "Core\\Time\\DateTime::format")?;
+        let pieces = crate::cldr::compiled(pattern, ready)
             .map_err(|why| {
                 Fault::thrown_as(
                     ThrownClass::Logic,
@@ -4331,6 +4336,11 @@ nvs_runtime::nvs_helper! {
     /// — `DateTime::createFromFormat` and `strptime`, over [`crate::cldr`]'s
     /// patterns rather than PHP's letters.
     ///
+    /// **Argument 0 is [`crate::registry::PREPARED_MEMBERS`]' word**, read
+    /// exactly as [`nvs_core_time_datetime_format`] reads it. It says whether
+    /// the *pattern* was written at the call site, never anything about the
+    /// text being read, which is a request's to send.
+    ///
     /// The zone is the third argument rather than something the pattern can
     /// name, which is why a zonal field in the pattern is refused: two answers
     /// for one question is what `rule:core-api/shape-rules` R20 leaves no room for. That refusal
@@ -4339,15 +4349,20 @@ nvs_runtime::nvs_helper! {
     /// the `LogicError` side of the split below rather than on the
     /// `ParseError` one — a well-formed offset in the text is not the input
     /// failing to match.
-    fn nvs_core_time_parse(_ctx, args: [3]) {
-        let text = text_of(args, 0, "Core\\Time::parse")?;
-        let pattern = text_of(args, 1, "Core\\Time::parse")?;
-        let zone = zone_of(args, 2, "parse")?;
+    fn nvs_core_time_parse(_ctx, args: [4]) {
+        let ready = crate::cldr::prepared_arg(&args[0]);
+        let text = text_of(args, 1, "Core\\Time::parse")?;
+        let pattern = text_of(args, 2, "Core\\Time::parse")?;
+        let zone = zone_of(args, 3, "parse")?;
         // The two failures are different spec § 10 classes on purpose: a
         // pattern this call site wrote wrongly is a bug in the program, while
         // text that does not match a well-formed pattern is exactly "input did
         // not match a format this code declared".
-        let pieces = crate::cldr::compile(pattern)
+        //
+        // The zonal refusal is made here whatever the word said: it is a
+        // refusal rather than a routing decision, and a prepared pattern
+        // changes which of them costs work, never which of them is made.
+        let pieces = crate::cldr::compiled(pattern, ready)
             .and_then(|pieces| crate::cldr::civil_fields_only(&pieces).map(|()| pieces))
             .map_err(|why| {
                 Fault::thrown_as(ThrownClass::Logic, format!("Core\\Time::parse(): {why}"))

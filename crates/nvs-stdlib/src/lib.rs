@@ -795,7 +795,10 @@ mod tests {
             let thrown = ran(
                 &mut ctx,
                 time::nvs_core_time_parse,
-                &[],
+                // A pattern the fold refused prepared nothing, so the call site
+                // carries the zero word and the runtime makes the refusal
+                // itself — which is what these cases compare.
+                &[Value::int(cldr::PREPARED_NONE)],
                 &["2026-09-16 10:30:00", pattern],
                 &[zone],
             )
@@ -814,7 +817,10 @@ mod tests {
             ran(
                 &mut ctx,
                 time::nvs_core_time_parse,
-                &[],
+                // Told what the fold settled, as the regex cases above are:
+                // the runtime half is asserted against the *prepared* call and
+                // not only against the untold one.
+                &[Value::int(cldr::PREPARED_PATTERN)],
                 &[subject, pattern],
                 &[zone],
             )
