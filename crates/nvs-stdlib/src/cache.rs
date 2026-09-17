@@ -148,21 +148,9 @@
 //! where the local tier is O(cores × working set) — plus [`SHARDS`] locks and
 //! their empty queues, which is a fixed cost paid once and not a per-entry one.
 //! On the shared tier, one socket per core and nothing per entry: the bytes are
-//! the store's.
-//!
-//! # Known gaps
-//!
-//! 1. **A shared store behind TLS.** The URL this reads is
-//!    `redis://host[:port]` or `unix:/path/to.sock`, and a `rediss://` store is
-//!    refused with a sentence rather than half-served: it is a second caller of
-//!    the TLS client `crate::http::transport` dials through, and a scheme this
-//!    one accepted and then spoke in the clear would be a plaintext connection
-//!    wearing a TLS spelling. It is the transport itself rather than a value
-//!    carried over one, which is why it is a scheme and not a key beside
-//!    `[cache.shared] url` — and, like the credential and the index already
-//!    here, it belongs to the [`Dial`] every connect applies, including the
-//!    silent reconnect after a dropped socket.
-//!    — owner: cache-shared-dial
+//! the store's. A store spelled `rediss://` adds one `rustls` connection state
+//! to that socket, which is what `Core\Http\Client` holds per connection today,
+//! and still nothing per entry.
 
 use std::borrow::Borrow;
 use std::cell::RefCell;
@@ -440,9 +428,9 @@ const PROCESS_TIER: &str = "process";
 /// What [`nvs_core_cache_shared`] writes into [`TIER_SLOT`].
 const SHARED_TIER: &str = "shared";
 
-/// `[cache.shared] url` — which store the coherent tier is, as
-/// `redis://host[:port]` or `unix:/path/to.sock`. Absent, there is no shared tier
-/// and `shared()` says so.
+/// `[cache.shared] url` — which store the coherent tier is, in one of the
+/// spellings [`READS`] names. Absent, there is no shared tier and `shared()`
+/// says so.
 const URL: &str = "cache.shared.url";
 
 /// `[cache.shared] password` — the credential the store is behind, which arrives
@@ -463,17 +451,34 @@ const DATABASE: &str = "cache.shared.database";
 /// `nvs_config`'s, and this module is what reads a value written in it.
 const UNIX: &str = nvs_config::store::UNIX_SCHEME;
 
+/// The scheme a store reached in the clear is written with.
+///
+/// Owned here and not by `nvs_config`, which validates the `unix:` spelling and
+/// asks nothing about the other two: what a RESP scheme means is this module's
+/// answer, and [`UNIX`] is owned there because that is where it is refused at
+/// boot.
+const PLAIN: &str = "redis://";
+
+/// The scheme that says the same store is reached through
+/// `rule:security/one-tls-client`'s session.
+///
+/// A scheme rather than a key beside [`URL`] because TLS is the transport and
+/// not a value carried over one, which is the same reason [`UNIX`] is one. It
+/// is not a [`PLAIN`] with a letter on the end — the two prefixes are
+/// disjoint — so a URL settles on exactly one of them.
+const TLS: &str = "rediss://";
+
 /// The spellings of [`URL`] this client reads, named by every refusal.
 ///
 /// The `unix:` half only where there is a transport for it: naming a spelling
 /// this build refuses would be advice the operator taking it lands back here
 /// with.
 #[cfg(unix)]
-const READS: &str = "`redis://host[:port]` or `unix:/path/to.sock`";
+const READS: &str = "`redis://host[:port]`, `rediss://host[:port]` or `unix:/path/to.sock`";
 
 /// [`READS`] on a build with no Unix-domain transport.
 #[cfg(not(unix))]
-const READS: &str = "`redis://host[:port]`";
+const READS: &str = "`redis://host[:port]` or `rediss://host[:port]`";
 
 /// `[cache.shared] timeout` — the bound on a handshake and on a command, each.
 const TIMEOUT: &str = "cache.shared.timeout";
@@ -2016,12 +2021,12 @@ fn bound_of(written: Option<&str>) -> Duration {
 /// # Errors
 ///
 /// A thrown `RuntimeError` naming what this client reads, for a URL carrying a
-/// scheme it does not speak, a path, or a port that is not one. Each of the
-/// three is refused rather than ignored: a `rediss://` treated as `redis://`
-/// would be a plaintext connection wearing a TLS spelling, and an index written
-/// as a path is a second spelling of `[cache.shared] database`, which is two
-/// sources for one value and the thing that key exists to be the only one of.
-/// Plus everything [`socket`] refuses, for the second spelling.
+/// scheme it does not speak, userinfo, a path, or a port that is not one. Each
+/// is refused rather than ignored, and the middle two for one reason: a
+/// credential is `[cache.shared] password` and an index is
+/// `[cache.shared] database`, so a URL carrying either gives one value two
+/// homes, which is two sources those keys exist to be the only one of. Plus
+/// everything [`socket`] refuses, for the third spelling.
 fn endpoint(url: &str, member: &str) -> Result<Target, Fault> {
     let refuse = |why: &str| {
         Fault::thrown(format!(
@@ -2031,12 +2036,12 @@ fn endpoint(url: &str, member: &str) -> Result<Target, Fault> {
     if let Some(path) = url.strip_prefix(UNIX) {
         return socket(path).map_err(refuse);
     }
-    let Some(authority) = url.strip_prefix("redis://") else {
-        return Err(refuse(
-            "that is not a scheme it speaks; a `rediss://` store is refused rather than \
-             half-served, for the reason `Core\\Http\\Client` refuses `https`, that which \
-             certificates this binary trusts has no decision yet",
-        ));
+    let Some((authority, tls)) = url
+        .strip_prefix(TLS)
+        .map(|authority| (authority, true))
+        .or_else(|| url.strip_prefix(PLAIN).map(|authority| (authority, false)))
+    else {
+        return Err(refuse("that is not a scheme it speaks"));
     };
     let authority = authority.trim_end_matches('/');
     if authority.contains('/') {
@@ -2045,6 +2050,23 @@ fn endpoint(url: &str, member: &str) -> Result<Target, Fault> {
              because one value spelled two ways is one nobody can read without being told which \
              spelling wins",
         ));
+    }
+    // Ahead of the port split, because userinfo carries a colon of its own and
+    // a `redis://:pw@host` read past this point is a credential handed to a
+    // resolver, whose failure then names it.
+    //
+    // This one refusal builds its own text rather than going through `refuse`,
+    // which quotes the URL: what makes userinfo the wrong home is that a
+    // credential there reaches everything reporting the store, and a refusal
+    // echoing it would be the first of those things.
+    if let Some((_, host)) = authority.split_once('@') {
+        let scheme = if tls { TLS } else { PLAIN };
+        return Err(Fault::thrown(format!(
+            "{member}: `{URL}` is `{scheme}<credential>@{host}`, and a credential is written as \
+             `[cache.shared] password` and never as userinfo here, because one value with two \
+             homes is one nobody can read without being told which home wins — this client reads \
+             {READS}"
+        )));
     }
     // An IPv6 literal is written `[::1]` and carries colons of its own, so the
     // last one is a port separator only when nothing after it belongs to the
@@ -2066,7 +2088,18 @@ fn endpoint(url: &str, member: &str) -> Result<Target, Fault> {
     // there is no attacker-influenced name here for `rule:security/net-address-policy`'s table to
     // hold at arm's length — and holding it there is what made a loopback store need `net.internal`.
     let address = nvs_runtime::capability::resolve_host(host, member)?;
-    Ok(Target::Tcp(SocketAddr::new(address, port)))
+    let address = SocketAddr::new(address, port);
+    if !tls {
+        return Ok(Target::Tcp(address));
+    }
+    // An IPv6 literal's brackets belong to the URL's grammar rather than to the
+    // name a certificate is checked against, and `resolve_host` takes them off
+    // for the same reason.
+    let name = host
+        .trim_start_matches('[')
+        .trim_end_matches(']')
+        .to_owned();
+    Ok(Target::Tls { address, name })
 }
 
 /// The `unix:` spelling's target, on a build whose reactor carries `AF_UNIX`.
@@ -2107,7 +2140,8 @@ fn socket(path: &str) -> Result<Target, &'static str> {
 fn socket(_path: &str) -> Result<Target, &'static str> {
     Err(
         "this build carries no Unix-domain transport, so there is nothing to dial a socket \
-         with — and reading it as loopback TCP is refused for the reason `rediss://` is",
+         with — and reading it as loopback TCP instead is refused, because a store that reads \
+         as one transport and runs as another is invisible in the review that would catch it",
     )
 }
 
@@ -2131,6 +2165,17 @@ pub(crate) enum Target {
     /// A `redis://host[:port]`, resolved to the one address the connection is
     /// made to, carrying the URL's port or [`redis::DEFAULT_PORT`].
     Tcp(SocketAddr),
+    /// A `rediss://host[:port]`, resolved the same way, with the name beside
+    /// the address because the socket and the session ask different questions
+    /// of one URL: where to connect, and who is expected to answer.
+    Tls {
+        /// Where the socket goes, which is [`Target::Tcp`]'s whole value.
+        address: SocketAddr,
+        /// The host an operator wrote, with an IPv6 literal's brackets off,
+        /// handed to `rule:security/one-tls-client`'s session as the name to
+        /// verify the peer's certificate against and to send as SNI.
+        name: String,
+    },
     /// A `unix:/path`, exactly as an operator wrote it: there is nothing to
     /// resolve, and
     /// `rule:config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it`
@@ -2142,9 +2187,15 @@ pub(crate) enum Target {
 impl std::fmt::Display for Target {
     /// What a failure names the store as, which is the spelling an operator
     /// wrote rather than a description of it.
+    ///
+    /// The TLS arm names the host and not the address it resolved to, because
+    /// the name is what the peer's certificate is checked against: a handshake
+    /// that fails is a fact about the name, and a store behind a rotating
+    /// address is the deployment where the address is not a fact at all.
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Tcp(address) => write!(f, "{address}"),
+            Self::Tls { address, name } => write!(f, "{name}:{}", address.port()),
             #[cfg(unix)]
             Self::Socket(path) => write!(f, "{}", path.display()),
         }
@@ -4184,6 +4235,91 @@ mod tests {
             "and the two per-core halves ask nothing, for the reason the rows state"
         );
         assert_eq!(asked(super::NAME, "local"), None);
+    }
+
+    /// One value has one home: a credential is `[cache.shared] password` and an
+    /// index is `[cache.shared] database`, so a URL carrying either is refused
+    /// with a sentence naming the key instead — `rule:errors/ambiguous-input-refused`
+    /// for the index, and
+    /// `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s own
+    /// argument for the credential.
+    ///
+    /// The userinfo half is asserted on both schemes, because what refuses it is
+    /// one check over the authority and a reader that grew a second arm could
+    /// easily have put it in only one of them. And the credential is asserted
+    /// **absent** from the refusal: every other refusal here quotes the URL, so
+    /// the one whose whole argument is that a credential in a URL travels would
+    /// otherwise carry it into the first place it should not be.
+    #[test]
+    fn a_redis_url_carrying_userinfo_or_a_path_is_still_refused() {
+        let refusal = |url: &str| {
+            let Fault::Thrown(class, message) =
+                endpoint(url, MEMBER).expect_err("a value with two homes is refused")
+            else {
+                panic!("a URL this deployment spelled twice is catchable, not fatal");
+            };
+            assert_eq!(class, ThrownClass::Runtime);
+            message
+        };
+
+        for url in [
+            "redis://:hunter2@127.0.0.1:6379",
+            "rediss://:hunter2@127.0.0.1:6379",
+            "redis://user:hunter2@127.0.0.1",
+        ] {
+            let message = refusal(url);
+            assert!(
+                message.contains("[cache.shared] password"),
+                "the refusal names the key a credential is written in: {message}"
+            );
+            assert!(
+                !message.contains("hunter2"),
+                "and carries none of the credential it was handed: {message}"
+            );
+        }
+
+        for url in ["redis://127.0.0.1:6379/3", "rediss://127.0.0.1:6379/3"] {
+            let message = refusal(url);
+            assert!(
+                message.contains("[cache.shared] database"),
+                "and an index as a path names the key an index is written in: {message}"
+            );
+        }
+    }
+
+    /// `rediss://` is a third transport and not a second store: the same
+    /// authority, resolved the same way, with the name the peer's certificate is
+    /// checked against kept beside the address — which is the only thing the TLS
+    /// arm holds that the plaintext one does not.
+    ///
+    /// The bracketed literal is here because the brackets belong to the URL's
+    /// grammar: a name handed to the session with them still on is neither a DNS
+    /// name nor an IP literal, and `NvsTls::over` refuses it with an
+    /// `InvalidInput` that reads like a bug in this client.
+    #[test]
+    fn a_rediss_url_carries_the_name_its_certificate_is_checked_against() {
+        assert_eq!(
+            endpoint("rediss://127.0.0.1", MEMBER).expect("`rediss://` is a scheme this reads"),
+            super::Target::Tls {
+                address: "127.0.0.1:6379".parse().expect("a literal"),
+                name: "127.0.0.1".to_owned(),
+            },
+            "a URL with no port takes the store's own, exactly as the plaintext arm does"
+        );
+        assert_eq!(
+            endpoint("rediss://[::1]:6380", MEMBER).expect("an IPv6 literal is a host"),
+            super::Target::Tls {
+                address: "[::1]:6380".parse().expect("a literal"),
+                name: "::1".to_owned(),
+            },
+        );
+        assert_eq!(
+            endpoint("rediss://127.0.0.1:6380", MEMBER)
+                .expect("a scheme this reads")
+                .to_string(),
+            "127.0.0.1:6380",
+            "and a failure names the host, because that is what the certificate answers for"
+        );
     }
 
     /// `rule:config/unix-scheme-in-a-url-and-a-bare-path-in-a-host`'s scheme at
