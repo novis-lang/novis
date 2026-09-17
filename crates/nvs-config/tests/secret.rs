@@ -535,9 +535,11 @@ const CACHE_ROOT: &str =
 /// The `secrets` assertion is the one that matters, for the reason the mail case gives — that map
 /// is what `Core\Config::get` answers out of, and it is where `nvs_stdlib::cache` reads the
 /// credential it puts into the dial. A value that reached the typed tree alone would be dialled
-/// with at boot and gone at the first reload.
+/// with at boot and gone at the first reload. The merged table holds the `_file` sibling and never
+/// the content, which is `a_secret_survives_into_the_snapshot_without_entering_the_table`'s finding
+/// over this block: `dump --toml` writes that table into a file an operator diffs.
 #[test]
-fn the_shared_stores_password_arrives_as_a_file_too() {
+fn a_cache_shared_password_is_read_from_its_file_sibling_and_never_enters_the_merged_table() {
     let fs = Fake::with(&[
         ("etc/nvs.toml", CACHE_ROOT),
         ("etc/secrets/cache", "cache-hunter2\n"),
@@ -563,12 +565,18 @@ fn the_shared_stores_password_arrives_as_a_file_too() {
         Some("secrets/cache"),
         "and the file stays named, so § 9's dump can say where the credential came from",
     );
+    assert!(
+        !toml::to_string(&resolved.table)
+            .expect("the merged table serializes")
+            .contains("cache-hunter2"),
+        "the content is carried beside the table and never in it",
+    );
 }
 
 /// § 7's one-of-the-pair rule over a block with no name in it: the same refusal a `[db.<name>]`
 /// gets, naming `cache.shared` itself.
 #[test]
-fn setting_both_halves_of_the_shared_stores_pair_is_refused() {
+fn both_halves_of_the_cache_shared_password_pair_is_refused() {
     let fs = Fake::with(&[
         (
             "etc/nvs.toml",

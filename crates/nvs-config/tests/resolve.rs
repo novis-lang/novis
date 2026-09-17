@@ -1350,6 +1350,43 @@ fn a_fleet_scope_with_no_shared_store_refuses_the_boot() {
     );
 }
 
+/// The index the shared store's entries live in is a key of its own beside the URL, so the one
+/// value has one spelling: `rule:config/cache-shared-is-the-grant-over-the-configured-store`'s
+/// block says where the store is, and a path on the URL would be a second answer to which database
+/// this deployment means.
+///
+/// Asserted beside a block that writes only the URL, because a check that read a configured index
+/// back would pass just as well if every tree carried one — and a deployment that names no index is
+/// every deployment on this chain today, dialling a store that switches to nothing.
+#[test]
+fn a_cache_shared_database_index_is_read_beside_the_url() {
+    let fs = Fake::with(&[(
+        "etc/nvs.toml",
+        "[cache.shared]\nurl = \"redis://127.0.0.1:6379\"\ndatabase = 3\n",
+    )]);
+    let shared = |resolved: &Resolved| {
+        resolved
+            .config
+            .cache
+            .as_ref()
+            .and_then(|cache| cache.shared.as_ref())
+            .expect("the block was written")
+            .database
+    };
+
+    assert_eq!(shared(&tree_of(&fs, "etc/nvs.toml")), Some(3));
+
+    let bare = Fake::with(&[(
+        "etc/nvs.toml",
+        "[cache.shared]\nurl = \"redis://127.0.0.1:6379\"\n",
+    )]);
+    assert_eq!(
+        shared(&tree_of(&bare, "etc/nvs.toml")),
+        None,
+        "a block that names no index reaches the store's own default and sends no `SELECT`",
+    );
+}
+
 /// `rule:config/a-missed-fire-is-skipped-and-a-dst-edge-fires-once`: `overlap` has a default, and a word that is not one of its three still refuses the
 /// boot. Asserted with the default and both named modes beside the refusal, because a check that
 /// only refused would pass just as well if the key were refused whenever it was written at all —
