@@ -69,21 +69,14 @@
 //! being copied) and are released when it ends, so nothing here grows with
 //! requests served ([AGENTS.md](/AGENTS.md)'s priority 5).
 //!
-//! # Known gaps
-//!
-//! 1. **A decoded `Core` instance is a `mixed` a program cannot narrow.** The
-//!    value itself is rebuilt under its own descriptor — a `Core\Time\Date`
-//!    arrives back as one, slots intact, because [`crate::Ctx::class_desc`]
-//!    asks the `Core` resolver after the program's table — but the checker
-//!    refuses both ways of binding it to that class: `E0496`, since
-//!    `instanceof` finds no descriptor to walk, and `E0711`, since
-//!    `rule:types/conversion` tabulates no conversion into one. So the round
-//!    trip is reachable through `Core\Debug` and through anything taking a
-//!    `mixed`, and not yet by naming the class. Both refusals are
-//!    `nvs-types`', and the address `instanceof` would test against is the one
-//!    `nvs_stdlib::class_descriptors` already hands the backend for a folded
-//!    `` html`…` `` constant.
-//!    — owner: core-class-tests
+//! A decoded `Core` instance is a `mixed` a program gets back by naming its
+//! class. The value is rebuilt under its own descriptor — a `Core\Time\Date`
+//! arrives back as one, slots intact, because [`crate::Ctx::class_desc`] asks
+//! the `Core` resolver after the program's table — and all three spellings that
+//! read a descriptor answer for it: `$v is Core\Time\Date`,
+//! `$v instanceof Core\Time\Date` and `$v as Core\Time\Date`, the last throwing
+//! where the other two answer `false`. The address they test against is the one
+//! `nvs_stdlib::class_descriptors` publishes for the process.
 
 use std::collections::HashMap;
 

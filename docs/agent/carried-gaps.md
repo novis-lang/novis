@@ -49,7 +49,6 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 | `rule:core-classes/html-to-source`'s computed `$reason` is not refused — was blocked on a full diagnostic band | `M7` | `crates/nvs-stdlib/src/html.rs` § *Known gaps* |
 | `queryAs<T>`'s three refusals are at run time; the band they waited on is open | `gap-zero` | `crates/nvs-stdlib/src/db/mod.rs` gap 4 |
 | `Core\Queue`'s `limits` and `grants` stay undeclared until an isolate enforces them | `gap-zero` | `crates/nvs-stdlib/src/queue.rs` gap 1 |
-| A decoded `Core` instance is a `mixed` a program cannot narrow, so the round trip is reachable only through `mixed` | `core-class-tests` | `crates/nvs-runtime/src/graph.rs` gap 1 |
 | Nothing arms `DebugFlags::TRACE` and nothing reads the `debug.trace` grant, so a query span renders on sampling alone | `M10` | `crates/nvs-db/src/span.rs` gap 1 |
 | SQL Server is the one driver a `bytes` parameter does not reach, the read half of the same row being whole | `tds-bytes` | `crates/nvs-db/src/tds/mod.rs` gap 1 |
 | The shared cache tier speaks `redis://host[:port]` and nothing else, so a password, a database index and a `rediss://` store are each refused with a sentence | `cache-shared-dial` | `crates/nvs-stdlib/src/cache.rs` gap 1 |

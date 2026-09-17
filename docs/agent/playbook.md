@@ -2288,6 +2288,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   matches `not … yet` in a title, so `sections outside Known gaps: 0` was red for a whole goal. Title a
   new `//!` section for what the module does, and run `python tools/owners.py | grep "sections
   outside"` in any session that adds one. [until: gone tools/owners.py:sections outside Known gaps]
+- **A handoff calling a stage "landed, end to end" claims behaviour, not that stage's acceptance
+  artefacts.** Goal `core-class-tests` stage 2's checker, IR and codegen were all on disk and
+  `instanceof` answered, while none of its three `cargo-named` tests and neither named `.nvst` path
+  existed. Grep a red check's `tests` against `crates/` and its `cases` against `tests/conformance/`: a
+  whole list missing while the behaviour runs means the artefacts are the work, not a re-point.
+  [until: reviewed 2026-09-17]
 
 ## Running things
 
@@ -7823,3 +7829,9 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   an edit making the sentence *more* true failed the build. Grep a refusal's distinctive phrase
   before editing it, and when the assertion pins wording rather than the fact under it, move it to
   the fact. [until: reviewed 2026-09-10]
+- **Lifting a refusal turns a conformance case red that no check in the goal names.** `mixed as Core\Uri`
+  was pinned as `E0711` in `an-object-target-naming-no-class-cannot-be-converted-to.nvst`, so widening
+  the conversion roster invalidated that case's whole `--EXPECTF-ERROR--` block — help text and `%s:NN`
+  anchors included, for the rows that still refuse too. `grep -rn` the diagnostic code and the target's
+  own spelling across `tests/conformance/` before widening any acceptance.
+  [until: reviewed 2026-09-17]
