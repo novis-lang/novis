@@ -12,6 +12,7 @@ uint $pending = $counts->pending();
 uint $claimed = $counts->claimed();
 uint $attempts = $counts->attempts();
 uint $dead = $counts->deadLettered();
+uint $buried = $counts->deadAttempts();
 
 // So the two arguments are not interchangeable in either direction, and this
 // is the direction a caller reaches for by habit after holding a receipt.

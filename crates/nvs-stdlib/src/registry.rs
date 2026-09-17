@@ -2122,8 +2122,8 @@ pub const CLASSES: &[CoreClass] = &[
     crate::queue::ID,
     // What `stats` answers with, and the same rule read the other way round: counters
     // a program has to reach are members here, precisely because that rule leaves a
-    // `Core` instance's properties unreachable. [`crate::queue::STATS`] owns why four
-    // of them and why the fifth would be a schema change first.
+    // `Core` instance's properties unreachable. [`crate::queue::STATS`] owns which
+    // counters they are and why the two that sum attempts are disjoint.
     crate::queue::STATS,
 ];
 
@@ -2577,13 +2577,14 @@ pub const CAPABILITIES: &[(&str, &str, Option<nvs_config::Cap>)] = &[
         "purge",
         Some(nvs_config::Cap::QueuePurge),
     ),
-    // `Core\Queue\Stats`' four counters read slots off a record the statement
-    // already answered, and `Core\Queue\Id`'s row is not here because it has no
-    // member at all — both are `Core\Process\Result`'s reading one class over.
+    // `Core\Queue\Stats`' counters read slots off a record the statement already
+    // answered, and `Core\Queue\Id`'s row is not here because it has no member at
+    // all — both are `Core\Process\Result`'s reading one class over.
     (crate::queue::STATS_NAME, "pending", None),
     (crate::queue::STATS_NAME, "claimed", None),
     (crate::queue::STATS_NAME, "attempts", None),
     (crate::queue::STATS_NAME, "deadLettered", None),
+    (crate::queue::STATS_NAME, "deadAttempts", None),
     // `rule:programs/framework-core-half`'s storage half, and the rows that make its "over `rule:core-api/tier-placement`'s
     // existing `fs.*` capabilities" true: the same two grants `Core\IO` above
     // declares, asked about the path the disk's root and the object's key

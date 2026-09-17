@@ -621,16 +621,17 @@ fn a_sqlite_cancel_takes_a_pending_job_and_changes_nothing_else() {
     assert_ne!(again, landed, "so the same key pushes a second row");
 }
 
-/// `COUNTS_SQLITE`'s four counters, as the integers a caller decodes.
+/// `COUNTS_SQLITE`'s five counters, as the integers a caller decodes.
 ///
 /// [`int`] is the assertion and not a convenience: what a `cast(… as signed)`
 /// answers on this backend is the whole question the alias rests on, so a column
 /// that came back a text or a real fails here by name.
-fn counts(conn: &SqliteConn) -> [i64; 4] {
+fn counts(conn: &SqliteConn) -> [i64; 5] {
     let read = rows(
         conn,
         queue::COUNTS_SQLITE,
         vec![
+            SqliteValue::Text(String::from(QUEUE)),
             SqliteValue::Text(String::from(QUEUE)),
             SqliteValue::Text(String::from(QUEUE)),
         ],
@@ -638,10 +639,16 @@ fn counts(conn: &SqliteConn) -> [i64; 4] {
     let row = read
         .first()
         .expect("an aggregate with no `group by` is exactly one row");
-    [int(&row[0]), int(&row[1]), int(&row[2]), int(&row[3])]
+    [
+        int(&row[0]),
+        int(&row[1]),
+        int(&row[2]),
+        int(&row[3]),
+        int(&row[4]),
+    ]
 }
 
-/// `stats` answers one row of four integers on this backend too, and the empty
+/// `stats` answers one row of five integers on this backend too, and the empty
 /// queue is the half that decides it: `count` over no rows is `0`, and the
 /// `coalesce` is what keeps a `sum` over no rows from answering `null` where § 6
 /// means zero.
@@ -650,33 +657,37 @@ fn counts(conn: &SqliteConn) -> [i64; 4] {
 /// can carry — SQLite reads a type name it does not have by its affinity rules,
 /// and `COUNTS_SQLITE`'s doc owns why that leaves the sum an integer.
 ///
-/// Asserted across the dead-letter move, because the fourth counter is a subquery
-/// over the *other* table: counters that all read `nvs_jobs` would answer
-/// plausibly until a job was lost, which is the one moment an operator reads
-/// `stats` for.
+/// Asserted across the dead-letter move, because the last two counters are
+/// subqueries over the *other* table: counters that all read `nvs_jobs` would
+/// answer plausibly until a job was lost, which is the one moment an operator
+/// reads `stats` for. The move is also where the two attempt sums prove they are
+/// disjoint — the buried job's attempts leave one and arrive in the other, and
+/// their total does not move.
 #[test]
-fn sqlite_stats_answer_four_integers_over_an_empty_queue_and_a_worked_one() {
-    let (worker, reader) = two_connections("nvs-stdlib-queue-stats-four-counters");
+fn sqlite_stats_answer_five_integers_over_an_empty_queue_and_a_worked_one() {
+    let (worker, reader) = two_connections("nvs-stdlib-queue-stats-five-counters");
 
     assert_eq!(
         counts(&reader),
-        [0, 0, 0, 0],
-        "an empty queue answers zero four times, and the third one is not a null"
+        [0, 0, 0, 0, 0],
+        "an empty queue answers zero five times, and neither sum is a null"
     );
 
     push(&worker, NOW, 0, 5, None);
     let claimed = push(&worker, NOW, 1, 2, Some(NOW));
     assert_eq!(
         counts(&reader),
-        [1, 1, 7, 0],
-        "one waiting, one in flight, the attempts of both, and an empty dead-letter table"
+        [1, 1, 7, 0, 0],
+        "one waiting, one in flight, the attempts of both, and a dead-letter table with neither a \
+         row nor an attempt in it"
     );
 
     dead_letter(&worker, claimed, NOW);
     assert_eq!(
         counts(&reader),
-        [1, 0, 5, 1],
-        "the depth comes from the other table, and the sum follows the row that moved out of this one"
+        [1, 0, 5, 1, 2],
+        "the depth comes from the other table, and the two attempts the buried job used follow the \
+         row out of this one rather than being lost between them"
     );
 }
 

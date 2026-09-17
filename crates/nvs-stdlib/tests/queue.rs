@@ -1158,21 +1158,25 @@ fn set_state(conn: &mut Conn, id: &str, state: &str, lease: Option<i64>) {
     );
 }
 
-/// §§ 1 and 6's `stats` on the framed dialect, as the four columns
+/// §§ 1 and 6's `stats` on the framed dialect, as the five columns
 /// [`queue::COUNTS_MYSQL`] answers with.
 ///
 /// **The columns stay `Option`**, unlike [`one`]'s, because half of what the
-/// case that calls this asks is that none of the four is ever null: `count`
+/// case that calls this asks is that none of them is ever null: `count`
 /// over no rows and `coalesce`d `sum` are what make that true, and a helper
 /// that unwrapped here would assert it by panicking somewhere the message
 /// blamed the helper.
 ///
-/// **The name is bound twice** for [`landed`]'s reason: the outer `where` and
-/// the dead-letter subquery are two `?` positions, where
-/// [`queue::COUNTS_POSTGRES`] names `$1` twice.
+/// **The name is bound three times** for [`landed`]'s reason: the outer `where`
+/// and the two dead-letter subqueries are three `?` positions, where
+/// [`queue::COUNTS_POSTGRES`] names `$1` three times.
 fn stats(conn: &mut Conn, queue: &str) -> Vec<Option<String>> {
     let name = queue.as_bytes();
-    let mut answered = rows(conn, queue::COUNTS_MYSQL, &[Some(name), Some(name)]);
+    let mut answered = rows(
+        conn,
+        queue::COUNTS_MYSQL,
+        &[Some(name), Some(name), Some(name)],
+    );
     assert_eq!(
         answered.len(),
         1,
@@ -3569,20 +3573,21 @@ fn a_framed_purge_is_bounded_and_reaches_the_dead_letter_table_only_when_asked()
 /// **The empty queue is the first assertion because it is where a `sum` would
 /// diverge from a `count`.** § 6 means zero for a queue with no rows, and a
 /// `sum(case when … then 1 end)` — the obvious spelling — answers `null` over
-/// no rows while `count` ignores the `null` its `case` falls through to. Four
+/// no rows while `count` ignores the `null` its `case` falls through to. Five
 /// non-null zeros over an empty table is that difference, and it is also why
 /// this helper hands back `Option`s.
 ///
-/// **The four counters are asserted as one row rather than one at a time**, so
+/// **The counters are asserted as one row rather than one at a time**, so
 /// a pair swapped in the select list fails here: `pending` and `claimed` are
 /// two `case when`s differing only in an ordinal, and each is a plausible
 /// number for the other to answer.
 ///
-/// **The third read is the dead-letter move, and it moves two counters at
-/// once.** § 6 takes the row out of `nvs_jobs`, so the depth subquery gains one
-/// and the `attempts` sum — which reads [`queue::JOBS_TABLE`] alone — loses the
-/// attempt that job had used. A sum written over both tables would still be
-/// `1` here.
+/// **The third read is the dead-letter move, and it moves three counters at
+/// once.** § 6 takes the row out of `nvs_jobs`, so the depth subquery gains one,
+/// the `attempts` sum — which reads [`queue::JOBS_TABLE`] alone — loses the
+/// attempt that job had used, and the subquery that sums the other table's
+/// `attempts` gains exactly that attempt. A sum written over both tables would
+/// be `1` throughout and would say nothing about where the work went.
 ///
 /// **The last read is of the other queue**, which is what asks whether both
 /// `?`s were bound to the queue the caller named: the subquery counts a table
@@ -3604,12 +3609,12 @@ fn a_framed_stats_counts_one_queue_across_both_of_its_tables() {
     clear(&mut conn, QUEUE);
     clear(&mut conn, OTHER);
 
-    let four = |counts: [&str; 4]| counts.map(|c| Some(c.to_owned())).to_vec();
+    let five = |counts: [&str; 5]| counts.map(|c| Some(c.to_owned())).to_vec();
 
     assert_eq!(
         stats(&mut conn, QUEUE),
-        four(["0", "0", "0", "0"]),
-        "an empty queue answers four zeros and no nulls, which is the whole reason the counters \
+        five(["0", "0", "0", "0", "0"]),
+        "an empty queue answers five zeros and no nulls, which is the whole reason the counters \
          count rather than sum"
     );
 
@@ -3621,8 +3626,9 @@ fn a_framed_stats_counts_one_queue_across_both_of_its_tables() {
 
     assert_eq!(
         stats(&mut conn, QUEUE),
-        four(["1", "1", "1", "0"]),
-        "one job in each state, and the attempt the claim wrote is the sum's whole content"
+        five(["1", "1", "1", "0", "0"]),
+        "one job in each state, the attempt the claim wrote is the live sum's whole content, and \
+         nothing has been buried for the other sum to reach"
     );
 
     // § 6's move, run as `a_framed_status_walks_a_job_through_both_of_the_tables_it_can_be_in`
@@ -3657,8 +3663,9 @@ fn a_framed_stats_counts_one_queue_across_both_of_its_tables() {
 
     assert_eq!(
         stats(&mut conn, QUEUE),
-        four(["1", "0", "0", "1"]),
-        "the exhausted job is depth rather than work, and its attempt left `nvs_jobs` with it"
+        five(["1", "0", "0", "1", "1"]),
+        "the exhausted job is depth rather than work, and its attempt left `nvs_jobs` with it for \
+         the counter that reads the table it landed in"
     );
     assert_eq!(
         status(&mut conn, &waiting, QUEUE).as_deref(),
@@ -3668,9 +3675,9 @@ fn a_framed_stats_counts_one_queue_across_both_of_its_tables() {
 
     assert_eq!(
         stats(&mut conn, OTHER),
-        four(["1", "0", "0", "0"]),
-        "and the other queue sees its own pending job and none of this one's depth, which is both \
-         `?`s bound to the name that was asked about"
+        five(["1", "0", "0", "0", "0"]),
+        "and the other queue sees its own pending job and none of this one's depth, which is every \
+         `?` bound to the name that was asked about"
     );
 }
 

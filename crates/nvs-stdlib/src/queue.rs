@@ -56,8 +56,8 @@
 //!
 //! **What it spends:** one statement per member call, on a connection the request either already
 //! held or now holds for the rest of it, plus one JSON encoding of `$args` sized by the payload the
-//! caller wrote. Nothing is held between calls, except the four counters `stats` answers with for
-//! as long as its caller keeps the record.
+//! caller wrote. Nothing is held between calls, except the counters `stats` answers with for as
+//! long as its caller keeps the record.
 //!
 //! # Known gaps
 //!
@@ -71,14 +71,6 @@
 //!    deployment that never ran `nvs queue migrate`, which is the one case the key is absent in.
 //!    Decided: Refuse to serve a queue whose schema is behind, checked at boot — Never racy and costs
 //!    no request time; a deployment that skipped migrate fails to start.
-//!    — owner: decided-closures
-//! 2. **`stats` counts the four things § 6 names and no fifth**, and a fifth would be a column in
-//!    § 2's schema before it is a member here. The sharp edge is a dead-lettered job's own
-//!    attempts: § 6 *moves* that row to [`DEAD_TABLE`], whose columns this module deliberately does
-//!    not decide beyond `id` and `queue`, so [`COUNTS_POSTGRES`] sums `attempts` over [`JOBS_TABLE`] alone
-//!    and counts the depth separately rather than inventing a column for the sum to reach.
-//!    Decided: Yes: add the column through the `nvs queue migrate` converge and a fifth stats counter —
-//!    More observability; a schema change and a spec § 6 amendment.
 //!    — owner: decided-closures
 
 use std::collections::BTreeMap;
@@ -131,10 +123,12 @@ const JOBS_TABLE: &str = "nvs_jobs";
 
 /// § 6's dead-letter table, unqualified for [`JOBS_TABLE`]'s reason.
 ///
-/// **Two of its columns are all this module reads, and [`schema`] is where every one of them is
+/// **Three of its columns are all this module reads, and [`schema`] is where every one of them is
 /// written down.** A job keeps the `id` and the `queue` it had in [`JOBS_TABLE`], so a
 /// `Core\Queue\Id` handed out before the job exhausted its attempts still names it afterwards, and
-/// that pair is the whole of what [`STATUS_POSTGRES`] and [`COUNTS_POSTGRES`] ask of the table. What else the row
+/// that pair is the whole of what [`STATUS_POSTGRES`] asks of the table. [`COUNTS_POSTGRES`] reads the `queue`
+/// and the `attempts` the row arrived carrying, which is how a buried job's own attempts are
+/// counted where the row now is instead of being lost between the two tables. What else the row
 /// carries — § 6's payload, every attempt's error and its timing — is decided by [`schema`] and not
 /// by the worker that will write one: a column has to exist before anything can move a row into it,
 /// so the schema is the earlier of the two decisions and the only one there is room for.
@@ -1514,26 +1508,29 @@ pub const PURGE_DEAD_SQLSERVER: &str = "delete from nvs_dead_jobs where id in (\
 /// **Named for what it reads rather than for the member**, because [`STATS`] is the class that
 /// member answers with and two constants cannot both be `STATS`.
 ///
-/// **One row and not four**, which is the whole reason `stats` answers a record instead of
-/// answering a number four times: an aggregate with no `group by` is exactly one row however empty
-/// the table is, so the four counters describe one instant rather than four of them with a worker's
+/// **One row and not five**, which is the whole reason `stats` answers a record instead of
+/// answering a number five times: an aggregate with no `group by` is exactly one row however empty
+/// the table is, so the counters describe one instant rather than five of them with a worker's
 /// claim free to land in between. That is [`STATUS_POSTGRES`]'s reading of § 2 applied to a whole queue.
 ///
 /// **The `0` and the `1` are [`STATE`]'s `Pending` and `Claimed` ordinals**, literals for
 /// [`PENDING`]'s reason — no `const` reaches inside a SQL string — and held to the enum by
-/// `queue_statements_agree_with_the_state_enum`. The dead-letter depth is a scalar subquery rather
-/// than a fifth arm of the aggregate because it counts rows of the *other* table; § 6 moves an
-/// exhausted job there, and [`DEAD_TABLE`]'s doc owns why only `id` and `queue` are readable on it,
-/// which is also why `attempts` sums [`JOBS_TABLE`] alone.
+/// `queue_statements_agree_with_the_state_enum`. The two counters that read [`DEAD_TABLE`] are
+/// scalar subqueries rather than arms of the aggregate because they read the rows of the *other*
+/// table: § 6 moves an exhausted job there carrying the attempts it used, so the depth and those
+/// attempts are counted where the row now is while the aggregate's own `attempts` sums
+/// [`JOBS_TABLE`] alone. Every attempt the queue has ever made is therefore in exactly one of the
+/// two sums, and a caller wanting the total adds them rather than reading one that spans both.
 ///
-/// Every column is cast to `bigint` so the four decode the same way whatever widths `nvs queue
-/// migrate` gives their columns, and `filter` is PostgreSQL's spelling — gap 5 is why that costs
-/// nothing yet, since a second driver needs its own text for [`INSERT_POSTGRES`]'s `returning` regardless.
+/// Every column is cast to `bigint` so all five decode the same way whatever widths `nvs queue
+/// migrate` gives their columns, and `filter` is PostgreSQL's spelling of the filtered count the
+/// dialects without it write as a `case` inside a `count`.
 const COUNTS_POSTGRES: &str = "select \
     (count(*) filter (where state = 0))::bigint, \
     (count(*) filter (where state = 1))::bigint, \
     (coalesce(sum(attempts), 0))::bigint, \
-    (select count(*) from nvs_dead_jobs where queue = $1::text)::bigint \
+    (select count(*) from nvs_dead_jobs where queue = $1::text)::bigint, \
+    (select coalesce(sum(attempts), 0) from nvs_dead_jobs where queue = $1::text)::bigint \
     from nvs_jobs where queue = $1::text";
 
 /// [`COUNTS_POSTGRES`] in MySQL's dialect, which MariaDB runs unchanged.
@@ -1541,22 +1538,27 @@ const COUNTS_POSTGRES: &str = "select \
 /// **`count(case when … then 1 end)` is the aggregate filter PostgreSQL spells `filter (where …)`**,
 /// and it counts rather than sums for the empty queue: `count` ignores the `null` the `case` falls
 /// through to and answers `0` over no rows at all, where a `sum` of ones would answer `null` and
-/// § 6 means zero. That is the same reading [`COUNTS_POSTGRES`]'s `coalesce` makes of its third
-/// counter.
+/// § 6 means zero. That is the same reading [`COUNTS_POSTGRES`]'s `coalesce` makes of each of its
+/// two sums.
 ///
-/// **The third counter is cast and the first two are not**, which is § 9 rather than an
-/// inconsistency: MySQL answers `sum` over an integer column as a `decimal`, so the cast is what
-/// keeps all four columns one type for one reader, while `count` is already a `bigint`.
+/// **The sums are cast and the counts are not**, which is § 9 rather than an inconsistency: MySQL
+/// answers `sum` over an integer column as a `decimal`, so the cast is what keeps all five columns
+/// one type for one reader, while `count` is already a `bigint`.
+///
+/// **The queue is bound three times**, where [`COUNTS_POSTGRES`] names `$1` three times and binds
+/// it once: the two dead-letter subqueries and the aggregate's own `where` are three `?` positions
+/// asking about one queue.
 pub const COUNTS_MYSQL: &str = "select \
     count(case when state = 0 then 1 end), \
     count(case when state = 1 then 1 end), \
     cast(coalesce(sum(attempts), 0) as signed), \
-    (select count(*) from nvs_dead_jobs where queue = ?) \
+    (select count(*) from nvs_dead_jobs where queue = ?), \
+    (select cast(coalesce(sum(attempts), 0) as signed) from nvs_dead_jobs where queue = ?) \
     from nvs_jobs where queue = ?";
 
-/// [`COUNTS_MYSQL`], which SQLite runs unchanged — the same four counters, the same two ordinals,
-/// and the same scalar subquery over the dead-letter table. [`DEAD_LETTER_SQLITE`] owns why an alias
-/// and not a copy.
+/// [`COUNTS_MYSQL`], which SQLite runs unchanged — the same five counters, the same two ordinals,
+/// and the same two scalar subqueries over the dead-letter table. [`DEAD_LETTER_SQLITE`] owns why an
+/// alias and not a copy.
 ///
 /// **`count(case when … then 1 end)` is the portable spelling and that is why the alias is MySQL's
 /// rather than PostgreSQL's** — what rules [`COUNTS_POSTGRES`]'s text out here is its `::bigint`
@@ -1564,7 +1566,7 @@ pub const COUNTS_MYSQL: &str = "select \
 /// for the same reason it does on MySQL: `count` ignores the `null` the `case` falls through to and
 /// answers over no rows at all.
 ///
-/// **The third counter's cast is inert on this backend rather than absent from it.** MySQL needs it
+/// **The cast over each sum is inert on this backend rather than absent from it.** MySQL needs it
 /// because `sum` over an integer column comes back a `decimal`; SQLite answers that `sum` as an
 /// integer already, and it reads a type name it does not have by its own affinity rules — `signed`
 /// carries none of the spellings that name a text, blob or real affinity, so the cast is numeric,
@@ -1572,18 +1574,20 @@ pub const COUNTS_MYSQL: &str = "select \
 /// which is what keeps this one text rather than two.
 pub const COUNTS_SQLITE: &str = COUNTS_MYSQL;
 
-/// The same four counters in T-SQL, each widened to the type the other three answer in.
+/// The same five counters in T-SQL, each widened to the type the other four answer in.
 ///
 /// **`count` is `int` on this backend alone**, and `sum` over an `int` column is an `int` that
 /// overflows at a depth a busy queue reaches, so the widening is a correctness fix rather than a
-/// tidiness one: `attempts` is cast before it is summed, and the counters after it so that all four
-/// values arrive as one type whichever backend answered. `rule:core-classes/db-one-api`'s one API
-/// is what that buys — a program reading `stats` reads the same value everywhere.
+/// tidiness one: `attempts` is cast before it is summed on either table, and the counters after it
+/// so that all five values arrive as one type whichever backend answered.
+/// `rule:core-classes/db-one-api`'s one API is what that buys — a program reading `stats` reads the
+/// same value everywhere.
 pub const COUNTS_SQLSERVER: &str = "select \
     cast(count(case when state = 0 then 1 end) as bigint), \
     cast(count(case when state = 1 then 1 end) as bigint), \
     coalesce(sum(cast(attempts as bigint)), 0), \
-    (select cast(count(*) as bigint) from nvs_dead_jobs where queue = @p1) \
+    (select cast(count(*) as bigint) from nvs_dead_jobs where queue = @p1), \
+    (select coalesce(sum(cast(attempts as bigint)), 0) from nvs_dead_jobs where queue = @p1) \
     from nvs_jobs where queue = @p1";
 
 /// Every statement the queue sends on one driver, as `(member, sql)`, each [`Split`] flattened to
@@ -1702,7 +1706,7 @@ const ID_QUEUE_AT: usize = 1;
 
 /// A [`STATS`]'s first slot: how many of the queue's jobs are waiting for a worker.
 ///
-/// The four slot names are the four member names, which is not decoration:
+/// Every slot name is its member's name, which is not decoration:
 /// `every_stats_counter_reads_the_slot_its_member_is_named_for` asserts it, because a swapped pair
 /// still type-checks, still runs, and answers the wrong number.
 const STATS_PENDING_SLOT: &str = "pending";
@@ -1716,6 +1720,10 @@ const STATS_ATTEMPTS_SLOT: &str = "attempts";
 /// Its fourth: how many of the queue's jobs are in [`DEAD_TABLE`].
 const STATS_DEAD_SLOT: &str = "deadLettered";
 
+/// Its fifth: how many attempts those buried jobs used between them, summed over the `attempts`
+/// column [`DEAD_TABLE`] keeps for them.
+const STATS_DEAD_ATTEMPTS_SLOT: &str = "deadAttempts";
+
 /// [`STATS_PENDING_SLOT`]'s index, and [`COUNTS_POSTGRES`]'s first column.
 const STATS_PENDING_AT: usize = 0;
 
@@ -1727,6 +1735,9 @@ const STATS_ATTEMPTS_AT: usize = 2;
 
 /// [`STATS_DEAD_SLOT`]'s.
 const STATS_DEAD_AT: usize = 3;
+
+/// [`STATS_DEAD_ATTEMPTS_SLOT`]'s.
+const STATS_DEAD_ATTEMPTS_AT: usize = 4;
 
 /// `$script`'s argument slot.
 const SCRIPT_ARG: usize = 0;
@@ -2220,15 +2231,16 @@ const CANCEL_DOC: MethodDoc = MethodDoc {
 /// `Core\Queue::stats`'s reference card — `rule:core-api/reference-card`.
 const STATS_DOC: MethodDoc = MethodDoc {
     short: "Counts one named queue: what is waiting, what a worker holds, how many attempts the \
-            queue's jobs have used, and how deep its dead-letter table is. The four are read \
-            together, so they describe one instant rather than four.",
+            queue's jobs have used, how deep its dead-letter table is, and how many attempts the \
+            jobs in it used before they got there. The five are read together, so they describe \
+            one instant rather than five.",
     params: &[ParamDoc {
         name: "queue",
         desc: "The queue to count, as `push`'s own `queue` option names one. Queues are separate \
                populations by design, so there is no spelling that totals them.",
         shape: &[],
     }],
-    ret: "A `Core\\Queue\\Stats`, whose four counters are members — `$stats->pending()` and not \
+    ret: "A `Core\\Queue\\Stats`, whose five counters are members — `$stats->pending()` and not \
           `$stats->pending`, because a `Core`-owned instance has no property a program can reach.",
     errors: &[
         ErrorDoc {
@@ -2378,7 +2390,8 @@ const STATS_ATTEMPTS_DOC: MethodDoc = MethodDoc {
             does not is what a queue whose jobs keep failing and being retried looks like.",
     params: &[],
     ret: "A `uint`, summed over the jobs table alone: a job that exhausted its attempts has moved \
-          to the dead-letter table, and `deadLettered` is what counts it there.",
+          to the dead-letter table, `deadLettered` is what counts it there, and `deadAttempts` is \
+          what its attempts are summed into.",
     errors: &[],
 };
 
@@ -2390,6 +2403,19 @@ const STATS_DEAD_LETTERED_DOC: MethodDoc = MethodDoc {
     params: &[],
     ret: "A `uint` that only rises, since nothing the runtime does ever removes a dead-lettered \
           job — emptying that table is an operator's act.",
+    errors: &[],
+};
+
+/// `Core\Queue\Stats::deadAttempts`'s reference card — `rule:core-api/reference-card`.
+const STATS_DEAD_ATTEMPTS_DOC: MethodDoc = MethodDoc {
+    short: "How many attempts the dead-lettered jobs used between them before they were buried. \
+            Divided by `deadLettered` it is what a job costs the fleet before it is given up on, \
+            which is the figure that says whether the attempt ceiling is set where it earns its \
+            retries.",
+    params: &[],
+    ret: "A `uint`, summed over the dead-letter table alone. Every attempt the queue has made is \
+          in exactly one of this and `attempts`: the move takes a job's attempts out of the jobs \
+          table with the row, so a caller wanting the total adds the two.",
     errors: &[],
 };
 
@@ -2418,12 +2444,13 @@ pub(crate) const ID: CoreClass = CoreClass {
 /// whole parameter. `Core\Db\Write` is the same shape for the same
 /// reason, and `rule:concurrency/queue-four-members` now carries the annotation so there is one home for it.
 ///
-/// **Four counters, because § 6 names four things to watch**: what is waiting, what is held, how
-/// much has been attempted, and how deep the dead-letter table is. [`COUNTS_POSTGRES`] is the one home for
-/// which four and for why a fifth is a schema change first.
+/// **Five counters, because a queue is watched as two populations**: what is waiting, what is held
+/// and what the live jobs have attempted, then how deep the dead-letter table is and what the jobs
+/// in it attempted before they got there. [`COUNTS_POSTGRES`] is the one home for which five and
+/// for why the two attempt counters are disjoint rather than one sum spanning both tables.
 ///
-/// The four slots are filled once, by [`nvs_core_queue_stats`], out of a single row — which is the
-/// whole reason a member answers a record instead of answering a number four times.
+/// The slots are filled once, by [`nvs_core_queue_stats`], out of a single row — which is the
+/// whole reason a member answers a record instead of answering a number five times.
 pub(crate) const STATS: CoreClass = CoreClass {
     name: STATS_NAME,
     methods: &[],
@@ -2464,12 +2491,22 @@ pub(crate) const STATS: CoreClass = CoreClass {
             symbol: "nvs_core_queue_stats_dead_lettered",
             doc: Some(&STATS_DEAD_LETTERED_DOC),
         },
+        CoreMethod {
+            name: "deadAttempts",
+            names: &[],
+            params: &[],
+            defaults: &[],
+            return_ty: CoreTy::Uint,
+            symbol: "nvs_core_queue_stats_dead_attempts",
+            doc: Some(&STATS_DEAD_ATTEMPTS_DOC),
+        },
     ],
     slots: &[
         STATS_PENDING_SLOT,
         STATS_CLAIMED_SLOT,
         STATS_ATTEMPTS_SLOT,
         STATS_DEAD_SLOT,
+        STATS_DEAD_ATTEMPTS_SLOT,
     ],
     constants: &[],
 };
@@ -4851,13 +4888,14 @@ nvs_runtime::nvs_helper! {
     /// four: the other three take the receipt [`ID`] is, because they are about one row, and this
     /// one is about a population an operator watches.
     ///
-    /// **One statement, so the four counters are one fact.** [`COUNTS_POSTGRES`] owns why an aggregate with
-    /// no `group by` is the shape, and why the dead-letter depth is a scalar subquery beside it
-    /// rather than a second query: four queries would be four instants, and a caller comparing
-    /// `pending` against `claimed` across them would be comparing two different queues.
+    /// **One statement, so the counters are one fact.** [`COUNTS_POSTGRES`] owns why an aggregate with
+    /// no `group by` is the shape, and why what the dead-letter table answers is two scalar
+    /// subqueries beside it rather than a second query: five queries would be five instants, and a
+    /// caller comparing `pending` against `claimed` across them would be comparing two different
+    /// queues.
     ///
     /// **What it spends:** one statement, on the connection the request either already held or now
-    /// holds for the rest of it, plus one four-slot record. [`nvs_core_queue_push`]'s reading of
+    /// holds for the rest of it, plus one five-slot record. [`nvs_core_queue_push`]'s reading of
     /// § 3 applies in the other direction — a `stats` inside a transaction on that connection
     /// counts that transaction's own enqueues, because it is the same connection and not a second.
     fn nvs_core_queue_stats(ctx, args: [1]) {
@@ -4879,7 +4917,12 @@ nvs_runtime::nvs_helper! {
         let handle = crate::db::open_named(ctx, &block, true, None, STATS_OF)?;
         let sending: [Option<Vec<u8>>; 1] = [Some(queue.clone().into_bytes())];
         let bound: Vec<Option<&[u8]>> = sending.iter().map(|one| one.as_deref()).collect();
-        let twice: Vec<Option<&[u8]>> = bound.iter().chain(bound.iter()).copied().collect();
+        let thrice: Vec<Option<&[u8]>> = bound
+            .iter()
+            .chain(bound.iter())
+            .chain(bound.iter())
+            .copied()
+            .collect();
         let refused_by_server = |refused: &dyn std::fmt::Display| {
             Fault::thrown_as(
                 ThrownClass::Io,
@@ -4895,20 +4938,24 @@ nvs_runtime::nvs_helper! {
         let read = counted_row(
             queue_connection(ctx, handle, STATS_OF)?,
             (COUNTS_POSTGRES, &bound),
-            // The queue a second time, for [`STATUS_MYSQL`]'s reason: the dead-letter subquery and
-            // the aggregate's own `where` each bind their own `?`.
-            (COUNTS_MYSQL, &twice),
-            // The queue once, because `@p1` is read by both the aggregate's `where` and the
-            // dead-letter subquery beside it.
+            // The queue three times, for [`STATUS_MYSQL`]'s reason: the two dead-letter subqueries
+            // and the aggregate's own `where` each bind their own `?`.
+            (COUNTS_MYSQL, &thrice),
+            // The queue once, because `@p1` is read by the aggregate's `where` and by both
+            // dead-letter subqueries beside it.
             (Tds::One(COUNTS_SQLSERVER), &bound),
-            // That text, and the queue twice for its reason.
+            // That text, and the queue three times for its reason.
             &|| {
                 Sent::One(
                     COUNTS_SQLITE,
-                    vec![sqlite_text(Some(&queue)), sqlite_text(Some(&queue))],
+                    vec![
+                        sqlite_text(Some(&queue)),
+                        sqlite_text(Some(&queue)),
+                        sqlite_text(Some(&queue)),
+                    ],
                 )
             },
-            4,
+            5,
             &block,
             &refused_by_server,
             &mut spans,
@@ -4921,12 +4968,12 @@ nvs_runtime::nvs_helper! {
                  with no `group by` answers exactly one however empty the table is"
             ))
         })?;
-        let mut counted = [0i64; 4];
+        let mut counted = [0i64; 5];
         for (at, held) in counted.iter_mut().enumerate() {
             *held = row.get(at).copied().flatten().ok_or_else(|| {
                 Fault::fatal(format!(
                     "{STATS_OF}: the `{}` counter came back as something other than an integer, \
-                     and both dialects declare all four columns a `bigint` here",
+                     and every dialect declares every column of this statement a `bigint`",
                     STATS.slots[at]
                 ))
             })?;
@@ -4941,7 +4988,7 @@ nvs_runtime::nvs_helper! {
     }
 }
 
-/// One of [`STATS`]'s four counters, read out of the slot [`nvs_core_queue_stats`] filled.
+/// One of [`STATS`]'s counters, read out of the slot [`nvs_core_queue_stats`] filled.
 ///
 /// # Errors
 ///
@@ -4993,6 +5040,15 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+nvs_runtime::nvs_helper! {
+    /// `$stats->deadAttempts(): uint` — what the buried jobs attempted before they were given up
+    /// on, which [`COUNTS_POSTGRES`] sums over [`DEAD_TABLE`] alone so that no attempt is in both
+    /// this counter and `attempts`.
+    fn nvs_core_queue_stats_dead_attempts(_ctx, args: [1]) {
+        counter(args, "deadAttempts", STATS_DEAD_ATTEMPTS_AT)
+    }
+}
+
 /// The address of one of *this* module's symbols, or `None` for a symbol that belongs to another
 /// domain. See [`crate::address`].
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
@@ -5009,6 +5065,9 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_queue_stats_dead_lettered" => {
             (nvs_core_queue_stats_dead_lettered as *const ()).cast()
         }
+        "nvs_core_queue_stats_dead_attempts" => {
+            (nvs_core_queue_stats_dead_attempts as *const ()).cast()
+        }
         _ => return None,
     })
 }
@@ -5018,16 +5077,17 @@ mod tests {
     use super::{
         CANCEL_MYSQL, CANCEL_POSTGRES, CANCEL_SQLITE, CANCEL_SQLSERVER, CLAIM_MYSQL,
         CLAIM_POSTGRES, CLAIM_SQLITE, CLAIM_SQLSERVER, CLASS, COUNTS_MYSQL, COUNTS_POSTGRES,
-        COUNTS_SQLITE, DEAD_LETTER_MYSQL, DEAD_LETTER_POSTGRES, DEAD_LETTER_SQLSERVER, DEAD_TABLE,
-        DEFAULT_PURGE_LIMIT, DELETE_MYSQL, DELETE_POSTGRES, DELETE_SQLITE, Fault, INSERT_MYSQL,
-        INSERT_POSTGRES, INSERT_SQLITE, INSERT_SQLSERVER, JOBS_TABLE, MESSAGE_CAP, PENDING,
-        PURGE_DEAD_MYSQL, PURGE_DEAD_POSTGRES, PURGE_DEAD_SQLITE, PURGE_MYSQL, PURGE_POSTGRES,
-        PURGE_SQLITE, PURGE_STATE_ARG, QUEUES_MYSQL, QUEUES_POSTGRES, RETRY_CAP_MS, RETRY_MYSQL,
-        RETRY_POSTGRES, RETRY_SQLSERVER, STATE, STATS, STATS_ATTEMPTS_AT, STATS_ATTEMPTS_SLOT,
-        STATS_CLAIMED_AT, STATS_CLAIMED_SLOT, STATS_DEAD_AT, STATS_DEAD_SLOT, STATS_PENDING_AT,
-        STATS_PENDING_SLOT, STATUS_MYSQL, STATUS_POSTGRES, STATUS_SQLITE, STATUS_SQLSERVER,
-        SUCCEEDED_MYSQL, SUCCEEDED_POSTGRES, SUCCEEDED_SQLSERVER, Selection, Split, ThrownClass,
-        Value, dead_errors, migration, purge_state_of, purge_texts, retry_at,
+        COUNTS_SQLITE, COUNTS_SQLSERVER, DEAD_LETTER_MYSQL, DEAD_LETTER_POSTGRES,
+        DEAD_LETTER_SQLSERVER, DEAD_TABLE, DEFAULT_PURGE_LIMIT, DELETE_MYSQL, DELETE_POSTGRES,
+        DELETE_SQLITE, Fault, INSERT_MYSQL, INSERT_POSTGRES, INSERT_SQLITE, INSERT_SQLSERVER,
+        JOBS_TABLE, MESSAGE_CAP, PENDING, PURGE_DEAD_MYSQL, PURGE_DEAD_POSTGRES, PURGE_DEAD_SQLITE,
+        PURGE_MYSQL, PURGE_POSTGRES, PURGE_SQLITE, PURGE_STATE_ARG, QUEUES_MYSQL, QUEUES_POSTGRES,
+        RETRY_CAP_MS, RETRY_MYSQL, RETRY_POSTGRES, RETRY_SQLSERVER, STATE, STATS,
+        STATS_ATTEMPTS_AT, STATS_ATTEMPTS_SLOT, STATS_CLAIMED_AT, STATS_CLAIMED_SLOT,
+        STATS_DEAD_AT, STATS_DEAD_ATTEMPTS_AT, STATS_DEAD_ATTEMPTS_SLOT, STATS_DEAD_SLOT,
+        STATS_PENDING_AT, STATS_PENDING_SLOT, STATUS_MYSQL, STATUS_POSTGRES, STATUS_SQLITE,
+        STATUS_SQLSERVER, SUCCEEDED_MYSQL, SUCCEEDED_POSTGRES, SUCCEEDED_SQLSERVER, Selection,
+        Split, ThrownClass, Value, dead_errors, migration, purge_state_of, purge_texts, retry_at,
     };
     use super::{NAME, PURGE_DOC, PUSH_DOC};
     use crate::registry::{CAPABILITIES, Const, CoreTy};
@@ -6409,10 +6469,75 @@ mod tests {
             (STATS_CLAIMED_AT, STATS_CLAIMED_SLOT),
             (STATS_ATTEMPTS_AT, STATS_ATTEMPTS_SLOT),
             (STATS_DEAD_AT, STATS_DEAD_SLOT),
+            (STATS_DEAD_ATTEMPTS_AT, STATS_DEAD_ATTEMPTS_SLOT),
         ] {
             assert_eq!(
                 STATS.slots[at], slot,
                 "the index `{slot}`'s reader passes is the slot of that name"
+            );
+        }
+    }
+
+    /// The counter § 6 leaves a queue without: a job's attempts leave [`JOBS_TABLE`] with the row
+    /// that exhausted them, so a deployment reading `attempts` alone watches the number *fall* as
+    /// work is given up on. The fifth counter is where those attempts are counted instead.
+    ///
+    /// **Asserted on the statement and on the record together**, because either half alone reads
+    /// as done: a record with a fifth member whose column nothing selects answers whatever the row
+    /// is short of, and a select list with a fifth column no slot reads answers it to nobody.
+    ///
+    /// **And asserted as two subqueries over [`DEAD_TABLE`] in every dialect**, which is the shape
+    /// that makes the two attempt counters disjoint. A sum written over both tables would answer
+    /// plausibly on a queue that has never lost a job and would double-count nothing until the
+    /// first one moved, which is the moment an operator reads `stats` for.
+    #[test]
+    fn queue_stats_has_a_fifth_counter() {
+        assert_eq!(
+            STATS.slots.len(),
+            5,
+            "the record carries the dead-letter table's own attempts beside the four § 6 names"
+        );
+        assert_eq!(
+            STATS.instance.last().map(|one| one.name),
+            Some(STATS_DEAD_ATTEMPTS_SLOT),
+            "the fifth counter is a member for the reason the other four are"
+        );
+        assert_ne!(
+            STATS_ATTEMPTS_AT, STATS_DEAD_ATTEMPTS_AT,
+            "the live sum and the buried sum are two counters and not one read twice"
+        );
+        for (dialect, counts, summed) in [
+            (
+                "postgres",
+                COUNTS_POSTGRES,
+                "(select coalesce(sum(attempts), 0) from nvs_dead_jobs",
+            ),
+            (
+                "mysql",
+                COUNTS_MYSQL,
+                "(select cast(coalesce(sum(attempts), 0) as signed) from nvs_dead_jobs",
+            ),
+            (
+                "sqlite",
+                COUNTS_SQLITE,
+                "(select cast(coalesce(sum(attempts), 0) as signed) from nvs_dead_jobs",
+            ),
+            (
+                "sqlserver",
+                COUNTS_SQLSERVER,
+                "(select coalesce(sum(cast(attempts as bigint)), 0) from nvs_dead_jobs",
+            ),
+        ] {
+            assert!(
+                counts.contains(summed),
+                "{dialect}: `stats` sums no attempts over `{DEAD_TABLE}`, so a job's attempts are \
+                 lost the moment § 6 moves it"
+            );
+            assert_eq!(
+                counts.matches(DEAD_TABLE).count(),
+                2,
+                "{dialect}: the depth and the buried attempts are one subquery each over \
+                 `{DEAD_TABLE}`"
             );
         }
     }

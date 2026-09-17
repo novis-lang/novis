@@ -1,10 +1,10 @@
 --TEST--
-`stats` answers a `Core\Queue\Stats` whose counters are members, and not one number a caller would have to ask for four times — `rule:concurrency/queue-four-members` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`
+`stats` answers a `Core\Queue\Stats` whose counters are members, and not one number a caller would have to ask for five times — `rule:concurrency/queue-four-members` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`
 --FILE--
 <?nvs
-// § 6 names four things worth watching about a queue, and the reason they
-// arrive together rather than one member at a time is that four calls would be
-// four instants: a program comparing what is waiting against what is held
+// § 6 names what is worth watching about a queue, and the reason the counters
+// arrive together rather than one member at a time is that five calls would be
+// five instants: a program comparing what is waiting against what is held
 // would be comparing two different queues.
 var $counts = Core\Queue::stats("default");
 
@@ -12,6 +12,7 @@ uint $pending = $counts->pending();
 uint $claimed = $counts->claimed();
 uint $attempts = $counts->attempts();
 uint $dead = $counts->deadLettered();
+uint $buried = $counts->deadAttempts();
 
 // And the record is the record, not the first of those counters wearing a
 // class name. A `Core`-owned instance has no property a program can reach, so

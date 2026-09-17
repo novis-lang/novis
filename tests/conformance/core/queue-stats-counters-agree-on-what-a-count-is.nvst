@@ -1,18 +1,21 @@
 --TEST--
-All four of a `Core\Queue\Stats`'s counters answer the same scalar, so the dead-letter depth is not a second kind of answer sitting beside the other three — `rule:concurrency/queue-four-members` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`
+All five of a `Core\Queue\Stats`'s counters answer the same scalar, so the dead-letter depth is not a second kind of answer sitting beside the rest — `rule:concurrency/queue-four-members` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`
 --FILE--
 <?nvs
 // The agreement is the point. § 6 singles the dead-letter depth out as the one
 // an unwatched deployment loses work behind, and it would have been easy to
 // give it its own shape — a `?uint` that is null until something dies, or a
-// state rather than a number. It is a count like the other three, so a program
-// watching all four reads them the same way.
+// state rather than a number. It is a count like the rest, so a program
+// watching all five reads them the same way.
 var $counts = Core\Queue::stats("flaky");
 
 uint $pending = $counts->pending();
 uint $claimed = $counts->claimed();
 uint $attempts = $counts->attempts();
 uint $dead = $counts->deadLettered();
+// And the attempts those buried jobs used are a plain count too, read off the
+// dead-letter table the depth above is read off.
+uint $buried = $counts->deadAttempts();
 
 // Which is what this line says: the depth is a plain count, so it is not the
 // record it came out of and it is not a `Core\Queue\State` either.
