@@ -5510,6 +5510,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   to freeze into an `--EXPECT--`. Author the row wherever you like, then run it with
   `target/debug/nvs test <case>.nvst` before believing what it printed.
   [until: reviewed 2026-09-17]
+- **A markdown cell read out of the spec arrived with its backslashes doubled**, so a Class column's
+  `Core\Reflect` matched no registered class and every member of that row read as unregistered.
+  `cells` in `crates/nvs-stdlib/tests/spec_registry_coverage.rs` wrote the backslash when it set its
+  `escaped` flag and again when the next character turned out not to be a `|`. Walking a markdown
+  cell character by character, write the escape once: a cell is the *rendered* text, so an escape
+  that escaped nothing is still one character. [until: reviewed 2026-09-17]
 
 ## Splitting a file that got too big
 

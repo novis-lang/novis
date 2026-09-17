@@ -2,58 +2,56 @@
 
 ## State
 
-**Goal `decided-closures`, stage 4 — the library.** `crates/nvs-stdlib/src/reflect.rs`'s gap 1 is
-**closed and its item deleted**: `Core\Reflect\AttributeInfo` is registered, `NOT_YET_BUILT` is
-empty, and every `*Info` class ADR 0019 § 1 names is on the roster. `python tools/owners.py --closes
-decided-closures` names 15, down from 16; `crates/nvs-stdlib/src/lib.rs:116` is the next one in this
-file set.
+**Goal `decided-closures`, stage 4 — the library.** `crates/nvs-stdlib/src/lib.rs`'s gap 1 is
+**closed and its item deleted**: spec § 13 now has a walk and a ratchet of its own, so nothing past
+§ 12 is unmeasured except the two sections whose bound is stated. `python tools/owners.py --closes
+decided-closures` names 14, down from 15; `crates/nvs-stdlib/src/test.rs:94` is next.
 
-**An attach site travels as a folded payload, on the constants channel one station out.**
-`nvs_types::layout::ClassAttribute` (member, parameter, name, `Vec<(String, ConstValue)>`) rides
-`nvs_ir::ir::Class::attributes` and `nvs-codegen`'s `attribute_desc` to `nvs_runtime::AttributeDesc`
-on the descriptor. The fold is `nvs_types::consts::fold_expr`'s — `fold_const` is now a one-line
-caller of it — so a payload field and a class constant give one answer to `-1`, and `nvs-codegen`'s
-`constant_value` is shared by both converters for the same reason.
+**A § 13 roster is the run of code spans a signature or a generic anchors.** § 13 writes
+`| Class | Owns | ADR |`, one row per class, with the roster and a paragraph about it sharing the
+*Owns* cell. `compiler_facing_members` accepts a span that writes `name(` or `name<`, and any span
+commas and slashes alone join to one that does; every other gap — a full stop, an em dash, a word —
+ends the run, which is what keeps a *Replaces* clause's PHP twins, `Core\Command`'s `string` and
+`Core\Decimal`'s `decimal` out. `the_compiler_facing_walk_reads_a_roster_and_not_the_prose_beside_it`
+pins both directions. §§ 16-17 stay out: their cells are essays with no run to find an end to, and
+their `Class` column keeps the class-level walk it already had.
 
-**The roster is own-only where the constants beside it are flattened**, and that is the one thing a
-caller has to know: a constant is a name a program may write on this class, an attribute is a fact
-about the declaration it was written on. `rule:attributes/attach-sites-and-forms`' four sites are all
-carried, and the `target`/`parameter` pair is what tells `#[X] function f()` from `f(#[X] int $n)`
-without inventing a compound spelling.
-
-**`Core\Reflect` is not `Core\Attributes`, and the bound is where they part.** A payload value that
-is a class constant, an enum case or `Foo::class` resolves through the namespace the attribute was
-*written* in, which no descriptor carries — so it reads as no folded value and
-`AttributeInfo::field` throws the bound rather than guessing. `Core\Attributes::get` reads exactly
-those, by shape and at compile time, and the second `.nvst` case asserts both sides in one file.
+**Two keys are `unowned`, and that is the honest column rather than a deferral.**
+`crates/nvs-stdlib/tests/spec-members-compiler-facing-outstanding.txt` holds `Core\BigInt` and the
+five `Core\Test` members § 13 names — `double`, `partial`, `assertCalled`, `assertNeverCalled`,
+`assertCompletes`. No live goal builds either and no milestone's plan carries them: M8 scoped
+`Core\BigInt` beside `Core\Decimal` and closed with the decimal half, so a milestone tag would name a
+row already green. Both are indexed in `docs/agent/carried-gaps.md` § *Unowned* with what has to be
+decided; they are a scheduling question for the user, and goal `gap-zero` will meet them.
 
 ## Next group
 
-**Stage 4: `crates/nvs-stdlib/src/lib.rs`'s registry gap** — one file set, the gates and the
-ratchet file rather than the reflect channel: `crates/nvs-stdlib/src/lib.rs`,
-`crates/nvs-stdlib/tests/spec_registry_coverage.rs`,
-`crates/nvs-stdlib/tests/spec-members-outstanding.txt` and
-`crates/nvs-stdlib/tests/conformance_coverage.rs`.
+**Stage 4: `crates/nvs-stdlib/src/test.rs`'s two gaps** — one file set, the assertion surface and the
+`Ctx` behind it: `crates/nvs-stdlib/src/test.rs` and `crates/nvs-runtime/src/ctx/error.rs`.
 
-- [ ] **`crates/nvs-stdlib/src/lib.rs:116` — gap 1: §§ 13–20 of the registry.** The
-      `Decided:` sentence at `crates/nvs-stdlib/src/lib.rs:140` is the whole instruction and is not
-      re-opened: widen both gates past § 12 and seed an outstanding-members ratchet file with every
-      unwritten row. `crates/nvs-stdlib/tests/spec_registry_coverage.rs` is the gate that stops at
-      § 12 and `crates/nvs-stdlib/tests/spec-members-outstanding.txt` is the file it reads, which
-      only ever shrinks — the seeding is a listing job over `docs/spec/01-core-library.md` §§ 13–20,
-      so **read the gate first and let it tell you the spelling of a row** rather than deriving one.
-      `Core\Db`'s `stream`, `streamAs` and `Connection::close` are the three rows the gap already
-      names as sitting in that position. Then delete the numbered item and its `— owner:` line.
-- [ ] **`crates/nvs-stdlib/src/test.rs:94` — gap 1 and gap 2.** Takes a different file set
-      (`crates/nvs-stdlib/src/test.rs:94`, `:102`), so it is a group of its own unless the one above
-      leaves the session well short of the ceiling: § 4's two compile errors are runtime throws, and
-      `assertThrows` matches a class by name.
+- [ ] **`crates/nvs-stdlib/src/test.rs:94` — gap 1, struck as a stated bound.** The `Decided:`
+      sentence is *No: keep the runtime throw naming `assertEqualsDeep`*, so the work is prose, not
+      code: write what the module does now — a non-`Comparable` object under `assertEquals` is a
+      catchable throw here rather than the compile error `rule:testing/assertions-are-typed` names,
+      because the refusal wants the class graph `nvs_types` holds and this crate does not — then
+      delete the numbered item and its `— owner:` line. Amend the rule's fragment in the same slice
+      if it promised the compile error unconditionally.
+- [ ] **`crates/nvs-stdlib/src/test.rs:102` — gap 2, built.** `Decided: state it in the embedding
+      contract and assert it when a `Ctx` is built`. `assertThrows` matches a class by name through
+      `crates/nvs-runtime/src/ctx/error.rs:583`'s `pending_conforms_to`, which reads ancestry off a
+      descriptor no helper-raised failure carries until
+      `crates/nvs-runtime/src/ctx/error.rs:247`'s `set_runtime_error_class` has installed one. Assert
+      it where a `Ctx` is built, state the requirement in the embedding contract, then delete the
+      item and its `— owner:` line.
 
 ## Backlog
 
-- 15 module-doc gaps still name `decided-closures`; `python tools/owners.py --closes
-  decided-closures` is the live list and the goal's own gate.
-- `crates/nvs-stdlib/src/db/mod.rs:231` and `:257` are two gaps in one file — a cheap pairing when
-  the `Core\Db` file set is next open.
-- `docs/agent/carried-gaps.md` holds what survives a goal switch; nothing was added to it this
-  session.
+- `crates/nvs-stdlib/src/ast.rs:83`, `cli.rs:132`, `command.rs:74` — the next stage-4 items after
+  test.rs, each a `Decided:` sentence in its own module doc.
+- `crates/nvs-stdlib/src/db/mod.rs:231` and `:257` — two gaps in one file set, with `regex.rs:69` and
+  `response.rs:197` after them.
+- `crates/nvs-syntax/src/lib.rs:96`, `crates/nvs-types/src/defaults.rs:58`,
+  `crates/nvs-types/src/response.rs:29` — the three outside `nvs-stdlib`.
+- `crates/nvs-diagnostics/src/embedded.rs:30`, `crates/nvs-stdlib/src/html.rs:73` — the remaining two.
+- `Core\BigInt` and `Core\Test`'s double half are `unowned` ratchet keys now; the user's call,
+  `docs/agent/carried-gaps.md` § *Unowned*.
