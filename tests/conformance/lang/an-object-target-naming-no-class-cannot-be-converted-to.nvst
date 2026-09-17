@@ -9,8 +9,8 @@
 mixed $m = 3;
 object $o = $m as object;
 callable $c = $m as callable;
-// A `Core` class has no descriptor in the unit either, which is the same
-// fact `instanceof Core\Uri` is refused for (`E0496`).
+// A `Core` class's descriptor belongs to the process rather than to the unit,
+// so the downcast cannot resolve it where `instanceof Core\Uri` does.
 Core\Uri $u = $m as Core\Uri;
 // The operand's own type does not rescue it: `string` is no closer to an
 // object than `mixed` is, it just knows so at compile time.

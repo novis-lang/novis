@@ -2180,6 +2180,22 @@ mod tests {
         assert_eq!(class.to_string(), "Foo");
     }
 
+    /// A `Core` class a value can be an instance of is a written class name
+    /// like any other: it resolves through the same namespace and import rules
+    /// and is recorded in the same entry, so `nvs-ir` reads one shape and
+    /// `nvs-codegen` relocates against the descriptor
+    /// `nvs_stdlib::class_descriptors` publishes.
+    #[test]
+    fn an_instanceof_records_a_core_class_the_same_way() {
+        let (exprs, span) = check_and_find_expr_span(
+            "<?nvs\nclass T {\n  function m(mixed $v): bool {\n    return $v instanceof Core\\Time\\Date;\n  }\n}\n",
+        );
+        let Some(ExprInfo::InstanceOf { class }) = exprs.lookup(span) else {
+            panic!("expected a recorded `InstanceOf` entry");
+        };
+        assert_eq!(class.to_string(), r"Core\Time\Date");
+    }
+
     /// The dynamic form records nothing *and* is refused where it is written:
     /// `rule:types/conversion` has no dynamic class names, so there is no entry for
     /// `nvs-ir` to read and no program that reaches it.

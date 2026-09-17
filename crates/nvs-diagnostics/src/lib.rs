@@ -1295,7 +1295,7 @@ pub mod code {
     /// A class named through a value rather than written, and the two
     /// `instanceof` right-hand sides that name no class at all: the dynamic
     /// form `$x instanceof $name`, `new $name()` and `$name::f()`, plus a
-    /// `Core` class or an enum on the right of `instanceof`.
+    /// `Core` namespace class or an enum on the right of `instanceof`.
     ///
     /// The dynamic form is `rule:types/conversion`'s rule: a class name is written, never
     /// computed, which is the same line `$$var` and `eval` are already on. Its
@@ -1303,9 +1303,11 @@ pub mod code {
     /// (`nvs_types::expr::members::reject_dynamic_class_name`) because they are
     /// one mistake — `rule:php-migration/every-divergence-is-deliberate-and-listed` row 14 says so of the `instanceof` one, and a
     /// second code for the same rule at `new` would be a distinction the
-    /// language does not make. A
-    /// `Core` class has no descriptor for the test to point at, `Core` classes
-    /// being registry signatures rather than declared classes until M7/M8. An
+    /// language does not make. A `Core` **namespace** class — one declaring
+    /// neither a slot nor an instance member — is a name for calling static
+    /// members through, so no value is ever an instance of it; a `Core` class
+    /// that does have instances is tested against the descriptor
+    /// `nvs_stdlib::class_descriptors` publishes and is not here at all. An
     /// enum is a value type (`rule:enums/closed-integer-type`) and no value of one is ever an object,
     /// so the test has nothing to walk. A written name that resolves to
     /// *nothing* is not here: that is the ordinary `E0303`, exactly as
@@ -2203,12 +2205,15 @@ pub mod code {
     /// `rule:types/conversion` tabulates no row producing an object, and the one reason a
     /// class target is admitted at all is that it can be *checked*: the
     /// downcast out of `mixed` tests the value's runtime class and throws when
-    /// it misses. A target naming no class has nothing to test — there is no
-    /// class descriptor for `object`, a shape or a `callable`, and a `Core`
-    /// class has none in the unit either, which is the same fact `instanceof
-    /// Core\Uri` is refused for ([`E_INSTANCEOF_NOT_A_CLASS`]). So the
-    /// conversion could only *assert* the tag it cannot verify, and the honest
-    /// answer is a diagnostic where it is written.
+    /// it misses. `object`, a shape and a `callable` name no class at all, so
+    /// there is no descriptor to test against. A `Core` class is refused for a
+    /// narrower reason: its descriptor is the process's rather than the unit's,
+    /// and the downcast resolves its target through
+    /// `nvs_codegen`'s `class_desc_const`, which answers only for a class the
+    /// unit built — while `$v instanceof Core\Time\Date` reaches the same
+    /// descriptor as an imported symbol and does test against it. Either way
+    /// the conversion could only *assert* the tag it cannot verify, and the
+    /// honest answer is a diagnostic where it is written.
     ///
     /// An operand that is already an object is untouched and is the free
     /// widening row: `$plain as object` runs nothing, because both sides are

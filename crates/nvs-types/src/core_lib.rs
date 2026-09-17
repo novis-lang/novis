@@ -217,6 +217,20 @@ pub(crate) fn is_registered(qname: &QName) -> bool {
     nvs_stdlib::registry::class(&qname.to_string()).is_some()
 }
 
+/// Whether `qname` names a `Core` class a value can be an instance of —
+/// [`nvs_stdlib::class_has_instances`] over a resolved name.
+///
+/// [`is_registered`]'s narrower twin, and the pair is the whole of what this
+/// crate knows about a `Core` class's identity. A **namespace** class is
+/// registered and has no instances, so `Core\Str::upper($s)` resolves while
+/// `$x instanceof Core\Str` names nothing a value is ever one of; a class with
+/// instances has the descriptor `nvs_stdlib::class_descriptors` publishes, and
+/// the test is the walk `nvs-codegen` already emits for a declared class.
+#[must_use]
+pub(crate) fn has_instances(qname: &QName) -> bool {
+    nvs_stdlib::class_has_instances(&qname.to_string())
+}
+
 /// A registry row's end-aligned `CoreMethod::defaults` as the per-parameter
 /// [`MethodSig::defaults`] the checker and `nvs-ir` read — a run of `None` for
 /// the required parameters, then one entry per declared default.

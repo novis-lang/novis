@@ -111,7 +111,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use crate::expr::{
     can_hold_an_object, check_array_key_type, check_condition, check_expr, check_expr_stmt,
     check_return, check_unset_target, int_literal_digits, is_assignable, reject_finish_marker_arm,
-    reject_secret_output, report_mismatch, require_stringable,
+    reject_secret_output, report_mismatch, require_stringable, testable_core_class,
 };
 use crate::expr_table::ExprInfo;
 use crate::lower::{lower_optional_type, lower_type};
@@ -456,8 +456,8 @@ fn null_residue(
 /// `instanceof` accepts. It has to be a type `nvs-ir` can erase to one
 /// pointer, because a narrowed read of a [`Ty::Tagged`](nvs_ir::ty::Ty) slot is
 /// discharged as an unchecked `nvs_ir::ir::InstKind::Untag` — and a declared
-/// class, a user-declared interface and the reserved global names all erase to
-/// exactly that. Narrowing to an interface is the direction a program written
+/// class, a user-declared interface, a `Core` class with instances and the
+/// reserved global names all erase to exactly that. Narrowing to an interface is the direction a program written
 /// against an abstraction actually uses, and it costs nothing extra here: the
 /// residue is nominal either way, and [`crate::signatures::resolve_method`]
 /// already answers an interface's members for a parameter declared with one.
@@ -498,11 +498,16 @@ fn instanceof_residue(
     let class = class.clone();
     let narrows = match env.symbols.get(&class).map(|sym| sym.kind) {
         Some(kind) => matches!(kind, SymbolKind::Class | SymbolKind::Interface),
-        // A reserved global name has no declaration to find. The exception
-        // classes are ordinary classes; a reserved *interface* narrows only
-        // when its roster entry takes no type parameters.
+        // A reserved global name and a `Core` class have no declaration to
+        // find. The exception classes are ordinary classes and a `Core` class
+        // erases to the same one pointer a declared one does
+        // ([`crate::expr::testable_core_class`]), which is what makes a `mixed`
+        // holding a decoded `Core\Time\Date` usable by naming it; a reserved
+        // *interface* narrows only when its roster entry takes no type
+        // parameters.
         None => {
             class.is_reserved_global_class()
+                || testable_core_class(&class)
                 || (class.is_reserved_global_interface()
                     && nvs_hir::interfaces::type_params(class.short_name())
                         .is_none_or(<[&str]>::is_empty))

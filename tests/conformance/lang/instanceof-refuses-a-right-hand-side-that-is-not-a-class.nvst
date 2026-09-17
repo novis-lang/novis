@@ -1,5 +1,5 @@
 --TEST--
-`instanceof`'s right-hand side must name a class or interface the program declares — the dynamic form, an enum and a `Core` class are `E0496`, an undeclared name the ordinary `E0303` — `rule:types/conversion`, `rule:enums/closed-integer-type`
+`instanceof`'s right-hand side must name a class some descriptor answers to — the dynamic form, an enum and a `Core` namespace class are `E0496`, an undeclared name the ordinary `E0303` — `rule:types/conversion`, `rule:enums/closed-integer-type`
 --FILE--
 <?nvs
 enum Mode: int {
@@ -23,8 +23,8 @@ bool $b = $m instanceof "Box";
 // `rule:enums/closed-integer-type` makes an enum case a named integer rather than an object, so no
 // value is ever an instance of one.
 bool $c = $m instanceof Mode;
-// A `Core` class is a signature in the stdlib registry, not a declared class,
-// so nothing has laid a descriptor out for the test to walk.
+// `Core\Str` is a namespace for static members: it declares no property and no
+// instance member, so no value is ever one and there is no descriptor to walk.
 bool $d = $m instanceof Core\Str;
 // A name that resolves to nothing at all is the ordinary undeclared-class
 // diagnostic, exactly as `new Undeclared()` reports it — one mistake, one
@@ -53,12 +53,12 @@ error[E0496]: `Mode` is an enum, and no value is ever an instance of one
    |                         ^^^^ an enum is a value type
    = help: `rule:enums/closed-integer-type` makes an enum case a named integer rather than an object — compare it with `==`, or `match` on it
 
-error[E0496]: `Core\Str` is a `Core` class and has no descriptor to test against
+error[E0496]: `Core\Str` is a namespace for static members, and has no instances
    --> %s:25:25
    |
 25 | bool $d = $m instanceof Core\Str;
-   |                         ^^^^^^^^ no descriptor for this class
-   = help: a `Core` class is a signature in the stdlib registry rather than a declared class, so nothing has laid one out for `instanceof` to walk
+   |                         ^^^^^^^^ no value is ever an instance of this class
+   = help: this `Core` class declares neither a property nor an instance member, so it is a name for calling members through rather than a class values are made of — a `Core` class that does have instances, `Core\Time\Date` among them, is testable like any declared one
 
 error[E0303]: `Undeclared` is not declared
    --> %s:29:25

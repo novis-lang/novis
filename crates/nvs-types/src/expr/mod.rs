@@ -86,7 +86,7 @@ pub(crate) use self::{
     literals::{check_array_key_type, check_object_literal, int_literal_digits},
     members::{
         can_hold_an_object, check_unset_target, is_this_receiver, reject_finish_marker_arm,
-        resolve_class_expr,
+        resolve_class_expr, testable_core_class,
     },
     operators::{reject_carrier_as_text, reject_disjoint_equality, require_stringable},
     quals::{reject_secret_attribute_constant, reject_secret_output},

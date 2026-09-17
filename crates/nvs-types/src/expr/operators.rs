@@ -1850,9 +1850,10 @@ fn reject_unrelated_class_conversion(from: TypeId, to: TypeId, span: Span, env: 
         // and nothing else, `E_MARKUP_REQUIRES_LITERAL` for anything computed.
         // It is the one `Core` target whose conversion is decided by a rule
         // rather than by a test, which is exactly the exemption this function
-        // records; every other `Core` class has no descriptor in the unit, the
-        // same fact `instanceof Core\Uri` is refused for
-        // (`E_INSTANCEOF_NOT_A_CLASS`).
+        // records; every other `Core` class carries a descriptor the *process*
+        // owns and the unit does not declare, which `E_UNTESTABLE_CONVERSION_TARGET`'s
+        // own docs say is why the downcast cannot resolve it where
+        // `instanceof` can.
         if qname.to_string() != crate::CORE_HTML_MARKUP_CLASS {
             reject_untestable_object_target(from, to, span, env);
         }

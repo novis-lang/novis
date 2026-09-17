@@ -42,11 +42,13 @@
 //! object already answered the question, so the test is `E0497` where it is
 //! written (`rule:php-migration/every-divergence-is-deliberate-and-listed` row 14) while `mixed`, `object`, a shape and any
 //! union holding a class keep the run-time test. A **right-hand side** must be
-//! a written name the program declares: the dynamic form is `rule:types/conversion`'s
-//! no-computed-names rule, an enum is a value type (`rule:enums/closed-integer-type`) and a `Core`
-//! class has no descriptor laid out for the test to walk, so all three are
-//! `E0496` — while a name resolving to nothing is the ordinary `E0303`,
-//! exactly as `new Undeclared()` reports it.
+//! a written name some descriptor answers to — a class the program declares, a
+//! reserved global one, or a `Core` class a value can be an instance of: the
+//! dynamic form is `rule:types/conversion`'s no-computed-names rule, an enum is
+//! a value type (`rule:enums/closed-integer-type`) and a `Core` namespace class
+//! has no instances to find, so all three are `E0496` — while a name resolving
+//! to nothing is the ordinary `E0303`, exactly as `new Undeclared()` reports
+//! it.
 //!
 //! The dynamic half of that rule is not `instanceof`'s alone.
 //! [`reject_dynamic_class_name`] is the one report, and the three spellings
@@ -281,17 +283,20 @@ fn report_unfoldable_const(
 /// `crate::expr_table::ExprInfo::InstanceOf`). Anything else is the dynamic
 /// form, which still checks as an ordinary expression and records nothing.
 ///
-/// The three names worth recording are a declared symbol, one of the reserved
-/// global exception classes, and one of the reserved global interfaces — the
-/// last two have no declaration to find in `env.symbols`, and
-/// `crate::layout::build_class_layouts` seeds a descriptor for each so
-/// `nvs-codegen` has something to test against.
+/// A name is recorded when a descriptor exists for the walk to reach, and
+/// [`testable_class_name`] is that whole question: a declared symbol, a
+/// reserved global exception class or interface, and a `Core` class a value can
+/// be an instance of. The reserved globals and the `Core` exception classes
+/// have no declaration to find in `env.symbols`, and
+/// `crate::layout::build_class_layouts` seeds a descriptor for each; every
+/// other `Core` class's descriptor is the one
+/// `nvs_stdlib::class_descriptors` publishes for the process.
 ///
 /// Every other spelling is refused where it is written rather than left for
-/// `nvs-ir` to find nothing recorded and panic. There are four, and they split
-/// by whose rule they break: a name resolving to nothing is the ordinary
-/// `E_UNDEFINED_CLASS` (`new Undeclared()` reports exactly that);
-/// a `Core` class, an enum and the dynamic `$x instanceof $name` form are
+/// `nvs-ir` to find nothing recorded and panic, and they split by whose rule
+/// they break: a name resolving to nothing is the ordinary
+/// `E_UNDEFINED_CLASS` (`new Undeclared()` reports exactly that); an enum, a
+/// `Core` namespace class and the dynamic `$x instanceof $name` form are
 /// `E_INSTANCEOF_NOT_A_CLASS`, whose own doc comment says why each has no test
 /// to run; and a left-hand side whose declared type can hold no object is
 /// `E_INSTANCEOF_SUBJECT_NOT_OBJECT` (`rule:php-migration/every-divergence-is-deliberate-and-listed` row 14).
@@ -346,7 +351,9 @@ pub(crate) fn infer_instanceof(
     let text = span_text(env.src, name.span);
     let qname = nvs_hir::resolve_ref(text, ctx.namespace, ctx.imports);
     let declared = env.symbols.get(&qname);
-    if matches!(declared, Some(sym) if sym.kind == SymbolKind::Enum) {
+    if matches!(declared, Some(sym) if sym.kind == SymbolKind::Enum)
+        || (qname.is_core() && env.enums.get(&qname).is_some())
+    {
         env.diags.report(
             Diagnostic::error(
                 code::E_INSTANCEOF_NOT_A_CLASS,
@@ -358,22 +365,21 @@ pub(crate) fn infer_instanceof(
                  it with `==`, or `match` on it",
             ),
         );
-    } else if declared.is_some()
-        || qname.is_reserved_global_class()
-        || qname.is_reserved_global_interface()
-    {
+    } else if declared.is_some() || testable_class_name(&qname) {
         env.exprs
             .record(expr.span, ExprInfo::InstanceOf { class: qname });
-    } else if qname.is_core() {
+    } else if qname.is_core() && crate::core_lib::is_registered(&qname) {
         env.diags.report(
             Diagnostic::error(
                 code::E_INSTANCEOF_NOT_A_CLASS,
-                format!("`{qname}` is a `Core` class and has no descriptor to test against"),
+                format!("`{qname}` is a namespace for static members, and has no instances"),
             )
-            .with_primary(name.span, "no descriptor for this class")
+            .with_primary(name.span, "no value is ever an instance of this class")
             .with_help(
-                "a `Core` class is a signature in the stdlib registry rather than a declared \
-                 class, so nothing has laid one out for `instanceof` to walk",
+                "this `Core` class declares neither a property nor an instance member, so it is a \
+                 name for calling members through rather than a class values are made of — a \
+                 `Core` class that does have instances, `Core\\Time\\Date` among them, is testable \
+                 like any declared one",
             ),
         );
     } else {
@@ -388,6 +394,47 @@ pub(crate) fn infer_instanceof(
         ));
     }
     env.interner.bool_ty()
+}
+
+/// Whether a written name that no source file declares is still a class
+/// `instanceof` can walk a descriptor for — [`infer_instanceof`]'s right-hand
+/// side question for everything `env.symbols` does not answer.
+///
+/// Three rosters say yes, and each has a descriptor from a different place.
+/// The reserved global classes and interfaces are laid out by
+/// `crate::layout::build_class_layouts` into the unit's own table, and so are
+/// the namespaced entries of `nvs_hir::errors::TREE` — `Core\Db\DbError` is a
+/// class a `catch` binds and a test asks about, and it is under `Core\` only by
+/// spelling. A `Core` class with instances is the third, and its descriptor is
+/// the process-wide one `nvs_stdlib::class_descriptors` publishes, which
+/// `nvs-codegen` relocates against exactly as it does a declared class's.
+///
+/// A `Core` **namespace** class is the one this deliberately leaves out
+/// ([`testable_core_class`]).
+fn testable_class_name(qname: &QName) -> bool {
+    qname.is_reserved_global_class()
+        || qname.is_reserved_global_interface()
+        || testable_core_class(qname)
+}
+
+/// Whether a `Core` name is a class a value can be an instance of, which is the
+/// third roster [`testable_class_name`] admits and the one
+/// [`crate::locals`] narrows a tested subject to.
+///
+/// Two families answer yes. A registered class with instances
+/// ([`crate::core_lib::has_instances`]) carries the descriptor
+/// `nvs_stdlib::class_descriptors` publishes for the process, and a namespaced
+/// entry of `nvs_hir::errors::TREE` — `Core\Db\DbError`, which a `catch` binds
+/// and a test asks about — is laid out into the unit's own table like every
+/// other exception class, being under `Core\` by spelling alone.
+///
+/// A **namespace** class answers no: it declares neither a slot nor an instance
+/// member, so nothing is ever an instance of it and the test has no descriptor
+/// to walk rather than an answer of `false`.
+pub(crate) fn testable_core_class(qname: &QName) -> bool {
+    qname.is_core()
+        && (crate::core_lib::has_instances(qname)
+            || nvs_hir::errors::is_exception_class(&qname.to_string()))
 }
 
 /// Whether a checked type admits an object at run time — `instanceof`'s
