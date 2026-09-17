@@ -528,44 +528,58 @@ fn type_alias_declaration() {
     parse_stmt_ok("type Id = SomeClass;");
 }
 
-/// A class, an interface and an enum body each own aliases
-/// (`rule:types/type-alias`), by the same production the file-scope form uses,
-/// and the `///` run above one attaches to the member as it does to any other.
+/// Parses `<owner> { /// run \n type Meta = {...}; }` and asserts the body's
+/// one member is that alias, documented by the run above it — what every body
+/// `rule:types/type-alias` names answers identically.
+fn assert_type_alias_member(owner: &str) {
+    let src = format!(
+        "<?nvs\n{owner} {{\n    /// What an order's meta holds.\n    \
+         type Meta = {{total: decimal, note?: string}};\n}}\n"
+    );
+    let mut map = SourceMap::new();
+    let id = map.add("t.nvs", src.clone());
+    let mut diags = Diagnostics::new();
+    let stmts = parse_file(map.file(id), &mut diags);
+    assert!(!diags.has_errors(), "`{owner}`: {diags:?}");
+    assert_eq!(stmts.len(), 1, "`{owner}`: {stmts:?}");
+    let members = match &stmts[0].kind {
+        StmtKind::ClassDecl(class) => &class.members,
+        StmtKind::InterfaceDecl(iface) => &iface.members,
+        StmtKind::EnumDecl(e) => &e.members,
+        other => panic!("expected a body declaration: {other:?}"),
+    };
+    assert_eq!(members.len(), 1, "`{owner}`: {members:?}");
+    assert!(
+        members[0].doc.is_some(),
+        "the run documents the member: {:?}",
+        members[0]
+    );
+    let ClassMemberKind::TypeAlias(alias) = &members[0].kind else {
+        panic!("expected a type alias member: {:?}", members[0]);
+    };
+    assert_eq!(text(&map, id, alias.name.span), "Meta");
+    assert!(
+        matches!(alias.ty.kind, TypeKind::Atom(TypeAtom::Shape(_))),
+        "{alias:?}"
+    );
+    assert!(alias.doc.is_none(), "the member carries the run: {alias:?}");
+}
+
+/// A class body owns aliases (`rule:types/type-alias`), by the same production
+/// the file-scope form uses, and the `///` run above one attaches to the member
+/// as it does to any other.
 #[test]
-fn a_type_alias_is_a_member_of_every_body_that_takes_one() {
-    for owner in ["class Order", "interface Priced", "enum Status"] {
-        let src = format!(
-            "<?nvs\n{owner} {{\n    /// What an order's meta holds.\n    \
-             type Meta = {{total: decimal, note?: string}};\n}}\n"
-        );
-        let mut map = SourceMap::new();
-        let id = map.add("t.nvs", src.clone());
-        let mut diags = Diagnostics::new();
-        let stmts = parse_file(map.file(id), &mut diags);
-        assert!(!diags.has_errors(), "`{owner}`: {diags:?}");
-        assert_eq!(stmts.len(), 1, "`{owner}`: {stmts:?}");
-        let members = match &stmts[0].kind {
-            StmtKind::ClassDecl(class) => &class.members,
-            StmtKind::InterfaceDecl(iface) => &iface.members,
-            StmtKind::EnumDecl(e) => &e.members,
-            other => panic!("expected a body declaration: {other:?}"),
-        };
-        assert_eq!(members.len(), 1, "`{owner}`: {members:?}");
-        assert!(
-            members[0].doc.is_some(),
-            "the run documents the member: {:?}",
-            members[0]
-        );
-        let ClassMemberKind::TypeAlias(alias) = &members[0].kind else {
-            panic!("expected a type alias member: {:?}", members[0]);
-        };
-        assert_eq!(text(&map, id, alias.name.span), "Meta");
-        assert!(
-            matches!(alias.ty.kind, TypeKind::Atom(TypeAtom::Shape(_))),
-            "{alias:?}"
-        );
-        assert!(alias.doc.is_none(), "the member carries the run: {alias:?}");
-    }
+fn a_type_alias_is_a_class_member() {
+    assert_type_alias_member("class Order");
+}
+
+/// The other two bodies with a class-shaped name answer the same way: one rule
+/// for every body is what `rule:types/type-alias` states, so nothing about the
+/// member differs between the three.
+#[test]
+fn a_type_alias_is_an_interface_and_an_enum_member() {
+    assert_type_alias_member("interface Priced");
+    assert_type_alias_member("enum Status");
 }
 
 /// An enum's cases still parse as cases beside an alias: `type` is contextual,

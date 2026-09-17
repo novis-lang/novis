@@ -613,7 +613,7 @@ mod tests {
     }
 
     #[test]
-    fn a_bodys_alias_is_keyed_by_its_owner_and_never_by_a_namespace_path() {
+    fn a_class_scoped_alias_is_keyed_by_its_owner_and_not_by_a_namespace_path() {
         let (table, diags) = resolve(
             "<?nvs\nnamespace Ns;\nclass Order { type Meta = decimal; }\ntype Meta = uint;\n",
         );
@@ -674,7 +674,7 @@ mod tests {
     }
 
     #[test]
-    fn a_cycle_through_a_bodys_own_aliases_is_diagnosed() {
+    fn a_cycle_through_a_class_scoped_alias_is_refused() {
         // Both spellings of a member reference take part: `B` is the bare form
         // inside the owner, `Order::A` the qualified one.
         let (table, diags) =

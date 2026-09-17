@@ -495,6 +495,23 @@ mod tests {
         );
     }
 
+    /// The refusal is the declaration's, not the site's, so a member is held to
+    /// it exactly as a file-scope alias is — `rule:types/alias-is-never-a-bare-class`
+    /// has one form and a body does not get a second.
+    #[test]
+    fn a_class_scoped_alias_of_a_bare_class_is_refused() {
+        let (_module, diags) =
+            resolve("<?nvs\nclass Foo {}\nclass Order { type Id = Foo; type Ids = array<Foo>; }\n");
+        assert!(
+            diags
+                .iter()
+                .filter(|d| d.code == Some(code::E_TYPE_ALIAS_ALIASES_CLASS))
+                .count()
+                == 1,
+            "the bare member is refused and the wrapped one is not: {diags:?}"
+        );
+    }
+
     #[test]
     fn aliasing_a_shape_around_a_class_is_accepted() {
         let (_module, diags) =
