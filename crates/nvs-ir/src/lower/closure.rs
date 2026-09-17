@@ -348,13 +348,21 @@ pub(crate) fn lower_closure(
 /// anything an object-or-null slot can hold. See
 /// [`super::param_tag_nibble`] for the four-bit half of the same question.
 ///
-/// A `Core` class is the one named class that answers `None`: it has no
-/// descriptor in the unit — `nvs_codegen`'s class table is built from
-/// `nvs_types::layout`, which holds the declared tree — so an `instanceof`
-/// against one has nothing to compare and does not exist as a spelling either
-/// (`E0496` at the checker). That leaves a `Core\Cli\Text $c` parameter
-/// checked for objecthood alone, which `docs/adr/README.md` § *Decisions taken
-/// at project start* records as the remainder rather than the rule.
+/// A `Core` class answers on the same terms as a declared one, for the roster
+/// `nvs_types::expr::testable_core_class` holds: a registered class with
+/// instances, whose descriptor is the process-wide one
+/// `nvs_stdlib::class_descriptors` publishes and `nvs_codegen`'s
+/// `emit_instanceof` relocates against, or a namespaced exception class, which
+/// `nvs_types::layout` lays into the unit's own table like any other. Asking
+/// that one predicate rather than restating the roster is what keeps this pass
+/// and the checker from disagreeing about which names have a descriptor. A
+/// `Core` **namespace** class is on neither table and answers `None`, which the
+/// checker has already refused at the conversion.
+///
+/// `Core\Html\Markup` is on the roster and reaches this function, and the lift
+/// is unaffected: `rule:core-classes/html-auto-escape` admits a source-literal `string`
+/// and nothing computed, so a lift's operand is a [`Ty::Str`] and only a
+/// [`Ty::Tagged`] one takes the downcast arm.
 pub(crate) fn declared_class(
     ty: &Type,
     exprs: &ExprTypeTable,
@@ -365,7 +373,11 @@ pub(crate) fn declared_class(
         // `QName` is destructured here rather than passed on: `nvs-hir` is a
         // dev-dependency of this crate, so a helper naming the type in its
         // signature would not compile.
-        CheckedTy::Class(qname, _) if !qname.is_core() => Some(qname.to_string()),
+        CheckedTy::Class(qname, _)
+            if !qname.is_core() || nvs_types::expr::testable_core_class(qname) =>
+        {
+            Some(qname.to_string())
+        }
         _ => None,
     }
 }
