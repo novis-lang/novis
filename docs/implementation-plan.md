@@ -49,7 +49,12 @@
 > goal after them the chain has already walked. What a crate still owes is its own module doc's `#
 > Known gaps`; the corpus and bench figures are `python tools/disk.py`'s and the perf notes'.
 >
-> **Blocking:** Nothing waiting on a decision — every design call a goal reaches is pre-authorized
+> **Blocking:** One hold, and it stops the run: goal `unowned-closures` was reached with 40
+> module-doc gaps still tagged to it and none of them built, so the check it carried forward — `no
+> module-doc gap names a goal that walked without closing it` — is red in every later goal's floor.
+> Whether the chain gains a goal to build them, they are struck as stated bounds, or they are
+> re-tagged to a milestone is the user's call, because the user answered each one on the decision
+> sheet. Otherwise nothing waits on a decision — every design call a goal reaches is pre-authorized
 > in its own § *Standing decisions*, and each goal names the numbered ADRs it may open and no
 > others. One standing precondition, and not a block: the goals whose floor carries container-backed
 > checks need a reachable Docker daemon, and [the goals directory](agent/goals/) preflights it per

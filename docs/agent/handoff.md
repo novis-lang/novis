@@ -2,51 +2,49 @@
 
 ## State
 
-**Goal `class-scoped-types`, stage 4 is landed: the formatter, `nvs meta --json` and all four LSP
-requests see the member.** Stage 5 — the rule and the record — is the only stage left, and nothing
-is blocked.
+**Goal `class-scoped-types` is complete — all five stages are landed and green.** Stage 5 put the
+decision and the rule on disk: `docs/decisions/0190.md` creates `types/class-scoped-alias` and
+modifies `types/type-alias`, `python tools/rules.py --render` rewrote the chapter and
+`ground-rules.md`, and `--check` and `python tools/records.py --check` are both clean.
 
-- **The LSP had no way to say what type a cursor is in, and now has one.**
-  `crates/nvs-lsp/src/definition.rs:@written_type_at` walks the positions a *declaration* writes a
-  type at, because `nvs_syntax::walk` builds no node for one; the module doc lists them, and a type
-  written inside an expression (`as`, `is`, a closure literal) is deliberately not among them.
-- **`Owner::Name` in type position is answered by `@type_member_at`**, which `named_at` now ends in:
-  a new `Target::TypeAlias` when the owner declares one, the `Target::Constant` an enum case or a
-  class constant already was otherwise, and the owner itself when the caret is in the owner half.
-- **What a written name means at a cursor has one home**: `resolved_name`, `namespace_at` and
-  `imports_of` are `definition.rs`'s, and `completion.rs` reads them from there.
-- **Completion after `Owner::` in type position** offers the owner's aliases, class constants and
-  enum cases and nothing that cannot stand in a type. It is read off the source for the same reason
-  the walk exists, so it answers in a document being typed into as well as one that parses.
+**The run is held on something this goal did not cause.** The floor carries
+`no module-doc gap names a goal that walked without closing it`, and `python tools/owners.py`
+answers `40 owned by a retired goal`: every one of them names goal `unowned-closures`, which was
+reached at session 0003. 31 of the 40 carry the user's own `Decided:` sentence — `zip.rs` gap 1 is
+`Decided: Yes: read the Zip64 extra fields and end-of-directory record`, and nothing reads them —
+so the goal went green having *tagged* its work rather than built it. Goal `gap-zero`
+(`docs/agent/goals/66-gap-zero.md:20`) says what this means in as many words: *"This goal builds
+nothing. If its gate is red when the run arrives, a closure goal went green without closing an item,
+and the item is named."* The gate is red one goal early, and 40 items are named.
+
+`gap-zero` cannot absorb them and no live goal is a plausible owner, so the disposition is the
+user's: a new chain goal before `gap-zero` that builds them to their own `Decided:` sentences, a
+strike of the ones that are really stated bounds, or an M9+ re-tag. **Nothing else about the tree is
+blocked**, and every check but this one passes.
 
 ## Next group
 
-**Stage 5: the rule and the record** — one file set: `docs/rules/types.json`,
-`docs/rules/types/type-alias.md`, `docs/decisions/`.
+**Stage 1: the floor's retired owner** — one file set: `docs/agent/goals/`, and the 40 `# Known
+gaps` blocks `python tools/owners.py` lists under *OWNERS THAT WENT GREEN WITHOUT CLOSING THE GAP*.
 
-- [ ] **One new record and no other number** — `docs/rules/types/type-alias.md:1` is what its
-      `changes:` block modifies, and the number is the next free one at the moment it is created
-      (`docs/decisions/0189.md:1` is the highest on disk now; re-derive it rather than trusting this
-      line). It argues the three calls in the goal's § *Standing decisions* — no visibility, lexical
-      scope, no third spelling — and states what the feature spends: nothing per request, one table
-      entry per declaration at compile time.
-- [ ] **The fragments** — `docs/rules/types/type-alias.md:1-2` still says an alias is declared "never
-      inside a class", which stage 0 named as the sentence stage 2 made wrong; its first paragraph
-      names both declaration sites instead, and a new `types/class-scoped-alias` opens on a sentence
-      that stands alone in `ground-rules.md`. Both list the stage 2–3 conformance cases in
-      `guardedBy`. `docs/rules/types.json:1` is the chapter index they are registered in.
-- [ ] **The gates** — `python tools/rules.py --render` rewrites the generated chapter in the same
-      commit, `python tools/rules.py --check` is green, and `python tools/verify.py --doc` runs before
-      the DONE claim. `docs/rules/types.json:1`.
+- [ ] **Take the user's disposition and put it in the chain** — `docs/agent/goals/60-unowned-closures.md:1`
+      is the goal that walked, and `docs/agent/goals/66-gap-zero.md:20` is why nothing later can
+      absorb its debt. If the answer is a goal, `python tools/chain.py --new <slug> --before 66` is
+      what makes one; its spec is thin on purpose, because each gap's `Decided:` sentence is already
+      its specification.
+- [ ] **Re-owner the 40 tags in one patch** — `crates/nvs-stdlib/src/zip.rs:87` and
+      `crates/nvs-syntax/src/casing.rs:71` are two of them; `grep -rn "owner: unowned-closures"
+      crates/` is the whole list, and `python tools/splice.py --patch` takes all 40 files at once.
+      A gap that is struck instead loses its whole numbered item, not just its tag.
+- [ ] **Prove the floor** — `tools/owners.py:1`. The check wants `, 0 owned by a retired goal` in
+      the summary line; nothing else in that output may move, so `unowned: 0` and `untagged: 0` are
+      read in the same run.
 
 ## Backlog
 
-- `crates/nvs-lsp/src/index.rs:@occurrences` records no use for a name written in type position, so
-  `references` on `Owner::Name` lists nothing the type positions wrote.
-- `crates/nvs-lsp/src/index.rs:@member_names` gives a `type` member no declaration row, so the
-  outline nests one the reference index cannot name.
-- `[context] modules` did not print `crates/nvs-lsp/src/document.rs` (`Analysed`, which every request
-  reads) or `crates/nvs-lsp/src/render.rs` (how a symbol kind and a token are spelled in a test's
-  expected string); both were needed to write stage 4's LSP work.
-- `crates/nvs-fmt/src/lib.rs` known gap 5 now has a second reader: a shape type in type position is
-  unspaced at both declaration sites — `docs/rules/tooling/fmt-novis-constructs.md` claims the space.
+- The 8 gaps deferred to a milestone the program has already passed (M1, M6, M7, M8) fail the same
+  register's other report — `python tools/owners.py`, § *DEFERRED TO A MILESTONE …*.
+- `docs/rules/types/type-alias.md` still describes only the file-scope form's `use`/FQN resolution
+  in its third paragraph; the class-scoped site's resolution is in `rule:types/class-scoped-alias`.
+- Goal `class-scoped-types`'s own `[context]` manifest never needed widening this session — the
+  pack printed every rule, record section and anchor stage 5 used.

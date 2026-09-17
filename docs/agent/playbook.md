@@ -2275,6 +2275,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   goal's own copy under `docs/agent/goals/`. Read the stage's `tests = [...]` before naming a test,
   and rename the test to the check when they have already drifted.
   [until: reviewed 2026-09-17]
+- **A goal's own check can turn red the moment that goal is reached, because the switch carries it
+  forward and retires the goal it names.** `unowned-closures` passed `no module-doc gap names a goal
+  that walked without closing it` throughout its own run and failed it as the next goal's floor, so
+  the failure lands one goal late against a file set that never touched it. Run such a check's
+  `argv` first: when its output names a goal rather than a file, `ls docs/agent/goals/` says whether
+  that goal still has a `.toml` sibling, and one that does not walked away with items open. [until: gone crates/nvs-stdlib/src/zip.rs:owner: unowned-closures]
 
 ## Running things
 
