@@ -5439,6 +5439,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   out onto. Every guard there takes `serialised()` first and
   `every_guard_in_this_binary_takes_the_lock` counts the line, so write a new one holding it.
   [until: gone benches/abi-probe/tests/perf_guards.rs:fn serialised]
+- **The process's drain bit is begun by other cases in the same test binary, so a new case may not
+  rest on it.** `nvs-cli`'s serve cases end an in-process server by dropping `EndsTheServer`, which
+  calls `nvs_server::Draining::process().begin()`, and that bit is one per process rather than one
+  per case — a case reading it reads whatever its neighbours have already done to it. Take
+  `nvs_runtime::Drain::detached()` for anything a case has to be able to *not* drain, and end what
+  the case started by withdrawing it rather than by draining the process.
+  [until: gone crates/nvs-cli/src/serve.rs:struct EndsTheServer]
 
 ## Splitting a file that got too big
 

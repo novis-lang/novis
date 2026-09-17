@@ -49,8 +49,6 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 | `rule:core-classes/html-to-source`'s computed `$reason` is not refused — was blocked on a full diagnostic band | `M7` | `crates/nvs-stdlib/src/html.rs` § *Known gaps* |
 | `queryAs<T>`'s three refusals are at run time; the band they waited on is open | `gap-zero` | `crates/nvs-stdlib/src/db/mod.rs` gap 4 |
 | `Core\Queue`'s `limits` and `grants` stay undeclared until an isolate enforces them | `gap-zero` | `crates/nvs-stdlib/src/queue.rs` gap 1 |
-| A child written as a path runs on its parent's core however it is placed, so `on: "worker"` buys it nothing | `worker-placement` | `crates/nvs-host/src/placed.rs` § *Known gaps* |
-| A serving core offers itself as no destination, so a placement under `nvs serve` starts a worker core beside the ones already serving | `worker-placement` | `crates/nvs-host/src/worker.rs` § *Known gaps* |
 | A decoded `Core` instance is a `mixed` a program cannot narrow, so the round trip is reachable only through `mixed` | `core-class-tests` | `crates/nvs-runtime/src/graph.rs` gap 1 |
 | Nothing arms `DebugFlags::TRACE` and nothing reads the `debug.trace` grant, so a query span renders on sampling alone | `M10` | `crates/nvs-db/src/span.rs` gap 1 |
 | SQL Server is the one driver a `bytes` parameter does not reach, the read half of the same row being whole | `tds-bytes` | `crates/nvs-db/src/tds/mod.rs` gap 1 |
