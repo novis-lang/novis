@@ -54,6 +54,7 @@ Each of these is claimed by an entry on the chain and will be struck when that e
 | A decoded `Core` instance is a `mixed` a program cannot narrow, so the round trip is reachable only through `mixed` | `core-class-tests` | `crates/nvs-runtime/src/graph.rs` gap 1 |
 | Nothing arms `DebugFlags::TRACE` and nothing reads the `debug.trace` grant, so a query span renders on sampling alone | `M10` | `crates/nvs-db/src/span.rs` gap 1 |
 | SQL Server is the one driver a `bytes` parameter does not reach, the read half of the same row being whole | `tds-bytes` | `crates/nvs-db/src/tds/mod.rs` gap 1 |
+| The shared cache tier speaks `redis://host[:port]` and nothing else, so a password, a database index and a `rediss://` store are each refused with a sentence | `cache-shared-dial` | `crates/nvs-stdlib/src/cache.rs` gap 1 |
 
 ## Unowned
 
@@ -212,15 +213,6 @@ where taking it is the work and the code that follows it is not.
   pulling a small entry from it, buys enough to carry a second header format. Goal `formats` is
   retired and no milestone's plan names it. `crates/nvs-stdlib/src/zip.rs` gap 1.
   [until: gone crates/nvs-stdlib/src/zip.rs:Zip64 is not read]
-- **The shared cache tier speaks `redis://host[:port]` and nothing else**, so a store behind a
-  password, one addressed by database index, and a `rediss://` one are each refused with a sentence
-  rather than dialled half-served. What has to be decided is whether `[cache.shared]` grows a
-  configuration surface for them at all, and that is one question rather than three: a credential
-  may not ride in a URL a merged tree prints, so it arrives by
-  `rule:config/a-secret-is-a-file-whose-content-is-the-value`'s secret file or not at all, and an
-  index is a second namespace nothing else in the tree names. No goal on the chain names this
-  module and no milestone's plan carries it. `crates/nvs-stdlib/src/cache.rs` gap 1.
-  [until: gone crates/nvs-stdlib/src/cache.rs:A shared store behind a password]
 - **A stored entry's CRC is not checked, so a corrupted one is answered as content.** A deflate entry
   that has been corrupted fails to decode and is refused; a stored one is handed back, and written,
   as it stands. The module reads its own job as what an archive is *allowed* to do rather than
@@ -319,14 +311,6 @@ where taking it is the work and the code that follows it is not.
   and nothing a program outside one can reach. What has to be decided is which of the two the language
   means, since a class registered under § 11 would be the thing § 12's attribute exists to make
   unnecessary. `crates/nvs-stdlib/src/random.rs` gap 1. [until: reviewed 2026-09-10]
-- **Two typed body members in one handler are admitted, and the last one wins**, because
-  `rule:security/response-body-is-one-typed-member`'s compile error is written over `echo` and a
-  typed writer rather than over two typed writers, and `E0801` enforces what is written. Its
-  reasoning covers both — they disagree about the body's content type, and letting the last one win
-  is how a JSON endpoint acquires an HTML prelude — so what has to be decided is whether the rule
-  extends to the pair it does not name, which is an amendment to the rule rather than a check the
-  class it is enforced against can add. `crates/nvs-stdlib/src/response.rs` gap 2.
-  [until: reviewed 2026-09-10]
 - **`Core\Test::assertEquals` names `assertEqualsDeep` at run time where
   `rule:testing/assertions-are-typed` refuses at compile time**, because the refusal wants the
   argument's class graph and `nvs-stdlib` holds none — `nvs_types` does, and

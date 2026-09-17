@@ -1,5 +1,5 @@
 --TEST--
-`echo` and a `Core\Response` body member writing one response body is a compile error, in either order, and one writer is a whole body however often it writes -- `rule:security/response-body-is-one-typed-member`
+Two writers of one response body is a compile error -- `echo` beside a `Core\Response` body member in either order, and two different body members beside each other -- while one writer is a whole body however often it writes -- `rule:security/response-body-is-one-typed-member`
 --FILE--
 <?nvs
 // `rule:security/response-body-is-one-typed-member`'s sixth row: the two writers disagree about the body's type and
@@ -37,6 +37,17 @@ class Pages
         var $write = fn (): void => { Core\Response::text("later"); };
     }
 
+    // Two typed members are the same disagreement with no `echo` in it: each
+    // declares the body's type, and the second one declares it again
+    // differently.
+    #[Core\Route(path: "/invoice", method: Core\Http\Method::Get)]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function invoice(): void
+    {
+        Core\Response::text("invoice");
+        Core\Response::json(1);
+    }
+
     // The accepted half, so a body that stops being accepted fails here rather
     // than as a missing refusal. `echo` alone is § 4's last bullet -- the
     // inline-HTML page, which means `text/html` -- and writing it twice is
@@ -71,4 +82,7 @@ error[E0801]: a response has one body, and this handler writes it with both `Cor
 error[E0801]: a response has one body, and this handler writes it with both `echo` and `Core\Response::text`
    --> case.nvs:33:9
 %A
-error: aborting due to 3 errors
+error[E0801]: a response has one body, and this handler writes it with both `Core\Response::text` and `Core\Response::json`
+   --> case.nvs:44:9
+%A
+error: aborting due to 4 errors

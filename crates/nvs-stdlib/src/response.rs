@@ -183,6 +183,15 @@
 //! § 4 admits. `Core\Cli::write`'s `string` arm is the same shape and the same
 //! mark: a writer that answers nothing, and takes what it is given.
 //!
+//! **A body member declares and then writes, and nothing here arbitrates
+//! between two declarations — the last one wins by construction.** That is a
+//! bound rather than a gap, because the disagreement cannot reach this module:
+//! `rule:security/response-body-is-one-typed-member`'s last paragraph makes two
+//! writers of one body a compile error, `nvs_types::response` is that error, and
+//! its module doc is the one home for what the refusal reaches and what it
+//! deliberately leaves alone. The one case that does reach here is a mount's
+//! entry script, which is that module's own known gap and not this one's.
+//!
 //! # Known gaps
 //!
 //! 1. **The bytes are written verbatim, under every sink.** § 3's table says
@@ -196,12 +205,6 @@
 //!    declares onto a context nobody will ask, so the call means nothing and
 //!    says nothing.
 //!    — owner: M7
-//! 2. **Nothing here adjudicates between two declarations**, and the last one
-//!    wins by construction. § 4's sixth row is enforced by `E0801`, in
-//!    `nvs_types::response`, whose module doc owns what that rule reaches and
-//!    what it does not — including the two typed body members in one handler
-//!    that it still admits.
-//!    — owner: unowned
 
 use nvs_runtime::{Fault, Tag, Value};
 
