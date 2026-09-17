@@ -22,6 +22,7 @@ array<string> $signatures = [
     "28b52ffd" => "application/zstd",
     "fd377a585a00" => "application/x-xz",
     "0061736d01000000" => "application/wasm",
+    "1a45dfa3" => "video/matroska",
 ];
 
 int $agreed = 0;
@@ -43,6 +44,6 @@ echo Core\Mime::mediaType(Core\Mime::detect("holiday.png" as bytes)), "\n";
 bytes $png = Core\Encoding::fromHex("89504e470d0a1a0a");
 echo Core\Mime::detect($png) == Core\Mime\Type::Png ? "png" : "not png", "\n";
 --EXPECT--
-agreed: 16
+agreed: 17
 application/octet-stream
 png

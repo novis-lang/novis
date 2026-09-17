@@ -1,0 +1,33 @@
+--TEST--
+`Core\Mime\Type::Ebml` is one case for both formats that share the EBML header, because what tells a WebM from a Matroska file is the `DocType` element, which is a parse and not a prefix — spec § 17
+--FILE--
+<?nvs
+// Two containers that differ only in the `DocType` element (`4282`) naming the
+// format inside. The four header octets are identical in both, so the question
+// this case asks is that the answer does *not* vary with what follows them: a
+// table that guessed at the rest would print two different cases here.
+bytes $matroska = Core\Encoding::fromHex("1a45dfa301000000000000234282886d6174726f736b61");
+bytes $webm = Core\Encoding::fromHex("1a45dfa301000000000000234282847765626d");
+
+echo Core\Mime::detect($matroska) == Core\Mime\Type::Ebml ? "matroska: ebml" : "matroska: other", "\n";
+echo Core\Mime::detect($webm) == Core\Mime\Type::Ebml ? "webm: ebml" : "webm: other", "\n";
+echo Core\Mime::detect($matroska) == Core\Mime::detect($webm) ? "agree" : "differ", "\n";
+
+// A case a caller cannot narrow is spelled as the container it names, so the
+// spelling a `.webm` alone would carry is not what either of them answers.
+echo Core\Mime::mediaType(Core\Mime\Type::Ebml), "\n";
+
+// The header is the whole of what is read: those four octets are an answer on
+// their own, and three of them are a prefix this table does not extrapolate
+// from — the same bound every other signature is held to.
+echo Core\Mime::mediaType(Core\Mime::detect(Core\Encoding::fromHex("1a45dfa3"))), "\n";
+echo Core\Mime::detect(Core\Encoding::fromHex("1a45df")) == Core\Mime\Type::Unknown
+    ? "three octets: unknown"
+    : "three octets: named", "\n";
+--EXPECT--
+matroska: ebml
+webm: ebml
+agree
+video/matroska
+video/matroska
+three octets: unknown

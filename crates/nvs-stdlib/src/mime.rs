@@ -35,27 +35,19 @@
 //! outlives the call. `detect` copies no part of its argument and allocates
 //! nothing; the answer is an integer.
 //!
-//! **What a prefix cannot say, this class does not say**, and the two places
-//! that shows are the table's shape rather than holes in it. A format
-//! serialized as text — SVG, JSON, CSV, HTML, plain text — opens with whatever
-//! its author wrote, so naming one from a prefix is guessing, and the members
-//! that decide such a format decide it by parsing: `Core\Json::isValid` and
-//! `Core\Xml`'s reader. A zip container answers `Zip`, because what
-//! distinguishes `.docx`, `.xlsx`, `.odt` and `.jar` is a named entry inside,
-//! which is `Core\Zip`'s reading and not a signature. Spec § 17's row defers
-//! *what deliberately has no case* to this doc
-//! ([01-core-library.md](/docs/spec/01-core-library.md) § 17), and these two
-//! are it: `Unknown` and `Zip` are the honest answers about the octets.
-//!
-//! # Known gaps
-//!
-//! 1. **EBML's magic is shared, so neither WebM nor Matroska has a case.**
-//!    Telling them apart means reading the `DocType` element, which is a parse
-//!    rather than a prefix, and a table that answered `video/webm` for a `.mkv`
-//!    would be confidently wrong rather than usefully silent.
-//!    Decided: A shared Ebml case (like the existing Zip case) — Honest about what the bytes show and
-//!    stays a prefix table; the caller cannot tell WebM from MKV.
-//!    — owner: decided-closures
+//! **What a prefix cannot say, this class does not say**, and where that shows
+//! is the table's shape rather than a hole in it. A format serialized as text —
+//! SVG, JSON, CSV, HTML, plain text — opens with whatever its author wrote, so
+//! naming one from a prefix is guessing, and the members that decide such a
+//! format decide it by parsing: `Core\Json::isValid` and `Core\Xml`'s reader.
+//! A container whose contents name the format answers the *container*: `Zip`,
+//! because what distinguishes `.docx`, `.xlsx`, `.odt` and `.jar` is a named
+//! entry inside, which is `Core\Zip`'s reading; and `Ebml`, because what
+//! distinguishes a WebM from a Matroska file is the `DocType` element, which is
+//! a parse of the same kind. Spec § 17's row defers *what deliberately has no
+//! case* to this doc ([01-core-library.md](/docs/spec/01-core-library.md) § 17),
+//! and this is it: `Unknown` for a format with no signature, and a container
+//! case for a format the signature reaches but cannot narrow.
 
 use nvs_runtime::{Fault, NvsStr, Value};
 
@@ -106,6 +98,7 @@ pub(crate) const TYPE: CoreEnum = CoreEnum {
         ("Zstd", 14),
         ("Xz", 15),
         ("Wasm", 16),
+        ("Ebml", 17),
     ],
     doc: Some(&TYPE_DOC),
 };
@@ -186,6 +179,13 @@ const TYPE_DOC: EnumDoc = EnumDoc {
         CaseDoc {
             name: "Wasm",
             desc: "`application/wasm`, a binary WebAssembly module.",
+        },
+        CaseDoc {
+            name: "Ebml",
+            desc: "`video/matroska`, the EBML container every `.mkv` and every `.webm` is — WebM \
+                   being a Matroska profile. Which of the two a file is lives in its `DocType` \
+                   element, which a signature cannot reach, so this case never narrows to \
+                   `video/webm`.",
         },
     ],
 };
@@ -308,6 +308,8 @@ pub(crate) enum Media {
     Xz,
     /// `application/wasm`.
     Wasm,
+    /// `video/matroska` — an EBML container, Matroska or WebM alike.
+    Ebml,
 }
 
 impl Media {
@@ -335,6 +337,7 @@ impl Media {
             Self::Zstd => 14,
             Self::Xz => 15,
             Self::Wasm => 16,
+            Self::Ebml => 17,
         }
     }
 
@@ -359,6 +362,7 @@ impl Media {
             14 => Some(Self::Zstd),
             15 => Some(Self::Xz),
             16 => Some(Self::Wasm),
+            17 => Some(Self::Ebml),
             _ => None,
         }
     }
@@ -387,6 +391,7 @@ impl Media {
             Self::Zstd => "application/zstd",
             Self::Xz => "application/x-xz",
             Self::Wasm => "application/wasm",
+            Self::Ebml => "video/matroska",
         }
     }
 }
@@ -486,6 +491,13 @@ const SIGNATURES: &[Signature] = &[
     Signature {
         clauses: &[(0, b"OggS")],
         media: Media::Ogg,
+    },
+    // EBML's header, which is where the answer stops: Matroska and WebM share
+    // these four octets and are told apart by the `DocType` element further in,
+    // so the case is the container the prefix identifies exactly.
+    Signature {
+        clauses: &[(0, b"\x1a\x45\xdf\xa3")],
+        media: Media::Ebml,
     },
     Signature {
         clauses: &[(0, b"%PDF-")],
@@ -599,7 +611,7 @@ mod tests {
     /// Every case of [`TYPE`], as the Rust mirror and in ordinal order — the
     /// roster these tests sweep, so a case added to one and not the other fails
     /// here.
-    const EVERY: [Media; 17] = [
+    const EVERY: [Media; 18] = [
         Media::Unknown,
         Media::Png,
         Media::Jpeg,
@@ -617,6 +629,7 @@ mod tests {
         Media::Zstd,
         Media::Xz,
         Media::Wasm,
+        Media::Ebml,
     ];
 
     /// The shortest run of octets that satisfies every clause of `signature`,
@@ -791,6 +804,44 @@ mod tests {
                 CLASS.name,
                 member.name
             );
+        }
+    }
+
+    /// An EBML container is `Ebml` whatever it holds, which is the whole of what
+    /// the four-octet header says.
+    ///
+    /// The two frames differ only in the `DocType` element — the one place a
+    /// Matroska file and a WebM file disagree — and the assertion is that the
+    /// answer does *not* differ with it: a table that grew a rule for the octets
+    /// past its widest signature would answer two cases here. The spelling is
+    /// checked across the whole roster rather than on this case alone, so a
+    /// `video/webm` arriving anywhere fails.
+    #[test]
+    fn an_ebml_container_is_reported_as_ebml() {
+        // The header, its unknown-size length octet and the fields before the
+        // `DocType` element (`\x42\x82`), which carries its own length and name.
+        let container = |doc_type: &[u8]| {
+            let mut frame = b"\x1a\x45\xdf\xa3\x01\x00\x00\x00\x00\x00\x00\x23\x42\x82".to_vec();
+            frame.push(0x80 | u8::try_from(doc_type.len()).expect("a short `DocType`"));
+            frame.extend_from_slice(doc_type);
+            frame
+        };
+        let matroska = container(b"matroska");
+        let webm = container(b"webm");
+        assert_eq!(detect_media(&matroska), Media::Ebml);
+        assert_eq!(detect_media(&webm), Media::Ebml);
+        assert_eq!(detect_media(&matroska), detect_media(&webm));
+
+        // Both sides of the bound the header is: the four octets answer, and
+        // three of them are a prefix of nothing this table will guess at.
+        assert_eq!(detect_media(&webm[..4]), Media::Ebml);
+        assert_eq!(detect_media(&webm[..3]), Media::Unknown);
+
+        // A case a caller cannot narrow is spelled as the container, and the
+        // narrower spelling exists nowhere on the roster.
+        assert_eq!(Media::Ebml.media_type(), "video/matroska");
+        for case in EVERY {
+            assert_ne!(case.media_type(), "video/webm");
         }
     }
 }
