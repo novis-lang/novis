@@ -72,10 +72,10 @@
 //!
 //! **Off a connection it degrades to the members beside it.** A carrier nothing
 //! offered a cell to has no stream to open, so the chunks go to this request's
-//! output and come out in the order they were written — gap 1's reading of an
-//! inert declaration, applied to the bytes as well. That is what makes a
-//! streamed body assertable from a `.nvst` case, none of which is a request a
-//! server is answering.
+//! output and come out in the order they were written — the reading below of a
+//! declaration made where no response is framed, applied to the bytes as well.
+//! That is what makes a streamed body assertable from a `.nvst` case, none of
+//! which is a request a server is answering.
 //!
 //! # A status crosses that same channel, and is not a body
 //!
@@ -192,19 +192,30 @@
 //! deliberately leaves alone. The one case that does reach here is a mount's
 //! entry script, which is that module's own known gap and not this one's.
 //!
-//! # Known gaps
+//! # A body goes out verbatim, and off a request the declaration is inert
 //!
-//! 1. **The bytes are written verbatim, under every sink.** § 3's table says
-//!    the sink in force selects a rendering, and today `echo`'s rendering is
-//!    the terminal's everywhere; a request's HTML rendering and this member's
-//!    "no rendering, the media type says so" are the same gap seen from two
-//!    sides. So a program that calls this member outside a request — where it
-//!    means nothing, and where the compile-time rule below cannot yet refuse
-//!    it — puts its argument on the terminal unsubstituted. `setStatus` and
-//!    `setHeader` off a request are the quiet half of the same gap: each
-//!    declares onto a context nobody will ask, so the call means nothing and
-//!    says nothing.
-//!    — owner: decided-closures
+//! **Every body member writes its bytes with no rendering over them, under
+//! whichever sink is in force**, and that is each media type's own contract
+//! rather than a transform nobody got around to. § 3's table picks a rendering
+//! for `echo`, whose operand is data interpolated into a page, and
+//! `nvs_runtime`'s `write_rendered` is where that pick happens — escaping
+//! inside an HTTP request and substituting everywhere else. A body member is
+//! the table's other half and takes neither: a `Markup`'s bytes already passed
+//! whichever rule made them markup ([`nvs_core_response_html`]), `json`'s
+//! framing is the serializer's and never concatenation's, and `bytes` and
+//! `sendFile` carry a media type that says what the octets are. A rendering
+//! over any of them would be a second framing of bytes already framed, which is
+//! what § 4 exists to make unspellable.
+//!
+//! **Off a request every member here still runs, onto a context nobody will
+//! ask**: the media type, a status and a header are declared and then read by
+//! no one, and the bytes reach whatever sink that program is on as they were
+//! written. That is load-bearing rather than tolerated — it is what makes a
+//! body assertable from a `.nvst` case, none of which is a request a server is
+//! answering, and `stream` off a connection and `sendFile` off a request are
+//! the same degradation, stated on each of those members. Nothing refuses the
+//! call, because the refusal § 4 asks for is about two *writers* of one body
+//! (`nvs_types::response`), and one member on a terminal is not that.
 
 use nvs_runtime::{Fault, Tag, Value};
 
@@ -1049,10 +1060,11 @@ nvs_runtime::nvs_helper! {
             ))
         })?;
         ctx.declare_content_type(HTML_MEDIA_TYPE);
-        // Verbatim, and gap 1 in the module doc owns what that means off a
-        // request. Unreachable from source for `nvs_core_response_text`'s
-        // reason: `OutputSink::Buffer` and `Sink` never fail, and nothing in
-        // the language closes a descriptor the host handed the process.
+        // Verbatim, and the module doc's *A body goes out verbatim* section owns
+        // what that means off a request. Unreachable from source for
+        // `nvs_core_response_text`'s reason: `OutputSink::Buffer` and `Sink`
+        // never fail, and nothing in the language closes a descriptor the host
+        // handed the process.
         ctx.write_output(body.as_bytes())
             .map_err(|error| Fault::fatal(format!("Core\\Response::html could not write: {error}")))?;
         Ok(Value::null())
@@ -1081,10 +1093,11 @@ nvs_runtime::nvs_helper! {
             ))
         })?;
         ctx.declare_content_type(TEXT_MEDIA_TYPE);
-        // Verbatim, and gap 1 in the module doc owns what that means off a
-        // request. Unreachable from source on `Core\Cli::write`'s reasoning:
-        // `OutputSink::Buffer` and `Sink` never fail, and nothing in the
-        // language closes a descriptor the host handed the process.
+        // Verbatim, and the module doc's *A body goes out verbatim* section owns
+        // what that means off a request. Unreachable from source on
+        // `Core\Cli::write`'s reasoning: `OutputSink::Buffer` and `Sink` never
+        // fail, and nothing in the language closes a descriptor the host handed
+        // the process.
         ctx.write_output(body.as_bytes())
             .map_err(|error| Fault::fatal(format!("Core\\Response::text could not write: {error}")))?;
         Ok(Value::null())
@@ -1718,9 +1731,10 @@ nvs_runtime::nvs_helper! {
     /// **Off a request there is no response, and then the bytes land here**:
     /// a CLI program, a `#[Test]` method, a `.nvst` case and a `spawn script`
     /// child each write the file into their own output, a chunk at a time. That
-    /// is the module doc's gap 1 for the one member whose body is a file — the
-    /// declaration means nothing where nobody frames a response, and the bytes
-    /// still come out in the order the program wrote them.
+    /// is the module doc's *A body goes out verbatim* section for the one member
+    /// whose body is a file — the declaration means nothing where nobody frames
+    /// a response, and the bytes still come out in the order the program wrote
+    /// them.
     fn nvs_core_response_send_file(ctx, args: [1]) {
         // Unreachable from source: the row's parameter is a `CoreTy::Text`, so
         // `E0401` refuses anything that is not a `string` before this runs —
@@ -1788,13 +1802,13 @@ nvs_runtime::nvs_helper! {
     /// beside the reading half — is left in the cell the connection is watching.
     ///
     /// **Off a connection there is no cell, and then this member is inert**, on
-    /// the reading the module doc's gap 1 already gives a declaration made where
-    /// no response is being framed: a CLI program, a `#[Test]` method and a
-    /// `.nvst` case each open a stream that writes to their own output, and the
-    /// bytes come out in the order they were written. That is the same fallback
-    /// `text` and `bytes` have and not a second one — it is what lets a case
-    /// assert a streamed body's bytes at all, since no case is a request a
-    /// server is answering.
+    /// the reading the module doc's *A body goes out verbatim* section already
+    /// gives a declaration made where no response is being framed: a CLI
+    /// program, a `#[Test]` method and a `.nvst` case each open a stream that
+    /// writes to their own output, and the bytes come out in the order they were
+    /// written. That is the same fallback `text` and `bytes` have and not a
+    /// second one — it is what lets a case assert a streamed body's bytes at
+    /// all, since no case is a request a server is answering.
     ///
     /// A second stream on one request is refused, because a response has one
     /// body and the connection has already been told what the first one is.
