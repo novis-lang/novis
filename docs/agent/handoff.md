@@ -2,56 +2,52 @@
 
 ## State
 
-**Goal `worker-placement` — the destination set can now hold a core it did not start.**
-`crates/nvs-host/src/worker.rs` has `register_this_core`, which puts an inbox in the process's set
-and spawns the same receptionist on the caller's own scheduler, plus a guard that withdraws both on
-drop; `WorkerCores::pick` takes the placing core's inbox and never answers it, and a set that can
-reach a registered core starts no thread beside it (ADR 0184 § 5).
+**Goal `worker-placement` — a serving core is a placement destination, and stage 2 is closed.**
+`crates/nvs-cli/src/serve.rs:1233` registers every serving core's inbox and holds the guard to the
+end of the function, so the destination set fills with threads this process was already turning and
+`WorkerCores` starts none beside them (ADR 0184 § 5). A registered core's receptionist ends with the
+process's drain rather than with its inbox: it stops receiving when the drain begins and returns once
+what it is holding has answered, woken by the last placement ringing the bell from its own guard
+(`crates/nvs-host/src/worker.rs:1043`).
 
-`nvs serve` does not call any of it yet — that is Stage 3's remaining half and the module's one
-known gap. Stage 2's acceptance check is red for a different reason: its three `-p nvs-host` test
-names are not written anywhere, and session 0003 landed the mechanism without them. Nothing is
-blocked.
+Stage 2's three `-p nvs-host` tests are `crates/nvs-host/tests/placed_path.rs` — a test binary of its
+own, because the destination set is one `static` per process and a core takes the published resolver
+once as it starts; that file's module doc is the one home of why. Its conformance check now names the
+case the corpus actually holds. Nothing is blocked.
 
 ## Next group
 
-**Stage 3: a serving core offers itself as a destination** — one file set:
-`crates/nvs-host/src/worker.rs`, `crates/nvs-cli/src/serve.rs`, `crates/nvs-host/src/placed.rs`.
+**Stage 3: the destination set is proven, not just built** — one file set:
+`crates/nvs-cli/src/serve.rs`, `crates/nvs-host/src/worker.rs`, `docs/agent/goals/62-worker-placement.toml`.
 
-- [ ] **The receptionist ends when the core drains** — `crates/nvs-host/src/worker.rs:1043`'s
-      `receive` loops until its inbox is closed and parks in between, which is right for a core this
-      module started and wrong for a serving one: `crates/nvs-cli/src/serve.rs:1229` ends that core
-      only when `report.parked == 0`, so a parked receptionist there is a server that never exits.
-      `nvs_host::reactor::wake_at_drain` is the ending this process already has;
-      `rule:concurrency/on-worker-runs-the-child-on-another-core` is the rule and the playbook bullet
-      under *Writing Novis itself* is the trap.
-- [ ] **`serve_on_worker` registers its core** — `crates/nvs-cli/src/serve.rs:805` is where the
-      reactor is installed and the last line before the per-core tasks are spawned, so the
-      `nvs_host::worker::register_this_core(sched)` guard belongs there and is held to the function's
-      end. ADR 0184 § 5 is the destination set; `crates/nvs-host/src/worker.rs:845` is the seam, and
-      landing this is what rewrites the last paragraph of
-      `rule:concurrency/on-worker-runs-the-child-on-another-core` and clears the known gap in
-      `crates/nvs-host/src/worker.rs`'s module doc.
-- [ ] **Stage 2's three `-p nvs-host` tests** — `crates/nvs-host/src/placed.rs:438`'s
-      `both_entry_forms_cross_once_a_resolver_is_published` is the nearest thing on disk and asserts
-      only `crosses`. The three names the check wants are `a_path_entry_is_placed_on_another_core`,
-      `a_placed_path_child_answers_what_a_same_core_child_answers` and
-      `a_placed_path_no_resolver_can_compile_fails_as_a_value`. **The hazard is the core set:**
-      `crate::worker`'s is one `static` per *process*, a core takes the published resolver once as it
-      starts (`crates/nvs-host/src/worker.rs:671`), and the sibling tests in `worker.rs` place work
-      with nothing published — so a path entry can land on a core started earlier with no resolver
-      and answer `NoResolver` at random. Either publish before the set can have grown, or write them
-      as an integration test under `crates/nvs-host/tests/` with a process of their own.
+- [ ] **`a_serving_core_registers_its_inbox_as_it_starts`, in `nvs-cli`** — stage 3's second check
+      names a test no crate declares, and the registration it is about is
+      `crates/nvs-cli/src/serve.rs:1233`. What is observable without booting a socket is
+      `nvs_host::worker::cores_started()` (`crates/nvs-host/src/worker.rs:795`): a process whose set
+      can reach a registered core starts no thread of its own, so the assertion is a placement
+      answered with `started()` still at zero. `rule:concurrency/on-worker-runs-the-child-on-another-core`
+      is the rule and ADR 0184 § 5 the reasoning; the serve tests at
+      `crates/nvs-cli/src/serve.rs:2944` are the nearest harness on disk.
+- [ ] **Stage 3's first check names a test the tree already has** — it asks for
+      `a_registered_core_is_chosen_before_one_is_started`, and
+      `crates/nvs-host/src/worker.rs:1402`'s
+      `a_registered_core_is_preferred_to_starting_one_and_is_never_its_own_destination` is that claim
+      plus a second one. Per the playbook bullet on drafted names, grep the whole of
+      `docs/agent/loop-goal.toml` for the tree's name first — if no other check claims it, the repair
+      is the name in both toml copies (`docs/agent/goals/62-worker-placement.toml:11270` and the live
+      one), not a second test. Same rule as above.
+- [ ] **Then the goal's own end** — stage 3 at
+      `docs/agent/goals/62-worker-placement.toml:11262` is the last stage the goal declares, so the
+      next green sweep is a `DONE`: run
+      `python tools/verify.py --doc`, then `python tools/owners.py --closes worker-placement` and
+      `python tools/playbook.py --closes worker-placement`, and close what they name.
 
 ## Backlog
 
-- `crates/nvs-host/src/worker.rs`'s known gap is the one thing `python tools/owners.py --closes
-  worker-placement` still names; item 2 above closes it.
-- A registered core on a single-CPU host is the only core there is, so a placement falls through to
-  `on: "here"` — `WorkerCores::pick`'s own doc is the home, and nothing measures it.
-- Stage 2's `nvs-suite` check names
-  `tests/conformance/isolate/a-path-entry-on-a-worker-core-answers-as-one-on-this-core-does.nvst`;
-  the tree holds `a-path-entry-placed-on-a-worker-core-answers-as-one-here-does.nvst`. One of the two
-  names is wrong and the goal file is where it is fixed.
-- `docs/decisions/0184.md` § *Revisiting* is the fallback the module doc cites; nobody has read it
-  this goal — add it to `[context] adrs` if item 2 needs it.
+- A placed child is started under a fresh `Ctx` on the destination core
+  (`crates/nvs-host/src/worker.rs:1054`), so the tree budget ADR 0184 § 6 charges it to does not
+  cross with it; no goal owns this yet.
+- `nvs_server::Draining::bit` is `pub` now, for the receptionist's ending —
+  `crates/nvs-server/src/serve.rs:537` carries why.
+- The queue worker's core (`crates/nvs-cli/src/worker.rs`) offers itself to nothing; whether it
+  should is not decided anywhere.

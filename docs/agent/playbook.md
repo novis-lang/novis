@@ -7577,6 +7577,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   hung `nvs serve`. Give anything long-lived put on a serving core an ending of its own —
   `nvs_host::reactor::wake_at_drain` is the one this process already has.
   [until: reviewed 2026-09-17]
+- **A published resolver is not an installed one, and a child staying `on: "here"` needs the
+  second.** `nvs_runtime::script::publish` fills a process-wide slot a worker core reads as it
+  starts, while the publishing thread still compiles through its own thread-local — so a `spawn
+  script` path that falls through to the calling core answers `ResolveError::NoResolver` while the
+  identical placed one succeeds. Wrap the caller in `SharedResolver::scoped`, as `nvs-cli` does for
+  the core it booted on. [until: gone crates/nvs-runtime/src/script.rs:pub fn publish]
 
 ## Divergences and refusals already pinned
 
