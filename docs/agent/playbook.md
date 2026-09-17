@@ -2300,6 +2300,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   ambiguous, and the check names the *goal file* rather than the playbook the edit landed in. End
   the selector in `*` to take every match, in `docs/agent/loop-goal.toml` and in the
   `docs/agent/goals/<goal>.toml` copy both. [until: reviewed 2026-09-17]
+- **The full `verify.py` gate can go red on files no session of yours wrote, because another writer
+  edits this tree at the same time.** A clean `cargo check --all-targets` minutes earlier and errors in
+  a crate you barely touched are the tell; `git status --short` and `git diff --stat` say whose each
+  change is. Where one file carries both writers' work, write your own hunk to a patch with the Write
+  tool, `git apply --cached --recount` it, and leave that path out of the wrap's `## commit:` list,
+  which stages whole files. [until: reviewed 2026-10-17]
 
 ## Running things
 
