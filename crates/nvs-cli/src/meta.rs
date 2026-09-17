@@ -77,7 +77,11 @@
 //! Its shape mirrors the registry's rather than inventing one: `classes` and
 //! `interfaces` each carry `members` and `constants`, `enums` carry `cases`,
 //! and `types` — which the registry has no roster for, a `type` alias being a
-//! user declaration only — carries the type it stands for. A declaration's
+//! user declaration only — carries the type it stands for. A body owning
+//! aliases carries a `types` of its own, the same card shape under the same
+//! key, each named `Owner::Name` as a program reaches it
+//! (`rule:types/type-alias`) — never beside `members`, which an alias is not
+//! one of: it has no value, no visibility and no runtime existence. A declaration's
 //! `doc` is the `///` run above it: its prose under `short`, the key the
 //! registry's card already spells prose with, and its two tags as `see` and
 //! `example` lists (`rule:tooling/doc-comment-tags-are-see-and-example`). The
@@ -581,7 +585,12 @@ fn collect(stmts: &[Stmt], src: &SourceFile, enclosing: &str, out: &mut Declared
                     .push(user_interface_json(decl, src, &namespace));
             }
             StmtKind::EnumDecl(decl) => out.enums.push(user_enum_json(decl, src, &namespace)),
-            StmtKind::TypeAliasDecl(decl) => out.types.push(user_alias_json(decl, src, &namespace)),
+            StmtKind::TypeAliasDecl(decl) => out.types.push(user_alias_json(
+                decl,
+                decl.doc.as_ref(),
+                src,
+                qualify(&namespace, text(src, decl.name.span)),
+            )),
             _ => {}
         }
     }
@@ -592,11 +601,9 @@ fn collect(stmts: &[Stmt], src: &SourceFile, enclosing: &str, out: &mut Declared
 /// registry class carries because the compiler owns them.
 fn user_class_json(decl: &ClassDecl, src: &SourceFile, namespace: &str) -> Value {
     let mut out = Map::new();
-    out.insert(
-        "name".into(),
-        Value::from(qualify(namespace, text(src, decl.name.span))),
-    );
-    body_json(&decl.members, src, &mut out);
+    let name = qualify(namespace, text(src, decl.name.span));
+    out.insert("name".into(), Value::from(name.as_str()));
+    body_json(&decl.members, src, &name, &mut out);
     put_doc(&mut out, decl.doc.as_ref(), src);
     Value::Object(out)
 }
@@ -606,22 +613,22 @@ fn user_class_json(decl: &ClassDecl, src: &SourceFile, namespace: &str) -> Value
 /// the same keys.
 fn user_interface_json(decl: &InterfaceDecl, src: &SourceFile, namespace: &str) -> Value {
     let mut out = Map::new();
-    out.insert(
-        "name".into(),
-        Value::from(qualify(namespace, text(src, decl.name.span))),
-    );
-    body_json(&decl.members, src, &mut out);
+    let name = qualify(namespace, text(src, decl.name.span));
+    out.insert("name".into(), Value::from(name.as_str()));
+    body_json(&decl.members, src, &name, &mut out);
     put_doc(&mut out, decl.doc.as_ref(), src);
     Value::Object(out)
 }
 
-/// The `members` and `constants` of a class or interface body.
+/// The `members`, `constants` and `types` of a class or interface body, under
+/// `owner`'s own qualified name.
 ///
 /// `members` is always present, empty or not, because the registry's is; a
 /// class with no constants has no `constants` key, because the registry's does
-/// not either. A member the parser recovered over contributes nothing — it
+/// not either, and a body owning no alias has no `types` key for the same
+/// reason. A member the parser recovered over contributes nothing — it
 /// has no name to be documented under.
-fn body_json(members: &[ClassMember], src: &SourceFile, out: &mut Map<String, Value>) {
+fn body_json(members: &[ClassMember], src: &SourceFile, owner: &str, out: &mut Map<String, Value>) {
     let mut declared = Vec::new();
     let mut constants = Vec::new();
     for member in members {
@@ -640,6 +647,7 @@ fn body_json(members: &[ClassMember], src: &SourceFile, out: &mut Map<String, Va
     }
     out.insert("members".into(), Value::Array(declared));
     put_values(out, "constants", constants);
+    put_values(out, "types", alias_cards(members, src, owner));
 }
 
 /// One user method: its name, its `kind`, its signature as written, and its
@@ -774,10 +782,8 @@ fn user_constant_json(constant: &ConstMember, doc: Option<&DocComment>, src: &So
 /// line.
 fn user_enum_json(decl: &EnumDecl, src: &SourceFile, namespace: &str) -> Value {
     let mut out = Map::new();
-    out.insert(
-        "name".into(),
-        Value::from(qualify(namespace, text(src, decl.name.span))),
-    );
+    let name = qualify(namespace, text(src, decl.name.span));
+    out.insert("name".into(), Value::from(name.as_str()));
     if let Some(backing) = &decl.backing {
         out.insert("backing".into(), Value::from(text(src, backing.span)));
     }
@@ -795,20 +801,51 @@ fn user_enum_json(decl: &EnumDecl, src: &SourceFile, namespace: &str) -> Value {
         })
         .collect();
     out.insert("cases".into(), Value::Array(cases));
+    put_values(&mut out, "types", alias_cards(&decl.members, src, &name));
     put_doc(&mut out, decl.doc.as_ref(), src);
     Value::Object(out)
 }
 
 /// One `type` alias: its name, the type expression it stands for, and its card.
-fn user_alias_json(decl: &TypeAliasDecl, src: &SourceFile, namespace: &str) -> Value {
+///
+/// `name` is the spelling a program reaches the alias by, and it is the whole
+/// difference between the two declaration sites `rule:types/type-alias` names:
+/// `N\Greeting` for one written at file scope, `N\Greeter::Card` for one a body
+/// owns. `doc` is the `///` run above it, which hangs on the [`ClassMember`] at
+/// the second site and on the declaration itself at the first.
+fn user_alias_json(
+    decl: &TypeAliasDecl,
+    doc: Option<&DocComment>,
+    src: &SourceFile,
+    name: String,
+) -> Value {
     let mut out = Map::new();
-    out.insert(
-        "name".into(),
-        Value::from(qualify(namespace, text(src, decl.name.span))),
-    );
+    out.insert("name".into(), Value::from(name));
     out.insert("type".into(), Value::from(text(src, decl.ty.span)));
-    put_doc(&mut out, decl.doc.as_ref(), src);
+    put_doc(&mut out, doc, src);
     Value::Object(out)
+}
+
+/// The `type` aliases a body owns, each named `Owner::Name` under `owner`'s own
+/// already-qualified name.
+///
+/// They go in the roster the file-scope form already fills rather than beside
+/// `members`: an alias declares no value, takes no visibility and is gone by
+/// runtime, so a consumer rendering both declaration sites renders one card
+/// shape twice instead of telling two apart.
+fn alias_cards(members: &[ClassMember], src: &SourceFile, owner: &str) -> Vec<Value> {
+    members
+        .iter()
+        .filter_map(|member| match &member.kind {
+            ClassMemberKind::TypeAlias(alias) => Some(user_alias_json(
+                alias,
+                member.doc.as_ref(),
+                src,
+                format!("{owner}::{}", text(src, alias.name.span)),
+            )),
+            _ => None,
+        })
+        .collect()
 }
 
 /// Inserts `doc` only where a `///` run was written above the declaration.

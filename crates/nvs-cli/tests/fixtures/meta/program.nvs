@@ -1,7 +1,9 @@
 <?nvs
 // The program `nvs meta --json <entry>` reads: one documented class carrying a
 // member of each kind, one documented enum and one documented `type` alias, so
-// the program half of the document has a row in every roster it can emit.
+// the program half of the document has a row in every roster it can emit. The
+// class and the enum each own an alias as well, which is the second
+// declaration site the same roster holds.
 //
 // Every `///` here is content the test asserts on. An ordinary `//` comment,
 // like this one, is not documentation and appears nowhere in the JSON.
@@ -11,6 +13,9 @@
 /// @see Greeter::greet
 /// @example examples/greeting.nvs
 class Greeter {
+    /// What a rendered greeting is: its text and how loudly to say it.
+    type Card = {text: string, volume: int};
+
     /// The word every greeting opens with.
     public const string OPENING = "Hello";
 
@@ -38,6 +43,8 @@ class Greeter {
 
 /// How loudly to greet.
 enum Volume: int {
+    type Pair = array<Volume>;
+
     /// Barely audible.
     Quiet = 1,
     /// The one every greeting uses.

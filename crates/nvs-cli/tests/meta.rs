@@ -352,6 +352,61 @@ fn meta_json_with_an_entry_emits_the_programs_declarations() {
     assert_eq!(declared(&program, "types", "Greeting")["type"], "string");
 }
 
+/// An alias a body owns is emitted inside its owner's entry, under the same
+/// `types` key and in the same card shape the file-scope form already has —
+/// named `Owner::Name`, which is the spelling a program reaches it by
+/// (`rule:types/type-alias`).
+///
+/// A class and an enum both own one here, because the member is one rule for
+/// every body that has a class-shaped name. What the two rosters must not do is
+/// merge: the owner's aliases are its own and the file-scope roster holds only
+/// what was written at file scope, so a consumer asking "what does this program
+/// declare" gets each name exactly once.
+#[test]
+fn meta_json_nests_a_class_scoped_alias_under_its_owner() {
+    let program = program(&["--json", &fixture()]);
+
+    let greeter = declared(&program, "classes", "Greeter");
+    assert_eq!(
+        declared(&greeter, "types", "Greeter::Card"),
+        serde_json::json!({
+            "name": "Greeter::Card",
+            "type": "{text: string, volume: int}",
+            "doc": { "short": "What a rendered greeting is: its text and how loudly to say it." },
+        })
+    );
+    // An alias is not a member: it declares no value, takes no visibility and is
+    // gone by runtime, so it never joins the roster a property and a method
+    // share.
+    let names: Vec<&str> = greeter["members"]
+        .as_array()
+        .expect("`members` is an array")
+        .iter()
+        .map(|m| m["name"].as_str().expect("a name"))
+        .collect();
+    assert!(!names.contains(&"Card"), "an alias is not in `members`");
+
+    // The enum's is undocumented, so it carries no `doc` key — the registry's
+    // omission rule, which the second declaration site inherits whole.
+    assert_eq!(
+        declared(
+            &declared(&program, "enums", "Volume"),
+            "types",
+            "Volume::Pair"
+        ),
+        serde_json::json!({ "name": "Volume::Pair", "type": "array<Volume>" })
+    );
+
+    // And the file-scope roster is still only what file scope declared.
+    let file_scope: Vec<&str> = program["types"]
+        .as_array()
+        .expect("`types` is an array")
+        .iter()
+        .map(|t| t["name"].as_str().expect("a name"))
+        .collect();
+    assert_eq!(file_scope, vec!["Greeting"]);
+}
+
 /// A user declaration's card is the `///` run above it: its prose under
 /// `short`, its `@see` targets and its `@example` paths as their own lists, and
 /// the registry's omission rule over all three — an undocumented declaration
