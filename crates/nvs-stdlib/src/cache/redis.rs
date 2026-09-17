@@ -160,12 +160,22 @@ impl Connection {
         &self.dial
     }
 
-    /// Dials, unless this connection already holds a stream.
+    /// Dials, unless this connection already holds a stream, and applies the
+    /// rest of the dial to a socket it just opened.
+    ///
+    /// **This is the only place the handshake goes out**, and it is here rather
+    /// than anywhere a store is configured because [`Connection::command`] comes
+    /// back through it after a dropped socket: a credential applied once would
+    /// be a reconnect answering the wrong database under no authority, silently,
+    /// on the one connection nobody asked for.
     ///
     /// # Errors
     ///
     /// The connect failure as text, which is what the door turns into the throw
-    /// its card promises for a store that cannot be reached.
+    /// its card promises for a store that cannot be reached, or the store's own
+    /// refusal of the credential or the index. A connection whose handshake
+    /// failed is dropped rather than held: what is left of it is a socket the
+    /// store refuses every command on.
     pub(crate) fn ensure(&mut self) -> Result<(), String> {
         if self.stream.is_some() {
             return Ok(());
@@ -173,7 +183,53 @@ impl Connection {
         let stream = Transport::dial(&self.dial.target, self.timeout)
             .map_err(|err| format!("connecting to {} failed: {err}", self.dial.target))?;
         self.stream = Some(stream);
+        if let Err(refused) = self.handshake() {
+            self.stream = None;
+            return Err(refused);
+        }
         Ok(())
+    }
+
+    /// Everything the dial carries beyond the socket, in the order a store
+    /// applies it: `AUTH`, then `SELECT`.
+    ///
+    /// That order because a store behind a credential refuses `SELECT` like
+    /// every other command until it has one. Each goes out only when the dial
+    /// carries it, so a deployment that configured neither — which is one that
+    /// set only `[cache.shared] url` — spends no round trip on either and dials
+    /// exactly as it did before there was anything to apply.
+    ///
+    /// # Errors
+    ///
+    /// The exchange's failure, or a reply that is not the `+OK` each answers,
+    /// which carries the store's own text: a credential the store refuses is
+    /// read off its `-WRONGPASS`, and an index it does not have off its `-ERR`.
+    /// Never the credential itself, which no message this client writes names.
+    fn handshake(&mut self) -> Result<(), String> {
+        if let Some(password) = &self.dial.password {
+            let request = wire_command(&[b"AUTH", password.as_bytes()]);
+            self.applied(&request, "AUTH")?;
+        }
+        if let Some(index) = self.dial.database {
+            let request = wire_command(&[b"SELECT", index.to_string().as_bytes()]);
+            self.applied(&request, "SELECT")?;
+        }
+        Ok(())
+    }
+
+    /// One handshake step sent and its `+OK` read, named by `step` in whatever
+    /// it answers instead.
+    ///
+    /// # Errors
+    ///
+    /// As [`Connection::handshake`]. There is no replay here: a handshake is
+    /// sent on a socket this call just opened, so a failure on it is that dial
+    /// failing rather than a stale connection to be made again.
+    fn applied(&mut self, request: &[u8], step: &str) -> Result<(), String> {
+        match self.exchange(request).map_err(|failure| failure.why)? {
+            Reply::Simple(word) if word == "OK" => Ok(()),
+            other => Err(other.unexpected(step)),
+        }
     }
 
     /// `SET key payload` — the entry replaced, whatever was there.
@@ -902,6 +958,104 @@ mod tests {
             "the store's own text is what an operator acts on: {refused}"
         );
         server.join().expect("the fake store runs to completion");
+    }
+
+    /// The dial is applied on **every** connection this client makes, never once
+    /// for the process: `AUTH` and `SELECT` go out ahead of the first command,
+    /// and ahead of the first command after a dropped socket.
+    ///
+    /// The reconnect is the half that matters and the half a handshake run at
+    /// boot fails. [`Connection::command`] makes it without being asked, so a
+    /// store that closed a socket under an idle core would otherwise answer the
+    /// next request's `GET` out of database zero, unauthenticated, and answer it
+    /// successfully — which is a wrong answer and not a failure.
+    #[test]
+    fn a_credential_and_an_index_go_out_on_every_connection() {
+        const AUTH: &[u8] = b"*2\r\n$4\r\nAUTH\r\n$6\r\ns3cret\r\n";
+        const SELECT: &[u8] = b"*2\r\n$6\r\nSELECT\r\n$1\r\n3\r\n";
+        const GET: &[u8] = b"*2\r\n$3\r\nGET\r\n$1\r\nk\r\n";
+
+        let (listener, address) = listening();
+        let server = std::thread::spawn(move || {
+            let mut sent = Vec::new();
+            for _ in 0..2 {
+                let (mut stream, _) = listener.accept().expect("the client dials");
+                sent.push(read_exactly(&mut stream, AUTH.len()));
+                stream.write_all(b"+OK\r\n").expect("the `AUTH` reply");
+                sent.push(read_exactly(&mut stream, SELECT.len()));
+                stream.write_all(b"+OK\r\n").expect("the `SELECT` reply");
+                sent.push(read_exactly(&mut stream, GET.len()));
+                stream.write_all(b"$2\r\nhi\r\n").expect("the `GET` reply");
+                // The socket is dropped with the entry answered, which is a
+                // store closing a connection it has finished with: the next
+                // command meets a dead socket and dials again unasked.
+            }
+            sent
+        });
+
+        let mut connection = Connection::new(
+            Dial {
+                target: Target::Tcp(address),
+                password: Some("s3cret".to_owned()),
+                database: Some(3),
+            },
+            Duration::from_secs(5),
+        );
+        let dialled = connection
+            .get(b"k")
+            .expect("a `GET` on the socket just opened");
+        let redialled = connection
+            .get(b"k")
+            .expect("a `GET` that dialled again behind the dropped socket");
+
+        let sent = server.join().expect("the fake store runs to completion");
+        assert_eq!(
+            sent,
+            vec![
+                AUTH.to_vec(),
+                SELECT.to_vec(),
+                GET.to_vec(),
+                AUTH.to_vec(),
+                SELECT.to_vec(),
+                GET.to_vec(),
+            ],
+            "the dial is applied to the reconnection too, or a dropped socket comes back \
+             unauthenticated and pointed at a database nobody configured"
+        );
+        assert_eq!(
+            (dialled, redialled),
+            (Some(b"hi".to_vec()), Some(b"hi".to_vec())),
+            "both answers came from the store the dial names"
+        );
+    }
+
+    /// A store configured with neither a credential nor an index dials exactly
+    /// as it did: the first bytes on a fresh connection are the command itself.
+    ///
+    /// That is every deployment on this chain today, so a handshake sent
+    /// unconditionally would be a round trip added to every cold connection in
+    /// the fleet to apply nothing.
+    #[test]
+    fn a_store_with_no_credential_and_no_index_sends_no_handshake() {
+        const GET: &[u8] = b"*2\r\n$3\r\nGET\r\n$1\r\nk\r\n";
+
+        let (listener, address) = listening();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("the client dials once");
+            let first = read_exactly(&mut stream, GET.len());
+            stream.write_all(b"$-1\r\n").expect("the null reply");
+            first
+        });
+
+        let mut connection =
+            Connection::new(Dial::to(Target::Tcp(address)), Duration::from_secs(5));
+        assert_eq!(connection.get(b"k").expect("absence is an answer"), None);
+
+        let first = server.join().expect("the fake store runs to completion");
+        assert_eq!(
+            first, GET,
+            "a store with nothing to apply spends no round trip applying it"
+        );
     }
 
     /// `rule:config/unix-scheme-in-a-url-and-a-bare-path-in-a-host` on the
