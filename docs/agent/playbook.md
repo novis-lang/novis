@@ -2262,6 +2262,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   string looks like it should work under `--locate`, where it is looked up as a symbol whose name is
   that whole string. Pass a `re:` target as an ordinary positional — it prints the matching line alone
   — and keep `--locate` for names. [until: gone tools/peek.py:--locate]
+- **A handoff item's anchor can name the right check and the wrong column, because a fixture read
+  for its key list says nothing about its column types.** An item calling `every_construct`'s indexed
+  `token` column text needing a prefix meant an unreachable gap: `crates/nvs-db/src/ddl.rs:1201`
+  declares it `ScalarType::Uuid`, and `crates/nvs-db/src/schema.rs:684` refuses an unbounded column
+  in any key. Read the column declarations before budgeting a slice a past session anchored, and
+  `git log -- <file>` a construct said to be missing — a removed one names why it went.
+  [until: reviewed 2026-09-17]
 
 ## Running things
 
