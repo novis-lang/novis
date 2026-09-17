@@ -2,48 +2,52 @@
 
 ## State
 
-**Goal `decided-closures`, stage 2 — the runtime and the lowering.** Stage 1's floor is the closed goal
-`cache-shared-dial`'s checks, and they pass.
+**Goal `decided-closures`, stage 2 — the runtime and the lowering.** Stage 1's floor is the closed
+goal `cache-shared-dial`'s checks, and they pass. Both of stage 2's own checks are green; what keeps
+the goal open is its **owner gate**, and two stage 2 items are still gaps naming it.
 
-The `otlp` push half is **built for both signals**, so `crates/nvs-runtime/src/metrics.rs` gap 1 is
-deleted and `[metrics] endpoint` is read rather than tagged `[unread:]`. One
-`crates/nvs-server/src/otlp.rs` now carries both: `Signal` picks the path a base URL takes
-(`/v1/traces`, `/v1/metrics`) and the key a refusal quotes, `delivered` is the one dialler both use,
-and `push_registry_on_this_core` gathers `nvs_runtime::metrics::every_core` every `INTERVAL` and
-merges it through `crate::prometheus::merged` — the scrape's own arithmetic, now `pub(crate)`, so
-there is no second copy of it. `nvs serve` arms that task on the worker the scrape listener and the
-span drain already go to, and `metrics_collector` in `crates/nvs-cli/src/serve.rs` is
-`trace_collector`'s twin on the other block.
+`crates/nvs-runtime/src/routes.rs` gap 1 is **struck as a stated bound**, its `Decided:` sentence
+having asked for a measurement first. The walk is a comparison over every row of the right verb and
+stays one: the module now says so as prose, and the figure's home is
+`benches/abi-probe/benches/routing.rs` — a new criterion target with hit arms at 8, 64 and 512 rows
+plus a miss at the largest, so the slope between two sizes is the per-row cost with the path split
+cancelled out. `benches/abi-probe/tests/perf_guards.rs`'s
+`a_route_table_walk_costs_a_fraction_of_the_request_it_rides_in` fails a build when a row leaves
+that cost class, and `benches/abi-probe/shared/routes.rs` is the one table both of them build, on
+the `shared/isolate.rs` pattern beside it.
 
-Both of stage 2's checks are green. What keeps the goal open is its **owner gate**, not a check:
-three stage 2 items are still gaps naming this goal. Nothing is blocked.
+The denominator is `benches/serve-proxied.json`'s `nvs-serve-direct` arm, **read off disk rather
+than re-run**: that bench is a Docker ratio against php-fpm over a one-route `hello`, so no run of
+it at any table size could have shown a table's length. Nothing is blocked.
 
 ## Next group
 
-**Stage 2: the three gaps the stage's checks do not name** — one file set:
-`crates/nvs-runtime/src/`, `crates/nvs-ir/src/`.
+**Stage 2: the two gaps the stage's checks do not name** — one file set:
+`crates/nvs-runtime/src/`, `crates/nvs-ir/src/`, and `crates/nvs-host/src/` for the first item.
 
-- [ ] **`crates/nvs-runtime/src/routes.rs:83` gap 1 — measure the linear walk before replacing it** —
-      the gap is `rule:routing/path-grammar`'s trie against the scan that is there. The goal's own
-      sentence makes this measure-first: run `benches/serve-proxied.json` and build the trie only if
-      the walk shows, and otherwise strike the gap as a stated bound naming where the figure lives
-      (`docs/agent/conventions.md` § *A code comment* forbids the figure itself in the comment).
-      `crates/nvs-runtime/src/routes.rs:83` is the gap and the walk it describes is beside it.
 - [ ] **`crates/nvs-ir/src/lib.rs:614` gap 18 — a throw escaping an abandoned generator's `finally`
-      is reported and replaces nothing** — through the escalation ladder rather than dropped, per
-      `rule:errors/propagation` and `rule:errors/throw-is-not-slower` (the raise is what allocates,
-      and this path raises once). `crates/nvs-ir/src/lib.rs:614` is the gap.
+      reaches the escalation ladder** — `rule:errors/escalation-ladder`, whose tier 3 is
+      `crates/nvs-host/src/ladder.rs:90` and therefore **above** `nvs-runtime`: the decided answer
+      ("report it through the ladder, without replacing anything") is a hook, not a call. The throw
+      is dropped at `crates/nvs-runtime/src/ctx/error.rs:324`, whose one caller is
+      `crates/nvs-runtime/src/object.rs:3367`. Tier 4 is already on this side —
+      `crates/nvs-runtime/src/floor.rs:110` builds the record from a `Thrown` and
+      `crates/nvs-runtime/src/floor.rs:258` writes it — so what the hook adds over calling those two
+      directly is tier 3, and `crates/nvs-cli/src/main.rs:2328` is the existing caller whose shape
+      an installed hook has to agree with.
 - [ ] **`crates/nvs-runtime/src/record.rs:48` gap 1 — a `secret` into an array element or a shape
-      field is refused at compile time** — the walk that would meet the value is here and the
-      refusal is `nvs-types`'s, so this one leaves the file set: expect
-      `crates/nvs-types/src/` beside `crates/nvs-runtime/src/record.rs:48`. Take it last, or give
-      it its own group.
+      field is refused where it is written** — `rule:security/secret-qualifier`. Its `Decided:`
+      sentence is a **compile-time** refusal, so the build is `crates/nvs-types/src/` and not this
+      crate: it is the same work as stage 3's failing acceptance check
+      `a_secret_stored_into_an_array_element_is_refused_at_compile_time`, and the record walk's item
+      is struck once the checker refuses. `crates/nvs-runtime/src/record.rs:48` is the gap and
+      `nvs_types::expr::quals::reject_secret_debug_argument` is the refusal it is modelled on.
 
 ## Backlog
 
-- Stage 3 opens at `crates/nvs-diagnostics/src/embedded.rs:30` gap 1 — `docs/agent/loop-goal.md`
-  § *Stage 3*.
-- Nothing builds this crate without the `exporter` feature, so the two `#[cfg(not(...))]` arms in
-  `crates/nvs-cli/src/serve.rs` are compiled by no check — `tools/verify.py` owns whether that is
-  worth a pass.
-- `docs/decisions/0186.md` § *Investigation* stays frozen; it predates both pushers existing.
+- The `[context] modules` manifest reaches no `nvs-host` path, so the ladder above did not print —
+  `docs/agent/loop-goal.toml`, and the next item needs it.
+- Stage 3's three `[[check]]` blocks are the goal's earliest red ones — `docs/agent/loop-goal.toml:11568`.
+- `benches/serve-proxied.json` has no large-table arm; the walk's figure is a microbench by
+  necessity — `benches/abi-probe/benches/routing.rs` owns why.
+- 39 gaps still name this goal outside stage 2 — `python tools/owners.py --closes decided-closures`.

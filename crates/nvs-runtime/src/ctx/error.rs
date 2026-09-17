@@ -317,9 +317,10 @@ impl Ctx {
     /// (`rule:iteration/generators`) —
     /// and a throw escaping it is where this differs from PHP, which reports
     /// one as uncaught. Surfacing it wants
-    /// `rule:errors/escalation-ladder`'s ladder,
-    /// which does not exist yet; until it does, the safe half is the half that
-    /// is kept.
+    /// `rule:errors/escalation-ladder`'s ladder, whose tier 3 is
+    /// `nvs_host::ladder::escalate` — above this crate, and so reachable from a
+    /// release only through a hook nothing installs here yet. Until one exists,
+    /// the safe half is the half that is kept.
     pub(crate) fn with_pending_set_aside<R>(&mut self, body: impl FnOnce(&mut Self) -> R) -> R {
         let saved = self.pending.take();
         // The mark travels with the failure it describes, or the throw put back
