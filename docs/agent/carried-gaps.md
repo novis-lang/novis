@@ -149,17 +149,6 @@ where taking it is the work and the code that follows it is not.
   `nvs queue migrate` converge goal `queue-purge` takes its `tag` column through.
   `crates/nvs-stdlib/src/queue.rs` gaps 3 and 4.
   [until: gone crates/nvs-stdlib/src/queue.rs:deployment that never ran]
-- **Bounds for a pool no `[db]` block describes.** `[db.<name>.pool]` reaches every connection whose
-  settings hash is that block's, and the unscoped `[db] pool = false` reaches every connection the
-  process opens, but a literal naming an endpoint an operator wrote no block for — or naming a hashed
-  field the block left implicit, a written `port` where the block took the server's default — is a
-  second settings key and so a second pool, at `PoolBounds::DEFAULT`. What has to be decided is where
-  bounds for a key only the *program* knows would be written: an option on `open`, a block that
-  matches a pattern rather than a name, or nowhere, on the grounds that a deployment wanting its own
-  bounds writes its own block. It is `rule:security/db-pool-reset-is-a-boundary`'s call rather than a
-  shape `nvs-stdlib` may pick, and goals `database` and `schema` are retired with M8's database half
-  carried, so nothing claims it. `crates/nvs-stdlib/src/db/mod.rs` gap 1.
-  [until: gone crates/nvs-stdlib/src/db/mod.rs:naming an endpoint an operator wrote no block for]
 - **`Db\DbError` is outside spec § 10's error tree, so a database refusal carries no `issues`.** The
   class declares all five of § 18's values and `RuntimeError` is its parent, but `issues` is declared
   by `ParseError` alone, so `queryAs`'s per-column refusals are thrown as a `ParseError` naming the

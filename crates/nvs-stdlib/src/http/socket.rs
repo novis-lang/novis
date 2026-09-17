@@ -1427,18 +1427,19 @@ mod tests {
     /// alone: it speaks every few milliseconds under an `idle` of seconds, so a
     /// socket that only ever checked the silence would read this conversation as
     /// endless. The count of what arrived first is what says it was talking.
+    ///
+    /// The lifetime is a second rather than a fraction of one because it runs
+    /// from before the handshake, which is a real connection made while every
+    /// other test binary is running: a bound tight enough to expire inside that
+    /// upgrade would end a conversation the peer never got to start, and the
+    /// script talks for long enough that the lifetime is still what ends it.
     #[test]
     fn socket_max_duration_ends_an_endless_conversation() {
-        let script = (0..50)
+        let script = (0..300)
             .flat_map(|_| [Say::Text("tick"), Say::Quiet(Duration::from_millis(20))])
             .collect();
         let (at, served) = talking_origin(None, script);
-        let mut open = opened(
-            at,
-            Duration::from_secs(5),
-            Duration::from_millis(300),
-            1 << 20,
-        );
+        let mut open = opened(at, Duration::from_secs(5), Duration::from_secs(1), 1 << 20);
 
         let mut arrived = 0;
         let refused = loop {
