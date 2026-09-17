@@ -2,43 +2,40 @@
 
 ## State
 
-**Goal 64 — a `bytes` parameter binds on every driver — has just started; nothing of it has landed yet.** Goal `core-class-tests`'s whole list is this goal's Stage 1 floor.
+**Goal `tds-bytes` — stages 2 and 3 have landed.** A `bytes` bound on SQL Server goes out as a
+`varbinary` parameter: `crates/nvs-db/src/tds/rpc.rs:178`'s `Bound` is the form a bound value carries,
+`declarations` gives a binary marker its own `varbinary` entry, and `binary_param`
+(`crates/nvs-db/src/tds/rpc.rs:517`) writes the octets as themselves. `crates/nvs-db/src/tds/mod.rs`
+owns no gap now and the `carried-gaps.md` § *Owned* row is struck.
 
-What is settled before the first session: the read half is built — `decode_column`
-(`crates/nvs-db/src/tds/value.rs`) answers `varbinary`, `binary` and `image` as `bytes` — and so is the
-mechanism a declaration that varies with the bound *values* needs. `TdsPlan::declared`
-(`crates/nvs-db/src/tds/plan.rs:38`) carries the `@params` text a plan was compiled against and compares
-it on every lookup, unpreparing a plan a call does not fit, which is what `declarations`
-(`crates/nvs-db/src/tds/rpc.rs:315`) already needed to widen a marker to `nvarchar(max)`. A session must
-not re-decide two things because of that: ADR 0067 § 1's cache key — SQL text plus expansion arity —
-stays as it is for every driver, and a `bytes` is never rendered into the SQL text as a `0x…` literal
-(the goal's *Standing decisions*).
+The form travels from `encode` to `bind` as one `BINARY_MARK` octet in front of the value —
+`crates/nvs-db/src/tds/rpc.rs:106-115` owns why `0xFF` makes the two forms disjoint rather than
+conventional, and why `Encoder::Wire`'s shared `fn(Value) -> Option<Vec<u8>>` leaves no other channel.
+Stages 2 and 3 landed as one commit on purpose: the goal's *Standing decisions* says the refusal is
+closed in `encode` and on the wire together or in neither.
+
+What is left is stage 4 alone — the round trip pinned on the scripted server and on a real one.
 
 ## Next group
 
-**Stage 2: the bound form** — one file set: `crates/nvs-db/src/tds/rpc.rs`, `crates/nvs-db/src/pg.rs`.
+**Stage 4: the round trip, scripted and real** — one file set: `crates/nvs-db/src/tds/plan.rs`,
+`crates/nvs-db/src/tds/testing.rs`, `crates/nvs-db/tests/handshake.rs`.
 
-- [ ] **A bound value says which form it is** — `crates/nvs-db/src/tds/rpc.rs:153`'s `bind` answers
-      `Vec<Option<Vec<u8>>>` of UCS-2 text, which is why every marker can share one `nvarchar`
-      declaration and why a `bytes` has nowhere to be. The element gains its form — text or binary —
-      and nothing else about the list moves. `rule:core-classes/db-column-types` is what the two forms
-      answer to.
-- [ ] **`encode` stops refusing a `bytes`** — `crates/nvs-db/src/tds/rpc.rs:452` reads the value's tag
-      and returns `InvalidInput` for a `bytes`; that arm produces the binary form instead, which is
-      where the decision is made once and before anything is written. `crates/nvs-db/src/pg.rs:1817` is
-      the driver that already does it, and the shape to agree with rather than invent.
-- [ ] **Both halves of the refusal go together** — `crates/nvs-db/src/tds/rpc.rs:372`'s `text_param`
-      and `:269`'s `text_of` state the same refusal one layer down, and a value that gets past one and
-      not the other is a value this driver sends wrong (the goal's *Standing decisions*).
+- [ ] **A bound `bytes` comes back equal, over the scripted server** — a case beside
+      `crates/nvs-db/src/tds/plan.rs:901` that binds a marked value and answers a `varbinary` column
+      carrying the same octets, so the write half and `decode_column`'s read half are one assertion.
+      `crates/nvs-db/src/tds/testing.rs:305`'s `binary_type` builds the column and `plp_value` the
+      body. `rule:core-classes/db-column-types`.
+- [ ] **The same claim against a real SQL Server** — `crates/nvs-db/tests/handshake.rs:474`'s `mssql()`
+      gate and `mssql_run` at `crates/nvs-db/tests/handshake.rs:546`, run under `python
+      tools/db-matrix.py --all`. Break the new case's own assertion once and re-run: the tool reports
+      `ok` for a case that never ran (playbook § *Running things*). `rule:core-classes/db-one-api`.
+- [ ] **Then the goal is met** — `python tools/verify.py --doc`, `python tools/owners.py --closes
+      tds-bytes` and `python tools/playbook.py --closes tds-bytes` before `DONE`. The owner gate is
+      already green: `crates/nvs-db/src/tds/mod.rs:86` is where gap 1 was.
 
 ## Backlog
 
-- **Stage 3, the declaration and the wire** — `crates/nvs-db/src/tds/rpc.rs:315`'s `declarations` gives
-  a binary marker its own `varbinary` entry and `text_param` writes it as itself; the plans are told
-  apart by the comparison `crates/nvs-db/src/tds/plan.rs:38` already makes. Same file set as stage 2.
-- **Stage 4, the round trip** — `crates/nvs-db/src/tds/testing.rs`'s scripted server for the wire
-  shape, then `python tools/db-matrix.py --all` for the claim that a real SQL Server accepts it.
-- **Stage 0's five sentences** — each is rewritten in the slice that makes it wrong, not after it; the
-  goal's *Stage 0* lists them with their files, and `crates/nvs-db/src/tds/mod.rs:88` gap 1 is the last
-  of them.
-- When this goal's last check goes green the driver takes goal `gap-zero`.
+- A `.nvst` case binding a `bytes` through `Core\Db` on every driver, if none exists — `python
+  tools/gaps.py` ranks it; the other four drivers already bind one.
+- `Core\Db::stream` and the schema half of § 9's binary row stay `gap-zero`'s — `docs/agent/carried-gaps.md`.
