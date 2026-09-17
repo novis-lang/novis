@@ -209,6 +209,31 @@
 //! no session state to leak, and a rollback of whatever transaction is open is
 //! the whole of it.
 //!
+//! **Pool bounds are a block's to state, and a key no block wrote takes the
+//! defaults.** [`settings_bounds`] reads the `[db.<name>.pool]` of the block
+//! whose settings hash *is* this connection's — [`block_settings_key`] builds
+//! each block's key through [`settings_key`] itself, so the pool and the memo
+//! cannot come to disagree about what "the same connection" is — and the
+//! unscoped `[db] pool = false` reaches every connection the process opens,
+//! which is the audited deployment's requirement and the one thing a per-block
+//! key could never state. **The limit is that a key no block describes takes
+//! `PoolBounds::DEFAULT`, and is told nothing about it**: an `open` naming an
+//! endpoint an operator wrote no block for, and a literal differing from its
+//! block in any hashed field — a written `port` where the block left the
+//! server's default implicit — are each a second key and so a second pool at
+//! the defaults. A deployment that wants bounds for one writes the block, and
+//! a program has no surface on which to state its own: where bounds are placed
+//! is `rule:security/db-pool-reset-is-a-boundary`'s question and the operator's
+//! answer, not this module's.
+//!
+//! `rule:core-api/shape-arms-are-disjoint`'s *exactly one arm accepts it* **is**
+//! the checker's rule — `nvs_types::expr::args`' `select_arm` — so a `host`
+//! written beside `Driver::Sqlite` is the compile error § 18 says it is, and a
+//! key only one arm requires is required of the call that selected that arm.
+//! What reaches [`settings_driver`] is therefore a literal one arm has already
+//! accepted, which is why it reads the discriminant before it reads anything
+//! else and why every slot it then reads is filled.
+//!
 //! **A row is hydrated where the call was written, and refused there too.**
 //! [`hydrate`] is the walk over [`nvs_runtime::ClassDesc::db_codec`], reached
 //! per result set on `queryAs<T>` and per step on `streamAs<T>`, and every way
@@ -226,62 +251,35 @@
 //! the compiling pass as the backstop for a class built by hand, and each says
 //! so. `crate::json` states the same division at the document door.
 //!
-//! # Known gaps
+//! # A server's refusal is a `DbError`, and a shape mismatch is a `ParseError`
 //!
-//! 1. **An `open` describing an endpoint no block describes still takes the
-//!    default bounds.** The operator's half of `rule:security/db-pool-reset-is-a-boundary` has landed for the
-//!    rest: [`settings_bounds`] reads the `[db.<name>.pool]` of the block whose
-//!    settings hash *is* this connection's — [`block_settings_key`] builds each
-//!    block's key through [`settings_key`] itself, so the pool and the memo
-//!    cannot come to disagree about what "the same connection" is — and the
-//!    unscoped `[db] pool = false` reaches every connection the process opens,
-//!    which is the audited deployment's requirement and the one thing a
-//!    per-block key could never state. What is left is narrower: a literal
-//!    naming an endpoint an operator wrote no block for, and a literal that
-//!    differs from the block in any hashed field — a written `port` where the
-//!    block left the server's default implicit — is a second key and so a
-//!    second pool, at `PoolBounds::DEFAULT`. Where bounds for a key only the
-//!    program knows would be *written* is an `rule:security/db-pool-reset-is-a-boundary` question and not a
-//!    shape this module may pick on its own.
+//! A refusal the server itself made is thrown as
+//! `nvs_runtime::ThrownClass::DbError` ([`statement_failure`]), so a `catch`
+//! can name the database instead of `RuntimeError` — which it still is, being
+//! its parent, so nothing written against the old class stops working. `kind`
+//! is a slot and it carries **the kind the server chose**:
+//! `nvs_hir::errors::OWN_PROPERTIES` declares it, `nvs_types::error_lib` types
+//! it as the registered enum [`ERROR_KIND`], the synthesized constructor seeds
+//! `Other` for a `DbError` a program built itself, and [`statement_failure`]
+//! writes the driver's own classification over it through
+//! `nvs_runtime::Fault::thrown_with_slots`, and the raw `sqlState` and
+//! `constraint` beside it where a server worded the refusal — the second only
+//! where the condition names one, since most do not. `sql` is the statement as
+//! the caller spelled it, absent only where the member had no caller-written
+//! statement to name — § 7's `BEGIN` and `COMMIT`. `driverCode` is the vendor
+//! integer a server sends beside its `SQLSTATE` — MySQL's `1062` — and stays
+//! `null` on PostgreSQL, whose `SQLSTATE` is its only code. A failure of the
+//! *wire* rather than of the statement stays an `IOError`: § 8's class is the
+//! server's answer, not the socket's.
 //!
-//!    `rule:core-api/shape-arms-are-disjoint`'s *exactly one arm accepts it* **is** the checker's rule —
-//!    `nvs_types::expr::args`' `select_arm` — so a `host` written beside
-//!    `Driver::Sqlite` is the compile error § 18 says it is, and a key only one
-//!    arm requires is required of the call that selected that arm. What reaches
-//!    [`settings_driver`] is therefore a literal one arm has already accepted,
-//!    which is why it reads the discriminant before it reads anything else and
-//!    why every slot it then reads is filled.
-//!    Decided: Nowhere: the defaults apply, and a deployment that wants bounds writes a block — No new
-//!    surface; mismatched literals silently get defaults unless a first-use notice is added.
-//!    — owner: decided-closures
-//! 2. **`Db\DbError` is not in spec § 10's error tree, so it declares no
-//!    `issues`.** A per-column refusal is thrown as a `ParseError` naming the
-//!    columns instead, because that is the class the property is declared on,
-//!    and what has to be decided is whether `DbError` joins the tree — § 10
-//!    giving it that property too — or the split stands. What the class *does*
-//!    declare is all five of § 18's values.
-//!    A refusal the server itself made is thrown as
-//!    `nvs_runtime::ThrownClass::DbError` ([`statement_failure`]), so a `catch`
-//!    can name the database instead of `RuntimeError` — which it still is,
-//!    being its parent, so nothing written against the old class stops
-//!    working. `kind` is a slot and it carries **the kind the server chose**:
-//!    `nvs_hir::errors::OWN_PROPERTIES` declares it, `nvs_types::error_lib`
-//!    types it as the registered enum [`ERROR_KIND`], the synthesized
-//!    constructor seeds `Other` for a `DbError` a program built itself, and
-//!    [`statement_failure`] writes the driver's own classification over it
-//!    through `nvs_runtime::Fault::thrown_with_slots`, and the raw `sqlState`
-//!    and `constraint` beside it where a server worded the refusal — the second
-//!    only where the condition names one, since most do not. `sql` is the
-//!    statement as the caller spelled it, absent only where the member had no
-//!    caller-written statement to name — § 7's `BEGIN` and `COMMIT`.
-//!    `driverCode` is the vendor integer a server sends beside its `SQLSTATE` —
-//!    MySQL's `1062` — and stays `null` on PostgreSQL, whose `SQLSTATE` is its
-//!    only code. A failure of the *wire* rather than of the
-//!    statement stays an `IOError`: § 8's class is the server's answer, not the
-//!    socket's.
-//!    Decided: Split stands: a shape mismatch is a ParseError, as for Json::decodeAs — One class for
-//!    'data does not fit the type' across Json and Db, and no spec change.
-//!    — owner: decided-closures
+//! **`Db\DbError` sits outside spec § 10's error tree, and that is the bound**:
+//! it declares all five of § 18's values and no `issues`, because `issues` is a
+//! property of the tree's own classes. So a refusal about a *column* — a cell
+//! the declared type does not fit — is thrown as a `ParseError` naming the
+//! columns, which is the class `crate::json`'s `decodeAs` throws for the same
+//! question. One class answers "this data does not fit that type" at both
+//! doors, and the split is the point: a `DbError` is what the server said, a
+//! `ParseError` is what the shape said.
 
 use std::net::{SocketAddr, ToSocketAddrs as _};
 
