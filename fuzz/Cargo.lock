@@ -1327,6 +1327,7 @@ dependencies = [
 name = "nvs-config"
 version = "0.0.1"
 dependencies = [
+ "base64 0.22.1",
  "blake3",
  "jiff",
  "libc",
@@ -1400,7 +1401,9 @@ dependencies = [
 name = "nvs-runtime"
 version = "0.0.1"
 dependencies = [
+ "base64 0.22.1",
  "bitflags 2.13.1",
+ "chacha20poly1305",
  "jiff",
  "libc",
  "nvs-config",
