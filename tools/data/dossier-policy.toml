@@ -24,6 +24,20 @@
 # ---------------------------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------------------------
+# What `--perf-report` lists under Candidates. Advisory, never a gate: a row is where a person
+# with a profiler looks first. `outlier_factor` is how far above its group's median a member's
+# `units` figure sits before it is listed; `ceiling.<complexity>` is an absolute `units` figure
+# a bench declaring that complexity is listed past, whatever its neighbours cost. The unit is
+# one iteration of benches/members/_calibration/unit.nvs. Empty means tools/dossier.py's REPORT.
+# ---------------------------------------------------------------------------------------------
+
+[report]
+outlier_factor = 5
+
+[report.ceiling]
+constant = 100
+
+# ---------------------------------------------------------------------------------------------
 # Features excused from a proof.
 # ---------------------------------------------------------------------------------------------
 

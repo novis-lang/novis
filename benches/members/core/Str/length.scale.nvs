@@ -1,0 +1,24 @@
+<?nvs
+// The same count over labels ten times as long -- what `length.nvs` costs when the input grows.
+// bench: iterations 100000
+// bench: scale 10
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $labels = [
+            "order order order order order order order order order order",
+            "customer customer customer customer customer customer customer customer customer customer",
+            "shipping address shipping address shipping address shipping address shipping address shipping address shipping address shipping address shipping address shipping address",
+            "ünïcödé ünïcödé ünïcödé ünïcödé ünïcödé ünïcödé ünïcödé ünïcödé ünïcödé ünïcödé",
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total + Core\Str::length($labels[($total % 4) as int]);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(100000), "\n";

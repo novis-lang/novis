@@ -10,7 +10,7 @@ shipped feature still owe?** The four proofs, one row each in every table this p
 |---|---|---|
 | `tests` | `tests/conformance/`, `tests/differential/`, `crates/**/src/**.rs` | the behaviour pinned from Novis *and* from Rust, every relevant path |
 | `examples` | `docs/examples/` | small, self-contained, plainly commented programs a reader learns from -- synced to the website |
-| `perf` | `benches/members/` + `docs/perf/members.ndjson` | one measured figure per feature, so a change can be re-measured against **us**, never against PHP |
+| `perf` | `benches/members/` + `docs/perf/members.ndjson` | four counts and one clock per feature: what the program did, the same on any machine, and how long it took on this one -- so a change is re-measured against **us**, never against PHP |
 | `hostile` | `tests/hostile/` | the file written to break it -- panic, leak, unbounded growth, whatever an attacker would reach for |
 
 The roster is **derived, never listed**. `nvs meta --json` names every registered class, member,
@@ -56,10 +56,10 @@ afford to run is a check nobody runs:
 
 * **The audit and the gate never execute anything.** One `nvs meta --json`, one walk of the four
   trees, one `git log -1` per implementing file. Seconds, whatever the roster's size.
-* **Perf is re-measured only where the implementation moved.** The `impl_commit` currency rule
-  above is the whole mechanism: an untouched member is never re-timed, so a sweep after a change to
-  one crate measures that crate. `--record-perf` measures only what has no current figure unless
-  `--force`, so it is safe to run at the end of every slice.
+* **Perf is re-measured only where the implementation moved.** The `impl_hash` currency rule
+  below is the whole mechanism: an untouched member is never re-timed, so a sweep after a change to
+  one file measures that file's features. `--record-perf` measures only what has no current figure
+  unless `--force`, so it is safe to run at the end of every slice.
 * **A figure from any machine satisfies the gate.** A fresh clone on a new box owes nothing it
   already has a current record for -- the ledger travels with the repository, and re-taking a
   number to learn what the last machine already recorded proves nothing about the language. Only
@@ -140,19 +140,41 @@ in `tools/data/dossier-policy.toml` (`[skip]` for a proof that cannot exist, wit
 skip carries its reason into the audit, so "this cannot be benchmarked" and "nobody wrote one" never
 look the same.
 
-## Why perf is gated on the implementation's commit rather than re-measured
+## What a perf record holds, and which half of it travels
+
+A record is **four counts and one clock**, taken in one sweep over the same bench program.
+
+The counts -- statements executed, calls made, allocations, bytes -- come from `nvs run --count`,
+which reads `rule:testing/debug-probes`'s probe sites in `rule:testing/bench-counters`'s counting
+mode plus the allocator's own per-thread counters. They are the same on every machine and every
+day for the same program and binary, so the report diffs them across any two records, and a bench
+may **declare what it expects** -- `// bench: allocations 0`, `// bench: calls 1` -- which
+`--record-perf` checks on the very first run, with no history to compare against. A count sees
+what the program did and not how long it took: a `Core` member is one helper call however much
+work it does inside, so a member that got slower without allocating is invisible to every count.
+
+The clock is wall clock on the machine that took it, and **not comparable across machines**, which
+is `rule:testing/perf-two-mechanisms`'s whole finding. Every record carries a machine fingerprint,
+the fastest and the median of its reps, and a `ratio` against a calibration program measured in the
+same sweep. Same fingerprint: the nanoseconds are the honest number, read against the spread the
+median shows. Different machines: only the ratio travels, and only to about a tenth. The report
+refuses to diff a clock across fingerprints rather than quietly printing a delta that means nothing.
+The one wall-clock check that does travel is a **ratio within one run**: a bench that declares
+`// bench: complexity constant` and has a sibling `<name>.scale.nvs` declaring `// bench: scale K`
+is timed at both sizes seconds apart, and a constant-time member that costs K times more on K times
+the input is wrong on any machine.
+
+## Why a figure is current against the implementing file's text, not a commit
 
 Measurement needs an idle machine and the acceptance test runs after every session, so a sweep that
 re-times 500 features per session would measure the driver's own build more than the language. Every
-record therefore carries `impl_commit` -- the last commit that touched the file implementing that
-feature -- and the gate passes while that value still matches. Change the implementation and its
-figure goes stale on the spot; change something else and nothing is re-measured.
-
-**Wall clock is not comparable across machines**, which is `rule:testing/perf-two-mechanisms`'s
-whole finding, so every record carries a machine fingerprint and a `ratio` against a calibration
-program measured in the same sweep. Same fingerprint, same commit: the nanoseconds are the honest
-number. Different machines: only the ratio travels, and only to about a tenth. The tool refuses to
-diff across fingerprints rather than quietly printing a delta that means nothing.
+record therefore carries `impl_hash` -- the implementing file's text with its trailing `mod tests`
+cut off, hashed -- and the gate passes while that value still matches. Change the implementation and
+its figure goes stale on the spot; add a test to the same file, or change anything else, and nothing
+is re-measured. The text and not the commit, because the fan-out splices a goal's Rust tests into
+the implementing file *before* the parent measures, and a figure keyed on the commit would go stale
+at the wrap that commits them, every session re-owing what it had just taken. `impl_commit` is still
+recorded, as where to look, and `binary` is the hash of the `nvs` that ran.
 """
 
 from __future__ import annotations
@@ -262,6 +284,31 @@ COVERS_RE = re.compile(r"(?://|#)\s*covers:\s*(.+)")
 UNIMPL_RE = re.compile(r"^(?://|#)\s*requires:\s*unimplemented", re.M)
 #: `// bench: iterations 200000` inside a bench program.
 ITER_RE = re.compile(r"(?://|#)\s*bench:\s*iterations\s+([0-9_]+)")
+#: `// bench: allocations 0`, `// bench: calls 1`, `// bench: statements 3`, `// bench: bytes 0` --
+#: what the bench declares it expects per operation, in `rule:testing/bench-counters`'s counts.
+#: `--record-perf` checks each on every run, the first included: a count needs no history to be
+#: judged. Met to within a hundredth per operation, so a one-off set-up allocation over hundreds of
+#: thousands of iterations rounds away and a per-call one does not.
+EXPECT_RE = re.compile(r"(?://|#)\s*bench:\s*(allocations|calls|statements|bytes)\s+([0-9_]+)")
+#: `// bench: complexity constant` in a bench, and `// bench: scale 10` in its sibling
+#: `<name>.scale.nvs`, whose input is that many times the bench's. The two are timed in the same
+#: sweep and the ratio of their per-operation figures is the one wall-clock check that holds on any
+#: machine, because both numbers came from the same one seconds apart.
+COMPLEXITY_RE = re.compile(r"(?://|#)\s*bench:\s*complexity\s+(constant|linear)")
+SCALE_RE = re.compile(r"(?://|#)\s*bench:\s*scale\s+([0-9._]+)")
+#: The one line `nvs run --count` prints on stderr at exit.
+COUNT_LINE_RE = re.compile(r"^count: statements=(\d+) calls=(\d+) allocations=(\d+) bytes=(\d+)",
+                           re.M)
+COUNTS = ("statements", "calls", "allocations", "bytes")
+#: How far a scaling ratio may sit from what its declared complexity predicts before the record is
+#: refused: order-of-magnitude, like `rule:testing/perf-two-mechanisms`'s per-PR guards, because a
+#: same-run wall-clock ratio is honest to a factor and not to a percent.
+SCALE_TOLERANCE = 3.0
+#: `[report]` in `tools/data/dossier-policy.toml`, and its defaults. `outlier_factor` is how far
+#: above its group's median a member's `units` figure sits before the report lists it as a
+#: candidate; `ceiling` is an absolute `units` figure per declared complexity, past which a member
+#: is listed whatever its neighbours cost. Both are advisory lines in the report and never a gate.
+REPORT = {"outlier_factor": 5.0, "ceiling": {}}
 #: `// hostile: timeout-ms 4000`
 TIMEOUT_RE = re.compile(r"(?://|#)\s*hostile:\s*timeout-ms\s+([0-9]+)")
 #: `// hostile: expect-refusal` -- this attack's whole point is that the compiler says no.
@@ -391,6 +438,17 @@ def load_policy(no_perf: bool = False) -> tuple[dict, dict]:
         for k in policy:
             policy[k]["perf"] = False
     return policy, skips
+
+
+def load_report_policy() -> dict:
+    """`REPORT` with the `[report]` table of the policy file applied."""
+    out = {"outlier_factor": REPORT["outlier_factor"], "ceiling": dict(REPORT["ceiling"])}
+    if POLICY_FILE.exists():
+        table = tomllib.loads(read(POLICY_FILE)).get("report", {})
+        if "outlier_factor" in table:
+            out["outlier_factor"] = float(table["outlier_factor"])
+        out["ceiling"].update({k: float(v) for k, v in table.get("ceiling", {}).items()})
+    return out
 
 
 def shown_proofs(policy: dict) -> tuple[str, ...]:
@@ -717,12 +775,13 @@ def ledger_records() -> dict[str, list[dict]]:
     """Every perf record, grouped by feature, oldest first. An append-only ledger is the history;
     this is it, and the callers pick what they need out of each list.
 
-    **The gate reads records from any machine and the report reads only this one's**, and that split
-    is the whole point. A figure taken on a colleague's Linux box at the same `impl_commit` is a
-    measurement of the same code: the feature is documented, and re-taking it here would prove
-    nothing about the language. But a *delta* between the two boxes is meaningless, so
-    `--perf-report` never crosses a fingerprint. Without this split a fresh clone owes 759 figures
-    it already has, and the first thing anyone would do is turn the proof off.
+    **The gate reads records from any machine and the report's clock columns read only this
+    one's**, and that split is the whole point. A figure taken on a colleague's Linux box against
+    the same `impl_hash` is a measurement of the same code: the feature is documented, and re-taking
+    it here would prove nothing about the language. Its counts are the same ones this box would
+    take; its *clock* is not, so `--perf-report` never crosses a fingerprint on a clock column.
+    Without this split a fresh clone owes 759 figures it already has, and the first thing anyone
+    would do is turn the proof off.
     """
     if not LEDGER.exists():
         return {}
@@ -768,8 +827,8 @@ def collect(entries: list[Entry]) -> dict[str, Proofs]:
         records = perf.get(e.id, [])
         mine = [r for r in records if r.get("machine") == me]
         p.perf = mine[-1] if mine else None
-        current = e.impl_file and last_commit(e.impl_file)
-        fresh = [r for r in records if not current or r.get("impl_commit") == current]
+        current = e.impl_file and impl_hash(e.impl_file)
+        fresh = [r for r in records if not current or r.get("impl_hash") == current]
         p.perf_any = fresh[-1] if fresh else None
         out[e.id] = p
     return out
@@ -795,10 +854,10 @@ def owed(entry: Entry, proofs: Proofs, policy: dict, skips: dict) -> dict[str, s
     if "hostile" not in skip and len(proofs.hostile) < want["hostile"]:
         out["hostile"] = f"{len(proofs.hostile)} of {want['hostile']} in {rel(entry.hostile_dir)}"
     if want["perf"] and "perf" not in skip:
-        # `perf_any` and not `perf`: a figure taken on another machine at this same implementation
-        # commit documents the feature just as well, and a fresh clone that owed every figure it
-        # already has is a proof nobody would keep switched on. `--record-perf` is how a machine
-        # gets its own numbers, and `--perf-report` is the only thing that insists on them.
+        # `perf_any` and not `perf`: a figure taken on another machine against this same
+        # implementation text documents the feature just as well, and a fresh clone that owed every
+        # figure it already has is a proof nobody would keep switched on. `--record-perf` is how a
+        # machine gets its own clock, and `--perf-report` is the only thing that insists on it.
         if not proofs.bench:
             out["perf"] = f"no bench at {rel(entry.bench_file)}"
         elif not proofs.perf_any:
@@ -1060,19 +1119,34 @@ def fingerprint() -> dict:
     return fields
 
 
-def time_program(nvs: Path, path: Path, reps: int) -> float:
-    """The fastest of `reps` runs, in nanoseconds. Fastest, not mean: the floor is the signal and
-    everything above it is the machine doing something else."""
-    best = float("inf")
+def time_program(nvs: Path, path: Path, reps: int) -> tuple[float, float]:
+    """(the fastest, the median) of `reps` runs, in nanoseconds. The fastest is the figure: the
+    floor is the signal and everything above it is the machine doing something else. The median
+    rides beside it so a later delta can be read against the spread it was taken in."""
+    spent: list[int] = []
     for _ in range(reps):
         started = time.perf_counter_ns()
         out = subprocess.run([str(nvs), "run", str(path)], timeout=600, **CAPTURE)
-        spent = time.perf_counter_ns() - started
+        spent.append(time.perf_counter_ns() - started)
         if out.returncode != 0:
             raise RuntimeError(f"{rel(path)} exited {out.returncode}: "
                                f"{(out.stderr.strip().splitlines() or [''])[0]}")
-        best = min(best, spent)
-    return best
+    spent.sort()
+    return float(spent[0]), float(spent[len(spent) // 2])
+
+
+def count_program(nvs: Path, path: Path) -> dict[str, int]:
+    """`rule:testing/bench-counters`'s four totals for one run of `path`, off the line `nvs run
+    --count` prints. One run, because the answer is the same every time."""
+    out = subprocess.run([str(nvs), "run", "--count", str(path)], timeout=600, **CAPTURE)
+    if out.returncode != 0:
+        raise RuntimeError(f"{rel(path)} exited {out.returncode} under --count: "
+                           f"{(out.stderr.strip().splitlines() or [''])[0]}")
+    m = COUNT_LINE_RE.search(out.stderr)
+    if not m:
+        raise RuntimeError(f"{rel(path)}: `nvs run --count` printed no count line -- "
+                           f"is {rel(nvs)} built from this tree?")
+    return dict(zip(COUNTS, (int(g) for g in m.groups())))
 
 
 def iterations_of(path: Path) -> int:
@@ -1080,6 +1154,36 @@ def iterations_of(path: Path) -> int:
     if not m:
         raise RuntimeError(f"{rel(path)} declares no `// bench: iterations N`")
     return int(m.group(1).replace("_", ""))
+
+
+def expectations_of(path: Path) -> dict[str, int]:
+    """What a bench declares per operation -- `{"allocations": 0, "calls": 1}` -- or nothing."""
+    return {k: int(v.replace("_", "")) for k, v in EXPECT_RE.findall(read(path))}
+
+
+def scale_sibling(path: Path) -> Path:
+    """`benches/members/core/Str/length.scale.nvs` for `.../length.nvs`: the same bench over an
+    input `// bench: scale K` times larger, with its own `// bench: iterations`."""
+    return path.with_name(path.stem + ".scale.nvs")
+
+
+def impl_hash(path: str) -> str:
+    """What a perf figure is current against: the implementing file's text with its trailing
+    `mod tests` cut off, hashed. The module doc § *Why a figure is current against the
+    implementing file's text* is why a text and not a commit. Empty when there is no such file."""
+    p = ROOT / path
+    if not p.is_file():
+        return ""
+    text = read(p)
+    m = re.search(r"#\[cfg\(test\)\]\s*mod tests\b", text)
+    if m:
+        text = text[:m.start()]
+    return hashlib.sha1(text.encode("utf-8")).hexdigest()[:12]
+
+
+def binary_hash(nvs: Path) -> str:
+    """The `nvs` that ran, by content. Once per sweep, so the 80 MB read is nothing."""
+    return hashlib.sha1(nvs.read_bytes()).hexdigest()[:12]
 
 
 def calibrate(nvs: Path, reps: int) -> tuple[float, float]:
@@ -1094,10 +1198,60 @@ def calibrate(nvs: Path, reps: int) -> tuple[float, float]:
     for p in (baseline, unit):
         if not p.exists():
             raise RuntimeError(f"the calibration program {rel(p)} is missing")
-    floor = time_program(nvs, baseline, reps)
-    unit_total = time_program(nvs, unit, reps)
+    floor, _ = time_program(nvs, baseline, reps)
+    unit_total, _ = time_program(nvs, unit, reps)
     unit_ns = max(1e-9, (unit_total - floor) / iterations_of(unit))
     return floor, unit_ns
+
+
+def measure_one(nvs: Path, e: Entry, reps: int, floor: float, base_counts: dict[str, int]
+                ) -> tuple[dict, list[str]]:
+    """One feature's figures -- the clock, the four counts and the scaling ratio -- and every way
+    they fall short of what its bench declared. A shortfall is a finding, not a number to record:
+    `rule:testing/a-failing-proof-is-fixed-or-recorded` names the two answers, and a `known-gap`
+    marker on the bench is the second."""
+    iters = iterations_of(e.bench_file)
+    total, median = time_program(nvs, e.bench_file, reps)
+    ns_per_op = max(0.0, (total - floor) / iters)
+    counts = count_program(nvs, e.bench_file)
+    per_op = {k: round(max(0, counts[k] - base_counts[k]) / iters, 3) for k in COUNTS}
+    fig = {
+        "iterations": iters,
+        "ns_per_op": round(ns_per_op, 3),
+        "median_ns_per_op": round(max(0.0, (median - floor) / iters), 3),
+        **per_op,
+    }
+    findings: list[str] = []
+    expected = expectations_of(e.bench_file)
+    if expected:
+        fig["expected"] = expected
+    for k, want in expected.items():
+        if abs(per_op[k] - want) > 0.01:
+            findings.append(f"declares `{k} {want}` per op and did {per_op[k]:.3f}")
+    source = read(e.bench_file)
+    m = COMPLEXITY_RE.search(source)
+    if m:
+        fig["complexity"] = m.group(1)
+    sibling = scale_sibling(e.bench_file)
+    if sibling.exists():
+        k = SCALE_RE.search(read(sibling))
+        if not k:
+            raise RuntimeError(f"{rel(sibling)} declares no `// bench: scale K`")
+        scale = float(k.group(1).replace("_", ""))
+        scaled_total, _ = time_program(nvs, sibling, reps)
+        scaled = max(0.0, (scaled_total - floor) / iterations_of(sibling))
+        ratio = scaled / ns_per_op if ns_per_op > 0 else float("inf")
+        fig.update({"scale": scale, "scale_ns_per_op": round(scaled, 3),
+                    "scale_ratio": round(ratio, 3)})
+        # An upper bound only. A linear member over a small input is dominated by its fixed
+        # per-call cost and looks nearly constant, which is not a bug; growing *faster* than
+        # declared is the finding.
+        predicted = {"constant": 1.0, "linear": scale}.get(fig.get("complexity", ""))
+        if predicted is not None and ratio > predicted * SCALE_TOLERANCE:
+            findings.append(f"declares `complexity {fig['complexity']}` and costs {ratio:.1f}x "
+                            f"per op on {scale:g}x the input, past the "
+                            f"{predicted * SCALE_TOLERANCE:g}x that allows")
+    return fig, findings
 
 
 def record_perf(nvs: Path, entries: list[Entry], reps: int, note: str, proofs: dict[str, Proofs],
@@ -1105,7 +1259,11 @@ def record_perf(nvs: Path, entries: list[Entry], reps: int, note: str, proofs: d
     """Measure and append. **By default only what has no current figure**, which is what makes this
     safe to put at the end of a slice: a session that edited one file re-measures that file's
     features and nothing else, and running it twice costs a walk. `--force` re-measures everything
-    in scope, for when the question is the machine rather than the code."""
+    in scope, for when the question is the machine rather than the code.
+
+    A bench whose figures miss what it declared gets no record and fails the sweep, exactly as a
+    failing example does -- unless it carries a `known-gap` marker, in which case the record is
+    written with the findings in it and the sweep says so."""
     todo = [e for e in entries if e.bench_file.exists()]
     if not force:
         todo = [e for e in todo if "perf" in owed(e, proofs[e.id], policy, skips)]
@@ -1123,22 +1281,32 @@ def record_perf(nvs: Path, entries: list[Entry], reps: int, note: str, proofs: d
     fp = fingerprint()
     commit = git("rev-parse", "HEAD")[:12]
     dirty = bool(git("status", "--porcelain"))
+    binary = binary_hash(nvs)
     try:
         floor, unit_ns = calibrate(nvs, reps)
+        base_counts = count_program(nvs, CALIBRATION / "baseline.nvs")
     except RuntimeError as exc:
         print(f"dossier: {exc}")
         return 1
     print(f"dossier perf: {len(todo)} features, {reps} reps, unit = {unit_ns:.1f} ns/iteration "
-          f"on {fp['cpu']} ({fp['id']})")
+          f"on {fp['cpu']} ({fp['id']}), binary {binary}")
+    print(f"  {'feature':44} {'ns/op':>10} {'units':>9}  {'stmts':>7} {'calls':>7} {'allocs':>7} "
+          f"{'bytes':>9}")
     lines = []
+    failed = 0
     for e in sorted(todo, key=lambda x: x.id):
         try:
-            iters = iterations_of(e.bench_file)
-            total = time_program(nvs, e.bench_file, reps)
+            fig, findings = measure_one(nvs, e, reps, floor, base_counts)
         except (RuntimeError, subprocess.SubprocessError) as exc:
             print(f"  FAIL  {e.id}: {exc}")
             return 1
-        ns_per_op = max(0.0, (total - floor) / iters)
+        gap = known_gap(read(e.bench_file))
+        if findings and not gap:
+            failed += 1
+            print(f"  FAIL  {e.id}: " + "; ".join(findings))
+            print("        fix it, or mark the bench `// dossier: known-gap <module> -- why`; "
+                  "the figure is not recorded until one of those lands.")
+            continue
         rec = {
             "at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "id": e.id,
@@ -1146,50 +1314,74 @@ def record_perf(nvs: Path, entries: list[Entry], reps: int, note: str, proofs: d
             "group": e.group,
             "commit": commit,
             "dirty": dirty,
+            "binary": binary,
             "impl_commit": last_commit(e.impl_file) if e.impl_file else "",
+            "impl_hash": impl_hash(e.impl_file) if e.impl_file else "",
             "machine": fp["id"],
             "cpu": fp["cpu"],
             "os": fp["os"],
             "cores": fp["cores"],
             "reps": reps,
-            "iterations": iters,
-            "ns_per_op": round(ns_per_op, 3),
+            **fig,
             "unit_ns": round(unit_ns, 3),
-            "ratio": round(ns_per_op / unit_ns, 4),
+            "ratio": round(fig["ns_per_op"] / unit_ns, 4),
             "note": note,
         }
+        if findings:
+            rec["known_gap"] = {"module": gap[0], "findings": findings}
         lines.append(json.dumps(rec))
-        print(f"  {e.id:44} {ns_per_op:10.1f} ns/op   {rec['ratio']:8.3f} units")
-    LEDGER.parent.mkdir(parents=True, exist_ok=True)
-    with LEDGER.open("a", encoding="utf-8", newline="\n") as fh:
-        fh.write("\n".join(lines) + "\n")
-    print(f"dossier perf: {len(lines)} records appended to {rel(LEDGER)}")
-    return 0
+        print(f"  {e.id:44} {fig['ns_per_op']:10.1f} {rec['ratio']:9.3f}  "
+              f"{fig['statements']:7.2f} {fig['calls']:7.2f} {fig['allocations']:7.2f} "
+              f"{fig['bytes']:9.1f}"
+              + (f"   scale x{fig['scale']:g}: {fig['scale_ratio']:.2f}x" if "scale" in fig else "")
+              + (f"   known-gap: {'; '.join(findings)}" if findings else ""))
+    if lines:
+        LEDGER.parent.mkdir(parents=True, exist_ok=True)
+        with LEDGER.open("a", encoding="utf-8", newline="\n") as fh:
+            fh.write("\n".join(lines) + "\n")
+    print(f"dossier perf: {len(lines)} records appended to {rel(LEDGER)}"
+          + (f", {failed} bench(es) missed what they declared and were not recorded" if failed
+             else ""))
+    return 1 if failed else 0
+
+
+def count_delta(last: dict, prev: dict | None, key: str) -> str:
+    """A count's change against the record before it, as a signed per-operation difference, or
+    blank when there is no earlier count or it did not move. Any machine's record qualifies as the
+    earlier one: a count is the same everywhere."""
+    if prev is None or key not in prev or key not in last:
+        return ""
+    change = last[key] - prev[key]
+    return "" if abs(change) < 0.0005 else f"{change:+.3f}"
 
 
 def perf_report() -> int:
     """Regenerate `docs/perf/members.md` -- the ledger's front page, overwritten every time.
 
-    One row per feature per machine, newest reading against the one before it on that same machine.
-    A delta across fingerprints is never printed, because there is no honest one to print.
+    Three parts, in the order they are worth reading. **What the program did**, one row per
+    feature, machine-independent, with each count diffed against the record before it wherever
+    that was taken. **Candidates**: the members whose `units` figure sits far above their group's,
+    or above the ceiling their declared complexity carries in the policy file, or whose scaling
+    ratio the tool refused -- advisory, a shortlist for a person with a profiler. Then **the
+    clock**, per machine, newest reading against the one before it on that same machine, with the
+    spread the median shows. A clock delta across fingerprints is never printed, because there is
+    no honest one to print.
     """
     if not LEDGER.exists():
         print(f"dossier: {rel(LEDGER)} does not exist yet -- run --record-perf first.")
         return 1
+    by_feature = ledger_records()
+    if not by_feature:
+        print(f"dossier: {rel(LEDGER)} holds no records -- run --record-perf first.")
+        return 1
     history: dict[tuple[str, str], list[dict]] = {}
-    for line in read(LEDGER).splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        try:
-            rec = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        history.setdefault((rec.get("machine", ""), rec.get("id", "")), []).append(rec)
-
+    for fid, recs in by_feature.items():
+        for rec in recs:
+            history.setdefault((rec.get("machine", ""), fid), []).append(rec)
     machines: dict[str, dict] = {}
     for (mid, _fid), recs in history.items():
         machines.setdefault(mid, recs[-1])
+    report = load_report_policy()
 
     out = [
         "# Measured cost, feature by feature",
@@ -1197,18 +1389,82 @@ def perf_report() -> int:
         "**Generated by `python tools/dossier.py --perf-report` — never edited.**",
         f"[`{rel(LEDGER)}`]({LEDGER.name}) is the append-only ledger this is the front page of;",
         "`tools/dossier.py` owns how a figure is taken and `benches/members/README.md` owns what a",
-        "bench program is.",
+        "bench program is. `rule:testing/member-perf-ledger` is what the columns mean.",
         "",
         "Every figure is Novis against **itself**: there is no PHP column here and there never will",
         "be — [`benches/userland/`](../../benches/userland/README.md) owns the cross-engine",
-        "comparison. `ns/op` is wall clock on the machine named in the heading, with the empty",
-        "program's start-up floor subtracted; `units` is that figure divided by the calibration",
-        "program measured in the same sweep, and it is the only column that means anything on a",
-        "different machine — to about a tenth (`rule:testing/perf-two-mechanisms`).",
-        "`Δ` compares against the previous reading **on the same machine** and is blank when there",
-        "is not one.",
+        "comparison. The **counts** — statements, calls, allocations, bytes, each per operation",
+        "with the empty program's share subtracted — are what the program did, and are the same on",
+        "every machine for the same commit, so their `Δ` is against the previous record wherever it",
+        "was taken. A `Core` member is one call however much it does inside, so a count sees what",
+        "the program asked for and not what the member cost. The **clock** — `ns/op`, the fastest",
+        "of the reps, with `median` beside it — is wall clock on the machine named in the heading,",
+        "and its `Δ` is against the previous reading **on that machine** only; `units` divides it by",
+        "the calibration program measured in the same sweep and travels to about a tenth",
+        "(`rule:testing/perf-two-mechanisms`). A clock `Δ` inside the spread the median shows is",
+        "marked `~`: it is the machine, not the code.",
+        "",
+        "## What the program did, per operation",
+        "",
+        "| Feature | statements | calls | allocations | bytes | Δ allocations | Δ bytes | Declares | Commit |",
+        "|---|---:|---:|---:|---:|---:|---:|---|---|",
+    ]
+    counted = {fid: [r for r in recs if "allocations" in r] for fid, recs in by_feature.items()}
+    for fid in sorted(counted):
+        recs = counted[fid]
+        if not recs:
+            continue
+        last, prev = recs[-1], (recs[-2] if len(recs) > 1 else None)
+        declares = ", ".join(f"{k} {v}" for k, v in last.get("expected", {}).items())
+        if last.get("complexity"):
+            declares = ", ".join(x for x in (f"complexity {last['complexity']}", declares) if x)
+        out.append(f"| `{fid}` | {last['statements']:.2f} | {last['calls']:.2f} | "
+                   f"{last['allocations']:.2f} | {last['bytes']:.1f} | "
+                   f"{count_delta(last, prev, 'allocations')} | {count_delta(last, prev, 'bytes')} "
+                   f"| {declares} | {last.get('commit', '')} |")
+    out.append("")
+
+    # Candidates: read off this machine's latest clock per feature, group by group.
+    me = fingerprint()["id"]
+    latest: dict[str, dict] = {}
+    for (mid, fid), recs in history.items():
+        if mid == me:
+            latest[fid] = recs[-1]
+    candidates: list[str] = []
+    groups: dict[str, list[dict]] = {}
+    for rec in latest.values():
+        groups.setdefault(rec.get("group", ""), []).append(rec)
+    for group, recs in sorted(groups.items()):
+        ratios = sorted(r.get("ratio", 0.0) for r in recs)
+        median = ratios[len(ratios) // 2] if ratios else 0.0
+        for rec in sorted(recs, key=lambda r: r.get("id", "")):
+            why = []
+            ratio = rec.get("ratio", 0.0)
+            if len(recs) >= 3 and median > 0 and ratio > report["outlier_factor"] * median:
+                why.append(f"{ratio / median:.1f}x its group's median of {median:.1f} units")
+            ceiling = report["ceiling"].get(rec.get("complexity", ""))
+            if ceiling is not None and ratio > ceiling:
+                why.append(f"{ratio:.1f} units against a `{rec['complexity']}` ceiling of "
+                           f"{ceiling:g}")
+            if rec.get("known_gap"):
+                why.append("recorded as known-gap: " + "; ".join(rec["known_gap"]["findings"]))
+            if why:
+                candidates.append(f"| `{rec['id']}` | {group} | {' — '.join(why)} |")
+    out += [
+        "## Candidates",
+        "",
+        f"Advisory, never a gate: a `units` figure more than {report['outlier_factor']:g}x its",
+        "group's median on this machine, a figure past the ceiling `tools/data/dossier-policy.toml`",
+        "sets for its declared complexity, or a bench recorded as `known-gap`. A row here is where",
+        "a person with a profiler looks first; it is not a verdict.",
         "",
     ]
+    if candidates:
+        out += ["| Feature | Group | Why |", "|---|---|---|", *candidates]
+    else:
+        out.append("*(none on this machine's latest readings)*")
+    out.append("")
+
     for mid, sample in sorted(machines.items()):
         rows = sorted(((fid, recs) for (m, fid), recs in history.items() if m == mid),
                       key=lambda r: r[0])
@@ -1216,8 +1472,8 @@ def perf_report() -> int:
             f"## {sample.get('cpu', 'unknown CPU')} · {sample.get('os', '?')} · "
             f"{sample.get('cores', '?')} cores  (`{mid}`)",
             "",
-            "| Feature | ns/op | units | Δ | Measured at | Implementation |",
-            "|---|---:|---:|---:|---|---|",
+            "| Feature | ns/op | median | units | Δ | Scaling | Measured at | Implementation |",
+            "|---|---:|---:|---:|---:|---|---|---|",
         ]
         for fid, recs in rows:
             last = recs[-1]
@@ -1226,9 +1482,19 @@ def perf_report() -> int:
             if prev and prev.get("ns_per_op"):
                 change = (last["ns_per_op"] - prev["ns_per_op"]) / prev["ns_per_op"] * 100
                 delta = f"{change:+.1f}%"
-            out.append(f"| `{fid}` | {last.get('ns_per_op', 0):.1f} | "
-                       f"{last.get('ratio', 0):.3f} | {delta} | {last.get('commit', '')} | "
-                       f"{last.get('impl_commit', '')} |")
+                median = last.get("median_ns_per_op")
+                if median and last["ns_per_op"] > 0:
+                    spread = (median - last["ns_per_op"]) / last["ns_per_op"] * 100
+                    if abs(change) <= spread:
+                        delta += " ~"
+            median_cell = (f"{last['median_ns_per_op']:.1f}" if "median_ns_per_op" in last
+                           else "")
+            scaling = (f"x{last['scale']:g} → {last['scale_ratio']:.2f}x" if "scale" in last
+                       else "")
+            out.append(f"| `{fid}` | {last.get('ns_per_op', 0):.1f} | {median_cell} | "
+                       f"{last.get('ratio', 0):.3f} | {delta} | {scaling} | "
+                       f"{last.get('commit', '')} | "
+                       f"{last.get('impl_hash') or last.get('impl_commit', '')} |")
         out.append("")
     PERF_REPORT.write_text("\n".join(out), encoding="utf-8", newline="\n")
     print(f"dossier: wrote {rel(PERF_REPORT)} "
@@ -1350,6 +1616,13 @@ def print_entry(fid: str, entries: list[Entry], proofs: dict[str, Proofs], polic
     if p.perf:
         print(f"     {p.perf['ns_per_op']} ns/op, {p.perf['ratio']} units, "
               f"measured at {p.perf['commit']} on {p.perf['machine']}")
+    counted = p.perf_any if p.perf_any and "allocations" in p.perf_any else \
+        (p.perf if p.perf and "allocations" in p.perf else None)
+    if counted:
+        print(f"     per op: {counted['statements']:.2f} statements, {counted['calls']:.2f} calls, "
+              f"{counted['allocations']:.2f} allocations, {counted['bytes']:.1f} bytes"
+              + (f"  (declares {', '.join(f'{k} {v}' for k, v in counted['expected'].items())})"
+                 if counted.get("expected") else ""))
     print(f"   hostile   {len(p.hostile)} in {rel(match.hostile_dir)}")
     for f in p.hostile:
         print(f"     {f}")
@@ -1514,6 +1787,9 @@ def feature_block(i: int, e: Entry, missing: dict[str, str], p: Proofs, policy: 
     if "perf" in missing:
         lines.append(f"- **perf** -- write `{rel(e.bench_file)}`. Write it only; the parent")
         lines.append("  measures the whole group at once, on a machine with nothing else on it.")
+        lines.append("  Declare what it should count where you know it -- `// bench: allocations 0`")
+        lines.append("  for a member that returns a scalar, `// bench: complexity constant` with a")
+        lines.append("  `.scale.nvs` sibling -- so the first measurement can already be judged.")
     if "tests" in missing:
         need = max(0, want["tests"] - len(p.nvst) - len(p.rust))
         if need:
@@ -2212,7 +2488,9 @@ def goal_prose(n: int, label: str, members: list[Entry], proofs: dict[str, Proof
         "  would write — unbounded input, deep nesting, an allocation the program does not free, a",
         "  boundary crossed by one, a value at the far end of a range.",
         "- **A bench program measures the feature and nothing else**, chains its inputs so no",
-        "  optimiser can hoist the loop, and declares `// bench: iterations N`.",
+        "  optimiser can hoist the loop, declares `// bench: iterations N`, and declares what it",
+        "  expects to count where that is known — `// bench: allocations 0` for a member that",
+        "  returns a scalar — so its first measurement is judged rather than merely recorded.",
         "  `benches/members/README.md` is the shape.",
         "- **Every proof carries a `covers:` marker naming its feature.** That is the only thing",
         "  attributing it, and for a Rust `#[test]` it is the only thing.",
