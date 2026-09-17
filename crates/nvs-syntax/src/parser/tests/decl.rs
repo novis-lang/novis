@@ -416,6 +416,72 @@ fn use_import_plain_and_rejected_alias() {
     assert!(u.alias.is_some());
 }
 
+/// `use function Foo\bar;` and `use const Foo\BAZ;` name a kind of thing the
+/// language does not have (`rule:classes/no-free-functions-or-constants`), so
+/// each gets the refusal by name on the keyword — not the generic parse error
+/// that reading `function` as the imported short name used to produce.
+///
+/// Both sides of the bound: the third case is the spelling that is *not* this
+/// refusal, a namespace whose own first segment is the word `function`.
+#[test]
+fn use_function_and_use_const_get_the_targeted_refusal() {
+    for src in ["use function Foo\\bar;", "use const Foo\\BAZ;"] {
+        let (stmt, diags) = parse_stmt_with_diags(src);
+        let reported: Vec<_> = diags
+            .iter()
+            .filter(|d| d.code == Some(code::E_IMPORT_OF_FUNCTION_OR_CONST_UNSUPPORTED))
+            .collect();
+        assert_eq!(reported.len(), 1, "one refusal for `{src}`: {diags:?}");
+        assert!(
+            reported[0].notes.iter().any(|n| n.contains("Class::name")),
+            "the help names what to write instead: {reported:?}"
+        );
+        // The path behind the keyword still parses, so nothing downstream sees
+        // a half-read statement and the `;` is not left to reopen as one.
+        let StmtKind::UseDecl(u) = stmt.kind else {
+            panic!("`{src}` still yields an import: {stmt:?}");
+        };
+        assert!(u.alias.is_none());
+    }
+
+    let (_, diags) = parse_stmt_with_diags("use function\\Foo;");
+    assert!(
+        !diags.has_errors(),
+        "`function` is an ordinary first name segment: {diags:?}"
+    );
+}
+
+/// Every reserved word is a legal name segment after the first one —
+/// `Parser::is_name_segment` is `Ident | Keyword(_)`, which is what lets
+/// `App\Static` and `App\List` be names at all.
+///
+/// The sweep is over [`Keyword::ALL`] rather than a list written here, so a
+/// word added to the table is covered the day it is added; the round trip
+/// through `from_lowercase` asserts the table's two halves still describe one
+/// word each.
+#[test]
+fn every_keyword_spelling_is_a_name_segment_past_the_first() {
+    for kw in Keyword::ALL {
+        let spelling = kw.name();
+        assert_eq!(
+            Keyword::from_lowercase(spelling),
+            Some(*kw),
+            "`{spelling}` lexes back to the word it spells"
+        );
+
+        let (stmt, diags) = parse_stmt_with_diags(&format!("use App\\{spelling};"));
+        assert!(!diags.has_errors(), "`use App\\{spelling};`: {diags:?}");
+        let StmtKind::UseDecl(u) = stmt.kind else {
+            panic!("`use App\\{spelling};` is an import: {stmt:?}");
+        };
+        assert_eq!(
+            u.path.span.end - u.path.span.start,
+            u32::try_from("App\\".len() + spelling.len()).unwrap(),
+            "the whole of `App\\{spelling}` is one name"
+        );
+    }
+}
+
 /// PHP's group-use form is refused, not parsed: one `use` names one import.
 /// `docs/adr/README.md` § *Decisions taken at project start* owns the rule.
 #[test]

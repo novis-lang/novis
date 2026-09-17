@@ -534,6 +534,14 @@ pub mod code {
     /// [`E_RETURN_LEAVES_A_FINALLY`]'s objection; a loop written wholly inside
     /// the block keeps both spellings, so only the reaching level is named.
     pub const E_BREAK_LEAVES_A_FINALLY: Code = Code::new("E0251");
+    /// PHP's `use function Foo\bar;` and `use const Foo\BAZ;`. There is no
+    /// free function and no free constant to import
+    /// (`rule:classes/no-free-functions-or-constants`), so the statement names
+    /// a kind of thing the language does not have — which is what the help
+    /// says, pointing at the class member the name is written as instead.
+    /// Raised on the keyword, once, rather than left to the generic parse
+    /// error that follows reading `function` as the imported short name.
+    pub const E_IMPORT_OF_FUNCTION_OR_CONST_UNSUPPORTED: Code = Code::new("E0252");
 
     // --- E03xx name resolution ---------------------------------------------
     /// A variable read before anything was assigned to it.

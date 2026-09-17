@@ -2,62 +2,46 @@
 
 ## State
 
-**Goal `decided-closures`, stage 3 — the checker and the front end.** Stages 1 and 2 are closed and
-their checks pass. Stage 3's own three checks are red only because their tests are not written yet;
-one of the two tests the `nvs-types` check names now exists.
+**Goal `decided-closures`, stage 3 — the checker and the front end.** Of that stage's three
+acceptance checks, `nvs-types` and `nvs-syntax` are green; `nvs-hir`'s two tests are not written yet
+and are the next group.
 
-`crates/nvs-runtime/src/record.rs` gap 1 is **built and its item deleted** — the register is empty
-and `python tools/owners.py --closes decided-closures` no longer names that file.
-`rule:security/secret-qualifier` now has a container axis: a `secret` value may be written into an
-array element or a shape field only where that position's own type carries the qualifier, `E0824`
-where it does not. The refusal is `crates/nvs-types/src/expr/quals.rs`'s
-`reject_secret_into_container`, reached from the array literal, the object literal and both
-spellings of an element write; `array<secret string>` and `{token: secret string}` were already
-expressible and are what a program writes instead. **An argument list steps aside**, through
-`Env::in_call_argument` (`crates/nvs-types/src/lib.rs`), because the three positions
-`rule:security/secret-sinks-refuse` leaves open — a bound database parameter, a process argv, an
-outbound request — are each written as an `array<mixed>` argument. That carve-out is guarded by
-`a_secret_bound_as_a_database_parameter_is_still_accepted`.
+The front end's four gaps are down to one. A `type` alias's name is PascalCase at both sites one is
+written (`crates/nvs-syntax/src/casing.rs`, category `"type alias"`, one production so one answer),
+and `rule:core-api/identifier-casing`'s scope table and `rule:types/type-alias` were amended in that
+slice. PHP's `use function` / `use const` are refused by name — `E0252`
+(`E_IMPORT_OF_FUNCTION_OR_CONST_UNSUPPORTED`) on the keyword, the path behind it still parsed — while
+`function` stays an ordinary name segment everywhere else, which is what
+`crates/nvs-syntax/src/token.rs`'s new `keywords!` table makes testable: the enum, `from_lowercase`,
+`name()` and `ALL` all come from one row per word, so a sweep over every spelling cannot go stale.
 
-The rule fragment was amended in the same slice and `python tools/rules.py --render` run. Nothing is
-blocked.
+`python tools/owners.py --closes decided-closures` names 35 gaps, one of them in `nvs-syntax`
+(`crates/nvs-syntax/src/lib.rs:96`, the shape-typed local). Nothing is blocked.
 
 ## Next group
 
-**Stage 4 of the goal prose, stage `3 the checker` of the checks: the front end's own four gaps** —
-one file set: `crates/nvs-syntax/src/`, with `crates/nvs-types/tests/` and `docs/rules/` for the
-first item's test and fragments.
+**Stage 4 of the goal prose, stage `3 the checker` of the checks: `nvs-hir`'s two gaps** — one file
+set: `crates/nvs-hir/src/`, with that crate's own tests. Landing both turns the stage's last red
+check green.
 
-- [ ] **`crates/nvs-syntax/src/casing.rs:66` gap 1 — a `type` alias's name is PascalCase like a
-      class.** The reporter to call is `check_type_name` at `crates/nvs-syntax/src/casing.rs:224`,
-      with a `"type alias"` category; the two sites are the file-scope form, which needs a
-      `StmtKind::TypeAliasDecl` arm beside `crates/nvs-syntax/src/casing.rs:379`, and the member
-      form at `crates/nvs-syntax/src/casing.rs:544`, which is an explicit empty arm today. This is a
-      rule change: `rule:core-api/identifier-casing`'s scope table gains the row and
-      `rule:types/type-alias` states it, both amended in the same slice with no record opened, then
-      `python tools/rules.py --render`. The acceptance check names the test
-      `a_type_alias_that_is_not_pascal_case_is_refused` under `cargo test -p nvs-types`, and no
-      `nvs-types` fixture runs the casing pass — see the playbook bullet under *Writing a test
-      case*, which is this session's.
-- [ ] **`crates/nvs-syntax/src/lib.rs:103` gap 2 and `crates/nvs-syntax/src/lib.rs:109` gap 3 — M1's
-      two.** `use function` / `use const` get the refusal naming
-      `rule:classes/no-free-functions-or-constants` rather than a generic parse error, and every
-      keyword spelling as a name segment past the first gets conformance coverage instead of a
-      spot check. The acceptance check names both tests:
-      `use_function_and_use_const_get_the_targeted_refusal` and
-      `every_keyword_spelling_is_a_name_segment_past_the_first`, in `nvs-syntax`.
-- [ ] **`crates/nvs-syntax/src/lib.rs:92` gap 1 — a local declared with a bare inline shape type
-      gets the targeted error** pointing at `type Point = {x: int}; Point $p;`, which is the decided
-      answer: the alias form is kept and the message is what changes.
+- [ ] **`crates/nvs-hir/src/requires.rs:104` — fold a `const` and a literal concatenation in a
+      `require` path before the graph walk.** `rule:statements/require-is-the-only-inclusion-construct`
+      is what a static path buys; the walk is `crates/nvs-hir/src/requires.rs:349` and its two
+      siblings, which call `check_declarations` per file, and the folder runs before the checker's own.
+      A class constant is the only constant there is, so reading one means resolving a class out of the
+      table this walk is building — the decided answer is a small folder ahead of the walk, not a
+      second resolver. The acceptance check names
+      `a_require_path_folds_a_const_and_a_literal_concatenation` under `cargo test -p nvs-hir`.
+- [ ] **`crates/nvs-hir/src/hierarchy.rs:44` — hand `nvs-hir` a roster of `Core` names at
+      construction.** Today a target under `Core` is trusted because `QName::is_core` is a spelling
+      test and this crate may not name `nvs_stdlib::registry` (`rule:core-api/core-means-always-present`
+      is what the roster asserts); the decided answer passes the names in as a slice, so every link
+      error comes from one pass and no dependency is added. The acceptance check names
+      `a_core_name_the_roster_lacks_is_refused_by_the_link_pass`.
 
 ## Backlog
 
-- `Core\Json::encode(["token" => $s])` written inline is still not refused —
-  `crates/nvs-types/src/expr/quals.rs`'s `reject_secret_encoded_argument` reads the argument's type,
-  which is `array<mixed>`; the enqueue and log sinks walk the written literal and it could too.
-- A failed `Core\Test` assertion renders its operands into a record, and no sink rule asks whether
-  one carries `secret` (`rule:security/secret-sinks-refuse`'s terminal bullet names a test report).
-- Stage 3's remaining items: `embedded.rs` gap 1, `hierarchy.rs` gap 1, `requires.rs` gap 1,
-  `defaults.rs` gap 1, `response.rs` gap 1 — the goal file's stage 3 list.
-- Stage 4 is `crates/nvs-stdlib/src/` and is the goal's largest, the prepared-pattern channel being
-  its one ADR slot.
+- `crates/nvs-syntax/src/lib.rs:96` — the shape-typed local's targeted error; that bullet now names
+  the tell and the false positive the scan must not claim.
+- `crates/nvs-stdlib/` holds most of the goal's remaining gaps — `python tools/owners.py --closes
+  decided-closures` is the list, `docs/agent/loop-goal.md` § *Standing decisions* the three ways out.

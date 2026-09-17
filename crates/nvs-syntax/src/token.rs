@@ -321,212 +321,151 @@ pub enum TokenKind {
     Unknown,
 }
 
-/// A reserved word.
+/// Declares the reserved-word table once, and derives from it everything that
+/// reads it: the [`Keyword`] enum, the lexer's spelling lookup, the spelling a
+/// variant prints back, and the list of every word there is.
 ///
-/// Spelling is matched **exactly**, in lower case only
-/// (`rule:classes/reserved-spellings-are-lower-case`) — unlike PHP, which matches its own keywords case-insensitively.
-/// `IF` and `If` are therefore ordinary [`TokenKind::Ident`]s, not this
-/// token; nothing diagnoses them, because `rule:core-api/identifier-casing` makes both legal class
-/// names. Every variant's `name()` gives that one spelling.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-#[non_exhaustive]
-#[expect(
-    missing_docs,
-    reason = "each variant's meaning is exactly its lower-case spelling below in `from_lowercase`; a doc comment on every one would just restate the name"
-)]
-pub enum Keyword {
-    Abstract,
-    And,
-    Array,
-    As,
-    Autoload,
-    Bool,
-    Break,
-    Bytes,
-    Callable,
-    Case,
-    Catch,
-    Class,
-    Clone,
-    Const,
-    Continue,
-    Decimal,
-    Declare,
-    Default,
-    Die,
-    Do,
-    Echo,
-    Else,
-    Elseif,
-    Empty,
-    Enum,
-    Eval,
-    Exit,
-    Extends,
-    Extract,
-    False,
-    Final,
-    Finally,
-    Float,
-    Fn,
-    For,
-    Foreach,
-    Function,
-    Global,
-    Goto,
-    If,
-    Implements,
-    Include,
-    IncludeOnce,
-    Inout,
-    InstanceOf,
-    Insteadof,
-    Int,
-    Interface,
-    Is,
-    Isset,
-    Iterable,
-    Lateinit,
-    Let,
-    List,
-    Match,
-    Mixed,
-    Namespace,
-    Never,
-    New,
-    Null,
-    Object,
-    Or,
-    Parent,
-    Print,
-    Private,
-    Protected,
-    Public,
-    Readonly,
-    Require,
-    RequireOnce,
-    Return,
-    Secret,
-    SelfKw,
-    Settype,
-    Static,
-    String,
-    Switch,
-    Tainted,
-    Throw,
-    Trait,
-    True,
-    Try,
-    Uint,
-    Unset,
-    Use,
-    Var,
-    Void,
-    While,
-    Xor,
-    Yield,
+/// One row per word is what makes those four agree. A variant with no
+/// spelling does not compile, a spelling with no variant does not compile, and
+/// anything enumerating the words — the parser's own coverage over
+/// `rule:core-api/identifier-casing`'s name segments — walks a list that grows
+/// with the table rather than a copy of it that does not.
+macro_rules! keywords {
+    ($($variant:ident => $spelling:literal,)*) => {
+        /// A reserved word.
+        ///
+        /// Spelling is matched **exactly**, in lower case only
+        /// (`rule:classes/reserved-spellings-are-lower-case`) — unlike PHP, which matches its own keywords case-insensitively.
+        /// `IF` and `If` are therefore ordinary [`TokenKind::Ident`]s, not this
+        /// token; nothing diagnoses them, because `rule:core-api/identifier-casing` makes both legal class
+        /// names. Every variant's [`name()`](Keyword::name) gives that one spelling.
+        #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+        #[non_exhaustive]
+        #[expect(
+            missing_docs,
+            reason = "each variant's meaning is exactly its lower-case spelling in the table below; a doc comment on every one would just restate the name"
+        )]
+        pub enum Keyword {
+            $($variant,)*
+        }
+
+        impl Keyword {
+            /// Every reserved word, in the order the table declares them.
+            pub const ALL: &'static [Self] = &[$(Self::$variant,)*];
+
+            /// Looks up a reserved word by its (already lower-cased) spelling.
+            ///
+            /// Returns `None` for anything that is not one of Novis's reserved
+            /// words, including the contextual spellings — the caller then
+            /// lexes it as an [`Ident`](TokenKind::Ident).
+            #[must_use]
+            pub fn from_lowercase(s: &str) -> Option<Self> {
+                Some(match s {
+                    $($spelling => Self::$variant,)*
+                    _ => return None,
+                })
+            }
+
+            /// This word's one spelling, exactly as source must write it.
+            #[must_use]
+            pub const fn name(self) -> &'static str {
+                match self {
+                    $(Self::$variant => $spelling,)*
+                }
+            }
+        }
+    };
 }
 
-impl Keyword {
-    /// Looks up a reserved word by its (already lower-cased) spelling.
-    ///
-    /// Returns `None` for anything that is not one of Novis's reserved words,
-    /// including the contextual spellings — the caller then lexes it as an
-    /// [`Ident`](TokenKind::Ident).
-    #[must_use]
-    pub fn from_lowercase(s: &str) -> Option<Self> {
-        Some(match s {
-            "abstract" => Self::Abstract,
-            "and" => Self::And,
-            "array" => Self::Array,
-            "as" => Self::As,
-            "autoload" => Self::Autoload,
-            "bool" => Self::Bool,
-            "break" => Self::Break,
-            "bytes" => Self::Bytes,
-            "callable" => Self::Callable,
-            "case" => Self::Case,
-            "catch" => Self::Catch,
-            "class" => Self::Class,
-            "clone" => Self::Clone,
-            "const" => Self::Const,
-            "continue" => Self::Continue,
-            "decimal" => Self::Decimal,
-            "declare" => Self::Declare,
-            "default" => Self::Default,
-            "die" => Self::Die,
-            "do" => Self::Do,
-            "echo" => Self::Echo,
-            "else" => Self::Else,
-            "elseif" => Self::Elseif,
-            "empty" => Self::Empty,
-            "enum" => Self::Enum,
-            "eval" => Self::Eval,
-            "exit" => Self::Exit,
-            "extends" => Self::Extends,
-            "extract" => Self::Extract,
-            "false" => Self::False,
-            "final" => Self::Final,
-            "finally" => Self::Finally,
-            "float" => Self::Float,
-            "fn" => Self::Fn,
-            "for" => Self::For,
-            "foreach" => Self::Foreach,
-            "function" => Self::Function,
-            "global" => Self::Global,
-            "goto" => Self::Goto,
-            "if" => Self::If,
-            "implements" => Self::Implements,
-            "include" => Self::Include,
-            "include_once" => Self::IncludeOnce,
-            "inout" => Self::Inout,
-            "instanceof" => Self::InstanceOf,
-            "insteadof" => Self::Insteadof,
-            "int" => Self::Int,
-            "interface" => Self::Interface,
-            "is" => Self::Is,
-            "isset" => Self::Isset,
-            "iterable" => Self::Iterable,
-            "lateinit" => Self::Lateinit,
-            "let" => Self::Let,
-            "list" => Self::List,
-            "match" => Self::Match,
-            "mixed" => Self::Mixed,
-            "namespace" => Self::Namespace,
-            "never" => Self::Never,
-            "new" => Self::New,
-            "null" => Self::Null,
-            "object" => Self::Object,
-            "or" => Self::Or,
-            "parent" => Self::Parent,
-            "print" => Self::Print,
-            "private" => Self::Private,
-            "protected" => Self::Protected,
-            "public" => Self::Public,
-            "readonly" => Self::Readonly,
-            "require" => Self::Require,
-            "require_once" => Self::RequireOnce,
-            "return" => Self::Return,
-            "secret" => Self::Secret,
-            "self" => Self::SelfKw,
-            "settype" => Self::Settype,
-            "static" => Self::Static,
-            "string" => Self::String,
-            "switch" => Self::Switch,
-            "tainted" => Self::Tainted,
-            "throw" => Self::Throw,
-            "trait" => Self::Trait,
-            "true" => Self::True,
-            "try" => Self::Try,
-            "uint" => Self::Uint,
-            "unset" => Self::Unset,
-            "use" => Self::Use,
-            "var" => Self::Var,
-            "void" => Self::Void,
-            "while" => Self::While,
-            "xor" => Self::Xor,
-            "yield" => Self::Yield,
-            _ => return None,
-        })
-    }
+keywords! {
+    Abstract => "abstract",
+    And => "and",
+    Array => "array",
+    As => "as",
+    Autoload => "autoload",
+    Bool => "bool",
+    Break => "break",
+    Bytes => "bytes",
+    Callable => "callable",
+    Case => "case",
+    Catch => "catch",
+    Class => "class",
+    Clone => "clone",
+    Const => "const",
+    Continue => "continue",
+    Decimal => "decimal",
+    Declare => "declare",
+    Default => "default",
+    Die => "die",
+    Do => "do",
+    Echo => "echo",
+    Else => "else",
+    Elseif => "elseif",
+    Empty => "empty",
+    Enum => "enum",
+    Eval => "eval",
+    Exit => "exit",
+    Extends => "extends",
+    Extract => "extract",
+    False => "false",
+    Final => "final",
+    Finally => "finally",
+    Float => "float",
+    Fn => "fn",
+    For => "for",
+    Foreach => "foreach",
+    Function => "function",
+    Global => "global",
+    Goto => "goto",
+    If => "if",
+    Implements => "implements",
+    Include => "include",
+    IncludeOnce => "include_once",
+    Inout => "inout",
+    InstanceOf => "instanceof",
+    Insteadof => "insteadof",
+    Int => "int",
+    Interface => "interface",
+    Is => "is",
+    Isset => "isset",
+    Iterable => "iterable",
+    Lateinit => "lateinit",
+    Let => "let",
+    List => "list",
+    Match => "match",
+    Mixed => "mixed",
+    Namespace => "namespace",
+    Never => "never",
+    New => "new",
+    Null => "null",
+    Object => "object",
+    Or => "or",
+    Parent => "parent",
+    Print => "print",
+    Private => "private",
+    Protected => "protected",
+    Public => "public",
+    Readonly => "readonly",
+    Require => "require",
+    RequireOnce => "require_once",
+    Return => "return",
+    Secret => "secret",
+    SelfKw => "self",
+    Settype => "settype",
+    Static => "static",
+    String => "string",
+    Switch => "switch",
+    Tainted => "tainted",
+    Throw => "throw",
+    Trait => "trait",
+    True => "true",
+    Try => "try",
+    Uint => "uint",
+    Unset => "unset",
+    Use => "use",
+    Var => "var",
+    Void => "void",
+    While => "while",
+    Xor => "xor",
+    Yield => "yield",
 }

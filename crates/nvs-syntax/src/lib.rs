@@ -81,13 +81,17 @@
 //! - **A `goto` label** (`done:` as its own statement) is not parsed, and gets no refusal of its own.
 //!   `goto` itself is refused (`E0203`, in `parser/stmt.rs`'s `parse_goto`), that is the first error
 //!   an author reads, and a label has nothing else to be for — so the generic errors behind it are
-//!   left as they are. `use function` and `use const` are the same shape: `function` and `const`
-//!   stay ordinary name segments, because `rule:classes/no-free-functions-or-constants` leaves
-//!   neither spelling anything to import.
+//!   left as they are.
+//! - **`use function` and `use const`** are refused rather than parsed — `E_IMPORT_OF_FUNCTION_OR_CONST_UNSUPPORTED`
+//!   on the keyword, whose help names the class member each spelling's target is written as, since
+//!   `rule:classes/no-free-functions-or-constants` leaves neither anything to import. The keyword is
+//!   eaten and the path behind it parses as the ordinary import it looks like. `function` and `const`
+//!   remain ordinary name segments everywhere else, so `use function\Foo;` is a namespace whose first
+//!   segment is spelled `function` and is not this refusal.
 //!
 //! # Known gaps
 //!
-//! Neither has a decision record's reason to stay unsupported — each is just not built yet:
+//! It has no decision record's reason to stay unsupported — it is just not built yet:
 //!
 //! - **A local variable declaration typed with a bare inline shape type** (`{x: int} $point;`) is not
 //!   parsed — statement-initial `{` already commits to a block (`rule:types/shape-type`), and unlike
@@ -96,19 +100,13 @@
 //!   all the way to a following `$name`. Every other declaration slot
 //!   (parameter, return type, property, class constant, `foreach` binding) supports a bare shape type
 //!   fine; the workaround for a local is the one that rule's own example uses: `type Point = {x:
-//!   int}; Point $point;`.
+//!   int}; Point $point;`. Half the tell a targeted error needs is already there:
+//!   `Parser::at_object_literal_in_block_position` looks one token past the `{` for `ident :`, and what
+//!   separates a shape-typed local from an object literal is the token after the *matched* `}` — a
+//!   variable. A block followed by an assignment (`{ echo 1; } $x = 1;`) is what that scan must not
+//!   claim.
 //!   Decided: Keep the alias form and give a targeted error — No parser cost, a clear message pointing
 //!   at `type Point = {...}; Point $p;`, and one slot is narrower than the rest.
-//!   — owner: decided-closures
-//! - **`use function` and `use const`** are not parsed — `function` and `const` are ordinary name
-//!   segments, so `use function Foo\bar;` reads `function` as the imported name and then fails on
-//!   `Foo` with a generic parse error. What a real corpus needs here is the *refusal* rather than the
-//!   feature: `rule:classes/no-free-functions-or-constants` leaves neither spelling anything to
-//!   import.
-//!   — owner: decided-closures
-//! - **`Core\Static`-style keyword-segment name collisions past the first segment** are still only
-//!   spot-checked. Every segment takes a keyword spelling by construction — `Parser::is_name_segment`
-//!   is `Ident | Keyword(_)` — so what is thin here is the coverage, not the grammar.
 //!   — owner: decided-closures
 
 pub mod ast;

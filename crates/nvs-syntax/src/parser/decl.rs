@@ -278,6 +278,9 @@ impl<'src, 'd> Parser<'src, 'd> {
     /// nothing downstream sees a half-parsed import.
     pub(super) fn parse_use_decl(&mut self, start: Span) -> Stmt {
         self.bump(); // 'use'
+        if let Some(kind) = self.at_php_symbol_import() {
+            self.refuse_symbol_import(kind);
+        }
         let path = self.parse_name();
         if self.at(TokenKind::Backslash) && self.peek_at(1).kind == TokenKind::LBrace {
             self.recover_use_group(path.span);
@@ -306,6 +309,52 @@ impl<'src, 'd> Parser<'src, 'd> {
             span,
             kind: StmtKind::UseDecl(UseDecl { span, path, alias }),
         }
+    }
+
+    /// Whether the `use` just consumed opens PHP's `use function Foo\bar;` or
+    /// `use const Foo\BAZ;`, and which of the two.
+    ///
+    /// The tell is a second name segment following the keyword directly:
+    /// `function` and `const` are ordinary segments like every other keyword
+    /// spelling, so `use function\Foo;` imports a name out of a namespace
+    /// called `function` and stays an ordinary import, while `use function
+    /// Foo\bar;` puts two segments side by side, which no import can be.
+    fn at_php_symbol_import(&mut self) -> Option<&'static str> {
+        let kind = match self.peek().kind {
+            TokenKind::Keyword(Keyword::Function) => "function",
+            TokenKind::Keyword(Keyword::Const) => "const",
+            _ => return None,
+        };
+        matches!(
+            self.peek_at(1).kind,
+            TokenKind::Ident | TokenKind::Keyword(_)
+        )
+        .then_some(kind)
+    }
+
+    /// Reports the `use function`/`use const` refusal and eats the keyword,
+    /// leaving the caller on the path it introduced — which parses as the
+    /// ordinary import it is written like, so nothing downstream sees a
+    /// half-parsed statement.
+    ///
+    /// `rule:classes/no-free-functions-or-constants` is the whole reason: a
+    /// function is a method and a constant is a class constant, so there is
+    /// nothing either spelling could name, and the help says what to import
+    /// instead.
+    fn refuse_symbol_import(&mut self, kind: &str) {
+        let keyword = self.bump().span;
+        self.diags.report(
+            Diagnostic::error(
+                code::E_IMPORT_OF_FUNCTION_OR_CONST_UNSUPPORTED,
+                format!("`use {kind}` imports a kind of name this language does not have"),
+            )
+            .with_primary(keyword, format!("no free {kind} to import"))
+            .with_help(
+                "a function is a method and a constant is a class constant \
+                 (`rule:classes/no-free-functions-or-constants`), so import the class that \
+                 declares it and write `Class::name`",
+            ),
+        );
     }
 
     /// Reports the group-use refusal and eats `\{ ... }`, leaving the caller
