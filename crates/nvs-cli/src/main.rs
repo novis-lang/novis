@@ -2397,8 +2397,8 @@ fn run_run(
     //
     // Behind an `Arc` so the same cache also reaches a core `nvs_host` starts
     // for a `spawn script` placed `on: "worker"`, which has no stack of this
-    // one's to borrow from — `nvs_runtime::script`'s *Reaching a core that has
-    // not started yet*. One handle for the process, withdrawn below when the run
+    // one's to borrow from — `nvs_runtime::script`'s *Reaching a core that
+    // starts later*. One handle for the process, withdrawn below when the run
     // ends, so a source still compiles once however many cores read it.
     let compiler = std::sync::Arc::new(script::Compiler::new(&for_compiler.config));
     let shared = nvs_runtime::script::publish(nvs_runtime::script::SharedResolver::new(

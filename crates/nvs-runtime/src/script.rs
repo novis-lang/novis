@@ -87,7 +87,7 @@
 //! new code becomes executable either way — the class is in the unit already
 //! running.
 //!
-//! # Reaching a core that has not started yet
+//! # Reaching a core that starts later
 //!
 //! [`install`] and [`scoped`] both publish onto *this* thread, and a thread
 //! `nvs-host` starts for a worker placement was handed neither: a
@@ -299,8 +299,8 @@ pub fn scoped<R>(resolver: &(dyn Resolver + 'static), run: impl FnOnce() -> R) -
 /// reaches a thread somebody else starts afterwards. This is the form that
 /// does: a `Send + Sync` handle, cheap to clone, which the starting core
 /// installs on its own thread for as long as it runs. The module doc's
-/// *Reaching a core that has not started yet* owns why this is a handle to the
-/// one table rather than a second one.
+/// *Reaching a core that starts later* owns why this is a handle to the one
+/// table rather than a second one.
 ///
 /// It is deliberately not a [`Resolver`] itself. That trait's subject is a path
 /// and its answer is a [`Program`] built for the core about to run it; this

@@ -417,7 +417,7 @@ pub(crate) fn run(
     // `nvs_host` starts for a `spawn script` placed `on: "worker"` is not one of
     // this fleet's and has no accept loop's stack to borrow a resolver from, so
     // it reads this handle as it starts
-    // (`nvs_runtime::script`'s *Reaching a core that has not started yet*). One
+    // (`nvs_runtime::script`'s *Reaching a core that starts later*). One
     // publish rather than one per core, because a guard restored out of order
     // across threads would leave the slot holding whichever core finished last.
     let _published = nvs_runtime::script::publish(nvs_runtime::script::SharedResolver::new(
