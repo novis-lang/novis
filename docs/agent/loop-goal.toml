@@ -121,6 +121,9 @@ modules = [
   "crates/nvs-cli/src/worker.rs",
   # `nvs run`'s one scheduler and its `script::scoped` for the whole run. Stage 2.
   "crates/nvs-cli/src/main.rs",
+  # The accept loop: one listening socket, one coroutine per connection, and one `hyper`
+  # connection future driven on that coroutine's own stack.
+  "crates/nvs-server/src/serve.rs",
 ]
 
 # What a placement promises, what may cross it, and what the memory it takes has to be.
