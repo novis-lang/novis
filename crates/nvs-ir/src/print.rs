@@ -284,10 +284,10 @@ fn print_inst(out: &mut String, inst: &Inst, f: &Function, src: &SourceFile) {
             key.index(),
             value.index()
         ),
-        InstKind::InstanceOf { value, class } => match class {
-            TestedClass::Named(class) => format!("instanceof v{}, {class}", value.index()),
+        InstKind::ClassTest { value, class } => match class {
+            TestedClass::Named(class) => format!("class.test v{}, {class}", value.index()),
             TestedClass::Descriptor(desc) => {
-                format!("instanceof v{}, v{}", value.index(), desc.index())
+                format!("class.test v{}, v{}", value.index(), desc.index())
             }
         },
         InstKind::Concat { pieces } => {

@@ -362,7 +362,7 @@ pub(crate) fn lower_closure(
 /// `nvs_types::expr::testable_core_class` holds: a registered class with
 /// instances, whose descriptor is the process-wide one
 /// `nvs_stdlib::class_descriptors` publishes and `nvs_codegen`'s
-/// `emit_instanceof` relocates against, or a namespaced exception class, which
+/// `emit_class_test` relocates against, or a namespaced exception class, which
 /// `nvs_types::layout` lays into the unit's own table like any other. Asking
 /// that one predicate rather than restating the roster is what keeps this pass
 /// and the checker from disagreeing about which names have a descriptor. A
@@ -428,7 +428,7 @@ fn check_param_class(
     let (is_instance, _) = low.emit(
         cur,
         Ty::Bool,
-        InstKind::InstanceOf {
+        InstKind::ClassTest {
             value,
             class: TestedClass::Named(class.to_owned()),
         },

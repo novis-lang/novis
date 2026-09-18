@@ -329,7 +329,7 @@ pub struct Class {
     /// answer rather than testing for the `invoke` in the method table. It is
     /// the same fact `crate::lower::CLOSURE_MARKER` puts in
     /// [`Self::conforms`], reaching the runtime by the one route a descriptor
-    /// walk cannot: `instanceof` compares descriptor *addresses*, so the
+    /// walk cannot: a class test compares descriptor *addresses*, so the
     /// marker answers `$x is callable` inside the unit that emitted it, while
     /// native code holding a closure from any unit at all asks this bit.
     ///
@@ -1188,29 +1188,29 @@ pub enum InstKind {
         /// representation. Borrowed; see this variant's own docs.
         value: ValueId,
     },
-    /// `$obj instanceof Class` — one linear scan of the receiver's flattened
+    /// `$obj is Class` — one linear scan of the receiver's flattened
     /// supertype set, defining a [`Ty::Bool`].
     ///
     /// `class` is usually a label into [`crate::ir::Program::classes`],
     /// exactly like [`InstKind::New::class`], and it may name an *interface*
     /// as readily as a class: `nvs_types::layout` gives an interface a
     /// descriptor with no slots for precisely this test (and for a typed
-    /// `catch`, which lowers to the same instruction). `rule:types/class-reference-sites`'s
-    /// `$x instanceof $cls` supplies a [`Ty::ClassDesc`] value in its place
+    /// `catch`, which lowers to the same instruction). `rule:types/type-test`'s
+    /// value arm `$x is $cls` supplies a [`Ty::ClassDesc`] value in its place
     /// and asks the identical question — [`TestedClass`] owns why the two
     /// forms are one instruction. Reads `value` without retaining it, the way
     /// [`InstKind::FieldGet`] reads its receiver.
     ///
     /// **The subject may be a [`Ty::Tagged`], and the tag is checked at run
-    /// time.** A `mixed` or an untested `?Box` is what `instanceof` is for, so
-    /// `nvs-codegen` passes such a subject as a whole value by address — the
-    /// same shape [`InstKind::SlotGet`]'s receiver takes — and a tag that is
-    /// not an object answers `false`. That is PHP's own answer, and unlike the
-    /// name-keyed fetch there is nothing to throw about: the question was
-    /// "is it one", not "read a field off it". A subject whose *declared* type
-    /// can hold no object is `E0497` at the checker instead, so this never
-    /// sees a scalar representation.
-    InstanceOf {
+    /// time.** A `mixed` or an untested `?Box` is what this instruction is
+    /// for, so `nvs-codegen` passes such a subject as a whole value by
+    /// address — the same shape [`InstKind::SlotGet`]'s receiver takes — and a
+    /// tag that is not an object answers `false`. Unlike the name-keyed fetch
+    /// there is nothing to throw about: the question was "is it one", not
+    /// "read a field off it". A subject whose *declared* type can hold no
+    /// object is folded to a constant at the checker instead
+    /// (`rule:types/type-test`), so this never sees a scalar representation.
+    ClassTest {
         /// The subject, already lowered — a [`Ty::Object`], or a
         /// [`Ty::Tagged`] whose tag this instruction checks.
         value: ValueId,
@@ -1330,7 +1330,7 @@ pub enum InstKind {
     /// The value may be **null**: a runtime helper's bare-message failure has
     /// no object behind it unless the driver installed a class to build one
     /// from (`nvs_runtime::Ctx::set_runtime_error_class`). Every operation the
-    /// dispatch performs on it tolerates that — [`InstKind::InstanceOf`]
+    /// dispatch performs on it tolerates that — [`InstKind::ClassTest`]
     /// answers `false`, so no clause matches and the throw is re-raised.
     ///
     /// Defined as an instruction rather than a [`Helper`] call for the same
@@ -1534,7 +1534,7 @@ pub enum InstKind {
     /// `rule:types/type-test`'s `$x is T` for every row a tag settles by
     /// itself: a scalar, `null`, plain `object` and a bare `array`. A class, a
     /// named element type, a literal and an enum case each need more than a
-    /// tag — the descriptor walk `instanceof` already emits, the element walk
+    /// tag — the descriptor walk [`Self::ClassTest`] emits, the element walk
     /// `as array<T>` already emits, or a payload compare — and none of those
     /// replaces this compare, they follow it. A subject that is not
     /// [`crate::ty::Ty::Tagged`] never reaches here at all: it carries exactly
@@ -1893,13 +1893,13 @@ pub enum InstKind {
     },
 }
 
-/// Which class an [`InstKind::InstanceOf`] tests against.
+/// Which class an [`InstKind::ClassTest`] tests against.
 ///
 /// Two forms rather than two instructions, because the test is the same test:
 /// `nvs-codegen` calls the same runtime helper with the same two arguments,
 /// and all that differs is where the descriptor's address comes from. A
 /// written name is one the unit already laid out, so its address is an
-/// `iconst`; `rule:types/class-reference-sites`'s `$x instanceof $cls` already has the address in a
+/// `iconst`; `rule:types/type-test`'s value arm `$x is $cls` already has the address in a
 /// register, because a `class<T>` value *is* a descriptor.
 ///
 /// The written form keeps its label rather than lowering to a

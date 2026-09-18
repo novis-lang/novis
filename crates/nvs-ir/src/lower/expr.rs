@@ -364,7 +364,7 @@ impl<'a> Lowering<'a> {
                         // is not folded even where the declared type resolved.
                         // The receiver needs no lifecycle of its own: it is
                         // read through and not kept, exactly as
-                        // [`Self::lower_instanceof`]'s subject is. Its
+                        // [`Self::lower_type_test`]'s subject is. Its
                         // representation is a [`Ty::Object`] by construction —
                         // the checker records `ClassNameOf` for no other — so
                         // this asserts nothing, the way every other
@@ -1579,7 +1579,7 @@ impl<'a> Lowering<'a> {
         };
         // The operand is only read, so a fresh one nothing else owns — an
         // element read off a temporary, a `get` hook's return — is released
-        // once the test has read it. Same rule [`Self::lower_instanceof`]
+        // once the test has read it. Same rule [`Self::lower_type_test`]
         // applies to its own subject, and the answer being a [`Ty::Bool`] is
         // what makes "right after" safe.
         if !self.aliasing_read(operand) && ty.is_refcounted() {
@@ -4981,7 +4981,7 @@ impl<'a> Lowering<'a> {
     /// to [`Helper::ValueIndexGet`] (or [`Helper::ValueIndexOptionalGet`]
     /// under a `??`) and the tag answers. The choice is made off the base's
     /// *representation* rather than off the recorded entry, exactly as
-    /// [`Self::lower_instanceof`] reads its own subject's.
+    /// [`Self::lower_type_test`] reads its own subject's.
     ///
     /// `base[]` (`index`
     /// is `None`) has no meaning as a read at all — it is PHP's
@@ -5068,7 +5068,7 @@ impl<'a> Lowering<'a> {
         // pair that asks the tag rather than to the instruction, whose base
         // is an `array<T>` by declaration. `nvs_types` records the same
         // `ExprInfo::Index` either way — it is the base's own representation
-        // that picks here, exactly as it does for `instanceof`'s subject.
+        // that picks here, exactly as it does for a class test's subject.
         let kind = if base_ty == Ty::Tagged {
             let helper = if *guarded {
                 Helper::ValueIndexOptionalGet
@@ -5179,7 +5179,7 @@ impl<'a> Lowering<'a> {
                 self.emit(
                     *cur,
                     Ty::Bool,
-                    InstKind::InstanceOf {
+                    InstKind::ClassTest {
                         value,
                         class: TestedClass::Descriptor(desc),
                     },
@@ -5306,7 +5306,7 @@ impl<'a> Lowering<'a> {
             // which is the class and element rows' constant reached for the
             // same reason.
             TestShape::Literal { .. } => self.emit(*cur, Ty::Bool, InstKind::ConstBool(false)),
-            // The walk `instanceof` and `as C` already emit, on the two
+            // The descriptor walk `as C` already emits, on the two
             // representations that can reach a descriptor at all. Every other
             // subject holds no object, so the answer is a constant — a `mixed`
             // is the [`Ty::Tagged`] arm and a scalar's disjointness folded at
@@ -5315,7 +5315,7 @@ impl<'a> Lowering<'a> {
             TestShape::Class(name) if matches!(subject, Ty::Object | Ty::Tagged) => self.emit(
                 *cur,
                 Ty::Bool,
-                InstKind::InstanceOf {
+                InstKind::ClassTest {
                     value,
                     class: TestedClass::Named(name),
                 },
@@ -5892,7 +5892,7 @@ enum TypeTestPlan {
 enum TestShape {
     /// One tag comparison, against the tag this representation carries.
     Tag(Ty),
-    /// The descriptor walk `instanceof` and `as C` already emit, against this
+    /// The descriptor walk [`InstKind::ClassTest`] performs, against this
     /// class or interface label. Never a second walk of its own.
     Class(String),
     /// The O(n) element walk `as array<T>` already pays for, against
@@ -6010,9 +6010,9 @@ enum TestShape {
 /// `nvs_types::ty::Ty` is `#[non_exhaustive]`, so the walk ends in a wildcard
 /// the compiler requires here and no checked program reaches — which is what
 /// [`Lowering::lower_type_test`]'s panic states, rather than a gap. Each type
-/// falling to it is held back earlier: `rule:types/type-test`'s three refusals
-/// are a qualifier (`E0813`), `void` or `never` (`E0811`) and a variable
-/// (`E0812`), each pinned to a conformance case expecting the code; `mixed`
+/// falling to it is held back earlier: `rule:types/type-test`'s two refusals
+/// are a qualifier (`E0813`) and `void` or `never` (`E0811`), each pinned to a
+/// conformance case expecting the code; `mixed`
 /// holds every value, so the checker settles that test to `true` instead of
 /// lowering it; and `ClassRef`, `PropertyKey`, `ShapeOfCallables` and
 /// `CoreShape` are compiler-owned types no source spelling produces.
@@ -6064,7 +6064,7 @@ fn test_shape(
         // a chain too, and adds no test of its own. The array tag goes first
         // because it is the one member that reaches no descriptor, then
         // `rule:iteration/two-interfaces`' two interfaces through the walk
-        // `instanceof` already emits. Both labels are spelled rather than named
+        // a class test already emits. Both labels are spelled rather than named
         // for `super::closure::declared_class`'s reason, and a descriptor for
         // each is in every program's class table whether or not the file
         // implements one (`super::lower_program`).
@@ -6079,7 +6079,7 @@ fn test_shape(
         // and no other value does, so the question is whether the subject is an
         // object of one of the environment classes `super::closure`
         // synthesizes — which is what the marker edge on each of them says.
-        // That makes this the descriptor walk `instanceof` already emits, with
+        // That makes this the descriptor walk a class test already emits, with
         // no field read, no tag of its own and no second table.
         CheckedTy::Callable => {
             return Some(TestShape::Class(super::CLOSURE_MARKER.to_owned()));

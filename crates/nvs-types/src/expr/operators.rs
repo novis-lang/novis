@@ -1820,7 +1820,7 @@ fn reject_unconvertible(from: TypeId, to: TypeId, span: Span, env: &mut Env<'_>)
 ///   target on exactly the terms a declared class is, and is asked the same
 ///   disjointness question. The descriptor it tests against is the process-wide
 ///   one `nvs_stdlib::class_descriptors` publishes rather than one the unit
-///   laid out, and `InstKind::InstanceOf` already takes it.
+///   laid out, and `InstKind::ClassTest` already takes it.
 /// * **The identical type**, returned by [`reject_unconvertible`] before this
 ///   is reached.
 ///

@@ -1143,10 +1143,10 @@ impl<'a> Lowering<'a> {
     /// names.
     ///
     /// Nothing new is needed to express it, which is why this is a shape
-    /// rather than a helper. [`InstKind::InstanceOf`] already takes a tagged
+    /// rather than a helper. [`InstKind::ClassTest`] already takes a tagged
     /// subject and already answers `false` for a tag that is not an object at
-    /// all (`nvs_codegen`'s `emit_instanceof` routes one through
-    /// `nvs_value_instanceof` for exactly that), so the row is a test, a
+    /// all (`nvs_codegen`'s `emit_class_test` routes one through
+    /// `nvs_value_is_class` for exactly that), so the row is a test, a
     /// [`Terminator::Throw`] on the false edge and one free
     /// [`InstKind::Untag`] on the true one. A [`Helper`] row could not have
     /// carried it: helper arguments are stored as `nvs_runtime::Value`s, and a
@@ -1181,7 +1181,7 @@ impl<'a> Lowering<'a> {
         let (is_instance, _) = self.emit(
             *cur,
             Ty::Bool,
-            InstKind::InstanceOf {
+            InstKind::ClassTest {
                 value,
                 class: TestedClass::Named(class.to_owned()),
             },

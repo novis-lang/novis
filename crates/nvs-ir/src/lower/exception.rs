@@ -108,7 +108,7 @@ impl<'a> Lowering<'a> {
         let (in_the_tree, _) = self.emit(
             *cur,
             Ty::Bool,
-            InstKind::InstanceOf {
+            InstKind::ClassTest {
                 value: object,
                 class: TestedClass::Named(THROWABLE_ROOT.to_owned()),
             },
@@ -293,10 +293,10 @@ impl<'a> Lowering<'a> {
     ///
     /// [`InstKind::TakeThrown`] takes the pending exception once, at the top
     /// of the dispatch block, and each clause is then one
-    /// [`InstKind::InstanceOf`] against its declared class plus a branch —
-    /// the same test `$e instanceof T` compiles to, which is why nothing here
+    /// [`InstKind::ClassTest`] against its declared class plus a branch —
+    /// the same test `$e is T` compiles to, which is why nothing here
     /// needs a second mechanism. `catch (Throwable $e)` is not special-cased:
-    /// every exception class descends from `Throwable`, so its `instanceof`
+    /// every exception class descends from `Throwable`, so its test
     /// simply always answers true. If no clause matches, the taken reference
     /// is handed straight back to a [`Terminator::Throw`], so an unmatched
     /// exception leaves the frame carrying the same object it arrived with.
@@ -362,7 +362,7 @@ impl<'a> Lowering<'a> {
         *env = self.merge_envs(after_block, &after_incoming, env);
         *cur = after_block;
     }
-    /// The `instanceof`-chain dispatch a `try`'s clauses lower to, plus the
+    /// The class-test chain a `try`'s clauses lower to, plus the
     /// re-raise that ends it — see [`Self::lower_try`] for the shape and why
     /// it needs no mechanism of its own.
     pub(crate) fn lower_catch_clauses(
@@ -379,7 +379,7 @@ impl<'a> Lowering<'a> {
             let (cond, _) = self.emit(
                 test_block,
                 Ty::Bool,
-                InstKind::InstanceOf {
+                InstKind::ClassTest {
                     value: thrown,
                     class: TestedClass::Named(caught),
                 },
@@ -604,7 +604,7 @@ impl<'a> Lowering<'a> {
     /// function's own doc comment gives: a [`TryFrame`] brackets the guarded
     /// expression so each failing call inside it records its own landing
     /// block, [`InstKind::TakeThrown`] takes the pending exception once at the
-    /// top of the handler, an arm is one [`InstKind::InstanceOf`] against its
+    /// top of the handler, an arm is one [`InstKind::ClassTest`] against its
     /// class plus a branch, and what no arm matched is handed straight back to
     /// a [`Terminator::Throw`] carrying the very same reference. What the
     /// expression form adds is the join: the guard and every completing arm
@@ -693,7 +693,7 @@ impl<'a> Lowering<'a> {
             let (cond, _) = self.emit(
                 test_block,
                 Ty::Bool,
-                InstKind::InstanceOf {
+                InstKind::ClassTest {
                     value: thrown_v,
                     class: TestedClass::Named(caught),
                 },
@@ -794,7 +794,7 @@ impl<'a> Lowering<'a> {
     /// A clause naming a class inside a `namespace` block resolves against the
     /// file's namespace at check time and against nothing here, so its label
     /// will not match the layout table's. That is the same missing resolution
-    /// [`InstKind::InstanceOf`] avoided by having the checker record the
+    /// [`InstKind::ClassTest`] avoided by having the checker record the
     /// answer, and the same fix applies — `nvs_types` recording a resolved
     /// `QName` per clause.
     pub(crate) fn caught_class_label(&self, ty: &Type) -> String {

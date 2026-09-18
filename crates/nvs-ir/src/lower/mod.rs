@@ -4073,7 +4073,8 @@ pub(crate) const FN_INVOKE: &str = "invoke";
 /// program declares does: `rule:types/callable-is-a-closure` makes `callable` a
 /// question about one shape of value, and a `conforms` edge is the one thing a
 /// descriptor already carries that answers it — so `$x is callable` is the
-/// descriptor walk `instanceof` emits rather than a mechanism of its own.
+/// descriptor walk [`crate::ir::InstKind::ClassTest`] emits rather than a
+/// mechanism of its own.
 ///
 /// A label and not a name, on [`shape_class_label`]'s terms: `$` cannot start an
 /// Novis identifier, so no declaration can collide with it and no source can
@@ -4224,7 +4225,7 @@ pub const FN_PARAM_TAG_ANY: u8 = 15;
 /// 0036 § 4's erased receiver, is read and written at a *fixed offset* against
 /// its label, so admitting one is a type confusion rather than a wrong answer.
 /// The label four bits have no room for is checked at the closure's **entry**
-/// instead, one `instanceof` per class-declared parameter
+/// instead, one class test per class-declared parameter
 /// (`lower::closure::check_param_class`); `docs/adr/README.md` § *Decisions
 /// taken at project start* owns why that boundary pays rather than every
 /// named-class property access, and

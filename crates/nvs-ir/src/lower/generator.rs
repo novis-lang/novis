@@ -537,9 +537,9 @@ pub(crate) fn lower_generator(
         // entry of their own, so `nvs_codegen::Classes::define` drops an
         // unresolvable label here the same way it does for any other —
         // which costs nothing today, since a `foreach` over a cursor
-        // dispatches through the method table rather than through an
-        // `instanceof`. Stated rather than left implicit: an
-        // `$gen instanceof Iterator` would answer `false`.
+        // dispatches through the method table rather than through a class
+        // test. Stated rather than left implicit: `$gen is Iterator` would
+        // answer `false`.
         conforms: vec![nvs_hir_iterator_label()],
         // Public, all three: a state class is unspellable and its members are
         // named by `foreach`'s own lowering and by `dismantle`, neither of

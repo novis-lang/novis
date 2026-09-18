@@ -31,7 +31,7 @@
 //!   array-element read and write, array literals including an explicit
 //!   `key =>` and `$a[] =` append, `&&`/`||`/`!` and the ternary/elvis
 //!   operator, `rule:expressions/truthy-positions`'s truthy conversion, `rule:types/closure-literal` closure literals,
-//!   `instanceof`, `??`, the literal `null`, `rule:types/conversion`'s scalar conversion
+//!   `is`, `??`, the literal `null`, `rule:types/conversion`'s scalar conversion
 //!   rows — free, total and checked alike — and `rule:expressions/nullable-conversion`'s non-throwing
 //!   `as ?T` over the checked numeric targets and over its § 3 parse roster.
 //! - **Types** — `int`/`uint`/`float`/`bool`/`decimal` scalars, `string`,
@@ -550,7 +550,7 @@
 //!     A [`ty::Ty::Tagged`] operand converted to an *object* —
 //!     `$m as Plain` over a `mixed`, `rule:types/unions-and-mixed`'s checked way out
 //!     of the one unchecked position — wants no helper.
-//!     [`ir::InstKind::InstanceOf`] already takes a tagged subject and already
+//!     [`ir::InstKind::ClassTest`] already takes a tagged subject and already
 //!     answers `false` for a tag that is not an object, so
 //!     `lower::Lowering::lower_checked_downcast` is that test, a
 //!     [`ir::Terminator::Throw`] on the false edge and one free
