@@ -2353,8 +2353,10 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   previous handoff's list. [until: gone docs/agent/loop-goal.toml:7 the gate]
 - **A goal's absence gate greps a *path list*, and a path left off it is where the retired spelling
   survives.** Goal `one-type-test`'s gate named `crates`, `tests` and the doc trees but not
-  `examples`, so it stayed green while three example programs still spelled the test `instanceof` and
-  the floor went red on one of them. When a gate's claim is "this word appears nowhere", run `git
+  `examples`, so it stayed green while three example programs still spelled the type test PHP's way and
+  the floor went red on one of them. Spelling the word inside the bullet is the second way to redden
+  such a gate, since the playbook is on its path list. When a gate's claim is "this word appears
+  nowhere", run `git
   grep -l -i -w <word>` over the whole tree and compare it against the check's `argv` before treating
   the gate as the specification. [until: reviewed 2026-09-18]
 
@@ -4261,11 +4263,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   body or a registered return type. Write the receiver's class name inside the body, in a comment if
   nowhere else, or `every_part_one_member_has_a_conformance_case` fails naming the member.
   [until: gone crates/nvs-stdlib/tests/corpus/mod.rs:fn holders]
-- **A `use` alias does not reach a `catch`; a namespaced error-tree class is written out there.**
-  `use Core\Db\RolledBack;` plus `catch (RolledBack $e)` fails at codegen naming
-  "`is RolledBack`, whose class this unit declares no descriptor for", because
-  `caught_class_label` reads a catch clause's type as source text. Write the class out in the
-  `catch`. [until: gone crates/nvs-ir/src/lower/exception.rs:fn caught_class_label]
 - **A unit test that disables the feature under test can make two distinct names identical, and
   every assertion then passes.** `pg.rs`'s statement tests run on a `no_cache()` `StatementCache`,
   where a `Bind`'s portal and its statement are both the empty string, so `frontend::bind` called
