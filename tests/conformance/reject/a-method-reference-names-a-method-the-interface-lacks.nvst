@@ -1,0 +1,29 @@
+--TEST--
+A method reference naming a method the interface does not declare is refused where it is written — `rule:testing/interaction-after-the-fact`
+--FILE--
+<?nvs
+// ADR 0079 § 11's compile-checked reference, seen from the side that makes it
+// worth having. `Mailer::purge` is the name of no method `Mailer` declares, so
+// the assertion never compiles — which is the whole reason the member takes
+// `Mailer::send` rather than `"send"`: renaming a method breaks the test that
+// asserts about it instead of leaving it passing against a method that no
+// longer exists.
+//
+// The spelling is admitted at this argument and nowhere else. `Mailer::purge`
+// written anywhere a registry row did not ask for a method reference is the
+// undefined class constant it reads as, and stays one.
+interface Mailer {
+    public function send(string $to): bool;
+}
+
+Mailer $mailer = Core\Test::double<Mailer>({
+    send: fn(string $to): bool => true,
+});
+Core\Test::assertNeverCalled($mailer, Mailer::purge);
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0829]: `Mailer` declares no method named `purge`
+%A
+error: aborting due to 1 error

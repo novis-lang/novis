@@ -1,0 +1,62 @@
+--TEST--
+`Core\Test::assertCalled` reads the record a double kept, by the method's name alone, by an exact count and by the arguments one call was made with — `rule:testing/interaction-after-the-fact`
+--FILE--
+<?nvs
+// ADR 0079 § 11: the calls are asserted *after* the exercise, against the
+// record the double kept, in the order the test reads. Nothing is declared in
+// advance, so every line below is about a call that has already happened.
+interface Mailer {
+    public function send(string $to, string $subject): bool;
+    public function purge(): void;
+}
+
+Mailer $mailer = Core\Test::double<Mailer>({
+    send: fn(string $to, string $subject): bool => true,
+    purge: fn(): void => {},
+});
+
+// The exercise. Two calls to one method, with different arguments, so every
+// question below has more than one answer available to it.
+echo $mailer->send("ada@example.test", "welcome") ? "sent" : "refused", "\n";
+echo $mailer->send("bob@example.test", "reminder") ? "sent" : "refused", "\n";
+
+// 1. The name alone: it was called, and how often is not being asked.
+Core\Test::assertCalled($mailer, Mailer::send);
+echo "called\n";
+
+// 2. `times` is exact rather than a floor — two calls are two, and one is a
+// failure even though the method was called.
+Core\Test::assertCalled($mailer, Mailer::send, {times: 2});
+Core\Test::expectFailure(fn (): void => {
+    Core\Test::assertCalled($mailer, Mailer::send, {times: 1});
+});
+echo "twice, and not once\n";
+
+// 3. `with` names the arguments of one recorded call, all of them and in
+// order: a list that matches a prefix of a call matches no call at all.
+Core\Test::assertCalled($mailer, Mailer::send, {with: ["bob@example.test", "reminder"]});
+Core\Test::expectFailure(fn (): void => {
+    Core\Test::assertCalled($mailer, Mailer::send, {with: ["bob@example.test"]});
+});
+echo "with the arguments of one call\n";
+
+// 4. The two narrow together, which is what makes the pair worth having: of
+// the two calls recorded, exactly one was made with these arguments.
+Core\Test::assertCalled($mailer, Mailer::send, {times: 1, with: ["ada@example.test", "welcome"]});
+echo "one call carried these arguments\n";
+
+// 5. A method the exercise never reached has no record at all, and asking
+// about it is a failure rather than an error — the ledger holds no key for a
+// method that was never called.
+Core\Test::expectFailure(fn (): void => {
+    Core\Test::assertCalled($mailer, Mailer::purge);
+});
+echo "an uncalled method fails\n";
+--EXPECT--
+sent
+sent
+called
+twice, and not once
+with the arguments of one call
+one call carried these arguments
+an uncalled method fails

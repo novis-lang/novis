@@ -1,0 +1,56 @@
+--TEST--
+Two doubles of one interface share a class and keep separate call records, and a partial records the calls it delegates as well as the ones it answers — `rule:testing/interaction-after-the-fact`, `rule:testing/doubles`
+--FILE--
+<?nvs
+// The record is per *object*, which is the question a shared class raises:
+// two doubles of one interface built the same way are one descriptor — that is
+// what keeps the descriptor table O(call sites) — so if the ledger lived
+// anywhere but in the instance's own slot, the second double would inherit the
+// first one's calls and every assertion below would answer about the wrong
+// subject.
+interface Mailer {
+    public function send(string $to): bool;
+    public function purge(): void;
+}
+
+Mailer $first = Core\Test::double<Mailer>({
+    send: fn(string $to): bool => true,
+    purge: fn(): void => {},
+});
+Mailer $second = Core\Test::double<Mailer>({
+    send: fn(string $to): bool => true,
+    purge: fn(): void => {},
+});
+
+echo $first->send("ada@example.test") ? "sent" : "refused", "\n";
+
+// 1. The call reached the double it was made on, and no other.
+Core\Test::assertCalled($first, Mailer::send, {times: 1});
+Core\Test::assertNeverCalled($second, Mailer::send);
+echo "one record each\n";
+
+// 2. A partial records both halves of what it does: the method its shape
+// answers and the method it forwards to `$real` are one ledger, because what
+// is being asserted about is the call and not which body took it.
+final class RealMailer implements Mailer {
+    public function send(string $to): bool {
+        return true;
+    }
+
+    public function purge(): void {}
+}
+
+Mailer $half = Core\Test::partial<Mailer>(new RealMailer(), {
+    purge: fn(): void => {},
+});
+echo $half->send("bob@example.test") ? "sent" : "refused", "\n";
+$half->purge();
+
+Core\Test::assertCalled($half, Mailer::send, {with: ["bob@example.test"]});
+Core\Test::assertCalled($half, Mailer::purge, {times: 1});
+echo "a delegated call is recorded too\n";
+--EXPECT--
+sent
+one record each
+sent
+a delegated call is recorded too

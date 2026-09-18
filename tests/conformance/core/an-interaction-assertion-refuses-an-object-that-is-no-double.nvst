@@ -1,0 +1,45 @@
+--TEST--
+`Core\Test::assertCalled` and `assertNeverCalled` refuse an ordinary object, both with the same `LogicError`, because only a double keeps a record — `rule:testing/interaction-after-the-fact`
+--FILE--
+<?nvs
+// The boundary the erased parameter leaves open. What these two really take is
+// a *double*, which is a class no program can name and therefore no registry
+// row can write down; the declared parameter is `object`, so every instance
+// satisfies it where the call is written and the narrower question is asked
+// here, at run time.
+//
+// It is a `LogicError` rather than a failed assertion on purpose: a test that
+// asserts about a real object's calls has not found a bug in the subject, it
+// has asked a question that has no answer.
+interface Mailer {
+    public function send(string $to): bool;
+}
+
+final class RealMailer implements Mailer {
+    public function send(string $to): bool {
+        return true;
+    }
+}
+
+Mailer $real = new RealMailer();
+echo $real->send("ada@example.test") ? "sent" : "refused", "\n";
+
+// 1. Asking whether a real object was called.
+try {
+    Core\Test::assertCalled($real, Mailer::send);
+} catch (LogicError $asked) {
+    echo $asked->message, "\n";
+}
+
+// 2. The other member refuses the same way. The two agree because they read
+// the same record through the same reader, which is what makes the message
+// worth pinning: a second reader would drift from this one.
+try {
+    Core\Test::assertNeverCalled($real, Mailer::send);
+} catch (LogicError $asked) {
+    echo $asked->message, "\n";
+}
+--EXPECT--
+sent
+Core\Test::assertCalled(): `RealMailer` is an ordinary object, and the record this reads is kept only by a double `Core\Test::double` or `Core\Test::partial` built
+Core\Test::assertNeverCalled(): `RealMailer` is an ordinary object, and the record this reads is kept only by a double `Core\Test::double` or `Core\Test::partial` built

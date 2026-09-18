@@ -15386,7 +15386,7 @@ Renders `$value` exactly as `dump` would and answers it as a `Core\Cli\Text` ins
 <a id="core-core-test"></a>
 ### `Core\Test`
 
-Keywords: PHPUnit, assert(), assertion, unit test, #[Test], #[Core\Test], Core\Test\Failure, nvs test, expectException, assertSame, assertEquals, ledger, fixed clock, assertSame, assertEquals, assertEqualsDeep, assertTrue, assertNull, assertCount, assertContains, assertMatchesInline, assertThrows, assertDoesNotThrow, expectFailure, advance, serverUrl, scriptAnswers, request, answerHttp, sentHttp, answerSocket, sentSocket, double, partial
+Keywords: PHPUnit, assert(), assertion, unit test, #[Test], #[Core\Test], Core\Test\Failure, nvs test, expectException, assertSame, assertEquals, ledger, fixed clock, assertSame, assertEquals, assertEqualsDeep, assertTrue, assertNull, assertCount, assertContains, assertMatchesInline, assertThrows, assertDoesNotThrow, expectFailure, advance, serverUrl, scriptAnswers, request, answerHttp, sentHttp, answerSocket, sentSocket, double, partial, assertCalled, assertNeverCalled
 
 `Core\Test` is the assertion surface: every member is `static`, takes the subject **first**
 (`assertEquals($actual, $expected)` — the reverse of PHPUnit's order), and is generic, so comparing an
@@ -15466,6 +15466,8 @@ final class CartTest {
 | [`Core\Test::sentSocket`](#core-core-test-sentsocket) | `sentSocket(): array<Core\Socket\Message>` |
 | [`Core\Test::double`](#core-core-test-double) | `double<T>(object $answers): T` |
 | [`Core\Test::partial`](#core-core-test-partial) | `partial<T>(T $real, object $answers): T` |
+| [`Core\Test::assertCalled`](#core-core-test-assertcalled) | `assertCalled(object $double, method $method, {times?: uint, with?: array<mixed>, message?: string}): void` |
+| [`Core\Test::assertNeverCalled`](#core-core-test-assertnevercalled) | `assertNeverCalled(object $double, method $method, {message?: string}): void` |
 
 <a id="core-core-test-assertsame"></a>
 #### `Core\Test::assertSame`
@@ -15829,6 +15831,46 @@ A stand-in for `T` that answers the methods `$answers` names and delegates every
 **Returns** `T` — The partial, typed as `T`. Every call is recorded whether the closure or `$real` answered it.
 
 **Throws** `LogicError` — `double`'s ceiling, for the same reason and with the same two counts.
+
+<a id="core-core-test-assertcalled"></a>
+#### `Core\Test::assertCalled`
+
+```nvs skip
+Core\Test::assertCalled(object $double, method $method, {times?: uint, with?: array<mixed>, message?: string}): void
+```
+
+Asserts that `$method` was called on `$double` — after the exercise, against the record the double kept, rather than as an expectation declared in advance.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$double` | `object` | The double or partial the call is being asserted about. |
+| `$method` | `method` | The method, written as `Mailer::send` — a compile-checked reference, so renaming the method updates or breaks the test. |
+| `{times: …}` | `uint` (default `null`) | The exact number of calls expected. Omitted, any number above zero holds. |
+| `{with: …}` | `array<mixed>` (default `null`) | The arguments one of the recorded calls must have been made with, compared as `Core\Test::assertEquals` compares. Omitted, the arguments are not looked at. |
+| `{message: …}` | `string` (default `null`, neutral) | Prefixed to the failure, as on every other assertion. |
+
+**Returns** `void` — Nothing. A call that was not made, or was made a different number of times or with different arguments, throws.
+
+**Throws** `Core\Test\Failure` — The record does not hold the call the options describe. The message names the method, what was expected of it and every call the record does hold.; `LogicError` — `$double` is an ordinary object rather than something `Core\Test::double` or `Core\Test::partial` built, so there is no record to read.
+
+<a id="core-core-test-assertnevercalled"></a>
+#### `Core\Test::assertNeverCalled`
+
+```nvs skip
+Core\Test::assertNeverCalled(object $double, method $method, {message?: string}): void
+```
+
+Asserts that `$method` was never called on `$double` — `assertCalled`'s other half, over the same record.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$double` | `object` | The double or partial the absence is being asserted about. |
+| `$method` | `method` | The method, written as `Mailer::purge` and checked as `assertCalled`'s is. |
+| `{message: …}` | `string` (default `null`, neutral) | Prefixed to the failure, as on every other assertion. |
+
+**Returns** `void` — Nothing. One recorded call is enough to throw.
+
+**Throws** `Core\Test\Failure` — The method was called. The message names the first call the record holds and how many it holds in all.; `LogicError` — `assertCalled`'s, for the same reason: `$double` is not a double.
 
 <a id="core-core-test-response"></a>
 ### `Core\Test\Response`

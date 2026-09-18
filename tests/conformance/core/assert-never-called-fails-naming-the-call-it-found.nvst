@@ -1,0 +1,46 @@
+--TEST--
+`Core\Test::assertNeverCalled` holds for a method the exercise never reached, and its failure names the call it did find — `rule:testing/interaction-after-the-fact`
+--FILE--
+<?nvs
+// ADR 0079 § 11's other half. What this member is for is the assertion an
+// expectation declared in advance would have reported from the wrong line: the
+// call that should not have happened is named here, where the test says so.
+interface Mailer {
+    public function send(string $to): bool;
+    public function purge(): void;
+}
+
+Mailer $mailer = Core\Test::double<Mailer>({
+    send: fn(string $to): bool => true,
+    purge: fn(): void => {},
+});
+
+echo $mailer->send("ada@example.test") ? "sent" : "refused", "\n";
+
+// 1. The method the exercise never reached. A double records what it answers,
+// so a method with no key in the record is a method nothing called.
+Core\Test::assertNeverCalled($mailer, Mailer::purge);
+echo "purge was never called\n";
+
+// 2. One recorded call is enough to fail, and the failure names that call
+// rather than only its count — the arguments are what a reader needs to find
+// the line that made it.
+try {
+    Core\Test::assertNeverCalled($mailer, Mailer::send);
+} catch (Core\Test\Failure $found) {
+    echo $found->message, "\n";
+}
+
+// 3. The message option is prefixed exactly as it is on every other
+// assertion, which is `rule:testing/assertions-are-typed`'s shape rather than
+// anything this member decides for itself.
+try {
+    Core\Test::assertNeverCalled($mailer, Mailer::send, {message: "the mailer is disabled"});
+} catch (Core\Test\Failure $labelled) {
+    echo $labelled->message, "\n";
+}
+--EXPECT--
+sent
+purge was never called
+Core\Test::assertNeverCalled failed: `send` was called 1 time(s), the first as send("ada@example.test")
+the mailer is disabled: Core\Test::assertNeverCalled failed: `send` was called 1 time(s), the first as send("ada@example.test")
