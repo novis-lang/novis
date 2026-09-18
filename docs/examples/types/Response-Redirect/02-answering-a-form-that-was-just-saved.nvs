@@ -1,0 +1,19 @@
+<?nvs
+// A form has just been posted and the order is saved. Answering with the page
+// right here would mean the browser re-posts the form every time somebody
+// refreshes, so the answer is a redirect to a page that is safe to reload.
+
+string $order = "ORD-1042";
+
+// `SeeOther` is fetched with a plain read, whatever method asked — which is
+// exactly what "now show me the saved order" wants.
+Core\Response::redirect("/orders/" . $order, Core\Response\Redirect::SeeOther);
+
+// The same answer written the short way. `SeeOther` is the case you get when
+// you name none, and the second call simply replaces the first.
+Core\Response::redirect("/orders/" . $order);
+echo "saved ", $order, " and sent the browser to /orders/", $order, "\n";
+
+// A refresh of that page now re-reads the order. Nothing is saved twice, and
+// nobody is asked whether they want to send the form again.
+echo "a refresh re-reads the order instead of posting the form again\n";

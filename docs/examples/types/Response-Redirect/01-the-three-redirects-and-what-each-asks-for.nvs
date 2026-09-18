@@ -1,0 +1,46 @@
+<?nvs
+// The three redirects, and what each one asks the browser to do next. They
+// differ on two things: whether the request is repeated exactly as it was, and
+// whether the new address is the one from now on.
+
+class Redirects {
+    public static function label(Core\Response\Redirect $kind): string {
+        return match ($kind) {
+            Core\Response\Redirect::SeeOther => "SeeOther ",
+            Core\Response\Redirect::Temporary => "Temporary",
+            Core\Response\Redirect::Permanent => "Permanent",
+        };
+    }
+
+    // Repeated as it was — same method, same body. `SeeOther` does not: it
+    // asks for a plain read of another page instead.
+    public static function repeatsTheRequest(Core\Response\Redirect $kind): bool {
+        return match ($kind) {
+            Core\Response\Redirect::SeeOther => false,
+            Core\Response\Redirect::Temporary => true,
+            Core\Response\Redirect::Permanent => true,
+        };
+    }
+
+    // Worth remembering. Only one of the three says the old address is gone.
+    public static function isForGood(Core\Response\Redirect $kind): bool {
+        return match ($kind) {
+            Core\Response\Redirect::SeeOther => false,
+            Core\Response\Redirect::Temporary => false,
+            Core\Response\Redirect::Permanent => true,
+        };
+    }
+}
+
+array<Core\Response\Redirect> $kinds = [
+    Core\Response\Redirect::SeeOther,
+    Core\Response\Redirect::Temporary,
+    Core\Response\Redirect::Permanent,
+];
+
+foreach ($kinds as Core\Response\Redirect $kind) {
+    echo Redirects::label($kind),
+        "  repeats the request: ", Redirects::repeatsTheRequest($kind) ? "yes" : "no ",
+        "  the new address is the one from now on: ", Redirects::isForGood($kind) ? "yes" : "no",
+        "\n";
+}

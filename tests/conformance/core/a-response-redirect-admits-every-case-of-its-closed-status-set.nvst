@@ -2,6 +2,7 @@
 `Core\Response::redirect` admits every case of its closed status set, and the codes it leaves out stay spellable beside it -- spec § 15
 --FILE--
 <?nvs
+// covers: Core\Response\Redirect
 // Invariance over the whole set rather than three answers read off three
 // lines: every case of the enum is a status this member converts, so a case
 // declared without an arm behind it fails here rather than on the wire.

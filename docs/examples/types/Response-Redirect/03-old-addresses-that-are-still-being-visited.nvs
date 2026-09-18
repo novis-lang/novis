@@ -1,0 +1,24 @@
+<?nvs
+// The everyday job: addresses that used to work and now point somewhere else.
+// A page that was renamed is gone for good, so its answer says so and search
+// engines relearn it. A page that is only away while it is being worked on is
+// temporary, and nobody should remember the detour.
+
+// What the visitor asked for. In a real program this comes from the request.
+string $asked = "/shop/coffee-grinder";
+
+array<string> $renamed = ["/shop/coffee-grinder" => "/shop/grinders/hand-crank"];
+array<string> $awayForNow = ["/shop/sale" => "/shop"];
+
+if (Core\Arr::hasKey($renamed, $asked)) {
+    // The new address is the address from now on, so a link somebody else
+    // saved can be updated and a search result can be replaced.
+    Core\Response::redirect($renamed[$asked], Core\Response\Redirect::Permanent);
+    echo "moved for good, to ", $renamed[$asked], "\n";
+} elseif (Core\Arr::hasKey($awayForNow, $asked)) {
+    // The old address is coming back, so nothing is asked to remember this.
+    Core\Response::redirect($awayForNow[$asked], Core\Response\Redirect::Temporary);
+    echo "away for now, sent to ", $awayForNow[$asked], "\n";
+} else {
+    echo "nothing has moved, so answer the page itself\n";
+}
