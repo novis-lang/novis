@@ -38,6 +38,12 @@ appends from the highest number already on the chain, and a hand-written goal la
 one renumbers them all, which is `chain.py`'s job. The number is not frozen here: whatever
 the roster owes on the day this runs is what gets written, and a group that owes nothing is left out.
 
+**The last goal it appends is not a group.** Every generated goal also writes each feature's website
+description — `about.md` in its example directory, `docs/examples/README.md` § *The description* —
+without any check counting it, and goal `the-description-is-owed` closes the emission: it switches
+that on in `tools/data/dossier-policy.toml`, closes what is left, and gates on the whole roster, so
+every goal after it carries all five of `rule:testing/four-proofs`'s artefacts as floor.
+
 ## Stage 2 — the item list
 
 Everything below is one file set — `tools/dossier.py` and the goals directory — so this is one session.

@@ -40,17 +40,22 @@ owed, with nobody editing a list.
                                                      with the goal files under docs/agent/goals/dossier/
     python tools/dossier.py --emit-goals --dry-run   ... and say what that would change, writing nothing
 
-## The description is written, and not yet counted
+## The description, and the switch that makes it owed
 
 Beside the four proofs every feature gets `about.md` in its example directory: the short plain
 prose the website shows first when somebody looks the feature up. `docs/examples/README.md` §
 *The description* owns what it is. The emitted goals write it -- it is the first thing in a
 worker's brief for any feature that lacks one, and the examples are then written to deliver what
-it promises -- and `--id` prints whether it is there. **It is not part of `owed()`**, so no
-audit, gate or emission counts a feature as incomplete for lacking one: nearly every feature
-already sits in a goal that writes it, and counting it would re-open the few that are complete
-for a file their own goal never asked for. The count belongs after the emitted goals have run,
-over whatever is left.
+it promises -- and `--id` prints whether it is there.
+
+**It is owed only where the policy says so**, and `POLICY` says no: `[all] about = true` in
+`tools/data/dossier-policy.toml` is the switch. While it is off, no audit, gate or emission counts
+a feature as incomplete for lacking one -- every owed feature already sits in a goal that writes
+it, and counting it would re-open the complete ones for a file their own goal never asked for.
+`--emit-goals` appends one closing goal after every goal it writes, and that goal is what turns
+the switch on and closes whatever is left; its check is the whole roster's `--gate`, which every
+goal after it carries as floor. From there a feature without its description is a red check, the
+same as one without its test.
 
 ## Turning the perf proof off
 
@@ -279,18 +284,24 @@ FANOUT_WORKERS = 8
 
 #: What each kind of feature owes. `tests` counts proofs from either side -- a `.nvst` case or a
 #: Rust `#[test]` -- and `rust` is how many of them must be the Rust half; `examples` and `hostile`
-#: are file counts; `perf` is a bench program plus a current ledger record.
+#: are file counts; `perf` is a bench program plus a current ledger record; `about` is the
+#: website description, off for every kind here and switched on for all of them at once by the
+#: policy file's `[all] about = true`, which the emitter's closing goal writes.
 POLICY = {
-    "member":    {"tests": 2, "rust": 1, "examples": 3, "perf": True,  "hostile": 1},
-    "lang":      {"tests": 2, "rust": 0, "examples": 3, "perf": True,  "hostile": 1},
-    "exception": {"tests": 1, "rust": 0, "examples": 1, "perf": False, "hostile": 1},
-    "enum":      {"tests": 1, "rust": 0, "examples": 1, "perf": False, "hostile": 0},
-    "interface": {"tests": 1, "rust": 0, "examples": 1, "perf": False, "hostile": 0},
-    "tool":      {"tests": 1, "rust": 0, "examples": 1, "perf": False, "hostile": 1},
-    "directive": {"tests": 1, "rust": 0, "examples": 1, "perf": False, "hostile": 1},
+    "member":    {"tests": 2, "rust": 1, "examples": 3, "perf": True,  "hostile": 1, "about": False},
+    "lang":      {"tests": 2, "rust": 0, "examples": 3, "perf": True,  "hostile": 1, "about": False},
+    "exception": {"tests": 1, "rust": 0, "examples": 1, "perf": False, "hostile": 1, "about": False},
+    "enum":      {"tests": 1, "rust": 0, "examples": 1, "perf": False, "hostile": 0, "about": False},
+    "interface": {"tests": 1, "rust": 0, "examples": 1, "perf": False, "hostile": 0, "about": False},
+    "tool":      {"tests": 1, "rust": 0, "examples": 1, "perf": False, "hostile": 1, "about": False},
+    "directive": {"tests": 1, "rust": 0, "examples": 1, "perf": False, "hostile": 1, "about": False},
 }
 
-PROOFS = ("tests", "examples", "perf", "hostile")
+PROOFS = ("tests", "examples", "perf", "hostile", "about")
+
+#: The words a description may run to. `docs/examples/README.md` § *The description* is where the
+#: band is explained; this is where it is enforced once the description is owed.
+ABOUT_WORDS = (40, 160)
 
 #: `// covers: A, B` -- in a `.nvst`, a `.nvs`, or above a Rust `#[test]`. `#` is accepted so the
 #: marker can sit in a TOML or a shell fixture too.
@@ -469,7 +480,22 @@ def load_report_policy() -> dict:
 def shown_proofs(policy: dict) -> tuple[str, ...]:
     """The proofs any kind still owes -- the audit's columns, so a switched-off proof leaves no
     column reading as complete when nothing was ever asked of it."""
-    return tuple(p for p in PROOFS if p != "perf" or any(k["perf"] for k in policy.values()))
+    return tuple(p for p in PROOFS
+                 if p not in ("perf", "about") or any(k[p] for k in policy.values()))
+
+
+def about_problem(path: Path) -> str:
+    """What is wrong with a description's shape, or "" -- only what a script can judge. Whether it
+    reads well is `docs/examples/README.md`'s to say and a person's to check."""
+    text = read(path).strip()
+    if text.startswith(("#", "---")):
+        return "opens with a heading or front matter, and the page supplies the title"
+    if "```" in text:
+        return "carries a code block, and the examples are where code goes"
+    words = len(text.split())
+    if not ABOUT_WORDS[0] <= words <= ABOUT_WORDS[1]:
+        return f"{words} words, outside {ABOUT_WORDS[0]}-{ABOUT_WORDS[1]}"
+    return ""
 
 
 # ------------------------------------------------------------------------------- the roster
@@ -710,7 +736,8 @@ class Proofs:
     rust: list[str] = field(default_factory=list)
     examples: list[str] = field(default_factory=list)
     hostile: list[str] = field(default_factory=list)
-    about: str = ""                 # the website description, when it is on disk; never owed
+    about: str = ""                 # the website description, when it is on disk
+    about_problem: str = ""         # what is wrong with its shape, when something is
     bench: str = ""
     perf: dict | None = None        # the newest record taken on THIS machine, for the report
     perf_any: dict | None = None    # the newest current record from ANY machine, for the gate
@@ -841,6 +868,7 @@ def collect(entries: list[Entry]) -> dict[str, Proofs]:
             p.hostile = sorted(rel(f) for f in e.hostile_dir.glob("*.nvs"))
         if e.about_file.exists():
             p.about = rel(e.about_file)
+            p.about_problem = about_problem(e.about_file)
         for d in (e.examples_dir, e.hostile_dir):
             if d.is_dir():
                 p.gaps += [rel(f) for f in sorted(d.glob("*.nvs")) if known_gap(read(f))]
@@ -875,6 +903,11 @@ def owed(entry: Entry, proofs: Proofs, policy: dict, skips: dict) -> dict[str, s
         out["examples"] = f"{len(proofs.examples)} of {want['examples']} in {rel(entry.examples_dir)}"
     if "hostile" not in skip and len(proofs.hostile) < want["hostile"]:
         out["hostile"] = f"{len(proofs.hostile)} of {want['hostile']} in {rel(entry.hostile_dir)}"
+    if want.get("about") and "about" not in skip:
+        if not proofs.about:
+            out["about"] = f"no description at {rel(entry.about_file)}"
+        elif proofs.about_problem:
+            out["about"] = f"{proofs.about}: {proofs.about_problem}"
     if want["perf"] and "perf" not in skip:
         # `perf_any` and not `perf`: a figure taken on another machine against this same
         # implementation text documents the feature just as well, and a fresh clone that owed every
@@ -1555,7 +1588,8 @@ def group_rows(entries: list[Entry], proofs: dict[str, Proofs], policy: dict,
     return rows
 
 
-HEADINGS = {"tests": "tests", "examples": "exmpl", "perf": "perf", "hostile": "hostl"}
+HEADINGS = {"tests": "tests", "examples": "exmpl", "perf": "perf", "hostile": "hostl",
+            "about": "about"}
 
 
 def print_status(rows: list[dict], columns: tuple[str, ...]) -> None:
@@ -1807,6 +1841,8 @@ def feature_block(i: int, e: Entry, missing: dict[str, str], p: Proofs, policy: 
     lines.append("")
     if not p.about:
         lines.append(f"- **about** -- write `{rel(e.about_file)}` first; the examples build on it.")
+    elif "about" in missing:
+        lines.append(f"- **about** -- rewrite `{p.about}`: {p.about_problem}.")
     if "examples" in missing:
         n = want["examples"] - len(p.examples)
         lines.append(f"- **examples** -- write {n}: "
@@ -2174,14 +2210,20 @@ def emit_goals(entries: list[Entry], proofs: dict[str, Proofs], policy: dict, sk
         todo = [e for e in entries if owed(e, proofs[e.id], policy, skips)]
     out_dir = out_dir.resolve()
     where = rel(out_dir)                      # posix, and relative to the repository if it is inside
-    if not todo:
+    known, last = chain_numbers()
+    # The closing goal is appended once, by the emission that finds the description still switched
+    # off, and after every batch so it is the last thing that emission queues. A later emission
+    # finds its slug on the chain and appends what it has after it, which is the right order too:
+    # by then the switch is on and those goals gate on the description themselves.
+    closing = goal_slug(CLOSING_LABEL)
+    wants_closing = closing not in known and not any(k["about"] for k in policy.values())
+    if not todo and not wants_closing:
         print(f"dossier: nothing owed -- {NOTHING_APPENDED}.")
         return 0
-    batches = goal_batches(todo, size)
+    batches = goal_batches(todo, size) if todo else []
     if not dry_run:
         out_dir.mkdir(parents=True, exist_ok=True)
     env = inherited_env()
-    known, last = chain_numbers()
     live = goalsmod.live()
     taken_groups, taken_ids = claimed_features(out_dir)
 
@@ -2222,6 +2264,20 @@ def emit_goals(entries: list[Entry], proofs: dict[str, Proofs], policy: dict, sk
             (out_dir / f"{n}-{slug}.handoff.md").write_text(
                 goal_handoff(label, members, proofs, policy, skips),
                 encoding="utf-8", newline="\n")
+
+    if wants_closing:
+        fresh += 1
+        written += 1
+        last += 1
+        if not dry_run:
+            (out_dir / f"{last}-{closing}.md").write_text(
+                closing_prose(last), encoding="utf-8", newline="\n")
+            (out_dir / f"{last}-{closing}.toml").write_text(
+                goal_toml(last, CLOSING_LABEL, [], CLOSING_MODULES, no_perf, None, env,
+                          closing=True),
+                encoding="utf-8", newline="\n")
+            (out_dir / f"{last}-{closing}.handoff.md").write_text(
+                closing_handoff(), encoding="utf-8", newline="\n")
 
     print(f"dossier: {'would write' if dry_run else 'wrote'} {written} goal(s) into "
           f"{where}/ ({owed_count} owed feature(s) across them, up to {size} per goal)")
@@ -2455,10 +2511,22 @@ def goal_prose(n: int, label: str, members: list[Entry], proofs: dict[str, Proof
         "and one file written to break it. `python tools/dossier.py --id '<feature>'` prints what",
         "one feature has and what it still owes, with the path each proof belongs at.",
         "",
-        "**Every feature here also gets its website description**, `about.md` in its example",
-        "directory, written before its examples. The check does not count it, so nothing but this",
-        "paragraph and the worker's brief asks for it: a feature is not done until it has one.",
-        "",
+    ]
+    if any(k["about"] for k in policy.values()):
+        lines += [
+            "**Every feature here also owes its website description**, `about.md` in its example",
+            "directory, written before its examples. The check counts it like any other proof.",
+            "",
+        ]
+    else:
+        lines += [
+            "**Every feature here also gets its website description**, `about.md` in its example",
+            "directory, written before its examples. The check does not count it yet -- goal",
+            f"`{goal_slug(CLOSING_LABEL)}` is where that is switched on -- so nothing but this",
+            "paragraph and the worker's brief asks for it: a feature is not done until it has one.",
+            "",
+        ]
+    lines += [
         "## The item list, grouped by file set",
         "",
         "**One slice is one feature, all four proofs together** — never one proof across many",
@@ -2574,8 +2642,90 @@ def goal_prose(n: int, label: str, members: list[Entry], proofs: dict[str, Proof
     return "\n".join(lines) + "\n"
 
 
+#: The goal `--emit-goals` appends after every goal it writes. Its label is its slug, and the slug
+#: is what keeps it from being appended twice.
+CLOSING_LABEL = "the description is owed"
+CLOSING_MODULES = ["docs/examples/README.md", "tools/data/dossier-policy.toml", "tools/dossier.py"]
+
+
+def closing_prose(n: int) -> str:
+    low, high = ABOUT_WORDS
+    lines = [
+        "---",
+        "milestone: dossier",
+        "---",
+        f"# Loop goal {n} — {CLOSING_LABEL}",
+        "",
+        "**Generated by `python tools/dossier.py --emit-goals`.** The checks are the sibling",
+        "`.toml`; this half is the target and the standing decisions. Regenerating overwrites both.",
+        "",
+        "## The target",
+        "",
+        "Every goal before this one wrote each feature's website description -- `about.md` in its",
+        "example directory -- without any check counting it. **This goal makes it owed**, for every",
+        "kind of feature, and closes whatever the goals before it left. When it is reached, a",
+        "feature without its description is a red check for every goal that follows, the same as",
+        "a feature without its test, and `rule:testing/four-proofs`'s five artefacts are what",
+        "finished means in this repository.",
+        "",
+        "## The item list",
+        "",
+        "One file set -- the policy file and the example tree -- so this is one group.",
+        "",
+        "- [ ] **Switch it on.** Add `about = true` under `[all]` in",
+        "      `tools/data/dossier-policy.toml`, creating the table if the file has none. Nothing",
+        "      in `tools/dossier.py` changes: `POLICY` stays the default and the file is the",
+        "      repository's durable answer, exactly as it is for `perf`.",
+        "- [ ] **Read what is left.** `python tools/dossier.py --owed` now lists every feature",
+        f"      with no description, and every description outside {low} to {high} words, opening",
+        "      with a heading, or carrying a code block.",
+        "- [ ] **Close it, one feature at a time.** Read the feature's examples first -- they are",
+        "      already on disk here, so the description is written to fit them, and where it",
+        "      closes with `**The examples below**` it names what they really show, in their",
+        "      order. `python tools/dossier.py --partition --group <G>` fans a large group out.",
+        "",
+        "## Standing decisions",
+        "",
+        "- **`docs/examples/README.md` § *The description* is the standard**, and it is not",
+        "  reopened here: plain prose a beginner and an expert read the same way, no code, an",
+        "  `**In plain words:**` picture only where the explanation is technical.",
+        "- **A description that fails the shape check is rewritten, never padded or trimmed to",
+        "  fit.** Too long means it is explaining edge cases the tests own; too short means the",
+        "  lead sentence is carrying the whole page.",
+        "- **A feature that cannot carry a description does not exist.** Every feature has a page",
+        "  on the website, so there is no `[skip]` entry for `about`.",
+        "- **No numbered ADR is opened by this goal.** The decision is `rule:testing/four-proofs`.",
+        "",
+    ]
+    return "\n".join(lines) + "\n"
+
+
+def closing_handoff() -> str:
+    lines = [
+        "# Handoff",
+        "",
+        f"**Generated by `python tools/dossier.py --emit-goals` for goal `{goal_slug(CLOSING_LABEL)}`.",
+        "The first session of this goal overwrites it like any other handoff.**",
+        "",
+        "## State",
+        "",
+        "This goal has just been installed. The description is not owed yet.",
+        "",
+        "## Next group",
+        "",
+        "- [ ] Add `about = true` under `[all]` in `tools/data/dossier-policy.toml`.",
+        "- [ ] `python tools/dossier.py --owed`, and write or rewrite each description it names.",
+        "",
+        "## Backlog",
+        "",
+        "- (nothing yet)",
+        "",
+    ]
+    return "\n".join(lines) + "\n"
+
+
 def goal_toml(n: int, label: str, groups: list[str], anchors: list[str], no_perf: bool,
-              only: list[str] | None, env: str = "") -> str:
+              only: list[str] | None, env: str = "", closing: bool = False) -> str:
     def toml_str(s: str) -> str:
         return "'" + s + "'" if BS in s else '"' + s + '"'
 
@@ -2627,6 +2777,27 @@ def goal_toml(n: int, label: str, groups: list[str], anchors: list[str], no_perf
         "# <<< goal-switch: floor checks are inserted below this line >>>",
         "",
         "",
+    ]
+    if closing:
+        # The proofs the gate names appear in `PROOFS` order, so `hostile, about` is in its answer
+        # exactly when the description is owed -- with the perf proof on or off. A roster that is
+        # merely complete with the switch still off does not pass.
+        lines += [
+            "# ---------------------------------------------------------------------------------------",
+            "# Stage 2 -- the description is owed by every kind of feature, and nothing on the whole",
+            "# roster owes anything. The gate executes nothing, so carrying this as floor costs a walk.",
+            "# ---------------------------------------------------------------------------------------",
+            "",
+            "[[check]]",
+            'kind = "command"',
+            'stage = "2 the description is owed"',
+            'name = "dossier: the description is owed and the whole roster owes nothing"',
+            f'argv = ["python", "tools/dossier.py", "--gate"{perf_flag}]',
+            'want = ["nothing owed in the whole roster", "hostile, about"]',
+            "",
+        ]
+        return "\n".join(lines) + "\n"
+    lines += [
         "# ---------------------------------------------------------------------------------------",
         "# Stage 2 -- every feature in this goal owes nothing AND the proofs hold: the four",
         "# artefacts are on disk, the perf figure is current for the implementation as it stands,",
@@ -2735,7 +2906,8 @@ def gate(scope: list[Entry], proofs: dict[str, Proofs], policy: dict, skips: dic
         if len(missing) > 30:
             print(f"  ... and {len(missing) - 30} more")
         return 1
-    print(f"dossier gate: nothing owed in {where} ({len(scope)} features, four proofs each).")
+    print(f"dossier gate: nothing owed in {where} "
+          f"({len(scope)} features, each owing {', '.join(shown_proofs(policy))}).")
     return 0
 
 
