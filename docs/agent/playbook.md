@@ -1429,13 +1429,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   not a suggestion. `python tools/loop.py --list` prints every check with its stage in one call; run
   it before designing anything the goal's prose only describes.
   [until: reviewed 2026-09-10]
-- **`owners.py --check --reasons` matches an `unowned` tag to a *path*, not to an item, so the gate
-  goes green the moment either reason file names that crate file anywhere.** `unowned_paths` reads
-  `carried-gaps.md` § *Unowned* and the whole of `carried-refusals.md` for `crates/….rs` spellings
-  and keeps only the set of paths, so one bullet about one gap silently licenses every other
-  `unowned` in the same file. Write the bullet for the next reader rather than for the tool — say
-  which shapes in that file it covers and what has to be decided — and check each tag against it by
-  hand, because nothing else will. [until: gone tools/owners.py:def unowned_paths]
 - **A `# Known gaps` item can name work that has since landed, and the attribution pass is where
   that surfaces.** Three of the five items in `crates/nvs-types/src/lib.rs` described checks the
   crate already makes — `inout`'s both-sides-agree obligation, named and spread argument
@@ -2345,12 +2338,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   edited" and "no citation dangles" cannot both hold. Drop the `rule:` prefix in the frozen prose —
   the id still reads as a name — and delete it from `changes.creates`, which is the machine-read
   relation, not the reasoning. [until: reviewed 2026-09-18]
-- **Goal `one-type-test`'s gate greps `-i`, so a CamelCase spelling of the refused word in Rust counts
-  as a hit.** The handoff's by-eye list of what still spells it missed `crates/nvs-stdlib/src/ast.rs`,
-  where the literal was one arm of a roster filter probing for a node that no longer exists. Build the
-  remaining
-  list by running the gate's own `argv` from `docs/agent/loop-goal.toml` rather than by reading the
-  previous handoff's list. [until: gone docs/agent/loop-goal.toml:7 the gate]
 - **A goal's absence gate greps a *path list*, and a path left off it is where the retired spelling
   survives.** Goal `one-type-test`'s gate named `crates`, `tests` and the doc trees but not
   `examples`, so it stayed green while three example programs still spelled the type test PHP's way and
@@ -2359,6 +2346,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   nowhere", run `git
   grep -l -i -w <word>` over the whole tree and compare it against the check's `argv` before treating
   the gate as the specification. [until: reviewed 2026-09-18]
+- **A carried floor check's `argv` pins a tool's *flags*, so a kind you retire inside that tool
+  cannot take its flag with it.** A floor is carried verbatim from the goal that closed, so
+  `owners.py --check --reasons` is still a floor `[[check]]` after `--reasons` stands for nothing,
+  and an argparse that dropped it would exit 2 on a stage that passed sessions ago. Leave the flag
+  accepted and doing nothing, say that in its `--help`, and fold what it used to add into the gate's
+  default. [until: gone tools/owners.py:--reasons]
 
 ## Running things
 
@@ -8004,9 +7997,3 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   compiles and
   narrows. Run the two lines through `target/debug/nvs.exe run` before swapping the word, and rewrite
   the claim in the rule as well as in the comment. [until: reviewed 2026-09-18]
-- **A respelling sweep meets rows that document a refusal the new spelling does not make, and those
-  are deleted rather than reworded.** `docs/reference/tools/30-php-differences.md` carried an `E0497`
-  row for a class test on a declared scalar, which `rule:types/type-test` now answers `false` instead
-  of refusing, so the code is retired out of `crates/` entirely. `git grep` a row's diagnostic code
-  under `crates/` before rewording the row: no hit means the row goes, and the live refusal needs one
-  of its own. [until: gone docs/agent/loop-goal.toml:7 the gate]

@@ -49,10 +49,15 @@
 > goal after them the chain has already walked. What a crate still owes is its own module doc's `#
 > Known gaps`; the corpus and bench figures are `python tools/disk.py`'s and the perf notes'.
 >
-> **Blocking:** Nothing waits on a decision. The hold goal `unowned-closures` left — forty
-> sheet-answered gaps tagged to it and none built — is goal `decided-closures` now, in front of
-> `gap-zero`, and the driver's owner gate refuses to reach a goal while a gap still names it, so no
-> goal can walk that way again. Every design call a goal reaches is pre-authorized in its own §
+> **Blocking:** Six ratchet keys wait on the user: `Core\BigInt`, and `Core\Test`'s `double`,
+> `partial`, `assertCalled`, `assertNeverCalled` and `assertCompletes`, are tagged `unowned` in
+> `crates/nvs-stdlib/tests/spec-members-compiler-facing-outstanding.txt`, no plan file from M9 on
+> states their scope, and goal `gap-zero` builds nothing and may not invent an owner — whether each
+> becomes a goal on the chain or a milestone's scoped work is the user's call, and stage 2's ratchet
+> half and stage 3's deletion of the index both wait on it. The hold goal `unowned-closures` left —
+> forty sheet-answered gaps tagged to it and none built — is goal `decided-closures` now, in front
+> of `gap-zero`, and the driver's owner gate refuses to reach a goal while a gap still names it, so
+> no goal can walk that way again. Every design call a goal reaches is pre-authorized in its own §
 > *Standing decisions*, and each goal names the numbered ADRs it may open and no others. One
 > standing precondition, and not a block: the goals whose floor carries container-backed checks need
 > a reachable Docker daemon, and [the goals directory](agent/goals/) preflights it per entry rather
