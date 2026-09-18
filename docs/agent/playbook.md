@@ -3160,6 +3160,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   while the `.out` on disk holds correct UTF-8. Read the file instead of the echo before deciding an
   example is wrong — `python -c "import sys; sys.stdout.write(ascii(open('<file>','rb').read().decode('utf-8')))"`.
   [until: reviewed 2026-09-18]
+- **Two tests are red under the full gate today and pass alone, and neither is yours.**
+  `nvs_host`'s `a_race_past_a_dead_address_answers_on_the_next_one` takes its dead address from a
+  listener it dropped, so a binary beside it can take that freed port and answer the race;
+  `nvs_server`'s `a_disconnected_clients_isolates_are_left_behind_on_no_core` reads a response load
+  turns into a reset. Read the "passed alone" verdict before hunting what you broke, and fix either
+  in a commit of its own.
+  [until: gone crates/nvs-host/src/net.rs:a_race_past_a_dead_address_answers_on_the_next_one]
 
 ## Writing a test case
 
@@ -5778,6 +5785,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   no bound form — while only a refusal the server itself worded is a `DbError` carrying a `kind`. Read
   the driver member's own `# Errors` paragraph for which one it answers before writing the `catch`.
   [until: reviewed 2026-09-18]
+- **A landed test's comment can claim a construct does not compile, and be out of date.**
+  `time-datetime-startof-and-endof-are-one-agreement-over-every-unit.nvst` said an
+  `array<Core\Unit>` element and a helper's own `Core\Unit` parameter were both `E0401`,
+  and both compile today, so an example written from that comment would have avoided the
+  two shapes a reader actually writes. Probe the claim with a five-line program through
+  `target/debug/nvs.exe run` before believing it, and rewrite the comment in the same
+  session. [until: reviewed 2026-09-19]
 
 ## Splitting a file that got too big
 

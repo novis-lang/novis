@@ -2,41 +2,38 @@
 
 ## State
 
-Goal types:enum (2/2) — 17 enums, each owing a description, three examples and one test carrying a
-`// covers:` marker. An enum owes no bench and no attack; `python tools/dossier.py --id '<feature>'`
-is what says so, and it is also the check, because the goal's own item list still names features that
-are already finished.
+Goal `types-enum-2-2` — types:enum (2/2) — is met. All 17 enums have a description, three examples
+and one test carrying a `// covers:` marker, and `python tools/dossier.py --verify --only …` over
+the goal's list reports nothing owed with 51 examples green. An enum owes no bench and no attack;
+`python tools/dossier.py --id '<feature>'` is what says so.
 
-Fourteen are complete: `Core\Env\Mode`, `Core\Http\Method`, `Core\IO\FileMode`, `Core\Log\Level`,
-`Core\Mime\Type`, `Core\NormalForm`, `Core\Order`, `Core\SetOn`, `Core\Response\SameSite`,
-`Core\Response\Redirect` and `Core\RoundMode` landed before this session, and `Core\Queue\State`,
-`Core\Reflect\TypeKind` and `Core\Script\ExitReason` landed in it. Three are left: `Core\Unit`,
-`Core\Weekday`, `Core\Xml\NodeKind`.
+`Core\Unit`, `Core\Weekday` and `Core\Xml\NodeKind` landed this session, each attributed by a marker
+added to a case already on disk rather than by a new test. The three gates a goal meets only at its
+end are green: `verify.py --doc`, `owners.py --closes` and `playbook.py --closes` all report nothing
+owed here.
 
-None of the three needed a new test: a marker on an assertion already on disk was the whole edit, and
-a Rust `#[test]` carries one as well as a `.nvst` case does — `Core\Queue\State`'s only test is the
-Rust `queue_statements_agree_with_the_state_enum`.
+**`python tools/verify.py` is red at its `test` leg, on two tests nothing in this goal touches**, both
+of which the tool re-ran and reports as passing alone:
+`crates/nvs-host/src/net.rs:2138` and `crates/nvs-server/src/serve.rs:5379`. The four `.nvst` cases
+this session edited were run on their own and pass. Nothing here changed a line of Rust.
 
 ## Next group
 
-**Stage 2: the last three enums, each one file set — `docs/examples/types/<Feature>/` plus the enum's
-declaration and the test that pins it.** Two of the three declare in the same file. Each slice is
-`rule:testing/four-proofs` as this goal's policy narrows it for an enum (`tools/data/dossier-policy.toml:20`):
-`about.md`, three examples blessed with `python tools/dossier.py --bless`, and a `// covers: <feature>`
-line on a test. **An example about an enum reasons over the enum and drives no backend** —
-`docs/examples/types/Queue-State/03-the-check-somebody-does-every-morning.nvs` is the shape.
+**Goal `types-enum-2-2` is met, so the driver's goal switch installs goal `types-exception`'s own
+generated handoff over this one.** Its first two slices, so the next session does not re-derive
+them — an exception owes the hostile proof an enum does not, on top of the page, the three examples
+and the marker:
 
-- [ ] **`Core\Unit`** — page, three examples, marker. It is the unit `startOf`, `endOf` and the
-      `DateTime` arithmetic take, so an example is a real date question and needs no clock.
-      `crates/nvs-stdlib/src/time.rs:1389`
-- [ ] **`Core\Weekday`** — page, three examples, marker. Monday first, as ISO 8601 orders it.
-      `crates/nvs-stdlib/src/time.rs:1470`
-- [ ] **`Core\Xml\NodeKind`** — page, three examples, marker. Five kinds, both parsers produce them,
-      so a walk over a parsed document is the example. `crates/nvs-stdlib/src/xml.rs:455`
+- [ ] **`ArithmeticError`** — page, three examples, an attack and a `covers:` marker.
+      `crates/nvs-hir/src/errors.rs:104`
+- [ ] **`Core\Cli\NotInteractive`** — the same four, and a neighbour in the same file.
+      `crates/nvs-hir/src/errors.rs:106`
 
 ## Backlog
 
-- The goal's check re-runs eleven features that are already complete; that is the sweep doing its job
-  and not a worklist — `docs/agent/loop-goal.toml:12165`.
-- After the last three enums the goal is met; `python tools/verify.py --doc`, `owners.py --closes` and
-  `playbook.py --closes` are the gates that come before `DONE` — `docs/agent/session-prompt.md`.
+- The two load-sensitive tests above owe a fix each, in a commit of its own; the playbook bullet
+  under *Running things* carries what each one leans on.
+- The rows in `time-datetime-startof-and-endof-are-one-agreement-over-every-unit.nvst` could now be
+  one `array<Core\Unit>` loop; left written out so a case dropped from the enum fails the compile.
+- No example anywhere reaches `Core\Xml\Reader`, the stream half of the same node family —
+  `crates/nvs-stdlib/src/xml.rs:500` owns it.
