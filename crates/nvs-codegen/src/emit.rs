@@ -2678,12 +2678,18 @@ impl Emitter<'_, '_> {
                 // rendered `QName` the checker resolved — a `catch` clause's
                 // included, which
                 // `nvs_ir::lower::exception::caught_class_label` reads back out
-                // of the typed-expression table — so this refusal is a backstop
-                // against a unit built without the descriptor, never a spelling
-                // this crate failed to resolve.
+                // of the typed-expression table — so a label with no descriptor
+                // is a unit assembled without one, never a spelling this crate
+                // failed to resolve. That makes it
+                // [`CodegenError::Internal`]'s question rather than
+                // [`CodegenError::Unsupported`]'s, whose sites are the
+                // inventory of shapes the language still refuses; and it stays
+                // an error return rather than an assertion, so a unit built
+                // wrong is reported the way every other backend failure is
+                // instead of taking the process down with it.
                 if self.classes.desc(class).is_none() && !nvs_stdlib::class_has_instances(class) {
-                    return Err(CodegenError::Unsupported(format!(
-                        "`is {class}`, whose class this unit declares no descriptor for"
+                    return Err(CodegenError::Internal(format!(
+                        "`is {class}` reached codegen in a unit that declares no descriptor for the class"
                     )));
                 }
                 self.class_desc_value(class)?
