@@ -47,8 +47,8 @@ var $l = new Loud("bob", 40);
 
 echo $p->greet(), "|", $p->age(), "\n";
 echo $l->greet(), "|", $l->age(), "\n";
-echo ($l instanceof Named) as string, ($l instanceof Aged) as string, ($l instanceof Person) as string, "\n";
-echo ($p instanceof Loud) as string, "|\n";
+echo ($l is Named) as string, ($l is Aged) as string, ($l is Person) as string, "\n";
+echo ($p is Loud) as string, "|\n";
 --EXPECT--
 hello ada|36
 HELLO BOB|40

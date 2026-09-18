@@ -1,5 +1,5 @@
 --TEST--
-One class satisfies two interfaces at once — each interface type reaches it, and `instanceof` answers for both
+One class satisfies two interfaces at once — each interface type reaches it, and `is` answers for both
 --FILE--
 <?nvs
 interface Shape {
@@ -53,10 +53,10 @@ class Ask {
 var $q = new Square(3);
 echo Ask::area($q), ";", Ask::shout($q), "\n";
 echo Ask::area(new Circle()), "\n";
-echo Ask::yn($q instanceof Shape), Ask::yn($q instanceof Named), Ask::yn($q instanceof Square), "\n";
+echo Ask::yn($q is Shape), Ask::yn($q is Named), Ask::yn($q is Square), "\n";
 
 var $c = new Circle();
-echo Ask::yn($c instanceof Shape), Ask::yn($c instanceof Named), "\n";
+echo Ask::yn($c is Shape), Ask::yn($c is Named), "\n";
 --EXPECT--
 9;SQUARE
 0

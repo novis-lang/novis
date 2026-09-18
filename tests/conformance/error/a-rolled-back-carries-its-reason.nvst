@@ -41,7 +41,7 @@ try {
     throw new Core\Db\RolledBack("could not finish", {previous: $cause});
 } catch (Core\Db\RolledBack $chained) {
     echo "reason=", $chained->reason, "\n";
-    if ($chained->previous instanceof IOError) {
+    if ($chained->previous is IOError) {
         echo "chained to an IOError\n";
     }
 }

@@ -1,5 +1,5 @@
 --TEST--
-`clone` copies the object's own class along with its properties, so the copy answers `instanceof` exactly as the original did — `rule:classes/clone-is-shallow`
+`clone` copies the object's own class along with its properties, so the copy answers `is` exactly as the original did — `rule:classes/clone-is-shallow`
 --FILE--
 <?nvs
 class Shape {
@@ -20,7 +20,7 @@ var $s = new Square(3);
 var $t = clone $s;
 $t->side = 9;
 echo $s->side, ";", $t->side, "\n";
-echo $t instanceof Square, ";", $t instanceof Shape, "\n";
+echo $t is Square, ";", $t is Shape, "\n";
 --EXPECT--
 3;9
 1;1

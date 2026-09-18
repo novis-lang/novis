@@ -59,7 +59,7 @@ try {
 try {
     Subject::same();
 } catch (Core\Test\Failure $probe) {
-    if ($probe instanceof Throwable) {
+    if ($probe is Throwable) {
         $agreed = $agreed + 1;
     }
 }

@@ -34,7 +34,7 @@ class Ask {
 echo Ask::root(new Root()), ";", Ask::root(new Middle()), ";", Ask::root(new Leaf()), "\n";
 echo Ask::middle(new Middle()), ";", Ask::middle(new Leaf()), "\n";
 echo (new Leaf())->describe(), "\n";
-echo ((new Leaf()) instanceof Middle) as string, "|", ((new Middle()) instanceof Leaf) as string, "|\n";
+echo ((new Leaf()) is Middle) as string, "|", ((new Middle()) is Leaf) as string, "|\n";
 --EXPECT--
 I am root;I am root;I am leaf(root)
 root;leaf(root)

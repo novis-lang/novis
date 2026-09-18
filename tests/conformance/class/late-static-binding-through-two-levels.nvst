@@ -33,8 +33,8 @@ echo MidRegistry::make()->label(), "\n";
 echo LeafRegistry::make()->label(), "\n";
 
 var $leaf = LeafRegistry::make();
-echo ($leaf instanceof MidRegistry) as string, "\n";
-echo ($leaf instanceof Registry) as string, "\n";
+echo ($leaf is MidRegistry) as string, "\n";
+echo ($leaf is Registry) as string, "\n";
 
 // The same rule as a *type* rather than as a dispatch: `make` is declared on
 // `Registry` and returns `static`, so the site that named `LeafRegistry` is

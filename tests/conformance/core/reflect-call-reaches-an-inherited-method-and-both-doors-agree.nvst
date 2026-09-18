@@ -64,7 +64,7 @@ if ($byName != null) {
             var $lifted = $ofBase->call($branch, "greet", ["ben"]);
             echo "ancestor description acted", "\n";
         } catch (LogicError $three) {
-            echo "exact class, not instanceof", "\n";
+            echo "exact class, not a supertype", "\n";
         }
     }
 }
@@ -75,4 +75,4 @@ branch
 branch
 refused through the value door
 refused through the name door
-exact class, not instanceof
+exact class, not a supertype

@@ -75,7 +75,7 @@ $rows = $rows + Row::both("an empty array", $empty is array<Point>, $scalar is a
 $rows = $rows + Row::both("not an array", $points is array<Point>, $text is array<Point>);
 
 // The element's row is the whole row and not a tag comparison, so it is the
-// descriptor walk `instanceof` already emits: a subclass and an implementor
+// descriptor walk a class test already emits: a subclass and an implementor
 // each answer their own supertype.
 $rows = $rows + Row::both("a subclass element", $pixels is array<Point>, $points is array<Pixel>);
 $rows = $rows + Row::both("an interface element", $blobs is array<Shaped>, $points is array<Shaped>);

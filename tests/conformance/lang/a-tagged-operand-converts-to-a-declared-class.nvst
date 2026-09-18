@@ -1,5 +1,5 @@
 --TEST--
-`$m as Plain` tests the runtime class and throws where `instanceof` answers false, `rule:types/conversion` and `rule:types/unions-and-mixed`
+`$m as Plain` tests the runtime class and throws where `is` answers false, `rule:types/conversion` and `rule:types/unions-and-mixed`
 --FILE--
 <?nvs
 class Plain { public int $n = 7; }
@@ -19,14 +19,14 @@ class Probe {
 }
 
 // Agreement, not a row each: `rule:types/unions-and-mixed`'s checked way out of `mixed` is the
-// `instanceof` test said as an expression, so the two must answer the same
+// `is` test said as an expression, so the two must answer the same
 // thing for every tag. A conversion that grew its own opinion fails the count
 // while still printing plausibly line by line.
 int $which = 0;
 int $agreed = 0;
 for (; $which < 5; $which = $which + 1) {
     mixed $v = Probe::tag($which);
-    bool $tested = $v instanceof Plain;
+    bool $tested = $v is Plain;
     bool $converted = true;
     try {
         Plain $p = $v as Plain;
@@ -39,7 +39,7 @@ for (; $which < 5; $which = $which + 1) {
 }
 echo "agreed ", $agreed, "\n";
 
-// An interface is a class the test can name too — the descriptor `instanceof`
+// An interface is a class the test can name too — the descriptor `is`
 // compares against is the same one.
 mixed $sq = Probe::tag(1);
 Shape $s = $sq as Shape;
@@ -62,7 +62,7 @@ try {
 // already an object widens into `object` as one pointer.
 Plain $already = new Plain();
 object $widened = $already as object;
-if ($widened instanceof Plain) { echo "widened stays a Plain\n"; }
+if ($widened is Plain) { echo "widened stays a Plain\n"; }
 --EXPECT--
 7
 cannot convert a value of another type to `Plain`

@@ -37,7 +37,7 @@ var $robot = new Robot();
 
 echo $person->greet(), "\n";
 echo $robot->greet(), "\n";
-echo ($person instanceof Greets) as string, "\n";
+echo ($person is Greets) as string, "\n";
 --EXPECT--
 Hello, ada!
 BEEP unit-7

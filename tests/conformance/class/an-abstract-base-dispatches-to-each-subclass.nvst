@@ -53,7 +53,7 @@ foreach ($all as string $k => Shape $s) {
     echo $s->describe(), ";";
 }
 echo "\n";
-echo ($all[0] instanceof Shape) as string, "|", ($all[1] instanceof Square) as string, "|\n";
+echo ($all[0] is Shape) as string, "|", ($all[1] is Square) as string, "|\n";
 --EXPECT--
 20
 area=9;area=10;area=1;

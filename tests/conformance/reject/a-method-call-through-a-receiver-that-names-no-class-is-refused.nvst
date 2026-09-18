@@ -16,13 +16,13 @@ final class V {
 
 // Accepted, and written first so that a spelling that stops resolving fails
 // here rather than as a missing refusal: a receiver that names one class
-// resolves against it, and `rule:types/unions-and-mixed`'s `instanceof` narrowing recovers
+// resolves against it, and `rule:types/unions-and-mixed`'s `is` narrowing recovers
 // that class out of a union.
 Dog $d = new Dog();
 echo $d->speak(), "\n";
 
 Dog|Cat $narrowed = new Cat();
-if ($narrowed instanceof Cat) {
+if ($narrowed is Cat) {
     echo $narrowed->speak(), "\n";
 }
 

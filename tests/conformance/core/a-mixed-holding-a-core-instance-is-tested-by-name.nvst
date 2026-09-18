@@ -17,11 +17,11 @@ array<mixed> $things = [
 // path: the value is a `Core\Time\Date` inside the branch that asked
 // (`rule:types/narrowing`).
 foreach ($things as mixed $one) {
-    if ($one instanceof Core\Time\Date) {
+    if ($one is Core\Time\Date) {
         echo "date ", $one->format("yyyy-MM-dd"), "|\n";
-    } else if ($one instanceof Core\Uri) {
+    } else if ($one is Core\Uri) {
         echo "uri ", $one->host(), "|\n";
-    } else if ($one instanceof Core\Regex\Match) {
+    } else if ($one is Core\Regex\Match) {
         echo "match ", $one->text(), "|\n";
     } else {
         echo "no core instance|\n";
@@ -32,10 +32,10 @@ foreach ($things as mixed $one) {
 // hierarchy under one to walk, so a sibling class and a declared class both
 // answer `false` over the same value.
 mixed $date = Core\Time\Date::at(2026, 9, 17);
-if (!($date instanceof Core\Uri)) {
+if (!($date is Core\Uri)) {
     echo "a date is no uri|\n";
 }
-if ($date instanceof Core\Time\Date) {
+if ($date is Core\Time\Date) {
     echo "a date is a date|\n";
 }
 --EXPECT--

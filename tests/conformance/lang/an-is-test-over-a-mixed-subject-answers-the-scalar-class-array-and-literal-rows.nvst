@@ -94,7 +94,7 @@ $rows = $rows + Row::both("null", $null is null, $string is null);
 // which class the value is.
 $rows = $rows + Row::both("object", $animal is object, $ints is object);
 
-// A class and an interface are the descriptor walk `instanceof` already
+// A class and an interface are the descriptor walk a class test already
 // pays for, reached once from a subject that is not an object at all and
 // once from an object of the wrong class.
 $rows = $rows + Row::both("class", $animal is Animal, $string is Animal);

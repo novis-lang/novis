@@ -4,7 +4,7 @@
 <?nvs
 // The conversion is a test and a throw, not an assertion: the value's runtime
 // class is compared against the descriptor `Core\Time\Date` publishes, exactly
-// as `instanceof` compares it (`rule:types/conversion`).
+// as `is` compares it (`rule:types/conversion`).
 mixed $date = Core\Time\Date::at(2026, 9, 17);
 Core\Time\Date $back = $date as Core\Time\Date;
 echo $back->format("yyyy-MM-dd"), "|\n";
@@ -33,7 +33,7 @@ try {
 
 // `as ?Class` is no more a conversion here than it is for a declared class:
 // `E0473` refuses the nullable spelling over any class target, and
-// `instanceof` is what asks the question without throwing.
+// `is` is what asks the question without throwing.
 --EXPECT--
 2026-09-17|
 example.test|

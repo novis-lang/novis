@@ -6,9 +6,9 @@ the way through `E0480`: converting an erased receiver to the class that declare
 // names one spelling that works. This pins that the help is true: `as
 // ClassName` is a checked conversion (`rule:types/conversion`), and what it yields is a
 // receiver with a declaring class, so the write back into the property's own
-// slot is the same one any class-typed receiver gets. `instanceof` is not a
-// second spelling here — it proves the class for a *branch*, and a local
-// declared `object` keeps its declared type inside one.
+// slot is the same one any class-typed receiver gets. `is` is not a second
+// spelling here — it proves the class for a *branch*, and a local declared
+// `object` keeps its declared type inside one.
 class Plain {
     public array<string> $rows;
 

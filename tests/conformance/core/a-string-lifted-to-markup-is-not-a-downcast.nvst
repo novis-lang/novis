@@ -21,7 +21,7 @@ echo ($date as Core\Time\Date)->format("yyyy-MM-dd"), "|\n";
 // A lifted `Markup` reaches the test the same way any other instance does, so
 // the two shapes agree about what the value is once it exists.
 mixed $carrier = $m;
-if ($carrier instanceof Core\Html\Markup) {
+if ($carrier is Core\Html\Markup) {
     echo "a markup|\n";
 }
 --EXPECT--

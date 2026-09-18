@@ -42,7 +42,7 @@ var $l = new Label("total");
 echo $m->toString(), "\n";
 echo Render::money($m), " ", Render::label($l), "\n";
 echo Render::label($l) . $m->toString(), "\n";
-echo ($m instanceof Money) as string, "|", ($m instanceof Label) as string, "|\n";
+echo ($m is Money) as string, "|", ($m is Label) as string, "|\n";
 --EXPECT--
 $250
 $250 [total]

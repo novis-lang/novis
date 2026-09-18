@@ -61,9 +61,9 @@ if ($p == $q) {
     echo "distinct\n";
 }
 
-// The class label is still there underneath: `instanceof` finds it, and
+// The class label is still there underneath: `is` finds it, and
 // `rule:types/conversion`'s `as` converts back to it or throws.
-if ($q instanceof Point) {
+if ($q is Point) {
     echo "still a Point\n";
 }
 Point $back = $q as Point;

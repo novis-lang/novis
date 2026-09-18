@@ -14,7 +14,7 @@ A closure parameter naming a class is checked against the argument's own ancestr
 // every non-object representation is refused before the body runs.
 //
 // The class label the nibble cannot hold is read at the body's own first
-// block, one `instanceof` per class-declared parameter
+// block, one class test per class-declared parameter
 // (`nvs_ir::lower::closure::check_param_class`), which is what draws the
 // second line — around the argument's *ancestry*, not around its exact class.
 // `docs/adr/README.md` § *Decisions taken at project start* owns why the

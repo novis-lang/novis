@@ -29,10 +29,10 @@ echo match (true) {
     default => "none",
 }, "\n";
 
-// The `instanceof` residue, reaching one member of a union.
+// The class-test residue, reaching one member of a union.
 Dog|Cat $either = new Cat();
 echo match (true) {
-    $either instanceof Cat => $either->purr(),
+    $either is Cat => $either->purr(),
     default => "none",
 }, "\n";
 
@@ -46,7 +46,7 @@ echo match (true) {
 
 // A `!` inverts which edge proves the class, exactly as it does in an `if`.
 echo match (true) {
-    !($either instanceof Dog) => "not a dog",
+    !($either is Dog) => "not a dog",
     default => "a dog",
 }, "\n";
 
@@ -60,7 +60,7 @@ switch (true) {
 }
 
 switch (true) {
-    case $either instanceof Cat:
+    case $either is Cat:
         echo $either->purr(), "\n";
         break;
     default:
@@ -68,7 +68,7 @@ switch (true) {
 }
 
 switch (true) {
-    case $empty instanceof Dog:
+    case $empty is Dog:
         echo "held\n";
         break;
     default:
@@ -95,8 +95,8 @@ string $nullViaMatch = match (true) { $held != null => $held->speak(), default =
 if ($nullViaIf == $nullViaMatch) { $agreed = $agreed + 1; }
 
 string $classViaIf = "none";
-if ($either instanceof Cat) { $classViaIf = $either->purr(); }
-string $classViaMatch = match (true) { $either instanceof Cat => $either->purr(), default => "none" };
+if ($either is Cat) { $classViaIf = $either->purr(); }
+string $classViaMatch = match (true) { $either is Cat => $either->purr(), default => "none" };
 if ($classViaIf == $classViaMatch) { $agreed = $agreed + 1; }
 
 string $litViaIf = "other";
