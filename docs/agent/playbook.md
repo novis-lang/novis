@@ -3167,6 +3167,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   turns into a reset. Read the "passed alone" verdict before hunting what you broke, and fix either
   in a commit of its own.
   [until: gone crates/nvs-host/src/net.rs:a_race_past_a_dead_address_answers_on_the_next_one]
+- **A cost-class guard whose figure is a *ratio* cannot be repaired by fixing the statistic.** The
+  fan-out guard in `benches/abi-probe/tests/perf_guards.rs` already takes the minimum of five
+  interleaved rounds, and a box with no free cores still collapses it from 3.86x to 0.08x — the same
+  reading a picker that stopped spreading gives. Measure what the machine can give at that moment
+  too, the same children on plain threads started once per batch, and report the guard not measured
+  rather than failed when that figure is under the floor.
+  [until: gone benches/abi-probe/tests/perf_guards.rs:plain_thread_fan_out]
 
 ## Writing a test case
 
@@ -5792,6 +5799,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   two shapes a reader actually writes. Probe the claim with a five-line program through
   `target/debug/nvs.exe run` before believing it, and rewrite the comment in the same
   session. [until: reviewed 2026-09-19]
+- **A new `.nvs` file under `tests/` has to be in the formatter's canonical layout.**
+  `crates/nvs-fmt/tests/identity.rs` holds that tree byte for byte, and canonical puts a class's and
+  a function's `{` on its own line, while every skeleton in `conventions.md` and every `.nvst` case
+  keeps it on the declaration's line. Run `target/debug/nvs.exe fmt <the new file>` before verifying,
+  and leave a `docs/examples/` file in its neighbours' style — that tree is not in the corpus, and
+  some 130 landed examples are not canonical.
+  [until: gone crates/nvs-fmt/tests/identity.rs:the_identity_printer_reproduces_every_corpus_file]
 
 ## Splitting a file that got too big
 
