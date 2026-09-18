@@ -1,0 +1,3 @@
+eur 41.90
+eur 12.00
+Core\Cli::write(): standard input is not a stream a program writes to — `Core\Cli\Stream::In` is a case so that `Core\Cli::isTty` can ask its question about all three

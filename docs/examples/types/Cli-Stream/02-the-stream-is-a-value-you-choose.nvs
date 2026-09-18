@@ -1,0 +1,30 @@
+<?nvs
+// Which stream a message belongs on is your program's decision, so the stream
+// is an ordinary value: pick it, return it from a function, pass it on.
+
+class Report {
+    // What the caller asked for goes to output. Everything else goes to error.
+    public static function streamFor(string $kind): Core\Cli\Stream {
+        return match ($kind) {
+            "result" => Core\Cli\Stream::Out,
+            default => Core\Cli\Stream::Err,
+        };
+    }
+
+    public static function say(string $kind, string $message): void {
+        Core\Cli::write($message, {stream: Report::streamFor($kind), newline: true});
+    }
+}
+
+Report::say("result", "eur 41.90");
+Report::say("warning", "one price was missing and was left out");
+Report::say("result", "eur 12.00");
+
+// The third case is the stream a program reads rather than writes. Asking to
+// write there is a mistake no run could recover from, so it is refused and the
+// message says why the case exists at all.
+try {
+    Core\Cli::write("who would read this?", {stream: Core\Cli\Stream::In});
+} catch (Throwable $refused) {
+    echo $refused->message, "\n";
+}

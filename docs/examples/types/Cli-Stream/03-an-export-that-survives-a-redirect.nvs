@@ -1,0 +1,37 @@
+<?nvs
+// The shape most command-line tools end up with. The data goes to standard
+// output, so `nvs run export.nvs > customers.csv` writes a file you can open
+// in a spreadsheet. Everything a person reads goes to standard error, so not
+// one word of it lands in that file.
+
+class Export {
+    public static function run(array<array<string>> $rows): void {
+        uint $written = 0;
+        uint $skipped = 0;
+
+        Core\Cli::write("exporting " . Core\Arr::count($rows) . " rows",
+                        {stream: Core\Cli\Stream::Err, newline: true});
+
+        Core\Cli::write("name,email", {newline: true});
+        foreach ($rows as array<string> $row) {
+            if (($row["email"] ?? "") == "") {
+                $skipped = $skipped + 1;
+                Core\Cli::write("skipped " . $row["name"] . ": no email address",
+                                {stream: Core\Cli\Stream::Err, newline: true});
+                continue;
+            }
+
+            Core\Cli::write($row["name"] . "," . $row["email"], {newline: true});
+            $written = $written + 1;
+        }
+
+        Core\Cli::write("wrote " . $written . ", skipped " . $skipped,
+                        {stream: Core\Cli\Stream::Err, newline: true});
+    }
+}
+
+Export::run([
+    ["name" => "Ada Lovelace", "email" => "ada@example.com"],
+    ["name" => "Grace Hopper", "email" => ""],
+    ["name" => "Alan Turing", "email" => "alan@example.com"],
+]);
