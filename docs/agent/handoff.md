@@ -2,20 +2,22 @@
 
 ## State
 
-**Goal `bigint` is met — `Core\BigInt` is registered and every check in its acceptance list passes.**
-The class, its 24 members, the six conformance cases plus the ordering case, `examples/bigint.nvs`'s
-six frozen lines and the three named guard tests all landed in the previous run, under goal
-`test-doubles`'s banner, because the chain advanced only after the work was already in. This session
-built nothing: it confirmed the list and closed the goal.
+**Goal `bigint` is met, and the one red left in its acceptance list was the machine rather than the
+tree.** `Core\BigInt`, its 24 members, the six conformance cases plus the ordering case,
+`examples/bigint.nvs`'s six frozen lines and the three named guard tests are all on disk; the
+session before this one confirmed the list and closed the goal.
 
-`python tools/verify.py` is green whole — 4839 tests, 2083 conformance, 279 differential, 301 examples,
-clippy clean. Stage 5's six gates each pass by hand: the compiler-facing ratchet holds no keys,
-`docs/rules/core-api/tier-roster.md` no longer names big integers, and `rules.py --render --check`,
-`owners.py --closes bigint`, `playbook.py --closes bigint` and `chain.py --check` are all clean.
-`examples/bigint.nvs` prints the six lines `loop-goal.toml`'s stage-3 check freezes.
+The floor's `abi-probe` check went red twice on
+`a_cpu_bound_fan_out_across_four_worker_cores_is_near_linear_by_the_margin_this_test_names`, which
+passes at 3.83x in 0.13 s on its own at this commit. The cause is the valgrind sweep that ends
+0.14 s before it: the placed half of the ratio read 22.2 ms against 0.8 ms alone while the serial
+half, which needs one core and no wake-ups, was unchanged at 3.4 ms. `tools/loop.py:3128`'s
+`asked_again` re-asks a red `--release` check after `COST_SETTLE` (`tools/loop.py:1766`), so one red
+is that shadow and a doubled one — `asked twice` in the failure line — is the tree.
 
-Nothing is blocked. Goal `gap-zero` is next; its own prose says it builds nothing, and its one
-expected hold is CI.
+Stage 5's gates are green by hand again: `verify.py --doc`, `owners.py --closes bigint`,
+`playbook.py --closes bigint` and `chain.py --check`. Nothing is blocked. Goal `gap-zero` is next;
+its own prose says it builds nothing, and its one expected hold is CI.
 
 ## Next group
 
