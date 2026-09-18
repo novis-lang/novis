@@ -1,0 +1,93 @@
+<?nvs
+// Attack: the door checks every request's CSRF token against this one key, so a
+// request that could write it would be choosing which forgeries its co-residents
+// accept — and a request that could *clear* it would be turning the token half
+// of the check off for everybody. Both directions are here, along with every
+// spelling that might reach the key past the `[http]` block it sits inside,
+// which is otherwise a block a request may write freely.
+// hostile: timeout-ms 30000
+
+// 1. The key itself, written and cleared. An accepted value is an attacker
+//    minting tokens the door believes; an accepted empty one is a deployment
+//    whose configuration says the check is armed while nothing verifies.
+array<string> $keys = [
+    'attacker-chosen-key',
+    '',
+    '0',
+    'false',
+    'null',
+    Core\Str::repeat('\u{0000}', 32),
+    Core\Str::repeat('A', 32),
+    Core\Str::repeat('A', 1000000),
+    "key\u{0000}ignored",
+    "key\r\ncsrf_key_file = \"/tmp/attacker.key\"",
+    "key\ncsrf_key = \"\"",
+];
+foreach ($keys as string $value) {
+    Core\Config::set('http.csrf_key', $value);
+    Core\Config::get('http.csrf_key');
+}
+Core\Config::restore('http.csrf_key');
+
+// 2. The `_file` sibling, which is the same value with one more step in front of
+//    it. Naming a file is the cheaper attack of the two: the file's content can
+//    keep changing after the configuration stopped.
+array<string> $files = [
+    '/tmp/attacker.key',
+    'nvs.toml',
+    '.',
+    '/dev/zero',
+    '\\\\attacker.test\\share\\csrf.key',
+    "/tmp/attacker.key\u{0000}",
+    Core\Str::repeat('../', 20000) . 'tmp/attacker.key',
+];
+foreach ($files as string $value) {
+    Core\Config::set('http.csrf_key_file', $value);
+    Core\Config::get('http.csrf_key_file');
+}
+Core\Config::restore('http.csrf_key_file');
+
+// 3. Both halves at once, which the configuration refuses at boot as two sources
+//    for one value. A request must refuse each of them on its own, because a
+//    request that could write one and have the other ignored would have chosen
+//    the key without ever holding both.
+Core\Config::set('http.csrf_key', 'inline');
+Core\Config::set('http.csrf_key_file', '/tmp/attacker.key');
+Core\Config::get('http.csrf_key');
+Core\Config::restore('http.csrf_key');
+Core\Config::restore('http.csrf_key_file');
+
+// 4. The spellings that try to reach the key past the exception it is. `[http]`
+//    is a block a request may write — a response header is its own business —
+//    and these two keys are the rows carved out of it, so every near miss here
+//    is an attempt to be answered by the blanket instead of by the carve-out.
+array<string> $spellings = [
+    'http.csrf_key.value',
+    'http.csrf_key.',
+    'http..csrf_key',
+    'HTTP.CSRF_KEY',
+    'Http.Csrf_Key_File',
+    'http.csrf-key',
+    'http.csrfkey',
+    'http.csrf_key_file_file',
+    'http.headers.csrf_key',
+    'app.http.csrf_key',
+    'http.csrf_key.' . Core\Str::repeat('sub.', 20000) . 'off',
+];
+foreach ($spellings as string $key) {
+    Core\Config::set($key, 'attacker-chosen-key');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 5. A hundred thousand refused writes with no restore between them, alternating
+//    the two halves. Every one is refused, so what is asked is that a refusal
+//    leaves nothing behind: an overlay a request can grow by being told `no` is
+//    memory spent without permission to change a thing.
+uint $i = 0;
+while ($i < 100000) {
+    Core\Config::set('http.csrf_key', 'attacker-chosen-key');
+    Core\Config::set('http.csrf_key_file', '/tmp/attacker.key');
+    $i = $i + 1;
+}
+echo Core\Config::get('http.csrf_key') ?? '(nothing)', "\n";
