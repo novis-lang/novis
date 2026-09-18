@@ -1,0 +1,27 @@
+<?nvs
+// Work handed off to run after the response has been sent gets a deadline, and
+// `[deferred] deadline` is the one a call inherits when it names no time of its
+// own. Nothing is written for it in this checkout, so the built-in default is
+// what is in force:
+//
+//     [deferred]
+//     deadline = "30s"
+
+echo 'written here:  ', Core\Config::get('deferred.deadline') ?? '(nothing, so the built-in default)', "\n";
+
+// Unlike almost everything else in a configuration file, this one is a program's
+// to change while it runs — a job that knows its own work is quick can say so,
+// and the answer is `yes` rather than a silent refusal.
+echo 'give it 5s:    ', Core\Config::set('deferred.deadline', '5s') ? 'yes' : 'no', "\n";
+echo 'now in force:  ', Core\Config::get('deferred.deadline') ?? '(nothing)', "\n";
+
+// The other half of the same block is not a program's to change: it is how many
+// requests each core keeps alive for deferred work at once, which is a decision
+// about the size of the machine and not about this request.
+echo 'raise the cap: ', Core\Config::set('deferred.max_concurrent', '4096') ? 'yes' : 'no', "\n";
+
+// Putting a setting back is one call, and it drops what this program wrote
+// rather than writing the old value over it — so what comes back is whatever the
+// configuration says today.
+Core\Config::restore('deferred.deadline');
+echo 'restored to:   ', Core\Config::get('deferred.deadline') ?? '(nothing, so the built-in default)', "\n";
