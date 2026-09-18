@@ -22,7 +22,7 @@ path.
 
 ```nvs
 <?nvs
-// Counting the graphemes of a short label -- what every truncation and column width does.
+// Counts the characters of a short label, as a program does before it shortens or pads one.
 // bench: iterations 400000
 // bench: allocations 0
 // bench: complexity constant
@@ -43,8 +43,13 @@ class Bench {
 echo Bench::run(400000), "\n";
 ```
 
-Five rules, and the third and fifth are the ones that are not obvious:
+The rules, of which the chained input and the `int` subscript are the ones that are not obvious:
 
+- **The top comment is one plain sentence**: what is measured, and where somebody meets it in real
+  code. It is read by people looking the feature up, so it follows
+  [`docs/examples/README.md`](../../docs/examples/README.md) § *How a comment is written* — no
+  optimiser, no lowering, no allocator in it. Why the loop is shaped the way it is belongs here in
+  this file, not in the bench.
 - **`// bench: iterations N` is required**, and N is the number of times the measured operation
   happens. It is what turns a wall-clock reading into a per-operation figure, and a bench without it
   is refused rather than guessed at.

@@ -87,6 +87,10 @@ None of this asks for a comment to be shorter or plainer. A dense paragraph expl
 held across an await is exactly what belongs here; it just gets written as though it had always been
 true.
 
+The one place a comment *is* asked to be plainer is a program an end user reads: the `.nvs` files
+under `docs/examples/`, `tests/hostile/` and `benches/members/`. Their comments follow
+[docs/examples/README.md](../examples/README.md) § *How a comment is written*.
+
 ## A `.nvst` test case
 
 Canonical worked example, with every section that matters:

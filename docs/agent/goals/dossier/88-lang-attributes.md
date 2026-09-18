@@ -76,10 +76,15 @@ of these.
   where the explanation is technical. When it is hard to follow without code it closes by
   naming what the examples show, and the examples then show exactly that.
   `docs/examples/README.md` § *The description* is the shape.
-- **An example is written for a reader, not for a test.** Small, self-contained, one
-  sentence of plain comment saying what it shows — no ADR numbers, no internal vocabulary.
-  Three per member, each a *different* use, and the third is the one that earns its place:
-  make it the thing somebody actually does with this feature at work.
+- **An example is written for a reader, not for a test.** Small, self-contained, three
+  per member, each a *different* use, and the third is the one that earns its place: make
+  it the thing somebody actually does with this feature at work.
+- **A comment in any proof's `.nvs` file is written the way `about.md` is.** Example,
+  attack and bench alike are read by somebody who looked the feature up: short sentences,
+  one idea each, everyday words, no figure of speech, no ADR number, no crate name, none of
+  the implementation's own vocabulary. Up to four lines at the top, one or two above a
+  step. `docs/examples/README.md` § *How a comment is written* is the rule. A file you
+  touch for another reason is brought up to it; the landed ones are not swept.
 - **A `.out` file is created with `--bless` and then read.** Blessing is how the expected
   output is *created*; a red example is never made green by re-blessing it.
 - **A hostile case has no expected output.** Its whole assertion is that the runtime

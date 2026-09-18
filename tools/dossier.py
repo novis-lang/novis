@@ -1807,8 +1807,14 @@ are not style rules: breaking one silently destroys their work or the parent's.
   description* is the shape and carries two models.
 - **example** -- three small, self-contained programs a reader learns from, each printing, each a
   *different* use, and the third the thing somebody actually does at work. No framework, no
-  database, no socket. One plain sentence of comment; no ADR numbers and no internal vocabulary.
-  `docs/examples/README.md` is the shape.
+  database, no socket. `docs/examples/README.md` is the shape.
+- **every comment you write in a `.nvs` file** -- example, hostile and perf alike -- is read by
+  somebody who looked the feature up, and is written the way `about.md` is: short sentences, one
+  idea each, everyday words, the literal thing and no figure of speech, nothing a beginner has to
+  read twice. No ADR numbers, no rule ids, no crate names, none of the implementation's own words
+  (shard, tier, slot, refcount, lowering, the registry). Up to four lines at the top, one or two
+  above a step. `docs/examples/README.md` § *How a comment is written* is the rule and carries a
+  before and an after; read it before your first file.
 - **hostile** -- the file you write when you are trying to make the runtime come apart. It has no
   expected output: it passes if nothing panicked, aborted, hung or leaked. Throwing is a pass; a
   limit stopping it cleanly is a pass. Unbounded input, deep nesting, one element either side of a
@@ -2625,10 +2631,15 @@ def goal_prose(n: int, label: str, members: list[Entry], proofs: dict[str, Proof
         "  where the explanation is technical. When it is hard to follow without code it closes by",
         "  naming what the examples show, and the examples then show exactly that.",
         "  `docs/examples/README.md` § *The description* is the shape.",
-        "- **An example is written for a reader, not for a test.** Small, self-contained, one",
-        "  sentence of plain comment saying what it shows — no ADR numbers, no internal vocabulary.",
-        "  Three per member, each a *different* use, and the third is the one that earns its place:",
-        "  make it the thing somebody actually does with this feature at work.",
+        "- **An example is written for a reader, not for a test.** Small, self-contained, three",
+        "  per member, each a *different* use, and the third is the one that earns its place: make",
+        "  it the thing somebody actually does with this feature at work.",
+        "- **A comment in any proof's `.nvs` file is written the way `about.md` is.** Example,",
+        "  attack and bench alike are read by somebody who looked the feature up: short sentences,",
+        "  one idea each, everyday words, no figure of speech, no ADR number, no crate name, none of",
+        "  the implementation's own vocabulary. Up to four lines at the top, one or two above a",
+        "  step. `docs/examples/README.md` § *How a comment is written* is the rule. A file you",
+        "  touch for another reason is brought up to it; the landed ones are not swept.",
         "- **A `.out` file is created with `--bless` and then read.** Blessing is how the expected",
         "  output is *created*; a red example is never made green by re-blessing it.",
         "- **A hostile case has no expected output.** Its whole assertion is that the runtime",
