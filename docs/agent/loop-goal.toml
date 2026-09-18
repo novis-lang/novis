@@ -101,6 +101,8 @@ modules = [
   # more specific to be: member access, the nullsafe chain, `match`, the literals and the array
   # forms.
   "crates/nvs-ir/src/lower/expr.rs",
+  # The ceilings a request runs inside, and how it reports crossing one.
+  "crates/nvs-runtime/src/ctx/limits.rs",
 ]
 
 rules = ["testing/four-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
