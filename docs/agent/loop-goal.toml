@@ -130,6 +130,10 @@ modules = [
   # Interface conformance: every method a class's interfaces declare without a body, the class has
   # to answer.
   "crates/nvs-types/src/conformance.rs",
+  # `rule:testing/test-attribute`'s runner: the `#[Test]` table a compile already built (§ 1),
+  # constructed and called (§ 20), judged off § 5's ledger — `run_case` owns why that and not the
+  # exception state — and reported in one of § 22's formats.
+  "crates/nvs-cli/src/runner.rs",
 ]
 
 rules = ["testing/doubles", "testing/interaction-after-the-fact"]
