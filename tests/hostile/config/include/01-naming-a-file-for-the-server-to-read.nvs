@@ -1,0 +1,115 @@
+<?nvs
+// Attack: an include is a path the server *reads configuration out of*, so one
+// a request could name is the whole configuration — every capability grant and
+// every limit in it — chosen out of a file no account had to own. This writes
+// every kind of path an attacker would reach for, then the array-of-tables
+// spellings that try to be `[[include]]` without being it, then the shapes the
+// resolver refuses at the file layer (both halves at once, neither half, a
+// cycle, nesting past the cap) in case any of them is reachable from in here.
+// hostile: timeout-ms 30000
+
+// 1. Paths. An accepted one is an attacker handing the server a file it will
+//    read directives out of on the next reload.
+array<string> $paths = [
+    'conf.d/attacker.toml',
+    '/tmp/attacker.toml',
+    'nvs.toml',
+    '.',
+    '..',
+    '/',
+    '/etc/passwd',
+    '/dev/urandom',
+    '/dev/zero',
+    'NUL',
+    'CON',
+    '\\\\attacker.test\\share\\conf.toml',
+    '//attacker.test/share/conf.toml',
+    'file:///tmp/attacker.toml',
+    'http://attacker.test/conf.toml',
+    "/tmp/attacker.toml\u{0000}",
+    "/tmp/attacker.toml\u{0000}/etc/novis/real.toml",
+    '/tmp/attacker%00.toml',
+    "/tmp/attacker.toml\r\n[capabilities.fs]\nread = true",
+    "conf.d/a.toml\"]\n[[include]]\npath = \"/tmp/attacker.toml",
+    '',
+    ' ',
+    Core\Str::repeat('../', 20000) . 'tmp/attacker.toml',
+    Core\Str::repeat('a/', 50000) . 'conf.toml',
+    Core\Str::repeat('/', 100000),
+];
+foreach ($paths as string $value) {
+    Core\Config::set('include', $value);
+    Core\Config::set('include.path', $value);
+    Core\Config::set('include.dir', $value);
+    // Refused, so nothing may read back — a path that answers here is a path
+    // the server would go and read a configuration out of.
+    Core\Config::get('include');
+    Core\Config::get('include.path');
+    Core\Config::get('include.dir');
+}
+Core\Config::restore('include');
+Core\Config::restore('include.path');
+Core\Config::restore('include.dir');
+
+// 2. The spellings that are nearly this key. `include` is one row governing a
+//    whole array of tables, so a near miss has to land on nothing rather than
+//    on a neighbouring row that would answer for it.
+array<string> $spellings = [
+    'include.',
+    'include..path',
+    'include.0.path',
+    'include[0].path',
+    'includes.path',
+    'include_path',
+    'include-path',
+    'INCLUDE',
+    'Include.Path',
+    'app.include.path',
+    'include.path.path',
+    'include.' . Core\Str::repeat('sub.', 20000) . 'path',
+];
+foreach ($spellings as string $key) {
+    Core\Config::set($key, '/tmp/attacker.toml');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 3. The shapes the file layer refuses outright, asked for from in here: both
+//    halves of an entry at once, neither half, and `optional` on its own —
+//    which would be an entry promising that a file nobody named is fine.
+Core\Config::set('include.path', '/tmp/attacker.toml');
+Core\Config::set('include.dir', '/tmp/conf.d');
+Core\Config::get('include.path');
+Core\Config::restore('include.path');
+Core\Config::restore('include.dir');
+Core\Config::set('include.optional', 'true');
+Core\Config::set('include.optional', '1');
+Core\Config::set('include.optional', 'yes');
+Core\Config::get('include.optional');
+Core\Config::restore('include.optional');
+
+// 4. A cycle and a nesting chain, spelled the only way a request could reach
+//    for one: a file that names itself, and nine files deeper than the cap.
+Core\Config::set('include.path', 'nvs.toml');
+Core\Config::get('include.path');
+Core\Config::restore('include.path');
+uint $depth = 0;
+string $chain = 'conf.d';
+while ($depth < 64) {
+    $chain = $chain . '/deeper';
+    Core\Config::set('include.dir', $chain);
+    Core\Config::get('include.dir');
+    $depth = $depth + 1;
+}
+Core\Config::restore('include.dir');
+
+// 5. Restoring what was never set, then a hundred thousand refused writes with
+//    no restore between them: a refusal that left an entry behind would be a
+//    request growing this host's memory while being told `no` every time.
+Core\Config::restore('include');
+uint $i = 0;
+while ($i < 100000) {
+    Core\Config::set('include', 'conf.d/attacker.toml');
+    $i = $i + 1;
+}
+echo Core\Config::get('include') ?? '(nothing)', "\n";

@@ -2156,3 +2156,237 @@ fn no_key_with_a_reader_still_claims_to_be_unread() {
          source walk is reading something other than this workspace's crates",
     );
 }
+
+/// `rule:config/include-takes-a-path-or-a-dir` gives an entry its key set, and
+/// `rule:config/any-file-in-the-tree-may-set-any-directive` lets an included file say anything the
+/// root file can — so the whole array of tables is one `System` row and every key of an entry has
+/// to resolve through it. The failure this stands in the way of is a `path` or a `dir` that
+/// `Core\Config::set` answers for want of a row: a request naming a file the server reads its
+/// directives out of has chosen every capability grant and every ceiling in it, out of a file no
+/// account ever had to own in order to write.
+// covers: directive:include
+#[test]
+fn every_key_of_an_include_entry_resolves_through_the_one_system_row() {
+    let keys = keys_listed("[[include]]\nnvs_no_such_key = true\n");
+    assert_eq!(
+        keys.iter().map(String::as_str).collect::<Vec<_>>(),
+        ["path", "dir", "optional"],
+        "a key added to an `[[include]]` entry joins this census in the commit that adds it, and \
+         each one is part of naming a file the server reads configuration out of",
+    );
+
+    let mut asked = vec!["include".to_string()];
+    asked.extend(keys.iter().map(|key| format!("include.{key}")));
+    for key in asked {
+        let row = governing(&key);
+        assert_eq!(
+            (row.key, row.class, row.apply),
+            ("include", Class::System, Apply::Reload),
+            "`{key}` resolves through `{}`, and the `include` row is the only one that may answer \
+             for it: `Runtime` would hand a request the whole configuration, and `Boot` would say \
+             a file dropped into a `dir` entry needs a restart when the next reload reads it",
+            row.key,
+        );
+        assert!(
+            !row.class.settable_by_a_request(),
+            "`Core\\Config::set(\"{key}\", …)` has to refuse — an include is trusted because \
+             whoever wrote it cleared `rule:config/ownership-is-the-trust-boundary`, and a request \
+             clears nothing",
+        );
+    }
+}
+
+/// `rule:core-classes/temporary-dir-sweep` rests the whole safety of its two sweeps on the runtime
+/// owning the temporary root outright, so the root is the operator's (`System`) and a new one is a
+/// restart (`Boot`) — the orphan sweep runs once as `nvs serve` boots, over the root it started
+/// with. Asserted beside `[debug] keep_temporary`, which is the other way to the same place: a
+/// program able to exempt its own directories from the sweep can be made to hoard them. The block
+/// carries exactly one row, so the second half of this is that nothing blankets `[io]`: a key added
+/// there is refused for want of a row rather than inheriting this one's class.
+// covers: directive:io.temp_root
+#[test]
+fn the_temporary_root_is_the_operators_and_a_new_one_is_a_restart() {
+    let root = governing("io.temp_root");
+    assert_eq!(
+        (root.key, root.class, root.apply),
+        ("io.temp_root", Class::System, Apply::Boot),
+        "`io.temp_root` resolves through `{}` to {:?}/{:?}, and each half being wrong is its own \
+         failure: `Runtime` would let a request choose where every other request's scratch files \
+         land, and `Reload` would promise a swapped root that the boot sweep never ran over",
+        root.key,
+        root.class,
+        root.apply,
+    );
+
+    for absent in ["io", "io.scratch_root", "io.temp"] {
+        assert!(
+            lookup(absent).is_none(),
+            "`{absent}` is governed by a row, so something blankets `[io]` — a second key in that \
+             block has to be refused for want of a row rather than inheriting the root's class",
+        );
+    }
+
+    let keep = governing("debug.keep_temporary");
+    assert_eq!(
+        (keep.key, keep.class),
+        ("debug.keep_temporary", Class::System),
+        "`{}` governs the key that turns the per-script sweep off, and it is the same class as the \
+         root for the same reason — both are the operator deciding what happens to scratch files \
+         that are not the program's to decide about",
+        keep.key,
+    );
+    for row in [root, keep] {
+        assert!(
+            !row.class.settable_by_a_request(),
+            "`Core\\Config::set(\"{}\", …)` has to refuse: `rule:core-classes/temporary-dir-sweep` \
+             says there is no in-language setter for either half of this, because a program that \
+             can exempt its own files can be made to hoard them",
+            row.key,
+        );
+    }
+}
+
+/// `rule:config/three-changeability-classes`: `[limits]` is the block a request *may* write, and the
+/// whole of its safety is that `[limits.hard]` holds the same key names under a different class.
+/// Pinned as the pair, because either row alone still reads right — a `[limits]` gone `System` takes
+/// away the per-request default the block exists to be, and a `[limits.hard]` gone `Runtime` lets a
+/// request raise the ceiling it is being bounded by. The sweep underneath is what a new key lands
+/// on: every key of the block that no row carves out has to reach the `Runtime` row, and every row
+/// that does carve one out has to be a class a request cannot write.
+// covers: directive:limits
+#[test]
+fn the_default_limits_are_the_requests_and_everything_carved_out_of_them_is_not() {
+    let soft = governing("limits.memory");
+    assert_eq!(
+        (soft.key, soft.class, soft.apply),
+        ("limits", Class::Runtime, Apply::Reload),
+        "`limits.memory` resolves through `{}`, and it has to be the `limits` row at `Runtime`: \
+         this block is the per-request default a program lowers for itself, which is the one thing \
+         `rule:config/three-changeability-classes` names it as",
+        soft.key,
+    );
+    let hard = governing("limits.hard.memory");
+    assert_eq!(
+        (hard.key, hard.class, hard.apply),
+        ("limits.hard", Class::System, Apply::Reload),
+        "`limits.hard.memory` resolves through `{}`, and the longest-row lookup is the only thing \
+         keeping it off the `Runtime` row above — a request that reached that row would be raising \
+         the ceiling it is bounded by, one key name apart from lowering its own default",
+        hard.key,
+    );
+    assert!(
+        soft.class.settable_by_a_request() && !hard.class.settable_by_a_request(),
+        "the pair answers the same way to `Core\\Config::set`, so the two halves of `[limits]` have \
+         collapsed into one class and the block is either a ceiling nobody can use or a ceiling \
+         anybody can move",
+    );
+
+    let carved: BTreeMap<&str, Class> = DIRECTIVES
+        .iter()
+        .filter(|row| row.key.starts_with("limits."))
+        .map(|row| (row.key, row.class))
+        .collect();
+    assert!(
+        carved.len() > 1,
+        "only `{:?}` is carved out of `[limits]`, so the reserve keys and the recursion ceiling \
+         `rule:errors/on-limit` puts in the operator's hands have gone back to being a request's",
+        carved.keys().collect::<Vec<_>>(),
+    );
+    for (key, class) in &carved {
+        assert!(
+            !class.settable_by_a_request(),
+            "`{key}` is carved out of `[limits]` at {class:?}, which a request can write — a row \
+             here exists to take a key *away* from the block's `Runtime` blanket, so a settable \
+             one is a longer row that changed nothing but the registry's line count",
+        );
+    }
+
+    for key in keys_in("limits") {
+        let dotted = format!("limits.{key}");
+        if carved.contains_key(dotted.as_str()) {
+            continue;
+        }
+        let row = governing(&dotted);
+        assert_eq!(
+            (row.key, row.class),
+            ("limits", Class::Runtime),
+            "`{dotted}` is a key of `[limits]` that no row carves out, so it has to land on the \
+             block's own row and did not — a key added here is a per-request default until \
+             somebody decides otherwise, and `{}` is not that decision",
+            row.key,
+        );
+    }
+}
+
+/// `rule:config/three-changeability-classes`'s ceiling, asserted as the agreement it has to be with
+/// the block underneath it: `[limits.hard]` holds the same key names as `[limits]`, and the pair
+/// answers `Core\Config::set` differently for every one of them. Asked of every key rather than
+/// written out for `memory`, because a ceiling that governs the one key somebody tested and
+/// blankets nothing else reads exactly right on that line — and the budget it quietly stopped
+/// covering is one a request may then raise as far as it likes.
+// covers: directive:limits.hard
+#[test]
+fn every_budget_with_a_ceiling_answers_the_request_and_the_operator_differently() {
+    let ceiling = governing("limits.hard");
+    assert_eq!(
+        (ceiling.key, ceiling.class, ceiling.apply),
+        ("limits.hard", Class::System, Apply::Reload),
+        "`limits.hard` resolves through `{}` to {:?}/{:?}: `Runtime` would be a request raising \
+         the ceiling that bounds it, and `Boot` would tell an operator that lowering a ceiling \
+         under a running server takes a restart when the next request reads the new snapshot",
+        ceiling.key,
+        ceiling.class,
+        ceiling.apply,
+    );
+
+    // A ceiling exists for exactly the budgets a request may set, and for nothing else: the keys
+    // `[limits]` carves out with a row of its own are already the operator's, so a second operator
+    // key bounding them would be a ceiling over a value no request can move.
+    let carved: Vec<&str> = DIRECTIVES
+        .iter()
+        .filter(|row| row.key.starts_with("limits."))
+        .map(|row| row.key)
+        .collect();
+    let keys = keys_in("limits.hard");
+    let settable: Vec<String> = keys_in("limits")
+        .into_iter()
+        .filter(|key| !carved.contains(&format!("limits.{key}").as_str()))
+        .collect();
+    assert_eq!(
+        keys, settable,
+        "`[limits.hard]` bounds a set of keys that is no longer the set a request may write. A key \
+         missing from the ceiling block is a budget a program may raise as far as it likes; an \
+         extra one is a ceiling over a value no request can move in the first place",
+    );
+
+    let mut compared = 0;
+    for key in &keys {
+        let under = format!("limits.hard.{key}");
+        let row = governing(&under);
+        assert_eq!(
+            (row.key, row.class),
+            ("limits.hard", Class::System),
+            "`{under}` lands on `{}` rather than on the ceiling row, so this budget's ceiling is \
+             something a request can reach — one key name away from the default it is supposed to \
+             be bounding",
+            row.key,
+        );
+
+        let twin = format!("limits.{key}");
+        if carved.contains(&twin.as_str()) {
+            continue;
+        }
+        assert!(
+            governing(&twin).class.settable_by_a_request() && !row.class.settable_by_a_request(),
+            "`{twin}` and `{under}` answer `Core\\Config::set` the same way, so this budget has no \
+             ceiling worth the name: either the program cannot lower its own or it can raise the \
+             operator's",
+        );
+        compared += 1;
+    }
+    assert!(
+        compared > 0,
+        "every key of `[limits]` is carved out by a row of its own, so `[limits.hard]` bounds \
+         nothing a request is still allowed to set and the pair has stopped being a pair",
+    );
+}
