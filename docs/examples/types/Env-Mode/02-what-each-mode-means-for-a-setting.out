@@ -1,0 +1,2 @@
+production: keep a page for 3600 seconds
+development: keep a page for 0 seconds

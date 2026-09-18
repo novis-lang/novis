@@ -2,6 +2,7 @@
 `Core\Env::mode` and the `mode.default` directive agree after an accepted flip, after a refused one and after a flip back — `rule:config/a-program-may-read-and-flip-its-mode` and `rule:http-server/the-mode-ceiling-defaults-to-the-startup-mode`
 --FILE--
 <?nvs
+// covers: Core\Env\Mode
 // § 4's flip is a `Core\Config::set` on `mode.default`, and this member reports
 // what the flip left in force. So the two are one fact reached two ways, and
 // this case asserts they **agree** at every step rather than asserting what

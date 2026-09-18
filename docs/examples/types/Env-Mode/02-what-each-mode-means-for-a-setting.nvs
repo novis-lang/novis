@@ -1,0 +1,27 @@
+<?nvs
+// A mode is a value like any other, so a function can take one. Asking about
+// both modes in a single run is how you see what your program will do on a
+// real deployment while you are still working on your own machine.
+
+class Pages {
+    // How long a finished page may be kept before it is built again.
+    public static function cacheSeconds(Core\Env\Mode $mode): int {
+        return match ($mode) {
+            Core\Env\Mode::Production => 3600,
+            Core\Env\Mode::Development => 0,
+        };
+    }
+
+    public static function name(Core\Env\Mode $mode): string {
+        return match ($mode) {
+            Core\Env\Mode::Production => "production",
+            Core\Env\Mode::Development => "development",
+        };
+    }
+}
+
+array<Core\Env\Mode> $both = [Core\Env\Mode::Production, Core\Env\Mode::Development];
+
+foreach ($both as Core\Env\Mode $mode) {
+    echo Pages::name($mode), ": keep a page for ", Pages::cacheSeconds($mode), " seconds\n";
+}

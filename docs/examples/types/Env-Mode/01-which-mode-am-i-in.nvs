@@ -1,0 +1,19 @@
+<?nvs
+// Asks which deployment this program is running in and does something
+// different in each. Nothing is configured here, so the answer is production
+// — that is what a program gets until somebody asks for the other mode.
+
+Core\Env\Mode $mode = Core\Env::mode();
+
+echo match ($mode) {
+    Core\Env\Mode::Production => "production: keep what a visitor sees short\n",
+    Core\Env\Mode::Development => "development: show me everything\n",
+};
+
+// There are only two modes, so an `if` is enough when you care about one of
+// them and not the other.
+if ($mode == Core\Env\Mode::Development) {
+    echo "loading the sample customers\n";
+} else {
+    echo "no sample customers on a real deployment\n";
+}

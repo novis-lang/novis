@@ -1,0 +1,24 @@
+<?nvs
+// The everyday job: an order did not save, and somebody has to be told. On a
+// real deployment the visitor gets a short line and a reference to quote.
+// While you are working on the program you want the whole message instead.
+
+class Failure {
+    public static function forVisitor(Core\Env\Mode $mode, string $detail, string $reference): string {
+        return match ($mode) {
+            Core\Env\Mode::Production => "Sorry, we could not save your order. Please quote " . $reference . ".",
+            Core\Env\Mode::Development => "Could not save the order: " . $detail,
+        };
+    }
+}
+
+string $detail = "the payments service did not answer in time";
+string $reference = "ORD-1042";
+
+Core\Env\Mode $mode = Core\Env::mode();
+
+echo "the visitor reads: ", Failure::forVisitor($mode, $detail, $reference), "\n";
+
+// The mode decides who is told what went wrong. It does not decide whether the
+// server keeps the detail, so this line is the same in both modes.
+echo "the server keeps:  ", $reference, " ", $detail, "\n";
