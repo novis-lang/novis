@@ -28,6 +28,63 @@ Inside it, `01-slug.nvs` … `03-slug.nvs`, each with a sibling `01-slug.out` ho
 program prints. `python tools/dossier.py --id 'Core\Str::length'` prints the directory for any
 feature rather than making you derive it.
 
+## The description — `about.md`
+
+Each feature's directory also holds `about.md`: **the first thing a person sees on the website when
+they look the feature up**, above its examples. It is written before the examples, and the examples
+are then written to build on it.
+
+A beginner and an expert should both read it once and come away with the same picture.
+
+- **One lead sentence** saying what the feature does, in plain words. It has to work alone, as a
+  search result.
+- **One or two short paragraphs** on what somebody needs to know to use it correctly. 40 to 160
+  words for the whole file; most features want about 80.
+- **`**In plain words:**`, only where it is needed.** When the honest explanation is technical —
+  taint, a bounded channel, a limit's ceiling — add one or two sentences with an everyday picture.
+  A feature whose lead sentence is already plain gets none.
+- **`**Good to know:**`, optional.** One or two real surprises. Never a list of every edge case;
+  those are pinned in `tests/conformance/`.
+- **`**The examples below**`, only where the prose is hard to follow without code.** One closing
+  sentence naming what the examples show, in order. It is a promise: the examples in the same
+  directory show exactly that. A feature the prose fully explains gets no such sentence.
+- **No code, no internals, no history.** No ADR numbers, no crate names, no "the registry". One
+  "replaces PHP's `sort`, `usort`, …" hint is welcome where it helps somebody arriving from PHP.
+
+The file is plain Markdown with no front matter and no heading — the page supplies the title.
+
+A feature that needs neither optional part:
+
+```markdown
+Counts the characters in a string, the way a person would count them.
+
+An emoji, an accented letter or a flag each count as one, even though the computer stores them as
+several bytes. Every `Core\Str` member counts the same way, so a position you get from one member is
+safe to hand to another.
+
+**Good to know:** this is not the size of the string in memory. If you need bytes, for a file size
+or a network limit, use `Core\Bytes`.
+```
+
+And one that needs both:
+
+```markdown
+A queue that lets tasks running at the same time hand values to each other safely.
+
+One task puts values in with `send`, another takes them out with a plain `foreach`. You choose how
+many values the channel holds when you create it. When it is full, the sender waits until there is
+room, so a fast producer can never flood a slow consumer or fill up memory. Call `close` when you
+are done sending; the receiving loop finishes what is queued and then ends.
+
+**In plain words:** a conveyor belt with a fixed number of slots between two workers. If the belt is
+full, the first worker pauses. If it is empty, the second one waits.
+
+**Good to know:** a sender that never calls `close` leaves its receiver waiting forever.
+
+**The examples below** build this up step by step: a producer and a consumer first, then what
+"full" looks like, then closing cleanly.
+```
+
 ## What an example is
 
 **A reader who has never seen this repository is the audience.** Not a test, not a specification —

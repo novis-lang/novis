@@ -40,6 +40,18 @@ owed, with nobody editing a list.
                                                      with the goal files under docs/agent/goals/dossier/
     python tools/dossier.py --emit-goals --dry-run   ... and say what that would change, writing nothing
 
+## The description is written, and not yet counted
+
+Beside the four proofs every feature gets `about.md` in its example directory: the short plain
+prose the website shows first when somebody looks the feature up. `docs/examples/README.md` §
+*The description* owns what it is. The emitted goals write it -- it is the first thing in a
+worker's brief for any feature that lacks one, and the examples are then written to deliver what
+it promises -- and `--id` prints whether it is there. **It is not part of `owed()`**, so no
+audit, gate or emission counts a feature as incomplete for lacking one: nearly every feature
+already sits in a goal that writes it, and counting it would re-open the few that are complete
+for a file their own goal never asked for. The count belongs after the emitted goals have run,
+over whatever is left.
+
 ## Turning the perf proof off
 
 `--no-perf` on any command drops it from what is owed, from the audit's columns, and from every goal
@@ -208,6 +220,9 @@ BS = chr(92)  # a literal backslash, spelled so no layer of quoting can eat it
 EXAMPLES = ROOT / "docs" / "examples"
 HOSTILE = ROOT / "tests" / "hostile"
 BENCHES = ROOT / "benches" / "members"
+#: A feature's website description, inside its example directory. `collect()` globs that directory
+#: for `*.nvs` alone, so this file never counts as an example.
+ABOUT = "about.md"
 LEDGER = ROOT / "docs" / "perf" / "members.ndjson"
 PERF_REPORT = ROOT / "docs" / "perf" / "members.md"
 CONFORMANCE = ROOT / "tests" / "conformance"
@@ -477,6 +492,10 @@ class Entry:
         return EXAMPLES / self.path
 
     @property
+    def about_file(self) -> Path:
+        return self.examples_dir / ABOUT
+
+    @property
     def hostile_dir(self) -> Path:
         return HOSTILE / self.path
 
@@ -691,6 +710,7 @@ class Proofs:
     rust: list[str] = field(default_factory=list)
     examples: list[str] = field(default_factory=list)
     hostile: list[str] = field(default_factory=list)
+    about: str = ""                 # the website description, when it is on disk; never owed
     bench: str = ""
     perf: dict | None = None        # the newest record taken on THIS machine, for the report
     perf_any: dict | None = None    # the newest current record from ANY machine, for the gate
@@ -819,6 +839,8 @@ def collect(entries: list[Entry]) -> dict[str, Proofs]:
             p.examples = sorted(rel(f) for f in e.examples_dir.glob("*.nvs"))
         if e.hostile_dir.is_dir():
             p.hostile = sorted(rel(f) for f in e.hostile_dir.glob("*.nvs"))
+        if e.about_file.exists():
+            p.about = rel(e.about_file)
         for d in (e.examples_dir, e.hostile_dir):
             if d.is_dir():
                 p.gaps += [rel(f) for f in sorted(d.glob("*.nvs")) if known_gap(read(f))]
@@ -1602,6 +1624,7 @@ def print_entry(fid: str, entries: list[Entry], proofs: dict[str, Proofs], polic
     if match.twin:
         print(f"   replaces PHP: {', '.join(match.twin)}  (a differential case needs no frozen output)")
     print()
+    print(f"   about     {p.about or 'none at ' + rel(match.about_file)}")
     print(f"   tests     {len(p.nvst)} case(s), {len(p.rust)} Rust")
     for f in p.nvst[:6]:
         print(f"     {f}")
@@ -1727,6 +1750,13 @@ are not style rules: breaking one silently destroys their work or the parent's.
 
 ## What each proof is
 
+- **about** -- the feature's website description, and **the first thing you write**: working out
+  how to say what the feature does in plain words is the understanding every other proof spends.
+  One lead sentence, one or two short paragraphs, 40 to 160 words, no code. An `**In plain
+  words:**` picture only where the honest explanation is technical. Where the prose is hard to
+  follow without code, a closing `**The examples below**` sentence naming what they show -- and
+  then your examples show exactly that, in that order. `docs/examples/README.md` § *The
+  description* is the shape and carries two models.
 - **example** -- three small, self-contained programs a reader learns from, each printing, each a
   *different* use, and the third the thing somebody actually does at work. No framework, no
   database, no socket. One plain sentence of comment; no ADR numbers and no internal vocabulary.
@@ -1775,6 +1805,8 @@ def feature_block(i: int, e: Entry, missing: dict[str, str], p: Proofs, policy: 
         lines.append(f"replaces PHP `{'`, `'.join(e.twin[:4])}` -- its oracle case goes in "
                      f"`tests/differential/` and needs no frozen output")
     lines.append("")
+    if not p.about:
+        lines.append(f"- **about** -- write `{rel(e.about_file)}` first; the examples build on it.")
     if "examples" in missing:
         n = want["examples"] - len(p.examples)
         lines.append(f"- **examples** -- write {n}: "
@@ -2423,6 +2455,10 @@ def goal_prose(n: int, label: str, members: list[Entry], proofs: dict[str, Proof
         "and one file written to break it. `python tools/dossier.py --id '<feature>'` prints what",
         "one feature has and what it still owes, with the path each proof belongs at.",
         "",
+        "**Every feature here also gets its website description**, `about.md` in its example",
+        "directory, written before its examples. The check does not count it, so nothing but this",
+        "paragraph and the worker's brief asks for it: a feature is not done until it has one.",
+        "",
         "## The item list, grouped by file set",
         "",
         "**One slice is one feature, all four proofs together** — never one proof across many",
@@ -2477,6 +2513,12 @@ def goal_prose(n: int, label: str, members: list[Entry], proofs: dict[str, Proof
         "Settled before the run; a session decides and records, and never reports `BLOCKED` for any",
         "of these.",
         "",
+        "- **The description comes first, and the examples answer it.** `about.md` is what the",
+        "  website shows first when somebody looks the feature up: plain prose a beginner and an",
+        "  expert read the same way, 40 to 160 words, no code, an `**In plain words:**` picture only",
+        "  where the explanation is technical. When it is hard to follow without code it closes by",
+        "  naming what the examples show, and the examples then show exactly that.",
+        "  `docs/examples/README.md` § *The description* is the shape.",
         "- **An example is written for a reader, not for a test.** Small, self-contained, one",
         "  sentence of plain comment saying what it shows — no ADR numbers, no internal vocabulary.",
         "  Three per member, each a *different* use, and the third is the one that earns its place:",
