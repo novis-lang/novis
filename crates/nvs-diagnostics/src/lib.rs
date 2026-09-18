@@ -255,6 +255,16 @@ pub mod code {
     /// [`E_OBJECT_LITERAL_NEEDS_PARENS`] when the token after the matched `}`
     /// is a variable, because parentheses are not the fix for this one.
     pub const E_SHAPE_TYPED_LOCAL_NEEDS_AN_ALIAS: Code = Code::new("E0134");
+    /// A `::` written after `self`, `static` or `parent` in type position
+    /// (`self::MAX $n;`, `$x is self::Wild`) — `rule:types/grammar`. The three
+    /// keywords are whole atoms there, and every member a `::` could reach —
+    /// a `type` alias, a class constant, an enum case — is already spelled
+    /// with the owner's own name, an alias additionally with its bare name
+    /// inside the body that declares it. The keyword form would be a second
+    /// name for each of them, and `static::` could only ever mean the lexical
+    /// class, which the written name says
+    /// (`rule:types/class-scoped-alias` § *Two spellings and no third*).
+    pub const E_CLASS_KEYWORD_MEMBER_IN_TYPE: Code = Code::new("E0135");
 
     // --- E02xx rejected PHP constructs -------------------------------------
     // Novis accepts PHP 8.5 syntax as a *pragmatic* superset. These constructs
@@ -3872,7 +3882,7 @@ mod tests {
     /// than leave `brief.py`'s next-free line quietly wrong.
     #[test]
     fn the_newest_parser_code_is_the_bands_highest_number() {
-        assert_eq!(code::E_SHAPE_TYPED_LOCAL_NEEDS_AN_ALIAS.as_str(), "E0134");
+        assert_eq!(code::E_CLASS_KEYWORD_MEMBER_IN_TYPE.as_str(), "E0135");
 
         let mut band = parser_band();
         assert!(band.len() > 3, "the band did not parse: {band:?}");
@@ -3882,7 +3892,7 @@ mod tests {
         assert_eq!(band, unique, "two parser-band codes share a number");
         assert_eq!(
             band.pop(),
-            Some(34),
+            Some(35),
             "the newest code is no longer the band's highest, so the number after \
              it is no longer the next free one",
         );

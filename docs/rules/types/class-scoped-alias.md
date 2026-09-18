@@ -26,8 +26,9 @@ and an enum's alias has nothing to do with its cases.
   alias is an entry on nothing, and inheriting it would give one type as many names as its owner has
   descendants — what `rule:statements/nothing-gets-a-second-name` closes.
 - **Two spellings and no third.** `self::Name` and `static::Name` in type position are not spellings
-  of this member and stay refused. An alias is resolved before there is a receiver, so `static::`
-  could only ever mean the lexical class, which the bare `Name` already says.
+  of this member and are `E0135` where they are written, as `parent::Name` is
+  (`rule:types/grammar`). An alias is resolved before there is a receiver, so `static::` could only
+  ever mean the lexical class, which the bare `Name` already says.
 - **A name is one thing.** A body's alias sharing a name with a class constant or an enum case is
   `E0304` at the later of the two declarations. `Owner::Name` in type position is therefore read as
   an alias, then an enum case, then a class constant, and no program that compiles depends on that

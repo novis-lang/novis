@@ -31,4 +31,11 @@ an enum case (`rule:types/enum-case-type`), and a `type` alias (`rule:types/type
 carries concrete arguments only where it names a compiler-owned generic interface — `Iterator<User>`
 (`rule:iteration/concrete-generic-implements`) — and nowhere else.
 
+`self`, `static` and `parent` are **whole atoms**: a `::` after one in type position is `E0135`. Every
+member such a `::` could reach — a `type` alias, a class constant, an enum case — is spelled with the
+owner's own name from anywhere, and an alias additionally with its bare name inside the body that
+declares it (`rule:types/class-scoped-alias` § *Two spellings and no third*), so the keyword form would
+be a second name for each of them, and `static::` could only ever mean the lexical class the written
+name already says. The refusal recovers as `mixed`, which is what keeps one misspelt type to one error.
+
 **There is no `resource` type.** A host handle is an ordinary object with an explicit `close()`.

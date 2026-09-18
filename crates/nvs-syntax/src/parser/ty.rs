@@ -319,6 +319,45 @@ impl<'src, 'd> Parser<'src, 'd> {
         (args, name_span.to(close))
     }
 
+    /// `self`, `static` and `parent` are whole atoms in type position, so a
+    /// `::` after one is `E0135` rather than the `expected ';'` a bare atom
+    /// followed by a stray token would otherwise produce
+    /// (`rule:types/grammar`). The refused pair is consumed so the rest of the
+    /// declaration still parses, and what it recovers as is `mixed` — the
+    /// wildcard reports nothing further, where recovering as the keyword's own
+    /// atom would have the checker complain about a type the program never
+    /// wrote. A statement-initial declaration is the one position this does not
+    /// reach the reader: `parse_stmt_maybe_local_decl`'s trial parse treats any
+    /// diagnostic as proof the tokens were an expression, which is equally true
+    /// of every other refusal in this file.
+    fn parse_class_keyword_type(&mut self, atom: TypeAtom, keyword: &str) -> Type {
+        let start = self.bump().span;
+        if !(self.at(TokenKind::DoubleColon) && Self::is_name_segment(self.peek_at(1).kind)) {
+            return Type {
+                kind: TypeKind::Atom(atom),
+                span: start,
+            };
+        }
+        self.bump();
+        let member = self.bump().span;
+        let span = start.to(member);
+        self.diags.report(
+            Diagnostic::error(
+                code::E_CLASS_KEYWORD_MEMBER_IN_TYPE,
+                format!("`{keyword}::` is not a type"),
+            )
+            .with_primary(span, "a class keyword is a whole type on its own")
+            .with_help(
+                "name the owner class — `Owner::MEMBER` — or, for a `type` alias inside the body \
+                 that declares it, write the alias's bare name (`rule:types/grammar`)",
+            ),
+        );
+        Type {
+            kind: TypeKind::Atom(TypeAtom::Mixed),
+            span,
+        }
+    }
+
     pub(super) fn parse_type_atom(&mut self) -> Type {
         let tok = self.peek();
         let start = tok.span;
@@ -457,9 +496,15 @@ impl<'src, 'd> Parser<'src, 'd> {
             TokenKind::Keyword(Keyword::False) => atom!(False),
             TokenKind::Keyword(Keyword::Iterable) => atom!(Iterable),
             TokenKind::Keyword(Keyword::Callable) => self.parse_callable_type(),
-            TokenKind::Keyword(Keyword::SelfKw) => atom!(SelfTy),
-            TokenKind::Keyword(Keyword::Static) => atom!(StaticTy),
-            TokenKind::Keyword(Keyword::Parent) => atom!(Parent),
+            TokenKind::Keyword(Keyword::SelfKw) => {
+                self.parse_class_keyword_type(TypeAtom::SelfTy, "self")
+            }
+            TokenKind::Keyword(Keyword::Static) => {
+                self.parse_class_keyword_type(TypeAtom::StaticTy, "static")
+            }
+            TokenKind::Keyword(Keyword::Parent) => {
+                self.parse_class_keyword_type(TypeAtom::Parent, "parent")
+            }
             // `rule:types/class-reference`'s class reference. `class` is already the
             // declaration keyword, so this arm is only reached through
             // `at_class_reference` (a `<` immediately after it) and the two
