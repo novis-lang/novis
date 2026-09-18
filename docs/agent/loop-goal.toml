@@ -1,19 +1,14 @@
-# Goal 67 -- `is` is the one type test, and `instanceof` is gone
+# Goal 68 -- no gap is owed by anyone but a future milestone, and the index that held them is gone
 # The acceptance test, as data.
 #
-# `67-one-type-test.md` is the prose. One home each.
+# `68-gap-zero.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 #
-# The gate is an absence: `git grep -i -w instanceof` finds the word nowhere but the homes that have
-# to spell it -- the token table and the parser site that refuse it, the diagnostics crate's doc for
-# that code, the parser test and the conformance case that pin it, and the `php-migration` chapter
-# that states the divergence. Every other check names a test that proves one stage's item.
+# Every zero is written `label: 0` on purpose: `want` is a substring match, and `0 unowned` would also
+# match `10 unowned`. Goal `gap-register` fixes that summary format.
 
 files = [
-  # Every `examples/*.nvs` fixture an `exact` check below names. goal-switch.py unions the previous
-  # goal's list into this one; this goal adds none of its own, because each item's proof is a unit
-  # test beside the code it changes, a conformance case, or the word being gone.
   # carried from the previous goal by tools/goal-switch.py
   "examples/cache-shared-tls.nvs",
   "examples/webcrypto.nvs",
@@ -102,63 +97,31 @@ files = [
 [context]
 
 modules = [
-  # Every file this goal rewrites, grouped by stage. The comment on each is the item.
-  # Stage 3 -- the front end.
-  # `parse_instanceof` becomes `parse_type_test`; the value arm starts at a `$variable`.
-  "crates/nvs-syntax/src/parser/expr.rs",
-  # `parse_type_test_operand` and `reject_value_in_type_test` go with `E0812`.
-  "crates/nvs-syntax/src/parser/ty.rs",
-  # `ExprKind::InstanceOf` goes; `ExprKind::TypeTest` carries `against: TestOperand`.
-  "crates/nvs-syntax/src/ast.rs",
-  # `infer_instanceof`, `testable_class_name` and `testable_core_class` go; `reject_dynamic_class_name`
-  # gains the `is` site.
-  "crates/nvs-types/src/expr/members.rs",
-  # `infer_type_test` gains the value arm and records `ExprInfo::ClassRefTest { base }`.
-  "crates/nvs-types/src/expr/type_test.rs",
-  # `instanceof_residue` and `instanceof_test` go; the `is` residue narrows the value form to `T`.
-  "crates/nvs-types/src/locals.rs",
-  # `ExprInfo::InstanceOf` goes; `ExprInfo::ClassRefTest` arrives.
-  "crates/nvs-types/src/expr_table.rs",
-  # The new refusal code; `E0496`'s doc reduced to its three sites; `E0497` and `E0812` retired.
-  "crates/nvs-diagnostics/src/lib.rs",
-  # Stage 4 -- the lowering, the codegen and the runtime primitive.
-  # `lower_instanceof` goes; `lower_type_test` gains the descriptor-valued arm.
-  "crates/nvs-ir/src/lower/expr.rs",
-  # `InstKind::InstanceOf` becomes `InstKind::ClassTest`; `TestedClass` stays.
-  "crates/nvs-ir/src/ir.rs",
-  # `emit_instanceof` becomes `emit_class_test`, over the renamed runtime symbols.
-  "crates/nvs-codegen/src/emit.rs",
-  # `nvs_object_instanceof` / `nvs_value_instanceof` become `nvs_object_is_class` / `nvs_value_is_class`.
-  "crates/nvs-runtime/src/object.rs",
-  # Stage 5 -- the library, the LSP and the formatter.
-  # The `InstanceOf` node kind leaves `Core\Ast`'s roster.
-  "crates/nvs-stdlib/src/ast.rs",
-  # The `ExprInfo::InstanceOf` arm goes; the type after `is` resolves as a type node does.
-  "crates/nvs-lsp/src/definition.rs",
-  # One workspace symbol index, built in one place.
-  "crates/nvs-lsp/src/index.rs",
-  # `Core\Debug` — `rule:errors/debug-dump`'s `dump` and `render`, and the walk that turns a
-  # runtime value into § 1's record.
-  "crates/nvs-stdlib/src/debug.rs",
-  # The value behind `registry::CoreTy::Instance`: what a native member returns when the spec
-  # writes a `Core`-owned object, and how another member reads one back.
-  "crates/nvs-stdlib/src/instance.rs",
-  # `Core\Reflect` — `rule:tooling/reflection-and-source-parsing-are-core-features`'s read-only
-  # structural introspection, as the member that describes a value and the description it answers
-  # with.
-  "crates/nvs-stdlib/src/reflect.rs",
+  # The gate this goal makes fatal, and the index it stops reading. Stages 2 and 3.
+  "tools/owners.py",
+  # `CARRIED_GAPS` and the report over the deleted file's Owner column. Stage 3.
+  "tools/playbook.py",
+  # `HOMES` and `OWNERS_HOME`. Stage 3.
+  "tools/brief.py",
+  # A manifest naming the deleted file. Stage 3.
+  "tools/orient.py",
+  # Where the gate joins the ordered run. Stage 2.
+  "tools/verify.py",
+  # `--past` and `done`. Stage 5.
+  "tools/plan.py",
+  # A dangling link to the deleted file is the failure mode. Stage 3.
+  "tools/check-links.py",
+  # The index, read one last time and then deleted.
+  "docs/agent/carried-gaps.md",
+  # The owner column's gate, and its example slug. Stages 2 and 3.
+  "crates/nvs-stdlib/tests/spec_registry_coverage.rs",
 ]
 
-# What every stage is written inside: the operator, what it narrows, and the list the divergence
-# joins.
 rules = [
-  "types/type-test",
-  "types/narrowing",
-  "php-migration/every-divergence-is-deliberate-and-listed",
+  "0004",
   "programs/memory-priority",
 ]
 
-# Empty on purpose: the record this goal opens is stage 2's, and no stage argues from another.
 adrs = []
 
 shapes = ["A commit message", "A code comment"]
@@ -175,60 +138,37 @@ playbook = [
   'Tooling > a [context]*',
   'Tooling > orient.py prints',
   'Tooling > another agent',
-  "Tooling > a loop-goal.toml check's -p",
-  "Writing Novis itself > a crate's known-gap",
 ]
 
-plan = ["Open now", "Blocking"]
+plan = ["Open now", "Blocking", "Done"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `67-one-type-test.md`, holding what only that stage needs.
-# `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
-# the base above -- an overlay adds and never replaces. These are the PROSE stage numbers, not the
-# `[[check]]` blocks' `stage = "..."` labels. loop-authoring.md section 2 is the whole of it.
+# THE STAGES. One table per prose stage in `68-gap-zero.md`. PROSE stage numbers; loop-authoring.md
+# section 2 is the whole of it.
 # ---------------------------------------------------------------------------------------------------
 
 [context.stage.2]
-# The record and the rulebook: the six rules the record modifies, and the shapes it writes.
-rules = [
-  "types/class-reference-sites",
-  "php-migration/let-and-is-are-reserved",
-  "php-migration/a-declared-type-answers-before-the-program-runs",
-  "php-migration/one-type-test",
-]
-shapes = ["A rule fragment", "A decision record", "Citing a document"]
+rules = ["core-api/tier-roster"]
 
-[context.stage.3]
-# The front end: the `class<T>` the value arm types against, the diagnostic shape, and the case shape.
-rules = ["types/class-reference", "types/class-reference-sites"]
-shapes = ["A diagnostic", "A `.nvst` test case"]
-
-[context.stage.5]
-# The library: `Core\Ast`'s roster is a `Core` surface, and the LSP case shape.
-rules = ["core-classes/ast-is-inert"]
-shapes = ["A `Core` member", "An `.lspt` case"]
-
-[context.stage.6]
-shapes = ["A `.nvst` test case"]
-
-[context.stage.7]
-# The sweep: the reserved-spelling rule the refusal lives under, and the playbook bullet shape. The
-# divergence rule stage 2 creates is in this stage's file set and is read from there.
-rules = ["php-migration/let-and-is-are-reserved"]
-shapes = ["A playbook bullet"]
-
-# The collector and the string reuse are refcount edges; the skip list is the floor's.
+# Nothing this goal writes allocates at run time.
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-socket.nvs", "examples/queue-sqlite.nvs", "examples/cache-shared-tls.nvs"]
 
 [wsl]
 target_dir = "/var/tmp/nvs-target-wsl"
 
+# None of this goal's own checks needs a daemon. Its floor carries every closure goal's checks, goal
+# `m8-db-queue`'s five-driver matrix among them, so all five services are preflighted.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "mysql", "mariadb", "mssql", "redis"]
+memoize_on = ["crates/nvs-db", "crates/nvs-stdlib", "tests/db"]
+
 
 # <<< goal-switch: floor checks are inserted below this line >>>
 
-# 864 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# 882 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
 # They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
 # Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
@@ -11610,16 +11550,13 @@ tests = [
   "a_literal_cldr_pattern_is_prepared_at_compile_time_and_not_per_call",
 ]
 
-
-
 # ---------------------------------------------------------------------------------------------------
 # The gate -- first, so a session sees at once what the goal is for: the word names nothing but the
 # refusal and the divergence. Goal prose stage 7.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "7 the gate"
+stage = "1 floor"
 name = "`instanceof` is spelled nowhere but the refusal that names it and the rule that states the divergence"
 argv = [
   "git", "grep", "-n", "-i", "-w", "instanceof", "--",
@@ -11640,69 +11577,59 @@ exit = "nonzero"
 
 [[check]]
 kind = "command"
-stage = "7 the gate"
+stage = "1 floor"
 name = "the rule the record replaced is cited nowhere"
 argv = ["git", "grep", "-n", "is-takes-pattern-matchings-type-patterns", "--", "crates", "tests", "docs/rules", "docs/reference", "docs/spec", "docs/agent/playbook.md"]
 exit = "nonzero"
 
 [[check]]
 kind = "command"
-stage = "7 the gate"
+stage = "1 floor"
 name = "the divergence rule is shipped"
 argv = ["git", "grep", "-n", "-A", "2", "\"id\": \"php-migration/one-type-test\"", "--", "docs/rules/php-migration.json"]
 want = ["\"status\": \"shipped\""]
 
 [[check]]
 kind = "command"
-stage = "7 the gate"
+stage = "1 floor"
 name = "the chain still walks"
 argv = ["python", "tools/chain.py", "--check"]
-
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- the record and the rulebook. Goal prose stage 2.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "2 the record"
+stage = "1 floor"
 name = "the divergence rule exists and the record created it"
 argv = ["git", "grep", "-n", "-A", "4", "\"id\": \"php-migration/one-type-test\"", "--", "docs/rules/php-migration.json"]
 want = ["\"id\": \"php-migration/one-type-test\"", "\"because\""]
 
 [[check]]
 kind = "command"
-stage = "2 the record"
+stage = "1 floor"
 name = "no rule claims the type-pattern half of PHP's RFC any more"
 argv = ["git", "grep", "-n", "is-takes-pattern-matchings-type-patterns", "--", "docs/rules"]
 exit = "nonzero"
 
 [[check]]
 kind = "command"
-stage = "2 the record"
+stage = "1 floor"
 name = "every rule's because names a record, and every record's changes names its rules"
 argv = ["python", "tools/rules.py", "--check"]
 
 [[check]]
 kind = "command"
-stage = "2 the record"
-name = "every generated chapter is current with the fragment and its topic entry"
-argv = ["python", "tools/rules.py", "--render", "--check"]
-
-[[check]]
-kind = "command"
-stage = "2 the record"
+stage = "1 floor"
 name = "the record and the rulebook still agree on what this decision created and modified"
 argv = ["python", "tools/records.py", "--check"]
-
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 3 -- the front end. Goal prose stage 3.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "3 the front end"
+stage = "1 floor"
 name = "nvs-syntax (`instanceof` is refused naming `is`, and a variable after `is` is a value operand)"
 args = ["test", "-p", "nvs-syntax"]
 tests = [
@@ -11712,7 +11639,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "3 the front end"
+stage = "1 floor"
 name = "nvs-types (a class reference on the right of `is` narrows to its base, a non-reference is refused, a scalar subject folds)"
 args = ["test", "-p", "nvs-types"]
 tests = [
@@ -11721,14 +11648,12 @@ tests = [
   "a_class_test_over_a_subject_that_holds_no_object_folds_to_false_without_a_diagnostic",
 ]
 
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 4 -- the lowering, the codegen and the runtime primitive. Goal prose stage 4.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "4 the primitive"
+stage = "1 floor"
 name = "nvs-ir (a class reference test lowers to a descriptor-valued class test)"
 args = ["test", "-p", "nvs-ir"]
 tests = [
@@ -11737,21 +11662,19 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "4 the primitive"
+stage = "1 floor"
 name = "nvs-codegen (a class test's target is a relocation, and a Core class's is the process's descriptor)"
 args = ["test", "-p", "nvs-codegen"]
 tests = [
   "a_class_test_target_is_a_relocation_not_an_immediate",
 ]
 
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 5 -- the library, the LSP and the formatter. Goal prose stage 5.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "5 the library"
+stage = "1 floor"
 name = "nvs-stdlib (Core\\Ast's roster has a type-test node and no class-test node beside it)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -11760,7 +11683,7 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "5 the library"
+stage = "1 floor"
 name = "nvs-lsp (definition on the type after `is` answers the interface)"
 args = ["test", "-p", "nvs-lsp"]
 tests = [
@@ -11769,21 +11692,19 @@ tests = [
 
 [[check]]
 kind = "cargo-named"
-stage = "5 the library"
+stage = "1 floor"
 name = "nvs-fmt (a class reference after `is` is formatted as a type is)"
 args = ["test", "-p", "nvs-fmt"]
 tests = [
   "a_class_reference_after_is_is_formatted_as_a_type_is",
 ]
 
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 6 -- the tests. Goal prose stage 6.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "nvs-suite"
-stage = "6 the tests"
+stage = "1 floor"
 name = "conformance (the dynamic class test, the settled class row, the two refusals, the Core class)"
 args = ["test", "tests/conformance/"]
 cases = [
@@ -11796,7 +11717,7 @@ cases = [
 
 [[check]]
 kind = "nvs-suite"
-stage = "6 the tests"
+stage = "1 floor"
 name = "conformance (what the differential twins proved, kept under `is`)"
 args = ["test", "tests/conformance/"]
 cases = [
@@ -11808,7 +11729,107 @@ cases = [
 
 [[check]]
 kind = "command"
-stage = "6 the tests"
+stage = "1 floor"
 name = "no differential case spells the refused keyword, and the two that did are gone"
 argv = ["git", "grep", "-l", "-i", "-w", "instanceof", "--", "tests/differential"]
 exit = "nonzero"
+
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the gate becomes fatal. Goal prose stage 2.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "2 the gate"
+name = "no recorded gap is owed by anyone but a future milestone"
+argv = ["python", "tools/owners.py", "--check"]
+want = [
+  "goal-owned: 0",
+  "unowned: 0",
+  "untagged: 0",
+  "past-milestone: 0",
+  "retired-owner: 0",
+]
+
+[[check]]
+kind = "command"
+stage = "2 the gate"
+name = "every deferral names a future milestone whose plan states the scope"
+argv = ["python", "tools/owners.py", "--deferrals"]
+want = ["every deferral names a future milestone whose plan states the scope"]
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the gate"
+name = "nvs-stdlib (a ratchet key is owned by a live goal or a future milestone, never unowned)"
+args = ["test", "-p", "nvs-stdlib", "--test", "spec_registry_coverage"]
+tests = ["unowned_is_no_longer_an_owner_for_a_key"]
+
+[[check]]
+kind = "command"
+stage = "2 the gate"
+name = "verify.py runs the register's gate"
+argv = ["python", "tools/verify.py", "--list"]
+want = ["owners.py --check"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the index is gone, and nothing points at it. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "3 the index is gone"
+name = "the index that held the register no longer exists"
+argv = ["python", "tools/owners.py", "--registers"]
+want = ["docs/agent/carried-gaps.md: absent, as the register requires", "5 register(s)"]
+
+[[check]]
+kind = "command"
+stage = "3 the index is gone"
+name = "nothing in the tree points at the deleted file"
+argv = ["python", "tools/check-links.py"]
+want = ["no missing target"]
+
+[[check]]
+kind = "command"
+stage = "3 the index is gone"
+name = "the playbook's own checks survive the file that is gone"
+argv = ["python", "tools/playbook.py", "--check"]
+want = ["none -- every path any bullet names still exists"]
+
+[[check]]
+kind = "command"
+stage = "3 the index is gone"
+name = "every entry is still one the driver can walk"
+argv = ["python", "tools/chain.py", "--check"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- CI is green on main. Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "4 ci is green"
+name = "the latest CI run on main succeeded"
+argv = ["gh", "run", "list", "--branch", "main", "--workflow", "ci.yml", "--limit", "1", "--json", "conclusion"]
+want = ["\"conclusion\":\"success\""]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- the past milestones are complete. Goal prose stage 5.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "5 past milestones"
+name = "all eleven past milestones are complete"
+argv = ["python", "tools/plan.py", "--past"]
+want = ["11 of 11 past milestone(s) complete"]
+
+[[check]]
+kind = "command"
+stage = "5 past milestones"
+name = "plan.py: every cell agrees with the chain, done included"
+argv = ["python", "tools/plan.py", "--check"]
+want = ["every cell agreeing with the chain"]

@@ -2,43 +2,28 @@
 
 ## State
 
-**Goal `one-type-test` is met.** `is` is the one type test, `instanceof` is refused naming it, the
-absence gate is green, and `rule:types/type-test` is `shipped` after a row-by-row walk of its table.
-The last sweep's only red was a carried floor check — the pipeline operator's perf figure, staled by
-this goal's own edit to `docs/reference/lang/30-expressions.md`, which is the file a `lang:` feature's
-`impl_hash` is taken from. Re-measured and recorded; `python tools/dossier.py --only
-lang:expressions/the-pipeline-operator --gate` is green.
+**Goal `gap-zero` — no gap is owed by anyone but a future milestone, and the index that held them is
+gone — has just started; nothing of it has landed yet.** Goal `unowned-closures`'s whole list is this
+goal's Stage 1 floor, and it holds every closure goal's checks.
 
-**`self::`, `static::` and `parent::` in type position are `E0135`**, the question the table walk
-left open. They are whole atoms, every member a `::` could reach is spelled with the owner's own
-name, and the refusal recovers as `mixed` so one misspelt type is one error —
-`rule:types/grammar`, `crates/nvs-syntax/src/parser/ty.rs:322`.
-
-**One position that refusal does not reach is the statement head**, and it is not specific to this
-code: `3.14 $b = 1.0;` reports `E0101` too. The playbook bullet is the trap; the next group is the
-fix.
+Settled before the first session: **this goal builds nothing.** If `python tools/owners.py --check` or
+`python tools/plan.py --past` names an open item, a closure goal left it behind — that is a `BLOCKED`
+naming the item, never a new owner or a deferral invented to pass. The one other expected hold is CI:
+if GitHub still refuses to start jobs, stage 4 is a `BLOCKED` naming the billing block.
 
 ## Next group
 
-**Stage 7 follow-on: a type refusal survives the declaration trial parse, one file set — the
-statement head's trial parse and the type grammar it calls.**
+**Stage 2 and stage 3: the fatal gate, then the index deleted** — one file set: `tools/owners.py`,
+`tools/playbook.py`, `tools/brief.py`, `crates/nvs-stdlib/tests/spec_registry_coverage.rs`.
 
-- [ ] **Decide and land what makes a type-position diagnostic survive the trial parse.** Today
-      `crates/nvs-syntax/src/parser/stmt.rs:1043` restores the checkpoint whenever
-      `self.diags.len() > cp.diags_len`, which is right for `($a || $b) ? f() : g();` and wrong for
-      `self::MAX $n = 7;` — the second lands on a `$variable`, which no expression statement can do.
-      `rule:types/grammar` is the atom list the refusals belong to; the candidate signal is the
-      variable, not the diagnostic count.
-- [ ] **Pin it with a reject case over every refusal the type grammar reports**, beside
-      `tests/conformance/reject/a-class-keyword-is-a-whole-type-and-never-carries-a-member.nvst`:
-      `E0115` (`crates/nvs-syntax/src/parser/ty.rs:432`), `E0120`
-      (`crates/nvs-syntax/src/parser/ty.rs:650`) and `E0135`
-      (`crates/nvs-syntax/src/parser/ty.rs:322`) at the statement head, each reported where it is
-      written rather than as `E0101`.
+- [ ] **Retire `unowned`** — `tools/owners.py:@classify`, `tools/owners.py:@tag_of`, and
+      `crates/nvs-stdlib/tests/spec_registry_coverage.rs:433`'s `owner_problem`.
+- [ ] **The full gate by default, run by `verify.py`** — `tools/owners.py:@run_check`, `tools/verify.py`.
+- [ ] **Delete `docs/agent/carried-gaps.md` and re-point every reader in the same slice** — the list is
+      in the goal prose; `python tools/check-links.py` is the proof.
 
 ## Backlog
 
-- A `lang:` feature's perf currency is its reference chapter's text, so any prose edit to
-  `docs/reference/lang/*.md` stales every figure anchored there — `tools/dossier.py:1170`.
-- `crates/nvs-syntax/src/parser/tests/ty.rs` carries no unit test for `E0135`; the conformance case
-  is its only guard (`docs/rules/types.json`, `types/grammar` § guardedBy).
+- Stage 4, CI green on `main` — `gh run list --branch main --workflow ci.yml`.
+- Stage 5, `python tools/plan.py --past` and `--sync` writing `done`; the status block's *Done* field.
+- When this goal's last check goes green the driver takes goal `dossier`.
