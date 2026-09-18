@@ -1,0 +1,4 @@
+append a log line      -> Append
+write today's report   -> Write
+read the settings file -> Read
+read and bump a count  -> ReadWrite

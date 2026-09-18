@@ -1,0 +1,32 @@
+<?nvs
+// Before a nightly job opens a list of files, this says which of them it is
+// about to empty and which of them have to exist already. Both of those are
+// decided by the mode alone, so you can check the plan without touching a disk.
+
+class Plan {
+    // `Write` empties the file as soon as it is opened, even if nothing is
+    // written afterwards.
+    public static function emptiesTheFile(Core\IO\FileMode $mode): bool {
+        return $mode == Core\IO\FileMode::Write;
+    }
+
+    // `Read` is the only mode that will not create a file that is missing.
+    public static function needsTheFileToExist(Core\IO\FileMode $mode): bool {
+        return $mode == Core\IO\FileMode::Read;
+    }
+
+    public static function check(string $path, Core\IO\FileMode $mode): string {
+        if (Plan::emptiesTheFile($mode)) {
+            return $path . ": will be emptied first, so keep a copy of last night's";
+        }
+        if (Plan::needsTheFileToExist($mode)) {
+            return $path . ": has to be there already, or the job stops";
+        }
+        return $path . ": safe, nothing already in it is lost";
+    }
+}
+
+echo Plan::check("exports/customers.csv", Core\IO\FileMode::Write), "\n";
+echo Plan::check("var/log/nightly.log", Core\IO\FileMode::Append), "\n";
+echo Plan::check("config/settings.json", Core\IO\FileMode::Read), "\n";
+echo Plan::check("var/run/last-export.txt", Core\IO\FileMode::ReadWrite), "\n";

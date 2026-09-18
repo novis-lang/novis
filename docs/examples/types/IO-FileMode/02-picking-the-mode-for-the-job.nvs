@@ -1,0 +1,32 @@
+<?nvs
+// Four everyday jobs and the mode each one wants. The mode is a value, so you
+// can decide it in one place and pass it to `Core\IO::open` later.
+
+class Modes {
+    public static function name(Core\IO\FileMode $mode): string {
+        return match ($mode) {
+            Core\IO\FileMode::Read => "Read",
+            Core\IO\FileMode::Write => "Write",
+            Core\IO\FileMode::Append => "Append",
+            Core\IO\FileMode::ReadWrite => "ReadWrite",
+        };
+    }
+}
+
+// Adding a line to a log that already has today's other lines in it.
+Core\IO\FileMode $log = Core\IO\FileMode::Append;
+
+// Writing this morning's report, which replaces yesterday's completely.
+Core\IO\FileMode $report = Core\IO\FileMode::Write;
+
+// Reading a settings file the program never writes to.
+Core\IO\FileMode $settings = Core\IO\FileMode::Read;
+
+// A small counter file the program reads and then updates, and which is not
+// there the first time the program runs.
+Core\IO\FileMode $counter = Core\IO\FileMode::ReadWrite;
+
+echo "append a log line      -> ", Modes::name($log), "\n";
+echo "write today's report   -> ", Modes::name($report), "\n";
+echo "read the settings file -> ", Modes::name($settings), "\n";
+echo "read and bump a count  -> ", Modes::name($counter), "\n";

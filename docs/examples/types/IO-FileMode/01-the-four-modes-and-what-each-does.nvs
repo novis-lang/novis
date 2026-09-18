@@ -1,0 +1,25 @@
+<?nvs
+// Every mode you can open a file with, and what each one does to the file that
+// is already there. You pass one to `Core\IO::open` as its second argument.
+
+class Modes {
+    public static function effect(Core\IO\FileMode $mode): string {
+        return match ($mode) {
+            Core\IO\FileMode::Read => "Read: reads only, and the file has to exist already",
+            Core\IO\FileMode::Write => "Write: writes only, empties the file on open, creates it if it is missing",
+            Core\IO\FileMode::Append => "Append: writes only, always at the end, keeps what is there",
+            Core\IO\FileMode::ReadWrite => "ReadWrite: reads and writes, creates the file if it is missing, empties nothing",
+        };
+    }
+}
+
+array<Core\IO\FileMode> $everything = [
+    Core\IO\FileMode::Read,
+    Core\IO\FileMode::Write,
+    Core\IO\FileMode::Append,
+    Core\IO\FileMode::ReadWrite,
+];
+
+foreach ($everything as Core\IO\FileMode $mode) {
+    echo Modes::effect($mode), "\n";
+}

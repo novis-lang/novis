@@ -1,0 +1,4 @@
+Read: reads only, and the file has to exist already
+Write: writes only, empties the file on open, creates it if it is missing
+Append: writes only, always at the end, keeps what is there
+ReadWrite: reads and writes, creates the file if it is missing, empties nothing
