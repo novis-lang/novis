@@ -11611,7 +11611,9 @@ stage = "7 the gate"
 name = "`instanceof` is spelled nowhere but the refusal that names it and the rule that states the divergence"
 argv = [
   "git", "grep", "-n", "-i", "-w", "instanceof", "--",
-  "crates", "tests", "docs/reference", "docs/spec", "docs/rules", "docs/agent/playbook.md",
+  # `examples` is in the list because leaving it out is how the floor went red: the word survived in
+  # three programs the gate never read, and every one of them is a floor check's own fixture.
+  "crates", "tests", "examples", "docs/reference", "docs/spec", "docs/rules", "docs/agent/playbook.md",
   ":!crates/nvs-syntax/src/token.rs",
   ":!crates/nvs-syntax/src/parser/expr.rs",
   ":!crates/nvs-syntax/src/parser/tests/expr.rs",
