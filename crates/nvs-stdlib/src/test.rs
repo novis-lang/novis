@@ -268,6 +268,21 @@
 //! not declare (`E0826`), where the call is written. The floor stays because
 //! this helper's own argument list is `Value`s, and what it must never do with
 //! one it cannot explain is dispatch.
+//!
+//! **The record is read by name, and the name is written as `Mailer::send`.**
+//! `rule:testing/interaction-after-the-fact`'s reference is spelled bare —
+//! the call site writes it where a class constant would go — and the design
+//! call this module makes is that it is *admitted by the row*: a parameter
+//! written [`crate::registry::CoreTy::MethodRef`] is the whole set of positions
+//! the spelling means anything at, `nvs_types::core_lib::method_ref_param`
+//! reads that set back off the row, and everywhere else `Class::name` stays the
+//! undefined constant it reads as. The checker folds the reference to the
+//! method's own name there and then, so what a helper below is handed is a
+//! `Tag::Str` and nothing about the ABI knows a reference exists. The
+//! first-class-callable spelling the goal held in reserve is not used: a
+//! `Mailer::send(...)` names an *instance* method with no receiver, which is a
+//! frame `nvs-ir` cannot lower, and a closure carries no name for the record to
+//! be keyed by.
 
 use nvs_runtime::{Ctx, Fault, Tag, ThrownClass, Value, identity};
 
@@ -300,6 +315,38 @@ const MESSAGE: &[CoreOption] = &[CoreOption {
     ty: CoreTy::Text(Qual::Neutral),
     default: Const::Null,
 }];
+
+/// `{times?: uint, with?: array<mixed>, message?: string}` —
+/// `Core\Test::assertCalled`'s bag, and the only one on this class wider than
+/// [`MESSAGE`].
+///
+/// Both of the new options narrow what counts as the call being looked for, and
+/// each is [`Const::Null`] for [`MESSAGE`]'s reason: a call written with
+/// neither asserts on the method's name alone, which is what
+/// `rule:testing/interaction-after-the-fact` gives as the default reading. They
+/// are options rather than parameters because a test that only asks *whether*
+/// is the common case and has nothing to write in either slot.
+///
+/// `message` is here so that this member reports a failure the way every other
+/// assertion does (`rule:testing/assertions-are-typed`); the stage's prose
+/// names the two that are new, not the one the whole class carries.
+const CALLED: &[CoreOption] = &[
+    CoreOption {
+        name: "times",
+        ty: CoreTy::Uint,
+        default: Const::Null,
+    },
+    CoreOption {
+        name: "with",
+        ty: CoreTy::Array(&CoreTy::Mixed),
+        default: Const::Null,
+    },
+    CoreOption {
+        name: "message",
+        ty: CoreTy::Text(Qual::Neutral),
+        default: Const::Null,
+    },
+];
 
 /// `{json?, body?, headers?}` — what a registered answer comes back with, as
 /// `rule:testing/an-outbound-call-is-answered-from-a-table` writes the bag.
@@ -689,6 +736,29 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Written("T"),
             symbol: "nvs_core_test_partial",
             doc: Some(&PARTIAL_DOC),
+        },
+        CoreMethod {
+            name: "assertCalled",
+            names: &["double", "method"],
+            // `rule:types/object-top`'s erased form again, and for
+            // [`nvs_core_test_double`]'s reason one step on: what this position
+            // really takes is a *double*, which is a class no program can name
+            // and no row can therefore write. The helper's own refusal is what
+            // enforces it, reading the call record every double carries.
+            params: &[CoreTy::Object, CoreTy::MethodRef, CoreTy::Options(CALLED)],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_test_assert_called",
+            doc: Some(&ASSERT_CALLED_DOC),
+        },
+        CoreMethod {
+            name: "assertNeverCalled",
+            names: &["double", "method"],
+            params: &[CoreTy::Object, CoreTy::MethodRef, CoreTy::Options(MESSAGE)],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_test_assert_never_called",
+            doc: Some(&ASSERT_NEVER_CALLED_DOC),
         },
     ],
     instance: &[],
@@ -1114,6 +1184,91 @@ const PARTIAL_DOC: MethodDoc = MethodDoc {
         error: "LogicError",
         desc: "`double`'s ceiling, for the same reason and with the same two counts.",
     }],
+};
+
+/// `Core\Test::assertCalled`'s reference card — `rule:core-api/reference-card`.
+const ASSERT_CALLED_DOC: MethodDoc = MethodDoc {
+    short: "Asserts that `$method` was called on `$double` — after the exercise, against the record \
+            the double kept, rather than as an expectation declared in advance.",
+    params: &[
+        ParamDoc {
+            name: "double",
+            desc: "The double or partial the call is being asserted about.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "method",
+            desc: "The method, written as `Mailer::send` — a compile-checked reference, so \
+                   renaming the method updates or breaks the test.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "times",
+            desc: "The exact number of calls expected. Omitted, any number above zero holds.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "with",
+            desc: "The arguments one of the recorded calls must have been made with, compared as \
+                   `Core\\Test::assertEquals` compares. Omitted, the arguments are not looked at.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "message",
+            desc: "Prefixed to the failure, as on every other assertion.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing. A call that was not made, or was made a different number of times or with \
+          different arguments, throws.",
+    errors: &[
+        ErrorDoc {
+            error: "Core\\Test\\Failure",
+            desc: "The record does not hold the call the options describe. The message names the \
+                   method, what was expected of it and every call the record does hold.",
+        },
+        ErrorDoc {
+            error: "LogicError",
+            desc: "`$double` is an ordinary object rather than something \
+                   `Core\\Test::double` or `Core\\Test::partial` built, so there is no record to \
+                   read.",
+        },
+    ],
+};
+
+/// `Core\Test::assertNeverCalled`'s reference card — `rule:core-api/reference-card`.
+const ASSERT_NEVER_CALLED_DOC: MethodDoc = MethodDoc {
+    short: "Asserts that `$method` was never called on `$double` — `assertCalled`'s other half, \
+            over the same record.",
+    params: &[
+        ParamDoc {
+            name: "double",
+            desc: "The double or partial the absence is being asserted about.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "method",
+            desc: "The method, written as `Mailer::purge` and checked as `assertCalled`'s is.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "message",
+            desc: "Prefixed to the failure, as on every other assertion.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing. One recorded call is enough to throw.",
+    errors: &[
+        ErrorDoc {
+            error: "Core\\Test\\Failure",
+            desc: "The method was called. The message names the first call the record holds and \
+                   how many it holds in all.",
+        },
+        ErrorDoc {
+            error: "LogicError",
+            desc: "`assertCalled`'s, for the same reason: `$double` is not a double.",
+        },
+    ],
 };
 
 /// `Core\Test\SentRequest::method`'s reference card — `rule:core-api/reference-card`.
@@ -2077,6 +2232,10 @@ pub(crate) fn address(symbol: &str) -> Option<*const u8> {
         "nvs_core_test_response_body" => (nvs_core_test_response_body as *const ()).cast(),
         "nvs_core_test_double" => (nvs_core_test_double as *const ()).cast(),
         "nvs_core_test_partial" => (nvs_core_test_partial as *const ()).cast(),
+        "nvs_core_test_assert_called" => (nvs_core_test_assert_called as *const ()).cast(),
+        "nvs_core_test_assert_never_called" => {
+            (nvs_core_test_assert_never_called as *const ()).cast()
+        }
         _ => return None,
     })
 }
@@ -3337,6 +3496,249 @@ nvs_runtime::nvs_helper! {
     }
 }
 
+nvs_runtime::nvs_helper! {
+    /// `Core\Test::assertCalled(object $double, method $method, {times?: uint,
+    /// with?: array<mixed>, message?: string}): void` — the call record read
+    /// after the exercise (`rule:testing/interaction-after-the-fact`).
+    ///
+    /// The options flatten as `rule:core-api/shape-rules` R2's bag does, so
+    /// `$times` is argument 2, `$with` argument 3 and `$message` argument 4.
+    ///
+    /// **Nothing here holds a pointer into the record across a comparison.**
+    /// `$with` is compared as [`equals`] compares, which reaches a `compareTo`
+    /// the test itself wrote, and that body may call the double again — an
+    /// append that grows the ledger would leave a held pointer dangling. Every
+    /// read therefore re-derives the ledger from the receiver's own slot, which
+    /// costs a lookup per argument compared and cannot be wrong.
+    fn nvs_core_test_assert_called(ctx, args: [5]) {
+        let member = "assertCalled";
+        let receiver = double_receiver(args[0], member)?;
+        let method = method_name(args[1], member)?;
+        let mut matched = 0_usize;
+        for call in 0..recorded_count(receiver, &method) {
+            if arguments_match(ctx, receiver, &method, call, args[3])? {
+                matched += 1;
+            }
+        }
+        // A `times` of its own is the exact count, and no `times` is § 11's
+        // plain reading of "it was called": once is enough and twice is not a
+        // failure, because a test that cares how many times says so.
+        let holds = match args[2].as_uint() {
+            Some(times) => u64::try_from(matched).is_ok_and(|found| found == times),
+            None => matched > 0,
+        };
+        if holds {
+            return Ok(held(ctx, member));
+        }
+        let expected = match args[2].as_uint() {
+            Some(times) => format!("{times} call(s)"),
+            None => "at least one call".to_owned(),
+        };
+        let with = match args[3].array_ptr() {
+            Some(want) => format!(" with {}", arguments_shown(want)),
+            None => String::new()
+        };
+        Err(failed(
+            ctx,
+            member,
+            &format!(
+                "expected {expected} to `{method}`{with}, found {matched} — the record holds {}",
+                record_shown(receiver, &method)
+            ),
+            args[4],
+        ))
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Test::assertNeverCalled(object $double, method $method,
+    /// {message?: string}): void` — [`nvs_core_test_assert_called`]'s other
+    /// half, over the same record.
+    ///
+    /// The ledger holds no key for a method that was never called ([`record`]),
+    /// so the whole question is whether one is there; a method called and then
+    /// somehow un-called is not a state the record has.
+    fn nvs_core_test_assert_never_called(ctx, args: [3]) {
+        let member = "assertNeverCalled";
+        let receiver = double_receiver(args[0], member)?;
+        let method = method_name(args[1], member)?;
+        let calls = recorded_count(receiver, &method);
+        if calls == 0 {
+            return Ok(held(ctx, member));
+        }
+        Err(failed(
+            ctx,
+            member,
+            &format!(
+                "`{method}` was called {calls} time(s), the first as {}",
+                call_shown(receiver, &method, 0)
+            ),
+            args[2],
+        ))
+    }
+}
+
+/// The double behind `value`, which is the only object carrying a record to
+/// read.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] for a value that is not an object, and a catchable
+/// [`ThrownClass::Logic`] for one that is not a double: the parameter is
+/// `rule:types/object-top`'s erased form, so every instance satisfies it at the
+/// call site and this is where the narrower question is asked.
+fn double_receiver(value: Value, member: &str) -> Result<*mut nvs_runtime::ObjHeader, Fault> {
+    let (object, desc) = object_of(value, member)?;
+    if desc.field_name(RECORD_SLOT) != Some(RECORD_FIELD) {
+        return Err(Fault::thrown_as(
+            ThrownClass::Logic,
+            format!(
+                "{NAME}::{member}(): `{}` is an ordinary object, and the record this reads is \
+                 kept only by a double `{NAME}::double` or `{NAME}::partial` built",
+                desc.name()
+            ),
+        ));
+    }
+    Ok(object)
+}
+
+/// The method name argument 1 carries.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] where the slot holds no text.
+fn method_name(value: Value, member: &str) -> Result<String, Fault> {
+    // Unreachable from source: the parameter is
+    // `crate::registry::CoreTy::MethodRef`, which is admitted only as
+    // `Class::method` written at the call site and folded there to that
+    // method's own name, so what arrives is always a constant `string`.
+    value.as_text().map(str::to_owned).ok_or_else(|| {
+        Fault::fatal(format!(
+            "internal error: `{NAME}::{member}` was handed tag {} where a method reference was \
+             declared",
+            value.tag_byte()
+        ))
+    })
+}
+
+/// The calls recorded under `method`, or `None` for a method that was never
+/// called — which [`record`] spells as no key at all.
+fn recorded_calls(
+    receiver: *mut nvs_runtime::ObjHeader,
+    method: &str,
+) -> Option<*mut nvs_runtime::ArrayHeader> {
+    let ledger = crate::instance::slot(receiver, RECORD_SLOT).array_ptr()?;
+    crate::arr::borrowed(ledger)
+        .get(method.as_bytes())
+        .and_then(|calls| calls.array_ptr())
+}
+
+/// How many calls the record holds under `method`.
+fn recorded_count(receiver: *mut nvs_runtime::ObjHeader, method: &str) -> usize {
+    recorded_calls(receiver, method).map_or(0, |calls| crate::arr::borrowed(calls).count())
+}
+
+/// The arguments of one recorded call, as the array [`record`] appended.
+fn recorded_call(
+    receiver: *mut nvs_runtime::ObjHeader,
+    method: &str,
+    call: usize,
+) -> Option<*mut nvs_runtime::ArrayHeader> {
+    let calls = recorded_calls(receiver, method)?;
+    crate::arr::borrowed(calls)
+        .get_index(i64::try_from(call).ok()?)
+        .and_then(|entry| entry.array_ptr())
+}
+
+/// One argument of one recorded call, re-derived from the receiver for the
+/// reason [`nvs_core_test_assert_called`]'s docs give.
+fn recorded_arg(
+    receiver: *mut nvs_runtime::ObjHeader,
+    method: &str,
+    call: usize,
+    index: usize,
+) -> Option<Value> {
+    let entry = recorded_call(receiver, method, call)?;
+    crate::arr::borrowed(entry).get_index(i64::try_from(index).ok()?)
+}
+
+/// Whether recorded call `call` was made with exactly the arguments `with`
+/// names, compared as `Core\Test::assertEquals` compares them.
+///
+/// A `with` that was not given matches every call: the assertion is then about
+/// the method's name alone, which is `rule:testing/interaction-after-the-fact`'s
+/// default reading.
+///
+/// # Errors
+///
+/// Whatever [`equals`] raises — an object with no `compareTo` on either side,
+/// or a `compareTo` of the test's own that threw.
+fn arguments_match(
+    ctx: &mut Ctx,
+    receiver: *mut nvs_runtime::ObjHeader,
+    method: &str,
+    call: usize,
+    with: Value,
+) -> Result<bool, Fault> {
+    let Some(want) = with.array_ptr() else {
+        return Ok(true);
+    };
+    let count = crate::arr::borrowed(want).count();
+    if recorded_call(receiver, method, call).map_or(0, |entry| crate::arr::borrowed(entry).count())
+        != count
+    {
+        return Ok(false);
+    }
+    for index in 0..count {
+        let Ok(at) = i64::try_from(index) else {
+            return Ok(false);
+        };
+        let (Some(expected), Some(actual)) = (
+            crate::arr::borrowed(want).get_index(at),
+            recorded_arg(receiver, method, call, index),
+        ) else {
+            return Ok(false);
+        };
+        if !equals(ctx, actual, expected)? {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+/// Every call the record holds under `method`, as a failure names them.
+fn record_shown(receiver: *mut nvs_runtime::ObjHeader, method: &str) -> String {
+    let count = recorded_count(receiver, method);
+    if count == 0 {
+        return format!("no call to `{method}`");
+    }
+    (0..count)
+        .map(|call| call_shown(receiver, method, call))
+        .collect::<Vec<String>>()
+        .join(", ")
+}
+
+/// One recorded call, written as the call site wrote it.
+fn call_shown(receiver: *mut nvs_runtime::ObjHeader, method: &str, call: usize) -> String {
+    let arguments = recorded_call(receiver, method, call).map_or_else(String::new, arguments_shown);
+    format!("{method}({arguments})")
+}
+
+/// One argument list — a recorded call's, or the `with` option's — with each
+/// entry rendered as every other failure on this class renders a value.
+fn arguments_shown(entry: *mut nvs_runtime::ArrayHeader) -> String {
+    let entry = crate::arr::borrowed(entry);
+    (0..entry.count())
+        .map(|index| {
+            i64::try_from(index)
+                .ok()
+                .and_then(|at| entry.get_index(at))
+                .map_or_else(|| "?".to_owned(), shown)
+        })
+        .collect::<Vec<String>>()
+        .join(", ")
+}
+
 /// The interface descriptor argument 0 carries.
 ///
 /// # Errors
@@ -3935,10 +4337,15 @@ mod tests {
         }
     }
 
-    /// The one option § 4 writes, and the reason it defaults to `null` rather
-    /// than to an empty `string`.
+    /// The option § 4 writes on every assertion, and the reason it defaults to
+    /// `null` rather than to an empty `string`.
+    ///
+    /// A member may declare options of its own ahead of it — `assertCalled`'s
+    /// `times` and `with` say *which* call is being asserted about — so what is
+    /// swept is that the message is there, typed, absent by default, and
+    /// **last**, which is where a reader of any row on this class finds it.
     #[test]
-    fn the_only_option_is_a_message_that_defaults_to_absent() {
+    fn every_assertion_carries_a_message_option_that_defaults_to_absent() {
         for method in asserting_members() {
             let last = method
                 .params
@@ -3950,10 +4357,12 @@ mod tests {
                     method.name
                 );
             };
-            assert_eq!(bag.len(), 1);
-            assert_eq!(bag[0].name, "message");
-            assert!(matches!(bag[0].ty, CoreTy::Text(Qual::Neutral)));
-            assert!(matches!(bag[0].default, Const::Null));
+            let message = bag
+                .last()
+                .unwrap_or_else(|| panic!("`{}`'s bag should hold a message", method.name));
+            assert_eq!(message.name, "message");
+            assert!(matches!(message.ty, CoreTy::Text(Qual::Neutral)));
+            assert!(matches!(message.default, Const::Null));
         }
     }
 
