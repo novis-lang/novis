@@ -37,14 +37,14 @@ error[E0702]: `::class` needs a class named at compile time
    |
 10 | echo $m::class;
    |      ^^ this is a `mixed`, which names no class
-   = help: narrow it to a class first — `if ($v instanceof Foo)` — or ask `Core\Reflect::forObject($v)`, whose description carries the name for a receiver whose type was erased
+   = help: narrow it to a class first — `if ($v is Foo)` — or ask `Core\Reflect::forObject($v)`, whose description carries the name for a receiver whose type was erased
 
 error[E0702]: `::class` needs a class named at compile time
    --> %s:15:6
    |
 15 | echo $n::class;
    |      ^^ this is a `null|User`, which names no class
-   = help: narrow it to a class first — `if ($v instanceof Foo)`, or a `!= null` test — or ask `Core\Reflect::forObject($v)`, whose description carries the name for a receiver whose type was erased
+   = help: narrow it to a class first — `if ($v is Foo)`, or a `!= null` test — or ask `Core\Reflect::forObject($v)`, whose description carries the name for a receiver whose type was erased
 
 error[E0702]: `::class` needs a class named at compile time
    --> %s:19:6

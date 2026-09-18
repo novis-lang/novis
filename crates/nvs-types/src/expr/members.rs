@@ -37,24 +37,14 @@
 //! (`rule:classes/unset-is-refused-on-a-property`), and so is every operand that is not an array element of a
 //! named holder.
 //!
-//! [`infer_instanceof`] draws the same line one type earlier, and both sides
-//! of the operator are checked. A **subject** whose declared type can hold no
-//! object already answered the question, so the test is `E0497` where it is
-//! written (`rule:php-migration/every-divergence-is-deliberate-and-listed` row 14) while `mixed`, `object`, a shape and any
-//! union holding a class keep the run-time test. A **right-hand side** must be
-//! a written name some descriptor answers to — a class the program declares, a
-//! reserved global one, or a `Core` class a value can be an instance of: the
-//! dynamic form is `rule:types/conversion`'s no-computed-names rule, an enum is
-//! a value type (`rule:enums/closed-integer-type`) and a `Core` namespace class
-//! has no instances to find, so all three are `E0496` — while a name resolving
-//! to nothing is the ordinary `E0303`, exactly as `new Undeclared()` reports
-//! it.
-//!
-//! The dynamic half of that rule is not `instanceof`'s alone.
-//! [`reject_dynamic_class_name`] is the one report, and the three spellings
-//! that reach a class through a value share it: `$x instanceof $c` here,
-//! `new $c()` and `$c::f()` in [`super::calls`]. One mistake, one code,
-//! wherever it is written.
+//! [`reject_dynamic_class_name`] draws the same line one type earlier, and it
+//! lives here because the mistake is one mistake with one code wherever it is
+//! written: the three spellings that reach a class through a *value* share it
+//! — `$x is $c` ([`super::type_test`]), `new $c()` and `$c::f()` in
+//! [`super::calls`]. What each site takes instead of a value is
+//! `rule:types/class-reference-sites`'s, and everything else about the type
+//! test — what it answers, what it folds, the two things it refuses — is
+//! [`super::type_test`]'s.
 //!
 //! Part of [`super`]'s one expression checker, split across this directory so
 //! a session editing one rule does not carry the rest in context. Every item
@@ -449,7 +439,7 @@ pub(crate) fn class_qname_of(ty: TypeId, interner: &TypeInterner) -> Option<QNam
 ///
 /// The answer is the argument's own [`TypeId`] rather than a [`QName`] because
 /// each site wants something different from it: `new $cls()` types itself as
-/// `T`, `$cls::f()` resolves a member on `T`'s name, and `$x instanceof $cls`
+/// `T`, `$cls::f()` resolves a member on `T`'s name, and `$x is $cls`
 /// wants neither — the descriptor is the whole test. `T` is a class or an
 /// interface by construction, since `crate::lower`'s `lower_class_ref` refuses
 /// anything else as `E0795`, so [`class_qname_of`] answers for it.
@@ -880,12 +870,12 @@ fn check_dynamic_class_name_const(
              than a member read — write `as string`"
         }
         _ if erased => {
-            "narrow it to a class first — `if ($v instanceof Foo)`, or a `!= null` test — \
+            "narrow it to a class first — `if ($v is Foo)`, or a `!= null` test — \
              or ask `Core\\Reflect::forObject($v)`, whose description carries the name for a \
              receiver whose type was erased"
         }
         Ty::Mixed => {
-            "narrow it to a class first — `if ($v instanceof Foo)` — or ask \
+            "narrow it to a class first — `if ($v is Foo)` — or ask \
              `Core\\Reflect::forObject($v)`, whose description carries the name for a \
              receiver whose type was erased"
         }
