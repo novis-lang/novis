@@ -1,0 +1,48 @@
+<?nvs
+// Every algorithm you can ask for, and what each is actually for. Three of
+// them are not secure and are in the list because other people's file formats
+// and databases still name them.
+
+class Digests {
+    public static function purpose(Core\Digest $digest): string {
+        return match ($digest) {
+            Core\Digest::Crc32 => "Crc32: catches a file that got corrupted on the way, and nothing more",
+            Core\Digest::Crc32c => "Crc32c: the same idea, in the spelling storage systems and network protocols use",
+            Core\Digest::Md5 => "Md5: broken since 2004, kept because older formats and APIs still ask for it",
+            Core\Digest::Sha1 => "Sha1: broken since 2017, kept for the same reason",
+            Core\Digest::Sha224 => "Sha224: SHA-2, cut to 28 octets",
+            Core\Digest::Sha256 => "Sha256: SHA-2, and the one to reach for when nothing else decides it",
+            Core\Digest::Sha384 => "Sha384: SHA-2, 48 octets",
+            Core\Digest::Sha512 => "Sha512: SHA-2, 64 octets",
+            Core\Digest::Sha512_224 => "Sha512_224: SHA-512 cut short, which is faster than SHA-256 on a 64-bit machine",
+            Core\Digest::Sha512_256 => "Sha512_256: the same, cut to 32 octets",
+            Core\Digest::Sha3_224 => "Sha3_224: SHA-3, a different design to SHA-2 rather than a wider one",
+            Core\Digest::Sha3_256 => "Sha3_256: SHA-3, 32 octets",
+            Core\Digest::Sha3_384 => "Sha3_384: SHA-3, 48 octets",
+            Core\Digest::Sha3_512 => "Sha3_512: SHA-3, 64 octets",
+            Core\Digest::Blake3 => "Blake3: very fast and secure, but not one of the cases you may authenticate with here",
+        };
+    }
+}
+
+array<Core\Digest> $everything = [
+    Core\Digest::Crc32,
+    Core\Digest::Crc32c,
+    Core\Digest::Md5,
+    Core\Digest::Sha1,
+    Core\Digest::Sha224,
+    Core\Digest::Sha256,
+    Core\Digest::Sha384,
+    Core\Digest::Sha512,
+    Core\Digest::Sha512_224,
+    Core\Digest::Sha512_256,
+    Core\Digest::Sha3_224,
+    Core\Digest::Sha3_256,
+    Core\Digest::Sha3_384,
+    Core\Digest::Sha3_512,
+    Core\Digest::Blake3,
+];
+
+foreach ($everything as Core\Digest $digest) {
+    echo Digests::purpose($digest), "\n";
+}

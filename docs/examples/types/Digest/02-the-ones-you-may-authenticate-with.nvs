@@ -1,0 +1,24 @@
+<?nvs
+// Hashing a message and authenticating one are different jobs. Anything in the
+// list can be hashed; only the ten SHA-2 and SHA-3 cases can be used to prove a
+// message came from someone holding the shared key.
+
+// Hashing takes any case at all, which is what makes reading an old checksum
+// possible.
+echo "md5 of the file:    ", Core\Encoding::toHex(Core\Hash::of("hello", Core\Digest::Md5)), "\n";
+
+// Authenticating takes a shared secret and one of the ten. Writing
+// `Core\Digest::Md5` on the line below would not compile — the parameter's type
+// is that subset, so a broken algorithm is refused while you are writing the
+// program rather than after it has shipped.
+bytes $key = Core\Encoding::fromHex("4a656665");
+bytes $tag = Core\Hash::hmac("hello", $key, Core\Digest::Sha256);
+echo "tag on the message: ", Core\Encoding::toHex($tag), "\n";
+
+// The receiver, holding the same key, works out what the tag should be and
+// compares the two. `equals` is the comparison to use for anything secret: it
+// does not give away where two values started to differ.
+bytes $expected = Core\Hash::hmac("hello", $key, Core\Digest::Sha256);
+if (Core\Hash::equals($tag, $expected)) {
+    echo "the message is from whoever holds the key\n";
+}

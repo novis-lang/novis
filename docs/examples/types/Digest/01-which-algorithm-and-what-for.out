@@ -1,0 +1,15 @@
+Crc32: catches a file that got corrupted on the way, and nothing more
+Crc32c: the same idea, in the spelling storage systems and network protocols use
+Md5: broken since 2004, kept because older formats and APIs still ask for it
+Sha1: broken since 2017, kept for the same reason
+Sha224: SHA-2, cut to 28 octets
+Sha256: SHA-2, and the one to reach for when nothing else decides it
+Sha384: SHA-2, 48 octets
+Sha512: SHA-2, 64 octets
+Sha512_224: SHA-512 cut short, which is faster than SHA-256 on a 64-bit machine
+Sha512_256: the same, cut to 32 octets
+Sha3_224: SHA-3, a different design to SHA-2 rather than a wider one
+Sha3_256: SHA-3, 32 octets
+Sha3_384: SHA-3, 48 octets
+Sha3_512: SHA-3, 64 octets
+Blake3: very fast and secure, but not one of the cases you may authenticate with here

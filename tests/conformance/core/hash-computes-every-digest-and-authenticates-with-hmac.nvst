@@ -2,6 +2,7 @@
 `Core\Hash` computes every `Core\Digest`, authenticates with HMAC and compares two digests by content — spec § 11, `rule:types/bytes` and `rule:types/conversion`
 --FILE--
 <?nvs
+// covers: Core\Digest
 // § 11: the algorithm is an argument, not part of the member's name, so one
 // member stands where PHP has `md5`, `sha1`, `crc32`, `hash` and
 // `openssl_digest`. Each line below is that specification's own "abc" vector.
