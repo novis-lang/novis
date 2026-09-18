@@ -1,0 +1,34 @@
+<?nvs
+// `[capabilities]` is where a deployment says what a program may do. Nothing is
+// granted by default: a program opens a file, dials an address or reaches a
+// database only where a block names it. This is what the server running this
+// program was given, written for this one program rather than for all of them:
+//
+//     [app.capabilities.fs]
+//     read = true
+//
+//     [app.capabilities.script]
+//     spawn = false
+
+echo 'read files:  ', Core\Config::get('capabilities.fs.read') ?? '(nothing)', "\n";
+
+// A grant nobody wrote is simply absent, which is what deny-by-default looks
+// like from inside the program.
+echo 'write files: ', Core\Config::get('capabilities.fs.write') ?? '(nothing)', "\n";
+
+// A block may also take a right away. Running other scripts is granted to every
+// program in this deployment by a wider block; the narrower one above says `false`,
+// and the narrower one wins.
+echo 'run scripts: ', Core\Config::get('capabilities.script.spawn') ?? '(nothing)', "\n";
+
+// A grant is often a list of places instead — the directories a program may read,
+// the hosts it may dial. `nvs config dump` is where those are read, because a
+// program asking for one value at a time has nothing to hand back for a list.
+
+// What a program can never do is hand itself a right it was not given.
+echo 'grant a db:  ', Core\Config::set('capabilities.db.connect', 'main') ? 'yes' : 'no', "\n";
+
+// Giving one back is refused too, rather than half-working: "is this list inside
+// the one I was given" is not a question the settings machinery can answer, so it
+// refuses in the safe direction and the file stays the only place grants are made.
+echo 'drop one:    ', Core\Config::set('capabilities.fs.read', 'false') ? 'yes' : 'no', "\n";
