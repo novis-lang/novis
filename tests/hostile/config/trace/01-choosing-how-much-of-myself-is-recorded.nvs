@@ -1,0 +1,94 @@
+<?nvs
+// Attack: the fraction that decides whether this request is recorded, pushed by
+// the request it decides about. The block beside it has already been attacked by
+// name and by destination, so the pressure here goes on the two things only
+// `[trace]` has — a number between zero and one, and a header an outbound call
+// carries. A fraction that a parser folds to something usable, or a flag one
+// spelling of which gets through, is a program that has chosen not to be looked
+// at; the four keys still saying what the deployment wrote is the evidence that
+// neither happened.
+// hostile: timeout-ms 20000
+
+// 1. Every shape a fraction can be written in. The dangerous ones are not the
+//    words: a value that reads as a number to some parser and as nothing to the
+//    next one is how `record none of this` arrives spelled as something the
+//    refusal does not recognise. Non-finite is its own case — every comparison
+//    against a NaN is false, so a sample written as one reads as "record
+//    everything" or "record nothing" depending on which side of the test it
+//    lands, and neither is what anybody asked for.
+array<string> $fractions = [
+    '0.0',
+    '1.0',
+    '0',
+    '1',
+    '-0.0',
+    '-0.000001',
+    '1.0000000000000002',
+    '0.5000000000000001',
+    'nan',
+    'NaN',
+    'inf',
+    '-inf',
+    'Infinity',
+    '1e400',
+    '1e-400',
+    '0x1',
+    '1/2',
+    '50%',
+    ' 0.5 ',
+    "0.5\u{0000}",
+    "0\u{066B}5",
+    '0.' . Core\Str::repeat('9', 100000),
+    Core\Str::repeat('1', 100000) . '.0',
+];
+foreach ($fractions as string $fraction) {
+    Core\Config::set('trace.sample', $fraction);
+    Core\Config::set('app.0.trace.sample', $fraction);
+    Core\Config::restore('trace.sample');
+}
+
+// 2. The header an outbound call carries, which is the other half of a trace: a
+//    process that stops propagating does not stop being recorded, it stops being
+//    attributable, and the story breaks at exactly the hop that broke it.
+array<string> $flags = ['false', 'FALSE', 'False', '0', 'no', 'off', 'null', '', 'true', '2'];
+foreach ($flags as string $flag) {
+    Core\Config::set('trace.propagate', $flag);
+    Core\Config::set('trace.exporter', $flag);
+    Core\Config::set('trace.endpoint', 'http://127.0.0.1:1/' . $flag);
+    Core\Config::restore('trace.propagate');
+}
+
+// 3. All four keys under as many writes as the runtime will take, read back
+//    every round. The fraction is read per request off the published snapshot
+//    rather than once at a boot, so a refused write that nevertheless reached
+//    that snapshot would show up here as the block changing under a program that
+//    was told no — and nowhere else, because the write itself answered false.
+uint $changes = 0;
+string $standing = Core\Config::get('trace.sample') ?? '(nothing written)';
+uint $i = 0;
+while ($i < 200000) {
+    Core\Config::set('trace.sample', '1.0');
+    Core\Config::set('trace.propagate', 'false');
+    Core\Config::set('trace.exporter', 'otlp');
+    Core\Config::set('trace.endpoint', 'https://collector.mine/v1');
+    Core\Config::restore('trace.sample');
+    if ((Core\Config::get('trace.sample') ?? '(nothing written)') != $standing) {
+        $changes = $changes + 1;
+    }
+    $i = $i + 1;
+}
+
+// 4. And real work while all of that was in flight, because a block read on the
+//    request path is read from under whatever else the request is doing.
+array<string> $spans = [];
+uint $j = 0;
+while ($j < 20000) {
+    $spans[] = 'span-' . $j . '-' . Core\Str::repeat('x', $j % 64);
+    $j = $j + 1;
+}
+
+echo 'changes: ', $changes, "\n";
+echo 'spans built: ', Core\Arr::count($spans), "\n";
+echo 'sample:    ', Core\Config::get('trace.sample') ?? '(nothing written — so none of them)', "\n";
+echo 'exporter:  ', Core\Config::get('trace.exporter') ?? '(nothing written — no spans leave this process)', "\n";
+echo 'propagate: ', Core\Config::get('trace.propagate') ?? '(nothing written)', "\n";

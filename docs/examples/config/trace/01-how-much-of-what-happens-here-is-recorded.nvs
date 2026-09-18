@@ -1,0 +1,25 @@
+<?nvs
+// `[trace]` says where the story of a request is shipped, how many of the
+// requests this process starts are recorded, and whether an outbound call
+// carries the trace it belongs to.
+
+echo 'exporter:  ', Core\Config::get('trace.exporter') ?? '(nothing written — no spans leave this process)', "\n";
+echo 'push to:   ', Core\Config::get('trace.endpoint') ?? '(nothing written)', "\n";
+echo 'sample:    ', Core\Config::get('trace.sample') ?? '(nothing written — so none of them)', "\n";
+echo 'propagate: ', Core\Config::get('trace.propagate') ?? '(nothing written)', "\n";
+
+// The exporter and the fraction are two separate lines, and the fraction starts
+// at none: a deployment that names a collector and stops there has a collector
+// nothing ever arrives at.
+
+// Every key here belongs to whoever runs the deployment. A program that could
+// raise its own sample would be picking which requests are worth recording.
+echo 'record every request of mine: ', Core\Config::set('trace.sample', '1.0') ? 'accepted' : 'refused', "\n";
+
+// And one that could lower it would be choosing not to be looked at, which is
+// the decision a trace exists to make visible.
+echo 'record none of them:          ', Core\Config::set('trace.sample', '0.0') ? 'accepted' : 'refused', "\n";
+
+// The same for the header an outbound call carries: dropping it would break the
+// story at this process rather than anywhere a reader could see.
+echo 'leave the trace behind:       ', Core\Config::set('trace.propagate', 'false') ? 'accepted' : 'refused', "\n";
