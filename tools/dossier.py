@@ -395,8 +395,13 @@ def safe(text: str) -> str:
 
 
 def rel(path: Path) -> str:
+    """One spelling for a path in this tree: repo-relative and posix, whatever the caller held.
+
+    A path typed on the command line arrives relative, and `relative_to` refuses that against an
+    absolute root -- which used to fall through to the Windows spelling, so the same file was
+    printed two ways and, worse, *named* to the binary two ways by the runners below."""
     try:
-        return path.relative_to(ROOT).as_posix()
+        return path.resolve().relative_to(ROOT).as_posix()
     except ValueError:
         return str(path)
 
@@ -960,11 +965,15 @@ def normalise(text: str) -> str:
 
 
 def run_one_example(nvs: Path, path: Path) -> tuple[str, str]:
+    """An example is named to the binary the way `bless` named it: repo-relative, posix, from the
+    repository root. A program can print the path it was started with -- a log record carries the
+    file it was written in -- so a sweep that passed an absolute Windows path would never match an
+    output frozen from a relative one, and the same file would freeze differently on each host."""
     source = read(path)
     if UNIMPL_RE.search(source):
         return "skip", "marked `requires: unimplemented`"
     try:
-        out = subprocess.run([str(nvs), "run", str(path)], timeout=60, **CAPTURE)
+        out = subprocess.run([str(nvs), "run", rel(path)], timeout=60, cwd=ROOT, **CAPTURE)
     except subprocess.TimeoutExpired:
         return "fail", "timed out after 60s"
     if out.returncode != 0:
@@ -2986,7 +2995,7 @@ def bless(nvs: Path, targets: list[Path]) -> int:
     """
     failed = 0
     for path in targets:
-        out = subprocess.run([str(nvs), "run", str(path)], timeout=120, **CAPTURE)
+        out = subprocess.run([str(nvs), "run", rel(path)], timeout=120, cwd=ROOT, **CAPTURE)
         if out.returncode != 0:
             print(f"  FAIL  {rel(path)} exited {out.returncode}:")
             print("        " + safe(out.stderr.strip().replace("\n", "\n        ")))
