@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """AGENTS.md § *Session workflow* step 3, as one command.
 
-`cargo fmt`, `tools/lints.py --check`, `tools/directives.py --check` and `--check-template`, `cargo
+`cargo fmt`, `tools/lints.py --check`, `tools/directives.py --check` and `--check-template`,
+`tools/owners.py --check`, `cargo
 build`, `cargo test`, the `.nvst` trees through the binary the build just produced, `cargo clippy
 --all-targets -- -D warnings`, and -- once `editors/vscode` exists -- that extension's headless
 suites, in that order, stopping at the first failure. The script gates precede the compile steps
@@ -156,9 +157,12 @@ doc edit would invalidate the cache and buy back the forty seconds the cache was
 in 33 of 41 sessions. A gate whose inputs the cache deliberately ignores does not belong behind
 the cache.
 
-The one docs check that *is* a step here is `reference.py`, and it is not an exception: it reads
-the binary `build` produced, so its input is hashed already, and `docs/novis.md` is written
-rather than read. The session-side gate for the rest is `session.py --wrap`, which refuses at the
+Two checks that look like docs gates *are* steps here, and neither is an exception, because the
+cache already hashes what each one reads. `reference.py` reads the binary `build` produced, and
+`docs/novis.md` is written rather than read. `owners.py --check` reads the `# Known gaps` blocks in
+`crates/`, which is the first thing the cache hashes; the registers it also reports on, under
+`docs/agent/`, it counts and never refuses, so nothing it can fail on sits outside the hash. The
+session-side gate for the rest is `session.py --wrap`, which refuses at the
 moment a wrap would write the breakage -- see its `playbook_collisions`, its `link_findings` and its
 `rulebook_findings`. The second of those is `check-links.py` over the tree, diffed against HEAD: a
 link *this* session broke refuses the wrap, and one it inherited does not, so the gate never charges
@@ -506,6 +510,15 @@ def summarize_directives(out):
         "ran, but printed no summary line -- check the log"
 
 
+def summarize_owners(out):
+    m = re.search(r"every one of the (\d+) tagged gap\(s\)", out)
+    if m:
+        return f"{m.group(1)} recorded gap(s), each deferred to a milestone still ahead"
+    m = re.search(r"(\d+) recorded gap\(s\) name an owner this gate refuses", out)
+    return f"{m.group(1)} recorded gap(s) name an owner the gate refuses" if m else \
+        "ran, but printed no summary line -- check the log"
+
+
 def doc_step(opts):
     """The rustdoc gate: every ``[`Foo::bar`]`` in a doc comment, resolved.
 
@@ -562,6 +575,16 @@ def steps_for(opts):
         # had to cover both would name neither.
         steps.append(Step("template", ["tools/directives.py", "--check-template"],
                           summarize_template, exe=sys.executable))
+        # Who owns what a crate says it still owes. The gate is `tools/owners.py`'s: an item under
+        # a `# Known gaps` block names a milestone still ahead of the program whose plan file
+        # states the scope, and nothing else does. It is a step rather than a docs gate for
+        # `reference.py`'s reason -- its input is the doc comments in `crates/`, which the green
+        # cache hashes -- and the moment worth catching a wrong owner is the one the gap is
+        # written in, not the acceptance sweep a session later. The registers it reads under
+        # `docs/agent/` are counted and never refused, so nothing it gates lives outside the hash.
+        # Sub-second, and unscoped: it walks every crate's doc comments, so `-p` narrows nothing.
+        steps.append(Step("owners", ["tools/owners.py", "--check"], summarize_owners,
+                          exe=sys.executable))
     # Bare, whatever `-p` says: these are the shapes `tools/disk.py`'s `LIVE_QUERIES` keep, and a
     # `-p` build resolves features over one package's graph and writes a second copy of every
     # workspace crate beside the first -- AGENTS.md's rule. `-p` narrows which test binaries
