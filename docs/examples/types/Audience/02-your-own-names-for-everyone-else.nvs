@@ -1,0 +1,41 @@
+<?nvs
+// Novis names one audience only: everyone. Every other answer belongs to your
+// program, so this one writes its own names for the routes that are not open.
+
+enum Role { Admin, Member }
+
+class Plan {
+    public const string PAID = "paid";
+}
+
+class Site {
+    #[Core\Route(path: "/", method: Core\Http\Method::Get, name: "Site::home")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function home(): string { return "home"; }
+
+    // A case of your own enum. Novis checks that the name exists, nothing more.
+    #[Core\Route(path: "/account", method: Core\Http\Method::Get, name: "Site::account")]
+    #[Core\Access(allow: Role::Member)]
+    public function account(): string { return "account"; }
+
+    // A class constant is a name too, so it works here just as well.
+    #[Core\Route(path: "/reports", method: Core\Http\Method::Get, name: "Site::reports")]
+    #[Core\Access(allow: Plan::PAID)]
+    public function reports(): string { return "reports"; }
+}
+
+// What your own names mean is your program's decision, and this is where it
+// gets made. Novis never makes it for you.
+class Gate {
+    public static function sees(Role $role): string {
+        return match ($role) {
+            Role::Admin => "every account",
+            Role::Member => "their own account",
+        };
+    }
+}
+
+echo Core\Router::url("Site::home", []), "\n";
+echo Core\Router::url("Site::account", []), "\n";
+echo "admin sees ", Gate::sees(Role::Admin), "\n";
+echo "member sees ", Gate::sees(Role::Member), "\n";

@@ -1,0 +1,50 @@
+--TEST--
+`Core\Audience::Public` is the one open-route decision `Core` names, and beside an application's own name it is an ordinary enum value — `rule:attributes/access-payload`, `rule:attributes/access-is-a-required-sibling`, `rule:enums/no-class-machinery`
+--FILE--
+<?nvs
+// covers: Core\Audience
+//
+// The enum's whole content is that *this route is open* is a name that resolves
+// rather than a magic string, so the case is pinned where it is read — on a
+// route — and then as the value it is. `rule:enums/no-class-machinery` gives it no members,
+// so there is nothing else to ask it.
+enum Role { Admin, Member }
+
+class Site {
+    #[Core\Route(path: "/pricing", method: Core\Http\Method::Get, name: "Site::pricing")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function pricing(): string { return "p"; }
+
+    // `rule:attributes/access-payload`'s other half, on the same class so the two sit on
+    // adjacent rows: every decision that is not *open* is the application's own
+    // enum case, and `allow` carries it exactly as it carries `Core`'s one.
+    #[Core\Route(path: "/admin/{page}", method: Core\Http\Method::Get, name: "Site::admin")]
+    #[Core\Access(allow: Role::Admin)]
+    public function admin(string $page): string { return $page; }
+}
+
+// Both routes are routes. A decision the compiler does not interpret is still a
+// required sibling (`rule:attributes/access-is-a-required-sibling`), and neither one changes the link
+// the path declares.
+echo "open=", Core\Router::url("Site::pricing", []), "\n";
+echo "own=", Core\Router::url("Site::admin", ["page" => "users"]), "\n";
+
+// The case away from an attribute: a value a program holds, compares and
+// matches, because that is what code sorting its own routes by audience does.
+var $audience = Core\Audience::Public;
+echo "same=", $audience == Core\Audience::Public ? "yes" : "no", "\n";
+echo "match=", match ($audience) { Core\Audience::Public => "everyone" }, "\n";
+echo "is=", $audience is Core\Audience ? "yes" : "no", "\n";
+
+// What distinguishes it from `Role::Admin` is the name and not the number: both
+// are the first case of their enum, so both are 0. A decision written as the
+// number itself would say nothing at all, which is why `allow` takes a name —
+// `an-access-decision-is-a-name-rather-than-text.nvst` is that refusal.
+echo "backing=", Core\Audience::Public as int, " ", Role::Admin as int, "\n";
+--EXPECT--
+open=/pricing
+own=/admin/users
+same=yes
+match=everyone
+is=yes
+backing=0 0

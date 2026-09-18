@@ -1,0 +1,34 @@
+--TEST--
+An `#[Access]` whose `allow` is text rather than a name is refused, because what the compiler checks is that the name resolves — `rule:attributes/access-payload`, `rule:security/access-is-checked-for-presence-not-meaning`
+--FILE--
+<?nvs
+// covers: Core\Audience
+//
+// `Core` names one audience and the application names every other one, and
+// neither of them is a string. A decision spelled `"public"` resolves to
+// nothing, so nothing can check that whoever declared this route and whoever
+// dispatches to it mean the same thing by the word. A misspelt string would
+// open a route quietly, and a misspelt name does not compile.
+class Pricing {
+    #[Core\Route(path: "/pricing", method: Core\Http\Method::Get, name: "Pricing::show")]
+    #[Core\Access(allow: "public")]
+    public function show(): string { return "p"; }
+}
+
+// What the author meant, spelled the one way that carries it. It sits here so
+// the refusal above is a fact about the text and not about this route, this
+// path or this attribute.
+class Help {
+    #[Core\Route(path: "/help", method: Core\Http\Method::Get, name: "Help::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(): string { return "h"; }
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0761]: an access decision is a name rather than a value
+   --> case.nvs:11:26
+%A
+error: aborting due to 1 error
