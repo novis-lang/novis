@@ -7,6 +7,7 @@ use std::path::Path;
 
 use nvs_config::Config;
 use nvs_config::directive::{Apply, Class, DIRECTIVES, Directive, lookup};
+use nvs_config::value::{Unit, unit_of};
 use nvs_diagnostics::{Code, SourceMap, code};
 
 /// The row governing `key`, or a failure naming the key, so a census assertion reads as the claim
@@ -2388,5 +2389,217 @@ fn every_budget_with_a_ceiling_answers_the_request_and_the_operator_differently(
         compared > 0,
         "every key of `[limits]` is carved out by a row of its own, so `[limits.hard]` bounds \
          nothing a request is still allowed to set and the pair has stopped being a pair",
+    );
+}
+
+/// `rule:errors/on-limit`'s reserved slice, asserted as the carve-out it is. The memory half is
+/// written inside `[limits]`, whose blanket row is `Runtime`, so the only thing keeping a script
+/// from sizing its own safety net is a longer row — and the only thing keeping it in the operator's
+/// hands afterwards is that nothing in `[limits.hard]` bounds it, which is an absence rather than an
+/// omission: a ceiling exists to bound a value a request can move, and this is not one.
+///
+/// The unit is the third assertion and the one a reader would not think to make. The slice is
+/// subtracted from `[limits] memory` at request start, so the two have to be the same quantity; a
+/// reserve that parsed `"2M"` as anything but octets would be arithmetic between two units, and it
+/// would look right on every line of the registry.
+// covers: directive:limits.fatal_reserve_memory
+#[test]
+fn the_reserved_slice_is_carved_out_of_the_block_and_has_no_ceiling_of_its_own() {
+    let reserve = governing("limits.fatal_reserve_memory");
+    assert_eq!(
+        (reserve.key, reserve.class, reserve.apply),
+        ("limits.fatal_reserve_memory", Class::System, Apply::Reload),
+        "`limits.fatal_reserve_memory` resolves through `{}`: the blanket row above it is \
+         `Runtime`, so a slice that lands there is a script choosing how much room the handler \
+         reporting its exhausted heap gets — and `Boot` would tell an operator that resizing the \
+         net takes a restart, when the next request reads the new snapshot",
+        reserve.key,
+    );
+    assert!(
+        governing("limits.memory").class.settable_by_a_request()
+            && !reserve.class.settable_by_a_request(),
+        "the slice and the budget it is carved out of answer `Core\\Config::set` the same way, so \
+         either a program can no longer lower its own heap or it can set the size of its own \
+         safety net",
+    );
+
+    assert!(
+        !keys_in("limits.hard").contains(&"fatal_reserve_memory".to_string()),
+        "`[limits.hard]` has grown a ceiling over the reserved slice, which is a ceiling over a \
+         value no request can move: `rule:errors/on-limit` puts the sizing in the operator's hands \
+         already, so a second operator key bounding the first says nothing and reads as though the \
+         slice were a request's",
+    );
+
+    assert_eq!(
+        (
+            unit_of("limits.fatal_reserve_memory"),
+            unit_of("limits.memory"),
+        ),
+        (Some(Unit::Bytes), Some(Unit::Bytes)),
+        "the slice is read in a different unit from the heap it is subtracted from, so `\"2M\"` \
+         written here and `\"2M\"` written there are two different quantities",
+    );
+}
+
+/// The time half of the same slice, asserted as the agreement it has to be with the memory half.
+/// `rule:errors/on-limit` makes them one net — two reserves and not one per limit, because those
+/// are the only two resources a handler cannot run without spending — so every registry answer
+/// about one is an answer about the other, and a net with one half in the operator's hands and one
+/// half in the program's is not a net.
+///
+/// The unit is where the two are *required* to differ, and asserting that beside the agreement is
+/// what stops this case from passing over a pair that had collapsed into one quantity: a reserve of
+/// octets carved out of a CPU ceiling would leave `[limits] cpu_time` with no slice at all and
+/// nothing in the registry looking wrong.
+// covers: directive:limits.fatal_reserve_time
+#[test]
+fn the_time_half_of_the_reserve_answers_exactly_as_the_memory_half_does() {
+    let time = governing("limits.fatal_reserve_time");
+    let memory = governing("limits.fatal_reserve_memory");
+    assert_eq!(
+        (time.key, time.class, time.apply),
+        ("limits.fatal_reserve_time", Class::System, Apply::Reload),
+        "`limits.fatal_reserve_time` resolves through `{}`, and a row of its own is what it needs: \
+         the memory half is not a prefix of it, so nothing else would keep it out of `[limits]`' \
+         `Runtime` blanket",
+        time.key,
+    );
+    assert_eq!(
+        (time.class, time.apply),
+        (memory.class, memory.apply),
+        "the two halves of one net answer differently, so `rule:errors/on-limit`'s decision has \
+         been made twice and the halves have stopped being the same slice",
+    );
+    assert!(
+        !time.class.settable_by_a_request() && !memory.class.settable_by_a_request(),
+        "one half of the reserve is a request's to set, which is the whole of the refusal gone: a \
+         handler with no clock and a handler with no heap are the same handler",
+    );
+    assert!(
+        !keys_in("limits.hard").contains(&"fatal_reserve_time".to_string()),
+        "`[limits.hard]` has grown a ceiling over the time half, for the reason its memory half's \
+         case gives: there is no request-set value here for a ceiling to bound",
+    );
+
+    assert_eq!(
+        (
+            unit_of("limits.fatal_reserve_time"),
+            unit_of("limits.cpu_time"),
+        ),
+        (Some(Unit::Duration), Some(Unit::Duration)),
+        "the time half is not read as a duration, or the ceiling it is carved out of is not — \
+         either way the subtraction at request start is between two different quantities",
+    );
+    assert_ne!(
+        unit_of("limits.fatal_reserve_time"),
+        unit_of("limits.fatal_reserve_memory"),
+        "both halves of the net are read in one unit, so one of them is being subtracted from the \
+         wrong ceiling — the halves agree on everything the registry says about them *except* what \
+         they measure",
+    );
+}
+
+/// `rule:core-classes/decompression-bound`'s absolute half, asserted through the spellings that
+/// would take it back. The key is one `[limits]` itself accepts, so the block's `Runtime` blanket
+/// would answer for it with no row of its own — and `[[app]]`'s copy of the block is the second way
+/// in, since `[app.limits]` is read key for key as `[limits]` is. An application handed a looser
+/// decompression bound than the deployment's is the same hole one scope down.
+///
+/// The ground is worth stating because the wrong one has the same answer here: this is not the
+/// operator's because `[limits]` is — half that block is a request's. It is the operator's because
+/// a call already lowers what it decompresses through its own argument, so a request-set ceiling
+/// would be a second spelling for the ask, and the only direction a `Runtime` row could be moved in
+/// is the direction the rule forbids.
+// covers: directive:limits.max_decompressed
+#[test]
+fn the_decompression_ceiling_is_the_operators_under_every_block_that_states_it() {
+    let ceiling = governing("limits.max_decompressed");
+    assert_eq!(
+        (ceiling.key, ceiling.class, ceiling.apply),
+        ("limits.max_decompressed", Class::System, Apply::Reload),
+        "`limits.max_decompressed` resolves through `{}`: on the `limits` row it is a value a \
+         request raises to whatever the archive it was handed asks for, and at `Boot` it is a \
+         ceiling an operator cannot lower under a running server",
+        ceiling.key,
+    );
+    assert!(
+        keys_in("limits").contains(&"max_decompressed".to_string()),
+        "`[limits]` no longer accepts `max_decompressed`, so this row governs a key the file \
+         refuses and every deployment's bound is the shipped one with nothing able to change it",
+    );
+    for written in [
+        "limits.max_decompressed",
+        "app.limits.max_decompressed",
+        "app.0.limits.max_decompressed",
+        "limits.hard.max_decompressed",
+    ] {
+        let row = governing(written);
+        assert!(
+            !row.class.settable_by_a_request(),
+            "`{written}` lands on `{}` at {:?}, which a request may write — one spelling of this \
+             bound that a program can reach is the whole bound gone, whichever block it is written \
+             in",
+            row.key,
+            row.class,
+        );
+    }
+
+    assert_eq!(
+        unit_of("limits.max_decompressed"),
+        Some(Unit::Bytes),
+        "the absolute half is not read as a size, so `\"64M\"` is not 64 MiB of output — a ceiling \
+         on how much heap one archive may claim has to be the same quantity as the heap",
+    );
+}
+
+/// The ratio half, asserted as the pair the rule says it is. What a decode is measured against is
+/// `min(input × ratio, ceiling)`, so the two halves are one bound: either of them a request could
+/// move is the minimum moved, and a bound with one half missing is the other half on its own —
+/// an absolute ceiling every request reaches whatever it sent, or a ratio a large upload buys a
+/// proportionately large output with.
+///
+/// The units are where the halves differ, and the difference is the content: the ratio is a
+/// multiplier of output per octet of input, not a fraction of one, so `Count` is the reading and
+/// `Ratio` — whose values run between zero and one — would quietly turn 1000:1 into a bound no
+/// archive could pass.
+// covers: directive:limits.max_decompression_ratio
+#[test]
+fn both_halves_of_the_decompression_bound_answer_the_same_way_in_two_different_quantities() {
+    let ratio = governing("limits.max_decompression_ratio");
+    let ceiling = governing("limits.max_decompressed");
+    assert_eq!(
+        (ratio.key, ratio.class, ratio.apply),
+        (
+            "limits.max_decompression_ratio",
+            Class::System,
+            Apply::Reload
+        ),
+        "`limits.max_decompression_ratio` resolves through `{}`, and a row of its own is what it \
+         needs: the absolute half is not a prefix of it, so nothing else keeps it out of the \
+         `Runtime` blanket `[limits]` states",
+        ratio.key,
+    );
+    assert_eq!(
+        (ratio.class, ratio.apply),
+        (ceiling.class, ceiling.apply),
+        "the two halves of one bound answer differently, so a deployment can state one of them and \
+         a request the other — and what a decode is compared against is the smaller of the two",
+    );
+    assert!(
+        !ratio.class.settable_by_a_request() && !ceiling.class.settable_by_a_request(),
+        "one half of the bound is a request's to set, which is the bound gone: a program that \
+         raises the ratio buys the same output a program that raises the ceiling does",
+    );
+
+    assert_eq!(
+        (
+            unit_of("limits.max_decompression_ratio"),
+            unit_of("limits.max_decompressed"),
+        ),
+        (Some(Unit::Count), Some(Unit::Bytes)),
+        "the halves are read in one quantity, or the ratio is read as `Unit::Ratio` — a multiplier \
+         whose values are taken to run between zero and one is a bound every archive passes or \
+         none does",
     );
 }
