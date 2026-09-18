@@ -2,50 +2,43 @@
 
 ## State
 
-**Goal `bigint` — `Core\BigInt` — is registered and its whole roster is on disk.**
-`crates/nvs-stdlib/src/bigint.rs` holds all 24 members of the goal's § *Stage 3* with their
-reference cards, bodies and `address` arms; `python tools/verify.py` is green over it.
+**Goal `bigint` — `Core\BigInt` — is complete through stage 4.** The class, its 24 members, six
+`bigint-*.nvst` cases and `examples/bigint.nvs` are on disk, and the three guard tests the acceptance
+list names live in `crates/nvs-stdlib/src/bigint.rs`'s own `mod tests`.
 
-**Every `spec-*-outstanding.txt` ratchet under `crates/nvs-stdlib/tests/` now holds zero keys** —
-striking `§13 Core\BigInt` emptied the last one, so the spec's roster is registered whole. Stage 0's
-catch-up landed with it: `rule:core-api/tier-roster`'s *Designed, not shipped* paragraph no longer
-names classes that are registered, and `docs/rules/core-api.md` is its render.
+**`Core\Arr::sort` now orders two `Comparable` objects**, and so do `Core\Arr::min`/`max`,
+`Core\Math::min`/`max`/`clamp` and a comparator-less `Core\Heap`: `crate::ordering::compare_values`
+took a `&mut Ctx` and grew one last row that asks `nvs_runtime::call_compare_to`, which is machinery
+`heap.rs` already had and nothing else had reached for. `heap.rs`'s own object branch and its
+`sign_of` are gone into that one home. `rule:classes/comparable` is where the decision is recorded.
 
-**Six conformance cases under `tests/conformance/core/bigint-*.nvst`** carry the class past the
-floor of three: the `div`/`mod` sign sweep, the bound on both sides of `int`, `uint` and `decimal`,
-the radix round trip, every refusal with its message frozen, the ordering agreement, and the
-number-theory identities.
+**The live `docs/agent/loop-goal.*` is still goal `test-doubles`** — the driver holds goal 68 open on
+a DONE-claim retry, so goal `bigint`'s checks are not the ones it runs yet, and this session fixed
+only `docs/agent/goals/69-bigint.toml`. Its stage-4 `cases` were drafted names; all four claims were
+on disk under the names their author chose, and the list is repointed.
 
-**One thing the goal's prose promised that the tree does not do:** `Core\Arr::sort` does not order
-two `Comparable` objects — see the playbook bullet and the next group's third item. The operators
-and `compareTo` do, and the cases assert them that way.
+**The floor's `abi-probe` failure is load, not a regression** — see the playbook bullet.
 
 ## Next group
 
-**Goal `bigint`, stage 4 — the proofs** — one file set: `examples/bigint.nvs` (new),
-`docs/agent/goals/69-bigint.toml`, `crates/nvs-stdlib/src/ordering.rs`.
+**Goal `bigint`, stage 5 — the gate** — one file set: `crates/nvs-stdlib/src/ordering.rs`,
+`tests/conformance/core/`, `docs/agent/goals/69-bigint.toml`.
 
-- [ ] **`examples/bigint.nvs`, with the output the acceptance list freezes** — the goal's
-      § *Stage 4* at `docs/agent/goals/69-bigint.md:64` names the five things it must print, and
-      `.agent-tmp` is not where a fixture goes. `rule:core-api/shape-rules`.
-- [ ] **The guard tests the acceptance list names** — read them off
-      `docs/agent/goals/69-bigint.toml:1` first, then grep each name across `crates/`: the six
-      `.nvst` cases already landed may hold the claim under another name, which the playbook's
-      *A `loop-goal.toml` check's drafted `tests` list can be mixed* bullet is about.
-- [ ] **Decide `Core\Arr::sort` over a `Comparable` object** — `crates/nvs-stdlib/src/ordering.rs:36`
-      is the doc paragraph that declines it, `crates/nvs-stdlib/src/instance.rs:185` is the
-      `ClassDesc::comparer` that would answer it, and `crates/nvs-runtime/src/dispatch.rs:1` is how
-      native code reaches a member by name. Either build the object row — which closes the gap for
-      every `Core` class with a `compareTo`, not just this one — or correct the goal's § *Stage 2*
-      sentence that lists `Core\Arr::sort` beside `echo` and `<=>`. `rule:classes/comparable` covers
-      the operators only.
+- [ ] **One case pinning the natural ordering over objects everywhere it is now read** — `Core\Arr::min`
+      and `max` and `Core\Math::min`, `max` and `clamp` over `Core\BigInt`, agreeing with `compareTo`
+      by counting, and a class with no `compareTo` still throwing. The row is
+      `crates/nvs-stdlib/src/ordering.rs:47` and the rule is `rule:classes/comparable`; the sort half
+      is already pinned in
+      `tests/conformance/core/bigint-orders-through-compare-to-and-every-spelling-of-it-agrees.nvst:30`.
+- [ ] **Add that case to the goal's stage-4 check and run the goal's end gates** —
+      `docs/agent/goals/69-bigint.toml:139` is the `cases` list, then
+      `python tools/owners.py --closes bigint`, `python tools/playbook.py --closes bigint` and
+      `python tools/verify.py --doc`, closing or re-ownering every gap they name.
+- [ ] **Claim the goal if both are clean** — every other stage is green;
+      `docs/agent/goals/69-bigint.toml:166` is the gate block, and nothing in it is unwritten work.
 
 ## Backlog
 
-- **The `_` separator divergence** — `Core\BigInt::parse` refuses `"1_000"` because `"1_000" as int`
-  does, though an integer *literal* may carry it; `crates/nvs-stdlib/src/bigint.rs`'s `parse` body
-  owns the reasoning, and no rule states it.
-- **`MAX_BITS` is this module's bound, not a rule's** — `crates/nvs-stdlib/src/bigint.rs:107`; ADR
-  0054 left it open and only `pow` and `shl` are checked against it.
-- **`Core\BigDecimal`** stays unscheduled — ADR 0054 § 6 names it, no spec row asks for it
-  (`docs/agent/goals/69-bigint.md:91`).
+- The five-driver matrix needs a warm docker daemon; a cold boot fails the floor — `docs/agent/goals/69-bigint.toml:88`.
+- `Core\Bytes` still has no natural-order row, deliberately — `crates/nvs-stdlib/src/ordering.rs:40`.
+- Goal `gap-zero`'s ratchet half waits only on the chain reaching it — `docs/implementation-plan.md` § *Blocking*.

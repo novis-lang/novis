@@ -3076,6 +3076,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   the rerun the tool does to check — which reads exactly like a shared port or temp path. Read the
   two sides of the assertion first: the same elements in a different order means the `Debug` impl is
   what needs fixing, not the isolation. [until: reviewed 2026-09-17]
+- **A ratio-based perf guard in the floor can go red inside the full sweep and pass alone, and the
+  sweep's report says nothing about load.** `a_cpu_bound_fan_out_across_four_worker_cores_is_near_linear_by_the_margin_this_test_names`
+  measures four worker cores against one, so the five database containers the sweep leaves up and
+  whatever it just finished compress the ratio — it failed the acceptance check after a 1385 s sweep
+  and passes in 0.19 s on its own at the same commit. Reproduce a red `abi-probe` check alone with
+  `cargo test --release -p nvs-abi-probe --test perf_guards <name>` before treating it as a
+  regression, and only then read the margin. [until: reviewed 2026-10-18]
 
 ## Writing a test case
 
@@ -5579,6 +5586,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `exp == now` and prints the expiry refusal where the verifying line was frozen. Re-run that case
   alone before believing a red `conformance` leg that names it — it passed by itself immediately
   after failing in the suite. [until: reviewed 2026-12-01]
+- **A new `examples/*.nvs` fixture is corpus, so `nvs-fmt`'s identity test fails the whole tree until
+  the file is in the canonical layout.** Nothing in `verify.py` says "run the formatter" — the failure
+  reads `1 corpus file(s) came back changed` from `crates/nvs-fmt/tests/identity.rs` and costs a second
+  build to discover. Run `target/debug/nvs.exe fmt <file>` the moment the fixture prints what you want,
+  then re-run it: the layout rewrite is quotes and spacing and never changes stdout, so the `exact`
+  check's `want` survives it. [until: gone crates/nvs-fmt/tests/identity.rs]
 
 ## Splitting a file that got too big
 
@@ -7789,12 +7802,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   which reads as a broken doc comment rather than as a block that should have been closed. Close the
   block after the helper you are writing beside and open a fresh `nvs_runtime::nvs_helper! {`.
   [until: reviewed 2026-09-18]
-- **A `Core` class carrying `compareTo` is ordered by `<` and `<=>` and still refused by
-  `Core\Arr::sort`.** The operators lower to the member; the sort asks
-  `nvs_stdlib::ordering::compare_values`, which has a row per scalar and none for an object, so two
-  instances throw `RuntimeError` naming tag 7 against tag 7. Read
-  `crates/nvs-stdlib/src/ordering.rs:36-46` before writing a case that sorts objects.
-  [until: gone crates/nvs-stdlib/src/ordering.rs:not built yet]
 
 ## Divergences and refusals already pinned
 

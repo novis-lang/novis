@@ -141,11 +141,15 @@ kind = "nvs-suite"
 stage = "4 the proofs"
 name = "conformance (the depth shapes over BigInt)"
 args = ["test", "tests/conformance/"]
+# Drafted before the cases were written, and repointed to the names their author chose: each row below
+# holds the claim the drafted name asked for, `--TEST--` line for `--TEST--` line.
 cases = [
-  "tests/conformance/core/bigint-div-and-mod-agree-with-intdiv-and-the-remainder-over-a-sign-sweep.nvst",
-  "tests/conformance/core/bigint-converts-on-both-sides-of-the-int-and-decimal-bounds.nvst",
-  "tests/conformance/core/bigint-parse-refuses-at-the-edge-of-each-radix.nvst",
-  "tests/conformance/core/bigint-compares-and-sorts-as-comparable.nvst",
+  "tests/conformance/core/bigint-div-and-mod-agree-with-the-int-operators-over-a-sign-sweep.nvst",
+  "tests/conformance/core/bigint-grows-past-the-int-bound-and-narrows-back-on-both-sides-of-it.nvst",
+  "tests/conformance/core/bigint-round-trips-through-every-radix-and-refuses-the-digits-none-has.nvst",
+  "tests/conformance/core/bigint-orders-through-compare-to-and-every-spelling-of-it-agrees.nvst",
+  "tests/conformance/core/bigint-refuses-a-zero-divisor-a-negative-root-and-an-answer-past-its-width.nvst",
+  "tests/conformance/core/bigint-number-theory-members-answer-their-own-identities.nvst",
 ]
 
 [[check]]
