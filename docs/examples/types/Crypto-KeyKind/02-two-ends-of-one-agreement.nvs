@@ -1,0 +1,36 @@
+<?nvs
+// Two programs that have never met agree on a key. Each draws a pair of the
+// same kind, sends the public half across, and agrees the same secret from its
+// own private half and the other one's public half. Both ends have to be on
+// the same curve: two keys of different kinds are not two ends of one
+// agreement.
+
+Core\Crypto\KeyPair $ours = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519);
+Core\Crypto\KeyPair $theirs = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519);
+
+secret bytes $weAgreed = Core\Crypto::agree($ours, $theirs->publicKey());
+secret bytes $theyAgreed = Core\Crypto::agree($theirs, $ours->publicKey());
+
+// The agreed value is not a key yet. Running it through a context string is
+// what turns one agreement into the several keys a protocol needs — a second
+// context string here would answer an unrelated key.
+secret bytes $ourKey = Core\Crypto::expandKey($weAgreed, "" as bytes, "orders v1");
+secret bytes $theirKey = Core\Crypto::expandKey($theyAgreed, "" as bytes, "orders v1");
+
+// That both ends agreed the same secret is visible in the only way it should
+// be: we seal with ours, they open with theirs.
+bytes $sealed = Core\Crypto::seal("order 1042 accepted" as bytes, $ourKey, Core\Crypto\Cipher::XChaCha20Poly1305);
+echo Core\Encoding::decodeText(
+    Core\Crypto::open($sealed, $theirKey, Core\Crypto\Cipher::XChaCha20Poly1305),
+    Core\Charset::Utf8
+), "\n";
+
+// An Ed25519 pair is for signing, so there is nothing for it to agree. The
+// kinds not standing in for one another is the whole point of naming them.
+Core\Crypto\KeyPair $forSigning = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+try {
+    secret bytes $nothing = Core\Crypto::agree($forSigning, $theirs->publicKey());
+    echo "agreed with a signing key", "\n";
+} catch (LogicError $wrongKind) {
+    echo $wrongKind->message, "\n";
+}

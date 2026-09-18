@@ -1,0 +1,42 @@
+<?nvs
+// Five kinds, and they are not interchangeable. Two of them agree a shared
+// secret with a peer, three of them sign, and one does both. What a key is for
+// is part of what it is, so every call that makes or reads a key says which
+// kind it means.
+
+class Keys {
+    public static function purpose(Core\Crypto\KeyKind $kind): string {
+        return match ($kind) {
+            Core\Crypto\KeyKind::P256 => "P256     agrees and signs",
+            Core\Crypto\KeyKind::X25519 => "X25519   agrees only",
+            Core\Crypto\KeyKind::Ed25519 => "Ed25519  signs only",
+            Core\Crypto\KeyKind::RsaPkcs1 => "RsaPkcs1 signs, the scheme JWS calls RS256",
+            Core\Crypto\KeyKind::RsaPss => "RsaPss   signs, the scheme JWS calls PS256",
+        };
+    }
+}
+
+array<Core\Crypto\KeyKind> $roster = [
+    Core\Crypto\KeyKind::P256,
+    Core\Crypto\KeyKind::X25519,
+    Core\Crypto\KeyKind::Ed25519,
+    Core\Crypto\KeyKind::RsaPkcs1,
+    Core\Crypto\KeyKind::RsaPss,
+];
+foreach ($roster as Core\Crypto\KeyKind $kind) {
+    echo Keys::purpose($kind), "\n";
+}
+
+// The three curve kinds are drawn here and now. There is no key size to pass:
+// each of them has one size.
+Core\Crypto\KeyPair $signing = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+echo "drew an Ed25519 pair", "\n";
+
+// An RSA key is issued to you rather than drawn, so asking for one here is a
+// mistake in the program and is reported as one.
+try {
+    Core\Crypto\KeyPair $never = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::RsaPkcs1);
+    echo "drew an RSA pair", "\n";
+} catch (LogicError $notDrawn) {
+    echo $notDrawn->message, "\n";
+}

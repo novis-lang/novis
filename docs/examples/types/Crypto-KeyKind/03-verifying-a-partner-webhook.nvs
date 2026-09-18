@@ -1,0 +1,42 @@
+<?nvs
+// A partner signs the webhooks it sends us, and our side checks the signature
+// before believing the body. The key we were given is configuration, and the
+// kind is stored beside it: what a key is for cannot be read out of the key
+// material, since the same RSA key is RS256 or PS256 depending on which the
+// partner picked.
+
+// The partner's side, which in real life is another program on another machine.
+Core\Crypto\KeyPair $partner = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+bytes $body = "{\"event\":\"invoice.paid\",\"id\":\"in_88\"}" as bytes;
+bytes $signature = Core\Crypto::sign($body, $partner);
+
+// Our side. Both the key's octets and its kind come from the partner's
+// onboarding, and reading the key is where it is checked to be one.
+Core\Crypto\KeyKind $kind = Core\Crypto\KeyKind::Ed25519;
+Core\Crypto\PublicKey $onFile = Core\Crypto\PublicKey::read(
+    $partner->publicKey()->write(Core\Crypto\KeyFormat::Spki),
+    $kind,
+    Core\Crypto\KeyFormat::Spki
+);
+
+try {
+    Core\Crypto::verify($body, $signature, $onFile);
+    echo "the webhook is from the partner", "\n";
+} catch (RuntimeError $notTheirs) {
+    echo "not from the partner", "\n";
+}
+
+// The same signature against a body somebody changed on the way.
+bytes $altered = "{\"event\":\"invoice.paid\",\"id\":\"in_99\"}" as bytes;
+try {
+    Core\Crypto::verify($altered, $signature, $onFile);
+    echo "accepted an altered body", "\n";
+} catch (RuntimeError $refused) {
+    echo "refused an altered body", "\n";
+}
+
+// The key answers the kind it was read as, so a program holding keys of
+// several kinds can route each one to the operation it is for.
+if ($onFile->kind() == Core\Crypto\KeyKind::Ed25519) {
+    echo "the key on file signs, and agrees nothing", "\n";
+}

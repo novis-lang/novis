@@ -1,0 +1,2 @@
+order 1042 accepted
+Core\Crypto::agree(): these two keys are not two ends of one agreement. Both have to be of one curve, `P256` or `X25519` — `Ed25519` signs and agrees nothing, and neither RSA kind agrees at all.

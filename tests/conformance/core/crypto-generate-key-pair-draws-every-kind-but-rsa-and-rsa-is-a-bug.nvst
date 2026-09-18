@@ -2,6 +2,8 @@
 Core\Crypto::generateKeyPair draws the three kinds of the roster that are drawn and refuses both RSA kinds with one LogicError naming the member that reads one — `rule:core-classes/crypto-interop-tier`, `rule:security/algorithm-comes-from-the-key`
 --FILE--
 <?nvs
+// covers: Core\Crypto\KeyKind
+//
 // The bound named on both sides: every case of `Core\Crypto\KeyKind` is asked
 // for, and each one either draws a pair or is the refusal. A member that had
 // grown a sixth kind, or lost one of the three, fails here while looking right
