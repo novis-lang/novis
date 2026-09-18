@@ -778,26 +778,32 @@ impl<'a> Lowering<'a> {
         (result, ty)
     }
     /// The class label a `catch` clause or an
-    /// `rule:expressions/catch-expression`
-    /// arm tests against.
+    /// `rule:expressions/catch-expression` arm tests against, as the rendered
+    /// `QName` `nvs_types::layout` keys the descriptor table by.
     ///
-    /// Deliberately the *written* text rather than a resolved `QName`: this
-    /// crate never depends on `nvs-hir`, and
-    /// `rule:statements/nothing-gets-a-second-name` forbids import
-    /// renaming, so a bare `LogicError` in source is the global `LogicError`
-    /// and nothing else. A leading `\\` is stripped, since
-    /// `nvs_types::layout` keys a class by its rendered `QName`, which never
-    /// carries one.
+    /// The checker records the answer, which is the route
+    /// [`InstKind::ClassTest`] already takes for `$x is C`: every written
+    /// annotation goes through `nvs_types::lower::lower_type`, which persists
+    /// the resolved [`TypeId`] under the type's own span
+    /// (`nvs_types::expr_table::ExprTypeTable::declared_ty`). So a name that
+    /// means something only in its file — one an import brought into scope, or
+    /// one written inside a `namespace` block — arrives here already resolved,
+    /// where the source text would name a class neither descriptor table
+    /// holds. `QName` is destructured rather than named, for
+    /// `super::closure::declared_class`'s reason: `nvs-hir` is a
+    /// dev-dependency of this crate.
     ///
-    /// # Known gap
-    ///
-    /// A clause naming a class inside a `namespace` block resolves against the
-    /// file's namespace at check time and against nothing here, so its label
-    /// will not match the layout table's. That is the same missing resolution
-    /// [`InstKind::ClassTest`] avoided by having the checker record the
-    /// answer, and the same fix applies — `nvs_types` recording a resolved
-    /// `QName` per clause.
+    /// The written text is the fallback for a clause the checker recorded no
+    /// type for, which is a lowering run without a checking pass in front of
+    /// it.
     pub(crate) fn caught_class_label(&self, ty: &Type) -> String {
+        if let Some(CheckedTy::Class(qname, _)) = self
+            .exprs
+            .declared_ty(ty.span)
+            .map(|id| self.checked_types.get(id))
+        {
+            return qname.to_string();
+        }
         span_text(self.src, ty.span).trim().to_owned()
     }
 }

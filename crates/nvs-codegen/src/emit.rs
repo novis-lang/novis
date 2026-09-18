@@ -2674,10 +2674,13 @@ impl Emitter<'_, '_> {
                 // one of the two tables answers for, and a written `is` against
                 // any other `Core` name is settled before this crate sees it:
                 // folded by the checker, or lowered as `nvs-ir`'s
-                // never-matching row. What still reaches here is a label
-                // `nvs_ir::lower::exception::caught_class_label` read out of a
-                // `catch` clause's source text, where an aliased class name
-                // resolves to nothing either table holds.
+                // never-matching row. Every label that arrives here is a
+                // rendered `QName` the checker resolved — a `catch` clause's
+                // included, which
+                // `nvs_ir::lower::exception::caught_class_label` reads back out
+                // of the typed-expression table — so this refusal is a backstop
+                // against a unit built without the descriptor, never a spelling
+                // this crate failed to resolve.
                 if self.classes.desc(class).is_none() && !nvs_stdlib::class_has_instances(class) {
                     return Err(CodegenError::Unsupported(format!(
                         "`is {class}`, whose class this unit declares no descriptor for"
