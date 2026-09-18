@@ -1,0 +1,29 @@
+<?nvs
+// Three cookies with three different jobs. Each one is written the same way;
+// what changes is how far it is allowed to travel.
+
+// A signed-in session. Nothing is said about how far it travels, so it gets
+// the default, and the default is the careful one.
+Core\Response::addCookie("session", "s-88f1");
+echo "session: nothing written, so it is Lax\n";
+
+// The admin area is only ever reached from inside your own site, so its cookie
+// can refuse to travel at all. Somebody following a link to it arrives signed
+// out, and that is the point.
+Core\Response::addCookie("admin", "a-7", {sameSite: Core\Response\SameSite::Strict});
+echo "admin: Strict, so a link from another site arrives signed out\n";
+
+// A widget of yours that other people embed in their pages needs its cookie on
+// requests those pages make. It has to travel cross-site, and a cookie that
+// travels that far has to be marked secure as well.
+Core\Response::addCookie("widget", "w-9", {sameSite: Core\Response\SameSite::None, secure: true});
+echo "widget: None with secure, so an embedded page still gets it\n";
+
+// `None` on its own is refused. A browser would drop that cookie instead of
+// storing it, so you hear about it here rather than losing the cookie quietly
+// once the program is running.
+try {
+    Core\Response::addCookie("widget", "w-9", {sameSite: Core\Response\SameSite::None, secure: false});
+} catch (Throwable $dropped) {
+    echo $dropped->message, "\n";
+}

@@ -2,6 +2,7 @@
 `Core\Response::addCookie` takes every option its call site left out from `[http.cookies]`, and the defaults are observable through the two rules that read them -- `rule:http-server/cookies-are-secure-httponly-and-lax`, spec § 15
 --FILE--
 <?nvs
+// covers: Core\Response\SameSite
 // Invariance over a sweep, and the sweep is the options bag. Nothing here reads
 // a header back — that crossing is asserted in `nvs-server`, where a response
 // exists — so what pins the defaults is that two *rules* read them, and each
