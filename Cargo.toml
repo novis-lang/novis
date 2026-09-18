@@ -361,6 +361,17 @@ blake3 = { version = "1", default-features = false, features = ["std", "pure"] }
 # off at the seam, for the reason that module states.
 brainsort = "0.5"
 
+# --- Arbitrary-magnitude integers (`Core\BigInt`) ---
+# ADR 0054 § 5 names this crate by name as what replaces `gmp` and the integer
+# half of `bcmath`; `crates/nvs-stdlib/src/bigint.rs` owns the class built over
+# it. Pure Rust with no build script and no C, so
+# `rule:packaging/a-c-dependency-answers-two-questions` is answered at its first
+# question, and `num-integer` beside it is the `Integer` trait `gcd` and `lcm`
+# are members of — the same authors, the same graph, already in `Cargo.lock`
+# under `der-parser` and `mysql_common`.
+num-bigint = "0.5"
+num-integer = "0.1"
+
 # --- Memory-mapped files (ADR 0042 § 3's read path) ---
 # The cache verifies an artifact by hashing it where the page cache already put
 # it, rather than by reading it into a buffer first — that ADR's *Investigation*

@@ -2423,6 +2423,8 @@ dependencies = [
  "html5ever",
  "jiff",
  "md-5 0.10.6",
+ "num-bigint 0.5.1",
+ "num-integer",
  "nvs-config",
  "nvs-db",
  "nvs-diagnostics",

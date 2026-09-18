@@ -20,5 +20,3 @@
 # `Core\BigInt` is goal `bigint`, and the double half of `Core\Test` is goal
 # `test-doubles`. Neither waits on a milestone's work, so a milestone tag would
 # be the dishonest column; each goal's own prose holds the reason it exists.
-
-§13 Core\BigInt  # bigint

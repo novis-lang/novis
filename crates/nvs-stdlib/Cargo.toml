@@ -58,6 +58,13 @@ tungstenite.workspace = true
 # and faults, both of which are `nvs-runtime`'s and neither of which either
 # crate defines.
 nvs-db.workspace = true
+# ADR 0054 § 5's own naming: `Core\BigInt` is `num-bigint`, and `num-integer`
+# is the trait its `gcd` and `lcm` are members of. The root manifest's row is
+# where the dependency is argued; what belongs here is that `crate::bigint` is
+# its only caller, and that the class stores a sign and magnitude bytes rather
+# than the crate's own type, so nothing outside that module names either.
+num-bigint.workspace = true
+num-integer.workspace = true
 unicode-segmentation.workspace = true
 caseless.workspace = true
 unicode-normalization.workspace = true
