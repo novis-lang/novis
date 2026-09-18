@@ -152,6 +152,106 @@
 //! real cost of the mechanism rather than an oversight; `Core\Test` handing
 //! back an already-pinned `Core\Http\Target` would remove it, and § 18 does
 //! not decide between the two.
+//!
+//! # Decision: a double's descriptor is built here, at the call that asks for one
+//!
+//! `Core\Test::double<Clock>({now: fn (): Instant => …})` answers a value that
+//! **is** a `Clock` (`rule:testing/doubles`), which means a
+//! [`nvs_runtime::ClassDesc`] naming `Clock` among the classes an instance also
+//! is and carrying a method row per interface method. Two places could build
+//! it: `nvs-ir`, synthesizing a class per call site the way its `lower_new`
+//! already rewrites `new` on a `Core` class, or this crate, at the moment the
+//! helper runs.
+//!
+//! **It is built here, and `nvs-ir` learns nothing about doubles at all.** Read
+//! properly, that precedent points this way: `lower_new` lowers to a *call to
+//! this crate's helper*, and the one thing the call site owes such a helper is
+//! the class it wrote, which [`crate::registry::WRITTEN_CLASS_MEMBERS`] already
+//! delivers as argument 0 — the interface's own descriptor, ahead of everything
+//! including a receiver. So `double` is an ordinary `InstKind::CoreCall` on a
+//! roster the front end already reads. A synthesized class would instead put a
+//! class *the author never wrote* into the program's own class list, where every
+//! consumer that walks one meets it, and `nvs-ir` would be assembling a method
+//! table out of addresses only this crate holds.
+//!
+//! **The helper has everything the rows need.** The interface's descriptor is
+//! what the double conforms to; the shape argument is an object whose own
+//! descriptor is a `$shape{…}` class ([`nvs_runtime::ClassDesc::is_shape`])
+//! whose field names are the method names and whose slots hold the closures;
+//! and for `partial`, `$real`'s descriptor names the methods the shape does not
+//! override. Each closure carries its declared arity and parameter tags in its
+//! own slots, which `nvs_runtime`'s closure module owns, so every
+//! [`nvs_runtime::MethodRow`] a
+//! double publishes is **the closure's** declared shape rather than a guess:
+//! a call that arrives through an erased view is checked against the body that
+//! will answer it, by the one implementation `check_param_tags` already is.
+//!
+//! **The rows are not `native`.** That flag is an ownership claim and not a
+//! "written in Rust" one — the two readers of it in `nvs_runtime::dispatch`
+//! refuse such a row outright — and a double's row is reached by
+//! `nvs_ir::ir::InstKind::CallVirtual`, which *transfers* its arguments. So a
+//! trampoline releases what it was handed, exactly as [`crate::cursor`]'s
+//! roster symbols release slot 0, and the row reads to every caller as the
+//! compiled method it stands in for.
+//!
+//! **One descriptor per `(interface, real class, overridden names)`**, in a
+//! table this module leaks on [`crate::instance`]'s terms and for its reasons.
+//! That triple is decided by what a call site *wrote*, so the table is
+//! O(call sites) and not O(doubles made), and two doubles from one call site
+//! are one class — which is what a `get_class` comparison and
+//! `Core\Debug::render` read. [`nvs_runtime::ClassTable::define`] takes its
+//! parents as ids of its own table and an interface's is not one, so
+//! [`nvs_runtime::ClassTable::define_conforming`] beside it names a parent by
+//! address instead; the bound it depends on
+//! is that the interface descriptor belongs to the compiled unit under test,
+//! and `rule:testing/tests-never-reach-a-build` deletes `Core\Test` from every
+//! build, so the unit in question is the one `nvs test` compiled and the double
+//! cannot outlive it.
+//!
+//! **What it spends:** one leaked descriptor per distinct call site, once per
+//! process; one object per double, `FIELDS_OFFSET` bytes plus 16 per method and
+//! two more slots, charged to the test's request and released with it; one
+//! array append per recorded call. Nothing on a served request.
+//!
+//! # Decision: a trampoline carries its slot in its own identity
+//!
+//! [`nvs_runtime::MethodRow::code`] is a bare address with no data word beside it, so a
+//! trampoline cannot be *handed* which method it is standing in for — it has to
+//! **be** it. This module publishes a fixed table of native functions, one
+//! generated per slot, and row *i* of a double's method table is entry *i* of
+//! that table. Nothing is stored per double to recover the slot, and no lookup
+//! runs to find it.
+//!
+//! The double's fields are its state: slot 0 the call record, slot 1 `$real`
+//! (or `null`), and slot `2 + i` the closure answering method *i*, the methods
+//! in the order [`nvs_runtime::ClassTable::set_methods`] sorts their rows.
+//! Every field name carries a `$`, which no property name can, so an erased
+//! `$double->now` (`rule:types/erased-member-access`) finds nothing and the
+//! representation stays unspellable; the trampoline reads its own method name
+//! back out of [`nvs_runtime::ClassDesc::field_name`] and drops the sigil,
+//! which is both what the recorded call is keyed by and how the row carrying
+//! its arity is found.
+//!
+//! An interface with more methods than that table is long is refused by
+//! `double` as a `LogicError` naming both counts. A generated table has to have
+//! a length, and this one is set well above the interfaces a test doubles;
+//! the whole of what it costs is that many native functions in the binary, once
+//! per process and nothing per double.
+//!
+//! Three alternatives were rejected. A **data word on [`nvs_runtime::MethodRow`]** spends
+//! eight bytes per method per class in *every* program, and widens the one
+//! struct every virtual call reads, to serve a member no build lowers.
+//! **Emitting a thunk per slot at the call site** is real code emission, in a
+//! backend that would be learning about doubles to do it, and the double is
+//! built by a native helper that holds no emitter. **One shared trampoline
+//! recovering its slot by finding its own address in the receiver's method
+//! table** cannot work at all: every row holds that same address, so the scan
+//! has nothing to tell them apart with.
+//!
+//! Until the refusals land, a method the shape leaves unimplemented publishes
+//! no row, and a call reaching one falls through to the fallback a bodiless
+//! declaration names — `nvs_runtime::nvs_abstract_method`'s reported `FATAL` —
+//! rather than to anything unchecked.
 
 use nvs_runtime::{Ctx, Fault, Tag, ThrownClass, Value, identity};
 

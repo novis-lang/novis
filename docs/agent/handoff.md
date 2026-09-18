@@ -2,55 +2,59 @@
 
 ## State
 
-**Goal `test-doubles` — `Core\Test`'s double half. Nothing of the member is on disk yet**, and what
-this session changed is the goal's own stage order, not code.
+**Goal `test-doubles`, stage 2. The pick stage 2's prose left open is made**, and recorded where it
+said to: `crates/nvs-stdlib/src/test.rs:1`'s module doc now holds two decisions — a double's
+descriptor is built by `nvs-stdlib` at the call that asks for one, with `nvs-ir` learning nothing
+about doubles, and a trampoline carries its slot in its own identity. The one runtime API that pick
+needs is on disk with its test: `nvs_runtime::ClassTable::define_conforming`
+(`crates/nvs-runtime/src/object.rs:1897`), which names a parent by address because an interface's
+descriptor belongs to the compiled unit and not to the table holding the double's own class.
 
-Stage 2 was the checker and stage 3 the runtime. A registry row cannot be registered before its helper
-exists (the playbook bullet this session added names the two sweeps), so **stage 2 is now the two rows
-plus the runtime plus one `core/` case, and stage 3 is the four refusals**. `docs/agent/loop-goal.md`,
-`docs/agent/loop-goal.toml` and their sources under `docs/agent/goals/` carry it; `[context.stage.2]`
-and `[context.stage.3]` and the `[[check]]` blocks were swapped with the prose.
+**No registry row yet, and the remaining three items are one landing, not three commits.**
+`crates/nvs-stdlib/tests/conformance_coverage.rs:52`'s
+`every_part_one_member_has_a_conformance_case` sweeps `registry::CLASSES` for a case spelling
+`Core\Test::double<`, so a `double` row committed ahead of its case makes `cargo test -p nvs-stdlib`
+red — the playbook's *Registering a `Core` member and writing its conformance case are one slice,
+not two* is the general form, and it is why this session stopped short of the row rather than
+landing half of it.
 
-The driver's red acceptance line — *no recorded gap is owed by anyone but a future milestone* — is goal
-`gap-zero`'s own check (`docs/agent/goals/70-gap-zero.toml:185`) and not this goal's. It stays red
-until `test-doubles` and `bigint` close the gaps that name them; it is not a regression to chase.
-
-Settled and verified for the next group: `CoreTy::Written("T")` is the written type parameter
-(`crates/nvs-stdlib/src/registry.rs:554`); `WRITTEN_CLASS_MEMBERS` is how a call site's `T` reaches a
-helper as a descriptor; `MethodRow` carries no data word beside `code`, so a trampoline holds its slot
-in its own identity.
+Two ABI facts the next session would otherwise re-derive. A `WRITTEN_CLASS_MEMBERS` row's helper is
+handed the written class's descriptor as argument 0, the `array<…>` flag as 1 and the wire contract
+as 2, ahead of everything including a receiver (`crates/nvs-stdlib/src/registry.rs:2999`), so
+`double<T>($answers)` is `args: [4]`. And `nvs_runtime::run_helper` takes the arity as a *value*
+(`crates/nvs-runtime/src/abi.rs:688`) where `nvs_helper!` passes a literal — a trampoline's arity is
+its own row's and is not known until the receiver has been read, so it cannot be written with that
+macro as it stands.
 
 ## Next group
 
-**Stage 2: the rows and the runtime, one group because neither lands alone** — one file set:
+**Stage 2, the rest, as one landing because the coverage gate makes it one** — one file set:
 `crates/nvs-stdlib/src/test.rs`, `crates/nvs-stdlib/src/registry.rs`,
-`crates/nvs-stdlib/src/instance.rs`, `crates/nvs-runtime/src/object.rs`,
-`crates/nvs-runtime/src/closure.rs`. Take `double` alone if the group runs long — `partial`'s ratchet
-line may be struck a session later.
+`crates/nvs-types/src/expr/args.rs`, `tests/conformance/core/`.
 
-- [ ] **The double's descriptor, and what a trampoline carries** — the pick stage 2's prose leaves
-      open, recorded in `crates/nvs-stdlib/src/test.rs:1`'s module doc as it is made.
-      `crates/nvs-runtime/src/object.rs:1847`'s `ClassTable::define` and `:2287`'s `set_methods` are
-      the builder; `crates/nvs-runtime/src/object.rs:625`'s `MethodRow` is what a row holds, and its
-      `native` flag is the one `crates/nvs-stdlib/src/instance.rs` already sets. `rule:testing/doubles`.
+- [ ] **The trampoline table and the descriptor cache** — the module doc at
+      `crates/nvs-stdlib/src/test.rs:1` is the specification: one native entry per slot against a
+      ceiling, the `$`-prefixed field names, and a leaked table keyed by `(interface, real class,
+      overridden names)` built through `crates/nvs-runtime/src/object.rs:1897`'s
+      `define_conforming`. `crates/nvs-stdlib/src/instance.rs:588`'s `build`, `:715`'s `set_slot`
+      and `:734`'s `slot` are the primitives. `rule:testing/doubles`.
 - [ ] **The `double` row, its card, its `address()` arm and its helper** —
-      `crates/nvs-stdlib/src/test.rs:321`'s `CLASS` takes the row (`params` the shape, `return_ty`
-      `CoreTy::Written("T")`), the card goes after `crates/nvs-stdlib/src/test.rs:1289`'s
-      `EXPECT_FAILURE_DOC`, the arm at `crates/nvs-stdlib/src/test.rs:1853`, and the ratchet line at
-      `crates/nvs-stdlib/tests/spec-members-compiler-facing-outstanding.txt:29` is struck in the same
-      edit. `rule:testing/doubles`.
-- [ ] **The interface's descriptor reaches the helper** —
-      `crates/nvs-stdlib/src/registry.rs:3030`'s `WRITTEN_CLASS_MEMBERS` gains the row, and
-      `crates/nvs-types/src/expr/args.rs:1671`'s `written_class_of` has to admit an interface where it
-      reads `Ty::Class` today. `rule:testing/doubles`.
-- [ ] **The case ADR 0079 § 10 writes** —
-      `tests/conformance/core/a-double-is-passed-where-its-interface-is-taken.nvst`, the `Clock`
-      example, which is also what `crates/nvs-stdlib/tests/conformance_coverage.rs:52` wants for the
-      new row. `rule:testing/doubles`.
+      `crates/nvs-stdlib/src/test.rs:321`'s `CLASS` gains a row whose parameter and return type are
+      `CoreTy::Written("T")` (`crates/nvs-stdlib/src/registry.rs:554`), and
+      `crates/nvs-stdlib/src/test.rs:1952`'s `address` its arm. `rule:testing/doubles`.
+- [ ] **The interface's descriptor reaches the helper** — `crates/nvs-stdlib/src/registry.rs:3030`'s
+      `WRITTEN_CLASS_MEMBERS` gains the pair, and `crates/nvs-types/src/expr/args.rs:1671`'s
+      `written_class_of` has to admit an interface where it admits a class. `rule:testing/doubles`.
+- [ ] **The three `core/` cases**, which are what makes the row legal to commit —
+      `tests/conformance/core/a-double-is-passed-where-its-interface-is-taken.nvst` and its two
+      siblings, with ADR 0079 § 10's worked example as the first one's body. The gate counting them
+      is `crates/nvs-stdlib/tests/conformance_coverage.rs:52` and the shape to copy is
+      `tests/conformance/core/json-derive-encodes-declared-fields.nvst:1`. `rule:testing/doubles`.
 
 ## Backlog
 
-- Stage 3's four refusals and its two new `E08xx` codes — `docs/agent/loop-goal.md` § *Stage 3*.
-- `partial`'s row, helper and ratchet line, if stage 2's group takes `double` alone — same file.
-- Stage 0's `test.rs` module-doc section on the double half — `docs/agent/loop-goal.md` § *Stage 0*.
-- The `core/` case naming `Core\Test::partial<` that `conformance_coverage.rs` will want with it.
+- `a_double_records_every_call_it_answers`, stage 2's other check — writable the moment the
+  trampolines exist, against `crates/nvs-stdlib/src/test.rs`'s own test module.
+- `partial`'s delegating rows, and its line in
+  `crates/nvs-stdlib/tests/spec-members-compiler-facing-outstanding.txt:30`.
+- Stage 3's four refusals — `docs/agent/loop-goal.md` § *Stage 3*.
