@@ -1,0 +1,164 @@
+--TEST--
+Core\Arr::min and max and Core\Math::min, max and clamp order two objects by their `compareTo`, and all seven members that read that order refuse a class declaring none — the object half of the one order `nvs_stdlib::ordering` owns, `rule:classes/comparable`
+--FILE--
+<?nvs
+// The object half of the agreement case: the sort spelling is already pinned
+// over `Core\BigInt`, and these are the five members that read the same order
+// without sorting. What is counted is agreement with `compareTo` — the member
+// *is* the ordering, so one of the five that grew a comparison of its own
+// fails here while still answering plausibly on its own line.
+final class Agreements {
+    // Nine per pair: `Core\Arr::min`/`max` name the ends of the pair,
+    // `Core\Math::min`/`max` name the same two from loose arguments and do so
+    // whichever way round they are passed, and `Core\Math::clamp` decides
+    // "inside" by that order — each value of the pair is inside the pair's own
+    // interval, and is pushed to the bound when the interval is the degenerate
+    // one at the other end.
+    public static function over(Core\BigInt $a, Core\BigInt $b): int {
+        int $agreed = 0;
+        // The expectation is derived from `compareTo` and from nothing else,
+        // so each count below is a member agreeing with the member the rule
+        // names rather than with a frozen answer.
+        Core\BigInt $low = $a;
+        Core\BigInt $high = $b;
+        if ($a->compareTo($b) > 0) {
+            $low = $b;
+            $high = $a;
+        }
+        array<Core\BigInt> $pair = [$a, $b];
+        if (Core\Arr::min($pair) == $low) { $agreed = $agreed + 1; }
+        if (Core\Arr::max($pair) == $high) { $agreed = $agreed + 1; }
+        if (Core\Math::min($a, $b) == $low) { $agreed = $agreed + 1; }
+        if (Core\Math::max($a, $b) == $high) { $agreed = $agreed + 1; }
+        if (Core\Math::min($b, $a) == $low) { $agreed = $agreed + 1; }
+        if (Core\Math::max($b, $a) == $high) { $agreed = $agreed + 1; }
+        if (Core\Math::clamp($a, $low, $high) == $a) { $agreed = $agreed + 1; }
+        if (Core\Math::clamp($high, $low, $low) == $low) { $agreed = $agreed + 1; }
+        if (Core\Math::clamp($low, $high, $high) == $high) { $agreed = $agreed + 1; }
+        return $agreed;
+    }
+}
+
+// A class with no `compareTo` at all: the members throw for it rather than
+// falling back to anything, which is the same answer `<` gives it at compile
+// time. Ordinary, so its properties are exactly what PHP would have compared.
+final class Orderless {
+    public int $n;
+
+    public function constructor(int $n) {
+        $this->n = $n;
+    }
+}
+
+final class Refused {
+    // All seven members here rather than the five above: `Core\Arr::sort` and
+    // `Core\Heap::push` have their agreement pinned over `Core\BigInt` and over
+    // a `Comparable` class elsewhere, but the refusal is the half that has to
+    // be one answer across every member that reads the order. Each names itself
+    // in front of the one shared message, so counting the refusals that name
+    // the member is what says all seven reached the same helper rather than
+    // each refusing for a reason of its own.
+    public static function counting(Orderless $a, Orderless $b): int {
+        int $refused = 0;
+        array<Orderless> $pair = [$a, $b];
+
+        try {
+            Core\Arr::sort($pair);
+        } catch (Throwable $sort) {
+            if (Core\Str::startsWith($sort->message, 'Core\Arr::sort has no natural order')) {
+                $refused = $refused + 1;
+            }
+        }
+
+        try {
+            Core\Arr::min($pair);
+        } catch (Throwable $min) {
+            if (Core\Str::startsWith($min->message, 'Core\Arr::min has no natural order')) {
+                $refused = $refused + 1;
+            }
+        }
+
+        try {
+            Core\Arr::max($pair);
+        } catch (Throwable $max) {
+            if (Core\Str::startsWith($max->message, 'Core\Arr::max has no natural order')) {
+                $refused = $refused + 1;
+            }
+        }
+
+        try {
+            Core\Math::min($a, $b);
+        } catch (Throwable $mathMin) {
+            if (Core\Str::startsWith($mathMin->message, 'Core\Math::min has no natural order')) {
+                $refused = $refused + 1;
+            }
+        }
+
+        try {
+            Core\Math::max($a, $b);
+        } catch (Throwable $mathMax) {
+            if (Core\Str::startsWith($mathMax->message, 'Core\Math::max has no natural order')) {
+                $refused = $refused + 1;
+            }
+        }
+
+        // The bounds are compared before the value is, so an orderless pair is
+        // refused at the interval and never reaches the clamping itself.
+        try {
+            Core\Math::clamp($a, $a, $b);
+        } catch (Throwable $clamp) {
+            if (Core\Str::startsWith($clamp->message, 'Core\Math::clamp has no natural order')) {
+                $refused = $refused + 1;
+            }
+        }
+
+        // The first `push` never compares — a one-element heap is already a
+        // heap — so the second is where the sift asks the question.
+        var $heap = new Core\Heap<Orderless>();
+        try {
+            $heap->push($a);
+            $heap->push($b);
+        } catch (Throwable $push) {
+            if (Core\Str::startsWith($push->message, 'Core\Heap::push has no natural order')) {
+                $refused = $refused + 1;
+            }
+        }
+
+        return $refused;
+    }
+}
+
+// Four magnitudes on both sides of zero, none of them equal to another: the
+// pair loop then never asks which of two equal values a member hands back,
+// which is the tie rule the scalar case owns.
+array<Core\BigInt> $values = [
+    Core\BigInt::parse("-99999999999999999999"),
+    Core\BigInt::of(-1),
+    Core\BigInt::of(0),
+    Core\BigInt::parse("99999999999999999999"),
+];
+
+int $pairs = 0;
+int $agreed = 0;
+foreach ($values as Core\BigInt $a) {
+    foreach ($values as Core\BigInt $b) {
+        $pairs = $pairs + 1;
+        $agreed = $agreed + Agreements::over($a, $b);
+    }
+}
+echo "bigint: ", $agreed, " of ", $pairs * 9, " agreements over ", $pairs, " pairs\n";
+
+// The whole table rather than a pair, and written out once so the case pins
+// what "smallest" means over objects and not only that five members concur.
+Core\BigInt $smallest = $values[0];
+Core\BigInt $largest = $values[3];
+int $ends = 0;
+if (Core\Arr::min($values) == $smallest) { $ends = $ends + 1; }
+if (Core\Arr::max($values) == $largest) { $ends = $ends + 1; }
+echo "ends ", $ends, " of 2, smallest ", $smallest->toString(), ", largest ", $largest->toString(), "\n";
+
+echo "no compareTo: ", Refused::counting(new Orderless(1), new Orderless(2)), " of 7 members refused\n";
+--EXPECT--
+bigint: 144 of 144 agreements over 16 pairs
+ends 2 of 2, smallest -99999999999999999999, largest 99999999999999999999
+no compareTo: 7 of 7 members refused
