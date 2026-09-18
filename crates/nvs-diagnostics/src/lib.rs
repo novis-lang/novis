@@ -509,9 +509,28 @@ pub mod code {
     /// refuses outright (`rule:php-migration/let-and-is-are-reserved`). Both
     /// are reserved for a construct that does not exist — the family `eval`,
     /// `goto` and `list` are already in — so the spelling stays available and
-    /// the help names the living one: `var` declares an inferred local,
-    /// `instanceof` tests and `as` converts. The rewrite is a rename.
+    /// the help names the living one: `var` declares an inferred local, `is`
+    /// tests and `as` converts. The rewrite is a rename.
     pub const E_RESERVED_FOR_FUTURE_USE: Code = Code::new("E0247");
+    /// `$x instanceof Foo` — PHP's type test, written where a Novis operator
+    /// may stand (`rule:php-migration/one-type-test`).
+    ///
+    /// Novis has one type test and it is `is`, so the word is a keyword only
+    /// to be refused here: read as an ordinary identifier it would arrive at
+    /// name resolution as a constant that resolves to nothing, and the reader
+    /// would be told about a name rather than about the operator they wrote.
+    /// The parser consumes the right operand with it, so a site costs this one
+    /// diagnostic.
+    ///
+    /// The rewrite is mechanical and the help carries both halves of it: a
+    /// written class becomes `$x is Request`, and a class held in a binding
+    /// becomes `$x is $cls`, which is the same site `rule:types/type-test`
+    /// § *The value arm* gives. This is the one divergence from PHP that no
+    /// untyped binding makes reachable
+    /// (`rule:php-migration/every-divergence-is-deliberate-and-listed`), and a
+    /// converted program never changes meaning silently over it, because the
+    /// refused word does not compile.
+    pub const E_INSTANCEOF_IS_NOT_AN_OPERATOR: Code = Code::new("E0253");
     /// `return $value;` inside a `constructor`, which PHP 8.6 deprecates and
     /// this refuses (`rule:php-migration/a-constructor-return-carries-no-value`).
     /// The object under construction is the result and nothing else can be. A
@@ -1308,36 +1327,23 @@ pub mod code {
     /// that keeps PHP's *timing* — `rule:types/conversion`'s one unchecked position, so
     /// it defers to `rule:types/erased-member-access`'s name-keyed fetch and its catchable throw.
     pub const E_RECEIVER_HAS_NO_PROPERTIES: Code = Code::new("E0495");
-    /// A class named through a value rather than written, and the two
-    /// `instanceof` right-hand sides that name no class at all: the dynamic
-    /// form `$x instanceof $name`, `new $name()` and `$name::f()`, plus a
-    /// `Core` namespace class or an enum on the right of `instanceof`.
+    /// A class named through a value the checker can resolve to no class at
+    /// all, at any of `rule:types/class-reference-sites`' three sites:
+    /// `new $name()`, `$name::f()` and `$x is $name`.
     ///
-    /// The dynamic form is `rule:types/conversion`'s rule: a class name is written, never
-    /// computed, which is the same line `$$var` and `eval` are already on. Its
+    /// It is `rule:types/conversion`'s rule: a class name is written, never
+    /// computed, which is the same line `$$var` and `eval` are already on. The
     /// three spellings share one report
     /// (`nvs_types::expr::members::reject_dynamic_class_name`) because they are
-    /// one mistake — `rule:php-migration/every-divergence-is-deliberate-and-listed` row 14 says so of the `instanceof` one, and a
-    /// second code for the same rule at `new` would be a distinction the
-    /// language does not make. A `Core` **namespace** class — one declaring
-    /// neither a slot nor an instance member — is a name for calling static
-    /// members through, so no value is ever an instance of it; a `Core` class
-    /// that does have instances is tested against the descriptor
-    /// `nvs_stdlib::class_descriptors` publishes and is not here at all. An
-    /// enum is a value type (`rule:enums/closed-integer-type`) and no value of one is ever an object,
-    /// so the test has nothing to walk. A written name that resolves to
-    /// *nothing* is not here: that is the ordinary `E0303`, exactly as
-    /// `new Undeclared()` already reports it.
-    pub const E_INSTANCEOF_NOT_A_CLASS: Code = Code::new("E0496");
-    /// `instanceof` over a left-hand side whose declared type can hold no
-    /// object at all — `int $n = 1; $n instanceof Box;`.
+    /// one mistake, and a second code for the same rule at one of them would be
+    /// a distinction the language does not make. A `class<T>` operand is not
+    /// this mistake at any of the three — that is the checked dynamic form the
+    /// rule gives them — so the help names the conversion an author can take:
+    /// `$name as class<Base>`.
     ///
-    /// PHP answers `false`, having no declaration to read; `rule:php-migration/every-divergence-is-deliberate-and-listed` row 14
-    /// refuses it instead, for the reason `rule:expressions/one-equality-operator` refuses two statically
-    /// disjoint types under `==` — the declaration already answered, so the
-    /// test is dead code that reads as a live question. `mixed`, `object`, a
-    /// shape, a class and any union holding one all keep the run-time test.
-    pub const E_INSTANCEOF_SUBJECT_NOT_OBJECT: Code = Code::new("E0497");
+    /// A written name that resolves to *nothing* is not here: that is the
+    /// ordinary `E0303`, exactly as `new Undeclared()` already reports it.
+    pub const E_DYNAMIC_CLASS_NAME: Code = Code::new("E0496");
     /// An `isset(...)` operand that names no storage — `isset(f())`,
     /// `isset($a + 1)`, `isset(Foo::BAR)`.
     ///
@@ -3532,7 +3538,7 @@ pub mod code {
 
     /// `$x is void`, `$x is never` — a type no value inhabits, written where
     /// `is` asks whether a value holds one (`rule:types/type-test`, the second
-    /// of its three refusals).
+    /// of its two refusals).
     ///
     /// Not a knowable answer this refuses but an unaskable question: `void` is
     /// what a function returns instead of a value and `never` is what one
@@ -3542,24 +3548,8 @@ pub mod code {
     /// an exception inside it.
     pub const E_TYPE_TEST_AGAINST_AN_UNINHABITED_TYPE: Code = Code::new("E0811");
 
-    /// `$x is $cls` — a value written where `is` takes a type
-    /// (`rule:types/type-test`, the third of its three refusals).
-    ///
-    /// The spelling is not ours to give a meaning to: PHP's grammar binds a
-    /// variable in that slot, so reading it as a dynamic class test would make
-    /// one line mean two different things in the two languages, silently, in
-    /// both. `$x instanceof $cls` is that test and is the one question `is`
-    /// cannot ask, so the help names it.
-    ///
-    /// It is reported in the parser, where the `$` is still in hand. Deferred
-    /// to name resolution it would arrive as a type that failed to resolve,
-    /// and the diagnostic would describe the name rather than the shape.
-    ///
-    /// `rule:types/type-test`'s table is the home of which code refuses what.
-    pub const E_TYPE_TEST_AGAINST_A_VALUE: Code = Code::new("E0812");
-
     /// `$x is tainted string`, `$x is secret bytes` — a qualifier written where
-    /// `is` takes a type (`rule:types/type-test`, the first of its three
+    /// `is` takes a type (`rule:types/type-test`, the first of its two
     /// refusals).
     ///
     /// `tainted` and `secret` are checked once and erased before codegen
