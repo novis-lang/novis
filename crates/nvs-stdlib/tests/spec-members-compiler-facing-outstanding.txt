@@ -22,5 +22,3 @@
 # be the dishonest column; each goal's own prose holds the reason it exists.
 
 §13 Core\BigInt  # bigint
-
-§13 Test::assertCompletes  # test-doubles

@@ -287,7 +287,8 @@
 use nvs_runtime::{Ctx, Fault, Tag, ThrownClass, Value, identity};
 
 use crate::registry::{
-    Const, CoreClass, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc, Qual,
+    Const, CoreClass, CoreField, CoreMethod, CoreOption, CoreTy, ErrorDoc, MethodDoc, ParamDoc,
+    Qual, ShapeKeyDoc,
 };
 
 // ============================================================================
@@ -347,6 +348,31 @@ const CALLED: &[CoreOption] = &[
         default: Const::Null,
     },
 ];
+
+/// `{within: Duration}` — `Core\Test::assertCompletes`'s budget, a
+/// `rule:core-api/shape-parameter` shape rather than a [`MESSAGE`]-style bag.
+///
+/// A bag's option is optional by construction and there is no duration this
+/// member could pick on a call site's behalf, so the one thing it takes has to
+/// be a field with no default — which is a shape, and which keeps ADR 0079
+/// § 16's own spelling, `{within: Duration::millis(50)}`, rather than trading
+/// it for a bare positional `Duration`.
+const WITHIN: &[&[CoreField]] = &[&[CoreField {
+    name: "within",
+    ty: CoreTy::Instance(crate::time::DURATION_NAME),
+    default: None,
+}]];
+
+/// `rule:core-api/shape-flattens-at-the-abi`'s flattening of [`WITHIN`] at
+/// `assertCompletes`, as ABI slots: the body, the shape's one field, then the
+/// trailing [`MESSAGE`] bag's one option. A shape has no runtime
+/// representation, so these three are what the helper is handed and this is the
+/// only place the numbers are written.
+const BODY_ARG: usize = 0;
+/// See [`BODY_ARG`].
+const WITHIN_ARG: usize = 1;
+/// See [`BODY_ARG`].
+const COMPLETES_MESSAGE_ARG: usize = 2;
 
 /// `{json?, body?, headers?}` — what a registered answer comes back with, as
 /// `rule:testing/an-outbound-call-is-answered-from-a-table` writes the bag.
@@ -759,6 +785,23 @@ pub(crate) const CLASS: CoreClass = CoreClass {
             return_ty: CoreTy::Void,
             symbol: "nvs_core_test_assert_never_called",
             doc: Some(&ASSERT_NEVER_CALLED_DOC),
+        },
+        CoreMethod {
+            name: "assertCompletes",
+            names: &["body", "settings"],
+            // The body is `CoreTy::CallableSig` rather than a bare `Callable`
+            // for [`registry`]'s reason: a `Core` callback states the signature
+            // it is called with, and this one is called with nothing and its
+            // answer is dropped. `assertThrows` above declares the same pair.
+            params: &[
+                CoreTy::CallableSig(&[], &CoreTy::Mixed),
+                CoreTy::Shape(WITHIN),
+                CoreTy::Options(MESSAGE),
+            ],
+            defaults: &[],
+            return_ty: CoreTy::Void,
+            symbol: "nvs_core_test_assert_completes",
+            doc: Some(&ASSERT_COMPLETES_DOC),
         },
     ],
     instance: &[],
@@ -1271,6 +1314,59 @@ const ASSERT_NEVER_CALLED_DOC: MethodDoc = MethodDoc {
     ],
 };
 
+/// `Core\Test::assertCompletes`'s reference card — `rule:core-api/reference-card`.
+const ASSERT_COMPLETES_DOC: MethodDoc = MethodDoc {
+    short: "Runs `$body` with the test's clock advanced by `$settings.within`, and asserts that it \
+            left nothing still running. Wall-clock time is never read, so a budget written in \
+            seconds is spent in microseconds and two runs answer identically.",
+    params: &[
+        ParamDoc {
+            name: "body",
+            desc: "The work to run. It is called once, on the test's own task, and whatever it \
+                   answers is dropped.",
+            shape: &[],
+        },
+        ParamDoc {
+            name: "settings",
+            desc: "The budget, written as a literal because there is no duration this member \
+                   could pick for a caller.",
+            shape: &[ShapeKeyDoc {
+                key: "within",
+                ty: "Core\\Time\\Duration",
+                desc: "How far the virtual clock moves before `$body` runs, so a retry, a backoff \
+                       or a timeout inside it elapses at once. `Core\\Test::advance` moves the \
+                       same clock, and the move is permanent: the test reads the advanced clock \
+                       from here on.",
+            }],
+        },
+        ParamDoc {
+            name: "message",
+            desc: "Prefixed to the failure, as on every other assertion.",
+            shape: &[],
+        },
+    ],
+    ret: "Nothing. A `$body` that returned having left a task of its own still running throws, \
+          naming the budget it overran — `rule:testing/task-tree-and-virtual-clock`, read at the \
+          one moment it means anything.",
+    errors: &[
+        ErrorDoc {
+            error: "Core\\Test\\Failure",
+            desc: "`$body` returned with work of its own still running. The message names how \
+                   many tasks and the `within` they were given.",
+        },
+        ErrorDoc {
+            error: "LogicError",
+            desc: "The test declared no `at:`, so there is no fixed clock to spend the budget \
+                   against — `Core\\Test::advance`'s refusal, for its reason.",
+        },
+        ErrorDoc {
+            error: "RuntimeError",
+            desc: "The advanced clock lies outside the range an `Instant` can hold, as on \
+                   `Core\\Test::advance`.",
+        },
+    ],
+};
+
 /// `Core\Test\SentRequest::method`'s reference card — `rule:core-api/reference-card`.
 const SENT_METHOD_DOC: MethodDoc = MethodDoc {
     short: "The verb this call carried, as the `Core\\Http\\Method` case the member that made it \
@@ -1695,6 +1791,74 @@ nvs_runtime::nvs_helper! {
         }
         ctx.set_fixed_clock(moved);
         Ok(Value::null())
+    }
+}
+
+nvs_runtime::nvs_helper! {
+    /// `Core\Test::assertCompletes(callable $body, {within: Duration}, {message?: string}): void`
+    /// — ADR 0079 § 16's budget, spent against the virtual clock.
+    ///
+    /// **The clock moves before `$body` runs**, which is the ordering that
+    /// makes the member worth having: a retry, a backoff or a timeout inside
+    /// the body measures itself against a clock that has already been granted
+    /// the budget, so it elapses at once instead of waiting out the seconds it
+    /// describes. Moving it afterwards would leave the body running against
+    /// the clock it started on and the advance with nothing to affect. The
+    /// move is `Core\Test::advance`'s, down to the range check, so a test
+    /// mixing the two members is moving one clock.
+    ///
+    /// **What "still running" means is read the way the runner reads it** —
+    /// `nvs_host::children_still_running` against a count taken before the
+    /// call, so a task the test spawned earlier is not charged to this body and
+    /// one the body left behind is. `rule:testing/task-tree-and-virtual-clock`
+    /// is the same fact at the test's own boundary, and a body whose children
+    /// were all awaited is out of the tree by the time it returns.
+    ///
+    /// A `$body` that threw is not this member's failure: the [`Fault`] goes
+    /// back up as it would from any other frame, so the test reports the throw
+    /// rather than a budget it never reached.
+    fn nvs_core_test_assert_completes(ctx, args: [3]) {
+        let within = crate::time::nanos_of(args, WITHIN_ARG, "assertCompletes")?;
+        let Some(nanos) = ctx.fixed_clock() else {
+            let why = "this test declared no `at:`, so it has no fixed clock to spend `within` \
+                       against";
+            return Err(Fault::thrown_as(
+                ThrownClass::Logic,
+                format!("Core\\Test::assertCompletes(): {why}"),
+            ));
+        };
+        let moved = nanos + i128::from(within);
+        if crate::time::instant_at_nanos(moved).is_none() {
+            let why = "the advanced clock lies outside the range an `Instant` can hold, about \
+                       ±9999 years";
+            return Err(Fault::thrown(format!("Core\\Test::assertCompletes(): {why}")));
+        }
+        ctx.set_fixed_clock(moved);
+        let before = nvs_host::children_still_running();
+        let answered = nvs_runtime::call_closure(ctx, args[BODY_ARG], &[])?;
+        #[expect(
+            unsafe_code,
+            reason = "`call_closure` hands back a value the caller owns, and this one is \
+                      never handed on"
+        )]
+        unsafe {
+            answered.release();
+        }
+        let left = nvs_host::children_still_running().saturating_sub(before);
+        if left > 0 {
+            let budget = nvs_syntax::duration::render(within);
+            let detail = format!(
+                "`$body` returned with {left} task(s) of its own still running, after the \
+                 {budget} `within` named"
+            );
+            return Err(failed(
+                ctx,
+                "assertCompletes",
+                &detail,
+                args[COMPLETES_MESSAGE_ARG],
+            ));
+        }
+        Ok(held(ctx, "assertCompletes"))
     }
 }
 
@@ -2200,6 +2364,7 @@ fn sent_slot(args: &[Value], index: usize, member: &str) -> Result<Value, Fault>
 pub(crate) fn address(symbol: &str) -> Option<*const u8> {
     Some(match symbol {
         "nvs_core_test_advance" => (nvs_core_test_advance as *const ()).cast(),
+        "nvs_core_test_assert_completes" => (nvs_core_test_assert_completes as *const ()).cast(),
         "nvs_core_test_answer_http" => (nvs_core_test_answer_http as *const ()).cast(),
         "nvs_core_test_sent_http" => (nvs_core_test_sent_http as *const ()).cast(),
         "nvs_core_test_answer_socket" => (nvs_core_test_answer_socket as *const ()).cast(),
