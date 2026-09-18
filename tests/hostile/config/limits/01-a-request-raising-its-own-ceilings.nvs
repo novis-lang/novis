@@ -1,0 +1,146 @@
+<?nvs
+// Attack: `[limits]` is the one block a request is *allowed* to write, so the
+// whole of its safety is that `[limits.hard]` bounds what it may write and
+// that neither half can be talked into a nonsense value. This pushes every key
+// of the block past its ceiling, then feeds both halves the numbers a size
+// parser comes apart on, then tries the keys carved out of the block that are
+// the operator's, then checks the survivor is still the deployment's answer.
+// hostile: timeout-ms 30000
+
+// 1. Over the ceiling, on every key that has one. Each accepted raise is a
+//    request handing itself more of this host than the operator allowed.
+//    The second half of the list is the same overshoot wearing a different
+//    spelling of the same unit, which is where a bypass would actually live: a
+//    lenient parser used for the ceiling check and a strict one used for
+//    enforcement would disagree about `700 M` and let it through.
+array<string> $overshoot = [
+    '1G',
+    '512G',
+    '700 M',
+    '700m',
+    '700MiB',
+    '700 MiB',
+    '1 G',
+    '1g',
+    '1GiB',
+    '2GB',
+    '0x40000000',
+    '1024T',
+    '18446744073709551615',
+    '18446744073709551616',
+    '340282366920938463463374607431768211456',
+    Core\Str::repeat('9', 4096),
+    Core\Str::repeat('9', 100000) . 'G',
+];
+array<string> $keys = ['memory', 'cpu_time', 'wall_time', 'max_tasks', 'max_output', 'max_regex_steps'];
+foreach ($keys as string $key) {
+    foreach ($overshoot as string $value) {
+        Core\Config::set('limits.' . $key, $value);
+        Core\Config::get('limits.' . $key);
+    }
+    Core\Config::restore('limits.' . $key);
+}
+
+// 2. Values a size or duration parser comes apart on. An accepted one is a
+//    limit whose enforcement is now somebody's rounding decision — and a
+//    parsed-to-zero or parsed-to-huge answer is the same defect wearing two
+//    faces, so nothing here may read back as a value.
+array<string> $nonsense = [
+    '',
+    ' ',
+    '-1',
+    '-0',
+    '+256M',
+    '0',
+    '0x100000',
+    '0b1',
+    '1e999',
+    'Infinity',
+    'NaN',
+    '256 M',
+    '256MM',
+    '256m',
+    '256MiB',
+    '256 megabytes',
+    '２５６Ｍ',
+    "256M\u{0000}",
+    "256M\u{0000}1G",
+    "256M\r\nhard = \"1G\"",
+    "256M\n[limits.hard]\nmemory = \"1T\"",
+    '256M; hard.memory = 1G',
+    '../../etc/passwd',
+    Core\Str::repeat('0', 100000) . '256M',
+    Core\Str::repeat(' ', 100000) . '256M',
+];
+foreach ($nonsense as string $value) {
+    Core\Config::set('limits.memory', $value);
+    Core\Config::get('limits.memory');
+    Core\Config::set('limits.hard.memory', $value);
+    Core\Config::get('limits.hard.memory');
+}
+Core\Config::restore('limits.memory');
+Core\Config::restore('limits.hard.memory');
+
+// 3. The ceiling itself, and the keys written beside these that are the
+//    operator's: the tier-1 handler's reserved slice, the recursion depth and
+//    the decompression bound. An accepted write to any of them is a script
+//    choosing the size of its own safety net, which is the case the whole
+//    class distinction exists for.
+array<string> $operators = [
+    'limits.hard.memory',
+    'limits.hard.cpu_time',
+    'limits.hard.wall_time',
+    'limits.hard.max_output',
+    'limits.fatal_reserve_memory',
+    'limits.fatal_reserve_time',
+    'limits.max_script_depth',
+    'limits.max_decompressed',
+    'limits.max_decompression_ratio',
+];
+foreach ($operators as string $key) {
+    Core\Config::set($key, '1T');
+    Core\Config::set($key, '0');
+    Core\Config::set($key, '18446744073709551615');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 4. The spellings that are nearly one of those. `[limits]` and `[limits.hard]`
+//    are the same key names under two different classes, so a near miss that
+//    landed on the wrong one of the pair would be a request writing the
+//    ceiling by mis-spelling the default.
+array<string> $spellings = [
+    'limits.hard',
+    'limits.hard.hard.memory',
+    'limits.memory.hard',
+    'limits..memory',
+    'limits.Hard.memory',
+    'LIMITS.MEMORY',
+    'limit.memory',
+    'limits-hard.memory',
+    'limits.hard_memory',
+    'app.limits.hard.memory',
+    'limits.hard.' . Core\Str::repeat('sub.', 20000) . 'memory',
+];
+foreach ($spellings as string $key) {
+    Core\Config::set($key, '1T');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 5. A hundred thousand accepted writes and a hundred thousand refused ones,
+//    neither with a restore between them: an overlay that grew an entry per
+//    call would be one request eating this host through the one block it is
+//    allowed to touch.
+uint $i = 0;
+while ($i < 100000) {
+    Core\Config::set('limits.memory', '200M');
+    Core\Config::set('limits.hard.memory', '1G');
+    $i = $i + 1;
+}
+Core\Config::restore('limits.memory');
+
+// 6. What survived. The deployment's answer, unchanged by any of the above —
+//    anything else here is a request that moved a limit it does not own.
+echo 'memory:  ', Core\Config::get('limits.memory') ?? '(nothing)', "\n";
+echo 'ceiling: ', Core\Config::get('limits.hard.memory') ?? '(nothing)', "\n";

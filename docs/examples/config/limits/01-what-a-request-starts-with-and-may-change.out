@@ -1,0 +1,11 @@
+memory to start with: 256M
+the ceiling above it: 512M
+ask for less:         accepted
+in force now:         64M
+ask for 400M:         accepted
+ask for 1G:           refused
+in force now:         400M
+raise the ceiling:    refused
+cpu time to start:    (unset — no ceiling was written for it either)
+bound my own cpu:     accepted
+back to the file:     256M
