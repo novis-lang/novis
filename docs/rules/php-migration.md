@@ -3,7 +3,7 @@
 
 # Migrating from PHP
 
-*14 of 20 rules below are **designed** rather than shipped, and are marked where they appear.*
+*13 of 20 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="php-migration-every-divergence-is-deliberate-and-listed"></a>
 
@@ -249,7 +249,7 @@ The diagnostics name the living spellings: `var` declares an inferred local
 
 <a id="php-migration-one-type-test"></a>
 
-## `instanceof` is refused where it is written, `is` is the one type test, and neither keyword is compared with PHP again  *(designed — not yet in the compiler)*
+## `instanceof` is refused where it is written, `is` is the one type test, and neither keyword is compared with PHP again
 
 `rule:php-migration/one-type-test`
 

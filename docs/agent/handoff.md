@@ -2,56 +2,49 @@
 
 ## State
 
-**Goal `one-type-test`: three of stage 7's four checks are green.** The gate's grep returns nothing
-outside its excluded files, the retired rule id is cited nowhere, and `python tools/chain.py --check`
-walks. The one check still red is `docs/rules/php-migration.json:199`, which reads
-`"status": "designed"` where the gate wants `shipped`.
+**Goal `one-type-test` is met.** Stage 7's four checks are green: the gate's `instanceof` grep returns
+nothing outside its exclusions, the retired rule id is cited nowhere, `docs/rules/php-migration.json:199`
+reads `"status": "shipped"`, and `python tools/chain.py --check` walks 1..69. `python tools/verify.py` is
+green (conformance 2060), `--doc` resolves every link, and neither `owners.py --closes one-type-test`
+nor `playbook.py --closes one-type-test` names a gap.
 
-**That flip is gated on a hole in code, not on prose.** `$m is Core\Str` type-checks and dies at
-codegen: `crates/nvs-codegen/src/emit.rs:2676` returns `CodegenError::Unsupported` when this unit
-declares no descriptor for the tested class and `nvs_stdlib::class_has_instances` is false, which is
-every static-only `Core` class. `rule:types/type-test` says an answer the checker can settle folds to
-a constant rather than becoming a failure, and a class no value can hold an instance of is settled:
-the fold belongs in the checker, leaving emit.rs's guard the workspace-bug assertion its own comment
-says it is.
+**The codegen hole is closed in two places, and which one answers is a property of where the class is
+written.** A test whose whole type names only classes nothing is an instance of folds to `false` in the
+checker — `crates/nvs-types/src/expr/members.rs:290` is `names_no_instance`, read through `never_holds`
+at `crates/nvs-types/src/expr/type_test.rs:286`. A `Core` namespace class in a position no fold reaches
+— a union member beside a live one, an array element, a shape field — lowers to `nvs-ir`'s
+never-matching row, so `[] is array<Core\Str>` is `true`, an empty array having no element to fail.
+`rule:types/type-test` states both.
 
-**The word survives on purpose only where the gate excludes it** — the token, the parser and its
-test, the diagnostics table, the reject case, and the four `php-migration` rule files. Everything
-else names the test `is` or cites `rule:php-migration/one-type-test`. Two reader-facing costs, both
-taken deliberately and small enough not to hold the run: `30-php-differences.md`'s keyword list no
-longer carries the PHP word, so a docs search for it lands on the rule chapter instead, and that
-chapter's row for the operator's refusal is worded by description rather than by the literal
-spelling.
+**What still reaches `crates/nvs-codegen/src/emit.rs:2681` is a `catch` clause's label alone**:
+`caught_class_label` reads the written type as source text, so `use Core\Db\RolledBack;` with `catch
+(RolledBack $e)` resolves to a name neither descriptor table holds. That is the only producer left, the
+guard's comment now says so, and the playbook bullet owns the symptom.
+
+**The word is gone from `crates/` and `tests/` outside the refusal's own homes**, test-function names
+included, and the floor rows carried in `docs/agent/loop-goal.toml` name the tests that exist. One of
+them wanted a retired diagnostic: the `holes.py --guarded` row's `want` no longer asks for `E0497`,
+which nothing in the tree has emitted since the subject refusal was deleted.
 
 ## Next group
 
-**Stage 7: the `Core`-class test that dies at codegen, then the status flip** — one file set:
-`crates/nvs-types/src/expr/members.rs`, `crates/nvs-codegen/src/emit.rs`, one conformance case and
-the rule's metadata.
+**Goal `gap-zero`'s own handoff takes over at the switch** (`docs/agent/goals/68-gap-zero.handoff.md`).
+These two are what this tree still owes in the file set this session held — take them only if the run
+stays on this goal:
 
-- [ ] **Fold a test against a `Core` class that can hold no instance to `false` in the checker**,
-      where `rule:types/type-test` puts a settled answer — `crates/nvs-types/src/expr/members.rs:284`
-      is `testable_core_class`, the predicate that already admits exactly the names the two descriptor
-      tables answer to. `$m is Core\Str` is the case that dies today.
-- [ ] **The comment names a function that does not exist** — `crates/nvs-codegen/src/emit.rs:2673`
-      says `expr::members::testable_class_name`; it is `testable_core_class`
-      (`crates/nvs-types/src/expr/members.rs:284`). Rewrite the comment whole, per `AGENTS.md` rule 7.
-- [ ] **A conformance case for the folded answer**, beside `rule:types/type-test`'s own guard
-      `tests/conformance/class/an-is-test-through-an-erased-subject-answers-every-tag.nvst:1`.
-- [ ] **Flip `docs/rules/php-migration.json:199` to `"status": "shipped"`** once the three above are
-      green, then `python tools/rules.py --render` so the chapter carries it. This is stage 7's last
-      red check.
+- [ ] **A `catch` clause's label resolves its `use` alias before it becomes a class name**, so an
+      aliased error class is the ordinary descriptor walk rather than a codegen refusal —
+      `crates/nvs-ir/src/lower/exception.rs:800` is `caught_class_label`, which reads the clause's type
+      as text. `rule:errors/throwable-hierarchy` is what a `catch` may name.
+- [ ] **Decide whether `rule:types/type-test` flips from `designed` to `shipped`** — a claim about the
+      operator's whole surface rather than about this hole, so it wants the table walked row by row
+      first: `docs/rules/types.json:325`.
 
 ## Backlog
 
-- `docs/decisions/0192.md` and `docs/agent/goals/*one-type-test*` spell the refused word and sit
-  outside the gate's paths on purpose: a record is frozen rationale (`AGENTS.md` § *Where to look*).
-- If a migrant searching the reference for the PHP word matters more than the gate reaching
-  `docs/reference`, the alternative is that one path in the exclusion list at
-  `docs/agent/loop-goal.toml:11626` — a user call, not a session's.
-- `docs/agent/loop-goal.toml:9618` is a carried floor check whose `want` still lists `E0497`, a code
-  now retired from `crates/`; it passes today, so nothing is owed until it does not.
-- `crates/nvs-cli/src/serve.rs:3913` fails under `cargo test`'s side-by-side binaries and passes
-  alone: the sequence it reads opens with a stray `STOPPING=1`, which is the shared-state class
-  `tools/verify.py` § *Why `test` runs its binaries side by side* describes. Nothing in this
-  session's docs-only diff reaches it; it needs its own socket path rather than a fixed one.
+- `rule:types/type-test` is still `designed` while the divergence rule it is cited from is shipped —
+  `docs/rules/types.json:325`.
+- The `use`-alias `catch` label is a codegen refusal — `docs/agent/playbook.md:4258` holds the symptom,
+  `crates/nvs-ir/src/lower/exception.rs:800` the cause.
+- `docs/adr/README.md` still spells the removed keyword in its frozen prose, which is history rather
+  than a rule — `docs/agent/loop-goal.md`'s gate excludes it on purpose.

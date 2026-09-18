@@ -328,7 +328,10 @@
       "because": ["0150", "0192"],
       "divergesFromPhp": "`int` and `uint` are separate tags, so a `BIGINT UNSIGNED` value answers `is uint` and not `is int` where `is_int()` was true for both, and `string` and `bytes` are separate the same way; `is 3.14` is refused outright, there being no float literal type",
       "seeAlso": ["types/narrowing", "types/conversion", "types/unions-and-mixed", "types/literal-types", "types/class-reference-sites", "php-migration/one-type-test"],
-      "guardedBy": ["tests/conformance/class/an-is-test-through-an-erased-subject-answers-every-tag.nvst"]
+      "guardedBy": [
+        "tests/conformance/class/an-is-test-through-an-erased-subject-answers-every-tag.nvst",
+        "tests/conformance/class/an-is-test-against-a-core-namespace-class-answers-false.nvst"
+      ]
     },
     {
       "id": "types/narrowing",

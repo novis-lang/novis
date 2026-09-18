@@ -196,7 +196,7 @@
     {
       "id": "php-migration/one-type-test",
       "title": "`instanceof` is refused where it is written, `is` is the one type test, and neither keyword is compared with PHP again",
-      "status": "designed",
+      "status": "shipped",
       "because": [
         "0192"
       ],
@@ -208,7 +208,9 @@
         "php-migration/let-and-is-are-reserved",
         "php-migration/every-divergence-is-deliberate-and-listed"
       ],
-      "guardedBy": []
+      "guardedBy": [
+        "tests/conformance/reject/instanceof-is-spelled-is.nvst"
+      ]
     },
     {
       "id": "php-migration/a-deprecation-is-a-refusal",

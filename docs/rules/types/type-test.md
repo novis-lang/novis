@@ -71,6 +71,12 @@ Nothing else is refused. In particular a test whose answer the declaration alrea
 `int $n; $n is Request` compiles and is `false` like the rest. `is` is applicable to every subject,
 because every value has a representation, and a knowable answer is not a meaningless question.
 
+A target nothing is ever an instance of settles the same way. A `Core` **namespace** class is a name
+for static members alone, so `$x is Core\Str` is `false` for every subject and every spelling that
+reaches one: a member of an intersection settles the whole test, while a union answers on its live
+members — `$x is int|Core\Str` is the `int` row. Deeper, the answer belongs to the position rather
+than to the test, so `[] is array<Core\Str>` is `true`, an empty array having no element to fail.
+
 Narrowing is the second reason. Once `is` narrows, a guard written inside an already-narrowed branch
 is statically true by construction, and refusing that would let a flow analysis turn working code into
 a compile error.
