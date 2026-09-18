@@ -1,0 +1,22 @@
+<?nvs
+// Nothing inside a sealed message says which construction wrote it. Open it
+// under the other case and it is refused the way an altered message is, so the
+// program that seals something is the one that has to remember the case.
+
+secret bytes $key = Core\Crypto::generateKey();
+bytes $sealed = Core\Crypto::seal("card ending 4242" as bytes, $key, Core\Crypto\Cipher::Aes256Gcm);
+
+try {
+    bytes $opened = Core\Crypto::open($sealed, $key, Core\Crypto\Cipher::XChaCha20Poly1305);
+    echo "opened under the other case", "\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+// The sentence is the same one a wrong key earns, and that is deliberate: a
+// caller who could tell the two apart would learn which half of a forgery
+// attempt had landed.
+echo Core\Encoding::decodeText(
+    Core\Crypto::open($sealed, $key, Core\Crypto\Cipher::Aes256Gcm),
+    Core\Charset::Utf8
+), "\n";

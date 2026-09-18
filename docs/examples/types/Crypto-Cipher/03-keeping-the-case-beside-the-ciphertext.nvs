@@ -1,0 +1,37 @@
+<?nvs
+// A store keeps the case beside each row it seals. Values a browser has to
+// read are sealed under the interop case; everything else takes the wider
+// nonce. Because the case is stored, a row sealed today still opens after the
+// program starts sealing new rows under the other one.
+
+class Vault {
+    // The one place the program picks a case. If that choice ever moves, this
+    // is the line that moves.
+    public static function cipherFor(string $reader): Core\Crypto\Cipher {
+        return $reader == "browser"
+            ? Core\Crypto\Cipher::Aes256Gcm
+            : Core\Crypto\Cipher::XChaCha20Poly1305;
+    }
+}
+
+secret bytes $key = Core\Crypto::generateKey();
+
+array<string> $readers = ["browser", "job runner", "browser"];
+array<string> $values = ["session=a41f", "retry after 30s", "cart holds 8 items"];
+
+array<bytes> $bodies = [];
+array<Core\Crypto\Cipher> $cases = [];
+foreach (Core\Arr::range(0, 2) as int $row) {
+    Core\Crypto\Cipher $cipher = Vault::cipherFor($readers[$row]);
+    $bodies[] = Core\Crypto::seal($values[$row] as bytes, $key, $cipher);
+    $cases[] = $cipher;
+}
+
+// Reading them back, in another process and with nothing to guess: the row
+// says which case opens it.
+foreach (Core\Arr::range(0, 2) as int $row) {
+    echo $readers[$row], " -> ", Core\Encoding::decodeText(
+        Core\Crypto::open($bodies[$row], $key, $cases[$row]),
+        Core\Charset::Utf8
+    ), "\n";
+}

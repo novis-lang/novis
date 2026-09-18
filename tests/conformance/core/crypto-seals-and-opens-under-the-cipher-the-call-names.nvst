@@ -2,6 +2,8 @@
 Core\Crypto::generateKey, ::seal and ::open round-trip under the cipher the call names, with no mode, padding or nonce argument, and a fresh nonce makes two seals of one message differ — `rule:core-api/tier-roster`, `rule:core-api/shape-rules`
 --FILE--
 <?nvs
+// covers: Core\Crypto\Cipher
+//
 // `openssl_encrypt($data, "aes-256-cbc", $key, 0, $iv)` names its primitive in
 // a string and its nonce at the call site, which is how a program ends up with
 // a mode chosen by whichever line was copied last. The cipher here is a case of

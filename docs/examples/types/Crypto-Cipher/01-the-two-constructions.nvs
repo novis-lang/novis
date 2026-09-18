@@ -1,0 +1,27 @@
+<?nvs
+// Sealing a message says which of the two constructions it is under. There is
+// no default and no mode string to get wrong, and both cases authenticate, so
+// the choice is about who has to read the message rather than about safety.
+
+secret bytes $key = Core\Crypto::generateKey();
+bytes $note = "ship the order on friday" as bytes;
+
+bytes $fast = Core\Crypto::seal($note, $key, Core\Crypto\Cipher::XChaCha20Poly1305);
+bytes $interop = Core\Crypto::seal($note, $key, Core\Crypto\Cipher::Aes256Gcm);
+
+// What differs on the wire is the size, because each construction carries its
+// own nonce in front of the message: 24 octets for the first and 12 for the
+// second, and a 16-octet tag after the body in both.
+echo "message ", Core\Bytes::length($note), " octets", "\n";
+echo "XChaCha20Poly1305 ", Core\Bytes::length($fast), " octets", "\n";
+echo "Aes256Gcm ", Core\Bytes::length($interop), " octets", "\n";
+
+// Opening names the same case again, and answers the note back.
+echo Core\Encoding::decodeText(
+    Core\Crypto::open($fast, $key, Core\Crypto\Cipher::XChaCha20Poly1305),
+    Core\Charset::Utf8
+), "\n";
+echo Core\Encoding::decodeText(
+    Core\Crypto::open($interop, $key, Core\Crypto\Cipher::Aes256Gcm),
+    Core\Charset::Utf8
+), "\n";
