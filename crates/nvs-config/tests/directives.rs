@@ -1098,6 +1098,133 @@ fn the_one_http_row_answers_for_a_response_and_its_exceptions_are_shared_or_secr
     );
 }
 
+/// `rule:security/csrf-is-on-by-default`'s key, read against the block it is carved out of: the door
+/// verifies *every* request's token against this one value, so a request that could write it would be
+/// choosing which forgeries its co-residents accept, and one that could clear it would be turning the
+/// token half of the check off for all of them.
+///
+/// **The contrast is one segment wide**, which is why the case asserts both sides of it. `[http]` is
+/// the block a request may write — a handler that wanted another policy could write the header itself
+/// — so a lookup that failed to reach this row would not fail loudly. It would land on the blanket
+/// and quietly answer `Runtime` for the key the whole check rests on.
+///
+/// **`Reload` rather than `Boot`** because the door reads the standing tree per request, so a rotated
+/// key governs the next request. The pair is asserted together with the class for
+/// `rule:config/reloadability-is-its-own-field`'s reason: `Boot` here would read as the cautious
+/// answer for a secret and would mean a deployment that rotated a leaked key went on accepting
+/// tokens minted under it until somebody restarted the server.
+// covers: directive:http.csrf_key
+#[test]
+fn the_door_key_is_carved_out_of_a_block_a_request_may_otherwise_write() {
+    let row = governing("http.csrf_key");
+    assert_eq!(
+        (row.key, row.class, row.apply),
+        ("http.csrf_key", Class::System, Apply::Reload),
+        "`http.csrf_key` resolves through `{}` to {:?}/{:?}, and each half of that would be wrong its \
+         own way: `Runtime` hands a request the key every other request is checked against, and \
+         `Boot` leaves a rotated key out of force until a restart",
+        row.key,
+        row.class,
+        row.apply,
+    );
+    assert!(
+        !row.class.settable_by_a_request(),
+        "`Core\\Config::set(\"http.csrf_key\", …)` has to refuse, in both directions: naming a key \
+         mints tokens the door believes and clearing one disarms the check for every co-resident \
+         request",
+    );
+
+    // The blanket the row is carved out of, asserted beside it because the two answers are one
+    // segment apart and the near miss lands on this one rather than on nothing.
+    let blanket = governing("http.cookies.samesite");
+    assert_eq!(
+        (blanket.key, blanket.class),
+        ("http", Class::Runtime),
+        "the block the key sits in is the request's own, so the carve-out is the whole of what keeps \
+         it out of reach — a lookup that missed it would answer {:?} instead of failing",
+        blanket.class,
+    );
+    assert!(
+        blanket.class.settable_by_a_request(),
+        "`[http]` is settable by design (`rule:config/three-changeability-classes`), which is what \
+         makes the row above load-bearing rather than a restatement",
+    );
+
+    // A key written *beneath* the carve-out stays inside it, and a key that merely begins with its
+    // text does not: a prefix here is segments, so `http.csrf_keyx` is the blanket's and no spelling
+    // of the door's key is ever answered twice.
+    for beneath in ["http.csrf_key.value", "http.csrf_key.0"] {
+        assert_eq!(
+            governing(beneath).key,
+            "http.csrf_key",
+            "`{beneath}` has to resolve through the carve-out, or a request would write the key by \
+             writing something underneath it",
+        );
+    }
+    assert_eq!(
+        governing("http.csrf_keyx").key,
+        "http",
+        "a longer text is not a longer prefix, so the carve-out covers exactly the key it names — a \
+         registry matching on text would take keys out of `[http]` that nobody decided about",
+    );
+}
+
+/// The `_file` spelling of the key above, and the one thing this case exists to pin: two spellings of
+/// one value answer the same way. `rule:config/a-secret-is-a-file-whose-content-is-the-value` makes
+/// the file half the spelling an audited deployment writes, and exactly one of the pair may be set —
+/// so a registry that answered `Runtime` for this one would hand a request the door's key through the
+/// half an operator was told to prefer.
+///
+/// It carries a **row of its own** rather than inheriting the inline one's, because a prefix is
+/// segments and not text: `http.csrf_key_file` is not beneath `http.csrf_key`, and without the row it
+/// would fall through to the `[http]` blanket. The sweep at the end is over every `_file` row the
+/// registry holds rather than this one alone, so a credential that gains a file half later answers as
+/// its inline half in the commit that adds it. A secret in an operator-named block — `db.main.password`
+/// — is governed by that block's row and audited in `tests/secret.rs`, which is why this sweep is
+/// over the registry and not over the secret table.
+// covers: directive:http.csrf_key_file
+#[test]
+fn the_file_half_of_the_door_key_answers_exactly_as_the_inline_half_does() {
+    let inline = governing("http.csrf_key");
+    let file = governing("http.csrf_key_file");
+    assert_eq!(
+        (file.key, file.class, file.apply),
+        ("http.csrf_key_file", Class::System, Apply::Reload),
+        "`http.csrf_key_file` resolves through `{}`, and a row of its own is what it needs: the \
+         inline key is not a prefix of it, so nothing else would keep it out of `[http]`",
+        file.key,
+    );
+
+    let mut siblings: Vec<(&str, Class, Apply)> = DIRECTIVES
+        .iter()
+        .filter(|row| row.key.ends_with("_file"))
+        .map(|row| (row.key, row.class, row.apply))
+        .collect();
+    siblings.sort_unstable_by_key(|(key, _, _)| *key);
+    assert_eq!(
+        siblings,
+        [("http.csrf_key_file", Class::System, Apply::Reload)],
+        "a `_file` row added to the registry joins this census in the commit that adds it, and the \
+         one it has to match is its own inline half",
+    );
+    for (key, class, apply) in siblings {
+        let stem = governing(key.trim_end_matches("_file"));
+        assert_eq!(
+            (class, apply),
+            (stem.class, stem.apply),
+            "`{key}` and `{}` are two spellings of one value, so a difference here is a second \
+             answer to who may write it — and the file half is the one an audited deployment was \
+             told to use",
+            stem.key,
+        );
+    }
+    assert!(
+        !file.class.settable_by_a_request() && !inline.class.settable_by_a_request(),
+        "neither spelling is a request's, and asserting the pair together is the point: one of them \
+         settable is the whole refusal gone",
+    );
+}
+
 /// `rule:http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`'s first cap, read
 /// for its **ground** rather than for its class: the pool is per core, so the count bounds a core's
 /// memory and not a request's, and that is the only reason it is not the blanket row's.
@@ -1257,6 +1384,74 @@ fn the_pools_timeout_is_its_own_row_and_not_the_counts_suffix() {
         "the count takes no suffix at all, so neither cap can be written in the other's spelling — \
          a pair that shared a spelling would let an operator set a window where they meant a \
          number of connections and read back a bound nobody wrote",
+    );
+}
+
+/// `rule:security/one-tls-client`: there is one TLS client in the process and `[http.client.tls]` is
+/// what settles it, so every key of the block is `System` — a request writing one would be choosing
+/// whose certificates every co-resident request believes.
+///
+/// **`Boot` is the half no other row under `[http.client]` answers**, and it is what this case is
+/// worth a place for. The configuration object those three keys describe is built once on first use
+/// and handed out by `Arc` after it (`nvs_host::tls`), so a snapshot arriving with a changed anchor
+/// set has nothing to apply it to: an operator who edits the block and reloads would be told the
+/// change landed while every call went on believing the old list. The census over the whole of
+/// `[http.client]` is here rather than a second assertion on the block already named, because a row
+/// added there inherits `Reload` from the blanket without anybody deciding it should.
+///
+/// The keys are read back out of the block rather than listed, so one added to `[http.client.tls]`
+/// joins this census in the commit that adds it — and `keylog` is in it, which matters: the file it
+/// names decrypts everything this deployment sends, and `Runtime` for that one key would put the
+/// whole of it inside a request's reach.
+// covers: directive:http.client.tls
+#[test]
+fn every_key_of_the_tls_block_is_the_deployments_and_waits_for_a_restart() {
+    let keys = keys_in("http.client.tls");
+    assert_eq!(
+        keys.iter().map(String::as_str).collect::<Vec<_>>(),
+        ["roots", "min_version", "keylog"],
+        "a key added to `[http.client.tls]` joins this census in the commit that adds it, and all \
+         three of these describe the one client the process shares rather than one call",
+    );
+
+    let mut asked = vec!["http.client.tls".to_string()];
+    asked.extend(keys.iter().map(|key| format!("http.client.tls.{key}")));
+    for key in asked {
+        let row = governing(&key);
+        assert_eq!(
+            (row.key, row.class, row.apply),
+            ("http.client.tls", Class::System, Apply::Boot),
+            "`{key}` resolves through `{}` to {:?}/{:?}, and one of those two being wrong is a \
+             different failure: `Runtime` would hand a request the trust list, and `Reload` would \
+             report a reloaded anchor set that no call is using",
+            row.key,
+            row.class,
+            row.apply,
+        );
+        assert!(
+            !row.class.settable_by_a_request(),
+            "`Core\\Config::set(\"{key}\", …)` has to refuse, and there is no code-side spelling to \
+             refuse it in favour of: `rule:security/one-tls-client` leaves whose certificates are \
+             believed to the deployment alone",
+        );
+    }
+
+    // Every row carved under `[http.client]`, filtered to the ones a change cannot reach without a
+    // restart. Asserted over the block rather than over this one row, because `Boot` here is not the
+    // consistent answer for its neighbours — the proxy is `System` and reaches the next call — so a
+    // row added beside it takes `Reload` from the blanket unless somebody decided otherwise.
+    let mut boot: Vec<&str> = DIRECTIVES
+        .iter()
+        .filter(|row| row.key.starts_with("http.client") && row.apply == Apply::Boot)
+        .map(|row| row.key)
+        .collect();
+    boot.sort_unstable();
+    assert_eq!(
+        boot,
+        ["http.client.tls"],
+        "of the rows carved under `[http.client]`, this is the only one an operator cannot change \
+         without restarting — a second one arriving here is a key whose new value a reload would \
+         report and no outbound call would use",
     );
 }
 

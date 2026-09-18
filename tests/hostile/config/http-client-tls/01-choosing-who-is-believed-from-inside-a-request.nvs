@@ -1,0 +1,120 @@
+<?nvs
+// Attack: this block settles the one TLS client the whole process shares, so a
+// request that could write any of its three keys would be choosing whose
+// certificates every co-resident request believes. Nothing here is supposed to
+// be accepted, and the attack is every route to an acceptance: the keys
+// themselves, the spellings that are one character off one of them, the block
+// reached through the neighbour a request *may* write, and a mode flipped first
+// so the boot-time refusal would have nothing left to refuse.
+// hostile: timeout-ms 30000
+
+// 1. The trust list, written every way a list can be written. An accepted one
+//    naming only the attacker's file is a host that believes one certificate
+//    authority, and an accepted empty one is a host whose outbound calls all
+//    fail — either way the deployment's decision was made by a request.
+array<string> $roots = [
+    '["/tmp/attacker.pem"]',
+    '[]',
+    '',
+    'bundled',
+    '["bundled", "/tmp/attacker.pem"]',
+    '/tmp/attacker.pem',
+    "[\"bundled\"]\u{0000}[\"/tmp/attacker.pem\"]",
+    "[\"bundled\"]\r\nkeylog = \"/tmp/keys.log\"",
+    'null',
+    'false',
+    '["' . Core\Str::repeat('../', 20000) . 'tmp/attacker.pem"]',
+    Core\Str::repeat('["/tmp/a.pem"]', 50000),
+];
+foreach ($roots as string $value) {
+    Core\Config::set('http.client.tls.roots', $value);
+    Core\Config::get('http.client.tls.roots');
+}
+Core\Config::restore('http.client.tls.roots');
+
+// 2. The version floor, dragged downwards. The two versions beneath the floor
+//    are the ones this client does not implement at all, so an accepted `1.0`
+//    would be a file saying one thing and a handshake doing another.
+array<string> $versions = [
+    '1.0',
+    '1.1',
+    'ssl3',
+    '0',
+    '',
+    '1.2 ',
+    '1,2',
+    '1.3.0',
+    '-1.3',
+    Core\Str::repeat('1', 100000) . '.2',
+];
+foreach ($versions as string $value) {
+    Core\Config::set('http.client.tls.min_version', $value);
+    Core\Config::get('http.client.tls.min_version');
+}
+Core\Config::restore('http.client.tls.min_version');
+
+// 3. The secrets file. This one is worth the most to an attacker who already
+//    runs code here: a path that is accepted writes out the keys that decrypt
+//    every outbound byte this host sends, and a path it cannot write to is a
+//    second question asked after the first was answered wrongly.
+array<string> $keylogs = [
+    '/tmp/keys.log',
+    'keys.log',
+    '.',
+    '/dev/stdout',
+    '\\\\attacker.test\\share\\keys.log',
+    'C:\\Windows\\System32\\config\\keys.log',
+    "keys.log\u{0000}",
+    Core\Str::repeat('a/', 50000) . 'keys.log',
+];
+foreach ($keylogs as string $value) {
+    Core\Config::set('http.client.tls.keylog', $value);
+    Core\Config::get('http.client.tls.keylog');
+}
+Core\Config::restore('http.client.tls.keylog');
+
+// 4. The mode flipped first. A program may move itself out of `production`, and
+//    `production` is what refuses a `keylog` at boot — so the interesting order
+//    is flip, then write, then ask. The class is what refuses this, not the
+//    mode, and a version of it that leaned on the mode would be openable here.
+Core\Config::set('mode.default', 'development');
+Core\Config::set('http.client.tls.keylog', '/tmp/keys.log');
+Core\Config::get('http.client.tls.keylog');
+Core\Config::restore('mode.default');
+
+// 5. Spellings one character off a real key, and the block reached sideways
+//    through `[http.client.socket]` — the one block under `[http.client]` a
+//    request may write. A near miss that resolves is how a settable block
+//    becomes a way to write the three beside it.
+array<string> $keys = [
+    'http.client.tls',
+    'http.client.tls.',
+    'http.client..tls.roots',
+    'http.client.tls.roots.0',
+    'HTTP.CLIENT.TLS.ROOTS',
+    'Http.Client.Tls.Keylog',
+    'http.client.tlsx.roots',
+    'http.client.socket.tls.roots',
+    'http.client.socket.max_message.tls.keylog',
+    'http.client.tls.roots.' . Core\Str::repeat('sub.', 20000) . 'off',
+    'tls.roots',
+    'roots',
+];
+foreach ($keys as string $key) {
+    Core\Config::set($key, '["/tmp/attacker.pem"]');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 6. A hundred thousand refused writes with no restore between them. Every one
+//    of them is refused, so what is being asked is that a refusal costs nothing
+//    that accumulates: a request that can grow the overlay by being told `no`
+//    has found a way to spend this host's memory without being allowed to
+//    change a thing.
+uint $i = 0;
+while ($i < 100000) {
+    Core\Config::set('http.client.tls.roots', '["/tmp/attacker.pem"]');
+    Core\Config::set('http.client.tls.keylog', '/tmp/keys.log');
+    $i = $i + 1;
+}
+echo Core\Config::get('http.client.tls.min_version') ?? '(nothing)', "\n";

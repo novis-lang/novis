@@ -495,6 +495,13 @@ max_concurrent = 256
 # the website's pages for the pair, and a page whose example prints `(nothing)` on the one line the
 # whole page is about teaches nothing about the memory an operator sizes a host with.
 #
+# `[http.client.tls] min_version` is written for the same reason and at the floor the client already
+# speaks, so `docs/examples/config/http-client-tls/` prints a version rather than nothing. Its two
+# siblings stay out: an unset `roots` is the compiled-in Mozilla set, which is what this checkout
+# trusts, and a list-valued key reads back as absent through `Core\Config::get` in any case
+# (`nvs_config::request`'s `get`), while a `keylog` writes out the secrets that decrypt everything
+# this deployment sends.
+#
 # The rest of `[http.client]` stays unwritten on purpose, and each half for its own reason.
 # `connect_timeout`, `deadline`, `idle`, `max_duration` and `max_redirects` are bounds over the one
 # call a request is making, which a program names at the call site instead. `[http.client.socket]` is
@@ -506,3 +513,6 @@ max_concurrent = 256
 [http.client]
 pool_idle = 16
 pool_idle_timeout = "30s"
+
+[http.client.tls]
+min_version = "1.2"

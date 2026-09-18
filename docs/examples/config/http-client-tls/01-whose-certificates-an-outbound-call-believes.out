@@ -1,0 +1,8 @@
+oldest version:   1.2
+secrets written:  (nothing, so none)
+trust anchors:    (nothing, so the shipped set)
+trust one more:   no
+speak older TLS:  no
+write secrets:    no
+still in force:   1.2
+hold less:        yes
