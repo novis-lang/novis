@@ -1,0 +1,84 @@
+<?nvs
+// Attack: the destination the engine's own floor writes to, moved by the program
+// the floor is about to write about. Every spelling that might reach the key from
+// a block nobody guarded, every value a filesystem might open differently from
+// the grammar that resolved it, and then a real failure at the end — a record
+// that still arrives after all of this is the only evidence that none of it
+// landed.
+// hostile: timeout-ms 20000
+
+// 1. Every other name for the same destination, including the per-application
+//    copy of the block and the two keys beside it that shape the same record.
+array<string> $names = [
+    'log.target',
+    'target',
+    'LOG.TARGET',
+    'Log.Target',
+    'log..target',
+    '.log.target',
+    'log.target.',
+    'log.target.path',
+    'log.target.file',
+    'app.log.target',
+    'app.0.log.target',
+    'app.1.log.target',
+    "log.target\u{0000}",
+    "log.level\u{0000}log.target",
+    'log.level/../target',
+    'log.' . Core\Str::repeat('sub.', 20000) . 'target',
+];
+foreach ($names as string $key) {
+    Core\Config::set($key, 'file:/dev/null');
+    Core\Config::set($key, 'stderr');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 2. Every shape of destination under the real name. The interesting ones are
+//    not the silly ones: a floor pointed at a device, at a directory, at a path
+//    outside every granted root, or at a name that is two different paths
+//    depending on who reads it, is a failure report nobody ever sees — and
+//    `file:` with nothing behind it is the shape a half-finished edit leaves.
+array<string> $destinations = [
+    '',
+    ' ',
+    'file:',
+    'file: ',
+    'stdout',
+    'STDERR',
+    'syslog ',
+    'file:.',
+    'file:..',
+    'file:/',
+    'file:C:\\',
+    'file:nul',
+    'file:/dev/null',
+    'file:/dev/full',
+    'file:\\\\?\\C:\\Windows\\System32\\drivers\\etc\\hosts',
+    'file:../../../../etc/passwd',
+    "file:/tmp/nvs.log\u{0000}.txt",
+    'file:https://example.test/records',
+    'file:' . Core\Str::repeat('a/', 16384) . 'nvs.log',
+    'file:' . Core\Str::repeat('x', 1048576),
+];
+foreach ($destinations as string $destination) {
+    Core\Config::set('log.target', $destination);
+    Core\Config::set('log.format', 'html');
+    Core\Config::set('log.level', 'Critical');
+}
+Core\Config::restore('log.target');
+Core\Config::restore('log.format');
+Core\Config::restore('log.level');
+
+echo 'writing to: ', Core\Config::get('log.target') ?? '(nothing written)', "\n";
+
+// 3. The rung above the floor, arranged to fail in turn, so the failure below
+//    reaches the floor rather than stopping at a handler this program wrote.
+Core\Fatal::onLimit(fn (): void => {
+    throw new RuntimeError('the handler this program arranged threw as well');
+});
+
+// 4. And a real failure, carrying a message large enough that the record itself
+//    is the load. Nothing here is caught: what the case asserts is that the
+//    runtime reports it and stays standing, wherever the record ends up.
+throw new RuntimeError(Core\Str::repeat('the destination is not mine to move. ', 65536));

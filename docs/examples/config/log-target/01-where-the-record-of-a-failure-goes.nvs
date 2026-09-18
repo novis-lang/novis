@@ -1,0 +1,20 @@
+<?nvs
+// `[log] target` names where the engine writes the record of a failure once the
+// program's own last words, and the script the deployment named, are both gone.
+
+echo 'records go to: ', Core\Config::get('log.target') ?? '(nothing written — stderr, which is the floor default)', "\n";
+
+// Three spellings name a destination, and a program reaches none of them. Where
+// the report of a failure is written is not the failing program's choice: one
+// that could move it could move it somewhere nobody reads.
+array<string> $destinations = ['stderr', 'file:/var/log/nvs.log', 'syslog'];
+foreach ($destinations as string $destination) {
+    echo 'send them to ', $destination, ': ', Core\Config::set('log.target', $destination) ? 'accepted' : 'refused', "\n";
+}
+
+// What the same block does leave to the program is the shape of its records and
+// how much of them is kept. The rendering and the level move for one run; the
+// destination stays where the deployment put it.
+echo 'trace this one run: ', Core\Config::set('log.level', 'Debug') ? 'accepted' : 'refused', "\n";
+Core\Config::restore('log.level');
+echo 'destination now: ', Core\Config::get('log.target') ?? '(nothing written — still stderr)', "\n";
