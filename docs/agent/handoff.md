@@ -2,58 +2,42 @@
 
 ## State
 
-**Goal `dossier` — queue the dossier — has just started; nothing of it has landed yet.** Goal `gap-zero`'s
-whole acceptance list, which carries every goal before it, is this goal's floor. There is no design to settle: `rule:testing/four-proofs` decided the four proofs (the goal prose links
-it; a handoff is copied to `docs/agent/` and its relative links would break),
-`tools/dossier.py` derives the roster from `nvs meta --json`, and
-`--emit-goals` puts the goals it writes onto the end of the chain the driver is walking. The last dry run
-before this goal was reached said **1,069 features, four of them complete, 92 goals over 1,065 owed** —
-read the numbers off your own run rather than trusting those.
+**Goal `dossier` is met.** `python tools/dossier.py --emit-goals` wrote **100 goals over 1,132 owed
+features** into `docs/agent/goals/dossier/`, appended as goals 72–171 with `ci-green` renumbered to
+172 behind them; the chain is 172 goals and `chain.py --check`, `plan.py --check` and
+`dossier.py --check-goals` are all green, as is the `--dry-run` that says the chain already names
+every one of them. Stage 3's report is `.loop/optimization/report.md` (gitignored, so it is the only
+copy). `verify.py`: 13 of 13 green.
+
+Stage 3 found one real defect and fixed it: `calibrate()` clamped a failed calibration to one
+picosecond instead of refusing it, and appended a `units` figure of 1.1e11 to the append-only
+ledger. It fires exactly where this program will run — a machine the driver itself is loading — and
+would have done so ~830 times.
+
+The per-feature estimate the fan-out rests on was priced by hand, as § *Standing decisions*
+permits: **~20 calls, against the estimated 16**. That scales both legs alike, so `FANOUT_WORKERS`
+stays at 8 and `--per-goal` at 18; it moves the schedule, not the constants.
 
 ## Next group
 
-**The whole goal is one group** — one file set, `tools/dossier.py` and `docs/agent/goals/`. Stage 2 is
-the emission and takes minutes; **stage 3 is the goal** — an optimization pass run at the one moment it
-has leverage, with the 92 generated files in front of you and none of them walked yet. Do not stop after
-stage 2 with headroom left.
+**Stage 3: the loop is ready** — one file set, `tools/dossier.py` and `docs/agent/goals/dossier/`.
+Nothing here is open; these are the two items a retry would take if the DONE sweep comes back red.
 
-- [ ] **`cargo build --release -p nvs-cli`**, then `python tools/dossier.py --emit-goals`. It prints what
-      it wrote and the goal range it appended.
-- [ ] **Read three or four of the generated `.toml`s** — one `Core` class, one `lang:` chapter, one
-      `tools:` chapter. The three things to check are in `71-dossier.md`'s item list: the `[context]`
-      manifest matches real modules, the `--group` argument spells the group the way `dossier.py` does,
-      and the batch is a file set rather than an alphabetical run.
-- [ ] **Any fix goes in `goal_toml()` / `goal_prose()` in `tools/dossier.py`**, then re-emit. A hand-edit
-      to a generated file is lost at the next emission.
-- [ ] **Two commits**: the generator fix, if there was one, and the generated tree.
-- [ ] **Then stage 3**, which the goal prose owns in full. Four findings are already named there and
-      measured — every goal's `[context] modules` resolving, the `--scaffold` question
-      (answered: no, with the figure), what the growing floor actually costs, and the fan-out's width —
-      plus whatever those four did not name. `python tools/dossier.py --check-goals` is the one
-      mechanical gate; the rest of the stage lands in `.loop/optimization/report.md`, and its
-      *Proposals* section is the valuable half.
-- [ ] **The fan-out is already built and every emitted goal already drives it.** `dossier.py
-      --partition --group G` writes the worker briefs, `--brief` prints one, `--findings` collates what
-      they hit for one batch fix. Read `tools/dossier.py` § *Running one group's features at once*
-      before stage 3 — the width is the one number in it that is still an estimate, and this session is
-      where it stops being one.
+- [ ] **If a generated goal's check is red, the fix is in the emitter, never the file** —
+      `tools/dossier.py:2282` (`goal_toml`) and `tools/dossier.py:2278` (`goal_prose`), then
+      re-emit. A hand-edit under `docs/agent/goals/dossier/` is lost at the next emission and the
+      header of every generated file says so. `rule:testing/roster-is-derived`.
+- [ ] **If `--record-perf` refuses with "the calibration did not measure anything", the machine is
+      busy and that is the guard working** — `tools/dossier.py:1244`, bound at
+      `tools/dossier.py:333`. Re-run it idle; on this machine an idle unit reads 3.3 ns/iteration.
+      `rule:testing/member-perf-ledger`.
 
 ## Backlog
-
-- When this goal's checks go green the driver refreshes the chain and walks into the first emitted
-  dossier goal — the one directly after this one — without a restart. `Chain.refresh()` in
-  `tools/loop.py` is that half; if the console does not print `chain: docs/agent/goals/ is N goal(s)
-  where it was M` after `GOAL REACHED`, that is the thing to look at, not the emitter.
-- The proofs themselves start at the goal after this one and belong to no session of it. The one
-  exception is
-  stage 3: writing a single example and a single attack to feel the shape is a measurement, and it
-  belongs in the report rather than in a commit.
-- The emission is idempotent by slug and by claim: `--emit-goals --dry-run` says *nothing appended*
-  while every owed feature is some generated goal's `--group` or `--only`, and that check rides in the
-  floor of every generated goal after this one. It says *would append* — and the run halts on it — the
-  day a feature lands that no goal on disk claims: a new member of a class split by `--only`, or a
-  whole new group. The fix is one `python tools/dossier.py --emit-goals`; it appends one goal and the
-  driver walks into it without a restart.
-- A member whose implementing file moves owes its perf figure again. That shows first as its group's
-  own floor check failing, and `--record-perf --group G` is the fix; until it lands, the dry-run check
-  names the same feature.
+- The generated pack is 38,168 B against this goal's 25,182 B; the traps section is 4,515 B of
+  lead-ins nobody promotes — `.loop/optimization/report.md` § *Proposals* 1.
+- 181 floor checks are 181 process launches at 1.48s each; `--verify` taking several `--group`
+  values would make it 100 — same file, *Proposals* 2.
+- The four-proofs shape does not warn that a conversion is `expr as T` and nothing else; three of
+  my ~20 calls were that — `docs/agent/conventions.md` § *A feature's four proofs*, *Proposals* 3.
+- `.loop/logs/` holds 4 sessions, so the 68-session base of `FANOUT_WORKERS`' derivation and the
+  28% `writing` share are no longer re-derivable — same file, *Blocked*.

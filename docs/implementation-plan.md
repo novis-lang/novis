@@ -44,10 +44,13 @@
 >
 > **Open now:** **[the goals directory](agent/goals/) is the list of what is open**, in the order
 > the loop walks it, and `python tools/brief.py` prints where it currently stands — this field
-> restates neither. A goal switch carries a closed goal's `[[check]]` blocks forward as the live
-> goal's floor, so what is closed is what passes today: the parity program's six goals and every
-> goal after them the chain has already walked. What a crate still owes is its own module doc's `#
-> Known gaps`; the corpus and bench figures are `python tools/disk.py`'s and the perf notes'.
+> restates neither. Most of what is open is now generated: `docs/agent/goals/dossier/` holds one
+> goal per group of features owing `rule:testing/four-proofs`'s artefacts, written by `python
+> tools/dossier.py --emit-goals` and re-emitted rather than hand-edited. A goal switch carries a
+> closed goal's `[[check]]` blocks forward as the live goal's floor, so what is closed is what
+> passes today: the parity program's six goals and every goal after them the chain has already
+> walked. What a crate still owes is its own module doc's `# Known gaps`; the corpus and bench
+> figures are `python tools/disk.py`'s and the perf notes'.
 >
 > **Blocking:** Nothing holds the run. One thing waits on the user and gates only the chain's last
 > goal: GitHub starts no CI job while the account's payments fail, and goal `ci-green` needs `main`

@@ -3121,6 +3121,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   names 4x on a commit that prints 13.2x once the box is idle. Build it with `--no-run` first and
   run the filter as a second call, and never read one red cost margin as a regression before that.
   [until: gone crates/nvs-cli/build.rs:.git/index]
+- **`--bless` echoes a non-ASCII expected output as `?` on a Windows console, under a line telling
+  you to read what it wrote.** Blessing an example that prints `ü` showed `?` while writing the
+  correct `303 274` to the `.out`, so the echo disagrees with the file and the tool's own
+  "a blessed output is a claim, not a formality" points at the wrong one of the two. Check the
+  bytes with `od -c <file>.out` before believing the echo, and never "fix" an example because the
+  bless line looked wrong. [until: reviewed 2026-09-18]
 
 ## Writing a test case
 
