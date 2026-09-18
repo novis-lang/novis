@@ -137,6 +137,16 @@ modules = [
   "crates/nvs-lsp/src/definition.rs",
   # One workspace symbol index, built in one place.
   "crates/nvs-lsp/src/index.rs",
+  # `Core\Debug` — `rule:errors/debug-dump`'s `dump` and `render`, and the walk that turns a
+  # runtime value into § 1's record.
+  "crates/nvs-stdlib/src/debug.rs",
+  # The value behind `registry::CoreTy::Instance`: what a native member returns when the spec
+  # writes a `Core`-owned object, and how another member reads one back.
+  "crates/nvs-stdlib/src/instance.rs",
+  # `Core\Reflect` — `rule:tooling/reflection-and-source-parsing-are-core-features`'s read-only
+  # structural introspection, as the member that describes a value and the description it answers
+  # with.
+  "crates/nvs-stdlib/src/reflect.rs",
 ]
 
 # What every stage is written inside: the operator, what it narrows, and the list the divergence
