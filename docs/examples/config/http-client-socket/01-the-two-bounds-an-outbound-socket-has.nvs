@@ -1,0 +1,29 @@
+<?nvs
+// `[http.client.socket]` carries the two bounds an outbound WebSocket has that
+// no other outbound call does: how large a message it will reassemble, and how
+// long one frame may wait to be written. Nothing is written for either in this
+// checkout, so both arrive as the shipped value — four mebibytes and thirty
+// seconds, the same numbers this process applies to sockets coming the other
+// way.
+
+echo 'largest message:  ', Core\Config::get('http.client.socket.max_message') ?? '(nothing, so the built-in default)', "\n";
+echo 'frame may wait:   ', Core\Config::get('http.client.socket.send_timeout') ?? '(nothing, so the built-in default)', "\n";
+
+// This is the one block inside `[http.client]` a program may still set, and the
+// reason is what each bound covers: the one socket this program opened. Holding
+// a smaller message is this program's business and costs nobody else anything.
+echo 'hold less:        ', Core\Config::set('http.client.socket.max_message', '65536') ? 'yes' : 'no', "\n";
+echo 'now in force:     ', Core\Config::get('http.client.socket.max_message') ?? '(nothing)', "\n";
+
+// The blocks either side of it are not like that, and the difference is who
+// pays. The connection pool is memory the core holds after this request is
+// gone, and the proxy decides where every outbound byte in the deployment goes.
+echo 'resize the pool:  ', Core\Config::set('http.client.pool_idle', '512') ? 'yes' : 'no', "\n";
+echo 'name a proxy:     ', Core\Config::set('http.client.proxy.url', 'http://somewhere-else.test:8080') ? 'yes' : 'no', "\n";
+
+// Putting a setting back drops what this program wrote rather than writing the
+// old value over it, so the socket's bound is the file's again — and the file
+// has no way to remove it, since `false` and `0` are both refused where the
+// configuration is read.
+Core\Config::restore('http.client.socket.max_message');
+echo 'restored to:      ', Core\Config::get('http.client.socket.max_message') ?? '(nothing, so the built-in default)', "\n";

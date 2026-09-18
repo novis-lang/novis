@@ -1,0 +1,97 @@
+<?nvs
+// Attack: this is the one block under `[http.client]` a request may write, so
+// the attack is not "can it be written" but "how far does a write reach". The
+// bound removed rather than narrowed, the message cap raised to whatever a peer
+// would like to send, the spellings that mean no limit somewhere else, and then
+// the neighbouring blocks reached through this one, because a block a request
+// may set sits directly beside three it may not.
+// hostile: timeout-ms 30000
+
+// 1. The message cap raised and removed. A socket reassembles a message into
+//    the opening task's memory, so a cap a request could take off is a peer
+//    deciding how much memory this host spends on it.
+array<string> $sizes = [
+    '18446744073709551615',
+    '9223372036854775807',
+    '-1',
+    '0',
+    '',
+    'false',
+    'true',
+    'null',
+    'infinity',
+    '1024T',
+    '1e30',
+    '0x100000000',
+    '  4194304  ',
+    "4194304\u{0000}18446744073709551615",
+    Core\Str::repeat('9', 100000),
+];
+foreach ($sizes as string $value) {
+    Core\Config::set('http.client.socket.max_message', $value);
+    Core\Config::get('http.client.socket.max_message');
+}
+Core\Config::restore('http.client.socket.max_message');
+
+// 2. The same against the wait, where zero and `false` are the two values that
+//    are not bounds: a cap of nothing admits no message and a wait of nothing
+//    writes no frame, so neither is a spelling for removing the limit.
+array<string> $waits = [
+    '0',
+    '0s',
+    '-30s',
+    'false',
+    'null',
+    'never',
+    'forever',
+    '9223372036854775807s',
+    '106752d',
+    '30 s',
+    '30ss',
+    "30s\r\nmax_message = 0",
+    Core\Str::repeat('3', 100000) . 'h',
+];
+foreach ($waits as string $value) {
+    Core\Config::set('http.client.socket.send_timeout', $value);
+    Core\Config::get('http.client.socket.send_timeout');
+}
+Core\Config::restore('http.client.socket.send_timeout');
+
+// 3. The neighbours, reached through the one block that answers `yes`. Writing
+//    this block must not be a way to write the three beside it, and a near miss
+//    between them is exactly how it would become one.
+array<string> $neighbours = [
+    'http.client.socket.pool_idle',
+    'http.client.socket.max_message.pool_idle',
+    'http.client.socketx',
+    'http.client.socket.',
+    'http.client.socket..max_message',
+    'HTTP.CLIENT.SOCKET.MAX_MESSAGE',
+    'http.client.socket.proxy.url',
+    'http.client.socket.tls.roots',
+    'http.client.socket.max_message.' . Core\Str::repeat('sub.', 20000) . 'off',
+];
+foreach ($neighbours as string $key) {
+    Core\Config::set($key, '18446744073709551615');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+Core\Config::set('http.client.pool_idle', '1048576');
+Core\Config::set('http.client.tls.roots', '[]');
+Core\Config::set('http.client.proxy.url', 'http://attacker.test:8080');
+Core\Config::restore('http.client.pool_idle');
+Core\Config::restore('http.client.tls.roots');
+Core\Config::restore('http.client.proxy.url');
+
+// 4. Two hundred thousand accepted writes of one key with no restore between
+//    them. This one is allowed, so what is being asked is that the overlay a
+//    request writes into costs one entry rather than one per write.
+uint $i = 0;
+while ($i < 200000) {
+    Core\Config::set('http.client.socket.max_message', $i % 2 == 0 ? '65536' : '131072');
+    $i = $i + 1;
+}
+Core\Config::restore('http.client.socket.max_message');
+
+echo 'max_message:  ', Core\Config::get('http.client.socket.max_message') ?? '(nothing)', "\n";
+echo 'send_timeout: ', Core\Config::get('http.client.socket.send_timeout') ?? '(nothing)', "\n";
