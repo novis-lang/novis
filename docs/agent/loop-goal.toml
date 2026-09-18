@@ -134,6 +134,9 @@ modules = [
   # constructed and called (§ 20), judged off § 5's ledger — `run_case` owns why that and not the
   # exception state — and reported in one of § 22's formats.
   "crates/nvs-cli/src/runner.rs",
+  # `Core\BigInt` — an integer of any magnitude, immutable and method-based, which is what ADR
+  # 0054 § 5 named as the replacement for `gmp` and the integer half of `bcmath`.
+  "crates/nvs-stdlib/src/bigint.rs",
 ]
 
 rules = ["testing/doubles", "testing/interaction-after-the-fact"]
