@@ -7789,6 +7789,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   which reads as a broken doc comment rather than as a block that should have been closed. Close the
   block after the helper you are writing beside and open a fresh `nvs_runtime::nvs_helper! {`.
   [until: reviewed 2026-09-18]
+- **A `Core` class carrying `compareTo` is ordered by `<` and `<=>` and still refused by
+  `Core\Arr::sort`.** The operators lower to the member; the sort asks
+  `nvs_stdlib::ordering::compare_values`, which has a row per scalar and none for an object, so two
+  instances throw `RuntimeError` naming tag 7 against tag 7. Read
+  `crates/nvs-stdlib/src/ordering.rs:36-46` before writing a case that sorts objects.
+  [until: gone crates/nvs-stdlib/src/ordering.rs:not built yet]
 
 ## Divergences and refusals already pinned
 

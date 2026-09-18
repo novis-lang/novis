@@ -59,6 +59,7 @@ Conventions the whole file uses:
 | [`Core\Attributes`](#core-core-attributes) | reads the shape-literal attributes attached to a class, a method, a property or a parameter — structurally, by the shape they satisfy, at compile time |
 | [`Core\Math`](#core-core-math) | numeric functions over `int`, `float` and `decimal` — magnitude, rounding, integer division, roots, logarithms, trigonometry, base conversion and number formatting, plus the constants |
 | [`Core\Decimal`](#core-core-decimal) | what a `decimal` reaches for where the operators cannot say it — two divisions that name their own rounding, the split whose parts add back exactly, the exact power, and the four cuts to a scale |
+| [`Core\BigInt`](#core-core-bigint) |  |
 | [`Core\Regex`](#core-core-regex) | regular expressions without delimiters — match, capture, replace and split, linear-time by default with a step budget for the patterns that need backtracking |
 | [`Core\Regex\Match`](#core-core-regex-match) | one match of a pattern — its text, its groups by number or name, and where it starts |
 | [`Core\Regex\Pattern`](#core-core-regex-pattern) | a compiled pattern carrying its flags, taken by every `Core\Regex` member in place of a pattern string |
@@ -9480,6 +9481,390 @@ Core\Decimal::round(decimal $value, Core\RoundMode $mode, uint $scale = 0): deci
 **Returns** `decimal` — The neighbour at `$scale` places `$mode` names: `round(0.125, Core\RoundMode::HalfEven, 2)` is `0.12` and `round(0.125, Core\RoundMode::HalfUp, 2)` is `0.13`.
 
 **Throws** `ArithmeticError` — When `$scale` is past 28, and when `$value` has too many digits before the point to carry that many after it.
+
+<a id="core-core-bigint"></a>
+### `Core\BigInt`
+
+Keywords: of, ofUint, parse, add, sub, mul, div, mod, pow, powMod, sqrt, gcd, lcm, neg, abs, shl, shr, sign, compareTo, toInt, toUint, toDecimal, toString, format
+
+| Member | Signature |
+|---|---|
+| [`Core\BigInt::of`](#core-core-bigint-of) | `of(int $value): Core\BigInt` |
+| [`Core\BigInt::ofUint`](#core-core-bigint-ofuint) | `ofUint(uint $value): Core\BigInt` |
+| [`Core\BigInt::parse`](#core-core-bigint-parse) | `parse(string $text, {radix?: uint}): Core\BigInt` |
+| [`Core\BigInt->add`](#core-core-bigint-add) | `add(Core\BigInt $other): Core\BigInt` |
+| [`Core\BigInt->sub`](#core-core-bigint-sub) | `sub(Core\BigInt $other): Core\BigInt` |
+| [`Core\BigInt->mul`](#core-core-bigint-mul) | `mul(Core\BigInt $other): Core\BigInt` |
+| [`Core\BigInt->div`](#core-core-bigint-div) | `div(Core\BigInt $divisor): Core\BigInt` |
+| [`Core\BigInt->mod`](#core-core-bigint-mod) | `mod(Core\BigInt $divisor): Core\BigInt` |
+| [`Core\BigInt->pow`](#core-core-bigint-pow) | `pow(uint $exponent): Core\BigInt` |
+| [`Core\BigInt->powMod`](#core-core-bigint-powmod) | `powMod(Core\BigInt $exponent, Core\BigInt $modulus): Core\BigInt` |
+| [`Core\BigInt->sqrt`](#core-core-bigint-sqrt) | `sqrt(): Core\BigInt` |
+| [`Core\BigInt->gcd`](#core-core-bigint-gcd) | `gcd(Core\BigInt $other): Core\BigInt` |
+| [`Core\BigInt->lcm`](#core-core-bigint-lcm) | `lcm(Core\BigInt $other): Core\BigInt` |
+| [`Core\BigInt->neg`](#core-core-bigint-neg) | `neg(): Core\BigInt` |
+| [`Core\BigInt->abs`](#core-core-bigint-abs) | `abs(): Core\BigInt` |
+| [`Core\BigInt->shl`](#core-core-bigint-shl) | `shl(uint $bits): Core\BigInt` |
+| [`Core\BigInt->shr`](#core-core-bigint-shr) | `shr(uint $bits): Core\BigInt` |
+| [`Core\BigInt->sign`](#core-core-bigint-sign) | `sign(): int` |
+| [`Core\BigInt->compareTo`](#core-core-bigint-compareto) | `compareTo(Core\BigInt $other): int` |
+| [`Core\BigInt->toInt`](#core-core-bigint-toint) | `toInt(): int` |
+| [`Core\BigInt->toUint`](#core-core-bigint-touint) | `toUint(): uint` |
+| [`Core\BigInt->toDecimal`](#core-core-bigint-todecimal) | `toDecimal(): decimal` |
+| [`Core\BigInt->toString`](#core-core-bigint-tostring) | `toString(): string` |
+| [`Core\BigInt->format`](#core-core-bigint-format) | `format({radix?: uint}): string` |
+
+<a id="core-core-bigint-of"></a>
+#### `Core\BigInt::of`
+
+```nvs skip
+Core\BigInt::of(int $value): Core\BigInt
+```
+
+Builds a `BigInt` holding exactly `$value` — the widening every program that grows past `int` starts from.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$value` | `int` | The `int` to widen; every one of them, including `int`'s own bounds, is exact. |
+
+**Returns** `Core\BigInt` — A `BigInt` equal to `$value`.
+
+<a id="core-core-bigint-ofuint"></a>
+#### `Core\BigInt::ofUint`
+
+```nvs skip
+Core\BigInt::ofUint(uint $value): Core\BigInt
+```
+
+Builds a `BigInt` holding exactly `$value` — `of` over the unsigned scalar, whose upper half no `int` can carry.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$value` | `uint` | The `uint` to widen; the whole range is exact. |
+
+**Returns** `Core\BigInt` — A `BigInt` equal to `$value`.
+
+<a id="core-core-bigint-parse"></a>
+#### `Core\BigInt::parse`
+
+```nvs skip
+Core\BigInt::parse(string $text, {radix?: uint}): Core\BigInt
+```
+
+Reads `$text` as an integer of any magnitude, in the radix asked for — the text `as int` reads, with no bound on how large it may be.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$text` | `string` (neutral) | The whole text to read: an optional `-` or `+`, then digits, and nothing else. No leading-garbage rule, and no `_` separators — those are an integer literal's spelling rather than a `string`'s. |
+| `{radix: …}` | `uint` (default `10`) | The base the digits are written in, 2 to 36 with `a`-`z` as the digits past `9`; 10 when the option is omitted. |
+
+**Returns** `Core\BigInt` — A `BigInt` equal to the number `$text` spells.
+
+**Throws** `ParseError` — `$text` is not an integer in that radix — it is empty, carries a separator, or holds a digit the radix does not have.; `LogicError` — `radix` is outside 2 to 36.
+
+<a id="core-core-bigint-add"></a>
+#### `Core\BigInt->add`
+
+```nvs skip
+$bigInt->add(Core\BigInt $other): Core\BigInt
+```
+
+The sum of this value and `$other`, as a new `BigInt` — there is no magnitude at which it overflows.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$other` | `Core\BigInt` | The value to add. |
+
+**Returns** `Core\BigInt` — A `BigInt` equal to the sum.
+
+<a id="core-core-bigint-sub"></a>
+#### `Core\BigInt->sub`
+
+```nvs skip
+$bigInt->sub(Core\BigInt $other): Core\BigInt
+```
+
+The difference between this value and `$other`, as a new `BigInt`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$other` | `Core\BigInt` | The value to subtract. |
+
+**Returns** `Core\BigInt` — A `BigInt` equal to the difference.
+
+<a id="core-core-bigint-mul"></a>
+#### `Core\BigInt->mul`
+
+```nvs skip
+$bigInt->mul(Core\BigInt $other): Core\BigInt
+```
+
+The product of this value and `$other`, as a new `BigInt` — the member a factorial or a running power is written with.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$other` | `Core\BigInt` | The value to multiply by. |
+
+**Returns** `Core\BigInt` — A `BigInt` equal to the product.
+
+<a id="core-core-bigint-div"></a>
+#### `Core\BigInt->div`
+
+```nvs skip
+$bigInt->div(Core\BigInt $divisor): Core\BigInt
+```
+
+The quotient of this value and `$divisor`, truncated toward zero exactly as `intdiv` truncates an `int` one.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$divisor` | `Core\BigInt` | The value to divide by. |
+
+**Returns** `Core\BigInt` — A `BigInt` quotient; `-7 div 2` is `-3`, the answer `intdiv` gives.
+
+**Throws** `ArithmeticError` — `$divisor` is zero.
+
+<a id="core-core-bigint-mod"></a>
+#### `Core\BigInt->mod`
+
+```nvs skip
+$bigInt->mod(Core\BigInt $divisor): Core\BigInt
+```
+
+The remainder of this value divided by `$divisor`, carrying the dividend's sign exactly as `%` on `int` does.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$divisor` | `Core\BigInt` | The value to divide by. |
+
+**Returns** `Core\BigInt` — A `BigInt` remainder; `-7 mod 2` is `-1`, so `div` and `mod` rebuild the dividend.
+
+**Throws** `ArithmeticError` — `$divisor` is zero.
+
+<a id="core-core-bigint-pow"></a>
+#### `Core\BigInt->pow`
+
+```nvs skip
+$bigInt->pow(uint $exponent): Core\BigInt
+```
+
+This value raised to `$exponent`, which is the member `bcpow` with a large exponent becomes.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$exponent` | `uint` | The power to raise this value to; `0` answers `1` for every receiver. |
+
+**Returns** `Core\BigInt` — A `BigInt` equal to the power.
+
+**Throws** `ArithmeticError` — The answer would be wider than 1 048 576 bits, which this member refuses before computing rather than after allocating.
+
+<a id="core-core-bigint-powmod"></a>
+#### `Core\BigInt->powMod`
+
+```nvs skip
+$bigInt->powMod(Core\BigInt $exponent, Core\BigInt $modulus): Core\BigInt
+```
+
+This value raised to `$exponent`, modulo `$modulus`, computed without ever holding the whole power — `bcpowmod`, and the member every modular exponentiation wants.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$exponent` | `Core\BigInt` | The power to raise this value to; it may not be negative. |
+| `$modulus` | `Core\BigInt` | The modulus the answer is reduced by. |
+
+**Returns** `Core\BigInt` — A `BigInt` in `[0, |$modulus|)` for a non-negative receiver.
+
+**Throws** `ArithmeticError` — `$modulus` is zero, or `$exponent` is negative.
+
+<a id="core-core-bigint-sqrt"></a>
+#### `Core\BigInt->sqrt`
+
+```nvs skip
+$bigInt->sqrt(): Core\BigInt
+```
+
+The integer square root of this value — the largest `BigInt` whose square does not exceed it.
+
+**Returns** `Core\BigInt` — A `BigInt` floor of the square root; `8` answers `2`.
+
+**Throws** `ArithmeticError` — This value is negative, which has no integer square root.
+
+<a id="core-core-bigint-gcd"></a>
+#### `Core\BigInt->gcd`
+
+```nvs skip
+$bigInt->gcd(Core\BigInt $other): Core\BigInt
+```
+
+The greatest common divisor of this value and `$other`, never negative — `Core\Math::gcd` at any magnitude.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$other` | `Core\BigInt` | The other value; `gcd(0, 0)` is `0`. |
+
+**Returns** `Core\BigInt` — A non-negative `BigInt`.
+
+<a id="core-core-bigint-lcm"></a>
+#### `Core\BigInt->lcm`
+
+```nvs skip
+$bigInt->lcm(Core\BigInt $other): Core\BigInt
+```
+
+The least common multiple of this value and `$other`, never negative — `Core\Math::lcm` at any magnitude.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$other` | `Core\BigInt` | The other value; `lcm` with a zero operand is `0`. |
+
+**Returns** `Core\BigInt` — A non-negative `BigInt`.
+
+<a id="core-core-bigint-neg"></a>
+#### `Core\BigInt->neg`
+
+```nvs skip
+$bigInt->neg(): Core\BigInt
+```
+
+This value with its sign flipped — the spelling unary `-` would be if this class had operators.
+
+**Returns** `Core\BigInt` — A `BigInt` of the same magnitude and the opposite sign; zero answers zero.
+
+<a id="core-core-bigint-abs"></a>
+#### `Core\BigInt->abs`
+
+```nvs skip
+$bigInt->abs(): Core\BigInt
+```
+
+This value's magnitude, with no bound to overflow at — unlike `abs` on `int`, whose most negative value has no positive twin.
+
+**Returns** `Core\BigInt` — A non-negative `BigInt`.
+
+<a id="core-core-bigint-shl"></a>
+#### `Core\BigInt->shl`
+
+```nvs skip
+$bigInt->shl(uint $bits): Core\BigInt
+```
+
+This value multiplied by two to the `$bits` — the shift, written as a member because `<<` over an object does not parse.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$bits` | `uint` | How many bits to shift by. |
+
+**Returns** `Core\BigInt` — A `BigInt` `$bits` wider than this one.
+
+**Throws** `ArithmeticError` — The answer would be wider than 1 048 576 bits.
+
+<a id="core-core-bigint-shr"></a>
+#### `Core\BigInt->shr`
+
+```nvs skip
+$bigInt->shr(uint $bits): Core\BigInt
+```
+
+This value divided by two to the `$bits`, rounding toward negative infinity as an arithmetic shift does.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$bits` | `uint` | How many bits to shift by; past this value's width the answer is `0` or `-1`. |
+
+**Returns** `Core\BigInt` — A `BigInt` `$bits` narrower than this one.
+
+<a id="core-core-bigint-sign"></a>
+#### `Core\BigInt->sign`
+
+```nvs skip
+$bigInt->sign(): int
+```
+
+This value's sign, as the three-way answer `compareTo` gives against zero.
+
+**Returns** `int` — `-1` below zero, `0` at it, `1` above.
+
+<a id="core-core-bigint-compareto"></a>
+#### `Core\BigInt->compareTo`
+
+```nvs skip
+$bigInt->compareTo(Core\BigInt $other): int
+```
+
+Orders this value against `$other` — `Comparable`'s member, so `<`, `<=>` and `Core\Arr::sort` answer through it.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$other` | `Core\BigInt` | The value to order against. |
+
+**Returns** `int` — `-1` when this value is the smaller, `0` when they are equal, `1` when it is larger.
+
+<a id="core-core-bigint-toint"></a>
+#### `Core\BigInt->toInt`
+
+```nvs skip
+$bigInt->toInt(): int
+```
+
+This value as an `int`, exactly or not at all — the narrowing back down, which is where a magnitude that outgrew `int` is discovered rather than truncated.
+
+**Returns** `int` — The `int` equal to this value.
+
+**Throws** `ArithmeticError` — This value is outside the `int` range.
+
+<a id="core-core-bigint-touint"></a>
+#### `Core\BigInt->toUint`
+
+```nvs skip
+$bigInt->toUint(): uint
+```
+
+This value as a `uint`, exactly or not at all — `toInt` over the unsigned scalar, which reaches higher and refuses every negative value.
+
+**Returns** `uint` — The `uint` equal to this value.
+
+**Throws** `ArithmeticError` — This value is negative or above the `uint` range.
+
+<a id="core-core-bigint-todecimal"></a>
+#### `Core\BigInt->toDecimal`
+
+```nvs skip
+$bigInt->toDecimal(): decimal
+```
+
+This value as a `decimal` at scale zero, which is exact wherever the magnitude fits the scalar's 96-bit mantissa.
+
+**Returns** `decimal` — A `decimal` equal to this value.
+
+**Throws** `ArithmeticError` — This value needs more than 96 bits, which no `decimal` holds.
+
+<a id="core-core-bigint-tostring"></a>
+#### `Core\BigInt->toString`
+
+```nvs skip
+$bigInt->toString(): string
+```
+
+This value in radix 10, with a leading `-` when it is negative — `Stringable`'s member, so `echo` and string interpolation render through it.
+
+**Returns** `string` — The decimal digits, which `parse` reads back to the same value.
+
+<a id="core-core-bigint-format"></a>
+#### `Core\BigInt->format`
+
+```nvs skip
+$bigInt->format({radix?: uint}): string
+```
+
+This value in the radix asked for, using `a`-`z` for the digits past `9` — `toString` in any base, and `parse`'s inverse at every one of them.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `{radix: …}` | `uint` (default `10`) | The base to write in, 2 to 36; 10 when the option is omitted. |
+
+**Returns** `string` — The digits, with a leading `-` when this value is negative.
+
+**Throws** `LogicError` — `radix` is outside 2 to 36.
 
 <a id="core-core-regex"></a>
 ### `Core\Regex`
