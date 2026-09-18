@@ -1866,10 +1866,79 @@ impl ClassTable {
                 }
             }
         }
+        self.push_class(
+            name.into(),
+            fields.iter().map(|f| f.as_ref().to_owned()).collect(),
+            conforms,
+        )
+    }
+
+    /// [`ClassTable::define`], with the classes an instance also is named by
+    /// **address** instead of by an id of this table.
+    ///
+    /// A program's hierarchy is defined into one table in an order its checker
+    /// already settled, which is what lets [`ClassTable::define`] take an id
+    /// and refuse anything else. A descriptor built for a value that stands in
+    /// for a class declared *elsewhere* cannot say that: `nvs_stdlib::test`'s
+    /// double conforms to an interface belonging to the compiled unit under
+    /// test, and no id of the table holding the double's own class names it.
+    /// So the parents arrive as the pointers they already are, and each one's
+    /// flattened set is carried over exactly as a local parent's is — a class
+    /// test stays one linear scan either way.
+    ///
+    /// # Safety
+    ///
+    /// Every `parents` entry must be non-null, and must outlive this table and
+    /// every instance made from the class this returns. That is
+    /// [`NvsObj::new`]'s own obligation one level up: a descriptor reached
+    /// through [`ClassDesc::conforms_to`] is dereferenced on every class test,
+    /// long after the call that named it.
+    #[expect(
+        unsafe_code,
+        reason = "the caller's obligation is stated above and cannot be \
+                  expressed in the type: a descriptor's lifetime is the \
+                  table's, and this names one from another table"
+    )]
+    pub unsafe fn define_conforming(
+        &mut self,
+        name: impl Into<String>,
+        fields: &[impl AsRef<str>],
+        parents: &[*const ClassDesc],
+    ) -> ClassId {
+        let mut conforms: Vec<*const ClassDesc> = Vec::new();
+        for parent in parents {
+            if !conforms.contains(parent) {
+                conforms.push(*parent);
+            }
+            // SAFETY: the caller's obligation above — every parent outlives
+            // this table, so reading its own flattened set here is a read of a
+            // descriptor that is live for longer than the one being built.
+            for inherited in &unsafe { &**parent }.conforms {
+                if !conforms.contains(inherited) {
+                    conforms.push(*inherited);
+                }
+            }
+        }
+        self.push_class(
+            name.into(),
+            fields.iter().map(|f| f.as_ref().to_owned()).collect(),
+            conforms,
+        )
+    }
+
+    /// The descriptor itself, once its flattened class set is in hand — the
+    /// one place a [`ClassDesc`] is built, so the two entry points above
+    /// cannot come to disagree about what an empty one holds.
+    fn push_class(
+        &mut self,
+        name: String,
+        fields: Vec<String>,
+        conforms: Vec<*const ClassDesc>,
+    ) -> ClassId {
         let id = ClassId(self.classes.len());
         self.classes.push(Box::new(ClassDesc {
-            name: name.into(),
-            fields: fields.iter().map(|f| f.as_ref().to_owned()).collect(),
+            name,
+            fields,
             conforms,
             methods: Vec::new(),
             hooks: Vec::new(),
@@ -5321,6 +5390,29 @@ mod tests {
             assert!(plain.is_instance_of(table.desc(animal)));
             assert!(!plain.is_instance_of(table.desc(dog)));
             assert!(!plain.is_instance_of(table.desc(greets)));
+        }
+    }
+
+    #[test]
+    fn a_class_defined_against_a_foreign_descriptor_is_every_class_that_one_is() {
+        let (program, animal, dog, greets) = hierarchy();
+        let mut elsewhere = ClassTable::new();
+        let unrelated = elsewhere.define("Unrelated", &[] as &[&str], &[]);
+        #[expect(
+            unsafe_code,
+            reason = "both tables live to the end of this test, which is the \
+                      whole of `define_conforming`'s obligation"
+        )]
+        unsafe {
+            let stand_in =
+                elsewhere.define_conforming("$double{Greets}", &["$calls"], &[program.desc(dog)]);
+            let double = NvsObj::new(elsewhere.desc(stand_in));
+            // The parent's own flattened set comes with it, so a class test is
+            // still one linear scan at the interface two levels up.
+            assert!(double.is_instance_of(program.desc(dog)));
+            assert!(double.is_instance_of(program.desc(animal)));
+            assert!(double.is_instance_of(program.desc(greets)));
+            assert!(!double.is_instance_of(elsewhere.desc(unrelated)));
         }
     }
 
