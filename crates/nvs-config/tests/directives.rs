@@ -616,6 +616,223 @@ fn the_control_socket_is_one_system_key_applied_at_boot_and_its_block_has_no_row
     );
 }
 
+/// `rule:core-classes/temporary-dir-sweep`: the one switch that stops the end-of-script sweep belongs to the
+/// operator, and it is read again by the next script that ends.
+///
+/// `System` because the rule gives the key to the operator alone: a request able to write it would
+/// be exempting its own files from the sweep, and a program that can do that can be talked into
+/// hoarding until the disk is full — which is why the rule states that there is no in-language
+/// setter at all, leaving this row as the only thing that has to hold. `Reload` because what reads
+/// it is the next script to end rather than anything created at boot, so a flip re-creates nothing;
+/// that is what makes "on around one problematic request and off again" a thing an operator can do.
+///
+/// `io.temp_root` beside it is what makes the pairing a claim rather than a spelling. Both keys are
+/// the operator's and neither is a request's, and they still separate: the root is a directory the
+/// boot sweep walks once with the path it started with, so moving it under a running server would
+/// strand everything in the old one, while keeping what the sweep would have deleted is a question
+/// the sweep asks each time it runs. Same class, different apply, and `rule:config/reloadability-is-its-own-field` is the
+/// pairing that makes both sayable.
+// covers: directive:debug.keep_temporary
+#[test]
+fn keeping_a_temporary_directory_is_the_operators_at_reload_while_its_root_is_fixed_at_boot() {
+    let keys = keys_in("debug");
+    assert_eq!(
+        keys.iter().map(String::as_str).collect::<Vec<_>>(),
+        ["mode", "inline", "keep_temporary"],
+        "`[debug]` accepts {keys:?}, and a key added to the block joins this census in the commit \
+         that adds it — the two the registry governs are named below and the third is stated as \
+         ungoverned rather than left to be discovered",
+    );
+
+    let row = governing("debug.keep_temporary");
+    assert_eq!(
+        row.key, "debug.keep_temporary",
+        "`debug.keep_temporary` resolves through `{}`, so what the registry is stating something \
+         about is the block rather than this key",
+        row.key,
+    );
+    assert_eq!(
+        row.class,
+        Class::System,
+        "a request that could keep its own temporary directories would be exempting its own files \
+         from the sweep, which is the hoarding `rule:core-classes/temporary-dir-sweep` refuses",
+    );
+    assert!(
+        !row.class.settable_by_a_request(),
+        "`Core\\Config::set(\"debug.keep_temporary\", true)` has to refuse: the rule gives this key \
+         no in-language setter, and this row is the whole of what enforces that",
+    );
+    assert_eq!(
+        row.apply,
+        Apply::Reload,
+        "the next script to end is what reads it, so a flip applies to the sweep after it and \
+         re-creates nothing (`rule:config/reloadability-is-its-own-field`)",
+    );
+
+    let root = governing("io.temp_root");
+    assert_eq!(
+        (root.class, root.apply),
+        (Class::System, Apply::Boot),
+        "the root the sweep walks is created and swept once as the server starts, so moving it \
+         under a running server would leave the old one holding entries nothing sweeps — the same \
+         class as the key above and the other apply, which is the contrast this case exists for",
+    );
+    assert_eq!(
+        row.class, root.class,
+        "both keys are the operator's, and a difference in class here would mean one of them had \
+         become a decision a served request may make",
+    );
+
+    assert!(
+        lookup("debug").is_none(),
+        "a blanket `debug` row would hand `debug.mode` — the one key of this block no row governs — \
+         `System`/`Reload` without anybody deciding that is what it is",
+    );
+}
+
+/// `rule:errors/debug-dump`: the key deciding whether a dump reaches the page is the one key of
+/// `[debug]` a request may name at all, and it may only ever be narrowed.
+///
+/// `RuntimeTighten` rather than `Runtime` is the rule's security half stated as a class: a request
+/// that could raise this key would be putting its own dump in the response it is writing, so the
+/// only direction the registry leaves open is the one that discloses less, and the run mode's
+/// default is the only thing that turns it on. What reaches a request is narrower still — a
+/// `RuntimeTighten` row that is not a quantity cannot be set in either direction, which
+/// `nvs_config::request`'s module doc owns — but that is the overlay's answer *over* this row, and
+/// a `Runtime` row here would leave the overlay as the only thing in the way.
+///
+/// `Reload` because every dump a request makes reads it in force, so a changed value reaches the
+/// next one with nothing re-created.
+///
+/// The census claim is the pairing inside one block: `[debug]`'s other governed key is `System`, so
+/// a case reading this row alone would pass against a registry that had quietly made both of them
+/// the same class.
+// covers: directive:debug.inline
+#[test]
+fn an_inline_dump_is_the_one_debug_key_a_request_may_name_and_only_downwards() {
+    let row = governing("debug.inline");
+    assert_eq!(
+        row.key, "debug.inline",
+        "`debug.inline` resolves through `{}`, so the block rather than the key is what the \
+         registry is stating something about",
+        row.key,
+    );
+    assert_eq!(
+        row.class,
+        Class::RuntimeTighten,
+        "`Runtime` here would let a request raise the key and write its own dump into the response, \
+         which is the disclosure `rule:errors/debug-dump` exists to close",
+    );
+    assert!(
+        row.class.settable_by_a_request(),
+        "the tightening direction is open at the registry, and what refuses a value nothing can \
+         compare is the overlay in `nvs_config::request` — a `System` row here would be a second \
+         answer to a question that already has one",
+    );
+    assert_eq!(
+        row.apply,
+        Apply::Reload,
+        "a dump reads the key in force, so a changed value reaches the next request by the \
+         snapshot being rebuilt (`rule:config/reloadability-is-its-own-field`)",
+    );
+
+    let sibling = governing("debug.keep_temporary");
+    assert_eq!(
+        sibling.class,
+        Class::System,
+        "`[debug]` is not one class with a spelling per key: the sweep's switch is the operator's \
+         and this one is not, and a census reading either row alone cannot see that",
+    );
+
+    let derived = nvs_config::mode::DERIVED
+        .iter()
+        .find(|derived| derived.key == "debug.inline")
+        .expect("`debug.inline` is the one directive whose default only a mode can turn on");
+    assert_eq!(
+        derived.production, "false",
+        "the mode's default is the only thing that enables this key, and a host that wrote no \
+         configuration starts in `production` — so the one value that must be off is this one",
+    );
+}
+
+/// `rule:concurrency/deferred-is-bounded-by-two-directives`: the two keys of `[deferred]` are two
+/// classes, and the rule is explicit that they are.
+///
+/// The cap counts request trees a core keeps alive after their responses are on the wire, so it is
+/// what the rule prices a host against — `max_concurrent × [limits.hard]` memory on top of the
+/// in-flight requests — and a request that could raise it would be sizing the machine every *other*
+/// request runs on. The deadline is an ordinary per-request default a call may name its own value
+/// for, which makes it the first row in this block's neighbourhood a request may write at all.
+///
+/// Both are `Reload`: neither is anything a boot created, and a changed value reaches the next
+/// deferred tree by the snapshot being rebuilt. So the block is a pairing that only
+/// `rule:config/reloadability-is-its-own-field`'s two fields can state — one apply class, two
+/// changeability classes — and a case reading either row alone would pass against a registry that
+/// had made both of them the cap's.
+// covers: directive:deferred.deadline
+#[test]
+fn a_deferred_deadline_is_a_requests_to_set_while_the_cap_beside_it_is_the_hosts() {
+    let keys = keys_in("deferred");
+    assert_eq!(
+        keys.iter().map(String::as_str).collect::<Vec<_>>(),
+        ["max_concurrent", "deadline"],
+        "`[deferred]` accepts {keys:?}, and both halves are named below: a third key joins this \
+         census in the commit that adds it, and needs a row of its own to be governed at all",
+    );
+
+    let deadline = governing("deferred.deadline");
+    assert_eq!(
+        deadline.key, "deferred.deadline",
+        "`deferred.deadline` resolves through `{}`, so the block rather than the key is what the \
+         registry is stating something about — and the block is the thing that must not be one row",
+        deadline.key,
+    );
+    assert_eq!(
+        deadline.class,
+        Class::Runtime,
+        "a call may name its own deadline, so the default it inherits is an ordinary per-request \
+         one rather than a decision the operator keeps",
+    );
+    assert!(
+        deadline.class.settable_by_a_request(),
+        "`Core\\Config::set(\"deferred.deadline\", \"5s\")` is the call the rule describes, and a \
+         class that refused it would leave the per-call value as the only way to shorten anything",
+    );
+
+    let cap = governing("deferred.max_concurrent");
+    assert_eq!(
+        cap.class,
+        Class::System,
+        "the cap is what the rule prices a host's memory against, so a request that could raise it \
+         would be sizing the machine every other request is running on",
+    );
+    assert!(
+        !cap.class.settable_by_a_request(),
+        "`Core\\Config::set(\"deferred.max_concurrent\", …)` has to refuse: past the cap \
+         `afterResponse` throws, and a request that could move it would be choosing how much of \
+         the core's memory the deferred trees may hold",
+    );
+    assert_ne!(
+        deadline.class, cap.class,
+        "`[deferred]` is the block `rule:concurrency/deferred-is-bounded-by-two-directives` writes \
+         as two classes, and a registry that had quietly made it one would still answer plausibly \
+         for either key on its own",
+    );
+
+    assert_eq!(
+        (deadline.apply, cap.apply),
+        (Apply::Reload, Apply::Reload),
+        "neither key is anything a boot created, so a changed value reaches the next deferred tree \
+         by the snapshot being rebuilt — one apply class across a block whose changeability splits",
+    );
+
+    assert!(
+        lookup("deferred").is_none(),
+        "a blanket `deferred` row would govern both halves at once, which is exactly the one class \
+         this case exists to say the block does not have",
+    );
+}
+
 /// `rule:config/three-changeability-classes` names a response header as its counter-example to `System`, and `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s policy
 /// blocks are what that names: a request may set any of them for itself, because it could already
 /// write the header directly. The registry states that as the one `http` row covering the whole
