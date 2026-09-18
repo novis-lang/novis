@@ -86,8 +86,9 @@ the timed reps the binary, its libraries and the script are in the OS page cache
 that run published is on disk for `rule:packaging/an-artifact-is-verified-whole-before-a-page-is-executable` to load. `warm_start()` owns both halves.
 
 What `--max-work-ms` budgets is the total **less** `nvs --version`, because most of the total is
-the operating system creating a process and not Novis at all. `warm_start()` owns that argument
-and the measurements behind it.
+the operating system creating a process and not Novis at all. A machine whose floor is itself
+multiples of the budget is dilating both halves and reports as not measured rather than as a
+regression. `warm_start()` owns both arguments and the measurements behind them.
 
 ## The serve-versus-FPM leg
 
@@ -162,6 +163,9 @@ ROOT = Path(__file__).resolve().parent.parent
 CASE_DIR = ROOT / "benches" / "userland"
 BASELINE = "00-baseline"
 PRIMARY = "nvs"  # the engine every ratio is taken against, and the one that defines a case
+QUIET_FLOOR = 4  # `warm_start` abstains above this multiple of its budget; its note is why
+SUITE_REPS = 5  # timed reps per engine per case, over a case that runs for tens of ms
+WARM_START_REPS = 25  # the warm-start leg estimates a difference of two small numbers; its note is why
 
 # PHP invocation modes. The mode name is recorded in every JSON record so a history file cannot
 # silently mix an engine that was allowed to JIT with one that was not.
@@ -352,6 +356,28 @@ def warm_start(binary: Path, reps: int, max_work_ms: float | None) -> int:
     is the same binary, the same loader work and the same page cache, so what the subtraction
     leaves is config load, compile and run and nothing else.
 
+    That subtraction is a measurement only while the machine runs at the speed the budget was
+    written against, because load here dilates a process *multiplicatively* rather than adding a
+    constant to it: one sweep read a 77.5 ms start floor where a quiet box reads 4.6, and the
+    difference it left was 200 ms of machine and no Novis at all. Spread does not tell that box
+    from a good one -- its median sat 4% over its minimum, as tight as any quiet run, because every
+    rep was equally slow. The *level* of the floor does, and it is the reading to use because
+    `nvs --version` is this binary doing strictly less than the budget covers: a floor `QUIET_FLOOR`
+    times the budget is a machine that cannot answer the question, so the guard reports itself not
+    measured and passes rather than reporting the machine as the tree. `benches/abi-probe`'s
+    fan-out guard abstains on its own control for the same reason.
+
+    This leg also takes `WARM_START_REPS` where the suite takes `SUITE_REPS`, because a minimum
+    over a handful of samples is a biased-high estimate of a cost, and here that bias lands on a
+    difference of two small numbers rather than on a total of tens of milliseconds. Idle, five reps
+    moved the figure a full millisecond between consecutive runs -- more than the budget has to give
+    -- and twenty-five held it inside three tenths, with the floor reading the same to a tenth every
+    time. A rep costs about as long as the thing it measures, so the accuracy is nearly free.
+
+    What that cannot see is a regression in the floor itself: a static initializer that quadrupled
+    `nvs --version` would silence this guard rather than trip it. Both figures are printed on every
+    run, green or not, so the one it is blind to is still on the page.
+
     `measure()` throws its first process away, and that discarded run is what makes this warm in
     both senses. The binary, its libraries and the script are in the OS page cache for every timed
     rep; and the discarded run published the artifact
@@ -381,6 +407,12 @@ def warm_start(binary: Path, reps: int, max_work_ms: float | None) -> int:
     print(f"  novis work  {fmt(work_ms)} ms   the total less that floor")
     print("  each rep is an `rule:packaging/an-artifact-is-one-immutable-content-addressed-file` warm hit; the discarded warm-up published the artifact")
     if max_work_ms is None:
+        return 0
+    quiet_ms = max_work_ms * QUIET_FLOOR
+    if floor["min_ms"] > quiet_ms:
+        print(f"  not measured -- `nvs --version` alone costs {fmt(floor['min_ms'])} ms here, over "
+              f"the {fmt(quiet_ms)} ms this budget is written against, so the {fmt(work_ms)} ms "
+              f"difference is a figure about the machine")
         return 0
     within = work_ms <= max_work_ms
     print(f"  budget {fmt(max_work_ms)} ms on the work -- {'within' if within else 'EXCEEDED'}")
@@ -978,7 +1010,9 @@ def main() -> int:
         epilog=__doc__.split("## The engine roster", 1)[0],
     )
     parser.add_argument("patterns", nargs="*", help="substrings; only matching cases run")
-    parser.add_argument("--reps", type=int, default=5, help="timed reps per engine (default 5)")
+    parser.add_argument("--reps", type=int, default=None,
+                        help=f"timed reps per engine (default {SUITE_REPS}, "
+                             f"{WARM_START_REPS} on --warm-start)")
     parser.add_argument("--check", action="store_true", help="agreement only, no timing")
     parser.add_argument("--nvs", help="path to the nvs binary (default target/release)")
     parser.add_argument("--php", default="php", help="php executable (default `php`)")
@@ -1010,7 +1044,8 @@ def main() -> int:
         type=float,
         metavar="MS",
         help="with --warm-start: exit non-zero if the CLI's own work -- the total less "
-             "`nvs --version` -- exceeds this budget, in ms",
+             "`nvs --version` -- exceeds this budget, in ms; a machine whose floor is itself "
+             "multiples of it is reported as not measured",
     )
     # Retired, and loudly rather than silently: a `--max-ms 10` left in a goal file would go on
     # budgeting the whole wall clock, most of which is the OS. See `warm_start`.
@@ -1052,17 +1087,19 @@ def main() -> int:
         sys.exit("--max-ms budgeted the whole wall clock, of which most is the operating system "
                  "creating a process rather than anything Novis does. Use --max-work-ms, which "
                  "budgets the total less `nvs --version`; `warm_start` in this file says why.")
-    if args.reps < 1:
+    if args.reps is not None and args.reps < 1:
         sys.exit("--reps must be at least 1")
-    reps = 1 if args.check else args.reps
+    asked_reps = args.reps if args.reps is not None else (
+        WARM_START_REPS if args.warm_start else SUITE_REPS)
+    reps = 1 if args.check else asked_reps
 
     binary = find_nvs(args.nvs, args.allow_debug)
     warn_if_stale(binary)
     if args.warm_start:
         # Before the roster, because a start figure is one engine's and must not need PHP or Bun
-        # installed to be measured. `--reps` rather than `reps`: `--check` narrows the suite to
+        # installed to be measured. `asked_reps` rather than `reps`: `--check` narrows the suite to
         # agreement, and there is nothing here to agree with.
-        return warm_start(binary, args.reps, args.max_work_ms)
+        return warm_start(binary, asked_reps, args.max_work_ms)
     if args.serve_vs_fpm:
         # Before the roster, for `--warm-start`'s reason: this leg is one server against one
         # PHP peer, and must not need Python or Bun installed to produce its number.
