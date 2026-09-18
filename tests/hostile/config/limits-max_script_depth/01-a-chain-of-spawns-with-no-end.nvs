@@ -1,0 +1,42 @@
+<?nvs
+// Attack: a chain of spawned scripts with no end in it. This file spawns
+// itself, so every child is one level deeper than the parent that started it,
+// and nothing in the program stops. What has to stop it is `[limits]
+// max_script_depth`, and it has to stop it as a *depth*: an unbounded chain of
+// isolates does not run forever, it exhausts the tree's heap, and an
+// out-of-memory arriving from whichever level asked last is the runaway
+// reported as something else entirely.
+//
+// Every level tries to widen the ceiling before it descends, which is the half
+// that matters most: a chain able to raise the bound it is about to cross has
+// no bound at all. The path is written from the repository root, which is where
+// a case is run from.
+// hostile: timeout-ms 60000
+
+// Every value that would leave the chain unbounded, asked for again at every
+// level. `false` and `0` are both spellings of no ceiling at all, so either of
+// them accepted here is this file running until the machine gives out.
+array<string> $asks = [
+    'false',
+    '0',
+    '18446744073709551615',
+    '4294967296',
+    '1000000',
+    '-1',
+    'true',
+    '',
+];
+foreach ($asks as string $ask) {
+    Core\Config::set('limits.max_script_depth', $ask);
+    Core\Config::restore('limits.max_script_depth');
+}
+
+// And down. `capture` rather than `inherit` so the descent is one isolate
+// holding the next one's bytes, which is the shape that makes the heap the
+// thing that notices first if the depth does not.
+var $deeper = spawn script 'tests/hostile/config/limits-max_script_depth/01-a-chain-of-spawns-with-no-end.nvs' with(
+    output: 'capture',
+);
+var $done = await $deeper;
+echo $done->output;
+echo $done->ok ? "a level deeper ran\n" : "the chain ended one level further down\n";

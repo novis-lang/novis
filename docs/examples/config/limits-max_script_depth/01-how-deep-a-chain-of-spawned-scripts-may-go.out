@@ -1,0 +1,6 @@
+nesting allowed:     64
+ask for less memory: accepted
+set the depth to 1024: refused
+set the depth to 8: refused
+set the depth to false: refused
+still in force:      64

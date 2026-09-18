@@ -1,0 +1,76 @@
+<?nvs
+// Attack: the ceiling worked by its name rather than by its value. The key is
+// resolved on the whole dotted path and read on its last segment, so the ways
+// in are the spellings that reach the same row from a block nobody thought
+// about — the bare name a `Core\Config::set` uses for a limit, the copy under
+// `[app.limits]`, the one under `[limits.hard]`, and the same characters with a
+// NUL or a traversal in them. A key that lands on the row while being classed
+// by something else is the whole refusal gone.
+// hostile: timeout-ms 30000
+
+array<string> $names = [
+    'limits.max_script_depth',
+    'max_script_depth',
+    'limits.MAX_SCRIPT_DEPTH',
+    'limits.Max_Script_Depth',
+    'limits.max_script_depth.',
+    '.limits.max_script_depth',
+    'limits..max_script_depth',
+    'limits.max.script.depth',
+    'limits.max-script-depth',
+    'limits.maxscriptdepth',
+    'limits.hard.max_script_depth',
+    'limits.max_script_depth.hard',
+    'app.limits.max_script_depth',
+    'app.0.limits.max_script_depth',
+    "limits.max_script_depth\u{0000}",
+    "limits.memory\u{0000}limits.max_script_depth",
+    'limits.memory/../max_script_depth',
+    'limits.' . Core\Str::repeat('sub.', 20000) . 'max_script_depth',
+];
+foreach ($names as string $key) {
+    Core\Config::set($key, 'false');
+    Core\Config::set($key, '1000000');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// Every value under the real name. A depth is a count of levels, so these are
+// the counts it might round, the ones that are not counts at all, and the two
+// that would take the ceiling off if either were read as written.
+array<string> $values = [
+    '0',
+    'false',
+    'true',
+    '-1',
+    '1',
+    '64',
+    '65',
+    '064',
+    '  64  ',
+    '64.5',
+    '1e9',
+    '0x40',
+    '1_000',
+    '4294967295',
+    '4294967296',
+    '18446744073709551615',
+    '99999999999999999999999999',
+    'sixty-four',
+    '',
+];
+foreach ($values as string $value) {
+    Core\Config::set('limits.max_script_depth', $value);
+}
+Core\Config::restore('limits.max_script_depth');
+
+// What is left standing, asked of the thing itself rather than of the registry:
+// the chain beside this file runs until it is refused, so a bound this program
+// moved is a descent that does not come back. The path is written from the
+// repository root, which is where a case is run from.
+echo 'the ceiling reads: ', Core\Config::get('limits.max_script_depth') ?? '(nothing)', "\n";
+var $chain = spawn script 'tests/hostile/config/limits-max_script_depth/01-a-chain-of-spawns-with-no-end.nvs' with(
+    output: 'capture',
+);
+var $done = await $chain;
+echo 'the chain came back: ', $done->ok ? 'yes' : 'no', "\n";

@@ -1,0 +1,24 @@
+<?nvs
+// A script can run another script, which can run another. This is the level at
+// which the next one in that chain is refused, instead of being allowed to keep
+// building isolates until the machine runs out of memory.
+
+echo 'nesting allowed:     ', Core\Config::get('limits.max_script_depth') ?? '(unset — sixty-four is used when nobody writes one)', "\n";
+
+// Written in the same block as the heap a request may hold, and read very
+// differently. The heap is an ordinary per-request default, so a program that
+// knows it should stay small may say so.
+echo 'ask for less memory: ', Core\Config::set('limits.memory', '64M') ? 'accepted' : 'refused', "\n";
+
+// The nesting ceiling is nobody's to move from inside a program — not upwards,
+// not downwards, and not off. A script that could raise its own would exhaust
+// the machine's memory before any depth stopped it, and `false`, which is how
+// the ceiling is removed, is the same thing said in one word.
+array<string> $asks = ['1024', '8', 'false'];
+foreach ($asks as string $ask) {
+    echo 'set the depth to ', $ask, ': ', Core\Config::set('limits.max_script_depth', $ask) ? 'accepted' : 'refused', "\n";
+}
+
+// So what is in force is still what the deployment wrote, which is the whole of
+// what this key is for.
+echo 'still in force:      ', Core\Config::get('limits.max_script_depth') ?? '(unset)', "\n";
