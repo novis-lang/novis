@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import _thread
 import argparse
+import collections
 import contextlib
 import hashlib
 import json
@@ -1766,6 +1767,41 @@ def reads_of(c):
 COST_SETTLE = 30
 
 
+#: The tools whose `command` checks run in a pool beside the cargo checks (`Goal.start_pool`), and
+#: how wide. A tool belongs here when every form of it a goal runs only READS the tracked tree: no
+#: cargo, no built binary, no database, nothing written. That is a property of the tool and is
+#: checked by reading it, which is why this is a list of names and not a key a goal file can set --
+#: `tools/db-matrix.py` talks to five servers the `nvs-db` tests share, `tools/reference.py` reads
+#: the CLI the sweep is building beside it, and neither may run under a crate's test binaries.
+#: The width is small on purpose: these run beside libtest, which already takes every core.
+POOLED_TOOLS = frozenset(f"tools/{name}.py" for name in (
+    "brief", "chain", "check-links", "check-migration", "decisions", "directives", "holes",
+    "owners", "plan", "playbook", "records", "rules"))
+POOL_WIDTH = 4
+
+
+def is_pooled(c):
+    """Is this a `command` check `Goal.start_pool` may run ahead of its turn? See `POOLED_TOOLS`."""
+    argv = c.get("argv", [])
+    return (c["kind"] == "command" and len(argv) >= 2 and argv[0] == "python"
+            and argv[1] in POOLED_TOOLS and c.get("cwd", ".") == "."
+            and not c.get("setup") and not c.get("overlap"))
+
+
+class Pooled:
+    """A pool's future, behind the one method `Goal.command` asks of whatever is in flight."""
+
+    def __init__(self, future):
+        self.future = future
+
+    def join(self):
+        self.future.result()
+
+
+#: `cargo test --workspace`, bare: the one other argument list the shared test build answers.
+WORKSPACE_TEST = ["test", "--workspace"]
+
+
 def plain_crate_test(args):
     """`(crate, target)` for a check whose `args` is `cargo test -p <crate>`, or that plus one
     `--test <name>` -- `target` is None for the bare form. None for anything else."""
@@ -1820,8 +1856,8 @@ def rustc_version():
 # Held by whatever background release build is in flight; see `Goal.prebuild`.
 PREBUILD_LOCK = threading.Lock()
 
-# Held by whatever `overlap` command is in flight; see `Goal.start_overlap`.
-OVERLAP_LOCK = threading.Lock()
+# One lock per `overlap` command, held while it is in flight; see `Goal.start_overlap`.
+OVERLAP_LOCKS = collections.defaultdict(threading.Lock)
 
 #: The configuration a fixture runs under in the valgrind sweep, layered over `nvs.toml`, for a
 #: fixture whose cost under memcheck is the distance to a ceiling its leak verdict does not depend
@@ -2117,7 +2153,9 @@ class Goal:
                                "supp": supp.read_text(encoding="utf-8") if supp.is_file() else "",
                                "configs": configs},
         }
-        self._overlap = {}  # (argv tuple, cwd) -> the thread running that `overlap` command
+        self._overlap = {}  # (argv tuple, cwd) -> the thread or `Pooled` running that command
+        self._pool = None  # the executor behind `start_pool`, for `check()` to shut down
+        self._wsl_build = None  # (leg, thread, verdict box) while `start_wsl_build`'s build runs
         self._prebuild = None  # the thread warming the release profile
         self._prebuilt = frozenset()  # the arg lists it warms, so `cargo()` knows to wait for it
         self.floor_gate = True  # do the carried floor and the release profile run this sweep?
@@ -2241,9 +2279,10 @@ class Goal:
         under a label that says it was overlapped, because the three slowest are ranked by what a
         check cost and a fuzz build that doubled should still show there.
 
-        One at a time across the whole run, for `prebuild`'s reason: a sweep that fails early
-        returns with the thread still running, and the next sweep's `Goal` knows nothing about it.
-        Nothing with the gate shut or over remembered inputs -- the same two questions `check()`
+        One run of any one command at a time across the whole run, for `prebuild`'s reason: a
+        sweep that fails early returns with the thread still running, and the next sweep's `Goal`
+        knows nothing about it. Two different commands run side by side, which is the point of
+        the key. Nothing with the gate shut or over remembered inputs -- the same two questions `check()`
         asks at the judging end, asked here so nothing is started that nothing will read."""
         for c in self.swept(self.overlap_checks):
             if self.remembered(c):
@@ -2259,7 +2298,7 @@ class Goal:
             # that outlived its sweep must not file a verdict in the next one's cache.
             def run(argv=argv, cwd=cwd, key=key, label=label,
                     commands=self._commands, ran=self.ran):
-                with OVERLAP_LOCK:
+                with OVERLAP_LOCKS[key]:
                     started = time.monotonic()
                     commands[key] = capture(argv[0], argv[1:], cwd=ROOT / cwd)
                     ran.append((label, time.monotonic() - started))
@@ -2267,6 +2306,72 @@ class Goal:
             self._overlap[key] = threading.Thread(target=run, daemon=True)
             self._overlap[key].start()
             self.trace(f"{c['name']} started in the background")
+
+    def start_wsl_build(self):
+        """Start the Linux leg's BUILD beside the cargo tier, with the floor gate open.
+
+        The build and nothing after it. It is a compile under a target directory of its own, so
+        it shares nothing with the tier it runs beside but cores. The leg's fixtures and the
+        valgrind sweep stay behind the tier, and must: they reach the same database servers the
+        `nvs-db` tests and `tools/db-matrix.py` do, and those have only ever run one after the
+        other. Nothing with the gate shut, where a sweep is seconds long and may not want a leg at
+        all, and nothing when the two things that use the binary are green on these inputs --
+        the question `check()` asks where it joins this."""
+        if not self.floor_gate or not self.swept_programs() or not wsl_available():
+            return
+        if (self.remembered(self.leg_specs["valgrind sweep"])
+                and self.remembered(self.leg_specs["wsl leg"])):
+            return
+        leg, box = WslLeg(self.wsl_target), {}
+        thread = threading.Thread(target=lambda: box.update(fail=leg.prepare()), daemon=True)
+        thread.start()
+        self._wsl_build = (leg, thread, box)
+        self.trace("wsl build started in the background")
+
+    def wsl_built(self):
+        """The Linux leg and its build's verdict: the build `start_wsl_build` has in flight, waited
+        for, or one made here. Timed as `wsl build` either way, so overlapped it costs the wait."""
+        if self._wsl_build:
+            leg, thread, box = self._wsl_build
+            self._wsl_build = None
+            self.timed("wsl build", thread.join)
+            return leg, box.get("fail", "the wsl build ended without a verdict")
+        leg = WslLeg(self.wsl_target)
+        return leg, self.timed("wsl build", leg.prepare)
+
+    def start_pool(self):
+        """Start every `is_pooled` command the cargo tier owes, `POOL_WIDTH` at a time, and return.
+
+        The tier is judged one check at a time in stage order, and that does not change: this
+        only runs the read-only tool gates ahead of their turn, through the cache `command()`
+        reads and the join it already does for an `overlap` command. So the first red check named
+        is the one a serial tier would have named. What is given up is stopping early -- a red
+        tier has by then paid for gates behind the red check -- and `fast_fail` has already taken
+        the common case of that, the frontier check, before any of this starts.
+
+        A run that cost a second or more goes on `ran` under a label that says it was pooled,
+        for the reason an overlapped one does."""
+        owed, seen = [], set()
+        for c in self.swept(self.cargo_checks):
+            key = (tuple(c["argv"]), ".") if is_pooled(c) else None
+            if key is None or key in seen or key in self._commands or self.remembered(c):
+                continue
+            seen.add(key)
+            owed.append((key, f"{c['name']} [{c.get('stage', '?')}] (pooled)"))
+        if not owed:
+            return
+        self._pool = ThreadPoolExecutor(max_workers=POOL_WIDTH)
+
+        def run(key, label, commands=self._commands, ran=self.ran):
+            started = time.monotonic()
+            commands[key] = capture(key[0][0], list(key[0][1:]), cwd=ROOT)
+            spent = time.monotonic() - started
+            if spent >= 1:
+                ran.append((label, spent))
+
+        for key, label in owed:
+            self._overlap[key] = Pooled(self._pool.submit(run, key, label))
+        self.trace(f"{len(owed)} read-only tool gate(s) started in a pool of {POOL_WIDTH}")
 
     def suite(self, leg, args, exact=False):
         """`nvs test` on a leg, with the result shared by every check that asks for the same
@@ -2376,6 +2481,29 @@ class Goal:
             r = Result(code, "\n".join(outs), "\n".join(errs))
         self._crate_runs[key] = r
         return r
+
+    def workspace_tests(self):
+        """`cargo test --workspace`'s verdict off the shared build: `crate_tests` for every
+        package the build produced a test executable for, the outputs joined, stopping at the
+        first package that fails as cargo does.
+
+        A check names the whole workspace when its tests sit in two crates, since a check carries
+        one argument list. Handed to cargo, that ran every test binary in the tree a second time
+        behind the per-crate runs that had just run them; here it is those same runs, each paid
+        for once whichever check asks first. Doctests are not run, as they are not for a
+        `-p <crate>` check: the shared build holds no doctest executable."""
+        exes, fail = self.test_executables()
+        if exes is None:
+            return Result(-1, "", fail)
+        code, outs, errs = 0, [], []
+        for crate in sorted(exes):
+            one = self.crate_tests(crate)
+            outs.append(one.out)
+            errs.append(one.err)
+            if one.code != 0:
+                code = one.code
+                break
+        return Result(code, "\n".join(outs), "\n".join(errs))
 
     # -- the release build, moved off the critical path ---------------------------------
 
@@ -2728,6 +2856,9 @@ class Goal:
             # the class doc, and AGENTS.md's rule. Anything else -- `--release`, a feature -- is a
             # different build and keeps its own invocation.
             r = self.timed(label, lambda: self.crate_tests(*plain))
+        elif c["args"] == WORKSPACE_TEST:
+            # The same shared build, asked for whole: see `workspace_tests`.
+            r = self.timed(label, self.workspace_tests)
         else:
             r = self.timed(label, lambda: self.cargo(c["args"]))
         if r.code != 0:
@@ -2950,7 +3081,8 @@ class Goal:
         n += sum(1 for c in self.setup_checks if not self.remembered(c))
         n += sum(1 for c in self.swept_programs() if not self.remembered(c, "native"))
         # The shared workspace test build, paid once by the first plain `cargo test -p` check.
-        if any(plain_crate_test(c.get("args", [])) for c in self.catch_up_checks + self.cargo_checks):
+        if any(plain_crate_test(c.get("args", [])) or c.get("args") == WORKSPACE_TEST
+               for c in self.catch_up_checks + self.cargo_checks):
             n += 1
         n += sum(1 for c in self.swept(self.cargo_checks) if not self.remembered(c))
         n += sum(1 for c in self.swept(self.overlap_checks) if not self.remembered(c))
@@ -2998,6 +3130,7 @@ class Goal:
         self._suite = {}
         self._commands = {}
         self._overlap = {}
+        self._wsl_build = None
         self._exes = None
         self._crate_runs = {}
         self.short = []  # thresholds not met yet, judged after everything else
@@ -3025,6 +3158,10 @@ class Goal:
             try:
                 return self._check(verbose)
             finally:
+                # A red sweep returns with gates still queued; nothing will read them.
+                if self._pool:
+                    self._pool.shutdown(wait=False, cancel_futures=True)
+                    self._pool = None
                 self.save_green()
 
     def _check(self, verbose=False):
@@ -3112,6 +3249,8 @@ class Goal:
             return self.report_program_fails(fails)
 
         self.hold(self.cargo_checks, "cargo check(s)")
+        self.start_wsl_build()
+        self.start_pool()
         for c in self.swept(self.cargo_checks):
             if self.skip(c, what=f"cargo {c['name']}"):
                 continue
@@ -3158,9 +3297,8 @@ class Goal:
                               "neither is rebuilt"):
             pass  # `valgrind()` below notes its own skip
         elif self.timed("wsl probe", wsl_available):
-            leg = WslLeg(self.wsl_target)
             trace("building the wsl CLI")
-            fail = self.timed("wsl build", leg.prepare)
+            leg, fail = self.wsl_built()
             if fail:
                 return fail
             # Before the branch below rather than inside it: the sweep runs on this leg even when
