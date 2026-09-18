@@ -1,0 +1,17 @@
+<?nvs
+// The same word, written two ways. In the first, `é` is a single character. In
+// the second it is the letter `e` followed by a mark that adds the accent.
+// They look the same and they are not the same text.
+
+string $typed = "café";
+string $pasted = Core\Str::fromCodePoints([99, 97, 102, 101, 769]);
+
+echo "both read: ", $typed, " and ", $pasted, "\n";
+echo "characters: ", Core\Str::length($typed), " and ", Core\Str::length($pasted), "\n";
+echo "the same text: ", (Core\Str::compare($typed, $pasted) == 0) ? "yes" : "no", "\n";
+
+// Putting both into the same form is what makes the comparison honest. `Nfc`
+// is the form to use for text you are storing and comparing.
+string $one = Core\Str::normalize($typed, Core\NormalForm::Nfc);
+string $other = Core\Str::normalize($pasted, Core\NormalForm::Nfc);
+echo "the same text once normalized: ", (Core\Str::compare($one, $other) == 0) ? "yes" : "no", "\n";

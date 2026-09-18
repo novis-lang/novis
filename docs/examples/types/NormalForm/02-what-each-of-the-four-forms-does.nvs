@@ -1,0 +1,24 @@
+<?nvs
+// One word run through all four forms. It holds two things worth watching: an
+// accented letter, and `ﬁ`, which is a single character some typefaces use for
+// the two letters `f` and `i`.
+
+string $subject = "ﬁancé";
+
+array<string> $forms = ["as typed" => $subject];
+$forms["Nfc"] = Core\Str::normalize($subject, Core\NormalForm::Nfc);
+$forms["Nfd"] = Core\Str::normalize($subject, Core\NormalForm::Nfd);
+$forms["Nfkc"] = Core\Str::normalize($subject, Core\NormalForm::Nfkc);
+$forms["Nfkd"] = Core\Str::normalize($subject, Core\NormalForm::Nfkd);
+
+foreach ($forms as string $name => string $text) {
+    echo $name, ": ", $text, " (", Core\Str::length($text), " characters)\n";
+}
+
+// `Nfc` and `Nfd` print the same word and count the same, because what they
+// disagree about is how the accent is stored rather than how it reads. Either
+// one can be turned back into the other, so nothing is lost.
+//
+// The two `k` forms also replace `ﬁ` with the two letters `f` and `i`, which
+// is why they count one character more. There is no way back from that: the
+// original spelling is gone.

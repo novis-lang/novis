@@ -2,6 +2,7 @@
 `Core\Str::normalize` answers UAX #15's four normal forms over two independent axes, and only the canonical pair round-trips — spec § 1 *Transformation*
 --FILE--
 <?nvs
+// covers: Core\NormalForm
 // The two spellings of `é`: one precomposed code point, and `e` followed by a
 // combining acute. They render identically and are not the same string, which
 // is the whole reason this member exists.

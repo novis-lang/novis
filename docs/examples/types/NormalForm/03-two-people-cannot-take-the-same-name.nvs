@@ -1,0 +1,31 @@
+<?nvs
+// The everyday job: a sign-up form, and nobody may take a name somebody else
+// already has. Comparing what people typed is not enough — two people can type
+// the same name and end up with two different strings.
+
+class Names {
+    // The name as it is compared, never as it is shown. `Nfkc` settles the
+    // spelling and puts look-alike characters together, and lowercasing
+    // finishes the job.
+    public static function key(string $name): string {
+        return Core\Str::normalize(Core\Str::lower($name), Core\NormalForm::Nfkc);
+    }
+}
+
+array<string> $taken = [];
+$taken[Names::key("Sofía")] = "registered last week";
+
+// Three people sign up. The first typed the accent as a separate mark. The
+// second has a keyboard that produces a wide capital S. The third is somebody
+// else entirely.
+array<string> $asking = [
+    "the accent typed apart" => Core\Str::fromCodePoints([83, 111, 102, 105, 769, 97]),
+    "a wide capital S"       => "Ｓofía",
+    "a different person"     => "Mira",
+];
+
+foreach ($asking as string $who => string $name) {
+    string $key = Names::key($name);
+    echo $who, ": ", (($taken[$key] ?? "") == "") ? "free" : "taken", "\n";
+    $taken[$key] = $who;
+}
