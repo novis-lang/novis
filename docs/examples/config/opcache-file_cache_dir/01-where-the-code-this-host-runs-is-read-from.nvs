@@ -1,0 +1,21 @@
+<?nvs
+// `[opcache] file_cache_dir` is where this deployment keeps the units it has
+// already compiled, and the only spelling of that directory.
+
+echo 'artifact cache: ', Core\Config::get('opcache.file_cache_dir') ?? '(nothing written — the location this build derives for the account that runs it)', "\n";
+echo 'cache in use:   ', Core\Config::get('opcache.file_cache') ?? '(nothing written — on)', "\n";
+echo 'size limit:     ', Core\Config::get('opcache.file_cache_max_size') ?? '(nothing written — the ceiling this build ships with)', "\n";
+
+// Not this program's to move. A directory the process reads already-compiled,
+// about-to-be-trusted native code out of decides what gets executed here.
+echo 'read my code from /tmp:  ', Core\Config::set('opcache.file_cache_dir', '/tmp/mine') ? 'accepted' : 'refused', "\n";
+
+// And there is no safe direction to move it in, so narrowing is refused with
+// exactly as little ceremony as widening: turning the cache off for oneself is
+// still a program choosing how its own code is loaded.
+echo 'turn the cache off:      ', Core\Config::set('opcache.file_cache', 'false') ? 'accepted' : 'refused', "\n";
+
+// `[cache]` is a different thing entirely — the two tiers an application reads
+// and writes from its own code — and it holds no artifact directory to confuse
+// this one with.
+echo 'the data cache is not it: ', Core\Config::get('cache.dir') ?? '(no such key — an unknown key is refused when the file is read)', "\n";

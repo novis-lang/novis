@@ -1,0 +1,95 @@
+<?nvs
+// Attack: the directory this process reads already-compiled native code out of,
+// aimed by the program that would be executed from it. Every path shape that
+// might escape whatever holds it, every other name the key might answer to, and
+// then the write repeated until something gives — the artifact cache still being
+// wherever the deployment put it is the only evidence that none of it landed.
+// hostile: timeout-ms 20000
+
+// 1. Every shape of path. Traversal, a root, a device, a share, a byte that
+//    ends a string early for one consumer and not the next, and a name longer
+//    than any path a filesystem will take: what each of them is trying to be is
+//    a directory this program can write and the loader will read.
+array<string> $paths = [
+    '/tmp/mine',
+    '.',
+    '..',
+    '',
+    '../../../../../../tmp/mine',
+    '/proc/self/cwd',
+    'C:\\Windows\\Temp\\mine',
+    '\\\\?\\C:\\mine',
+    '\\\\attacker\\share\\units',
+    '\\\\.\\pipe\\nvs-control',
+    'CON',
+    'NUL',
+    "/tmp/mine\u{0000}/etc",
+    "/tmp/\u{202E}enutssti",
+    "/tmp/mine\nfile_cache = false",
+    'file:///tmp/mine',
+    'http://attacker.example/units',
+    '~',
+    '/' . Core\Str::repeat('a/', 100000),
+];
+foreach ($paths as string $path) {
+    Core\Config::set('opcache.file_cache_dir', $path);
+    Core\Config::restore('opcache.file_cache_dir');
+}
+
+// 2. Every other name the directory might answer to. `[cache]` is the data
+//    cache and holds no artifact directory, so a spelling under it that reached
+//    this key would be the second home the rule says does not exist — and the
+//    per-application copy is the same question asked one block down.
+array<string> $names = [
+    'opcache.file_cache_dir',
+    'opcache.file_cache',
+    'opcache',
+    'cache.dir',
+    'cache.local.dir',
+    'cache.file_cache_dir',
+    'file_cache_dir',
+    'app.opcache.file_cache_dir',
+    'app.0.opcache.file_cache_dir',
+    'opcache.file_cache_dir.',
+    'opcache..file_cache_dir',
+    "opcache.file_cache_dir\u{0000}",
+    'opcache.file_cache_directory',
+    'OPCACHE.FILE_CACHE_DIR',
+    'opcache.' . Core\Str::repeat('sub.', 20000) . 'file_cache_dir',
+];
+foreach ($names as string $name) {
+    Core\Config::set($name, '/tmp/mine');
+    Core\Config::get($name);
+    Core\Config::restore($name);
+}
+
+// 3. The three keys that bound the cache without moving it, since a program
+//    that cannot redirect the directory would settle for emptying it: a cache
+//    turned off, sized to nothing, or collected on every single compile.
+array<string> $bounds = ['false', 'true', '0', '1', '-1', '18446744073709551615'];
+foreach ($bounds as string $bound) {
+    Core\Config::set('opcache.file_cache', $bound);
+    Core\Config::set('opcache.file_cache_max_size', $bound);
+    Core\Config::set('opcache.file_cache_gc_probability', $bound);
+    Core\Config::set('opcache.file_cache_gc_divisor', $bound);
+}
+
+// 4. And all of it again under as many writes as the runtime will take, read
+//    back every round: a refusal that answers false while still reaching the
+//    snapshot behind it would show up here and nowhere else, because the write
+//    itself already said no.
+uint $changes = 0;
+string $standing = Core\Config::get('opcache.file_cache_dir') ?? '(nothing written)';
+uint $i = 0;
+while ($i < 200000) {
+    Core\Config::set('opcache.file_cache_dir', '/tmp/mine');
+    Core\Config::restore('opcache.file_cache_dir');
+    if ((Core\Config::get('opcache.file_cache_dir') ?? '(nothing written)') != $standing) {
+        $changes = $changes + 1;
+    }
+    $i = $i + 1;
+}
+
+echo 'changes: ', $changes, "\n";
+echo 'artifact cache: ', Core\Config::get('opcache.file_cache_dir') ?? '(nothing written — the location this build derives for the account that runs it)', "\n";
+echo 'cache in use:   ', Core\Config::get('opcache.file_cache') ?? '(nothing written — on)', "\n";
