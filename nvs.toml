@@ -313,21 +313,36 @@ write = true
 [limits]
 memory = "256M"
 
-# The four `System` keys carved out of this block, written at exactly the figures
+# The five `System` keys carved out of this block, written at exactly the figures
 # `nvs-runtime` and `nvs_stdlib::compress` already ship — a megabyte and 50 ms of
-# reserve, 64 MiB and 1000:1 of decompression bound — so this repository behaves
-# the same with them written as it did with them absent, for the reason the cache
-# blocks below are written the same way. They are here to be *read*:
-# `docs/examples/config/limits-fatal_reserve_memory/` and its three siblings are
+# reserve, sixty-four levels of `spawn script` nesting, 64 MiB and 1000:1 of
+# decompression bound — so this repository behaves the same with them written as
+# it did with them absent, for the reason the cache blocks below are written the
+# same way. They are here to be *read*:
+# `docs/examples/config/limits-fatal_reserve_memory/` and its four siblings are
 # the website's pages for these directives, and a page whose example prints
 # `(unset)` teaches nothing about a key an operator is about to write.
 fatal_reserve_memory = "1M"
 fatal_reserve_time = "50ms"
+max_script_depth = 64
 max_decompressed = "64M"
 max_decompression_ratio = 1000
 
 [limits.hard]
 memory = "512M"
+
+# The room the tier-3 handler runs in, written at exactly the figures
+# `nvs_runtime::Ctx` ships — 16 MiB and five seconds, which is what compiling and
+# running a whole `.nvs` costs rather than what formatting a message costs. The
+# block states these two keys and no third: `handler` is written per application
+# above, where `examples/logging.nvs` is the fixture for it, and a `format` or a
+# `level` here would pin what the mode otherwise decides. They are here to be
+# *read*, for the reason the `[limits]` keys above are —
+# `docs/examples/config/log-handler_reserve_memory/` and its sibling are the
+# website's pages for them.
+[log]
+handler_reserve_memory = "16M"
+handler_reserve_time = "5s"
 
 # The other two tiers' blocks, written at exactly the figures `nvs_stdlib::cache`
 # ships — 32 MiB a tier and a five-second fill wait — so this repository behaves

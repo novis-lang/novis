@@ -200,11 +200,13 @@
 
 #[log]
 # Tier 3: a `.nvs` invoked as a `spawn script` isolate with one `ErrorReport` argument, plus the
-# memory and time reserved for it. The reserve is sized once per core, so that the tier reporting an
-# out-of-memory is not itself out of memory.
+# memory and time reserved for it. The reserve is the engine's rather than the failing request's and
+# is sized once per core, so that the tier reporting an out-of-memory is not itself out of memory.
+# Unset, 16 MiB and 5 s — what compiling and running a whole script costs, which is why both are
+# larger than `[limits]`' own reserve for a handler the request already holds.
 #handler = "scripts/on-error.nvs"
-#handler_reserve_memory = "4M"
-#handler_reserve_time = "500ms"
+#handler_reserve_memory = "16M"
+#handler_reserve_time = "5s"
 # Tier 4, the floor that is always there: `stderr`, `file:<path>` or `syslog`.
 #target = "stderr"
 # Which rendering the target emits — `rule:errors/renderings`' set minus the HTML one, which belongs
@@ -937,8 +939,8 @@
 # `[log]`'s keys for this application alone: the tier-3 handler and its reserve, and what the record
 # written for it looks like.
 #handler = "apps/shop/scripts/on-error.nvs"
-#handler_reserve_memory = "4M"
-#handler_reserve_time = "500ms"
+#handler_reserve_memory = "16M"
+#handler_reserve_time = "5s"
 #target = "stderr"
 #format = "json"
 #level = "Info"
