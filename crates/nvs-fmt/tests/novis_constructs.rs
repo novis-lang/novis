@@ -23,7 +23,7 @@ fn a_qualifier_sits_one_space_before_its_type() {
     // run of spaces where one belongs, in front of a scalar and in front of a
     // second qualifier. The `tainted` written as a member name and the one
     // written inside a string are not qualifiers at all, so the run in front of
-    // `instanceof` and the `?` inside the literal are the author's.
+    // `is` and the `?` inside the literal are the author's.
     let mangled = "\
 <?nvs
 class Inbox
@@ -59,6 +59,64 @@ class Inbox
 }
 ";
     assert_eq!(formatted(mangled), canonical);
+}
+
+#[test]
+fn a_class_reference_after_is_is_formatted_as_a_type_is() {
+    // `$x is $cls` is the one right-hand side of `is` that is a value rather
+    // than a type (`rule:types/type-test`'s value arm), and the printer's whole
+    // job there is to put it where a written type goes. The two guards are
+    // mangled identically — an indent the printer owns — so a value arm laid
+    // out by any other rule comes back unlike the type form beside it.
+    let mangled = "\
+<?nvs
+class Inbox
+{
+    public function look(mixed $m, class<Inbox> $cls): bool
+    {
+          if ($m is Inbox) {
+            return true;
+        }
+          if ($m is $cls) {
+            return true;
+        }
+        return false;
+    }
+}
+";
+    let canonical = "\
+<?nvs
+class Inbox
+{
+    public function look(mixed $m, class<Inbox> $cls): bool
+    {
+        if ($m is Inbox) {
+            return true;
+        }
+        if ($m is $cls) {
+            return true;
+        }
+        return false;
+    }
+}
+";
+    let printed = formatted(mangled);
+    assert_eq!(printed, canonical);
+
+    let guards: Vec<&str> = printed
+        .lines()
+        .filter(|line| line.contains(" is "))
+        .collect();
+    assert_eq!(
+        guards.len(),
+        2,
+        "the case writes the two spellings of the one type test and nothing else"
+    );
+    assert_eq!(
+        guards[0].replace("Inbox", "$cls"),
+        guards[1],
+        "the class reference after `is` is not laid out where the written type is"
+    );
 }
 
 #[test]
