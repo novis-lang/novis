@@ -1,0 +1,95 @@
+<?nvs
+// Attack: the timeout is the half of the pool's bound that says how long, so
+// this goes at the window rather than at the count — a wait written as every
+// magnitude a duration parser might overflow on, as every spelling that has
+// ever meant "no limit", and as the count's own spelling, because the two caps
+// sit one underscore apart and a parser that took either would let an operator
+// set a window where they meant a number of connections.
+// hostile: timeout-ms 30000
+
+// 1. Magnitudes. A duration is nanoseconds underneath, so the interesting
+//    values are the ones that overflow on the way there rather than the ones
+//    that are merely long.
+array<string> $magnitudes = [
+    '9223372036854775807',
+    '9223372036854775807s',
+    '18446744073709551615ns',
+    '106751d',
+    '106752d',
+    '999999999999999999999h',
+    '-30s',
+    '-1',
+    '0',
+    '0s',
+    '0ns',
+];
+foreach ($magnitudes as string $value) {
+    Core\Config::set('http.client.pool_idle_timeout', $value);
+    Core\Config::get('http.client.pool_idle_timeout');
+}
+Core\Config::restore('http.client.pool_idle_timeout');
+
+// 2. Every spelling that has ever meant "hold it forever" somewhere. There is
+//    no such value here, and a parser that read one as a very large number
+//    would be a connection the far end retired sitting in the pool until the
+//    process ends.
+array<string> $forever = [
+    'false',
+    'null',
+    'none',
+    'never',
+    'infinity',
+    'inf',
+    '-0',
+    '',
+    '   ',
+    'NaN',
+    '1e300',
+    '30 s',
+    '30ss',
+    '30sm',
+    "30s\u{0000}24h",
+    "30s\r\npool_idle = 1048576",
+    Core\Str::repeat('3', 100000) . 's',
+];
+foreach ($forever as string $value) {
+    Core\Config::set('http.client.pool_idle_timeout', $value);
+    Core\Config::get('http.client.pool_idle_timeout');
+}
+Core\Config::restore('http.client.pool_idle_timeout');
+
+// 3. The two caps written in each other's spelling, and the near miss between
+//    them: `http.client.pool_idle` is a plain text prefix of this key, so a
+//    registry matching on text rather than on dot boundaries would answer about
+//    whichever of the pair it found first.
+Core\Config::set('http.client.pool_idle', '30s');
+Core\Config::set('http.client.pool_idle_timeout', '16');
+array<string> $between = [
+    'http.client.pool_idle_timeout_extra',
+    'http.client.pool_idle_timeoutx',
+    'http.client.pool_idle_',
+    'http.client.pool_idle_timeout.default',
+    'http.client.pool_idle_timeout.pool_idle',
+    'http.client.pool_idle.timeout',
+    'http.client.pool.idle.timeout',
+];
+foreach ($between as string $key) {
+    Core\Config::set($key, '24h');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+Core\Config::restore('http.client.pool_idle');
+Core\Config::restore('http.client.pool_idle_timeout');
+
+// 4. A hundred thousand refusals of the pair, alternating, so a refusal that
+//    left anything behind leaves two hundred thousand of them behind.
+uint $i = 0;
+while ($i < 100000) {
+    Core\Config::set('http.client.pool_idle_timeout', '24h');
+    Core\Config::set('http.client.pool_idle', '1048576');
+    $i = $i + 1;
+}
+Core\Config::restore('http.client.pool_idle_timeout');
+Core\Config::restore('http.client.pool_idle');
+
+echo 'pool_idle_timeout: ', Core\Config::get('http.client.pool_idle_timeout') ?? '(nothing)', "\n";
