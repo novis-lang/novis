@@ -80,17 +80,17 @@ echo $a->describe() . "\n";
 echo $d->describe() . "\n";
 echo $d->greet() . "\n";
 
-if ($d instanceof Animal) {
+if ($d is Animal) {
     echo "dog is an animal\n";
 }
 
-if ($d instanceof Greets) {
+if ($d is Greets) {
     echo "dog greets\n";
 }
 
 var $leaf = LeafRegistry::make();
 echo $leaf->label() . "\n";
 
-if ($leaf instanceof MidRegistry) {
+if ($leaf is MidRegistry) {
     echo "leaf is a mid\n";
 }

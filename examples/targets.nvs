@@ -48,7 +48,7 @@ echo 'elem=' . $box[1] . "\n";
 echo 'flag=' . ($unset ? 'yes' : 'no') . "\n";
 
 object $any = new Point(3, 4);
-echo 'top=' . ($any instanceof Point ? 'point' : 'other') . "\n";
+echo 'top=' . ($any is Point ? 'point' : 'other') . "\n";
 
 // ADR 0007 § 2's grid gives a `bool` source the "anything → `string`" row and
 // no numeric one, so a number out of a predicate is a branch said out loud

@@ -58,7 +58,7 @@ if ($answer is int) {
     echo 'narrowed=', $answer, "\n";
 }
 
-// A class is the descriptor walk `instanceof` already pays for.
+// A class is one descriptor walk over the subject's ancestry.
 mixed $pet = new Animal('rex');
 echo 'class=', $pet is Animal, "\n";
 
