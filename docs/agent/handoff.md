@@ -2,50 +2,44 @@
 
 ## State
 
-**Goal `test-doubles`, stage 5 is complete and green** — `python tools/verify.py` 12 of 12.
-`Core\Test::assertCompletes` is a registry row with a body (`crates/nvs-stdlib/src/test.rs:773`),
-five edits done and the `§13 Test::assertCompletes` ratchet key struck in the same slice, so
-`crates/nvs-stdlib/tests/spec-members-compiler-facing-outstanding.txt` now holds `Core\BigInt`
-alone.
+**Goal `test-doubles` is met.** Every `[[check]]` in its acceptance list passes, `python
+tools/verify.py` is 12 of 12 and `--doc` reports every link resolving; `python tools/owners.py
+--closes test-doubles` and `python tools/playbook.py --closes test-doubles` each own nothing.
 
-**The budget is a shape, not a bag.** `{within: Duration}` is `CoreTy::Shape(WITHIN)` because a
-bag's option is optional by construction and there is no duration this member could pick for a
-caller — that keeps ADR 0079 § 16's own `{within: Duration::millis(50)}` spelling and makes the
-field required. The ABI slots are named once at `crates/nvs-stdlib/src/test.rs:355`.
+**`rule:testing/doubles` is `shipped`** at `docs/rules/testing.json:140`, and its `guardedBy` names
+the six `.nvst` cases and `crates/nvs-types/tests/testing.rs`.
+`rule:testing/task-tree-and-virtual-clock` names the three `assert-completes-*.nvst` cases beside
+the runner it already had. `docs/rules/testing.md` and `docs/ground-rules.md` are the render of
+those two edits.
 
-**The clock moves before `$body` runs**, so a retry or a backoff inside it measures against a clock
-already granted the budget; the helper's doc comment owns that reasoning. What "still running" means
-is `nvs_host::children_still_running` against a count taken before the call — the same counter the
-runner reads at the test's own boundary.
-
-**Both sides are guarded.** Three `.nvst` cases pin the refusal (the only side a case can reach, a
-case never being inside a `#[Test]`), and `crates/nvs-cli/src/runner.rs:2849` is the accepted side
-over the fixture `crates/nvs-cli/tests/fixtures/runner/assert-completes.nvs`.
+**Stage 6's conformance cases were already on disk** when this session opened — ADR 0079 § 10's
+three bullets, `assertCalled`/`assertNeverCalled`, the `partial` delegation and the three
+`assertCompletes` refusals — so only the rulebook half was left to do.
+`crates/nvs-stdlib/tests/spec-members-compiler-facing-outstanding.txt` holds `Core\BigInt` alone.
 
 ## Next group
 
-**Stage 6: the proofs and the rulebook** — one file set: `docs/rules/testing.json`,
-`tests/conformance/reject/`, `tests/conformance/core/`.
+**Goal `bigint`, stages 2 and 3 — the class and its roster** — one file set:
+`crates/nvs-stdlib/src/bigint.rs` (new), `crates/nvs-stdlib/src/registry.rs`,
+`crates/nvs-stdlib/src/lib.rs`, `crates/nvs-stdlib/Cargo.toml`, `Cargo.lock`. The driver installs
+`docs/agent/goals/69-bigint.handoff.md:1` over this file at the goal switch; these three items are
+that seed's, so a session opening before the switch is not lost.
 
-- [ ] **ADR 0079 § *Verification*'s § 10 bullets as conformance cases** — goal prose stage 6. A
-      double missing a method and one declaring a method the interface lacks, each an
-      `--EXPECTF-ERROR--` case under `tests/conformance/reject/`, beside the reference case
-      `tests/conformance/reject/a-method-reference-names-a-method-the-interface-lacks.nvst:1`; and a
-      double satisfying an interface passed to a parameter of that type under
-      `tests/conformance/core/`. `rule:testing/doubles`.
-- [ ] **`rule:testing/doubles` flipped to `shipped`** — its entry is
-      `docs/rules/testing.json:142`, its empty `guardedBy` is `docs/rules/testing.json:146`, and the
-      cases the item above writes are what fills it. Then `python tools/rules.py --render`.
-- [ ] **`rule:testing/task-tree-and-virtual-clock` gains its new guards** — the same
-      `docs/rules/testing.json:142` block, one entry further down: the three
-      `tests/conformance/core/assert-completes-*.nvst` cases and the fixture behind
-      `crates/nvs-cli/src/runner.rs:2849`. Re-render in the same call as the item above.
+- [ ] **The crate and the module** — `num-bigint` into `crates/nvs-stdlib/Cargo.toml`, `mod bigint;`
+      beside `crates/nvs-stdlib/src/lib.rs:242`'s `mod test;`, and `crate::bigint::CLASS` beside
+      `crates/nvs-stdlib/src/registry.rs:1530`'s `crate::decimal::CLASS`.
+      `rule:core-api/shape-rules`.
+- [ ] **The two slots and the two descriptor fields** — `crates/nvs-stdlib/src/instance.rs:185` is
+      where a `Core` class's `renderer` and `comparer` are declared, and
+      `crates/nvs-stdlib/src/decimal.rs:84` is the row shape to copy.
+- [ ] **Every row of the goal's § *Stage 3*** — `docs/agent/goals/69-bigint.md:1` — each with its
+      reference card, under conventions.md's five edits, striking
+      `crates/nvs-stdlib/tests/spec-members-compiler-facing-outstanding.txt:22` in the same edit.
 
 ## Backlog
 
 - `Core\BigInt` is the one key left in
-  `crates/nvs-stdlib/tests/spec-members-compiler-facing-outstanding.txt:24` — goal `bigint`, not
-  this one.
-- A `partial` delegating what it does not override is listed in stage 6's prose and has no case yet
-  — `docs/agent/loop-goal.md:135`.
-- Mutation testing is M10's, not this goal's — `docs/plan/m10.md`.
+  `crates/nvs-stdlib/tests/spec-members-compiler-facing-outstanding.txt:22` — goal `bigint`.
+- Goal `bigint`'s stage 4 depth cases are disjoint from the group above and can take their own
+  session — `docs/agent/goals/69-bigint.handoff.md:30`.
+- Mutation testing is M10's, not a `Core\Test` goal's — `docs/plan/m10.md`.
