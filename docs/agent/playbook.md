@@ -3622,7 +3622,7 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   the subject is a `Counted` and nothing else, and `$v->label()` there is `E0405: `Counted` has no
   method named `label``, pointing at the inner interface for a member the outer guard proved. Read
   what the outer guard bought into a local before writing the second test, as
-  `tests/conformance/lang/an-instanceof-guard-narrows-to-an-interface.nvst` does.
+  `tests/conformance/lang/an-is-guard-narrows-to-an-interface.nvst` does.
   [until: reviewed 2026-09-06]
 - **Two sort keys that look different usually agree, and a case that does not separate them pins
   nothing.** `rule:programs/implementing`'s `implementors` sorts by `QName::segments()`, and the
@@ -5553,6 +5553,20 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `Ty::Int` where the parameter declares `Ty::Enum` is invisible end to end. Assert `Inst::ty`
   in a `crates/nvs-ir/tests/*.rs` fixture instead, the way `parameter_defaults.rs` does with
   `int_constants`. [until: exists crates/nvs-ir/src/verify.rs]
+- **`instanceof` took a bare class name and `is` takes a *type*, so respelling a test against a
+  generic interface turns `E0442` on.** The right of `is` goes through `rule:types/grammar`'s
+  production, and `rule:iteration/two-interfaces` makes `Iterator<T>`'s argument mandatory
+  everywhere that production is used, so `$it is Iterator` is refused where
+  `$it instanceof Iterator` compiled. Write the argument — `$it is Iterator<int>` — and say in
+  the case that the walk compares descriptors and erases it, which is why no answer moves.
+  [until: reviewed 2026-09-18]
+- **A `.lspt` case written to fill one coverage cell can open a whole new construct row.**
+  `nvs_lsp::coverage::of` credits the node an answer's *start position* is innermost in, so
+  wrapping a test in parentheses to push a diagnostic's start past the subject —
+  `($s is int) is void` — made `Paren` a construct of its own and seven fresh empty cells out of
+  the one being closed. Reach for a diagnostic that already starts inside the construct you want
+  (`$s is Undeclared` reports `E0303` on the name, which is inside the test and past its subject)
+  rather than reshaping the program around the span. [until: gone crates/nvs-lsp/src/coverage.rs:"fn kind_at"]
 
 ## Splitting a file that got too big
 
@@ -7737,19 +7751,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   signature or a `let`, but never in a `type` alias's right-hand side. Widen one of these rosters by
   naming the tuple, as `nvs_types::layout::MethodEntry` does, and re-export the name so a crate that
   does not depend on `nvs-types` can still write it. [until: reviewed 2026-09-17]
-- **A goal staging "the grammar" before "the tests" leaves the corpus red in between.** Deleting
-  a keyword from the parser fails every `.nvst` case that spells it at once, and no ordering
-  inside the grammar stage avoids it: the refusal, the checker and the AST are one compile. Land
-  the code, name the red corpora in the handoff, and take the respelling as the next group.
-  [until: gone tests/conformance/lang/instanceof-refuses-a-subject-that-can-hold-no-object.nvst]
-
-- **A `.lspt` case crediting the coverage matrix can lose its construct when the AST changes under
-  it, and the matrix fails somewhere else entirely.** `instanceof`'s class side was an expression
-  node, so a cursor on it credited `ConstFetch`; under `is` the right-hand side is a *type* and the
-  innermost node is `TypeTest`, a construct no other case reaches — so one respelled case demands
-  six more cursor cases and one whole-document case before `nvs-lsp --test coverage` is green.
-  Respelling a case that names a construct is writing its whole row, not editing one line.
-  [until: gone crates/nvs-syntax/src/walk.rs:"InstanceOf"]
 
 ## Divergences and refusals already pinned
 
