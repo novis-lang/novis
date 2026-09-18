@@ -1,0 +1,97 @@
+<?nvs
+// Attack: where every outbound byte goes is the deployment's decision, so the
+// attack is every way of naming a proxy that is not the operator writing the
+// block — the keys themselves, the credential half of them, a URL carrying a
+// second request inside it, the environment variables every other client reads,
+// and the names that sit one character away from the real ones.
+// hostile: timeout-ms 30000
+
+// 1. Every key of the block, written with the value an attacker would want in
+//    it. A request that got any of these through would be choosing who resolves
+//    the destination, which is choosing whether the address check happened.
+array<string> $keys = [
+    'http.client.proxy',
+    'http.client.proxy.url',
+    'http.client.proxy.resolve',
+    'http.client.proxy.bypass',
+    'http.client.proxy.username',
+    'http.client.proxy.password',
+    'http.client.proxy.password_file',
+];
+array<string> $values = [
+    'http://attacker.test:8080',
+    'https://attacker.test:8443',
+    'http://user:pass@attacker.test:8080',
+    'http://127.0.0.1:1',
+    'http://[::1]:8080',
+    'http://169.254.169.254/',
+    'proxy',
+    'local',
+    '',
+    'false',
+    '/proc/self/environ',
+    '../../../../etc/shadow',
+    "http://ok.test\u{0000}http://attacker.test",
+    "http://ok.test\r\nHost: attacker.test",
+    'http://' . Core\Str::repeat('a', 100000) . '.test',
+];
+foreach ($keys as string $key) {
+    foreach ($values as string $value) {
+        Core\Config::set($key, $value);
+        Core\Config::get($key);
+    }
+    Core\Config::restore($key);
+}
+
+// 2. The ambient way in, which is the same attack with a worse reach: a
+//    variable is shared by every request in the process and written down in no
+//    file an auditor opens. Nothing here reads one, in any spelling, and the
+//    program cannot write one either.
+array<string> $ambient = [
+    'HTTP_PROXY',
+    'HTTPS_PROXY',
+    'http_proxy',
+    'https_proxy',
+    'NO_PROXY',
+    'no_proxy',
+    'ALL_PROXY',
+];
+foreach ($ambient as string $name) {
+    Core\Env::get($name);
+}
+
+// 3. Names near the real ones. The block sits between two others that answer
+//    differently — the pool's caps above it and the socket's bounds below — so
+//    a near miss reaching the wrong row is a proxy key answered by something
+//    that is not about proxies at all.
+array<string> $nearby = [
+    'http.client.proxyx',
+    'http.client.proxy_url',
+    'http.client.proxy.',
+    'http.client..proxy.url',
+    'HTTP.CLIENT.PROXY.URL',
+    'Http.Client.Proxy.Url',
+    'proxy.url',
+    'client.proxy.url',
+    'app.http.client.proxy.url',
+    'http.client.socket.proxy.url',
+    'http.client.proxy.url.real',
+    'http.client.proxy.' . Core\Str::repeat('sub.', 20000) . 'url',
+];
+foreach ($nearby as string $key) {
+    Core\Config::set($key, 'http://attacker.test:8080');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 4. A hundred thousand attempts at the one key that matters, with no restore
+//    between them, in case the refusal is only the first answer or the overlay
+//    grows on the way to giving it.
+uint $i = 0;
+while ($i < 100000) {
+    Core\Config::set('http.client.proxy.url', 'http://attacker.test:8080');
+    $i = $i + 1;
+}
+Core\Config::restore('http.client.proxy.url');
+
+echo 'proxy: ', Core\Config::get('http.client.proxy.url') ?? '(nothing)', "\n";

@@ -1,0 +1,30 @@
+<?nvs
+// `[http.client.proxy]` is the forward proxy outbound calls leave through. It
+// is the operator's block and nobody else's: nothing is written for it in this
+// checkout, and an absent block is how a deployment says it wants no proxy at
+// all rather than a place a default could be filled in.
+
+echo 'proxy:          ', Core\Config::get('http.client.proxy.url') ?? '(no block, so no proxy at all)', "\n";
+echo 'who resolves:   ', Core\Config::get('http.client.proxy.resolve') ?? '(nothing — the block has no default for it)', "\n";
+echo 'reached direct: ', Core\Config::get('http.client.proxy.bypass') ?? '(nothing — with no proxy there is nothing to go around)', "\n";
+
+// A program cannot write one either, and that is the whole of the rule. Novis
+// pins every outbound call to an address it checked before dialling, and a
+// proxy is the one thing that can stand between the call and that check — so a
+// per-call proxy would be a per-call way to move the address question somewhere
+// this deployment cannot see.
+echo 'point it at me: ', Core\Config::set('http.client.proxy.url', 'http://somewhere-else.test:8080') ? 'yes' : 'no', "\n";
+echo 'let it resolve: ', Core\Config::set('http.client.proxy.resolve', 'proxy') ? 'yes' : 'no', "\n";
+
+// Nor is there an ambient way in. The variables every other client reads are
+// read by nothing here, whatever this process was started with: they are shared
+// by every request, settable by whatever launched the program, and recorded in
+// no file an auditor opens.
+echo 'HTTPS_PROXY:    ', Core\Env::get('HTTPS_PROXY') ?? '(unset here, and it would change nothing either way)', "\n";
+
+// Which leaves one place a proxy can be named, and every key of it — including
+// the credential the tunnel request carries — is answered the same way.
+array<string> $keys = ['url', 'resolve', 'bypass', 'username', 'password', 'password_file'];
+foreach ($keys as string $key) {
+    echo 'writable by me: ', $key, ' -> ', Core\Config::set('http.client.proxy.' . $key, 'anything') ? 'yes' : 'no', "\n";
+}
