@@ -1,0 +1,15 @@
+<?nvs
+// A whole number that will not fit is refused, never wrapped around into a small
+// or negative one. The message names the operation that could not answer, so a
+// log line says which step of the sum gave up rather than only that it did.
+
+int $bytesPerRow = 4000000000;
+array<int> $rowCounts = [2, 3000000000];
+foreach ($rowCounts as int $rows) {
+    try {
+        int $total = $bytesPerRow * $rows;
+        echo $rows, " rows: ", $total, " bytes\n";
+    } catch (ArithmeticError $tooLarge) {
+        echo $rows, " rows: ", $tooLarge->message, "\n";
+    }
+}

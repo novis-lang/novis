@@ -2,6 +2,7 @@
 `RuntimeError`'s three subclasses are each caught by a `RuntimeError` clause, and `ArithmeticError` is not — spec § 10
 --FILE--
 <?nvs
+// covers: ArithmeticError
 class Ladder {
     public static function of(int $n): string {
         try {

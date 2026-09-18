@@ -1,0 +1,25 @@
+<?nvs
+// A dashboard that has to finish. Each row is worked out on its own, and a row
+// with nothing to compare against — a product that sold none at all last month —
+// says so instead of taking the whole page down with it.
+
+final class Growth {
+    public static function since(int $before, int $now): string {
+        try {
+            float $percent = ($now - $before) * 100 / $before;
+            return ($percent as string) . "%";
+        } catch (ArithmeticError $noBaseline) {
+            return "new";
+        }
+    }
+}
+
+array<string> $products = ["notebook", "pencil case", "eraser"];
+array<int> $lastMonth = [120, 0, 40];
+array<int> $thisMonth = [180, 90, 0];
+
+int $row = 0;
+while ($row < 3) {
+    echo $products[$row], ": ", Growth::since($lastMonth[$row], $thisMonth[$row]), "\n";
+    $row = $row + 1;
+}

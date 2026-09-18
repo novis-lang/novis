@@ -1,0 +1,53 @@
+<?nvs
+// Attack: raise this error hundreds of thousands of times, then raise it again
+// from inside every frame of a deep call chain. Anything held per failure — the
+// message, the place it came from — grows without limit here.
+// hostile: timeout-ms 30000
+
+final class Flood
+{
+    public static function churn(int $rounds): int
+    {
+        int $kept = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            try {
+                // A divisor the compiler cannot see is zero, so every round takes
+                // the real refusal rather than one folded away at compile time.
+                int $zero = $i - $i;
+                $kept = $kept + (1 % $zero);
+            } catch (ArithmeticError $failed) {
+                // The message is read, so a run cannot pass by never building one.
+                if (Core\Str::length($failed->message) > 0) {
+                    $kept = $kept + 1;
+                }
+            }
+            $i = $i + 1;
+        }
+        return $kept;
+    }
+
+    // Every frame catches what the frame under it threw and throws a fresh one
+    // carrying the same message, so the chain holds as many live failures as it
+    // is deep.
+    public static function rethrow(int $depth): int
+    {
+        if ($depth == 0) {
+            int $zero = 0;
+            return 1 % $zero;
+        }
+        try {
+            return Flood::rethrow($depth - 1);
+        } catch (ArithmeticError $rising) {
+            throw new ArithmeticError($rising->message);
+        }
+    }
+}
+
+echo Flood::churn(400000), "\n";
+
+try {
+    echo Flood::rethrow(20000), "\n";
+} catch (Throwable $gaveUp) {
+    echo "the chain ended\n";
+}

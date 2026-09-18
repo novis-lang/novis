@@ -1,0 +1,14 @@
+<?nvs
+// Dividing by a count that came from somewhere else is the everyday way to meet
+// this error: one of the baskets below is empty. Novis refuses that division
+// rather than answering infinity, so the empty basket has to be handled.
+
+array<int> $baskets = [3, 0, 5];
+foreach ($baskets as int $items) {
+    try {
+        float $each = 1200 / $items;
+        echo $items, " items: ", $each, " cents each\n";
+    } catch (ArithmeticError $noAnswer) {
+        echo $items, " items: ", $noAnswer->message, "\n";
+    }
+}
