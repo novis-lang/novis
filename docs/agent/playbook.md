@@ -5657,6 +5657,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   and `[app.capabilities]` — as `limits.*` and `capabilities.*`, never under an `app.` prefix. Show
   a block through one of those, or through behaviour the way `examples/routes.nvs` does.
   [until: gone crates/nvs-config/src/snapshot.rs:table.remove("app")]
+- **A capability grant written as a list reads back through `Core\Config::get` exactly as an
+  ungranted one does — as nothing at all.** `nvs_config::request`'s `as_text` turns a TOML scalar
+  into text and answers `None` for an array, so an `[[app]]` fixture granting
+  `fs.read = ["some/dir"]` makes a dossier example print `(nothing)` for the one grant the block
+  exists to show, while a `read = true` beside it prints fine. Write a page's fixture grants as
+  booleans and send the reader to `nvs config dump`, which is `nvs_config::audit` and does render a
+  list. [until: gone crates/nvs-config/src/request.rs:as_text]
 
 ## Splitting a file that got too big
 

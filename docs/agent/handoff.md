@@ -2,51 +2,48 @@
 
 ## State
 
-Milestone `dossier`, goal `config-directives-1-3` — 16 features, **3 landed**, 13 open. Each of
-`directive:app`, `directive:cache.local` and `directive:cache.process` now has its Rust test, its
-one example with a blessed `.out`, its attack and its `about.md`;
-`python tools/dossier.py --group 'config:directives'` reports all three complete and is the only
-scoreboard worth reading. A directive owes **one** example and no bench —
-`tools/data/dossier-policy.toml`'s table is what each kind owes, and the goal's "three examples"
-paragraph is the generic blurb, not this kind's row.
+Milestone `dossier`, goal `config-directives-1-3` — 16 features, **6 landed**, 10 open. Each of
+`directive:cache.shared`, `directive:capabilities` and `directive:control.socket` now has its Rust
+census test in `crates/nvs-config/tests/directives.rs`, one example with a blessed `.out`, an attack
+and an `about.md`; `python tools/dossier.py --group 'config:directives'` is the only scoreboard
+worth reading. A directive owes **one** example and no bench — `tools/data/dossier-policy.toml`'s
+table is what each kind owes.
 
-The repository's own `nvs.toml` grew three blocks, on purpose and as fixtures: an `[[app]]` block
-keyed on the app example's entry file so that example can print a value a narrower block put in
-force, and `[cache.local]`/`[cache.process]` written at exactly the figures `nvs_stdlib::cache`
-ships, so the two cache pages have a value to show while the tree behaves as it did. Nothing is
-blocked.
+`nvs.toml` grew two more blocks that exist to be *read* rather than to let a fixture run: an
+`[[app]]` block for the capabilities example, whose grants are booleans because a list grant is
+invisible from inside a program (playbook, *Writing a test case*), and `[control] socket = false`,
+which is what an absent `[control]` block already meant — `nvs_config::control`'s `Address::of`
+reads both to `Disabled`, so nothing this repository does changed. Nothing is blocked.
 
 ## Next group
 
-**Goal `config-directives-1-3`, items 4–6 — one file set:** `crates/nvs-config/tests/directives.rs`
-(every directive census test lives here; `keys_listed` is the helper that lists a block's accepted
-keys), `nvs.toml`, `docs/examples/config/<key-with-dots-as-dashes>/` and
+**Goal `config-directives-1-3`, items 7–9 — one file set:** `crates/nvs-config/tests/directives.rs`
+(every directive census test lives here; `keys_in` lists a block's accepted keys and `governing`
+resolves a row), `nvs.toml`, `docs/examples/config/<key-with-dots-as-dashes>/` and
 `tests/hostile/config/<same>/`. Read `docs/examples/README.md` and `tests/hostile/README.md` once at
 the start — they own what an example and an attack *are*, the pack prints neither, and there is no
 `[context]` field that would.
 
-- [ ] **`directive:cache.shared`** — the coherent tier, `System` and the block's one `Boot` row,
-      `rule:core-api/two-cache-tiers`. `crates/nvs-config/src/directive.rs:189`. The example has two
-      honest shapes: read `cache.shared.url` back and show the refused `set`, which needs nothing
-      running; or open the store, which needs the `cache.shared` capability in a new `[[app]]` block
-      (copy `examples/cache.nvs`'s) *and* the compose Redis on `127.0.0.1:16379` to bless against.
-      Prefer the first unless Redis is already up.
-- [ ] **`directive:capabilities`** — the one row that is `RuntimeTighten`: a script may drop a right
-      it holds and never add one, `rule:config/three-changeability-classes`,
-      `rule:security/isolate-shares-nothing`. `crates/nvs-config/src/directive.rs:118`. A program
-      under the repository's `root = "."` block already holds `capabilities.script.spawn`, so
-      `Core\Config::set` on it answers `true` narrowing and `false` widening — the example writes
-      itself, and the attack is every widening spelling.
-- [ ] **`directive:control.socket`** — `System` and `Boot`, and the row carries no comment of its
-      own. `crates/nvs-config/src/directive.rs:202`; `nvs_config::control`'s module doc is where the
-      reasoning is.
+- [ ] **`directive:debug.keep_temporary`** — `System` and `Reload`, the operator's alone because a
+      request that could set it would exempt its own files from the sweep,
+      `rule:core-classes/temporary-dir-sweep`. `crates/nvs-config/src/directive.rs:219`. Its sibling
+      `io.temp_root` is `Boot` on the row above, which is the contrast the census test wants.
+- [ ] **`directive:debug.inline`** — `RuntimeTighten` and `Reload`, one direction only: a request may
+      turn its own inline dumps off and never on, `rule:errors/debug-dump`.
+      `crates/nvs-config/src/directive.rs:227`. Note before writing the example: a `RuntimeTighten`
+      row that is not a *quantity* cannot be set at all, so both directions come back `false` —
+      `nvs_config::request`'s module doc owns why, and `[capabilities]`'s page already says it in a
+      reader's words.
+- [ ] **`directive:deferred.deadline`** — `Runtime` and `Reload`, and the first row in this goal a
+      request may actually set: the cap is a host-sizing decision and the deadline is an ordinary
+      per-request default, `rule:concurrency/deferred-is-bounded-by-two-directives`.
+      `crates/nvs-config/src/directive.rs:246`. The example can show a `set` that *succeeds* and one
+      the `[limits.hard]`-style ceiling refuses, which no page in this goal has shown yet.
 
 ## Backlog
 
-- `directive:cache.shared` and the 12 other items of this goal — `docs/agent/loop-goal.md` § *The
-  item list* is the order.
-- `about.md` is written for every feature here but counted by nothing; goal `the-description-is-owed`
-  is where the check switches on (`tools/data/dossier-policy.toml` has `about = false` for a
-  directive today).
-- `[context] modules` was widened this session to `crates/nvs-config/src/*.rs` plus
-  `nvs-stdlib`'s `config.rs` and `cache.rs`; the tree READMEs above still have no field.
+- `Core\Config::get` answers nothing for every list-valued key, so a scoped grant and an absent one
+  are one answer from inside a program — designed, but said nowhere a `Core\Config` reader looks
+  (`crates/nvs-stdlib/src/config.rs`).
+- The goal's remaining ten features, `directive:extension` onwards — `python tools/dossier.py
+  --group 'config:directives'`.
