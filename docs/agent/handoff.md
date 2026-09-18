@@ -2,57 +2,63 @@
 
 ## State
 
-**Goal `one-type-test`: stages 1–6 are green, stage 7 — the gate — is red on two of its four checks.**
-The word sweep is the visible one; the other is `docs/rules/php-migration.json:199`, where the
-divergence rule still reads `"status": "designed"` and the gate wants `shipped`. The chapter and
-`php-migration.md` are generated from the fragments and that json, so both are `python tools/rules.py
---render`'s output and never hand-edited (`tools/rules.py`'s module doc).
+**Goal `one-type-test`: `crates/` is clean of the refused word.** The gate's grep over `crates` now
+returns nothing outside its four excluded files, so what stage 7 still owes is prose under `docs/` and
+`tests/`, plus the status flip.
 
-**`crates/nvs-types/src/expr/` is clean.** Every help string in `members.rs`, `calls.rs` and
-`operators.rs` names `is`, and the five conformance cases that freeze them verbatim moved in the same
-commits. What was stale rather than merely misspelled, and is now rewritten from the code: the
-`members.rs` module doc described `infer_instanceof`, `E0497` and a right-hand-side rule that
-`crates/nvs-types/src/expr/type_test.rs` has owned since the checker moved — neither the function nor
-the code exists — and `calls.rs` cited `crate::locals::instanceof_residue`, which is
-`crates/nvs-types/src/locals.rs:475`'s `type_test_residue`. What members.rs still owns is
-`reject_dynamic_class_name`, the one `E0496` the three value spellings share.
+**What is left for the gate**, by file set: the eight rule fragments under `docs/rules/` listed in
+§ *Next group* (their chapters are `python tools/rules.py --render`'s output and are never hand-edited —
+`tools/rules.py`'s module doc); `docs/reference/findings.md:76`, `:96` and
+`docs/reference/tools/30-php-differences.md:5`, `:60`, `:119`, `:164`; `docs/spec/01-core-library.md:75`
+and `docs/spec/02-php-migration.md:934`, `:941`, `:942`, `:944`;
+`tests/conformance/reject/new-takes-a-class-name-not-a-string.nvst:2`, `:9`; and ten bullets in
+`docs/agent/playbook.md`, several of which are traps whose whole subject is the removed operator and are
+`[until:]`-closable rather than rewordable.
 
-**The hole from the last session is unchanged and is still stage 7's to close or to carry.** `$m is
-Core\Str` type-checks and dies at codegen — `crates/nvs-codegen/src/emit.rs:2678` — where
-`rule:types/type-test` says a knowable answer folds to `false`. The comment at `:2673` names
-`expr::members::testable_class_name`, which does not exist; the function is `testable_core_class`.
+**Two files state the divergence and only one is excluded from the gate.**
+`docs/rules/php-migration/every-divergence-is-deliberate-and-listed.md:21` and
+`docs/rules/types/type-test.md:92` both name the word to point at
+`rule:php-migration/one-type-test`, and neither is in the check's exclusion list
+(`docs/agent/loop-goal.toml:11615`). One of the two answers has to be taken for both: add the pair of
+paths to the exclusion list, or reword each to cite the rule without spelling the word. The second is
+the safer one — it keeps the gate's exclusion list exactly the refusal plus the rule that owns the
+divergence — and it is what § *Next group*'s last item assumes.
+
+**`docs/rules/php-migration.json:199` still reads `"status": "designed"`** where the gate wants
+`shipped`, and the hole behind it is unchanged: `$m is Core\Str` type-checks and dies at codegen,
+`crates/nvs-codegen/src/emit.rs:2678`, where `rule:types/type-test` says a knowable answer folds to
+`false`. The comment at `:2673` names `expr::members::testable_class_name`, which does not exist; the
+function is `testable_core_class`.
 
 ## Next group
 
-**Stage 7: the rest of `crates/nvs-types`, prose only** — one file set: `crates/nvs-types/src/` plus
-`crates/nvs-types/tests/`. None of these lines is a diagnostic string, so no `.nvst` moves with them
-and the suite cannot go red on the wording; `rule:types/type-test` and `rule:types/narrowing` are what
-they follow. Two of them *compare* the two spellings, which § *Standing decisions* closes outright —
-cite `rule:php-migration/one-type-test` rather than naming the word.
+**Stage 7: the rule fragments, then one render** — one file set: `docs/rules/` plus
+`python tools/rules.py --render`, which rewrites the chapters the fragments feed and is the only way
+`docs/rules/classes.md`, `core-api.md`, `expressions.md` and `types.md` lose their hits. None of these
+lines is a diagnostic string or a `.nvst` assertion, so nothing in the suite can go red on the wording;
+`rule:types/type-test` is the same test under its living name, and the two that *compare* the spellings
+cite `rule:php-migration/one-type-test` instead of naming the word (§ *Standing decisions*).
 
-- [ ] **`locals.rs`'s narrowing prose** — `crates/nvs-types/src/locals.rs:29`, `:35`, `:38`, `:67`,
-      `:72`, `:381`, `:386`, `:627`. The module doc's own heading lists the refused word beside `is`
-      as two separate spellings, where `rule:types/narrowing` has four and `is` is the general one.
-- [ ] **`layout.rs`'s four descriptor-edge comments** — `crates/nvs-types/src/layout.rs:125`, `:463`,
-      `:595`, `:1169`. Each names the operator to say which edges a descriptor needs;
-      `rule:types/type-test` is the same test under its living name.
-- [ ] **The seven one-line citations** — `crates/nvs-types/src/callables.rs:21`,
-      `crates/nvs-types/src/core_lib.rs:226`, `crates/nvs-types/src/expr/mod.rs:97`,
-      `crates/nvs-types/src/expr_table.rs:737`, `crates/nvs-types/src/expr/type_test.rs:141`,
-      `crates/nvs-types/tests/classes.rs:319`, `crates/nvs-types/tests/type_test.rs:182`.
+- [ ] **The four class-and-interface fragments** — `docs/rules/classes/no-traits.md:8`,
+      `docs/rules/classes/clone-is-shallow.md:6`,
+      `docs/rules/classes/interface-default-methods.md:2`,
+      `docs/rules/core-api/one-paradigm-per-operation.md:12`. Each names the operator only to say what
+      a value is or is not testable as; `$x is C` is that sentence under `rule:types/type-test`.
+- [ ] **The four type-and-expression fragments** — `docs/rules/types/callable-absorbs-closure.md:9`,
+      `docs/rules/types/class-constant.md:21`, `docs/rules/types/class-reference-sites.md:22`,
+      `docs/rules/expressions/catch-lowers-to-block-form.md:3`. `class-reference-sites.md`'s line says
+      PHP spells the site that way, which `rule:php-migration/one-type-test` now owns outright.
+- [ ] **The two divergence citations, then the render** —
+      `docs/rules/php-migration/every-divergence-is-deliberate-and-listed.md:21` and
+      `docs/rules/types/type-test.md:92`, reworded to cite `rule:php-migration/one-type-test` without
+      spelling the word, then `python tools/rules.py --render` for every chapter this group touched.
+      § *State* has why rewording beats widening the gate's exclusion list.
 
 ## Backlog
 
-- `crates/nvs-hir/src/errors.rs` and `crates/nvs-hir/src/members.rs`, one line each — the last two in
-  `crates/` outside the gate's exclusions.
-- `docs/rules/`: 11 lines across 10 fragments, including
-  `docs/rules/php-migration/every-divergence-is-deliberate-and-listed.md`, which the gate does **not**
-  exclude even though the chapter it renders into is excluded — it has to point at
-  `rule:php-migration/one-type-test` instead of spelling the word. `python tools/rules.py --render`
-  after each.
-- `docs/spec/02-php-migration.md` (4), `docs/reference/tools/30-php-differences.md` (4),
-  `docs/spec/01-core-library.md`, `docs/reference/findings.md` (2).
-- `docs/agent/playbook.md` (11) and `tests/conformance/reject/new-takes-a-class-name-not-a-string.nvst`
-  (2) — the playbook's are in bullets whose trailers may already have fired.
-- `docs/rules/php-migration.json:199` → `"status": "shipped"`, and re-render. Last, with the sweep done.
-- `crates/nvs-codegen/src/emit.rs:2678`'s `Core`-class fold, above.
+- `docs/rules/php-migration.json:199` is `designed`, and one of stage 7's four checks wants `shipped`.
+- `crates/nvs-codegen/src/emit.rs:2678` — `$m is Core\Str` type-checks and dies at codegen.
+- `docs/reference/` and `docs/spec/` hits, one file set of their own — § *State* lists the anchors.
+- Ten `docs/agent/playbook.md` bullets; `tools/playbook.py`'s `[until:]` closes some rather than editing.
+- `tests/conformance/reject/new-takes-a-class-name-not-a-string.nvst:2`, `:9` — case prose, not an
+  assertion.

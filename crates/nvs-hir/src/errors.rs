@@ -89,7 +89,8 @@
 /// `catch` is where it sits rather than a case anywhere: a class with no
 /// parent conforms to nothing but itself — `nvs_runtime::object`'s
 /// `ClassDesc::conforms_to_name` is self-or-ancestor by name — so an arm
-/// naming anything under [`ROOT`] is false against it, `InstanceOf` included.
+/// naming anything under [`ROOT`] is false against it, and so is an `is` test
+/// against any of those names.
 /// It declares no properties and no constructor: there is nothing on it to
 /// read and no spelling that builds one.
 pub const TREE: &[(&str, Option<&str>)] = &[

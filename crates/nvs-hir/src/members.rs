@@ -1182,8 +1182,9 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     }
 }
 
-/// Walks the left-hand side of a `::`, an `instanceof`'s right-hand side, and
-/// every other position that names a *class* rather than producing a value.
+/// Walks the left-hand side of a `::` — a static call, a static property, a
+/// class constant, `::class` — and every other position that names a *class*
+/// rather than producing a value.
 ///
 /// The four name-shaped [`ExprKind`]s — `self`, `static`, `parent` and a bare
 /// name — mean a class here and nothing else, so they are skipped rather than
