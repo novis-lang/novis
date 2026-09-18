@@ -1,0 +1,31 @@
+<?nvs
+// Work handed off to run after the response has been sent keeps its request
+// alive a little longer, and `[deferred] max_concurrent` is how many of those
+// one core will hold at a time. This checkout writes it out:
+//
+//     [deferred]
+//     max_concurrent = 256
+
+echo 'requests held per core: ', Core\Config::get('deferred.max_concurrent') ?? '(nothing, so the built-in default)', "\n";
+
+// It counts requests and not pieces of work: one request that hands off ten
+// closures is one of those 256, exactly as a request that hands off one is.
+// Each of them can still be holding everything its memory ceiling allows, so
+// the room a core has to have for after-response work is the cap times that
+// ceiling — on top of the requests it is still answering.
+echo 'each may hold up to:    ', Core\Config::get('limits.hard.memory') ?? '(nothing)', "\n";
+
+// Which makes this a decision about the size of the machine rather than about
+// any one request, so a running program may read the number and may not move
+// it. Asking answers `no` rather than throwing.
+echo 'raise it from code:     ', Core\Config::set('deferred.max_concurrent', '4096') ? 'yes' : 'no', "\n";
+
+// Past the cap the next hand-off throws, in the request that asked for it,
+// while that request is still running and can do the work inline instead.
+// Nothing is queued and nothing waits: work that piles up out of sight is work
+// that is lost later, with nobody to tell about it.
+Core\Task::afterResponse(fn (): void => {
+    echo "and the work itself runs once the answer is on its way\n";
+});
+
+echo "answered\n";

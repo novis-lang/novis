@@ -472,3 +472,18 @@ tls_ca_file = "tests/db/ca.crt"
 [queue]
 connection = "main"
 workers = 1
+
+# The after-response executor's cap, written at the number
+# `rule:concurrency/deferred-is-bounded-by-two-directives` prints and
+# `nvs_runtime::Ctx::deferred_max_concurrent` already answers where nothing is written — so this
+# checkout holds exactly as much after-response work with the line as it did without it. It is here
+# to be *read*: `docs/examples/config/deferred-max_concurrent/` is the website's page for the
+# directive, and a page whose example prints `(nothing)` on the one line the whole page is about
+# teaches nothing about the number an operator sizes a machine with.
+#
+# The block's other half stays unwritten on purpose. `deferred.deadline` is one of the few keys in
+# this file a program may set for itself, and `docs/examples/config/deferred-deadline/` is the page
+# that shows it arriving as the built-in default and being changed from code — which only holds
+# while nothing here writes it.
+[deferred]
+max_concurrent = 256
