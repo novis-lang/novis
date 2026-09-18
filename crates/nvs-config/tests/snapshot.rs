@@ -335,6 +335,7 @@ fn a_changed_boot_key_is_reported_and_does_not_take_effect() {
 
 /// A `Boot` row naming a block governs every key beneath it, so a `[server]` the reload rewrote is
 /// one reported directive and the whole block stays as it was bound.
+// covers: directive:server
 #[test]
 fn a_boot_row_naming_a_block_carries_the_whole_block() {
     let before = Fake::with(&[(
