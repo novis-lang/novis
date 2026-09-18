@@ -2,43 +2,44 @@
 
 ## State
 
-**Goal `bigint` — `Core\BigInt` — is complete through stage 4.** The class, its 24 members, six
-`bigint-*.nvst` cases and `examples/bigint.nvs` are on disk, and the three guard tests the acceptance
-list names live in `crates/nvs-stdlib/src/bigint.rs`'s own `mod tests`.
+**Goal `bigint` is finished.** The class, its 24 members, seven conformance cases,
+`examples/bigint.nvs` and the three guard tests in `crates/nvs-stdlib/src/bigint.rs`'s own `mod tests`
+are on disk, and every stage-4 and stage-5 check in `docs/agent/goals/69-bigint.toml` passes by hand
+today.
 
-**`Core\Arr::sort` now orders two `Comparable` objects**, and so do `Core\Arr::min`/`max`,
-`Core\Math::min`/`max`/`clamp` and a comparator-less `Core\Heap`: `crate::ordering::compare_values`
-took a `&mut Ctx` and grew one last row that asks `nvs_runtime::call_compare_to`, which is machinery
-`heap.rs` already had and nothing else had reached for. `heap.rs`'s own object branch and its
-`sign_of` are gone into that one home. `rule:classes/comparable` is where the decision is recorded.
+**The natural order over objects is pinned where it is read.** `Core\Arr::min`/`max` and
+`Core\Math::min`/`max`/`clamp` agree with `compareTo` over a `Core\BigInt` table — counted over every
+ordered pair rather than read off a line — and all seven members that reach
+`crate::ordering::compare_values` refuse a class that declares none, each naming itself in front of the
+one shared message. `rule:classes/comparable` is the rule; the sort spelling was already pinned.
 
-**The live `docs/agent/loop-goal.*` is still goal `test-doubles`** — the driver holds goal 68 open on
-a DONE-claim retry, so goal `bigint`'s checks are not the ones it runs yet, and this session fixed
-only `docs/agent/goals/69-bigint.toml`. Its stage-4 `cases` were drafted names; all four claims were
-on disk under the names their author chose, and the list is repointed.
+**The live `docs/agent/loop-goal.*` is goal `test-doubles`, and its stage-6 gate is green by hand.**
+The `Core\Test` key is struck, both rules are `shipped`, the rulebook renders clean, neither
+`owners.py --closes` nor `playbook.py --closes` names it, and `chain.py --check`'s only complaint was a
+goal named by its number in this file, which this rewrite drops. This session claims it.
 
 **The floor's `abi-probe` failure is load, not a regression** — see the playbook bullet.
 
 ## Next group
 
-**Goal `bigint`, stage 5 — the gate** — one file set: `crates/nvs-stdlib/src/ordering.rs`,
-`tests/conformance/core/`, `docs/agent/goals/69-bigint.toml`.
+**Goal `bigint`, the gate** — one file set: `docs/agent/goals/69-bigint.toml`,
+`crates/nvs-stdlib/src/ordering.rs`, `tests/conformance/core/`.
 
-- [ ] **One case pinning the natural ordering over objects everywhere it is now read** — `Core\Arr::min`
-      and `max` and `Core\Math::min`, `max` and `clamp` over `Core\BigInt`, agreeing with `compareTo`
-      by counting, and a class with no `compareTo` still throwing. The row is
-      `crates/nvs-stdlib/src/ordering.rs:47` and the rule is `rule:classes/comparable`; the sort half
-      is already pinned in
-      `tests/conformance/core/bigint-orders-through-compare-to-and-every-spelling-of-it-agrees.nvst:30`.
-- [ ] **Add that case to the goal's stage-4 check and run the goal's end gates** —
-      `docs/agent/goals/69-bigint.toml:139` is the `cases` list, then
-      `python tools/owners.py --closes bigint`, `python tools/playbook.py --closes bigint` and
-      `python tools/verify.py --doc`, closing or re-ownering every gap they name.
-- [ ] **Claim the goal if both are clean** — every other stage is green;
-      `docs/agent/goals/69-bigint.toml:166` is the gate block, and nothing in it is unwritten work.
+- [ ] **Re-run the goal's own acceptance list and claim it** — every check passed by hand this session,
+      the ratchet gate included, and its manifest now names the ordering module and its rule. The
+      stage-4 suite is `docs/agent/goals/69-bigint.toml:139` and the gate begins at
+      `docs/agent/goals/69-bigint.toml:174`; `rule:classes/comparable` is what the gate pins.
+- [ ] **Say in the doc comment whether a `bytes` pair is ever going to have a natural order** —
+      `crates/nvs-stdlib/src/ordering.rs:46` calls it a one-line change here and one row in
+      `crate::sort` "once a rule says so", while `rule:types/bytes` gives it none and
+      `Core\Bytes::compare` is the spelling that does. Nothing is asking for the row; what is owed is
+      the sentence naming that rule as the reason it stays out.
 
 ## Backlog
 
-- The five-driver matrix needs a warm docker daemon; a cold boot fails the floor — `docs/agent/goals/69-bigint.toml:88`.
-- `Core\Bytes` still has no natural-order row, deliberately — `crates/nvs-stdlib/src/ordering.rs:40`.
-- Goal `gap-zero`'s ratchet half waits only on the chain reaching it — `docs/implementation-plan.md` § *Blocking*.
+- The heap half of the object ordering is pinned in `heap-orders-by-comparable-or-by-its-comparator.nvst`
+  and `heap-of-core-instants-needs-no-comparator.nvst`; the new case counts only its refusal.
+- Goal `gap-zero` is next in the chain and is where the ratchet file itself goes —
+  `docs/agent/goals/70-gap-zero.md`.
+- `examples/bigint.nvs` prints the five figures the goal's acceptance list freezes; nothing else reads
+  it — `docs/agent/goals/69-bigint.toml`.
