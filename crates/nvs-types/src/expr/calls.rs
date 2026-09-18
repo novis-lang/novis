@@ -272,7 +272,7 @@ pub(crate) fn infer_static_call(
     // written rather than about which class it named.
     let through_class_ref = class_ref.is_some();
     // Any other class side that is not a written name is the same mistake
-    // `new $c()` and `$x instanceof $c` make, and gets the same report — see
+    // `new $c()` and `$x is $c` make, and gets the same report — see
     // [`super::members::reject_dynamic_class_name`]. Everything below resolves
     // to nothing for such a side, so it would otherwise reach `nvs-ir` as a
     // static call with no target recorded, which panics.
@@ -1163,7 +1163,7 @@ fn report_first_class_callable_on_erased_receiver(span: Span, name: &str, env: &
             "`rule:types/erased-member-access` defers a *call* through a `mixed` to the receiver's runtime class, but \
              a closure value carries its callee with it and there is no class here to read one \
              off — call the member directly (`$m->{name}(…)`), or narrow the receiver first with \
-             `instanceof` or `as ClassName`"
+             `is` or `as ClassName`"
         )),
     );
 }
@@ -1232,7 +1232,7 @@ pub(crate) fn report_args_with_no_parameter_list(
             "`rule:types/erased-member-access` defers this call to the receiver's runtime class, and an `inout` \
              parameter list is packed and written back here at the call site — so a callee that \
              is not known until the call runs can never bind one; narrow the receiver with \
-             `instanceof` or `as ClassName` if the write-back is what was meant"
+             `is` or `as ClassName` if the write-back is what was meant"
         }
     };
     let name_help = match callee {
@@ -1304,8 +1304,8 @@ pub(crate) fn report_args_with_no_parameter_list(
 /// is [`crate::expr`]'s own next slice rather than a refusal.
 ///
 /// The help splits three ways because the fix does. A receiver that can hold
-/// an object is narrowed — both spellings already lower, `instanceof` proving
-/// the class inside the guarded branch (`crate::locals::instanceof_residue`)
+/// an object is narrowed — both spellings already lower, `is` proving
+/// the class inside the guarded branch (`crate::locals::type_test_residue`)
 /// and `as ClassName` converting to it or throwing. One that cannot
 /// ([`can_hold_an_object`]) has nothing to narrow, so the help is the
 /// property half's: convert, or declare the receiver `mixed` and take the
@@ -1320,7 +1320,7 @@ fn report_method_on_erased_receiver(span: Span, name: &str, ty: TypeId, env: &mu
     } else if can_hold_an_object(ty, env.interner) {
         format!(
             "narrow the receiver to the class that declares `{name}` first — \
-             `if ($x instanceof ClassName) {{ … }}`, or `$x as ClassName`; `rule:types/grammar` makes \
+             `if ($x is ClassName) {{ … }}`, or `$x as ClassName`; `rule:types/grammar` makes \
              `object` the opaque top of every class type, and `rule:types/erased-member-access` erases a property \
              access through one but not a call"
         )

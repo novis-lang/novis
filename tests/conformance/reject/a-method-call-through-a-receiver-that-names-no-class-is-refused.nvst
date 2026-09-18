@@ -28,7 +28,7 @@ if ($narrowed is Cat) {
 
 // A method is resolved against a class, and a union names several or none —
 // there is no one signature to check the argument list against, and no one
-// return type for the call's position to take. `instanceof` and `as` are both
+// return type for the call's position to take. `is` and `as` are both
 // in the help because both already lower.
 Dog|Cat $u = new Dog();
 echo $u->speak(), "\n";
@@ -56,7 +56,7 @@ error[E0477]: `Dog|Cat` names no class, so it has no method `speak`
    |
 31 | echo $u->speak(), "\n";
    |      ^^^^^^^^^ called on a receiver that names no class here
-   = help: narrow the receiver to the class that declares `speak` first — `if ($x instanceof ClassName) { … }`, or `$x as ClassName`; `rule:types/grammar` makes `object` the opaque top of every class type, and `rule:types/erased-member-access` erases a property access through one but not a call
+   = help: narrow the receiver to the class that declares `speak` first — `if ($x is ClassName) { … }`, or `$x as ClassName`; `rule:types/grammar` makes `object` the opaque top of every class type, and `rule:types/erased-member-access` erases a property access through one but not a call
 
 error[E0477]: `string` names no class, so it has no method `speak`
    --> %s:37:6

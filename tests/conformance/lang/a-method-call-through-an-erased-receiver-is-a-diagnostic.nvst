@@ -27,13 +27,13 @@ error[E0477]: `object` names no class, so it has no method `scaled`
    |
 15 | echo $o->scaled(3) as string, "\n";
    |      ^^^^^^^^^^ called on a receiver that names no class here
-   = help: narrow the receiver to the class that declares `scaled` first — `if ($x instanceof ClassName) { … }`, or `$x as ClassName`; `rule:types/grammar` makes `object` the opaque top of every class type, and `rule:types/erased-member-access` erases a property access through one but not a call
+   = help: narrow the receiver to the class that declares `scaled` first — `if ($x is ClassName) { … }`, or `$x as ClassName`; `rule:types/grammar` makes `object` the opaque top of every class type, and `rule:types/erased-member-access` erases a property access through one but not a call
 
 error[E0477]: `{x: int}` names no class, so it has no method `scaled`
    --> %s:20:6
    |
 20 | echo $s->scaled(3) as string, "\n";
    |      ^^^^^^^^^^ called on a receiver that names no class here
-   = help: narrow the receiver to the class that declares `scaled` first — `if ($x instanceof ClassName) { … }`, or `$x as ClassName`; `rule:types/grammar` makes `object` the opaque top of every class type, and `rule:types/erased-member-access` erases a property access through one but not a call
+   = help: narrow the receiver to the class that declares `scaled` first — `if ($x is ClassName) { … }`, or `$x as ClassName`; `rule:types/grammar` makes `object` the opaque top of every class type, and `rule:types/erased-member-access` erases a property access through one but not a call
 
 error: aborting due to 2 errors

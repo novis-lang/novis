@@ -46,13 +46,13 @@ error[E0714]: `inout` names no parameter of a call through a `mixed` receiver
    |
 27 | $m->value(inout $n);
    |           ^^^^^^^^ marked `inout` here
-   = help: `rule:types/erased-member-access` defers this call to the receiver's runtime class, and an `inout` parameter list is packed and written back here at the call site — so a callee that is not known until the call runs can never bind one; narrow the receiver with `instanceof` or `as ClassName` if the write-back is what was meant
+   = help: `rule:types/erased-member-access` defers this call to the receiver's runtime class, and an `inout` parameter list is packed and written back here at the call site — so a callee that is not known until the call runs can never bind one; narrow the receiver with `is` or `as ClassName` if the write-back is what was meant
 
 error[E0732]: `value(...)` names no closure through a `mixed` receiver
    --> %s:32:1
    |
 32 | $m->value(...);
    | ^^^^^^^^^^^^^^ a closure value is named here
-   = help: `rule:types/erased-member-access` defers a *call* through a `mixed` to the receiver's runtime class, but a closure value carries its callee with it and there is no class here to read one off — call the member directly (`$m->value(…)`), or narrow the receiver first with `instanceof` or `as ClassName`
+   = help: `rule:types/erased-member-access` defers a *call* through a `mixed` to the receiver's runtime class, but a closure value carries its callee with it and there is no class here to read one off — call the member directly (`$m->value(…)`), or narrow the receiver first with `is` or `as ClassName`
 
 error: aborting due to 3 errors
