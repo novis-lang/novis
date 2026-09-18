@@ -2,6 +2,7 @@
 `applySafe` refuses a plan holding a step that is not `Safe` and names it, and `applyIncludingRisky` runs the same plan — `rule:core-classes/schema-plan` and `rule:core-classes/schema-apply-capability`
 --FILE--
 <?nvs
+// covers: Core\Db\Plan\Grade
 // § 9 names the two entry points for what they risk, at the call site, rather
 // than giving one member a `{risky: true}` option: the claim is then visible to
 // a reviewer reading the call and greppable across a repository.

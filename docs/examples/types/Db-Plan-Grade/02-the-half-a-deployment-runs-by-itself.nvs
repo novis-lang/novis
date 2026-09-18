@@ -1,0 +1,19 @@
+<?nvs
+// A deployment reads the grade of every step and applies only the safe ones.
+// The rest are not skipped and not forgotten — they go to whoever is going to
+// watch them run.
+
+array<{step: string, grade: Core\Db\Plan\Grade}> $plan = [
+    {step: "create table invoices", grade: Core\Db\Plan\Grade::Safe},
+    {step: "add column invoices.sent_at", grade: Core\Db\Plan\Grade::Safe},
+    {step: "add unique key on invoices.number", grade: Core\Db\Plan\Grade::Locking},
+    {step: "drop column customers.fax", grade: Core\Db\Plan\Grade::Destructive},
+];
+
+foreach ($plan as {step: string, grade: Core\Db\Plan\Grade} $entry) {
+    if ($entry->grade == Core\Db\Plan\Grade::Safe) {
+        echo "apply now:   ", $entry->step, "\n";
+    } else {
+        echo "hand over:   ", $entry->step, "\n";
+    }
+}

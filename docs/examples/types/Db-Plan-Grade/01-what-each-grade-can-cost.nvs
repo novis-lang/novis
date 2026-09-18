@@ -1,0 +1,24 @@
+<?nvs
+// The three grades a step of a schema plan can carry. Each one says the worst
+// that step could cost, which is what decides whether a deployment is allowed
+// to run it with nobody watching.
+
+class Grades {
+    public static function cost(Core\Db\Plan\Grade $grade): string {
+        return match ($grade) {
+            Core\Db\Plan\Grade::Safe => "Safe: keeps your data, does not trip over rows that are already there, and holds no long lock",
+            Core\Db\Plan\Grade::Locking => "Locking: keeps your data, but can block writes for a long time or fail on the rows you already have",
+            Core\Db\Plan\Grade::Destructive => "Destructive: can lose data, and every drop is in here",
+        };
+    }
+}
+
+array<Core\Db\Plan\Grade> $grades = [
+    Core\Db\Plan\Grade::Safe,
+    Core\Db\Plan\Grade::Locking,
+    Core\Db\Plan\Grade::Destructive,
+];
+
+foreach ($grades as Core\Db\Plan\Grade $grade) {
+    echo Grades::cost($grade), "\n";
+}

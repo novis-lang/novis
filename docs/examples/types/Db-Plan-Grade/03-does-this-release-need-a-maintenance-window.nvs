@@ -1,0 +1,52 @@
+<?nvs
+// The question somebody asks about every release: can this one go out on a
+// Tuesday afternoon? The answer is the worst grade anywhere in the plan, so the
+// whole release is judged by its riskiest single step.
+
+class Release {
+    // The grades are compared through a number rather than directly, because a
+    // grade is a name for a kind of risk and this is the one place that treats
+    // them as a ladder.
+    public static function rank(Core\Db\Plan\Grade $grade): int {
+        return match ($grade) {
+            Core\Db\Plan\Grade::Safe => 0,
+            Core\Db\Plan\Grade::Locking => 1,
+            Core\Db\Plan\Grade::Destructive => 2,
+        };
+    }
+
+    public static function worst(array<Core\Db\Plan\Grade> $plan): Core\Db\Plan\Grade {
+        Core\Db\Plan\Grade $worst = Core\Db\Plan\Grade::Safe;
+        foreach ($plan as Core\Db\Plan\Grade $grade) {
+            if (Release::rank($grade) > Release::rank($worst)) {
+                $worst = $grade;
+            }
+        }
+        return $worst;
+    }
+
+    public static function verdict(array<Core\Db\Plan\Grade> $plan): string {
+        return match (Release::worst($plan)) {
+            Core\Db\Plan\Grade::Safe => "ship it whenever you like",
+            Core\Db\Plan\Grade::Locking => "book a quiet hour: writes may wait on this one",
+            Core\Db\Plan\Grade::Destructive => "someone has to sign this off, and take a backup first",
+        };
+    }
+}
+
+// This afternoon's release: two new columns and an index.
+array<Core\Db\Plan\Grade> $small = [
+    Core\Db\Plan\Grade::Safe,
+    Core\Db\Plan\Grade::Safe,
+    Core\Db\Plan\Grade::Safe,
+];
+
+// Next week's, which finally removes the column nothing reads any more.
+array<Core\Db\Plan\Grade> $cleanup = [
+    Core\Db\Plan\Grade::Safe,
+    Core\Db\Plan\Grade::Destructive,
+    Core\Db\Plan\Grade::Locking,
+];
+
+echo "this afternoon: ", Release::verdict($small), "\n";
+echo "next week:      ", Release::verdict($cleanup), "\n";
