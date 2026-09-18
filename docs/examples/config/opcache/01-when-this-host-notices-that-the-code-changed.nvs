@@ -1,0 +1,22 @@
+<?nvs
+// `[opcache]` says when this process looks again at a source file it has
+// already compiled — never, when the timestamp moves, or when the contents
+// hash differently — and how often it is allowed to look at all.
+
+echo 'validate:        ', Core\Config::get('opcache.validate') ?? '(nothing written — the mode this host started in picks it)', "\n";
+echo 'revalidate_freq: ', Core\Config::get('opcache.revalidate_freq') ?? '(nothing written — the cap this build ships with)', "\n";
+
+// Stopping the re-check is how code carries on running past the fix that was
+// shipped for it, so it is not a decision a program makes for itself.
+echo 'stop re-checking my files: ', Core\Config::set('opcache.validate', 'never') ? 'accepted' : 'refused', "\n";
+
+// And asking for a check every time turns one hot path into a storm of disk
+// checks the whole deployment pays for, which is the other direction of the
+// same key and refused just as flatly.
+echo 'check on every request:    ', Core\Config::set('opcache.revalidate_freq', '0') ? 'accepted' : 'refused', "\n";
+
+// The run mode picks where a host that wrote neither of them starts: production
+// never re-checks, development watches timestamps. A program cannot reach the
+// mode either, and a value written in the file would win over it anyway.
+echo 'flip the mode instead:     ', Core\Config::set('mode.default', 'development') ? 'accepted' : 'refused', "\n";
+echo 'validate is still:         ', Core\Config::get('opcache.validate') ?? '(nothing written — the mode this host started in picks it)', "\n";

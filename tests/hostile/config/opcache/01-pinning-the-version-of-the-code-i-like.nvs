@@ -1,0 +1,94 @@
+<?nvs
+// Attack: the two keys that decide when this process notices that its source
+// changed, pushed by a program that would rather it did not notice. Every
+// spelling of `never` an engine might fold a value into, every duration long
+// enough to be one, and then the pair hammered while the program does real work
+// — a host that still re-checks on whatever schedule its operator wrote is the
+// only evidence that none of it took.
+// hostile: timeout-ms 20000
+
+// 1. `validate`, in every spelling that might be read as "stop looking". The
+//    interesting ones are the ones that are almost a word the parser knows: a
+//    value it does not recognise keeps the startup default rather than refusing,
+//    so a near miss that landed would be silent.
+array<string> $policies = [
+    'never',
+    'Never',
+    'NEVER',
+    ' never ',
+    "never\u{0000}",
+    "nev\u{0435}r",
+    'false',
+    '0',
+    'no',
+    'off',
+    'none',
+    'mtime',
+    'hash',
+    'sometimes',
+    '',
+    Core\Str::repeat('never', 65536),
+];
+foreach ($policies as string $policy) {
+    Core\Config::set('opcache.validate', $policy);
+    Core\Config::set('app.0.opcache.validate', $policy);
+    Core\Config::restore('opcache.validate');
+}
+
+// 2. The cap beside it, from both ends. A huge interval is the same thing as
+//    `never` written as a number, and a zero one is a disk check on every
+//    resolve of every path — one program forcing that on a whole deployment is
+//    why this key is nobody's to set from code.
+array<string> $intervals = [
+    '0',
+    '0s',
+    '1ns',
+    '-1s',
+    '100000000000000000000s',
+    '9223372036854775807',
+    '1y',
+    'never',
+    'false',
+    'true',
+    '2 s',
+    Core\Str::repeat('9', 100000) . 's',
+];
+foreach ($intervals as string $interval) {
+    Core\Config::set('opcache.revalidate_freq', $interval);
+    Core\Config::set('opcache.file_cache', $interval);
+    Core\Config::restore('opcache.revalidate_freq');
+}
+
+// 3. Both keys under as many writes as the runtime will take, read back every
+//    round. The block is `System` and read per resolve off the published
+//    snapshot, so a refused write that nevertheless reached it would show up
+//    here as the policy changing under a program that was told no.
+uint $changes = 0;
+string $standing = Core\Config::get('opcache.validate') ?? '(nothing written)';
+uint $i = 0;
+while ($i < 200000) {
+    Core\Config::set('opcache.validate', 'never');
+    Core\Config::set('opcache.revalidate_freq', '100000s');
+    Core\Config::restore('opcache.validate');
+    Core\Config::restore('opcache.revalidate_freq');
+    if ((Core\Config::get('opcache.validate') ?? '(nothing written)') != $standing) {
+        $changes = $changes + 1;
+    }
+    $i = $i + 1;
+}
+
+// 4. And the same question asked the other way: a mode flip re-derives five
+//    defaults into this request, and `validate`'s startup default is chosen by
+//    the mode before any request exists. A flip that reached it would be this
+//    key set from code by the one route that does not spell its name.
+uint $j = 0;
+while ($j < 50000) {
+    Core\Config::set('mode.default', 'development');
+    Core\Config::set('mode.default', 'production');
+    Core\Config::restore('mode.default');
+    $j = $j + 1;
+}
+
+echo 'changes: ', $changes, "\n";
+echo 'validate:        ', Core\Config::get('opcache.validate') ?? '(nothing written — the mode this host started in picks it)', "\n";
+echo 'revalidate_freq: ', Core\Config::get('opcache.revalidate_freq') ?? '(nothing written — the cap this build ships with)', "\n";
