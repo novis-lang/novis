@@ -2358,6 +2358,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   bare `BigInt` goes red the day the last key is struck rather than green. Match a line that is not a
   comment — `git grep -E "^[^#]*<Class>"` — which is why the `Core\Test` gate beside it greps `Test::`.
   [until: gone crates/nvs-stdlib/tests/spec-members-compiler-facing-outstanding.txt]
+- **A goal's seed handoff opens a session with "nothing of it has landed" over work already on disk.**
+  `tools/loop.py:3802` writes `docs/agent/goals/<n>-<slug>.handoff.md` over the live one at the switch,
+  and that seed was written before the goal ran — goal `bigint`'s named a first item, `num-bigint` in
+  `crates/nvs-stdlib/Cargo.toml`, that the previous goal's sessions had committed a dozen commits back.
+  Read `git log --oneline -12` and grep the item's own anchor before taking it: a slug in a subject
+  line is the one thing a seed handoff cannot know. [until: reviewed 2026-12-01]
 
 ## Running things
 
