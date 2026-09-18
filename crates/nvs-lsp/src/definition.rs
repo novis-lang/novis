@@ -9,8 +9,8 @@
 //! reason nothing here looks for a node called `TypeName`.
 //!
 //! **The resolution is the checker's, read back rather than redone.**
-//! `nvs_types::ExprInfo` already carries the fully-qualified name each `new`,
-//! `instanceof` and enum-case access resolved to, with the namespace and the
+//! `nvs_types::ExprInfo` already carries what each `new`, `is` test and
+//! enum-case access resolved to, with the namespace and the
 //! imports of the site that wrote it applied
 //! (`rule:classes/names-resolve-case-sensitively`), and
 //! [`crate::document::Analysed`] now keeps that table. A server that resolved a
@@ -953,6 +953,26 @@ mod tests {
                 )
             },
         )
+    }
+
+    /// An interface, one implementor, and an `is` test against the interface —
+    /// one buffer, because what is under test is which name the request reads
+    /// off the node rather than how far it reaches for the declaration.
+    ///
+    /// The subject is a `mixed` local on purpose: a test the declaration
+    /// settles folds to a constant and leaves no node to navigate from, which
+    /// [`recorded_ty`] is the other half of.
+    const TESTED: &str = "<?nvs\ninterface Shape { public function area(): int; }\n\
+                          class Square implements Shape { public function area(): int { return 1; \
+                          } }\nmixed $m = new Square();\nif ($m is Shape) { echo 1; }\n";
+
+    /// The type after `is` is a written name like any other, so a cursor on it
+    /// opens the declaration the test is against: one type test
+    /// (`rule:php-migration/one-type-test`) is also one navigation, and the
+    /// interface is what a test against an interface names.
+    #[test]
+    fn definition_on_the_type_after_is_answers_the_interface_it_tests_against() {
+        assert_eq!(jump(TESTED, "is Sha"), "1:10");
     }
 
     /// `Owner::Name` in type position lands on the member, and the owner half
