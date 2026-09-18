@@ -1,13 +1,9 @@
-# Goal 70 -- no gap is owed by anyone but a future milestone, and the index that held them is gone
-# The acceptance test, as data.
+# Goal 71 -- queue the dossier. The acceptance test, as data.
 #
-# `70-gap-zero.md` is the prose. One home each.
+# `71-dossier.md` is the prose. One home each.
 #
-# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
-#
-# Every zero is written `label: 0` on purpose: `want` is a substring match, and `0 unowned` would also
-# match `10 unowned`. Goal `gap-register` fixes that summary format.
-
+# `files` is written across lines so goal-switch.py's union has somewhere to put the floor's
+# fixtures; this goal names none of its own -- its check is one Python command.
 files = [
   # carried from the previous goal by tools/goal-switch.py
   "examples/cache-shared-tls.nvs",
@@ -92,87 +88,86 @@ files = [
   "examples/control.nvs",
   "examples/callable.nvs",
   "examples/targets.nvs",
-  # carried from the previous goal by tools/goal-switch.py
   "examples/bigint.nvs",
 ]
 
 [context]
 
 modules = [
-  # The gate this goal makes fatal, and the index it stops reading. Stages 2 and 3.
-  "tools/owners.py",
-  # `CARRIED_GAPS` and the report over the deleted file's Owner column. Stage 3.
-  "tools/playbook.py",
-  # `HOMES` and `OWNERS_HOME`. Stage 3.
-  "tools/brief.py",
-  # A manifest naming the deleted file. Stage 3.
-  "tools/orient.py",
-  # Where the gate joins the ordered run. Stage 2.
-  "tools/verify.py",
-  # `--past` and `done`. Stage 5.
-  "tools/plan.py",
-  # A dangling link to the deleted file is the failure mode. Stage 3.
-  "tools/check-links.py",
-  # The owner column's gate, and its example slug. Stages 2 and 3.
-  "crates/nvs-stdlib/tests/spec_registry_coverage.rs",
-  # TODO: why a session opens this.
-  "editors/vscode/src/regions.ts",
-  # Running one `Case` and deciding whether it passed.
-  "crates/nvs-test/src/run.rs",
+  # Where the roster comes from: `nvs meta --json` is the CLI command, and the registry is what it
+  # walks. A generated goal that names a group this does not is a group that was renamed.
+  "crates/nvs-cli/src/meta.rs",
+  "crates/nvs-stdlib/src/registry.rs",
 ]
 
+# The rule ids this goal's prose cites, then the records that are a readable map of a
+# decision. ADRs 0079, 0063 came out: each created more than eight rules, so naming
+# them here printed a whole chapter of titles to every stage,
+# and the rules that bind this goal are named by id above. `brief.py --where` reaches
+# the rest in one call.
 rules = [
+  "0134",
+  "0026",
+  "0117",
   "0004",
-  "programs/memory-priority",
 ]
 
+# None. `rule:testing/four-proofs` is this goal's decision and it is already written; the goal prose says what the one
+# new thing -- a session may now fire the emitter -- is recorded in instead.
 adrs = []
 
-shapes = ["A commit message", "A code comment"]
-
-milestones = []
+shapes = [
+  "A feature's four proofs — an example, an attack, a bench, a `covers:` marker",
+  "A commit message",
+]
 
 playbook = [
-  # The process traps, by hand.
   'Tooling > the end',
   'Tooling > one call reads',
-  'Tooling > a whole decision record',
-  'Tooling > a plan field is patched',
   'Tooling > a commit',
   'Tooling > a [context]*',
   'Tooling > orient.py prints',
   'Tooling > another agent',
+  'Running things > target/release/nvs.exe is',
 ]
 
-plan = ["Open now", "Blocking", "Done"]
+plan = ["Open now", "Blocking"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `70-gap-zero.md`. PROSE stage numbers; loop-authoring.md
-# section 2 is the whole of it.
+# THE STAGES. One table per prose stage in `71-dossier.md`, holding what only that stage needs.
+#
+# `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
+# the base above -- an overlay adds and never replaces. Every entry here is one this goal's own
+# prose already names under that `## Stage N` heading; the base keeps what no single stage owns.
+#
+# These are the PROSE stage numbers, not the `[[check]]` blocks' `stage = "..."` labels, which may
+# group several prose stages under one acceptance line. loop-authoring.md section 2 is the whole
+# of it.
 # ---------------------------------------------------------------------------------------------------
 
-[context.stage.2]
-rules = ["core-api/tier-roster"]
+[context.stage.3]
+rules = ["testing/four-proofs"]
 
-# Nothing this goal writes allocates at run time.
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-socket.nvs", "examples/queue-sqlite.nvs", "examples/cache-shared-tls.nvs"]
 
 [wsl]
 target_dir = "/var/tmp/nvs-target-wsl"
 
-# None of this goal's own checks needs a daemon. Its floor carries every closure goal's checks, goal
-# `m8-db-queue`'s five-driver matrix among them, so all five services are preflighted.
+# The floor carries goals `core-part-ii` through `server` and 9-21's container-backed checks. Same compose file, same
+# memoization. This
+# goal itself needs no container -- it runs one Python command -- but the floor under it does, and the
+# floor is not traded for anything above it.
 [docker]
 compose = "tests/db/compose.yaml"
-services = ["postgres", "mysql", "mariadb", "mssql", "redis"]
-memoize_on = ["crates/nvs-db", "crates/nvs-stdlib", "tests/db"]
+services = ["postgres", "redis"]
+memoize_on = ["crates/nvs-server", "crates/nvs-db", "tests/db"]
 
 
 # <<< goal-switch: floor checks are inserted below this line >>>
 
-# 902 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# 911 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
 # They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
 # Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
@@ -11976,8 +11971,6 @@ stage = "1 floor"
 name = "no gap names this goal"
 argv = ["python", "tools/owners.py", "--closes", "bigint"]
 
-
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 0 -- `rule:security/launderer-answers-a-carrier`'s carrier rule, accepted after M4 reported `Core\Html` done. It is
 # FIRST in this file because the run order inside a class is this file's order: an escaper that answers a
@@ -11990,7 +11983,7 @@ argv = ["python", "tools/owners.py", "--closes", "bigint"]
 # ---------------------------------------------------------------------------------------------------
 [[check]]
 kind = "command"
-stage = "2 the gate"
+stage = "1 floor"
 name = "no recorded gap is owed by anyone but a future milestone"
 argv = ["python", "tools/owners.py", "--check"]
 want = [
@@ -12002,22 +11995,15 @@ want = [
 ]
 
 [[check]]
-kind = "command"
-stage = "2 the gate"
-name = "every deferral names a future milestone whose plan states the scope"
-argv = ["python", "tools/owners.py", "--deferrals"]
-want = ["every deferral names a future milestone whose plan states the scope"]
-
-[[check]]
 kind = "cargo-named"
-stage = "2 the gate"
+stage = "1 floor"
 name = "nvs-stdlib (a ratchet key is owned by a live goal or a future milestone, never unowned)"
 args = ["test", "-p", "nvs-stdlib", "--test", "spec_registry_coverage"]
 tests = ["unowned_is_no_longer_an_owner_for_a_key"]
 
 [[check]]
 kind = "command"
-stage = "2 the gate"
+stage = "1 floor"
 name = "verify.py runs the register's gate"
 argv = ["python", "tools/verify.py", "--list"]
 want = ["owners.py --check"]
@@ -12025,31 +12011,30 @@ want = ["owners.py --check"]
 # ---------------------------------------------------------------------------------------------------
 # Stage 3 -- the index is gone, and nothing points at it. Goal prose stage 3.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "3 the index is gone"
+stage = "1 floor"
 name = "the index that held the register no longer exists"
 argv = ["python", "tools/owners.py", "--registers"]
 want = ["5 register(s)", "docs/agent/carried-gaps.md: absent, as the register requires"]
 
 [[check]]
 kind = "command"
-stage = "3 the index is gone"
+stage = "1 floor"
 name = "nothing in the tree points at the deleted file"
 argv = ["python", "tools/check-links.py"]
 want = ["resolves, with matching case and form"]
 
 [[check]]
 kind = "command"
-stage = "3 the index is gone"
+stage = "1 floor"
 name = "the playbook's own checks survive the file that is gone"
 argv = ["python", "tools/playbook.py", "--check"]
 want = ["none -- every path any bullet names still exists"]
 
 [[check]]
 kind = "command"
-stage = "3 the index is gone"
+stage = "1 floor"
 name = "every entry is still one the driver can walk"
 argv = ["python", "tools/chain.py", "--check"]
 
@@ -12060,17 +12045,59 @@ argv = ["python", "tools/chain.py", "--check"]
 # ---------------------------------------------------------------------------------------------------
 # Stage 5 -- the past milestones are complete. Goal prose stage 5.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "5 past milestones"
+stage = "1 floor"
 name = "all eleven past milestones are complete"
 argv = ["python", "tools/plan.py", "--past"]
 want = ["11 of 11 past milestone(s) complete"]
 
 [[check]]
 kind = "command"
-stage = "5 past milestones"
+stage = "1 floor"
 name = "plan.py: every cell agrees with the chain, done included"
 argv = ["python", "tools/plan.py", "--check"]
 want = ["every cell agreeing with the chain"]
+
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the emission is on the chain, and re-running it changes nothing.
+#
+# `--dry-run` is the point: a check that appended the hundred entries itself would pass by doing the
+# work it exists to judge. This one writes nothing and passes only when every goal the emitter would
+# write is already named by the chain -- which is false if the session skipped the emission, and false
+# again if a later re-emission would rename a file the chain points at.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "2 the emission"
+name = "dossier: the chain already names every emitted goal"
+argv = ["python", "tools/dossier.py", "--emit-goals", "--dry-run"]
+want = ["already names every one of them -- nothing appended"]
+
+# The chain is the schedule and the plan's `Carried by` cells are derived from it, so a hundred new
+# entries are a hundred chances for the two to disagree. `dossier` is a label rather than a milestone
+# id, which `plan.py` expects (MILESTONE_TAG_RE), so this passes without a new row in the index.
+[[check]]
+kind = "command"
+stage = "2 the emission"
+name = "plan.py: the index and the grown chain still agree"
+argv = ["python", "tools/plan.py", "--check"]
+want = ["every cell agreeing with the chain"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the loop is ready for 93 of the same shape.
+#
+# One mechanical gate, because only one of stage 3's findings has a right answer that a check can
+# state: a generated goal must be one the driver can walk and `orient.py` can orient inside. The rest
+# of the stage is judgment and lands in the report, which no check can grade -- see the goal prose.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "3 the loop is ready"
+name = "dossier: every generated goal is walkable and its manifest resolves"
+argv = ["python", "tools/dossier.py", "--check-goals"]
+want = ["every manifest resolves"]
