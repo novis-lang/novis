@@ -28,10 +28,10 @@ if ($m is int) {
 | a shape | `$x is {x: int, y: int}` |
 | `iterable`, `callable`, a callable signature | `$x is iterable`, `$x is callable` |
 | a literal type | `$x is 5`, `$x is 'yay'`, `$x is true` |
-| a class constant or an enum case | `$x is Mode::Read`, `$x is self::Wild` |
+| a class constant or an enum case | `$x is Mode::Read`, `$x is Limits::MAX` |
 | an enum | `$x is Rank` |
 | `mixed` | `$x is mixed` — always `true`, the wildcard |
-| a union or an intersection of any of those | `$x is int\|float`, `$x is Countable&Traversable` |
+| a union or an intersection of any of those | `$x is int\|float`, `$x is Stringable&Comparable` |
 | a class reference held in a binding | `$x is $cls` — § *The value arm* |
 
 `array<T>` with a named element type, and a shape, each cost an O(n) walk — the same walk

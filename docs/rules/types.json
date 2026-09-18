@@ -324,13 +324,19 @@
     {
       "id": "types/type-test",
       "title": "`$x is T` tests whether a value holds a `T`, answers `bool`, and never refuses because the answer is knowable",
-      "status": "designed",
+      "status": "shipped",
       "because": ["0150", "0192"],
       "divergesFromPhp": "`int` and `uint` are separate tags, so a `BIGINT UNSIGNED` value answers `is uint` and not `is int` where `is_int()` was true for both, and `string` and `bytes` are separate the same way; `is 3.14` is refused outright, there being no float literal type",
       "seeAlso": ["types/narrowing", "types/conversion", "types/unions-and-mixed", "types/literal-types", "types/class-reference-sites", "php-migration/one-type-test"],
       "guardedBy": [
         "tests/conformance/class/an-is-test-through-an-erased-subject-answers-every-tag.nvst",
-        "tests/conformance/class/an-is-test-against-a-core-namespace-class-answers-false.nvst"
+        "tests/conformance/class/an-is-test-against-a-core-namespace-class-answers-false.nvst",
+        "tests/conformance/lang/an-is-test-over-a-mixed-subject-answers-the-scalar-class-array-and-literal-rows.nvst",
+        "tests/conformance/lang/an-is-test-against-a-shape-walks-its-fields.nvst",
+        "tests/conformance/lang/an-is-test-against-iterable-or-callable-answers-by-what-the-value-holds.nvst",
+        "tests/conformance/lang/an-is-test-against-an-enum-agrees-with-its-own-case-rows.nvst",
+        "tests/conformance/lang/an-is-test-against-a-union-or-an-intersection-asks-each-member.nvst",
+        "tests/conformance/lang/an-is-test-against-a-class-reference-is-the-dynamic-class-test.nvst"
       ]
     },
     {
