@@ -115,6 +115,9 @@ modules = [
   "docs/agent/carried-gaps.md",
   # The owner column's gate, and its example slug. Stages 2 and 3.
   "crates/nvs-stdlib/tests/spec_registry_coverage.rs",
+  # `rule:concurrency/connection-bounds-are-finite`'s connection bounds: the numbers an open
+  # WebSocket is held inside, every one of them finite before anything is configured.
+  "crates/nvs-server/src/bounds.rs",
 ]
 
 rules = [
