@@ -1,0 +1,28 @@
+<?nvs
+// The everyday job: a form that takes a photo or a PDF and nothing else. The
+// check asks what the bytes are, so a file named `.png` that is really an
+// archive is refused — which is the whole reason to check this way.
+
+class Upload {
+    public static function accepted(Core\Mime\Type $found): bool {
+        return match ($found) {
+            Core\Mime\Type::Png => true,
+            Core\Mime\Type::Jpeg => true,
+            Core\Mime\Type::Pdf => true,
+            default => false,
+        };
+    }
+}
+
+array<string> $received = [
+    "receipt.pdf" => "255044462d312e37",
+    "logo.png"    => "89504e470d0a1a0a",
+    "notes.txt"   => "68656c6c6f2c2074686572650a",
+    "setup.png"   => "504b03041400",
+];
+
+foreach ($received as string $name => string $firstBytes) {
+    Core\Mime\Type $found = Core\Mime::detect(Core\Encoding::fromHex($firstBytes));
+    echo $name, ": ", Upload::accepted($found) ? "kept" : "refused",
+         " (", Core\Mime::mediaType($found), ")\n";
+}

@@ -2,6 +2,7 @@
 `Core\Mime\Type::Unknown` is an ordinary answer and not a failure: a format serialized as text has no signature, and a prefix too short for one is not a guess at the rest — spec § 17
 --FILE--
 <?nvs
+// covers: Core\Mime\Type
 // Every one of these is a real document of a real format, and none of them has
 // a signature to read: SVG, CSV, HTML and plain text all open with whatever
 // their author wrote. Naming one from its first line would be guessing, and a
