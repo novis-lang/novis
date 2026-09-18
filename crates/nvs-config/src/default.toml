@@ -64,9 +64,11 @@
 # `System` — the slice carved out of `memory` and `cpu_time` at request start and left for the
 # tier-1 fatal handler, which is the one thing that may still allocate once the rest of the ceiling
 # is gone (`rule:errors/on-limit`). A request may not set either one, and neither has a
-# `[limits.hard]` ceiling, because there is no request-set value for a ceiling to bound.
-#fatal_reserve_memory = "2M"        # bytes kept back for the handler
-#fatal_reserve_time = "250ms"       # CPU time kept back for it
+# `[limits.hard]` ceiling, because there is no request-set value for a ceiling to bound. Unset, a
+# megabyte and 50 ms, which is what the two below are written at; either is clamped to a quarter of
+# the ceiling it comes out of, so a short budget stays mostly program.
+#fatal_reserve_memory = "1M"        # bytes kept back for the handler
+#fatal_reserve_time = "50ms"        # CPU time kept back for it
 # `System` — how deep a chain of `spawn script` may nest before the next one is refused. Unset, 64.
 # `false` removes the ceiling, which is the one value that lets a recursion end as an exhausted heap
 # rather than as a depth.
@@ -74,10 +76,11 @@
 # `System` — the two halves of the decompression bound (`rule:core-classes/decompression-bound`): the
 # most any one `Core\Compress` or `Core\Zip` call may produce, and the most output per octet of
 # input. A bomb is small on the wire, so the byte ceiling alone is one a small request still reaches.
-# `false` does not remove either — an unbounded value reads as the bound `nvs_stdlib::compress`
-# ships, so no configuration spells an unbounded decompression.
-#max_decompressed = "256M"
-#max_decompression_ratio = 100
+# Unset, 64 MiB and 1000:1, which is what the two below are written at. `false` does not remove
+# either — an unbounded value reads as the bound `nvs_stdlib::compress` ships, so no configuration
+# spells an unbounded decompression.
+#max_decompressed = "64M"
+#max_decompression_ratio = 1000
 
 #[limits.hard]
 # The ceiling a request may not raise itself past, for the `Runtime` keys that have one. `false`
@@ -860,11 +863,11 @@
 #max_output = "32M"
 #max_tasks = 16
 #max_regex_steps = 1000000
-#fatal_reserve_memory = "2M"
-#fatal_reserve_time = "250ms"
+#fatal_reserve_memory = "1M"
+#fatal_reserve_time = "50ms"
 #max_script_depth = 64
-#max_decompressed = "256M"
-#max_decompression_ratio = 100
+#max_decompressed = "64M"
+#max_decompression_ratio = 1000
 
 #[app.limits.hard]
 # This application's ceilings; `false` removes one.

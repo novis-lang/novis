@@ -313,6 +313,19 @@ write = true
 [limits]
 memory = "256M"
 
+# The four `System` keys carved out of this block, written at exactly the figures
+# `nvs-runtime` and `nvs_stdlib::compress` already ship — a megabyte and 50 ms of
+# reserve, 64 MiB and 1000:1 of decompression bound — so this repository behaves
+# the same with them written as it did with them absent, for the reason the cache
+# blocks below are written the same way. They are here to be *read*:
+# `docs/examples/config/limits-fatal_reserve_memory/` and its three siblings are
+# the website's pages for these directives, and a page whose example prints
+# `(unset)` teaches nothing about a key an operator is about to write.
+fatal_reserve_memory = "1M"
+fatal_reserve_time = "50ms"
+max_decompressed = "64M"
+max_decompression_ratio = 1000
+
 [limits.hard]
 memory = "512M"
 
