@@ -2360,12 +2360,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   Read `git log --oneline -12` and grep the item's own anchor before taking it: a slug in a subject
   line is the one thing a seed handoff cannot know. [until: reviewed 2026-12-01]
 - **`check-links.py` reads a repo-root path in backticks inside a `.py` docstring as a link, so
-  deleting a tracked file turns a *tool's prose* red as well as a doc's.** Deleting
-  `docs/agent/carried-gaps.md` left `tools/owners.py` and `tools/playbook.py` passing every other
-  gate while that one reported `retired  tools/owners.py:102 -> …`, because both module docs named
-  the full path while explaining why the file is gone. Run `python tools/check-links.py` in the same
-  slice as any deletion, and in prose that has to go on mentioning the path, name the constant that
-  holds it rather than spelling it. [until: reviewed 2026-09-18]
+  deleting a tracked file turns a *tool's prose* red as well as a doc's.** Deleting the index
+  `tools/owners.py:102` calls `CARRIED_GAPS` left that tool and `tools/playbook.py` passing every
+  other gate while the link check reported `retired  tools/owners.py:102 -> …`, because both module
+  docs spelled the full path while explaining why the file is gone. Run `python tools/check-links.py`
+  in the same slice as any deletion, and in prose — a bullet here as much as a docstring — that has
+  to go on mentioning the path, name the constant that holds it rather than spelling it.
+  [until: reviewed 2026-09-18]
 - **A CI run can fail with no steps and no logs, and the only place GitHub says why is the check
   run's *annotations*.** `gh run list` reports `"conclusion":"failure"`, every job ends two seconds
   after it started with `steps: 0`, and `gh run view <id> --log-failed` answers `log not found` —
