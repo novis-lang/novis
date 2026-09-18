@@ -2,6 +2,7 @@
 `Core\Router::match` answers the compiled table for a verb and a path the program picked, and `null` where no route claims that pair — `rule:routing/matched-once-before-the-handler`
 --FILE--
 <?nvs
+// covers: Core\Http\Method
 // § 1 puts the *request's* match on the request: the door takes it once, before
 // any of this program ran, and `Core\Request::route()` hands that one back.
 // This member is the other question entirely -- asked of the table, about a

@@ -1,0 +1,35 @@
+<?nvs
+// A route says which verb it answers, and the same path under another verb is
+// a different route. Asking the router for a verb and a path tells you which
+// one of your routes would be called.
+
+class Pages {
+    // Every route also says who may reach it. `Public` means anybody.
+    #[Core\Route(path: "/pages/{slug}", method: Core\Http\Method::Get, name: "Pages::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(string $slug): string { return $slug; }
+
+    #[Core\Route(path: "/pages", method: Core\Http\Method::Post, name: "Pages::create")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function create(): string { return "made"; }
+}
+
+// Reading a page. Asking does not call anything — you get the route back and
+// decide what to do with it.
+?Core\Router\Match $read = Core\Router::match(Core\Http\Method::Get, "/pages/intro");
+if ($read != null) {
+    echo "get /pages/intro  -> ", $read->name() ?? "unnamed", "\n";
+}
+
+// Creating one.
+?Core\Router\Match $made = Core\Router::match(Core\Http\Method::Post, "/pages");
+if ($made != null) {
+    echo "post /pages       -> ", $made->name() ?? "unnamed", "\n";
+}
+
+// The right path under the wrong verb matches nothing. Nobody declared a
+// `Post` at `/pages/intro`, so there is no route to call.
+?Core\Router\Match $wrong = Core\Router::match(Core\Http\Method::Post, "/pages/intro");
+if ($wrong == null) {
+    echo "post /pages/intro -> no route\n";
+}

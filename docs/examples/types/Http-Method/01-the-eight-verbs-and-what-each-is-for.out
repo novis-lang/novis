@@ -1,0 +1,8 @@
+reads    Get: reads a page, and changes nothing
+reads    Head: the same as Get, but the answer has no body
+reads    Options: asks what a page supports
+reads    Trace: sends the request back, for working out what a proxy did to it
+changes  Post: sends something new, such as a filled-in form
+changes  Put: replaces what is there with what you send
+changes  Patch: changes part of what is there
+changes  Delete: removes it

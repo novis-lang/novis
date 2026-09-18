@@ -1,0 +1,52 @@
+<?nvs
+// A visitor sends the wrong verb to a page that does exist. The polite answer
+// says so and lists the verbs that would have worked, which is a different
+// answer from "there is no such page".
+
+class Orders {
+    #[Core\Route(path: "/orders", method: Core\Http\Method::Get, name: "Orders::list")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function list(): string { return "list"; }
+
+    #[Core\Route(path: "/orders", method: Core\Http\Method::Post, name: "Orders::create")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function create(): string { return "created"; }
+}
+
+class Verbs {
+    // The name to put in the answer, spelled the way HTTP spells it.
+    public static function text(Core\Http\Method $verb): string {
+        return match ($verb) {
+            Core\Http\Method::Get => "GET",
+            Core\Http\Method::Head => "HEAD",
+            Core\Http\Method::Options => "OPTIONS",
+            Core\Http\Method::Trace => "TRACE",
+            Core\Http\Method::Post => "POST",
+            Core\Http\Method::Put => "PUT",
+            Core\Http\Method::Patch => "PATCH",
+            Core\Http\Method::Delete => "DELETE",
+        };
+    }
+
+    // Says what to answer for one verb and one path.
+    public static function answer(Core\Http\Method $verb, string $path): string {
+        if (Core\Router::match($verb, $path) != null) {
+            return "200, the route runs";
+        }
+
+        array<Core\Http\Method> $allowed = Core\Router::methodsFor($path);
+        if (Core\Arr::count($allowed) == 0) {
+            return "404, no such page";
+        }
+
+        string $list = "";
+        foreach ($allowed as Core\Http\Method $other) {
+            $list = $list == "" ? Verbs::text($other) : $list . ", " . Verbs::text($other);
+        }
+        return "405, try one of: " . $list;
+    }
+}
+
+echo "GET    /orders   -> ", Verbs::answer(Core\Http\Method::Get, "/orders"), "\n";
+echo "DELETE /orders   -> ", Verbs::answer(Core\Http\Method::Delete, "/orders"), "\n";
+echo "GET    /invoices -> ", Verbs::answer(Core\Http\Method::Get, "/invoices"), "\n";
