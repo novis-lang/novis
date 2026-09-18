@@ -1,0 +1,99 @@
+<?nvs
+// Attack: the time half of the safety net, worked the way its memory half was
+// — every other name for the key, every value that would leave the handler no
+// clock at all, and the ceiling it is carved out of driven up and down
+// underneath it. The two halves are one net, so this finishes by asking for
+// both of them at once and then spending as much of the clock as a bounded loop
+// can: a reserve that moved when either half was written is a handler that gets
+// the time somebody else already spent.
+// hostile: timeout-ms 30000
+
+Core\Fatal::onLimit(fn (): void => {
+    echo "the handler still had a clock to run on\n";
+});
+
+// 1. Every other name for the slice.
+array<string> $names = [
+    'limits.fatal_reserve_time',
+    'limits.FATAL_RESERVE_TIME',
+    'limits.Fatal_Reserve_Time',
+    'limits.fatal_reserve_time.',
+    '.limits.fatal_reserve_time',
+    'limits..fatal_reserve_time',
+    'limits.fatal.reserve.time',
+    'limits.fatal-reserve-time',
+    'limits.fatalreservetime',
+    'limits.hard.fatal_reserve_time',
+    'limits.fatal_reserve_time.hard',
+    'app.limits.fatal_reserve_time',
+    'app.0.limits.fatal_reserve_time',
+    "limits.fatal_reserve_time\u{0000}",
+    "limits.cpu_time\u{0000}limits.fatal_reserve_time",
+    'limits.cpu_time/../fatal_reserve_time',
+    'limits.' . Core\Str::repeat('sub.', 20000) . 'fatal_reserve_time',
+];
+foreach ($names as string $key) {
+    Core\Config::set($key, '0');
+    Core\Config::set($key, '1h');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 2. Every value under the real name. A duration is the one thing this key is,
+//    so the sizes are worked in every unit it might round in and in a few it
+//    should not accept at all.
+array<string> $values = [
+    '0',
+    '0s',
+    '0ms',
+    '-1ms',
+    '1ns',
+    '250',
+    '250ms',
+    '0.25s',
+    '250000us',
+    '1h',
+    '9999d',
+    '18446744073709551615',
+    'false',
+    '',
+    'ms',
+    '250 ms',
+    '250MS',
+    'NaN',
+];
+foreach ($values as string $value) {
+    Core\Config::set('limits.fatal_reserve_time', $value);
+}
+Core\Config::restore('limits.fatal_reserve_time');
+
+// 3. Both halves at once, with the budgets they are carved out of moving under
+//    them. Either half accepted here is the whole net resized by the program it
+//    exists to report on.
+uint $round = 0;
+while ($round < 1000) {
+    Core\Config::set('limits.cpu_time', '1ms');
+    Core\Config::set('limits.fatal_reserve_time', '1h');
+    Core\Config::set('limits.fatal_reserve_memory', '4G');
+    Core\Config::set('limits.cpu_time', '30s');
+    Core\Config::restore('limits.fatal_reserve_time');
+    Core\Config::restore('limits.fatal_reserve_memory');
+    Core\Config::restore('limits.cpu_time');
+    $round = $round + 1;
+}
+
+// 4. What is left standing, and then the clock itself. The loop is bounded
+//    rather than endless on purpose: a program stopped at its CPU ceiling and a
+//    program that simply finished are both passes here, and a loop with no end
+//    would make the difference between them a question about this machine.
+echo 'clock held back: ', Core\Config::get('limits.fatal_reserve_time') ?? '(nothing)', "\n";
+echo 'heap held back:  ', Core\Config::get('limits.fatal_reserve_memory') ?? '(nothing)', "\n";
+echo 'my own ceiling:  ', Core\Config::set('limits.cpu_time', '20ms') ? 'lowered' : 'refused', "\n";
+
+uint $spin = 0;
+uint $acc = 0;
+while ($spin < 200000000) {
+    $acc = $acc + $spin;
+    $spin = $spin + 1;
+}
+echo 'the loop ran to its end: ', $acc, "\n";

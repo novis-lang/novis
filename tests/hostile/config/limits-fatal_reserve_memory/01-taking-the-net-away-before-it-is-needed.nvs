@@ -1,0 +1,106 @@
+<?nvs
+// Attack: the reserved slice is the only heap the handler reporting an
+// exhausted heap will ever get, and it is carved out of a block the request is
+// otherwise allowed to write. So this reaches for it by every other name, hands
+// it every value that would leave nothing behind, moves the ceiling it comes
+// out of under it a thousand times — and then actually runs out of memory with
+// a handler registered, which is the moment the net either exists or does not.
+// hostile: timeout-ms 30000
+
+// Registered first, so every line below runs with the net in play: a handler
+// installed only at the end would let an attack that took the reserve away
+// halfway through look exactly like one that never tried.
+Core\Fatal::onLimit(fn (): void => {
+    echo "the handler still had somewhere to run\n";
+});
+
+// 1. Every other name for the net. An accepted one is a request sizing its own
+//    safety net, which `rule:errors/on-limit` puts in somebody else's hands.
+array<string> $names = [
+    'limits.fatal_reserve_memory',
+    'limits.FATAL_RESERVE_MEMORY',
+    'limits.Fatal_Reserve_Memory',
+    'limits.fatal_reserve_memory.',
+    '.limits.fatal_reserve_memory',
+    'limits..fatal_reserve_memory',
+    'limits.fatal.reserve.memory',
+    'limits.fatal-reserve-memory',
+    'limits.fatalreservememory',
+    'limits.fatal_reserve_memory ',
+    ' limits.fatal_reserve_memory',
+    'limits.hard.fatal_reserve_memory',
+    'limits.fatal_reserve_memory.hard',
+    'app.limits.fatal_reserve_memory',
+    'app.0.limits.fatal_reserve_memory',
+    "limits.fatal_reserve_memory\u{0000}",
+    "limits.memory\u{0000}limits.fatal_reserve_memory",
+    'limits.memory/../fatal_reserve_memory',
+    'limits.' . Core\Str::repeat('sub.', 20000) . 'fatal_reserve_memory',
+    Core\Str::repeat('limits.', 20000) . 'fatal_reserve_memory',
+];
+foreach ($names as string $key) {
+    Core\Config::set($key, '0');
+    Core\Config::set($key, '4G');
+    Core\Config::set($key, '18446744073709551615');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 2. Every value that would leave the handler nothing, under the real name. A
+//    net of zero and a net larger than the heap it is carved out of are the
+//    same attack from two sides: both leave one of the two parties with no
+//    memory at all.
+array<string> $values = [
+    '0',
+    '0B',
+    '-1',
+    '-1M',
+    'false',
+    'true',
+    '',
+    ' ',
+    '18446744073709551615',
+    '18446744073709551616',
+    '1024G',
+    '0.0001',
+    'NaN',
+    'inf',
+    '1E',
+    '1 M',
+];
+foreach ($values as string $value) {
+    Core\Config::set('limits.fatal_reserve_memory', $value);
+}
+Core\Config::restore('limits.fatal_reserve_memory');
+
+// 3. Moving the heap the slice is carved out of, under the slice. The reserve
+//    is clamped to a quarter of the ceiling, so a ceiling driven down to where
+//    the clamp bites and back up again is the sequence that leaves the two
+//    disagreeing about which reading they came from. The floor here is a heap
+//    this program still fits in: a ceiling of one byte ends the request on the
+//    spot, which is correct and would end the attack three sections early.
+uint $round = 0;
+while ($round < 1000) {
+    Core\Config::set('limits.memory', '4M');
+    Core\Config::set('limits.fatal_reserve_memory', '4G');
+    Core\Config::set('limits.memory', '256M');
+    Core\Config::restore('limits.fatal_reserve_memory');
+    Core\Config::set('limits.memory', '4M');
+    Core\Config::restore('limits.memory');
+    $round = $round + 1;
+}
+
+// 4. The moment itself. The heap is lowered to something a loop reaches
+//    immediately, and the loop is allowed to reach it. Whatever comes out of
+//    here, the runtime has to still be the thing printing it: the reserve is
+//    what the handler registered at the top runs inside.
+echo 'net:  ', Core\Config::get('limits.fatal_reserve_memory') ?? '(nothing)', "\n";
+echo 'heap: ', Core\Config::set('limits.memory', '8M') ? 'lowered' : 'refused', "\n";
+
+string $blob = '';
+uint $i = 0;
+while ($i < 4096) {
+    $blob = $blob . Core\Str::repeat('A', 65536);
+    $i = $i + 1;
+}
+echo 'the heap held ', Core\Str::length($blob), " octets\n";

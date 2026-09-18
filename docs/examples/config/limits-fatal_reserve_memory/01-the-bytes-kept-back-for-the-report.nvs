@@ -1,0 +1,26 @@
+<?nvs
+// A request that runs out of memory still has to be able to say so. These are
+// the bytes held back from its own heap for exactly that: nothing else may
+// spend them, and the handler that reports the limit runs inside them.
+
+echo 'the heap a request starts with: ', Core\Config::get('limits.memory') ?? '(unset)', "\n";
+echo 'held back for the report:       ', Core\Config::get('limits.fatal_reserve_memory') ?? '(unset)', "\n";
+
+// The slice is carved out of that heap rather than added to it, so ordinary
+// work is held to what is left over. A handler registered here is the code
+// those bytes are being kept for.
+Core\Fatal::onLimit(fn (): void => {
+    echo "the request stopped on a limit\n";
+});
+
+// How big the net is, is the operator's decision and not the program's: a
+// script able to set this would be sizing its own safety net moments before it
+// needs one — including down to nothing at all.
+echo 'ask for a bigger net:           ', Core\Config::set('limits.fatal_reserve_memory', '64M') ? 'accepted' : 'refused', "\n";
+echo 'ask for no net:                 ', Core\Config::set('limits.fatal_reserve_memory', '0') ? 'accepted' : 'refused', "\n";
+echo 'still:                          ', Core\Config::get('limits.fatal_reserve_memory') ?? '(unset)', "\n";
+
+// The heap it is carved out of is a different question, and that one a program
+// may answer for itself. The net is taken out of whatever it settles on.
+echo 'keep myself small:              ', Core\Config::set('limits.memory', '64M') ? 'accepted' : 'refused', "\n";
+echo 'heap now:                       ', Core\Config::get('limits.memory') ?? '(unset)', "\n";
