@@ -259,10 +259,15 @@
 //! table** cannot work at all: every row holds that same address, so the scan
 //! has nothing to tell them apart with.
 //!
-//! Until the refusals land, a method the shape leaves unimplemented publishes
-//! no row, and a call reaching one falls through to the fallback a bodiless
-//! declaration names — `nvs_runtime::nvs_abstract_method`'s reported `FATAL` —
-//! rather than to anything unchecked.
+//! A method the shape leaves unimplemented publishes no row, and a call
+//! reaching one falls through to the fallback a bodiless declaration names —
+//! `nvs_runtime::nvs_abstract_method`'s reported `FATAL` — rather than to
+//! anything unchecked. **No checked program reaches that fallback**:
+//! `nvs_types::conformance`'s walk refuses a shape leaving a method of the
+//! interface unanswered (`E0825`) and one naming a method the interface does
+//! not declare (`E0826`), where the call is written. The floor stays because
+//! this helper's own argument list is `Value`s, and what it must never do with
+//! one it cannot explain is dispatch.
 
 use nvs_runtime::{Ctx, Fault, Tag, ThrownClass, Value, identity};
 

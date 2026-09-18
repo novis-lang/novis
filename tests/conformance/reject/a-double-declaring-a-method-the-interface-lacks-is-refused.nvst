@@ -1,0 +1,29 @@
+--TEST--
+A double whose shape of closures names a method its interface does not declare is refused — `rule:testing/doubles`, `rule:types/shape-type`
+--FILE--
+<?nvs
+// ADR 0079 § 10's second refusal, and the one that catches a renamed member:
+// `tomorrow` stands in for nothing `Clock` declares, so the double would
+// otherwise go on answering a contract no call site dispatches through — a
+// test passing against a method that no longer exists.
+//
+// Width subtyping is what makes this a rule of its own rather than a
+// consequence: `rule:types/shape-type` accepts a source with extra fields
+// everywhere else, and a double is the one position where an extra field is a
+// mistake, because the shape is being read as an implementation rather than as
+// data.
+interface Clock {
+    public function now(): int;
+}
+
+Clock $clock = Core\Test::double<Clock>({
+    now: fn(): int => 1700000000,
+    tomorrow: fn(): int => 1700086400,
+});
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0826]: `Clock` declares no method `tomorrow`
+%A
+error: aborting due to 1 error

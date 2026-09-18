@@ -2,55 +2,57 @@
 
 ## State
 
-**Goal `test-doubles`, stage 2 is closed.** `Core\Test::double<T>(object $answers): T` and
-`Core\Test::partial<T>(T $real, object $answers): T` are registered, built and reachable: three
-`tests/conformance/core/` cases compile and run them, `cargo test -p nvs-stdlib` is green including
-the coverage floor of three per member, and the two keys they owed are struck from
-`crates/nvs-stdlib/tests/spec-members-compiler-facing-outstanding.txt`.
+**Goal `test-doubles`, stage 3's refusals are on disk and green.**
+`nvs_types::conformance::check_double_answers` (`crates/nvs-types/src/conformance.rs:558`) compares the
+shape a `Core\Test::double`/`partial` call answers with against the interface its type argument named,
+hooked into the static-call arm at `crates/nvs-types/src/expr/calls.rs:420` — the one point where the
+written type argument and the typed arguments are both in hand. Three codes in
+`crates/nvs-diagnostics/src/lib.rs:3758`: `E0825` a method the interface requires and the shape leaves
+out (`double` only — a `partial`'s `$real` answers the rest), `E0826` a field naming no method the
+interface declares (both members, and a `private` interface method is named by it too), `E0827` a type
+argument that resolved to something other than an interface.
 
-On disk in `crates/nvs-stdlib/src/test.rs`: the trampoline table (one native entry per slot against
-`METHOD_CEILING`, `crates/nvs-stdlib/src/test.rs:3570`), the leaked descriptor cache keyed by
-`(interface, real class, overridden names)`, the ledger a call is recorded in, and the two helpers.
-The module doc at `crates/nvs-stdlib/src/test.rs:1` is still the specification and now also records
-the one fact this session had to derive: **an interface's descriptor carries no `MethodRow` for a
-method it merely declares**, so the shape's fields are the only list a `double` has and a `partial`
-reads its delegated half off `$real`'s own method table.
+`E0827` is a **deviation from the goal's stage 3 prose**, which planned to draw the existing code: `E0465`
+says a type argument is not a class, which is false of the class this refusal names, and
+`E_PROGRAM_TYPE_ARG_NOT_AN_INTERFACE` is the same demand with its own code at
+`rule:programs/implementing`. A type argument that names no declaration at all still takes `E0465` alone.
 
-**Nothing refuses a bad shape yet — that is stage 3.** `$answers` is typed `CoreTy::Object` because
-what it really has to match is the interface the call site wrote, which no registry row can name. So
-`double<Clock>({tomorrow: fn() => 1})` compiles today and its `now()` lands on the fallback a
-bodiless declaration names; `rows_of` publishes `(0, 0)` for a field that is not a closure at all
-rather than inventing a shape for it.
+Five `cargo test -p nvs-types --test testing` cases and the two `tests/conformance/reject/` cases the
+stage's checks name all pass. `crates/nvs-stdlib/src/test.rs:262` now records that no checked program
+reaches `nvs_abstract_method`'s fallback.
+
+**Stage 3's third item is not built**: a closure's parameters and return are not yet checked against the
+method it answers, so `{now: fn(): string => "x"}` at a `now(): int` is accepted here and left to
+`nvs_runtime::closure`'s dynamic check. That is the next group.
 
 ## Next group
 
-**Stage 3: the refusals** — one file set: `crates/nvs-types/src/conformance.rs`,
-`crates/nvs-types/src/expr/args.rs`, `crates/nvs-diagnostics/src/lib.rs`,
+**Stage 3: the closure signatures** — one file set: `crates/nvs-types/src/conformance.rs`,
+`crates/nvs-types/src/expr/assign.rs`, `crates/nvs-types/tests/testing.rs`,
 `tests/conformance/reject/`.
 
-- [ ] **The two diagnostics, and the walk that compares a shape to an interface** —
-      `crates/nvs-types/src/conformance.rs:99`'s `E_INTERFACE_METHOD_MISSING` is the existing
-      home of "this does not implement that", and it already holds the interface's declared
-      members; the call site that has the written target and the shape argument together is
-      `crates/nvs-types/src/expr/args.rs:1708`, the branch
-      `crate::derive::stands_in_for_a_class` guards. Two new `E08xx` codes — re-derive the next
-      free pair from `python tools/brief.py` before claiming them. `rule:testing/doubles`.
-- [ ] **`a_double_of_anything_but_an_interface_is_refused`** — the same walk's third refusal, a
-      written type argument that names a class or a shape rather than an interface, beside the
-      test at `crates/nvs-types/src/conformance.rs:566`. `rule:testing/doubles`.
-- [ ] **The two `reject/` cases** — `a-double-missing-a-method-is-refused.nvst` and
-      `a-double-declaring-a-method-the-interface-lacks-is-refused.nvst`, whose `--EXPECTF-ERROR--`
-      has to reproduce the diagnostic's own indentation; the shape to copy is
-      `tests/conformance/reject/a-bare-return-is-refused-where-the-declaration-is-not-void.nvst:1`
-      and the bodies are `tests/conformance/core/a-double-answers-with-its-closures.nvst:6`'s
-      interface with a field struck or added. `rule:testing/doubles`.
+- [ ] **Each closure is checked against the method it answers** — goal prose stage 3 item 3. The walk at
+      `crates/nvs-types/src/conformance.rs:558` already resolves the `MethodSig` for every field it
+      accepts; what it throws away is the field's own type, since `answered_methods`
+      (`crates/nvs-types/src/conformance.rs:670`) collects names alone — return `(name, TypeId)` pairs
+      and the comparison has both sides. The relation is `crates/nvs-types/src/expr/assign.rs:60`'s
+      `is_assignable` over the field's `Ty::CallableSig`; a field typed bare `callable` carries no
+      parameter list (`rule:types/callable-is-a-closure`) and is the accepted case, not a refusal.
+      Decide there whether this is a fourth `E08xx` code or the argument-mismatch code the position
+      already carries, and record the call in the code comment. `rule:testing/doubles`.
+- [ ] **The reject case for it** — `tests/conformance/reject/`, shaped like
+      `tests/conformance/reject/a-double-missing-a-method-is-refused.nvst:22`: `--EXPECT--` blank,
+      `--EXPECTF-ERROR--` with `%A` under the message line, then `error: aborting due to 1 error`.
+      `rule:testing/doubles`.
 
 ## Backlog
 
-- Stage 4's two assertions (`assertCalled`, `assertNeverCalled`) read the ledger
-  `crates/nvs-stdlib/src/test.rs`'s `record` writes: keyed by method name, one list of arguments
-  per call, absent key for a method never called — `rule:testing/interaction-after-the-fact`.
-- Stage 5's `assertCompletes` is untouched; its key is still in the outstanding file.
-- `METHOD_CEILING` is 32 and its refusal is `Core\Test::double(): … at most 32`, asked by no case;
-  a partial of a fat real class spends a slot per method behind it.
-- `Core\BigInt` is goal `bigint`, still ahead of `gap-zero` — `docs/implementation-plan.md`.
+- Stage 4: `assertCalled`/`assertNeverCalled` and the method reference, which needs a new `CoreTy`
+  variant — one edit in `registry.rs` and four outside it (playbook, *Writing Novis itself*).
+- Stage 5: `assertCompletes` under the virtual clock — `docs/agent/loop-goal.md` § *Stage 5*.
+- Stage 6: the rulebook — `rule:testing/doubles` and `rule:testing/interaction-after-the-fact` are still
+  marked *designed, not yet shipped*, and neither names a guard test yet.
+- The three `Test::assert*` ratchet keys in
+  `crates/nvs-stdlib/tests/spec-members-compiler-facing-outstanding.txt:26`, struck by stages 4 and 5.
+- `nvs-server`'s `a_fleet_lease_is_renewed_while_its_run_is_in_flight` failed once beside the other test
+  binaries and passes alone — a timing flake under load, not this work.
