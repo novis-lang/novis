@@ -1,0 +1,46 @@
+<?nvs
+// A key arrives in one encoding and leaves in another. A browser hands over
+// the bare point, the service that stores it keeps DER, and the page that
+// publishes it wants JSON — and it is one key the whole way through, because
+// each encoding is written from the key rather than from the octets that
+// carried it in.
+
+string $der = "3059301306072a8648ce3d020106082a8648ce3d030107034200"
+    . "0468aa7eb5d775b8ab32e53b3a2b006dc42638d4d5a06d9b50c49"
+    . "3781e2a65f3e036cb273ea410534a6e8c946ae9ea7e10318686fa"
+    . "eeba6850b16fdb2572ff0e89";
+
+Core\Crypto\PublicKey $stored = Core\Crypto\PublicKey::read(
+    Core\Encoding::fromHex($der),
+    Core\Crypto\KeyKind::P256,
+    Core\Crypto\KeyFormat::Spki
+);
+
+// Give the browser the encoding it asked for, and take it back again later in
+// that same encoding. Reading says which one the octets are in; there is
+// nothing to sniff and nothing to guess.
+bytes $forTheBrowser = $stored->write(Core\Crypto\KeyFormat::Raw);
+Core\Crypto\PublicKey $returned = Core\Crypto\PublicKey::read(
+    $forTheBrowser,
+    Core\Crypto\KeyKind::P256,
+    Core\Crypto\KeyFormat::Raw
+);
+
+if (Core\Encoding::toHex($returned->write(Core\Crypto\KeyFormat::Spki)) == $der) {
+    echo "the raw point wrote back the DER we started from", "\n";
+} else {
+    echo "the raw point came back as another key", "\n";
+}
+
+// The same round through JSON, which a key published on the web takes.
+Core\Crypto\PublicKey $viaJson = Core\Crypto\PublicKey::read(
+    $stored->write(Core\Crypto\KeyFormat::Jwk),
+    Core\Crypto\KeyKind::P256,
+    Core\Crypto\KeyFormat::Jwk
+);
+
+if (Core\Encoding::toHex($viaJson->write(Core\Crypto\KeyFormat::Spki)) == $der) {
+    echo "and so did the JSON one", "\n";
+} else {
+    echo "the JSON one came back as another key", "\n";
+}

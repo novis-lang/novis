@@ -1,0 +1,30 @@
+<?nvs
+// One public key, written down in each of the three encodings. The key is the
+// same number every time; what changes is how much is written around it.
+
+// A P-256 key as it arrived from the other end, in DER.
+Core\Crypto\PublicKey $key = Core\Crypto\PublicKey::read(
+    Core\Encoding::fromHex(
+        "3059301306072a8648ce3d020106082a8648ce3d030107034200"
+        . "0468aa7eb5d775b8ab32e53b3a2b006dc42638d4d5a06d9b50c49"
+        . "3781e2a65f3e036cb273ea410534a6e8c946ae9ea7e10318686fa"
+        . "eeba6850b16fdb2572ff0e89"
+    ),
+    Core\Crypto\KeyKind::P256,
+    Core\Crypto\KeyFormat::Spki
+);
+
+// The point itself: one leading octet saying the point is uncompressed, then
+// the two coordinates.
+echo "raw  ", Core\Encoding::toHex($key->write(Core\Crypto\KeyFormat::Raw)), "\n";
+
+// The same point with the algorithm it belongs to named in front of it, which
+// is what makes this the one encoding every kind of key has.
+echo "spki ", Core\Bytes::length($key->write(Core\Crypto\KeyFormat::Spki)), " octets", "\n";
+
+// And as JSON, which is what a key published on the web looks like. The
+// members are the ones a thumbprint is taken over, sorted, with nothing else.
+echo "jwk  ", Core\Encoding::decodeText(
+    $key->write(Core\Crypto\KeyFormat::Jwk),
+    Core\Charset::Utf8
+), "\n";

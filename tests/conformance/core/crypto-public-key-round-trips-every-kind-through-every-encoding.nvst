@@ -2,6 +2,8 @@
 Core\Crypto\PublicKey::read and ->write round-trip every kind of the roster through every encoding that kind has, and ->kind answers the case the read was given — `rule:core-classes/crypto-interop-tier`, `rule:security/algorithm-comes-from-the-key`
 --FILE--
 <?nvs
+// covers: Core\Crypto\KeyFormat
+//
 // WebCrypto's own exports of five keys, frozen under
 // `crates/nvs-stdlib/tests/vectors/`. That these *are* WebCrypto's bytes is held
 // by that file; what a `.nvs` program can assert is that a key survives every

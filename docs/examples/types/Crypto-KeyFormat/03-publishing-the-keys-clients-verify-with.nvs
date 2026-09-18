@@ -1,0 +1,34 @@
+<?nvs
+// Publishing the public keys a service signs with, as the JSON a client
+// fetches once and verifies with from then on. The keys are kept as DER and
+// written out as JSON, so the published document is produced from the stored
+// key rather than kept beside it and left to drift.
+
+array<string> $stored = [
+    "3059301306072a8648ce3d020106082a8648ce3d030107034200"
+        . "0468aa7eb5d775b8ab32e53b3a2b006dc42638d4d5a06d9b50c49"
+        . "3781e2a65f3e036cb273ea410534a6e8c946ae9ea7e10318686fa"
+        . "eeba6850b16fdb2572ff0e89",
+    "302a300506032b6570032100fcce9008a33565248561295a7ce1cccb040b6129bba8ff24744953bbc01261ac",
+];
+array<Core\Crypto\KeyKind> $kinds = [
+    Core\Crypto\KeyKind::P256,
+    Core\Crypto\KeyKind::Ed25519,
+];
+
+array<string> $published = [];
+foreach (Core\Arr::range(0, 1) as int $slot) {
+    Core\Crypto\PublicKey $key = Core\Crypto\PublicKey::read(
+        Core\Encoding::fromHex($stored[$slot]),
+        $kinds[$slot],
+        Core\Crypto\KeyFormat::Spki
+    );
+    $published[] = Core\Encoding::decodeText(
+        $key->write(Core\Crypto\KeyFormat::Jwk),
+        Core\Charset::Utf8
+    );
+}
+
+// What a write answers is the members that identify the key, sorted, and
+// nothing else — a service adds its own `kid` and `alg` beside them here.
+echo "{\"keys\":[", Core\Str::join($published, ","), "]}", "\n";
