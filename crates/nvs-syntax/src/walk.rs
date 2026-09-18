@@ -89,7 +89,7 @@ use crate::ast::{
     AnonClassDecl, AssignOp, BinaryOp, Block, CallArgs, ClassMember, ClassMemberKind,
     DestructureElement, DestructureTarget, EnumCase, Expr, ExprKind, FnBody, FnExpr, ForInit,
     IncDecOp, MemberName, MethodMember, NewTarget, Param, PropertyHook, PropertyHookBody, Stmt,
-    StmtKind, StringPart, UnaryOp,
+    StmtKind, StringPart, TestOperand, UnaryOp,
 };
 use crate::parse_file;
 
@@ -195,7 +195,6 @@ pub const KINDS: &[&str] = &[
     "If",
     "Index",
     "InlineHtml",
-    "InstanceOf",
     "Int",
     "InterfaceDecl",
     "Interpolated",
@@ -630,17 +629,15 @@ fn expr(e: &Expr) -> Node {
             kids.push(expr(operand));
             "Conversion"
         }
-        ExprKind::TypeTest { expr: operand, .. } => {
-            kids.push(expr(operand));
-            "TypeTest"
-        }
-        ExprKind::InstanceOf {
+        ExprKind::TypeTest {
             expr: operand,
-            class,
+            against,
         } => {
             kids.push(expr(operand));
-            kids.push(expr(class));
-            "InstanceOf"
+            if let TestOperand::Value(value) = against {
+                kids.push(expr(value));
+            }
+            "TypeTest"
         }
         ExprKind::Call { callee, args } => {
             kids.push(expr(callee));

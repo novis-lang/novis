@@ -514,7 +514,7 @@ impl<'src, 'd> Parser<'src, 'd> {
     }
 
     /// `!expr` — stacks (`!!expr` is `!(!expr)`), and otherwise defers to
-    /// `instanceof`, which binds tighter. The stacking is unbounded self-
+    /// `is`, which binds tighter. The stacking is unbounded self-
     /// recursion (`!!!!!!...`), so it needs the same guard as
     /// [`Self::parse_assignment`].
     pub(super) fn parse_not(&mut self) -> Expr {
@@ -533,27 +533,25 @@ impl<'src, 'd> Parser<'src, 'd> {
                 },
             };
         }
-        self.parse_instanceof()
+        self.parse_type_test()
     }
 
-    /// `instanceof` and `is`, which share one precedence level: the class test
-    /// and the type test ask the same question of the same operand, so a
-    /// reader reaching for either writes it in the same place.
+    /// `is` — the one type test (`rule:types/type-test`), and the level where
+    /// `instanceof` is refused, because that is where a reader of PHP writes
+    /// it (`rule:php-migration/one-type-test`).
     ///
-    /// **The two differ only in what follows the keyword.** `instanceof` takes
-    /// an expression, because a `class<T>` operand is a value; `is` takes a
-    /// type, parsed by the production `as` uses, because the thing on its right
-    /// never was one (`rule:types/type-test`). That is why the right side is
-    /// read by two different calls rather than by one shared operand parser.
+    /// **One token after the keyword decides which arm the right side is**, and
+    /// [`Self::parse_test_operand`] is where that is written down: a
+    /// `$variable` opens the value arm, every other token a type.
     ///
     /// Left-associative in a loop, so each test is charged one level of the
     /// recursion budget and held open to the end of the chain, for the
     /// reason `parse_left_assoc` gives: the tree nests even though the
     /// parser does not.
-    pub(super) fn parse_instanceof(&mut self) -> Expr {
+    pub(super) fn parse_type_test(&mut self) -> Expr {
         let mut lhs = self.parse_pipe();
         let mut links: u32 = 0;
-        while self.at_keyword(Keyword::InstanceOf) || self.at_keyword(Keyword::Is) {
+        while self.at_keyword(Keyword::Is) || self.at_keyword(Keyword::InstanceOf) {
             if self.enter_recursive() {
                 lhs = Expr {
                     span: lhs.span,
@@ -562,28 +560,29 @@ impl<'src, 'd> Parser<'src, 'd> {
                 break;
             }
             links += 1;
-            let type_test = self.at_keyword(Keyword::Is);
-            self.bump();
-            lhs = if type_test {
-                let ty = self.parse_type_test_operand();
-                let span = lhs.span.to(ty.span);
-                Expr {
+            let refused = self.at_keyword(Keyword::InstanceOf);
+            let keyword = self.bump().span;
+            if refused {
+                self.reject_instanceof(keyword);
+                // The right operand is consumed at the level the refused
+                // spelling took one, so the site costs this one diagnostic
+                // rather than a second about a token nothing expected.
+                let right = self.parse_pipe();
+                let span = lhs.span.to(right.span);
+                lhs = Expr {
                     span,
-                    kind: ExprKind::TypeTest {
-                        expr: Box::new(lhs),
-                        ty,
-                    },
-                }
-            } else {
-                let class = self.parse_pipe();
-                let span = lhs.span.to(class.span);
-                Expr {
-                    span,
-                    kind: ExprKind::InstanceOf {
-                        expr: Box::new(lhs),
-                        class: Box::new(class),
-                    },
-                }
+                    kind: ExprKind::Error(span),
+                };
+                continue;
+            }
+            let against = self.parse_test_operand();
+            let span = lhs.span.to(against.span());
+            lhs = Expr {
+                span,
+                kind: ExprKind::TypeTest {
+                    expr: Box::new(lhs),
+                    against,
+                },
             };
         }
         for _ in 0..links {
@@ -592,7 +591,29 @@ impl<'src, 'd> Parser<'src, 'd> {
         lhs
     }
 
-    /// `|>` — the pipeline operator, one level between `instanceof` and unary
+    /// `rule:php-migration/one-type-test`: `instanceof` names nothing in Novis
+    /// but its own refusal.
+    ///
+    /// The keyword stays a keyword so the spelling can be named here — read as
+    /// an ordinary identifier it would arrive at name resolution as a constant
+    /// that resolves to nothing, and the reader would be told about a name
+    /// instead of about the operator they wrote. The help carries both
+    /// rewrites, because the class-value form has one too.
+    fn reject_instanceof(&mut self, span: Span) {
+        self.diags.report(
+            Diagnostic::error(
+                code::E_INSTANCEOF_IS_NOT_AN_OPERATOR,
+                "`instanceof` is not a Novis operator; the type test is `is`",
+            )
+            .with_primary(span, "no operator is spelled this way")
+            .with_help(
+                "write `$x is Request`; a class reference on the right is `$x is $cls` \
+                 (`rule:types/type-test`)",
+            ),
+        );
+    }
+
+    /// `|>` — the pipeline operator, one level between `is` and unary
     /// because `rule:expressions/pipeline-precedence` binds it tighter than
     /// every binary operator and looser than unary: `-$a |> Math::abs($_)` is
     /// `Math::abs(-$a)` and `"x=" . $a |> Str::upper($_)` is

@@ -167,42 +167,20 @@ impl<'src, 'd> Parser<'src, 'd> {
         self.parse_type_union()
     }
 
-    /// The right-hand side of `is` — one type, with the one thing that is not
-    /// a type refused here rather than downstream.
+    /// The right-hand side of `is` (`rule:types/type-test` § *The value arm*).
     ///
-    /// `$x is $cls` names a *value* where a type belongs (`rule:types/type-test`).
-    /// It is caught with the `$` still in hand because every later pass sees
-    /// only a name that failed to resolve, and would spend the diagnostic on
-    /// the name instead of on the shape the reader wrote. The dynamic class
-    /// test is `$x instanceof $cls` and is what the help names — it is the one
-    /// question `is` cannot ask.
-    pub(super) fn parse_type_test_operand(&mut self) -> Type {
+    /// **The `$` decides, and nothing else does.** A `$variable` opens the
+    /// value arm — the dynamic class test, whose operand is parsed at the `|>`
+    /// level exactly as any other value in an operator position, so
+    /// `$x is $this->cls` reads as one operand. Every other token starts a
+    /// type. Deciding on the sigil rather than on what happens to parse is what
+    /// keeps a DNF type's opening `(` a type, and it leaves the arms with no
+    /// token in common for a later reader to have to disambiguate.
+    pub(super) fn parse_test_operand(&mut self) -> TestOperand {
         if self.at(TokenKind::Variable) {
-            let span = self.bump().span;
-            return self.reject_value_in_type_test(span);
+            return TestOperand::Value(Box::new(self.parse_pipe()));
         }
-        self.parse_type()
-    }
-
-    /// `rule:types/type-test`'s third refusal. The type it hands back is
-    /// `mixed`, so the test still checks as the `bool` it is and the reader
-    /// gets this one diagnostic rather than a second about the subject.
-    pub(super) fn reject_value_in_type_test(&mut self, span: Span) -> Type {
-        self.diags.report(
-            Diagnostic::error(
-                code::E_TYPE_TEST_AGAINST_A_VALUE,
-                "the right-hand side of `is` is a type, not a value",
-            )
-            .with_primary(span, "this names a value")
-            .with_help(
-                "write the type itself (`$x is Request`), or use `instanceof` for the \
-                 dynamic class test (`$x instanceof $cls`)",
-            ),
-        );
-        Type {
-            kind: TypeKind::Atom(TypeAtom::Mixed),
-            span,
-        }
+        TestOperand::Type(self.parse_type())
     }
 
     pub(super) fn parse_type_union(&mut self) -> Type {

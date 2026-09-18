@@ -800,6 +800,33 @@ impl Expr {
 
 /// Every expression form the parser produces.
 ///
+/// What stands on the right of `is` (`rule:types/type-test`).
+///
+/// **One token decides which arm this is.** A `$variable` opens [`Self::Value`]
+/// — the dynamic class test, whose operand holds a `class<T>` — and every other
+/// token starts a type, parsed by the production `as` uses. Deciding on the
+/// sigil rather than on what happens to parse is what keeps a DNF type's
+/// opening `(` a type.
+#[derive(Clone, Debug, PartialEq)]
+pub enum TestOperand {
+    /// A written type: `$x is int`, `$x is Request`, `$x is {x: int}`.
+    Type(Type),
+    /// A value carrying the class descriptor to test against: `$x is $cls`.
+    Value(Box<Expr>),
+}
+
+impl TestOperand {
+    /// The span of whichever side was written, which is what the `is`
+    /// expression's own span runs to.
+    #[must_use]
+    pub fn span(&self) -> Span {
+        match self {
+            Self::Type(ty) => ty.span,
+            Self::Value(expr) => expr.span,
+        }
+    }
+}
+
 /// Literal payloads are spans, not cooked values — see the module docs.
 #[non_exhaustive]
 #[derive(Clone, Debug, PartialEq)]
@@ -918,22 +945,14 @@ pub enum ExprKind {
         /// The target type.
         ty: Type,
     },
-    /// `expr is Type` — the type test (`rule:types/type-test`). Its right side
-    /// is a [`Type`] and never an [`Expr`], which is the whole difference from
-    /// [`Self::InstanceOf`]: `instanceof` tests against a class *value*, so a
-    /// `$cls` is legal there and refused here.
+    /// `expr is Type` and `expr is $cls` — the one type test
+    /// (`rule:php-migration/one-type-test`). Which of the two the right side
+    /// is, is [`TestOperand`]'s question.
     TypeTest {
         /// The value being tested.
         expr: Box<Expr>,
-        /// The type it is tested against.
-        ty: Type,
-    },
-    /// `expr instanceof ClassOrExpr`
-    InstanceOf {
-        /// The value being tested.
-        expr: Box<Expr>,
-        /// The class name or expression on the right.
-        class: Box<Expr>,
+        /// The type, or the class reference, it is tested against.
+        against: TestOperand,
     },
     /// `callee(...)`
     Call {

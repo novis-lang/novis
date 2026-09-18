@@ -62,7 +62,8 @@ use crate::ast::{
     InterfaceDecl, MatchArm, MemberName, MethodMember, Modifier, Name, NamespaceDecl, NewTarget,
     ObjectLiteralField, Param, PropertyHook, PropertyHookBody, PropertyHookKind, PropertyMember,
     ShapeField, SpawnOption, SpawnOptionKey, StaticVar, Stmt, StmtKind, StringPart, SwitchCase,
-    Type, TypeAliasDecl, TypeAtom, TypeKind, UnaryOp, UseDecl, Visibility, WrittenModifier,
+    TestOperand, Type, TypeAliasDecl, TypeAtom, TypeKind, UnaryOp, UseDecl, Visibility,
+    WrittenModifier,
 };
 use crate::index::SyntaxIndex;
 use crate::lexer::Lexer;

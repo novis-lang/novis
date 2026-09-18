@@ -68,7 +68,7 @@ use crate::ast::{
     AnonClassDecl, Arg, ArrayItem, AttributeGroup, CallArgs, ClassMember, ClassMemberKind,
     DestructureElement, DestructureTarget, EnumDecl, Expr, ExprKind, FnBody, FnExpr, MemberName,
     MethodMember, Modifier, NamespaceDecl, NewTarget, Param, PropertyHook, PropertyHookBody, Stmt,
-    StmtKind, StringPart, Visibility,
+    StmtKind, StringPart, TestOperand, Visibility,
 };
 
 /// Checks every declaration in `stmts` against `rule:core-api/identifier-casing`/0030's casing rules
@@ -734,12 +734,14 @@ fn check_expr(expr: &Expr, src: &SourceFile, diags: &mut Diagnostics) {
             }
             check_expr(else_, src, diags);
         }
-        ExprKind::Conversion { expr, .. } | ExprKind::TypeTest { expr, .. } => {
+        ExprKind::Conversion { expr, .. } => {
             check_expr(expr, src, diags);
         }
-        ExprKind::InstanceOf { expr, class } => {
+        ExprKind::TypeTest { expr, against } => {
             check_expr(expr, src, diags);
-            check_expr(class, src, diags);
+            if let TestOperand::Value(operand) = against {
+                check_expr(operand, src, diags);
+            }
         }
         ExprKind::Call { callee, args } => {
             check_expr(callee, src, diags);

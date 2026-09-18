@@ -44,7 +44,7 @@
 //! **What it spends:** nothing. The callback is handed borrowed nodes in
 //! source order and the walk allocates nothing at all.
 
-use crate::ast::{CallArgs, Expr, ExprKind, MemberName, NewTarget, StringPart};
+use crate::ast::{CallArgs, Expr, ExprKind, MemberName, NewTarget, StringPart, TestOperand};
 
 /// Calls `f` on every expression `e` evaluates as part of evaluating itself,
 /// in source order — one level deep, so a caller that wants the whole subtree
@@ -87,8 +87,13 @@ pub fn each_child_expr(e: &Expr, f: &mut dyn FnMut(&Expr)) {
         ExprKind::Unary { expr, .. }
         | ExprKind::PreIncDec { expr, .. }
         | ExprKind::PostIncDec { expr, .. }
-        | ExprKind::Conversion { expr, .. }
-        | ExprKind::TypeTest { expr, .. } => f(expr),
+        | ExprKind::Conversion { expr, .. } => f(expr),
+        ExprKind::TypeTest { expr, against } => {
+            f(expr);
+            if let TestOperand::Value(operand) = against {
+                f(operand);
+            }
+        }
         ExprKind::Clone(operand)
         | ExprKind::YieldFrom(operand)
         | ExprKind::Print(operand)
@@ -110,10 +115,6 @@ pub fn each_child_expr(e: &Expr, f: &mut dyn FnMut(&Expr)) {
                 f(then);
             }
             f(else_);
-        }
-        ExprKind::InstanceOf { expr, class } => {
-            f(expr);
-            f(class);
         }
         ExprKind::Call { callee, args } => {
             f(callee);
