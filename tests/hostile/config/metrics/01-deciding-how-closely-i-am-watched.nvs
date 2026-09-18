@@ -1,0 +1,110 @@
+<?nvs
+// Attack: the block that says who watches this deployment, written by the
+// program being watched. Every spelling that might reach a key from a block
+// nobody guarded, every value that might reach a collector — or reach one
+// differently from the grammar that resolved it — and a cardinality argument
+// where the per-core series bound is, because a registry that grows with
+// traffic is a leak with a dashboard on it.
+// hostile: timeout-ms 20000
+
+// 1. Every other name for the four keys, including the tracing block on the
+//    same footing and a per-application copy of both.
+array<string> $names = [
+    'metrics',
+    'metrics.exporter',
+    'metrics.listen',
+    'metrics.endpoint',
+    'metrics.max_series',
+    'exporter',
+    'METRICS.EXPORTER',
+    'Metrics.Exporter',
+    'metrics..exporter',
+    '.metrics.exporter',
+    'metrics.exporter.',
+    'metrics.exporter.protocol',
+    'metrics.max_series.hard',
+    'app.metrics.exporter',
+    'app.0.metrics.max_series',
+    'trace.exporter',
+    'trace.sample',
+    "metrics.exporter\u{0000}",
+    "trace.sample\u{0000}metrics.exporter",
+    'trace.exporter/../../metrics/exporter',
+    'metrics.' . Core\Str::repeat('sub.', 20000) . 'exporter',
+];
+foreach ($names as string $key) {
+    Core\Config::set($key, 'false');
+    Core\Config::set($key, '0');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 2. Every shape of destination. A collector that is a loopback port nobody
+//    listens on, a scheme the dialler does not speak, a name that is two
+//    different hosts depending on who resolves it, or a scrape endpoint bound
+//    to every interface, are each a deployment measured by somebody else or by
+//    nobody — and all of them are silence rather than an error at the sink.
+array<string> $destinations = [
+    '',
+    ' ',
+    'true',
+    'false',
+    'prometheus',
+    'PROMETHEUS',
+    'otlp ',
+    'graphite',
+    '0.0.0.0:9090',
+    '[::]:0',
+    'http://127.0.0.1:1/v1/metrics',
+    'file:///etc/passwd',
+    'unix:/tmp/collector.sock',
+    "https://collector.test/v1\u{0000}.evil",
+    'https://collector.test:99999/v1',
+    'https://' . Core\Str::repeat('a.', 32768) . 'test/v1',
+];
+foreach ($destinations as string $destination) {
+    Core\Config::set('metrics.exporter', $destination);
+    Core\Config::set('metrics.listen', $destination);
+    Core\Config::set('metrics.endpoint', $destination);
+    Core\Config::set('trace.endpoint', $destination);
+}
+
+// 3. The per-core series bound, from both ends. Removing it is what makes a
+//    label built out of something a visitor sent into memory that grows with
+//    traffic; setting it to nothing is a deployment that stops reporting after
+//    its first series and never says why.
+array<string> $bounds = [
+    '0',
+    '-1',
+    '1',
+    '0.5',
+    'false',
+    'true',
+    '18446744073709551615',
+    '99999999999999999999999999999999',
+    '1e309',
+    'NaN',
+    '10_000',
+    '  10000  ',
+];
+foreach ($bounds as string $bound) {
+    Core\Config::set('metrics.max_series', $bound);
+    Core\Config::set('trace.sample', $bound);
+}
+Core\Config::restore('metrics.max_series');
+Core\Config::restore('metrics.exporter');
+
+echo 'exporter on duty: ', Core\Config::get('metrics.exporter') ?? '(nothing written)', "\n";
+
+// 4. And real work while all of that was in flight, ending past a ceiling this
+//    program set for itself: what the case asserts is that the runtime does the
+//    work, reports the failure and stays standing, still measured by whatever
+//    the deployment wrote rather than by what this program asked for.
+Core\Config::set('limits.memory', '8M');
+array<string> $hoard = [];
+uint $i = 0;
+while ($i < 4000000) {
+    $hoard[] = 'series_' . Core\Str::repeat('label', $i % 64 + 1);
+    $i = $i + 1;
+}
+echo 'the label loop ran to its end: ', Core\Arr::count($hoard), "\n";
