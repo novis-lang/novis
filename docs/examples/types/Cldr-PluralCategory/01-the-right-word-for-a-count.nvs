@@ -1,0 +1,17 @@
+<?nvs
+// A sentence that mentions a count needs the right word for that count. Ask
+// which form the language uses, then write the sentence for that form.
+
+class Inbox {
+    public static function word(int $count): string {
+        return match (Core\Cldr::pluralCategory($count, "en")) {
+            Core\Cldr\PluralCategory::One => "message",
+            default => "messages",
+        };
+    }
+}
+
+array<int> $counts = [0, 1, 2, 5];
+foreach ($counts as int $count) {
+    echo "you have ", $count, " ", Inbox::word($count), "\n";
+}

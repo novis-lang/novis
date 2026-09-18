@@ -1,0 +1,30 @@
+<?nvs
+// A translated application keeps one line per form for each message. This is
+// the lookup that picks the line, and it is the same code for every language
+// you add later.
+
+class Catalog {
+    public static function pick(array<string> $forms, int $count, string $language): string {
+        string $key = match (Core\Cldr::pluralCategory($count, $language)) {
+            Core\Cldr\PluralCategory::Zero => "zero",
+            Core\Cldr\PluralCategory::One => "one",
+            Core\Cldr\PluralCategory::Two => "two",
+            Core\Cldr\PluralCategory::Few => "few",
+            Core\Cldr\PluralCategory::Many => "many",
+            Core\Cldr\PluralCategory::Other => "other",
+        };
+
+        // A translator only writes the forms their language uses, so fall back
+        // to the one every language has.
+        return $forms[$key] ?? $forms["other"];
+    }
+}
+
+array<string> $english = ["one" => "day", "other" => "days"];
+array<string> $polish = ["one" => "dzień", "few" => "dni", "many" => "dni", "other" => "dnia"];
+
+array<int> $counts = [1, 2, 5, 22];
+foreach ($counts as int $count) {
+    echo $count, ": ", Catalog::pick($english, $count, "en"),
+         " / ", Catalog::pick($polish, $count, "pl"), "\n";
+}

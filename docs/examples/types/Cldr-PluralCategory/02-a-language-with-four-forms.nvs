@@ -1,0 +1,20 @@
+<?nvs
+// Russian has four forms, and which one a count takes is not what an English
+// speaker would guess: 21 goes with 1, and 11 goes with 5. A test on the number
+// itself cannot get this right, so ask which form the count selects.
+
+class Ru {
+    public static function word(int $count): string {
+        return match (Core\Cldr::pluralCategory($count, "ru")) {
+            Core\Cldr\PluralCategory::One => "файл",
+            Core\Cldr\PluralCategory::Few => "файла",
+            Core\Cldr\PluralCategory::Many => "файлов",
+            default => "файла",
+        };
+    }
+}
+
+array<int> $counts = [1, 2, 5, 11, 21, 101];
+foreach ($counts as int $count) {
+    echo $count, " ", Ru::word($count), "\n";
+}
