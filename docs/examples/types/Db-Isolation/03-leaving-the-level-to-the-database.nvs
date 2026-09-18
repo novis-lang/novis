@@ -1,0 +1,36 @@
+<?nvs
+// Most of the time you name no level at all, and that is a choice rather than
+// an oversight: the transaction then runs at the level the people who set the
+// database up decided on. Naming one overrules them, so a piece of work that
+// does it should be able to say why.
+
+class Checkout {
+    // A missing answer means "leave it alone", which is what the `isolation`
+    // option does when it is not passed.
+    public static function levelFor(string $step): ?Core\Db\Isolation {
+        return match ($step) {
+            // The one step in a checkout that must not sell the same last item
+            // twice: it reads the stock and writes the order together.
+            "take the payment and reserve the stock" => Core\Db\Isolation::Serializable,
+            default => null,
+        };
+    }
+}
+
+array<string> $steps = [
+    "write the basket to the database",
+    "take the payment and reserve the stock",
+    "send the confirmation email",
+];
+
+foreach ($steps as string $step) {
+    var $level = Checkout::levelFor($step);
+    if ($level == null) {
+        echo $step, ": whatever the database is set to\n";
+    } else {
+        // There is one level worth asking for here, and it is asked for by
+        // name. The cases are not a ladder you can climb: a level either
+        // describes what this step needs or it does not.
+        echo $step, ": Serializable, and nothing weaker will do\n";
+    }
+}

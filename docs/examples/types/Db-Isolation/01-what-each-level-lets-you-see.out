@@ -1,0 +1,5 @@
+ReadUncommitted: a statement may read rows another transaction has written and not committed
+ReadCommitted: each statement sees what was committed before that statement began
+RepeatableRead: every statement in the transaction sees the same committed rows
+Snapshot: you read the database as it stood when the transaction began, and clashing writes fail rather than wait
+Serializable: the outcome matches some order in which the transactions ran one at a time

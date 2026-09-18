@@ -1,0 +1,77 @@
+--TEST--
+Each of `Core\Db\Isolation`'s five levels is accepted by a running SQLite engine, which is always serializable, and a nested transaction asking for a level of its own is refused rather than run at the level around it — spec § 18, `rule:core-classes/db-transactions`
+--FILE--
+<?nvs
+// covers: Core\Db\Isolation
+use Core\Db;
+use Core\Db\Isolation;
+use Core\Db\Transaction;
+
+class Counter {
+    // § 6's typed readers answer `?T`, so the unwrapping happens once here.
+    public static function rows(Core\Db\Connection $db): int {
+        var $row = $db->query("select count(*) as n from t", [])->first();
+        if ($row == null) {
+            return -1;
+        }
+        var $n = $row->int("n");
+        if ($n == null) {
+            return -1;
+        }
+        return $n;
+    }
+}
+
+// SQLite needs no server, so every level below is really asked of a running
+// engine rather than of a table in this program. This backend has one level and
+// it is the strongest, so each of the five is delivered at least as strongly as
+// it was asked for — which is the case § 18 says a driver does not throw over.
+var $db = Db::connect("main");
+$db->execute("create table t (id integer primary key, note text not null)", []);
+
+array<Isolation> $levels = [
+    Isolation::ReadUncommitted,
+    Isolation::ReadCommitted,
+    Isolation::RepeatableRead,
+    Isolation::Snapshot,
+    Isolation::Serializable,
+];
+
+foreach ($levels as Isolation $level) {
+    $db->transaction(fn (Transaction $tx): void => {
+        $tx->execute("insert into t (note) values (?)", ["one level"]);
+    }, {isolation: $level});
+}
+echo "accepted: ", Counter::rows($db), "\n";
+
+// A level belongs to a transaction and not to a statement, so the inner
+// `transaction` — which is a savepoint inside the outer one — has no level of
+// its own to ask for. Asking anyway is refused, rather than answered with the
+// level already running. The refusal is a `LogicError` and not a
+// `Core\Db\DbError`: no server rejected anything, the call itself is the
+// mistake, which is § 8's split and `crates/nvs-stdlib/src/db/bind.rs`'s rule.
+try {
+    $db->transaction(fn (Transaction $tx): void => {
+        $tx->transaction(fn (Transaction $inner): void => {
+            $inner->execute("insert into t (note) values (?)", ["nested"]);
+        }, {isolation: Isolation::Serializable});
+    }, {isolation: Isolation::Serializable});
+    echo "nested: accepted\n";
+} catch (LogicError $refused) {
+    echo "nested: refused\n";
+}
+
+// The refusal happened before any `SAVEPOINT` was sent, and the throw took the
+// outer level back out with it, so the five rows above are still all there is.
+echo "kept: ", Counter::rows($db), "\n";
+--FILE nvs.toml--
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+accepted: 5
+nested: refused
+kept: 5

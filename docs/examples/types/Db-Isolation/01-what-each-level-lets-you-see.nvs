@@ -1,0 +1,28 @@
+<?nvs
+// The five levels a transaction can run at. Each line says what your own
+// statements are allowed to see of the work going on beside them, which is the
+// only thing the level decides.
+
+class Level {
+    public static function promise(Core\Db\Isolation $level): string {
+        return match ($level) {
+            Core\Db\Isolation::ReadUncommitted => "ReadUncommitted: a statement may read rows another transaction has written and not committed",
+            Core\Db\Isolation::ReadCommitted => "ReadCommitted: each statement sees what was committed before that statement began",
+            Core\Db\Isolation::RepeatableRead => "RepeatableRead: every statement in the transaction sees the same committed rows",
+            Core\Db\Isolation::Snapshot => "Snapshot: you read the database as it stood when the transaction began, and clashing writes fail rather than wait",
+            Core\Db\Isolation::Serializable => "Serializable: the outcome matches some order in which the transactions ran one at a time",
+        };
+    }
+}
+
+array<Core\Db\Isolation> $levels = [
+    Core\Db\Isolation::ReadUncommitted,
+    Core\Db\Isolation::ReadCommitted,
+    Core\Db\Isolation::RepeatableRead,
+    Core\Db\Isolation::Snapshot,
+    Core\Db\Isolation::Serializable,
+];
+
+foreach ($levels as Core\Db\Isolation $level) {
+    echo Level::promise($level), "\n";
+}
