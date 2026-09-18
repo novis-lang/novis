@@ -102,27 +102,27 @@ modules = [
   "crates/nvs-stdlib/src/test.rs",
   # `CoreTy`: the written `T`, and the new method-reference variant. Stages 2 and 4.
   "crates/nvs-stdlib/src/registry.rs",
-  # A `Core`-owned instance is an ordinary object; where a class's renderer and comparer are set. Stage 3.
+  # A `Core`-owned instance is an ordinary object; where a class's renderer and comparer are set. Stage 2.
   "crates/nvs-stdlib/src/instance.rs",
-  # `check_written_type_args`: where the call-site `T` arrives. Stage 2.
+  # `check_written_type_args`: where the call-site `T` arrives. Stages 2 and 3.
   "crates/nvs-types/src/expr/calls.rs",
-  # Argument checking against a row: where the shape and the method reference are judged. Stages 2 and 4.
+  # Argument checking against a row: where the shape and the method reference are judged. Stages 3 and 4.
   "crates/nvs-types/src/expr/args.rs",
   # How a registry row becomes a signature the checker resolves. Stages 2 and 4.
   "crates/nvs-types/src/core_lib.rs",
-  # Binding a row's `T`. Stage 2.
+  # Binding a row's `T`. Stages 2 and 3.
   "crates/nvs-types/src/generics.rs",
-  # The two new codes. Stage 2.
+  # The two new codes. Stage 3.
   "crates/nvs-diagnostics/src/lib.rs",
-  # `ClassDesc` and `MethodRow`: the double's descriptor and its trampolines. Stage 3.
+  # `ClassDesc` and `MethodRow`: the double's descriptor and its trampolines. Stage 2.
   "crates/nvs-runtime/src/object.rs",
-  # `call_closure`: reaching a slot's closure from a trampoline. Stage 3.
+  # `call_closure`: reaching a slot's closure from a trampoline. Stage 2.
   "crates/nvs-runtime/src/closure.rs",
-  # `call_method`: delegating a `partial`'s unoverridden method to `$real`. Stage 3.
+  # `call_method`: delegating a `partial`'s unoverridden method to `$real`. Stage 2.
   "crates/nvs-runtime/src/dispatch.rs",
-  # `lower_new` on a `Core` class, the model if the descriptor is built at lowering. Stage 3.
+  # `lower_new` on a `Core` class, the model if the descriptor is built at lowering. Stage 2.
   "crates/nvs-ir/src/lower/expr.rs",
-  # The ratchet, struck in the same edit as the rows. Stage 6.
+  # The ratchet, struck in the same group as the rows. Stage 2.
   "crates/nvs-stdlib/tests/spec-members-compiler-facing-outstanding.txt",
 ]
 
@@ -162,12 +162,12 @@ plan = ["Open now", "Blocking"]
 # ---------------------------------------------------------------------------------------------------
 
 [context.stage.2]
-rules = ["types/shape-type", "types/callable-is-a-closure", "classes/interface-default-methods", "classes/interface-private-methods"]
+rules = ["types/shape-type", "types/closure-literal", "testing/tests-never-reach-a-build"]
 adrs = ["0079 §10"]
 
 [context.stage.3]
-rules = ["types/closure-literal", "testing/tests-never-reach-a-build"]
-adrs = []
+rules = ["types/shape-type", "types/callable-is-a-closure", "classes/interface-default-methods", "classes/interface-private-methods"]
+adrs = ["0079 §10"]
 
 [context.stage.4]
 rules = ["testing/assertions-are-typed"]
@@ -11770,15 +11770,40 @@ exit = "nonzero"
 
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 2 -- the checker. Goal prose stage 2.
+# Stage 2 -- the keystone: the rows and the runtime. Goal prose stage 2.
 #
 # Every test and case named below must EXIST and pass. None does yet; writing one is how an item
 # finishes. Do not rename one to something already green.
 # ---------------------------------------------------------------------------------------------------
 
 [[check]]
+kind = "nvs-suite"
+stage = "2 the keystone"
+name = "conformance (a double is a `T`, answers with its closures, and a partial delegates)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/a-double-is-passed-where-its-interface-is-taken.nvst",
+  "tests/conformance/core/a-double-answers-with-its-closures.nvst",
+  "tests/conformance/core/a-partial-delegates-what-it-does-not-override.nvst",
+]
+
+[[check]]
 kind = "cargo-named"
-stage = "2 the checker"
+stage = "2 the keystone"
+name = "nvs-stdlib (every call a double answers is recorded)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_double_records_every_call_it_answers",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the refusals. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the refusals"
 name = "nvs-types (a double is checked against its interface)"
 args = ["test", "-p", "nvs-types"]
 tests = [
@@ -11791,37 +11816,12 @@ tests = [
 
 [[check]]
 kind = "nvs-suite"
-stage = "2 the checker"
-name = "conformance (ADR 0079 § 10's three bullets)"
+stage = "3 the refusals"
+name = "conformance (ADR 0079 § 10's two refusals)"
 args = ["test", "tests/conformance/"]
 cases = [
   "tests/conformance/reject/a-double-missing-a-method-is-refused.nvst",
   "tests/conformance/reject/a-double-declaring-a-method-the-interface-lacks-is-refused.nvst",
-  "tests/conformance/core/a-double-is-passed-where-its-interface-is-taken.nvst",
-]
-
-
-# ---------------------------------------------------------------------------------------------------
-# Stage 3 -- the runtime. Goal prose stage 3.
-# ---------------------------------------------------------------------------------------------------
-
-[[check]]
-kind = "nvs-suite"
-stage = "3 the runtime"
-name = "conformance (a double answers with its closures, and a partial delegates)"
-args = ["test", "tests/conformance/"]
-cases = [
-  "tests/conformance/core/a-double-answers-with-its-closures.nvst",
-  "tests/conformance/core/a-partial-delegates-what-it-does-not-override.nvst",
-]
-
-[[check]]
-kind = "cargo-named"
-stage = "3 the runtime"
-name = "nvs-stdlib (every call a double answers is recorded)"
-args = ["test", "-p", "nvs-stdlib"]
-tests = [
-  "a_double_records_every_call_it_answers",
 ]
 
 

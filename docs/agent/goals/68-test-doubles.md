@@ -29,7 +29,7 @@ still ahead. Goal `bigint` owns the sixth key and runs between the two; its file
 
 One sentence on disk says the half does not exist: `crates/nvs-stdlib/src/test.rs`'s module doc names
 the assertion roster, the request and the outbound answers and nothing of doubles. It gains a section on
-the double half, which is where the design calls stages 3 and 4 leave open are recorded once made. The
+the double half, which is where the design calls stages 2 and 4 leave open are recorded once made. The
 ratchet header at `crates/nvs-stdlib/tests/spec-members-compiler-facing-outstanding.txt:19` and the gap
 index already name this goal; nothing to do there.
 
@@ -38,32 +38,24 @@ index already name this goal; nothing to do there.
 Goal `decided-closures`'s whole acceptance list, carried in verbatim by `tools/goal-switch.py`. It holds
 every closure goal's checks and goal `one-type-test`'s. Never traded.
 
-## Stage 2 — the keystone: a double is checked, and is a `T`
+## Stage 2 — the keystone: a double exists at runtime and is a `T`
 
-The checker's half, in `nvs-types`. `Core\Test::double<T>($shape)` and `partial<T>($real, $shape)` are
-registry rows whose `T` is written at the call site — `crates/nvs-types/src/expr/calls.rs:126`'s
-`check_written_type_args`, the path `new Core\ObjectSet<Tag>()` already takes — and whose return type
-is that `T`:
+**The two rows and the runtime land in one group**, because a registered row forces its helper:
+`crates/nvs-stdlib/src/test.rs:2968`'s `every_row_names_a_symbol_this_module_claims` and
+`crates/nvs-stdlib/src/lib.rs:518`'s `every_registered_member_has_an_implementation_address` each sweep
+every row in `registry::CLASSES` for an address, and
+`crates/nvs-stdlib/tests/conformance_coverage.rs:52` wants a case writing `Core\Test::double<`. So
+`crates/nvs-stdlib/src/test.rs:321`'s `CLASS` gains `double` and `partial` — a written `T`
+(`crates/nvs-stdlib/src/registry.rs:554`'s `CoreTy::Written`) and a return type of that `T` — with the
+card, the `address()` arm, the helper and the case that make the row honest, and the two lines struck
+from `crates/nvs-stdlib/tests/spec-members-compiler-facing-outstanding.txt:29-30`. `double` alone is a
+group's worth, and `partial`'s ratchet line may be struck a session later.
 
-1. **`T` must resolve to an interface.** A class, a scalar, a shape or a `Core` class is refused naming
-   the member; the reserved global interfaces (`crates/nvs-hir/src/interfaces.rs`) are admitted like any
-   other.
-2. **`$shape` is a shape literal whose every field is a closure.** A field named like no method of `T`
-   is refused — *`Clock` declares no method `tomorrow`* — and, for `double`, a method of `T` with no
-   field is refused — *`Clock::now` is not implemented by this double*. For `partial` a missing field is
-   the delegated case, and `$real` must be assignable to `T`.
-3. **Each closure's parameters and return are checked against the method's signature** by the ordinary
-   assignability check, off the closure literal's declared types — `callable` carries none
-   (`rule:types/callable-is-a-closure`).
-4. **The result has type `T`**, so `new Session($clock)` type-checks under no further rule.
-
-Diagnostics: two new codes in `crates/nvs-diagnostics/src/lib.rs`, one per refusal in item 2; item 1
-draws the argument-mismatch code the row already carries. A method with a default body
-(`rule:classes/interface-default-methods`) is not required of a double — a default is an
-implementation — and a private interface method (`rule:classes/interface-private-methods`) is not
-nameable in one.
-
-## Stage 3 — the runtime: a double dispatches to its closures and records the call
+The checker's only work here is the plumbing that hands the helper what it needs — `T`'s own descriptor,
+which `crates/nvs-stdlib/src/registry.rs:3030`'s `WRITTEN_CLASS_MEMBERS` and
+`crates/nvs-types/src/expr/args.rs:1671`'s `written_class_of` already carry for a written *class*. An
+interface has a descriptor for the same reason a class does: `nvs_ir::ir::Class::conforms` names it and
+`crates/nvs-codegen/src/lib.rs:1483` defines every entry it names. Stage 3 is the refusals.
 
 The runtime's half, `nvs-stdlib` and `nvs-runtime`. A double is a `Core`-owned instance under
 `crates/nvs-stdlib/src/instance.rs`'s first decision — an ordinary object whose slots hold Novis
@@ -83,6 +75,34 @@ session picks whichever `MethodRow::code`'s calling convention makes cheaper, an
 its reason in `test.rs`'s module doc. From the caller's side a call on a double is
 `InstKind::CallVirtual` on the receiver's descriptor — the same by-name lookup an interface call makes
 today (`crates/nvs-ir/src/ir.rs:822`) — so nothing on a non-test path changes.
+`MethodRow::code` is a bare address with no data word beside it
+(`crates/nvs-runtime/src/object.rs:628`), so a trampoline carries its slot in its own *identity* — one
+native function monomorphized per slot, against a ceiling the double's method count is checked at — or
+the pick is the other one.
+
+## Stage 3 — the refusals: `T` is an interface, and the shape answers its method set
+
+The checker's half, in `nvs-types`, over the rows Stage 2 landed. `T` arrives at
+`crates/nvs-types/src/expr/calls.rs:126`'s `check_written_type_args`, the path
+`new Core\ObjectSet<Tag>()` already takes:
+
+1. **`T` must resolve to an interface.** A class, a scalar, a shape or a `Core` class is refused naming
+   the member; the reserved global interfaces (`crates/nvs-hir/src/interfaces.rs`) are admitted like any
+   other.
+2. **`$shape` is a shape literal whose every field is a closure.** A field named like no method of `T`
+   is refused — *`Clock` declares no method `tomorrow`* — and, for `double`, a method of `T` with no
+   field is refused — *`Clock::now` is not implemented by this double*. For `partial` a missing field is
+   the delegated case, and `$real` must be assignable to `T`.
+3. **Each closure's parameters and return are checked against the method's signature** by the ordinary
+   assignability check, off the closure literal's declared types — `callable` carries none
+   (`rule:types/callable-is-a-closure`).
+4. **The result has type `T`**, so `new Session($clock)` type-checks under no further rule.
+
+Diagnostics: two new codes in `crates/nvs-diagnostics/src/lib.rs`, one per refusal in item 2; item 1
+draws the argument-mismatch code the row already carries. A method with a default body
+(`rule:classes/interface-default-methods`) is not required of a double — a default is an
+implementation — and a private interface method (`rule:classes/interface-private-methods`) is not
+nameable in one.
 
 ## Stage 4 — the two assertions read the record
 
