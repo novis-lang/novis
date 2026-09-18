@@ -12,7 +12,7 @@ fn <script>() -> tagged {
     jump bb2
   bb1:
     v2 = take.thrown  ; object
-    v3 = instanceof v2, LogicError  ; bool
+    v3 = class.test v2, LogicError  ; bool
     branch v3 -> bb6 (e0), bb7 (e1)
   bb2:
     v7 = const.null  ; null
@@ -33,7 +33,7 @@ fn <script>() -> tagged {
     release v2
     jump bb2
   bb7:
-    v5 = instanceof v2, IOError  ; bool
+    v5 = class.test v2, IOError  ; bool
     branch v5 -> bb9 (e2), bb10 (e3)
   bb8:
     release v4

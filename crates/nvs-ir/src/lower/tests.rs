@@ -158,7 +158,7 @@ fn a_throw_builds_an_exception_object_and_enters_its_landing_block() {
 /// Every failing call inside a `try` reaches the same dispatch block,
 /// each through its own landing block — which is what keeps a handler
 /// phi's predecessors distinct. The exception is taken once by
-/// `take.thrown`, tested by one `instanceof` per clause, and the clause's
+/// `take.thrown`, tested by one class test per clause, and the clause's
 /// binding is released where its body ends.
 #[test]
 fn a_try_gives_every_protected_call_its_own_landing_block() {
@@ -170,10 +170,10 @@ fn a_try_gives_every_protected_call_its_own_landing_block() {
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-/// Two clauses on one `try`: an `instanceof` chain in source order, and a
+/// Two clauses on one `try`: a class-test chain in source order, and a
 /// re-raise of the very same reference when neither matches.
 #[test]
-fn two_catch_clauses_lower_to_an_instanceof_chain_ending_in_a_rethrow() {
+fn two_catch_clauses_lower_to_a_class_test_chain_ending_in_a_rethrow() {
     let (f, map, file) = lower_script_src(
         "<?nvs\nclass T {\n  public static function go(): void { }\n}\n\
              try {\n  T::go();\n} catch (LogicError $a) {\n  echo \"logic\";\n\
@@ -2855,7 +2855,7 @@ fn a_closure_is_called_through_the_variable_holding_it() {
 /// declaration settles carries a constant instead
 /// (`rule:types/type-test`), which would assert nothing about the label.
 #[test]
-fn an_instanceof_names_the_class_the_checker_resolved() {
+fn a_class_test_names_the_class_the_checker_resolved() {
     let (f, map, file) = lower_first_method(
         "<?nvs
 class Animal {
@@ -2891,14 +2891,49 @@ class T {
     );
 }
 
+/// `$x is $cls` — the value arm, whose right-hand side is a `class<T>` rather
+/// than a written name, so the class the walk compares against arrives as a
+/// [`crate::ir::TestedClass::Descriptor`] in a register instead of as a label.
+/// One instruction either way, which is what `rule:types/type-test`'s value
+/// arm promises.
+#[test]
+fn a_class_reference_test_lowers_to_a_descriptor_valued_class_test() {
+    let (f, _, _) = lower_first_method(
+        "<?nvs
+class Animal {
+}
+class T {
+  function m(Animal $a, class<Animal> $cls): bool {
+    return $a is $cls;
+  }
+}
+",
+    );
+    let tested: Vec<&TestedClass> = f
+        .blocks
+        .iter()
+        .flat_map(|b| &b.insts)
+        .filter_map(|i| match &i.kind {
+            InstKind::ClassTest { class, .. } => Some(class),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(tested.len(), 1, "{:?}", f.blocks);
+    assert!(
+        matches!(tested[0], TestedClass::Descriptor(_)),
+        "{:?}",
+        tested[0]
+    );
+}
+
 /// A `mixed` subject keeps its [`crate::ir::Ty::Tagged`] representation all
 /// the way into the instruction: `nvs-codegen` calls
-/// `nvs_value_instanceof` for it, which reads the tag rather than
+/// `nvs_value_is_class` for it, which reads the tag rather than
 /// dereferencing an unchecked payload. A subject whose *declared* type can
 /// hold no object settles at the checker instead, so no third representation
 /// reaches here.
 #[test]
-fn an_instanceof_over_a_mixed_subject_keeps_its_tag() {
+fn a_class_test_over_a_mixed_subject_keeps_its_tag() {
     let (f, _, _) = lower_first_method(
         "<?nvs
 class Animal {
@@ -2919,8 +2954,8 @@ class T {
         f.blocks
             .iter()
             .flat_map(|b| &b.insts)
-            .any(|i| matches!(i.kind, InstKind::InstanceOf { .. })),
-        "the fixture lowers one `instanceof`"
+            .any(|i| matches!(i.kind, InstKind::ClassTest { .. })),
+        "the fixture lowers one class test"
     );
 }
 
@@ -3074,7 +3109,7 @@ fn an_uncatchable_status_leaves_a_try_through_a_block_that_releases_the_locals()
 /// own, `nvs_hir::interfaces`' global interfaces, and
 /// `rule:types/callable-is-a-closure`'s closure marker — the `hello.nvs`
 /// shape. Nothing in the file references any of them and they are emitted
-/// anyway: a descriptor has to exist before `$x instanceof Stringable` or
+/// anyway: a descriptor has to exist before `$x is Stringable` or
 /// `$x is callable` has anything to test against, and a class implementing
 /// one only keeps the edge if the label it names is in this list
 /// (`nvs_types::layout::build_class_layouts`).

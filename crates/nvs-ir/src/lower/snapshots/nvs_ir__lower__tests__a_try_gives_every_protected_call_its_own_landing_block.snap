@@ -16,7 +16,7 @@ fn <script>() -> tagged {
     jump bb2
   bb1:
     v3 = take.thrown  ; object
-    v4 = instanceof v3, Throwable  ; bool
+    v4 = class.test v3, Throwable  ; bool
     branch v4 -> bb9 (e0), bb10 (e1)
   bb2:
     v6 = const.null  ; null
