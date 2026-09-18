@@ -2,42 +2,54 @@
 
 ## State
 
-Goal `config-directives-3-3` covers fourteen `nvs.toml` directives; three of them were taken this
-session and eleven are owed. Nothing is blocked, and the acceptance check is
-`python tools/dossier.py --verify --only <the fourteen>`.
+Goal `config-directives-3-3` covers fourteen `nvs.toml` directives. Seven are complete —
+`log.target`, `metrics`, `mode.ceiling`, and this session's `mode.default`, `trace`, `opcache` and
+`opcache.file_cache_dir` — and seven are owed: `[queue]`'s four keys, `schedule`, `server`,
+`session`. Nothing is blocked. The acceptance check is `python tools/dossier.py --verify --only <the
+fourteen>`, and `python tools/dossier.py --id 'directive:<key>'` says `complete.` for the seven.
 
-On disk now: a page, one example with its blessed `.out` and one attack for `directive:log.target`,
-`directive:metrics` and `directive:mode.ceiling`, plus one registry case each in
-`crates/nvs-config/tests/directives.rs`. `python tools/dossier.py --id 'directive:log.target'` says
-`complete.` for all three.
+A directive owes four artefacts and not five: `about.md`, one example with its blessed `.out`, one
+attack, one `covers:`-marked case in `crates/nvs-config/tests/directives.rs`. No bench — the policy
+excuses a directive from the perf proof.
 
-Two gaps the pack paid for twice this session: `[context] modules` names only
-`crates/nvs-config/src/directive.rs`, so the semantics of a block have to be fetched by hand from
-`log.rs`, `export.rs` and `tree.rs` in the same crate; and `[context] rules` names no rule that
-states what a directive *does*, so `rule:http-server/the-mode-ceiling-defaults-to-the-startup-mode`
-and `rule:errors/engine-floor` were both read on their own call.
+`[context]` was widened this session rather than only described: `modules` now names `tree.rs`,
+`export.rs`, `cache.rs` and `tests/directives.rs` beside the registry row, and `rules` names the
+three config rules every slice asserts against. Both edits are in `docs/agent/loop-goal.toml` alone;
+the generated goal file is what `--emit-goals` would rewrite, and it seeds `modules` from the
+implementing anchor only (`tools/dossier.py:2799`).
 
 ## Next group
 
-One slice is one feature with all four proofs. The file set is the same one this session used —
-`crates/nvs-config/src/directive.rs` for the row, the crate's own validator beside it, a new
-`docs/examples/config/<slug>/` and `tests/hostile/config/<slug>/`, and one case appended to
-`crates/nvs-config/tests/directives.rs`. The first two are the other halves of blocks this session
-already read; the last two are one block and are cheapest taken together:
+**Stage 2, the dossier — one file set:** `crates/nvs-config/src/directive.rs` for the row, a new
+`docs/examples/config/<slug>/` and `tests/hostile/config/<slug>/` per key, and one case appended to
+`crates/nvs-config/tests/directives.rs`. The `[queue]` block's four keys, which have no blanket row
+over them and split two and two across `Apply` — that split is the registry case worth writing once
+for the block rather than four times.
 
-- [ ] **`directive:mode.default`** — owes examples, hostile, tests. The `Runtime` half of the block
-      `directive:mode.ceiling` bounds (`rule:config/a-program-may-read-and-flip-its-mode`).
-      `crates/nvs-config/src/directive.rs:114`
-- [ ] **`directive:trace`** — owes examples, hostile, tests. The push-only block beside `[metrics]`,
-      same validator and same refusal (`rule:observability/metrics-and-trace-blocks-are-system`);
-      its `sample` is the fraction `E0628` refuses. `crates/nvs-config/src/directive.rs:266`
-- [ ] **`directive:opcache`** — owes examples, hostile, tests.
-      `rule:config/opcache-file-cache-directives-are-system`. `crates/nvs-config/src/directive.rs:230`
-- [ ] **`directive:opcache.file_cache_dir`** — owes examples, hostile, tests. The one `[opcache]` key
-      that is `Boot` rather than `Reload`. `crates/nvs-config/src/directive.rs:237`
+- [ ] **`directive:queue.connection`** — owes examples, hostile, tests. The connection the two job
+      tables live in, `Boot` because every worker has dialled it
+      (`rule:core-classes/queue-storage-is-a-table`, `rule:concurrency/enqueue-commits-with-your-write`).
+      `crates/nvs-config/src/directive.rs:256`
+- [ ] **`directive:queue.workers`** — owes examples, hostile, tests. How many job workers the serving
+      process runs, `Boot` beside the connection
+      (`rule:concurrency/one-process-serves-requests-schedules-and-jobs`).
+      `crates/nvs-config/src/directive.rs:257`
+- [ ] **`directive:queue.max_attempts`** — owes examples, hostile, tests. The `Reload` half of the
+      block: read per job out of the snapshot
+      (`rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`).
+      `crates/nvs-config/src/directive.rs:261`
+- [ ] **`directive:queue.visibility`** — owes examples, hostile, tests. How long a claimed job stays
+      invisible, the second `Reload` key (`rule:core-classes/queue-storage-is-a-table`; the claim's
+      own semantics are `nvs_stdlib::queue`'s module doc).
+      `crates/nvs-config/src/directive.rs:262`
 
 ## Backlog
 
-- Seven features of this goal are untouched after the group above: `server`, `session`, `schedule`
-  and the four `queue.*` — `python tools/dossier.py --owed --only <the fourteen>` is the list.
-- No directive in this goal owes a bench; `tools/data/dossier-policy.toml` is where that is written.
+- `directive:schedule`, `directive:server` and `directive:session` are the goal's last three, each a
+  whole block — `docs/agent/loop-goal.toml`'s acceptance check names them.
+- `tools/dossier.py --emit-goals` seeds `[context] modules` from implementing anchors alone, so every
+  directive goal opens with one file that says who may set a key and never what it does —
+  `tools/dossier.py:2799`.
+- An example under `docs/examples/config/` runs with no `nvs.toml`, so every `Core\Config::get` is
+  `null` (`rule:config/no-configuration-file-is-a-complete-configuration`); a page's prose carries
+  what the key resolves to instead.

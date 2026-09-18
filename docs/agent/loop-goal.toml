@@ -97,9 +97,18 @@ files = [
 
 modules = [
   "crates/nvs-config/src/directive.rs",
+  # Every feature in this goal anchors at the registry row above, which says who may set a key and
+  # never what the key does. These four are where a session goes for that: the block structs and
+  # their key sets, `[metrics]`/`[trace]`, `[opcache]`'s revalidation, and the file each slice
+  # appends its registry case to. The emitter seeds this list from the anchors alone, so a re-emit
+  # drops them again (`tools/dossier.py:2799`).
+  "crates/nvs-config/src/tree.rs",
+  "crates/nvs-config/src/export.rs",
+  "crates/nvs-config/src/cache.rs",
+  "crates/nvs-config/tests/directives.rs",
 ]
 
-rules = ["testing/four-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
+rules = ["testing/four-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "config/three-changeability-classes", "config/reloadability-is-its-own-field", "config/system-means-a-request-may-not-set-it", "0134", "0026", "0117", "0004", "0088"]
 
 adrs = ["0134", "0079 §15"]
 
