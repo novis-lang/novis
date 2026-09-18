@@ -7,30 +7,36 @@ carrying a `// covers:` marker. An enum owes no bench and no attack; `python too
 '<feature>'` is what says so, and it is also the check, because the goal's own item list still names
 features that are already finished.
 
-Eight are complete: `Core\Env\Mode`, `Core\Http\Method`, `Core\IO\FileMode` landed before this
-session, and `Core\Log\Level`, `Core\Mime\Type`, `Core\NormalForm`, `Core\Order`, `Core\SetOn`
-landed in it. Nine are left.
+Eleven are complete: `Core\Env\Mode`, `Core\Http\Method`, `Core\IO\FileMode`, `Core\Log\Level`,
+`Core\Mime\Type`, `Core\NormalForm`, `Core\Order`, `Core\SetOn` landed before this session, and
+`Core\Response\SameSite`, `Core\Response\Redirect`, `Core\RoundMode` landed in it. Six are left:
+`Core\Queue\State`, `Core\Reflect\TypeKind`, `Core\Script\ExitReason`, `Core\Unit`, `Core\Weekday`,
+`Core\Xml\NodeKind`.
 
-No existing case needed a new test written for it — each of the five was pinned already, and the
-whole edit was the marker. Two of those cases print a record's own line number, so a marker inserted
-at the top of the `--FILE--` block moves every number in `--EXPECT--` by one.
+Each of the three took an existing case's marker and needed no new test. `Core\Response::addCookie`
+and `::redirect` both run under a plain `nvs run`, declaring a status and a header nothing in a CLI
+program reads back, so an example of either prints its own commentary and the refusal message.
 
 ## Next group
 
-**One file set: `docs/examples/types/<Feature>/` plus the enum's declaration and one conformance
-case that already pins it.** Each slice is `rule:testing/four-proofs`, as this goal's policy narrows
-it for an enum: `about.md`, three examples blessed with `python tools/dossier.py --bless`, and a
-`// covers: <feature>` line in the case that pins it. The first two share an implementing file.
+**Stage 2: three enums, each one file set — `docs/examples/types/<Feature>/` plus the enum's
+declaration and the case that pins it.** Each slice is `rule:testing/four-proofs` as this goal's
+policy narrows it for an enum: `about.md`, three examples blessed with `python tools/dossier.py
+--bless`, and a `// covers: <feature>` line in a case. **An example about an enum reasons over the
+enum and drives no backend** — `docs/examples/types/Db-Driver/03-the-same-program-on-a-laptop-and-in-production.nvs`
+is the shape, and it is why a queue example needs no database.
 
-- [ ] **`Core\Response\SameSite`** — page, three examples, marker. `crates/nvs-stdlib/src/response.rs:877`
-- [ ] **`Core\Response\Redirect`** — page, three examples, marker. `crates/nvs-stdlib/src/response.rs:923`
-- [ ] **`Core\RoundMode`** — page, three examples, marker. `crates/nvs-stdlib/src/math.rs:1232`
+- [ ] **`Core\Queue\State`** — page, three examples, marker. No `.nvst` names it today; try the
+      marker on the Rust `queue_statements_agree_with_the_state_enum` first, since the enum policy
+      wants one test and not one case (`tools/data/dossier-policy.toml:20`), and write a case only if
+      the sweep still reports it owed. `crates/nvs-stdlib/src/queue.rs:2615`
+- [ ] **`Core\Reflect\TypeKind`** — page, three examples, marker.
+      `crates/nvs-stdlib/src/reflect.rs:434`
+- [ ] **`Core\Script\ExitReason`** — page, three examples, marker.
+      `crates/nvs-stdlib/src/script.rs:225`
 
 ## Backlog
 
-- `Core\Queue\State`, `Core\Reflect\TypeKind`, `Core\Script\ExitReason`, `Core\Unit`,
-  `Core\Weekday`, `Core\Xml\NodeKind` are the rest of this goal — `docs/agent/loop-goal.md`.
-- A run with no `nvs.toml` writes `Debug` records: the per-mode `log.level` default is not applied
-  at boot, which `nvs_config::mode`'s module doc carries as its own open gap.
-- `docs/examples/types/*/about.md` is written but not yet counted by any check — goal
-  `the-description-is-owed` switches that on.
+- `Core\Unit`, `Core\Weekday` and `Core\Xml\NodeKind` are the goal's last three enums.
+- `benches/members/types/` and `tests/hostile/types/` stay empty for an enum by policy, not by
+  omission — `tools/data/dossier-policy.toml:20`.

@@ -2,6 +2,7 @@
 Core\Math::ceil, floor, truncate and round, with each of Core\RoundMode's six rules
 --FILE--
 <?nvs
+// covers: Core\RoundMode
 echo Core\Math::ceil(1.2), "|", Core\Math::ceil(-1.8), "\n";
 echo Core\Math::floor(1.8), "|", Core\Math::floor(-1.2), "\n";
 // `truncate` is toward zero, so it is neither of the two above. That the four

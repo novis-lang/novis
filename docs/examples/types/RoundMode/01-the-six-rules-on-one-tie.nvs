@@ -1,0 +1,41 @@
+<?nvs
+// A tie is a value with no nearer neighbour — 2.5 is as far from 2 as it is
+// from 3. Each of the six rules settles it differently, and this shows all six
+// on the same pair of numbers, one positive and one negative.
+
+class Rules {
+    public static function label(Core\RoundMode $rule): string {
+        return match ($rule) {
+            Core\RoundMode::HalfUp => "HalfUp  ",
+            Core\RoundMode::HalfDown => "HalfDown",
+            Core\RoundMode::HalfEven => "HalfEven",
+            Core\RoundMode::HalfOdd => "HalfOdd ",
+            Core\RoundMode::Up => "Up      ",
+            Core\RoundMode::Down => "Down    ",
+        };
+    }
+}
+
+array<Core\RoundMode> $rules = [
+    Core\RoundMode::HalfUp,
+    Core\RoundMode::HalfDown,
+    Core\RoundMode::HalfEven,
+    Core\RoundMode::HalfOdd,
+    Core\RoundMode::Up,
+    Core\RoundMode::Down,
+];
+
+foreach ($rules as Core\RoundMode $rule) {
+    echo Rules::label($rule),
+        "  2.5 -> ", Core\Math::round(2.5, {mode: $rule}),
+        "   -2.5 -> ", Core\Math::round(-2.5, {mode: $rule}),
+        "\n";
+}
+
+// A value that is not a tie has a nearer neighbour, and the four rules that
+// only decide ties all go there. The last two are not about ties at all, so
+// they move this one too.
+echo "\n";
+foreach ($rules as Core\RoundMode $rule) {
+    echo Rules::label($rule), "  2.4 -> ", Core\Math::round(2.4, {mode: $rule}), "\n";
+}
