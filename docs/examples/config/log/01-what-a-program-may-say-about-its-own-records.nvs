@@ -1,0 +1,23 @@
+<?nvs
+// `[log]` holds what a program's records look like and what happens when one of
+// its requests fails. Two of its keys belong to the program, and the rest to
+// whoever runs it.
+
+echo 'rendering: ', Core\Config::get('log.format') ?? '(unset — json, which is the default here)', "\n";
+echo 'level:     ', Core\Config::get('log.level') ?? '(unset — Info, which is the default here)', "\n";
+
+// A job that wants its own run traced turns its own level down. What it sets is
+// its own: the request running beside it still has what the deployment wrote.
+echo 'trace this run: ', Core\Config::set('log.level', 'Debug') ? 'accepted' : 'refused', "\n";
+echo 'level now:      ', Core\Config::get('log.level') ?? '(unset)', "\n";
+
+// Where the records go, and which script is run when the request fails, are not
+// the failing program's to choose — a program that could send the report of its
+// own failure somewhere nobody reads is a program nobody hears fail.
+echo 'send them elsewhere: ', Core\Config::set('log.target', 'file:/tmp/mine.log') ? 'accepted' : 'refused', "\n";
+echo 'name my own handler: ', Core\Config::set('log.handler', 'scripts/mine.nvs') ? 'accepted' : 'refused', "\n";
+
+// And `restore` hands back what the configuration said, so the level this
+// request turned down is not the level the next thing to run starts at.
+Core\Config::restore('log.level');
+echo 'level after restore: ', Core\Config::get('log.level') ?? '(unset — the default again)', "\n";

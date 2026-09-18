@@ -1,0 +1,90 @@
+<?nvs
+// Attack: the `[log]` block written from inside the program it records. Two of
+// its keys are the program's and the rest are not, and every way of reaching
+// the second set through the first is what this tries — the bare name a limit
+// is set by, the copy under `[app.log]`, the block itself as a key, a name with
+// a NUL in it, and the mode flip that would re-derive the two movable keys
+// without naming either of them.
+// hostile: timeout-ms 30000
+
+// 1. Every other name. A `[log]` key that answered to the bare name a limit
+//    uses would be a second spelling with no block in it, and a key that
+//    answered as a whole table would set several rows at once.
+array<string> $names = [
+    'log',
+    'log.format',
+    'log.level',
+    'log.target',
+    'log.handler',
+    'format',
+    'level',
+    'target',
+    'handler',
+    'LOG.FORMAT',
+    'Log.Level',
+    'log..format',
+    '.log.format',
+    'log.format.',
+    'log.format.level',
+    'app.log.format',
+    'app.0.log.target',
+    'app.log.handler',
+    "log.format\u{0000}",
+    "log.level\u{0000}log.target",
+    'log.level/../target',
+    'log.' . Core\Str::repeat('sub.', 20000) . 'format',
+];
+foreach ($names as string $key) {
+    Core\Config::set($key, 'text');
+    Core\Config::set($key, 'stderr');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 2. Every value under the two names that do take one. A rendering and a level
+//    are words rather than measurements, so the sizes here are the ones that
+//    are not words at all.
+array<string> $values = [
+    '',
+    ' ',
+    'json',
+    'JSON',
+    'text',
+    'html',
+    'Debug',
+    'debug',
+    'Emergency',
+    'Info Debug',
+    '0',
+    '-1',
+    'true',
+    "json\u{0000}text",
+    "json\ntext",
+    Core\Str::repeat('json', 262144),
+];
+foreach ($values as string $value) {
+    Core\Config::set('log.format', $value);
+    Core\Config::set('log.level', $value);
+}
+Core\Config::restore('log.format');
+Core\Config::restore('log.level');
+
+// 3. The other door into the same two keys: a mode carries a whole set of
+//    defaults, and this block holds two of them, so a flip is a way to move
+//    them without writing either name. It is refused unless the deployment
+//    left room for it, and the churn is here because the overlay this writes
+//    into is the one thing a request can make grow.
+uint $round = 0;
+while ($round < 5000) {
+    Core\Config::set('mode', 'development');
+    Core\Config::set('log.level', 'Debug');
+    Core\Config::set('log.format', 'text');
+    Core\Config::restore('mode');
+    Core\Config::restore('log.level');
+    Core\Config::restore('log.format');
+    $round = $round + 1;
+}
+
+// 4. What is left standing: the two the operator keeps, after all of that.
+echo 'target:  ', Core\Config::get('log.target') ?? '(nothing written)', "\n";
+echo 'handler: ', Core\Config::get('log.handler') ?? '(nothing written)', "\n";

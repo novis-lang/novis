@@ -1,0 +1,7 @@
+rendering: (unset — json, which is the default here)
+level:     (unset — Info, which is the default here)
+trace this run: accepted
+level now:      Debug
+send them elsewhere: refused
+name my own handler: refused
+level after restore: (unset — the default again)
