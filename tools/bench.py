@@ -163,7 +163,7 @@ ROOT = Path(__file__).resolve().parent.parent
 CASE_DIR = ROOT / "benches" / "userland"
 BASELINE = "00-baseline"
 PRIMARY = "nvs"  # the engine every ratio is taken against, and the one that defines a case
-QUIET_FLOOR = 4  # `warm_start` abstains above this multiple of its budget; its note is why
+QUIET_FLOOR_MS = 5.75  # `warm_start` abstains above this start floor; its note is why
 SUITE_REPS = 5  # timed reps per engine per case, over a case that runs for tens of ms
 WARM_START_REPS = 25  # the warm-start leg estimates a difference of two small numbers; its note is why
 
@@ -362,10 +362,21 @@ def warm_start(binary: Path, reps: int, max_work_ms: float | None) -> int:
     difference it left was 200 ms of machine and no Novis at all. Spread does not tell that box
     from a good one -- its median sat 4% over its minimum, as tight as any quiet run, because every
     rep was equally slow. The *level* of the floor does, and it is the reading to use because
-    `nvs --version` is this binary doing strictly less than the budget covers: a floor `QUIET_FLOOR`
-    times the budget is a machine that cannot answer the question, so the guard reports itself not
+    `nvs --version` is this binary doing strictly less than the budget covers: above
+    `QUIET_FLOOR_MS` the machine cannot answer the question, so the guard reports itself not
     measured and passes rather than reporting the machine as the tree. `benches/abi-probe`'s
     fan-out guard abstains on its own control for the same reason.
+
+    That threshold is a floor level and not a multiple of the budget, because the two measure
+    different things and only the floor moves with the machine. Anchored to the budget it abstained
+    at 24 ms, which is five times what a quiet box reads, so it saw the 77.5 ms box and nothing
+    milder: an acceptance sweep leaves a shadow that outlasts the driver's own `COST_SETTLE`, and
+    one read a 6.1 ms floor and 7.1 ms of work thirty seconds after finishing, where the same
+    binary idle reads 4.5 and 5.5. Both asks were red, so the driver called the shadow a
+    regression. A millisecond budget is meaningful only on a box at least as quick as the one it
+    was written against, and the floor is how this leg checks that before it believes a
+    difference -- a box whose quiet floor is above `QUIET_FLOOR_MS` never measures here rather
+    than failing on its own speed.
 
     This leg also takes `WARM_START_REPS` where the suite takes `SUITE_REPS`, because a minimum
     over a handful of samples is a biased-high estimate of a cost, and here that bias lands on a
@@ -408,11 +419,10 @@ def warm_start(binary: Path, reps: int, max_work_ms: float | None) -> int:
     print("  each rep is an `rule:packaging/an-artifact-is-one-immutable-content-addressed-file` warm hit; the discarded warm-up published the artifact")
     if max_work_ms is None:
         return 0
-    quiet_ms = max_work_ms * QUIET_FLOOR
-    if floor["min_ms"] > quiet_ms:
+    if floor["min_ms"] > QUIET_FLOOR_MS:
         print(f"  not measured -- `nvs --version` alone costs {fmt(floor['min_ms'])} ms here, over "
-              f"the {fmt(quiet_ms)} ms this budget is written against, so the {fmt(work_ms)} ms "
-              f"difference is a figure about the machine")
+              f"the {fmt(QUIET_FLOOR_MS)} ms a box this budget can be read on, so the "
+              f"{fmt(work_ms)} ms difference is a figure about the machine")
         return 0
     within = work_ms <= max_work_ms
     print(f"  budget {fmt(max_work_ms)} ms on the work -- {'within' if within else 'EXCEEDED'}")
@@ -836,8 +846,12 @@ def php_peer(php: str, php_mode: str, choice: str = "auto") -> dict | None:
     return None
 
 
-def serve_vs_fpm(binary: Path, args) -> int:
-    """M7's throughput figure: `nvs serve` against PHP with opcache, both under one generator."""
+def serve_vs_fpm(binary: Path, args, reps: int) -> int:
+    """M7's throughput figure: `nvs serve` against PHP with opcache, both under one generator.
+
+    `reps` is the resolved count rather than `args.reps`, which is a sentinel meaning the caller
+    asked for nothing and each leg's own default stands.
+    """
     entry = SERVE_DIR / f"{SERVE_CASE}.nvs"
     twin = SERVE_DIR / f"{SERVE_CASE}.php"
     if not entry.is_file():
@@ -892,11 +906,11 @@ def serve_vs_fpm(binary: Path, args) -> int:
 
     print(
         f"case {SERVE_CASE}: {args.requests} request(s) over {args.concurrency} keep-alive "
-        f"connection(s), {args.reps} rep(s), best of reps"
+        f"connection(s), {reps} rep(s), best of reps"
     )
-    measured = [measure_server(novis, args.requests, args.concurrency, args.reps)]
+    measured = [measure_server(novis, args.requests, args.concurrency, reps)]
     if peer is not None:
-        measured.append(measure_server(peer, args.requests, args.concurrency, args.reps))
+        measured.append(measure_server(peer, args.requests, args.concurrency, reps))
     print()
 
     label_width = max(len(m["label"]) for m in measured)
@@ -937,7 +951,7 @@ def serve_vs_fpm(binary: Path, args) -> int:
         "case": SERVE_CASE,
         "requests": args.requests,
         "concurrency": args.concurrency,
-        "reps": args.reps,
+        "reps": reps,
         "php_mode": args.php_mode,
         "ratio": round(ratio, 4) if ratio is not None else None,
         "caveats": caveats,
@@ -1103,7 +1117,8 @@ def main() -> int:
     if args.serve_vs_fpm:
         # Before the roster, for `--warm-start`'s reason: this leg is one server against one
         # PHP peer, and must not need Python or Bun installed to produce its number.
-        return serve_vs_fpm(binary, args)
+        # `asked_reps`, as `--warm-start` above: `--check` has nothing to agree with here either.
+        return serve_vs_fpm(binary, args, asked_reps)
     if args.record:
         sys.exit("--record writes the serve leg's artifact, and needs --serve-vs-fpm")
     if args.max_work_ms is not None:

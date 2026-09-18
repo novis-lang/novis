@@ -5,33 +5,35 @@
 Goal `types-enum-2-2` — types:enum (2/2) — is met: all 17 enums carry a description, three examples
 and an attributed test, and the goal's own dossier check has been green since session 0005.
 
-**The `the CLI's own start work stays under 6ms [1 floor]` failure was the machine, not the tree.**
-The sweep's own log has the proof: at 23:19 the check read a 4.6 ms start floor and 5.4 ms of work,
-and at 00:55 — four seconds after a 34 s `cargo test --release` — it read a **77.5 ms** floor, a
-277.9 ms total and 200.3 ms of "work". Load on this box dilates a process multiplicatively, so
-subtracting the floor does not leave Novis's own work, and the spread says nothing about it: that
-run's median sat 4% over its minimum, as tight as any idle one, because every rep was equally slow.
-`tools/bench.py`'s `warm_start` now reads the *level* of the floor instead and abstains above
-`QUIET_FLOOR` times the budget, the way `benches/abi-probe`'s fan-out guard abstains on its control.
+**Three DONE claims before this one each fell to a different `[1 floor]` check, and both of the two
+still standing were bugs in `tools/bench.py`.** A full `python tools/loop.py --goal-only` sweep this
+session found exactly those two red over 217 checks and nothing else.
 
-Two red runs of the old guard were reproduced by hand this session and both abstain now. The same
-leg also takes `WARM_START_REPS` reps instead of the suite's five, because idle the figure moved a
-full millisecond between consecutive runs — more than the 6 ms budget has to give — and twenty-five
-holds it inside three tenths with the floor steady to a tenth.
+`--serve-vs-fpm` died on a traceback: `--reps` grew a `None` default so the warm-start leg could
+take its own count, `main` resolves it, and the serve leg still read `args.reps`. It records again
+— `nvs serve` 33,559 req/s, 2.48x `php-cgi` at concurrency 1.
 
-No Rust changed; one Python file did. `python tools/verify.py` is **13 of 13 green** (4879 tests,
-2088 conformance, 279 differential, clippy clean) — on the third attempt. The first two died in the
-test leg on two different load-sensitive tests, each of which the harness re-ran alone and passed;
-the playbook now carries that as its own trap.
+The warm-start guard abstained above four times its *budget* — 24 ms of start floor, five times
+what a quiet box reads — so it saw the 77.5 ms box session 0006 wrote it for and not the 6.1 ms one
+an acceptance sweep leaves behind it. That run read 7.1 ms of work against a 6.0 ms budget thirty
+seconds after the sweep finished, where the same binary idle reads 4.5 and 5.2–5.5; both asks were
+red, so `COST_SETTLE` called the shadow a regression. The threshold is now a floor *level*,
+`QUIET_FLOOR_MS`, because only the floor moves with the machine.
+
+**The headroom is thin and it is a real question, not a flake:** idle work is 5.2–5.5 ms against a
+6.0 ms budget written when the floor was 6.4 ms and the work 4.6 ms. A box that reads a quieter
+floor than the one the budget was written on should read *less* work, not more.
+
+No Rust changed; one Python file did.
 
 ## Next group
 
 **Goal `types-enum-2-2` is met, so the driver's goal switch installs goal `types-exception`'s own
-generated handoff over this one.** Its next three exceptions, in the order `TREE` declares them, so
-the next session does not re-derive the group — one file set: `crates/nvs-hir/src/errors.rs`,
-`docs/examples/types/<name>/` and `tests/hostile/types/<name>/`, with `rule:testing/four-proofs`
-naming what each owes and `crates/nvs-codegen/tests/arithmetic.rs:40-57` the spelling a `catch`
-clause and a `->message` read take.
+generated handoff over this one.** Its next three exceptions, in the order `TREE` declares them —
+one file set: `crates/nvs-hir/src/errors.rs`, `docs/examples/types/<name>/` and
+`tests/hostile/types/<name>/`, with `rule:testing/four-proofs` naming what each owes and
+`crates/nvs-codegen/tests/arithmetic.rs:40-57` the spelling a `catch` clause and a `->message` read
+take.
 
 - [ ] **`Core\Cli\NotInteractive`** — page, three examples, an attack and a `covers:` marker.
       `crates/nvs-hir/src/errors.rs:106`
@@ -40,13 +42,16 @@ clause and a `->message` read take.
 - [ ] **`Core\Db\RolledBack`** — the same four, and the neighbour in that file.
       `crates/nvs-hir/src/errors.rs:108`
 
+A prompt reads the controlling terminal and never standard input, and
+`crates/nvs-runtime/src/terminal.rs:487`'s `is_interactive` asks the tty profile rather than trying
+the open — so an example or a `.nvst` case, which runs with its output piped and its input closed,
+takes the `default` or throws `Core\Cli\NotInteractive` without blocking. That is what makes these
+three writable as ordinary deterministic proofs.
+
 ## Backlog
 
-- `nvs --version` has no guard of its own, so a regression in the start floor silences the
-  warm-start abstain rather than tripping it — said in `warm_start`'s own note in `tools/bench.py`.
-- This box stays saturated for tens of seconds after a `cargo test --release`; `COST_SETTLE` in
-  `tools/loop.py` gave 30 s and the retry was still dilated. Worth raising if a guard flaps again.
-- Other cost-class guards read the same dilated machine and have no control of their own;
-  `benches/abi-probe/tests/perf_guards.rs` is where that would be answered next.
-- An `nvs.exe` from 2026-09-16 is still resident on this box (2 s of CPU in three days, so it is
-  idle rather than the load): a test or example left a process behind and nothing sweeps them.
+- The 6 ms warm-start budget has under a millisecond of headroom on this box and the work figure has
+  grown against a faster floor — `tools/bench.py`'s `warm_start` owns the reasoning, and finding the
+  start-work regression is nobody's slice yet.
+- `tools/loop.py`'s `COST_SETTLE` is 30 s and the sweep's shadow outlasts it; the warm-start leg now
+  abstains instead, and `benches/abi-probe`'s guards still rely on the settle alone.
