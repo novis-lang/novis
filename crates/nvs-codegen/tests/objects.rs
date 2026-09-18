@@ -1,4 +1,4 @@
-//! Object layout and lifetime — constructors, inherited slots, `instanceof`, and release on every exit path.
+//! Object layout and lifetime — constructors, inherited slots, the class test, and release on every exit path.
 //!
 //! See `tests/common/mod.rs` for the shared fixtures and for why these go
 //! through the real pipeline.
@@ -102,8 +102,8 @@ echo $cat->front()->length();
 }
 
 #[test]
-fn instanceof_sees_the_class_its_parent_and_its_interface() {
-    // One `nvs_object_instanceof` call per answer: the descriptor address is
+fn a_class_test_sees_the_class_its_parent_and_its_interface() {
+    // One `nvs_object_is_class` call per answer: the descriptor address is
     // baked in, and `nvs_types::layout` gives the *interface* a descriptor
     // with no slots purely so this test can name it.
     let source = "<?nvs
@@ -138,10 +138,10 @@ if ($d is Rock) { echo \"rock \"; }
 // ---------------------------------------------------------------------------
 /// Every instruction one program lowered to, flattened and rendered.
 ///
-/// These four cases pin **which instruction the test became**, not what it
-/// answered, so they read the IR rather than the output: "the same walk
-/// `instanceof` emits" and "not a second one" are both claims about the
-/// instruction list and neither is observable from a `bool`.
+/// These cases pin **which instruction the test became**, not what it
+/// answered, so they read the IR rather than the output: "one descriptor
+/// walk" and "not a second one" are both claims about the instruction list
+/// and neither is observable from a `bool`.
 fn kinds(source: &str) -> Vec<String> {
     lower(source)
         .functions
@@ -164,7 +164,7 @@ fn a_scalar_test_emits_one_tag_comparison() {
     let hit = "<?nvs\nmixed $m = 1;\necho $m is int;\n";
     let program = kinds(hit);
     assert_eq!(count(&program, "TagIs"), 1, "{program:?}");
-    assert_eq!(count(&program, "InstanceOf"), 0, "{program:?}");
+    assert_eq!(count(&program, "ClassTest"), 0, "{program:?}");
     assert_eq!(count(&program, "ToArrayOf"), 0, "{program:?}");
     assert_eq!(output_of(hit), "1");
     // The miss is the same one comparison, which is the half a test asserting
@@ -175,16 +175,15 @@ fn a_scalar_test_emits_one_tag_comparison() {
 }
 
 #[test]
-fn a_class_test_emits_the_same_descriptor_walk_instanceof_emits() {
-    // Written as an equality between two whole programs rather than as a
-    // count: what `rule:types/type-test` promises is the walk `instanceof`
-    // already pays for, and a second emitter that happened to emit one
-    // `InstanceOf` too would pass a count.
+fn a_class_test_emits_one_descriptor_walk_and_nothing_else() {
+    // What `rule:types/type-test` promises is the descriptor walk itself, so
+    // the assertion is that the program holds exactly one `ClassTest` and
+    // neither of the two walks a test can otherwise reach for.
     let subject = "<?nvs\nclass Animal {}\nclass Dog extends Animal {}\nmixed $d = new Dog();\n";
     let tested = format!("{subject}echo $d is Animal;\n");
-    let spelled = format!("{subject}echo $d is Animal;\n");
-    assert_eq!(kinds(&tested), kinds(&spelled));
-    assert_eq!(count(&kinds(&tested), "InstanceOf"), 1);
+    let program = kinds(&tested);
+    assert_eq!(count(&program, "ClassTest"), 1, "{program:?}");
+    assert_eq!(count(&program, "ToArrayOf"), 0, "{program:?}");
     assert_eq!(output_of(&tested), "1");
 }
 
@@ -198,7 +197,7 @@ fn an_array_element_test_calls_the_same_walk_the_conversion_calls_and_not_a_seco
     let program = kinds(source);
     assert_eq!(count(&program, "ToArrayOfOrNull"), 2, "{program:?}");
     assert_eq!(count(&program, "ToArrayOf,"), 0, "{program:?}");
-    assert_eq!(count(&program, "InstanceOf"), 0, "{program:?}");
+    assert_eq!(count(&program, "ClassTest"), 0, "{program:?}");
     assert_eq!(output_of(source), "1");
 }
 
@@ -222,7 +221,7 @@ fn a_literal_test_is_one_tag_comparison_with_a_payload_compare_behind_it() {
     let source = "<?nvs\nmixed $m = 1;\necho $m is 1, $m is 2;\n";
     let program = kinds(source);
     assert_eq!(count(&program, "TagIs"), 2, "{program:?}");
-    assert_eq!(count(&program, "InstanceOf"), 0, "{program:?}");
+    assert_eq!(count(&program, "ClassTest"), 0, "{program:?}");
     assert_eq!(count(&program, "ToArrayOf"), 0, "{program:?}");
     assert_eq!(output_of(source), "1");
     // The tag *miss* is the half that would not merely answer wrongly: a
@@ -259,7 +258,7 @@ fn an_enum_case_test_is_that_same_shape_one_representation_down() {
     let source = "<?nvs\nenum Rank {\n    Bronze,\n    Silver,\n    Gold,\n}\n\nRank $r = Rank::Silver;\necho $r is Rank::Silver, $r is Rank::Gold;\n";
     let program = kinds(source);
     assert_eq!(count(&program, "TagIs"), 0, "{program:?}");
-    assert_eq!(count(&program, "InstanceOf"), 0, "{program:?}");
+    assert_eq!(count(&program, "ClassTest"), 0, "{program:?}");
     assert_eq!(count(&program, "ToArrayOf"), 0, "{program:?}");
     assert_eq!(output_of(source), "1");
     // A `mixed` subject pays the tag comparison, and answers the same for one

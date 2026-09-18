@@ -5560,13 +5560,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `$it instanceof Iterator` compiled. Write the argument — `$it is Iterator<int>` — and say in
   the case that the walk compares descriptors and erases it, which is why no answer moves.
   [until: reviewed 2026-09-18]
-- **A `.lspt` case written to fill one coverage cell can open a whole new construct row.**
-  `nvs_lsp::coverage::of` credits the node an answer's *start position* is innermost in, so
-  wrapping a test in parentheses to push a diagnostic's start past the subject —
-  `($s is int) is void` — made `Paren` a construct of its own and seven fresh empty cells out of
-  the one being closed. Reach for a diagnostic that already starts inside the construct you want
-  (`$s is Undeclared` reports `E0303` on the name, which is inside the test and past its subject)
-  rather than reshaping the program around the span. [until: gone crates/nvs-lsp/src/coverage.rs:"fn kind_at"]
+- **A renamed lowering test, or a renamed `print.rs` mnemonic, strands an `insta` snapshot.** The
+  file is `crates/nvs-ir/src/lower/snapshots/nvs_ir__lower__tests__<fn>.snap`, and a mnemonic sits
+  *inside* every snapshot whose fixture lowers it, so the failure reads as a lowering regression
+  rather than as the rename it is. `git mv` the snapshot in the same slice and grep that directory
+  for the old mnemonic. [until: gone crates/nvs-ir/src/lower/snapshots]
 
 ## Splitting a file that got too big
 

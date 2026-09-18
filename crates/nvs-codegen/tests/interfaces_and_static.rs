@@ -71,7 +71,7 @@ fn a_static_call_names_the_class_it_was_written_on() {
 fn new_static_allocates_the_called_class_through_two_levels() {
     // M4's acceptance sentence, exactly: `new static()` reached through two
     // levels of inheritance returns the called class. Proved by asking the
-    // fresh instance what it is — `instanceof` reads the descriptor the
+    // fresh instance what it is — a class test reads the descriptor the
     // allocation actually used.
     let source = format!(
         "{LATE_BINDING}var $leaf = LeafRegistry::make();
