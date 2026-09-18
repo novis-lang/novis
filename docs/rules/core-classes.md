@@ -733,7 +733,7 @@ The return value is a **typed** node tree — one class per production, named fo
 grammar's own walk names — never an untyped array or a stringly-keyed structure. Handing back the
 parse tree as untyped data would be exactly the shortcut `token_get_all()` takes, reintroduced at the
 one place a fully-typed alternative is easiest to give. Those classes are identity rather than
-surface: a `Core` class sits in no hierarchy and `instanceof` against one is refused, so a node's
+surface: none carries a registry row, so no source can name one in a type position, and a node's
 production is what `Core\Reflect::forObject` answers and `kind()` is the same production spelled
 short.
 

@@ -39,15 +39,16 @@
 //! back.
 //!
 //! **They carry no registry row, and that is the decision rather than an
-//! omission.** A `Core` class sits in no hierarchy (`crate::instance`'s
-//! descriptors are defined with no parents) and `instanceof` against one is
-//! refused outright (`E_INSTANCEOF_NOT_A_CLASS`), so a registered
-//! `Core\Ast\Binary` would be a name a program could write in a type position
-//! and no value could ever be checked against — surface that costs the
-//! simplicity AGENTS.md's ordering puts fourth and buys nothing at any level
-//! above it. What a program branches on is [`NODE`]'s `kind()`, which is the
-//! same production spelled short; what the class adds is the identity behind
-//! it, which is the half `kind()` cannot be wrong about.
+//! omission.** The registry is the whole roster of names a program may write,
+//! so a production stays off it and no source can name `Core\Ast\Binary` in a
+//! type position — a row would freeze every production's name as language
+//! surface, which costs the simplicity AGENTS.md's ordering puts fourth and
+//! buys nothing at any level above it. The descriptor exists all the same,
+//! chained into `crate::instance`'s table beside the registered classes, which
+//! is what makes a parsed node an instance of its own production. What a
+//! program branches on is [`NODE`]'s `kind()`, which is the same production
+//! spelled short; what the class adds is the identity behind it, which is the
+//! half `kind()` cannot be wrong about.
 //!
 //! So [`NODE`] is the *written* type — what `parse`, `children` and `nodes`
 //! declare — and a production class is the *runtime* one. Every one of them
@@ -643,12 +644,45 @@ mod tests {
             assert!(
                 !CLASSES.iter().any(|row| row.name == class.name),
                 "{} is registry surface, which the module doc's second decision \
-                 refuses: a `Core` class is in no hierarchy and `instanceof` \
-                 against one is refused, so the name would be writable and never \
-                 satisfiable",
+                 refuses: the registry is the roster of names a program may \
+                 write, and a production is identity rather than a name source \
+                 spells",
                 class.name
             );
         }
+    }
+
+    /// `rule:php-migration/one-type-test` read off the roster: one production
+    /// answers for a type test, and there is no second node beside it for the
+    /// class case.
+    ///
+    /// `$x is T` and `$x is $cls` are the same production — the class
+    /// reference is the type test's second child in `nvs_syntax::walk` — so a
+    /// class-test node would be one no parse could ever answer with, and a
+    /// program walking the tree would branch on two kinds where the grammar
+    /// has one.
+    #[test]
+    fn the_ast_roster_names_a_type_test_and_no_second_node_for_a_class_test() {
+        assert_eq!(
+            class_of("TypeTest").name,
+            r"Core\Ast\TypeTest",
+            "the type test's own production is what `is` parses to"
+        );
+        let tested: Vec<&str> = PRODUCTIONS
+            .iter()
+            .map(|class| class.name)
+            .filter(|name| {
+                let production = name.trim_start_matches(PRODUCTION_PREFIX);
+                production.contains("TypeTest")
+                    || production.contains("InstanceOf")
+                    || production.contains("ClassTest")
+            })
+            .collect();
+        assert_eq!(
+            tested,
+            [r"Core\Ast\TypeTest"],
+            "the roster names one node for both spellings of the one type test"
+        );
     }
 
     /// A parsed node is an instance of its production's class, and the walk
