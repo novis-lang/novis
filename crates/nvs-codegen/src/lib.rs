@@ -108,7 +108,7 @@
 //!
 //! Exceptions are ordinary objects here: there is no `Ty::Throwable`, a user
 //! class `extends Throwable` compiles like any other, and a typed `catch` is an
-//! [`nvs_ir::ir::InstKind::InstanceOf`] chain. A `finally` runs on every exit
+//! [`nvs_ir::ir::InstKind::ClassTest`] chain. A `finally` runs on every exit
 //! from its region — `nvs_ir::lower::Lowering::lower_try` owns that policy
 //! whole, and this backend emits the copies it lowers.
 //!
@@ -1187,7 +1187,7 @@ struct UnitBuilder<M> {
 }
 
 /// Every class the compiled unit declares, in the two forms emitted code
-/// needs: the `ClassDesc` address `nvs_object_new`/`nvs_object_instanceof`
+/// needs: the `ClassDesc` address `nvs_object_new`/`nvs_object_is_class`
 /// take, and the field-slot index a `FieldGet`/`FieldSet` turns into an
 /// offset through [`nvs_runtime::field_offset`].
 ///
@@ -1749,7 +1749,7 @@ struct Signatures {
     str_concat: Signature,
     /// `nvs_str_eq(lhs, rhs) -> bool` and `nvs_array_eq(lhs, rhs) -> bool`,
     /// which share one shape: two raw pointers to an `I8`, like
-    /// `Sigs::instanceof`.
+    /// `Sigs::class_test`.
     ptr_eq: Signature,
     /// `nvs_float_pow(base, exponent) -> f64` — `rule:types/arithmetic`'s `**` over two
     /// `float`s, which has no machine instruction and no `LibCall` either. See
@@ -1783,15 +1783,15 @@ struct Signatures {
     /// at, handed over on the one exception edge that pushes no frame label of
     /// its own. See `nvs_runtime::nvs_raise_site`.
     raise_site: Signature,
-    /// `nvs_object_instanceof(object, desc) -> bool` — `I8`, the width a
+    /// `nvs_object_is_class(object, desc) -> bool` — `I8`, the width a
     /// Cranelift comparison produces and the one [`ty::clif_ty`] gives
     /// [`nvs_ir::Ty::Bool`].
     ///
-    /// Shared with `nvs_value_instanceof(subject_ptr, desc) -> bool`, which
-    /// `emit::Emitter::emit_instanceof` calls instead for a
+    /// Shared with `nvs_value_is_class(subject_ptr, desc) -> bool`, which
+    /// `emit::Emitter::emit_class_test` calls instead for a
     /// [`nvs_ir::Ty::Tagged`] subject: two pointer arguments and an `I8`
     /// result either way, only the first argument's pointee differing.
-    instanceof: Signature,
+    class_test: Signature,
     /// `nvs_class_method(class, name, len, fallback) -> code address` — the
     /// runtime half of `static::method(...)`'s dispatch. See
     /// `nvs_runtime::nvs_class_method`.
@@ -1804,7 +1804,7 @@ struct Signatures {
     /// nothing proved and this helper is where it is checked.
     slot_get: Signature,
     /// `nvs_object_slot_probe(receiver, name, len, hint) -> bool` — the
-    /// presence half of [`Self::slot_get`], and `I8` for [`Self::instanceof`]'s
+    /// presence half of [`Self::slot_get`], and `I8` for [`Self::class_test`]'s
     /// reason. Narrower than the read by both of the parameters
     /// `rule:errors/propagation` asks for: the question cannot fail, so there is
     /// no `ctx` to raise through and no `out` to write a value to. See
@@ -2383,10 +2383,10 @@ impl Signatures {
         raise_site.params.push(AbiParam::new(ptr)); // ctx
         raise_site.params.push(AbiParam::new(ptr)); // the failing statement's carrier, or zero
 
-        let mut instanceof = module.make_signature();
-        instanceof.params.push(AbiParam::new(ptr)); // object
-        instanceof.params.push(AbiParam::new(ptr)); // class descriptor
-        instanceof.returns.push(AbiParam::new(types::I8));
+        let mut class_test = module.make_signature();
+        class_test.params.push(AbiParam::new(ptr)); // object
+        class_test.params.push(AbiParam::new(ptr)); // class descriptor
+        class_test.returns.push(AbiParam::new(types::I8));
 
         let mut class_method = module.make_signature();
         class_method.params.push(AbiParam::new(ptr)); // class descriptor
@@ -2505,7 +2505,7 @@ impl Signatures {
             raise,
             raise_new,
             raise_site,
-            instanceof,
+            class_test,
             class_method,
             slot_get,
             slot_probe,
@@ -2808,8 +2808,8 @@ echo $p->x;
     }
 
     #[test]
-    fn an_instanceof_target_is_a_relocation_not_an_immediate() {
-        // `Circle` is never constructed here, so the `instanceof` is the only
+    fn a_class_test_target_is_a_relocation_not_an_immediate() {
+        // `Circle` is never constructed here, so the class test is the only
         // lowering that could have asked for its descriptor: the import below
         // is that site's relocation and no other's.
         let jit = compiled(
@@ -2829,7 +2829,7 @@ if ($s is Circle) { echo \"circle\"; }
     }
 
     /// The programs both backends are asked for, one per lowering family a
-    /// [`Module`] gets a say in: a descriptor address, an `instanceof`, a
+    /// [`Module`] gets a say in: a descriptor address, a class test, a
     /// statically resolved call, a string literal's data object, a branch and a
     /// loop. Those are the sites where an object file needs a relocation and a
     /// JIT needs an address, so they are where two walks would first disagree.
@@ -2850,7 +2850,7 @@ echo $p->shifted(2);
 ",
         ),
         (
-            "an instanceof against a class never constructed",
+            "a class test against a class never constructed",
             "<?nvs
 class Shape {
     public int $sides = 0;

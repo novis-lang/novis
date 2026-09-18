@@ -746,8 +746,8 @@ impl Emitter<'_, '_> {
             InstKind::StaticSet { class, name, value } => {
                 self.emit_static_set(class, name, *value)?;
             }
-            InstKind::InstanceOf { value, class } => {
-                let result = self.emit_instanceof(*value, class)?;
+            InstKind::ClassTest { value, class } => {
+                let result = self.emit_class_test(*value, class)?;
                 self.define(inst, result)?;
             }
             InstKind::Concat { pieces } => {
@@ -2597,27 +2597,12 @@ impl Emitter<'_, '_> {
         Ok(cont)
     }
 
-    /// `$obj instanceof Class`: one call, with the descriptor address baked in
-    /// exactly the way [`Self::emit_new`] bakes the allocated class's.
-    ///
-    /// Nothing is retained: the receiver is only read, the way a `FieldGet`
-    /// reads its own.
-    ///
-    /// **The entry point is picked by the subject's representation.** A proven
-    /// [`Ty::Object`] passes its bare pointer and pays nothing new. A
-    /// [`Ty::Tagged`] — a `mixed`, or a `?Box` no test narrowed, which is the
-    /// shape `instanceof` exists to interrogate — goes through
-    /// [`Self::materialize_receiver`] and `nvs_value_instanceof`, which reads
-    /// the tag and answers `false` for anything that is not an object. Two
-    /// stores, on the only path that needs them; the branch is here rather
-    /// than in the runtime because the proven case is the common one and it
-    /// already had a pointer in hand.
     /// [`nvs_ir::ir::InstKind::ClassDescIn`] — `rule:types/class-reference`'s checked rows
     /// into a `class<T>`, as a **branch-free chain** over
     /// [`Classes::conforming_to`]'s closed set.
     ///
     /// One compare per candidate, and which compare is read off the subject's
-    /// own representation, the way [`Self::emit_instanceof`] reads its own: a
+    /// own representation, the way [`Self::emit_class_test`] reads its own: a
     /// `string` is a *content* comparison through `nvs_runtime::nvs_str_eq` —
     /// the same call `==` on a `string` makes, and for `rule:expressions/equality-semantics`'s reason —
     /// while a descriptor is an *identity* one, a descriptor's address being
@@ -2653,13 +2638,27 @@ impl Emitter<'_, '_> {
         Ok(answer)
     }
 
-    /// `$x instanceof C` and `rule:types/class-reference-sites`'s `$x instanceof $cls` — the same
+    /// `$x is C` and `rule:types/type-test`'s value arm `$x is $cls` — the same
     /// runtime call either way, differing only in where the descriptor comes
     /// from: a relocation against the written class's descriptor symbol
     /// ([`Self::class_desc_value`]), or the [`Ty::ClassDesc`] the class
     /// reference already holds. See
     /// [`nvs_ir::ir::TestedClass`].
-    fn emit_instanceof(
+    ///
+    /// The descriptor address is baked in exactly the way [`Self::emit_new`]
+    /// bakes the allocated class's, and nothing is retained: the receiver is
+    /// only read, the way a `FieldGet` reads its own.
+    ///
+    /// **The entry point is picked by the subject's representation.** A proven
+    /// [`Ty::Object`] passes its bare pointer and pays nothing new. A
+    /// [`Ty::Tagged`] — a `mixed`, or a `?Box` no test narrowed, which is the
+    /// shape this test exists to interrogate — goes through
+    /// [`Self::materialize_receiver`] and `nvs_value_is_class`, which reads
+    /// the tag and answers `false` for anything that is not an object. Two
+    /// stores, on the only path that needs them; the branch is here rather
+    /// than in the runtime because the proven case is the common one and it
+    /// already had a pointer in hand.
+    fn emit_class_test(
         &mut self,
         value: ValueId,
         class: &TestedClass,
@@ -2676,7 +2675,7 @@ impl Emitter<'_, '_> {
                 // in this workspace and not a program's mistake.
                 if self.classes.desc(class).is_none() && !nvs_stdlib::class_has_instances(class) {
                     return Err(CodegenError::Unsupported(format!(
-                        "`instanceof {class}`, whose class this unit declares no descriptor for"
+                        "`is {class}`, whose class this unit declares no descriptor for"
                     )));
                 }
                 self.class_desc_value(class)?
@@ -2685,11 +2684,11 @@ impl Emitter<'_, '_> {
         };
         let (bare, subject_ty) = self.value(value)?;
         let (symbol, subject) = if matches!(subject_ty, Ty::Tagged) {
-            ("nvs_value_instanceof", self.materialize_receiver(value)?)
+            ("nvs_value_is_class", self.materialize_receiver(value)?)
         } else {
-            ("nvs_object_instanceof", bare)
+            ("nvs_object_is_class", bare)
         };
-        let callee = self.runtime_ref(symbol, RuntimeSig::InstanceOf)?;
+        let callee = self.runtime_ref(symbol, RuntimeSig::ClassTest)?;
         let call = self.b.ins().call(callee, &[subject, desc]);
         Ok(self.b.inst_results(call)[0])
     }
@@ -2790,7 +2789,7 @@ impl Emitter<'_, '_> {
     /// fail — see `nvs_ir::ir::InstKind::SlotProbe`, which owns why the
     /// question is total. That is also why the current block is not returned:
     /// nothing here splits it, so this emits like
-    /// [`Self::emit_instanceof`] rather than like the read.
+    /// [`Self::emit_class_test`] rather than like the read.
     ///
     /// The name goes in this unit's data section and the slot index rides
     /// along as the hint, both for [`Self::emit_slot_get`]'s reasons.
@@ -3876,7 +3875,7 @@ impl Emitter<'_, '_> {
             RuntimeSig::Raise => &self.sigs.raise,
             RuntimeSig::RaiseNew => &self.sigs.raise_new,
             RuntimeSig::RaiseSite => &self.sigs.raise_site,
-            RuntimeSig::InstanceOf => &self.sigs.instanceof,
+            RuntimeSig::ClassTest => &self.sigs.class_test,
             RuntimeSig::ClassMethod => &self.sigs.class_method,
             RuntimeSig::SlotGet => &self.sigs.slot_get,
             RuntimeSig::SlotProbe => &self.sigs.slot_probe,
@@ -3938,7 +3937,7 @@ enum RuntimeSig {
     Raise,
     RaiseNew,
     RaiseSite,
-    InstanceOf,
+    ClassTest,
     ClassMethod,
     SlotGet,
     SlotProbe,
@@ -4072,7 +4071,7 @@ fn describe(kind: &InstKind) -> String {
         InstKind::New { .. } => "`new`",
         InstKind::FieldGet { .. } => "a property read",
         InstKind::FieldSet { .. } => "a property write",
-        InstKind::InstanceOf { .. } => "`instanceof`",
+        InstKind::ClassTest { .. } => "`is`",
         InstKind::Concat { .. } => "`.` string concatenation",
         _ => "this instruction",
     };
