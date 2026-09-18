@@ -1,0 +1,22 @@
+--TEST--
+A type test is an ordinary expression position, so a cursor inside one offers the frame's variables like any other — `rule:ide/the-request-set-is-closed`
+--FILE--
+<?nvs
+interface Shape
+{
+    public function area(): int;
+}
+
+class Square implements Shape
+{
+    public function area(): int { return 4; }
+}
+
+mixed $s = new Square();
+if ($s i<|>s Shape) {
+    echo $s->area();
+}
+--REQUEST--
+completion prefix=$
+--EXPECT--
+$s      variable  mixed

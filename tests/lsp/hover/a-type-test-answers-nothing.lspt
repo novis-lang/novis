@@ -1,0 +1,22 @@
+--TEST--
+`is` is an operator and not a name, so the cursor on it hovers nothing, `rule:ide/the-index-answers-the-cursor`
+--FILE--
+<?nvs
+interface Shape
+{
+    public function area(): int;
+}
+
+class Square implements Shape
+{
+    public function area(): int { return 4; }
+}
+
+mixed $s = new Square();
+if ($s i<|>s Shape) {
+    echo $s->area();
+}
+--REQUEST--
+hover
+--EXPECT--
+none
