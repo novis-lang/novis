@@ -2976,12 +2976,14 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   lets one core's handler run after the ceiling already refused it — a session whose diff is nowhere near
   `crates/nvs-server` can spend calls proving the failure is not its own. Re-run `python tools/verify.py`
   and only investigate if two consecutive runs name it. [until: reviewed 2026-09-12]
-- **`nvs-host`'s two CPU-charging watchdog tests fail under `verify.py`'s side-by-side test run and
+- **`nvs-host`'s clock-reading watchdog tests fail under `verify.py`'s side-by-side test run and
   pass alone, so the gate goes red on a crate your slice never touched.**
   `a_capped_request_publishes_a_baseline_and_an_uncapped_one_publishes_nothing` and
   `a_run_that_is_no_core_is_sampled_and_reported_never` measure process CPU time every other test
-  binary competes for, so which of the two fails varies per run. Read the failing name before looking
-  for your own change in it; a rerun only moves it. [until: reviewed 2026-09-12]
+  binary competes for, and `the_watchdog_reports_a_wedged_worker_without_a_heartbeat` allows a
+  heartbeat a 250 ms wall-clock margin the same load eats, so which of the three fails varies per run.
+  Read the failing name before looking for your own change in it; a rerun only moves it, and it stops
+  the gate before the `.nvst` trees and clippy have run at all. [until: reviewed 2026-09-18]
 - **A `cargo-named` floor check can go red on a *timing* test that the driver's own load broke, and
   it reads exactly like a regression the last commit caused.** `cache::tests::a_warm_start_is_faster
   _than_a_cold_one_by_the_margin_this_test_names` failed once after a session that touched only
@@ -5762,6 +5764,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `--> case.nvs:28:22`, and one line at the top of its `--FILE--` block made the case red at the
   end of the session rather than at the edit. Look for an `--EXPECTF-ERROR--` section before
   inserting a marker, and move the number in the same edit. [until: reviewed 2026-09-18]
+- **A `Core\Db` refusal the *call* caused is a `LogicError` and not a `Core\Db\DbError`, so a case
+  catching the wrong one dies on an uncaught throw with the right message.** `nvs-db` builds no fault
+  and answers in `io::ErrorKind`s, and `crates/nvs-stdlib/src/db/bind.rs:149` splits them: `InvalidInput`
+  is every mistake in the call — a nested `transaction` asking for its own isolation level, a value with
+  no bound form — while only a refusal the server itself worded is a `DbError` carrying a `kind`. Read
+  the driver member's own `# Errors` paragraph for which one it answers before writing the `catch`.
+  [until: reviewed 2026-09-18]
 
 ## Splitting a file that got too big
 

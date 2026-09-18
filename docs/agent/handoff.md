@@ -2,40 +2,34 @@
 
 ## State
 
-Goal `types-enum-1-2`: 13 of its 17 enums are complete — `Core\Audience`, `Core\Charset`,
-`Core\Cldr\PluralCategory`, the three `Core\Cli` ones, the three `Core\Crypto` ones, and now
-`Core\Codec`, `Core\Db\ColumnType`, `Core\Db\Driver` and `Core\Db\ErrorKind`. Each has `about.md`,
-three examples with blessed `.out` files, and one test attributed by a `covers:` marker. An enum owes
-no bench and no attack, per `tools/data/dossier-policy.toml`'s per-kind table. Nothing is blocked.
+Goal `types-enum-1-2` is met: all 17 enums it names carry `about.md`, three examples with blessed
+`.out` files and one test attributed by a `covers:` marker, and
+`python tools/dossier.py --verify --only …` reports nothing owed and no failure. The last four landed
+this session — `Core\Db\Isolation`, `Core\Db\Plan\Grade`, `Core\Db\Tls` and `Core\Digest`. The
+previous handoff's group named only the first three; `Core\Digest` was owed as well and named in no
+group, which is why the goal did not close on the slice count the group predicted. Nothing is blocked.
 
-Two facts the four `Core\Db` enums were written around, and the three left will meet again.
-**An example never opens a database** — `docs/examples/README.md` § *What an example is* rules out an
-example needing a database or a socket, so a `Core\Db` enum's examples use its cases as values and one
-comment says what they stand for. **A `.nvst` case still can**: a `--FILE nvs.toml--` section holding a
-`[capabilities.db] connect` grant and a `[db.main]` block with `driver = "sqlite"` and
-`path = ":memory:"` gives the case a real engine, which is how
-`tests/conformance/core/db-an-error-kind-is-the-condition-and-not-a-vendor-code.nvst` gets real
-refusals to classify. A `Core\Db\DbError` thrown by the program itself carries `kind == Other` and an
-empty `sqlState`, since no server classified it.
+Two facts the `Core\Db` enums were written around. **An example never opens a database**
+(`docs/examples/README.md` § *What an example is*), so a `Core\Db` enum's examples use its cases as
+values. **A `.nvst` case still can**: a `--FILE nvs.toml--` section granting `[capabilities.db]
+connect` with a `[db.main]` block of `driver = "sqlite"` and `path = ":memory:"` gives the case a real
+engine with no container. `Core\Digest` needs neither — hashing computes, so its examples print real
+digests.
 
 ## Next group
 
-**Stage 2: the dossier, one enum per slice** — the goal's last three `Core\Db` enums, one file set:
-they are all declared in `crates/nvs-stdlib/src/db/registry.rs` and their proofs are three new
-directories under `docs/examples/types/`. Each owes `about.md`, three examples and one attributed test
-(`rule:testing/four-proofs`); `python tools/dossier.py --id '<name>'` prints its directory and
-`--bless <file>` writes the `.out`. Grep `tests/conformance/` for the enum's name first — `Core\Codec`,
-`Core\Db\ColumnType` and `Core\Db\Driver` each had a case to mark, and `Core\Db\ErrorKind` had none and
-needed one written.
+**Stage 2: the dossier, one enum per slice** — goal `types-enum-2-2`'s first three, one file set only
+in the sense that all three are enum pages under `docs/examples/types/`; their declarations sit in
+three different crates' modules, so each costs its own read. Each owes `about.md`, three examples and
+one attributed test (`rule:testing/four-proofs`); `python tools/dossier.py --id '<name>'` prints the
+directory and `--bless <file>` writes the `.out`. Grep `tests/conformance/` for the enum's name first —
+a case that already exercises it needs the `covers:` marker and nothing else.
 
-- [ ] **`Core\Db\Isolation`** — owes examples, tests. `crates/nvs-stdlib/src/db/registry.rs:891`
-- [ ] **`Core\Db\Plan\Grade`** — owes examples, tests. `crates/nvs-stdlib/src/db/registry.rs:1912`
-- [ ] **`Core\Db\Tls`** — owes examples, tests. `crates/nvs-stdlib/src/db/registry.rs:830`
+- [ ] **`Core\Env\Mode`** — owes examples, tests. `crates/nvs-stdlib/src/env.rs:277`
+- [ ] **`Core\Http\Method`** — owes examples, tests. `crates/nvs-stdlib/src/router.rs:86`
+- [ ] **`Core\IO\FileMode`** — owes examples, tests. `crates/nvs-stdlib/src/io.rs:1236`
 
 ## Backlog
 
-- `Core\Digest`, the goal's seventeenth and last enum, is the one outside that file set:
-  `crates/nvs-stdlib/src/hash.rs:153`.
-- `Core\Db\Tls` declares three cases the runtime refuses at the call, so its examples say what is
-  refused rather than calling `Core\Db::open` — `crates/nvs-stdlib/src/db/registry.rs:812` is the
-  reasoning.
+- A dossier goal's seeded group can be shorter than what the goal's check demands; run the goal's own
+  `--verify --only …` line before believing the group is the whole list — `docs/agent/loop-goal.toml`.
