@@ -2,40 +2,36 @@
 
 ## State
 
-**Goal `gap-zero` — every stage that carries a check is green, and nothing holds it.** `python
-tools/owners.py --check` reads 24 gaps, every one owned by a milestone still ahead, and `--deferrals`
-passes. `python tools/plan.py --past` reads 11 of 11 past milestones complete, and `--check` finds
-every `Carried by` cell already agreeing with the chain, so `--sync` has nothing left to write; the
-plan's *Done* field says M0 through M8.
+**Goal `gap-zero` is met — every stage that carries a check is green.** Stage 3: `python
+tools/playbook.py --check` reads `none -- every path any bullet names still exists`, `python
+tools/owners.py --registers` reads 5 registers with the deleted index absent as it requires, and
+`python tools/check-links.py` and `python tools/chain.py --check` pass. Stage 5: `python
+tools/plan.py --past` reads 11 of 11 past milestones complete and `--check` finds every `Carried by`
+cell agreeing with the chain.
 
 **Stage 4 carries no check, by the user's decision of 2026-09-18.** GitHub starts no CI job while the
-account's payments fail, so the CI check moved whole to goal `ci-green`, which is pinned last on the
-chain behind every generated goal — `docs/agent/loop-goal.md` § *Stage 4* says so. A session here
-neither asks `gh` nor reports a `BLOCKED` about CI.
+account's payments fail, so the CI check moved whole to goal `ci-green`, pinned last on the chain. A
+session here neither asks `gh` nor reports a `BLOCKED` about CI.
 
-**The three gates a goal meets only at its end were green when last asked**: `python tools/verify.py
---doc`, `python tools/owners.py --closes gap-zero` and `python tools/playbook.py --closes gap-zero`.
+**The three gates a goal meets only at its end are green**: `python tools/verify.py --doc`, `python
+tools/owners.py --closes gap-zero` (owns no module-doc gap) and `python tools/playbook.py --closes
+gap-zero` (owns no row).
 
 ## Next group
 
-**Stage 3 and stage 5: one red check, then close the goal** — one file set: `docs/agent/playbook.md`,
-`tools/playbook.py`, `docs/agent/loop-goal.toml`.
+**Goal `dossier` — its own seed replaces this file at the switch** — one file set:
+`docs/agent/goals/71-dossier.*`.
 
-- [ ] **Turn *the playbook's own checks survive the file that is gone* green** — `python
-      tools/playbook.py --check` lists bullet *Tooling > check-links.py reads* under § *PATHS A
-      BULLET NAMES THAT ARE NOT IN THE TREE*: it cites `docs/agent/carried-gaps.md`, which stage 3
-      deleted. Read the bullet; it is rewritten, pruned, or held in `tools/playbook.py`'s
-      `DELIBERATE_STALE` if the missing path is the trap.
-- [ ] **Confirm the list is green and write `DONE`** — `docs/agent/loop-goal.toml:12058` onward is
-      what is left of this goal's own checks; the three end gates above are the rest. Nothing is
-      owed to the tree, so a session that finds them green writes `DONE` and nothing else.
+- [ ] **Take goal `dossier`'s first item from its seed handoff** —
+      `docs/agent/goals/71-dossier.handoff.md:1` names the group and the file set it shares; the
+      driver installs it when it walks past goal `gap-zero`, so nothing here needs carrying forward.
 
 ## Backlog
 
-- The goal prose's stage 3 list still names `owners.py`'s `unowned_paths` and
-  `crates/nvs-stdlib/src/lib.rs:138`; both were already gone — `docs/agent/loop-goal.md` § *Stage 3*.
-- `tools/playbook.py`'s `owned_rows`, `chain_retired` and `--closes` read a path that no longer
-  exists, deliberately, so an index rebuilt there is gated — that module's doc says so.
-- The plan's *Status* field still opens on M4's loop goal and the parity program; it is true and
-  narrower than what *Done* now says — `docs/implementation-plan.md:12`.
-- When this goal's last check goes green the driver takes goal `dossier`.
+- Goal `ci-green` needs `main` pushed and a green `ci.yml` run, and waits on the account's billing —
+  `docs/implementation-plan.md` § *Blocking*.
+- 24 module-doc gaps stand, each deferred to a milestone still ahead — `python tools/owners.py
+  --check` is the list, and each item lives in the module doc that owes it.
+- 327 playbook bullets carry a live `[until:]` trailer; `docs/agent/playbook.md` grows faster than
+  either pruning signal can fall — `python tools/playbook.py --check` § *HOW FAST THIS FILE IS
+  GROWING*.
