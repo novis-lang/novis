@@ -267,8 +267,8 @@ pub use instance::class_descriptors;
 
 /// The checker's question about a `Core` class's identity: whether a value can
 /// be an instance of one at all, which is what `nvs_types` admits a written
-/// name as `instanceof`'s right-hand side on. Re-exported beside the roster
-/// above because it is the same skip asked one class at a time.
+/// name as a downcast target on. Re-exported beside the roster above because
+/// it is the same skip asked one class at a time.
 pub use instance::class_has_instances;
 
 /// The resolver an embedder installs on a context at boot, so a serialized

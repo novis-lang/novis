@@ -415,7 +415,7 @@ fn descriptors() -> &'static ClassTable {
                 continue;
             }
             // No parents: a `Core` class is not part of any hierarchy, so
-            // `instanceof` on one answers only for itself.
+            // `is` on one answers only for itself.
             let id = table.define(class.name, class.slots, &[]);
             table.set_methods(id, dispatch_table(class.name));
             // `rule:security/isolate-values-cross-by-copy`'s third refusal,
@@ -468,13 +468,13 @@ fn has_instances(class: &CoreClass) -> bool {
 /// [`has_instances`] asked by name, over the registry alone: whether `name` is
 /// a `Core` class a value can be an instance of.
 ///
-/// This is the whole of what `nvs_types` needs to admit a written `Core` name
-/// as `instanceof`'s right-hand side — the class's *identity*, derived from the
-/// registry the way every other pass derives it, rather than a second roster
-/// that could disagree with [`descriptors`]'s skip. A name this answers `false`
-/// for has no descriptor here and never will, so the checker refuses the test
-/// where it is written instead of leaving `nvs-codegen` a symbol to fail to
-/// resolve.
+/// This is the whole of what `nvs_types` needs about a written `Core` name's
+/// *identity* — derived from the registry the way every other pass derives it,
+/// rather than a second roster that could disagree with [`descriptors`]'s skip
+/// — so a name it admits as a downcast target is one a descriptor answers for.
+/// A name this answers `false` for has no descriptor here and never will, which
+/// is why `nvs-codegen` asks the same question before it emits a class test,
+/// rather than leaving the backend a symbol to fail to resolve.
 ///
 /// [`INTERNAL_CLASSES`] and `crate::ast::PRODUCTIONS` are deliberately not
 /// consulted: they have descriptors but no registry row, so no source can name
@@ -505,7 +505,7 @@ fn descriptor(class: &CoreClass) -> *const ClassDesc {
 /// Two sites write one of these addresses into a unit. A hole-free `` html`…` ``
 /// folds to a `Core\Html\Markup` constant in the unit's constant pool
 /// (`rule:core-classes/html-literal`), and the class word of that constant is
-/// one of them; and `$v instanceof Core\Time\Date` tests against the class's own
+/// one of them; and `$v is Core\Time\Date` tests against the class's own
 /// address, which is the identity comparison [`is_instance`] makes from this
 /// side. Both are written once while compiling and read by every core
 /// afterwards — the half of this module's § *Decision: the descriptors are one
@@ -809,10 +809,10 @@ mod tests {
     }
 
     /// The published roster and the question the checker asks are the same
-    /// skip: a name `nvs_types` admits as `instanceof`'s right-hand side has an
-    /// address `nvs-codegen` can relocate against, and a namespace class is in
-    /// neither — which is what keeps a refusal at the checker from becoming an
-    /// unresolved symbol at the backend.
+    /// skip: a name `nvs_types` admits as a downcast target has an address
+    /// `nvs-codegen` can relocate against, and a namespace class is in neither —
+    /// which is what keeps a refusal at the checker from becoming an unresolved
+    /// symbol at the backend.
     #[test]
     fn the_published_roster_is_what_the_checker_admits() {
         let published: Vec<&str> = class_descriptors()
