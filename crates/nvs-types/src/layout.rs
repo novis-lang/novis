@@ -122,7 +122,7 @@ pub struct ClassLayout {
     pub field_types: Vec<String>,
     /// Every *other* class and interface an instance of this one also is,
     /// rendered the same way [`ClassLayout`]'s own key is. Transitive, and
-    /// deliberately excluding the class itself — `instanceof` checks identity
+    /// deliberately excluding the class itself — an `is` test checks identity
     /// separately (`nvs_runtime::ClassDesc::conforms_to`).
     pub conforms: Vec<String>,
     /// Every method callable on an instance of this class, as a
@@ -460,7 +460,7 @@ pub fn build_class_layouts(
     }
     // The compiler-declared global interfaces, for the same reason and on the
     // same terms (`nvs_hir::interfaces`): nothing declares `Stringable` in
-    // source, but `$x instanceof Stringable` needs a descriptor to point at
+    // source, but `$x is Stringable` needs a descriptor to point at
     // and `class S implements Stringable` needs the edge to it in `conforms`,
     // which `collect_conforms` only keeps for a label the table has an entry
     // for. Both lists are empty: an interface declares no property, and no
@@ -592,7 +592,7 @@ fn collect_own(stmts: &[Stmt], src: &SourceFile, namespace: &[String], out: &mut
             }
             // An interface declares no instance property (`rule:classes/interface-default-methods` gives
             // it method bodies, not state), but it still needs an entry: it is
-            // a legal `instanceof` target and a legal `catch` type, so
+            // a legal `is` target and a legal `catch` type, so
             // `nvs-codegen` must have a descriptor to point at. Its *default*
             // method bodies are real code, though, so they are collected the
             // same way a class's are.
@@ -1166,8 +1166,8 @@ mod tests {
     /// The four `nvs_hir::interfaces` names have no source declaration at
     /// all, so without the seeding in [`build_class_layouts`] an implementor's
     /// `conforms` would name a label the table has no entry for — and
-    /// `nvs-codegen` drops exactly those edges, leaving `$m instanceof
-    /// Stringable` with nothing to test against.
+    /// `nvs-codegen` drops exactly those edges, leaving `$m is Stringable`
+    /// with nothing to test against.
     #[test]
     fn a_reserved_global_interface_has_an_entry_and_an_implementor_keeps_the_edge() {
         let table = layouts(
