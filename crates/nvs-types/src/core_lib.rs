@@ -206,6 +206,30 @@ pub(crate) fn constant(
     Some((lower(&found.ty, interner), lower_const(&found.value)))
 }
 
+/// Which of `member`'s parameters takes a method reference, if any does —
+/// `nvs_stdlib::registry::CoreTy::MethodRef`, read back off the row that
+/// declared it.
+///
+/// This is what admits `Mailer::send` as an expression: that spelling is an
+/// undefined constant everywhere else in the language, and stays one, so the
+/// set of positions it means anything at is exactly the set of registry
+/// parameters written with that variant. `crate::expr::calls` asks before it
+/// checks a static call's arguments, and `crate::expr::members` reads the
+/// answer back at the argument itself.
+///
+/// The index is a *parameter* index, which is the same index the argument list
+/// is walked by — an options bag is one parameter, and no bag may hold a method
+/// reference, since a bag's fields are values a call site writes.
+#[must_use]
+pub(crate) fn method_ref_param(qname: &QName, member: &str) -> Option<usize> {
+    nvs_stdlib::registry::class(&qname.to_string())?
+        .members()
+        .find(|row| row.name == member)?
+        .params
+        .iter()
+        .position(|ty| matches!(ty, CoreTy::MethodRef))
+}
+
 /// Whether `qname` names a class this crate seeded — the question
 /// [`crate::expr`] asks about a `new` target and about the implicit
 /// constructor's arity, both of which are answered by the registry's own row
@@ -629,6 +653,13 @@ fn lower(ty: &CoreTy, interner: &mut TypeInterner) -> TypeId {
         // with a shape, so `Core\Jwt::signObject`'s claims are checked at the
         // call rather than in the helper.
         CoreTy::Object => interner.object(),
+        // A method reference *is* the method's name by the time anything holds
+        // it — `crate::expr::members` folds `Mailer::send` to that constant
+        // where it is written — so the type here is the type of what arrives.
+        // What keeps a plain `string` out of the position is not this type but
+        // [`method_ref_param`], which is asked before the argument is checked
+        // at all. `nvs_stdlib::registry::CoreTy::MethodRef` owns why.
+        CoreTy::MethodRef => interner.string(),
         // `Mixed` and anything a later registry variant adds: `mixed` is the
         // registry's own "unchecked position" spelling, and is the only safe
         // answer for a variant this arm has not learned yet, since `Ty` and

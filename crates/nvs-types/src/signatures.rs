@@ -758,6 +758,7 @@ pub fn build_signatures(
             exit_targets: Vec::new(),
             write_target_levels: FxHashMap::default(),
             coalesce_guarded: FxHashSet::default(),
+            method_ref_args: FxHashSet::default(),
             body_writers: crate::response::BodyWriters::default(),
             in_call_argument: false,
         };

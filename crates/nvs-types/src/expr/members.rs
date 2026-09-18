@@ -86,6 +86,17 @@ pub(crate) fn infer_class_const(
 ) -> TypeId {
     check_expr(class, None, live, scope, ctx, env);
     let qname = resolve_class_expr(class, ctx, env);
+    // `rule:testing/interaction-after-the-fact`'s method reference. The
+    // spelling names no constant, and at the argument positions
+    // [`super::calls::note_method_ref_args`] marked — the ones a registry row
+    // wrote `nvs_stdlib::registry::CoreTy::MethodRef` at — it names the method
+    // instead. Answered here because what a reference *is* is the same answer
+    // the three arms below give a constant: a name folded at check time, so
+    // `nvs-ir` lowers it through the entry it already reads and needs no arm of
+    // its own.
+    if env.method_ref_args.contains(&expr.span) {
+        return method_reference(expr, class, name, qname.as_ref(), env);
+    }
     // A `Core`-owned enum has no `SymbolKind::Enum` entry — nothing declared it
     // — but it is in the same enum table, seeded from
     // `nvs_stdlib::registry::ENUMS`, so asking that table is the one question
@@ -214,6 +225,62 @@ pub(crate) fn infer_class_const(
         }
         None => env.interner.mixed(),
     }
+}
+
+/// `Mailer::send` at an argument position that admits one — the method's own
+/// name, checked against the class or interface the reference wrote and folded
+/// to a `string` constant there and then.
+///
+/// The name is checked against the class the *reference* names rather than
+/// against the type of the double beside it, which is the check
+/// `rule:testing/interaction-after-the-fact` asks for and the one a reader can
+/// act on: what a test writes is `Mailer::send`, and what a rename moves is
+/// `Mailer`'s own declaration. A reference to a method of some other interface
+/// names a call the double cannot have recorded, which the assertion then
+/// reports against the record it did keep.
+///
+/// A class expression that resolved to nothing is left alone: `nvs_hir` has
+/// already reported the name, and this only has to not invent a second
+/// diagnostic for it.
+fn method_reference(
+    expr: &Expr,
+    class: &Expr,
+    name: Span,
+    qname: Option<&QName>,
+    env: &mut Env<'_>,
+) -> TypeId {
+    let method = span_text(env.src, name).to_owned();
+    let Some(qname) = qname else {
+        return env.interner.string();
+    };
+    if resolve_method(qname, &method, env.signatures, env.graph).is_none() {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_METHOD_REF_UNDECLARED,
+                format!("`{qname}` declares no method named `{method}`"),
+            )
+            .with_primary(class.span, "the method is named here")
+            .with_help(
+                "`rule:testing/interaction-after-the-fact`: the method an assertion names is a \
+                 compile-checked reference, so renaming the method updates or breaks the test \
+                 rather than leaving it passing against a method that no longer exists",
+            ),
+        );
+        return env.interner.string();
+    }
+    // The same `ExprInfo::ClassConst` entry a constant records, holding the
+    // method's name as the `string` it lowers to: the reference *is* that name
+    // by the time anything runs, and a helper reading it is handed the constant
+    // the call site wrote (`nvs_stdlib::registry::CoreTy::MethodRef`).
+    env.exprs.record(
+        expr.span,
+        ExprInfo::ClassConst {
+            class: qname.clone(),
+            name: method.clone(),
+            value: crate::ConstArg::Str(method),
+        },
+    );
+    env.interner.string()
 }
 
 /// The `E0792` half of the arm above, which owns why the read and not the

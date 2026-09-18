@@ -474,6 +474,22 @@ pub enum CoreTy {
     /// what it is handed and what it must answer are checked where the call is
     /// written.
     Callable,
+    /// A **method reference** — `Mailer::send` written bare at the call site,
+    /// which is `rule:testing/interaction-after-the-fact`'s compile-checked
+    /// name of a method rather than any value a program can hold.
+    ///
+    /// The whole of what it is at run time is the method's own name as a
+    /// `string`: `nvs_types::core_lib` lowers it to that, and the checker folds
+    /// the reference to the name where it is written, so the helper reading it
+    /// is handed a `Tag::Str` and nothing about the ABI changes for it.
+    ///
+    /// **This variant is the only place the spelling is admitted.** A
+    /// `Class::name` that names a method rather than a constant is an undefined
+    /// constant everywhere else, and stays one: `nvs_types::expr::members`
+    /// admits it at exactly the argument positions a row writes this at, which
+    /// is what keeps "a method as a value" out of the language while letting a
+    /// test name the method it is asserting about.
+    MethodRef,
     /// A **shape whose every field is a callable**, plus the name of the type
     /// variable the shape of those callables' *results* binds — `S` in
     /// `Core\Task::all({...}): S`.
@@ -1252,6 +1268,11 @@ impl CoreTy {
             Self::Object => "object".into(),
             Self::Array(elem) => format!("array<{}>", elem.spelled()),
             Self::Callable => "callable".into(),
+            // Not `string`, which is what it lowers to: the position takes
+            // `Mailer::send` and refuses every `string` a program could write,
+            // so spelling it as one would document an accepted argument that is
+            // refused. See [`Self::MethodRef`].
+            Self::MethodRef => "method".into(),
             Self::ShapeOfCallables(_) => "{name: callable(): T, ...}".into(),
             // Spelled as the grammar writes it, because a program can write this
             // one: the parameters in their own order and the mandatory return

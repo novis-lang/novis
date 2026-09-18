@@ -356,6 +356,12 @@ pub(crate) fn infer_static_call(
         .map(|(owner, name, _)| format!("{owner}::{name}"));
     let (sig, written) =
         check_written_type_args(type_args, sig, label.as_deref(), expr.span, ctx, env);
+    // `rule:testing/interaction-after-the-fact`'s method reference, marked
+    // before the argument list is walked rather than judged after it: the
+    // spelling `Mailer::send` names no constant, so what the position does is
+    // give that argument — and no other — a meaning at all. See
+    // [`note_method_ref_args`].
+    note_method_ref_args(resolved.as_ref(), args, env);
     let (arg_types, slots, sig) = check_args_typed(args, sig, expr.span, live, scope, ctx, env);
     // See [`infer_method_call`]: the same question, before the same `slots`
     // are handed to [`resolved_call`]. The two folds below return ahead of it
@@ -903,6 +909,59 @@ fn reject_unforwardable_first_class_callable(
         ),
     );
     true
+}
+
+/// Marks the argument a registry row's
+/// [`CoreTy::MethodRef`](nvs_stdlib::registry::CoreTy::MethodRef) parameter
+/// admits `Class::method` at, so that [`super::members::infer_class_const`]
+/// reads the spelling as the method reference
+/// `rule:testing/interaction-after-the-fact` gives it and every other site goes
+/// on reading it as the undefined constant it is.
+///
+/// **Positional only.** The index a row writes is a parameter index, and the
+/// two agree only while the call writes its arguments in order; a reference
+/// written by name, or behind a `...`, is left to the ordinary refusal rather
+/// than matched up by a second mapping that would then have to stay in step
+/// with [`super::args::map_arguments`].
+fn note_method_ref_args(
+    resolved: Option<&(QName, String, MethodSig)>,
+    args: &CallArgs,
+    env: &mut Env<'_>,
+) {
+    let (Some((owner, member, _)), CallArgs::List(list)) = (resolved, args) else {
+        return;
+    };
+    let Some(index) = crate::core_lib::method_ref_param(owner, member) else {
+        return;
+    };
+    if list
+        .iter()
+        .take(index + 1)
+        .any(|arg| arg.name.is_some() || arg.spread)
+    {
+        return;
+    }
+    // An argument the call did not write at all is the arity refusal
+    // [`super::args::check_positional_arity`] already makes.
+    let Some(arg) = list.get(index) else {
+        return;
+    };
+    if matches!(arg.value.kind, ExprKind::ClassConstAccess { .. }) {
+        env.method_ref_args.insert(arg.value.span);
+        return;
+    }
+    env.diags.report(
+        Diagnostic::error(
+            code::E_METHOD_REF_REQUIRED,
+            format!("`{owner}::{member}` names a method here, and this is not a method reference"),
+        )
+        .with_primary(arg.value.span, "write `Interface::method`")
+        .with_help(
+            "`rule:testing/interaction-after-the-fact`: the method is named as a reference so that \
+             renaming it updates or breaks the test — a `string` holding the name is checked by \
+             nothing, and a typo in one reports as a call that never happened",
+        ),
+    );
 }
 
 fn report_first_class_callable_new(

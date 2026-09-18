@@ -3804,6 +3804,30 @@ pub mod code {
     /// in for is checked one argument at a time by `nvs_runtime::closure`.
     pub const E_DOUBLE_METHOD_SIGNATURE: Code = Code::new("E0828");
 
+    /// A method reference names a method the class or interface it names does
+    /// not declare.
+    ///
+    /// `rule:testing/interaction-after-the-fact`'s reference is compile-checked
+    /// so that renaming a method updates or breaks the test rather than leaving
+    /// it passing against a method that no longer exists — which is the whole
+    /// reason the assertion takes `Mailer::send` rather than `"send"`.
+    ///
+    /// It is a code of its own rather than the undefined-member one because the
+    /// spelling means nothing anywhere else: `Class::name` is a constant read
+    /// everywhere but the argument positions a registry row wrote
+    /// `nvs_stdlib::registry::CoreTy::MethodRef` at, and a reader who sees
+    /// "no constant named `send`" there has been told about the wrong language.
+    pub const E_METHOD_REF_UNDECLARED: Code = Code::new("E0829");
+
+    /// A position that takes a method reference was given something else.
+    ///
+    /// The value a reference folds to is a `string` — the method's own name —
+    /// and `rule:testing/interaction-after-the-fact` is why a written one is
+    /// refused anyway: `"send"` is a spelling nothing checks, so a typo in it
+    /// reports as a call that never happened, at the end of a test, rather than
+    /// where it was written. The reference is the whole point of the position.
+    pub const E_METHOD_REF_REQUIRED: Code = Code::new("E0830");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");

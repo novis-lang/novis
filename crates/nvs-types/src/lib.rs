@@ -563,6 +563,18 @@ pub(crate) struct Env<'a> {
     /// is still inside that argument, and the flag has to survive the recursion
     /// rather than be re-derived at each level.
     pub in_call_argument: bool,
+    /// The span of every argument a registry row's
+    /// `nvs_stdlib::registry::CoreTy::MethodRef` parameter gives a meaning to —
+    /// `rule:testing/interaction-after-the-fact`'s method reference.
+    ///
+    /// A set of spans rather than a flag, because unlike
+    /// [`Self::in_call_argument`] this is about *one* argument of a call and
+    /// not about a region: `Mailer::send` is an undefined constant one
+    /// argument over, and has to stay one. [`crate::expr::calls`] marks the
+    /// span before the argument list is checked and
+    /// [`crate::expr::members::infer_class_const`] reads it at the argument
+    /// itself; nothing clears it, since a span identifies its own call site.
+    pub method_ref_args: FxHashSet<Span>,
 }
 
 pub(crate) fn span_text(src: &SourceFile, span: Span) -> &str {

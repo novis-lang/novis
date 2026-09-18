@@ -886,6 +886,83 @@ fn walk_member_name(member: &MemberName, src: &SourceFile, ctx: &Ctx<'_>, env: &
     }
 }
 
+/// The members whose argument at that index is
+/// `rule:testing/interaction-after-the-fact`'s method reference — `Mailer::send`
+/// written where every other reader of this syntax sees a class constant.
+///
+/// A roster of names rather than a question asked of the registry, because this
+/// crate does not know one: `nvs_types::core_lib::method_ref_param` reads the
+/// position back off the row that declared it — the parameter written
+/// `nvs_stdlib::registry::CoreTy::MethodRef` — and is the home of *which*
+/// positions there are. What this list buys is only that the reference is not
+/// reported as an undefined constant before the checker ever sees it, so a
+/// member missing from here is refused at the wrong span rather than admitted
+/// somewhere it should not be.
+const METHOD_REF_ARGS: &[(&str, &str, usize)] = &[
+    (r"Core\Test", "assertCalled", 1),
+    (r"Core\Test", "assertNeverCalled", 1),
+];
+
+/// [`walk_args`] for a static call, with the one argument [`METHOD_REF_ARGS`]
+/// names left to `nvs_types` — it is a method reference there and an undefined
+/// constant here, and this walk is what would otherwise report it first.
+///
+/// The class side of the reference is still walked, so an undeclared class in
+/// `Mailer::send` is still this pass's `E0303`; only the member half is left
+/// alone. A call that writes the argument by name or behind a `...` takes the
+/// ordinary path, which is the same spelling `nvs_types` admits.
+fn walk_args_admitting_method_ref(
+    class: &Expr,
+    method: &MemberName,
+    args: &CallArgs,
+    src: &SourceFile,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) {
+    let CallArgs::List(list) = args else {
+        return;
+    };
+    let reference = method_ref_index(class, method, src, ctx)
+        .filter(|index| {
+            list.iter()
+                .take(index + 1)
+                .all(|arg| arg.name.is_none() && !arg.spread)
+        })
+        .filter(|index| {
+            matches!(
+                list.get(*index).map(|arg| &arg.value.kind),
+                Some(ExprKind::ClassConstAccess { .. })
+            )
+        });
+    for (index, Arg { value, .. }) in list.iter().enumerate() {
+        match (&value.kind, reference == Some(index)) {
+            (ExprKind::ClassConstAccess { class: named, .. }, true) => {
+                walk_class_side(named, src, ctx, env);
+            }
+            _ => walk_expr(value, src, ctx, env),
+        }
+    }
+}
+
+/// Which argument of this static call is a method reference, if any is.
+fn method_ref_index(
+    class: &Expr,
+    method: &MemberName,
+    src: &SourceFile,
+    ctx: &Ctx<'_>,
+) -> Option<usize> {
+    let (ExprKind::ConstFetch(class_name), MemberName::Ident(name_span)) = (&class.kind, method)
+    else {
+        return None;
+    };
+    let owner = resolve_ref(name_text(src, class_name), ctx.namespace, ctx.imports).to_string();
+    let member = src.span_text(*name_span).unwrap_or_default();
+    METHOD_REF_ARGS
+        .iter()
+        .find(|(class, name, _)| *class == owner && *name == member)
+        .map(|(_, _, index)| *index)
+}
+
 fn walk_args(args: &CallArgs, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
     let CallArgs::List(list) = args else {
         return;
@@ -1010,7 +1087,7 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
         } => {
             walk_class_side(class, src, ctx, env);
             walk_member_name(method, src, ctx, env);
-            walk_args(args, src, ctx, env);
+            walk_args_admitting_method_ref(class, method, args, src, ctx, env);
             if let MemberName::Ident(name_span) = method {
                 let name = src.span_text(*name_span).unwrap_or_default();
                 // `rule:attributes/structural-retrieval`'s class target — `Foo::constructor(...)` — rests

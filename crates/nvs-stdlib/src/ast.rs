@@ -795,6 +795,7 @@ mod tests {
             | CoreTy::Mixed
             | CoreTy::Object
             | CoreTy::Callable
+            | CoreTy::MethodRef
             | CoreTy::Entry
             | CoreTy::IntLiteral(_) => false,
         }
