@@ -1756,6 +1756,7 @@ fn every_queue_key_has_a_directive_row_and_lookup_answers_for_all_four() {
 /// out of the snapshot. Asserted on both sides, because a table that made the whole block `Boot`
 /// would make a `max_attempts` an operator changed need a restart, and one that made it all
 /// `Reload` would let a `workers` change look applied while no task was started or stopped.
+// covers: directive:queue.connection, directive:queue.workers, directive:queue.max_attempts, directive:queue.visibility
 #[test]
 fn connection_and_workers_are_boot_and_max_attempts_and_visibility_are_reload() {
     for key in ["queue.connection", "queue.workers"] {

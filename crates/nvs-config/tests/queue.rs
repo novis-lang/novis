@@ -53,6 +53,7 @@ fn nothing_configured_is_a_finite_queue() {
 
 /// § 2's block as the ADR writes it, every key read back. The durations are asserted in two
 /// spellings because `crate::value` is the parser and `5m` must not be a shape this module knows.
+// covers: directive:queue.visibility
 #[test]
 fn every_written_bound_is_the_one_the_queue_holds() {
     let written = bounds(&format!(
@@ -94,6 +95,9 @@ fn every_queue_that_cannot_run_a_job_is_refused() {
         "[queue]\nworkers = 4\n",
         // A name the merged tree holds no block for.
         "[queue]\nconnection = \"man\"\n",
+        // The one spelling that could be read as a block name rather than as the key having been
+        // left out, and a `[db.]` block is not a thing a file can write.
+        "[queue]\nconnection = \"\"\n",
         // § 6's attempts are finite, and zero of them is dead-lettered on arrival.
         "[queue]\nconnection = \"main\"\nmax_attempts = 0\n",
         // § 4's lease, expiring as it is taken.
@@ -121,6 +125,7 @@ fn every_queue_that_cannot_run_a_job_is_refused() {
 /// The two zeroes, named together: § 2 states `workers = 0` as an instance that enqueues and lets
 /// another work the rows, and § 6 has no zero at all. A reader that treats them as one question
 /// still reads right on either line alone.
+// covers: directive:queue.workers, directive:queue.max_attempts
 #[test]
 fn zero_workers_is_a_deployment_and_zero_attempts_is_a_refusal() {
     let enqueue_only = bounds(&format!(
@@ -144,6 +149,7 @@ fn zero_workers_is_a_deployment_and_zero_attempts_is_a_refusal() {
 /// The mistake this module exists to catch is a typo, and a typo is answered by the roster. The
 /// refusal therefore names the blocks that do exist, and says so differently for a tree that writes
 /// none — where the operator's next move is to add one rather than to correct a letter.
+// covers: directive:queue.connection
 #[test]
 fn an_unknown_connection_is_refused_with_the_blocks_that_exist() {
     let typo = refusal(&format!(

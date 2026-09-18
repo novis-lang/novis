@@ -1,0 +1,101 @@
+<?nvs
+// Attack: the database this deployment's background jobs live in, pushed by a
+// request that would rather they lived somewhere else. A redirect here is worth
+// more to an attacker than any other key in the block — the queue's rows are
+// written with the deployment's own credentials, so a connection that moved
+// would both leak every job an operator enqueues and let this request claim
+// work it was never granted, and it would do it silently, because a queue that
+// stores nothing and a queue nobody enqueued to look exactly alike. The
+// connection still reading what the file wrote, after all of it, is the
+// evidence that nothing moved.
+// hostile: timeout-ms 20000
+
+// 1. Every name a redirect could be written as. The interesting ones are not
+//    the obviously hostile strings: a name that some layer trims, folds or
+//    truncates into `main` is a value that gets *accepted* on the way past a
+//    refusal, and a name carrying a newline is how a second block arrives in a
+//    file that only ever had one.
+array<string> $names = [
+    'main',
+    'MAIN',
+    'Main',
+    ' main',
+    'main ',
+    "main\u{0000}",
+    "main\n[db.main]\nurl = \"postgres://attacker/jobs\"",
+    "main\r\n",
+    'main.',
+    '.main',
+    'main/../attacker',
+    'attacker',
+    '',
+    '0',
+    'null',
+    'postgres://attacker/jobs',
+    '../../etc/nvs.toml',
+    Core\Str::repeat('main', 100000),
+    Core\Str::repeat('../', 100000) . 'main',
+];
+foreach ($names as string $name) {
+    Core\Config::set('queue.connection', $name);
+    Core\Config::restore('queue.connection');
+}
+
+// 2. Every spelling of the key, because a refusal that matches the key by text
+//    rather than by the row governing it is one near-miss away from letting a
+//    write through. The per-app form is the one that matters: an application
+//    block is the place a deployment legitimately writes queue keys, so a
+//    request reaching it reaches the same table from the other side.
+array<string> $keys = [
+    'queue.connection',
+    'QUEUE.CONNECTION',
+    'Queue.Connection',
+    'queue.connection ',
+    ' queue.connection',
+    'queue..connection',
+    'queue.connection.',
+    'app.0.queue.connection',
+    'app.1.queue.connection',
+    'app.-1.queue.connection',
+    'queue.CONNECTION',
+    "queue.connection\u{0000}",
+];
+foreach ($keys as string $key) {
+    Core\Config::set($key, 'attacker');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 3. All of it again, as fast as the runtime will take it, reading the value
+//    back every round. The key is read once when a worker is built rather than
+//    per job, so a write that nevertheless reached the published snapshot would
+//    be invisible to the enqueue that comes next and visible only to whatever
+//    the next boot dialled — here it shows as the standing value moving, which
+//    is the only place a request could ever see it.
+uint $changes = 0;
+string $standing = Core\Config::get('queue.connection') ?? '(nothing written)';
+uint $i = 0;
+while ($i < 200000) {
+    Core\Config::set('queue.connection', 'attacker');
+    Core\Config::set('app.0.queue.connection', 'attacker');
+    Core\Config::restore('queue.connection');
+    if ((Core\Config::get('queue.connection') ?? '(nothing written)') != $standing) {
+        $changes = $changes + 1;
+    }
+    $i = $i + 1;
+}
+
+// 4. And real work alongside, because a request that wants the queue moved is a
+//    request doing something else at the same time, and the block is read from
+//    under whatever that is.
+array<string> $payloads = [];
+uint $j = 0;
+while ($j < 20000) {
+    $payloads[] = 'job-' . $j . '-' . Core\Str::repeat('x', $j % 64);
+    $j = $j + 1;
+}
+
+echo 'changes: ', $changes, "\n";
+echo 'payloads built: ', Core\Arr::count($payloads), "\n";
+echo 'connection: ', Core\Config::get('queue.connection') ?? '(nothing written)', "\n";
+echo 'workers:    ', Core\Config::get('queue.workers') ?? '(nothing written)', "\n";
