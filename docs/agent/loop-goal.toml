@@ -1,14 +1,13 @@
-# Goal 68 -- `Core\Test`'s double half: a double is a shape checked against an interface, and a call
-# is asserted after the fact
+# Goal 69 -- `Core\BigInt`: the arbitrary-magnitude integer class ADR 0054 promised beside the
+# `decimal` scalar
 # The acceptance test, as data.
 #
-# `68-test-doubles.md` is the prose. One home each.
+# `69-bigint.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 
 files = [
-  # goal-switch.py unions the previous goal's fixtures in. This goal names none of its own: its
-  # proofs are `.nvst` cases, because `Core\Test` is unreachable from a build.
+  "examples/bigint.nvs",
   # carried from the previous goal by tools/goal-switch.py
   "examples/cache-shared-tls.nvs",
   "examples/webcrypto.nvs",
@@ -97,53 +96,34 @@ files = [
 [context]
 
 modules = [
-  # The class: the two rows, the two assertions, `assertCompletes` beside `advance`, and the
-  # module-doc section stage 0 owes. Every stage.
-  "crates/nvs-stdlib/src/test.rs",
-  # `CoreTy`: the written `T`, and the new method-reference variant. Stages 2 and 4.
+  # The model for every row, card and body, and the refusal classes. Stages 2 and 3.
+  "crates/nvs-stdlib/src/decimal.rs",
+  # `CLASSES`, `CoreTy`, `CoreMethod`. Stages 2 and 3.
   "crates/nvs-stdlib/src/registry.rs",
-  # A `Core`-owned instance is an ordinary object; where a class's renderer and comparer are set. Stage 2.
+  # A `Core`-owned instance is an ordinary object; the renderer and comparer fields. Stage 2.
   "crates/nvs-stdlib/src/instance.rs",
-  # `check_written_type_args`: where the call-site `T` arrives. Stages 2 and 3.
-  "crates/nvs-types/src/expr/calls.rs",
-  # Argument checking against a row: where the shape and the method reference are judged. Stages 3 and 4.
-  "crates/nvs-types/src/expr/args.rs",
-  # How a registry row becomes a signature the checker resolves. Stages 2 and 4.
-  "crates/nvs-types/src/core_lib.rs",
-  # Binding a row's `T`. Stages 2 and 3.
-  "crates/nvs-types/src/generics.rs",
-  # The two new codes. Stage 3.
-  "crates/nvs-diagnostics/src/lib.rs",
-  # `ClassDesc` and `MethodRow`: the double's descriptor and its trampolines. Stage 2.
-  "crates/nvs-runtime/src/object.rs",
-  # `call_closure`: reaching a slot's closure from a trampoline. Stage 2.
-  "crates/nvs-runtime/src/closure.rs",
-  # `call_method`: delegating a `partial`'s unoverridden method to `$real`. Stage 2.
-  "crates/nvs-runtime/src/dispatch.rs",
-  # `lower_new` on a `Core` class, the model if the descriptor is built at lowering. Stage 2.
-  "crates/nvs-ir/src/lower/expr.rs",
-  # The ratchet, struck in the same group as the rows. Stage 2.
+  # `mod` list: where the new module is declared. Stage 2.
+  "crates/nvs-stdlib/src/lib.rs",
+  # `gcd` and `lcm` on `int`, mirrored on the class. Stage 3.
+  "crates/nvs-stdlib/src/math.rs",
+  # The `decimal` layout `toDecimal` fills: a 96-bit mantissa and a scale. Stage 3.
+  "crates/nvs-runtime/src/decimal.rs",
+  # The tier guard the new class must satisfy. Stage 2.
+  "crates/nvs-stdlib/tests/tier_boundary.rs",
+  # The ratchet, struck in the same edit that registers the class. Stages 2 and 5.
   "crates/nvs-stdlib/tests/spec-members-compiler-facing-outstanding.txt",
-  # `rule:core-classes/derive-attribute`'s derive pass: which classes carry `#[Json\Derive]` or
-  # `#[Db\Derive]`, which of their properties are fields, and what wire key each field has.
-  "crates/nvs-types/src/derive.rs",
-  # Interface conformance: every method a class's interfaces declare without a body, the class has
-  # to answer.
-  "crates/nvs-types/src/conformance.rs",
-  # `rule:testing/test-attribute`'s runner: the `#[Test]` table a compile already built (§ 1),
-  # constructed and called (§ 20), judged off § 5's ledger — `run_case` owns why that and not the
-  # exception state — and reported in one of § 22's formats.
-  "crates/nvs-cli/src/runner.rs",
-  # `Core\BigInt` — an integer of any magnitude, immutable and method-based, which is what ADR
-  # 0054 § 5 named as the replacement for `gmp` and the integer half of `bcmath`.
-  "crates/nvs-stdlib/src/bigint.rs",
+  # The paragraph stage 0 rewrites.
+  "docs/rules/core-api/tier-roster.md",
+  # The one home of the natural order every member reads, and the row a `Core\BigInt` goes down.
+  # Stages 4 and 5.
+  "crates/nvs-stdlib/src/ordering.rs",
 ]
 
-rules = ["testing/doubles", "testing/interaction-after-the-fact"]
+rules = ["types/decimal", "core-api/tier-roster", "classes/comparable"]
 
 adrs = []
 
-shapes = ["A commit message", "A `Core` member — the five edits", "A `.nvst` test case", "A diagnostic"]
+shapes = ["A commit message", "A `Core` member — the five edits", "A `.nvst` test case"]
 
 milestones = []
 
@@ -161,8 +141,7 @@ playbook = [
   'Writing Novis itself > a core row that',
   "Writing Novis itself > a new core row's",
   "Writing Novis itself > a core class's",
-  'Writing Novis itself > a core call that',
-  'Writing Novis itself > a new corety variant is',
+  'Writing Novis itself > nvs-types depends',
   'Writing a test case > a crate with the',
 ]
 
@@ -170,27 +149,20 @@ plan = ["Open now", "Blocking"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `68-test-doubles.md`. PROSE stage numbers;
-# loop-authoring.md section 2 is the whole of it.
+# THE STAGES. One table per prose stage in `69-bigint.md`. PROSE stage numbers; loop-authoring.md
+# section 2 is the whole of it.
 # ---------------------------------------------------------------------------------------------------
 
 [context.stage.2]
-rules = ["types/shape-type", "types/closure-literal", "testing/tests-never-reach-a-build"]
-adrs = ["0079 §10"]
+rules = ["packaging/a-c-dependency-answers-two-questions", "classes/comparable", "classes/stringable"]
+adrs = ["0054 §5", "0054 §6"]
 
 [context.stage.3]
-rules = ["types/shape-type", "types/callable-is-a-closure", "classes/interface-default-methods", "classes/interface-private-methods"]
-adrs = ["0079 §10"]
+rules = ["types/arithmetic", "types/conversion"]
+adrs = []
 
-[context.stage.4]
-rules = ["testing/assertions-are-typed"]
-adrs = ["0079 §11"]
-
-[context.stage.5]
-rules = ["testing/task-tree-and-virtual-clock"]
-adrs = ["0079 §16"]
-
-# A double is an object allocated and released with the test's request, so the leak sweep reads it.
+# A `BigInt` is an object per value, allocated and released with the request, so the leak sweep reads
+# `examples/bigint.nvs` like any other fixture.
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-socket.nvs", "examples/queue-sqlite.nvs", "examples/cache-shared-tls.nvs"]
 
@@ -207,7 +179,7 @@ memoize_on = ["crates/nvs-db", "crates/nvs-stdlib", "tests/db"]
 
 # <<< goal-switch: floor checks are inserted below this line >>>
 
-# 882 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# 895 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
 # They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
 # Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
@@ -11773,14 +11745,9 @@ name = "no differential case spells the refused keyword, and the two that did ar
 argv = ["git", "grep", "-l", "-i", "-w", "instanceof", "--", "tests/differential"]
 exit = "nonzero"
 
-
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- the gate becomes fatal. Goal prose stage 2.
 # ---------------------------------------------------------------------------------------------------
-
-
-
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- the keystone: the rows and the runtime. Goal prose stage 2.
@@ -11788,10 +11755,9 @@ exit = "nonzero"
 # Every test and case named below must EXIST and pass. None does yet; writing one is how an item
 # finishes. Do not rename one to something already green.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "nvs-suite"
-stage = "2 the keystone"
+stage = "1 floor"
 name = "conformance (a double is a `T`, answers with its closures, and a partial delegates)"
 args = ["test", "tests/conformance/"]
 cases = [
@@ -11802,21 +11768,19 @@ cases = [
 
 [[check]]
 kind = "cargo-named"
-stage = "2 the keystone"
+stage = "1 floor"
 name = "nvs-stdlib (every call a double answers is recorded)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
   "a_double_records_every_call_it_answers",
 ]
 
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 3 -- the refusals. Goal prose stage 3.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "3 the refusals"
+stage = "1 floor"
 name = "nvs-types (a double is checked against its interface)"
 args = ["test", "-p", "nvs-types"]
 tests = [
@@ -11829,7 +11793,7 @@ tests = [
 
 [[check]]
 kind = "nvs-suite"
-stage = "3 the refusals"
+stage = "1 floor"
 name = "conformance (ADR 0079 § 10's two refusals)"
 args = ["test", "tests/conformance/"]
 cases = [
@@ -11837,14 +11801,12 @@ cases = [
   "tests/conformance/reject/a-double-declaring-a-method-the-interface-lacks-is-refused.nvst",
 ]
 
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 4 -- the two assertions. Goal prose stage 4.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "nvs-suite"
-stage = "4 the assertions"
+stage = "1 floor"
 name = "conformance (the record is asserted after the fact)"
 args = ["test", "tests/conformance/"]
 cases = [
@@ -11852,7 +11814,6 @@ cases = [
   "tests/conformance/core/assert-never-called-fails-naming-the-call-it-found.nvst",
   "tests/conformance/reject/a-method-reference-names-a-method-the-interface-lacks.nvst",
 ]
-
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 5 -- `assertCompletes`. Goal prose stage 5.
@@ -11863,7 +11824,7 @@ cases = [
 # `a_test_at_a_fixed_clock_reads_that_clock` and the `.nvst` case that pins the refusal.
 [[check]]
 kind = "cargo-named"
-stage = "5 completes"
+stage = "1 floor"
 name = "nvs-cli (a body completes under the test's clock, or fails naming the duration)"
 args = ["test", "-p", "nvs-cli"]
 tests = [
@@ -11873,60 +11834,174 @@ tests = [
 
 [[check]]
 kind = "nvs-suite"
-stage = "5 completes"
+stage = "1 floor"
 name = "conformance (assertCompletes refuses where no test fixed a clock)"
 args = ["test", "tests/conformance/"]
 cases = [
   "tests/conformance/core/assert-completes-refuses-without-a-fixed-clock.nvst",
 ]
 
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 6 -- the rulebook and the gate. Goal prose stage 6.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "6 the gate"
+stage = "1 floor"
 name = "no `Core\\Test` key is outstanding"
 argv = ["git", "grep", "-n", "Test::", "--", "crates/nvs-stdlib/tests/spec-members-compiler-facing-outstanding.txt"]
 exit = "nonzero"
 
 [[check]]
 kind = "command"
-stage = "6 the gate"
+stage = "1 floor"
 name = "the doubles rule is shipped"
 argv = ["git", "grep", "-n", "-A", "2", "\"id\": \"testing/doubles\"", "--", "docs/rules/testing.json"]
 want = ["\"status\": \"shipped\""]
 
 [[check]]
 kind = "command"
-stage = "6 the gate"
+stage = "1 floor"
 name = "the interaction rule is shipped"
 argv = ["git", "grep", "-n", "-A", "2", "\"id\": \"testing/interaction-after-the-fact\"", "--", "docs/rules/testing.json"]
 want = ["\"status\": \"shipped\""]
 
 [[check]]
 kind = "command"
-stage = "6 the gate"
+stage = "1 floor"
 name = "the rendered rulebook is current"
 argv = ["python", "tools/rules.py", "--render", "--check"]
 
 [[check]]
 kind = "command"
-stage = "6 the gate"
+stage = "1 floor"
 name = "no gap names this goal"
 argv = ["python", "tools/owners.py", "--closes", "test-doubles"]
 
 [[check]]
+kind = "cargo-named"
+stage = "1 floor"
+name = "nvs-stdlib (the ratchet and the reference cards)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "every_outstanding_key_names_an_owner",
+  "every_registry_row_carries_a_reference_card",
+]
+
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the class and its representation. Goal prose stage 2.
+#
+# Every test and case named below must EXIST and pass. None does yet except the tier guard; writing
+# one is how an item finishes. Do not rename one to something already green.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the class"
+name = "nvs-stdlib (a BigInt renders and compares through its descriptor, inside Tier 0)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_bigint_renders_and_compares_through_its_descriptor",
+  "no_class_outside_tier_zero_registers_a_core_name",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the roster. Goal prose stage 3. The fixture's lines are the roster's worked example:
+# a factorial past 2^63, a power, `powMod` on the textbook RSA figures, the `div`/`mod` identity on a
+# negative dividend, and `toInt` on both sides of the `int` bound.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "exact"
+stage = "3 the roster"
+file = "examples/bigint.nvs"
+want = [
+  "30! = 265252859812191058636308480000000",
+  "2^100 = 1267650600228229401496703205376",
+  "4^13 mod 497 = 445",
+  "-7 = 2 * -3 + -1",
+  "int max = 9223372036854775807",
+  "int max + 1: ArithmeticError",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the proofs. Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "4 the proofs"
+name = "conformance (the depth shapes over BigInt)"
+args = ["test", "tests/conformance/"]
+# Drafted before the cases were written, and repointed to the names their author chose: each row below
+# holds the claim the drafted name asked for, `--TEST--` line for `--TEST--` line. The last row was not
+# drafted: the ordering a class states is read by five members past `sort`, and that is the case pinning
+# them agreeing with `compareTo` and refusing a class that declares none.
+cases = [
+  "tests/conformance/core/bigint-div-and-mod-agree-with-the-int-operators-over-a-sign-sweep.nvst",
+  "tests/conformance/core/bigint-grows-past-the-int-bound-and-narrows-back-on-both-sides-of-it.nvst",
+  "tests/conformance/core/bigint-round-trips-through-every-radix-and-refuses-the-digits-none-has.nvst",
+  "tests/conformance/core/bigint-orders-through-compare-to-and-every-spelling-of-it-agrees.nvst",
+  "tests/conformance/core/bigint-refuses-a-zero-divisor-a-negative-root-and-an-answer-past-its-width.nvst",
+  "tests/conformance/core/bigint-number-theory-members-answer-their-own-identities.nvst",
+  "tests/conformance/core/ordering-over-objects-agrees-with-compare-to-in-arr-and-math-and-refuses-a-class-without-one.nvst",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the proofs"
+name = "nvs-stdlib (the two bounds a BigInt is written around)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_bigint_past_the_int_range_refuses_to_int",
+  "bigint_div_and_mod_agree_over_a_sign_sweep",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- the gate.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
 kind = "command"
-stage = "6 the gate"
+stage = "5 the gate"
+name = "no `Core\\BigInt` key is outstanding"
+# A key is a line that is not a comment, and the file's own header names `Core\BigInt` twice while
+# explaining the key shape -- so a bare `BigInt` would match the prose that outlives every key.
+argv = ["git", "grep", "-n", "-E", "^[^#]*BigInt", "--", "crates/nvs-stdlib/tests/spec-members-compiler-facing-outstanding.txt"]
+exit = "nonzero"
+
+[[check]]
+kind = "command"
+stage = "5 the gate"
+name = "the tier roster no longer lists big integers as unregistered"
+argv = ["git", "grep", "-n", "-i", "big integers", "--", "docs/rules/core-api/tier-roster.md"]
+exit = "nonzero"
+
+[[check]]
+kind = "command"
+stage = "5 the gate"
+name = "the rendered rulebook is current"
+argv = ["python", "tools/rules.py", "--render", "--check"]
+
+[[check]]
+kind = "command"
+stage = "5 the gate"
+name = "no gap names this goal"
+argv = ["python", "tools/owners.py", "--closes", "bigint"]
+
+[[check]]
+kind = "command"
+stage = "5 the gate"
 name = "the chain still walks"
 argv = ["python", "tools/chain.py", "--check"]
 
 [[check]]
 kind = "cargo-named"
-stage = "6 the gate"
+stage = "5 the gate"
 name = "nvs-stdlib (the ratchet and the reference cards)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [

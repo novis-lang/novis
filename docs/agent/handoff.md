@@ -2,44 +2,35 @@
 
 ## State
 
-**Goal `bigint` is finished.** The class, its 24 members, seven conformance cases,
-`examples/bigint.nvs` and the three guard tests in `crates/nvs-stdlib/src/bigint.rs`'s own `mod tests`
-are on disk, and every stage-4 and stage-5 check in `docs/agent/goals/69-bigint.toml` passes by hand
-today.
+**Goal `bigint` — `Core\BigInt` — has just started; nothing of it has landed yet.** Goal
+`test-doubles`'s whole list is this goal's Stage 1 floor.
 
-**The natural order over objects is pinned where it is read.** `Core\Arr::min`/`max` and
-`Core\Math::min`/`max`/`clamp` agree with `compareTo` over a `Core\BigInt` table — counted over every
-ordered pair rather than read off a line — and all seven members that reach
-`crate::ordering::compare_values` refuse a class that declares none, each naming itself in front of the
-one shared message. `rule:classes/comparable` is the rule; the sort spelling was already pinned.
-
-**The live `docs/agent/loop-goal.*` is goal `test-doubles`, and its stage-6 gate is green by hand.**
-The `Core\Test` key is struck, both rules are `shipped`, the rulebook renders clean, neither
-`owners.py --closes` nor `playbook.py --closes` names it, and `chain.py --check`'s only complaint was a
-goal named by its number in this file, which this rewrite drops. This session claims it.
-
-**The floor's `abi-probe` failure is load, not a regression** — see the playbook bullet.
+Settled before the first session: ADR 0054 § 5 names the class and the crate, the goal prose's
+§ *Stage 3* is the roster and § *Standing decisions* the representation, the refusal classes and the
+two things that are not this goal. The `§13 Core\BigInt` key already names this goal
+(`crates/nvs-stdlib/tests/spec-members-compiler-facing-outstanding.txt:22`), re-owned by hand on
+2026-09-18.
 
 ## Next group
 
-**Goal `bigint`, the gate** — one file set: `docs/agent/goals/69-bigint.toml`,
-`crates/nvs-stdlib/src/ordering.rs`, `tests/conformance/core/`.
+**Stages 2 and 3, the class and its roster** — one file set: `crates/nvs-stdlib/src/bigint.rs` (new),
+`crates/nvs-stdlib/src/registry.rs`, `crates/nvs-stdlib/src/lib.rs`, `crates/nvs-stdlib/Cargo.toml`,
+`Cargo.lock`.
 
-- [ ] **Re-run the goal's own acceptance list and claim it** — every check passed by hand this session,
-      the ratchet gate included, and its manifest now names the ordering module and its rule. The
-      stage-4 suite is `docs/agent/goals/69-bigint.toml:139` and the gate begins at
-      `docs/agent/goals/69-bigint.toml:174`; `rule:classes/comparable` is what the gate pins.
-- [ ] **Say in the doc comment whether a `bytes` pair is ever going to have a natural order** —
-      `crates/nvs-stdlib/src/ordering.rs:46` calls it a one-line change here and one row in
-      `crate::sort` "once a rule says so", while `rule:types/bytes` gives it none and
-      `Core\Bytes::compare` is the spelling that does. Nothing is asking for the row; what is owed is
-      the sentence naming that rule as the reason it stays out.
+- [ ] **The crate and the module** — `num-bigint` into `crates/nvs-stdlib/Cargo.toml`, `mod bigint;`
+      beside `crates/nvs-stdlib/src/lib.rs:242`'s `mod test;`, and `crate::bigint::CLASS` beside
+      `crates/nvs-stdlib/src/registry.rs:1530`'s `crate::decimal::CLASS`.
+- [ ] **The two slots and the two descriptor fields** — `crates/nvs-stdlib/src/instance.rs:185` is
+      where a `Core` class's `renderer` and `comparer` are declared; `crates/nvs-stdlib/src/decimal.rs:84`
+      is the row shape to copy.
+- [ ] **Every row of § *Stage 3***, each with its reference card, under conventions.md's five edits.
+      Strike the key in the same edit.
+- [ ] **`examples/bigint.nvs`** with the frozen output the acceptance list names, and the
+      `tier-roster` paragraph rewritten (stage 0), then `python tools/rules.py --render`.
 
 ## Backlog
 
-- The heap half of the object ordering is pinned in `heap-orders-by-comparable-or-by-its-comparator.nvst`
-  and `heap-of-core-instants-needs-no-comparator.nvst`; the new case counts only its refusal.
-- Goal `gap-zero` is next in the chain and is where the ratchet file itself goes —
-  `docs/agent/goals/70-gap-zero.md`.
-- `examples/bigint.nvs` prints the five figures the goal's acceptance list freezes; nothing else reads
-  it — `docs/agent/goals/69-bigint.toml`.
+- **Stage 4, the depth cases** — `tests/conformance/core/`, four cases in the depth shapes and the
+  named guard tests in `crates/nvs-stdlib/tests/`. Disjoint from the group above; its own session
+  is fine.
+- When this goal's last check goes green the driver takes goal `gap-zero`.
