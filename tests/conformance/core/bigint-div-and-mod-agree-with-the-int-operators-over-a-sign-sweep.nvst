@@ -1,0 +1,51 @@
+--TEST--
+`Core\BigInt::div` truncates toward zero and `mod` carries the dividend's sign, agreeing with `Core\Math::intDiv` and `%` at every sign — `rule:types/arithmetic`, spec § 13
+--FILE--
+<?nvs
+// `div` truncates toward zero and `mod` carries the dividend's sign — the
+// answers `Core\Math::intDiv` and `%` already give on `int`. Asserting that by
+// counting agreements over a sweep of both signs is what catches a member that
+// floored one pair plausibly: every quotient below prints the same either way,
+// and only the count says all of them did.
+int $pairs = 0;
+int $agreed = 0;
+int $rebuilt = 0;
+array<int> $dividends = [-7, -6, -1, 0, 1, 6, 7];
+array<int> $divisors = [-3, -2, -1, 1, 2, 3];
+foreach ($dividends as int $a) {
+    foreach ($divisors as int $b) {
+        $pairs = $pairs + 1;
+        var $left = Core\BigInt::of($a);
+        var $right = Core\BigInt::of($b);
+        var $quotient = $left->div($right);
+        var $remainder = $left->mod($right);
+        if ($quotient->toInt() == Core\Math::intDiv($a, $b) && $remainder->toInt() == $a % $b) {
+            $agreed = $agreed + 1;
+        }
+        // The identity the pair is for: `div` and `mod` rebuild the dividend at
+        // every sign, which is the property that fails first when either member
+        // rounds the other way.
+        if ($quotient->mul($right)->add($remainder)->compareTo($left) == 0) {
+            $rebuilt = $rebuilt + 1;
+        }
+    }
+}
+echo "agreed on ", $agreed, " of ", $pairs, " and rebuilt ", $rebuilt, "\n";
+
+// The sign of a quotient is the product of its operands' signs, and `neg` and
+// `abs` are the two members that move one without touching the magnitude.
+var $seven = Core\BigInt::of(7);
+echo "signs ", $seven->sign(), $seven->neg()->sign(), $seven->neg()->neg()->sign(), "\n";
+echo "abs ", $seven->neg()->abs()->toString(), " neg ", $seven->neg()->toString(), "\n";
+echo "zero ", $seven->sub($seven)->sign(), " ", $seven->sub($seven)->neg()->toString(), "\n";
+
+// The same quotient read back through the two narrowing members: an exact
+// division answers the same number as a `decimal` and as an `int`.
+var $exact = Core\BigInt::of(84)->div(Core\BigInt::of(4));
+echo "exact ", $exact->toInt(), " ", $exact->toDecimal(), " ", $exact->toUint(), "\n";
+--EXPECT--
+agreed on 42 of 42 and rebuilt 42
+signs 1-11
+abs 7 neg -7
+zero 0 0
+exact 21 21 21

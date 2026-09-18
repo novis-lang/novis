@@ -1,0 +1,87 @@
+--TEST--
+A `Core\BigInt` grows past every scalar's bound and `toInt`, `toUint` and `toDecimal` each name both sides of their own — `rule:types/arithmetic` and `rule:types/decimal`, spec § 13
+--FILE--
+<?nvs
+// A factorial is the shortest program that leaves `int` behind: 20! is the
+// last one an `int` holds, and 21! is not. Counting where `toInt` stops
+// answering names both sides of that bound in one sweep — a member that
+// truncated instead of refusing would print a plausible number at every step.
+var $product = Core\BigInt::of(1);
+int $held = 0;
+int $refused = 0;
+string $firstRefusal = "";
+int $n = 1;
+while ($n <= 25) {
+    $product = $product->mul(Core\BigInt::of($n));
+    try {
+        $product->toInt();
+        $held = $held + 1;
+    } catch (ArithmeticError $tooWide) {
+        $refused = $refused + 1;
+        if ($refused == 1) {
+            $firstRefusal = $tooWide->message;
+        }
+    }
+    $n = $n + 1;
+}
+echo "held ", $held, " refused ", $refused, "\n";
+echo "25! = ", $product->toString(), "\n";
+echo "first refusal: ", $firstRefusal, "\n";
+
+// The bound named from both sides directly, rather than through a loop: the
+// largest `int` narrows and the next number does not, and the same question is
+// asked one scalar over, where `uint` reaches a bit further than `int` does.
+var $intMax = Core\BigInt::of(9223372036854775807);
+echo "intMax ", $intMax->toInt(), "\n";
+try {
+    echo $intMax->add(Core\BigInt::of(1))->toInt(), "\n";
+} catch (ArithmeticError $pastInt) {
+    echo "past int: ", $pastInt->message, "\n";
+}
+var $uintMax = Core\BigInt::ofUint(18446744073709551615);
+echo "uintMax ", $uintMax->toUint(), " sign ", $uintMax->sign(), "\n";
+try {
+    echo $uintMax->add(Core\BigInt::of(1))->toUint(), "\n";
+} catch (ArithmeticError $pastUint) {
+    echo "past uint: ", $pastUint->message, "\n";
+}
+
+// `toDecimal` has a third bound, and it is the scalar's 96-bit mantissa rather
+// than either integer's width.
+var $mantissa = Core\BigInt::of(2)->pow(96);
+echo "decimal ", $mantissa->sub(Core\BigInt::of(1))->toDecimal(), "\n";
+try {
+    echo $mantissa->toDecimal(), "\n";
+} catch (ArithmeticError $pastDecimal) {
+    echo "past decimal: ", $pastDecimal->message, "\n";
+}
+
+// A magnitude this wide is still an ordinary value: it renders, it formats in
+// another radix, and shifting it is multiplying and dividing by a power of two.
+echo "hex ", $mantissa->format({radix: 16}), " shr ", $mantissa->shr(90)->toString(), "\n";
+echo "shl ", Core\BigInt::of(3)->shl(64)->toString(), " back ", Core\BigInt::of(3)->shl(64)->shr(64)->toUint(), "\n";
+
+// The magnitudes these members exist for, asked at a width no `int` reaches:
+// a modular exponentiation never grows past its modulus however wide its base
+// is, an integer square root of 25! is strictly below it, and 20! divides 25!
+// — so the gcd of the two is the smaller and the lcm is the larger.
+var $twenty = Core\BigInt::parse("2432902008176640000");
+var $wide = Core\BigInt::parse("179769313486231590772930519078902473361797697894230657273430081157732675805500");
+echo "powMod ", $wide->powMod(Core\BigInt::of(65537), Core\BigInt::of(1000000007))->toInt(), "\n";
+echo "sqrt ", $product->sqrt()->toString(), " squared ", $product->sqrt()->pow(2)->compareTo($product), "\n";
+echo "gcd ", $product->gcd($twenty)->compareTo($twenty), " lcm ", $product->lcm($twenty)->compareTo($product), "\n";
+--EXPECT--
+held 20 refused 5
+25! = 15511210043330985984000000
+first refusal: Core\BigInt::toInt(): 51090942171709440000 is outside the `int` range
+intMax 9223372036854775807
+past int: Core\BigInt::toInt(): 9223372036854775808 is outside the `int` range
+uintMax 18446744073709551615 sign 1
+past uint: Core\BigInt::toUint(): 18446744073709551616 is outside the `uint` range
+decimal 79228162514264337593543950335
+past decimal: Core\BigInt::toDecimal(): 79228162514264337593543950336 is wider than a `decimal` holds
+hex 1000000000000000000000000 shr 64
+shl 55340232221128654848 back 3
+powMod 587591073
+sqrt 3938427356614 squared -1
+gcd 0 lcm 0

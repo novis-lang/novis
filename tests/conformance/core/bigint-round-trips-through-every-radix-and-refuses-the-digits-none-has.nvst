@@ -1,0 +1,80 @@
+--TEST--
+`Core\BigInt::format` and `parse` round-trip through all 35 radixes, and text that is not an integer in the radix asked for is a `ParseError` while a radix outside 2 to 36 is a `LogicError` — `rule:core-api/shape-rules` and `rule:types/conversion`, spec § 13
+--FILE--
+<?nvs
+// `format` writes and `parse` reads back, so a round trip through *every*
+// radix is one property asserted 35 times. Counting it is what catches a base
+// whose digit class is wrong in one direction only — a member that wrote `z`
+// and read `Z` prints correctly at 10 and 16 and fails here.
+var $value = Core\BigInt::parse("-123456789012345678901234567890");
+uint $radix = 2;
+int $round = 0;
+while ($radix <= 36) {
+    var $written = $value->format({radix: $radix});
+    if (Core\BigInt::parse($written, {radix: $radix})->compareTo($value) == 0) {
+        $round = $round + 1;
+    }
+    $radix = $radix + 1;
+}
+echo "round trips ", $round, " of 35\n";
+echo "b36 ", $value->format({radix: 36}), "\n";
+echo "b2 ", Core\BigInt::of(-10)->format({radix: 2}), " b8 ", Core\BigInt::of(-10)->format({radix: 8}), " b10 ", Core\BigInt::of(-10)->toString(), "\n";
+
+// The boundary a radix *is*: `1a` is a number from 11 up and not below it, so
+// one text swept across the range names the first radix that has the digit.
+int $accepted = 0;
+uint $first = 0;
+$radix = 2;
+while ($radix <= 36) {
+    try {
+        Core\BigInt::parse("1a", {radix: $radix});
+        $accepted = $accepted + 1;
+        if ($first == 0) {
+            $first = $radix;
+        }
+    } catch (ParseError $noDigit) {
+        $accepted = $accepted + 0;
+    }
+    $radix = $radix + 1;
+}
+echo "1a parsed in ", $accepted, " radixes, first ", $first, "\n";
+
+// What is not an integer in any radix: the whole text is read, so a separator,
+// a point, a space and a base prefix are each a refusal rather than a prefix
+// that stopped early. `1_000` is refused for the reason `"1_000" as int`
+// refuses it — the separator is an integer *literal*'s spelling.
+array<string> $bad = ["", "12.5", " 7", "1_000", "0x1f", "-"];
+int $refusals = 0;
+string $firstRefusal = "";
+foreach ($bad as string $text) {
+    try {
+        Core\BigInt::parse($text);
+    } catch (ParseError $notAnInteger) {
+        $refusals = $refusals + 1;
+        if ($refusals == 1) {
+            $firstRefusal = $notAnInteger->message;
+        }
+    }
+}
+echo "refused ", $refusals, " of 6: ", $firstRefusal, "\n";
+
+// A radix outside the range is the program's bug rather than its input's, so
+// it is the other class — and both members carrying the bag answer alike.
+try {
+    Core\BigInt::parse("10", {radix: 1});
+} catch (LogicError $tooNarrow) {
+    echo "parse: ", $tooNarrow->message, "\n";
+}
+try {
+    Core\BigInt::ofUint(255)->format({radix: 37});
+} catch (LogicError $tooWide) {
+    echo "format: ", $tooWide->message, "\n";
+}
+--EXPECT--
+round trips 35 of 35
+b36 -byw97um9s91dlz68tsi
+b2 -1010 b8 -12 b10 -10
+1a parsed in 26 radixes, first 11
+refused 6 of 6: Core\BigInt::parse(): `` is not an integer in radix 10
+parse: Core\BigInt::parse(): radix 1 is outside the 2 to 36 this class reads and writes
+format: Core\BigInt::format(): radix 37 is outside the 2 to 36 this class reads and writes

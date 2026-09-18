@@ -1,0 +1,67 @@
+--TEST--
+`Core\BigInt::compareTo` is the ordering, and `<=>`, `<`, `>`, `<=`, `>=` and the sign of a difference all agree with it over a table — `rule:classes/comparable`, spec § 13
+--FILE--
+<?nvs
+// Agreement, not a second list of the same shape: `compareTo` is the member,
+// and `<=>` and the four comparison operators lower to it. Asking one question
+// of every spelling and counting the answers is what catches an ordering that
+// grew a second implementation somewhere.
+array<Core\BigInt> $values = [
+    Core\BigInt::parse("-99999999999999999999"),
+    Core\BigInt::of(0),
+    Core\BigInt::of(-1),
+    Core\BigInt::parse("99999999999999999999"),
+    Core\BigInt::of(7),
+];
+int $pairs = 0;
+int $agreed = 0;
+foreach ($values as Core\BigInt $a) {
+    foreach ($values as Core\BigInt $b) {
+        $pairs = $pairs + 1;
+        int $spaceship = $a <=> $b;
+        int $member = $a->compareTo($b);
+        // The same order derived instead of asked for: the sign of a
+        // difference, which is a different code path through `sub` and `sign`.
+        int $bySign = $a->sub($b)->sign();
+        bool $operators = ($a < $b) == ($member < 0) && ($a > $b) == ($member > 0)
+            && ($a <= $b) == ($member <= 0) && ($a >= $b) == ($member >= 0);
+        if ($spaceship == $member && $member == $bySign && $operators) {
+            $agreed = $agreed + 1;
+        }
+    }
+}
+echo "agreed on ", $agreed, " of ", $pairs, "\n";
+
+// The ordering is a total one over a table, asserted by walking the table in
+// the order this list already claims: every adjacent pair is ascending, and
+// the count is what says none of them was equal or reversed.
+array<Core\BigInt> $ascending = [
+    Core\BigInt::parse("-99999999999999999999"),
+    Core\BigInt::of(-1),
+    Core\BigInt::of(0),
+    Core\BigInt::of(7),
+    Core\BigInt::parse("99999999999999999999"),
+];
+int $rising = 0;
+int $at = 1;
+while ($at < 5) {
+    if ($ascending[$at - 1]->compareTo($ascending[$at]) < 0) {
+        $rising = $rising + 1;
+    }
+    $at = $at + 1;
+}
+echo "rising ", $rising, " of 4, largest ", $ascending[4]->toString(), "\n";
+
+// Magnitude and sign are separate questions, and `abs` and `neg` are where
+// that shows: a negative value with the larger magnitude is the smaller value.
+var $small = Core\BigInt::of(-1);
+var $large = Core\BigInt::of(7);
+echo "signs ", $small->sign(), $large->sign(), $small->neg()->sign(), "\n";
+echo "abs ", $small->abs()->compareTo($large->neg()->abs()), " neg ", $large->neg()->compareTo($small), "\n";
+echo "format ", $small->format({radix: 2}), " ", $large->format({radix: 2}), " uint ", $large->toUint(), "\n";
+--EXPECT--
+agreed on 25 of 25
+rising 4 of 4, largest 99999999999999999999
+signs -111
+abs -1 neg -1
+format -1 111 uint 7

@@ -1,0 +1,75 @@
+--TEST--
+`Core\BigInt`'s `gcd`, `lcm`, `sqrt`, `pow`, `powMod` and the two shifts each answer their own definition over a sweep rather than a table of remembered answers — `rule:types/arithmetic`, spec § 13
+--FILE--
+<?nvs
+// The number-theory members are each defined by an identity, and asserting the
+// identity rather than a table of answers is what catches a member that is
+// right on the pairs somebody thought of. Every line below counts.
+array<int> $lefts = [0, 1, 6, 12, 17, 360, -48];
+array<int> $rights = [1, 4, 6, 18, 25, 97, -30];
+int $pairs = 0;
+int $product = 0;
+int $divides = 0;
+foreach ($lefts as int $a) {
+    foreach ($rights as int $b) {
+        $pairs = $pairs + 1;
+        var $left = Core\BigInt::of($a);
+        var $right = Core\BigInt::of($b);
+        var $gcd = $left->gcd($right);
+        var $lcm = $left->lcm($right);
+        // gcd × lcm is the product's magnitude, at every sign and including
+        // the zero row, where both sides are zero.
+        if ($gcd->mul($lcm)->compareTo($left->mul($right)->abs()) == 0) {
+            $product = $product + 1;
+        }
+        // And the gcd divides both operands exactly.
+        if ($gcd->sign() != 0 && $left->mod($gcd)->sign() == 0 && $right->mod($gcd)->sign() == 0) {
+            $divides = $divides + 1;
+        }
+    }
+}
+echo "pairs ", $pairs, " product ", $product, " divides ", $divides, "\n";
+
+// `sqrt` is the floor, which is two inequalities rather than one number: the
+// root squared does not exceed the value and the next one up does.
+int $bracketed = 0;
+int $n = 0;
+while ($n <= 40) {
+    var $square = Core\BigInt::of($n * $n * 7 + $n);
+    var $root = $square->sqrt();
+    if ($root->pow(2)->compareTo($square) <= 0 && $root->add(Core\BigInt::of(1))->pow(2)->compareTo($square) > 0) {
+        $bracketed = $bracketed + 1;
+    }
+    $n = $n + 1;
+}
+echo "bracketed ", $bracketed, " of 41, sqrt(10^20) ", Core\BigInt::of(10)->pow(20)->sqrt()->toUint(), "\n";
+
+// `powMod` is `pow` then `mod` wherever the whole power can be held, which is
+// what says the fast path answers the definition rather than its own thing.
+int $modular = 0;
+uint $exponent = 0;
+var $modulus = Core\BigInt::of(497);
+while ($exponent <= 20) {
+    var $base = Core\BigInt::of(4);
+    if ($base->powMod(Core\BigInt::ofUint($exponent), $modulus)->compareTo($base->pow($exponent)->mod($modulus)) == 0) {
+        $modular = $modular + 1;
+    }
+    $exponent = $exponent + 1;
+}
+echo "modular ", $modular, " of 21, 4^13 mod 497 = ", Core\BigInt::of(4)->powMod(Core\BigInt::of(13), $modulus)->toInt(), "\n";
+
+// A shift is a multiplication and a division by a power of two, and the second
+// one rounds toward negative infinity — which is where it parts from `div`.
+var $value = Core\BigInt::of(-9);
+echo "shl ", $value->shl(3)->toInt(), " = ", $value->mul(Core\BigInt::of(8))->toInt(), "\n";
+echo "shr ", $value->shr(1)->toInt(), " but div ", $value->div(Core\BigInt::of(2))->toInt(), "\n";
+echo "neg ", $value->neg()->toString(), " format ", $value->format({radix: 16}), " parse ", Core\BigInt::parse("-9")->compareTo($value), "\n";
+echo "decimal ", Core\BigInt::of(360)->gcd(Core\BigInt::of(48))->toDecimal(), " uint ", Core\BigInt::of(360)->lcm(Core\BigInt::of(48))->toUint(), "\n";
+--EXPECT--
+pairs 49 product 49 divides 49
+bracketed 41 of 41, sqrt(10^20) 10000000000
+modular 21 of 21, 4^13 mod 497 = 445
+shl -72 = -72
+shr -5 but div -4
+neg 9 format -9 parse 0
+decimal 24 uint 720
