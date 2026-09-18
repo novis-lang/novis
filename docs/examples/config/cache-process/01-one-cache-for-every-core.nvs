@@ -1,0 +1,33 @@
+<?nvs
+// `[cache.process]` configures the middle cache tier: one store that every core
+// of this process reads, rather than one store per core. Two settings, and this
+// is what the server running this program was given:
+//
+//     [cache.process]
+//     max_size = "32M"
+//     fill_wait = "5s"
+//
+// `max_size` is what its entries may hold together. The same figure buys more
+// here than on the local tier: this store is held once for the whole process,
+// where the local one is held once per core.
+
+var $cache = Core\Cache::process();
+
+// A value every core wants and only one of them should have to fetch.
+$cache->put('rates:eur', '0.92');
+echo 'eur rate: ', $cache->get('rates:eur') ?? '(fetch it)', "\n";
+
+echo 'cap:      ', Core\Config::get('cache.process.max_size') ?? '(the built-in cap)', "\n";
+
+// `fill_wait` is the second setting, and it is about misses rather than size.
+// When several requests ask `getSecret` for the same missing value at once, one
+// of them runs the fetch and the rest wait this long for its answer instead of
+// all running their own. A request still waiting when it runs out gives up with
+// a `TimeoutError`.
+echo 'wait:     ', Core\Config::get('cache.process.fill_wait') ?? '(the built-in wait)', "\n";
+
+// Both belong to whoever runs the server. Raising the cap would spend memory
+// every request on the machine then goes without, and shortening the wait would
+// decide for other requests how long they may wait on a fetch.
+echo 'raise:    ', Core\Config::set('cache.process.max_size', '1G') ? 'yes' : 'no', "\n";
+echo 'hurry:    ', Core\Config::set('cache.process.fill_wait', '1s') ? 'yes' : 'no', "\n";

@@ -1,0 +1,92 @@
+<?nvs
+// Attack: outrun `[cache.process] max_size` on the store every core of this
+// process shares, and break the single-filler rule `fill_wait` bounds. This tier
+// is held once per process, so an entry that escapes the cap is memory no
+// request owns and nothing frees, and a fill that never releases its slot holds
+// every other core's request for the length of that wait.
+//
+// It earns a longer clock than the default because two of its steps are volume
+// rather than shape: a gigabyte written through a 32 MiB window, and a hundred
+// thousand entries spread over the store's shards.
+// hostile: timeout-ms 40000
+
+var $store = Core\Cache::process();
+
+// 1. A gigabyte in one-megabyte entries, under keys that differ from the first
+//    character so they hash across the store's shards rather than queueing on
+//    one of them.
+string $megabyte = Core\Str::repeat('z', 1048576);
+uint $i = 0;
+while ($i < 1024) {
+    $store->put($i . ':bulk:' . $i, $megabyte);
+    $i = $i + 1;
+}
+
+// 2. One entry four times the whole ceiling, after the store is already full.
+$store->put('oversized', Core\Str::repeat('w', 134217728));
+
+// 3. A hundred thousand small entries, which is the accounting rather than the
+//    bytes: an entry costs its key, its payload and a fixed overhead, and a tier
+//    that charged only the payload would be a hundred thousand overheads past
+//    its cap here.
+uint $n = 0;
+while ($n < 100000) {
+    $store->put($n . ':small', $n);
+    $n = $n + 1;
+}
+
+// 4. The single-filler rule, attacked with fills that re-enter it. One fill asks
+//    for its own key, and two others ask for each other's -- a store that let
+//    either wait on the slot its own caller is holding would hang every core
+//    reading this map, which is what `fill_wait` exists to bound.
+secret bytes $material = Core\Crypto::generateKey();
+array<secret bytes> $ring = [$material];
+
+var $itself = fn (): Core\Cache\SecretEntry => {
+    var $inner = Core\Cache::process();
+    var $seen = $inner->getSecret('self', $ring) ?? 'none';
+    return Core\Cache\SecretEntry::of('self:' . $seen, 1h);
+};
+$store->getSecret('self', $ring, { fill: $itself });
+
+var $second = fn (): Core\Cache\SecretEntry => {
+    var $inner = Core\Cache::process();
+    var $seen = $inner->getSecret('first', $ring) ?? 'none';
+    return Core\Cache\SecretEntry::of('second:' . $seen, 1h);
+};
+var $first = fn (): Core\Cache\SecretEntry => {
+    var $inner = Core\Cache::process();
+    var $seen = $inner->getSecret('second', $ring, { fill: $second }) ?? 'none';
+    return Core\Cache\SecretEntry::of('first:' . $seen, 1h);
+};
+$store->getSecret('first', $ring, { fill: $first });
+
+// 5. A fill that throws instead of answering. The slot it was holding has to be
+//    released on the way out: a filler that kept it would make the next caller
+//    for that key wait out `fill_wait` and then fail, for a fetch that is no
+//    longer running.
+var $refuses = fn (): Core\Cache\SecretEntry => {
+    throw new RuntimeError('the token endpoint said no');
+};
+try {
+    $store->getSecret('token', $ring, { fill: $refuses });
+} catch (RuntimeError $refused) {
+    echo "the fill threw and the caller saw it\n";
+}
+var $answers = fn (): Core\Cache\SecretEntry => Core\Cache\SecretEntry::of('t0ken', 1h);
+$store->getSecret('token', $ring, { fill: $answers });
+
+// 6. Both keys of the block, from inside the request that they bound. `0` and
+//    `false` are the two values the boot check refuses for a wait, so a request
+//    that could write either would have removed the bound rather than moved it.
+array<string> $values = ['1G', '1024G', '0', 'false', '-1', '', '9999h'];
+foreach ($values as string $value) {
+    Core\Config::set('cache.process.max_size', $value);
+    Core\Config::set('cache.process.fill_wait', $value);
+    Core\Config::set('cache.process', $value);
+}
+Core\Config::restore('cache.process.fill_wait');
+
+// Still standing, and both bounds still whatever the file said.
+echo 'cap:  ', Core\Config::get('cache.process.max_size') ?? '(the built-in cap)', "\n";
+echo 'wait: ', Core\Config::get('cache.process.fill_wait') ?? '(the built-in wait)', "\n";
