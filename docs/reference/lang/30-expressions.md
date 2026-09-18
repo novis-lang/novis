@@ -2,7 +2,7 @@
 id: expressions
 title: Expressions and operators
 summary: every operator with its precedence and what it accepts, calls and closures, `match`, arrays and object literals in expression position, and the PHP spellings that do not parse
-keywords: operators, precedence, associativity, arithmetic, +, -, *, /, %, **, pow, concatenation, ., .=, ==, !=, ===, !==, <>, <=>, spaceship, comparison, <, <=, >, >=, &&, ||, !, and, or, xor, ??, ??=, ?:, elvis, ternary, ?->, nullsafe, match, instanceof, new, clone, throw expression, print, isset, empty, unset, closure, fn, function, use, callable, first-class callable, named arguments, spread, ..., variadic, inout, array literal, subscript, append, [], destructuring, list(), object literal, shape, ++, --, increment, bitwise, &, |, ^, ~, <<, >>, shift, overflow, ArithmeticError, division by zero, @, backticks, eval, extract, compact, settype, variable variables, $$, =&, reference, |>, pipeline, pipe, $_, hole, substitution
+keywords: operators, precedence, associativity, arithmetic, +, -, *, /, %, **, pow, concatenation, ., .=, ==, !=, ===, !==, <>, <=>, spaceship, comparison, <, <=, >, >=, &&, ||, !, and, or, xor, ??, ??=, ?:, elvis, ternary, ?->, nullsafe, match, is, new, clone, throw expression, print, isset, empty, unset, closure, fn, function, use, callable, first-class callable, named arguments, spread, ..., variadic, inout, array literal, subscript, append, [], destructuring, list(), object literal, shape, ++, --, increment, bitwise, &, |, ^, ~, <<, >>, shift, overflow, ArithmeticError, division by zero, @, backticks, eval, extract, compact, settype, variable variables, $$, =&, reference, |>, pipeline, pipe, $_, hole, substitution
 ---
 
 # Precedence and associativity
@@ -16,7 +16,7 @@ Highest first. A row binds tighter than every row below it.
 | `**` | right |
 | prefix `-` `+` `~` `++` `--` | — |
 | `\|>` | left |
-| `instanceof` | left |
+| `is` | left |
 | `!` | — |
 | `*` `/` `%` | left |
 | `+` `-` | left |
@@ -37,7 +37,7 @@ Highest first. A row binds tighter than every row below it.
 
 - `as` binds tighter than every binary and prefix operator: `-$s as int` is `-($s as int)`, `$s as int ** 2` is `($s as int) ** 2`, and a converted quotient needs parentheses, `($a / $b) as int`. The conversion itself is the types chapter's.
 - `**` is right-associative and binds tighter than a prefix sign: `-2 ** 2` is `-4`, `2 ** 3 ** 2` is `512`.
-- `!` binds looser than `instanceof`: `!$o instanceof C` is `!($o instanceof C)`.
+- `!` binds looser than `is`: `!$o is C` is `!($o is C)`.
 - `.` binds looser than `+`, `-`, `*` and the shifts: `"sum:" . 1 + 2` is `sum:3`.
 - `|>` binds tighter than every binary operator and looser than unary: `-$a |> Core\Math::abs($_)` is `Core\Math::abs(-$a)`, `"x=" . $a |> Core\Str::upper($_)` is `"x=" . Core\Str::upper($a)`, and `$x = $a |> Core\Str::trim($_)` assigns the whole pipeline. Its own section below has the form.
 - `new C()->m()` needs no parentheses; `clone $a->b` clones `$a->b`.
@@ -389,9 +389,9 @@ n is two
 no `match` arm matched the subject
 ```
 
-# `instanceof`, `new`, `clone`, `throw`, `print`, `exit`, `isset`, `empty`
+# `is`, `new`, `clone`, `throw`, `print`, `exit`, `isset`, `empty`
 
-- `$x instanceof C` answers whether `$x` holds an instance of class or interface `C`, and narrows `$x` to `C` in the branch where it held. The subject must be able to hold an object — `mixed`, `object`, a class type or a nullable one. On a declared scalar, array or enum it does not compile.
+- `$x is T` answers whether `$x` currently holds a `T`, for any type a value can inhabit, and narrows `$x` to `T` in the branch where it held. It is total: a subject whose declared type settles the answer compiles and folds to `true` or `false`. A `$` on the right is the one value form, `$x is $cls`, where `$cls` is a `class<T>`; anything else on the right is a type.
 - `new C(args)` constructs; the argument list is a call's, named arguments included, and may be omitted when empty. `new static()` and `new self()` work inside a class. `new C(...)` has no first-class form.
 - `clone $o` is a shallow copy of an object: scalar and array properties are copied, object properties are shared. There is no clone hook. `clone` takes an object only.
 - `throw expr` is an expression, so it sits on the right of `??`, `||` or a ternary arm; the errors chapter owns what may be thrown.
@@ -413,7 +413,7 @@ $b->list[] = 2;
 $b->in->v = 9;
 echo Core\Arr::count($a->list), Core\Arr::count($b->list), " ", $a->in->v, " ", ($a == $b) as string, "|\n";
 mixed $m = new Inner();
-if ($m instanceof Inner) { echo "inner ", $m->v, "\n"; }
+if ($m is Inner) { echo "inner ", $m->v, "\n"; }
 ?int $none = null;
 array<?int> $arr = ["k" => null, "j" => 1];
 echo isset($none) as string, isset($arr["k"]) as string, isset($arr["j"]) as string, isset($arr["zz"]) as string, "|";
@@ -435,11 +435,14 @@ inner 1
 ```nvs error
 <?nvs
 class Box {}
-int $n = 1;
-bool $b = $n instanceof Box;
+class T {
+    public function m(mixed $v, string $name): void {
+        bool $b = $v is $name;
+    }
+}
 ```
 ```output
-can never be an object
+not a class name
 ```
 
 # Calls

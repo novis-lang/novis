@@ -2,7 +2,7 @@
 id: types
 title: Types, declarations and conversions
 summary: every type, how a binding declares one, every literal, the `as` conversion and its table, implicit widening, narrowing, truthiness, and the `tainted`/`secret` qualifiers
-keywords: bool, int, uint, float, decimal, string, bytes, array<T>, callable, class<T>, class reference, mixed, object, nullable, ?T, union, literal type, enum, shape, object literal, type alias, void, never, self, static, iterable, intersection, var, declaration, inout, variadic, default parameter, constant, literal, heredoc, nowdoc, interpolation, duration, as, conversion, cast, (int), (string), (float), (bool), (array), intval, strval, floatval, boolval, settype, gettype, is_int, is_string, is_array, is_null, is_numeric, widening, narrowing, instanceof, truthy, falsy, tainted, secret, resource
+keywords: bool, int, uint, float, decimal, string, bytes, array<T>, callable, class<T>, class reference, mixed, object, nullable, ?T, union, literal type, enum, shape, object literal, type alias, void, never, self, static, iterable, intersection, var, declaration, inout, variadic, default parameter, constant, literal, heredoc, nowdoc, interpolation, duration, as, conversion, cast, (int), (string), (float), (bool), (array), intval, strval, floatval, boolval, settype, gettype, is_int, is_string, is_array, is_null, is_numeric, widening, narrowing, is, truthy, falsy, tainted, secret, resource
 ---
 
 # Every binding has a type
@@ -188,11 +188,11 @@ echo $grid[0][1], " ", Core\Json::encode($a), "\n";
   callable string. A call through a `callable` variable answers `mixed`, so its result is converted:
   `$f(4) as int`.
 - A class, interface or enum name is a type wherever a type is written. `object` is the top of every
-  class type: any instance assigns to it, a property is read through it by name, and `instanceof` or
+  class type: any instance assigns to it, a property is read through it by name, and `is` or
   `as ClassName` gets the class back.
 - `class<T>` is a **class reference**: not an instance, but a class itself, where `T` is the class or
   interface every value of the type names. `class<Dog>` widens to `class<Animal>`. Three sites take
-  one and nothing else — `new $cls(...)`, `$cls::f(...)` and `$x instanceof $cls`, each refusing a
+  one and nothing else — `new $cls(...)`, `$cls::f(...)` and `$x is $cls`, each refusing a
   bare `string` — and `as` is its only source (below). `Foo::class` is a `string` and stays one. Two
   class references are equal when they are the same class; nothing else is ever equal to one.
 - A **shape** `{x: int, y: string}` is a structural object type, and an **object literal**
@@ -216,7 +216,7 @@ var $q = {x: 3, y: 4, z: "extra"};
 $q->x = 30;
 echo Geo::sum($p), " ", Geo::sum($q), " ", $q->z, "\n";
 object $o = new Cell();
-echo $o->n, " ", ($o instanceof Cell) ? "cell" : "other", " ", ($o as Cell)->n, "\n";
+echo $o->n, " ", ($o is Cell) ? "cell" : "other", " ", ($o as Cell)->n, "\n";
 callable $double = fn(int $x): int => $x * 2;
 echo $double(4) as int, "\n";
 ```
@@ -230,7 +230,7 @@ echo $double(4) as int, "\n";
 
 `mixed` is the one unchecked position: it holds a value of any type, and what is done with it is
 decided at run time from the value's own tag. A `mixed` may be an operand of arithmetic, a
-condition, a subscript base, a receiver of `->`, a `.` operand and the subject of `instanceof` or
+condition, a subscript base, a receiver of `->`, a `.` operand and the subject of `is` or
 `as`. It does **not** widen into anything narrower: a `mixed` handed to a `string` parameter is a
 compile error until it is converted.
 
@@ -532,7 +532,7 @@ name that denotes no class this program declares to be a `T` when the target is 
 
 `expr as ?T` is the same conversion answering `null` instead of throwing. It is refused where
 `as T` cannot fail (`$i as ?int` on an `int`) and for a class target (`$o as ?Foo`): an object is
-tested with `instanceof`. A `class<T>` target is not a class target and is available: `$name as
+tested with `is`. A `class<T>` target is not a class target and is available: `$name as
 ?class<Animal>` answers `null` for every name `as class<Animal>` would throw for — one that denotes
 no class, and one that denotes a class outside `Animal`'s hierarchy. A written-out `Foo::class`
 operand stays decided at compile time under both spellings, so `Rock::class as ?class<Animal>` is
@@ -594,7 +594,7 @@ class<Animal> $folded = Dog::class as class<Animal>;
 string $name = "Dog";
 class<Animal> $picked = $name as class<Animal>;
 Animal $pet = new $picked();
-echo $pet->speak(), " ", ($pet instanceof $folded) ? "a Dog" : "not", "\n";
+echo $pet->speak(), " ", ($pet is $folded) ? "a Dog" : "not", "\n";
 string $missing = "Cat";
 try {
     class<Animal> $bad = $missing as class<Animal>;
@@ -658,8 +658,8 @@ The conversion table. A pair not listed is a compile error naming both types.
 Inside the branch a test proves, a binding is read at the narrower type. Four spellings narrow:
 
 - `$x == null` / `$x != null` on a `?T`, on whichever edge proves the value present (`!` inverts).
-- `$x instanceof C` on a `?C`, a union, `object` or `mixed`, on the true edge only: after
-  `if ($pet instanceof Cat) { return …; }` the binding is still `Dog|Cat`, not `Dog`.
+- `$x is C` on a `?C`, a union, `object` or `mixed`, on the true edge only: after
+  `if ($pet is Cat) { return …; }` the binding is still `Dog|Cat`, not `Dog`.
 - `$x == literal` (or an enum case) on a literal or enum-case union, on the edge that proves it.
 - `match (true)` and `switch (true)`: each arm's label is one of the tests above and narrows its
   own body. `default` narrows nothing.
@@ -687,7 +687,7 @@ class Ask {
         return $d->speak();
     }
     public static function either(Dog|Cat $pet): string {
-        if ($pet instanceof Cat) {
+        if ($pet is Cat) {
             return $pet->purr();
         }
         return ($pet as Dog)->speak();
@@ -701,8 +701,8 @@ class Ask {
     }
     public static function viaMatch(mixed $v): string {
         return match (true) {
-            $v instanceof Dog => $v->speak(),
-            $v instanceof Cat => $v->purr(),
+            $v is Dog => $v->speak(),
+            $v is Cat => $v->purr(),
             default => "other",
         };
     }
@@ -950,7 +950,7 @@ cannot be passed to `Core\Json::encode`
 | `(int)$x`, `(string)$x`, `(float)$x`, `(bool)$x`, `(array)$x` | `$x as int`, … — the cast syntax is refused naming `as` |
 | `intval`, `strval`, `floatval`, `boolval` | `as int`, `as string`, `as float`, `as bool` |
 | `settype($x, "string")` | refused: a binding's type never changes — convert into a new binding |
-| `gettype`, `is_int`, `is_string`, `is_array`, `is_null`, `is_numeric` | no free function exists; test a `mixed` with `instanceof` for a class, `($m as ?int) != null` for a scalar, `== null` for null |
+| `gettype`, `is_int`, `is_string`, `is_array`, `is_null`, `is_numeric` | no free function exists; test a `mixed` with `is` for a class, `($m as ?int) != null` for a scalar, `== null` for null |
 | `resource` | no such type; a handle is a `Core` object |
 | a callable string `"Foo::bar"`, `[$obj, "m"]` | refused; a `callable` is a closure written with `fn` |
 | `$s[0]` on a string | `Core\Str::at`, `Core\Str::slice` |

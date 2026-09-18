@@ -39,10 +39,10 @@ Conventions the whole file uses:
 ### Part A — The language
 
 - A.1 [Programs, files and names](#lang-programs) — what a `.nvs` file is, how it runs, how names are spelled and resolved, and how one file reaches another *(<?nvs, <?=, ?>, inline HTML, shebang, nvs run, echo, print, comments, exit, namespace, use, require, autoload, discover, class name, casing, constructor, visibility, top-level statements, main)*
-- A.2 [Types, declarations and conversions](#lang-types) — every type, how a binding declares one, every literal, the `as` conversion and its table, implicit widening, narrowing, truthiness, and the `tainted`/`secret` qualifiers *(bool, int, uint, float, decimal, string, bytes, array<T>, callable, class<T>, class reference, mixed, object, nullable, ?T, union, literal type, enum, shape, object literal, type alias, void, never, self, static, iterable, intersection, var, declaration, inout, variadic, default parameter, constant, literal, heredoc, nowdoc, interpolation, duration, as, conversion, cast, (int), (string), (float), (bool), (array), intval, strval, floatval, boolval, settype, gettype, is_int, is_string, is_array, is_null, is_numeric, widening, narrowing, instanceof, truthy, falsy, tainted, secret, resource)*
-- A.3 [Expressions and operators](#lang-expressions) — every operator with its precedence and what it accepts, calls and closures, `match`, arrays and object literals in expression position, and the PHP spellings that do not parse *(operators, precedence, associativity, arithmetic, +, -, *, /, %, **, pow, concatenation, ., .=, ==, !=, ===, !==, <>, <=>, spaceship, comparison, <, <=, >, >=, &&, ||, !, and, or, xor, ??, ??=, ?:, elvis, ternary, ?->, nullsafe, match, instanceof, new, clone, throw expression, print, isset, empty, unset, closure, fn, function, use, callable, first-class callable, named arguments, spread, ..., variadic, inout, array literal, subscript, append, [], destructuring, list(), object literal, shape, ++, --, increment, bitwise, &, |, ^, ~, <<, >>, shift, overflow, ArithmeticError, division by zero, @, backticks, eval, extract, compact, settype, variable variables, $$, =&, reference, |>, pipeline, pipe, $_, hole, substitution)*
+- A.2 [Types, declarations and conversions](#lang-types) — every type, how a binding declares one, every literal, the `as` conversion and its table, implicit widening, narrowing, truthiness, and the `tainted`/`secret` qualifiers *(bool, int, uint, float, decimal, string, bytes, array<T>, callable, class<T>, class reference, mixed, object, nullable, ?T, union, literal type, enum, shape, object literal, type alias, void, never, self, static, iterable, intersection, var, declaration, inout, variadic, default parameter, constant, literal, heredoc, nowdoc, interpolation, duration, as, conversion, cast, (int), (string), (float), (bool), (array), intval, strval, floatval, boolval, settype, gettype, is_int, is_string, is_array, is_null, is_numeric, widening, narrowing, is, truthy, falsy, tainted, secret, resource)*
+- A.3 [Expressions and operators](#lang-expressions) — every operator with its precedence and what it accepts, calls and closures, `match`, arrays and object literals in expression position, and the PHP spellings that do not parse *(operators, precedence, associativity, arithmetic, +, -, *, /, %, **, pow, concatenation, ., .=, ==, !=, ===, !==, <>, <=>, spaceship, comparison, <, <=, >, >=, &&, ||, !, and, or, xor, ??, ??=, ?:, elvis, ternary, ?->, nullsafe, match, is, new, clone, throw expression, print, isset, empty, unset, closure, fn, function, use, callable, first-class callable, named arguments, spread, ..., variadic, inout, array literal, subscript, append, [], destructuring, list(), object literal, shape, ++, --, increment, bitwise, &, |, ^, ~, <<, >>, shift, overflow, ArithmeticError, division by zero, @, backticks, eval, extract, compact, settype, variable variables, $$, =&, reference, |>, pipeline, pipe, $_, hole, substitution)*
 - A.4 [Statements and control flow](#lang-statements) — expression statements, blocks and local declarations, `if`, the four loops, `switch`, `break`/`continue` with levels, `return`, `try`/`catch`/`finally`, `throw`, `echo`, `unset`, and the PHP statement forms that do not parse *(statement, block, scope, definite assignment, if, elseif, else if, else, endif, alternative syntax, while, endwhile, do while, for, foreach, endforeach, as, key, value, inout, by reference, Iterator, Iterable, switch, case, default, fallthrough, break, continue, break 2, continue 2, levels, return, try, catch, finally, multi-catch, throw, echo, print, unset, exit, yield, goto, label, declare, strict_types, global, static variable)*
-- A.5 [Classes, interfaces and objects](#lang-classes) — declaring a class, its properties, methods and constants; inheritance; interfaces, default methods and `by` delegation; hooks, observers, `Stringable`, `Comparable`; what an object is and what `clone` copies *(class, constructor, __construct, new, public, protected, private, static, self, parent, $this, abstract, final, extends, implements, interface, trait, delegation, by, readonly, lateinit, property hooks, get, set, PropertyObserver, Stringable, __toString, Comparable, compareTo, clone, __clone, instanceof, object, ?->, nullsafe, __get, __set, __call, __callStatic, __invoke, __destruct, anonymous class, const, ::class, class<T>, class reference, new $cls, late static binding)*
+- A.5 [Classes, interfaces and objects](#lang-classes) — declaring a class, its properties, methods and constants; inheritance; interfaces, default methods and `by` delegation; hooks, observers, `Stringable`, `Comparable`; what an object is and what `clone` copies *(class, constructor, __construct, new, public, protected, private, static, self, parent, $this, abstract, final, extends, implements, interface, trait, delegation, by, readonly, lateinit, property hooks, get, set, PropertyObserver, Stringable, __toString, Comparable, compareTo, clone, __clone, is, object, ?->, nullsafe, __get, __set, __call, __callStatic, __invoke, __destruct, anonymous class, const, ::class, class<T>, class reference, new $cls, late static binding)*
 - A.6 [Enums](#lang-enums) — `enum` declares a closed set of named integers — how cases get their values, how a case converts to and from its integer, and what stands in for PHP's enum methods *(enum, case, backed enum, BackedEnum, UnitEnum, int enum, uint enum, string enum, ->name, ->value, cases(), from(), tryFrom(), as int, as E, enum match, enum switch, enum case type, closed set, Core\Order)*
 - A.7 [Iteration and generators](#lang-iteration) — what `foreach` accepts — arrays, `Iterable<T>`, `Iterator<T>` — how a class becomes iterable, and how a method with `yield` is a lazy `Iterator<T>` *(foreach, Iterable, Iterator, iterate, advance, current, yield, generator, Generator, yield from, IteratorAggregate, Traversable, ArrayAccess, Countable, iterator_to_array, Core\Arr::from, lazy, finally, ObjectMap, ObjectSet, Heap, Channel)*
 - A.8 [Errors, exceptions and limits](#lang-errors) — the throwable tree, `throw`/`try`/`catch`/`finally`, what an uncaught throw does, and the fatal limits no `catch` sees *(Throwable, Exception, Error, LogicError, RuntimeError, IOError, ParseError, TimeoutError, RecursionError, ArithmeticError, throw, try, catch, finally, rethrow, previous, backtrace, location, message, getMessage, getPrevious, getTrace, getCode, set_error_handler, set_exception_handler, trigger_error, error_reporting, fatal, FATAL, memory limit, onLimit, capability, fs.read, script.spawn, Core\Fatal, Core\Debug, var_dump, print_r, assert, Core\Test\Failure)*
@@ -493,7 +493,7 @@ stopping
 <a id="lang-types"></a>
 ## A.2 Types, declarations and conversions
 
-Keywords: bool, int, uint, float, decimal, string, bytes, array<T>, callable, class<T>, class reference, mixed, object, nullable, ?T, union, literal type, enum, shape, object literal, type alias, void, never, self, static, iterable, intersection, var, declaration, inout, variadic, default parameter, constant, literal, heredoc, nowdoc, interpolation, duration, as, conversion, cast, (int), (string), (float), (bool), (array), intval, strval, floatval, boolval, settype, gettype, is_int, is_string, is_array, is_null, is_numeric, widening, narrowing, instanceof, truthy, falsy, tainted, secret, resource
+Keywords: bool, int, uint, float, decimal, string, bytes, array<T>, callable, class<T>, class reference, mixed, object, nullable, ?T, union, literal type, enum, shape, object literal, type alias, void, never, self, static, iterable, intersection, var, declaration, inout, variadic, default parameter, constant, literal, heredoc, nowdoc, interpolation, duration, as, conversion, cast, (int), (string), (float), (bool), (array), intval, strval, floatval, boolval, settype, gettype, is_int, is_string, is_array, is_null, is_numeric, widening, narrowing, is, truthy, falsy, tainted, secret, resource
 
 ### Every binding has a type
 
@@ -678,11 +678,11 @@ echo $grid[0][1], " ", Core\Json::encode($a), "\n";
   callable string. A call through a `callable` variable answers `mixed`, so its result is converted:
   `$f(4) as int`.
 - A class, interface or enum name is a type wherever a type is written. `object` is the top of every
-  class type: any instance assigns to it, a property is read through it by name, and `instanceof` or
+  class type: any instance assigns to it, a property is read through it by name, and `is` or
   `as ClassName` gets the class back.
 - `class<T>` is a **class reference**: not an instance, but a class itself, where `T` is the class or
   interface every value of the type names. `class<Dog>` widens to `class<Animal>`. Three sites take
-  one and nothing else — `new $cls(...)`, `$cls::f(...)` and `$x instanceof $cls`, each refusing a
+  one and nothing else — `new $cls(...)`, `$cls::f(...)` and `$x is $cls`, each refusing a
   bare `string` — and `as` is its only source (below). `Foo::class` is a `string` and stays one. Two
   class references are equal when they are the same class; nothing else is ever equal to one.
 - A **shape** `{x: int, y: string}` is a structural object type, and an **object literal**
@@ -706,7 +706,7 @@ var $q = {x: 3, y: 4, z: "extra"};
 $q->x = 30;
 echo Geo::sum($p), " ", Geo::sum($q), " ", $q->z, "\n";
 object $o = new Cell();
-echo $o->n, " ", ($o instanceof Cell) ? "cell" : "other", " ", ($o as Cell)->n, "\n";
+echo $o->n, " ", ($o is Cell) ? "cell" : "other", " ", ($o as Cell)->n, "\n";
 callable $double = fn(int $x): int => $x * 2;
 echo $double(4) as int, "\n";
 ```
@@ -720,7 +720,7 @@ echo $double(4) as int, "\n";
 
 `mixed` is the one unchecked position: it holds a value of any type, and what is done with it is
 decided at run time from the value's own tag. A `mixed` may be an operand of arithmetic, a
-condition, a subscript base, a receiver of `->`, a `.` operand and the subject of `instanceof` or
+condition, a subscript base, a receiver of `->`, a `.` operand and the subject of `is` or
 `as`. It does **not** widen into anything narrower: a `mixed` handed to a `string` parameter is a
 compile error until it is converted.
 
@@ -1022,7 +1022,7 @@ name that denotes no class this program declares to be a `T` when the target is 
 
 `expr as ?T` is the same conversion answering `null` instead of throwing. It is refused where
 `as T` cannot fail (`$i as ?int` on an `int`) and for a class target (`$o as ?Foo`): an object is
-tested with `instanceof`. A `class<T>` target is not a class target and is available: `$name as
+tested with `is`. A `class<T>` target is not a class target and is available: `$name as
 ?class<Animal>` answers `null` for every name `as class<Animal>` would throw for — one that denotes
 no class, and one that denotes a class outside `Animal`'s hierarchy. A written-out `Foo::class`
 operand stays decided at compile time under both spellings, so `Rock::class as ?class<Animal>` is
@@ -1084,7 +1084,7 @@ class<Animal> $folded = Dog::class as class<Animal>;
 string $name = "Dog";
 class<Animal> $picked = $name as class<Animal>;
 Animal $pet = new $picked();
-echo $pet->speak(), " ", ($pet instanceof $folded) ? "a Dog" : "not", "\n";
+echo $pet->speak(), " ", ($pet is $folded) ? "a Dog" : "not", "\n";
 string $missing = "Cat";
 try {
     class<Animal> $bad = $missing as class<Animal>;
@@ -1148,8 +1148,8 @@ The conversion table. A pair not listed is a compile error naming both types.
 Inside the branch a test proves, a binding is read at the narrower type. Four spellings narrow:
 
 - `$x == null` / `$x != null` on a `?T`, on whichever edge proves the value present (`!` inverts).
-- `$x instanceof C` on a `?C`, a union, `object` or `mixed`, on the true edge only: after
-  `if ($pet instanceof Cat) { return …; }` the binding is still `Dog|Cat`, not `Dog`.
+- `$x is C` on a `?C`, a union, `object` or `mixed`, on the true edge only: after
+  `if ($pet is Cat) { return …; }` the binding is still `Dog|Cat`, not `Dog`.
 - `$x == literal` (or an enum case) on a literal or enum-case union, on the edge that proves it.
 - `match (true)` and `switch (true)`: each arm's label is one of the tests above and narrows its
   own body. `default` narrows nothing.
@@ -1177,7 +1177,7 @@ class Ask {
         return $d->speak();
     }
     public static function either(Dog|Cat $pet): string {
-        if ($pet instanceof Cat) {
+        if ($pet is Cat) {
             return $pet->purr();
         }
         return ($pet as Dog)->speak();
@@ -1191,8 +1191,8 @@ class Ask {
     }
     public static function viaMatch(mixed $v): string {
         return match (true) {
-            $v instanceof Dog => $v->speak(),
-            $v instanceof Cat => $v->purr(),
+            $v is Dog => $v->speak(),
+            $v is Cat => $v->purr(),
             default => "other",
         };
     }
@@ -1440,7 +1440,7 @@ cannot be passed to `Core\Json::encode`
 | `(int)$x`, `(string)$x`, `(float)$x`, `(bool)$x`, `(array)$x` | `$x as int`, … — the cast syntax is refused naming `as` |
 | `intval`, `strval`, `floatval`, `boolval` | `as int`, `as string`, `as float`, `as bool` |
 | `settype($x, "string")` | refused: a binding's type never changes — convert into a new binding |
-| `gettype`, `is_int`, `is_string`, `is_array`, `is_null`, `is_numeric` | no free function exists; test a `mixed` with `instanceof` for a class, `($m as ?int) != null` for a scalar, `== null` for null |
+| `gettype`, `is_int`, `is_string`, `is_array`, `is_null`, `is_numeric` | no free function exists; test a `mixed` with `is` for a class, `($m as ?int) != null` for a scalar, `== null` for null |
 | `resource` | no such type; a handle is a `Core` object |
 | a callable string `"Foo::bar"`, `[$obj, "m"]` | refused; a `callable` is a closure written with `fn` |
 | `$s[0]` on a string | `Core\Str::at`, `Core\Str::slice` |
@@ -1469,7 +1469,7 @@ no free function has this name
 <a id="lang-expressions"></a>
 ## A.3 Expressions and operators
 
-Keywords: operators, precedence, associativity, arithmetic, +, -, *, /, %, **, pow, concatenation, ., .=, ==, !=, ===, !==, <>, <=>, spaceship, comparison, <, <=, >, >=, &&, ||, !, and, or, xor, ??, ??=, ?:, elvis, ternary, ?->, nullsafe, match, instanceof, new, clone, throw expression, print, isset, empty, unset, closure, fn, function, use, callable, first-class callable, named arguments, spread, ..., variadic, inout, array literal, subscript, append, [], destructuring, list(), object literal, shape, ++, --, increment, bitwise, &, |, ^, ~, <<, >>, shift, overflow, ArithmeticError, division by zero, @, backticks, eval, extract, compact, settype, variable variables, $$, =&, reference, |>, pipeline, pipe, $_, hole, substitution
+Keywords: operators, precedence, associativity, arithmetic, +, -, *, /, %, **, pow, concatenation, ., .=, ==, !=, ===, !==, <>, <=>, spaceship, comparison, <, <=, >, >=, &&, ||, !, and, or, xor, ??, ??=, ?:, elvis, ternary, ?->, nullsafe, match, is, new, clone, throw expression, print, isset, empty, unset, closure, fn, function, use, callable, first-class callable, named arguments, spread, ..., variadic, inout, array literal, subscript, append, [], destructuring, list(), object literal, shape, ++, --, increment, bitwise, &, |, ^, ~, <<, >>, shift, overflow, ArithmeticError, division by zero, @, backticks, eval, extract, compact, settype, variable variables, $$, =&, reference, |>, pipeline, pipe, $_, hole, substitution
 
 ### Precedence and associativity
 
@@ -1482,7 +1482,7 @@ Highest first. A row binds tighter than every row below it.
 | `**` | right |
 | prefix `-` `+` `~` `++` `--` | — |
 | `\|>` | left |
-| `instanceof` | left |
+| `is` | left |
 | `!` | — |
 | `*` `/` `%` | left |
 | `+` `-` | left |
@@ -1503,7 +1503,7 @@ Highest first. A row binds tighter than every row below it.
 
 - `as` binds tighter than every binary and prefix operator: `-$s as int` is `-($s as int)`, `$s as int ** 2` is `($s as int) ** 2`, and a converted quotient needs parentheses, `($a / $b) as int`. The conversion itself is the types chapter's.
 - `**` is right-associative and binds tighter than a prefix sign: `-2 ** 2` is `-4`, `2 ** 3 ** 2` is `512`.
-- `!` binds looser than `instanceof`: `!$o instanceof C` is `!($o instanceof C)`.
+- `!` binds looser than `is`: `!$o is C` is `!($o is C)`.
 - `.` binds looser than `+`, `-`, `*` and the shifts: `"sum:" . 1 + 2` is `sum:3`.
 - `|>` binds tighter than every binary operator and looser than unary: `-$a |> Core\Math::abs($_)` is `Core\Math::abs(-$a)`, `"x=" . $a |> Core\Str::upper($_)` is `"x=" . Core\Str::upper($a)`, and `$x = $a |> Core\Str::trim($_)` assigns the whole pipeline. Its own section below has the form.
 - `new C()->m()` needs no parentheses; `clone $a->b` clones `$a->b`.
@@ -1855,9 +1855,9 @@ n is two
 no `match` arm matched the subject
 ```
 
-### `instanceof`, `new`, `clone`, `throw`, `print`, `exit`, `isset`, `empty`
+### `is`, `new`, `clone`, `throw`, `print`, `exit`, `isset`, `empty`
 
-- `$x instanceof C` answers whether `$x` holds an instance of class or interface `C`, and narrows `$x` to `C` in the branch where it held. The subject must be able to hold an object — `mixed`, `object`, a class type or a nullable one. On a declared scalar, array or enum it does not compile.
+- `$x is T` answers whether `$x` currently holds a `T`, for any type a value can inhabit, and narrows `$x` to `T` in the branch where it held. It is total: a subject whose declared type settles the answer compiles and folds to `true` or `false`. A `$` on the right is the one value form, `$x is $cls`, where `$cls` is a `class<T>`; anything else on the right is a type.
 - `new C(args)` constructs; the argument list is a call's, named arguments included, and may be omitted when empty. `new static()` and `new self()` work inside a class. `new C(...)` has no first-class form.
 - `clone $o` is a shallow copy of an object: scalar and array properties are copied, object properties are shared. There is no clone hook. `clone` takes an object only.
 - `throw expr` is an expression, so it sits on the right of `??`, `||` or a ternary arm; the errors chapter owns what may be thrown.
@@ -1879,7 +1879,7 @@ $b->list[] = 2;
 $b->in->v = 9;
 echo Core\Arr::count($a->list), Core\Arr::count($b->list), " ", $a->in->v, " ", ($a == $b) as string, "|\n";
 mixed $m = new Inner();
-if ($m instanceof Inner) { echo "inner ", $m->v, "\n"; }
+if ($m is Inner) { echo "inner ", $m->v, "\n"; }
 ?int $none = null;
 array<?int> $arr = ["k" => null, "j" => 1];
 echo isset($none) as string, isset($arr["k"]) as string, isset($arr["j"]) as string, isset($arr["zz"]) as string, "|";
@@ -1901,11 +1901,14 @@ inner 1
 ```nvs error
 <?nvs
 class Box {}
-int $n = 1;
-bool $b = $n instanceof Box;
+class T {
+    public function m(mixed $v, string $name): void {
+        bool $b = $v is $name;
+    }
+}
 ```
 ```output
-can never be an object
+not a class name
 ```
 
 ### Calls
@@ -2634,7 +2637,7 @@ while ($n < 3) {
 <a id="lang-classes"></a>
 ## A.5 Classes, interfaces and objects
 
-Keywords: class, constructor, __construct, new, public, protected, private, static, self, parent, $this, abstract, final, extends, implements, interface, trait, delegation, by, readonly, lateinit, property hooks, get, set, PropertyObserver, Stringable, __toString, Comparable, compareTo, clone, __clone, instanceof, object, ?->, nullsafe, __get, __set, __call, __callStatic, __invoke, __destruct, anonymous class, const, ::class, class<T>, class reference, new $cls, late static binding
+Keywords: class, constructor, __construct, new, public, protected, private, static, self, parent, $this, abstract, final, extends, implements, interface, trait, delegation, by, readonly, lateinit, property hooks, get, set, PropertyObserver, Stringable, __toString, Comparable, compareTo, clone, __clone, is, object, ?->, nullsafe, __get, __set, __call, __callStatic, __invoke, __destruct, anonymous class, const, ::class, class<T>, class reference, new $cls, late static binding
 
 ### Declaring a class
 
@@ -2962,7 +2965,7 @@ class LeafRegistry extends Registry {
 echo Registry::make()->label(), "\n";
 echo LeafRegistry::make()->label(), "\n";
 LeafRegistry $typed = LeafRegistry::make();
-echo ($typed instanceof LeafRegistry) as string, "\n";
+echo ($typed is LeafRegistry) as string, "\n";
 ```
 ```output
 base/base
@@ -3176,9 +3179,9 @@ so no class extends it
 To build on a sealed class, hold one in a property and forward to it — `implements … by $field`
 writes the forwards for you.
 
-#### `instanceof`
+#### `is`
 
-`$x instanceof T` is true for the object's own class, every ancestor, and every interface any of
+`$x is T` is true for the object's own class, every ancestor, and every interface any of
 them implements; false for anything else, and false when `$x` is `null`. Inside the `if` it
 guards, a value declared `object` or at a base type is narrowed to `T`. The right-hand side is a
 class name written out, or a `class<T>` value (below); a `string` there is refused whatever it
@@ -3201,10 +3204,10 @@ class Leaf extends Base {}
 class Other {}
 
 var $leaf = new Leaf();
-echo ($leaf instanceof Leaf) as string, ($leaf instanceof Base) as string, ($leaf instanceof Marks) as string, "|", ($leaf instanceof Other) as string, "|\n";
+echo ($leaf is Leaf) as string, ($leaf is Base) as string, ($leaf is Marks) as string, "|", ($leaf is Other) as string, "|\n";
 
 object $o = new Other();
-if ($o instanceof Marks) {
+if ($o is Marks) {
     echo $o->mark(), "\n";
 } else {
     echo "not marked\n";
@@ -3218,7 +3221,7 @@ not marked
 #### A class chosen at run time: `class<T>`
 
 A `class<T>` value is a class rather than an instance of one, and three sites take it:
-`new $cls(...)`, `$cls::f(...)` and `$x instanceof $cls`. All three take that value **and nothing
+`new $cls(...)`, `$cls::f(...)` and `$x is $cls`. All three take that value **and nothing
 else** — a `string` holding a class name is refused at every one of them, with the `as` that would
 produce one named in the help — and `$obj->$name` is not on the list and never will be, because a
 class reference answers *which class* and never *which member*. The type, and the `as` that is its
@@ -3254,7 +3257,7 @@ class Invoice extends Report {
 string $wanted = "Invoice";
 class<Report> $cls = $wanted as class<Report>;
 Report $r = new $cls("March");
-echo $r->render(), " ", $cls::kind(), " ", ($r instanceof $cls) as string, "\n";
+echo $r->render(), " ", $cls::kind(), " ", ($r is $cls) as string, "\n";
 ```
 ```output
 invoice:March invoice 1
@@ -3384,7 +3387,7 @@ class Doc implements Titled {
 }
 
 Named $n = new Doc();
-echo $n->name(), " ", ($n instanceof Titled) as string, "\n";
+echo $n->name(), " ", ($n is Titled) as string, "\n";
 ```
 ```output
 doc 1
@@ -3830,7 +3833,7 @@ so `->` cannot reach a member of it
 ### `object`: the top of every class type
 
 `object` holds any object and names no class. A method call through it is a compile error until
-`instanceof` or `as` narrows it. A property read through it compiles and is resolved at run
+`is` or `as` narrows it. A property read through it compiles and is resolved at run
 time, throwing when the object has no such property.
 
 ```nvs
@@ -3856,7 +3859,7 @@ class Pick {
 
 object $o = Pick::any(true);
 echo $o->text, "\n";
-if ($o instanceof Tag) {
+if ($o is Tag) {
     echo $o->shout(), "\n";
 }
 Tag $t = $o as Tag;

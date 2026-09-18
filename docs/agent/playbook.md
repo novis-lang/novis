@@ -7596,13 +7596,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   build` enumerate the rest, and apply those as one `splice.py --patch` anchored on `param_tags:`
   plus the line under it — `grep -rn "param_tags:"` is the real roster.
   [until: gone crates/nvs-runtime/src/object.rs:pub struct MethodRow]
-- **A family of `Core` classes cannot be *static* types, because `instanceof` against a `Core` name is
-  refused outright.** `crates/nvs-types/src/expr/members.rs:349` reports `E_INSTANCEOF_NOT_A_CLASS`
-  and `Core` descriptors are defined with no parents, so a registered `Core\Ast\Binary` is a name a
-  program can write and no value can be checked against — plus a registry row owing three conformance
-  cases that name it. Give the family descriptors and no `registry::CLASSES` row, and let
-  `Core\Reflect::forObject($v)->name()` be where the identity is read.
-  [until: gone crates/nvs-types/src/expr/members.rs:E_INSTANCEOF_NOT_A_CLASS]
 - **A `Node::Object` is spelled `{"$class":…,"$id":…,"$properties":{…}}` in JSON, so a producer whose
   wire shape has to be a plain object cannot use one.** `nvs_render::json`'s rule is that a kind JSON
   has no value for becomes a `$`-tagged one-key object, and `Node::Object` means *class instance*
@@ -7618,13 +7611,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   consuming crate's own `# Known gaps`.
   [until: gone crates/nvs-config/tests/directives.rs:no_key_with_a_reader_still_claims_to_be_unread]
 
-- **A `CoreTy::Union` of two `Core` classes passes every Rust test and is a return type no Novis
-  program can act on.** `instanceof` against a `Core` class is `E0496` — a registry signature has
-  no descriptor to walk — so no spelling in `rule:types/narrowing` reaches either arm and only
-  `echo` accepts the value, which surfaces from a `.nvst` case long after `-p <crate>` went green.
-  Before widening a `return_ty` to two classes, check a program can tell them apart; prefer one
-  class and a `# Known gaps` row.
-  [until: gone crates/nvs-diagnostics/src/lib.rs:E_INSTANCEOF_NOT_A_CLASS]
 - **A new `Core` row's parameters are swept from outside the class's module, once from another
   crate.** `registry.rs`'s `UNCLASSIFIED` is deletions-only, so a bare `CoreTy::Str` in an options
   bag fails `every_member_parameter_carries_a_qualifier_classification` and may not be listed beside
@@ -7751,6 +7737,19 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   signature or a `let`, but never in a `type` alias's right-hand side. Widen one of these rosters by
   naming the tuple, as `nvs_types::layout::MethodEntry` does, and re-export the name so a crate that
   does not depend on `nvs-types` can still write it. [until: reviewed 2026-09-17]
+- **A goal staging "the grammar" before "the tests" leaves the corpus red in between.** Deleting
+  a keyword from the parser fails every `.nvst` case that spells it at once, and no ordering
+  inside the grammar stage avoids it: the refusal, the checker and the AST are one compile. Land
+  the code, name the red corpora in the handoff, and take the respelling as the next group.
+  [until: gone tests/conformance/lang/instanceof-refuses-a-subject-that-can-hold-no-object.nvst]
+
+- **A `.lspt` case crediting the coverage matrix can lose its construct when the AST changes under
+  it, and the matrix fails somewhere else entirely.** `instanceof`'s class side was an expression
+  node, so a cursor on it credited `ConstFetch`; under `is` the right-hand side is a *type* and the
+  innermost node is `TypeTest`, a construct no other case reaches — so one respelled case demands
+  six more cursor cases and one whole-document case before `nvs-lsp --test coverage` is green.
+  Respelling a case that names a construct is writing its whole row, not editing one line.
+  [until: gone crates/nvs-syntax/src/walk.rs:"InstanceOf"]
 
 ## Divergences and refusals already pinned
 

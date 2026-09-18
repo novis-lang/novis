@@ -2,7 +2,7 @@
 id: classes
 title: Classes, interfaces and objects
 summary: declaring a class, its properties, methods and constants; inheritance; interfaces, default methods and `by` delegation; hooks, observers, `Stringable`, `Comparable`; what an object is and what `clone` copies
-keywords: class, constructor, __construct, new, public, protected, private, static, self, parent, $this, abstract, final, extends, implements, interface, trait, delegation, by, readonly, lateinit, property hooks, get, set, PropertyObserver, Stringable, __toString, Comparable, compareTo, clone, __clone, instanceof, object, ?->, nullsafe, __get, __set, __call, __callStatic, __invoke, __destruct, anonymous class, const, ::class, class<T>, class reference, new $cls, late static binding
+keywords: class, constructor, __construct, new, public, protected, private, static, self, parent, $this, abstract, final, extends, implements, interface, trait, delegation, by, readonly, lateinit, property hooks, get, set, PropertyObserver, Stringable, __toString, Comparable, compareTo, clone, __clone, is, object, ?->, nullsafe, __get, __set, __call, __callStatic, __invoke, __destruct, anonymous class, const, ::class, class<T>, class reference, new $cls, late static binding
 ---
 
 # Declaring a class
@@ -336,7 +336,7 @@ class LeafRegistry extends Registry {
 echo Registry::make()->label(), "\n";
 echo LeafRegistry::make()->label(), "\n";
 LeafRegistry $typed = LeafRegistry::make();
-echo ($typed instanceof LeafRegistry) as string, "\n";
+echo ($typed is LeafRegistry) as string, "\n";
 ```
 ```output
 base/base
@@ -550,9 +550,9 @@ so no class extends it
 To build on a sealed class, hold one in a property and forward to it — `implements … by $field`
 writes the forwards for you.
 
-## `instanceof`
+## `is`
 
-`$x instanceof T` is true for the object's own class, every ancestor, and every interface any of
+`$x is T` is true for the object's own class, every ancestor, and every interface any of
 them implements; false for anything else, and false when `$x` is `null`. Inside the `if` it
 guards, a value declared `object` or at a base type is narrowed to `T`. The right-hand side is a
 class name written out, or a `class<T>` value (below); a `string` there is refused whatever it
@@ -575,10 +575,10 @@ class Leaf extends Base {}
 class Other {}
 
 var $leaf = new Leaf();
-echo ($leaf instanceof Leaf) as string, ($leaf instanceof Base) as string, ($leaf instanceof Marks) as string, "|", ($leaf instanceof Other) as string, "|\n";
+echo ($leaf is Leaf) as string, ($leaf is Base) as string, ($leaf is Marks) as string, "|", ($leaf is Other) as string, "|\n";
 
 object $o = new Other();
-if ($o instanceof Marks) {
+if ($o is Marks) {
     echo $o->mark(), "\n";
 } else {
     echo "not marked\n";
@@ -592,7 +592,7 @@ not marked
 ## A class chosen at run time: `class<T>`
 
 A `class<T>` value is a class rather than an instance of one, and three sites take it:
-`new $cls(...)`, `$cls::f(...)` and `$x instanceof $cls`. All three take that value **and nothing
+`new $cls(...)`, `$cls::f(...)` and `$x is $cls`. All three take that value **and nothing
 else** — a `string` holding a class name is refused at every one of them, with the `as` that would
 produce one named in the help — and `$obj->$name` is not on the list and never will be, because a
 class reference answers *which class* and never *which member*. The type, and the `as` that is its
@@ -628,7 +628,7 @@ class Invoice extends Report {
 string $wanted = "Invoice";
 class<Report> $cls = $wanted as class<Report>;
 Report $r = new $cls("March");
-echo $r->render(), " ", $cls::kind(), " ", ($r instanceof $cls) as string, "\n";
+echo $r->render(), " ", $cls::kind(), " ", ($r is $cls) as string, "\n";
 ```
 ```output
 invoice:March invoice 1
@@ -752,7 +752,7 @@ class Doc implements Titled {
 }
 
 Named $n = new Doc();
-echo $n->name(), " ", ($n instanceof Titled) as string, "\n";
+echo $n->name(), " ", ($n is Titled) as string, "\n";
 ```
 ```output
 doc 1
@@ -1204,7 +1204,7 @@ so `->` cannot reach a member of it
 # `object`: the top of every class type
 
 `object` holds any object and names no class. A method call through it is a compile error until
-`instanceof` or `as` narrows it. A property read through it compiles and is resolved at run
+`is` or `as` narrows it. A property read through it compiles and is resolved at run
 time, throwing when the object has no such property.
 
 ```nvs
@@ -1230,7 +1230,7 @@ class Pick {
 
 object $o = Pick::any(true);
 echo $o->text, "\n";
-if ($o instanceof Tag) {
+if ($o is Tag) {
     echo $o->shout(), "\n";
 }
 Tag $t = $o as Tag;
