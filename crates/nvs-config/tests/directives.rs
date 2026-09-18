@@ -2909,3 +2909,237 @@ fn the_handlers_clock_answers_as_its_memory_half_does_and_stays_a_row_of_its_own
          written for — its memory half's case owns why that boundary is where it is",
     );
 }
+
+/// The code a `[log]` block whose `target` is `written` is refused with, and `None` for one this
+/// boot accepts.
+///
+/// Through `file::parse` and then `log::validate`, which is the pair a boot runs, so what the case
+/// below asserts is the answer an operator gets rather than a grammar helper's return value.
+fn target_refusal(written: &str) -> Option<Code> {
+    let text = format!("[log]\ntarget = \"{written}\"\n");
+    let mut sources = SourceMap::new();
+    let (_, parsed) = nvs_config::file::parse::<Config>(&mut sources, "nvs.toml", &text);
+    let config = parsed.unwrap_or_else(|err| panic!("{text}-- did not parse: {}", err.message));
+    nvs_config::log::validate(&config, &BTreeMap::new())
+        .err()
+        .map(|refused| refused.code.expect("a boot refusal carries its code"))
+}
+
+/// `rule:errors/engine-floor`'s destination, asserted as the two claims its page makes: who may
+/// move it, and when a value naming no destination is refused.
+///
+/// The first needs a row of its own, and that is the failure worth pinning here rather than the
+/// class in isolation — `[log]`'s blanket is `Runtime` and every other key in the block resolves
+/// through it, so this row deleted is not a compile error or a missing key but a request that can
+/// send the record of its own failure somewhere nobody reads. Asserted over every spelling that
+/// reaches the same destination, because the per-application copy of the block is a second way in
+/// and lands on a different row.
+///
+/// The second half is the *boot*, and both sides of the bound are named. The one moment the engine
+/// cannot afford to raise a diagnostic about its configuration is the moment it is already
+/// reporting a failure, so a destination is resolved where it is written; a check that only
+/// accepted would pass on a grammar that accepts anything, and one that only refused would pass on
+/// a grammar that accepts nothing and never boots.
+// covers: directive:log.target
+#[test]
+fn the_floors_destination_is_the_operators_and_a_value_naming_none_refuses_the_tree() {
+    let target = governing("log.target");
+    assert_eq!(
+        (target.key, target.class, target.apply),
+        ("log.target", Class::System, Apply::Reload),
+        "`log.target` resolves through `{}`: without a row of its own the `[log]` blanket answers \
+         for it at `Runtime`, and `rule:errors/engine-floor`'s sink is then the failing program's \
+         to move",
+        target.key,
+    );
+    assert!(
+        keys_in("log").contains(&"target".to_string()),
+        "`[log]` no longer accepts `target`, so this row governs a key the file refuses and every \
+         deployment writes its floor records wherever the engine defaults to",
+    );
+    for written in ["log.target", "app.log.target", "app.0.log.target"] {
+        let row = governing(written);
+        assert!(
+            !row.class.settable_by_a_request(),
+            "`{written}` lands on `{}` at {:?}, which a request may write — one spelling of this \
+             destination a program can reach is the report of its own failure redirected, \
+             whichever block it is written in",
+            row.key,
+            row.class,
+        );
+    }
+
+    for written in ["stderr", "syslog", "file:/var/log/nvs.log"] {
+        assert_eq!(
+            target_refusal(written),
+            None,
+            "`{written}` is one of `rule:errors/engine-floor`'s three destinations and this boot \
+             refuses it, so a deployment that spelled its sink correctly does not start",
+        );
+    }
+    for written in ["stdout", "STDERR", "journald", "file:", ""] {
+        assert_eq!(
+            target_refusal(written),
+            Some(code::E_UNSPELLED_LOG_TARGET),
+            "`{written}` names no destination and boots anyway, so the tree is green and the \
+             records go wherever a value nobody resolved leads — which is discovered by a \
+             deployment that has already failed twice",
+        );
+    }
+}
+
+/// The code a tree whose `[block]` holds `body` is refused with, and `None` for one this boot
+/// accepts.
+///
+/// Through `file::parse` and then `export::validate`, which is the pair a boot runs, for
+/// `target_refusal`'s reason: what is asserted is the answer an operator gets.
+fn export_refusal(block: &str, body: &str) -> Option<Code> {
+    let text = format!("[{block}]\n{body}\n");
+    let mut sources = SourceMap::new();
+    let (_, parsed) = nvs_config::file::parse::<Config>(&mut sources, "nvs.toml", &text);
+    let config = parsed.unwrap_or_else(|err| panic!("{text}-- did not parse: {}", err.message));
+    nvs_config::export::validate(&config, &BTreeMap::new())
+        .err()
+        .map(|refused| refused.code.expect("a boot refusal carries its code"))
+}
+
+/// `rule:observability/metrics-and-trace-blocks-are-system`'s first block, asserted as the two
+/// claims its page makes: who may write it, and which protocols it names.
+///
+/// The class is counted over every key the block accepts rather than read off the `exporter` row,
+/// because a blanket is exactly where a registry answers plausibly key by key and wrongly overall:
+/// a carve-out nobody wrote inherits nothing from the block, and a key that became a request's is
+/// a program deciding how closely it is watched — which produces *silence*, and silence is
+/// indistinguishable from a deployment with nothing to say.
+///
+/// The roster is the other half, and it is asserted as the asymmetry it is rather than as a list.
+/// This is the only one of the two blocks a collector may scrape, so `prometheus` accepted here
+/// and refused one block over is the claim; a check that only accepted would pass on a grammar
+/// that accepts anything, and `false` is checked beside them because the disabled state is a
+/// boolean rather than a third protocol.
+// covers: directive:metrics
+#[test]
+fn every_key_of_the_metrics_block_is_the_operators_and_only_it_may_be_scraped() {
+    let block = governing("metrics");
+    assert_eq!(
+        (block.key, block.class, block.apply),
+        ("metrics", Class::System, Apply::Reload),
+        "`[metrics]` resolves through `{}`, and the block's own row is what answers for every key \
+         in it — none of them has one of its own",
+        block.key,
+    );
+
+    let keys = keys_in("metrics");
+    for expected in ["exporter", "listen", "endpoint", "max_series"] {
+        assert!(
+            keys.contains(&expected.to_string()),
+            "`[metrics]` no longer accepts `{expected}`, so the page describes a key the file \
+             refuses: {keys:?}",
+        );
+    }
+    for key in &keys {
+        let written = format!("metrics.{key}");
+        let row = governing(&written);
+        assert!(
+            !row.class.settable_by_a_request(),
+            "`{written}` lands on `{}` at {:?}, which a request may write — a program that sizes \
+             or redirects its own measurement has chosen how closely it is watched",
+            row.key,
+            row.class,
+        );
+    }
+
+    for body in [
+        "exporter = \"prometheus\"",
+        "exporter = \"otlp\"",
+        "exporter = false",
+        "exporter = \"otlp\"\nmax_series = 10000",
+    ] {
+        assert_eq!(
+            export_refusal("metrics", body),
+            None,
+            "`{body}` is what `rule:observability/metrics-and-trace-blocks-are-system` gives this \
+             block, and this boot refuses it",
+        );
+    }
+    for body in [
+        "exporter = \"graphite\"",
+        "exporter = \"PROMETHEUS\"",
+        "exporter = true",
+    ] {
+        assert_eq!(
+            export_refusal("metrics", body),
+            Some(code::E_UNSPELLED_EXPORTER),
+            "`{body}` names no protocol and boots anyway, so a collector is never written to and \
+             every dashboard over it is empty rather than wrong",
+        );
+    }
+    assert_eq!(
+        export_refusal("trace", "exporter = \"prometheus\""),
+        Some(code::E_UNSPELLED_EXPORTER),
+        "a scrape is accepted in `[trace]` as well, so the two rosters have become one: a span is \
+         a finished record and there is no current value of one for a scrape to answer with",
+    );
+}
+
+/// `rule:http-server/the-mode-ceiling-defaults-to-the-startup-mode`'s line, asserted beside the key
+/// it bounds rather than on its own. `[mode]` is two keys of two different classes, and that split
+/// *is* the feature: the mode an application starts in is a request's to flip, and how far it may
+/// flip is not. Either row read alone looks like an ordinary directive, and the pair is the claim.
+///
+/// The second half is that the block carries no blanket, which is what makes the split enforceable.
+/// Every other block here has a row over the whole name, so a key added later inherits a class
+/// nobody chose for it; a third key under `[mode]` would inherit nothing instead, and is asserted
+/// over the keys the block *accepts* rather than over the two this case could have named — a
+/// carve-out added without a row is exactly the edit that passes a named check.
+// covers: directive:mode.ceiling
+#[test]
+fn the_mode_ceiling_is_the_operators_half_of_a_block_with_no_blanket_over_it() {
+    let ceiling = governing("mode.ceiling");
+    assert_eq!(
+        (ceiling.key, ceiling.class, ceiling.apply),
+        ("mode.ceiling", Class::System, Apply::Reload),
+        "`mode.ceiling` resolves through `{}`: a request that reaches this key raises the bound on \
+         its own next flip, and `Boot` would make an operator restart a host to lower it",
+        ceiling.key,
+    );
+    assert_eq!(
+        governing("mode.default").class,
+        Class::Runtime,
+        "`mode.default` is no longer a request's to set, so the ceiling bounds a flip that can no \
+         longer happen and `rule:config/a-program-may-read-and-flip-its-mode` has nothing left to \
+         bound",
+    );
+    for written in ["mode.ceiling", "app.mode.ceiling", "app.0.mode.ceiling"] {
+        let row = governing(written);
+        assert!(
+            !row.class.settable_by_a_request(),
+            "`{written}` lands on `{}` at {:?}, which a request may write — one spelling of this \
+             line a program can reach is the line gone, and the flip it refuses is a call away",
+            row.key,
+            row.class,
+        );
+    }
+
+    assert!(
+        lookup("mode").is_none(),
+        "`[mode]` has grown a blanket row, so a key added to the block inherits that row's class \
+         instead of being named: the two halves here are two classes, and there is no third one a \
+         blanket could be right about",
+    );
+    let keys = keys_in("mode");
+    assert!(
+        keys.contains(&"ceiling".to_string()) && keys.contains(&"default".to_string()),
+        "`[mode]` no longer accepts both of its keys, so this pair governs something the file \
+         refuses: {keys:?}",
+    );
+    for key in &keys {
+        let written = format!("mode.{key}");
+        assert_eq!(
+            governing(&written).key,
+            written,
+            "`{written}` is a key `[mode]` accepts and no row is written for it, so nothing states \
+             who may set it",
+        );
+    }
+}
