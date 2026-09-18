@@ -199,9 +199,8 @@ fn an_instanceof_test_narrows_its_subject() {
 /// `else` branch has proved nothing to install.
 #[test]
 fn an_instanceof_proves_nothing_on_its_false_edge() {
-    let diags = check_with_node(
-        "if ($n is Node) {\n  echo \"yes\";\n} else {\n  echo $n->label();\n}\n",
-    );
+    let diags =
+        check_with_node("if ($n is Node) {\n  echo \"yes\";\n} else {\n  echo $n->label();\n}\n");
     assert!(refuses_nullable_receiver(&diags), "{diags:?}");
 }
 
