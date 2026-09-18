@@ -1,0 +1,131 @@
+<?nvs
+// Attack: the block that decides where every user's session lives, written by
+// one of those users. Each key buys something different and all three are worth
+// taking. A `backend` moved to a per-process tier makes a session mean
+// different things on different cores, which is an authenticated user who is
+// logged out on one request and somebody else on the next. A `ttl` stretched is
+// how long a stolen identifier stays worth stealing. And the cookie's *name* is
+// the one string from this block that reaches a response header, so it is where
+// an attribute the deployment never spelled would have to arrive. The three of
+// them still reading what the file wrote is the evidence that none of that
+// happened.
+// hostile: timeout-ms 20000
+
+// 1. Every store a session could be asked to live in, including the two weak
+//    cache tiers the block refuses by name at boot and the ones an operator
+//    might expect from another runtime. A spelling that folds to one of the two
+//    real stores is as bad as one that reaches a weak tier: both are this
+//    request choosing where everybody's session is kept.
+array<string> $stores = [
+    'shared',
+    'db',
+    'local',
+    'process',
+    'memory',
+    'file',
+    'files',
+    'none',
+    'redis',
+    'SHARED',
+    'Shared',
+    ' shared',
+    "shared\u{0000}local",
+    'shared local',
+    '',
+    'null',
+    'true',
+    Core\Str::repeat('shared', 100000),
+];
+foreach ($stores as string $store) {
+    Core\Config::set('session.backend', $store);
+    Core\Config::set('app.0.session.backend', $store);
+    Core\Config::restore('session.backend');
+}
+
+// 2. The cookie name, which is the only value in this block that becomes part
+//    of a response header. The attributes of every cookie this server writes
+//    are fixed and have no spelling in the file, so the shapes that matter here
+//    are the ones that would carry one in anyway — a separator, a newline, an
+//    equals sign, a second cookie hidden behind either.
+array<string> $cookies = [
+    'nvs_session',
+    'sid',
+    'nvs_session; Secure=false',
+    'nvs_session; HttpOnly=false',
+    'nvs_session; SameSite=None',
+    'nvs_session; Domain=.example.com',
+    "nvs_session\r\nSet-Cookie: admin=1",
+    "nvs_session\nSet-Cookie: admin=1",
+    "nvs_session\u{0000}admin",
+    'nvs_session=1',
+    '__Host-nvs_session',
+    '__Secure-nvs_session',
+    '',
+    ' ',
+    Core\Str::repeat('c', 100000),
+];
+foreach ($cookies as string $cookie) {
+    Core\Config::set('session.cookie', $cookie);
+    Core\Config::set('app.0.session.cookie', $cookie);
+    Core\Config::restore('session.cookie');
+}
+
+// 3. The lifetime, at both ends. Stretched, it is a stolen identifier that
+//    stays good for a year; shortened to nothing, it is every session in the
+//    deployment expiring as it is written, which logs everybody out and is a
+//    denial of service spelled as a duration.
+array<string> $lifetimes = [
+    '2h',
+    '0',
+    '0s',
+    '1ms',
+    'false',
+    'forever',
+    'inf',
+    'nan',
+    '8760h',
+    '18446744073709551615s',
+    '-1h',
+    ' 2h ',
+    "2h\u{0000}",
+    Core\Str::repeat('9', 100000) . 'h',
+];
+foreach ($lifetimes as string $lifetime) {
+    Core\Config::set('session.ttl', $lifetime);
+    Core\Config::set('app.0.session.ttl', $lifetime);
+    Core\Config::restore('session.ttl');
+}
+
+// 4. All three as fast as the runtime will take them, reading back every round.
+//    The block is bound when the process starts, so a write that nevertheless
+//    reached the published snapshot would wait for a restart to move the store —
+//    but it is the snapshot a reload carries forward, and the standing value
+//    moving here is the only way a request could ever see that it had.
+uint $changes = 0;
+string $standing = Core\Config::get('session.backend') ?? '(nothing written)';
+uint $i = 0;
+while ($i < 200000) {
+    Core\Config::set('session.backend', 'local');
+    Core\Config::set('session.ttl', '8760h');
+    Core\Config::set('session.cookie', "nvs_session\r\nSet-Cookie: admin=1");
+    Core\Config::restore('session.backend');
+    if ((Core\Config::get('session.backend') ?? '(nothing written)') != $standing) {
+        $changes = $changes + 1;
+    }
+    $i = $i + 1;
+}
+
+// 5. And real work alongside it, because the request moving everybody's session
+//    is a request in the middle of holding one.
+array<string> $records = [];
+uint $j = 0;
+while ($j < 20000) {
+    $records[] = 'record-' . $j . '-' . Core\Str::repeat('r', $j % 64);
+    $j = $j + 1;
+}
+
+echo 'changes: ', $changes, "\n";
+echo 'records built: ', Core\Arr::count($records), "\n";
+echo 'backend: ', Core\Config::get('session.backend') ?? '(nothing written)', "\n";
+echo 'ttl:     ', Core\Config::get('session.ttl') ?? '(nothing written)', "\n";
+echo 'cookie:  ', Core\Config::get('session.cookie') ?? '(nothing written)', "\n";

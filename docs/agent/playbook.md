@@ -5733,6 +5733,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   crate for the key before writing, and assert the field those cases do not read — the blanket over
   the keys a block *accepts* for one whose semantics are pinned, `Apply` for one whose class is.
   [until: reviewed 2026-09-18]
+- **A directive reported as owing `tests 0 of 1 cases` usually already has its test, and what is
+  missing is the `covers:` marker.** `dossier.py` attributes a directive by that marker alone, so a
+  block with a whole test file of its own still reads as owing a case — `[queue]` owed one while
+  `crates/nvs-config/tests/queue.rs` and three registry cases in `directives.rs` already pinned every
+  claim worth making. Grep the crate's `tests/` and its `src` unit tests for the block's name first
+  and mark the case that pins the claim, including one in `src/`, which counts.
+  [until: reviewed 2026-09-18]
 
 ## Splitting a file that got too big
 

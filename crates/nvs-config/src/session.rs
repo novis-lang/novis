@@ -160,6 +160,7 @@ mod tests {
     /// Driven off the tables rather than off spellings written here, so a tier added to either one
     /// is asserted about by existing in it — a case naming its own words passes beside a roster
     /// that grew a third.
+    // covers: directive:session
     #[test]
     fn neither_weak_tier_is_a_backend_and_the_two_stores_resolve() {
         for (word, backend) in BACKENDS {

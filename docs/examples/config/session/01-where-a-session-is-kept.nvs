@@ -1,0 +1,26 @@
+<?nvs
+// `[session]` says where a session record lives, how long an untouched one
+// survives, and what the cookie carrying its identifier is called:
+//
+//     [session]
+//     backend = "shared"       # or "db" — and nothing weaker
+//     ttl     = "2h"
+//     cookie  = "nvs_session"
+
+echo 'records live in: ', Core\Config::get('session.backend') ?? '(nothing written — a program that wants a session says so)', "\n";
+echo 'untouched for:   ', Core\Config::get('session.ttl') ?? '(nothing written — two hours)', "\n";
+echo 'cookie name:     ', Core\Config::get('session.cookie') ?? '(nothing written — the default name)', "\n";
+
+// There are two stores and no third. The next request may be answered by a
+// different core or a different host, so a session kept anywhere that is not
+// coherent is a session whose contents depend on who picked the request up.
+echo 'keep mine in a local cache: ', Core\Config::set('session.backend', 'local') ? 'accepted' : 'refused', "\n";
+
+// The lifetime is the operator's for an ordinary reason: it is how long a stolen
+// identifier is worth stealing.
+echo 'keep mine for a year:       ', Core\Config::set('session.ttl', '8760h') ? 'accepted' : 'refused', "\n";
+
+// The cookie's name is configuration; its attributes are not spellable at all.
+// Every cookie this server writes is already secure, HTTP-only and same-site,
+// and a second place to say so would only be a place to say otherwise.
+echo 'rename the cookie:          ', Core\Config::set('session.cookie', 'sid') ? 'accepted' : 'refused', "\n";
