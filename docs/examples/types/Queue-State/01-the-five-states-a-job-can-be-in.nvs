@@ -1,0 +1,40 @@
+<?nvs
+// Every background job is in exactly one of five states. This walks all five
+// and says, for each one, what it means and whether the work is still going to
+// happen.
+
+class Jobs {
+    public static function meaning(Core\Queue\State $state): string {
+        return match ($state) {
+            Core\Queue\State::Pending => "waiting for a worker to pick it up",
+            Core\Queue\State::Claimed => "a worker is running it right now",
+            Core\Queue\State::Succeeded => "it ran to the end",
+            Core\Queue\State::Dead => "it used up every attempt and was set aside",
+            Core\Queue\State::Cancelled => "it was called off before anyone took it",
+        };
+    }
+
+    // Two of the five are on their way somewhere. The other three are where
+    // the job came to rest.
+    public static function stillToCome(Core\Queue\State $state): bool {
+        return match ($state) {
+            Core\Queue\State::Pending => true,
+            Core\Queue\State::Claimed => true,
+            default => false,
+        };
+    }
+}
+
+array<Core\Queue\State> $states = [
+    "Pending" => Core\Queue\State::Pending,
+    "Claimed" => Core\Queue\State::Claimed,
+    "Succeeded" => Core\Queue\State::Succeeded,
+    "Dead" => Core\Queue\State::Dead,
+    "Cancelled" => Core\Queue\State::Cancelled,
+];
+
+foreach ($states as string $name => Core\Queue\State $state) {
+    echo $name, ": ", Jobs::meaning($state),
+        Jobs::stillToCome($state) ? " (still to come)" : "",
+        "\n";
+}

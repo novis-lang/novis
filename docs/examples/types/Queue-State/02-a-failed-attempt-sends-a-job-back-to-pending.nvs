@@ -1,0 +1,41 @@
+<?nvs
+// There is no `Failed` state, and this shows why none is needed. A job whose
+// attempt goes wrong is tried again, so the attempt leaves it back at
+// `Pending`. Only running out of attempts ends it, as `Dead`.
+
+class Attempt {
+    // Where one attempt leaves a job: it worked, or there is another attempt
+    // left, or there is not.
+    public static function leaves(bool $worked, uint $used, uint $allowed): Core\Queue\State {
+        if ($worked) {
+            return Core\Queue\State::Succeeded;
+        }
+        return $used < $allowed ? Core\Queue\State::Pending : Core\Queue\State::Dead;
+    }
+
+    public static function name(Core\Queue\State $state): string {
+        return match ($state) {
+            Core\Queue\State::Pending => "Pending",
+            Core\Queue\State::Claimed => "Claimed",
+            Core\Queue\State::Succeeded => "Succeeded",
+            Core\Queue\State::Dead => "Dead",
+            Core\Queue\State::Cancelled => "Cancelled",
+        };
+    }
+}
+
+uint $allowed = 3;
+uint $used = 0;
+Core\Queue\State $state = Core\Queue\State::Pending;
+
+// The payment provider is down all afternoon, so every attempt goes wrong.
+// The job keeps coming back until the third one, which has nothing after it.
+while ($state == Core\Queue\State::Pending) {
+    $used = $used + 1;
+    $state = Attempt::leaves(false, $used, $allowed);
+    echo "attempt ", $used, " of ", $allowed, " -> ", Attempt::name($state), "\n";
+}
+
+// The same job on a day the provider answers. One attempt and it is over.
+echo "\n";
+echo "attempt 1 of ", $allowed, " -> ", Attempt::name(Attempt::leaves(true, 1, $allowed)), "\n";

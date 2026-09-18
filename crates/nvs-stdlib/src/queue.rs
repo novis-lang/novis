@@ -6169,6 +6169,7 @@ mod tests {
     /// `const` can reach into. This is the assertion [`PENDING`]'s doc comment owes: the enum a
     /// program compares against and the column a worker claims from are one representation, and
     /// nothing else would notice them drifting apart.
+    // covers: Core\Queue\State
     #[test]
     fn queue_statements_agree_with_the_state_enum() {
         let case = |name: &str| {

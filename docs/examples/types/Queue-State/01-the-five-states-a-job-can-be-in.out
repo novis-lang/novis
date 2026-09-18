@@ -1,0 +1,5 @@
+Pending: waiting for a worker to pick it up (still to come)
+Claimed: a worker is running it right now (still to come)
+Succeeded: it ran to the end
+Dead: it used up every attempt and was set aside
+Cancelled: it was called off before anyone took it

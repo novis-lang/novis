@@ -1,0 +1,42 @@
+<?nvs
+// The queue check somebody does with their coffee. Five states, but only one
+// of them is a reason to open your laptop: `Dead` is work that was asked for
+// and never happened. The rest are either finished or on their way.
+
+class Board {
+    public static function needsAPerson(Core\Queue\State $state): bool {
+        return $state == Core\Queue\State::Dead;
+    }
+
+    public static function onItsWay(Core\Queue\State $state): bool {
+        return $state == Core\Queue\State::Pending || $state == Core\Queue\State::Claimed;
+    }
+}
+
+array<Core\Queue\State> $lastNight = [
+    "invoice 1041" => Core\Queue\State::Succeeded,
+    "invoice 1042" => Core\Queue\State::Dead,
+    "welcome mail for ada" => Core\Queue\State::Succeeded,
+    "nightly report" => Core\Queue\State::Claimed,
+    "invoice 1043" => Core\Queue\State::Pending,
+    "welcome mail for grace" => Core\Queue\State::Cancelled,
+];
+
+uint $coming = 0;
+uint $stuck = 0;
+
+foreach ($lastNight as string $job => Core\Queue\State $state) {
+    if (Board::onItsWay($state)) {
+        $coming = $coming + 1;
+    }
+    if (Board::needsAPerson($state)) {
+        $stuck = $stuck + 1;
+        echo "needs a person: ", $job, "\n";
+    }
+}
+
+echo "\n", $coming, " job(s) still on their way, ", $stuck, " waiting for a person\n";
+
+// The cancelled one is not on the list, because nobody wanted it to run. That
+// is the distinction worth keeping: a job that was called off and a job that
+// ran out of attempts look the same on a count and mean opposite things.
