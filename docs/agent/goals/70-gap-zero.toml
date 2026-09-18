@@ -9854,9 +9854,12 @@ want = []
 
 # The job's own command, run locally. `wsl.exe` because this driver runs on Windows
 # (docs/agent/commands.md's WSL section); the script ends on the one line this reads.
+# `overlap`: it builds and runs inside WSL under a target directory of its own, so nothing on the
+# Windows side waits for it or is measured by it.
 [[check]]
 kind = "command"
 stage = "1 floor"
+overlap = true
 name = "ThreadSanitizer is clean over nvs-host and nvs-runtime"
 argv = ["wsl.exe", "--", "bash", "-lc", "bash tools/tsan.sh"]
 want = ["tsan: clean"]
