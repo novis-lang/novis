@@ -16,7 +16,8 @@
 # its line here are one edit, and the test fails on a stale line as loudly as on
 # an unlisted one. When this file holds no keys, spec § 13 is registered whole.
 #
-# Every key here names the chain goal that builds it, by the user's decision:
-# `Core\BigInt` is goal `bigint`, and the double half of `Core\Test` is goal
-# `test-doubles`. Neither waits on a milestone's work, so a milestone tag would
-# be the dishonest column; each goal's own prose holds the reason it exists.
+# The list holds no keys, which the paragraph above reads as spec § 13 registered
+# whole. The owner column a key carries is a chain goal's slug, by the user's
+# decision, and never a milestone tag: a milestone says which body of work a
+# member belongs to rather than which goal builds it, and each goal's own prose
+# holds the reason it exists.

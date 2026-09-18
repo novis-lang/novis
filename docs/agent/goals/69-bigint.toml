@@ -31,9 +31,12 @@ modules = [
   "crates/nvs-stdlib/tests/spec-members-compiler-facing-outstanding.txt",
   # The paragraph stage 0 rewrites.
   "docs/rules/core-api/tier-roster.md",
+  # The one home of the natural order every member reads, and the row a `Core\BigInt` goes down.
+  # Stages 4 and 5.
+  "crates/nvs-stdlib/src/ordering.rs",
 ]
 
-rules = ["types/decimal", "core-api/tier-roster"]
+rules = ["types/decimal", "core-api/tier-roster", "classes/comparable"]
 
 adrs = []
 
@@ -142,7 +145,9 @@ stage = "4 the proofs"
 name = "conformance (the depth shapes over BigInt)"
 args = ["test", "tests/conformance/"]
 # Drafted before the cases were written, and repointed to the names their author chose: each row below
-# holds the claim the drafted name asked for, `--TEST--` line for `--TEST--` line.
+# holds the claim the drafted name asked for, `--TEST--` line for `--TEST--` line. The last row was not
+# drafted: the ordering a class states is read by five members past `sort`, and that is the case pinning
+# them agreeing with `compareTo` and refusing a class that declares none.
 cases = [
   "tests/conformance/core/bigint-div-and-mod-agree-with-the-int-operators-over-a-sign-sweep.nvst",
   "tests/conformance/core/bigint-grows-past-the-int-bound-and-narrows-back-on-both-sides-of-it.nvst",
@@ -150,6 +155,7 @@ cases = [
   "tests/conformance/core/bigint-orders-through-compare-to-and-every-spelling-of-it-agrees.nvst",
   "tests/conformance/core/bigint-refuses-a-zero-divisor-a-negative-root-and-an-answer-past-its-width.nvst",
   "tests/conformance/core/bigint-number-theory-members-answer-their-own-identities.nvst",
+  "tests/conformance/core/ordering-over-objects-agrees-with-compare-to-in-arr-and-math-and-refuses-a-class-without-one.nvst",
 ]
 
 [[check]]
@@ -171,7 +177,9 @@ tests = [
 kind = "command"
 stage = "5 the gate"
 name = "no `Core\\BigInt` key is outstanding"
-argv = ["git", "grep", "-n", "BigInt", "--", "crates/nvs-stdlib/tests/spec-members-compiler-facing-outstanding.txt"]
+# A key is a line that is not a comment, and the file's own header names `Core\BigInt` twice while
+# explaining the key shape -- so a bare `BigInt` would match the prose that outlives every key.
+argv = ["git", "grep", "-n", "-E", "^[^#]*BigInt", "--", "crates/nvs-stdlib/tests/spec-members-compiler-facing-outstanding.txt"]
 exit = "nonzero"
 
 [[check]]
