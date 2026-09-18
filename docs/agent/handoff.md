@@ -2,41 +2,28 @@
 
 ## State
 
-**Goal `bigint` is met, and both reds the DONE claims before this one fell to were the machine
-rather than the tree.** `Core\BigInt` with its 24 members, the conformance cases,
-`examples/bigint.nvs` and the three named guard tests are on disk, and the stage-5 gates —
-`verify.py --doc`, `owners.py --closes bigint`, `playbook.py --closes bigint`, `chain.py --check` —
-are green by hand again. The last red, the floor's `nvs-cli (cost margins)`, read warm 31.9 ms
-against cold 58.8 ms inside a check whose own 2m32s was 2m31s of compiling; the same commit, idle,
-prints 13.2x against the 4x it names.
+**Goal `gap-zero` — no gap is owed by anyone but a future milestone, and the index that held them is
+gone — has just started; nothing of it has landed yet.** Goal `unowned-closures`'s whole list is this
+goal's Stage 1 floor, and it holds every closure goal's checks.
 
-**That shadow had a cause and `tools/loop.py` now fixes it.** `release_builds` warms *every*
-`--release` check rather than the first in file order — the goal names three and only
-`nvs-abi-probe` was prebuilt, so `nvs-cli`'s release harness compiled in the foreground right
-before the measurement. Why it recompiles every sweep at all is
-`crates/nvs-cli/build.rs:99`, which reruns on `.git/index`.
-
-**The driver process predates both fixes**: pid 8444 is one long-lived `python tools/loop.py`
-started 2026-09-17, so neither `asked_again` nor `release_builds` is in the process sweeping now.
-If a cost guard flickers a third time and the run halts, the repair is to restart the driver so it
-loads `tools/loop.py` as it stands. Nothing is blocked.
+Settled before the first session: **this goal builds nothing.** If `python tools/owners.py --check` or
+`python tools/plan.py --past` names an open item, a closure goal left it behind — that is a `BLOCKED`
+naming the item, never a new owner or a deferral invented to pass. The one other expected hold is CI:
+if GitHub still refuses to start jobs, stage 4 is a `BLOCKED` naming the billing block.
 
 ## Next group
 
-**Goal `gap-zero`, stage 2: the fatal gate, then the index deleted** — one file set:
-`tools/owners.py`, `tools/playbook.py`, `tools/brief.py`,
-`crates/nvs-stdlib/tests/spec_registry_coverage.rs`. The switch installs that goal's own seed
-handoff over this one (`tools/loop.py:3802`); these anchors were re-checked at this commit.
+**Stage 2 and stage 3: the fatal gate, then the index deleted** — one file set: `tools/owners.py`,
+`tools/playbook.py`, `tools/brief.py`, `crates/nvs-stdlib/tests/spec_registry_coverage.rs`.
 
-- [ ] **Retire `unowned`** — `tools/owners.py:506`'s `classify`, `tools/owners.py:320`'s `tag_of`,
-      and `crates/nvs-stdlib/tests/spec_registry_coverage.rs:505`'s `owner_problem`.
-- [ ] **The full gate by default, run by `verify.py`** — `tools/owners.py:727`'s `run_check`.
-- [ ] **Delete `docs/agent/carried-gaps.md` and re-point every reader in the same slice** —
-      `tools/brief.py:483`'s `OWNERS_HOME`, `tools/owners.py:8` and `tools/orient.py:1210`.
+- [ ] **Retire `unowned`** — `tools/owners.py:@classify`, `tools/owners.py:@tag_of`, and
+      `crates/nvs-stdlib/tests/spec_registry_coverage.rs:433`'s `owner_problem`.
+- [ ] **The full gate by default, run by `verify.py`** — `tools/owners.py:@run_check`, `tools/verify.py`.
+- [ ] **Delete `docs/agent/carried-gaps.md` and re-point every reader in the same slice** — the list is
+      in the goal prose; `python tools/check-links.py` is the proof.
 
 ## Backlog
 
-- A driver that re-execs itself when `tools/loop.py` changes under it — unowned, and a hang risk
-  worth the user's call before anyone writes it (`docs/agent/commands.md` § the loop).
-- `crates/nvs-cli/build.rs:99`'s `.git/index` trigger costs every sweep a 2m30s release relink;
-  whether the stamp needs the index at all is that file's own question.
+- Stage 4, CI green on `main` — `gh run list --branch main --workflow ci.yml`.
+- Stage 5, `python tools/plan.py --past` and `--sync` writing `done`; the status block's *Done* field.
+- When this goal's last check goes green the driver takes goal `dossier`.

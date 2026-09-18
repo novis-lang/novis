@@ -1,13 +1,14 @@
-# Goal 69 -- `Core\BigInt`: the arbitrary-magnitude integer class ADR 0054 promised beside the
-# `decimal` scalar
+# Goal 70 -- no gap is owed by anyone but a future milestone, and the index that held them is gone
 # The acceptance test, as data.
 #
-# `69-bigint.md` is the prose. One home each.
+# `70-gap-zero.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+#
+# Every zero is written `label: 0` on purpose: `want` is a substring match, and `0 unowned` would also
+# match `10 unowned`. Goal `gap-register` fixes that summary format.
 
 files = [
-  "examples/bigint.nvs",
   # carried from the previous goal by tools/goal-switch.py
   "examples/cache-shared-tls.nvs",
   "examples/webcrypto.nvs",
@@ -91,39 +92,41 @@ files = [
   "examples/control.nvs",
   "examples/callable.nvs",
   "examples/targets.nvs",
+  # carried from the previous goal by tools/goal-switch.py
+  "examples/bigint.nvs",
 ]
 
 [context]
 
 modules = [
-  # The model for every row, card and body, and the refusal classes. Stages 2 and 3.
-  "crates/nvs-stdlib/src/decimal.rs",
-  # `CLASSES`, `CoreTy`, `CoreMethod`. Stages 2 and 3.
-  "crates/nvs-stdlib/src/registry.rs",
-  # A `Core`-owned instance is an ordinary object; the renderer and comparer fields. Stage 2.
-  "crates/nvs-stdlib/src/instance.rs",
-  # `mod` list: where the new module is declared. Stage 2.
-  "crates/nvs-stdlib/src/lib.rs",
-  # `gcd` and `lcm` on `int`, mirrored on the class. Stage 3.
-  "crates/nvs-stdlib/src/math.rs",
-  # The `decimal` layout `toDecimal` fills: a 96-bit mantissa and a scale. Stage 3.
-  "crates/nvs-runtime/src/decimal.rs",
-  # The tier guard the new class must satisfy. Stage 2.
-  "crates/nvs-stdlib/tests/tier_boundary.rs",
-  # The ratchet, struck in the same edit that registers the class. Stages 2 and 5.
-  "crates/nvs-stdlib/tests/spec-members-compiler-facing-outstanding.txt",
-  # The paragraph stage 0 rewrites.
-  "docs/rules/core-api/tier-roster.md",
-  # The one home of the natural order every member reads, and the row a `Core\BigInt` goes down.
-  # Stages 4 and 5.
-  "crates/nvs-stdlib/src/ordering.rs",
+  # The gate this goal makes fatal, and the index it stops reading. Stages 2 and 3.
+  "tools/owners.py",
+  # `CARRIED_GAPS` and the report over the deleted file's Owner column. Stage 3.
+  "tools/playbook.py",
+  # `HOMES` and `OWNERS_HOME`. Stage 3.
+  "tools/brief.py",
+  # A manifest naming the deleted file. Stage 3.
+  "tools/orient.py",
+  # Where the gate joins the ordered run. Stage 2.
+  "tools/verify.py",
+  # `--past` and `done`. Stage 5.
+  "tools/plan.py",
+  # A dangling link to the deleted file is the failure mode. Stage 3.
+  "tools/check-links.py",
+  # The index, read one last time and then deleted.
+  "docs/agent/carried-gaps.md",
+  # The owner column's gate, and its example slug. Stages 2 and 3.
+  "crates/nvs-stdlib/tests/spec_registry_coverage.rs",
 ]
 
-rules = ["types/decimal", "core-api/tier-roster", "classes/comparable"]
+rules = [
+  "0004",
+  "programs/memory-priority",
+]
 
 adrs = []
 
-shapes = ["A commit message", "A `Core` member — the five edits", "A `.nvst` test case"]
+shapes = ["A commit message", "A code comment"]
 
 milestones = []
 
@@ -137,32 +140,20 @@ playbook = [
   'Tooling > a [context]*',
   'Tooling > orient.py prints',
   'Tooling > another agent',
-  # Ranked by `python tools/playbook.py --manifest` over this goal's modules.
-  'Writing Novis itself > a core row that',
-  "Writing Novis itself > a new core row's",
-  "Writing Novis itself > a core class's",
-  'Writing Novis itself > nvs-types depends',
-  'Writing a test case > a crate with the',
 ]
 
-plan = ["Open now", "Blocking"]
+plan = ["Open now", "Blocking", "Done"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `69-bigint.md`. PROSE stage numbers; loop-authoring.md
+# THE STAGES. One table per prose stage in `70-gap-zero.md`. PROSE stage numbers; loop-authoring.md
 # section 2 is the whole of it.
 # ---------------------------------------------------------------------------------------------------
 
 [context.stage.2]
-rules = ["packaging/a-c-dependency-answers-two-questions", "classes/comparable", "classes/stringable"]
-adrs = ["0054 §5", "0054 §6"]
+rules = ["core-api/tier-roster"]
 
-[context.stage.3]
-rules = ["types/arithmetic", "types/conversion"]
-adrs = []
-
-# A `BigInt` is an object per value, allocated and released with the request, so the leak sweep reads
-# `examples/bigint.nvs` like any other fixture.
+# Nothing this goal writes allocates at run time.
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-socket.nvs", "examples/queue-sqlite.nvs", "examples/cache-shared-tls.nvs"]
 
@@ -179,7 +170,7 @@ memoize_on = ["crates/nvs-db", "crates/nvs-stdlib", "tests/db"]
 
 # <<< goal-switch: floor checks are inserted below this line >>>
 
-# 895 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
+# 902 check(s) carried from docs/agent/loop-goal.toml by tools/goal-switch.py.
 # They are the previous goal's acceptance list VERBATIM, relabelled to stage "1 floor".
 # Do not edit them to make something pass: a floor that has been adjusted is not a floor.
 
@@ -11887,18 +11878,15 @@ tests = [
   "every_registry_row_carries_a_reference_card",
 ]
 
-
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 2 -- the class and its representation. Goal prose stage 2.
 #
 # Every test and case named below must EXIST and pass. None does yet except the tier guard; writing
 # one is how an item finishes. Do not rename one to something already green.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "cargo-named"
-stage = "2 the class"
+stage = "1 floor"
 name = "nvs-stdlib (a BigInt renders and compares through its descriptor, inside Tier 0)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -11906,16 +11894,14 @@ tests = [
   "no_class_outside_tier_zero_registers_a_core_name",
 ]
 
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 3 -- the roster. Goal prose stage 3. The fixture's lines are the roster's worked example:
 # a factorial past 2^63, a power, `powMod` on the textbook RSA figures, the `div`/`mod` identity on a
 # negative dividend, and `toInt` on both sides of the `int` bound.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "exact"
-stage = "3 the roster"
+stage = "1 floor"
 file = "examples/bigint.nvs"
 want = [
   "30! = 265252859812191058636308480000000",
@@ -11926,14 +11912,12 @@ want = [
   "int max + 1: ArithmeticError",
 ]
 
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 4 -- the proofs. Goal prose stage 4.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "nvs-suite"
-stage = "4 the proofs"
+stage = "1 floor"
 name = "conformance (the depth shapes over BigInt)"
 args = ["test", "tests/conformance/"]
 # Drafted before the cases were written, and repointed to the names their author chose: each row below
@@ -11952,7 +11936,7 @@ cases = [
 
 [[check]]
 kind = "cargo-named"
-stage = "4 the proofs"
+stage = "1 floor"
 name = "nvs-stdlib (the two bounds a BigInt is written around)"
 args = ["test", "-p", "nvs-stdlib"]
 tests = [
@@ -11960,14 +11944,12 @@ tests = [
   "bigint_div_and_mod_agree_over_a_sign_sweep",
 ]
 
-
 # ---------------------------------------------------------------------------------------------------
 # Stage 5 -- the gate.
 # ---------------------------------------------------------------------------------------------------
-
 [[check]]
 kind = "command"
-stage = "5 the gate"
+stage = "1 floor"
 name = "no `Core\\BigInt` key is outstanding"
 # A key is a line that is not a comment, and the file's own header names `Core\BigInt` twice while
 # explaining the key shape -- so a bare `BigInt` would match the prose that outlives every key.
@@ -11976,35 +11958,119 @@ exit = "nonzero"
 
 [[check]]
 kind = "command"
-stage = "5 the gate"
+stage = "1 floor"
 name = "the tier roster no longer lists big integers as unregistered"
 argv = ["git", "grep", "-n", "-i", "big integers", "--", "docs/rules/core-api/tier-roster.md"]
 exit = "nonzero"
 
 [[check]]
 kind = "command"
-stage = "5 the gate"
-name = "the rendered rulebook is current"
-argv = ["python", "tools/rules.py", "--render", "--check"]
-
-[[check]]
-kind = "command"
-stage = "5 the gate"
+stage = "1 floor"
 name = "no gap names this goal"
 argv = ["python", "tools/owners.py", "--closes", "bigint"]
 
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 0 -- `rule:security/launderer-answers-a-carrier`'s carrier rule, accepted after M4 reported `Core\Html` done. It is
+# FIRST in this file because the run order inside a class is this file's order: an escaper that answers a
+# plain `string` is escaped a second time by `rule:core-classes/html-auto-escape`'s sink, and every `Core\Html` case written
+# before the return type changes is written against the wrong rule. Item 1 in loop-goal.md.
+#
+# The two guard tests below must EXIST and pass. The `nvs-types` one is the half that cannot be read off
+# the registry: `.` admits a `Stringable` object, so "`Markup` has no concat row" is a claim about the
+# language and not about a signature.
+# ---------------------------------------------------------------------------------------------------
 [[check]]
 kind = "command"
-stage = "5 the gate"
-name = "the chain still walks"
-argv = ["python", "tools/chain.py", "--check"]
+stage = "2 the gate"
+name = "no recorded gap is owed by anyone but a future milestone"
+argv = ["python", "tools/owners.py", "--check"]
+want = [
+  "goal-owned: 0",
+  "unowned: 0",
+  "untagged: 0",
+  "past-milestone: 0",
+  "retired-owner: 0",
+]
+
+[[check]]
+kind = "command"
+stage = "2 the gate"
+name = "every deferral names a future milestone whose plan states the scope"
+argv = ["python", "tools/owners.py", "--deferrals"]
+want = ["every deferral names a future milestone whose plan states the scope"]
 
 [[check]]
 kind = "cargo-named"
-stage = "5 the gate"
-name = "nvs-stdlib (the ratchet and the reference cards)"
-args = ["test", "-p", "nvs-stdlib"]
-tests = [
-  "every_outstanding_key_names_an_owner",
-  "every_registry_row_carries_a_reference_card",
-]
+stage = "2 the gate"
+name = "nvs-stdlib (a ratchet key is owned by a live goal or a future milestone, never unowned)"
+args = ["test", "-p", "nvs-stdlib", "--test", "spec_registry_coverage"]
+tests = ["unowned_is_no_longer_an_owner_for_a_key"]
+
+[[check]]
+kind = "command"
+stage = "2 the gate"
+name = "verify.py runs the register's gate"
+argv = ["python", "tools/verify.py", "--list"]
+want = ["owners.py --check"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the index is gone, and nothing points at it. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "3 the index is gone"
+name = "the index that held the register no longer exists"
+argv = ["python", "tools/owners.py", "--registers"]
+want = ["docs/agent/carried-gaps.md: absent, as the register requires", "5 register(s)"]
+
+[[check]]
+kind = "command"
+stage = "3 the index is gone"
+name = "nothing in the tree points at the deleted file"
+argv = ["python", "tools/check-links.py"]
+want = ["no missing target"]
+
+[[check]]
+kind = "command"
+stage = "3 the index is gone"
+name = "the playbook's own checks survive the file that is gone"
+argv = ["python", "tools/playbook.py", "--check"]
+want = ["none -- every path any bullet names still exists"]
+
+[[check]]
+kind = "command"
+stage = "3 the index is gone"
+name = "every entry is still one the driver can walk"
+argv = ["python", "tools/chain.py", "--check"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- CI is green on main. Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "4 ci is green"
+name = "the latest CI run on main succeeded"
+argv = ["gh", "run", "list", "--branch", "main", "--workflow", "ci.yml", "--limit", "1", "--json", "conclusion"]
+want = ["\"conclusion\":\"success\""]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- the past milestones are complete. Goal prose stage 5.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "5 past milestones"
+name = "all eleven past milestones are complete"
+argv = ["python", "tools/plan.py", "--past"]
+want = ["11 of 11 past milestone(s) complete"]
+
+[[check]]
+kind = "command"
+stage = "5 past milestones"
+name = "plan.py: every cell agrees with the chain, done included"
+argv = ["python", "tools/plan.py", "--check"]
+want = ["every cell agreeing with the chain"]

@@ -1,96 +1,99 @@
 ---
 milestone: post-parity
 ---
-# Loop goal 69 — `Core\BigInt` — the arbitrary-magnitude integer class ADR 0054 promised beside the `decimal` scalar
+# Loop goal 70 — no gap is owed by anyone but a future milestone, and the index that held them is gone
 
-`Core\BigInt` is registered: an immutable, heap-allocated, method-based integer of any magnitude — the
-class ADR 0054 § 5 named as what replaces `gmp` and the integer half of `bcmath`: `bcpowmod`, `bcpow`
-with a large exponent, a factorial past 2^63. It is `Stringable` and `Comparable`, converts to and from
-`int`, `uint`, `decimal` and a `string` in a radix, and refuses with `ArithmeticError` where the
-operators do. The `§13 Core\BigInt` key is struck from
-`crates/nvs-stdlib/tests/spec-members-compiler-facing-outstanding.txt`, and
-`rule:core-api/tier-roster`'s *designed, not shipped* paragraph no longer names big integers.
+The end of the gap program the user set on 2026-09-13. Every recorded gap is **closed, or tagged to a
+future milestone (M9 and above) whose own plan file states the scope** — no item names a goal, no item
+is `unowned`, no item is owed by a past milestone. **M0 through M8 — M4S and M4B included — are
+complete**: `python tools/plan.py --past` says so for all eleven and their `Carried by` cells read `done`.
+CI is green on `main`. `docs/agent/carried-gaps.md` is deleted, because an index of gaps with an owner
+other than the plan has nothing left to index.
 
 ## Why here
 
-The user's call of 2026-09-18, made while goal `gap-zero` held the run: the spec § 13 row
-(`docs/spec/01-core-library.md:1012`) names the class beside `Core\Decimal`, `docs/plan/m8.md:52`
-scoped the pair together, and M8 closed with the decimal half alone — so the key was `unowned`, and a
-milestone tag would have named work already gone green. Nothing later is needed to build it: the
-`decimal` scalar it converts to, `instance.rs`'s `Core`-owned object, and the `Comparable` and
-`Stringable` descriptor fields are all landed. It runs after goal `test-doubles` — the larger of the
-two, with a disjoint file set — and in front of `gap-zero`, whose ratchet half needs every key to name
-a goal that has walked. `Core\BigDecimal`, which ADR 0054 § 6 also names, stays unscheduled: no spec
-row and no key carries it.
+**Last of the hand-written goals, directly in front of the dossier.** Everything that closes a gap runs
+before it: goal `plan-truth` made the documents true, goal `gap-register` built the roster and the
+past-milestone report this goal makes fatal, and goals `m4-refusals`, `m5-proofs`, `m4b-editor`,
+`m7-server-surface`, `m8-db-queue`, `m8-stdlib-depth`, `unowned-closures` and `decided-closures` built
+what the past milestones promised and what the user's decision sheet answered, and goals `test-doubles`
+and `bigint` built the six ratchet keys this goal first held the run on, by the user's decision of
+2026-09-18. Their acceptance lists are this goal's floor, so their work is proven here by construction. **This goal builds nothing.** If its gate is red
+when the run arrives, a closure goal went green without closing an item, and the item is named.
 
 ## Stage 0 — the catch-up
 
-`docs/rules/core-api/tier-roster.md`'s *Designed, not shipped* paragraph lists big integers among the
-Tier 0 classes `registry.rs` does not hold: rewritten as a whole when the class registers, then
-`python tools/rules.py --render`. `docs/spec/02-php-migration.md:363`'s `bcpowmod → Core\BigInt` row is
-already right, and `:366`'s `bcsqrt → Core\Decimal` stays — `Decimal` is the human-magnitude answer.
+None.
 
 ## Stage 1 — the floor
 
-Goal `test-doubles`'s whole acceptance list, carried in verbatim by `tools/goal-switch.py`. It holds
-every closure goal's checks. Never traded.
+Goal `bigint`'s whole acceptance list, carried in verbatim by `tools/goal-switch.py`. It holds every
+closure goal's checks, and `test-doubles`' and `bigint`'s own. Never traded.
 
-## Stage 2 — the keystone: the class and its representation
+## Stage 2 — the gate becomes fatal
 
-`crates/nvs-stdlib/src/bigint.rs`, registered in `registry::CLASSES` beside
-`crates/nvs-stdlib/src/registry.rs:1530`'s `decimal::CLASS`, over the `num-bigint` crate — named by
-ADR 0054 § 5, pure Rust, so `rule:packaging/a-c-dependency-answers-two-questions` is answered at its first
-question. A value is a `Core`-owned instance under `crates/nvs-stdlib/src/instance.rs`'s first
-decision: two slots, the sign as an `int` in {-1, 0, 1} and the magnitude as `bytes`, little-endian,
-`BigUint::to_bytes_le`'s own form. Every member reads its operands back into a `BigUint`, computes, and
-produces a new instance — values are immutable, as `decimal` is. The descriptor's `renderer` is the
-decimal rendering and its `comparer` is `compareTo` (`crates/nvs-stdlib/src/instance.rs:185`), so
-`echo`, `<=>`, `==` and `Core\Arr::sort` follow `rule:classes/stringable` and `rule:classes/comparable`
-with no rule of their own. `crates/nvs-stdlib/src/decimal.rs` is the model for every row's shape, and
-`crates/nvs-stdlib/src/math.rs`'s `gcd`/`lcm` for the two members that mirror `Core\Math`.
+One file set: `tools/owners.py`, `crates/nvs-stdlib/tests/spec_registry_coverage.rs`, `tools/verify.py`.
 
-## Stage 3 — the roster
+1. **`unowned` stops being an owner kind.** `tools/owners.py:@classify` and `:@tag_of` accept a live goal
+   slug or an M9+ milestone tag, nothing else; `crates/nvs-stdlib/tests/spec_registry_coverage.rs`'s
+   `owner_problem` does the same for a ratchet key.
+2. **The full gate is the default.** `owners.py --check` is fatal on an untagged item, a tag resolving to
+   nothing, a goal owner, a past-milestone owner, and a retired owner. Every count on the summary is
+   `label: N` (goal `gap-register`'s format), and the check reads five zeros.
+3. **`verify.py` runs it** — `tools/verify.py`'s ordered run gains `owners.py --check`, so a gap written
+   with a goal owner or none fails before it is committed.
 
-Every row under `docs/agent/conventions.md` § *A `Core` member — the five edits*. Construction:
-`of(int $value)`, `ofUint(uint $value)`, `parse(string $text, {radix?: uint} $options)` — radix 2 to 36,
-default 10, a text that is not an integer in that radix a `ParseError`. Arithmetic, each answering a new
-`BigInt`: `add`, `sub`, `mul`, `div` (truncating, as `intdiv`), `mod` (the sign of the dividend, as `%`
-on `int`), `pow(uint $exponent)`, `powMod(BigInt $exponent, BigInt $modulus)`, `sqrt` (the floor),
-`gcd`, `lcm`, `neg`, `abs`, `shl(uint $bits)`, `shr(uint $bits)`. Reading: `sign(): int`,
-`compareTo(BigInt $other): int`, `toInt(): int`, `toUint(): uint`, `toDecimal(): decimal`,
-`toString(): string`, `format({radix: uint} $options): string`. Nothing else: bitwise `and`/`or`/`xor`,
-primality and random generation are not on the row and are not this goal.
+## Stage 3 — the index is deleted, and nothing points at it
 
-## Stage 4 — the proofs
+`docs/agent/carried-gaps.md` goes, and **every reader is re-pointed in the same slice** — a dangling
+pointer is this goal's own failure one level up. At authoring time (`python tools/peek.py
+"**/*:re:carried-gaps"` is the live list, and is re-run):
 
-One `examples/bigint.nvs` fixture with exact output — a factorial, a power, `powMod`, the `div`/`mod`
-identity on a negative dividend, and `toInt` on both sides of the `int` bound. Conformance cases under
-`tests/conformance/core/` in the depth shapes: `div` and `mod` **agreeing** with `intdiv` and `%` over a
-sign sweep, by counting; `toInt` and `toDecimal` asserted on both sides of their bounds; `parse`
-refusing at the edge of each radix; `compareTo`, `<=>` and `Core\Arr::sort` agreeing over a table.
-The named guard tests the acceptance list carries. The key struck in the same edit that registers the
-class.
+- `tools/owners.py` (its `unowned_paths` reads § *Unowned*; eleven mentions) and `tools/playbook.py`
+  (`CARRIED_GAPS`, `owned_rows`, and the report section `:@report_expiry` prints)
+- `tools/brief.py:471-483` (`HOMES` row and `OWNERS_HOME`), `tools/orient.py:1184`, `tools/goals.py:9`
+- `crates/nvs-stdlib/tests/spec_registry_coverage.rs:78`, `:422`, `:475`, `:493` — the last uses the
+  slug `carried-gaps` as its example of a live goal
+- `crates/nvs-stdlib/tests/spec-members-outstanding.txt:4`, `spec-members-part-two-outstanding.txt:5`,
+  `spec-classes-part-two-outstanding.txt:11` — their header comments
+- `crates/nvs-stdlib/src/lib.rs:138`, `editors/vscode/src/regions.ts:30`
+- `docs/agent/carried-refusals.md:10`, `docs/agent/session-prompt.md:122`,
+  `docs/agent/loop-authoring.md:306` — § 8's destination for a gap found off the path becomes **the
+  module doc that owns the code, with an owner tag**
+- the playbook's bullets that name the file (`python tools/playbook.py --check` lists a path a bullet
+  names that is gone)
+
+**No floor check is traded.** The carried floor check *the durable gap list exists and every entry
+names an owner* runs `python tools/chain.py --check`, which no longer reads this file
+(`docs/agent/loop-goal.toml:4370-4375`), so it stays green when the file goes; its name is stale and
+is left, because a floor is carried verbatim.
+
+## Stage 4 — CI is green on `main`
+
+M0's acceptance is "green on all three platforms in CI", and the closure goals added the extension,
+database-matrix and ThreadSanitizer legs. `gh run list` must show the latest `ci.yml` run on `main`
+completed with `success`. The user is fixing the GitHub billing block that stopped every run; if it is
+still blocked when this stage is reached, that is a `BLOCKED` naming the billing block — the one hold this
+goal expects — never a check rewritten to pass.
+
+## Stage 5 — the past milestones are complete
+
+`python tools/plan.py --past` reports all eleven past milestones complete, and `python tools/plan.py
+--sync` has written `done` into each `Carried by` cell. The plan's status block's *Done* field is
+rewritten whole to say M0–M8 are complete.
 
 ## Standing decisions
 
-- **`num-bigint` is the dependency.** ADR 0054 § 5's own naming, not a new choice; `num-traits` and
-  `num-integer` come with it. Pinned the way `Cargo.lock` already pins every crate in the tree.
-- **Representation**: sign plus little-endian magnitude bytes, two slots, re-materialised per member.
-  What it spends: one object per result value plus one `bytes` copy per operand read, charged to the
-  request and released with it; a `BigInt` is never on a served request's hot path by design, and if a
-  program puts one there the cost is the program's. Fallback if a helper cannot write a `bytes` slot: a
-  decimal-text `string` slot under the same contract, recorded in the module doc.
-- **Immutable, and no operators.** `+` on two `BigInt`s is the compile error it is on any object; ADR
-  0054's ground — Novis has no operator overloading — holds. `nvs convert` (M11) maps `bcpowmod` to
-  `powMod`, which the migration row already says.
-- **Refusals**: `ArithmeticError` for a zero divisor, a zero modulus, a negative `sqrt`, a `shl` past a
-  bound the session sets and records, and every conversion out of range; `ParseError` for `parse`;
-  `LogicError` for a radix outside 2 to 36. The same classes `decimal.rs` draws, for the same reasons.
-- **The spec row stays as it is.** § 13's row names no member, and `Core\Decimal`'s half is registered
-  against that same prose; the roster's home is `bigint.rs`'s module doc and each row's reference card.
-- **No `Core\BigDecimal`.** ADR 0054 § 6 named it; no spec row and no key asks for it. Not this goal,
-  and not a gap — a feature request the user has not made.
-- **ADR slots**: none. ADR 0054 decided the class; the roster above is this goal's, recorded in the
-  module doc.
-- **Not this goal**: `test-doubles`; `gmp_*` rows in the migration table (the inventory holds none);
-  the four proofs beyond the cases above (goal `dossier`).
+- **The user's rule, settled 2026-09-13**: every gap is closed or deferred to M9+; M0–M8 are complete.
+  A milestone tag is right only when the item **cannot be built** until that milestone's work exists,
+  never when it is merely large. `owners.py --deferrals` checks the mechanical half; the judgement is
+  the closure goals', and it is re-checked here for any tag that arrived after them.
+- **This goal builds nothing.** An open item found here is a `BLOCKED` naming the item and the closure
+  goal that should have closed it — the run holds, the user schedules it. Inventing an owner, or
+  deferring to a milestone to make the gate pass, is the one output this goal must not produce.
+- **A gap found off the path goes in the module doc that owns the code**, tagged, and never into a new
+  index. If no module owns it, it is not a gap — it is a feature request, and it is the user's.
+- **What it spends**: nothing at run time. One tool invocation in `verify.py` over doc comments.
+- **ADR slots**: none.
+- **Not this goal**: any closure (goals `m4-refusals` through `unowned-closures`); the proofs every
+  shipped feature owes (goal `dossier`).
