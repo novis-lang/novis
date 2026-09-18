@@ -59,7 +59,9 @@ use crate::{Ctx, Env};
 
 use super::assign::is_assignable;
 use super::check_expr;
-use super::members::{can_hold_an_object, class_ref_argument, reject_dynamic_class_name};
+use super::members::{
+    can_hold_an_object, class_ref_argument, names_no_instance, reject_dynamic_class_name,
+};
 use super::operators::types_are_disjoint;
 
 /// Checks `inner is against`, answering `bool` — or the literal `true`/`false`
@@ -277,6 +279,14 @@ fn always_holds(subject: TypeId, tested: TypeId, env: &mut Env<'_>) -> bool {
 /// qualifier or a literal shares its base's domain, so neither `tainted string`
 /// against `string` nor `"a"` against `"b"` folds away a test that has real
 /// work to do at run time.
+///
+/// The second half is the target that holds *nothing*, whatever the subject
+/// is: a `Core` namespace class is a name for static members and no value is
+/// ever one ([`names_no_instance`]), so `$m is Core\Str` is `false` at every
+/// execution. It folds here rather than being refused, because a knowable
+/// answer is not a meaningless question (`rule:types/type-test`), and it folds
+/// at all because the walk `nvs-codegen` would otherwise emit has no
+/// descriptor to walk against.
 fn never_holds(subject: TypeId, tested: TypeId, env: &Env<'_>) -> bool {
-    types_are_disjoint(subject, tested, env)
+    types_are_disjoint(subject, tested, env) || names_no_instance(tested, env.interner)
 }

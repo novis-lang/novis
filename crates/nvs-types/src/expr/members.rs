@@ -287,6 +287,37 @@ pub fn testable_core_class(qname: &QName) -> bool {
             || nvs_hir::errors::is_exception_class(&qname.to_string()))
 }
 
+/// Whether a tested type names classes alone, none of which a value is ever
+/// an instance of — the `false` fold `crate::expr::type_test`'s type arm takes
+/// for a subject of any type at all, where the operand rather than the pair
+/// settles the answer.
+///
+/// A `Core` **namespace** class is the whole of it. [`testable_core_class`]
+/// admits every other `Core` name, and a declared class lays a descriptor into
+/// the unit whether or not the program ever builds one, so `$x is Unbuilt` is
+/// an ordinary run-time walk that answers `false` rather than a settled
+/// question.
+///
+/// A union is this only when **every** member is, since a live member still
+/// has its own test to run — `$x is int|Core\Str` is the `int` row and nothing
+/// else. An intersection is this whenever **any** member is, a value having to
+/// be an instance of all of them at once. Every other position — an array
+/// element, a shape field — leaves the type inhabited (an empty `array<T>`
+/// holds no element to fail), so the settled answer belongs to that position
+/// and `nvs_ir`'s own never-matching row is what takes it there.
+pub(crate) fn names_no_instance(ty: TypeId, interner: &TypeInterner) -> bool {
+    match interner.get(ty) {
+        Ty::Class(qname, _) => qname.is_core() && !testable_core_class(qname),
+        Ty::Union(members) => members
+            .iter()
+            .all(|member| names_no_instance(*member, interner)),
+        Ty::Intersection(members) => members
+            .iter()
+            .any(|member| names_no_instance(*member, interner)),
+        _ => false,
+    }
+}
+
 /// Whether a checked type admits an object at run time — the question
 /// `crate::expr::type_test`'s value arm folds on, and nothing else asks.
 ///
