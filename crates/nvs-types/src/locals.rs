@@ -26,16 +26,16 @@
 //! explicitly forbids for a reference and, by the same reasoning, for a
 //! plain local too.
 //!
-//! # Narrowing a local through `!= null`, `instanceof`, `is` or a literal
+//! # Narrowing a local through `is`, `!= null` or a literal
 //!
 //! [`narrow`] is the third piece of state this walk threads, and the only
 //! one that is *not* cloned at a branch point: [`LocalScope::narrowed`] is a
 //! single forward-walked map from a name to the type it provably holds on
 //! the path being checked right now. A `!= null`/`== null` test over a
-//! plain variable, an `instanceof` one over the same, or a comparison of one
+//! plain variable, an `is` one over the same, or a comparison of one
 //! against a written literal, installs one entry for the branch it proves —
-//! the latter two on the edge where the test holds alone, `rule:types/unions-and-mixed`'s
-//! `instanceof` row and `rule:types/literal-types`'s guard row — and the branch's end
+//! the latter two on the edge where the test holds alone, `rule:types/narrowing`'s
+//! true-edge rule and `rule:types/literal-types`'s guard row — and the branch's end
 //! restores what was there before — **unless a write already
 //! removed it**, in which case the write wins and nothing is put back (see
 //! [`Narrowing`], which records what it installed so it can tell the two
@@ -63,21 +63,20 @@
 //! [`narrow`] for the restriction that used to sit here, and for what lifted
 //! it: the narrowing is recorded on the variable read's own span
 //! ([`crate::expr_table::ExprInfo::NarrowedRead`]) and `nvs-ir` discharges it
-//! once, where the value is produced, rather than at each consumer. **An
-//! `instanceof` narrows to the class it names**, which is the same discharge
-//! one type wider — a `mixed` or a union subject is one `Ty::Tagged` slot, and
-//! the proved class is exactly what the `Untag` relabels it to. **An `is`
-//! narrows to the type it names**, which is that discharge with no restriction
-//! on the type at all — `rule:types/narrowing` makes it the general spelling and
-//! `instanceof` the nominal one, and [`type_test_residue`] owns what the two do
-//! not share. **A literal
+//! once, where the value is produced, rather than at each consumer. **An `is`
+//! narrows to the type it names**, which is that same discharge with no
+//! restriction on the type at all — a `mixed` or a union subject is one
+//! `Ty::Tagged` slot, and the proved type is exactly what the `Untag` relabels
+//! it to. `rule:types/narrowing` makes `is` the general spelling, the one test
+//! that reaches a class as readily as a scalar, and [`type_test_residue`] owns
+//! which edge proves it. **A literal
 //! comparison narrows to the literal's own type**, an enum case included,
 //! which costs nothing below the checker at all: `rule:types/literal-types` gives a literal
 //! type and an enum-case type their base's representation exactly, so the read
 //! is the same one either way.
 //!
 //! **A `match (true)`/`switch (true)` label is a condition**, so each arm body
-//! is checked under whatever the four tests above prove for its own label —
+//! is checked under whatever the tests above prove for its own label —
 //! [`is_true_literal`] owns which subject qualifies, and why a `default` arm
 //! and a comma-separated run of labels are given nothing.
 //!
@@ -375,16 +374,14 @@ fn null_test(cond: &Expr) -> Option<(Span, bool)> {
 /// Installs the narrowing `cond` proves on the branch where it evaluates to
 /// `when`, and hands back what that branch's end has to restore.
 ///
-/// Four tests install one, and they are tried in that order because no two of
-/// them match one condition. **A `!= null` test drops `null` and keeps the
-/// rest** — `rule:expressions/nullable-conversion`'s body's own rule, and every residue takes it: a class, an
-/// `array<T>`, a scalar, or a union of them. **An `instanceof` test proves the
-/// class it names, on its true edge only** — `rule:types/unions-and-mixed`'s first narrowing
-/// form; see [`instanceof_residue`] for why the false edge proves nothing and
-/// why the residue is a class rather than every name that test accepts. **An
-/// `is` test proves the type it names, also on its true edge only** —
-/// `rule:types/narrowing`'s general spelling, where `instanceof`'s is the
-/// nominal one, and [`type_test_residue`] owns the difference. **A
+/// Each test below installs one, and they are tried in this order because no
+/// two of them match one condition. **A `!= null` test drops `null` and keeps
+/// the rest** — `rule:expressions/nullable-conversion`'s body's own rule, and every residue takes it: a
+/// class, an `array<T>`, a scalar, or a union of them. **An `is` test proves
+/// the type it names, on its true edge only** — `rule:types/narrowing`'s
+/// general spelling, the one that reaches a class as well as every other type
+/// a value can inhabit; see [`type_test_residue`] for why the false edge
+/// proves nothing. **A
 /// comparison against a written literal proves that literal's own type** —
 /// `rule:types/literal-types`'s guard row, and [`literal_residue`] owns which spellings
 /// reach it.
@@ -399,10 +396,10 @@ fn null_test(cond: &Expr) -> Option<(Span, bool)> {
 /// so a subscript base, a `foreach` subject, an array-write root and an
 /// argument all see the narrow representation with no site left to forget.
 ///
-/// The four tests are what a *condition* proves, so every site that writes
+/// These tests are what a *condition* proves, so every site that writes
 /// one reaches this: the `if`/`while` arms below, the guard clause
 /// [`check_block`] carries, and — through [`is_true_literal`] — each label of a
-/// `match (true)`/`switch (true)`, which is `rule:types/unions-and-mixed`'s fourth spelling and
+/// `match (true)`/`switch (true)`, which is `rule:types/narrowing`'s fourth spelling and
 /// is a label only in where it is written.
 pub(crate) fn narrow(cond: &Expr, when: bool, scope: &LocalScope, env: &mut Env<'_>) -> Narrowing {
     let residue = match null_residue(cond, when, scope, env) {
@@ -616,7 +613,7 @@ fn literal_test(cond: &Expr) -> Option<(Span, &Expr, bool)> {
     }
 }
 
-/// Whether `subject` is the written literal `true` — the subject of `rule:types/unions-and-mixed`'s `match (true)` spelling, and of the `switch (true)` one beside it.
+/// Whether `subject` is the written literal `true` — the subject of `rule:types/narrowing`'s `match (true)` spelling, and of the `switch (true)` one beside it.
 ///
 /// Under that subject a label is not a value the subject is compared against
 /// but a **condition** in its own right, so an arm is reached exactly where
@@ -624,13 +621,13 @@ fn literal_test(cond: &Expr) -> Option<(Span, &Expr, bool)> {
 /// would install for it. Only the written literal counts, and deliberately not
 /// a `bool` local that happens to hold `true`: what makes the spelling narrow
 /// is that the label's own truth is what selected the arm, and a variable
-/// subject says only that the two agree — `$flag == ($x instanceof Foo)`
+/// subject says only that the two agree — `$flag == ($x is Foo)`
 /// proves the class on neither edge.
 ///
 /// A label proves nothing for any *other* arm, so nothing is installed for a
 /// `default` arm or for one of a comma-separated run: `match (true)` evaluates
 /// labels in order and the arm taken is the first that held, which says the
-/// earlier ones did not — a residue this pass has no way to subtract, `rule:types/unions-and-mixed`'s narrowings each naming a type rather than removing one.
+/// earlier ones did not — a residue this pass has no way to subtract, `rule:types/narrowing`'s narrowings each naming a type rather than removing one.
 pub(crate) fn is_true_literal(subject: &Expr) -> bool {
     match &subject.kind {
         ExprKind::Paren(inner) => is_true_literal(inner),
