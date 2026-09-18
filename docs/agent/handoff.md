@@ -2,46 +2,44 @@
 
 ## State
 
-**Goal `gap-zero`, stage 2, and the run is held.** The tool half is landed: `tools/owners.py` has two
-owner kinds — a live goal slug and an M9+ milestone tag — `unowned` is refused by name, `--check` is
-the whole gate (untagged, broken, `unowned`, past-milestone, goal-owned and retired-owner all fatal,
-its three flags accepted and doing nothing for the carried floor), and `tools/verify.py` runs it as
-step 5 of 12. `python tools/owners.py --check` reads five zeros over 24 milestone-owned gaps.
+**Goal `test-doubles` — `Core\Test`'s double half — has just started; nothing of it has landed yet.**
+Goal `decided-closures`'s whole list is this goal's Stage 1 floor.
 
-**The ratchet half and stage 3 are blocked on one decision.**
-`crates/nvs-stdlib/tests/spec-members-compiler-facing-outstanding.txt:24` holds six keys tagged
-`unowned` — `Core\BigInt` and `Core\Test`'s five double members. No goal on the chain builds them and
-no M9+ plan file states their scope, so `owner_problem` cannot refuse `unowned` without turning
-`every_outstanding_key_names_an_owner` red, and `docs/agent/carried-gaps.md` cannot be deleted while
-§ *Unowned* holds their reasons and that file's own header points at it. Goal `gap-zero`
-§ *Standing decisions* forbids inventing an owner, so the tree is left green and the run holds.
+Settled before the first session: ADR 0079 §§ 10, 11 and 16 hold the design and the goal prose's
+§ *Standing decisions* pre-authorises every call a session meets — no new syntax, a double is an
+ordinary `Core`-owned object, strict always. The six ratchet keys were re-owned by hand on 2026-09-18
+(`crates/nvs-stdlib/tests/spec-members-compiler-facing-outstanding.txt:24-30` name this goal and goal
+`bigint`), and the two `Core\Test` bullets left `docs/agent/carried-gaps.md` § *Unowned* the same day,
+so stage 0 is the `test.rs` module-doc section alone.
 
 ## Next group
 
-**Stage 2's ratchet half and stage 3, once the six keys have an owner** — one file set:
-`crates/nvs-stdlib/tests/spec_registry_coverage.rs`,
-`crates/nvs-stdlib/tests/spec-members-compiler-facing-outstanding.txt`, `docs/agent/carried-gaps.md`,
-`tools/playbook.py`, `tools/brief.py`.
+**Stage 2, the checker** — one file set: `crates/nvs-types/src/expr/calls.rs`,
+`crates/nvs-types/src/expr/args.rs`, `crates/nvs-types/src/core_lib.rs`,
+`crates/nvs-stdlib/src/registry.rs`, `crates/nvs-diagnostics/src/lib.rs`.
 
-- [ ] **Re-owner the six keys as the user decided, then make `owner_problem` refuse `unowned` and
-      name the guard `unowned_is_no_longer_an_owner_for_a_key`** —
-      `crates/nvs-stdlib/tests/spec_registry_coverage.rs:505` is the function,
-      `crates/nvs-stdlib/tests/spec_registry_coverage.rs:546` the test that calls it, and
-      `crates/nvs-stdlib/tests/spec-members-compiler-facing-outstanding.txt:19` the header paragraph
-      that explains the column. `rule:core-api/tier-roster` is what places `Core\BigInt`.
-- [ ] **Delete `docs/agent/carried-gaps.md` and re-point every reader in the same slice** —
-      `tools/playbook.py:130` (`CARRIED_GAPS`, and `:149`, `:452`, `:462`, `:508`, `:567`),
-      `tools/brief.py:472` and `tools/brief.py:483` (`OWNERS_HOME`), `tools/orient.py:1210`,
-      `tools/goals.py:9`, `tools/owners.py:137`. `python tools/check-links.py` is the gate.
-- [ ] **Stage 4 and stage 5 after it** — `gh run list` on `main`, then `tools/plan.py:425`'s
-      `--past` over all eleven and `--sync` into each `Carried by` cell.
-      `docs/agent/loop-goal.md:70` § *Stage 4* says the billing block is its own `BLOCKED`.
+- [ ] **The two rows** — `crates/nvs-stdlib/src/test.rs:321`'s `CLASS` gains `double` and `partial`
+      with a written `T` and a return type of `T`; `crates/nvs-stdlib/src/registry.rs:532`'s `CoreTy`
+      is where a written type parameter is already spelled.
+- [ ] **`T` must be an interface, and the shape is checked against its method set** —
+      `crates/nvs-types/src/expr/calls.rs:126`'s `check_written_type_args` is where the written `T`
+      arrives; the refusals are stage 2's items 1 and 2, two new codes.
+- [ ] **Each closure's signature against the method's** — item 3, the ordinary assignability check
+      over the closure literal's declared types.
+- [ ] **The two `reject/` cases and the `core/` case** from ADR 0079 § *Verification*'s § 10 bullet,
+      so the checker's half has its proof before the runtime's half exists: a double that fails to
+      check needs no runtime.
 
 ## Backlog
 
-- The six keys' reasons are `docs/agent/carried-gaps.md:62-78`; they must move to a module doc or go
-  with the file, not into a new index — `docs/agent/loop-goal.md` § *Standing decisions*.
-- `tools/owners.py`'s `--untagged-is-an-error`, `--reasons` and `--past-is-an-error` are accepted
-  no-ops held open by carried floor checks; they go when the floor stops passing them.
-- `docs/agent/carried-gaps.md` still counts as the sixth register in `owners.py --registers`; stage
-  3's check wants `5 register(s)` — `docs/agent/loop-goal.toml:11785`.
+- **Stage 3, the runtime** — `crates/nvs-stdlib/src/test.rs`, `crates/nvs-stdlib/src/instance.rs`,
+  `crates/nvs-runtime/src/object.rs`, `crates/nvs-runtime/src/closure.rs`,
+  `crates/nvs-runtime/src/dispatch.rs`, and `crates/nvs-ir/src/lower/expr.rs` if the descriptor is
+  built at lowering. The one open design call — where the per-site descriptor is built — is the
+  session's, recorded in `test.rs`'s module doc.
+- **Stage 4, the two assertions** — `test.rs`, `registry.rs` (the method-reference `CoreTy`),
+  `crates/nvs-types/src/expr/args.rs`. Shares files with stage 2; take it in the same session if
+  stage 2 lands under the ceiling.
+- **Stage 5, `assertCompletes`** — `test.rs` beside `advance`, one file.
+- **Stage 6, the rulebook and the gate** — `docs/rules/testing.json`, the ratchet, `python tools/rules.py --render`.
+- When this goal's last check goes green the driver takes goal `bigint`.
