@@ -673,9 +673,7 @@ mod tests {
             .map(|class| class.name)
             .filter(|name| {
                 let production = name.trim_start_matches(PRODUCTION_PREFIX);
-                production.contains("TypeTest")
-                    || production.contains("InstanceOf")
-                    || production.contains("ClassTest")
+                production.contains("TypeTest") || production.contains("ClassTest")
             })
             .collect();
         assert_eq!(
