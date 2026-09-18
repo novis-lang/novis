@@ -1,0 +1,130 @@
+<?nvs
+// Attack: a request is allowed to shape its own response, so the attack is not
+// "can this block be written" but "what can be written into it, and how far
+// does a write reach". Header values carrying a second header inside them, the
+// two combinations the rules refuse outright, the cross-origin door opened to
+// everybody with credentials attached -- and then the keys of the block that
+// are *not* a request's, because a policy a request may bend is next door to a
+// secret every request's door reads.
+// hostile: timeout-ms 20000
+
+// 1. The two keys that hold a secret rather than a policy. A request that got
+//    either of these through would be choosing the key its co-residents verify
+//    every cross-site token against, which is choosing which forgeries they
+//    accept.
+array<string> $secrets = ['http.csrf_key', 'http.csrf_key_file'];
+array<string> $values = [
+    'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    '',
+    '0',
+    'false',
+    '/proc/self/environ',
+    '../../../../etc/shadow',
+    "key\u{0000}/run/secrets/real",
+    Core\Str::repeat('k', 100000),
+];
+foreach ($secrets as string $key) {
+    foreach ($values as string $value) {
+        Core\Config::set($key, $value);
+        Core\Config::get($key);
+    }
+    Core\Config::restore($key);
+}
+
+// 2. The keys that settle something more than one request shares: the outbound
+//    pool's caps, the trust anchors every session in the process uses, and
+//    where every outbound byte goes. Each of these is a way to reach past the
+//    request doing the writing.
+array<string> $shared = [
+    'http.client.pool_idle',
+    'http.client.pool_idle_timeout',
+    'http.client.tls',
+    'http.client.tls.ca_file',
+    'http.client.tls.insecure_skip_verify',
+    'http.client.proxy',
+    'http.client.proxy.url',
+];
+foreach ($shared as string $key) {
+    Core\Config::set($key, 'http://attacker.test:8080');
+    Core\Config::set($key, 'true');
+    Core\Config::set($key, '18446744073709551615');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 3. A header value carrying a second header inside it. This is the oldest
+//    attack there is against anything that puts a configured string on the
+//    wire, and it is written here in every separator a parser might be lenient
+//    about.
+array<string> $injections = [
+    "no-referrer\r\nSet-Cookie: session=stolen",
+    "no-referrer\nSet-Cookie: session=stolen",
+    "no-referrer\rSet-Cookie: session=stolen",
+    "no-referrer\u{0000}Set-Cookie: session=stolen",
+    "no-referrer\u{2028}Set-Cookie: session=stolen",
+    "default-src 'self'\r\n\r\n<script>alert(1)</script>",
+];
+foreach ($injections as string $value) {
+    Core\Config::set('http.headers.referrer_policy', $value);
+    Core\Config::set('http.headers.content_security_policy', $value);
+    Core\Config::get('http.headers.referrer_policy');
+}
+Core\Config::restore('http.headers.referrer_policy');
+Core\Config::restore('http.headers.content_security_policy');
+
+// 4. The combinations the rules refuse outright, asked from inside a request
+//    rather than written in a file: a cookie sent cross-site in the clear, and
+//    a cross-origin door open to everybody with credentials attached. Being
+//    refused at boot is not the same as being refused here, which is the whole
+//    reason to ask.
+Core\Config::set('http.cookies.same_site', 'None');
+Core\Config::set('http.cookies.secure', 'false');
+Core\Config::set('http.cors.origins', '*');
+Core\Config::set('http.cors.credentials', 'true');
+Core\Config::set('http.cors.max_age', '99999999999999999999h');
+Core\Config::set('http.headers.hsts', '0');
+Core\Config::set('http.headers.hsts', '-1');
+Core\Config::set('http.headers.content_type_options', 'false');
+Core\Config::set('http.errors.detail', 'full');
+Core\Config::set('http.errors.detail', 'everything');
+
+// 5. Names that sit near the real ones, because the registry answers by longest
+//    prefix and this block is the one place in the file where the default
+//    answer is "a request may". A near miss reaching no row at all, or reaching
+//    the blanket row where an exception should have caught it, is a key nobody
+//    is governing.
+array<string> $nearby = [
+    'http.',
+    '.http',
+    'http..csrf_key',
+    'httpcsrf_key',
+    'HTTP.CSRF_KEY',
+    'Http.Client.Tls',
+    'csrf_key',
+    'http.csrf_key.file',
+    'http.client.tls.ca_file.real',
+    'app.http.csrf_key',
+    'http.client.' . Core\Str::repeat('sub.', 10000) . 'tls',
+];
+foreach ($nearby as string $key) {
+    Core\Config::set($key, 'anything');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 6. Fifty thousand writes of one key with no restore between them. The overlay
+//    a request writes into holds what it wrote, so a policy set in a loop must
+//    cost one entry rather than one per write.
+uint $i = 0;
+while ($i < 50000) {
+    Core\Config::set('http.errors.detail', $i % 2 == 0 ? 'full' : 'generic');
+    $i = $i + 1;
+}
+Core\Config::restore('http.errors.detail');
+Core\Config::restore('http.cookies.same_site');
+Core\Config::restore('http.cookies.secure');
+Core\Config::restore('http.cors.origins');
+Core\Config::restore('http.cors.credentials');
+
+echo 'csrf key:     ', Core\Config::get('http.csrf_key') ?? '(nothing)', "\n";
+echo 'error detail: ', Core\Config::get('http.errors.detail') ?? '(nothing)', "\n";
