@@ -1,0 +1,25 @@
+<?nvs
+// Payday is the last Friday of the month. Take the last day of the month and,
+// unless it is already a Friday, step back to the Friday before it.
+
+class Payroll {
+    public static function payday(Core\Time\DateTime $anyDayThatMonth): Core\Time\DateTime {
+        var $last = $anyDayThatMonth->endOf(Core\Unit::Month)->startOf(Core\Unit::Day);
+        if ($last->weekday() == Core\Weekday::Friday) {
+            return $last;
+        }
+        return $last->previous(Core\Weekday::Friday);
+    }
+}
+
+var $utc = Core\Time\Zone::UTC;
+
+uint $month = 1;
+while ($month <= 6) {
+    var $someDay = Core\Time::at(2024, $month, 1, $utc);
+    var $payday = Payroll::payday($someDay);
+    echo $someDay->format("MMMM"), ": paid on ", $payday->format("yyyy-MM-dd"),
+        ", ", $payday->difference($someDay->endOf(Core\Unit::Month), Core\Unit::Day),
+        " day(s) before the month is out\n";
+    $month = $month + 1;
+}

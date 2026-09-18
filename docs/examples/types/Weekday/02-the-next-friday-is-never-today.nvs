@@ -1,0 +1,19 @@
+<?nvs
+// Jumping to a named day. `next` and `previous` always move, so asking a
+// Friday for its next Friday gives the one a week later — which is what a
+// person means by "next Friday".
+
+var $utc = Core\Time\Zone::UTC;
+var $day = "yyyy-MM-dd";
+var $friday = Core\Time::at(2024, 5, 17, $utc);
+
+echo "today is             ", $friday->format($day), ", a Friday\n";
+echo "next Friday          ", $friday->next(Core\Weekday::Friday)->format($day), "\n";
+echo "next Monday          ", $friday->next(Core\Weekday::Monday)->format($day), "\n";
+echo "the Monday just gone ", $friday->previous(Core\Weekday::Monday)->format($day), "\n\n";
+
+// Where "today counts if it already matches" is what you want, ask the date
+// which day it is first and jump only when it does not.
+var $wanted = Core\Weekday::Friday;
+var $thisOrNext = $friday->weekday() == $wanted ? $friday : $friday->next($wanted);
+echo "this Friday, or the next one: ", $thisOrNext->format($day), "\n";

@@ -2,6 +2,7 @@
 Spec § 4: `next`/`previous` land on the named `Core\Weekday` strictly later or strictly earlier, with the clock untouched — the receiver's own weekday included
 --FILE--
 <?nvs
+// covers: Core\Weekday
 // The edge these two are written around is the weekday the receiver already
 // is: "next Wednesday" asked on a Wednesday is seven days on and never the
 // receiver itself, which is the one row a member computing a remainder gets

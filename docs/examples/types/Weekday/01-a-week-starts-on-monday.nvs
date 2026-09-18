@@ -1,0 +1,35 @@
+<?nvs
+// A week, Monday first. Each date is asked which day of the week it falls on,
+// and the answer is one of the seven cases.
+
+class Week {
+    public static function name(Core\Weekday $day): string {
+        return match ($day) {
+            Core\Weekday::Monday => "Monday",
+            Core\Weekday::Tuesday => "Tuesday",
+            Core\Weekday::Wednesday => "Wednesday",
+            Core\Weekday::Thursday => "Thursday",
+            Core\Weekday::Friday => "Friday",
+            Core\Weekday::Saturday => "Saturday",
+            Core\Weekday::Sunday => "Sunday",
+        };
+    }
+
+    // The two days at the end of the week are the ones most offices are shut.
+    public static function isWeekend(Core\Weekday $day): bool {
+        return $day == Core\Weekday::Saturday || $day == Core\Weekday::Sunday;
+    }
+}
+
+var $utc = Core\Time\Zone::UTC;
+var $monday = Core\Time::at(2024, 5, 13, $utc);
+
+int $step = 0;
+while ($step < 7) {
+    var $date = $monday->plus($step, Core\Unit::Day);
+    var $day = $date->weekday();
+    echo $date->format("yyyy-MM-dd"), " is a ", Week::name($day),
+        Week::isWeekend($day) ? " (weekend)" : "",
+        "\n";
+    $step = $step + 1;
+}
