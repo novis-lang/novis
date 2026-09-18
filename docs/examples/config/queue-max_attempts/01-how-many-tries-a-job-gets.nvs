@@ -1,0 +1,19 @@
+<?nvs
+// `[queue] max_attempts` is how many times a failing job is retried before it
+// is moved to the dead-letter table and left for somebody to look at.
+
+echo 'attempts a job gets: ', Core\Config::get('queue.max_attempts') ?? '(nothing written — five of them)', "\n";
+echo 'queued in:           ', Core\Config::get('queue.connection') ?? '(nothing written)', "\n";
+
+// Past the last attempt the job is kept rather than dropped, so the failure is
+// something a person can read tomorrow instead of something that happened.
+
+// The number is the operator's. A program that could raise its own would be
+// deciding how long the deployment keeps paying for work that does not succeed
+// — and a retry storm is paid for by every other job in the same queue.
+echo 'try mine a thousand times: ', Core\Config::set('queue.max_attempts', '1000') ? 'accepted' : 'refused', "\n";
+
+// Lowering it is refused for the same reason and not a safer direction: work
+// that stops being retried stops arriving, and nothing downstream can tell that
+// from work that succeeded.
+echo 'or give mine one try:      ', Core\Config::set('queue.max_attempts', '1') ? 'accepted' : 'refused', "\n";
