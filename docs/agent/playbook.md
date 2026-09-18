@@ -2387,6 +2387,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   naming `docs/agent/*.md:NN` rather than a crate path. Fix it in the wrap's own `## handoff` or
   `## playbook:` section, never by hand: step 4 rewrites both files, so a hand edit is overwritten
   by the very call that is supposed to land it. [until: reviewed 2026-09-18]
+- **A `peek.py` `re:` pattern must not contain a colon, and PowerShell must not see its `|`
+  unquoted.** `peek.py 'file.rs:re:name: "co:6'` reads everything after the last colon as the
+  context count and answers `NO SUCH FILE`, and a double-quoted argument holding `(a|b)` is split
+  by the shell before Python is started at all. Single-quote the whole target and keep colons out
+  of the pattern; a pattern that needs one is a `Grep` call instead. [until: reviewed 2026-09-18]
 
 ## Running things
 
@@ -5752,6 +5757,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   called `__02_the_script_is_written_from_your_commands_complete`. Keep the slug short for any
   example whose output quotes the program's own name, and read the blessed lines rather than
   trusting the exit status. [until: reviewed 2026-09-18]
+- **A `// covers:` marker added to a `.nvst` whose expectation is a compile diagnostic moves every
+  line number in that diagnostic.** `db-column-type-is-a-case-and-not-a-vendor-name.nvst` pins
+  `--> case.nvs:28:22`, and one line at the top of its `--FILE--` block made the case red at the
+  end of the session rather than at the edit. Look for an `--EXPECTF-ERROR--` section before
+  inserting a marker, and move the number in the same edit. [until: reviewed 2026-09-18]
 
 ## Splitting a file that got too big
 
