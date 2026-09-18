@@ -18,7 +18,7 @@
 //! signature. The answer is therefore an ordinary supertype — one marker class
 //! per signature the program tests for, conformed to by every literal whose
 //! own signature is assignable to it, which makes the test the `callable`
-//! row's own shape: the descriptor walk `instanceof` already emits, with no
+//! row's own shape: the descriptor walk `$x is C` already emits, with no
 //! field read and no second table. `nvs_ir::lower::CLOSURE_MARKER` is the same
 //! device one step less specific.
 //!

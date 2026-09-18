@@ -734,7 +734,7 @@ pub enum ExprInfo {
     /// read of an ordinary non-nullable binding carries no entry at all.
     NarrowedRead {
         /// What the test proved — the declared union with `null` dropped, or
-        /// the class an `instanceof` named, and in either case exactly the
+        /// the type an `is` test named, and in either case exactly the
         /// type [`crate::locals::LocalScope::declared_ty`] answered this read
         /// with.
         to: TypeId,

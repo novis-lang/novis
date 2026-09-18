@@ -138,7 +138,8 @@ fn infer_against_type(
 /// settled test folds, and costs no diagnostic: `is` refuses no left-hand side
 /// (ADR 0150 § 6), and the run-time walk would answer `false` at every
 /// execution anyway. That is the one place this arm reads differently from the
-/// `instanceof` it replaces, which refused the same subject outright.
+/// PHP spelling it replaces (`rule:php-migration/one-type-test`), which
+/// refused the same subject outright.
 ///
 /// The base is recorded rather than the operand's whole type because `T` is
 /// what the true edge proves: a `class<T>` holds a `T` or an implementor of

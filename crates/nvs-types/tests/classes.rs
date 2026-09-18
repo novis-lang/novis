@@ -316,8 +316,8 @@ fn a_ternary_expressions_type_mismatch_is_diagnosed() {
 fn a_class_type_still_refuses_the_nullable_conversion() {
     // `rule:expressions/nullable-conversion-availability`'s class row, which is **absolute**: `as` converts between
     // the types `rule:types/conversion` tabulates, and none of them is a class.
-    // `instanceof` plus `rule:types/unions-and-mixed`'s narrowing answers class membership,
-    // and § 3a's `tryParse` answers a parse.
+    // `is` plus `rule:types/narrowing` answers class membership, and § 3a's
+    // `tryParse` answers a parse.
     let diags = check_src(
         "<?nvs\nclass P {\n  public int $n = 1;\n}\nclass T {\n  function m(object $o): void {\n    var $p = $o as ?P;\n  }\n}\n",
     );

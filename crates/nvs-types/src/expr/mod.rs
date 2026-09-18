@@ -94,7 +94,7 @@ pub(crate) use self::{
 
 /// Public because `nvs-ir` asks the same roster this crate does: a `Core` class
 /// name a downcast and a closure parameter's entry check can test a value
-/// against is exactly the one `instanceof` accepts, and one predicate answering
+/// against is exactly the one `is` accepts, and one predicate answering
 /// both is what keeps the two passes from disagreeing about which names have a
 /// descriptor.
 pub use self::members::testable_core_class;
