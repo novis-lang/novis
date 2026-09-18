@@ -1101,9 +1101,16 @@ def run_suite(nvs: Path, what: str, files: list[Path], valgrind: bool, quiet: bo
     bytes cannot reach a different verdict. Only `ok` is remembered. A failure is re-run and
     re-reported every time, because the one thing worse than a slow check is a cached red one that
     stops being mentioned.
+
+    **A suite with no files reports the same counts, all zero.** `--emit-goals` writes one `want`
+    per group asking both suites for `0 failed`, and a group of enums owes no hostile program at
+    all, so a sentence here instead of the counts would make that group's check unsatisfiable. Zero
+    failures out of zero programs is what happened; a proof that *is* owed and missing is the gate's
+    to refuse, not this suite's.
     """
     if not files:
-        print(f"dossier: no {what} on disk yet -- nothing to run.")
+        print(f"dossier {what}: 0 ok, 0 skipped, 0 known-gap, 0 failed "
+              f"(no {what} on disk yet -- nothing to run)")
         return 0
     green = load_green() if use_cache else {}
     bkey = binary_key(nvs)
