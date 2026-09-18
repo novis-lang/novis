@@ -485,8 +485,9 @@ diagnostic naming the replacement: an interface method with a body for shared be
 `implements I by $field;` for shared state ([`classes/delegation-by-field`](classes.md#classes-delegation-by-field)).
 
 A trait bundles two unrelated things — sharing behaviour and sharing state — under one flattening
-mechanism, and gives the reused code no type identity at all: a class using `Greets` is not
-`instanceof Greets`, cannot be checked for it, and does not appear as a capability under reflection.
+mechanism, and gives the reused code no type identity at all: a class using `Greets` is not a
+`Greets`, cannot be tested for one ([`types/type-test`](types.md#types-type-test)), and does not appear as a capability
+under reflection.
 An interface is the vehicle this language already uses for "declare a capability", and delegation is
 the vehicle for "hold a collaborator". Splitting them means each half is a type the checker and the
 IDE can see.
@@ -505,9 +506,9 @@ silently copied per consuming class — has no destination at all.
 `rule:classes/interface-default-methods`
 
 An `interface` method may carry a body. A `public` one is a default: every implementor gets it for
-free, may override it exactly as it overrides an inherited method, and is genuinely `instanceof` the
-interface — reflectable and checkable at every call site that asks for the type, which is what a trait
-never gave.
+free, may override it exactly as it overrides an inherited method, and genuinely *is* the interface —
+`$impl is I` answers `true` ([`types/type-test`](types.md#types-type-test)), reflectable and checkable at every call site
+that asks for the type, which is what a trait never gave.
 
 `$this` inside an interface's own method body is typed as that interface, not the concrete class.
 Only members the interface itself declares, or one it `extends` does, are reachable through it. That
@@ -796,7 +797,8 @@ using PHP's own rule for what one level means. A scalar or `array<T>` property i
 semantics it already has, so the two sides diverge on the first write. An object-typed property — held
 directly or reached through a cloned array — keeps pointing at the same instance, host handles
 included; `clone` never crosses a heap, so nothing is asked to leave the arena it is in. The copy
-answers `instanceof` as the original did, so it is not a fresh construction of the declared type.
+answers `is` for every type the original did ([`types/type-test`](types.md#types-type-test)), so it is not a fresh
+construction of the declared type.
 
 Storage is written through the privileged path construction already uses, not through ordinary
 property assignment. Two things follow: a `readonly` property survives the copy without throwing, and

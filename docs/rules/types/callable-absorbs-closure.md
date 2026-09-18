@@ -5,8 +5,8 @@ identical membership, and `callable` reads more accurately for a value that capt
 such as a reference to a static method.
 
 `bind`, `bindTo` and `call` still exist, called with the same method-call syntax, now as builtin
-operations on an opaque type rather than inherited methods of a base class a program could
-`instanceof` or extend. `Closure::fromCallable` is dropped, because after that narrowing there is
+operations on an opaque type rather than inherited methods of a base class a program could name in an
+`is` test or extend. `Closure::fromCallable` is dropped, because after that narrowing there is
 nothing left for it to normalise away from.
 
 `call_user_func` and `call_user_func_array` are dropped with it. Every `callable` value supports

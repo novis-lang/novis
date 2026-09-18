@@ -9,7 +9,7 @@ every `date_*` function aliasing a `DateTime` method, every `intl` class with a 
 existing entirely twice. A tree API and a streaming reader over the same data are *different jobs* rather
 than twins, and the spec says so explicitly where that could be misread.
 
-**An operator is syntax, not a second API, and is never counted here** — `instanceof`, `as ?T` and the
+**An operator is syntax, not a second API, and is never counted here** — `is`, `as ?T` and the
 pipeline (`rule:expressions/pipeline-substitution`) reach the same member through the same call and add
 nothing to reach. The one genuinely reachable two-spellings case is a compile error: a `Core` *instance*
 member written as a static call is refused, because such a member's receiver travels in argument slot 0 and

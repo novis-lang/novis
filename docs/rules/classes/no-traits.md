@@ -4,8 +4,9 @@ diagnostic naming the replacement: an interface method with a body for shared be
 `implements I by $field;` for shared state (`rule:classes/delegation-by-field`).
 
 A trait bundles two unrelated things — sharing behaviour and sharing state — under one flattening
-mechanism, and gives the reused code no type identity at all: a class using `Greets` is not
-`instanceof Greets`, cannot be checked for it, and does not appear as a capability under reflection.
+mechanism, and gives the reused code no type identity at all: a class using `Greets` is not a
+`Greets`, cannot be tested for one (`rule:types/type-test`), and does not appear as a capability
+under reflection.
 An interface is the vehicle this language already uses for "declare a capability", and delegation is
 the vehicle for "hold a collaborator". Splitting them means each half is a type the checker and the
 IDE can see.

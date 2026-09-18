@@ -886,7 +886,7 @@ migration spelling. `string` and `bytes` are separate the same way
 ([`types/string-is-utf8`](types.md#types-string-is-utf8), [`types/bytes`](types.md#types-bytes)), so binary data answers `is bytes` where PHP's
 `is_string()` is true. Both are consequences of a finer type system rather than of this operator, and
 `is` is simply the first spelling that makes them reachable from a mechanical rewrite of PHP source.
-What that rewrite does with `instanceof` is [`php-migration/one-type-test`](php-migration.md#php-migration-one-type-test)'s.
+What that rewrite does with PHP's own class-test operator is [`php-migration/one-type-test`](php-migration.md#php-migration-one-type-test)'s.
 
 <sub>See also [`types/narrowing`](types.md#types-narrowing), [`types/conversion`](types.md#types-conversion), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/literal-types`](types.md#types-literal-types), [`types/class-reference-sites`](types.md#types-class-reference-sites), [`php-migration/one-type-test`](php-migration.md#php-migration-one-type-test). Decided in [0150](../decisions/0150.md), [0192](../decisions/0192.md).</sub>
 
@@ -1296,8 +1296,8 @@ identical membership, and `callable` reads more accurately for a value that capt
 such as a reference to a static method.
 
 `bind`, `bindTo` and `call` still exist, called with the same method-call syntax, now as builtin
-operations on an opaque type rather than inherited methods of a base class a program could
-`instanceof` or extend. `Closure::fromCallable` is dropped, because after that narrowing there is
+operations on an opaque type rather than inherited methods of a base class a program could name in an
+`is` test or extend. `Closure::fromCallable` is dropped, because after that narrowing there is
 nothing left for it to normalise away from.
 
 `call_user_func` and `call_user_func_array` are dropped with it. Every `callable` value supports
@@ -1592,7 +1592,7 @@ through a class reference is nobody's problem.
 
 `$x is $cls` is the dynamic class test, and it narrows its subject to `T` on the true edge
 ([`types/narrowing`](types.md#types-narrowing)) — the value it tests holds `T` or an implementor, so the narrowing is what
-the reference already promised. PHP spells this site `instanceof`, which Novis refuses
+the reference already promised. PHP spells this site with the operator Novis refuses
 ([`php-migration/one-type-test`](php-migration.md#php-migration-one-type-test)).
 
 `$obj->$name` is untouched by any of this: a class reference answers "which class", never "which
@@ -1626,8 +1626,9 @@ absent.
 The operand must carry a class statically. An object does, and a `class<T>` does — for which the name
 is a conversion rather than a member read ([`types/class-reference`](types.md#types-class-reference)), answering the **descriptor's**
 class rather than the `T` it was checked against, so `$name as class<Animal> as string` is the name it
-started from. A `mixed` or a `?T` is **refused** (`E0702`): narrow it — `instanceof`, or a `!= null`
-test — or ask reflection, whose whole purpose is the erased receiver. That is where this parts company
+started from. A `mixed` or a `?T` is **refused** (`E0702`): narrow it — an `is` test, or a `!= null`
+one ([`types/narrowing`](types.md#types-narrowing)) — or ask reflection, whose whole purpose is the erased receiver. That is
+where this parts company
 with PHP, which accepts `$m::class` on any operand and fails at run time on one that is not an object;
 accepting it here would put a tag test and a throw behind a spelling that reads like a member read.
 The narrowing that lifts the refusal is the one `->` already requires of the same receiver.

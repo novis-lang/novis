@@ -18,8 +18,8 @@ string key after an integer-looking one is accepted where PHP fatals, the variad
 array itself (`rule:types/arrays`).
 
 **One divergence is not of that kind**, and it is listed here so the exception is not mistaken for an
-oversight: `instanceof` is refused where it is written and `$x is T` is the one type test
-(`rule:php-migration/one-type-test`). No untyped binding makes it reachable — it is a choice of
+oversight: PHP's own class-test operator is refused where it is written and `$x is T` is the one type
+test (`rule:php-migration/one-type-test`). No untyped binding makes it reachable — it is a choice of
 spelling, taken because one operator answers what PHP splits across two. It costs a converted program
 a mechanical rewrite and never a silent change of meaning, since the refused word does not compile.
 
