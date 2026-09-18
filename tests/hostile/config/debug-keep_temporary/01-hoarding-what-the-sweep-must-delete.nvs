@@ -1,0 +1,106 @@
+<?nvs
+// Attack: make the runtime keep temporary directories it promised to delete.
+// `[debug] keep_temporary` is the only thing that switches the end-of-script
+// sweep off, and it is the operator's alone -- so the first half of this program
+// is every spelling of a request writing it anyway, and the second half is the
+// sweep itself, handed the shapes that break a recursive delete: a thousand
+// directories on the list at once, a tree deeper than a stack likes, a path that
+// is already gone, and a path that is no longer the kind it was handed out as.
+// A `true` getting through in the first half exempts this program's files; a
+// sweep that comes apart in the second half leaves them without being asked.
+
+// 1. The key itself, written from inside the request that would benefit, in
+//    every spelling a loose reader might take for "yes" -- and the sibling that
+//    would achieve the same thing sideways, since a program that could move the
+//    root would be pointing the sweep at a directory holding none of its files.
+array<string> $keys = ['debug.keep_temporary', 'io.temp_root', 'debug', 'io'];
+array<string> $yes = ['true', 'True', 'TRUE', '1', 'on', 'yes', '-1', '/', 'C:\\', '.'];
+foreach ($keys as string $key) {
+    foreach ($yes as string $value) {
+        Core\Config::set($key, $value);
+    }
+    Core\Config::restore($key);
+}
+
+// 2. Names that sit near the real one, because the registry answers by longest
+//    prefix: a row reached for a key nobody declared would be governing the
+//    block's neighbours as well, and `debug.inline` next door is the one key of
+//    this block a request may write at all.
+array<string> $nearby = [
+    'debug.keep_temporary.',
+    '.debug.keep_temporary',
+    'debug..keep_temporary',
+    'debugkeep_temporary',
+    'debug.keep_temporary.root',
+    'DEBUG.KEEP_TEMPORARY',
+    'Debug.Keep_Temporary',
+    'debug.keep-temporary',
+    'debug.keeptemporary',
+    'keep_temporary',
+    'app.debug.keep_temporary',
+    'debug.inline.keep_temporary',
+];
+foreach ($nearby as string $key) {
+    Core\Config::set($key, 'true');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 3. A key long enough to be a walk rather than a lookup: the prefix rule scans
+//    back through the dots, so twenty thousand of them is the shape that finds a
+//    quadratic one or a stack that recurses per segment.
+string $deep = 'debug.keep_temporary.' . Core\Str::repeat('scope.', 10000) . 'root';
+Core\Config::set($deep, 'true');
+Core\Config::get($deep);
+Core\Config::restore($deep);
+
+// 4. The same refusal, fifty thousand times, in case it is decided once and
+//    remembered -- or in case each attempt leaves something behind in the
+//    overlay a request writes into.
+uint $i = 0;
+while ($i < 50000) {
+    Core\Config::set('debug.keep_temporary', 'true');
+    Core\Config::restore('debug.keep_temporary');
+    $i = $i + 1;
+}
+
+// 5. The hoard. Every one of these is on the runtime's own list until this
+//    program ends, and none of them is removed here: the list grows with the
+//    number of directories rather than with what is in them, and the sweep walks
+//    all of it after the last line of this file.
+uint $made = 0;
+while ($made < 1000) {
+    string $scratch = Core\IO::temporaryDir();
+    Core\IO::write($scratch . '/order.csv', "order,total\n1042,19.90\n");
+    Core\IO::write($scratch . '/order.csv.part', '');
+    $made = $made + 1;
+}
+
+// 6. One directory deep enough that deleting it is a walk of its own. A sweep
+//    that recurses once per level meets its stack here rather than in
+//    production, and a sweep that gives up halfway leaves the whole chain.
+string $tower = Core\IO::temporaryDir();
+string $path = $tower;
+uint $level = 0;
+while ($level < 400) {
+    $path = $path . '/d';
+    Core\IO::makeDir($path);
+    $level = $level + 1;
+}
+Core\IO::write($path . '/bottom.txt', 'the last one');
+
+// 7. A path already gone, which the sweep is promised to treat as the goal state
+//    reached early rather than as a failure -- and beside it a path handed out as
+//    a directory and left as a file, which is the kind confusion a delete written
+//    for one of them walks into.
+string $vanished = Core\IO::temporaryDir();
+Core\IO::removeDir($vanished);
+
+string $swapped = Core\IO::temporaryDir();
+Core\IO::removeDir($swapped);
+Core\IO::write($swapped, 'no longer a directory');
+
+// 8. And the answer, after all of it. The key has to still be what the file
+//    says, or one of the writes above landed and every directory made here is
+//    staying on the disk.
+echo 'keep_temporary: ', Core\Config::get('debug.keep_temporary') ?? '(nothing)', "\n";
