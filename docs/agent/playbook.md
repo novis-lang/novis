@@ -2366,6 +2366,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   the full path while explaining why the file is gone. Run `python tools/check-links.py` in the same
   slice as any deletion, and in prose that has to go on mentioning the path, name the constant that
   holds it rather than spelling it. [until: reviewed 2026-09-18]
+- **A CI run can fail with no steps and no logs, and the only place GitHub says why is the check
+  run's *annotations*.** `gh run list` reports `"conclusion":"failure"`, every job ends two seconds
+  after it started with `steps: 0`, and `gh run view <id> --log-failed` answers `log not found` —
+  which reads like a broken `gh` or a stale run rather than what it is, jobs that were never started.
+  `gh api repos/<owner>/<repo>/check-runs/<job id>/annotations` prints the sentence itself, the job
+  id being the one in that `log not found`, and nothing else in the API carries it.
+  [until: reviewed 2026-09-18]
 
 ## Running things
 

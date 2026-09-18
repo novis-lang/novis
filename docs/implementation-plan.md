@@ -16,13 +16,13 @@
 > what it is walking through instead. Dependencies: `regex` + `fancy-regex` and `jiff` are named by
 > the user; the rest the loop picks under `rule:packaging/a-c-dependency-answers-two-questions`.
 >
-> **Done:** M0 (setup) and M1 (front end) whole, M2 (HIR, types, IR) and M3 (baseline Cranelift
-> backend) whole, **M4 (language completeness) to its loop goal's acceptance list** — its own
-> 1000-case corpus figure is met too, passed as the parity program's suite grew. M4S Part I is
-> registered whole: `crates/nvs-stdlib/tests/spec-members-outstanding.txt` holds no keys. M1 is
-> whole too — the pipeline operator and the PHP 8.6 refusals landed with goal `surface`. `python
-> tools/plan.py --stale` is what finds a plan sentence still deferring work to a goal the chain has
-> walked. Each milestone file under [docs/plan/](plan/) states its own acceptance.
+> **Done:** **M0 through M8 are complete** — everything from project setup to the stdlib and the
+> five SQL drivers, which is the whole program ahead of the extension system, and M9 is the first
+> milestone with work still in front of it. `python tools/plan.py --past` is what says so, and it
+> derives the answer rather than reading it: every goal carrying a milestone has walked, and no
+> register still tags an item to it. Each milestone file under [docs/plan/](plan/) states its own
+> acceptance, and `python tools/plan.py --stale` finds a plan sentence still deferring work to a
+> goal the chain has walked.
 >
 > **On disk:** the workspace and its CI (three platforms, with miri, asan, tsan and fuzz legs), and
 > the nine crates — `nvs-diagnostics`, `nvs-syntax`, `nvs-hir`, `nvs-types`, `nvs-ir`,
