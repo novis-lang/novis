@@ -115,6 +115,8 @@ modules = [
   "tools/check-links.py",
   # The owner column's gate, and its example slug. Stages 2 and 3.
   "crates/nvs-stdlib/tests/spec_registry_coverage.rs",
+  # TODO: why a session opens this.
+  "editors/vscode/src/regions.ts",
 ]
 
 rules = [
