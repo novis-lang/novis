@@ -84,7 +84,7 @@
 //! nobody asked for. What that costs is a pairing the member has to check, so it
 //! does: a value whose class is not the described one is a `LogicError`, not a
 //! best-effort read of whatever slot happens to share the name. Exact class,
-//! not `instanceof` — a subclass has its own description, one call away, and
+//! not what `is` answers — a subclass has its own description, one call away, and
 //! answering for it here would mean answering visibility from one class's table
 //! about another class's slot.
 //!
