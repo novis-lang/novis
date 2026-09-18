@@ -5643,6 +5643,20 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   build to discover. Run `target/debug/nvs.exe fmt <file>` the moment the fixture prints what you want,
   then re-run it: the layout rewrite is quotes and spacing and never changes stdout, so the `exact`
   check's `want` survives it. [until: gone crates/nvs-fmt/tests/identity.rs]
+- **A new `.nvs` proof is corpus the moment you save it, so an unformatted example or attack fails
+  `nvs-fmt`'s identity test.** `crates/nvs-fmt/tests/identity.rs` walks `docs/examples/` as well as
+  `tests/`, so a file that runs, blesses and passes `dossier.py --verify` still fails `verify.py` in
+  a crate you never touched. The canonical layout wants `'single quotes'` for a string with no
+  escape: run `target/debug/nvs.exe fmt <dir>` before blessing, since formatting after a `--bless`
+  moves the bytes the `.out` came from.
+  [until: gone crates/nvs-fmt/tests/identity.rs:the_identity_printer_reproduces_every_corpus_file]
+- **`Core\Config` never answers for an `[[app]]` block's `mode` or `origin`, so an example built on
+  either prints `(unset)` while the setting is in force.** `Snapshot::build` lifts those two onto
+  the snapshot's own fields and drops `app` from the folded table
+  (`crates/nvs-config/src/snapshot.rs:158`), so a block is readable only through its `[app.limits]`
+  and `[app.capabilities]` — as `limits.*` and `capabilities.*`, never under an `app.` prefix. Show
+  a block through one of those, or through behaviour the way `examples/routes.nvs` does.
+  [until: gone crates/nvs-config/src/snapshot.rs:table.remove("app")]
 
 ## Splitting a file that got too big
 

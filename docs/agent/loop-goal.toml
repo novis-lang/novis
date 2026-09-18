@@ -96,7 +96,9 @@ files = [
 [context]
 
 modules = [
-  "crates/nvs-config/src/directive.rs",
+  "crates/nvs-config/src/*.rs",
+  "crates/nvs-stdlib/src/config.rs",
+  "crates/nvs-stdlib/src/cache.rs",
 ]
 
 rules = ["testing/four-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
