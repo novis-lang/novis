@@ -1,0 +1,52 @@
+--TEST--
+`Core\Db\DbError::$kind` answers a normalised `Core\Db\ErrorKind` case for a refusal a running engine made, and `Other` for an error no server classified — spec § 18, `rule:core-classes/db-error`
+--FILE--
+<?nvs
+// covers: Core\Db\ErrorKind
+// SQLite needs no server, so these are refusals a real engine really made —
+// which is what makes the case an answer read off the driver's own table
+// rather than a value this program put there.
+var $db = Core\Db::connect("main");
+$db->execute("create table contacts (email text not null unique, name text not null)", []);
+$db->execute("insert into contacts (email, name) values (?, ?)", ["ada@example.com", "Ada"]);
+
+// The condition every backend has and every backend spells differently:
+// `23505`, `1062` and `SQLITE_CONSTRAINT_UNIQUE` are one case here.
+try {
+    $db->execute("insert into contacts (email, name) values (?, ?)", ["ada@example.com", "Ada again"]);
+    echo "duplicate: accepted\n";
+} catch (Core\Db\DbError $duplicate) {
+    echo "duplicate: ",
+        $duplicate->kind == Core\Db\ErrorKind::UniqueViolation ? "UniqueViolation" : "something else",
+        "\n";
+}
+
+// A statement the server will not run at all, which § 18 files under `Syntax`
+// whether the defect is the grammar or the name of a table.
+try {
+    $db->query("select * from nowhere", []);
+    echo "missing table: accepted\n";
+} catch (Core\Db\DbError $missing) {
+    echo "missing table: ",
+        $missing->kind == Core\Db\ErrorKind::Syntax ? "Syntax" : "something else",
+        "\n";
+}
+
+// `Other` is the total case, and this is the half of it a program reaches
+// without a server: nothing classified this error, so nothing claims to have.
+try {
+    throw new Core\Db\DbError("something this program noticed by itself");
+} catch (Core\Db\DbError $own) {
+    echo "by hand: ", $own->kind == Core\Db\ErrorKind::Other ? "Other" : "something else", "\n";
+}
+--FILE nvs.toml--
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+duplicate: UniqueViolation
+missing table: Syntax
+by hand: Other

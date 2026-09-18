@@ -1,0 +1,35 @@
+<?nvs
+// Two of these refusals mean "nothing is wrong, do it again": the server
+// picked your transaction to lose so that another one could finish. Every
+// other refusal will fail the same way however many times you send it, so a
+// retry there only makes the outage longer.
+
+class Retry {
+    public static function worthIt(Core\Db\ErrorKind $kind): bool {
+        return match ($kind) {
+            Core\Db\ErrorKind::Deadlock => true,
+            Core\Db\ErrorKind::SerializationFailure => true,
+            default => false,
+        };
+    }
+}
+
+// What a transfer between two accounts came back with, attempt by attempt,
+// with three attempts allowed.
+array<Core\Db\ErrorKind> $attempts = [
+    Core\Db\ErrorKind::Deadlock,
+    Core\Db\ErrorKind::SerializationFailure,
+    Core\Db\ErrorKind::UniqueViolation,
+];
+
+uint $attempt = 0;
+foreach ($attempts as Core\Db\ErrorKind $kind) {
+    $attempt = $attempt + 1;
+    if (Retry::worthIt($kind)) {
+        echo "attempt ", $attempt, ": lost a race, sending it again\n";
+    } else {
+        // This one is the program's own mistake, so it is handed on rather
+        // than repeated. The transfer has already been rolled back.
+        echo "attempt ", $attempt, ": that will not get better, giving up\n";
+    }
+}

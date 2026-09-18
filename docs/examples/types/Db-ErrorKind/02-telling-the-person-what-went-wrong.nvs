@@ -1,0 +1,36 @@
+<?nvs
+// A sign-up form that failed. Some refusals are about what somebody typed and
+// deserve a plain sentence on the screen. The rest are about your program or
+// your server, and the person filling in the form can do nothing with them.
+
+class SignUp {
+    public static function message(Core\Db\ErrorKind $kind): string {
+        return match ($kind) {
+            Core\Db\ErrorKind::UniqueViolation => "that email address is already registered",
+            Core\Db\ErrorKind::NotNullViolation => "please fill in every field",
+            Core\Db\ErrorKind::CheckViolation => "one of those values is not allowed",
+            Core\Db\ErrorKind::ForeignKeyViolation => "the plan you picked is no longer available",
+            default => "something went wrong on our side, please try again",
+        };
+    }
+
+    // The ones above are the person's to fix. Everything else is yours, so it
+    // goes to the log with the details while the screen stays plain.
+    public static function worthLogging(Core\Db\ErrorKind $kind): bool {
+        return SignUp::message($kind) == "something went wrong on our side, please try again";
+    }
+}
+
+// What four attempts at the form came back with.
+array<Core\Db\ErrorKind> $outcomes = [
+    Core\Db\ErrorKind::UniqueViolation,
+    Core\Db\ErrorKind::NotNullViolation,
+    Core\Db\ErrorKind::Syntax,
+    Core\Db\ErrorKind::Permission,
+];
+
+foreach ($outcomes as Core\Db\ErrorKind $kind) {
+    echo SignUp::message($kind),
+        SignUp::worthLogging($kind) ? "   (and logged for us)" : "",
+        "\n";
+}

@@ -1,0 +1,40 @@
+<?nvs
+// The eleven reasons a statement can come back refused. Each one is the same
+// case on every backend, so this is the list your program can branch on
+// without knowing which database it is talking to.
+
+class Refusal {
+    public static function meaning(Core\Db\ErrorKind $kind): string {
+        return match ($kind) {
+            Core\Db\ErrorKind::UniqueViolation => "UniqueViolation: a row with this key is already there",
+            Core\Db\ErrorKind::ForeignKeyViolation => "ForeignKeyViolation: the row it points at is missing, or something still points at this one",
+            Core\Db\ErrorKind::NotNullViolation => "NotNullViolation: a column that needs a value was left empty",
+            Core\Db\ErrorKind::CheckViolation => "CheckViolation: a rule written into the table refused the row",
+            Core\Db\ErrorKind::Deadlock => "Deadlock: two transactions each waited for the other, and this one was picked to lose",
+            Core\Db\ErrorKind::SerializationFailure => "SerializationFailure: another transaction changed the same rows first",
+            Core\Db\ErrorKind::ConnectionLost => "ConnectionLost: the connection is gone",
+            Core\Db\ErrorKind::Timeout => "Timeout: it ran too long and was cancelled",
+            Core\Db\ErrorKind::Syntax => "Syntax: the server will not run that statement at all",
+            Core\Db\ErrorKind::Permission => "Permission: this login may not do that",
+            Core\Db\ErrorKind::Other => "Other: anything the driver has no case of its own for",
+        };
+    }
+}
+
+array<Core\Db\ErrorKind> $everything = [
+    Core\Db\ErrorKind::UniqueViolation,
+    Core\Db\ErrorKind::ForeignKeyViolation,
+    Core\Db\ErrorKind::NotNullViolation,
+    Core\Db\ErrorKind::CheckViolation,
+    Core\Db\ErrorKind::Deadlock,
+    Core\Db\ErrorKind::SerializationFailure,
+    Core\Db\ErrorKind::ConnectionLost,
+    Core\Db\ErrorKind::Timeout,
+    Core\Db\ErrorKind::Syntax,
+    Core\Db\ErrorKind::Permission,
+    Core\Db\ErrorKind::Other,
+];
+
+foreach ($everything as Core\Db\ErrorKind $kind) {
+    echo Refusal::meaning($kind), "\n";
+}
