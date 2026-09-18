@@ -7782,6 +7782,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   reports `E0309` and the run aborts before `nvs-types` sees the call at all. Carve the argument out
   in `walk_args_admitting_method_ref`'s roster as well as marking it in `nvs_types`.
   [until: gone crates/nvs-hir/src/members.rs:METHOD_REF_ARGS]
+- **`nvs_runtime::nvs_helper!` takes exactly one helper per invocation**, so a second `fn` written
+  inside an existing block fails with `no rules expected #` pointing at that fn's own doc comment and
+  at `$body:block` in `abi.rs`. Its one rule is `$(#[$meta])* fn $name(...) $body`, with no
+  repetition around it, and the doc comment of the *second* fn is the first token it cannot match —
+  which reads as a broken doc comment rather than as a block that should have been closed. Close the
+  block after the helper you are writing beside and open a fresh `nvs_runtime::nvs_helper! {`.
+  [until: reviewed 2026-09-18]
 
 ## Divergences and refusals already pinned
 

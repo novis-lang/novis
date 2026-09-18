@@ -15386,7 +15386,7 @@ Renders `$value` exactly as `dump` would and answers it as a `Core\Cli\Text` ins
 <a id="core-core-test"></a>
 ### `Core\Test`
 
-Keywords: PHPUnit, assert(), assertion, unit test, #[Test], #[Core\Test], Core\Test\Failure, nvs test, expectException, assertSame, assertEquals, ledger, fixed clock, assertSame, assertEquals, assertEqualsDeep, assertTrue, assertNull, assertCount, assertContains, assertMatchesInline, assertThrows, assertDoesNotThrow, expectFailure, advance, serverUrl, scriptAnswers, request, answerHttp, sentHttp, answerSocket, sentSocket, double, partial, assertCalled, assertNeverCalled
+Keywords: PHPUnit, assert(), assertion, unit test, #[Test], #[Core\Test], Core\Test\Failure, nvs test, expectException, assertSame, assertEquals, ledger, fixed clock, assertSame, assertEquals, assertEqualsDeep, assertTrue, assertNull, assertCount, assertContains, assertMatchesInline, assertThrows, assertDoesNotThrow, expectFailure, advance, serverUrl, scriptAnswers, request, answerHttp, sentHttp, answerSocket, sentSocket, double, partial, assertCalled, assertNeverCalled, assertCompletes
 
 `Core\Test` is the assertion surface: every member is `static`, takes the subject **first**
 (`assertEquals($actual, $expected)` — the reverse of PHPUnit's order), and is generic, so comparing an
@@ -15468,6 +15468,7 @@ final class CartTest {
 | [`Core\Test::partial`](#core-core-test-partial) | `partial<T>(T $real, object $answers): T` |
 | [`Core\Test::assertCalled`](#core-core-test-assertcalled) | `assertCalled(object $double, method $method, {times?: uint, with?: array<mixed>, message?: string}): void` |
 | [`Core\Test::assertNeverCalled`](#core-core-test-assertnevercalled) | `assertNeverCalled(object $double, method $method, {message?: string}): void` |
+| [`Core\Test::assertCompletes`](#core-core-test-assertcompletes) | `assertCompletes(callable(): mixed $body, ? $settings, {message?: string}): void` |
 
 <a id="core-core-test-assertsame"></a>
 #### `Core\Test::assertSame`
@@ -15871,6 +15872,25 @@ Asserts that `$method` was never called on `$double` — `assertCalled`'s other 
 **Returns** `void` — Nothing. One recorded call is enough to throw.
 
 **Throws** `Core\Test\Failure` — The method was called. The message names the first call the record holds and how many it holds in all.; `LogicError` — `assertCalled`'s, for the same reason: `$double` is not a double.
+
+<a id="core-core-test-assertcompletes"></a>
+#### `Core\Test::assertCompletes`
+
+```nvs skip
+Core\Test::assertCompletes(callable(): mixed $body, ? $settings, {message?: string}): void
+```
+
+Runs `$body` with the test's clock advanced by `$settings.within`, and asserts that it left nothing still running. Wall-clock time is never read, so a budget written in seconds is spent in microseconds and two runs answer identically.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$body` | `callable(): mixed` | The work to run. It is called once, on the test's own task, and whatever it answers is dropped. |
+| `$settings` | `?` | The budget, written as a literal because there is no duration this member could pick for a caller. Keys: `within` (Core\Time\Duration) How far the virtual clock moves before `$body` runs, so a retry, a backoff or a timeout inside it elapses at once. `Core\Test::advance` moves the same clock, and the move is permanent: the test reads the advanced clock from here on. |
+| `{message: …}` | `string` (default `null`, neutral) | Prefixed to the failure, as on every other assertion. |
+
+**Returns** `void` — Nothing. A `$body` that returned having left a task of its own still running throws, naming the budget it overran — `rule:testing/task-tree-and-virtual-clock`, read at the one moment it means anything.
+
+**Throws** `Core\Test\Failure` — `$body` returned with work of its own still running. The message names how many tasks and the `within` they were given.; `LogicError` — The test declared no `at:`, so there is no fixed clock to spend the budget against — `Core\Test::advance`'s refusal, for its reason.; `RuntimeError` — The advanced clock lies outside the range an `Instant` can hold, as on `Core\Test::advance`.
 
 <a id="core-core-test-response"></a>
 ### `Core\Test\Response`
