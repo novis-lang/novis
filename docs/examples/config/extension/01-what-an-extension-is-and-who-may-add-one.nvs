@@ -1,0 +1,27 @@
+<?nvs
+// A native extension is a compiled file the owner of the machine writes into
+// `nvs.toml`, beside the checksum it is required to have:
+//
+//     [[extension]]
+//     path   = "/usr/lib/novis/image.nvsx"
+//     sha256 = "…"
+//
+// This checkout names none, and a program has no way to add one. That is the
+// whole of the directive: loading code is the one thing an application may
+// never talk its host into.
+echo 'add one from code: ', Core\Config::set('extension', '/tmp/anything.nvsx') ? 'yes' : 'no', "\n";
+
+// It cannot read the list either. What a program ever sees of an extension is
+// the classes the extension brings with it, never the file they came out of or
+// the checksum that allowed it to be loaded.
+echo 'read the list:     ', Core\Config::get('extension') ?? "(nothing — the list is not a program's to see)", "\n";
+
+// The set is part of what this program *is*, all the same. The identity below
+// folds in every extension loaded beside it, so the same source under a
+// different set is a different program and everything compiled against the old
+// set is keyed apart from it rather than reused. That is what lets an operator
+// add, replace or remove an extension on a running server without a restart and
+// without ever running code compiled against a set that has changed.
+string $id = Core\Program::id();
+echo 'identity:          ', Core\Str::length($id), " characters, and the same for the whole run\n";
+echo 'asked twice:       ', $id == Core\Program::id() ? 'the same answer' : 'a different one', "\n";

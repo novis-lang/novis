@@ -1,0 +1,92 @@
+<?nvs
+// Attack: get native code loaded. This is the deepest authority the
+// configuration file grants, so the attack is every spelling of the entry a
+// program could reach for -- the array, an index into it, the path, and the pin
+// that is supposed to make a swapped binary refuse -- and then every near miss
+// on those names, because the registry answers by longest prefix and a key
+// nobody declared reaching no row at all would be a key nobody is governing.
+// hostile: timeout-ms 20000
+
+// 1. The entry itself, written the four ways a program might guess it. A path
+//    is only half of the attack: a pin a request could write is a pin it could
+//    write to match whatever it managed to put on disk, which is why the two
+//    are attacked together and separately.
+array<string> $entries = [
+    'extension',
+    'extension.0',
+    'extension.0.path',
+    'extension.0.sha256',
+    'extension.path',
+    'extension.sha256',
+    'extension.1.path',
+    'extension.-1.path',
+    'extension.18446744073709551615.path',
+];
+array<string> $payloads = [
+    '/usr/lib/novis/image.nvsx',
+    'C:\\Windows\\System32\\kernel32.dll',
+    '../../../../../../etc/ld.so.preload',
+    '\\\\attacker.test\\share\\image.nvsx',
+    'http://attacker.test/image.nvsx',
+    "image.nvsx\u{0000}/etc/passwd",
+    '0000000000000000000000000000000000000000000000000000000000000000',
+    'true',
+    '',
+];
+foreach ($entries as string $entry) {
+    foreach ($payloads as string $payload) {
+        Core\Config::set($entry, $payload);
+        Core\Config::get($entry);
+    }
+    Core\Config::restore($entry);
+    Core\Config::restore($entry);
+}
+
+// 2. Near misses on the name. One of these reaching a row of its own would take
+//    a piece of the entry back out of the class that answers nobody; one of
+//    them reaching *no* row where the real name does would be the same hole
+//    from the other side.
+array<string> $nearby = [
+    'extension.',
+    '.extension',
+    'extension..0',
+    'extensions',
+    'EXTENSION',
+    'Extension.0.Path',
+    'extension.0.PATH',
+    'path',
+    'sha256',
+    'app.extension.0.path',
+    'extension.0.path.real',
+    'extension.' . Core\Str::repeat('0.', 10000) . 'path',
+];
+foreach ($nearby as string $key) {
+    Core\Config::set($key, '/tmp/attacker.nvsx');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 3. One value big enough to be the attack by itself. A megabyte of path is not
+//    a file name, and whatever refuses it has to refuse it without walking the
+//    whole thing looking for a separator first.
+string $flood = '/' . Core\Str::repeat('a/', 500000) . 'image.nvsx';
+Core\Config::set('extension.0.path', $flood);
+Core\Config::get('extension.0.path');
+Core\Config::restore('extension.0.path');
+
+// 4. Fifty thousand writes with no restore between them, because the overlay a
+//    request writes into is a thing that can grow: a refusal that still costs
+//    an entry per attempt is a refusal an attacker can spend the request's
+//    memory with.
+uint $i = 0;
+while ($i < 50000) {
+    Core\Config::set('extension.0.path', '/tmp/' . $i . '.nvsx');
+    $i = $i + 1;
+}
+Core\Config::restore('extension.0.path');
+
+// 5. And the identity the extension set folds into, read after all of that: if
+//    any of the writes above had landed, this would be a different program from
+//    the one that started -- which is the observable half of the whole rule.
+echo 'identity still ', Core\Str::length(Core\Program::id()), " characters\n";
+echo 'list still ', Core\Config::get('extension') ?? '(nothing)', "\n";
