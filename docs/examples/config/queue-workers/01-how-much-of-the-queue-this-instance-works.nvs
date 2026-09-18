@@ -1,0 +1,21 @@
+<?nvs
+// `[queue] workers` is how many jobs this instance works at once. It is what
+// makes two instances of the same build different: some work the queue, some
+// only add to it.
+
+echo 'workers here:  ', Core\Config::get('queue.workers') ?? '(nothing written — four of them)', "\n";
+echo 'claiming from: ', Core\Config::get('queue.connection') ?? '(nothing written)', "\n";
+
+// Zero is a deployment and not a switch. An instance that hires nobody still
+// enqueues everything it always did, and another instance — one sized for slow
+// work rather than for requests — claims and runs it.
+echo 'enqueue-only:  ', (Core\Config::get('queue.workers') ?? '4') == '0' ? 'yes' : 'no', "\n";
+
+// How many of them there are is the operator's, because a program that could
+// hire more is a program helping itself to the machine every co-resident
+// request is also running on.
+echo 'hire eight more:        ', Core\Config::set('queue.workers', '8') ? 'accepted' : 'refused', "\n";
+
+// And one that could hire none would quietly stop doing its share of the work,
+// which nothing downstream can tell from a queue that happens to be empty.
+echo 'stop working the queue: ', Core\Config::set('queue.workers', '0') ? 'accepted' : 'refused', "\n";
