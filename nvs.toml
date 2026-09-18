@@ -265,6 +265,29 @@ entry = "docs/examples/config/app/01-settings-for-one-application.nvs"
 [app.limits]
 memory = "64M"
 
+# The second block of that kind, and its grants are the whole page:
+# `docs/examples/config/capabilities/` is the website's page for `[capabilities]`,
+# and a page whose example prints `(nothing)` on every line teaches nothing about
+# the block an operator is about to write. Every grant here is a boolean, which is
+# the half a program can read back: `nvs_config::request`'s `as_text` hands
+# `Core\Config::get` a scalar and `None` for a list, so a grant scoped to paths
+# would print exactly as an absent one does and the example would teach the
+# opposite of what the block says. `nvs config dump` is where a scoped grant is
+# read, and `crate::audit` is what renders it.
+#
+# `read = true` is granted to a program that opens no file, and `spawn = false`
+# takes back what the `root = "."` block at the top allows — one grant, one
+# refusal and one narrowing, which is the whole of what the block does, with
+# nothing reachable that was not reachable before.
+[[app]]
+entry = "docs/examples/config/capabilities/01-what-this-program-is-allowed-to-do.nvs"
+
+[app.capabilities.fs]
+read = true
+
+[app.capabilities.script]
+spawn = false
+
 # The bound `examples/config.nvs` is written around: ADR 0005's `Runtime`
 # directive moves freely up to a ceiling the operator keeps, so `512M` is
 # the last value `Core\Config::set("memory", …)` accepts and `1G` is the
@@ -303,6 +326,19 @@ fill_wait = "5s"
 # index either.
 [cache.shared]
 url = "redis://127.0.0.1:16379"
+
+# The control surface, written as the one value that turns it off, which is what
+# this checkout already had: `nvs_config::control`'s `Address::of` reads an absent
+# `[control]` block and a `socket = false` to the same `Disabled`, so this line
+# creates nothing and changes nothing a fixture can observe. It is here to be
+# *read* — `docs/examples/config/control-socket/` is the website's page for the
+# directive, and `false` is the spelling a deployment uses to take a control
+# surface away again, which no page can show against a block nobody wrote. A path
+# here instead would create a socket on every `nvs serve` in this repository and
+# put the trust check on this working directory, which is the opposite of leaving
+# the tree as it was.
+[control]
+socket = false
 
 # ADR 0067 § 3's root-owned connection, and the block `Core\Db::connect("main")` opens —
 # `examples/db.nvs`, `examples/transaction.nvs` and `examples/stream.nvs` are the fixtures
