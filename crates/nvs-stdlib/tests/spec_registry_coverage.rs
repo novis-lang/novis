@@ -76,28 +76,34 @@
 //! # An outstanding key names its owner, in a column
 //!
 //! Every key in every one of these files carries `# <owner>` after it: the goal
-//! from [the goals directory](/docs/agent/goals/) that will strike the line, a
-//! milestone ahead of the program whose own plan carries the work, or the word
-//! `unowned` for a key that is nobody's yet and is a scheduling question for
-//! the user. [`every_outstanding_key_names_an_owner`] is what makes that a
-//! field rather than a note — it reads the chain and the plan's table and fails
-//! on an owner neither of them answers for, so a goal renamed or dropped cannot
-//! leave a key pointing at nothing. [`owner_problem`] is where the three kinds
-//! are decided, and `tools/owners.py`'s module doc is the rule they come from.
+//! from [the goals directory](/docs/agent/goals/) that will strike the line, or
+//! a milestone ahead of the program whose own plan carries the work.
+//! [`every_outstanding_key_names_an_owner`] is what makes that a field rather
+//! than a note — it reads the chain and the plan's table and fails on an owner
+//! neither of them answers for, so a goal renamed or dropped cannot leave a key
+//! pointing at nothing. [`owner_problem`] is where the two kinds are decided,
+//! and `tools/owners.py`'s module doc is the rule they come from.
+//!
+//! **The word `unowned` is refused by name**, and
+//! [`unowned_is_no_longer_an_owner_for_a_key`] is what holds it refused. A key
+//! whose owner is a scheduling question puts that question to the user, and
+//! what comes back is a goal on the chain or a milestone whose plan states the
+//! scope; a word standing for "nobody has decided" is the one owner a reader
+//! cannot act on. `tools/owners.py`'s module doc owns that rule for a module
+//! doc's `# Known gaps` item, and this file is the ratchet-file half of it.
 //!
 //! The column exists because these facts were header prose, where one paragraph
-//! owned eight keys and could not say which was which.
-//! [docs/agent/carried-gaps.md](/docs/agent/carried-gaps.md) § *The contract* is
-//! the rule this is the ratchet-file spelling of, and the failure it exists to
-//! stop is on record in its own opening: `§18 stream` read as "goal `database`'s" for six
-//! goals after goal `database` closed.
+//! owned eight keys and could not say which was which. The failure it exists to
+//! stop is on record: `§18 stream` read as "goal `database`'s" for six goals
+//! after goal `database` closed. `tools/owners.py`'s module doc holds the same
+//! rule for a `# Known gaps` item, which is the other half of the contract.
 //!
 //! What the gate deliberately does not check is whether an owner is still
 //! *ahead*. A chain entry that goes green without striking its key is the more
 //! interesting failure and it is a reader's to catch, because the chain file
 //! holds the order and not the position — nothing on disk says where the loop
-//! is. `unowned` is the honest answer once it happens, and striking the owner
-//! rather than the key is that same contract's second rule.
+//! is. An owner that goes green without striking its key is struck and never
+//! renamed, and what it is struck for is whatever carries the work now.
 //!
 //! # What a row is, and what is deliberately not checked
 //!
@@ -486,15 +492,20 @@ fn milestone_number(owner: &str) -> Option<u32> {
 
 /// What is wrong with one key's owner column, or `None` if nothing is.
 ///
-/// The three kinds [carried-gaps.md](/docs/agent/carried-gaps.md) § *The
-/// contract* allows all pass here: a goal the chain still holds, named by its
-/// slug; the word `unowned`; and a milestone tag. A milestone owns a key the way
-/// it owns a gap — the work is scheduled rather than missing — and the three
-/// things that make a tag empty are the same three `tools/owners.py:@classify`
-/// asks about, in its order. A tag the plan's table does not list names no
-/// milestone at all; one before [`FIRST_FUTURE_MILESTONE`] is behind the
-/// program, so nothing is left to carry the key; and a row whose *Carried by*
-/// cell reads `done` closed without closing this.
+/// The two kinds `tools/owners.py`'s module doc allows both pass here: a goal
+/// the chain still holds, named by its slug, and a milestone tag. A milestone
+/// owns a key the way it owns a gap —
+/// the work is scheduled rather than missing — and the three things that make a
+/// tag empty are the same three `tools/owners.py:@classify` asks about, in its
+/// order. A tag the plan's table does not list names no milestone at all; one
+/// before [`FIRST_FUTURE_MILESTONE`] is behind the program, so nothing is left
+/// to carry the key; and a row whose *Carried by* cell reads `done` closed
+/// without closing this.
+///
+/// `unowned` is asked about ahead of both and refused with a sentence of its
+/// own, because "this owner kind is retired" is the edit a reader has to make,
+/// where the generic refusal would send them looking for a typo in a word that
+/// is spelled correctly.
 ///
 /// It is a function rather than a `match` inside the gate so that
 /// [`an_owner_that_is_not_a_live_chain_entry_fails`] can ask it about an owner
@@ -510,7 +521,14 @@ fn owner_problem(
     let Some(owner) = owner else {
         return Some("names no owner".to_owned());
     };
-    if owner == "unowned" || goals.contains(owner.as_str()) {
+    if owner == "unowned" {
+        return Some(
+            "names `unowned`, which is a retired owner kind — a key is owned by a live goal on \
+             the chain or by a milestone whose plan states the scope"
+                .to_owned(),
+        );
+    }
+    if goals.contains(owner.as_str()) {
         return None;
     }
     if let Some(number) = milestone_number(owner) {
@@ -539,9 +557,9 @@ fn owner_problem(
 
 /// Every key in every [`RATCHETS`] file names an owner a reader can act on: a
 /// goal [docs/agent/goals/](/docs/agent/goals/) still holds, named by its slug,
-/// the word `unowned`, or a milestone ahead of the program.
+/// or a milestone ahead of the program.
 ///
-/// [`owner_problem`] owns which three those are, and the module doc owns why the
+/// [`owner_problem`] owns which two those are, and the module doc owns why the
 /// owner is a column rather than a header sentence.
 #[test]
 fn every_outstanding_key_names_an_owner() {
@@ -575,9 +593,8 @@ fn every_outstanding_key_names_an_owner() {
         wrong.is_empty(),
         "{} outstanding key(s) name an owner nobody can act on:\n  {}\n\
          Write `# <goal-slug>` after the key, taking the slug from docs/agent/goals/, or \
-         `# M<n>` naming a milestone the plan's table still carries, or `# unowned` with a \
-         bullet in docs/agent/carried-gaps.md § Unowned saying why it is nobody's. An owner \
-         that went green without striking its key is struck, not renamed.",
+         `# M<n>` naming a milestone the plan's table still carries. An owner that went \
+         green without striking its key is struck, not renamed.",
         wrong.len(),
         wrong.join("\n  ")
     );
@@ -618,7 +635,6 @@ fn an_owner_that_is_not_a_live_chain_entry_fails() {
     let goals = chain_goals();
     let plan = plan_milestones();
     let live = "carried-gaps".to_owned();
-    let unowned = "unowned".to_owned();
     let orphan = "no-such-goal".to_owned();
     let unplanned = "M99".to_owned();
     let finished = "M9".to_owned();
@@ -641,7 +657,6 @@ fn an_owner_that_is_not_a_live_chain_entry_fails() {
     );
 
     assert_eq!(owner_problem(Some(&live), &goals, &plan), None);
-    assert_eq!(owner_problem(Some(&unowned), &goals, &plan), None);
     assert!(
         owner_problem(Some(&orphan), &goals, &plan).is_some(),
         "an owner naming goal `{orphan}`, which the chain does not hold, was accepted — a key can \
@@ -661,6 +676,34 @@ fn an_owner_that_is_not_a_live_chain_entry_fails() {
     assert!(
         owner_problem(None, &goals, &plan).is_some(),
         "a key with no owner column at all was accepted"
+    );
+}
+
+/// `unowned` is refused for being itself, and not for looking like a goal slug
+/// the chain does not hold.
+///
+/// The word is slug-shaped, so an implementation that simply dropped the branch
+/// would still go red here — with a message telling a reader to check the
+/// spelling of a word that is spelled correctly. The message is what this asks
+/// about for that reason, rather than only the refusal.
+#[test]
+fn unowned_is_no_longer_an_owner_for_a_key() {
+    let goals = chain_goals();
+    let plan = plan_milestones();
+    let unowned = "unowned".to_owned();
+
+    assert!(
+        !goals.contains(unowned.as_str()),
+        "a goal named `{unowned}` is on the chain, so the refusal below is asserting the wrong \
+         thing — rename the goal"
+    );
+
+    let problem = owner_problem(Some(&unowned), &goals, &plan)
+        .expect("`unowned` was accepted as an owner — the retired kind owns keys again");
+    assert!(
+        problem.contains("retired"),
+        "`unowned` is refused as a goal the chain does not hold rather than as a retired kind, \
+         so the message reads as a typo to fix: {problem}"
     );
 }
 

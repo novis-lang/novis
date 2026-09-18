@@ -6,9 +6,9 @@
 # One key per line, as the spec section and the class's own spelling, then the
 # goal that will strike it, named by its slug: `§16 Core\Net  # net-os-signal`,
 # read against docs/agent/goals/ by `every_outstanding_key_names_an_owner`. That
-# test's doc owns the column, and `unowned` is the answer for a class no goal on
-# the chain builds -- which is a scheduling question for the user, recorded in
-# docs/agent/carried-gaps.md § Unowned.
+# test's doc owns the column, and a class no goal on the chain builds takes a
+# milestone tag whose own plan states the scope: there is no word for "nobody's
+# yet", and `unowned` is refused by name.
 #
 # The list only shrinks: registering a class and striking its line here are one
 # slice, and a line naming a class that is registered now fails the same test.
