@@ -104,14 +104,13 @@
 //! is why `nvs_ir::lower::stmt`'s dispatch does not carry an arm for it.
 
 use nvs_diagnostics::{Diagnostic, Span, code};
-use nvs_hir::SymbolKind;
 use nvs_syntax::ast::{DestructureElement, DestructureTarget, Expr, ExprKind, Stmt, StmtKind};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::expr::{
-    can_hold_an_object, check_array_key_type, check_condition, check_expr, check_expr_stmt,
-    check_return, check_unset_target, int_literal_digits, is_assignable, reject_finish_marker_arm,
-    reject_secret_output, report_mismatch, require_stringable, testable_core_class,
+    check_array_key_type, check_condition, check_expr, check_expr_stmt, check_return,
+    check_unset_target, int_literal_digits, is_assignable, reject_finish_marker_arm,
+    reject_secret_output, report_mismatch, require_stringable,
 };
 use crate::expr_table::ExprInfo;
 use crate::lower::{lower_optional_type, lower_type};
@@ -408,12 +407,9 @@ fn null_test(cond: &Expr) -> Option<(Span, bool)> {
 pub(crate) fn narrow(cond: &Expr, when: bool, scope: &LocalScope, env: &mut Env<'_>) -> Narrowing {
     let residue = match null_residue(cond, when, scope, env) {
         Some(found) => Some(found),
-        None => match instanceof_residue(cond, when, scope, env) {
+        None => match type_test_residue(cond, when, scope, env) {
             Some(found) => Some(found),
-            None => match type_test_residue(cond, when, scope, env) {
-                Some(found) => Some(found),
-                None => literal_residue(cond, when, scope, env),
-            },
+            None => literal_residue(cond, when, scope, env),
         },
     };
     let Some((name, residue)) = residue else {
@@ -441,128 +437,41 @@ fn null_residue(
     (residue != current).then_some((name, residue))
 }
 
-/// The local an `instanceof` test narrows on the branch where it evaluates to
-/// `when`, and the class it proves.
-///
-/// **Only the edge where the test holds proves anything**: `$x instanceof Foo`
-/// being *false* leaves the declared type untouched — every other class it
-/// could hold, and `null` besides, is still in it. That is the asymmetry with
-/// [`null_residue`], where both edges name a type. A `!` flips which branch
-/// that is rather than removing it, so the guard clause a ported program
-/// writes — `if (!($x instanceof Foo)) { return; }` — narrows everything after
-/// it, exactly as the `== null` spelling already did.
-///
-/// **The residue is a class or an interface**, and deliberately not every name
-/// `instanceof` accepts. It has to be a type `nvs-ir` can erase to one
-/// pointer, because a narrowed read of a [`Ty::Tagged`](nvs_ir::ty::Ty) slot is
-/// discharged as an unchecked `nvs_ir::ir::InstKind::Untag` — and a declared
-/// class, a user-declared interface, a `Core` class with instances and the
-/// reserved global names all erase to exactly that. Narrowing to an interface is the direction a program written
-/// against an abstraction actually uses, and it costs nothing extra here: the
-/// residue is nominal either way, and [`crate::signatures::resolve_method`]
-/// already answers an interface's members for a parameter declared with one.
-///
-/// The one name left out is a reserved interface that takes **type
-/// arguments**: `rule:iteration/concrete-generic-implements`'s `Iterable`/`Iterator` are written
-/// `Iterator<int>` wherever they are declared and `instanceof Iterator`
-/// supplies nothing, so interning one here would name a different type than
-/// any annotation does. That one proves a `bool` and narrows nothing, which is
-/// a limit of this pass rather than a rule about the language.
-///
-/// The class comes from `crate::expr_table::ExprInfo::InstanceOf`, recorded by
-/// [`crate::expr::members::infer_instanceof`] when the condition was checked a
-/// moment earlier, rather than resolved a second time here: a name is placed
-/// by the namespace and the imports of the site that wrote it, and this walk
-/// carries neither.
-fn instanceof_residue(
-    cond: &Expr,
-    when: bool,
-    scope: &LocalScope,
-    env: &mut Env<'_>,
-) -> Option<(String, TypeId)> {
-    let (name_span, test_span, proved_when) = instanceof_test(cond)?;
-    if proved_when != when {
-        return None;
-    }
-    let name = strip_sigil(span_text(env.src, name_span)).to_owned();
-    let current = scope.declared_ty(&name)?;
-    // A declared type that can hold no object at all has already been reported
-    // (`code::E_INSTANCEOF_SUBJECT_NOT_OBJECT`); narrowing it as well would
-    // hand `nvs-ir` a class where the slot holds a scalar.
-    if !can_hold_an_object(current, env.interner) {
-        return None;
-    }
-    let Some(ExprInfo::InstanceOf { class }) = env.exprs.lookup(test_span) else {
-        return None;
-    };
-    let class = class.clone();
-    let narrows = match env.symbols.get(&class).map(|sym| sym.kind) {
-        Some(kind) => matches!(kind, SymbolKind::Class | SymbolKind::Interface),
-        // A reserved global name and a `Core` class have no declaration to
-        // find. The exception classes are ordinary classes and a `Core` class
-        // erases to the same one pointer a declared one does
-        // ([`crate::expr::testable_core_class`]), which is what makes a `mixed`
-        // holding a decoded `Core\Time\Date` usable by naming it; a reserved
-        // *interface* narrows only when its roster entry takes no type
-        // parameters.
-        None => {
-            class.is_reserved_global_class()
-                || testable_core_class(&class)
-                || (class.is_reserved_global_interface()
-                    && nvs_hir::interfaces::type_params(class.short_name())
-                        .is_none_or(<[&str]>::is_empty))
-        }
-    };
-    if !narrows {
-        return None;
-    }
-    let residue = env.interner.class(class);
-    (residue != current).then_some((name, residue))
-}
-
-/// The `$x instanceof Name` test `cond` is, if it is one at all: the tested
-/// variable's name span, the whole test's own span — which is the key
-/// `crate::expr_table::ExprInfo::InstanceOf` was recorded under — and whether
-/// the class is proved when the condition *holds*, which a `!` inverts.
-fn instanceof_test(cond: &Expr) -> Option<(Span, Span, bool)> {
-    match &cond.kind {
-        ExprKind::Paren(inner) => instanceof_test(inner),
-        ExprKind::Unary {
-            op: nvs_syntax::ast::UnaryOp::Not,
-            expr: inner,
-        } => instanceof_test(inner).map(|(name, test, proved)| (name, test, !proved)),
-        ExprKind::InstanceOf { expr, .. } => match &expr.kind {
-            ExprKind::Variable(span) => Some((*span, cond.span, true)),
-            _ => None,
-        },
-        _ => None,
-    }
-}
-
 /// The local an `is` test narrows on the branch where it evaluates to `when`,
 /// and the type it proves.
 ///
-/// Narrowing's **fifth spelling** (`rule:types/narrowing`), and the general one:
-/// where [`instanceof_residue`] proves a class, this proves any type a value can
-/// inhabit — a scalar, `null`, an `array<T>`, a shape, a literal, an enum case
-/// or a union of them. The true edge alone proves anything, for
-/// [`instanceof_residue`]'s reason, and a `!` flips which branch that is.
+/// The general spelling of narrowing (`rule:types/narrowing`), and the only one
+/// that reaches a class: it proves any type a value can inhabit — a scalar,
+/// `null`, an `array<T>`, a shape, a literal, an enum case, a class or a union
+/// of them.
 ///
-/// **Nothing about the subject is checked here**, which is the one place this
-/// must not read like its sibling: `is` refuses no left-hand side at all (ADR
-/// 0150 § 6), so there is no [`can_hold_an_object`] gate to carry over — a
-/// declared `int` narrowing to a literal `1` is an ordinary case here and has
-/// no `instanceof` counterpart.
+/// **Only the edge where the test holds proves anything**: `$x is Foo` being
+/// *false* leaves the declared type untouched, since every other type it could
+/// hold is still in it. That is the asymmetry with [`null_residue`], where both
+/// edges name a type. A `!` flips which branch that is rather than removing it,
+/// so the guard clause a ported program writes —
+/// `if (!($x is Foo)) { return; }` — narrows everything after it, exactly as
+/// the `== null` spelling already did.
 ///
-/// The type comes from `crate::expr_table::ExprInfo::TypeTest`, recorded by
+/// **Nothing about the subject is checked here.** `is` refuses no left-hand
+/// side at all (ADR 0150 § 6), so a declared `int` narrowing to a literal `1`
+/// is an ordinary case, and a subject that can hold no object has already
+/// folded rather than recorded anything for the value arm.
+///
+/// The type comes from `crate::expr_table::ExprInfo::TypeTest`, or the base
+/// from `ExprInfo::ClassRefTest` for the value arm, recorded by
 /// [`crate::expr::type_test::infer_type_test`] when the condition was checked a
-/// moment earlier, for [`instanceof_residue`]'s reason and because interning a
-/// written type is not something this walk can do. **Which variant is on the
-/// span is the guard**: the checker records this one only for a test whose
-/// answer is a run-time `bool`, so a type that already covers the declared one
-/// folded to `true`, carries a
+/// moment earlier: a written type is placed by the namespace and the imports of
+/// the site that wrote it and interned there, and this walk carries neither.
+/// **Which variant is on the span is the guard**: the checker records these two
+/// only for a test whose answer is a run-time `bool`, so a type that already
+/// covers the declared one folded to `true`, carries a
 /// `crate::expr_table::ExprInfo::SettledTypeTest` instead, and never arrives
 /// here to widen a binding.
+///
+/// A `class<T>` operand narrows the subject to **`T`**, which is sound because
+/// the reference holds a `T` or an implementor of one
+/// (`rule:types/class-reference-sites`).
 fn type_test_residue(
     cond: &Expr,
     when: bool,
@@ -575,10 +484,11 @@ fn type_test_residue(
     }
     let name = strip_sigil(span_text(env.src, name_span)).to_owned();
     let current = scope.declared_ty(&name)?;
-    let Some(ExprInfo::TypeTest { tested }) = env.exprs.lookup(test_span) else {
-        return None;
+    let residue = match env.exprs.lookup(test_span) {
+        Some(&ExprInfo::TypeTest { tested }) => tested,
+        Some(&ExprInfo::ClassRefTest { base }) => base,
+        _ => return None,
     };
-    let residue = *tested;
     (residue != current).then_some((name, residue))
 }
 

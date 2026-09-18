@@ -169,7 +169,7 @@ pub struct ResolvedCall {
     /// `None`: those three forward the caller's called class rather than
     /// setting a new one.
     ///
-    /// Recorded rather than left to `nvs-ir` for [`ExprInfo::InstanceOf`]'s
+    /// Recorded rather than left to `nvs-ir` for [`ExprInfo::TypeTest`]'s
     /// reason: resolving a bare `LeafRegistry` against the active namespace
     /// and imports needs context only this crate and `nvs-hir` have.
     pub static_class: Option<QName>,
@@ -791,24 +791,6 @@ pub enum ExprInfo {
         /// [`crate::CORE_CLI_TEXT_CONCAT`].
         symbol: &'static str,
     },
-    /// `$x instanceof Name`, keyed by the *`instanceof` expression's* own
-    /// span, whose right-hand side named a class or interface this program
-    /// declares (or a reserved global one). Never recorded for the dynamic
-    /// `$x instanceof $classNameExpr` form: there is no compile-time-known
-    /// class to name, exactly the way [`ExprInfo::Property`] records nothing
-    /// for an erased receiver — but unlike that receiver, the form is refused
-    /// where it is written (`E0496`), so no program `nvs-ir` sees reaches an
-    /// unrecorded entry. An enum, a `Core` class and a name resolving to
-    /// nothing are refused on the same pass, the last as the ordinary `E0303`.
-    ///
-    /// Recorded rather than left to the consumer because resolving a bare
-    /// `Animal` to `Ns\Animal` needs the namespace and import context only
-    /// this crate and `nvs-hir` have — `nvs-ir` deliberately depends on
-    /// neither.
-    InstanceOf {
-        /// The class or interface tested against.
-        class: QName,
-    },
     /// `$x is T`, keyed by the *`is` expression's* own span: the type its
     /// right-hand side lowered to.
     ///
@@ -820,17 +802,35 @@ pub enum ExprInfo {
     /// something to do about: narrowing on the true edge
     /// (`rule:types/narrowing`) and, for `nvs-ir`, a test to emit.
     ///
-    /// Recorded rather than left to the consumer for [`ExprInfo::InstanceOf`]'s
-    /// reason, one step wider than a class name: the right-hand side is a
-    /// written *type*, and lowering one places every name in it by the
-    /// namespace and the imports of the site that wrote it and interns the
-    /// result — context `nvs-ir` has neither, holding no
-    /// [`crate::ty::TypeInterner`] at all.
+    /// **Recorded rather than left to the consumer**, which is this table's
+    /// whole reason and the one every other variant's doc points back here
+    /// for: the right-hand side is a written *type*, and lowering one places
+    /// every name in it by the namespace and the imports of the site that
+    /// wrote it and interns the result — context `nvs-ir` has neither, holding
+    /// no [`crate::ty::TypeInterner`] at all and depending on neither this
+    /// crate nor `nvs-hir` for the resolution.
     TypeTest {
         /// The type tested against, as [`crate::lower::lower_type`] interned
         /// it. Never a `void`, a `never` or a qualified atom: those are the
         /// right-hand sides `is` refuses.
         tested: TypeId,
+    },
+    /// `$x is $cls` — the value arm (`rule:types/type-test` § *The value arm*),
+    /// keyed by the *`is` expression's* own span, and the third of the shapes
+    /// an `is` can carry.
+    ///
+    /// Which variant is on the span is what tells a consumer the arm: this one
+    /// means the class to test against arrives as a descriptor at run time, so
+    /// `nvs-ir` lowers the operand rather than reading a type off the record,
+    /// and [`crate::locals::narrow`] narrows the subject to the base below.
+    ///
+    /// Recorded for [`Self::TypeTest`]'s reason, one step narrower: the
+    /// operand's `class<T>` is the checker's own type, and `T` is not something
+    /// a crate holding no interner can read back off the expression.
+    ClassRefTest {
+        /// `T` of the operand's `class<T>` — what the subject narrows to on the
+        /// true edge, the reference holding a `T` or an implementor of one.
+        base: TypeId,
     },
     /// `$x is T` the checker **settled**, carrying the constant it folded to —
     /// the other half of [`Self::TypeTest`], and never recorded beside one.
@@ -856,7 +856,7 @@ pub enum ExprInfo {
     /// `rule:enums/no-class-machinery` makes a case "an integer constant, inlined at every use
     /// site" — so this is the *value*, resolved once by [`crate::enums`] and
     /// read back by `nvs-ir` as a plain constant. Recorded rather than left to
-    /// the consumer for [`ExprInfo::InstanceOf`]'s reason and one more: the
+    /// the consumer for [`ExprInfo::TypeTest`]'s reason and one more: the
     /// enum's name needs namespace/import context only this crate has, and the
     /// auto-increment rule that gives an unwritten case its value needs the
     /// whole declaration in view.
@@ -864,7 +864,7 @@ pub enum ExprInfo {
     /// Never recorded for an ordinary `Class::CONST`, whose value travels in
     /// [`ExprInfo::ClassConst`] instead.
     /// The enum and the case are carried beside the value for
-    /// [`ExprInfo::InstanceOf`]'s reason a second time: `rule:types/literal-types`'s guard
+    /// [`ExprInfo::TypeTest`]'s reason a second time: `rule:types/literal-types`'s guard
     /// row narrows a local to the case's own `Ty::EnumCase`, and *which* case
     /// a written `Mode::Read` names is a question about the namespace and the
     /// imports of the site that wrote it — context
@@ -1083,7 +1083,7 @@ pub enum ExprInfo {
     /// environment as, the outer bindings that environment holds, and the
     /// value the body produces.
     ///
-    /// Recorded rather than re-derived for [`ExprInfo::InstanceOf`]'s reason
+    /// Recorded rather than re-derived for [`ExprInfo::TypeTest`]'s reason
     /// twice over. The capture set is "exactly the outer variables its body
     /// reads" (§ 2), which is a fact only the checker's own scope walk knows;
     /// and an expression body's return type is inferred from that body, which
@@ -1962,7 +1962,7 @@ impl ExprTypeTable {
     /// span need two maps; this is the same reason [`Self::record_method`]
     /// and [`Self::record_type`] have theirs.
     ///
-    /// Recorded rather than left to `nvs-ir` for [`ExprInfo::InstanceOf`]'s
+    /// Recorded rather than left to `nvs-ir` for [`ExprInfo::TypeTest`]'s
     /// reason: reaching `Iterable` through a base class is a
     /// [`crate::signatures::resolve_iteration_element`] walk over
     /// [`nvs_hir::ClassGraph`], which `nvs-ir` does not depend on.
@@ -1990,7 +1990,7 @@ impl ExprTypeTable {
     /// call *it* is, and the `toString` it then stringifies through is a
     /// second, independent fact about the same span.
     ///
-    /// Recorded rather than left to `nvs-ir` for [`ExprInfo::InstanceOf`]'s
+    /// Recorded rather than left to `nvs-ir` for [`ExprInfo::TypeTest`]'s
     /// reason: an implicit conversion site is not a call expression, so the
     /// consumer has no call node to resolve, and walking
     /// [`nvs_hir::ClassGraph`] for the declaring class is not something that
@@ -2183,14 +2183,15 @@ mod tests {
     }
 
     #[test]
-    fn an_instanceof_records_the_resolved_class() {
+    fn a_class_test_over_an_erased_subject_records_the_type_it_lowered() {
         let (exprs, span) = check_and_find_expr_span(
-            "<?nvs\nclass Foo {}\nclass T {\n  function m(Foo $f): bool {\n    return $f instanceof Foo;\n  }\n}\n",
+            "<?nvs\nclass Foo {}\nclass T {\n  function m(mixed $v): bool {\n    return $v is Foo;\n  }\n}\n",
         );
-        let Some(ExprInfo::InstanceOf { class }) = exprs.lookup(span) else {
-            panic!("expected a recorded `InstanceOf` entry");
-        };
-        assert_eq!(class.to_string(), "Foo");
+        assert!(
+            matches!(exprs.lookup(span), Some(ExprInfo::TypeTest { .. })),
+            "{:?}",
+            exprs.lookup(span)
+        );
     }
 
     /// A `Core` class a value can be an instance of is a written class name
@@ -2199,29 +2200,31 @@ mod tests {
     /// `nvs-codegen` relocates against the descriptor
     /// `nvs_stdlib::class_descriptors` publishes.
     #[test]
-    fn an_instanceof_over_a_core_class_records_the_resolved_name() {
+    fn a_core_class_on_the_right_of_is_records_a_type_test_like_any_other() {
         let (exprs, span) = check_and_find_expr_span(
-            "<?nvs\nclass T {\n  function m(mixed $v): bool {\n    return $v instanceof Core\\Time\\Date;\n  }\n}\n",
+            "<?nvs\nclass T {\n  function m(mixed $v): bool {\n    return $v is Core\\Time\\Date;\n  }\n}\n",
         );
-        let Some(ExprInfo::InstanceOf { class }) = exprs.lookup(span) else {
-            panic!("expected a recorded `InstanceOf` entry");
-        };
-        assert_eq!(class.to_string(), r"Core\Time\Date");
+        assert!(
+            matches!(exprs.lookup(span), Some(ExprInfo::TypeTest { .. })),
+            "{:?}",
+            exprs.lookup(span)
+        );
     }
 
-    /// The dynamic form records nothing *and* is refused where it is written:
-    /// `rule:types/conversion` has no dynamic class names, so there is no entry for
-    /// `nvs-ir` to read and no program that reaches it.
+    /// A value on the right of `is` that is not a `class<T>` records nothing
+    /// *and* is refused where it is written: `rule:types/conversion` has no
+    /// dynamic class names, so there is no entry for `nvs-ir` to read and no
+    /// program that reaches it.
     #[test]
-    fn a_dynamic_instanceof_records_nothing_and_is_refused() {
+    fn a_value_on_the_right_of_is_that_names_no_class_records_nothing_and_is_refused() {
         let (exprs, span, diags) = check_fixture(
-            "<?nvs\nclass Foo {}\nclass T {\n  function m(Foo $f, string $n): bool {\n    return $f instanceof $n;\n  }\n}\n",
+            "<?nvs\nclass Foo {}\nclass T {\n  function m(Foo $f, string $n): bool {\n    return $f is $n;\n  }\n}\n",
         );
         assert!(exprs.lookup(span).is_none());
         assert!(
             diags
                 .iter()
-                .any(|d| d.code == Some(nvs_diagnostics::code::E_INSTANCEOF_NOT_A_CLASS)),
+                .any(|d| d.code == Some(nvs_diagnostics::code::E_DYNAMIC_CLASS_NAME)),
             "{diags:?}"
         );
     }

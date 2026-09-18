@@ -1,12 +1,12 @@
-//! `$x is T` in the checker — `rule:types/type-test`: the answer is `bool` for
-//! every subject, a settled answer folds to `true` or `false`, and only the
-//! right-hand side is ever refused.
+//! `$x is T` and `$x is $cls` in the checker — `rule:types/type-test`: the
+//! answer is `bool` for every subject, a settled answer folds to `true` or
+//! `false`, and only the right-hand side is ever refused.
 //!
 //! The acceptances here are the load-bearing half. `is` is **total**, so a test
 //! whose answer the declaration already settles has to compile — the failure
-//! this suite exists to catch is a session reasoning from `instanceof`, whose
-//! subject refusal (`E0497`) does not transfer to an operator every value has
-//! an answer for (ADR 0150 § 6).
+//! this suite exists to catch is a session refusing a subject because its
+//! declaration already answered, which no arm of this operator does
+//! (ADR 0150 § 6).
 
 mod common;
 
@@ -47,9 +47,8 @@ fn a_statically_true_test_over_a_declared_type_checks_and_folds_to_true() {
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
-/// The other direction of the same fold, and the one that would be a
-/// diagnostic if `is` had copied `instanceof`'s reasoning: a subject that can
-/// never hold the tested type answers `false` rather than being refused.
+/// The other direction of the same fold: a subject that can never hold the
+/// tested type answers `false` rather than being refused.
 #[test]
 fn a_statically_false_test_over_a_declared_type_checks_and_folds_to_false() {
     let diags = check_with_subjects(
@@ -59,20 +58,13 @@ fn a_statically_false_test_over_a_declared_type_checks_and_folds_to_false() {
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
-/// The trap named in full. `instanceof` refuses a subject that can hold no
-/// object at all (`E0497`), because it needs a class to test against and a
-/// scalar has none; `is` is applicable everywhere, so neither the scalar
-/// against a class nor the object against a scalar reports anything.
+/// The trap named in full. `is` refuses no left-hand side at all — a subject
+/// that can hold no object is a fold and never a diagnostic — so neither the
+/// scalar against a class nor the object against a scalar reports anything.
 #[test]
-fn neither_direction_reports_the_instanceof_subject_refusal() {
+fn neither_direction_reports_anything_about_the_subject() {
     let diags = check_with_subjects(
         "    int $n = 7;\n    bool $a = $n is Node;\n    bool $b = $node is string;",
-    );
-    assert!(
-        !diags
-            .iter()
-            .any(|d| d.code == Some(code::E_INSTANCEOF_SUBJECT_NOT_OBJECT)),
-        "{diags:?}"
     );
     assert!(!diags.has_errors(), "{diags:?}");
 }
@@ -141,10 +133,61 @@ fn is_against_a_float_literal_reuses_the_literal_type_refusal_and_claims_no_new_
         !diags.iter().any(|d| {
             d.code == Some(code::E_TYPE_TEST_AGAINST_A_QUALIFIER)
                 || d.code == Some(code::E_TYPE_TEST_AGAINST_AN_UNINHABITED_TYPE)
-                || d.code == Some(code::E_TYPE_TEST_AGAINST_A_VALUE)
         }),
         "{diags:?}"
     );
+}
+
+/// `rule:types/class-reference-sites`' third site: a `class<T>` on the right of
+/// `is` narrows the subject to **`T`** on the true edge, which is sound because
+/// the reference holds a `T` or an implementor of one. The narrowed binding is
+/// read through a member only `Node` declares, so a test that narrowed to
+/// nothing — or to the wrong base — fails to compile rather than passing
+/// quietly.
+#[test]
+fn a_class_reference_on_the_right_of_is_narrows_the_subject_to_its_base() {
+    let diags = check_src(&format!(
+        "<?nvs\n{DECLS}class T {{\n  function m(mixed $m, class<Node> $cls): void {{\n    if ($m \
+         is $cls) {{\n      Node $n = $m;\n    }}\n  }}\n}}\n"
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+/// The one thing the value arm refuses, and it is about the operand rather
+/// than the subject: a value that is not a `class<T>` names no class the
+/// compiler can resolve, so it is `E0496` — the report `new $v(...)` and
+/// `$v::f(...)` already share — with its help naming `as class<T>`.
+#[test]
+fn a_value_that_is_not_a_class_reference_on_the_right_of_is_is_refused_as_a_dynamic_class_name() {
+    let diags = check_src(&format!(
+        "<?nvs\n{DECLS}class T {{\n  function m(mixed $m, string $name): void {{\n    bool $b = \
+         $m is $name;\n  }}\n}}\n"
+    ));
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_DYNAMIC_CLASS_NAME)),
+        "{diags:?}"
+    );
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.notes.iter().any(|n| n.contains("as class<Base>"))),
+        "the conversion an author can take is not named: {diags:?}"
+    );
+}
+
+/// A subject that can hold no object settles the class test before the program
+/// runs, so it folds to `false` like every other settled test — and costs no
+/// diagnostic, which is where this arm parts company with the `instanceof` it
+/// replaces.
+#[test]
+fn a_class_test_over_a_subject_that_holds_no_object_folds_to_false_without_a_diagnostic() {
+    let diags = check_src(&format!(
+        "<?nvs\n{DECLS}class T {{\n  function m(int $n, class<Node> $cls): void {{\n    false $b \
+         = $n is $cls;\n  }}\n}}\n"
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
 }
 
 /// Every row of `rule:types/type-test`'s table, asked at once and counted:

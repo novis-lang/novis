@@ -3,15 +3,19 @@
 //!
 //! The operator is **total**. Every value has a representation, so every
 //! subject has an answer, and this module refuses nothing about the left-hand
-//! side — not even a subject whose declared type settles the question. That is
-//! the one thing most likely to be written here by analogy with
-//! [`super::members::infer_instanceof`], which *does* refuse a subject that can
-//! hold no object: `instanceof` needs a class to test against and a scalar has
-//! none, so the operator is inapplicable there rather than merely predictable.
-//! ADR 0150 § 6 is the argument, and it also names the second reason — once
-//! `is` narrows, a guard written inside an already-narrowed branch is
-//! statically true by construction, and refusing that would let a flow
-//! analysis turn working code into a compile error.
+//! side — not even a subject whose declared type settles the question, and not
+//! even one that can hold no object at all under the value arm. ADR 0150 § 6 is
+//! the argument, and it also names the second reason — once `is` narrows, a
+//! guard written inside an already-narrowed branch is statically true by
+//! construction, and refusing that would let a flow analysis turn working code
+//! into a compile error.
+//!
+//! The right side has **two arms** and one of them is a value
+//! (`rule:types/type-test` § *The value arm*): a `class<T>` names the class to
+//! test against, and the subject narrows to `T` on the true edge. The operand
+//! is the only thing refused there — anything that is not a class reference is
+//! [`code::E_DYNAMIC_CLASS_NAME`], the one report `new $v(...)` and `$v::f(...)`
+//! already share (`rule:types/class-reference-sites`).
 //!
 //! A settled answer **folds** instead: the expression's type is `true` or
 //! `false` rather than `bool`, with no diagnostic and no warning
@@ -26,25 +30,25 @@
 //! [`code::E_TYPE_TEST_AGAINST_AN_UNINHABITED_TYPE`] for `void` and `never`,
 //! which no value inhabits, and
 //! [`code::E_TYPE_TEST_AGAINST_A_QUALIFIER`] for a `tainted` or `secret`
-//! qualifier, which is erased before codegen and leaves no bit to read. The
-//! third refusal in `rule:types/type-test`'s table is the parser's, where the
-//! `$` of `$x is $cls` is still in hand.
+//! qualifier, which is erased before codegen and leaves no bit to read.
 //!
 //! A test that survives both folds and both refusals **records the type it
 //! lowered** ([`crate::expr_table::ExprInfo::TypeTest`]), because that is the
 //! one case with a run-time answer: narrowing reads it on the true edge, and
-//! `nvs-ir` reads it to emit the test. A folded one records the constant
-//! instead ([`crate::expr_table::ExprInfo::SettledTypeTest`]) — which variant
-//! is on the span is what tells the two apart, and the constant is carried
-//! rather than re-derived because the fold is a question about types that no
-//! longer exist below this crate. A refused test records neither: it has a
-//! diagnostic, so no lowering ever sees it.
+//! `nvs-ir` reads it to emit the test. The value arm records
+//! [`crate::expr_table::ExprInfo::ClassRefTest`] and its base for the same two
+//! readers. A folded one records the constant instead
+//! ([`crate::expr_table::ExprInfo::SettledTypeTest`]) — which variant is on the
+//! span is what tells the three apart, and the constant is carried rather than
+//! re-derived because the fold is a question about types that no longer exist
+//! below this crate. A refused test records none of them: it has a diagnostic,
+//! so no lowering ever sees it.
 //!
 //! Part of [`super`]'s one expression checker, split across this directory so
 //! a session editing one rule does not carry the rest in context.
 
 use nvs_diagnostics::{Diagnostic, Span, code};
-use nvs_syntax::ast::{Expr, Type};
+use nvs_syntax::ast::{Expr, TestOperand, Type};
 use rustc_hash::FxHashSet;
 
 use crate::expr_table::ExprInfo;
@@ -55,22 +59,43 @@ use crate::{Ctx, Env};
 
 use super::assign::is_assignable;
 use super::check_expr;
+use super::members::{can_hold_an_object, class_ref_argument, reject_dynamic_class_name};
 use super::operators::types_are_disjoint;
 
-/// Checks `inner is ty`, answering `bool` — or the literal `true`/`false` the
-/// two types settle between them.
+/// Checks `inner is against`, answering `bool` — or the literal `true`/`false`
+/// the two sides settle between them.
 ///
 /// The subject is checked for its own sake as much as for the fold: it is an
 /// ordinary expression, and nothing else in this walk would visit it.
 ///
-/// A test that reaches `bool` records the type it lowered
-/// ([`ExprInfo::TypeTest`]), which is what [`crate::locals::narrow`] reads to
-/// narrow the subject on the true edge and what `nvs-ir` reads to emit the
-/// test. A folded one records [`ExprInfo::SettledTypeTest`] and its constant
-/// instead: there is no run-time test left to narrow inside, and lowering
-/// answers with the constant while still running the subject for its effects.
-/// A refused one records nothing at all.
+/// A test that reaches `bool` records what it lowered — [`ExprInfo::TypeTest`]
+/// for the type arm, [`ExprInfo::ClassRefTest`] for the value one — which is
+/// what [`crate::locals::narrow`] reads to narrow the subject on the true edge
+/// and what `nvs-ir` reads to emit the test. A folded one records
+/// [`ExprInfo::SettledTypeTest`] and its constant instead: there is no run-time
+/// test left to narrow inside, and lowering answers with the constant while
+/// still running the subject for its effects. A refused one records nothing at
+/// all.
 pub(crate) fn infer_type_test(
+    expr: &Expr,
+    inner: &Expr,
+    against: &TestOperand,
+    live: &mut FxHashSet<String>,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> TypeId {
+    match against {
+        TestOperand::Type(ty) => infer_against_type(expr, inner, ty, live, scope, ctx, env),
+        TestOperand::Value(value) => {
+            infer_against_class_ref(expr, inner, value, live, scope, ctx, env)
+        }
+    }
+}
+
+/// `$x is T` — the type arm, and every row of `rule:types/type-test`'s table
+/// but the last.
+fn infer_against_type(
     expr: &Expr,
     inner: &Expr,
     ty: &Type,
@@ -95,6 +120,54 @@ pub(crate) fn infer_type_test(
         return env.interner.false_ty();
     }
     env.exprs.record(expr.span, ExprInfo::TypeTest { tested });
+    env.interner.bool_ty()
+}
+
+/// `$x is $cls` — the value arm, `rule:types/class-reference-sites`' third
+/// site, and the only one of the three that consults nothing about `T`: the
+/// operand carries the descriptor the test walks, so a class reference over any
+/// base asks the same question and answers `bool` either way.
+///
+/// **The operand is the only thing refused here.** A value that is not a
+/// `class<T>` is [`code::E_DYNAMIC_CLASS_NAME`] — the report `new $v(...)` and
+/// `$v::f(...)` already share, whose help names the `as class<Base>` an author
+/// can write — because nothing below the checker could resolve such a name
+/// either.
+///
+/// A subject that can hold no object **folds to `false`**, the way every other
+/// settled test folds, and costs no diagnostic: `is` refuses no left-hand side
+/// (ADR 0150 § 6), and the run-time walk would answer `false` at every
+/// execution anyway. That is the one place this arm reads differently from the
+/// `instanceof` it replaces, which refused the same subject outright.
+///
+/// The base is recorded rather than the operand's whole type because `T` is
+/// what the true edge proves: a `class<T>` holds a `T` or an implementor of
+/// one, so narrowing the subject to `T` is sound (`rule:types/narrowing`).
+fn infer_against_class_ref(
+    expr: &Expr,
+    inner: &Expr,
+    value: &Expr,
+    live: &mut FxHashSet<String>,
+    scope: &LocalScope,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) -> TypeId {
+    let subject = check_expr(inner, None, live, scope, ctx, env);
+    let operand = check_expr(value, None, live, scope, ctx, env);
+    let Some(base) = class_ref_argument(operand, env.interner) else {
+        reject_dynamic_class_name(
+            "the right-hand side of `is` is a type or a class reference, and this is neither",
+            value.span,
+            env,
+        );
+        return env.interner.bool_ty();
+    };
+    if !can_hold_an_object(subject, env.interner) {
+        env.exprs
+            .record(expr.span, ExprInfo::SettledTypeTest { answer: false });
+        return env.interner.false_ty();
+    }
+    env.exprs.record(expr.span, ExprInfo::ClassRefTest { base });
     env.interner.bool_ty()
 }
 

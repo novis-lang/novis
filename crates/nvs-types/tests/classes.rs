@@ -674,7 +674,7 @@ fn a_dynamic_new_is_refused_naming_the_subclass_whose_constructor_differs() {
 /// a `class<T>` and nothing else. `new $cls()` types its arguments against
 /// `T`'s constructor and yields a `T` -- including where `T` is `abstract`,
 /// which is the case the feature exists for -- `$cls::f()` resolves the member
-/// on `T`'s roster, and `$x instanceof $cls` asks the descriptor. Everything
+/// on `T`'s roster, and `$x is $cls` asks the descriptor. Everything
 /// else keeps `E0496` at all three, with a help that names the conversion.
 #[test]
 fn a_class_reference_carries_the_three_dynamic_sites() {
@@ -689,7 +689,7 @@ fn a_class_reference_carries_the_three_dynamic_sites() {
          \x20 function m(class<Animal> $c, mixed $v): void {\n\
          \x20   Animal $a = new $c(\"Rex\");\n\
          \x20   string $k = $c::kind();\n\
-         \x20   bool $b = $v instanceof $c;\n\
+         \x20   bool $b = $v is $c;\n\
          \x20 }\n\
          }\n",
     );
@@ -731,13 +731,13 @@ fn a_class_reference_carries_the_three_dynamic_sites() {
          \x20 function m(string $s, mixed $v): void {\n\
          \x20   new $s();\n\
          \x20   $s::kind();\n\
-         \x20   $v instanceof $s;\n\
+         \x20   $v is $s;\n\
          \x20 }\n\
          }\n",
     );
     let dynamic: Vec<_> = refused
         .iter()
-        .filter(|d| d.code == Some(code::E_INSTANCEOF_NOT_A_CLASS))
+        .filter(|d| d.code == Some(code::E_DYNAMIC_CLASS_NAME))
         .collect();
     assert_eq!(dynamic.len(), 3, "{refused:?}");
     assert!(
@@ -1143,79 +1143,60 @@ fn a_computed_member_name_without_a_property_key_is_still_e0235() {
     );
 }
 
-/// `rule:types/class-reference-sites`: a `Core` class a value can be an instance of is a
-/// written class name `instanceof` accepts like a declared one. Two families
-/// qualify — a registered class with instances, and a namespaced
-/// `nvs_hir::errors::TREE` entry, which is an exception class under `Core\` by
-/// spelling alone — and a `Core` **namespace** class, declaring neither a slot
-/// nor an instance member, is the one that stays refused, because nothing is
-/// ever an instance of it and the test has no descriptor to walk.
+/// `rule:types/type-test`: a `Core` name on the right of `is` is a written type
+/// like any other, and the type resolver is the whole of what decides it — a
+/// registered class with instances, a namespaced `nvs_hir::errors::TREE` entry,
+/// which is an exception class under `Core\` by spelling alone, and a `Core`
+/// **namespace** class all resolve as types and answer `bool`. No roster of
+/// testable names sits between the two, which is what the one type test bought:
+/// the question is what a value can hold, and every name a type may be written
+/// with can be asked.
 #[test]
-fn a_core_class_is_a_testable_instanceof_target() {
+fn a_core_name_on_the_right_of_is_is_a_written_type_like_any_other() {
     let accepted = check_src(
         "<?nvs\n\
          class T {\n\
          \x20 function m(mixed $v): void {\n\
-         \x20   bool $a = $v instanceof Core\\Time\\Date;\n\
-         \x20   bool $b = $v instanceof Core\\Uri;\n\
-         \x20   bool $c = $v instanceof Core\\Db\\DbError;\n\
+         \x20   bool $a = $v is Core\\Time\\Date;\n\
+         \x20   bool $b = $v is Core\\Uri;\n\
+         \x20   bool $c = $v is Core\\Db\\DbError;\n\
+         \x20   bool $d = $v is Core\\Json;\n\
          \x20 }\n\
          }\n",
     );
     assert!(!accepted.has_errors(), "{accepted:?}");
-
-    let namespace = check_src(
-        "<?nvs\n\
-         class T {\n\
-         \x20 function m(mixed $v): void { $v instanceof Core\\Json; }\n\
-         }\n",
-    );
-    assert!(
-        namespace
-            .iter()
-            .any(|d| d.code == Some(code::E_INSTANCEOF_NOT_A_CLASS)
-                && d.message.contains("has no instances")),
-        "{namespace:?}"
-    );
 }
 
-/// The two right-hand sides `rule:types/class-reference-sites` refuses do not widen with the
-/// `Core` roster. A computed name is refused because Novis has no dynamic class
-/// names at all, and an enum — declared or `Core`-owned — because
-/// `rule:enums/closed-integer-type` makes a case a named integer rather than an object, so no
-/// value is ever an instance of one.
+/// The one right-hand side `rule:types/class-reference-sites` refuses does not
+/// widen with the `Core` roster: a computed name is refused because Novis has
+/// no dynamic class names at all. An enum is **not** refused here — declared or
+/// `Core`-owned, it is a row of `rule:types/type-test`'s table, and asking
+/// `$v is Rank` answers what asking every case in turn answers.
 #[test]
-fn a_dynamic_right_hand_side_and_an_enum_are_still_refused() {
+fn a_value_naming_no_class_is_refused_and_an_enum_is_a_row_of_the_table() {
     let refused = check_src(
         "<?nvs\n\
          enum Rank: int { Low = 1, High = 2 }\n\
          class T {\n\
          \x20 function m(mixed $v, string $s): void {\n\
-         \x20   $v instanceof $s;\n\
-         \x20   $v instanceof Rank;\n\
-         \x20   $v instanceof Core\\Http\\Method;\n\
+         \x20   bool $a = $v is $s;\n\
+         \x20   bool $b = $v is Rank;\n\
+         \x20   bool $c = $v is Core\\Http\\Method;\n\
          \x20 }\n\
          }\n",
     );
     let refusals: Vec<_> = refused
         .iter()
-        .filter(|d| d.code == Some(code::E_INSTANCEOF_NOT_A_CLASS))
+        .filter(|d| d.code == Some(code::E_DYNAMIC_CLASS_NAME))
         .collect();
-    assert_eq!(refusals.len(), 3, "{refused:?}");
+    assert_eq!(refusals.len(), 1, "{refused:?}");
     assert!(
         refusals
             .iter()
-            .any(|d| d.message.contains("must be a written class name")),
+            .any(|d| d.message.contains("is a type or a class reference")),
         "{refused:?}"
     );
-    assert_eq!(
-        refusals
-            .iter()
-            .filter(|d| d.message.contains("is an enum"))
-            .count(),
-        2,
-        "{refused:?}"
-    );
+    assert_eq!(refused.iter().count(), 1, "{refused:?}");
 }
 
 /// `rule:types/conversion`'s `mixed`-to-class row reaches a `Core` class with instances on a

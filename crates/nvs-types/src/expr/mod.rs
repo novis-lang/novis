@@ -413,12 +413,10 @@ pub(crate) fn infer(
         ExprKind::Conversion { expr: inner, ty } => {
             infer_conversion(expr, inner, ty, live, scope, ctx, env)
         }
-        ExprKind::InstanceOf { expr: inner, class } => {
-            infer_instanceof(expr, inner, class, live, scope, ctx, env)
-        }
-        ExprKind::TypeTest { expr: inner, ty } => {
-            infer_type_test(expr, inner, ty, live, scope, ctx, env)
-        }
+        ExprKind::TypeTest {
+            expr: inner,
+            against,
+        } => infer_type_test(expr, inner, against, live, scope, ctx, env),
         ExprKind::Call { callee, args } => {
             // `rule:types/closure-self-name`'s self-name, resolved before the callee is checked
             // as an expression: it is a name this closure's body binds and not

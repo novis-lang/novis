@@ -275,151 +275,10 @@ fn report_unfoldable_const(
     );
 }
 
-/// `expr instanceof ClassOrExpr` — [`super::infer`]'s `ExprKind::InstanceOf`
-/// arm.
-///
-/// A bare `Foo` on the right is a class name, not a constant read — recorded
-/// here so `nvs-ir` never has to resolve one (see
-/// `crate::expr_table::ExprInfo::InstanceOf`). Anything else is the dynamic
-/// form, which still checks as an ordinary expression and records nothing.
-///
-/// A name is recorded when a descriptor exists for the walk to reach, and
-/// [`testable_class_name`] is that whole question: a declared symbol, a
-/// reserved global exception class or interface, and a `Core` class a value can
-/// be an instance of. The reserved globals and the `Core` exception classes
-/// have no declaration to find in `env.symbols`, and
-/// `crate::layout::build_class_layouts` seeds a descriptor for each; every
-/// other `Core` class's descriptor is the one
-/// `nvs_stdlib::class_descriptors` publishes for the process.
-///
-/// Every other spelling is refused where it is written rather than left for
-/// `nvs-ir` to find nothing recorded and panic, and they split by whose rule
-/// they break: a name resolving to nothing is the ordinary
-/// `E_UNDEFINED_CLASS` (`new Undeclared()` reports exactly that); an enum, a
-/// `Core` namespace class and the dynamic `$x instanceof $name` form are
-/// `E_INSTANCEOF_NOT_A_CLASS`, whose own doc comment says why each has no test
-/// to run; and a left-hand side whose declared type can hold no object is
-/// `E_INSTANCEOF_SUBJECT_NOT_OBJECT` (`rule:php-migration/every-divergence-is-deliberate-and-listed` row 14).
-pub(crate) fn infer_instanceof(
-    expr: &Expr,
-    inner: &Expr,
-    class: &Expr,
-    live: &mut FxHashSet<String>,
-    scope: &LocalScope,
-    ctx: &Ctx<'_>,
-    env: &mut Env<'_>,
-) -> TypeId {
-    let subject = check_expr(inner, None, live, scope, ctx, env);
-    if !can_hold_an_object(subject, env.interner) {
-        let described = env.interner.describe(subject);
-        env.diags.report(
-            Diagnostic::error(
-                code::E_INSTANCEOF_SUBJECT_NOT_OBJECT,
-                format!("`{described}` can never be an object, so `instanceof` cannot ask"),
-            )
-            .with_primary(inner.span, "this value's type already answers")
-            .with_help(
-                "declare the subject `mixed`, `object`, or the base class you expect — a \
-                 declared scalar, `array<T>` or enum is not a class and never becomes one \
-                 (`rule:php-migration/every-divergence-is-deliberate-and-listed` row 14)",
-            ),
-        );
-    }
-    let ExprKind::ConstFetch(name) = &class.kind else {
-        // `rule:types/class-reference-sites`'s third site. A `class<T>` operand carries the
-        // descriptor the test walks, so this is the one of the three that
-        // consults nothing about `T`: a class reference over any base answers
-        // the same question, and the answer is `bool` either way.
-        //
-        // Nothing is recorded for it, and nothing needs to be.
-        // `ExprInfo::InstanceOf` exists because resolving a written `Animal`
-        // to `Ns\Animal` needs context `nvs-ir` does not have; here there is
-        // no name at all, only the operand, whose descriptor `nvs-ir` lowers
-        // straight into `InstKind::InstanceOf`'s descriptor form. Which of the
-        // two forms a site takes is decided by the shape of the right-hand
-        // side, and this refusal is what leaves only these two shapes.
-        let operand = check_expr(class, None, live, scope, ctx, env);
-        if class_ref_argument(operand, env.interner).is_none() {
-            reject_dynamic_class_name(
-                "the right-hand side of `instanceof` must be a written class name",
-                class.span,
-                env,
-            );
-        }
-        return env.interner.bool_ty();
-    };
-    let text = span_text(env.src, name.span);
-    let qname = nvs_hir::resolve_ref(text, ctx.namespace, ctx.imports);
-    let declared = env.symbols.get(&qname);
-    if matches!(declared, Some(sym) if sym.kind == SymbolKind::Enum)
-        || (qname.is_core() && env.enums.get(&qname).is_some())
-    {
-        env.diags.report(
-            Diagnostic::error(
-                code::E_INSTANCEOF_NOT_A_CLASS,
-                format!("`{qname}` is an enum, and no value is ever an instance of one"),
-            )
-            .with_primary(name.span, "an enum is a value type")
-            .with_help(
-                "`rule:enums/closed-integer-type` makes an enum case a named integer rather than an object — compare \
-                 it with `==`, or `match` on it",
-            ),
-        );
-    } else if declared.is_some() || testable_class_name(&qname) {
-        env.exprs
-            .record(expr.span, ExprInfo::InstanceOf { class: qname });
-    } else if qname.is_core() && crate::core_lib::is_registered(&qname) {
-        env.diags.report(
-            Diagnostic::error(
-                code::E_INSTANCEOF_NOT_A_CLASS,
-                format!("`{qname}` is a namespace for static members, and has no instances"),
-            )
-            .with_primary(name.span, "no value is ever an instance of this class")
-            .with_help(
-                "this `Core` class declares neither a property nor an instance member, so it is a \
-                 name for calling members through rather than a class values are made of — a \
-                 `Core` class that does have instances, `Core\\Time\\Date` among them, is testable \
-                 like any declared one",
-            ),
-        );
-    } else {
-        // Same wording `check_new_target` gives `new Undeclared()`: one
-        // mistake, one code, wherever the name is written.
-        env.diags.report(nvs_hir::undeclared_name(
-            &qname,
-            text,
-            name.span,
-            ctx.namespace,
-            env.symbols,
-        ));
-    }
-    env.interner.bool_ty()
-}
-
-/// Whether a written name that no source file declares is still a class
-/// `instanceof` can walk a descriptor for — [`infer_instanceof`]'s right-hand
-/// side question for everything `env.symbols` does not answer.
-///
-/// Three rosters say yes, and each has a descriptor from a different place.
-/// The reserved global classes and interfaces are laid out by
-/// `crate::layout::build_class_layouts` into the unit's own table, and so are
-/// the namespaced entries of `nvs_hir::errors::TREE` — `Core\Db\DbError` is a
-/// class a `catch` binds and a test asks about, and it is under `Core\` only by
-/// spelling. A `Core` class with instances is the third, and its descriptor is
-/// the process-wide one `nvs_stdlib::class_descriptors` publishes, which
-/// `nvs-codegen` relocates against exactly as it does a declared class's.
-///
-/// A `Core` **namespace** class is the one this deliberately leaves out
-/// ([`testable_core_class`]).
-fn testable_class_name(qname: &QName) -> bool {
-    qname.is_reserved_global_class()
-        || qname.is_reserved_global_interface()
-        || testable_core_class(qname)
-}
-
-/// Whether a `Core` name is a class a value can be an instance of, which is the
-/// third roster [`testable_class_name`] admits and the one
-/// [`crate::locals`] narrows a tested subject to.
+/// Whether a `Core` name is a class a value can be an instance of — the
+/// roster a downcast to a `Core` class is held to
+/// (`crate::expr::operators`), and the one `nvs-ir` reads to decide that a
+/// `Core` name a closure captured has a descriptor to point at.
 ///
 /// Two families answer yes. A registered class with instances
 /// ([`crate::core_lib::has_instances`]) carries the descriptor
@@ -438,9 +297,8 @@ pub fn testable_core_class(qname: &QName) -> bool {
             || nvs_hir::errors::is_exception_class(&qname.to_string()))
 }
 
-/// Whether a checked type admits an object at run time — `instanceof`'s
-/// left-hand side question, and the whole of what
-/// `E_INSTANCEOF_SUBJECT_NOT_OBJECT` refuses.
+/// Whether a checked type admits an object at run time — the question
+/// `crate::expr::type_test`'s value arm folds on, and nothing else asks.
 ///
 /// Deliberately answered by listing the types that *cannot*: a scalar, an
 /// `array<T>`, an enum and the literal types that erase to one. Everything
@@ -448,10 +306,9 @@ pub fn testable_core_class(qname: &QName) -> bool {
 /// type variable, an intersection — keeps the run-time test, so a type this
 /// pass has not thought about is never refused by accident.
 ///
-/// `crate::locals::instanceof_residue` asks it a second time, for the opposite
-/// reason: a subject this answers `false` for has already been reported, and
-/// narrowing it as well would hand `nvs-ir` a class where the slot holds a
-/// scalar.
+/// A subject this answers `false` for settles `$x is $cls` at `false` before
+/// the program runs, so the test folds there rather than recording a class
+/// `nvs-ir` would narrow a slot holding a scalar to.
 pub(crate) fn can_hold_an_object(ty: TypeId, interner: &TypeInterner) -> bool {
     match interner.get(ty) {
         Ty::Null
@@ -837,9 +694,9 @@ pub(crate) fn is_written_class_side(class_expr: &Expr) -> bool {
 }
 
 /// `rule:types/conversion`'s no-computed-names rule, at the three spellings that reach a
-/// class through a *value*: `$x instanceof $c` ([`infer_instanceof`]),
-/// `new $c()` and `$c::f()` ([`super::calls`]). The headline names the
-/// spelling; the label and the help are the rule, which does not vary by site.
+/// class through a *value*: `$x is $c` (`crate::expr::type_test`), `new $c()`
+/// and `$c::f()` ([`super::calls`]). The headline names the spelling; the label
+/// and the help are the rule, which does not vary by site.
 ///
 /// **A `class<T>` operand is not this mistake.** `rule:types/class-reference-sites` gives all three
 /// sites a checked dynamic form, and each asks [`class_ref_argument`] before
@@ -855,7 +712,7 @@ pub(crate) fn is_written_class_side(class_expr: &Expr) -> bool {
 /// ordinary mistake.
 pub(crate) fn reject_dynamic_class_name(headline: &str, span: Span, env: &mut Env<'_>) {
     env.diags.report(
-        Diagnostic::error(code::E_INSTANCEOF_NOT_A_CLASS, headline)
+        Diagnostic::error(code::E_DYNAMIC_CLASS_NAME, headline)
             .with_primary(span, "not a class name")
             .with_help(
                 "Novis has no dynamic class names (`rule:types/conversion`, the rule that rejects `$$var` \

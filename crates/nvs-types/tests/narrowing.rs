@@ -1,4 +1,4 @@
-//! Narrowing a local through `!= null` or `instanceof` — `nvs_types::locals`'
+//! Narrowing a local through `!= null` or `is` — `nvs_types::locals`'
 //! narrowing section owns the rule, this is what holds it.
 //!
 //! The refusals here are as load-bearing as the acceptances: `nvs-ir` turns a
@@ -37,7 +37,7 @@ fn check_with_erased_object(decls: &str, body: &str) -> Diagnostics {
 fn an_instanceof_test_narrows_its_subject_to_an_interface() {
     let diags = check_with_erased_object(
         "interface Labelled {\n  function label(): string;\n}",
-        "    if ($v instanceof Labelled) {\n      echo $v->label();\n    }",
+        "    if ($v is Labelled) {\n      echo $v->label();\n    }",
     );
     assert!(!diags.has_errors(), "{diags:?}");
 }
@@ -55,14 +55,14 @@ fn the_same_call_without_the_test_is_still_refused() {
 
 /// The one name still left out, and why: `rule:iteration/concrete-generic-implements`'s iteration interfaces
 /// are written with a type argument everywhere they are declared, and
-/// `instanceof Iterator` supplies none — so narrowing to a bare `Iterator`
+/// `is Iterator` supplies none — so narrowing to a bare `Iterator`
 /// would name a type no annotation does. `nvs_types::locals`' narrowing
 /// section owns the rule.
 #[test]
 fn an_interface_taking_type_arguments_narrows_nothing() {
     let diags = check_with_erased_object(
         "",
-        "    if ($v instanceof Iterator) {\n      echo $v->current() as string;\n    }",
+        "    if ($v is Iterator) {\n      echo $v->current() as string;\n    }",
     );
     assert!(diags.has_errors(), "{diags:?}");
 }
@@ -190,17 +190,17 @@ fn a_nullable_scalar_and_a_nullable_array_both_narrow() {
 /// removes `E_NULLABLE_RECEIVER` exactly as `!= null` does.
 #[test]
 fn an_instanceof_test_narrows_its_subject() {
-    let diags = check_with_node("if ($n instanceof Node) {\n  echo $n->label();\n}\n");
+    let diags = check_with_node("if ($n is Node) {\n  echo $n->label();\n}\n");
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
-/// The asymmetry with `null_test`: `$n instanceof Node` being *false* leaves
+/// The asymmetry with `null_test`: `$n is Node` being *false* leaves
 /// every other thing the declared type can hold, `null` among them, so the
 /// `else` branch has proved nothing to install.
 #[test]
 fn an_instanceof_proves_nothing_on_its_false_edge() {
     let diags = check_with_node(
-        "if ($n instanceof Node) {\n  echo \"yes\";\n} else {\n  echo $n->label();\n}\n",
+        "if ($n is Node) {\n  echo \"yes\";\n} else {\n  echo $n->label();\n}\n",
     );
     assert!(refuses_nullable_receiver(&diags), "{diags:?}");
 }
@@ -209,16 +209,15 @@ fn an_instanceof_proves_nothing_on_its_false_edge() {
 /// the guard clause a ported program writes.
 #[test]
 fn an_instanceof_guard_clause_narrows_the_rest_of_the_block() {
-    let diags = check_with_node("if (!($n instanceof Node)) {\n  return;\n}\necho $n->label();\n");
+    let diags = check_with_node("if (!($n is Node)) {\n  return;\n}\necho $n->label();\n");
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
-/// A write drops an `instanceof` narrowing exactly as it drops a `!= null`
+/// A write drops a class narrowing exactly as it drops a `!= null`
 /// one — [`LocalScope::overwrite`] does not care which test installed it.
 #[test]
 fn a_write_inside_an_instanceof_block_widens_it_again() {
-    let diags =
-        check_with_node("if ($n instanceof Node) {\n  $n = null;\n  echo $n->label();\n}\n");
+    let diags = check_with_node("if ($n is Node) {\n  $n = null;\n  echo $n->label();\n}\n");
     assert!(refuses_nullable_receiver(&diags), "{diags:?}");
 }
 
@@ -232,37 +231,43 @@ fn an_instanceof_against_an_interface_drops_null_too() {
         "<?nvs\ninterface Labelled {\n  function label(): string;\n}\n\
          class Node implements Labelled {\n  function label(): string { return \"n\"; }\n}\n\
          class T {\n  function m(?Node $n): void {\n    \
-         if ($n instanceof Labelled) {\n      echo $n->label();\n    }\n  }\n}\n",
+         if ($n is Labelled) {\n      echo $n->label();\n    }\n  }\n}\n",
     );
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
-/// `rule:types/narrowing`'s fifth spelling, over the shape the `instanceof`
-/// cases above are written on: `is Node` proves the class the same way, so the
-/// nullable receiver the declared type carries is gone inside the block.
+/// The value arm proves the reference's base on the true edge
+/// (`rule:types/class-reference-sites`), which is the same narrowing a written
+/// class name reaches — asserted through a member only `Node` declares, so a
+/// test that narrowed to nothing fails to compile rather than passing quietly.
 #[test]
 fn an_is_test_narrows_its_subject_on_the_true_edge() {
-    let diags = check_with_node("if ($n is Node) {\n  echo $n->label();\n}\n");
+    let diags = check_src(
+        "<?nvs\ninterface Labelled {\n  function label(): string;\n}\n\
+         class Node implements Labelled {\n  function label(): string { return \"n\"; }\n}\n\
+         class T {\n  function m(?Node $n, class<Node> $cls): void {\n    \
+         if ($n is $cls) {\n      echo $n->label();\n    }\n  }\n}\n",
+    );
     assert!(!diags.has_errors(), "{diags:?}");
 }
 
-/// The two nominal spellings **agree** about the edge that proves nothing,
-/// which is what ADR 0150 § 9 decided and what makes false-edge narrowing a
-/// change to all five spellings at once rather than to this one. Asserted as
-/// one case for that reason: an `is` that grew a false edge of its own would
-/// still look right beside the `instanceof` case above.
+/// **Both arms agree** about the edge that proves nothing, which is what ADR
+/// 0150 § 9 decided and what makes false-edge narrowing a change to every
+/// spelling at once rather than to one. Asserted as one case for that reason: a
+/// written class name that grew a false edge of its own would still look right
+/// beside the value arm.
 #[test]
 fn an_is_test_does_not_narrow_the_false_edge_and_neither_does_instanceof() {
-    let with_is =
+    let written =
         check_with_node("if ($n is Node) {\n  echo \"yes\";\n} else {\n  echo $n->label();\n}\n");
-    assert!(refuses_nullable_receiver(&with_is), "{with_is:?}");
-    let with_instanceof = check_with_node(
-        "if ($n instanceof Node) {\n  echo \"yes\";\n} else {\n  echo $n->label();\n}\n",
+    assert!(refuses_nullable_receiver(&written), "{written:?}");
+    let reference = check_src(
+        "<?nvs\nclass Node {\n  function label(): string { return \"n\"; }\n}\n\
+         class T {\n  function m(?Node $n, class<Node> $cls): void {\n    \
+         if ($n is $cls) {\n      echo \"yes\";\n    } else {\n      echo $n->label();\n    }\n  \
+         }\n}\n",
     );
-    assert!(
-        refuses_nullable_receiver(&with_instanceof),
-        "{with_instanceof:?}"
-    );
+    assert!(refuses_nullable_receiver(&reference), "{reference:?}");
 }
 
 /// `rule:types/narrowing`'s closing rule: the narrowing described the value
