@@ -1,0 +1,29 @@
+<?nvs
+// `[http] csrf_key_file` is the door's CSRF key written as a path instead of a
+// value: the file's content is the key. It is the spelling a deployment uses when
+// the key is issued by something else — a secret manager, an orchestrator mounting
+// a file into the container — so the key never sits in a configuration file that
+// gets committed. This configuration names neither half.
+
+echo 'key from a file: ', Core\Config::get('http.csrf_key_file') ?? '(nothing)', "\n";
+
+// Where a file *is* named, this is the line that changes: a program asks for the
+// key and receives the file's content, never the path. The file's whole content is
+// the value, with one trailing newline removed and nothing else trimmed, so a key
+// written by `printf` and a key written by `echo` are the same key.
+echo 'key in force:    ', Core\Config::get('http.csrf_key') ?? '(nothing, so no token is expected yet)', "\n";
+
+// Writing either half is refused, and for the reason the inline half is refused:
+// the door checks every request against this one key, so no single request may
+// choose it. The file half is refused a second time over by what it is — a path
+// a request could name is a request choosing which file the server trusts.
+echo 'name a file:     ', Core\Config::set('http.csrf_key_file', '/tmp/csrf.key') ? 'yes' : 'no', "\n";
+echo 'or the key:      ', Core\Config::set('http.csrf_key', 'a-key-of-my-own') ? 'yes' : 'no', "\n";
+echo 'still in force:  ', Core\Config::get('http.csrf_key') ?? '(nothing)', "\n";
+
+// Two more things a deployment should know, neither of which a program can see.
+// Writing both halves is refused when the server starts, because one value with
+// two sources is a question about which one wins that nobody should have to ask.
+// And the file is checked like every other configuration input: if an account
+// other than the server's can rewrite it, that account chooses the key, so the
+// server refuses to start rather than trusting it.

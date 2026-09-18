@@ -1,0 +1,90 @@
+<?nvs
+// Attack: the file half of the door's key is a path, and a path is worth more to
+// an attacker than a value — a file's content can keep changing after the
+// configuration stopped, and a path that reaches a device or a directory asks the
+// server to read something that is not a key at all. So this writes every kind of
+// path a request could name, then the spellings that try to be the `_file` key
+// without being it, then both halves together, which is the one combination the
+// configuration refuses outright.
+// hostile: timeout-ms 30000
+
+// 1. Paths. An accepted one is an attacker choosing the key every request in the
+//    process is checked against, by choosing a file they can rewrite afterwards.
+array<string> $paths = [
+    '/tmp/attacker.key',
+    'nvs.toml',
+    'tests/hostile/config/http-csrf_key_file',
+    '.',
+    '..',
+    '/',
+    '/dev/urandom',
+    '/dev/zero',
+    'NUL',
+    'CON',
+    '\\\\attacker.test\\share\\csrf.key',
+    '//attacker.test/share/csrf.key',
+    'file:///tmp/attacker.key',
+    "/tmp/attacker.key\u{0000}",
+    "/tmp/attacker.key\u{0000}/etc/novis/real.key",
+    '/tmp/attacker%00.key',
+    "/tmp/attacker.key\r\ncsrf_key = \"\"",
+    "/tmp/attacker.key\ncsrf_key_file = \"/tmp/other.key\"",
+    '',
+    ' ',
+    Core\Str::repeat('../', 20000) . 'tmp/attacker.key',
+    Core\Str::repeat('a/', 50000) . 'csrf.key',
+    Core\Str::repeat('/', 100000),
+];
+foreach ($paths as string $value) {
+    Core\Config::set('http.csrf_key_file', $value);
+    // Refused, so nothing may read back — a path that answers here is a path the
+    // server would read a key from.
+    Core\Config::get('http.csrf_key_file');
+    Core\Config::get('http.csrf_key');
+}
+Core\Config::restore('http.csrf_key_file');
+
+// 2. The spellings that are nearly this key. The pair are two rows carved out of a
+//    block a request may otherwise write, so a near miss lands on the blanket
+//    rather than on nothing — which is how one of these would quietly succeed.
+array<string> $spellings = [
+    'http.csrf_key_file.path',
+    'http.csrf_key_file.',
+    'http.csrf_key_file_file',
+    'http.csrf_keyfile',
+    'http.csrf_key-file',
+    'HTTP.CSRF_KEY_FILE',
+    'http.csrf_key_FILE',
+    'http.headers.csrf_key_file',
+    'app.http.csrf_key_file',
+    'http.csrf_key_file.' . Core\Str::repeat('sub.', 20000) . 'off',
+];
+foreach ($spellings as string $key) {
+    Core\Config::set($key, '/tmp/attacker.key');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 3. Both halves at once, in both orders. One value with two sources is refused
+//    where the configuration is read, and a request that could write one half
+//    while the other was ignored would have chosen the key without ever holding
+//    both of them.
+Core\Config::set('http.csrf_key_file', '/tmp/attacker.key');
+Core\Config::set('http.csrf_key', 'attacker-chosen-key');
+Core\Config::get('http.csrf_key');
+Core\Config::restore('http.csrf_key');
+Core\Config::set('http.csrf_key', 'attacker-chosen-key');
+Core\Config::set('http.csrf_key_file', '/tmp/attacker.key');
+Core\Config::get('http.csrf_key_file');
+Core\Config::restore('http.csrf_key_file');
+
+// 4. Restoring what was never set, then a hundred thousand refused writes with no
+//    restore between them: a refusal that left an entry behind would be a request
+//    growing this host's memory while being told `no` every time.
+Core\Config::restore('http.csrf_key_file');
+uint $i = 0;
+while ($i < 100000) {
+    Core\Config::set('http.csrf_key_file', '/tmp/attacker.key');
+    $i = $i + 1;
+}
+echo Core\Config::get('http.csrf_key_file') ?? '(nothing)', "\n";
