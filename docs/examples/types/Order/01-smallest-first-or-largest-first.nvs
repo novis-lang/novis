@@ -1,0 +1,13 @@
+<?nvs
+// Sorting a list both ways. `Core\Order` is how you say which direction you
+// want, and leaving it out gives you the smallest first.
+
+array<int> $scores = [12, 3, 47, 8];
+
+echo Core\Json::encode(Core\Arr::sort($scores)), "\n";
+echo Core\Json::encode(Core\Arr::sort($scores, {order: Core\Order::Asc})), "\n";
+echo Core\Json::encode(Core\Arr::sort($scores, {order: Core\Order::Desc})), "\n";
+
+// Sorting hands you a new list. The one you gave it is untouched, so you can
+// sort the same list twice and get both answers.
+echo Core\Json::encode($scores), "\n";

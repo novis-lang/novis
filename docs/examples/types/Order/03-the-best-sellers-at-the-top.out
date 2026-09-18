@@ -1,0 +1,5 @@
+pencil: 128
+ruler: 63
+notebook: 41
+eraser: 12
+least sold: {"eraser":12,"notebook":41,"ruler":63,"pencil":128}

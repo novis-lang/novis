@@ -2,6 +2,7 @@
 Core\Arr::sort's `{order}` takes a Core\Order case, so descending is an option rather than a member name
 --FILE--
 <?nvs
+// covers: Core\Order
 class Render {
     public static function of(array<int> $a): string {
         var $out = "";

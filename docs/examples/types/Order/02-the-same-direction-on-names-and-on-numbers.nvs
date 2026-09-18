@@ -1,0 +1,14 @@
+<?nvs
+// The same option works wherever you sort. Here the list is sorted once by its
+// values and once by its names, and the direction is asked for the same way in
+// both places.
+
+array<int> $stock = ["pears" => 4, "apples" => 12, "plums" => 7];
+
+// By how many are in stock, most first. `preserveKeys` keeps each number with
+// the name it belongs to.
+echo Core\Json::encode(Core\Arr::sort($stock, {order: Core\Order::Desc, preserveKeys: true})), "\n";
+
+// By name, from A to Z and then back again.
+echo Core\Json::encode(Core\Arr::sortByKey($stock)), "\n";
+echo Core\Json::encode(Core\Arr::sortByKey($stock, {order: Core\Order::Desc})), "\n";

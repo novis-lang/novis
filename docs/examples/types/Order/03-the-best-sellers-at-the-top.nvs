@@ -1,0 +1,20 @@
+<?nvs
+// The everyday job: what sold this week, with the best sellers at the top. The
+// direction is the whole difference between a list somebody wants to read and
+// one that starts with what nobody bought.
+
+array<int> $sold = [
+    "notebook" => 41,
+    "pencil"   => 128,
+    "eraser"   => 12,
+    "ruler"    => 63,
+];
+
+array<int> $best = Core\Arr::sort($sold, {order: Core\Order::Desc, preserveKeys: true});
+foreach ($best as string $product => int $count) {
+    echo $product, ": ", $count, "\n";
+}
+
+// The quiet end of the same list is the other direction, and it is the list
+// worth looking at when you are deciding what to stop stocking.
+echo "least sold: ", Core\Json::encode(Core\Arr::sort($sold, {order: Core\Order::Asc, preserveKeys: true})), "\n";
