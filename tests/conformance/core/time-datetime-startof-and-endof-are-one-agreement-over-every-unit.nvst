@@ -23,10 +23,10 @@ int $landed = 0;
 int $kept = 0;
 int $near = 0;
 
-// Eleven granularities, twice. A `Core\Unit` reaches a `Core` member only as
-// the case written at the call site — an `array<Core\Unit>` element and a
-// helper's own `Core\Unit` parameter are both `E0401` today — so the rows are
-// written out and the counters are what carries the assertion.
+// Eleven granularities, twice, written out a row at a time rather than walked
+// in a loop, so every `Core\Unit` case stands in the file literally and a case
+// dropped from the enum takes this file's compile with it. The counters are
+// what carries the assertion.
 var $sANanosecond = $d->startOf(Core\Unit::Nanosecond);
 var $eANanosecond = $d->endOf(Core\Unit::Nanosecond);
 if ($sANanosecond->plus(1, Core\Unit::Nanosecond)->difference($eANanosecond->plus(1, Core\Unit::Nanosecond), Core\Unit::Nanosecond) == 0) { $agree = $agree + 1; }
