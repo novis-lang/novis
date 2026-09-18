@@ -27,6 +27,7 @@ use std::cell::Cell;
 use std::hint::black_box;
 use std::rc::Rc;
 use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::thread;
 use std::time::{Duration, Instant};
 
 use nvs_abi_probe::{Ctx, Helper, Probe, Value, call};
@@ -746,6 +747,47 @@ fn concurrent_spawns_leave_the_scheduler_serving_other_tasks() {
     );
 }
 
+/// How much of the fan-out this machine can actually run at once: the same total
+/// work [`isolate::one_core_batch`] does, spread over [`isolate::WIDTH`] threads
+/// instead of over a placement.
+///
+/// No scheduler, no reactor and no placement under them, so the only thing left
+/// for the figure to be about is how many of the cores are free — which is the
+/// one question the guard below cannot answer from the code it is measuring.
+/// Divided into the same denominator, it is a speedup of the same shape.
+///
+/// Each thread is started once and runs the whole batch. A thread started per
+/// fan-out prices thread creation instead, which is a large enough share of one
+/// child's work to read *below* the placement this is meant to bound — and a
+/// probe shaped that way reports cores as busy when they were only expensive to
+/// acquire, skipping a guard that could have run.
+fn plain_thread_fan_out(iters: u64) -> Duration {
+    let start = Instant::now();
+    thread::scope(|scope| {
+        let running: Vec<_> = (0..isolate::WIDTH)
+            .map(|child| {
+                scope.spawn(move || {
+                    // Chained, like every other loop in this file: the same seed
+                    // twice is a call an optimiser is free to make once.
+                    let mut acc = child as u64;
+                    for _ in 0..iters {
+                        acc = isolate::burn(black_box(acc));
+                    }
+                    acc
+                })
+            })
+            .collect();
+        for child in running {
+            black_box(
+                child
+                    .join()
+                    .expect("a thread runs its children to their end"),
+            );
+        }
+    });
+    start.elapsed()
+}
+
 #[test]
 #[cfg_attr(debug_assertions, ignore = "baselines are release-mode figures")]
 fn a_cpu_bound_fan_out_across_four_worker_cores_is_near_linear_by_the_margin_this_test_names() {
@@ -781,18 +823,40 @@ fn a_cpu_bound_fan_out_across_four_worker_cores_is_near_linear_by_the_margin_thi
 
     // Interleaved, so that a machine warming up or throttling mid-test moves
     // both halves rather than one; the minimum of each, for the reason
-    // `ns_per_op` above gives.
+    // `ns_per_op` above gives. The third batch is the machine's own ceiling, and
+    // it is interleaved with them for that same reason.
     let mut placed = f64::MAX;
     let mut one_core = f64::MAX;
+    let mut threads = f64::MAX;
     for _ in 0..ROUNDS {
         placed = placed.min(isolate::worker_fan_out_batch(ITERS).as_secs_f64());
         one_core = one_core.min(isolate::one_core_batch(ITERS).as_secs_f64());
+        threads = threads.min(plain_thread_fan_out(ITERS).as_secs_f64());
     }
     let speedup = one_core / placed;
+    let available = one_core / threads;
+
+    // The CPU count above answers a machine too small to fan out at all. It
+    // cannot answer a machine whose four cores are all busy with something else,
+    // and that machine reads exactly like a picker handing every child to one
+    // core: both land under the floor. This is what tells the two apart, because
+    // threads owning their cores outright are held to the same floor and a busy
+    // machine fails it too. Under it, the ratio was never there to be measured,
+    // so the guard says so rather than reporting the machine as the tree — the
+    // same answer the CPU count gets, for the same reason.
+    if available <= MIN_SPEEDUP {
+        println!(
+            "fan-out across worker cores: not measured — {} plain threads reach only \
+             {available:.2}x on this machine, under the {MIN_SPEEDUP}x floor, so the \
+             {speedup:.2}x the placement reached is a figure about the machine",
+            isolate::WIDTH
+        );
+        return;
+    }
 
     println!(
         "fan-out across worker cores: {} children in {:.1} ms placed vs {:.1} ms on one core, \
-         {speedup:.2}x{}",
+         {speedup:.2}x of the {available:.2}x plain threads reach here{}",
         isolate::WIDTH,
         placed * 1e3 / ITERS as f64,
         one_core * 1e3 / ITERS as f64,

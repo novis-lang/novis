@@ -134,8 +134,9 @@ fn spawn_to_result(parent: &mut Ctx) -> Value {
 /// Four, because four cores is what [M5's acceptance](/docs/plan/m5.md) makes
 /// its near-linear claim about. A machine with fewer CPUs than this has fewer
 /// cores to place them on — `nvs_host::worker`'s bound is the CPU count — so the
-/// guard in `tests/perf_guards.rs` asks `nvs_host::cpus` before it believes a
-/// ratio.
+/// guard in `tests/perf_guards.rs` asks `nvs_host::cpus` how many cores there
+/// are, and then [`burn`] on plain threads whether they are free, before it
+/// believes a ratio.
 pub(crate) const WIDTH: usize = 4;
 
 /// The dependent multiply chain one child of a fan-out runs.
@@ -234,7 +235,12 @@ fn on_this_core() -> u64 {
 /// thing the two batches differ by is where the work ran. The chain is what
 /// keeps a core busy for the whole of it: an independent loop would retire
 /// several steps at once and price the machine's issue width instead.
-fn burn(seed: u64) -> u64 {
+///
+/// Reachable from `tests/perf_guards.rs` because the guard runs these same
+/// children on plain threads to find out what the machine it is on can give
+/// before it believes a ratio. A child of another shape there would price a
+/// different machine.
+pub(crate) fn burn(seed: u64) -> u64 {
     let mut acc = seed | 1;
     for step in 0..ROUNDS {
         acc = acc
