@@ -329,9 +329,9 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `declared_ty` and take the piece off the checked type — `?T` interns as `T|null`, so its target is
   that union minus `CheckedTy::Null`. [until: reviewed 2026-09-06]
 - **A refusal for a *name-shaped* expression fires on every `Foo::bar()` unless the class side is
-  taken off the value walk first.** `Class::method()`, `Class::CONST`, `Class::$prop`,
-  `Class::class` and `$x instanceof Class` carry the class as an ordinary `Expr` of kind
-  `ExprKind::ConstFetch`, so a walker that recurses into it reports "a bare name is not a value"
+  taken off the value walk first.** `Class::method()`, `Class::CONST`, `Class::$prop` and
+  `Class::class` carry the class as an ordinary `Expr` of kind `ExprKind::ConstFetch`, so a walker
+  that recurses into it reports "a bare name is not a value"
   there. `nvs_hir::members::walk_class_side` is the helper over those sites in `walk_expr` and
   `nvs_types::expr::check_expr`; nothing catches a miss but a conformance case reporting an extra
   error. [until: reviewed 2026-09-06]
@@ -2282,8 +2282,8 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   new `//!` section for what the module does, and run `python tools/owners.py | grep "sections
   outside"` in any session that adds one. [until: gone tools/owners.py:sections outside Known gaps]
 - **A handoff calling a stage "landed, end to end" claims behaviour, not that stage's acceptance
-  artefacts.** Goal `core-class-tests` stage 2's checker, IR and codegen were all on disk and
-  `instanceof` answered, while none of its three `cargo-named` tests and neither named `.nvst` path
+  artefacts.** Goal `core-class-tests` stage 2's checker, IR and codegen were all on disk and the
+  class test answered, while none of its three `cargo-named` tests and neither named `.nvst` path
   existed. Grep a red check's `tests` against `crates/` and its `cases` against `tests/conformance/`: a
   whole list missing while the behaviour runs means the artefacts are the work, not a re-point.
   [until: reviewed 2026-09-17]
@@ -2345,9 +2345,10 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   edited" and "no citation dangles" cannot both hold. Drop the `rule:` prefix in the frozen prose —
   the id still reads as a name — and delete it from `changes.creates`, which is the machine-read
   relation, not the reasoning. [until: reviewed 2026-09-18]
-- **Goal `one-type-test`'s gate greps `-i`, so a CamelCase `InstanceOf` in Rust counts as a hit.** The
-  handoff's by-eye list of what still spells the word missed `crates/nvs-stdlib/src/ast.rs`, where the
-  literal was one arm of a roster filter probing for a node that no longer exists. Build the remaining
+- **Goal `one-type-test`'s gate greps `-i`, so a CamelCase spelling of the refused word in Rust counts
+  as a hit.** The handoff's by-eye list of what still spells it missed `crates/nvs-stdlib/src/ast.rs`,
+  where the literal was one arm of a roster filter probing for a node that no longer exists. Build the
+  remaining
   list by running the gate's own `argv` from `docs/agent/loop-goal.toml` rather than by reading the
   previous handoff's list. [until: gone docs/agent/loop-goal.toml:7 the gate]
 
@@ -3622,8 +3623,8 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   (`crates/nvs-syntax/src/casing.rs`, `E0122`) is not in it. So `interface Labelled { function
   label(): string; }` is a fine unit fixture and a broken case file, and the fix is one keyword
   rather than a hunt. [until: reviewed 2026-09-06]
-- **A nested `instanceof` guard *replaces* the residue rather than intersecting with it.** There is
-  no intersection type, so inside `if ($v instanceof Labelled) { if ($v instanceof Counted) { … } }`
+- **A nested `is` guard *replaces* the residue rather than intersecting with it.** There is
+  no intersection type, so inside `if ($v is Labelled) { if ($v is Counted) { … } }`
   the subject is a `Counted` and nothing else, and `$v->label()` there is `E0405: `Counted` has no
   method named `label``, pointing at the inner interface for a member the outer guard proved. Read
   what the outer guard bought into a local before writing the second test, as
@@ -4255,8 +4256,8 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   nowhere else, or `every_part_one_member_has_a_conformance_case` fails naming the member.
   [until: gone crates/nvs-stdlib/tests/corpus/mod.rs:fn holders]
 - **A `use` alias does not reach a `catch`; a namespaced error-tree class is written out there.**
-  `use Core\Db\RolledBack;` plus `catch (RolledBack $e)` fails at codegen with "does not lower
-  `instanceof RolledBack`, whose class this unit declares no descriptor for", because
+  `use Core\Db\RolledBack;` plus `catch (RolledBack $e)` fails at codegen naming
+  "`is RolledBack`, whose class this unit declares no descriptor for", because
   `caught_class_label` reads a catch clause's type as source text. Write the class out in the
   `catch`. [until: gone crates/nvs-ir/src/lower/exception.rs:fn caught_class_label]
 - **A unit test that disables the feature under test can make two distinct names identical, and
@@ -5558,11 +5559,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `Ty::Int` where the parameter declares `Ty::Enum` is invisible end to end. Assert `Inst::ty`
   in a `crates/nvs-ir/tests/*.rs` fixture instead, the way `parameter_defaults.rs` does with
   `int_constants`. [until: exists crates/nvs-ir/src/verify.rs]
-- **`instanceof` took a bare class name and `is` takes a *type*, so respelling a test against a
+- **`is` takes a *type* where PHP's operator took a bare class name, so respelling a test against a
   generic interface turns `E0442` on.** The right of `is` goes through `rule:types/grammar`'s
   production, and `rule:iteration/two-interfaces` makes `Iterator<T>`'s argument mandatory
-  everywhere that production is used, so `$it is Iterator` is refused where
-  `$it instanceof Iterator` compiled. Write the argument — `$it is Iterator<int>` — and say in
+  everywhere that production is used, so `$it is Iterator` is refused where the PHP spelling
+  compiled. Write the argument — `$it is Iterator<int>` — and say in
   the case that the walk compares descriptors and erases it, which is why no answer moves.
   [until: reviewed 2026-09-18]
 - **A renamed lowering test, or a renamed `print.rs` mnemonic, strands an `insta` snapshot.** The
@@ -5813,9 +5814,9 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   foreach silently left the outer array stale. `grep -n "env.insert(" crates/nvs-ir/src/lower/` is
   the whole check for any rule phrased "whenever this name is rebound". [until: reviewed 2026-09-06]
 - **A `holes.py` item's title is an inventory's claim, not a proof: only a
-  `panic!`/`todo!`/`unimplemented!` counts as a site, attributed by file.** `lower_instanceof`'s
+  `panic!`/`todo!`/`unimplemented!` counts as a site, attributed by file.** The class-test lowering's
   counted panic was a diagnostic while the `assert!(matches!(ty, Ty::Object))` four lines below
-  aborted `$m instanceof Box` over a `mixed`. Read the whole function and the site's *else* branch,
+  aborted `$m is Box` over a `mixed`. Read the whole function and the site's *else* branch,
   and spend one scratch `.agent-tmp/*.nvs` per operand shape before believing the item.
   [until: gone tools/holes.py]
 - **A `#[should_panic(expected = "known gaps")]` test pins a lowering hole, so closing the hole
@@ -7986,9 +7987,16 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   anchors included, for the rows that still refuse too. `grep -rn` the diagnostic code and the target's
   own spelling across `tests/conformance/` before widening any acceptance.
   [until: reviewed 2026-09-17]
-- **Respelling `instanceof` as `is` can falsify the sentence around it, not just the word in it.**
-  `crates/nvs-stdlib/src/debug.rs` and `docs/rules/errors/debug-dump.md` both argued a bound from
-  "a program cannot act on that union: `instanceof` against a `Core` class is `E0496`", which `is`
-  makes untrue — `Core\Cli\Text|Core\Html\Markup $r = …; if ($r is Core\Html\Markup)` compiles and
+- **Respelling PHP's class-test operator as `is` can falsify the sentence around it, not just the
+  word in it.** `crates/nvs-stdlib/src/debug.rs` and `docs/rules/errors/debug-dump.md` both argued a
+  bound from "a program cannot act on that union: a class test against a `Core` class is `E0496`",
+  which `is` makes untrue — `Core\Cli\Text|Core\Html\Markup $r = …; if ($r is Core\Html\Markup)`
+  compiles and
   narrows. Run the two lines through `target/debug/nvs.exe run` before swapping the word, and rewrite
   the claim in the rule as well as in the comment. [until: reviewed 2026-09-18]
+- **A respelling sweep meets rows that document a refusal the new spelling does not make, and those
+  are deleted rather than reworded.** `docs/reference/tools/30-php-differences.md` carried an `E0497`
+  row for a class test on a declared scalar, which `rule:types/type-test` now answers `false` instead
+  of refusing, so the code is retired out of `crates/` entirely. `git grep` a row's diagnostic code
+  under `crates/` before rewording the row: no hit means the row goes, and the live refusal needs one
+  of its own. [until: gone docs/agent/loop-goal.toml:7 the gate]
