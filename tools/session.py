@@ -645,7 +645,7 @@ def validate(sections: list[Section]) -> list[str]:
             f"`## commit: {' '.join(writes)}` -- every doc section is applied before any commit "
             f"is staged, so one wrap does both.")
 
-    errors += body_links(sections) + body_citations(sections)
+    errors += body_links(sections) + body_citations(sections) + body_goal_numbers(sections)
     broke, _found = link_findings()
     if broke:
         shown = "; ".join(broke[:8])
@@ -1137,6 +1137,44 @@ def body_citations(sections: list[Section]) -> list[str]:
                     f"placeholder id written here turns that check red for every later session. "
                     f"Cite a real rule (`python tools/brief.py --where <keyword>` finds one), or "
                     f"describe the token in words.")
+    return out
+
+
+def body_goal_numbers(sections: list[Section]) -> list[str]:
+    """A goal named by its NUMBER in a body this wrap is about to write, refused before it lands.
+
+    `chain.py --check` scans the tree for `goal 29` and sits on every goal's floor, so the wrap that
+    writes one into the handoff reports a green session and leaves the next one opening on a red
+    check it did not cause -- which is how a handoff came to say `appended as goals 72-171`. The
+    reason the rule exists is the reason the gate has to be here: the sentence is true when it is
+    written and false the moment anything is inserted in front of that goal, and by then its author
+    is gone. AGENTS.md's *The schedule is the chain* is the rule; its spelling, and the three headers
+    that are allowed to carry a number because they are the goal naming itself, are `chain.py`'s.
+
+    A `## commit:` body is gated too, and it is the only section here no later scan can reach: a
+    message is not a file, so `chain.py --check` never sees it and `git log` keeps the number
+    forever."""
+    import chain as chainmod  # here, not at the top: it imports `loop`, which no other path needs
+    out: list[str] = []
+    for s in sections:
+        if s.kind not in BODY_HOME and s.kind not in ("milestone", "commit"):
+            continue
+        # As in `body_citations`: only a `plan-edit`'s `--- new` half is text this wrap puts there.
+        body = "\n".join(new for _old, new in parse_edits(s.body)[0]) \
+            if s.kind == "plan-edit" else s.body
+        for line_no, line in enumerate(body.split("\n"), 1):
+            if (chainmod.H1_RE.match(line) or chainmod.TOML_HEAD_RE.match(line)
+                    or chainmod.HANDOFF_RE.match(line)):
+                continue
+            for m in chainmod.NUMBER_CITE_RE.finditer(line):
+                named = f"`## {s.kind}: {s.arg}`" if s.arg else f"`## {s.kind}`"
+                out.append(
+                    f"{named} line {line_no} writes `{m.group(0)}`, naming a goal by its number. Say "
+                    f"the slug -- goal `dossier`, never `goal 71` -- because a number is a position "
+                    f"and every insert in front of it moves the position without touching the "
+                    f"sentence. `python tools/chain.py --check` refuses this over the whole tree and "
+                    f"is on the goal's `1 floor`, so a number written here turns that check red for "
+                    f"every later session. A position beside a total (`29 of 43`) is not this.")
     return out
 
 
