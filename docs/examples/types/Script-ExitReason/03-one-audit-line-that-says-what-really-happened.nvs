@@ -1,0 +1,42 @@
+<?nvs
+// The nightly job somebody reads the log of in the morning. One piece of work
+// on the way out writes the last line, and the reason decides the wording: a
+// job that stopped because it had nothing to do is not the same news as a job
+// that fell over, and a log that calls both "finished" is a log nobody trusts.
+
+class Audit {
+    public static function line(Core\Script\ExitReason $reason): string {
+        return match ($reason) {
+            Core\Script\ExitReason::Normal => "nightly import: complete",
+            Core\Script\ExitReason::Finish => "nightly import: complete",
+            Core\Script\ExitReason::ExitCall => "nightly import: stopped early, on purpose",
+            Core\Script\ExitReason::UncaughtThrow => "nightly import: FAILED, someone should look",
+        };
+    }
+
+    // Only one of the four is worth waking a person for, and it is the one the
+    // program did not choose.
+    public static function wakeSomebody(Core\Script\ExitReason $reason): bool {
+        return $reason == Core\Script\ExitReason::UncaughtThrow;
+    }
+}
+
+Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+    echo Audit::line($report->reason()), "\n";
+    if (Audit::wakeSomebody($report->reason())) {
+        echo "paging the on-call engineer\n";
+    }
+});
+
+array<string> $waiting = [];
+
+echo "looking for files to import\n";
+
+// Nothing arrived tonight. That is a normal Tuesday, so the job says so and
+// stops rather than pretending to do work.
+if (Core\Arr::count($waiting) == 0) {
+    echo "nothing arrived tonight\n";
+    exit;
+}
+
+echo "importing ", Core\Arr::count($waiting), " file(s)\n";

@@ -2,41 +2,41 @@
 
 ## State
 
-Goal types:enum (2/2) — 17 enums, each owing a description, three examples and one conformance case
-carrying a `// covers:` marker. An enum owes no bench and no attack; `python tools/dossier.py --id
-'<feature>'` is what says so, and it is also the check, because the goal's own item list still names
-features that are already finished.
+Goal types:enum (2/2) — 17 enums, each owing a description, three examples and one test carrying a
+`// covers:` marker. An enum owes no bench and no attack; `python tools/dossier.py --id '<feature>'`
+is what says so, and it is also the check, because the goal's own item list still names features that
+are already finished.
 
-Eleven are complete: `Core\Env\Mode`, `Core\Http\Method`, `Core\IO\FileMode`, `Core\Log\Level`,
-`Core\Mime\Type`, `Core\NormalForm`, `Core\Order`, `Core\SetOn` landed before this session, and
-`Core\Response\SameSite`, `Core\Response\Redirect`, `Core\RoundMode` landed in it. Six are left:
-`Core\Queue\State`, `Core\Reflect\TypeKind`, `Core\Script\ExitReason`, `Core\Unit`, `Core\Weekday`,
-`Core\Xml\NodeKind`.
+Fourteen are complete: `Core\Env\Mode`, `Core\Http\Method`, `Core\IO\FileMode`, `Core\Log\Level`,
+`Core\Mime\Type`, `Core\NormalForm`, `Core\Order`, `Core\SetOn`, `Core\Response\SameSite`,
+`Core\Response\Redirect` and `Core\RoundMode` landed before this session, and `Core\Queue\State`,
+`Core\Reflect\TypeKind` and `Core\Script\ExitReason` landed in it. Three are left: `Core\Unit`,
+`Core\Weekday`, `Core\Xml\NodeKind`.
 
-Each of the three took an existing case's marker and needed no new test. `Core\Response::addCookie`
-and `::redirect` both run under a plain `nvs run`, declaring a status and a header nothing in a CLI
-program reads back, so an example of either prints its own commentary and the refusal message.
+None of the three needed a new test: a marker on an assertion already on disk was the whole edit, and
+a Rust `#[test]` carries one as well as a `.nvst` case does — `Core\Queue\State`'s only test is the
+Rust `queue_statements_agree_with_the_state_enum`.
 
 ## Next group
 
-**Stage 2: three enums, each one file set — `docs/examples/types/<Feature>/` plus the enum's
-declaration and the case that pins it.** Each slice is `rule:testing/four-proofs` as this goal's
-policy narrows it for an enum: `about.md`, three examples blessed with `python tools/dossier.py
---bless`, and a `// covers: <feature>` line in a case. **An example about an enum reasons over the
-enum and drives no backend** — `docs/examples/types/Db-Driver/03-the-same-program-on-a-laptop-and-in-production.nvs`
-is the shape, and it is why a queue example needs no database.
+**Stage 2: the last three enums, each one file set — `docs/examples/types/<Feature>/` plus the enum's
+declaration and the test that pins it.** Two of the three declare in the same file. Each slice is
+`rule:testing/four-proofs` as this goal's policy narrows it for an enum (`tools/data/dossier-policy.toml:20`):
+`about.md`, three examples blessed with `python tools/dossier.py --bless`, and a `// covers: <feature>`
+line on a test. **An example about an enum reasons over the enum and drives no backend** —
+`docs/examples/types/Queue-State/03-the-check-somebody-does-every-morning.nvs` is the shape.
 
-- [ ] **`Core\Queue\State`** — page, three examples, marker. No `.nvst` names it today; try the
-      marker on the Rust `queue_statements_agree_with_the_state_enum` first, since the enum policy
-      wants one test and not one case (`tools/data/dossier-policy.toml:20`), and write a case only if
-      the sweep still reports it owed. `crates/nvs-stdlib/src/queue.rs:2615`
-- [ ] **`Core\Reflect\TypeKind`** — page, three examples, marker.
-      `crates/nvs-stdlib/src/reflect.rs:434`
-- [ ] **`Core\Script\ExitReason`** — page, three examples, marker.
-      `crates/nvs-stdlib/src/script.rs:225`
+- [ ] **`Core\Unit`** — page, three examples, marker. It is the unit `startOf`, `endOf` and the
+      `DateTime` arithmetic take, so an example is a real date question and needs no clock.
+      `crates/nvs-stdlib/src/time.rs:1389`
+- [ ] **`Core\Weekday`** — page, three examples, marker. Monday first, as ISO 8601 orders it.
+      `crates/nvs-stdlib/src/time.rs:1470`
+- [ ] **`Core\Xml\NodeKind`** — page, three examples, marker. Five kinds, both parsers produce them,
+      so a walk over a parsed document is the example. `crates/nvs-stdlib/src/xml.rs:455`
 
 ## Backlog
 
-- `Core\Unit`, `Core\Weekday` and `Core\Xml\NodeKind` are the goal's last three enums.
-- `benches/members/types/` and `tests/hostile/types/` stay empty for an enum by policy, not by
-  omission — `tools/data/dossier-policy.toml:20`.
+- The goal's check re-runs eleven features that are already complete; that is the sweep doing its job
+  and not a worklist — `docs/agent/loop-goal.toml:12165`.
+- After the last three enums the goal is met; `python tools/verify.py --doc`, `owners.py --closes` and
+  `playbook.py --closes` are the gates that come before `DONE` — `docs/agent/session-prompt.md`.

@@ -1,0 +1,23 @@
+<?nvs
+// Work registered on the way out is handed a short report, and the first thing
+// in it is how the script ended. This one just says so. The script below ends
+// by running out of lines, which is the ending called `Normal`.
+
+class Ending {
+    public static function words(Core\Script\ExitReason $reason): string {
+        return match ($reason) {
+            Core\Script\ExitReason::Normal => "the script ran to the end",
+            Core\Script\ExitReason::ExitCall => "something called exit",
+            Core\Script\ExitReason::UncaughtThrow => "something was thrown and nobody caught it",
+            Core\Script\ExitReason::Finish => "the script stopped itself on purpose",
+        };
+    }
+}
+
+Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+    echo "on the way out: ", Ending::words($report->reason()), "\n";
+    echo "status: ", $report->status(), "\n";
+    echo "error: ", $report->error() == null ? "none" : "one", "\n";
+});
+
+echo "doing the work\n";

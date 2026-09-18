@@ -1,0 +1,25 @@
+<?nvs
+// A script that has done its job can stop where it stands. That ending is
+// `Finish`, and it is deliberately not a failure: the status is zero, there is
+// no error, and every `finally` on the way out still runs. What it is not is a
+// throw — no `catch` arm sees it, so cleanup written for errors stays quiet.
+
+Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+    string $ending = match ($report->reason()) {
+        Core\Script\ExitReason::Normal => "ran to the end",
+        Core\Script\ExitReason::ExitCall => "called exit",
+        Core\Script\ExitReason::UncaughtThrow => "threw something nobody caught",
+        Core\Script\ExitReason::Finish => "stopped itself, having finished",
+    };
+    echo "on the way out: ", $ending, ", status ", $report->status(), "\n";
+});
+
+try {
+    echo "the answer is ready\n";
+    Core\Script::finish();
+    echo "this line never runs\n";
+} catch (Throwable $caught) {
+    echo "no catch arm sees a finish\n";
+} finally {
+    echo "but every finally does\n";
+}
