@@ -16,7 +16,7 @@ it:
     //! 1. **`$uri->with` replaces a component and cannot remove one**, so there is
     //!    no spelling for "this URI without its fragment". The fix is an options bag
     //!    that can tell an omitted option from a written `null`.
-    //!    — owner: unowned
+    //!    — owner: M10
 
 The block itself is written two ways and both are read: a `# Known gaps` heading, and a
 `**Known gaps**` bold run with the same items under it. A bold run carries no heading level, so what
@@ -29,9 +29,9 @@ second copy maintained beside the first, which is the failure `carried-gaps.md` 
 one level up, and repeating it here would be the same mistake with more files. `holes.py` follows
 the same rule for a refusal site, and `gaps.py` for a missing conformance case.
 
-**Three owner kinds and no fourth:**
+**Two owner kinds and no third:**
 
-*   **A goal slug** -- `xml-tree`, `unowned-sweep` -- naming an entry in `docs/agent/goals/`. That
+*   **A goal slug** -- `xml-tree`, `dossier` -- naming an entry in `docs/agent/goals/`. That
     entry closes the gap, or the tag is wrong. A slug rather than a chain number, because a number
     is a *position* and moves the moment anything is inserted ahead of it, which would silently
     re-point every tag in the tree.
@@ -45,27 +45,33 @@ the same rule for a refusal site, and `gaps.py` for a missing conformance case.
     own and a `past-milestone:` count, refused by `--past-is-an-error`; goal `gap-register`
     § *Standing decisions* is why it is reported here rather than fatal.
 
-*   **`unowned`**, which requires a bullet naming the module's path in one of the two files that
-    hold a reason: `carried-gaps.md` § *Unowned*, or `carried-refusals.md` for a gap whose sites
-    `holes.py` already carries. That bullet carries the reason, and the reason names what has to be
-    *decided* -- "nobody has got to it" is not one. Unowned is a legitimate state and a scheduling
-    question for the user; it is never the absence of an answer.
+**`unowned` is not one of them, and the word is refused by name.** It was a third kind, for a gap
+whose owner was a scheduling question rather than an answer, and it carried a reason bullet in
+`carried-gaps.md` § *Unowned*. A scheduling question is the user's to answer and a session's to
+record, so the answer is a goal on the chain or a milestone whose plan states the scope; a word
+standing for "nobody has decided" is the one owner a reader cannot act on. An item still carrying it
+is counted under `unowned:` and listed with its own sentence rather than falling into the generic
+refusal, because "this owner kind is retired" is the edit, and "neither a goal slug nor a milestone
+tag" would send a reader looking for a typo.
 
-**The gate has no allowlist, and it arrives in pieces.** A tag that resolves to nothing -- naming no
-goal on the chain, a milestone that is absent or `done`, or a word that is none of the three kinds
--- always fails `--check`. The rest are flags because the gate is built before the pass it gates,
-and a gate that goes red on work nobody has done yet earns exactly one thing: the exemption list
-this refuses to have. `--untagged-is-an-error` adds the items that name nobody, `--reasons` adds the
-`unowned` ones with no bullet behind them, and `--past-is-an-error` adds the ones deferred to a
-milestone already behind the program; the form `verify.py` runs is whichever of them the tree can
-currently hold, and every count the flags do not refuse is still printed as a `label: N` line. A gap that cannot be tagged is a gap whose owner has to be
-decided, and that decision is cheap exactly once -- when the gap is written.
+**The gate has no allowlist, and it holds whole.** `--check` refuses every kind above but the
+milestone: an item that names nobody, a tag that resolves to nothing, a goal owner live or retired,
+and a milestone already behind the program. It arrived in pieces, each behind a flag, because a gate
+is built before the pass it gates and one that goes red on work nobody has done yet earns exactly
+one thing -- the exemption list this refuses to have. The pass is done, so the pieces are one gate,
+and `--untagged-is-an-error`, `--reasons` and `--past-is-an-error` are accepted and do nothing: a
+carried floor check still passes them, and a floor is carried verbatim. `verify.py` runs the whole
+gate, so a gap written with no owner or the wrong one fails before it is committed, and a gap that
+cannot be tagged is a gap whose owner has to be decided -- a decision that is cheap exactly once,
+when the gap is written.
 
-**A retired owner is reported and does not fail.** A goal that went green without closing the gap it
-claimed is a real finding, and it is the same finding `python tools/playbook.py --check` prints for
-a `carried-gaps.md` § *Owned* row whose owner is retired -- one behaviour for one fact, in both
-files. Striking the owner is a judgement (is the gap closed, or was it left behind?), so the tool
-surfaces it and a session decides.
+**A goal is a schedule, and a schedule is not an owner.** A goal walks and is retired; the gap
+outlives it, and the tag then points at a chain entry nobody will reach -- which is how a hundred
+items came to name goals that had already gone green. So a goal owner fails whether the goal is live
+or retired, and an item leaves the gate one of three ways: built and its numbered item deleted,
+struck as a stated bound in the module's own prose, or deferred to a milestone whose plan file
+states the scope. `python tools/playbook.py --check` prints the same finding for a
+`carried-gaps.md` § *Owned* row whose owner is retired -- one behaviour for one fact, in both files.
 
 **`--closes SLUG` is the gate a goal meets at its end, and the one a count cannot be.** It exits 1
 while any item names that goal, listing each. A goal whose acceptance list says `unowned: 0` is
@@ -104,17 +110,18 @@ the gate that owns it. What counts as an entry is asked of `tools/playbook.py` f
 
 Usage:
 
-    python tools/owners.py              the roster: untagged, by goal, by milestone, unowned
+    python tools/owners.py              the roster: untagged, by goal, by milestone, and the
+                                        items still naming the retired word `unowned`
     python tools/owners.py --registers  one line per register, and how many items each holds
     python tools/owners.py --deferrals  each milestone tag against the scope its plan file states
     python tools/owners.py --untagged   only the items that name nobody
-    python tools/owners.py --unowned    only the scheduling questions
-    python tools/owners.py --check      exit 1 with a line per tag that resolves to nothing
-    python tools/owners.py --check --untagged-is-an-error --reasons
-                                        the gate the tree holds today: nothing untagged, every
-                                        reason written, a past milestone counted and not refused
-    python tools/owners.py --check --past-is-an-error
-                                        adds: no gap is deferred to a milestone already passed
+    python tools/owners.py --unowned    only the items still tagged with the retired word
+    python tools/owners.py --check      the whole gate, which `verify.py` runs: exit 1 with a line
+                                        per item owned by anything but a future milestone whose
+                                        plan file states its scope
+    python tools/owners.py --check --untagged-is-an-error --reasons --past-is-an-error
+                                        the same; the three flags are accepted and do nothing,
+                                        because a carried floor check still passes them
     python tools/owners.py --json       the same, as one object: every kind, every register with
                                         the owners its items name, and the first milestone that is
                                         still ahead of the program
@@ -130,7 +137,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import goals as goalsmod  # noqa: E402  -- the chain's one reader
-import orient as orientmod  # noqa: E402  -- section slicing lives there and is not reimplemented
 import playbook as playbookmod  # noqa: E402  -- what an entry is, and the `[until:]` trailer
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -184,8 +190,8 @@ ITEM = re.compile(r"^(?:(\d+)\.|[-*])\s+(\S.*)$")
 TAG = re.compile(r"^—\s*owner:\s*(\S+)\s*$")
 TAG_LIKE = re.compile(r"owner:\s*\S", re.IGNORECASE)
 
-#: The three owner kinds, in the order they are tried. `unowned` also matches the goal grammar, so
-#: it is recognised first.
+#: The two owner kinds, in the order they are tried, and the retired word that is neither. `unowned`
+#: also matches the goal grammar, so it is recognised ahead of both and refused by name.
 UNOWNED = "unowned"
 MILESTONE = re.compile(r"^M(\d+)[A-Z]?$")
 SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
@@ -347,29 +353,6 @@ def is_past(tag: str) -> bool:
     return bool(m) and int(m.group(1)) < FIRST_FUTURE_MILESTONE
 
 
-def unowned_paths() -> set[str]:
-    """The module paths a reason names, in either of the two files that hold one.
-
-    A bullet is prose and stays prose; what makes it machine-readable is that it already names the
-    file whose module doc owns the detail, because the contract's fourth rule asks it to point
-    rather than restate. So the link is the path, and no key has to be invented for either side.
-
-    `carried-gaps.md` § *Unowned* is one such file and `carried-refusals.md` is the other, whole:
-    a refusal site's reason is written there in full, and the goal's § *Standing decisions* is why
-    copying it under § *Unowned* to satisfy this reader would be the second index the gate exists
-    to end.
-    """
-    found: set[str] = set()
-    for path, heading in ((CARRIED_GAPS, "Unowned"), (CARRIED_REFUSALS, None)):
-        if not path.is_file():
-            continue
-        text = path.read_text(encoding="utf-8")
-        if heading is not None:
-            text = orientmod.slice_section(text, heading) or ""
-        found |= set(re.findall(r"crates/[A-Za-z0-9_\-./]+\.rs", text))
-    return found
-
-
 def collect() -> list[dict]:
     """Every gap item in the crates, tagged or not, in file order."""
     paths = sorted({p for pattern in SOURCES for p in ROOT.glob(pattern)})
@@ -523,26 +506,24 @@ def register_line(regs: list[dict]) -> str:
 def classify(found: list[dict]) -> dict:
     """Sort every item into its kind, and say what is wrong with the ones that are.
 
-    The kinds are the output. `broken` is what `--check` refuses on its own; `untagged`,
-    `unreasoned` and `past` are what its three flags add, and `retired` is a finding rather than a
-    failure, per this module's own doc.
+    The kinds are the output, and `--check` refuses every one of them but `milestone`. Sorting
+    stays separate from refusing because the roster prints each kind under a heading of its own:
+    what is wrong with a gap and what a reader does about it differ per kind, and a gate that
+    reported one failure for six causes would send every one of them looking for a typo.
     """
     chain = {g.slug: g for g in goalsmod.load()}
     plan = milestones()
-    paths = unowned_paths()
-    out = {"goal": [], "milestone": [], "past": [], "unowned": [], "unreasoned": [],
+    out = {"goal": [], "milestone": [], "past": [], "unowned": [],
            "untagged": [], "broken": [], "retired": []}
     for gap in found:
         owner = gap["owner"]
         if not owner:
             out["untagged"].append(gap)
         elif owner == UNOWNED:
-            if gap["file"] in paths:
-                out["unowned"].append(gap)
-            else:
-                out["unreasoned"].append({**gap, "why": "`unowned` with no reason naming this file, "
-                                                        "in carried-gaps.md § *Unowned* or in "
-                                                        "carried-refusals.md"})
+            out["unowned"].append({**gap, "why": f"`unowned` is a retired owner kind; a gap is "
+                                                 f"owned by a live goal on the chain or by a "
+                                                 f"milestone at M{FIRST_FUTURE_MILESTONE} or later "
+                                                 f"whose plan states the scope"})
         elif MILESTONE.match(owner):
             carried = plan.get(owner)
             if carried is None:
@@ -565,8 +546,8 @@ def classify(found: list[dict]) -> dict:
             else:
                 out["goal"].append(gap)
         else:
-            out["broken"].append({**gap, "why": f"{owner!r} is neither a goal slug, a milestone "
-                                                f"tag nor `unowned`"})
+            out["broken"].append({**gap, "why": f"{owner!r} is neither a goal slug nor a milestone "
+                                                f"tag"})
     return out
 
 
@@ -649,7 +630,7 @@ def by_owner(gaps: list[dict]) -> dict[str, list[dict]]:
 #: `10 untagged` and a run that got worse would read as the run that was asked for.
 LABELS = [("goal", "goal-owned"), ("milestone", "milestone-owned"), ("past", "past-milestone"),
           ("unowned", "unowned"), ("untagged", "untagged"), ("broken", "broken-tag"),
-          ("unreasoned", "unreasoned"), ("retired", "retired-owner")]
+          ("retired", "retired-owner")]
 
 
 def count_lines(kinds: dict) -> list[str]:
@@ -665,17 +646,11 @@ def report(kinds: dict, found: list[dict], regs: list[dict], sections: list[dict
         print(line_of(gap))
         print(f"      {gap['why']}")
     if not kinds["untagged"]:
-        print("  none -- every recorded gap names a goal, a milestone or nobody on purpose")
+        print("  none -- every recorded gap names a goal or a milestone")
 
     if kinds["broken"]:
         print("\n== TAGS THAT DO NOT RESOLVE")
         for gap in kinds["broken"]:
-            print(line_of(gap))
-            print(f"      {gap['why']}")
-
-    if kinds["unreasoned"]:
-        print("\n== `unowned` WITH NO REASON WRITTEN DOWN")
-        for gap in kinds["unreasoned"]:
             print(line_of(gap))
             print(f"      {gap['why']}")
 
@@ -689,7 +664,7 @@ def report(kinds: dict, found: list[dict], regs: list[dict], sections: list[dict
         print("\n== OWNERS THAT WENT GREEN WITHOUT CLOSING THE GAP")
         for gap in kinds["retired"]:
             print(line_of(gap))
-            print(f"      goal `{gap['owner']}` is retired; close the gap or re-owner it")
+            print(f"      {WHY['retired']}")
 
     print("\n== OWNED BY A GOAL ON THE CHAIN")
     for owner, gaps in by_owner(kinds["goal"]).items():
@@ -707,10 +682,10 @@ def report(kinds: dict, found: list[dict], regs: list[dict], sections: list[dict
     if not kinds["milestone"]:
         print("  none")
 
-    print("\n== UNOWNED -- the scheduling questions, each with its reason in carried-gaps.md "
-          "or carried-refusals.md")
+    print("\n== STILL TAGGED `unowned`, WHICH IS NO LONGER AN OWNER KIND")
     for gap in kinds["unowned"]:
         print(line_of(gap))
+        print(f"      {gap['why']}")
     if not kinds["unowned"]:
         print("  none")
 
@@ -725,52 +700,55 @@ def report(kinds: dict, found: list[dict], regs: list[dict], sections: list[dict
     for line in count_lines(kinds):
         print(line)
     print(f"  sections outside Known gaps: {len(sections)}")
-    print(f"  of the {len(found)}, {len(kinds['retired'])} owned by a retired goal -- a finding "
-          f"rather than a failure, and a session decides it")
+    print(f"  of the {len(found)}, {len(kinds['retired'])} owned by a retired goal -- refused by "
+          f"`--check` like every other goal owner, because the chain will not reach it")
 
     print()
     report_registers(regs)
 
 
-def run_check(kinds: dict, regs: list[dict], untagged_is_an_error: bool, reasons: bool,
-              past_is_an_error: bool) -> int:
+#: The sentence a refused item gets when its kind does not already carry one. `broken`, `untagged`,
+#: `unowned` and `past` are written with a `why` by `classify` because each has more than one way of
+#: being wrong; a goal owner and a retired owner have exactly one each, so the sentence is here.
+WHY = {
+    "goal": "names a goal, and a goal is a schedule rather than an owner: it walks and is retired, "
+            "and the gap outlives it. Build the item, strike it as a stated bound, or defer it to a "
+            "milestone whose plan states the scope",
+    "retired": "names a goal that is retired, so nothing on the chain will reach this item. Build "
+               "it, strike it as a stated bound, or defer it to a milestone whose plan states the "
+               "scope",
+}
+
+#: Every kind `--check` refuses, which is every kind but `milestone`. One owner kind survives the
+#: gate and it is the one whose carrier is still ahead of the program.
+REFUSED = ("broken", "untagged", "unowned", "past", "goal", "retired")
+
+
+def run_check(kinds: dict, regs: list[dict]) -> int:
     """One line per item the gate refuses, and 1 if there were any.
 
-    What is fatal grows with the flags, and this module's doc says why the gate arrives in pieces.
-    Whatever is *not* fatal in this run is still counted below, so a check that passes never reads
-    as an inventory that is clean.
+    The gate holds whole: a milestone at `FIRST_FUTURE_MILESTONE` or later whose plan states the
+    scope is the only owner it accepts, and this module's doc says why the pieces it arrived in are
+    gone. The counts below are printed either way, so a check that passes never reads as an
+    inventory that is clean.
     """
-    bad = list(kinds["broken"])
-    if untagged_is_an_error:
-        bad += kinds["untagged"]
-    if reasons:
-        bad += kinds["unreasoned"]
-    if past_is_an_error:
-        bad += kinds["past"]
+    bad = [{**gap, "why": gap.get("why") or WHY[kind]}
+           for kind in REFUSED for gap in kinds[kind]]
     for gap in sorted(bad, key=lambda g: (g["file"], g["line"])):
         print(f"{gap['file']}:{gap['line']}: gap {gap['item']} -- {gap['why']}")
     if bad:
-        print(f"owners.py: {len(bad)} recorded gap(s) name an owner this run refuses, each for the "
-              f"reason on its own line. An owner is a live goal on the chain, a milestone at "
-              f"M{FIRST_FUTURE_MILESTONE} or later whose plan covers the item, or `unowned` with a "
-              f"reason bullet behind it, written as the item's last line "
-              f"`— owner: <who>`; `python tools/owners.py --help` is what each kind asserts.")
+        print(f"owners.py: {len(bad)} recorded gap(s) name an owner this gate refuses, each for "
+              f"the reason on its own line. The one owner a gap may name is a milestone at "
+              f"M{FIRST_FUTURE_MILESTONE} or later whose plan file states the scope, written as "
+              f"the item's last line `— owner: M10`; `python tools/owners.py --deferrals` is what "
+              f"holds that scope honest.")
         for line in count_lines(kinds):
             print(line)
         print(register_line(regs))
         return 1
-    named = sum(len(kinds[k])
-                for k in ("goal", "milestone", "past", "unowned", "unreasoned", "retired"))
-    print(f"owners.py: every one of the {named} tagged gap(s) names an owner the chain or the plan "
-          f"knows")
-    for kind, flag, what in (("untagged", "untagged-is-an-error", "name nobody"),
-                             ("unreasoned", "reasons",
-                              "are `unowned` with no reason written down"),
-                             ("past", "past-is-an-error",
-                              "are deferred to a milestone the program has passed")):
-        if kinds[kind]:
-            print(f"  {len(kinds[kind])} recorded gap(s) {what} -- not refused in this run; "
-                  f"`--{flag}` refuses them")
+    print(f"owners.py: every one of the {len(kinds['milestone'])} tagged gap(s) names an owner the "
+          f"chain or the plan knows -- a milestone still ahead of the program, which since this "
+          f"gate held whole is the only owner it accepts")
     for line in count_lines(kinds):
         print(line)
     print(register_line(regs))
@@ -809,14 +787,13 @@ def main() -> int:
     ap.add_argument("--deferrals", action="store_true",
                     help="every milestone tag, against the scope its own plan file states")
     ap.add_argument("--untagged", action="store_true", help="only the items that name nobody")
-    ap.add_argument("--unowned", action="store_true", help="only the scheduling questions")
-    ap.add_argument("--check", action="store_true", help="exit 1 on a tag that resolves to nothing")
-    ap.add_argument("--untagged-is-an-error", action="store_true",
-                    help="with --check: an item that names nobody fails too")
-    ap.add_argument("--reasons", action="store_true",
-                    help="with --check: an `unowned` with no carried-gaps.md bullet fails too")
-    ap.add_argument("--past-is-an-error", action="store_true",
-                    help="with --check: a tag naming a milestone the program has passed fails too")
+    ap.add_argument("--unowned", action="store_true",
+                    help="only the items still tagged with the retired word `unowned`")
+    ap.add_argument("--check", action="store_true",
+                    help="exit 1 on every owner but a future milestone whose plan states the scope")
+    for flag in ("--untagged-is-an-error", "--reasons", "--past-is-an-error"):
+        ap.add_argument(flag, action="store_true",
+                        help="accepted and does nothing: --check refuses this on its own now")
     ap.add_argument("--json", action="store_true", help="one JSON object instead")
     opts = ap.parse_args()
 
@@ -846,8 +823,7 @@ def main() -> int:
     if opts.deferrals:
         return run_deferrals(kinds)
     if opts.check:
-        return run_check(kinds, regs, opts.untagged_is_an_error, opts.reasons,
-                         opts.past_is_an_error)
+        return run_check(kinds, regs)
     if opts.untagged:
         for gap in kinds["untagged"]:
             print(line_of(gap))
@@ -856,8 +832,8 @@ def main() -> int:
     if opts.unowned:
         for gap in kinds["unowned"]:
             print(line_of(gap))
-        print(f"\n  {len(kinds['unowned'])} item(s), each with its reason in "
-              f"docs/agent/carried-gaps.md § *Unowned* or docs/agent/carried-refusals.md")
+        print(f"\n  {len(kinds['unowned'])} item(s) still tagged `unowned`, which is no longer an "
+              f"owner kind")
         return 0
     report(kinds, found, regs, sections)
     return 0

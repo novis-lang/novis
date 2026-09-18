@@ -79,8 +79,6 @@
 //! holds the queue; and the reconnection hint is drawn per stream, so a
 //! written base would be the one number here an operator could set and not
 //! observe.
-//!
-//! — owner: unowned
 
 use std::cell::Cell;
 use std::rc::Rc;
