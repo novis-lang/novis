@@ -1,0 +1,106 @@
+<?nvs
+// Attack: the lease that decides when a claimed job becomes claimable again,
+// pushed by a request. It is the block's one duration, so the pressure that
+// belongs here is on the parser rather than on the count: a value that reads as
+// a duration to one layer and as nothing to the next is how a lease of zero
+// arrives spelled as something the boot refusal never sees. Both ends are worth
+// having — a lease short enough makes every claimed job visible to every worker
+// at once, which is two workers running one job and the whole point of the
+// lease undone, and a lease long enough is a job nobody may retry for a week
+// after the worker holding it was killed. The lease still reading what the
+// deployment configured is the evidence that neither happened.
+// hostile: timeout-ms 20000
+
+// 1. Every shape a duration can be written in, including the ones that are not
+//    durations. `false` is the spelling that removes a ceiling elsewhere in the
+//    file and is not a meaning a lease has, so it belongs here beside the
+//    zeroes rather than among the malformed values.
+array<string> $leases = [
+    '0',
+    '0s',
+    '0ms',
+    '-0s',
+    '-1s',
+    '1ms',
+    '5m',
+    '300s',
+    '300',
+    'false',
+    'true',
+    '',
+    'null',
+    'forever',
+    'inf',
+    'nan',
+    '5 m',
+    ' 5m ',
+    "5m\u{0000}",
+    '5M',
+    '5min',
+    '5mm',
+    '5h5m',
+    '0x5',
+    '1e9s',
+    '18446744073709551615s',
+    '18446744073709551616s',
+    Core\Str::repeat('9', 100000) . 's',
+    '0.' . Core\Str::repeat('0', 100000) . '1s',
+];
+foreach ($leases as string $lease) {
+    Core\Config::set('queue.visibility', $lease);
+    Core\Config::set('app.0.queue.visibility', $lease);
+    Core\Config::restore('queue.visibility');
+}
+
+// 2. Every spelling of the key, because a refusal that matches by text rather
+//    than by the row governing it is one near-miss from letting a lease
+//    through, and this key has more plausible near-misses than most: the same
+//    idea is called a visibility timeout by one broker and a lock duration by
+//    the next.
+array<string> $keys = [
+    'queue.visibility',
+    'QUEUE.VISIBILITY',
+    'queue.visibility ',
+    'queue.visibility_timeout',
+    'queue.visible',
+    'queue..visibility',
+    'app.0.queue.visibility',
+    "queue.visibility\u{0000}",
+];
+foreach ($keys as string $key) {
+    Core\Config::set($key, '1ms');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 3. All of it as fast as the runtime will take it, reading the lease back
+//    every round. It is read as a job is claimed rather than when a worker is
+//    built, so there is no restart standing between a write that reached the
+//    published snapshot and the very next claim taken under it — the standing
+//    value moving here is that, and it is the only place a request can see it.
+uint $changes = 0;
+string $standing = Core\Config::get('queue.visibility') ?? '(nothing written)';
+uint $i = 0;
+while ($i < 200000) {
+    Core\Config::set('queue.visibility', '1ms');
+    Core\Config::set('queue.visibility', '0s');
+    Core\Config::restore('queue.visibility');
+    if ((Core\Config::get('queue.visibility') ?? '(nothing written)') != $standing) {
+        $changes = $changes + 1;
+    }
+    $i = $i + 1;
+}
+
+// 4. And real work alongside it, because the request shortening its own lease
+//    is the request enqueueing the job the lease would cover.
+array<string> $claims = [];
+uint $j = 0;
+while ($j < 20000) {
+    $claims[] = 'claim-' . $j . '-' . Core\Str::repeat('w', $j % 64);
+    $j = $j + 1;
+}
+
+echo 'changes: ', $changes, "\n";
+echo 'claims built: ', Core\Arr::count($claims), "\n";
+echo 'visibility:   ', Core\Config::get('queue.visibility') ?? '(nothing written)', "\n";
+echo 'max_attempts: ', Core\Config::get('queue.max_attempts') ?? '(nothing written)', "\n";
