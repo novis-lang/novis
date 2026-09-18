@@ -3,7 +3,7 @@
 
 # Testing
 
-*14 of 55 rules below are **designed** rather than shipped, and are marked where they appear.*
+*13 of 55 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="testing-test-attribute"></a>
 
@@ -222,7 +222,7 @@ is the order the call is made in, and are released when that call returns.
 
 <a id="testing-doubles"></a>
 
-## A double is a shape of closures, structurally checked against an interface  *(designed — not yet in the compiler)*
+## A double is a shape of closures, structurally checked against an interface
 
 `rule:testing/doubles`
 

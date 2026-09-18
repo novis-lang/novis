@@ -139,11 +139,19 @@
     {
       "id": "testing/doubles",
       "title": "A double is a shape of closures, structurally checked against an interface",
-      "status": "designed",
+      "status": "shipped",
       "because": ["0079", "0036", "0031", "0052", "0043"],
       "divergesFromPhp": "no class is generated and no source is evaluated; a double is a value the checker compares against the interface, and a loose or nice double is not expressible",
       "seeAlso": ["testing/interaction-after-the-fact", "testing/assertions-are-typed"],
-      "guardedBy": []
+      "guardedBy": [
+        "tests/conformance/core/a-double-is-passed-where-its-interface-is-taken.nvst",
+        "tests/conformance/core/a-double-answers-with-its-closures.nvst",
+        "tests/conformance/core/a-partial-delegates-what-it-does-not-override.nvst",
+        "tests/conformance/reject/a-double-missing-a-method-is-refused.nvst",
+        "tests/conformance/reject/a-double-declaring-a-method-the-interface-lacks-is-refused.nvst",
+        "tests/conformance/reject/a-double-answering-a-method-with-the-wrong-signature-is-refused.nvst",
+        "crates/nvs-types/tests/testing.rs"
+      ]
     },
     {
       "id": "testing/interaction-after-the-fact",
@@ -188,7 +196,12 @@
         "testing/runner-is-strict",
         "testing/isolate-per-test"
       ],
-      "guardedBy": ["crates/nvs-cli/src/runner.rs"]
+      "guardedBy": [
+        "tests/conformance/core/assert-completes-refuses-without-a-fixed-clock.nvst",
+        "tests/conformance/core/assert-completes-refuses-the-same-way-for-every-budget.nvst",
+        "tests/conformance/core/assert-completes-asks-for-the-clock-before-it-runs-the-body.nvst",
+        "crates/nvs-cli/src/runner.rs"
+      ]
     },
     {
       "id": "testing/db-transaction",
