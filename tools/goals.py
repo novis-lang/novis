@@ -102,17 +102,32 @@ class Goal:
         """The files that must be on disk -- two fewer once the entry is retired."""
         return (self.md,) if self.retired else (self.md, self.toml, self.handoff)
 
-    @property
-    def milestone(self):
-        """The milestone this goal builds inside, from the `.md`'s front matter."""
+    def front(self, name):
+        """One key of the `.md`'s front matter, or `""`."""
         m = FRONT_RE.match(self.md.read_text(encoding="utf-8"))
         if not m:
             return ""
         for line in m.group(1).split("\n"):
             key, sep, value = line.partition(":")
-            if sep and key.strip() == "milestone":
+            if sep and key.strip() == name:
                 return value.strip()
         return ""
+
+    @property
+    def milestone(self):
+        """The milestone this goal builds inside, from the `.md`'s front matter."""
+        return self.front("milestone")
+
+    @property
+    def pinned_last(self):
+        """Whether this goal says `position: last`: it runs after everything else on the chain.
+
+        The number still is the position -- the key moves nothing by itself. It is what the two
+        writers read so the goal *stays* last: `dossier.py --emit-goals` appends in front of it,
+        and `chain.py --new --end` lands in front of it. `chain.py --check` fails when one is not
+        where it says it is.
+        """
+        return self.front("position") == "last"
 
     @property
     def preflight(self):
@@ -150,6 +165,16 @@ def load():
         if m:
             found.append(Goal(int(m.group(1)), m.group(2), path.parent))
     return sorted(found, key=lambda g: g.num)
+
+
+def pinned_tail(chain):
+    """The goals at the end of `chain` that say `position: last`, in order. Usually none or one."""
+    tail = []
+    for g in reversed(chain):
+        if not g.pinned_last:
+            break
+        tail.insert(0, g)
+    return tail
 
 
 def numbering_error(chain):

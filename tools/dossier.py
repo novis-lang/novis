@@ -2200,6 +2200,11 @@ def emit_goals(entries: list[Entry], proofs: dict[str, Proofs], policy: dict, sk
       label the batch it falls into carries today -- `claimed_features` is the whole of it. A
       goal the run has walked is left as it is: its checks are the floor's now, and rewriting its
       files would hand a retired goal its acceptance list back.
+    * **A goal that says `position: last` stays last.** `goals.pinned_tail` is the hand-written
+      goals closing the chain on purpose; what is appended takes their numbers and they are
+      renamed behind it first, by `chain.apply_renumber`, so no two goals ever share a number on
+      disk. One the run has already reached is not moved: appending behind the live goal is the
+      ordinary case again.
 
     `--dry-run` writes nothing at all and says what the emission would change, which is the form the
     emitting goal's own acceptance check takes: a check that appended the hundred goals itself
@@ -2227,7 +2232,9 @@ def emit_goals(entries: list[Entry], proofs: dict[str, Proofs], policy: dict, sk
     live = goalsmod.live()
     taken_groups, taken_ids = claimed_features(out_dir)
 
-    written, fresh, owed_count = 0, 0, 0
+    # Which batches are written, before any is numbered: how many are new decides where the pinned
+    # tail lands, and it has to be there before a new goal takes the number it held.
+    planned = []
     for label, members in batches:
         slug = goal_slug(label)
         if slug in known:
@@ -2236,13 +2243,27 @@ def emit_goals(entries: list[Entry], proofs: dict[str, Proofs], policy: dict, sk
             # report, and a re-owed feature that no goal on disk claims is appended below.
             if known[slug].retired or known[slug].num <= live:
                 continue
-            n = known[slug].num
         else:
             members = [e for e in members
                        if e.group not in taken_groups and e.id not in taken_ids]
             if not members:
                 continue
-            fresh += 1
+        planned.append((label, slug, members))
+    fresh = sum(1 for _, slug, _ in planned if slug not in known) + (1 if wants_closing else 0)
+
+    chain = goalsmod.load()
+    tail = [g for g in goalsmod.pinned_tail(chain) if g.num > live]
+    last -= len(tail)
+    if tail and fresh and not dry_run:
+        import chain as chainmod  # here, not at the top: it imports `loop`, which no other path needs
+        chainmod.apply_renumber(chain, {g.num: g.num + fresh for g in tail}, dry_run=False)
+        known = chain_numbers()[0]
+
+    written, owed_count = 0, 0
+    for label, slug, members in planned:
+        if slug in known:
+            n = known[slug].num
+        else:
             last += 1
             n = last
         written += 1
@@ -2266,7 +2287,6 @@ def emit_goals(entries: list[Entry], proofs: dict[str, Proofs], policy: dict, sk
                 encoding="utf-8", newline="\n")
 
     if wants_closing:
-        fresh += 1
         written += 1
         last += 1
         if not dry_run:
@@ -2287,6 +2307,9 @@ def emit_goals(entries: list[Entry], proofs: dict[str, Proofs], policy: dict, sk
     print(f"dossier: {'would append' if dry_run else 'appended'} {fresh} goal(s) as goals "
           f"{last - fresh + 1}-{last}"
           + ("." if dry_run else ". The running driver picks them up at its next switch."))
+    for g in tail:
+        print(f"dossier: goal `{g.slug}` says `position: last` and "
+              f"{'would stay' if dry_run else 'stays'} behind them.")
     return 0
 
 
@@ -2437,6 +2460,7 @@ def inherited_env() -> str:
     the same tables from it.
     """
     chain = goalsmod.load()
+    chain = chain[:len(chain) - len(goalsmod.pinned_tail(chain))]
     try:
         last = chain[-1]
         prev = tomllib.loads(last.toml.read_text(encoding="utf-8"))

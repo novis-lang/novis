@@ -616,7 +616,12 @@ def target_position(chain, opts, moving):
     move may not, because the goal it would go after is itself.
     """
     if opts.end:
-        return len(chain) if moving else len(chain) + 1
+        # In front of a goal that says `position: last`, which is what "the end" means while one
+        # exists; moving such a goal is the one thing that lands behind another.
+        behind = [g for g in goalsmod.pinned_tail(chain) if g.num != moving]
+        if moving and goalsmod.find(chain, moving).pinned_last:
+            behind = []
+        return (len(chain) if moving else len(chain) + 1) - len(behind)
     if opts.next:
         live = goalsmod.live()
         if not live:
@@ -643,7 +648,7 @@ def cmd_new(chain, opts):
     if any(g.slug == slug for g in chain):
         return die(f"a goal named {slug!r} already exists")
 
-    at = target_position(chain, opts, moving=False)
+    at = target_position(chain, opts, moving=0)
     if at is None:
         return die("say where it goes: --after N, --before N, --next, --end, or --to N")
     if at < 1 or at > len(chain) + 1:
@@ -701,7 +706,7 @@ def cmd_new(chain, opts):
 
 def cmd_move(chain, opts):
     g = find(chain, opts.move)
-    at = target_position(chain, opts, moving=True)
+    at = target_position(chain, opts, moving=g.num)
     if at is None:
         return die("say where it goes: --to N, --after N, --before N, --next, or --end")
     if at < 1 or at > len(chain):
@@ -995,6 +1000,13 @@ def cmd_check(chain):
             if "TODO" in path.read_text(encoding="utf-8"):
                 notes.append(f"{rel(path)}: still carries TODO markers -- a scaffold nobody has "
                              f"filled in yet")
+
+    tail = goalsmod.pinned_tail(chain)
+    for g in chain:
+        if g.md.is_file() and g.pinned_last and g not in tail and g.num > live:
+            problems.append(f"goal `{g.slug}` ({g.num}): its front matter says `position: last` and "
+                            f"{len(chain) - g.num} goal(s) sit behind it -- `python tools/chain.py "
+                            f"--move {g.num} --end` puts it back")
 
     if README.is_file():
         readme = README.read_text(encoding="utf-8")
