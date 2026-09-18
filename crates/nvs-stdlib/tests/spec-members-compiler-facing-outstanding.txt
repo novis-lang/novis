@@ -26,5 +26,3 @@
 §13 Test::assertCalled  # test-doubles
 §13 Test::assertCompletes  # test-doubles
 §13 Test::assertNeverCalled  # test-doubles
-§13 Test::double  # test-doubles
-§13 Test::partial  # test-doubles

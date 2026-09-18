@@ -1700,6 +1700,14 @@ pub(crate) fn written_class_of(
         // `rule:security/derived-codec-qualifiers`'s qualifier, asked of the
         // fields that receive the octets — see
         // [`crate::derive::check_decode_sites`].
+        // A member that stands in for the class rather than building one
+        // records nothing at all: there are no octets behind the door and no
+        // fields being filled, so every question the three rosters below defer
+        // is a question about a hydration that is not happening —
+        // `crate::derive::stands_in_for_a_class` owns the reading.
+        if crate::derive::stands_in_for_a_class(&owner_name) {
+            return Some((WrittenTarget::Class(qname), list));
+        }
         if crate::derive::reads_a_peers_octets(&owner_name) {
             env.decode_sites.push(crate::derive::DecodeSite::new(
                 format!("{owner}::{method}"),

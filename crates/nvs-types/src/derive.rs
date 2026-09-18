@@ -983,6 +983,22 @@ pub(crate) fn reads_a_peers_octets(owner: &str) -> bool {
     owner == r"Core\Request" || owner == r"Core\Http\Response" || owner == r"Core\Jwt"
 }
 
+/// Whether a written-class member of `owner` **stands in for** the class it
+/// names rather than building one out of anything — `rule:testing/doubles`'s
+/// `double` and `partial`, and nothing else.
+///
+/// Keyed on the owner for [`hydrates_a_row`]'s reason, and what it separates is
+/// a door with no octets behind it at all: a double's fields are closures the
+/// call site wrote, so nothing arrives from outside, no field receives a
+/// document and there is nothing to decode. Every deferred question the two
+/// rosters above raise would therefore be asked of a class nobody is
+/// hydrating — and the class a double names is normally an `interface`, which
+/// carries no deriving attribute and never will, so [`check_json_sites`] would
+/// refuse every double in the program.
+pub(crate) fn stands_in_for_a_class(owner: &str) -> bool {
+    owner == r"Core\Test"
+}
+
 /// One call site of a member that builds a written class out of a **document**,
 /// held until every deriving class in the program has recorded its fields.
 ///

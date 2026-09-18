@@ -2988,7 +2988,10 @@ pub(crate) fn render_symbol(name: &str) -> Option<&'static str> {
 /// one (`rule:types/declaration`). A
 /// member like `Core\Json::decodeAs<User>` needs more than the erasure: it has
 /// to build a `User`, which means reaching that class's
-/// `nvs_runtime::ClassDesc` from native Rust.
+/// `nvs_runtime::ClassDesc` from native Rust. `rule:testing/doubles`'s `double`
+/// reaches the same descriptor for the opposite reason: what it builds is a
+/// class that **conforms to** the one written, so the descriptor arrives as a
+/// parent rather than as a layout to fill.
 ///
 /// A roster rather than a field on [`CoreMethod`] because it names a handful of
 /// members against two hundred member rows, and a field would be `false` on
@@ -3039,6 +3042,8 @@ pub const WRITTEN_CLASS_MEMBERS: &[(&str, &str)] = &[
     (r"Core\Db\Transaction", "queryAs"),
     (r"Core\Db\Connection", "streamAs"),
     (r"Core\Db\Transaction", "streamAs"),
+    (r"Core\Test", "double"),
+    (r"Core\Test", "partial"),
 ];
 
 /// Which positional parameter of `class::method` is `rule:security/isolate-shares-nothing`'s isolate entry,
