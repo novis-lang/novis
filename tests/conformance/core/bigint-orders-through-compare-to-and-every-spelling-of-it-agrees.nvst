@@ -1,5 +1,5 @@
 --TEST--
-`Core\BigInt::compareTo` is the ordering, and `<=>`, `<`, `>`, `<=`, `>=` and the sign of a difference all agree with it over a table — `rule:classes/comparable`, spec § 13
+`Core\BigInt::compareTo` is the ordering, and `<=>`, `<`, `>`, `<=`, `>=`, the sign of a difference and `Core\Arr::sort` all agree with it over a table — `rule:classes/comparable`, spec § 13
 --FILE--
 <?nvs
 // Agreement, not a second list of the same shape: `compareTo` is the member,
@@ -52,6 +52,21 @@ while ($at < 5) {
 }
 echo "rising ", $rising, " of 4, largest ", $ascending[4]->toString(), "\n";
 
+// The spelling that is not an operator: `Core\Arr::sort` with no comparator
+// reaches the same `compareTo` through this class's descriptor, so the sorted
+// table is the ascending one above. Counting the rises is what says the sort
+// agreed with the member rather than answering plausibly on one pair.
+array<Core\BigInt> $sorted = Core\Arr::sort($values);
+int $sortedRising = 0;
+$at = 1;
+while ($at < 5) {
+    if ($sorted[$at - 1]->compareTo($sorted[$at]) < 0) {
+        $sortedRising = $sortedRising + 1;
+    }
+    $at = $at + 1;
+}
+echo "sorted ", $sortedRising, " of 4, ends ", $sorted[0]->toString(), " ", $sorted[4]->toString(), "\n";
+
 // Magnitude and sign are separate questions, and `abs` and `neg` are where
 // that shows: a negative value with the larger magnitude is the smaller value.
 var $small = Core\BigInt::of(-1);
@@ -62,6 +77,7 @@ echo "format ", $small->format({radix: 2}), " ", $large->format({radix: 2}), " u
 --EXPECT--
 agreed on 25 of 25
 rising 4 of 4, largest 99999999999999999999
+sorted 4 of 4, ends -99999999999999999999 99999999999999999999
 signs -111
 abs -1 neg -1
 format -1 111 uint 7

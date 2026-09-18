@@ -54,29 +54,30 @@ var $written = Core\Uri::parse("HTTP://A/");
 var $plain = Core\Uri::parse("http://a/");
 echo $written->compareTo($plain), " ", $written->toString(), "\n";
 
-// And it is the *only* order they have. `Core\Arr`'s natural order is the
-// scalar one — two numbers, two strings, two bools or two nulls — so an
-// object in the subject is refused rather than dispatched to `Comparable`,
-// at each of the three members that reach for it. The throw is catchable,
-// which is what lets the three refusals render inline here.
+// And it is the *only* order they have — which is why every member with a
+// natural order reads it: `Core\Arr`'s scalar rows are joined by one for two
+// objects, which asks `Comparable::compareTo` and nothing else
+// (`rule:classes/comparable`). The two spellings compare equal here, and the
+// first extreme wins a tie, so `min` and `max` name the same entry.
 array<mixed> $subject = [$plain, $written];
-try { echo Core\Arr::min($subject), "\n"; } catch (Throwable $atMin) { echo "min refused\n"; }
-try { echo Core\Arr::max($subject), "\n"; } catch (Throwable $atMax) { echo "max refused\n"; }
-try { var $s = Core\Arr::sort($subject); echo "sorted\n"; } catch (Throwable $atSort) { echo "sort refused\n"; }
+echo Core\Arr::min($subject), "\n";
+echo Core\Arr::max($subject), "\n";
+var $s = Core\Arr::sort($subject);
+echo "sorted\n";
 
-// The way through is the option that member's own message names, and what a
-// comparator writes is this member: three values are all an order needs, so
-// the bound counted above is not a limitation to work around. Sorting the
-// texts rather than the parsed references keeps the answer printable, and it
-// is the order the counts above already imply — the two spellings of one
-// reference land adjacent, in the order they were given.
+// A comparator is still how a subject of *texts* is ordered by this member,
+// and what one writes is the member itself: three values are all an order
+// needs, so the bound counted above is not a limitation to work around.
+// Sorting the texts rather than the parsed references keeps the answer
+// printable, and it is the order the counts above already imply — the two
+// spellings of one reference land adjacent, in the order they were given.
 var $ordered = Core\Arr::sort($corpus, {comparator: fn (string $x, string $y): int => Core\Uri::parse($x)->compareTo(Core\Uri::parse($y))});
 echo Core\Json::encode($ordered), "\n";
 --EXPECT--
 pairs 36 bounded 36
 below 14 same 8 above 14
 0 HTTP://A/
-min refused
-max refused
-sort refused
+http://a/
+http://a/
+sorted
 ["http://a/","HTTP://A/","http://a/#f","http://a/z","http://b/","https://a/"]

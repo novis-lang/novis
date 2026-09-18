@@ -43,7 +43,7 @@
 //! [`round_mode`] is the one reader both classes' `mode` argument goes
 //! through.
 
-use nvs_runtime::{Decimal, Fault, NvsStr, Tag, ThrownClass, Value};
+use nvs_runtime::{Ctx, Decimal, Fault, NvsStr, Tag, ThrownClass, Value};
 
 use crate::ordering::compare_values;
 use crate::registry::{
@@ -1720,8 +1720,8 @@ nvs_runtime::nvs_helper! {
     ///
     /// PHP's variadic `min(1, 2, 3)` has no member: the two-argument form
     /// nests, and the array form is `Core\Arr::min`.
-    fn nvs_core_math_min(_ctx, args: [2]) {
-        pick(args, std::cmp::Ordering::Less, "Core\\Math::min")
+    fn nvs_core_math_min(ctx, args: [2]) {
+        pick(ctx, args, std::cmp::Ordering::Less, "Core\\Math::min")
     }
 }
 
@@ -1729,8 +1729,8 @@ nvs_runtime::nvs_helper! {
     /// `Core\Math::max(T $a, T $b): T` — the larger of two values, replacing
     /// PHP's `max` with scalar arguments. [`nvs_core_math_min`] owns the
     /// ordering and the tie rule.
-    fn nvs_core_math_max(_ctx, args: [2]) {
-        pick(args, std::cmp::Ordering::Greater, "Core\\Math::max")
+    fn nvs_core_math_max(ctx, args: [2]) {
+        pick(ctx, args, std::cmp::Ordering::Greater, "Core\\Math::max")
     }
 }
 
@@ -1741,17 +1741,18 @@ nvs_runtime::nvs_helper! {
     /// A `$low` above `$high` throws rather than silently answering one of
     /// them: the interval is empty, so there is no value to clamp *into*, and
     /// both of PHP's idiomatic spellings answer a different one.
-    fn nvs_core_math_clamp(_ctx, args: [3]) {
+    fn nvs_core_math_clamp(ctx, args: [3]) {
         const MEMBER: &str = "Core\\Math::clamp";
-        if compare_values(&args[1], &args[2], MEMBER)? == std::cmp::Ordering::Greater {
+        if compare_values(ctx, &args[1], &args[2], MEMBER)? == std::cmp::Ordering::Greater {
             return Err(Fault::thrown(
                 "Core\\Math::clamp was given a `low` above its `high`, which is an empty range"
                     .to_owned(),
             ));
         }
-        let chosen = if compare_values(&args[0], &args[1], MEMBER)? == std::cmp::Ordering::Less {
+        let chosen = if compare_values(ctx, &args[0], &args[1], MEMBER)? == std::cmp::Ordering::Less
+        {
             args[1]
-        } else if compare_values(&args[0], &args[2], MEMBER)? == std::cmp::Ordering::Greater {
+        } else if compare_values(ctx, &args[0], &args[2], MEMBER)? == std::cmp::Ordering::Greater {
             args[2]
         } else {
             args[0]
@@ -2145,8 +2146,13 @@ fn gcd(mut a: i128, mut b: i128) -> i128 {
 /// The argument that compares `wanted` against the other, as a fresh
 /// reference — [`nvs_core_math_min`] and [`nvs_core_math_max`] in one
 /// comparison. The **first** argument wins a tie.
-fn pick(args: &[Value], wanted: std::cmp::Ordering, member: &str) -> Result<Value, Fault> {
-    let chosen = if compare_values(&args[1], &args[0], member)? == wanted {
+fn pick(
+    ctx: &mut Ctx,
+    args: &[Value],
+    wanted: std::cmp::Ordering,
+    member: &str,
+) -> Result<Value, Fault> {
+    let chosen = if compare_values(ctx, &args[1], &args[0], member)? == wanted {
         args[1]
     } else {
         args[0]

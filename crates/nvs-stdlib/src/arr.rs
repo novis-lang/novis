@@ -71,7 +71,7 @@
 //! can observe a key, so its walk collects none rather than collecting and
 //! discarding them.
 
-use nvs_runtime::{Decimal, Fault, NvsArray, NvsStr, SlotKey, Tag, Value};
+use nvs_runtime::{Ctx, Decimal, Fault, NvsArray, NvsStr, SlotKey, Tag, Value};
 
 use crate::ordering::compare_values;
 use crate::registry::{
@@ -4293,11 +4293,13 @@ nvs_runtime::nvs_helper! {
     /// everywhere else; a caller who wants a numeric order over numeric
     /// strings writes `{by: ...}` and says so.
     ///
-    /// **Known gap:** an `array<T>` of objects has no natural order, and
-    /// `rule:classes/comparable` says what it
-    /// should be — `Comparable::compareTo`. Calling an *instance* method from
-    /// a helper is not reachable yet, so an object without a `comparator` is a
-    /// throw naming the interface rather than a wrong answer.
+    /// An `array<T>` of objects sorts under
+    /// `rule:classes/comparable`'s `compareTo`,
+    /// which [`compare_values`] reaches through the class's own descriptor —
+    /// a class that does not implement `Comparable` is the throw naming the
+    /// interface, exactly as `<` on two of its instances is a compile error.
+    /// Objects are never the key sort's row, so they always take
+    /// [`merge_sort`], whose comparison is the fallible one they need.
     fn nvs_core_arr_sort(ctx, args: [5]) {
         let base = subject(args, "sort")?;
         let by = optional_callback(&args[1], "sort", "by")?;
@@ -4413,7 +4415,9 @@ nvs_runtime::nvs_helper! {
                     }
                     sign?
                 }
-                None => compare_values(&compared[left], &compared[right], r"Core\Arr::sort")?,
+                None => {
+                    compare_values(ctx, &compared[left], &compared[right], r"Core\Arr::sort")?
+                }
             };
             Ok(if descending { ordering.reverse() } else { ordering })
         };
@@ -5585,9 +5589,9 @@ nvs_runtime::nvs_helper! {
     /// PHP's variadic `min(1, 2, 3)` has no member at all: that is what `<`
     /// and a ternary are for (`rule:core-api/shape-rules` R17), and the array form is the one
     /// that cannot be written in the language.
-    fn nvs_core_arr_min(_ctx, args: [1]) {
+    fn nvs_core_arr_min(ctx, args: [1]) {
         let subject = subject(args, "min")?;
-        extremum(&subject, std::cmp::Ordering::Less, r"Core\Arr::min")
+        extremum(ctx, &subject, std::cmp::Ordering::Less, r"Core\Arr::min")
     }
 }
 
@@ -5597,9 +5601,9 @@ nvs_runtime::nvs_helper! {
     ///
     /// [`nvs_core_arr_min`] owns the ordering, the empty case and the
     /// divergence from PHP's loose comparison.
-    fn nvs_core_arr_max(_ctx, args: [1]) {
+    fn nvs_core_arr_max(ctx, args: [1]) {
         let subject = subject(args, "max")?;
-        extremum(&subject, std::cmp::Ordering::Greater, r"Core\Arr::max")
+        extremum(ctx, &subject, std::cmp::Ordering::Greater, r"Core\Arr::max")
     }
 }
 
@@ -5896,7 +5900,12 @@ fn slot_of(subject: &NvsArray, needle: Value) -> Option<usize> {
 ///
 /// The **first** extreme wins a tie, so a stable sort and this member name the
 /// same entry.
-fn extremum(subject: &NvsArray, wanted: std::cmp::Ordering, member: &str) -> Result<Value, Fault> {
+fn extremum(
+    ctx: &mut Ctx,
+    subject: &NvsArray,
+    wanted: std::cmp::Ordering,
+    member: &str,
+) -> Result<Value, Fault> {
     let mut best: Option<(usize, Value)> = None;
     let mut from = 0usize;
     while let Some(slot) = subject.next_slot(from) {
@@ -5907,7 +5916,7 @@ fn extremum(subject: &NvsArray, wanted: std::cmp::Ordering, member: &str) -> Res
         match best {
             None => best = Some((slot, value)),
             Some((_, incumbent)) => {
-                if compare_values(&value, &incumbent, member)? == wanted {
+                if compare_values(ctx, &value, &incumbent, member)? == wanted {
                     best = Some((slot, value));
                 }
             }

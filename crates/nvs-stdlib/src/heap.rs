@@ -24,25 +24,24 @@
 //! `isEmpty`, which is the question, and `rule:core-api/shape-rules`
 //! R5 bans the `peekOrNull` twin that a `?T` return would otherwise invite.
 //!
-//! # Decision: three orderings, tried in one fixed order
+//! # Decision: two orderings, tried in one fixed order
 //!
 //! 1. the `comparator` given at construction, if there is one;
-//! 2. otherwise `rule:classes/comparable`'s
-//!    `Comparable::compareTo`, reached through the receiving object's own class
-//!    descriptor (`nvs_runtime::dispatch`'s `call_compare_to`);
-//! 3. otherwise the natural order [`crate::ordering::compare_values`] owns,
-//!    which is every scalar and throws for anything else.
+//! 2. otherwise the natural order [`crate::ordering::compare_values`] owns,
+//!    which is every scalar row, `rule:classes/comparable`'s
+//!    `Comparable::compareTo` for two objects, and a throw for anything else.
 //!
-//! A comparator wins over `Comparable` because it is the more specific of the
-//! two and is written at the call site that wanted it — the same precedence
-//! `Core\Arr::sort`'s `{comparator: …}` has over its own natural order.
+//! A comparator wins because it is the more specific of the two and is written
+//! at the call site that wanted it — the same precedence `Core\Arr::sort`'s
+//! `{comparator: …}` has over its own natural order.
 //!
-//! Step 2 reaches a `Core`-owned instance — a `Core\Time\Instant` — as readily
-//! as a class the program declared, and neither the heap nor this module names
-//! either: the two carry their `compareTo` under different calling conventions
-//! and `call_compare_to` is the one place that knows which
-//! ([`crate::instance`]'s § *Decision: a registered member the engine reaches
-//! by name gets a descriptor field*).
+//! Step 2 reaches a `Core`-owned instance — a `Core\Time\Instant`, a
+//! `Core\BigInt` — as readily as a class the program declared, and neither the
+//! heap nor this module names either: the two carry their `compareTo` under
+//! different calling conventions and `nvs_runtime::dispatch`'s
+//! `call_compare_to` is the one place that knows which ([`crate::instance`]'s
+//! § *Decision: a registered member the engine reaches by name gets a
+//! descriptor field*).
 //!
 //! # What it spends, and what a comparator may not do
 //!
@@ -62,7 +61,7 @@ use std::cmp::Ordering;
 use nvs_runtime::{Ctx, Fault, NvsArray, NvsStr, ObjHeader, Tag, Value};
 
 use crate::identity_store as store;
-use crate::ordering::{comparator_sign, compare_values};
+use crate::ordering::{compare_values, sign_of};
 use crate::registry::{Const, CoreClass, CoreMethod, CoreTy, ErrorDoc, MethodDoc, ParamDoc};
 
 /// The class's fully-qualified name, as [`CoreTy::Instance`] spells it.
@@ -352,33 +351,9 @@ fn compare(
         let verdict = nvs_runtime::call_closure(ctx, comparator, &[left, right])?;
         return sign_of(verdict, &member);
     }
-    // Both sides, because a `compareTo` declares its parameter at the class
-    // that wrote it: handing it a scalar is a call the checker never saw, and
-    // the pair has a natural order below or no order at all.
-    if left.obj_ptr().is_some()
-        && right.obj_ptr().is_some()
-        && let Some(verdict) = nvs_runtime::call_compare_to(ctx, left, right, &member)?
-    {
-        return sign_of(verdict, &member);
-    }
-    compare_values(&left, &right, &member)
-}
-
-/// A verdict's sign, releasing the verdict itself.
-///
-/// Both call paths above hand back a *fresh* reference, so a `compareTo`
-/// answering a heap value would otherwise leak one per comparison.
-fn sign_of(verdict: Value, member: &str) -> Result<Ordering, Fault> {
-    let sign = comparator_sign(verdict, member);
-    #[expect(
-        unsafe_code,
-        reason = "the verdict is a fresh value this frame owns and has not \
-                  handed anywhere"
-    )]
-    unsafe {
-        verdict.release();
-    }
-    sign
+    // An object pair is `compare_values`'s own row, not a branch here: two
+    // domains reading one verdict differently is what a shared home prevents.
+    compare_values(ctx, &left, &right, &member)
 }
 
 /// Exchanges the values at two tree positions.

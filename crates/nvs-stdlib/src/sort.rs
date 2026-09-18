@@ -254,8 +254,11 @@ mod tests {
     /// comparison the member uses.
     fn reference(values: &[Value], descending: bool) -> Vec<usize> {
         let mut permutation: Vec<usize> = (0..values.len()).collect();
+        // Every value here is a scalar, so the context the object row needs is
+        // one no comparison below reaches for.
+        let mut ctx = nvs_runtime::Ctx::buffered();
         let mut compare = |left: usize, right: usize| {
-            let ordering = compare_values(&values[left], &values[right], "test")?;
+            let ordering = compare_values(&mut ctx, &values[left], &values[right], "test")?;
             Ok(if descending {
                 ordering.reverse()
             } else {
@@ -623,7 +626,9 @@ mod tests {
             assert_eq!(row_of(&values), None);
             let mut permutation: Vec<usize> = (0..n).collect();
             assert!(!natural(&mut permutation, &values, false));
-            let mut compare = |l: usize, r: usize| compare_values(&values[l], &values[r], "test");
+            let mut ctx = nvs_runtime::Ctx::buffered();
+            let mut compare =
+                |l: usize, r: usize| compare_values(&mut ctx, &values[l], &values[r], "test");
             assert!(
                 merge_sort(&mut permutation, &mut compare).is_err(),
                 "the merge sort throws on it"

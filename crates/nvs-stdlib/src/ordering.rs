@@ -8,7 +8,7 @@
 //! lives beside [`crate::granularity`] for exactly the reason that module
 //! states: more than one domain reaches for it, so no domain owns it.
 
-use nvs_runtime::{Decimal, Fault, Tag, Value};
+use nvs_runtime::{Ctx, Decimal, Fault, Tag, Value};
 
 /// The natural ordering of two values, or a throw for a pair that has none.
 ///
@@ -33,18 +33,28 @@ use nvs_runtime::{Decimal, Fault, Tag, Value};
 /// * `string` — **bytewise**, never numerically. See
 ///   [`crate::arr::nvs_core_arr_sort`], which owns that divergence from PHP.
 ///
-/// Anything else — an object, an array, a `bytes`, or two different rows
-/// above — is `THROWN`, naming both tags and the `member` that asked. Two
-/// are worth calling out. An object: `rule:classes/comparable` makes
-/// `Comparable` the answer, and reaching an instance method from a helper is
-/// the thing that is not built yet. A `bytes`: it shares the `string` heap
-/// shape and would order bytewise the same way, but `rule:types/bytes` gives
-/// it no ordering and [`Value::as_str_bytes`] deliberately answers `None` for
-/// it, so two `bytes` have no natural order here and a sort over them takes
-/// `{comparator: ...}` with `Core\Bytes::compare`. Giving it a row is a
-/// one-line change in this function and one row in [`crate::sort`], once a
-/// rule says so.
+/// * two objects — `rule:classes/comparable`'s `compareTo`, through
+///   `nvs_runtime::call_compare_to`, which is the one entry point that knows
+///   both conventions a class can carry it under. A class that does not
+///   implement `Comparable` falls through to the throw below, which is the
+///   same answer the operators give it. Both sides must be objects: a
+///   `compareTo` declares its parameter at the class that wrote it, so handing
+///   it a scalar is a call the checker never saw.
+///
+/// Anything else — an array, a `bytes`, an object whose class has no
+/// `compareTo`, or two different rows above — is `THROWN`, naming both tags
+/// and the `member` that asked. A `bytes` is worth calling out: it shares the
+/// `string` heap shape and would order bytewise the same way, but
+/// `rule:types/bytes` gives it no ordering and [`Value::as_str_bytes`]
+/// deliberately answers `None` for it, so two `bytes` have no natural order
+/// here and a sort over them takes `{comparator: ...}` with
+/// `Core\Bytes::compare`. Giving it a row is a one-line change in this
+/// function and one row in [`crate::sort`], once a rule says so.
+///
+/// `ctx` is what the object row needs and no other row touches: a `compareTo`
+/// is a call, and a call needs the context it may throw into.
 pub(crate) fn compare_values(
+    ctx: &mut Ctx,
     left: &Value,
     right: &Value,
     member: &str,
@@ -80,6 +90,14 @@ pub(crate) fn compare_values(
             (Numeric::Real(a), Numeric::Real(b)) => ordered(a).total_cmp(&ordered(b)),
         });
     }
+    // Last, because every row above is a representation this module reads for
+    // itself and this one is a call out of it.
+    if left.obj_ptr().is_some()
+        && right.obj_ptr().is_some()
+        && let Some(verdict) = nvs_runtime::call_compare_to(ctx, *left, *right, member)?
+    {
+        return sign_of(verdict, member);
+    }
     Err(Fault::thrown(format!(
         "{member} has no natural order for tag {} against tag {}: two numbers, two strings, two \
          bools or two nulls have one and no other pair does. `Core\\Arr::sort` takes \
@@ -87,6 +105,28 @@ pub(crate) fn compare_values(
         left.tag_byte(),
         right.tag_byte()
     )))
+}
+
+/// A verdict's sign, releasing the verdict itself.
+///
+/// Every path that produces one — a comparator closure, a compiled `compareTo`,
+/// a `Core` class's comparer — hands back a *fresh* reference, so a member
+/// answering a heap value would otherwise leak one per comparison.
+///
+/// # Errors
+///
+/// [`comparator_sign`]'s, unchanged.
+pub(crate) fn sign_of(verdict: Value, member: &str) -> Result<std::cmp::Ordering, Fault> {
+    let sign = comparator_sign(verdict, member);
+    #[expect(
+        unsafe_code,
+        reason = "the verdict is a fresh value this frame owns and has not \
+                  handed anywhere"
+    )]
+    unsafe {
+        verdict.release();
+    }
+    sign
 }
 
 /// A comparator's verdict as an [`std::cmp::Ordering`] — negative, zero or
