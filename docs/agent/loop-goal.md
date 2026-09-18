@@ -7,7 +7,7 @@ The end of the gap program the user set on 2026-09-13. Every recorded gap is **c
 future milestone (M9 and above) whose own plan file states the scope** — no item names a goal, no item
 is `unowned`, no item is owed by a past milestone. **M0 through M8 — M4S and M4B included — are
 complete**: `python tools/plan.py --past` says so for all eleven and their `Carried by` cells read `done`.
-CI is green on `main`. `docs/agent/carried-gaps.md` is deleted, because an index of gaps with an owner
+`docs/agent/carried-gaps.md` is deleted, because an index of gaps with an owner
 other than the plan has nothing left to index.
 
 ## Why here
@@ -68,13 +68,12 @@ names an owner* runs `python tools/chain.py --check`, which no longer reads this
 (`docs/agent/loop-goal.toml:4370-4375`), so it stays green when the file goes; its name is stale and
 is left, because a floor is carried verbatim.
 
-## Stage 4 — CI is green on `main`
+## Stage 4 — CI is goal `ci-green`'s, not this goal's
 
-M0's acceptance is "green on all three platforms in CI", and the closure goals added the extension,
-database-matrix and ThreadSanitizer legs. `gh run list` must show the latest `ci.yml` run on `main`
-completed with `success`. The user is fixing the GitHub billing block that stopped every run; if it is
-still blocked when this stage is reached, that is a `BLOCKED` naming the billing block — the one hold this
-goal expects — never a check rewritten to pass.
+M0's "green on all three platforms in CI" is proven by goal `ci-green`, the last goal on the chain,
+by the user's decision of 2026-09-18: GitHub starts no job while the account's payments fail, so a
+check here could only hold the run in front of work that does not need it. This goal carries no CI
+check, and a session here neither asks `gh` nor reports a `BLOCKED` about CI.
 
 ## Stage 5 — the past milestones are complete
 

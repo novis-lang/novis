@@ -1,9 +1,10 @@
 # The goal chain
 
 This directory **is** the schedule the unattended loop walks, and the table below is that order for the
-hand-written goals. Everything after `dossier` is generated — one goal per group of features owing
-`rule:testing/four-proofs`'s roster, written onto the end of this same chain by
-`python tools/dossier.py --emit-goals`.
+hand-written goals. Everything between `dossier` and `ci-green` is generated — one goal per group of
+features owing `rule:testing/four-proofs`'s roster, written onto this same chain by
+`python tools/dossier.py --emit-goals`, which keeps a goal whose front matter says `position: last`
+behind what it appends.
 
 **Every goal states its own case, and this file does not restate it.** A goal's front matter names its
 milestone, its opening says what it builds, and its `## Why here` is why it sits where it does, against the
@@ -95,9 +96,10 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [one-type-test](67-one-type-test.md) | post-parity, one ADR — the record that ends every comparison with PHP on `is` and `instanceof`, written first | `nvs-syntax`, `nvs-types`, `nvs-diagnostics`, `nvs-ir`, `nvs-codegen`, `nvs-runtime`, `nvs-stdlib`, `nvs-lsp`, `nvs-fmt` — `instanceof` is refused naming `is`, `$x is $cls` is the dynamic class test, and the word survives only in the refusal and the divergence |
 | [test-doubles](68-test-doubles.md) | post-parity, no ADR — ADR 0079 §§ 10, 11 and 16 decided it | `nvs-types`, `nvs-diagnostics`, `nvs-stdlib`, `nvs-runtime`, `nvs-ir` — `Core\Test::double<T>` and `partial<T>` are a shape of closures checked against an interface and *are* a `T`; `assertCalled`/`assertNeverCalled` read the record against a compile-checked method reference; `assertCompletes` runs under the test's clock |
 | [bigint](69-bigint.md) | post-parity, no ADR — ADR 0054 § 5 decided it | `nvs-stdlib` — `Core\BigInt` over `num-bigint`, a `Core`-owned immutable instance, `Stringable` and `Comparable`, the class that replaces `gmp` and `bcpowmod` |
-| [gap-zero](70-gap-zero.md) | post-parity, no ADR — the terminal gate | `tools/`, the ratchet test, CI — last of the hand-written goals: no gap owed by anyone but a future milestone, M0–M8 complete, the index deleted |
+| [gap-zero](70-gap-zero.md) | post-parity, no ADR — the terminal gate | `tools/`, the ratchet test — no gap owed by anyone but a future milestone, M0–M8 complete, the index deleted |
 | [dossier](71-dossier.md) | `rule:testing/four-proofs` | none — it writes the goals that open all of them, then optimizes the loop for their shape |
 | after `dossier` | `rule:testing/four-proofs`, generated | one group of features per goal, its own `[context]` manifest, under `goals/dossier/` |
+| [ci-green](72-ci-green.md) | post-parity, no ADR — `position: last` | `tools/ci-green.py`, `.github/workflows/ci.yml` — always the last goal, behind every generated one: the latest CI run on `main` succeeded for the code `HEAD` holds |
 
 ## The chain contract
 
@@ -182,7 +184,7 @@ TOML for a doubled floor before restarting.
 
 ## What stops the run
 
-- **The last goal goes green** — which, since goal `dossier`, means the last *generated* one: every group on
+- **The last goal goes green** — goal `ci-green`, behind the last *generated* one, which is every group on
   `rule:testing/four-proofs`'s roster owing nothing, `python tools/dossier.py --gate` exiting 0 over the whole language.
   The parity program's own gate — goals `core-depth` through `server`, PHP core feature parity — is
   still that goal's final check:

@@ -12052,15 +12052,8 @@ name = "every entry is still one the driver can walk"
 argv = ["python", "tools/chain.py", "--check"]
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 4 -- CI is green on main. Goal prose stage 4.
+# Stage 4 -- no check. CI is goal `ci-green`'s, the last goal on the chain. Goal prose stage 4.
 # ---------------------------------------------------------------------------------------------------
-
-[[check]]
-kind = "command"
-stage = "4 ci is green"
-name = "the latest CI run on main succeeded"
-argv = ["gh", "run", "list", "--branch", "main", "--workflow", "ci.yml", "--limit", "1", "--json", "conclusion"]
-want = ["\"conclusion\":\"success\""]
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 5 -- the past milestones are complete. Goal prose stage 5.
