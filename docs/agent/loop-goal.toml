@@ -135,6 +135,8 @@ modules = [
   "crates/nvs-stdlib/src/ast.rs",
   # The `ExprInfo::InstanceOf` arm goes; the type after `is` resolves as a type node does.
   "crates/nvs-lsp/src/definition.rs",
+  # One workspace symbol index, built in one place.
+  "crates/nvs-lsp/src/index.rs",
 ]
 
 # What every stage is written inside: the operator, what it narrows, and the list the divergence
