@@ -1,0 +1,7 @@
+build: ########## 100%
+upload: ######.... 60%
+restart: .......... 0%
+
+build: 100% done
+upload: 60% done
+restart: 0% done

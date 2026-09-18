@@ -1,0 +1,33 @@
+<?nvs
+// A heat map is drawn in shades of one colour. How many shades there are to
+// draw with is the one thing that changes with the terminal, so it is worth
+// asking. Here is what each of the four answers is worth.
+
+class HeatMap {
+    public static function shades(Core\Cli\ColorDepth $depth): int {
+        return match ($depth) {
+            Core\Cli\ColorDepth::None => 1,
+            Core\Cli\ColorDepth::Ansi16 => 4,
+            Core\Cli\ColorDepth::Ansi256 => 24,
+            Core\Cli\ColorDepth::TrueColor => 256,
+        };
+    }
+}
+
+// The cases in the order they are declared: least colour first.
+array<Core\Cli\ColorDepth> $everything = [
+    Core\Cli\ColorDepth::None,
+    Core\Cli\ColorDepth::Ansi16,
+    Core\Cli\ColorDepth::Ansi256,
+    Core\Cli\ColorDepth::TrueColor,
+];
+
+foreach ($everything as Core\Cli\ColorDepth $depth) {
+    echo HeatMap::shades($depth), " shade(s)\n";
+}
+
+// In a real program only one of those four is yours, and this is where it
+// comes from. It goes to standard error, the stream for notes, because it is a
+// fact about the screen rather than part of the answer.
+Core\Cli::write("this run has " . HeatMap::shades(Core\Cli::colorDepth()) . " shade(s)",
+                {stream: Core\Cli\Stream::Err, newline: true});

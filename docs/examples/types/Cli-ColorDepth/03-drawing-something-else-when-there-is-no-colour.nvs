@@ -1,0 +1,37 @@
+<?nvs
+// Ask once, at the start of the run, and hand the answer down. What changes
+// with it here is the drawing itself and not the colour of it: a terminal with
+// no colour gets a line that still says everything the bar would have said.
+
+class Progress {
+    // `$tenths` is how much of the step is done, from 0 to 10.
+    public static function line(Core\Cli\ColorDepth $depth, string $step, uint $tenths): string {
+        uint $percent = $tenths * 10;
+
+        if ($depth == Core\Cli\ColorDepth::None) {
+            return $step . ": " . $percent . "% done";
+        }
+
+        return $step . ": " . Core\Str::repeat("#", $tenths)
+               . Core\Str::repeat(".", 10 - $tenths) . " " . $percent . "%";
+    }
+}
+
+array<string> $steps = ["build", "upload", "restart"];
+array<uint> $done = [10, 6, 0];
+
+// In your program the depth is `Core\Cli::colorDepth()`, read once at the top.
+// Both answers are written out here so the two drawings stand side by side.
+uint $at = 0;
+foreach ($steps as string $step) {
+    echo Progress::line(Core\Cli\ColorDepth::Ansi256, $step, $done[$at]), "\n";
+    $at = $at + 1;
+}
+
+echo "\n";
+
+$at = 0;
+foreach ($steps as string $step) {
+    echo Progress::line(Core\Cli\ColorDepth::None, $step, $done[$at]), "\n";
+    $at = $at + 1;
+}

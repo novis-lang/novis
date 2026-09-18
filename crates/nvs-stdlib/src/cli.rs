@@ -3972,6 +3972,7 @@ mod tests {
     /// ordinals a compiled `Core\Cli\Stream::Out` writes are what [`stream_of`]
     /// decodes, and the ones [`depth_ordinal`] answers are what a
     /// `== Core\Cli\ColorDepth::None` compares against.
+    // covers: Core\Cli\ColorDepth
     #[test]
     fn the_two_enums_agree_with_the_runtimes_own() {
         for (ordinal, (name, declared)) in STREAM.cases.iter().enumerate() {
@@ -4022,6 +4023,7 @@ mod tests {
     /// declaration nobody registered compiles, documents itself, and then
     /// resolves nowhere — `Core\Cli\Shell::Bash` would be a name error with a
     /// card on disk describing it.
+    // covers: Core\Cli\Shell
     #[test]
     fn the_shell_roster_is_the_four_adr_0086_names_and_is_registered() {
         let names: Vec<&str> = SHELL.cases.iter().map(|(name, _)| *name).collect();
