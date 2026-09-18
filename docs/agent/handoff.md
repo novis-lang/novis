@@ -2,43 +2,41 @@
 
 ## State
 
-**Goal `bigint` is met, and the one red left in its acceptance list was the machine rather than the
-tree.** `Core\BigInt`, its 24 members, the six conformance cases plus the ordering case,
-`examples/bigint.nvs`'s six frozen lines and the three named guard tests are all on disk; the
-session before this one confirmed the list and closed the goal.
+**Goal `bigint` is met, and both reds the DONE claims before this one fell to were the machine
+rather than the tree.** `Core\BigInt` with its 24 members, the conformance cases,
+`examples/bigint.nvs` and the three named guard tests are on disk, and the stage-5 gates —
+`verify.py --doc`, `owners.py --closes bigint`, `playbook.py --closes bigint`, `chain.py --check` —
+are green by hand again. The last red, the floor's `nvs-cli (cost margins)`, read warm 31.9 ms
+against cold 58.8 ms inside a check whose own 2m32s was 2m31s of compiling; the same commit, idle,
+prints 13.2x against the 4x it names.
 
-The floor's `abi-probe` check went red twice on
-`a_cpu_bound_fan_out_across_four_worker_cores_is_near_linear_by_the_margin_this_test_names`, which
-passes at 3.83x in 0.13 s on its own at this commit. The cause is the valgrind sweep that ends
-0.14 s before it: the placed half of the ratio read 22.2 ms against 0.8 ms alone while the serial
-half, which needs one core and no wake-ups, was unchanged at 3.4 ms. `tools/loop.py:3128`'s
-`asked_again` re-asks a red `--release` check after `COST_SETTLE` (`tools/loop.py:1766`), so one red
-is that shadow and a doubled one — `asked twice` in the failure line — is the tree.
+**That shadow had a cause and `tools/loop.py` now fixes it.** `release_builds` warms *every*
+`--release` check rather than the first in file order — the goal names three and only
+`nvs-abi-probe` was prebuilt, so `nvs-cli`'s release harness compiled in the foreground right
+before the measurement. Why it recompiles every sweep at all is
+`crates/nvs-cli/build.rs:99`, which reruns on `.git/index`.
 
-Stage 5's gates are green by hand again: `verify.py --doc`, `owners.py --closes bigint`,
-`playbook.py --closes bigint` and `chain.py --check`. Nothing is blocked. Goal `gap-zero` is next;
-its own prose says it builds nothing, and its one expected hold is CI.
+**The driver process predates both fixes**: pid 8444 is one long-lived `python tools/loop.py`
+started 2026-09-17, so neither `asked_again` nor `release_builds` is in the process sweeping now.
+If a cost guard flickers a third time and the run halts, the repair is to restart the driver so it
+loads `tools/loop.py` as it stands. Nothing is blocked.
 
 ## Next group
 
-**Goal `gap-zero`, stages 2 and 3: the fatal gate, then the index deleted** — one file set:
+**Goal `gap-zero`, stage 2: the fatal gate, then the index deleted** — one file set:
 `tools/owners.py`, `tools/playbook.py`, `tools/brief.py`,
-`crates/nvs-stdlib/tests/spec_registry_coverage.rs`. The switch installs that goal's own seed handoff
-over this one (`tools/loop.py:3802`), so these three are its items with their anchors re-checked here.
+`crates/nvs-stdlib/tests/spec_registry_coverage.rs`. The switch installs that goal's own seed
+handoff over this one (`tools/loop.py:3802`); these anchors were re-checked at this commit.
 
-- [ ] **Retire `unowned`** — `tools/owners.py:506`'s `classify`, `tools/owners.py:320`'s `tag_of`, and
-      `crates/nvs-stdlib/tests/spec_registry_coverage.rs:505`'s `owner_problem`.
-- [ ] **The full gate by default, run by `verify.py`** — `tools/owners.py:727`'s `run_check`, and
-      `tools/verify.py`.
-- [ ] **Delete `docs/agent/carried-gaps.md` and re-point every reader in the same slice** — the reader
-      list is that goal's prose, `docs/agent/goals/70-gap-zero.md:1`, and `tools/check-links.py` is the
-      proof.
+- [ ] **Retire `unowned`** — `tools/owners.py:506`'s `classify`, `tools/owners.py:320`'s `tag_of`,
+      and `crates/nvs-stdlib/tests/spec_registry_coverage.rs:505`'s `owner_problem`.
+- [ ] **The full gate by default, run by `verify.py`** — `tools/owners.py:727`'s `run_check`.
+- [ ] **Delete `docs/agent/carried-gaps.md` and re-point every reader in the same slice** —
+      `tools/brief.py:483`'s `OWNERS_HOME`, `tools/owners.py:8` and `tools/orient.py:1210`.
 
 ## Backlog
 
-- Stage 4 of `gap-zero`, CI green on `main` — `gh run list --branch main --workflow ci.yml`.
-- Stage 5 of `gap-zero`, `python tools/plan.py --past` and `--sync` writing `done` — the plan's *Done*.
-- Goal `bigint`'s `[context] modules` never named the four modules the ordering slice edited
-  (`crates/nvs-stdlib/src/arr.rs`, `heap.rs`, `math.rs`, `ordering.rs`); moot as the goal retires,
-  recorded because the driver flagged it and the next goal touching them pays for it again.
-- The fifth artefact per feature, the `about.md` description prose, stays deferred to goal `dossier`.
+- A driver that re-execs itself when `tools/loop.py` changes under it — unowned, and a hang risk
+  worth the user's call before anyone writes it (`docs/agent/commands.md` § the loop).
+- `crates/nvs-cli/build.rs:99`'s `.git/index` trigger costs every sweep a 2m30s release relink;
+  whether the stamp needs the index at all is that file's own question.
