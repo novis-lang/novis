@@ -1145,7 +1145,8 @@ def body_goal_numbers(sections: list[Section]) -> list[str]:
 
     `chain.py --check` scans the tree for `goal 29` and sits on every goal's floor, so the wrap that
     writes one into the handoff reports a green session and leaves the next one opening on a red
-    check it did not cause -- which is how a handoff came to say `appended as goals 72-171`. The
+    check it did not cause -- which is how a handoff came to say the generated goals were appended
+    at a numbered range, and this gate's own docstring cannot quote that sentence either. The
     reason the rule exists is the reason the gate has to be here: the sentence is true when it is
     written and false the moment anything is inserted in front of that goal, and by then its author
     is gone. AGENTS.md's *The schedule is the chain* is the rule; its spelling, and the three headers
