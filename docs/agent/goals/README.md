@@ -99,7 +99,7 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [gap-zero](70-gap-zero.md) | post-parity, no ADR — the terminal gate | `tools/`, the ratchet test — no gap owed by anyone but a future milestone, M0–M8 complete, the index deleted |
 | [dossier](71-dossier.md) | `rule:testing/four-proofs` | none — it writes the goals that open all of them, then optimizes the loop for their shape |
 | after `dossier` | `rule:testing/four-proofs`, generated | one group of features per goal, its own `[context]` manifest, under `goals/dossier/` |
-| [ci-green](72-ci-green.md) | post-parity, no ADR — `position: last` | `tools/ci-green.py`, `.github/workflows/ci.yml` — always the last goal, behind every generated one: the latest CI run on `main` succeeded for the code `HEAD` holds |
+| [ci-green](172-ci-green.md) | post-parity, no ADR — `position: last` | `tools/ci-green.py`, `.github/workflows/ci.yml` — always the last goal, behind every generated one: the latest CI run on `main` succeeded for the code `HEAD` holds |
 
 ## The chain contract
 

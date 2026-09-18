@@ -1,7 +1,7 @@
-# Goal 72 -- CI is green on main
+# Goal 172 -- CI is green on main
 # The acceptance test, as data.
 #
-# `72-ci-green.md` is the prose. One home each.
+# `172-ci-green.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
 
@@ -42,7 +42,7 @@ plan = ["Open now", "Blocking"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `72-ci-green.md`, holding what only that stage needs.
+# THE STAGES. One table per prose stage in `172-ci-green.md`, holding what only that stage needs.
 #
 # `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
 # the base above -- an overlay adds and never replaces, so the base is what a session needs whatever
