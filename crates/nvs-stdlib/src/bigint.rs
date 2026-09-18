@@ -1173,3 +1173,118 @@ nvs_runtime::nvs_helper! {
         Ok(Value::str(NvsStr::new(text.as_bytes())))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use nvs_runtime::{Ctx, call};
+
+    use super::*;
+
+    /// One instance holding `value`, built exactly as every member's answer is.
+    ///
+    /// Each one is handed to a single [`call`], which consumes the reference it
+    /// was given, so every fixture here is built for one use and the answers are
+    /// left to the process — a crate under the workspace's `unsafe_code` lint
+    /// has nothing to release a [`Value`] with.
+    fn of(value: i64) -> Value {
+        built(&BigInt::from(value)).expect("a one-word magnitude is affordable")
+    }
+
+    /// The magnitude a member answered with, read back out of its two slots.
+    fn read(answer: Value) -> BigInt {
+        operand(&[answer], 0, "toString").expect("a member answers with its own class")
+    }
+
+    /// `div` truncates toward zero and `mod` carries the dividend's sign — the
+    /// two roundings `intdiv` and `%` have on `int`, asserted by **counting**
+    /// over a sign sweep rather than read off a line, so a member that grew a
+    /// rounding of its own fails here while still answering plausibly on the
+    /// positive row everyone reads first.
+    #[test]
+    fn bigint_div_and_mod_agree_over_a_sign_sweep() {
+        const SWEEP: [(i64, i64); 12] = [
+            (7, 2),
+            (7, -2),
+            (-7, 2),
+            (-7, -2),
+            (9, 3),
+            (9, -3),
+            (-9, 3),
+            (-9, -3),
+            (1, 7),
+            (-1, 7),
+            (0, 5),
+            (0, -5),
+        ];
+
+        let mut ctx = Ctx::buffered();
+        let mut agreed = 0usize;
+        for (dividend, divisor) in SWEEP {
+            let quotient = call(nvs_core_bigint_div, &mut ctx, &[of(dividend), of(divisor)])
+                .expect("a non-zero divisor answers");
+            let remainder = call(nvs_core_bigint_mod, &mut ctx, &[of(dividend), of(divisor)])
+                .expect("a non-zero divisor answers");
+            if read(quotient) == BigInt::from(dividend / divisor) {
+                agreed += 1;
+            }
+            if read(remainder) == BigInt::from(dividend % divisor) {
+                agreed += 1;
+            }
+        }
+        assert_eq!(agreed, SWEEP.len() * 2);
+    }
+
+    /// Both sides of the bound `toInt` is written around, named together: the
+    /// last value an `int` holds comes back, and the first one it does not is
+    /// refused as an `ArithmeticError` rather than truncated — a member that
+    /// stopped one entry early prints plausibly against either half alone.
+    #[test]
+    fn a_bigint_past_the_int_range_refuses_to_int() {
+        let mut ctx = Ctx::buffered();
+
+        let held = call(nvs_core_bigint_to_int, &mut ctx, &[of(i64::MAX)])
+            .expect("the last value an `int` holds narrows");
+        assert_eq!(held.as_int(), Some(i64::MAX));
+
+        let past = built(&(BigInt::from(i64::MAX) + BigInt::from(1)))
+            .expect("a two-word magnitude is affordable");
+        call(nvs_core_bigint_to_int, &mut ctx, &[past]).expect_err("one past it is refused");
+        assert_eq!(
+            ctx.take_pending().map(std::borrow::Cow::into_owned),
+            Some(
+                "Core\\BigInt::toInt(): 9223372036854775808 is outside the `int` range".to_owned()
+            )
+        );
+    }
+
+    /// The two members the engine reaches by name rather than through the
+    /// method table — this module's § *Decision: a registered member the engine
+    /// reaches by name gets a descriptor field*. Both halves are asserted: the
+    /// rosters [`crate::instance::descriptors`] derives the descriptor's
+    /// `renderer` and `comparer` from name this class and these symbols, and
+    /// [`address`] resolves each, which is the arm whose miss is a runtime
+    /// panic rather than a link error.
+    #[test]
+    fn a_bigint_renders_and_compares_through_its_descriptor() {
+        assert!(crate::registry::class_renders(NAME));
+        assert!(crate::registry::implements_comparable(NAME));
+        assert_eq!(
+            crate::registry::render_symbol(NAME),
+            Some("nvs_core_bigint_to_string")
+        );
+        assert_eq!(
+            crate::registry::compare_symbol(NAME),
+            Some("nvs_core_bigint_compare_to")
+        );
+        assert!(address("nvs_core_bigint_to_string").is_some());
+        assert!(address("nvs_core_bigint_compare_to").is_some());
+
+        let mut ctx = Ctx::buffered();
+        let rendered =
+            call(nvs_core_bigint_to_string, &mut ctx, &[of(-42)]).expect("every value renders");
+        assert_eq!(rendered.as_text(), Some("-42"));
+        let order = call(nvs_core_bigint_compare_to, &mut ctx, &[of(2), of(10)])
+            .expect("every pair compares");
+        assert_eq!(order.as_int(), Some(-1));
+    }
+}
