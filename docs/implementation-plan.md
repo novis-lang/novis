@@ -52,15 +52,17 @@
 > **Blocking:** Nothing waits on the user. Every `spec-*-outstanding.txt` ratchet under
 > `crates/nvs-stdlib/tests/` now holds zero keys: goal `bigint` registered `Core\BigInt` and struck
 > the last one, by the user's decision of 2026-09-18, so goal `gap-zero`'s ratchet half and its
-> deletion of the index wait on nothing but the chain reaching it. The hold goal `unowned-closures`
-> left — forty sheet-answered gaps tagged to it and none built — was goal `decided-closures`, now
-> walked, and the driver's owner gate refuses to reach a goal while a gap still names it, so no goal
-> can walk that way again. Every design call a goal reaches is pre-authorized in its own § *Standing
-> decisions*, and each goal names the numbered ADRs it may open and no others. One standing
-> precondition, and not a block: the goals whose floor carries container-backed checks need a
-> reachable Docker daemon, and [the goals directory](agent/goals/) preflights it per entry rather
-> than letting a session discover it mid-run. Picking every dependency but the two the user named is
-> pre-authorized under `rule:packaging/a-c-dependency-answers-two-questions`.
+> deletion of the index have both landed, so what a shipped feature still owes is a numbered `#
+> Known gaps` item in the module doc that owes it and is written nowhere else. The hold goal
+> `unowned-closures` left — forty sheet-answered gaps tagged to it and none built — was goal
+> `decided-closures`, now walked, and the driver's owner gate refuses to reach a goal while a gap
+> still names it, so no goal can walk that way again. Every design call a goal reaches is
+> pre-authorized in its own § *Standing decisions*, and each goal names the numbered ADRs it may
+> open and no others. One standing precondition, and not a block: the goals whose floor carries
+> container-backed checks need a reachable Docker daemon, and [the goals directory](agent/goals/)
+> preflights it per entry rather than letting a session discover it mid-run. Picking every
+> dependency but the two the user named is pre-authorized under
+> `rule:packaging/a-c-dependency-answers-two-questions`.
 
 **How the plan relates to the ADRs.** The plan is the record of *what* gets built, in what order, and how
 each milestone is verified. It states decisions but does not argue them. The reasoning lives in
