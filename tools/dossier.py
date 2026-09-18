@@ -330,6 +330,14 @@ COUNTS = ("statements", "calls", "allocations", "bytes")
 #: refused: order-of-magnitude, like `rule:testing/perf-two-mechanisms`'s per-PR guards, because a
 #: same-run wall-clock ratio is honest to a factor and not to a percent.
 SCALE_TOLERANCE = 3.0
+#: The least a calibration iteration may cost before `calibrate` calls the measurement failed. Every
+#: `units` figure in the ledger is a division by it, so a unit that did not measure anything does not
+#: produce a bad record -- it produces one whose scale is meaningless, appended to a file nothing
+#: rewrites. Both calibration runs are the *fastest* of their reps, so on a machine busy enough the
+#: empty program's fastest run can land above the unit program's and the difference goes negative.
+#: A tenth of a nanosecond is well under one clock cycle of any machine this runs on, so nothing that
+#: really measured an iteration is ever refused by it.
+MIN_UNIT_NS = 0.1
 #: `[report]` in `tools/data/dossier-policy.toml`, and its defaults. `outlier_factor` is how far
 #: above its group's median a member's `units` figure sits before the report lists it as a
 #: candidate; `ceiling` is an absolute `units` figure per declared complexity, past which a member
@@ -1255,7 +1263,13 @@ def calibrate(nvs: Path, reps: int) -> tuple[float, float]:
             raise RuntimeError(f"the calibration program {rel(p)} is missing")
     floor, _ = time_program(nvs, baseline, reps)
     unit_total, _ = time_program(nvs, unit, reps)
-    unit_ns = max(1e-9, (unit_total - floor) / iterations_of(unit))
+    unit_ns = (unit_total - floor) / iterations_of(unit)
+    if unit_ns < MIN_UNIT_NS:
+        raise RuntimeError(
+            f"the calibration did not measure anything -- the unit program's fastest run "
+            f"({unit_total / 1e6:.1f} ms) is not enough above the empty program's "
+            f"({floor / 1e6:.1f} ms) to price one iteration at {MIN_UNIT_NS} ns. "
+            f"Something else on this machine is taking the CPU; re-run --record-perf when it is idle")
     return floor, unit_ns
 
 
