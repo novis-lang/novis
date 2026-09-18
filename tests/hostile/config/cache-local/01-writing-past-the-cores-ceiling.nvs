@@ -1,0 +1,65 @@
+<?nvs
+// Attack: spend more than `[cache.local] max_size` allows, in every shape the
+// tier accepts -- many entries, one entry larger than the whole ceiling, keys
+// bigger than the values they name -- and then try to move the ceiling from
+// inside the request. The cap is what makes this tier's memory O(cores x working
+// set) rather than O(requests served), so a write that outruns it is a leak with
+// a hostname in front of it.
+//
+// It earns a longer clock than the default because the attack is a volume: a
+// gigabyte written through a 32 MiB window, which is the only way to find out
+// whether the window is real.
+// hostile: timeout-ms 40000
+
+var $cache = Core\Cache::local();
+
+// 1. A gigabyte in one-megabyte entries. Every one of them fits, so nothing here
+//    is refused; the question is whether the tier forgets at the same rate it
+//    accepts, or keeps all of it.
+string $megabyte = Core\Str::repeat('x', 1048576);
+uint $i = 0;
+while ($i < 1024) {
+    $cache->put('bulk:' . $i, $megabyte);
+    $i = $i + 1;
+}
+
+// 2. One entry four times the whole ceiling. Either it is stored and everything
+//    else is forgotten, or it is not stored at all -- both are answers. What
+//    would not be an answer is the tier holding it beside the entries above.
+$cache->put('oversized', Core\Str::repeat('y', 134217728));
+
+// 3. Keys sized like payloads, since a key is charged to the cap as well as the
+//    value it names. Ten megabytes of key naming eight bytes of value.
+uint $k = 0;
+while ($k < 16) {
+    $cache->put(Core\Str::repeat('k', 10485760) . $k, 'eight!!!');
+    $k = $k + 1;
+}
+
+// 4. Churn in place: the same key rewritten a hundred thousand times. A tier
+//    that charged each write rather than each live entry would be past its cap
+//    long before this ends.
+uint $c = 0;
+while ($c < 100000) {
+    $cache->put('hot', $c);
+    $cache->forget('hot');
+    $c = $c + 1;
+}
+
+// 5. The ceiling itself, by every spelling of "make it bigger" and every value
+//    that is not a size at all. `false` removes the ceiling when an operator
+//    writes it in the file, which is exactly why a request must not reach it.
+array<string> $raises = [
+    '1G', '1024G', '9223372036854775807', '-1', '0', 'false', '', '32M',
+];
+foreach ($raises as string $value) {
+    Core\Config::set('cache.local.max_size', $value);
+    Core\Config::set('cache.local', $value);
+    Core\Config::set('cache', $value);
+}
+Core\Config::restore('cache.local.max_size');
+
+// Still standing, and still capped: the entries below are whatever survived, and
+// the ceiling is whatever the file said before any of this ran.
+echo 'cap: ', Core\Config::get('cache.local.max_size') ?? '(the built-in cap)', "\n";
+echo 'hot: ', $cache->get('hot') ?? '(forgotten)', "\n";

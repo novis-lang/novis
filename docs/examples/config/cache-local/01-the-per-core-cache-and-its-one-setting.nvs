@@ -1,0 +1,31 @@
+<?nvs
+// `[cache.local]` configures the fastest of the three cache tiers: one store per
+// CPU core, shared with nothing. It has a single setting, and this is what the
+// server running this program was given:
+//
+//     [cache.local]
+//     max_size = "32M"
+//
+// `max_size` is what one core's entries may hold together. Because the store is
+// per core, a machine with eight of them holds up to eight times that figure.
+
+var $cache = Core\Cache::local();
+
+// Something expensive to work out, kept for the next request this core handles.
+$cache->put('vat-rate:at', '20');
+echo 'vat rate: ', $cache->get('vat-rate:at') ?? '(work it out again)', "\n";
+
+// The cap in force, exactly as the file spelled it. With no `[cache.local]`
+// block at all, a built-in figure applies and this reads back as nothing.
+echo 'cap:      ', Core\Config::get('cache.local.max_size') ?? '(the built-in cap)', "\n";
+
+// Filling the store up is not something a program has to guard against: going
+// over the cap forgets the least recently used entries to make room, so a `put`
+// never fails for want of space. Plan for a `get` to miss, not for a `put` to
+// throw.
+echo 'miss:     ', $cache->get('vat-rate:de') ?? '(not cached)', "\n";
+
+// The cap belongs to whoever runs the server. The memory it bounds is the
+// core's, so one request raising it would be spending what every other request
+// on that core then goes without -- which is why a program cannot.
+echo 'raise it: ', Core\Config::set('cache.local.max_size', '1G') ? 'yes' : 'no', "\n";
