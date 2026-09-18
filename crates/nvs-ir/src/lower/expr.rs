@@ -5321,6 +5321,10 @@ impl<'a> Lowering<'a> {
                 },
             ),
             TestShape::Class(_) => self.emit(*cur, Ty::Bool, InstKind::ConstBool(false)),
+            // A class nothing is an instance of answers without reading the
+            // subject at all, which is the one class row that reaches no
+            // descriptor.
+            TestShape::Never => self.emit(*cur, Ty::Bool, InstKind::ConstBool(false)),
             // `as ?array<T>` is the walk that answers rather than throws, so
             // this is that lowering with the value thrown away and its absence
             // read as the answer — one `Helper::ToArrayOfOrNull` and no second
@@ -5895,6 +5899,18 @@ enum TestShape {
     /// The descriptor walk [`InstKind::ClassTest`] performs, against this
     /// class or interface label. Never a second walk of its own.
     Class(String),
+    /// A class no value is ever an instance of, which is a `Core` namespace
+    /// class and nothing else (`nvs_types::expr::testable_core_class`): the
+    /// answer is `false` with the subject unread, and there is no descriptor
+    /// for [`Self::Class`]'s walk to compare against.
+    ///
+    /// A test whose *whole* type is one of these never arrives here — the
+    /// checker settles it (`rule:types/type-test`), so the row exists for the
+    /// positions a fold cannot reach, where only that member is settled: a
+    /// union member beside a live one, an array element, a shape field. `[] is
+    /// array<Core\Str>` is `true` through this row, an empty array having no
+    /// element to fail it.
+    Never,
     /// The O(n) element walk `as array<T>` already pays for, against
     /// [`super::array_element_tags`]' word — one tag nibble per level of `T`.
     /// Never a second walk of its own either: the spelling that *answers*
@@ -6035,6 +6051,14 @@ fn test_shape(
     // `super::closure::declared_class`'s reason: `nvs-hir` is a
     // dev-dependency of this crate.
     if let CheckedTy::Class(qname, _) = checked_types.get(tested) {
+        // A `Core` name off `nvs_types::expr::testable_core_class`'s roster is
+        // a namespace class: nothing is an instance of one, and the process
+        // publishes no descriptor a walk could compare against. The constant
+        // row is the answer, and the checker has already folded away every
+        // test this one would have decided on its own.
+        if qname.is_core() && !nvs_types::expr::testable_core_class(qname) {
+            return Some(TestShape::Never);
+        }
         return Some(TestShape::Class(qname.to_string()));
     }
     // A union and an intersection are their members' own rows and add no test

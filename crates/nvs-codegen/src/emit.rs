@@ -2669,10 +2669,15 @@ impl Emitter<'_, '_> {
                 // unit's (`nvs_stdlib::class_descriptors`), so the unit declares
                 // no row for it and the symbol below is an import resolved
                 // against [`crate::core_desc_symbols`] — the same relocation a
-                // folded `` html`…` `` constant already carries. `nvs_types`'
-                // `expr::members::testable_class_name` admits exactly the names
-                // one of the two tables answers to, so a miss in both is a bug
-                // in this workspace and not a program's mistake.
+                // folded `` html`…` `` constant already carries.
+                // `nvs_types::expr::testable_core_class` is the roster of names
+                // one of the two tables answers for, and a written `is` against
+                // any other `Core` name is settled before this crate sees it:
+                // folded by the checker, or lowered as `nvs-ir`'s
+                // never-matching row. What still reaches here is a label
+                // `nvs_ir::lower::exception::caught_class_label` read out of a
+                // `catch` clause's source text, where an aliased class name
+                // resolves to nothing either table holds.
                 if self.classes.desc(class).is_none() && !nvs_stdlib::class_has_instances(class) {
                     return Err(CodegenError::Unsupported(format!(
                         "`is {class}`, whose class this unit declares no descriptor for"
