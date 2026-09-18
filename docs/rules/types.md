@@ -105,6 +105,13 @@ an enum case ([`types/enum-case-type`](types.md#types-enum-case-type)), and a `t
 carries concrete arguments only where it names a compiler-owned generic interface — `Iterator<User>`
 ([`iteration/concrete-generic-implements`](iteration.md#iteration-concrete-generic-implements)) — and nowhere else.
 
+`self`, `static` and `parent` are **whole atoms**: a `::` after one in type position is `E0135`. Every
+member such a `::` could reach — a `type` alias, a class constant, an enum case — is spelled with the
+owner's own name from anywhere, and an alias additionally with its bare name inside the body that
+declares it ([`types/class-scoped-alias`](types.md#types-class-scoped-alias) § *Two spellings and no third*), so the keyword form would
+be a second name for each of them, and `static::` could only ever mean the lexical class the written
+name already says. The refusal recovers as `mixed`, which is what keeps one misspelt type to one error.
+
 **There is no `resource` type.** A host handle is an ordinary object with an explicit `close()`.
 
 <sub>See also [`types/declaration`](types.md#types-declaration), [`types/unions-and-mixed`](types.md#types-unions-and-mixed), [`types/type-alias`](types.md#types-type-alias), [`types/shape-type`](types.md#types-shape-type). Decided in [0007](../decisions/0007.md), [0009](../decisions/0009.md), [0015](../decisions/0015.md), [0024](../decisions/0024.md), [0031](../decisions/0031.md), [0033](../decisions/0033.md), [0036](../decisions/0036.md), [0047](../decisions/0047.md), [0053](../decisions/0053.md), [0054](../decisions/0054.md), [0125](../decisions/0125.md), [0126](../decisions/0126.md), [0136](../decisions/0136.md).</sub>
@@ -1100,8 +1107,9 @@ and an enum's alias has nothing to do with its cases.
   alias is an entry on nothing, and inheriting it would give one type as many names as its owner has
   descendants — what [`statements/nothing-gets-a-second-name`](statements.md#statements-nothing-gets-a-second-name) closes.
 - **Two spellings and no third.** `self::Name` and `static::Name` in type position are not spellings
-  of this member and stay refused. An alias is resolved before there is a receiver, so `static::`
-  could only ever mean the lexical class, which the bare `Name` already says.
+  of this member and are `E0135` where they are written, as `parent::Name` is
+  ([`types/grammar`](types.md#types-grammar)). An alias is resolved before there is a receiver, so `static::` could only
+  ever mean the lexical class, which the bare `Name` already says.
 - **A name is one thing.** A body's alias sharing a name with a class constant or an enum case is
   `E0304` at the later of the two declarations. `Owner::Name` in type position is therefore read as
   an alias, then an enum case, then a class constant, and no program that compiles depends on that

@@ -1,0 +1,63 @@
+--TEST--
+`self`, `static` and `parent` are whole types, so a `::` after one in type position is refused naming the owner's own spelling, while the members they cannot reach stay reachable under the class's written name — `rule:types/grammar`, `rule:types/class-scoped-alias`
+--FILE--
+<?nvs
+final class Limits {
+    public const int MAX = 7;
+    type Meta = {n: int};
+
+    // `rule:types/grammar`: the three class keywords are complete atoms, so
+    // the `::` is refused where it is written instead of cascading off the
+    // token after the type. This is the spelling the type test's own table
+    // does not offer (`rule:types/type-test`).
+    public static function tests(mixed $v): bool {
+        return $v is self::MAX;
+    }
+
+    // Every position the type grammar reaches answers the same way, and the
+    // refusal recovers as `mixed` so nothing downstream reports a type the
+    // program never wrote — one error per spelling, not three.
+    public static function takes(self::Meta $m): self::Meta {
+        return $m;
+    }
+
+    // The two spellings that do work, which is what the refusal's help names:
+    // the owner's own name from anywhere, and an alias's bare name inside the
+    // body that declares it (`rule:types/class-scoped-alias`).
+    public static function fine(Limits::MAX $n, Meta $m): Limits::Meta {
+        return $m;
+    }
+
+    // The keywords alone are untouched, in every one of their own positions.
+    public function me(): self {
+        return $this;
+    }
+}
+
+class Wanting {
+    // `static::` and `parent::` are the same refusal. `parent` here has no
+    // parent class to name, and the `mixed` recovery is what keeps that from
+    // becoming a second error about a type nobody wrote.
+    public function f(mixed $v): bool {
+        return $v is static::Nope || $v is parent::Nope;
+    }
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0135]: `self::` is not a type
+   --> case.nvs:11:22
+%A
+error[E0135]: `self::` is not a type
+   --> case.nvs:17:34
+%A
+error[E0135]: `self::` is not a type
+   --> case.nvs:17:50
+%A
+error[E0135]: `static::` is not a type
+   --> case.nvs:39:22
+%A
+error[E0135]: `parent::` is not a type
+   --> case.nvs:39:44
+%A
+error: aborting due to 5 errors

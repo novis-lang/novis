@@ -39,7 +39,8 @@
         "crates/nvs-syntax/src/parser/tests/ty.rs",
         "crates/nvs-ir/tests/type_atoms.rs",
         "tests/conformance/lang/object-is-a-declared-type-in-every-position.nvst",
-        "tests/conformance/lang/a-core-collection-takes-the-type-arguments-it-declares.nvst"
+        "tests/conformance/lang/a-core-collection-takes-the-type-arguments-it-declares.nvst",
+        "tests/conformance/reject/a-class-keyword-is-a-whole-type-and-never-carries-a-member.nvst"
       ]
     },
     {
