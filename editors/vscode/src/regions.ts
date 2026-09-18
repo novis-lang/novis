@@ -27,8 +27,7 @@
 // which turns abbreviation expansion on in the Novis half of the file as well, and is why nothing
 // here contributes it. **Validation** is published per document by the HTML service for the
 // documents it owns, and this virtual one is never opened in an editor for it to own. Both need a
-// mechanism this file does not have, and are one item in `docs/agent/carried-gaps.md` rather than a
-// half-registered provider here.
+// mechanism this file does not have, and are left unbuilt rather than half-registered here.
 //
 // **The regions are asked for per request rather than held.** A boundary is a lex
 // (`crates/nvs-lsp/src/regions.rs` § *a lex, and not an analysis*), so the answer is cheap and one

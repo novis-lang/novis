@@ -49,10 +49,11 @@ A needle is a plain substring, never a regex, and may not hold `]`. The whole tr
 line, past the prose's wrap column if that is what it takes: an argument carrying a line break is an
 argument no path, needle, name or date can equal, and `--check` reports one as malformed rather than
 reading it. The same trailer, with the
-same kinds, is what `docs/agent/guard-name-debt.md`'s bullets, `docs/agent/carried-gaps.md`'s
-§ *Unowned* bullets and `docs/agent/carried-refusals.md`'s numbered entries carry; a row in
-carried-gaps' § *Owned* table declares through its *Owner* column instead, and `--check` flags a
-row whose owner has been retired in the goals directory without the row being struck. This paragraph is
+same kinds, is what `docs/agent/guard-name-debt.md`'s bullets and `docs/agent/carried-refusals.md`'s
+numbered entries carry. The index `CARRIED_GAPS` names carried them too, and an § *Owned* row there
+declared through its *Owner* column instead; that file is deleted, and `--check` and `--closes`
+still read the same two shapes out of its path so an index rebuilt there is gated from its first
+row rather than a goal later. This paragraph is
 the only home of the syntax: `session.py --wrap` refuses a `## playbook:` bullet without a
 trailer and points here, and `session-prompt.md` and `commands.md` point here rather than
 restating it.
@@ -449,7 +450,7 @@ def holds(kind: str, arg: str, today: date) -> tuple[bool | None, str]:
 
 
 def chain_retired() -> set[str]:
-    """The slugs of the retired goals -- the owners carried-gaps may no longer name.
+    """The slugs of the retired goals -- the owners an § *Owned* row may no longer name.
 
     Retired is the goal's `.toml` being gone, and `tools/goals.py` is what reads that. A slug and
     not a number, because the Owner cell holds a slug: a number there would name whichever goal had
@@ -459,7 +460,8 @@ def chain_retired() -> set[str]:
 
 
 def owned_rows(text: str) -> list[tuple[int, str, str]]:
-    """carried-gaps' § *Owned* table: (line index, gap cell, owner cell)."""
+    """An § *Owned* table's rows: (line index, gap cell, owner cell), and none when the text has no
+    such section -- which is what the deleted index gives."""
     rows = []
     section = orientmod.slice_section(text, "Owned") or ""
     if not section:
@@ -558,11 +560,11 @@ def run_closes(slug: str) -> int:
     """`--closes SLUG`: every `carried-gaps.md` § *Owned* row that still names the goal, and 1 if
     there is one.
 
-    The other half of `tools/owners.py --closes`, over the index rather than the module docs, and
-    asked for the same reason: the retired-owner rows `--check` prints can only appear once the
-    goal is retired, which is after it was reached, so `tools/loop.py`'s `owner_gate` asks this of
-    the goal by name on the sweep that would reach it. A row leaves the table when its gap is
-    closed and the row deleted, or when the owner is struck for a reason the row states.
+    The other half of `tools/owners.py --closes`, asked for the same reason: the retired-owner rows
+    `--check` prints can only appear once the goal is retired, which is after it was reached, so
+    `tools/loop.py`'s `owner_gate` asks this of the goal by name on the sweep that would reach it.
+    The file is deleted, so this answers over a path that holds no rows; it stays because an index
+    rebuilt there would otherwise be ungated until a goal had already walked past one of its rows.
     """
     text = CARRIED_GAPS.read_text(encoding="utf-8") if CARRIED_GAPS.exists() else ""
     rel = CARRIED_GAPS.relative_to(ROOT).as_posix()

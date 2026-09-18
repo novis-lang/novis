@@ -5380,8 +5380,8 @@ def owner_gate(index, slug):
     floor, one goal late. Goal `unowned-closures` walked that way with forty items tagged to it and
     none built: its own gate was `unowned: 0`, and tagging the items to the goal is what made the
     count zero. So the question is asked here, of the goal by name, whether or not its own list
-    asks it, over the two registers a goal's tag can sit in -- the module docs and
-    `carried-gaps.md` § *Owned*. A tag is not a build.
+    asks it, over both places a goal's tag can sit in -- the module docs, and the § *Owned* table
+    of an index rebuilt where the deleted one stood. A tag is not a build.
 
     Red, it holds the goal open without stopping the run, as `doc_gate` does: `orient.py` prints
     the finding off the file this writes, the next session builds, strikes or re-owners each item,

@@ -79,7 +79,7 @@ past actually finished?** Everything before M9 is complete at the end of this pr
 before it is either done or owed, and two facts say which -- every goal carrying it has walked, and
 no register still tags an item to it. Both are read: the chain for the first, `tools/owners.py
 --json` for the second, summed across every register it walks, since a milestone is not finished
-while a ratchet key or a `carried-gaps.md` row still names it. It writes nothing and exits 0
+while a ratchet key or a module doc's gap still names it. It writes nothing and exits 0
 whatever it finds: `--sync` is what writes `done` into a complete one's cell, and `--check` is
 what refuses that cell on a milestone this does not call complete. The three read one function,
 so the table can neither claim a milestone finished early nor go on naming goals for a finished
@@ -365,9 +365,9 @@ def register_tags():
     """`(owner -> items every register still tags to it, the first milestone still ahead)`.
 
     Read out of `tools/owners.py --json` and summed across its registers, because a milestone is
-    not finished while any of them still names it -- the module docs' `# Known gaps` blocks, the
-    ratchets' `#` column and `carried-gaps.md` § *Owned* each tag an owner, and a report that read
-    one of them would call a milestone complete over the other two."""
+    not finished while any of them still names it -- the module docs' `# Known gaps` blocks and the
+    ratchets' `#` column both tag an owner, and a report that read one of them would call a
+    milestone complete over the other."""
     proc = subprocess.run([sys.executable, str(Path(__file__).with_name(OWNERS[0])), *OWNERS[1:]],
                           capture_output=True, text=True, encoding="utf-8")
     if proc.returncode != 0:

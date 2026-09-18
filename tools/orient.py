@@ -1207,7 +1207,7 @@ def named_files(patterns: list[str]) -> tuple[dict[str, list[tuple[str, str]]], 
     `editors/` are enumerated ahead of this because their modules are what most sessions read; the
     rest of the tree is not enumerated at all -- it is far too big, and almost none of it is ever
     named -- so the patterns left over after that pass are resolved against `git ls-files` instead.
-    A manifest naming `tools/holes.py`, `docs/agent/carried-gaps.md` or a `.nvst` case therefore
+    A manifest naming `tools/holes.py`, `docs/agent/playbook.md` or a `.nvst` case therefore
     resolves, and a warning now means one thing only: **nothing in the repository matches**.
 
     It used to mean two things, and the ambiguity cost a selector. A pattern naming a real file of

@@ -308,9 +308,9 @@ written: the union of the anchors is the `modules` list.
   [doc-cleanup.md](doc-cleanup.md)'s pass is fired by the user, never from inside a run.
 - **Dependency sweeps.** Also the user's to fire ([dependency-update.md](dependency-update.md)).
 - **Backlog work.** If a slice is not on the path to the acceptance list, it goes in the handoff's
-  `## Backlog` and the session moves on — **and if it will still be true after this goal ends, it goes
-  in [carried-gaps.md](carried-gaps.md) instead**, which a goal switch does not overwrite. The handoff
-  is state; a gap is not. That file's own header is why the distinction is worth a rule.
+  `## Backlog` and the session moves on — **and if it will still be true after this goal ends it is a
+  gap, so it goes in the `# Known gaps` block of the module doc that owes it**, tagged `— owner:`,
+  where a goal switch cannot overwrite it. The handoff is state; a gap is not.
 - **Re-opening a standing decision.** That is what § 5 exists to prevent.
 - **Anything needing judgement about whether the goal is met.** The machine outranks the claim: the driver
   runs the acceptance test itself and a session reporting `DONE` against a failing check stops the run.

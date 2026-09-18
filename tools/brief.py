@@ -469,8 +469,8 @@ HOMES = (
      "docs/agent/conventions.md, 'A code comment'",
      "a comment says what the code does now: no date, no volatile count, rewritten whole"),
     ("unowned owner owners ownership gap gaps register",
-     "docs/agent/carried-gaps.md, '§ Unowned'",
-     "who owns each `# Known gaps` item: a goal slug, a milestone tag, or `unowned` and a reason"),
+     "python tools/owners.py --registers",
+     "who owns each `# Known gaps` item, derived: a milestone still ahead, and nothing else"),
     ("order ordering position band chapters",
      "docs/agent/conventions.md, 'Where a rule sits in the order'",
      "the rulebook reads ground-up, not by date: the five bands, and where a new rule is inserted"),
@@ -480,29 +480,29 @@ WHERE_CAP = 40  # a display cap on one `--where` answer, not on anything an auth
 
 #: The one home in `HOMES` whose line is measured rather than written. It is matched by its path,
 #: so the row above stays the same shape as its neighbours.
-OWNERS_HOME = "docs/agent/carried-gaps.md, '§ Unowned'"
+OWNERS_HOME = "python tools/owners.py --registers"
 
 
 def ownership_line():
     """How big the ownership register is, counted now rather than written down here.
 
-    Routing to the file is half an answer: what a reader wants next is whether `unowned` is a short
-    list of scheduling questions or the whole tree, and that number moves every time a gap is
-    written or closed. So it comes from `tools/owners.py`'s own classification of every
-    `# Known gaps` item -- imported rather than shelled out to, and never a figure typed into this
-    file, which is the copy that would go stale first. The scan is a third of a second, and only a
-    keyword that routes here pays it.
+    Routing to the tool is half an answer: what a reader wants next is how much is open and whether
+    any of it names an owner the gate refuses, and both numbers move every time a gap is written or
+    closed. So they come from `tools/owners.py`'s own classification of every `# Known gaps` item --
+    imported rather than shelled out to, and never a figure typed into this file, which is the copy
+    that would go stale first. The scan is a third of a second, and only a keyword that routes here
+    pays it.
     """
     try:
         import owners  # noqa: PLC0415 -- same directory; loaded only for this one answer
         kinds = owners.classify(owners.collect())
     except Exception as exc:  # noqa: BLE001
         return f"(tools/owners.py could not count them: {exc})"
-    unowned = kinds["unowned"]
-    files = len({gap["file"] for gap in unowned})
+    refused = sum(len(kinds[kind]) for kind in owners.REFUSED)
     tagged = sum(len(v) for k, v in kinds.items() if k != "untagged")
-    return (f"{len(unowned)} of {tagged} tagged item(s), in {files} file(s), are `unowned` today; "
-            f"`python tools/owners.py --unowned` lists them with their anchors")
+    return (f"{len(kinds['milestone'])} of {tagged} tagged item(s) name a milestone still ahead "
+            f"today, and {refused} name an owner the gate refuses; `python tools/owners.py --check` "
+            f"lists those with their anchors")
 
 
 def run_where(terms):

@@ -1944,12 +1944,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   key nothing *applies* looks like it owes are refused, by that gate and by
   `no_key_with_a_reader_still_claims_to_be_unread`. Land the key with its refusal and no trailer, and
   say in the handoff that nothing acts on the value yet. [until: reviewed 2026-09-13]
-- **A `carried-gaps.md` gap can be written twice — a § *Owned* row and a § *Unowned* bullet — and only
-  the row is gated.** `playbook.py --check` reads the *Owner* column alone, so a row re-owned to a live
-  goal leaves the bullet behind as a second copy of the same gap, which is exactly what
-  `crates/nvs-db/src/matrix.rs` gap 1 was in. Before striking or re-owning a row, read § *Unowned* for
-  the module path the row's third cell names, and delete whichever copy the module doc's own
-  `— owner:` tag makes redundant. [until: gone docs/agent/carried-gaps.md:## Unowned]
 - **A `[[check]]`'s `want` string can be one its tool never prints when the finding count is zero.**
   Stage 5 wanted `none -- every carried-gaps owner is live or struck` from `python tools/playbook.py
   --check`, whose carried-gaps section sat inside an `if rows:` with no empty branch, so fixing every
@@ -1980,9 +1974,9 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
 - **Renaming a module-doc section leaves every citation of it pointing at a heading that no longer
   exists, and nothing `verify.py` runs reads a `§ *Title*` reference.** Splitting `route.rs`'s and
   `serve.rs`'s headings stranded `crates/nvs-server/src/lib.rs:88`, and moving a gap block moved the
-  `file.rs:NN-NN` spans that `docs/agent/goals/57-m7-server-surface.md:67` and `carried-gaps.md`
-  quote for it. Grep the old title *and* the old line span across `crates/`, `docs/agent/goals/` and
-  `docs/agent/carried-gaps.md` in the same call that makes the edit.
+  `file.rs:NN-NN` spans that `docs/agent/goals/57-m7-server-surface.md:67` quotes for it. Grep the
+  old title *and* the old line span across `crates/` and `docs/agent/goals/` in the same call that
+  makes the edit.
   [until: reviewed 2026-09-14]
 - **A module doc's `# What is not here yet` is as likely to be stale as to be a real gap.** The prose
   was written before the goal that built the member, and nothing re-reads a paragraph when code
@@ -2149,13 +2143,14 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   not run since. Write the tag under the item's final paragraph, and run `python tools/owners.py
   --check --untagged-is-an-error` in the same session as any edit to a `# Known gaps` block.
   [until: reviewed 2026-09-15]
-- **A `file:NN` anchor into a prose doc cannot be re-derived from a symbol, and `carried-gaps.md`
-  loses rows every time an owner goes green.** Stage 0's "`docs/agent/carried-gaps.md:62`'s owner
-  cell" landed in the middle of § *Unowned*'s prose, because rows had been struck from the § *Owned*
-  table since the goal was written, and three of the rows still there were plausible candidates.
-  Date the anchor rather than guessing which one: `git log --diff-filter=A --format=%H -1 --
-  <the file that wrote the anchor>` names the commit it was written at, and `git show <sha>:<doc> |
-  sed -n '<NN-14>,<NN+2>p'` prints the line it meant. [until: reviewed 2026-09-15]
+- **A `file:NN` anchor into a prose doc cannot be re-derived from a symbol, and a doc that indexes
+  work loses lines every time an entry goes green.** A goal's stage 0 named an index row as
+  `<doc>:62`'s owner cell and the anchor landed in the middle of the next section's prose, because
+  rows had been struck from the table since the goal was written and three of the rows still there
+  were plausible candidates. Date the anchor rather than guessing which one: `git log
+  --diff-filter=A --format=%H -1 -- <the file that wrote the anchor>` names the commit it was
+  written at, and `git show <sha>:<doc> | sed -n '<NN-14>,<NN+2>p'` prints the line it meant.
+  [until: reviewed 2026-09-15]
 - **Renaming a Rust test can turn a carried floor check red, because a `cargo-named` check names its
   tests as strings.** Stage 2 wanted three test names that `crates/nvs-types/tests/arrays.rs` almost
   had, and renaming the near-misses into them would have broken the `stage = "1 floor"` block in
@@ -2364,6 +2359,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `crates/nvs-stdlib/Cargo.toml`, that the previous goal's sessions had committed a dozen commits back.
   Read `git log --oneline -12` and grep the item's own anchor before taking it: a slug in a subject
   line is the one thing a seed handoff cannot know. [until: reviewed 2026-12-01]
+- **`check-links.py` reads a repo-root path in backticks inside a `.py` docstring as a link, so
+  deleting a tracked file turns a *tool's prose* red as well as a doc's.** Deleting
+  `docs/agent/carried-gaps.md` left `tools/owners.py` and `tools/playbook.py` passing every other
+  gate while that one reported `retired  tools/owners.py:102 -> …`, because both module docs named
+  the full path while explaining why the file is gone. Run `python tools/check-links.py` in the same
+  slice as any deletion, and in prose that has to go on mentioning the path, name the constant that
+  holds it rather than spelling it. [until: reviewed 2026-09-18]
 
 ## Running things
 
@@ -7703,7 +7705,7 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   Striking a gap renumbers every item after it, and the citations elsewhere in the same file keep
   pointing at the old position — `crates/nvs-stdlib/src/json.rs` held five "this module's gap 1" that
   meant three different things. Cite the owning `# ` section by its title instead, and when you do
-  strike a gap, grep the file and `docs/agent/carried-gaps.md` for `gap [0-9]`.
+  strike a gap, grep the file and `docs/agent/goals/` for `gap [0-9]`.
   [until: reviewed 2026-09-16]
 - **A member's name does not identify it: `WRITTEN_CLASS_MEMBERS` carries `queryAs` on
   `Core\Db\Connection` and on `Core\Request`.** A deferred check keyed on the method name answers one

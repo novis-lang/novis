@@ -121,7 +121,8 @@ Every future session reads this file in full, so it is a **bounded state file, n
      ([loop-authoring.md](loop-authoring.md) § 2); a group that names none gets the goal's base
      manifest, which is the wider pack and never a broken one.
   3. `## Backlog` — up to 6 one-line items, each with its owning doc; trim the stale ones. A goal switch
-     overwrites the whole handoff, so what must survive one goes in [carried-gaps.md](carried-gaps.md).
+     overwrites the whole handoff, so what must survive one is a `# Known gaps` item in the module
+     doc that owes it, tagged `— owner:`.
 
 **If the pack did not print something you needed, say so in the handoff**, naming the `[context]` field
 that was missing it. That manifest is maintained by the sessions that discover its gaps.

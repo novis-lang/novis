@@ -113,8 +113,6 @@ modules = [
   "tools/plan.py",
   # A dangling link to the deleted file is the failure mode. Stage 3.
   "tools/check-links.py",
-  # The index, read one last time and then deleted.
-  "docs/agent/carried-gaps.md",
   # The owner column's gate, and its example slug. Stages 2 and 3.
   "crates/nvs-stdlib/tests/spec_registry_coverage.rs",
 ]
@@ -9473,8 +9471,8 @@ want = [
   "outstanding keys",
   "guard-name-debt.md",
   "playbook until",
-  "carried-gaps.md",
-  "6 register(s)",
+  "carried-gaps.md: absent",
+  "5 register(s)",
 ]
 
 [[check]]
@@ -12031,7 +12029,7 @@ kind = "command"
 stage = "3 the index is gone"
 name = "nothing in the tree points at the deleted file"
 argv = ["python", "tools/check-links.py"]
-want = ["no missing target"]
+want = ["resolves, with matching case and form"]
 
 [[check]]
 kind = "command"

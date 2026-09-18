@@ -5,8 +5,8 @@ A crate records what its subsystem still owes under a `# Known gaps` heading in 
 doc. That is the right home: every fact in this repository has one, and a gap's home is the module
 that owes it. What the home could not say until now is **who owns the gap**, so the whole inventory
 was invisible to every tool -- nothing in the tree is shaped wrong, so no compiler, test or lint has
-anything to report. `docs/agent/carried-gaps.md` indexes the handful whose ownership needed an
-argument; the rest were an unindexed list nobody could count.
+anything to report. An index maintained beside the docs answered it for the handful whose ownership
+needed an argument, and left the rest an unindexed list nobody could count.
 
 **The owner lives with the gap.** One trailing marker per item, on a line of its own at the end of
 it:
@@ -25,9 +25,10 @@ Eight modules record their gaps that way, and while this file saw only headings 
 green over a module that named nobody for anything it owed.
 
 The index is then *derived* -- this file walks the crates and prints the roster -- rather than a
-second copy maintained beside the first, which is the failure `carried-gaps.md` was created to fix
-one level up, and repeating it here would be the same mistake with more files. `holes.py` follows
-the same rule for a refusal site, and `gaps.py` for a missing conformance case.
+second copy maintained beside the first. A hand-kept index goes stale the session after it is
+written and nothing goes red when it does, which is why the one this replaced is deleted rather
+than maintained. `holes.py` follows the same rule for a refusal site, and `gaps.py` for a missing
+conformance case.
 
 **Two owner kinds and no third:**
 
@@ -46,8 +47,8 @@ the same rule for a refusal site, and `gaps.py` for a missing conformance case.
     § *Standing decisions* is why it is reported here rather than fatal.
 
 **`unowned` is not one of them, and the word is refused by name.** It was a third kind, for a gap
-whose owner was a scheduling question rather than an answer, and it carried a reason bullet in
-`carried-gaps.md` § *Unowned*. A scheduling question is the user's to answer and a session's to
+whose owner was a scheduling question rather than an answer, and it carried its reason in an index
+of its own. A scheduling question is the user's to answer and a session's to
 record, so the answer is a goal on the chain or a milestone whose plan states the scope; a word
 standing for "nobody has decided" is the one owner a reader cannot act on. An item still carrying it
 is counted under `unowned:` and listed with its own sentence rather than falling into the generic
@@ -70,8 +71,7 @@ outlives it, and the tag then points at a chain entry nobody will reach -- which
 items came to name goals that had already gone green. So a goal owner fails whether the goal is live
 or retired, and an item leaves the gate one of three ways: built and its numbered item deleted,
 struck as a stated bound in the module's own prose, or deferred to a milestone whose plan file
-states the scope. `python tools/playbook.py --check` prints the same finding for a
-`carried-gaps.md` § *Owned* row whose owner is retired -- one behaviour for one fact, in both files.
+states the scope.
 
 **`--closes SLUG` is the gate a goal meets at its end, and the one a count cannot be.** It exits 1
 while any item names that goal, listing each. A goal whose acceptance list says `unowned: 0` is
@@ -90,19 +90,23 @@ edit: move what is owed into that file's `# Known gaps` block as numbered items 
 rewrite the heading to say what the module does. The wording is matched on whole words -- `lowers`
 and `borrowed` both contain `owe`, and a warning listing those is one nobody reads twice.
 
-**Six registers, and this reads all of them.** A module doc is where a gap belongs, and it is not the
-only place this repository writes owed work down: a refusal site's reason is in
+**Five registers, and this reads all of them.** A module doc is where a gap belongs, and it is not
+the only place this repository writes owed work down: a refusal site's reason is in
 `docs/agent/carried-refusals.md`, an unregistered spec member is a key in one of
 `crates/nvs-stdlib/tests/`'s four `*-outstanding.txt` ratchets, a guard test named before it was
-written is a bullet in `docs/agent/guard-name-debt.md`, a trap that retires when the tree reaches a
-state is a playbook bullet's `[until:]` trailer, and `docs/agent/carried-gaps.md` indexes what a
-shipped feature still owes. Each answers a different question, so none of them is redundant -- but
-until `--registers` there was nowhere to ask *is anything open?* and get one answer, and six answers
-is the same as none.
+written is a bullet in `docs/agent/guard-name-debt.md`, and a trap that retires when the tree
+reaches a state is a playbook bullet's `[until:]` trailer. Each answers a different question, so
+none of them is redundant -- but until `--registers` there was nowhere to ask *is anything open?*
+and get one answer, and five answers is the same as none.
 
-**What `--registers` takes from the other five is the count, and nothing else.** Each already has a
-gate over its own discipline: `python tools/playbook.py --check` reads an `[until:]` trailer and a
-`carried-gaps.md` § *Owned* row whose owner went green, and
+**There is no sixth, and `--registers` says so by name.** The index `CARRIED_GAPS` names held what a
+shipped feature still owes, which is the question a `# Known gaps` item now answers with its own
+owner tag; an index beside the docs is the second copy the derivation above exists to avoid. The
+roster ends on that path's absence rather than simply not walking it, because the way such a file
+comes back is a session writing a gap somewhere easier than the module doc that owes it.
+
+**What `--registers` takes from the other four is the count, and nothing else.** Each already has a
+gate over its own discipline: `python tools/playbook.py --check` reads an `[until:]` trailer, and
 `every_outstanding_key_names_an_owner` in `crates/nvs-stdlib/tests/spec_registry_coverage.rs` reads a
 ratchet's `#` owner column. A second opinion here would be the duplicate index the derivation above
 exists to avoid, so what a register *holds* is read out of it and what a register *owes* is left to
@@ -141,6 +145,8 @@ import playbook as playbookmod  # noqa: E402  -- what an entry is, and the `[unt
 
 ROOT = Path(__file__).resolve().parent.parent
 PLAN = ROOT / "docs" / "implementation-plan.md"
+#: The retired index, kept as a path so `--registers` can assert its absence. It is not a register:
+#: what a shipped feature owes is a `# Known gaps` item in the module doc that owes it.
 CARRIED_GAPS = ROOT / "docs" / "agent" / "carried-gaps.md"
 CARRIED_REFUSALS = ROOT / "docs" / "agent" / "carried-refusals.md"
 GUARD_DEBT = ROOT / "docs" / "agent" / "guard-name-debt.md"
@@ -155,7 +161,7 @@ RATCHETS = "crates/nvs-stdlib/tests/*-outstanding.txt"
 RATCHET_KEY = re.compile(r"^([^#]+?)\s*(?:#\s*(\S+))?\s*$")
 
 #: Where a gap may be recorded. A crate's own source and nothing else: a gap in a tool or a doc has
-#: no module doc to live in, and `carried-gaps.md` is where those go.
+#: no module doc to live in, so it is a goal on the chain or it is not a gap.
 SOURCES = ["crates/*/src/**/*.rs"]
 
 #: A module doc line. The run of them is the doc; a gap block is a heading inside one.
@@ -436,15 +442,17 @@ def until_bullets() -> list[dict]:
     return found
 
 
-def carried_gaps() -> list[dict]:
-    """The index's two halves: § *Owned*'s table rows and § *Unowned*'s bullets."""
+def absent_line() -> str:
+    """Whether the retired index is still gone, as the line the roster ends on.
+
+    A file nothing reads is a file that comes back: the next gap with no comfortable module doc to
+    sit in goes wherever is easiest, and an index is always easiest. So the absence is asserted by
+    name, and the sentence for the other case says where the entries belong instead.
+    """
     if not CARRIED_GAPS.is_file():
-        return []
-    text = CARRIED_GAPS.read_text(encoding="utf-8")
-    rows = [{"file": rel(CARRIED_GAPS), "line": line + 1, "lead": one_line(gap),
-             "owner": owner.strip().strip("`")}
-            for line, gap, owner in playbookmod.owned_rows(text)]
-    return rows + entries(CARRIED_GAPS)
+        return f"{rel(CARRIED_GAPS)}: absent, as the register requires"
+    return (f"{rel(CARRIED_GAPS)}: back on disk, and no register reads it. Move each entry into the "
+            f"`# Known gaps` block of the module doc that owes it, tagged `— owner:`, and delete it")
 
 
 def registers(found: list[dict]) -> list[dict]:
@@ -467,8 +475,6 @@ def registers(found: list[dict]) -> list[dict]:
          "what": "a guard test `loop-goal.toml` names and the tree does not hold yet"},
         {"name": "playbook until", "where": rel(PLAYBOOK), "items": until_bullets(),
          "what": "a trap whose `[until:]` trailer names the state of the tree that retires it"},
-        {"name": "carried-gaps.md", "where": rel(CARRIED_GAPS), "items": carried_gaps(),
-         "what": "what a shipped feature still owes, indexed § *Owned* and § *Unowned*"},
     ]
 
 
@@ -495,6 +501,7 @@ def report_registers(regs: list[dict]) -> None:
         print(f"  {'':<{width}}       {reg['what']}")
     total = sum(len(reg["items"]) for reg in regs)
     print(f"\n== {total} item(s) open across {len(regs)} register(s)")
+    print(f"   {absent_line()}")
 
 
 def register_line(regs: list[dict]) -> str:

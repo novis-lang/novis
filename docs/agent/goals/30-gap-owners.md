@@ -4,7 +4,7 @@ milestone: post-parity
 # Loop goal 30 — a module doc's gap names its owner, and a gate says so
 
 Every crate module doc records what its subsystem still owes under `# Known gaps`. There are **50 such
-blocks holding 152 enumerated items**, and [carried-gaps.md](../carried-gaps.md) indexes 22 of them
+blocks holding 152 enumerated items**, and `carried-gaps.md` indexes 22 of them
 while [carried-refusals.md](../carried-refusals.md) covers `nvs-ir`'s 15. The rest — about 110 recorded
 gaps — name no owner, appear in no index, and are invisible to every tool, because nothing in the tree
 is shaped wrong. When this goal is green each one carries an owner in its own doc, a tool derives the

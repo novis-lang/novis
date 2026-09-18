@@ -12,7 +12,7 @@ instead of staying flat.
 **It sits here because M7's own scope says so and no goal claimed it.**
 [m7.md](../../plan/m7.md) puts "per-core accept and dispatch" inside the milestone; goal `server` shipped the
 single-core server and closed, so this is a milestone's stated scope that nothing owned — the reason
-[carried-gaps.md](../carried-gaps.md) carried it as `unowned` until this entry existed. It is first of
+`carried-gaps.md` carried it as `unowned` until this entry existed. It is first of
 the entries added after goal `unix-sockets` because it is **the largest measured performance item in the
 repository**: the proxied bench has php-fpm scaling 2.44x from one core to four while `nvs serve`
 stays flat, turning a 2.92x lead into 1.19x — and inverting it on a box with more cores.

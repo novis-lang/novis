@@ -7,9 +7,10 @@ advances: `tools/goal-switch.py` carries the outgoing goal's `[[check]]` blocks 
 floor and its unclosed *items* not at all, so a carried check arrives without the item list that made it
 green — and the sites nobody had touched became unattributed twice, once per switch.
 
-[carried-gaps.md](carried-gaps.md) is this file's sibling and the same argument one level up: it holds
-the gaps a *shipped feature* still owes, which no tool can find because nothing in the tree is shaped
-wrong. A refusal site is here; everything else is there.
+The gaps a *shipped feature* still owes are the same argument one level up, and no tool can find them
+either, because nothing in the tree is shaped wrong. They live in the `# Known gaps` block of the
+module doc that owes them, each tagged `— owner:`, and `python tools/owners.py` derives the roster
+rather than indexing it. A refusal site is here; everything else is there.
 
 **This file is that item list, kept where a goal switch cannot reach it.** `holes.py` reads it alongside
 `loop-goal.md` and numbers what it finds from 900, so the first entry here is `python tools/holes.py

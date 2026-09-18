@@ -244,7 +244,7 @@ from this goal's cases and tests, and `python tools/rules.py --render`.
   `Core\Cli` the same exemption for the same reason. The session adds one sentence to
   `rule:security/request-state-throws-in-an-isolate`'s fragment naming `isDraining` as process state; if
   `rules.py` refuses a text change without a record, the sentence goes in
-  [carried-gaps.md](../carried-gaps.md) instead and the fragment is left alone. The rest of
+  `carried-gaps.md` instead and the fragment is left alone. The rest of
   `Core\Server` — the request's environment and `traceId()` — is `crates/nvs-stdlib/src/server.rs:11-14`'s
   known gap, not this goal's.
 - **`race` is not built.** M5 never promised it: `docs/plan/m5.md:22` records it as deferred, and
