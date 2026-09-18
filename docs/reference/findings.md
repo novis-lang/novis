@@ -73,7 +73,7 @@ in that goal. An item's owner is the row it sits in.
       (`rule:classes/clone-is-shallow`); pinned by `tests/conformance/reject/clone-takes-an-object.nvst`.
 - [x] **P9** `new $className()` with a `string` variable panics ("`new` … has no resolved class");
       likewise `$className::f()`. *ref30; php-diff probes* — both are `E0496` where they are written,
-      the code the third spelling `$x instanceof $className` already had: one mistake under one report
+      the code the third spelling `$x is $className` already had: one mistake under one report
       (`nvs_types::expr::members::reject_dynamic_class_name`), so neither reaches the lowerer. All
       three now accept a `class<T>` value instead (`rule:types/class-reference-sites`), and the refusal's help names the
       `as` that produces one — a `string` stays refused at every one of them.
@@ -92,8 +92,8 @@ in that goal. An item's owner is the row it sits in.
       being refused by the checker. *ref-errors `catch_scope`* — the clause's binding no longer joins
       what is live after the `try`, so the read is `E0301`; a name assigned before the `try` and reused
       by the clause is untouched.
-- [x] **P14** `catch (LogicError | IOError $e)` parses and checks, then fails in codegen ("does not
-      lower `instanceof LogicError | IOError`", exit 1); a property read through the union is E0495.
+- [x] **P14** `catch (LogicError | IOError $e)` parses and checks, then fails in codegen with a
+      lowering panic on the union clause (exit 1); a property read through the union is E0495.
       *ref-errors; ref30* — `E0245` refuses the clause at parse time, where the type grammar's union
       shows up; the clause is still built from its first class, so the block behind it is checked.
 - [ ] **P15** A memory-limit breach inside `try { … } finally { … }` aborts the process with a Rust

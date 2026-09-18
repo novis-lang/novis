@@ -2,7 +2,7 @@
 id: php-differences
 title: "Coming from PHP: every difference, and what to write instead"
 summary: the short list of what changed, every PHP spelling the compiler refuses with its replacement and diagnostic code, what parses but behaves differently, and the dev tools that are built in
-keywords: PHP, migration, <?php, function, const, define, global, static, $$var, eval, extract, compact, settype, (int), cast, and, or, xor, ===, !==, list(), include, require_once, trait, __construct, __toString, __get, __set, __call, __invoke, __destruct, goto, declare, strict_types, use as, group use, leading backslash, array(), $s[0], mixed, yield from, use ($x), new class, instanceof, callable string, resource, unset, $_GET, $_POST, $_SERVER, $GLOBALS, $argv, die, print_r, var_dump, echo, elseif, endif, endforeach, #, ?>, &$x, reference, @, backtick, __DIR__, __FILE__, __LINE__, __CLASS__, PHP_EOL, Exception, getMessage, heredoc, nowdoc, ==, ===, equality, type juggling, strlen, mb_strlen, overflow, PHP_INT_MAX, octal, bcmath, gmp, decimal, preg_match, PCRE, ReDoS, password_hash, password_verify, PHPUnit, PHPStan, Psalm, PHP CS Fixer, PHP_CodeSniffer, Xdebug, Composer, differences, switch from PHP
+keywords: PHP, migration, <?php, function, const, define, global, static, $$var, eval, extract, compact, settype, (int), cast, and, or, xor, ===, !==, list(), include, require_once, trait, __construct, __toString, __get, __set, __call, __invoke, __destruct, goto, declare, strict_types, use as, group use, leading backslash, array(), $s[0], mixed, yield from, use ($x), new class, type test, callable string, resource, unset, $_GET, $_POST, $_SERVER, $GLOBALS, $argv, die, print_r, var_dump, echo, elseif, endif, endforeach, #, ?>, &$x, reference, @, backtick, __DIR__, __FILE__, __LINE__, __CLASS__, PHP_EOL, Exception, getMessage, heredoc, nowdoc, ==, ===, equality, type juggling, strlen, mb_strlen, overflow, PHP_INT_MAX, octal, bcmath, gmp, decimal, preg_match, PCRE, ReDoS, password_hash, password_verify, PHPUnit, PHPStan, Psalm, PHP CS Fixer, PHP_CodeSniffer, Xdebug, Composer, differences, switch from PHP
 ---
 
 Novis is the PHP you already know with one spelling for each thing. This chapter is the
@@ -57,7 +57,7 @@ populates.
 | `use function …;`, `use const …;` | nothing to import: functions and constants are class members | `E0306` |
 | `\Core\Str::length($s)` (leading `\`) | `Core\Str::length($s)` — a name with a `\` in it is already absolute | `E0240` |
 | `$obj->{$name}`, `$obj->$name` | write the member; hold run-time keys in an `array<string, T>` | `E0235` |
-| `new $className()`, `$className::f()`, `$x instanceof $className` over a `string` | a written class name, or a class reference: `class<T> $cls = $className as class<T>;` then the same three spellings. The `as` is where a name that is not a `T` throws, so every site downstream of it holds a class that already passed | `E0496` at all three |
+| `new $className()`, `$className::f()`, `$x is $className` over a `string` | a written class name, or a class reference: `class<T> $cls = $className as class<T>;` then the same three spellings. The `as` is where a name that is not a `T` throws, so every site downstream of it holds a class that already passed | `E0496` at all three |
 | `__DIR__`, `__FILE__`, `__LINE__`, `__CLASS__`, `PHP_EOL` | no magic constants; `Throwable::$location` carries a file and line, `"\n"` is the newline | `E0319` |
 
 <!-- primer -->
@@ -115,9 +115,9 @@ populates.
 | `&$x` in a parameter, a `foreach`, or `$b = &$a` | `inout int $x` at the declaration **and** `f(inout $n)` at the call; `&` is bitwise AND only | `E0237` |
 | `f(...$args)` into fixed parameters | only into a `...$rest` variadic; otherwise write the arguments out | `E0489` |
 | `$a <> $b` | `!=` — the same comparison, and inequality has one spelling (`rule:expressions/one-equality-operator`) | `E0241` |
+| PHP's class-test operator, on every subject | `$x is A`, and `$x is $cls` for a class reference held in a binding — one type test for every type a value can inhabit, which answers rather than refuses when the declaration already settles it (`rule:php-migration/one-type-test`, `rule:types/type-test`) | `E0253` |
 
-`<=>`, `**`, `??`, `??=`, `?:`, `?->`, `.=` and `instanceof` against a written class name all work
-as in PHP.
+`<=>`, `**`, `??`, `??=`, `?:`, `?->` and `.=` all work as in PHP.
 
 # Control flow
 
@@ -161,7 +161,6 @@ the end of a file is fine.
 | a `readonly` property initialized from any method of the declaring class, the second write throwing at run time | written by that class's `constructor` and nowhere else, refused where the write is written | `E0782` |
 | a write from outside the class to a property with a `get` hook and no `set` hook, which PHP stores when the property is backed | only the declaring class writes it — from outside, the accessors are the property | `E0787` |
 | `enum E: string { case A = "a"; }` | `enum E: int { A = 1 }` or `enum E { A, B }` — cases only, no `case` keyword, no methods or constants inside | `E0219`, `E0220` |
-| `$n instanceof A` on a declared scalar, array or enum | the type already answers; declare the subject `mixed`, `object` or a class | `E0497` |
 | `class order_line`, `function Total_Price()`, `const maxLines` | `PascalCase` class, `camelCase` member, `SCREAMING_SNAKE_CASE` constant — casing is a hard error | `E0110`–`E0113` |
 
 Constructor promotion (`public function constructor(public int $x)`), `static::`, `parent::`,

@@ -931,17 +931,17 @@ identify.
 | `enum_exists` | member | `Core\Reflect::forClass`, the same door. An enum's cases are closed and known while compiling (`rule:enums/closed-integer-type`), so its existence is the only thing left to ask at run time |
 | `get_class` | language | `$object::class`, one load off the receiver's own class descriptor (`rule:types/class-constant`). It answers the class the receiver *is*, so a variable declared as a base still reports the subclass it holds. A receiver whose type erased to `mixed` is `Core\Reflect::forObject` instead, whose description carries the name |
 | `get_called_class` | language | `static::class`. Late static binding has its own spelling, and a function that reads the calling scope is not one |
-| `get_parent_class` | member | `Core\Reflect::forObject`'s description. The test a parent name usually feeds is `instanceof`, which the compiler answers without producing a name at all |
+| `get_parent_class` | member | `Core\Reflect::forObject`'s description. The test a parent name usually feeds is `$x is T`, which the compiler answers without producing a name at all |
 | `get_object_vars` | member | `Core\Reflect::forObject`, whose property walk respects the visibility the *calling site* has (`rule:security/reflection-enforces-visibility`) rather than silently returning more when called from inside the class |
 | `get_mangled_object_vars` | dropped | the mangling is PHP's own encoding of `private` and `protected` into a property key (`"\0Class\0name"`). Novis reports visibility as visibility, so there is no encoded key to hand back |
 | `get_class_methods` | member | `Core\Reflect::forClass` ([01 § 13](01-core-library.md)). The walk is visibility-respecting, so what it lists is what the calling site could have called |
 | `get_class_vars` | member | `Core\Reflect::forClass`. The default-value half is the declaration's own initializer, which reflection reports rather than reconstructs |
 | `method_exists` | member | `Core\Reflect::forClass`. On a receiver whose class the checker knows this is not a question at all — a declared type or an interface answers it while compiling, and reflection is for the receiver whose type was erased |
 | `property_exists` | member | the same member, with the same reservation. An undeclared property is a hard error (`rule:classes/property-observer`), so "does this object happen to carry one" has no case that can be true |
-| `is_a` | language | `instanceof`, which is an operator (R17). Its `$allow_string` argument is the by-name reading, which is `Core\Reflect::forClass` |
-| `is_subclass_of` | language | `instanceof`. It differs from `is_a` only by excluding the class itself, which is a comparison against the name the description already carries |
+| `is_a` | language | `$x is T`, which is an operator (R17). Its `$allow_string` argument is the by-name reading, which is `Core\Reflect::forClass` |
+| `is_subclass_of` | language | `$x is T`. It differs from `is_a` only by excluding the class itself, which is a comparison against the name the description already carries |
 | `class_implements` | member | `Core\Reflect::forClass` ([01 § 13](01-core-library.md)). The plugin-registry use — *which* classes implement an interface — is `Core\Program`'s compile-time `implementing<T>()` query instead, which does not require them to have been loaded first (`rule:programs/no-runtime-autoload`) |
-| `class_parents` | member | `Core\Reflect::forClass`'s description; as with `get_parent_class`, the test it feeds is `instanceof` |
+| `class_parents` | member | `Core\Reflect::forClass`'s description; as with `get_parent_class`, the test it feeds is `$x is T` |
 | `class_uses` | dropped | there is no `trait` (`rule:classes/no-traits`) |
 | `class_alias` | dropped | a second name minted at run time is invisible to every compile-time answer this file rests on — the type checker, `Core\Program`'s discovery, and `nvs convert`. Renaming is `use X as Y`, which is per-file and resolved while compiling |
 | `get_declared_classes` | member | `Core\Program`'s `implementing<T>()` (`rule:programs/no-runtime-autoload`), which answers what every honest caller was asking — which classes implement this — and answers it while compiling. A list of every class in the process is a list whose contents depend on which files happened to run |

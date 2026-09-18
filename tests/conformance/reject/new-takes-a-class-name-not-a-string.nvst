@@ -1,13 +1,12 @@
 --TEST--
-`new $c()` and `$c::f()` take a written class name, as `$x instanceof $c` already does (`rule:types/conversion`)
+`new $c()` and `$c::f()` take a written class name, as `$x is $c` already does (`rule:types/conversion`)
 --FILE--
 <?nvs
 // A class name is written, never computed — the same line `$$var` and `eval`
 // are already on. Nothing below the checker could resolve one either, since
 // `nvs-codegen` bakes a descriptor's address in as a constant, so all three
 // spellings that reach a class through a value are one mistake under one
-// code. `instanceof` was already refused here; these two reached the lowerer
-// and panicked there.
+// code: `new $c()`, `$c::f()` and the value arm of an `is` test.
 final class Box {
     public static function make(): int {
         return 1;

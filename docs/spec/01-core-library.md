@@ -72,7 +72,7 @@ keeps the two from becoming two spellings of one thing:
 | combine two arrays | `Arr::overlay` / `underlay` / `appendAll` | `$a + $b` does **not** compile (`rule:types/array-combination`) |
 
 The same division applies elsewhere: `**` is exponentiation, so there is no `Math::pow`; `%` is integer
-modulo, so `Math::mod` exists only for the `float` case; `instanceof` is an operator, so `Core\Reflect` has
+modulo, so `Math::mod` exists only for the `float` case; `is` is an operator, so `Core\Reflect` has
 no `isA`.
 
 ## Milestones
