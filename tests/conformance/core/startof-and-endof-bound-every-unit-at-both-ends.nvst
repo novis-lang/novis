@@ -2,6 +2,7 @@
 Spec § 4: `startOf` and `endOf` name the first and the last instant of every `Core\Unit`, and the last one is not the next one's first
 --FILE--
 <?nvs
+// covers: Core\Unit
 // § 4 gives one member per end of a unit, so the two are pinned together: the
 // bound below each line is the *last* instant the unit contains, and the sweep
 // at the foot asserts that it is exactly one nanosecond short of where the

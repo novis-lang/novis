@@ -1,0 +1,32 @@
+<?nvs
+// The eleven steps a date can move by, smallest first. Every line starts from
+// the same moment and moves it forward by one step, so the table says what
+// each step is worth.
+
+var $utc = Core\Time\Zone::UTC;
+var $start = Core\Time::at(2024, 1, 31, $utc, {hour: 9, minute: 0});
+var $fmt = "yyyy-MM-dd HH:mm:ss.SSSSSSSSS";
+
+array<Core\Unit> $steps = [
+    "nanosecond" => Core\Unit::Nanosecond,
+    "microsecond" => Core\Unit::Microsecond,
+    "millisecond" => Core\Unit::Millisecond,
+    "second" => Core\Unit::Second,
+    "minute" => Core\Unit::Minute,
+    "hour" => Core\Unit::Hour,
+    "day" => Core\Unit::Day,
+    "week" => Core\Unit::Week,
+    "month" => Core\Unit::Month,
+    "quarter" => Core\Unit::Quarter,
+    "year" => Core\Unit::Year,
+];
+
+echo "starting from ", $start->format($fmt), "\n\n";
+
+foreach ($steps as string $name => Core\Unit $step) {
+    echo "one ", $name, " later: ", $start->plus(1, $step)->format($fmt), "\n";
+}
+
+// The month line does not land on 31 February, because there is no such day:
+// the day number is clamped to the month it arrives in. The next example is
+// about that.
