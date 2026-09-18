@@ -5565,6 +5565,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   *inside* every snapshot whose fixture lowers it, so the failure reads as a lowering regression
   rather than as the rename it is. `git mv` the snapshot in the same slice and grep that directory
   for the old mnemonic. [until: gone crates/nvs-ir/src/lower/snapshots]
+- **A go-to-definition case answers only for an expression at file scope, and only for an `is` test
+  the checker did not settle.** `crates/nvs-lsp/src/definition.rs`'s `jump` helper answered `none`
+  for `$b->area()` and `new Square()` written inside a `function` body while the same expressions at
+  file scope answered, and `$s is Shape` over a `Square`-typed subject folds to a constant that
+  leaves no node to navigate from. Write the subject as a `mixed` local at file scope, and keep the
+  tested class one the declaration cannot settle. [until: reviewed 2026-09-18]
 
 ## Splitting a file that got too big
 
