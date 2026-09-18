@@ -1,0 +1,6 @@
+running in: production
+written:    (nothing — so production)
+not seeding: real orders live on this host
+select staging: refused
+ask for debug logs: accepted
+log level is now:   debug

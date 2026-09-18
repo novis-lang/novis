@@ -1,0 +1,27 @@
+<?nvs
+// `[mode] default` is the mode a host runs in, and it is production unless the
+// file says otherwise. A program reads it for the few decisions that honestly
+// depend on it: seed data, a mail transport that sends nothing, a debug route.
+
+echo 'running in: ', Core\Env::mode() == Core\Env\Mode::Development ? 'development' : 'production', "\n";
+
+// Nothing is written here, so the mode is the safe one. That is the direction
+// the default points: a deployment that forgets the line is a production one.
+echo 'written:    ', Core\Config::get('mode.default') ?? '(nothing — so production)', "\n";
+
+// Which is the branch an application actually takes.
+if (Core\Env::mode() == Core\Env\Mode::Development) {
+    echo 'seeding the demo account', "\n";
+} else {
+    echo 'not seeding: real orders live on this host', "\n";
+}
+
+// There are two modes and no third. A name that is neither is refused and the
+// mode stays where it was — a staging host is a production one configured
+// differently, which is what staging has always been.
+echo 'select staging: ', Core\Config::set('mode.default', 'staging') ? 'accepted' : 'refused', "\n";
+
+// And the mode is shorthand rather than a switch: each of the five defaults it
+// selects is an ordinary directive, still settable one at a time.
+echo 'ask for debug logs: ', Core\Config::set('log.level', 'debug') ? 'accepted' : 'refused', "\n";
+echo 'log level is now:   ', Core\Config::get('log.level') ?? '(nothing written)', "\n";

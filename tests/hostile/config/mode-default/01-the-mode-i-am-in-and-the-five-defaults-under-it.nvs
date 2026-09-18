@@ -1,0 +1,85 @@
+<?nvs
+// Attack: the key the mode is read and written at, pushed from inside the
+// request that reads it. A flip re-derives five other directives into this
+// request's overlay, so the pressure goes on the derivation — an explicit value
+// stomped by a later flip, an overlay that keeps every value it was ever handed,
+// a refused flip that moves one of the five anyway. A host still in production
+// at the end, with the five defaults where this program last put them, is the
+// only evidence that none of it landed.
+// hostile: timeout-ms 20000
+
+// 1. The five rows the mode selects, set explicitly and then flipped over. The
+//    flip is allowed to re-derive what this request has not chosen and nothing
+//    else, so the interesting attack is to choose all of them first and then ask
+//    for the mode whose defaults disagree with every one of them.
+array<string> $derived = ['log.format', 'log.level', 'log.access', 'http.errors.detail', 'debug.inline'];
+foreach ($derived as string $key) {
+    Core\Config::set($key, 'json');
+    Core\Config::set($key, 'debug');
+    Core\Config::set($key, 'true');
+}
+Core\Config::set('mode.default', 'development');
+Core\Config::set('mode.default', 'production');
+foreach ($derived as string $key) {
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 2. Every value a mode might be mistaken for. A third environment name, a mode
+//    with an invisible character in it, a mode that is a list, and one long
+//    enough that whatever holds the overlay has to grow to take it.
+array<string> $modes = [
+    '',
+    'production',
+    'development',
+    'PRODUCTION',
+    ' production ',
+    "production\u{0000}",
+    "producti\u{043E}n",
+    'prod',
+    'staging',
+    'local',
+    'test',
+    'production;development',
+    "production\nmode.default = \"development\"",
+    '0',
+    Core\Str::repeat('production ', 100000),
+];
+foreach ($modes as string $mode) {
+    Core\Config::set('mode.default', $mode);
+    Core\Config::set('mode', $mode);
+    Core\Config::set('app.0.mode.default', $mode);
+    Core\Config::restore('mode.default');
+}
+
+// 3. The overlay itself, under as many writes as the runtime will take. A value
+//    kept per call rather than per key is a leak that grows with how hard the
+//    program asks, and a restore that drops more than this request wrote takes
+//    the file's value with it.
+uint $i = 0;
+while ($i < 200000) {
+    Core\Config::set('log.level', 'debug');
+    Core\Config::set('mode.default', 'development');
+    Core\Config::restore('mode.default');
+    Core\Config::set('log.level', 'info');
+    Core\Config::restore('log.level');
+    $i = $i + 1;
+}
+
+// 4. Reading the mode as hard as writing it. The typed read and the string read
+//    are one fact, and a cache behind either that the writes above have not been
+//    told about shows up as the two disagreeing.
+uint $disagreements = 0;
+uint $j = 0;
+while ($j < 200000) {
+    string $typed = Core\Env::mode() == Core\Env\Mode::Development ? 'development' : 'production';
+    string $written = Core\Config::get('mode.default') ?? 'production';
+    if ($typed != $written) {
+        $disagreements = $disagreements + 1;
+    }
+    $j = $j + 1;
+}
+
+echo 'disagreements: ', $disagreements, "\n";
+echo 'running in: ', Core\Env::mode() == Core\Env\Mode::Development ? 'development' : 'production', "\n";
+echo 'log.level: ', Core\Config::get('log.level') ?? '(nothing written)', "\n";
