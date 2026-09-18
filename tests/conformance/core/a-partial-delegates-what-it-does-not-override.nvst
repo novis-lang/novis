@@ -1,0 +1,63 @@
+--TEST--
+A partial answers the methods its shape names and delegates every other one to the real implementation, receiver and arguments unchanged — `rule:testing/doubles`, `rule:classes/delegation-by-field`
+--FILE--
+<?nvs
+// The delegation is the claim: `total` is overridden and `rate` is not, so one
+// answer comes from the closure and the other from the object behind the
+// double — including the state that object holds, which is what makes the
+// forward a real call rather than a re-implementation.
+interface Prices {
+    public function rate(string $region): uint;
+    public function total(uint $items): uint;
+}
+
+final class Table implements Prices {
+    private uint $base;
+
+    public function constructor(uint $base) {
+        $this->base = $base;
+    }
+
+    public function rate(string $region): uint {
+        return $region == "eu" ? $this->base * 2 : $this->base;
+    }
+
+    public function total(uint $items): uint {
+        return $this->rate("eu") * $items;
+    }
+}
+
+Prices $real = new Table(10);
+Prices $fixed = Core\Test::partial<Prices>($real, {
+    total: fn(uint $items): uint => $items,
+});
+
+// Overridden: the closure answers, and the real `total` — which would have
+// said 20 for one item — never runs.
+echo $fixed->total(1) as string, "\n";
+echo $fixed->total(4) as string, "\n";
+
+// Delegated: `rate` was not named by the shape, so the call reaches `Table`'s
+// own body with the argument it was given and the receiver's own `$base`.
+echo $fixed->rate("eu") as string, "\n";
+echo $fixed->rate("us") as string, "\n";
+
+// The real implementation is untouched by having been wrapped.
+echo $real->total(1) as string, "\n";
+
+// A full double of the same interface delegates nothing, because it leaves
+// nothing out — the two members differ in exactly that.
+Prices $whole = Core\Test::double<Prices>({
+    rate: fn(string $region): uint => 1,
+    total: fn(uint $items): uint => 2,
+});
+echo $whole->rate("eu") as string, "\n";
+echo $whole->total(1) as string, "\n";
+--EXPECT--
+1
+4
+20
+10
+20
+1
+2

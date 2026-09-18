@@ -5573,6 +5573,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   file scope answered, and `$s is Shape` over a `Square`-typed subject folds to a constant that
   leaves no node to navigate from. Write the subject as a `mixed` local at file scope, and keep the
   tested class one the declaration cannot settle. [until: reviewed 2026-09-18]
+- **`core/jwt-a-token-verifies-for-its-whole-lifetime-and-not-one-second-past-it.nvst` fails
+  intermittently, and accuses `Core\Jwt` rather than the clock.** It mints a token and verifies it
+  against the real wall clock, so a run crossing a second boundary between the two reads
+  `exp == now` and prints the expiry refusal where the verifying line was frozen. Re-run that case
+  alone before believing a red `conformance` leg that names it — it passed by itself immediately
+  after failing in the suite. [until: reviewed 2026-12-01]
 
 ## Splitting a file that got too big
 

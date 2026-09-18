@@ -1,0 +1,58 @@
+--TEST--
+A double built from a shape of closures is the interface it names, and is passed where one is taken — `rule:testing/doubles`, `rule:types/shape-type`
+--FILE--
+<?nvs
+// ADR 0079 § 10's worked example: the interface, the double built from a shape
+// of closures, and the class that takes one. Nothing declares a stand-in
+// class and nothing is evaluated from source — the double *is* a `Clock`
+// because its own descriptor names `Clock` among the classes it conforms to.
+interface Clock {
+    public function now(): int;
+}
+
+final class Session {
+    private Clock $clock;
+
+    public function constructor(Clock $clock) {
+        $this->clock = $clock;
+    }
+
+    public function startedAt(): int {
+        return $this->clock->now();
+    }
+}
+
+Clock $clock = Core\Test::double<Clock>({
+    now: fn(): int => 1700000000,
+});
+
+// Taken where a `Clock` is declared, which is the whole claim: the parameter
+// is nominal and the double satisfies it.
+Session $session = new Session($clock);
+echo $session->startedAt(), "\n";
+
+// And it answers the dynamic class test for the interface it was built
+// against, so an erased view reaches the same conclusion the parameter did.
+object $erased = $clock;
+echo $erased is Clock ? "a Clock" : "not a Clock", "\n";
+
+// A partial is the same claim reached the other way: it delegates to a real
+// implementation, and it is a `Clock` for the same reason its descriptor is.
+final class SystemClock implements Clock {
+    public function now(): int {
+        return 1;
+    }
+}
+
+Clock $fixed = Core\Test::partial<Clock>(new SystemClock(), {
+    now: fn(): int => 1700000001,
+});
+Session $second = new Session($fixed);
+echo $second->startedAt(), "\n";
+object $also = $fixed;
+echo $also is Clock ? "a Clock" : "not a Clock", "\n";
+--EXPECT--
+1700000000
+a Clock
+1700000001
+a Clock

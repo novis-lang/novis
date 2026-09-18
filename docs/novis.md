@@ -15386,7 +15386,7 @@ Renders `$value` exactly as `dump` would and answers it as a `Core\Cli\Text` ins
 <a id="core-core-test"></a>
 ### `Core\Test`
 
-Keywords: PHPUnit, assert(), assertion, unit test, #[Test], #[Core\Test], Core\Test\Failure, nvs test, expectException, assertSame, assertEquals, ledger, fixed clock, assertSame, assertEquals, assertEqualsDeep, assertTrue, assertNull, assertCount, assertContains, assertMatchesInline, assertThrows, assertDoesNotThrow, expectFailure, advance, serverUrl, scriptAnswers, request, answerHttp, sentHttp, answerSocket, sentSocket
+Keywords: PHPUnit, assert(), assertion, unit test, #[Test], #[Core\Test], Core\Test\Failure, nvs test, expectException, assertSame, assertEquals, ledger, fixed clock, assertSame, assertEquals, assertEqualsDeep, assertTrue, assertNull, assertCount, assertContains, assertMatchesInline, assertThrows, assertDoesNotThrow, expectFailure, advance, serverUrl, scriptAnswers, request, answerHttp, sentHttp, answerSocket, sentSocket, double, partial
 
 `Core\Test` is the assertion surface: every member is `static`, takes the subject **first**
 (`assertEquals($actual, $expected)` — the reverse of PHPUnit's order), and is generic, so comparing an
@@ -15464,6 +15464,8 @@ final class CartTest {
 | [`Core\Test::sentHttp`](#core-core-test-senthttp) | `sentHttp(): array<Core\Test\SentRequest>` |
 | [`Core\Test::answerSocket`](#core-core-test-answersocket) | `answerSocket(string $url, array<string\|bytes> $frames, {protocol?: string}): void` |
 | [`Core\Test::sentSocket`](#core-core-test-sentsocket) | `sentSocket(): array<Core\Socket\Message>` |
+| [`Core\Test::double`](#core-core-test-double) | `double<T>(object $answers): T` |
+| [`Core\Test::partial`](#core-core-test-partial) | `partial<T>(T $real, object $answers): T` |
 
 <a id="core-core-test-assertsame"></a>
 #### `Core\Test::assertSame`
@@ -15792,6 +15794,41 @@ Core\Test::sentSocket(): array<Core\Socket\Message>
 Every frame the program under test has sent over a scripted socket, oldest first — what it said, rather than what it was told.
 
 **Returns** `array<Core\Socket\Message>` — One `Core\Socket\Message` per frame, in the order the program sent them, with `text` filled for a `send` and `bytes` for a `sendBytes`. The frames of two sockets open at once arrive interleaved in the one order they were written in, so a test that needs them apart scripts one peer at a time.
+
+<a id="core-core-test-double"></a>
+#### `Core\Test::double`
+
+```nvs skip
+Core\Test::double<T>(object $answers): T
+```
+
+A stand-in for `T` built from a shape of closures, one per method, which **is** a `T` and may be passed wherever one is taken.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$answers` | `object` | One field per method of `T`, named as the method is and holding the closure that answers it. A field `T` declares no method for, and a method of `T` the shape leaves out, are each refused where the call is written. |
+
+**Returns** `T` — The double, typed as `T`. It records every call made to it, which `Core\Test::assertCalled` reads afterwards, and no class the author never wrote appears in a backtrace.
+
+**Throws** `LogicError` — `T` declares more methods than one double can stand in for, which is a fixed ceiling set well above the interfaces a test doubles.
+
+<a id="core-core-test-partial"></a>
+#### `Core\Test::partial`
+
+```nvs skip
+Core\Test::partial<T>(T $real, object $answers): T
+```
+
+A stand-in for `T` that answers the methods `$answers` names and delegates every other one to `$real`.
+
+| Parameter | Type | Meaning |
+|---|---|---|
+| `$real` | `T` | The implementation the un-overridden methods are forwarded to, receiver and arguments unchanged. |
+| `$answers` | `object` | One field per method being overridden, named as the method is. A field `T` declares no method for is refused where the call is written; unlike `double`, a method left out is not, that being what `$real` is for. |
+
+**Returns** `T` — The partial, typed as `T`. Every call is recorded whether the closure or `$real` answered it.
+
+**Throws** `LogicError` — `double`'s ceiling, for the same reason and with the same two counts.
 
 <a id="core-core-test-response"></a>
 ### `Core\Test\Response`
