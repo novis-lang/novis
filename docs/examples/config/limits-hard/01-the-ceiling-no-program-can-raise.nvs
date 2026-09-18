@@ -1,0 +1,34 @@
+<?nvs
+// `[limits.hard]` is the ceiling a program cannot raise itself past. It holds
+// the same key names as `[limits]` — the block a program *may* write — so a
+// deployment reads as one sentence: start requests at this much, and never let
+// one have more than that.
+
+echo 'starts at:   ', Core\Config::get('limits.memory') ?? '(unset)', "\n";
+echo 'never above: ', Core\Config::get('limits.hard.memory') ?? '(unset)', "\n";
+
+// Between those two a program is on its own recognisance. The ceiling is not a
+// target to be handed out — asking for less is always fine, and asking for
+// exactly the ceiling is fine too.
+echo 'ask 512M:    ', Core\Config::set('limits.memory', '512M') ? 'accepted' : 'refused', "\n";
+echo 'ask 513M:    ', Core\Config::set('limits.memory', '513M') ? 'accepted' : 'refused', "\n";
+echo 'in force:    ', Core\Config::get('limits.memory'), "\n";
+
+// A refusal leaves the previous value standing rather than throwing, so a
+// program that asks for too much carries on under what it already had. That is
+// the difference between a ceiling and a trap: nothing here punishes a program
+// for asking, it just does not get more.
+Core\Config::restore('limits.memory');
+
+// And the ceiling itself is nobody's to move from in here — not by writing it,
+// and not by writing something that looks like it.
+array<string> $spellings = ['limits.hard.memory', 'limits.hard', 'app.limits.hard.memory', 'limits.hard.hard.memory'];
+foreach ($spellings as string $key) {
+    echo 'raise ', $key, ': ', Core\Config::set($key, '4G') ? 'accepted' : 'refused', "\n";
+}
+
+// A budget with no ceiling written is one a program may set freely. That is
+// the right default for anything that only costs the program itself, and the
+// operator writes a ceiling for whatever would cost the host.
+echo 'cpu ceiling: ', Core\Config::get('limits.hard.cpu_time') ?? '(none written, so this one is the program\'s own affair)', "\n";
+echo 'ask 9h cpu:  ', Core\Config::set('limits.cpu_time', '9h') ? 'accepted' : 'refused', "\n";

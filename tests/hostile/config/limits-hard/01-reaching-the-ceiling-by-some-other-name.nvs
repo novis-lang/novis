@@ -1,0 +1,108 @@
+<?nvs
+// Attack: the ceiling is the only thing standing between a request and as much
+// of this host as it cares to ask for, and it is one longest-match row away
+// from the block the request *is* allowed to write. So this reaches for it by
+// every other name — case, separator, doubled segment, an application scope,
+// a path that walks back up — then works the boundary from both sides, then
+// tries to move it by ordering rather than by writing it, and finishes by
+// asking whether one byte over the ceiling is still refused.
+// hostile: timeout-ms 30000
+
+// 1. Every other name for the ceiling. An accepted one is a request writing
+//    `[limits.hard]` without ever spelling it.
+array<string> $names = [
+    'limits.hard.memory',
+    'limits.hard',
+    'limits.HARD.memory',
+    'LIMITS.HARD.MEMORY',
+    'limits.Hard.Memory',
+    'limits.hard.hard.memory',
+    'limits.hard..memory',
+    'limits..hard.memory',
+    'limits.hard.memory.',
+    '.limits.hard.memory',
+    'limits.hard-memory',
+    'limits.hard_memory',
+    'limits.hardmemory',
+    'limits.hard/memory',
+    'limits.hard\\memory',
+    'limits.hard memory',
+    "limits.hard.memory\u{0000}",
+    "limits.memory\u{0000}limits.hard.memory",
+    'app.limits.hard.memory',
+    'app.0.limits.hard.memory',
+    'limits.memory/../hard.memory',
+    'limits.hard.' . Core\Str::repeat('sub.', 20000) . 'memory',
+    Core\Str::repeat('limits.', 20000) . 'hard.memory',
+];
+foreach ($names as string $key) {
+    Core\Config::set($key, '4G');
+    Core\Config::set($key, '18446744073709551615');
+    // Refused, so nothing may read back and the real ceiling must not have
+    // moved under any of these spellings.
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 2. The boundary, from both sides and in every unit spelling. The accepted
+//    side has to stop exactly at the written ceiling: one byte over that is
+//    accepted is a ceiling that rounds, and a ceiling that rounds is a ceiling
+//    an attacker states in whichever unit rounds their way.
+array<string> $atTheEdge = [
+    '512M',
+    '513M',
+    '511M',
+    '536870912',
+    '536870913',
+    '536870911',
+    '0.5G',
+    '1G',
+    '512 M',
+    '512m',
+    '512MiB',
+    '513MiB',
+    '524288K',
+    '524289K',
+];
+foreach ($atTheEdge as string $value) {
+    Core\Config::set('limits.memory', $value);
+    Core\Config::get('limits.memory');
+}
+Core\Config::restore('limits.memory');
+
+// 3. Moving the ceiling by ordering instead of by writing it. Each of these is
+//    a sequence that would leave the ceiling raised if any step were applied
+//    out of the order it was asked in, or if `restore` put back an overlay's
+//    value rather than the file's.
+uint $round = 0;
+while ($round < 1000) {
+    Core\Config::set('limits.memory', '64M');
+    Core\Config::set('limits.hard.memory', '4G');
+    Core\Config::set('limits.memory', '1G');
+    Core\Config::restore('limits.hard.memory');
+    Core\Config::set('limits.memory', '1G');
+    Core\Config::restore('limits.memory');
+    Core\Config::restore('limits.hard.memory');
+    Core\Config::set('limits.hard.memory', '4G');
+    Core\Config::set('limits.memory', '512M');
+    Core\Config::restore('limits.memory');
+    $round = $round + 1;
+}
+
+// 4. Every other ceiling in the block, in case one of them is the settable
+//    one. A single writable row here is the whole class distinction gone for
+//    that budget.
+array<string> $keys = ['memory', 'cpu_time', 'wall_time', 'max_tasks', 'max_output', 'max_regex_steps'];
+foreach ($keys as string $key) {
+    Core\Config::set('limits.hard.' . $key, '4G');
+    Core\Config::set('limits.hard.' . $key, '0');
+    Core\Config::get('limits.hard.' . $key);
+    Core\Config::restore('limits.hard.' . $key);
+}
+
+// 5. What is left standing. The ceiling is the file's, and one byte over it is
+//    still refused — anything else here is a request that got more of this
+//    host than the deployment allowed.
+echo 'ceiling:   ', Core\Config::get('limits.hard.memory') ?? '(nothing)', "\n";
+echo 'ask 513M:  ', Core\Config::set('limits.memory', '513M') ? 'accepted' : 'refused', "\n";
+echo 'in force:  ', Core\Config::get('limits.memory') ?? '(nothing)', "\n";

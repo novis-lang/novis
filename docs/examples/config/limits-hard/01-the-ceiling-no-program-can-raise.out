@@ -1,0 +1,11 @@
+starts at:   256M
+never above: 512M
+ask 512M:    accepted
+ask 513M:    refused
+in force:    512M
+raise limits.hard.memory: refused
+raise limits.hard: refused
+raise app.limits.hard.memory: refused
+raise limits.hard.hard.memory: refused
+cpu ceiling: (none written, so this one is the program's own affair)
+ask 9h cpu:  accepted
