@@ -1,0 +1,107 @@
+<?nvs
+// Attack: get a debugging dump out of the log and into the response. `[debug]
+// inline` is the one key that decides that, and a request may only ever tighten
+// it -- which, for a value nothing can compare, means it may not write it at
+// all. So this program tries every direction at once: the key written straight,
+// the key written sideways through the mode that derives it, names that resolve
+// near it, and the same refusal worn down fifty thousand times. Then it dumps
+// the shapes a renderer comes apart on, because a dump that crashes the process
+// discloses more than an inline one ever would.
+
+// 1. The key itself, in every spelling a loose reader might take for "on" -- and
+//    then "off", because a request that could write this row in the direction it
+//    is allowed to think about would be writing a row it may not write at all.
+array<string> $values = ['true', 'True', 'TRUE', '1', 'on', 'yes', '-1', 'inline', 'false', '0', 'off'];
+foreach ($values as string $value) {
+    Core\Config::set('debug.inline', $value);
+}
+Core\Config::restore('debug.inline');
+
+// 2. The sideways route, which is the one worth having: the run mode is what
+//    derives this key's default, so a request that could flip the mode would
+//    have turned inline dumps on without ever naming them. The ceiling is the
+//    mode the deployment started in, so every one of these has to refuse here.
+array<string> $modes = ['development', 'Development', 'DEVELOPMENT', ' development', 'development ', 'dev', 'debug', 'production'];
+foreach ($modes as string $mode) {
+    Core\Config::set('mode', $mode);
+}
+Core\Config::restore('mode');
+
+// 3. Names that sit near the real one, because the registry answers by longest
+//    prefix and a row reached for a key nobody declared would be governing the
+//    block's neighbours as well -- `debug.keep_temporary` next door is the
+//    operator's alone.
+array<string> $nearby = [
+    'debug.inline',
+    'debug.inline.',
+    '.debug.inline',
+    'debug..inline',
+    'debuginline',
+    'debug.inline.html',
+    'DEBUG.INLINE',
+    'Debug.Inline',
+    'debug.in_line',
+    'inline',
+    'debug',
+    'app.debug.inline',
+    'debug.mode',
+];
+foreach ($nearby as string $key) {
+    Core\Config::set($key, 'true');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 4. A key long enough to be a walk rather than a lookup: the prefix rule scans
+//    back through the dots, so twenty thousand of them is the shape that finds a
+//    quadratic one or a stack that recurses per segment.
+string $deep = 'debug.inline.' . Core\Str::repeat('scope.', 10000) . 'html';
+Core\Config::set($deep, 'true');
+Core\Config::get($deep);
+Core\Config::restore($deep);
+
+// 5. The same refusal, fifty thousand times, in case it is decided once and
+//    remembered -- or in case each attempt leaves something behind in the
+//    overlay a request writes into.
+uint $i = 0;
+while ($i < 50000) {
+    Core\Config::set('debug.inline', 'true');
+    Core\Config::restore('debug.inline');
+    $i = $i + 1;
+}
+
+// 6. Now the dump itself, which is what the key decides the destination of. A
+//    structure deeper than a renderer written as a recursion can hold; the
+//    engine's own bound is what has to answer here rather than the stack.
+mixed $nest = 'the bottom';
+uint $level = 0;
+while ($level < 20000) {
+    $nest = [$nest];
+    $level = $level + 1;
+}
+Core\Debug::dump($nest);
+
+// 7. A cycle, which is the same question asked of the refcount rather than of
+//    the stack: two values each holding the other, dumped from inside the loop
+//    they make.
+class Ring
+{
+    public ?Ring $next = null;
+    public string $label = 'held';
+}
+var $first = new Ring();
+var $second = new Ring();
+$first->next = $second;
+$second->next = $first;
+Core\Debug::dump($first, $second);
+
+// 8. And something worth disclosing, at a size worth disclosing it at: a dump
+//    that reaches the response is an information leak, so the case that matters
+//    is the big one nobody would notice being appended.
+string $ledger = Core\Str::repeat('4111-1111-1111-1111;', 500000);
+Core\Debug::dump($ledger);
+
+// 9. The answer, after all of it. Anything but the value the file wrote means
+//    one of the writes above landed, and every dump on this page is public.
+echo 'debug.inline: ', Core\Config::get('debug.inline') ?? '(nothing)', "\n";
+echo 'mode:         ', Core\Config::get('mode') ?? '(nothing)', "\n";
