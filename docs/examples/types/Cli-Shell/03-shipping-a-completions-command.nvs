@@ -1,0 +1,47 @@
+<?nvs
+// What a program ships in practice: a `completions` command of its own. The
+// person running it types the name of their shell, the program turns that word
+// into a case, and the script goes to standard output so it can be redirected
+// into a file in one step.
+
+class Tool {
+    #[Core\Command(name: "deploy", about: "Push the current build")]
+    public static function deploy(string $target): uint {
+        return 0;
+    }
+
+    #[Core\Command(name: "completions", about: "Write a completion script for your shell")]
+    public static function completions(string $shell): uint {
+        ?Core\Cli\Shell $which = match ($shell) {
+            "bash" => Core\Cli\Shell::Bash,
+            "zsh" => Core\Cli\Shell::Zsh,
+            "fish" => Core\Cli\Shell::Fish,
+            "pwsh" => Core\Cli\Shell::Pwsh,
+            "powershell" => Core\Cli\Shell::Pwsh,
+            default => null,
+        };
+
+        // A word with no shell behind it gets a refusal, not a guess. Writing
+        // a bash script for somebody using tcsh would complete nothing.
+        if ($which == null) {
+            Core\Cli::write("no completion script is written for " . $shell,
+                            {stream: Core\Cli\Stream::Err, newline: true});
+            return 2;
+        }
+
+        // The script is the answer, so it goes to standard output. The advice
+        // about it is not, so it goes to standard error and stays out of the
+        // file when somebody redirects.
+        Core\Cli::write(Core\Command::completions($which));
+        Core\Cli::write("save that where " . $shell . " looks for completions",
+                        {stream: Core\Cli\Stream::Err, newline: true});
+        return 0;
+    }
+}
+
+// `Core\Command::run()` is what calls this with the word somebody typed. Both
+// words are run here so the refusal and the script are both visible.
+uint $refused = Tool::completions("tcsh");
+Core\Cli::write("tcsh ended with status " . $refused, {stream: Core\Cli\Stream::Err, newline: true});
+
+Tool::completions("fish");

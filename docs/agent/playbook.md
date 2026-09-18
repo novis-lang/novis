@@ -5746,6 +5746,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   claim worth making. Grep the crate's `tests/` and its `src` unit tests for the block's name first
   and mark the case that pins the claim, including one in `src/`, which counts.
   [until: reviewed 2026-09-18]
+- **An example that prints generated output can bake its own file name into the blessed `.out`.**
+  `Core\Command::completions` registers a script against the program's name, which under `nvs run`
+  is the file's stem, so `02-the-script-is-written-from-your-commands.nvs` blessed a bash function
+  called `__02_the_script_is_written_from_your_commands_complete`. Keep the slug short for any
+  example whose output quotes the program's own name, and read the blessed lines rather than
+  trusting the exit status. [until: reviewed 2026-09-18]
 
 ## Splitting a file that got too big
 

@@ -1,0 +1,37 @@
+<?nvs
+// Four shells, four languages for the same idea, and four places the file
+// belongs. Whichever one somebody uses, your program has to be told which,
+// so the shell is a case you pick and never a guess.
+
+class Completions {
+    public static function shellName(Core\Cli\Shell $shell): string {
+        return match ($shell) {
+            Core\Cli\Shell::Bash => "bash",
+            Core\Cli\Shell::Zsh => "zsh",
+            Core\Cli\Shell::Fish => "fish",
+            Core\Cli\Shell::Pwsh => "powershell",
+        };
+    }
+
+    // Where the generated file belongs, which is what somebody needs to be
+    // told once they have one. The program here is called `tool`.
+    public static function home(Core\Cli\Shell $shell): string {
+        return match ($shell) {
+            Core\Cli\Shell::Bash => "~/.local/share/bash-completion/completions/tool",
+            Core\Cli\Shell::Zsh => "~/.zsh/completions/_tool",
+            Core\Cli\Shell::Fish => "~/.config/fish/completions/tool.fish",
+            Core\Cli\Shell::Pwsh => "the file \$PROFILE names",
+        };
+    }
+}
+
+array<Core\Cli\Shell> $everything = [
+    Core\Cli\Shell::Bash,
+    Core\Cli\Shell::Zsh,
+    Core\Cli\Shell::Fish,
+    Core\Cli\Shell::Pwsh,
+];
+
+foreach ($everything as Core\Cli\Shell $shell) {
+    echo Completions::shellName($shell), " -> ", Completions::home($shell), "\n";
+}
