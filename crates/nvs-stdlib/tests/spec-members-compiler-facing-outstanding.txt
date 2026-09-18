@@ -16,15 +16,15 @@
 # its line here are one edit, and the test fails on a stale line as loudly as on
 # an unlisted one. When this file holds no keys, spec § 13 is registered whole.
 #
-# Every key here is `unowned`, and docs/agent/carried-gaps.md § *Unowned* holds
-# the reason for each: no live goal builds either the double half of `Core\Test`
-# or arbitrary-precision integers, and neither waits on a milestone's work, so a
-# deferral would be the dishonest column rather than the scheduled one.
+# Every key here names the chain goal that builds it, by the user's decision:
+# `Core\BigInt` is goal `bigint`, and the double half of `Core\Test` is goal
+# `test-doubles`. Neither waits on a milestone's work, so a milestone tag would
+# be the dishonest column; each goal's own prose holds the reason it exists.
 
-§13 Core\BigInt  # unowned
+§13 Core\BigInt  # bigint
 
-§13 Test::assertCalled  # unowned
-§13 Test::assertCompletes  # unowned
-§13 Test::assertNeverCalled  # unowned
-§13 Test::double  # unowned
-§13 Test::partial  # unowned
+§13 Test::assertCalled  # test-doubles
+§13 Test::assertCompletes  # test-doubles
+§13 Test::assertNeverCalled  # test-doubles
+§13 Test::double  # test-doubles
+§13 Test::partial  # test-doubles

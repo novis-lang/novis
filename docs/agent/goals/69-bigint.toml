@@ -1,0 +1,206 @@
+# Goal 69 -- `Core\BigInt`: the arbitrary-magnitude integer class ADR 0054 promised beside the
+# `decimal` scalar
+# The acceptance test, as data.
+#
+# `69-bigint.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+
+files = [
+  "examples/bigint.nvs",
+]
+
+[context]
+
+modules = [
+  # The model for every row, card and body, and the refusal classes. Stages 2 and 3.
+  "crates/nvs-stdlib/src/decimal.rs",
+  # `CLASSES`, `CoreTy`, `CoreMethod`. Stages 2 and 3.
+  "crates/nvs-stdlib/src/registry.rs",
+  # A `Core`-owned instance is an ordinary object; the renderer and comparer fields. Stage 2.
+  "crates/nvs-stdlib/src/instance.rs",
+  # `mod` list: where the new module is declared. Stage 2.
+  "crates/nvs-stdlib/src/lib.rs",
+  # `gcd` and `lcm` on `int`, mirrored on the class. Stage 3.
+  "crates/nvs-stdlib/src/math.rs",
+  # The `decimal` layout `toDecimal` fills: a 96-bit mantissa and a scale. Stage 3.
+  "crates/nvs-runtime/src/decimal.rs",
+  # The tier guard the new class must satisfy. Stage 2.
+  "crates/nvs-stdlib/tests/tier_boundary.rs",
+  # The ratchet, struck in the same edit that registers the class. Stages 2 and 5.
+  "crates/nvs-stdlib/tests/spec-members-compiler-facing-outstanding.txt",
+  # The paragraph stage 0 rewrites.
+  "docs/rules/core-api/tier-roster.md",
+]
+
+rules = ["types/decimal", "core-api/tier-roster"]
+
+adrs = []
+
+shapes = ["A commit message", "A `Core` member — the five edits", "A `.nvst` test case"]
+
+milestones = []
+
+playbook = [
+  # The process traps, by hand.
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a whole decision record',
+  'Tooling > a plan field is patched',
+  'Tooling > a commit',
+  'Tooling > a [context]*',
+  'Tooling > orient.py prints',
+  'Tooling > another agent',
+  # Ranked by `python tools/playbook.py --manifest` over this goal's modules.
+  'Writing Novis itself > a core row that',
+  "Writing Novis itself > a new core row's",
+  "Writing Novis itself > a core class's",
+  'Writing Novis itself > nvs-types depends',
+  'Writing a test case > a crate with the',
+]
+
+plan = ["Open now", "Blocking"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# THE STAGES. One table per prose stage in `69-bigint.md`. PROSE stage numbers; loop-authoring.md
+# section 2 is the whole of it.
+# ---------------------------------------------------------------------------------------------------
+
+[context.stage.2]
+rules = ["packaging/a-c-dependency-answers-two-questions", "classes/comparable", "classes/stringable"]
+adrs = ["0054 §5", "0054 §6"]
+
+[context.stage.3]
+rules = ["types/arithmetic", "types/conversion"]
+adrs = []
+
+# A `BigInt` is an object per value, allocated and released with the request, so the leak sweep reads
+# `examples/bigint.nvs` like any other fixture.
+[valgrind]
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-socket.nvs", "examples/queue-sqlite.nvs", "examples/cache-shared-tls.nvs"]
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+# None of this goal's own checks needs a daemon. Its floor carries every closure goal's checks, goal
+# `m8-db-queue`'s five-driver matrix among them, so all five services are preflighted.
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "mysql", "mariadb", "mssql", "redis"]
+memoize_on = ["crates/nvs-db", "crates/nvs-stdlib", "tests/db"]
+
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the class and its representation. Goal prose stage 2.
+#
+# Every test and case named below must EXIST and pass. None does yet except the tier guard; writing
+# one is how an item finishes. Do not rename one to something already green.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "cargo-named"
+stage = "2 the class"
+name = "nvs-stdlib (a BigInt renders and compares through its descriptor, inside Tier 0)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_bigint_renders_and_compares_through_its_descriptor",
+  "no_class_outside_tier_zero_registers_a_core_name",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the roster. Goal prose stage 3. The fixture's lines are the roster's worked example:
+# a factorial past 2^63, a power, `powMod` on the textbook RSA figures, the `div`/`mod` identity on a
+# negative dividend, and `toInt` on both sides of the `int` bound.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "exact"
+stage = "3 the roster"
+file = "examples/bigint.nvs"
+want = [
+  "30! = 265252859812191058636308480000000",
+  "2^100 = 1267650600228229401496703205376",
+  "4^13 mod 497 = 445",
+  "-7 = 2 * -3 + -1",
+  "int max = 9223372036854775807",
+  "int max + 1: ArithmeticError",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the proofs. Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "4 the proofs"
+name = "conformance (the depth shapes over BigInt)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/bigint-div-and-mod-agree-with-intdiv-and-the-remainder-over-a-sign-sweep.nvst",
+  "tests/conformance/core/bigint-converts-on-both-sides-of-the-int-and-decimal-bounds.nvst",
+  "tests/conformance/core/bigint-parse-refuses-at-the-edge-of-each-radix.nvst",
+  "tests/conformance/core/bigint-compares-and-sorts-as-comparable.nvst",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "4 the proofs"
+name = "nvs-stdlib (the two bounds a BigInt is written around)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_bigint_past_the_int_range_refuses_to_int",
+  "bigint_div_and_mod_agree_over_a_sign_sweep",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- the gate.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "5 the gate"
+name = "no `Core\\BigInt` key is outstanding"
+argv = ["git", "grep", "-n", "BigInt", "--", "crates/nvs-stdlib/tests/spec-members-compiler-facing-outstanding.txt"]
+exit = "nonzero"
+
+[[check]]
+kind = "command"
+stage = "5 the gate"
+name = "the tier roster no longer lists big integers as unregistered"
+argv = ["git", "grep", "-n", "-i", "big integers", "--", "docs/rules/core-api/tier-roster.md"]
+exit = "nonzero"
+
+[[check]]
+kind = "command"
+stage = "5 the gate"
+name = "the rendered rulebook is current"
+argv = ["python", "tools/rules.py", "--render", "--check"]
+
+[[check]]
+kind = "command"
+stage = "5 the gate"
+name = "no gap names this goal"
+argv = ["python", "tools/owners.py", "--closes", "bigint"]
+
+[[check]]
+kind = "command"
+stage = "5 the gate"
+name = "the chain still walks"
+argv = ["python", "tools/chain.py", "--check"]
+
+[[check]]
+kind = "cargo-named"
+stage = "5 the gate"
+name = "nvs-stdlib (the ratchet and the reference cards)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "every_outstanding_key_names_an_owner",
+  "every_registry_row_carries_a_reference_card",
+]

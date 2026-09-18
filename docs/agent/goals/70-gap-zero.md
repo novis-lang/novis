@@ -1,7 +1,7 @@
 ---
 milestone: post-parity
 ---
-# Loop goal 68 — no gap is owed by anyone but a future milestone, and the index that held them is gone
+# Loop goal 70 — no gap is owed by anyone but a future milestone, and the index that held them is gone
 
 The end of the gap program the user set on 2026-09-13. Every recorded gap is **closed, or tagged to a
 future milestone (M9 and above) whose own plan file states the scope** — no item names a goal, no item
@@ -16,8 +16,9 @@ other than the plan has nothing left to index.
 before it: goal `plan-truth` made the documents true, goal `gap-register` built the roster and the
 past-milestone report this goal makes fatal, and goals `m4-refusals`, `m5-proofs`, `m4b-editor`,
 `m7-server-surface`, `m8-db-queue`, `m8-stdlib-depth`, `unowned-closures` and `decided-closures` built
-what the past milestones promised and what the user's decision sheet answered. Their acceptance lists are this goal's
-floor, so their work is proven here by construction. **This goal builds nothing.** If its gate is red
+what the past milestones promised and what the user's decision sheet answered, and goals `test-doubles`
+and `bigint` built the six ratchet keys this goal first held the run on, by the user's decision of
+2026-09-18. Their acceptance lists are this goal's floor, so their work is proven here by construction. **This goal builds nothing.** If its gate is red
 when the run arrives, a closure goal went green without closing an item, and the item is named.
 
 ## Stage 0 — the catch-up
@@ -26,8 +27,8 @@ None.
 
 ## Stage 1 — the floor
 
-Goal `decided-closures`'s whole acceptance list, carried in verbatim by `tools/goal-switch.py`. It holds
-every closure goal's checks. Never traded.
+Goal `bigint`'s whole acceptance list, carried in verbatim by `tools/goal-switch.py`. It holds every
+closure goal's checks, and `test-doubles`' and `bigint`'s own. Never traded.
 
 ## Stage 2 — the gate becomes fatal
 

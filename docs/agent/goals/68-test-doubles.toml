@@ -1,14 +1,14 @@
-# Goal 68 -- no gap is owed by anyone but a future milestone, and the index that held them is gone
+# Goal 68 -- `Core\Test`'s double half: a double is a shape checked against an interface, and a call
+# is asserted after the fact
 # The acceptance test, as data.
 #
-# `68-gap-zero.md` is the prose. One home each.
+# `68-test-doubles.md` is the prose. One home each.
 #
 # THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
-#
-# Every zero is written `label: 0` on purpose: `want` is a substring match, and `0 unowned` would also
-# match `10 unowned`. Goal `gap-register` fixes that summary format.
 
 files = [
+  # goal-switch.py unions the previous goal's fixtures in. This goal names none of its own: its
+  # proofs are `.nvst` cases, because `Core\Test` is unreachable from a build.
   # carried from the previous goal by tools/goal-switch.py
   "examples/cache-shared-tls.nvs",
   "examples/webcrypto.nvs",
@@ -97,34 +97,40 @@ files = [
 [context]
 
 modules = [
-  # The gate this goal makes fatal, and the index it stops reading. Stages 2 and 3.
-  "tools/owners.py",
-  # `CARRIED_GAPS` and the report over the deleted file's Owner column. Stage 3.
-  "tools/playbook.py",
-  # `HOMES` and `OWNERS_HOME`. Stage 3.
-  "tools/brief.py",
-  # A manifest naming the deleted file. Stage 3.
-  "tools/orient.py",
-  # Where the gate joins the ordered run. Stage 2.
-  "tools/verify.py",
-  # `--past` and `done`. Stage 5.
-  "tools/plan.py",
-  # A dangling link to the deleted file is the failure mode. Stage 3.
-  "tools/check-links.py",
-  # The index, read one last time and then deleted.
-  "docs/agent/carried-gaps.md",
-  # The owner column's gate, and its example slug. Stages 2 and 3.
-  "crates/nvs-stdlib/tests/spec_registry_coverage.rs",
+  # The class: the two rows, the two assertions, `assertCompletes` beside `advance`, and the
+  # module-doc section stage 0 owes. Every stage.
+  "crates/nvs-stdlib/src/test.rs",
+  # `CoreTy`: the written `T`, and the new method-reference variant. Stages 2 and 4.
+  "crates/nvs-stdlib/src/registry.rs",
+  # A `Core`-owned instance is an ordinary object; where a class's renderer and comparer are set. Stage 3.
+  "crates/nvs-stdlib/src/instance.rs",
+  # `check_written_type_args`: where the call-site `T` arrives. Stage 2.
+  "crates/nvs-types/src/expr/calls.rs",
+  # Argument checking against a row: where the shape and the method reference are judged. Stages 2 and 4.
+  "crates/nvs-types/src/expr/args.rs",
+  # How a registry row becomes a signature the checker resolves. Stages 2 and 4.
+  "crates/nvs-types/src/core_lib.rs",
+  # Binding a row's `T`. Stage 2.
+  "crates/nvs-types/src/generics.rs",
+  # The two new codes. Stage 2.
+  "crates/nvs-diagnostics/src/lib.rs",
+  # `ClassDesc` and `MethodRow`: the double's descriptor and its trampolines. Stage 3.
+  "crates/nvs-runtime/src/object.rs",
+  # `call_closure`: reaching a slot's closure from a trampoline. Stage 3.
+  "crates/nvs-runtime/src/closure.rs",
+  # `call_method`: delegating a `partial`'s unoverridden method to `$real`. Stage 3.
+  "crates/nvs-runtime/src/dispatch.rs",
+  # `lower_new` on a `Core` class, the model if the descriptor is built at lowering. Stage 3.
+  "crates/nvs-ir/src/lower/expr.rs",
+  # The ratchet, struck in the same edit as the rows. Stage 6.
+  "crates/nvs-stdlib/tests/spec-members-compiler-facing-outstanding.txt",
 ]
 
-rules = [
-  "0004",
-  "programs/memory-priority",
-]
+rules = ["testing/doubles", "testing/interaction-after-the-fact"]
 
 adrs = []
 
-shapes = ["A commit message", "A code comment"]
+shapes = ["A commit message", "A `Core` member — the five edits", "A `.nvst` test case", "A diagnostic"]
 
 milestones = []
 
@@ -138,20 +144,40 @@ playbook = [
   'Tooling > a [context]*',
   'Tooling > orient.py prints',
   'Tooling > another agent',
+  # Ranked by `python tools/playbook.py --manifest` over this goal's modules.
+  'Writing Novis itself > a core row that',
+  "Writing Novis itself > a new core row's",
+  "Writing Novis itself > a core class's",
+  'Writing Novis itself > a core call that',
+  'Writing Novis itself > a new corety variant is',
+  'Writing a test case > a crate with the',
 ]
 
-plan = ["Open now", "Blocking", "Done"]
+plan = ["Open now", "Blocking"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `68-gap-zero.md`. PROSE stage numbers; loop-authoring.md
-# section 2 is the whole of it.
+# THE STAGES. One table per prose stage in `68-test-doubles.md`. PROSE stage numbers;
+# loop-authoring.md section 2 is the whole of it.
 # ---------------------------------------------------------------------------------------------------
 
 [context.stage.2]
-rules = ["core-api/tier-roster"]
+rules = ["types/shape-type", "types/callable-is-a-closure", "classes/interface-default-methods", "classes/interface-private-methods"]
+adrs = ["0079 §10"]
 
-# Nothing this goal writes allocates at run time.
+[context.stage.3]
+rules = ["types/closure-literal", "testing/tests-never-reach-a-build"]
+adrs = []
+
+[context.stage.4]
+rules = ["testing/assertions-are-typed"]
+adrs = ["0079 §11"]
+
+[context.stage.5]
+rules = ["testing/task-tree-and-virtual-clock"]
+adrs = ["0079 §16"]
+
+# A double is an object allocated and released with the test's request, so the leak sweep reads it.
 [valgrind]
 skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-socket.nvs", "examples/queue-sqlite.nvs", "examples/cache-shared-tls.nvs"]
 
@@ -11740,96 +11766,157 @@ exit = "nonzero"
 # Stage 2 -- the gate becomes fatal. Goal prose stage 2.
 # ---------------------------------------------------------------------------------------------------
 
-[[check]]
-kind = "command"
-stage = "2 the gate"
-name = "no recorded gap is owed by anyone but a future milestone"
-argv = ["python", "tools/owners.py", "--check"]
-want = [
-  "goal-owned: 0",
-  "unowned: 0",
-  "untagged: 0",
-  "past-milestone: 0",
-  "retired-owner: 0",
-]
 
-[[check]]
-kind = "command"
-stage = "2 the gate"
-name = "every deferral names a future milestone whose plan states the scope"
-argv = ["python", "tools/owners.py", "--deferrals"]
-want = ["every deferral names a future milestone whose plan states the scope"]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the checker. Goal prose stage 2.
+#
+# Every test and case named below must EXIST and pass. None does yet; writing one is how an item
+# finishes. Do not rename one to something already green.
+# ---------------------------------------------------------------------------------------------------
 
 [[check]]
 kind = "cargo-named"
-stage = "2 the gate"
-name = "nvs-stdlib (a ratchet key is owned by a live goal or a future milestone, never unowned)"
-args = ["test", "-p", "nvs-stdlib", "--test", "spec_registry_coverage"]
-tests = ["unowned_is_no_longer_an_owner_for_a_key"]
+stage = "2 the checker"
+name = "nvs-types (a double is checked against its interface)"
+args = ["test", "-p", "nvs-types"]
+tests = [
+  "a_double_is_the_interface_it_names",
+  "a_double_missing_a_method_is_refused",
+  "a_double_declaring_a_method_the_interface_lacks_is_refused",
+  "a_partial_delegates_what_it_does_not_override",
+  "a_double_of_anything_but_an_interface_is_refused",
+]
 
 [[check]]
-kind = "command"
-stage = "2 the gate"
-name = "verify.py runs the register's gate"
-argv = ["python", "tools/verify.py", "--list"]
-want = ["owners.py --check"]
+kind = "nvs-suite"
+stage = "2 the checker"
+name = "conformance (ADR 0079 § 10's three bullets)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/reject/a-double-missing-a-method-is-refused.nvst",
+  "tests/conformance/reject/a-double-declaring-a-method-the-interface-lacks-is-refused.nvst",
+  "tests/conformance/core/a-double-is-passed-where-its-interface-is-taken.nvst",
+]
+
 
 # ---------------------------------------------------------------------------------------------------
-# Stage 3 -- the index is gone, and nothing points at it. Goal prose stage 3.
+# Stage 3 -- the runtime. Goal prose stage 3.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "3 the runtime"
+name = "conformance (a double answers with its closures, and a partial delegates)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/a-double-answers-with-its-closures.nvst",
+  "tests/conformance/core/a-partial-delegates-what-it-does-not-override.nvst",
+]
+
+[[check]]
+kind = "cargo-named"
+stage = "3 the runtime"
+name = "nvs-stdlib (every call a double answers is recorded)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "a_double_records_every_call_it_answers",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 4 -- the two assertions. Goal prose stage 4.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "nvs-suite"
+stage = "4 the assertions"
+name = "conformance (the record is asserted after the fact)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/assert-called-reads-the-record-by-count-and-arguments.nvst",
+  "tests/conformance/core/assert-never-called-fails-naming-the-call-it-found.nvst",
+  "tests/conformance/reject/a-method-reference-names-a-method-the-interface-lacks.nvst",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 5 -- `assertCompletes`. Goal prose stage 5.
+# ---------------------------------------------------------------------------------------------------
+
+# The clock exists only inside a `#[Test(at: ...)]` method, so the accepted side needs a runner to
+# observe -- the same split `Core\Test::advance` has between `crates/nvs-cli`'s
+# `a_test_at_a_fixed_clock_reads_that_clock` and the `.nvst` case that pins the refusal.
+[[check]]
+kind = "cargo-named"
+stage = "5 completes"
+name = "nvs-cli (a body completes under the test's clock, or fails naming the duration)"
+args = ["test", "-p", "nvs-cli"]
+tests = [
+  "assert_completes_passes_a_body_that_finishes_under_the_clock",
+  "assert_completes_fails_a_body_still_running_naming_the_duration",
+]
+
+[[check]]
+kind = "nvs-suite"
+stage = "5 completes"
+name = "conformance (assertCompletes refuses where no test fixed a clock)"
+args = ["test", "tests/conformance/"]
+cases = [
+  "tests/conformance/core/assert-completes-refuses-without-a-fixed-clock.nvst",
+]
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 6 -- the rulebook and the gate. Goal prose stage 6.
 # ---------------------------------------------------------------------------------------------------
 
 [[check]]
 kind = "command"
-stage = "3 the index is gone"
-name = "the index that held the register no longer exists"
-argv = ["python", "tools/owners.py", "--registers"]
-want = ["docs/agent/carried-gaps.md: absent, as the register requires", "5 register(s)"]
+stage = "6 the gate"
+name = "no `Core\\Test` key is outstanding"
+argv = ["git", "grep", "-n", "Test::", "--", "crates/nvs-stdlib/tests/spec-members-compiler-facing-outstanding.txt"]
+exit = "nonzero"
 
 [[check]]
 kind = "command"
-stage = "3 the index is gone"
-name = "nothing in the tree points at the deleted file"
-argv = ["python", "tools/check-links.py"]
-want = ["no missing target"]
+stage = "6 the gate"
+name = "the doubles rule is shipped"
+argv = ["git", "grep", "-n", "-A", "2", "\"id\": \"testing/doubles\"", "--", "docs/rules/testing.json"]
+want = ["\"status\": \"shipped\""]
 
 [[check]]
 kind = "command"
-stage = "3 the index is gone"
-name = "the playbook's own checks survive the file that is gone"
-argv = ["python", "tools/playbook.py", "--check"]
-want = ["none -- every path any bullet names still exists"]
+stage = "6 the gate"
+name = "the interaction rule is shipped"
+argv = ["git", "grep", "-n", "-A", "2", "\"id\": \"testing/interaction-after-the-fact\"", "--", "docs/rules/testing.json"]
+want = ["\"status\": \"shipped\""]
 
 [[check]]
 kind = "command"
-stage = "3 the index is gone"
-name = "every entry is still one the driver can walk"
+stage = "6 the gate"
+name = "the rendered rulebook is current"
+argv = ["python", "tools/rules.py", "--render", "--check"]
+
+[[check]]
+kind = "command"
+stage = "6 the gate"
+name = "no gap names this goal"
+argv = ["python", "tools/owners.py", "--closes", "test-doubles"]
+
+[[check]]
+kind = "command"
+stage = "6 the gate"
+name = "the chain still walks"
 argv = ["python", "tools/chain.py", "--check"]
 
-# ---------------------------------------------------------------------------------------------------
-# Stage 4 -- CI is green on main. Goal prose stage 4.
-# ---------------------------------------------------------------------------------------------------
-
 [[check]]
-kind = "command"
-stage = "4 ci is green"
-name = "the latest CI run on main succeeded"
-argv = ["gh", "run", "list", "--branch", "main", "--workflow", "ci.yml", "--limit", "1", "--json", "conclusion"]
-want = ["\"conclusion\":\"success\""]
-
-# ---------------------------------------------------------------------------------------------------
-# Stage 5 -- the past milestones are complete. Goal prose stage 5.
-# ---------------------------------------------------------------------------------------------------
-
-[[check]]
-kind = "command"
-stage = "5 past milestones"
-name = "all eleven past milestones are complete"
-argv = ["python", "tools/plan.py", "--past"]
-want = ["11 of 11 past milestone(s) complete"]
-
-[[check]]
-kind = "command"
-stage = "5 past milestones"
-name = "plan.py: every cell agrees with the chain, done included"
-argv = ["python", "tools/plan.py", "--check"]
-want = ["every cell agreeing with the chain"]
+kind = "cargo-named"
+stage = "6 the gate"
+name = "nvs-stdlib (the ratchet and the reference cards)"
+args = ["test", "-p", "nvs-stdlib"]
+tests = [
+  "every_outstanding_key_names_an_owner",
+  "every_registry_row_carries_a_reference_card",
+]

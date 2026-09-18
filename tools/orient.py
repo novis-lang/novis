@@ -49,7 +49,7 @@ naming something that no longer exists, and that prints as a loud warning rather
     python tools/orient.py --item N     # pin a specific checklist item instead of the first unticked
     python tools/orient.py --stage N    # price a stage the run has not reached, instead of the live one
     python tools/orient.py --full       # ignore the manifest and print everything it could select
-    python tools/orient.py --goal docs/agent/goals/69-dossier.toml --audit  # price a STAGED manifest
+    python tools/orient.py --goal docs/agent/goals/71-dossier.toml --audit  # price a STAGED manifest
 
 `--audit` reports. It never exits non-zero over a size, and nothing in this repository does:
 see docs/agent/doc-style.md on why a length tripwire costs more than it saves.

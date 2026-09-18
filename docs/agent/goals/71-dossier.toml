@@ -1,6 +1,6 @@
-# Goal 69 -- queue the dossier. The acceptance test, as data.
+# Goal 71 -- queue the dossier. The acceptance test, as data.
 #
-# `69-dossier.md` is the prose. One home each.
+# `71-dossier.md` is the prose. One home each.
 #
 # `files` is written across lines so goal-switch.py's union has somewhere to put the floor's
 # fixtures; this goal names none of its own -- its check is one Python command.
@@ -51,7 +51,7 @@ plan = ["Open now", "Blocking"]
 
 
 # ---------------------------------------------------------------------------------------------------
-# THE STAGES. One table per prose stage in `69-dossier.md`, holding what only that stage needs.
+# THE STAGES. One table per prose stage in `71-dossier.md`, holding what only that stage needs.
 #
 # `orient.py` applies the table whose number `handoff.md`'s `## Next group` names and appends it to
 # the base above -- an overlay adds and never replaces. Every entry here is one this goal's own

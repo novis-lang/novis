@@ -59,23 +59,6 @@ three ways: an owner that went green without closing its gap and was struck rath
 rule answered in full by code that no configuration key reaches, and a decision nobody has taken,
 where taking it is the work and the code that follows it is not.
 
-- **Spec § 13 gives `Core\Test` a double half that no class declares.** `double<T>`, `partial<T>`,
-  `assertCalled` and `assertNeverCalled` are specified in full by `rule:testing/doubles` and
-  `rule:testing/interaction-after-the-fact` — a double is a shape of closures checked *structurally*
-  against an interface, so it is compiler work rather than a `Core` body — and `assertCompletes` has
-  the spec row and nothing else. No goal on the chain builds any of them and no milestone's plan
-  carries them. What has to be decided is whether the double half becomes a goal of its own or waits
-  for a milestone that states the scope, which is the same question either way: the structural check
-  is what prices it. `crates/nvs-stdlib/tests/spec-members-compiler-facing-outstanding.txt`.
-  [until: gone crates/nvs-stdlib/tests/spec-members-compiler-facing-outstanding.txt:Test::double]
-- **`Core\BigInt` is a spec § 13 row with no class behind it.** Arbitrary-precision integers sit in
-  the same row as `Core\Decimal`, which is registered whole, and `docs/plan/m8.md:52` scoped the pair
-  together — M8 closed with the decimal half alone, so the tag that carried it is behind the program
-  and a deferral would name a milestone that has already gone green. What has to be decided is
-  whether the type is wanted before a program asks for it, since nothing in the corpus does and the
-  `decimal` scalar covers the money case it would otherwise be reached for.
-  `crates/nvs-stdlib/tests/spec-members-compiler-facing-outstanding.txt`.
-  [until: gone crates/nvs-stdlib/tests/spec-members-compiler-facing-outstanding.txt:Core\BigInt]
 - **An integer where a grant expects a bool, a path or a list validates clean and grants nothing.**
   `[capabilities.fs] read = 1` passes `nvs config check` at `0 warnings` and is denied at run time,
   because `crates/nvs-config/src/tree.rs:50`'s `Setting` is `#[serde(untagged)]` and every directive
