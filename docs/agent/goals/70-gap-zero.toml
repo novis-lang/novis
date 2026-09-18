@@ -11988,9 +11988,9 @@ name = "no recorded gap is owed by anyone but a future milestone"
 argv = ["python", "tools/owners.py", "--check"]
 want = [
   "goal-owned: 0",
+  "past-milestone: 0",
   "unowned: 0",
   "untagged: 0",
-  "past-milestone: 0",
   "retired-owner: 0",
 ]
 
@@ -12024,7 +12024,7 @@ kind = "command"
 stage = "3 the index is gone"
 name = "the index that held the register no longer exists"
 argv = ["python", "tools/owners.py", "--registers"]
-want = ["docs/agent/carried-gaps.md: absent, as the register requires", "5 register(s)"]
+want = ["5 register(s)", "docs/agent/carried-gaps.md: absent, as the register requires"]
 
 [[check]]
 kind = "command"
