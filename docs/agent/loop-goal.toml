@@ -124,6 +124,9 @@ modules = [
   "crates/nvs-ir/src/lower/expr.rs",
   # The ratchet, struck in the same group as the rows. Stage 2.
   "crates/nvs-stdlib/tests/spec-members-compiler-facing-outstanding.txt",
+  # `rule:core-classes/derive-attribute`'s derive pass: which classes carry `#[Json\Derive]` or
+  # `#[Db\Derive]`, which of their properties are fields, and what wire key each field has.
+  "crates/nvs-types/src/derive.rs",
 ]
 
 rules = ["testing/doubles", "testing/interaction-after-the-fact"]
