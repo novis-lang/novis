@@ -1,0 +1,6 @@
+idle connections per core: 16
+so a 16-core host holds:   256
+raise it from code:        no
+shorten my own call:       yes
+now in force:              2s
+back to the file:          (nothing, so the built-in default)

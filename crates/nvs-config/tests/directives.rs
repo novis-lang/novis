@@ -1098,6 +1098,312 @@ fn the_one_http_row_answers_for_a_response_and_its_exceptions_are_shared_or_secr
     );
 }
 
+/// `rule:http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned`'s first cap, read
+/// for its **ground** rather than for its class: the pool is per core, so the count bounds a core's
+/// memory and not a request's, and that is the only reason it is not the blanket row's.
+///
+/// The case is written as a contrast inside one block, because the wrong ground is the one a reader
+/// reaches for. "`[http.client]` is the operator's" would be a rule with the same answer here and a
+/// different answer five keys away: `connect_timeout`, `deadline`, `idle`, `max_duration` and
+/// `max_redirects` sit in the same block, fall through to `http`, and a request may set every one of
+/// them — each bounds the single call that request is making and spends nothing anyone else then
+/// goes without. So the census asserts both sides of the line at once.
+///
+/// **A near miss under the cap is the half that would go unnoticed.** The blanket row is `Runtime`,
+/// so a lookup that did not reach `http.client.pool_idle` from a key written beneath it would not
+/// fall through to nothing and fail loudly — it would land on `http` and quietly become a spelling
+/// a request may set, next door to a cap on memory it shares with every co-resident request.
+// covers: directive:http.client.pool_idle
+#[test]
+fn the_outbound_pools_count_is_the_operators_because_a_core_holds_it_not_a_request() {
+    let cap = governing("http.client.pool_idle");
+    assert_eq!(
+        (cap.key, cap.class, cap.apply),
+        ("http.client.pool_idle", Class::System, Apply::Reload),
+        "the count of idle connections one core keeps is carved out of the `http` blanket by a row \
+         of its own, and `Reload` because the caps are read when a call asks the pool for a \
+         connection, so a changed value bounds the next one",
+    );
+    assert!(
+        !cap.class.settable_by_a_request(),
+        "`Core\\Config::set(\"http.client.pool_idle\", …)` has to refuse: the connections are the \
+         core's and outlive the request that opened them, so a request raising the count would be \
+         spending memory every co-resident request then goes without",
+    );
+
+    // The other side of the line, in the same block: a bound over the one call the request is
+    // making is that request's own business, so "`[http.client]` is the operator's" is not the
+    // ground and a case asserting it would pass here while being wrong five keys away.
+    for per_call in [
+        "connect_timeout",
+        "deadline",
+        "idle",
+        "max_duration",
+        "max_redirects",
+    ] {
+        let dotted = format!("http.client.{per_call}");
+        let row = governing(&dotted);
+        assert_eq!(
+            (row.key, row.class),
+            ("http", Class::Runtime),
+            "`{dotted}` resolves through `{}` to {:?}, and it bounds the single call this request \
+             is making — the ground for the pool's caps is whose memory is held, not which block \
+             the key is written in",
+            row.key,
+            row.class,
+        );
+        assert!(
+            row.class.settable_by_a_request(),
+            "a program that knows its own upstream names `{dotted}` at the call site, so a \
+             registry refusing it would refuse nothing and cost the caller the one spelling that \
+             is genuinely theirs",
+        );
+    }
+
+    // A key invented beneath the cap. `deferred.max_concurrent`'s case asks this against a block
+    // with no blanket row at all, where a miss reaches nothing; here a miss reaches `Runtime`.
+    for beneath in [
+        "http.client.pool_idle.max",
+        "http.client.pool_idle.default",
+        "http.client.pool_idle.per_core",
+    ] {
+        let row = governing(beneath);
+        assert_eq!(
+            (row.key, row.class),
+            ("http.client.pool_idle", Class::System),
+            "`{beneath}` resolves through `{}` to {:?} — a spelling nobody audited fell through to \
+             the blanket row, so a cap on a core's memory has a request-settable name sitting \
+             underneath it",
+            row.key,
+            row.class,
+        );
+    }
+}
+
+/// The pool's other cap, and the case is that it is a **second row** rather than the first one's
+/// suffix. `http.client.pool_idle` is a plain string prefix of `http.client.pool_idle_timeout`, so
+/// a registry that resolved by text rather than on dot boundaries would answer `System` for the
+/// timeout with no row for it at all — the right answer for the wrong reason, which no other
+/// assertion in this file would notice.
+///
+/// What the second row buys is what deleting it would cost:
+/// `rule:http-server/an-outbound-connection-is-pooled-per-core-and-stays-pinned` bounds the pool
+/// with a count *and* a duration because neither is a bound on its own — under the count alone a
+/// connection the far end retired hours ago is still one of the sixteen a core holds, and a request
+/// able to move the duration would hold every one of them open for as long as it liked. The
+/// registry's half of that is one class for both halves, and the dot-boundary lookup is what keeps
+/// the second half from inheriting its answer.
+// covers: directive:http.client.pool_idle_timeout
+#[test]
+fn the_pools_timeout_is_its_own_row_and_not_the_counts_suffix() {
+    let cap = governing("http.client.pool_idle");
+    let timeout = governing("http.client.pool_idle_timeout");
+    assert_eq!(
+        (timeout.key, timeout.class, timeout.apply),
+        (
+            "http.client.pool_idle_timeout",
+            Class::System,
+            Apply::Reload
+        ),
+        "the timeout resolves through `{}`, so how long a core may hold a dead connection open is \
+         answered by a row that is not about it",
+        timeout.key,
+    );
+    assert!(
+        !timeout.class.settable_by_a_request(),
+        "a request that could raise the timeout would keep every idle connection this core holds \
+         open for as long as it liked, which is the count's memory spent over a window the count \
+         says nothing about",
+    );
+
+    // The boundary itself, asked of a key the count's text covers and its block does not. A
+    // text-prefix lookup answers `http.client.pool_idle` here and would answer it for the timeout
+    // too; the dot-boundary one drops through to the blanket, which is what makes the second row
+    // load-bearing rather than a longer spelling of the first.
+    let near_miss = governing("http.client.pool_idlex");
+    assert_eq!(
+        (near_miss.key, near_miss.class),
+        ("http", Class::Runtime),
+        "`http.client.pool_idlex` resolves through `{}`, so the registry matches a row by text \
+         rather than on dot boundaries — under which the count would govern the timeout, the \
+         second row could be deleted with nothing failing, and a key nobody wrote would inherit a \
+         cap's class",
+        near_miss.key,
+    );
+
+    // Two caps, two units, which is why one does not imply the other: a count of connections and a
+    // wait, so a timeout written in the count's spelling is refused rather than read as thirty.
+    let quantity = |key: &str, unit, text: &str| {
+        nvs_config::Quantity::parse(key, unit, &nvs_config::Setting::Text(text.to_string()))
+    };
+    assert!(
+        matches!(
+            quantity(timeout.key, nvs_config::Unit::Duration, "30s"),
+            Ok(nvs_config::Quantity::Nanos(30_000_000_000))
+        ),
+        "the timeout is a wait, which is the half of the pool's bound the count cannot state",
+    );
+    assert!(
+        matches!(
+            quantity(timeout.key, nvs_config::Unit::Duration, "30"),
+            Ok(nvs_config::Quantity::Nanos(30_000_000_000))
+        ),
+        "an unsuffixed timeout is seconds rather than a refusal or some smaller unit, which is the \
+         whole of `Unit::Duration::accepts` and the reading an operator who wrote the number beside \
+         a count is owed",
+    );
+    assert!(
+        quantity(cap.key, nvs_config::Unit::Count, "30s").is_err(),
+        "the count takes no suffix at all, so neither cap can be written in the other's spelling — \
+         a pair that shared a spelling would let an operator set a window where they meant a \
+         number of connections and read back a bound nobody wrote",
+    );
+}
+
+/// `rule:http-server/an-outbound-proxy-is-operator-configured`: a call leaves through a forward
+/// proxy when an operator wrote `[http.client.proxy]` and never otherwise, so the block is `System`
+/// down to every key of it.
+///
+/// **The ground is not the pool's**, which is what makes this worth a case beside the two above.
+/// The caps are `System` because they bound a core's memory; this block is `System` because where
+/// every outbound byte goes is a deployment's decision, and a per-call spelling would be a per-call
+/// way to narrow `rule:security/net-address-policy` — the widening that rule exists to refuse. A
+/// registry reading one ground off the other would be right today and wrong the moment a key
+/// arrives that costs no memory at all: `bypass` and `resolve` hold nothing per core.
+///
+/// **`Reload` is the half that separates it from the block beside it.** `[http.client.tls]` is the
+/// other `System` exception under `[http.client]` and it is `Boot`, because the one `ClientConfig`
+/// every session shares is built once and handed out by `Arc`, so a new snapshot has nothing to
+/// apply a changed anchor set to. The proxy has no such object: the next call reads the block, and
+/// the pool's key carries the proxy, so nothing the old value made can serve one. The pair is
+/// asserted together because a registry that answered `Boot` here would look like consistency.
+///
+/// The keys are read back out of the block rather than listed, so one added to `[http.client.proxy]`
+/// joins this census in the commit that adds it — including a secret's `_file` sibling, which is the
+/// spelling `rule:config/a-secret-is-a-file-whose-content-is-the-value` wants an audited deployment
+/// to use and is no more a request's than the inline one.
+// covers: directive:http.client.proxy
+#[test]
+fn every_key_of_the_proxy_block_is_the_deployments_and_reaches_the_next_call() {
+    let keys = keys_in("http.client.proxy");
+    assert_eq!(
+        keys.iter().map(String::as_str).collect::<Vec<_>>(),
+        [
+            "url",
+            "resolve",
+            "bypass",
+            "username",
+            "password",
+            "password_file"
+        ],
+        "a key added to `[http.client.proxy]` joins this census in the commit that adds it, and \
+         the secret's `_file` sibling sitting beside the inline one is what the rule's table asks \
+         an audited deployment to write",
+    );
+
+    let mut asked = vec!["http.client.proxy".to_string()];
+    asked.extend(keys.iter().map(|key| format!("http.client.proxy.{key}")));
+    for key in asked {
+        let row = governing(&key);
+        assert_eq!(
+            (row.key, row.class, row.apply),
+            ("http.client.proxy", Class::System, Apply::Reload),
+            "`{key}` resolves through `{}` to {:?}/{:?}, and every key of this block answers one \
+             question — where this deployment's outbound bytes go — so a key answering it a second \
+             way is a second place a call could be steered from",
+            row.key,
+            row.class,
+            row.apply,
+        );
+        assert!(
+            !row.class.settable_by_a_request(),
+            "`Core\\Config::set(\"{key}\", …)` has to refuse: a per-call proxy is a per-call way \
+             to choose who resolves the destination, which is a per-call way to narrow \
+             `rule:security/net-address-policy`",
+        );
+    }
+
+    // The block beside it, which shares the class and not the apply. Asserted here because `Boot`
+    // for the proxy would read as the consistent answer and would mean a changed proxy waiting for
+    // a restart that the one thing holding the old value — the pool's key — does not need.
+    let tls = governing("http.client.tls.roots");
+    assert_eq!(
+        (tls.key, tls.class, tls.apply),
+        ("http.client.tls", Class::System, Apply::Boot),
+        "`[http.client.tls]` settles the one `ClientConfig` the process shares by `Arc`, so a new \
+         snapshot has nothing to apply a changed anchor set to — the proxy is the same class for a \
+         different reason and reaches the next call without one",
+    );
+}
+
+/// The one block under `[http.client]` that is **not** an exception, and the row that says so.
+///
+/// `rule:http-server/an-outbound-socket-is-bounded-by-idle-a-lifetime-and-a-message-cap` puts
+/// `max_message` and `send_timeout` on `[http.client] deadline`'s footing: each bounds one call, a
+/// program that knows its own peer names its own value at the call site, and neither is a resource
+/// one request could spend on another's behalf. The `http` blanket already answers `Runtime` for
+/// them, so the row restates an answer the registry would give anyway — which is the point. It sits
+/// after three `System` blocks, and a block in that position is where the next reader assumes the
+/// exception carries on.
+///
+/// So the sweep is over `[http.client]`'s sub-blocks rather than over this one alone: of the three
+/// that carry a row, exactly one is settable by a request, and the case reads that out of the
+/// registry rather than asserting it of the block it already named. A fourth block added under
+/// `[http.client]` lands on one side of that line in the commit that adds it.
+// covers: directive:http.client.socket
+#[test]
+fn the_socket_block_is_the_one_under_http_client_a_request_may_still_set() {
+    let keys = keys_in("http.client.socket");
+    assert_eq!(
+        keys.iter().map(String::as_str).collect::<Vec<_>>(),
+        ["max_message", "send_timeout"],
+        "a key added to `[http.client.socket]` joins this census in the commit that adds it, and \
+         both of these bound the one socket the call opened",
+    );
+
+    for key in &keys {
+        let dotted = format!("http.client.socket.{key}");
+        let row = governing(&dotted);
+        assert_eq!(
+            (row.key, row.class, row.apply),
+            ("http.client.socket", Class::Runtime, Apply::Reload),
+            "`{dotted}` resolves through `{}` to {:?}, and a bound over one call is that call's to \
+             name — a row here reading `System` would refuse a program the one spelling the rule \
+             gives it, `maxMessage` and `sendTimeout` at the call site",
+            row.key,
+            row.class,
+        );
+        assert!(
+            row.class.settable_by_a_request(),
+            "`{dotted}` is what a program that knows its own peer writes for itself, and neither \
+             value is held past the socket it was written for",
+        );
+    }
+
+    // Every row carved under `[http.client]`, read out of the registry: the line through them is
+    // what this one exists to keep visible, and a row added there lands on one side of it in the
+    // commit that adds it rather than by inheriting whatever its neighbour answered.
+    let mut carved: Vec<(&str, bool)> = DIRECTIVES
+        .iter()
+        .filter(|row| row.key.starts_with("http.client."))
+        .map(|row| (row.key, row.class.settable_by_a_request()))
+        .collect();
+    carved.sort_unstable();
+    assert_eq!(
+        carved,
+        [
+            ("http.client.pool_idle", false),
+            ("http.client.pool_idle_timeout", false),
+            ("http.client.proxy", false),
+            ("http.client.socket", true),
+            ("http.client.tls", false),
+        ],
+        "of the rows carved under `[http.client]`, exactly one is still the request's — and it is \
+         the last of them, which is why it carries a row restating an answer the blanket already \
+         gives rather than letting a reader carry four exceptions on to a fifth",
+    );
+}
+
 /// `rule:config/three-changeability-classes` names a response header as its counter-example to `System`, and `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s policy
 /// blocks are what that names: a request may set any of them for itself, because it could already
 /// write the header directly. The registry states that as the one `http` row covering the whole

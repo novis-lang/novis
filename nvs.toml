@@ -487,3 +487,22 @@ workers = 1
 # while nothing here writes it.
 [deferred]
 max_concurrent = 256
+
+# The outbound pool's two caps, written at the numbers `nvs_stdlib::http`'s `DEFAULT_POOL_IDLE` and
+# `DEFAULT_POOL_IDLE_TIMEOUT` already apply where nothing is written — so this checkout holds exactly
+# as many idle connections per core with the two lines as it did without them. They are here to be
+# *read*: `docs/examples/config/http-client-pool_idle/` and `.../http-client-pool_idle_timeout/` are
+# the website's pages for the pair, and a page whose example prints `(nothing)` on the one line the
+# whole page is about teaches nothing about the memory an operator sizes a host with.
+#
+# The rest of `[http.client]` stays unwritten on purpose, and each half for its own reason.
+# `connect_timeout`, `deadline`, `idle`, `max_duration` and `max_redirects` are bounds over the one
+# call a request is making, which a program names at the call site instead. `[http.client.socket]` is
+# the same, and `docs/examples/config/http-client-socket/` is the page that shows its bound arriving
+# as the built-in default and then being changed from code — which only holds while nothing here
+# writes it. And an absent `[http.client.proxy]` is how a deployment says it wants no proxy at all
+# (`rule:http-server/an-outbound-proxy-is-operator-configured`), so writing one to make a page print
+# would send every outbound byte this checkout sends through a host that is not there.
+[http.client]
+pool_idle = 16
+pool_idle_timeout = "30s"
