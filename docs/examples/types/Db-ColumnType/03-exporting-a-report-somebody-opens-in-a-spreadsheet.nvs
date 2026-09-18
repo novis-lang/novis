@@ -1,0 +1,47 @@
+<?nvs
+// The export a support team asks for every month. The columns of the query
+// decide what goes in the file: dates get a plain format somebody's
+// spreadsheet understands, a stored file is named and not pasted in, and
+// everything else goes out as it reads.
+
+class Export {
+    // What this column becomes in the file. Deciding it from the column and
+    // not from the first row means an empty result still writes a correct
+    // header, and one odd row cannot change the shape of the file.
+    public static function rule(Core\Db\ColumnType $type): string {
+        return match ($type) {
+            Core\Db\ColumnType::Bytes => "left out, with the size written instead",
+            Core\Db\ColumnType::Date => "written as 2026-09-18",
+            Core\Db\ColumnType::DateTime => "written as 2026-09-18 14:05:00",
+            Core\Db\ColumnType::Instant => "written in the reader's own time zone",
+            Core\Db\ColumnType::Json => "flattened to one line",
+            Core\Db\ColumnType::Other => "left out, because nothing here knows what it is",
+            default => "written as it reads",
+        };
+    }
+
+    // A column the file cannot carry is worth saying out loud once, so the
+    // person who asked for the export is not left wondering where it went.
+    public static function carried(Core\Db\ColumnType $type): bool {
+        return $type != Core\Db\ColumnType::Bytes && $type != Core\Db\ColumnType::Other;
+    }
+}
+
+array<string> $names = ["invoice_no", "issued_on", "total", "meta", "scan"];
+array<Core\Db\ColumnType> $types = [
+    Core\Db\ColumnType::Text,
+    Core\Db\ColumnType::Date,
+    Core\Db\ColumnType::Decimal,
+    Core\Db\ColumnType::Json,
+    Core\Db\ColumnType::Bytes,
+];
+
+uint $carried = 0;
+foreach (Core\Arr::range(0, 4) as int $column) {
+    echo $names[$column], ": ", Export::rule($types[$column]), "\n";
+    if (Export::carried($types[$column])) {
+        $carried = $carried + 1;
+    }
+}
+
+echo $carried, " of ", Core\Arr::count($names), " columns go into the file\n";

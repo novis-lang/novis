@@ -1,0 +1,53 @@
+<?nvs
+// Every read describes its columns, and this is what that description says
+// about each one. It is what the column was declared as in the database, so
+// two columns that hand you the same kind of value can still be told apart.
+
+class Describe {
+    public static function plainly(Core\Db\ColumnType $type): string {
+        return match ($type) {
+            Core\Db\ColumnType::Int => "Int is a whole number, which may be negative",
+            Core\Db\ColumnType::Uint => "Uint is a whole number that is never negative",
+            Core\Db\ColumnType::Float => "Float is a number with a fractional part, rounded",
+            Core\Db\ColumnType::Decimal => "Decimal is an exact amount, such as a price",
+            Core\Db\ColumnType::Text => "Text is text",
+            Core\Db\ColumnType::Bytes => "Bytes is raw bytes, such as a stored file",
+            Core\Db\ColumnType::Bool => "Bool is true or false",
+            Core\Db\ColumnType::Date => "Date is a calendar day, with no time on it",
+            Core\Db\ColumnType::Time => "Time is a time of day, with no date on it",
+            Core\Db\ColumnType::DateTime => "DateTime is a date and a time, with no time zone",
+            Core\Db\ColumnType::Instant => "Instant is a moment in time, carrying its own offset",
+            Core\Db\ColumnType::Uuid => "Uuid is a UUID",
+            Core\Db\ColumnType::Json => "Json is text the database knows is JSON",
+            Core\Db\ColumnType::Other => "Other is anything else, including every array column",
+        };
+    }
+}
+
+array<Core\Db\ColumnType> $everything = [
+    Core\Db\ColumnType::Int,
+    Core\Db\ColumnType::Uint,
+    Core\Db\ColumnType::Float,
+    Core\Db\ColumnType::Decimal,
+    Core\Db\ColumnType::Text,
+    Core\Db\ColumnType::Bytes,
+    Core\Db\ColumnType::Bool,
+    Core\Db\ColumnType::Date,
+    Core\Db\ColumnType::Time,
+    Core\Db\ColumnType::DateTime,
+    Core\Db\ColumnType::Instant,
+    Core\Db\ColumnType::Uuid,
+    Core\Db\ColumnType::Json,
+    Core\Db\ColumnType::Other,
+];
+
+foreach ($everything as Core\Db\ColumnType $type) {
+    echo Describe::plainly($type), "\n";
+}
+
+// Text and JSON are the clearest pair. Both hand your program text, and they
+// are still different columns, so a program that pretty-prints JSON knows
+// which columns to do it to.
+echo "Text and Json are the same case: ",
+    Core\Db\ColumnType::Text == Core\Db\ColumnType::Json ? "yes" : "no",
+    "\n";

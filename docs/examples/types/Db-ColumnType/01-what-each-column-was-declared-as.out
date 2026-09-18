@@ -1,0 +1,15 @@
+Int is a whole number, which may be negative
+Uint is a whole number that is never negative
+Float is a number with a fractional part, rounded
+Decimal is an exact amount, such as a price
+Text is text
+Bytes is raw bytes, such as a stored file
+Bool is true or false
+Date is a calendar day, with no time on it
+Time is a time of day, with no date on it
+DateTime is a date and a time, with no time zone
+Instant is a moment in time, carrying its own offset
+Uuid is a UUID
+Json is text the database knows is JSON
+Other is anything else, including every array column
+Text and Json are the same case: no

@@ -1,0 +1,33 @@
+<?nvs
+// A table on screen reads better when numbers line up on the right and words
+// start on the left. The column description says which is which, so your
+// program decides once per column instead of looking at every cell.
+
+class Table {
+    public static function alignment(Core\Db\ColumnType $type): string {
+        return match ($type) {
+            Core\Db\ColumnType::Int => "right",
+            Core\Db\ColumnType::Uint => "right",
+            Core\Db\ColumnType::Float => "right",
+            Core\Db\ColumnType::Decimal => "right",
+            default => "left",
+        };
+    }
+}
+
+// What the description of a `select id, customer, total, placed_on` would
+// hand back.
+array<string> $names = ["id", "customer", "total", "placed_on"];
+array<Core\Db\ColumnType> $types = [
+    Core\Db\ColumnType::Uint,
+    Core\Db\ColumnType::Text,
+    Core\Db\ColumnType::Decimal,
+    Core\Db\ColumnType::Date,
+];
+
+foreach (Core\Arr::range(0, 3) as int $column) {
+    echo $names[$column], " is aligned ", Table::alignment($types[$column]), "\n";
+}
+
+// A date is a value with an order, and it still goes on the left: what is
+// being asked here is how the column is read, not how it is sorted.

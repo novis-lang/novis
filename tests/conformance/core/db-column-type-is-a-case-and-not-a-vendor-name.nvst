@@ -2,6 +2,7 @@
 `Core\Db\Column::type` answers a `Core\Db\ColumnType` case, so a program branches on something the backends agree about rather than on the vendor type name `getColumnMeta` hands back — `rule:core-classes/db-column-types`, spec § 18
 --FILE--
 <?nvs
+// covers: Core\Db\ColumnType
 var $db = Core\Db::connect("main");
 
 foreach ($db->query("select id, payload from events", [])->columns() as Core\Db\Column $column) {
@@ -34,6 +35,6 @@ foreach ($db->query("select id from events", [])->columns() as Core\Db\Column $o
 
 --EXPECTF-ERROR--
 error[E0401]: expected `string`, found `Core\Db\ColumnType`
-   --> case.nvs:28:22
+   --> case.nvs:29:22
 %A
 error: aborting due to 1 error
