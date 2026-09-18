@@ -1,0 +1,4 @@
+tests: pages with limit ? offset ?
+production: pages with limit ? offset ?
+reporting: pages with offset ? rows fetch next ? rows only
+sandbox: no database is configured for that name

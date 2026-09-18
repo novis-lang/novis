@@ -1,0 +1,49 @@
+<?nvs
+// Almost every statement you write runs on all five backends unchanged. A few
+// do not, and "insert this row, or update it if it is already there" is the
+// one most programs meet first. Keeping the difference in one place means the
+// rest of the program never asks which database it is talking to.
+
+class Upsert {
+    public static function statement(Core\Db\Driver $driver): string {
+        return match ($driver) {
+            Core\Db\Driver::MySql => "insert into contacts (email, name) values (?, ?) "
+                . "on duplicate key update name = values(name)",
+            Core\Db\Driver::MariaDb => "insert into contacts (email, name) values (?, ?) "
+                . "on duplicate key update name = values(name)",
+            Core\Db\Driver::Postgres => "insert into contacts (email, name) values (?, ?) "
+                . "on conflict (email) do update set name = excluded.name",
+            Core\Db\Driver::Sqlite => "insert into contacts (email, name) values (?, ?) "
+                . "on conflict (email) do update set name = excluded.name",
+            Core\Db\Driver::SqlServer => "merge contacts as target using (values (?, ?)) "
+                . "as source (email, name) on target.email = source.email "
+                . "when matched then update set name = source.name "
+                . "when not matched then insert (email, name) values (source.email, source.name);",
+        };
+    }
+
+    public static function label(Core\Db\Driver $driver): string {
+        return match ($driver) {
+            Core\Db\Driver::MySql => "MySQL",
+            Core\Db\Driver::MariaDb => "MariaDB",
+            Core\Db\Driver::Postgres => "PostgreSQL",
+            Core\Db\Driver::Sqlite => "SQLite",
+            Core\Db\Driver::SqlServer => "SQL Server",
+        };
+    }
+}
+
+array<Core\Db\Driver> $everything = [
+    Core\Db\Driver::MySql,
+    Core\Db\Driver::Postgres,
+    Core\Db\Driver::Sqlite,
+    Core\Db\Driver::SqlServer,
+];
+
+foreach ($everything as Core\Db\Driver $driver) {
+    echo Upsert::label($driver), "\n  ", Upsert::statement($driver), "\n";
+}
+
+// The values are still sent as parameters on every one of them. Only the
+// wording of the statement changes with the driver; nothing about it is ever
+// built by pasting a value into the text.

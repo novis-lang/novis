@@ -2,6 +2,7 @@
 `Core\Db\Connection`'s two readonly members answer the connection and not the block that named it: `driver()` is the `Core\Db\Driver` case the `[db.<name>]` block wrote, and `isOpen()` is `true` right up to the `close` that ends it — `rule:core-classes/db-connection-is-named` and `rule:security/db-pool-reset-is-a-boundary` and spec § 18
 --FILE--
 <?nvs
+// covers: Core\Db\Driver
 // SQLite needs no server, so this is a connection that really opened — which
 // is what makes `driver()` a fact read off the thing that was opened rather
 // than off the configuration key. `db-a-sqlite-block-opens-a-file-and-runs-

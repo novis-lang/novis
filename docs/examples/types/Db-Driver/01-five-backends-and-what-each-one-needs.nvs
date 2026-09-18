@@ -1,0 +1,42 @@
+<?nvs
+// The driver is the first thing a connection's settings name, and it decides
+// what the rest of them have to say. Four of the five are servers you reach
+// over the network. SQLite is a file on the machine your program runs on.
+
+class Backend {
+    public static function label(Core\Db\Driver $driver): string {
+        return match ($driver) {
+            Core\Db\Driver::MySql => "MySQL",
+            Core\Db\Driver::MariaDb => "MariaDB",
+            Core\Db\Driver::Postgres => "PostgreSQL",
+            Core\Db\Driver::Sqlite => "SQLite",
+            Core\Db\Driver::SqlServer => "Microsoft SQL Server",
+        };
+    }
+
+    public static function needs(Core\Db\Driver $driver): string {
+        return match ($driver) {
+            Core\Db\Driver::Sqlite => "a path to a file",
+            default => "a host, and a user to log in as",
+        };
+    }
+}
+
+array<Core\Db\Driver> $everything = [
+    Core\Db\Driver::MySql,
+    Core\Db\Driver::MariaDb,
+    Core\Db\Driver::Postgres,
+    Core\Db\Driver::Sqlite,
+    Core\Db\Driver::SqlServer,
+];
+
+foreach ($everything as Core\Db\Driver $driver) {
+    echo Backend::label($driver), " takes ", Backend::needs($driver), "\n";
+}
+
+// MariaDB is a case of its own and not a flag on MySQL. The two log in
+// differently and report errors differently, so a program that treats one as
+// the other is right until the day it is not.
+echo "MySQL and MariaDB are one case: ",
+    Core\Db\Driver::MySql == Core\Db\Driver::MariaDb ? "yes" : "no",
+    "\n";

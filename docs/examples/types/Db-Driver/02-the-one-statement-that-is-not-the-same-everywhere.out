@@ -1,0 +1,8 @@
+MySQL
+  insert into contacts (email, name) values (?, ?) on duplicate key update name = values(name)
+PostgreSQL
+  insert into contacts (email, name) values (?, ?) on conflict (email) do update set name = excluded.name
+SQLite
+  insert into contacts (email, name) values (?, ?) on conflict (email) do update set name = excluded.name
+SQL Server
+  merge contacts as target using (values (?, ?)) as source (email, name) on target.email = source.email when matched then update set name = source.name when not matched then insert (email, name) values (source.email, source.name);

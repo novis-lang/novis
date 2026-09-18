@@ -1,0 +1,41 @@
+<?nvs
+// What a team ends up with: the tests run against a SQLite file, staging and
+// production run against the real server. One word from the deployment picks
+// the backend, a word nothing answers is refused there and then, and the two
+// places the SQL differs are decided from the case rather than from the word.
+
+class Deployment {
+    public static function driverFor(string $environment): ?Core\Db\Driver {
+        return match ($environment) {
+            "tests" => Core\Db\Driver::Sqlite,
+            "staging" => Core\Db\Driver::Postgres,
+            "production" => Core\Db\Driver::Postgres,
+            "reporting" => Core\Db\Driver::SqlServer,
+            default => null,
+        };
+    }
+
+    // Asking for one page of rows. Four of the five spell it the same way and
+    // SQL Server does not, which is the sort of thing that is worth writing
+    // down once.
+    public static function page(Core\Db\Driver $driver): string {
+        return match ($driver) {
+            Core\Db\Driver::SqlServer => "offset ? rows fetch next ? rows only",
+            default => "limit ? offset ?",
+        };
+    }
+}
+
+array<string> $environments = ["tests", "production", "reporting", "sandbox"];
+
+foreach ($environments as string $environment) {
+    ?Core\Db\Driver $driver = Deployment::driverFor($environment);
+
+    // A name with no backend behind it stops here. Starting up against a
+    // database nobody meant to configure is worse than not starting at all.
+    if ($driver == null) {
+        echo $environment, ": no database is configured for that name\n";
+    } else {
+        echo $environment, ": pages with ", Deployment::page($driver), "\n";
+    }
+}
