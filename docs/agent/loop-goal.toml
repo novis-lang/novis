@@ -117,6 +117,8 @@ modules = [
   "crates/nvs-stdlib/tests/spec_registry_coverage.rs",
   # TODO: why a session opens this.
   "editors/vscode/src/regions.ts",
+  # Running one `Case` and deciding whether it passed.
+  "crates/nvs-test/src/run.rs",
 ]
 
 rules = [
