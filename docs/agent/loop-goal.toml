@@ -106,6 +106,10 @@ modules = [
   "crates/nvs-config/src/export.rs",
   "crates/nvs-config/src/cache.rs",
   "crates/nvs-config/tests/directives.rs",
+  # `rule:http-server/session-backend-is-shared-or-db-and-local-is-refused-at-boot`'s `[session]
+  # backend`: the stores a session record may live in, and the boot-time refusal of the two
+  # `rule:concurrency/the-local-tier-cannot-hold-what-must-be-coherent` removed.
+  "crates/nvs-config/src/session.rs",
 ]
 
 rules = ["testing/four-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "config/three-changeability-classes", "config/reloadability-is-its-own-field", "config/system-means-a-request-may-not-set-it", "0134", "0026", "0117", "0004", "0088"]
