@@ -1,0 +1,29 @@
+<?nvs
+// A compressed response says which format its body is in, in one header. The
+// name the header uses is not always the name of the case: `deflate` there
+// means the zlib wrapper rather than the bare stream. A name nothing answers
+// is refused here, while it is still a name, rather than guessed at later.
+
+string $message = "{\"order\": 1042, \"total\": \"18.40\"}";
+array<string> $headers = ["gzip", "deflate", "br", "zstd", "exi"];
+
+foreach ($headers as string $header) {
+    ?Core\Codec $codec = match ($header) {
+        "gzip" => Core\Codec::Gzip,
+        "deflate" => Core\Codec::Zlib,
+        "br" => Core\Codec::Brotli,
+        "zstd" => Core\Codec::Zstd,
+        default => null,
+    };
+
+    if ($codec == null) {
+        echo "Content-Encoding: ", $header, " -> no case reads that\n";
+    } else {
+        // The header picked the case, and the case is what reads the body.
+        // Nothing here looks at the frame to decide.
+        bytes $body = Core\Compress::compress($message, $codec);
+        echo "Content-Encoding: ", $header, " -> ",
+            Core\Bytes::length(Core\Compress::decompress($body, $codec)),
+            " octets of JSON\n";
+    }
+}

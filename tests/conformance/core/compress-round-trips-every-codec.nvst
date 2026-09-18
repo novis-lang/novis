@@ -2,6 +2,7 @@
 `Core\Compress` is one API over every codec case, and each direction is the other's inverse — spec § 17, `rule:core-api/tier-roster`
 --FILE--
 <?nvs
+// covers: Core\Codec
 // One payload through every case, counted rather than read off a line: a codec
 // that answers plausibly on its own row still fails the count. The payload is
 // English text repeated, which every one of the five compresses and none of

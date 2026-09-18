@@ -1,0 +1,8 @@
+Deflate is the stream with nothing around it
+Gzip is that same stream plus 18 octets
+Zlib is that same stream plus 6 octets
+Gzip: reads back
+Zlib: reads back
+Deflate: reads back
+Brotli: reads back
+Zstd: reads back

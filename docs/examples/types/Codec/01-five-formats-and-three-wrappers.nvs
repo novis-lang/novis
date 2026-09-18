@@ -1,0 +1,47 @@
+<?nvs
+// Five cases, and the first three of them are one compressed stream under
+// three different wrappers. Compressing the same text under each shows it:
+// the bare stream is what gzip and zlib each put a few more octets around.
+
+class Format {
+    public static function name(Core\Codec $codec): string {
+        return match ($codec) {
+            Core\Codec::Gzip => "Gzip",
+            Core\Codec::Zlib => "Zlib",
+            Core\Codec::Deflate => "Deflate",
+            Core\Codec::Brotli => "Brotli",
+            Core\Codec::Zstd => "Zstd",
+        };
+    }
+}
+
+string $text = Core\Str::repeat("the quick brown fox jumps over the lazy dog\n", 16);
+bytes $payload = $text as bytes;
+
+uint $bare = Core\Bytes::length(Core\Compress::compress($payload, Core\Codec::Deflate));
+uint $gzip = Core\Bytes::length(Core\Compress::compress($payload, Core\Codec::Gzip));
+uint $zlib = Core\Bytes::length(Core\Compress::compress($payload, Core\Codec::Zlib));
+
+echo "Deflate is the stream with nothing around it\n";
+echo "Gzip is that same stream plus ", $gzip - $bare, " octets\n";
+echo "Zlib is that same stream plus ", $zlib - $bare, " octets\n";
+
+// Brotli and Zstd are other algorithms rather than other wrappers. What all
+// five have in common is the only thing that matters when you pick one: each
+// reads back exactly what went in, under its own case.
+array<Core\Codec> $codecs = [
+    Core\Codec::Gzip,
+    Core\Codec::Zlib,
+    Core\Codec::Deflate,
+    Core\Codec::Brotli,
+    Core\Codec::Zstd,
+];
+
+foreach ($codecs as Core\Codec $codec) {
+    bytes $frame = Core\Compress::compress($payload, $codec);
+    echo Format::name($codec), ": ",
+        Core\Hash::equals(Core\Compress::decompress($frame, $codec), $payload)
+            ? "reads back"
+            : "differs",
+        "\n";
+}

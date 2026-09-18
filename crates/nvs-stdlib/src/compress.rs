@@ -1438,6 +1438,7 @@ mod tests {
     /// round-trip test. The count it compares against is derived from the rows
     /// themselves, so a member added to the class either names its format
     /// `codec` and takes the enum, or fails here.
+    // covers: Core\Codec
     #[test]
     fn the_codec_is_an_enum_and_there_is_no_name_as_string_spelling() {
         let mut enums = 0;

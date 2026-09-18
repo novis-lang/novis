@@ -1,0 +1,60 @@
+<?nvs
+// What a server does on every page it sends: the client lists the formats it
+// can read, and the server picks the best one it also writes. The frame and
+// the name of the case that wrote it travel together, because nothing in the
+// frame itself says which one that was.
+
+class Response {
+    // The order is the server's policy and not the client's: a client says
+    // what it can read, and this picks from that. Gzip comes last because it
+    // is the one every client has read for twenty years, so it is what is
+    // left when the newer two are not offered.
+    public static function pick(string $accept): ?Core\Codec {
+        if (Core\Str::contains($accept, "zstd")) {
+            return Core\Codec::Zstd;
+        }
+        if (Core\Str::contains($accept, "br")) {
+            return Core\Codec::Brotli;
+        }
+        if (Core\Str::contains($accept, "gzip")) {
+            return Core\Codec::Gzip;
+        }
+        return null;
+    }
+
+    // The name each case goes out under. The bare stream has none: it is what
+    // the other two wrap, and no client asks for it by name.
+    public static function header(Core\Codec $codec): string {
+        return match ($codec) {
+            Core\Codec::Gzip => "gzip",
+            Core\Codec::Zlib => "deflate",
+            Core\Codec::Deflate => "",
+            Core\Codec::Brotli => "br",
+            Core\Codec::Zstd => "zstd",
+        };
+    }
+}
+
+bytes $page = Core\Str::repeat("<li>order 1042 shipped</li>\n", 40) as bytes;
+
+array<string> $clients = [
+    "gzip, deflate, br, zstd",
+    "gzip, deflate",
+    "identity",
+];
+
+foreach ($clients as string $accept) {
+    ?Core\Codec $codec = Response::pick($accept);
+
+    // A client that accepts nothing you write gets the page as it is. That is
+    // a slower response and never a broken one.
+    if ($codec == null) {
+        echo "accepts ", $accept, " -> sent as it is\n";
+    } else {
+        bytes $frame = Core\Compress::compress($page, $codec);
+        echo "accepts ", $accept,
+            " -> Content-Encoding: ", Response::header($codec),
+            ", ", Core\Bytes::length($frame),
+            " octets instead of ", Core\Bytes::length($page), "\n";
+    }
+}
