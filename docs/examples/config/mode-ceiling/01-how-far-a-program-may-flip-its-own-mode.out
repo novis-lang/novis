@@ -1,0 +1,6 @@
+running in: production
+ceiling:    (nothing written — the mode the host started in)
+select production:  accepted
+select development: refused
+still running in:   production
+raise the ceiling:  refused

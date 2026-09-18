@@ -1,0 +1,83 @@
+<?nvs
+// Attack: the line a program's own mode flip stops at, pushed by the program it
+// stops. Every spelling that might reach the key from a block nobody guarded,
+// every value that might be read as a third mode or as the one above, and then
+// the flip itself repeated until something either gives or leaks — a host still
+// in production at the end is the only evidence that none of it landed.
+// hostile: timeout-ms 20000
+
+// 1. Every other name for the ceiling and for the flip it bounds, including the
+//    per-application copy of the block.
+array<string> $names = [
+    'mode',
+    'mode.ceiling',
+    'mode.default',
+    'ceiling',
+    'MODE.CEILING',
+    'Mode.Ceiling',
+    'mode..ceiling',
+    '.mode.ceiling',
+    'mode.ceiling.',
+    'mode.ceiling.mode',
+    'app.mode.ceiling',
+    'app.0.mode.ceiling',
+    "mode.ceiling\u{0000}",
+    "mode.default\u{0000}mode.ceiling",
+    'mode.default/../ceiling',
+    'mode.' . Core\Str::repeat('sub.', 20000) . 'ceiling',
+];
+foreach ($names as string $key) {
+    Core\Config::set($key, 'development');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 2. Every shape of mode. The interesting ones are not the silly ones: a value
+//    that differs from `development` only in case, in padding or in an invisible
+//    character is the one an engine might fold into it, and a third name is the
+//    open set of environments this language deliberately does not have.
+array<string> $modes = [
+    '',
+    ' ',
+    'development',
+    ' development ',
+    'Development',
+    'DEVELOPMENT',
+    "development\u{0000}",
+    "developmen\u{0074}",
+    "dev\u{0435}lopment",
+    'dev',
+    'debug',
+    'staging',
+    'test',
+    'production,development',
+    'true',
+    '1',
+    Core\Str::repeat('development', 65536),
+];
+foreach ($modes as string $mode) {
+    Core\Config::set('mode.ceiling', $mode);
+    Core\Config::set('mode.default', $mode);
+    Core\Config::set('app.0.mode.ceiling', $mode);
+}
+Core\Config::restore('mode.ceiling');
+Core\Config::restore('mode.default');
+
+// 3. The flip itself, taken as often as the runtime will take it. A ceiling
+//    enforced once and then cached, or a refused set that still moves something
+//    behind it, shows up here and nowhere else — and a value kept per call is a
+//    leak that grows with how hard the program asks.
+uint $granted = 0;
+uint $i = 0;
+while ($i < 200000) {
+    if (Core\Config::set('mode.default', 'development')) {
+        $granted = $granted + 1;
+    }
+    Core\Config::set('mode.default', 'production');
+    Core\Config::restore('mode.default');
+    $i = $i + 1;
+}
+
+echo 'flips granted: ', $granted, "\n";
+echo 'ceiling: ', Core\Config::get('mode.ceiling') ?? '(nothing written — the mode the host started in)', "\n";
+echo 'running in: ', Core\Env::mode() == Core\Env\Mode::Development ? 'development' : 'production', "\n";
