@@ -1,0 +1,35 @@
+<?nvs
+// What happens when the settings from an older project come across. Connection
+// strings elsewhere carry an `sslmode`, and reading each one as the mode it
+// really is tells you, before you move anything, how much each of those
+// connections was checking.
+
+class SslMode {
+    public static function meaning(string $sslmode): Core\Db\Tls {
+        return match ($sslmode) {
+            "disable" => Core\Db\Tls::Disabled,
+            // "prefer" is the one that surprises people: it encrypts when the
+            // server offers to and connects in the clear when it does not, so
+            // what it promises is what its weakest run did.
+            "prefer" => Core\Db\Tls::Disabled,
+            "require" => Core\Db\Tls::Required,
+            "verify-ca" => Core\Db\Tls::VerifyCa,
+            default => Core\Db\Tls::VerifyFull,
+        };
+    }
+
+    public static function carriesOver(Core\Db\Tls $mode): string {
+        return match ($mode) {
+            Core\Db\Tls::Disabled => "may have been sending the password in the clear",
+            Core\Db\Tls::Required => "was encrypted, but would have taken any certificate at all",
+            Core\Db\Tls::VerifyCa => "checked the certificate, but not that it was issued for this host",
+            Core\Db\Tls::VerifyFull => "carries over exactly as it is",
+        };
+    }
+}
+
+array<string> $found = ["prefer", "require", "verify-ca", "verify-full"];
+
+foreach ($found as string $sslmode) {
+    echo "sslmode=", $sslmode, ": ", SslMode::carriesOver(SslMode::meaning($sslmode)), "\n";
+}

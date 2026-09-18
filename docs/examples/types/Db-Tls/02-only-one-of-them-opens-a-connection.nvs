@@ -1,0 +1,34 @@
+<?nvs
+// Three of the four modes are refused when a connection asks for them, and the
+// refusal names the one that was asked for. This is deliberate: a program that
+// asked to check less would otherwise be given more without being told, and
+// would go on believing it had asked for something that was allowed.
+
+class Opens {
+    public static function verdict(Core\Db\Tls $mode): string {
+        if ($mode == Core\Db\Tls::VerifyFull) {
+            return "opens the connection";
+        }
+        return "refused at the call, and the message says which mode it was";
+    }
+
+    public static function name(Core\Db\Tls $mode): string {
+        return match ($mode) {
+            Core\Db\Tls::Disabled => "Disabled",
+            Core\Db\Tls::Required => "Required",
+            Core\Db\Tls::VerifyCa => "VerifyCa",
+            Core\Db\Tls::VerifyFull => "VerifyFull",
+        };
+    }
+}
+
+array<Core\Db\Tls> $modes = [
+    Core\Db\Tls::Disabled,
+    Core\Db\Tls::Required,
+    Core\Db\Tls::VerifyCa,
+    Core\Db\Tls::VerifyFull,
+];
+
+foreach ($modes as Core\Db\Tls $mode) {
+    echo Opens::name($mode), ": ", Opens::verdict($mode), "\n";
+}

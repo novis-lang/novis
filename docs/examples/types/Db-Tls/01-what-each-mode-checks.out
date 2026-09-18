@@ -1,0 +1,4 @@
+Disabled: nothing is encrypted and nothing is checked
+Required: the traffic is encrypted, but any certificate at all will do
+VerifyCa: the certificate is signed by an authority you trust, though not necessarily for this host
+VerifyFull: the certificate is signed by an authority you trust and issued for the host you asked for

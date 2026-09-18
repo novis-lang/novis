@@ -1,0 +1,26 @@
+<?nvs
+// The four modes, and what each one has established by the time your password
+// goes over the wire. They read as a ladder, and only the top rung tells you
+// that you are talking to the server you meant to talk to.
+
+class Mode {
+    public static function checks(Core\Db\Tls $mode): string {
+        return match ($mode) {
+            Core\Db\Tls::Disabled => "Disabled: nothing is encrypted and nothing is checked",
+            Core\Db\Tls::Required => "Required: the traffic is encrypted, but any certificate at all will do",
+            Core\Db\Tls::VerifyCa => "VerifyCa: the certificate is signed by an authority you trust, though not necessarily for this host",
+            Core\Db\Tls::VerifyFull => "VerifyFull: the certificate is signed by an authority you trust and issued for the host you asked for",
+        };
+    }
+}
+
+array<Core\Db\Tls> $modes = [
+    Core\Db\Tls::Disabled,
+    Core\Db\Tls::Required,
+    Core\Db\Tls::VerifyCa,
+    Core\Db\Tls::VerifyFull,
+];
+
+foreach ($modes as Core\Db\Tls $mode) {
+    echo Mode::checks($mode), "\n";
+}

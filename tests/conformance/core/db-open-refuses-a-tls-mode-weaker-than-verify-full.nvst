@@ -2,6 +2,7 @@
 A settings literal may ask for a weaker `tls` and is refused rather than quietly given the stronger one, and the SQLite arm is a shape the checker accepts and this build cannot open — `rule:core-classes/db-capabilities`, `rule:core-api/shape-arms-are-disjoint`
 --FILE--
 <?nvs
+// covers: Core\Db\Tls
 // `rule:core-classes/db-capabilities`'s third closed hole. PHP's `pdo_pgsql` defaults to
 // `sslmode=prefer` and connects in plaintext whenever the server says so; here
 // the weak spelling exists, is writable, and is answered by a refusal that
