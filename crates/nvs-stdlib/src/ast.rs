@@ -290,7 +290,6 @@ productions![
     "If",
     "Index",
     "InlineHtml",
-    "InstanceOf",
     "Int",
     "InterfaceDecl",
     "Interpolated",

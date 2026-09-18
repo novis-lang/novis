@@ -874,16 +874,16 @@ fn symbol_of(target: &Target<'_>) -> String {
 /// the answer wherever the name written and the symbol resolved are the same
 /// one: a call resolves to its method, an access to its property, a
 /// `Class::CONST` and a `Enum::Case` to the constant each names, a `new` to its
-/// class. An `instanceof` resolves to a name written on its **right-hand** side
-/// and a call through a callable to one on its **callee** side, so each answers
-/// the child node that holds it.
+/// class. A call through a callable resolves to a name written on its
+/// **callee** side, so it answers the child node that holds it.
 ///
 /// A production that wrote no name at all — `new $class()`, `$u->{$name}` —
 /// answers the whole expression, which is the widest true thing there is to
-/// say about where it was written.
+/// say about where it was written. A type test is that shape too: the type on
+/// the right of `is` is no child of its own, so the test answers the name it
+/// carries over the span it covers.
 fn named(node: &walk::Node) -> Span {
     let written = match node.kind {
-        "InstanceOf" => node.children.get(1),
         "Call" => node.children.first(),
         _ => None,
     }
