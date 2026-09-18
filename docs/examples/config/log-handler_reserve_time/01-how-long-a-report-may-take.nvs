@@ -1,0 +1,25 @@
+<?nvs
+// How long the script that reports a failure may take. It is a ceiling on a
+// report rather than a budget for work: what makes a report slow is the
+// destination it writes to, not the message it builds.
+
+echo 'time for the report:  ', Core\Config::get('log.handler_reserve_time') ?? '(nothing written)', "\n";
+echo 'memory beside it:     ', Core\Config::get('log.handler_reserve_memory') ?? '(nothing written)', "\n";
+
+// Four numbers are easy to mistake for one another, so here are the other two.
+// These come out of the failing request's own budget and are sized for a
+// closure it already had loaded; the pair above is the engine's and is sized
+// for compiling and starting a script.
+echo 'the request-side time: ', Core\Config::get('limits.fatal_reserve_time') ?? '(nothing written)', "\n";
+echo 'the request-side heap: ', Core\Config::get('limits.fatal_reserve_memory') ?? '(nothing written)', "\n";
+
+// None of the four is a program's to move, and this one matters in the
+// direction that looks harmless: a report cut short is a report that never
+// arrives, which is the same as never having been made.
+echo 'give it an hour:  ', Core\Config::set('log.handler_reserve_time', '1h') ? 'accepted' : 'refused', "\n";
+echo 'give it a moment: ', Core\Config::set('log.handler_reserve_time', '1ms') ? 'accepted' : 'refused', "\n";
+
+// The clock a program does own is its own, and lowering it says nothing about
+// how long the report of its failure may take.
+echo 'bound my own run:  ', Core\Config::set('limits.cpu_time', '2s') ? 'accepted' : 'refused', "\n";
+echo 'time for the report still: ', Core\Config::get('log.handler_reserve_time') ?? '(nothing written)', "\n";

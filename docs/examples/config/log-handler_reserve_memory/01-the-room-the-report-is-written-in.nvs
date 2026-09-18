@@ -1,0 +1,24 @@
+<?nvs
+// The room the script that reports a failure runs in. It is not taken from the
+// failing request — a request that ran out of memory has none to give — so this
+// is an allotment of the engine's own, sized once when the server starts.
+
+echo 'memory for the report: ', Core\Config::get('log.handler_reserve_memory') ?? '(nothing written)', "\n";
+echo 'time for it:           ', Core\Config::get('log.handler_reserve_time') ?? '(nothing written)', "\n";
+echo 'the script it runs:    ', Core\Config::get('log.handler') ?? '(none — the floor writes the record itself)', "\n";
+
+// The slice that *is* carved out of the request is the other one, and it is a
+// different size for a different job: this reserve compiles and runs a whole
+// script, where that one runs a closure the program already had loaded.
+echo 'the request-side slice: ', Core\Config::get('limits.fatal_reserve_memory') ?? '(nothing written)', "\n";
+
+// Neither direction is a program's to take. Widening it would spend the
+// engine's reserve on the program's behalf, and narrowing it would let a
+// program make the report of its own failure fail as well.
+echo 'widen it:  ', Core\Config::set('log.handler_reserve_memory', '1G') ? 'accepted' : 'refused', "\n";
+echo 'narrow it: ', Core\Config::set('log.handler_reserve_memory', '64K') ? 'accepted' : 'refused', "\n";
+echo 'remove it: ', Core\Config::set('log.handler_reserve_memory', 'false') ? 'accepted' : 'refused', "\n";
+
+// What a program may still bound is its own heap, which none of this is carved
+// out of.
+echo 'bound my own heap: ', Core\Config::set('limits.memory', '64M') ? 'accepted' : 'refused', "\n";

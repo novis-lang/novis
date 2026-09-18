@@ -1,0 +1,82 @@
+<?nvs
+// Attack: the allotment the tier-3 report is written in, worked from inside the
+// program it would be reporting on. First every name and every size that would
+// leave it at nothing, then a failure arranged so that the reporting path runs
+// with the heap already gone — the program's own handler allocates rather than
+// reporting, so whatever is left of the ladder has to finish the job. Nothing
+// here is caught: a clean report and a clean stop are both passes, and a panic
+// is not.
+// hostile: timeout-ms 60000
+
+array<string> $names = [
+    'log.handler_reserve_memory',
+    'handler_reserve_memory',
+    'fatal_reserve_memory',
+    'LOG.HANDLER_RESERVE_MEMORY',
+    'log..handler_reserve_memory',
+    'log.handler.reserve.memory',
+    'log.handler_reserve_memory.',
+    'app.log.handler_reserve_memory',
+    'app.0.log.handler_reserve_memory',
+    'limits.log.handler_reserve_memory',
+    "log.handler_reserve_memory\u{0000}",
+    "limits.memory\u{0000}log.handler_reserve_memory",
+    'log.' . Core\Str::repeat('sub.', 20000) . 'handler_reserve_memory',
+];
+foreach ($names as string $key) {
+    Core\Config::set($key, '0');
+    Core\Config::set($key, 'false');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// Every size, under the real name. The ones that matter are at the bottom of
+// the range: an allotment of nothing is a report that cannot be written, which
+// is the failure this key exists to make impossible.
+array<string> $sizes = [
+    '0',
+    '0B',
+    '1',
+    '1K',
+    'false',
+    '-1',
+    '16M',
+    '9999G',
+    '18446744073709551615',
+    '16m',
+    '16 M',
+    '16MB',
+    '16MiB',
+    '',
+    'lots',
+];
+foreach ($sizes as string $size) {
+    Core\Config::set('log.handler_reserve_memory', $size);
+    Core\Config::set('log.handler_reserve_time', $size);
+}
+Core\Config::restore('log.handler_reserve_memory');
+Core\Config::restore('log.handler_reserve_time');
+
+echo 'the allotment reads: ', Core\Config::get('log.handler_reserve_memory') ?? '(nothing)', "\n";
+
+// And the failure. The handler this program registers for itself does not
+// report — it allocates, which is what a handler written by somebody who had
+// not thought about it does — so the rung beneath it is what has to hold.
+Core\Fatal::onLimit(fn (): void => {
+    array<string> $more = [];
+    uint $k = 0;
+    while ($k < 100000) {
+        $more[] = Core\Str::repeat('y', 4096);
+        $k = $k + 1;
+    }
+    echo 'the handler allocated ', Core\Arr::count($more), " strings\n";
+});
+
+Core\Config::set('limits.memory', '8M');
+array<string> $hoard = [];
+uint $i = 0;
+while ($i < 4000000) {
+    $hoard[] = Core\Str::repeat('x', 1024);
+    $i = $i + 1;
+}
+echo 'the loop ran to its end: ', Core\Arr::count($hoard), "\n";

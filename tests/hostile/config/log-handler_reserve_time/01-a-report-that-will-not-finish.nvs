@@ -1,0 +1,82 @@
+<?nvs
+// Attack: the clock the tier-3 report runs on. Every name and every duration
+// first — including the ones that would leave the report no time at all — and
+// then a failure whose handler does not report but spins, which is what a
+// report that blocks on a destination that stopped answering looks like from
+// the inside. The runtime has to end this program rather than wait for it.
+// hostile: timeout-ms 60000
+
+array<string> $names = [
+    'log.handler_reserve_time',
+    'handler_reserve_time',
+    'fatal_reserve_time',
+    'LOG.HANDLER_RESERVE_TIME',
+    'log..handler_reserve_time',
+    'log.handler.reserve.time',
+    'log.handler_reserve_time.',
+    'app.log.handler_reserve_time',
+    'app.0.log.handler_reserve_time',
+    'limits.log.handler_reserve_time',
+    "log.handler_reserve_time\u{0000}",
+    "limits.cpu_time\u{0000}log.handler_reserve_time",
+    'log.' . Core\Str::repeat('sub.', 20000) . 'handler_reserve_time',
+];
+foreach ($names as string $key) {
+    Core\Config::set($key, '0');
+    Core\Config::set($key, '1h');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// Every duration under the real name, in the units it might round in and a few
+// it should not take at all. Zero and `false` are the interesting ones: a
+// report allowed no time is a report nobody gets.
+array<string> $durations = [
+    '0',
+    '0s',
+    '0ms',
+    '1ns',
+    '-1ms',
+    '5s',
+    '5000ms',
+    '5000000us',
+    '1h',
+    '9999d',
+    'false',
+    '18446744073709551615',
+    '5 s',
+    '5S',
+    '',
+    'soon',
+];
+foreach ($durations as string $duration) {
+    Core\Config::set('log.handler_reserve_time', $duration);
+}
+Core\Config::restore('log.handler_reserve_time');
+
+echo 'the clock reads: ', Core\Config::get('log.handler_reserve_time') ?? '(nothing)', "\n";
+
+// The handler that will not finish. It is reached by running the request out of
+// memory, which is the breach this machine will certainly deliver, and then it
+// spends its time on arithmetic instead of on a report. The loop is bounded
+// rather than endless on purpose: a handler stopped at a ceiling and one that
+// simply ran out of iterations are both passes, and an unbounded loop would
+// make the difference between them a question about this machine.
+Core\Fatal::onLimit(fn (): void => {
+    uint $spin = 0;
+    uint $acc = 0;
+    while ($spin < 200000000) {
+        $acc = $acc + $spin;
+        $spin = $spin + 1;
+    }
+    echo 'the handler spun to ', $acc, "\n";
+});
+
+Core\Config::set('limits.memory', '8M');
+array<string> $hoard = [];
+uint $i = 0;
+while ($i < 4000000) {
+    $hoard[] = Core\Str::repeat('z', 1024);
+    $i = $i + 1;
+}
+echo 'the program ran to its end: ', Core\Arr::count($hoard), "\n";
