@@ -1,0 +1,44 @@
+--TEST--
+`is` against a `Core` namespace class — a name for static members that no value is ever one of — answers `false` wherever it is written, whole or inside a union, an intersection or an array element, and never refuses — `rule:types/type-test`, `rule:php-migration/one-type-test`
+--FILE--
+<?nvs
+final class Ask {
+    // `bool as string` renders `false` as the empty string, so a row of
+    // predicates read through it silently loses its false columns.
+    public static function yn(bool $b): string {
+        if ($b) {
+            return "y";
+        }
+        return "n";
+    }
+}
+
+// `rule:types/type-test` is total: a target nothing is an instance of is a
+// knowable answer rather than a meaningless question, so `Core\Str` — which
+// carries static members and no instance ever — is `false` and not a
+// diagnostic. The subject's own type decides nothing here.
+mixed $m = 7;
+string $s = "str";
+echo Ask::yn($m is Core\Str), Ask::yn($s is Core\Str), "\n";
+
+// The same question one type deeper. A union answers on its live member, so
+// the settled one subtracts nothing; an intersection is settled whole, a value
+// having to be an instance of every member at once.
+echo Ask::yn($m is int|Core\Str), Ask::yn($m is Core\Str&Core\Arr), "\n";
+
+// An array element is settled for that position alone, which is the row an
+// empty array satisfies vacuously: there is no element to fail the walk.
+mixed $filled = ["k" => "v"];
+mixed $empty = [];
+echo Ask::yn($filled is array<Core\Str>), Ask::yn($empty is array<Core\Str>), "\n";
+
+// The roster is the descriptor's, not the spelling's: `Core\Time` is the
+// namespace class and `Core\Time\Instant` is a class values are instances of,
+// so the pair answers differently through one subject.
+mixed $t = Core\Time::now();
+echo Ask::yn($t is Core\Time\Instant), Ask::yn($t is Core\Time), "\n";
+--EXPECT--
+nn
+yn
+ny
+yn
