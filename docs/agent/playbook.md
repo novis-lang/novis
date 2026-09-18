@@ -3174,6 +3174,19 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   too, the same children on plain threads started once per batch, and report the guard not measured
   rather than failed when that figure is under the floor.
   [until: gone benches/abi-probe/tests/perf_guards.rs:plain_thread_fan_out]
+- **A cost-class `bench.py` guard can go red on the machine rather than the tree, and its `start
+  floor` line is the tell.** One sweep read a 77.5 ms floor where an idle box reads 4.6, and load
+  here dilates a process multiplicatively, so the subtraction left 200 ms of machine — the spread
+  gave nothing away, that run's median sitting 4% over its minimum. Read the floor line before the
+  verdict: `--warm-start` abstains above four times its budget, and a figure it does report is a
+  minimum over twenty-five reps. [until: reviewed 2026-09-19]
+
+- **`verify.py`'s test leg red on a *different* test each run, each of which "passed alone", is the
+  box and not the tree.** Two runs here died on a lease-renewal test and then on a revalidation one,
+  and the third was 13 of 13 green: the box was taking 133 ms to run `nvs --version` with the CPU at
+  6%, so the disk was contended and no load average would have said so. Read `bench.py
+  --warm-start`'s `start floor` before touching a timing assertion — near 5 ms is believable, tens of
+  ms fails a different test every run. [until: reviewed 2026-09-19]
 
 ## Writing a test case
 

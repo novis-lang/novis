@@ -2,23 +2,27 @@
 
 ## State
 
-Goal `types-enum-2-2` — types:enum (2/2) — is met, the floor check that held it is green again, and
-`python tools/verify.py` is **13 of 13 green** (4879 tests, 2088 conformance, 279 differential,
-clippy clean). All 17 enums carry a description, three examples and an attributed test.
+Goal `types-enum-2-2` — types:enum (2/2) — is met: all 17 enums carry a description, three examples
+and an attributed test, and the goal's own dossier check has been green since session 0005.
 
-**The `abi-probe [1 floor]` failure was the machine, not the tree.** All 21 guards in
-`benches/abi-probe/tests/perf_guards.rs` pass alone, and one Rust line landed in this whole run — a
-`// covers:` marker. The fan-out guard now measures what the box can give, the same children on plain
-threads, beside what the placement reached, and reports itself not measured when the machine cannot
-supply the cores its ratio is about. Idle it reads 3.86x of an available 3.16x against a 2x floor; on
-a saturated box the placement reads 0.08x and the guard says so rather than going red.
+**The `the CLI's own start work stays under 6ms [1 floor]` failure was the machine, not the tree.**
+The sweep's own log has the proof: at 23:19 the check read a 4.6 ms start floor and 5.4 ms of work,
+and at 00:55 — four seconds after a 34 s `cargo test --release` — it read a **77.5 ms** floor, a
+277.9 ms total and 200.3 ms of "work". Load on this box dilates a process multiplicatively, so
+subtracting the floor does not leave Novis's own work, and the spread says nothing about it: that
+run's median sat 4% over its minimum, as tight as any idle one, because every rep was equally slow.
+`tools/bench.py`'s `warm_start` now reads the *level* of the floor instead and abstains above
+`QUIET_FLOOR` times the budget, the way `benches/abi-probe`'s fan-out guard abstains on its control.
 
-The two load-sensitive tests the last handoff named — `crates/nvs-host/src/net.rs:2138` and
-`crates/nvs-server/src/serve.rs:5379` — both passed this run.
+Two red runs of the old guard were reproduced by hand this session and both abstain now. The same
+leg also takes `WARM_START_REPS` reps instead of the suite's five, because idle the figure moved a
+full millisecond between consecutive runs — more than the 6 ms budget has to give — and twenty-five
+holds it inside three tenths with the floor steady to a tenth.
 
-`ArithmeticError` landed too, ahead of goal `types-exception`'s switch: a page, three blessed
-examples, an attack that raises 400,000 refusals and rethrows from 20,000 frames, and a `covers:`
-marker on the case that pins this class hanging off `Throwable` rather than `RuntimeError`.
+No Rust changed; one Python file did. `python tools/verify.py` is **13 of 13 green** (4879 tests,
+2088 conformance, 279 differential, clippy clean) — on the third attempt. The first two died in the
+test leg on two different load-sensitive tests, each of which the harness re-ran alone and passed;
+the playbook now carries that as its own trap.
 
 ## Next group
 
@@ -31,14 +35,18 @@ clause and a `->message` read take.
 
 - [ ] **`Core\Cli\NotInteractive`** — page, three examples, an attack and a `covers:` marker.
       `crates/nvs-hir/src/errors.rs:106`
-- [ ] **`Core\Db\DbError`** — the same four; a `RuntimeError` subclass, so a `catch (RuntimeError …)`
-      clause does catch this one. `crates/nvs-hir/src/errors.rs:107`
+- [ ] **`Core\Db\DbError`** — the same four; a `RuntimeError` subclass, so a `catch (RuntimeError …)`.
+      `crates/nvs-hir/src/errors.rs:107`
 - [ ] **`Core\Db\RolledBack`** — the same four, and the neighbour in that file.
       `crates/nvs-hir/src/errors.rs:108`
 
 ## Backlog
 
-- An exception owes no bench, and a hostile file is the attack — `python tools/dossier.py --id
-  '<feature>'` is what says so per feature, and it is the cheapest first call of such a slice.
-- `docs/examples/` holds some 130 files `nvs fmt` would rewrite. Nothing asks it to, and the
-  playbook's *Writing a test case* section now says why; a sweep would be its own goal.
+- `nvs --version` has no guard of its own, so a regression in the start floor silences the
+  warm-start abstain rather than tripping it — said in `warm_start`'s own note in `tools/bench.py`.
+- This box stays saturated for tens of seconds after a `cargo test --release`; `COST_SETTLE` in
+  `tools/loop.py` gave 30 s and the retry was still dilated. Worth raising if a guard flaps again.
+- Other cost-class guards read the same dilated machine and have no control of their own;
+  `benches/abi-probe/tests/perf_guards.rs` is where that would be answered next.
+- An `nvs.exe` from 2026-09-16 is still resident on this box (2 s of CPU in three days, so it is
+  idle rather than the load): a test or example left a process behind and nothing sweeps them.
