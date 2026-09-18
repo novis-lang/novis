@@ -1,0 +1,55 @@
+--TEST--
+`Core\Test::assertCompletes` refuses where no `#[Test(at: ...)]` fixed a clock, says so, and spends nothing -- `rule:testing/task-tree-and-virtual-clock`
+--FILE--
+<?nvs
+// The budget is spent against the clock `#[Test(at: ...)]` fixed, so the
+// member's boundary is exactly "there is no clock to spend it against". A
+// `.nvst` case is top-level statements and is therefore never inside a
+// `#[Test]`, which makes this file the one place that boundary is observable
+// from the language.
+//
+// The accepted side of the same bound is `crates/nvs-cli`'s
+// `assert_completes_passes_a_body_that_finishes_under_the_clock`, which needs a
+// runner to observe and so cannot be asked here.
+
+use Core\Test;
+use Core\Time;
+
+// 1. What the refusal says. A call written where there is no clock is a bug at
+// the call site, so it is `LogicError` -- the same class `Core\Test::advance`
+// refuses with, because it is the same missing clock.
+try {
+    Core\Test::assertCompletes(fn (): void => { echo "the budget was spent\n"; }, {within: 50ms});
+} catch (LogicError $refused) {
+    echo $refused->message, "\n";
+}
+
+// 2. The same refusal through the member a test would reach for, by class and
+// by ancestor -- written out in full and through the `use` above, which are one
+// member either way.
+Core\Test::assertThrows(
+    fn (): void => { Test::assertCompletes(fn (): void => {}, {within: 50ms}); },
+    LogicError::class,
+);
+Test::assertThrows(
+    fn (): void => { Test::assertCompletes(fn (): void => {}, {within: 50ms}); },
+    Throwable::class,
+);
+echo "assertCompletes without a fixed clock is refused\n";
+
+// 3. The refusal spent nothing. A member that quietly advanced *something* --
+// the host's clock, a process-wide offset -- would still pass parts 1 and 2
+// while breaking, which is why the bound is asserted on both sides rather than
+// by the throw alone.
+int $before = Time::now()->toEpochSeconds();
+Test::assertThrows(
+    fn (): void => { Test::assertCompletes(fn (): void => {}, {within: 4000d}); },
+    LogicError::class,
+);
+int $after = Time::now()->toEpochSeconds();
+Test::assertTrue($after - $before < 60);
+echo "the host clock is unmoved\n";
+--EXPECT--
+Core\Test::assertCompletes(): this test declared no `at:`, so it has no fixed clock to spend `within` against
+assertCompletes without a fixed clock is refused
+the host clock is unmoved

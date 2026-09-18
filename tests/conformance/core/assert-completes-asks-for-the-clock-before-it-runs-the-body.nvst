@@ -1,0 +1,42 @@
+--TEST--
+`Core\Test::assertCompletes` asks for the clock before it calls `$body`, so a refused call runs nothing at all -- `rule:testing/task-tree-and-virtual-clock`
+--FILE--
+<?nvs
+// The ordering, asserted by what did *not* print. A member that ran the body
+// first and only then found it had no clock would answer the same `LogicError`
+// on the same line while having executed the caller's work -- and the work is
+// the half a test cannot take back. The budget has to be granted before the
+// body measures itself against it, so "no clock" has to be answered before the
+// call, and that is only observable from the outside as silence.
+//
+// The three bodies each echo, so a single one of them running turns this case
+// red; the trailing counter is what makes the silence a claim about the member
+// rather than an empty `--EXPECT--` nobody would notice going stale.
+
+use Core\Test;
+
+int $refused = 0;
+
+try {
+    Core\Test::assertCompletes(fn (): void => { echo "first body\n"; }, {within: 0s});
+} catch (LogicError $one) {
+    $refused = $refused + 1;
+}
+
+try {
+    Core\Test::assertCompletes(fn (): void => { echo "second body\n"; }, {within: 50ms});
+} catch (LogicError $two) {
+    $refused = $refused + 1;
+}
+
+try {
+    Core\Test::assertCompletes(fn (): void => { echo "third body\n"; }, {within: 2h}, {message: "drain"});
+} catch (LogicError $three) {
+    $refused = $refused + 1;
+}
+
+echo "refused=", $refused, "/3\n";
+echo "bodies that ran: none of them\n";
+--EXPECT--
+refused=3/3
+bodies that ran: none of them
