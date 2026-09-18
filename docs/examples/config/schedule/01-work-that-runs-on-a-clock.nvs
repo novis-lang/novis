@@ -1,0 +1,31 @@
+<?nvs
+// Scheduled work is an entry in `nvs.toml` and nothing else:
+//
+//     [[schedule]]
+//     name     = "nightly-report"
+//     cron     = "0 3 * * *"
+//     script   = "jobs/report.nvs"
+//     scope    = "fleet"            # once across the fleet, not once per host
+//     timezone = "Europe/Vienna"
+//     overlap  = "skip"             # still running when 3am comes round again
+//
+// The server runs that file at those times as an ordinary isolate — the same
+// isolation a request gets, sharing nothing with anything else.
+
+// There is no class to call and nothing to register. A schedule is what the
+// deployment decided, and a registration made at runtime would be deployment
+// state established by whichever request happened to run first.
+echo 'schedule myself: ', Core\Config::set('schedule', '* * * * *') ? 'yes' : 'no', "\n";
+
+// A program cannot read the list either. What it ever sees of a schedule is
+// that it was started — the same way it sees that a request arrived.
+echo 'read the list:   ', Core\Config::get('schedule') ?? "(nothing — the schedule is not a program's to see)", "\n";
+
+// The scoping word is the one an operator gets wrong rather than an attacker,
+// and it is refused at boot rather than at the first fire: an entry that never
+// fires looks exactly like one whose hour has not come round yet.
+echo 'scope:           ', Core\Config::get('schedule.scope') ?? '(nothing written here)', "\n";
+
+// The scheduled file is an ordinary program, so `nvs run jobs/report.nvs` runs
+// today's report by hand. That is the whole backfill and debugging story, and
+// why there is no flag that fires an entry early.

@@ -1274,6 +1274,7 @@ fn an_unknown_timezone_refuses_the_boot() {
 /// script` target is, at boot rather than at the first fire. The `..` row is the one that matters:
 /// the comparison is canonicalize-then-prefix, so a path that *spells* itself inside a root and
 /// resolves outside one is refused on where it lands.
+// covers: directive:schedule
 #[test]
 fn a_scheduled_script_outside_the_spawn_roots_refuses_the_boot() {
     let inside = scheduling(&entry("scope = \"host\"\n"));

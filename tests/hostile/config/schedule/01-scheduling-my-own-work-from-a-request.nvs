@@ -1,0 +1,136 @@
+<?nvs
+// Attack: the deployment's clock, written from inside a request. An entry that
+// arrived this way would be the strongest thing in the file to hold — a script
+// path of the attacker's choosing, run by the server itself, on the server's
+// own capabilities, at a time nobody is watching, and repeatedly. Every key of
+// an entry is worth pushing for its own reason: `script` is the file that runs,
+// `scope` turns one firing into one per host, `timezone` moves the hour it
+// happens at, and `overlap` turns a slow job into an unbounded number of
+// concurrent ones. The list still being unreadable and unwritable afterwards is
+// the evidence that none of it landed.
+// hostile: timeout-ms 20000
+
+// 1. Every key of an entry, under the spellings a nested block could be reached
+//    through. `[[schedule]]` is an array of tables, so an index is part of the
+//    path — and an index is exactly where a reader that accepts more than it
+//    means to accepts an entry that was never written.
+array<string> $keys = [
+    'schedule',
+    'schedule.0',
+    'schedule.0.name',
+    'schedule.0.cron',
+    'schedule.0.script',
+    'schedule.0.scope',
+    'schedule.0.timezone',
+    'schedule.0.overlap',
+    'schedule.0.limits',
+    'schedule.0.grants',
+    'schedule.1.script',
+    'schedule.-1.script',
+    'schedule..script',
+    'schedule.script',
+    'SCHEDULE.0.SCRIPT',
+    'app.0.schedule.0.script',
+    "schedule.0.script\u{0000}",
+];
+foreach ($keys as string $key) {
+    Core\Config::set($key, 'jobs/mine.nvs');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 2. The script path, which is the whole prize. § 1 puts a scheduled file under
+//    the same spawn roots a `spawn script` target lives under, compared after
+//    canonicalization — so the shapes worth trying are the ones that spell
+//    themselves inside a root and land outside one.
+array<string> $scripts = [
+    'jobs/report.nvs',
+    'jobs/../../../etc/nvs.toml',
+    'jobs/./././mine.nvs',
+    '/etc/passwd',
+    'C:\\Windows\\System32\\cmd.exe',
+    '\\\\server\\share\\mine.nvs',
+    'jobs/mine.nvs' . "\u{0000}" . '/etc/passwd',
+    "jobs/mine.nvs\n[[schedule]]\nscript = \"anything.nvs\"",
+    'jobs/' . Core\Str::repeat('../', 100000) . 'mine.nvs',
+    Core\Str::repeat('a/', 100000) . 'mine.nvs',
+];
+foreach ($scripts as string $script) {
+    Core\Config::set('schedule.0.script', $script);
+    Core\Config::set('schedule.script', $script);
+    Core\Config::restore('schedule.0.script');
+}
+
+// 3. The three words that change what a firing costs. `scope` is one run
+//    against every host in the fleet, `overlap` is every firing piling onto the
+//    last one instead of being skipped, and the zone is which hour it all
+//    happens in — the three ways an entry that was already allowed becomes
+//    something else entirely.
+array<string> $words = [
+    'fleet',
+    'host',
+    'HOST',
+    'cluster',
+    'queue',
+    'kill',
+    'skip',
+    'UTC',
+    'Europe/Vienna',
+    'Not/A_Zone',
+    '../../etc/localtime',
+    '',
+];
+foreach ($words as string $word) {
+    Core\Config::set('schedule.0.scope', $word);
+    Core\Config::set('schedule.0.overlap', $word);
+    Core\Config::set('schedule.0.timezone', $word);
+    Core\Config::restore('schedule.0.scope');
+}
+
+// 4. And an expression, every minute of every hour, because the cheapest way to
+//    turn a schedule into a denial of service is not a new entry but an
+//    existing one firing sixty times more often.
+array<string> $crons = [
+    '* * * * *',
+    '0 3 * * *',
+    '*/1 * * * *',
+    '* * * * * *',
+    '@reboot',
+    '@every 1s',
+    Core\Str::repeat('*/1,', 100000) . '* * * *',
+];
+foreach ($crons as string $cron) {
+    Core\Config::set('schedule.0.cron', $cron);
+    Core\Config::restore('schedule.0.cron');
+}
+
+// 5. All of it as fast as the runtime will take it, reading back every round.
+//    An entry is armed at boot over the merged tree, so a write that reached the
+//    published snapshot would not fire until a restart acted on it — but it
+//    would be in the snapshot the next reload carries forward, which is the one
+//    place this could ever become visible from here.
+uint $visible = 0;
+uint $i = 0;
+while ($i < 200000) {
+    Core\Config::set('schedule', 'jobs/mine.nvs');
+    Core\Config::set('schedule.0.script', 'jobs/mine.nvs');
+    Core\Config::restore('schedule');
+    if (Core\Config::get('schedule') != null) {
+        $visible = $visible + 1;
+    }
+    $i = $i + 1;
+}
+
+// 6. And real work alongside, because a request that wants itself scheduled is
+//    a request already doing something the server let it do.
+array<string> $entries = [];
+uint $j = 0;
+while ($j < 20000) {
+    $entries[] = 'entry-' . $j . '-' . Core\Str::repeat('s', $j % 64);
+    $j = $j + 1;
+}
+
+echo 'visible: ', $visible, "\n";
+echo 'entries built: ', Core\Arr::count($entries), "\n";
+echo 'schedule: ', Core\Config::get('schedule') ?? "(nothing — not a program's to see)", "\n";
+echo 'script:   ', Core\Config::get('schedule.0.script') ?? "(nothing — not a program's to see)", "\n";
