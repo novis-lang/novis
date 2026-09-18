@@ -1,0 +1,86 @@
+<?nvs
+// Attack: the rung that reports this program's failure, written by this
+// program. Every spelling that might reach the key from a block nobody guarded,
+// every path a filesystem might read differently from the check that resolved
+// it, and then a real failure at the end — because a ladder left standing after
+// all of this is the only evidence that none of it landed.
+// hostile: timeout-ms 30000
+
+// 1. Every other name for the same rung, including the two keys that size the
+//    room it runs in and the per-application copy of the block.
+array<string> $names = [
+    'log.handler',
+    'handler',
+    'log.handler_reserve_memory',
+    'log.handler_reserve_time',
+    'LOG.HANDLER',
+    'Log.Handler',
+    'log..handler',
+    '.log.handler',
+    'log.handler.',
+    'log.handler.path',
+    'app.log.handler',
+    'app.0.log.handler',
+    'app.log.handler_reserve_memory',
+    "log.handler\u{0000}",
+    "log.format\u{0000}log.handler",
+    'log.format/../handler',
+    'log.' . Core\Str::repeat('sub.', 20000) . 'handler',
+];
+foreach ($names as string $key) {
+    Core\Config::set($key, 'tests/hostile/config/log-handler/01-naming-the-script-that-reports-me.nvs');
+    Core\Config::set($key, 'false');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 2. Every shape of path under the real name. The interesting ones are not the
+//    silly ones: a handler pointed at a device, at a directory, at this file
+//    itself, or at something outside every granted root is a report that goes
+//    nowhere, and a path with a NUL in it is two different paths depending on
+//    who reads it.
+array<string> $paths = [
+    '',
+    ' ',
+    '.',
+    '..',
+    '/',
+    'C:\\',
+    'nul',
+    '/dev/null',
+    '\\\\?\\C:\\Windows\\System32\\drivers\\etc\\hosts',
+    '../../../../etc/passwd',
+    'scripts/../../../on-error.nvs',
+    "scripts/on-error.nvs\u{0000}.txt",
+    'https://example.test/on-error.nvs',
+    'tests/hostile/config/log-handler/01-naming-the-script-that-reports-me.nvs',
+    Core\Str::repeat('a/', 16384) . 'on-error.nvs',
+];
+foreach ($paths as string $path) {
+    Core\Config::set('log.handler', $path);
+    Core\Config::set('log.handler_reserve_memory', '0');
+    Core\Config::set('log.handler_reserve_time', '0');
+}
+Core\Config::restore('log.handler');
+
+// 3. The program's own tier, which *is* its to arrange — registered here so
+//    that the failure below has something to try before it reaches the rung
+//    this file is about. A handler that fails is one of the cases tier 3 exists
+//    for, so this one fails.
+Core\Fatal::onLimit(fn (): void => {
+    throw new RuntimeError('the handler this program arranged threw as well');
+});
+
+echo 'handler on duty: ', Core\Config::get('log.handler') ?? '(nothing written)', "\n";
+
+// 4. And a real failure, past a ceiling this program set for itself. Nothing
+//    here is caught: what the case asserts is that the runtime reports it and
+//    stays standing, whichever rung of the ladder ends up doing the reporting.
+Core\Config::set('limits.memory', '8M');
+array<string> $hoard = [];
+uint $i = 0;
+while ($i < 4000000) {
+    $hoard[] = Core\Str::repeat('x', 1024);
+    $i = $i + 1;
+}
+echo 'the allocation loop ran to its end: ', Core\Arr::count($hoard), "\n";
