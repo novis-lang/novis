@@ -1,0 +1,97 @@
+<?nvs
+// Attack: the temporary root is the one directory the runtime believes it owns
+// outright, and that belief is what licenses it to delete things. A request
+// that could move the root at a shared directory would be pointing the sweep
+// at other people's files and other people's symlinks — so this writes every
+// path worth pointing it at, then the sibling key that would exempt a program
+// from the sweep instead, then the spellings that try to be either without
+// being them.
+// hostile: timeout-ms 30000
+
+// 1. Roots. An accepted one is an attacker choosing where every other
+//    request's scratch files land, and what the next boot sweep deletes.
+array<string> $roots = [
+    '/',
+    '/tmp',
+    '/etc',
+    '/etc/novis',
+    'C:\\',
+    'C:\\Windows',
+    'C:\\Windows\\System32',
+    '.',
+    '..',
+    'docs',
+    'nvs.toml',
+    '/dev/urandom',
+    'NUL',
+    'CON',
+    '\\\\attacker.test\\share',
+    '//attacker.test/share',
+    'file:///tmp',
+    "/tmp/scratch\u{0000}",
+    "/tmp/scratch\u{0000}/etc",
+    '/tmp/scratch%00',
+    "/tmp/scratch\r\nkeep_temporary = true",
+    "/tmp/scratch\n[io]\ntemp_root = \"/\"",
+    '',
+    ' ',
+    '~',
+    '$HOME',
+    '%TEMP%',
+    Core\Str::repeat('../', 20000) . 'tmp',
+    Core\Str::repeat('a/', 50000),
+    Core\Str::repeat('/', 100000),
+];
+foreach ($roots as string $value) {
+    Core\Config::set('io.temp_root', $value);
+    // Refused, so nothing may read back — a root that answers here is a root
+    // the runtime would create directories in and later delete things from.
+    Core\Config::get('io.temp_root');
+}
+Core\Config::restore('io.temp_root');
+
+// 2. The other way to the same place: keeping every directory instead of
+//    moving where they are. A program that could set this would hoard scratch
+//    space on this host until the disk was gone, and would do it silently —
+//    the operator's version of the key logs every path it keeps.
+array<string> $keeps = ['true', '1', 'yes', 'on', 'TRUE', '-1', '0', 'false', ''];
+foreach ($keeps as string $value) {
+    Core\Config::set('debug.keep_temporary', $value);
+    Core\Config::get('debug.keep_temporary');
+}
+Core\Config::restore('debug.keep_temporary');
+
+// 3. The spellings that are nearly one of those two. `[io]` has exactly one
+//    row and it is the whole key, so a near miss has to land on nothing at
+//    all — there is no block-wide row underneath for it to inherit.
+array<string> $spellings = [
+    'io',
+    'io.temp_root.path',
+    'io.temp_root.',
+    'io.temproot',
+    'io.temp-root',
+    'io.tmp_root',
+    'IO.TEMP_ROOT',
+    'io.temp_ROOT',
+    'app.io.temp_root',
+    'debug.keep_temporaries',
+    'debug.keeptemporary',
+    'debug.keep_temporary.',
+    'io.temp_root.' . Core\Str::repeat('sub.', 20000) . 'off',
+];
+foreach ($spellings as string $key) {
+    Core\Config::set($key, '/tmp/attacker');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 4. Restoring what was never set, then a hundred thousand refused writes with
+//    no restore between them: a refusal that left an entry behind would be a
+//    request growing this host's memory while being told `no` every time.
+Core\Config::restore('io.temp_root');
+uint $i = 0;
+while ($i < 100000) {
+    Core\Config::set('io.temp_root', '/tmp/attacker');
+    $i = $i + 1;
+}
+echo Core\Config::get('io.temp_root') ?? '(nothing)', "\n";

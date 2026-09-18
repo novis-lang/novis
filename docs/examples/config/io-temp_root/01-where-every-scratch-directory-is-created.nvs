@@ -1,0 +1,27 @@
+<?nvs
+// `[io] temp_root` is the one directory every temporary directory a program
+// asks for is created inside. Nothing is written for it in this checkout, so
+// the runtime uses a private subdirectory of the platform's temporary
+// directory — a name it made up, and a directory it owns outright.
+
+echo 'configured root: ', Core\Config::get('io.temp_root') ?? '(none — a private subdirectory of the platform temporary directory)', "\n";
+
+// Owning that root outright is the whole of why the cleanup is safe: when a
+// script ends the runtime deletes the directories it handed out, and it can
+// only do that because nothing else writes there. A program able to move the
+// root would be choosing where every *other* request's scratch files land, and
+// could point it at a shared directory full of other people's symlinks.
+echo 'move it:         ', Core\Config::set('io.temp_root', '/tmp/somewhere-of-mine') ? 'yes' : 'no', "\n";
+
+// Nor may a program exempt its own directories from that cleanup. An operator
+// has a key for keeping them — visibly, one log line each, for the length of
+// one investigation — and it is the operator's for the same reason: a program
+// that can keep its own files can be talked into keeping all of them.
+echo 'keep them:       ', Core\Config::set('debug.keep_temporary', 'true') ? 'yes' : 'no', "\n";
+echo 'kept today:      ', Core\Config::get('debug.keep_temporary') ?? '(nothing)', "\n";
+
+// One last thing an operator should know: a new root is a restart and not a
+// reload. The sweep that clears whatever a crashed process left behind runs
+// once, as the server boots, over the root it started with — so a root swapped
+// underneath a running server would leave the old one holding directories that
+// nothing is ever going to come back for.
