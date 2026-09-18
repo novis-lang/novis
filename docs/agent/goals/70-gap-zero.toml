@@ -9982,10 +9982,12 @@ want = ['"editor": (', '"editors/"']
 # it runs in WSL, which starts in the Windows working directory's `/mnt/` path. Seeded from
 # `fuzz/seeds/prefix/` as CI's job is. `Done N runs in 30x second(s)` is libFuzzer's closing line on a
 # clean run; a crash exits non-zero before it. Memoized: what it fuzzes lives under `crates/`.
+# `overlap`: its cost is a clock on one core, so it runs beside the sweep and not in front of it.
 # ---------------------------------------------------------------------------------------------------
 [[check]]
 kind = "command"
 stage = "1 floor"
+overlap = true
 name = "the prefix fuzz target finds no panic in five minutes"
 argv = [
   "wsl.exe", "--", "bash", "-lc",

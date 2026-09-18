@@ -1,0 +1,10 @@
+# The memory cap `examples/limits.nvs` crosses under valgrind, layered over `nvs.toml` by the
+# acceptance sweep (`VALGRIND_CONFIG` in `tools/loop.py`) and read by nothing else.
+#
+# The fixture exists to walk into `[limits] memory` and be killed. What the valgrind sweep asks of it
+# is whether that kill path leaks, and the path is the same at any cap -- while every slab the script
+# allocates on the way there is a megabyte memcheck shadows, so the distance to the cap is the whole
+# of the fixture's cost under it. The native and WSL legs run the fixture against the repository's
+# own cap and pin its output; this file shortens only the run whose verdict is a leak report.
+[limits]
+memory = "16M"

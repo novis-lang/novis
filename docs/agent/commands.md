@@ -703,6 +703,11 @@ that assembly rather than on anything Novis wrote as soon as it runs long enough
 reach the database, so the sweep is unreadable without the file — and, because the two entries are anchored
 on a `ring` or `rustls` frame, still red on an uninitialised value Novis's own unsafe code produced.
 
+The sweep alone also layers [tools/valgrind-limits.toml](../../tools/valgrind-limits.toml) over `nvs.toml`
+for `examples/limits.nvs`, and that file's header is the one home for why: the fixture's cost under memcheck
+is the distance to the memory cap, and its leak verdict is about the kill at the cap. `leak-check.sh` runs
+the fixture against the repository's own cap.
+
 **A new thread boundary is where a race hides, so run the sanitizer over it.** `wsl.exe -- bash -lc "bash
 tools/tsan.sh"` is the `tsan:` CI job's own command — ThreadSanitizer over `nvs-host` and `nvs-runtime`,
 the two crates a thread boundary runs through — and it prints `tsan: clean` and nothing else when it is.
