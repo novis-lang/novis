@@ -2,52 +2,45 @@
 
 ## State
 
-Goal `config-directives-2-3`, milestone dossier. Eleven of its sixteen items are complete and five
-are untouched. Nothing is blocked.
+Goal `config-directives-2-3`, milestone dossier. **All sixteen items are complete**: the goal's own
+check, `dossier: config:directives (2/3)`, reports nothing owed and both suites at 0 failed. Nothing
+is blocked.
 
-This session landed the four `System` keys carved out of `[limits]` — `directive:limits.fatal_reserve_memory`,
-`directive:limits.fatal_reserve_time`, `directive:limits.max_decompressed` and
-`directive:limits.max_decompression_ratio` — each with its `about.md`, one example with a blessed
-`.out`, one attack, and one Rust case in `crates/nvs-config/tests/directives.rs`. All four keys are
-now written in the repository-root `nvs.toml` at exactly the figures the code ships, so nothing in
-the tree behaves differently and the four pages have real values to print.
+Three things about the tree changed under these five items, and none of them is a proof:
 
-Two proofs found bugs, and both are fixed rather than recorded. The decompression attack's
-`array<uint>` of asks panicked the lowerer: an element of an array literal reaches
-`lower_int_literal` with no expected type, so digits past `int`'s range took the `int` branch —
-`crates/nvs-ir/src/lower/expr.rs:2455` now reads the magnitude too, and
-`tests/conformance/lang/an-integer-literal-past-int-lowers-as-uint-wherever-it-is-written.nvst` pins
-it. And `crates/nvs-config/src/default.toml` documented these keys at figures the code does not
-ship, in both `[limits]` and `[app.limits]`; they are the shipped ones now.
+- The repository-root `nvs.toml` now states `[limits] max_script_depth` and a `[log]` block holding
+  the two handler reserves, at exactly the figures the code ships, so those pages print real values
+  and nothing in the repository behaves differently. The block deliberately states no `format`,
+  `level` or `handler`: the first two are the mode's to decide and the third is written per
+  application.
+- `crates/nvs-config/src/default.toml` documented the tier-3 reserves at `4M` and `500ms`. The
+  shipped figures are 16 MiB and 5 s (`crates/nvs-runtime/src/ctx/isolate.rs:473`), and both the
+  `[log]` and `[app.log]` blocks say so now.
+- A written `[limits] max_script_depth = 0` read as the no-ceiling sentinel, against its own field
+  doc, so an operator writing the number most likely to mean *no nesting* got no bound at all — a
+  probe recursed 56,395 isolates deep. It takes the default now
+  (`crates/nvs-runtime/src/ctx/limits.rs:586`).
 
 ## Next group
 
 **Stage 2: the dossier — one file set: `crates/nvs-config/src/directive.rs` and
 `crates/nvs-config/tests/directives.rs`, plus each feature's own three proof paths.** What is left of
-`[limits]` and then the `[log]` block, which is the same registry shape one block over.
-`python tools/dossier.py --id '<feature>'` prints the three paths; check an item with it before
-taking it, since this goal's list was emitted before the previous goal's last sessions committed.
+`[log]` is the floor's destination, and it belongs to the next goal in the chain rather than to this
+one. `python tools/dossier.py --id '<feature>'` prints the three paths; check an item with it before
+taking it.
 
-- [ ] **`directive:limits.max_script_depth`** — owes examples, hostile, tests. The recursion ceiling,
-      `System` for `rule:security/isolate-budget-is-the-trees`' reason: a script able to raise its own
-      would exhaust the tree's heap before any depth stopped it.
-      `crates/nvs-config/src/directive.rs:105`
-- [ ] **`directive:log`** — the block's blanket row, and the one of these that is `Runtime`: a
-      program choosing what it logs is the ordinary case. The contrast with the three `System` keys
-      carved out of it is the claim. `crates/nvs-config/src/directive.rs:157`
-- [ ] **`directive:log.handler`** — the first carve-out: who the records go to is the deployment's.
-      `crates/nvs-config/src/directive.rs:164`
-
-The group after that is the pair at `crates/nvs-config/src/directive.rs:170` and `:171` —
-`log.handler_reserve_memory` and `log.handler_reserve_time`, which are `rule:errors/on-limit`'s
-reserve one subsystem over and read the same way this session's pair did.
+- [ ] **`directive:log.target`** — owes examples, hostile, tests. Tier 4, the floor that is always
+      there: `stderr`, `file:<path>` or `syslog`, and `System` because `rule:errors/engine-floor`
+      says the sink is operator-owned in as many words.
+      `crates/nvs-config/src/directive.rs:178`
+- [ ] **The rest of `config:directives (3/3)`** — whatever that goal's `--only` list names beyond
+      the `[log]` block; the registry rows it walks start at
+      `crates/nvs-config/src/directive.rs:185`
 
 ## Backlog
 
-- `crates/nvs-runtime/src/ctx/mod.rs:556` says the CPU-limit timer does not exist yet and the flag is
-  raised by tests alone. It does exist: a `nvs run` under a file-set `[limits] cpu_time` was stopped
-  cleanly this session, handler first. The sentence is stale — `nvs_host::watchdog` is the timer.
-- A `[limits] cpu_time` lowered by `Core\Config::set` mid-request is never sampled against: the
-  watchdog carries the ceiling published at request start. The direction is safe — nothing published
-  can be raised — so it is a correctness gap in a request tightening itself, not an escape.
-- `directive:limits.max_script_depth` and the three `[log]` keys are what is left of this goal.
+- A request-set `limits.cpu_time` is accepted and never charged under `nvs run`
+  (`crates/nvs-cli/src/main.rs:2459`); a file-written one is. Nothing owns this.
+- `Core\Config::set` accepts any word for an enumerated key — `set('log.format', 'banana')` answers
+  `true` (`crates/nvs-config/src/request.rs:101` checks a unit, a ceiling and the `[http]` pairs).
+- `directive:log.target` and the rest of `config:directives (3/3)`, above.

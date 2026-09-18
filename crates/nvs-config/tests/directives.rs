@@ -2500,6 +2500,84 @@ fn the_time_half_of_the_reserve_answers_exactly_as_the_memory_half_does() {
     );
 }
 
+/// The nesting ceiling, asserted as the pair of claims it is: who may write it, and what it is
+/// counted in. The first is `[limits]`' `Runtime` blanket again — no other row is a prefix of this
+/// key, so without one of its own the block answers for it — and the ground is the one the reserves
+/// do not share: *both* directions are refused here. A chain able to raise the bound it is about to
+/// cross has no bound, and the two values that remove the ceiling outright are reachable from the
+/// same `set`.
+///
+/// The unit is the other half, and a `Count` is what keeps the two plausible mis-readings out. Read
+/// as `Bytes`, `"64M"` would be sixty-seven million levels — a ceiling no chain reaches and so no
+/// ceiling at all. Read as `Unit::Ratio`, whose values run between zero and one, every depth an
+/// operator would write is refused instead.
+// covers: directive:limits.max_script_depth
+#[test]
+fn the_nesting_ceiling_is_the_operators_in_both_directions_and_is_counted_in_levels() {
+    let depth = governing("limits.max_script_depth");
+    assert_eq!(
+        (depth.key, depth.class, depth.apply),
+        ("limits.max_script_depth", Class::System, Apply::Reload),
+        "`limits.max_script_depth` resolves through `{}`, and a row of its own is what it needs: \
+         nothing else here is a prefix of it, so `[limits]`' `Runtime` blanket is what would answer",
+        depth.key,
+    );
+    assert!(
+        keys_in("limits").contains(&"max_script_depth".to_string()),
+        "`[limits]` no longer accepts `max_script_depth`, so this row governs a key the file \
+         refuses and every deployment runs at the shipped depth with no way to state another",
+    );
+    for written in [
+        "limits.max_script_depth",
+        "app.limits.max_script_depth",
+        "app.0.limits.max_script_depth",
+        "limits.hard.max_script_depth",
+    ] {
+        let row = governing(written);
+        assert!(
+            !row.class.settable_by_a_request(),
+            "`{written}` lands on `{}` at {:?}, which a request may write — one spelling of this \
+             ceiling a program can reach is the ceiling gone, whichever block it is written in",
+            row.key,
+            row.class,
+        );
+    }
+    assert!(
+        !keys_in("limits.hard").contains(&"max_script_depth".to_string()),
+        "`[limits.hard]` has grown a ceiling over the nesting depth, which has nothing to stand \
+         over: there is no request-set value here for it to bound, and the reserves' case gives \
+         the rest of the argument",
+    );
+
+    let quantity = |text: &str| {
+        nvs_config::Quantity::parse(
+            depth.key,
+            Unit::Count,
+            &nvs_config::Setting::Text(text.to_string()),
+        )
+    };
+    assert_eq!(
+        unit_of("limits.max_script_depth"),
+        Some(Unit::Count),
+        "the depth is not read as a count of levels, so the number an operator writes is measured \
+         in something the chain it bounds is not",
+    );
+    assert!(
+        matches!(quantity("64"), Ok(nvs_config::Quantity::Count(64))),
+        "sixty-four levels is not sixty-four of anything this parse recognises",
+    );
+    assert!(
+        matches!(quantity("false"), Ok(nvs_config::Quantity::Unbounded)),
+        "`false` is refused or read as a magnitude, and it is the operator's one way to say that a \
+         runaway recursion should arrive as an exhausted heap rather than as a depth",
+    );
+    assert!(
+        quantity("64M").is_err(),
+        "a size's suffix is read as a depth of sixty-seven million levels rather than refused, \
+         which is a ceiling no chain reaches and so no ceiling at all",
+    );
+}
+
 /// `rule:core-classes/decompression-bound`'s absolute half, asserted through the spellings that
 /// would take it back. The key is one `[limits]` itself accepts, so the block's `Runtime` blanket
 /// would answer for it with no row of its own — and `[[app]]`'s copy of the block is the second way
@@ -2601,5 +2679,233 @@ fn both_halves_of_the_decompression_bound_answer_the_same_way_in_two_different_q
         "the halves are read in one quantity, or the ratio is read as `Unit::Ratio` — a multiplier \
          whose values are taken to run between zero and one is a bound every archive passes or \
          none does",
+    );
+}
+
+/// The block the escalation ladder is configured in, and the one row of this group a request may
+/// write. What is asserted is where the line between the two halves falls rather than the class of
+/// any single key: `rule:config/a-mode-is-five-defaults`'s mode table holds two of these keys and no row in that table is
+/// `System`, so a program that wants its own run traced turns its own level down — while a program
+/// able to send the record of its own failure somewhere nobody reads is what every other key here
+/// is `System` to prevent.
+///
+/// Counted rather than read off a line, because a blanket row is exactly where a registry answers
+/// plausibly key by key and wrongly overall: a carve-out nobody wrote inherits `Runtime` from the
+/// block and looks like an ordinary row from every angle but this one.
+// covers: directive:log
+#[test]
+fn the_log_blanket_is_a_requests_and_exactly_the_mode_tables_two_rows_stay_that_way() {
+    let block = governing("log");
+    assert_eq!(
+        (block.key, block.class, block.apply),
+        ("log", Class::Runtime, Apply::Reload),
+        "`[log]` resolves through `{}`: the block's own row is what answers for `format` and \
+         `level`, which are `rule:config/a-mode-is-five-defaults`'s rows and so are nobody's to make `System`",
+        block.key,
+    );
+    for written in ["log.format", "log.level"] {
+        assert_eq!(
+            governing(written).key,
+            "log",
+            "`{written}` has grown a row of its own, so the blanket is no longer what makes it a \
+             request's — and a mode table row with a class written twice is a class written once \
+             in each of two places that can disagree",
+        );
+    }
+
+    let mut movable: Vec<String> = keys_in("log")
+        .into_iter()
+        .filter(|key| {
+            governing(&format!("log.{key}"))
+                .class
+                .settable_by_a_request()
+        })
+        .collect();
+    movable.sort();
+    assert_eq!(
+        movable,
+        vec!["format".to_string(), "level".to_string()],
+        "the blanket answers for a key that is not one of the mode table's two, so a rung of the \
+         ladder is a request's to move: every other key in this block names the script run when a \
+         request fails, what is held back for that script, or where the record itself goes",
+    );
+
+    assert!(
+        lookup("format").is_none() && lookup("level").is_none(),
+        "a bare `format` or `level` resolves to a row, so this block has a second spelling with no \
+         block in it — a bare name is a limit's name, which `nvs_config::request`'s module doc owns, \
+         and nothing outside `[limits]` gets one",
+    );
+}
+
+/// The tier-3 handler: the row in `[log]` whose class had to be written down, because the block
+/// answers `Runtime` for everything that does not write one. `rule:errors/handler-script` names a script to *run*, so the
+/// ground is `limits.fatal_reserve_memory`'s one rung along — a program naming who reports its own
+/// failure is the case where the choice most needs to be made by somebody else.
+///
+/// The second half is the boundary this block is looked up on, and this row is where a wrong one
+/// would show. `log.handler` is a character prefix of `log.handler_reserve_memory` and not a dotted
+/// one, so a lookup matching on spelling would hand both reserves this row — and would hand
+/// `log.handlerx`, which nobody wrote, a class it has no claim to.
+// covers: directive:log.handler
+#[test]
+fn the_tier_three_handler_is_the_operators_and_its_row_ends_at_the_dot() {
+    let handler = governing("log.handler");
+    assert_eq!(
+        (handler.key, handler.class, handler.apply),
+        ("log.handler", Class::System, Apply::Reload),
+        "`log.handler` resolves through `{}`: with no row of its own the `[log]` blanket answers \
+         `Runtime` for it, and the script that reports a failure becomes the failing program's to \
+         name",
+        handler.key,
+    );
+    assert!(
+        !handler.class.settable_by_a_request() && governing("log").class.settable_by_a_request(),
+        "the handler and the block around it are on the same side of `rule:config/three-changeability-classes`'s line, so one \
+         of the two is written for a reason that has stopped holding",
+    );
+    assert_eq!(
+        handler.apply,
+        Apply::Reload,
+        "`Boot` would mean a handler replaced under a running server is not the one the next \
+         failure runs, and this path is read when a failure reaches the ladder rather than held \
+         from boot",
+    );
+
+    for written in ["log.handler_reserve_memory", "log.handler_reserve_time"] {
+        let row = governing(written);
+        assert_eq!(
+            row.key, written,
+            "`{written}` is answered by `{}`, which is the spelling it shares and not the block it \
+             is in — `directive::governs`' dot boundary is what keeps the two apart",
+            row.key,
+        );
+    }
+    assert_eq!(
+        governing("log.handlerx").key,
+        "log",
+        "a key nobody wrote takes the handler's row because it starts with the same letters, which \
+         is that same boundary gone in the other direction",
+    );
+
+    assert_eq!(
+        unit_of("log.handler"),
+        None,
+        "the handler is read as a measurement, so a path is being compared against a ceiling — \
+         this row's class is the whole of what stands between a program and the script that \
+         reports it",
+    );
+    assert!(
+        keys_in("log").contains(&"handler".to_string()),
+        "`[log]` no longer accepts `handler`, so this row governs a key the file refuses and a \
+         deployment has no way to name the script at all",
+    );
+}
+
+/// The room that script runs in. Its class is the handler's for the handler's reason at one remove —
+/// a program able to shrink the room its own report is written in has made the report fail rather
+/// than named who writes it — and `rule:errors/handler-script` is where the allotment being the engine's rather than
+/// the failing request's is decided.
+///
+/// What this asserts past the class is that the two reserves are two: `[limits]
+/// fatal_reserve_memory` is carved out of the request's own heap for a closure it already holds,
+/// and this one is the engine's for a script that has yet to be compiled. They are the same size
+/// twice in a registry that lost one of the rows, and every deployment that wrote either would then
+/// be writing both.
+// covers: directive:log.handler_reserve_memory
+#[test]
+fn the_handlers_room_is_a_second_reserve_and_not_the_one_carved_out_of_the_request() {
+    let room = governing("log.handler_reserve_memory");
+    assert_eq!(
+        (room.key, room.class, room.apply),
+        ("log.handler_reserve_memory", Class::System, Apply::Reload),
+        "`log.handler_reserve_memory` resolves through `{}`: with no row of its own the `[log]` \
+         blanket answers `Runtime`, and the program being reported on sizes the report",
+        room.key,
+    );
+    assert_ne!(
+        room.key,
+        governing("limits.fatal_reserve_memory").key,
+        "one row answers for both reserves, so the slice carved out of a request's own heap and \
+         the engine's allotment for a whole script are one number written in two blocks",
+    );
+    assert!(
+        keys_in("log").contains(&"handler_reserve_memory".to_string())
+            && !keys_in("limits").contains(&"handler_reserve_memory".to_string()),
+        "`[limits]` accepts this key or `[log]` does not, and either way the allotment is being \
+         written where the request's own budget is stated — which is the one thing it is not \
+         taken from",
+    );
+    assert_eq!(
+        unit_of("log.handler_reserve_memory"),
+        None,
+        "`value::unit_of`'s table has grown a `[log]` key. It is the limits blocks' table and \
+         nothing else on purpose: a bare name it answers for is rewritten to `limits.<name>`, so a \
+         row added here would give this allotment a spelling that lands in `[limits]`, where the \
+         blanket is `Runtime`. The bytes reading lives at the one caller that knows it is bytes, \
+         `nvs_runtime::Ctx::configured_handler_reserve`",
+    );
+}
+
+/// The clock half of the same allotment, asserted as the pair it belongs to. Both halves answer
+/// identically everywhere but the unit, for the reason `[limits]`' own two halves do: one room with
+/// two measurements is still one room, and a half a request could move is the room gone.
+///
+/// The four reserves this repository ships are four rows — two for a handler the request already
+/// holds, two for a script the engine has to start — and the failure worth pinning is the one where
+/// two of them collapse into one. A registry that governed both time halves from a single row would
+/// answer plausibly for either question asked on its own.
+// covers: directive:log.handler_reserve_time
+#[test]
+fn the_handlers_clock_answers_as_its_memory_half_does_and_stays_a_row_of_its_own() {
+    let clock = governing("log.handler_reserve_time");
+    let room = governing("log.handler_reserve_memory");
+    assert_eq!(
+        (clock.key, clock.class, clock.apply),
+        ("log.handler_reserve_time", Class::System, Apply::Reload),
+        "`log.handler_reserve_time` resolves through `{}`, and a row of its own is what it needs: \
+         the memory half is not a dotted prefix of it, so the `[log]` blanket is what would answer",
+        clock.key,
+    );
+    assert_eq!(
+        (clock.class, clock.apply),
+        (room.class, room.apply),
+        "the two halves of one allotment answer differently, so a deployment can state one of them \
+         and the program being reported on the other",
+    );
+
+    let reserves = [
+        "limits.fatal_reserve_memory",
+        "limits.fatal_reserve_time",
+        "log.handler_reserve_memory",
+        "log.handler_reserve_time",
+    ];
+    let mut rows: Vec<&str> = reserves.iter().map(|key| governing(key).key).collect();
+    rows.sort_unstable();
+    rows.dedup();
+    assert_eq!(
+        rows.len(),
+        reserves.len(),
+        "the four reserves resolve through fewer than four rows, so one of them is being governed \
+         by another's — and the pair that collapsed is the pair a deployment would then be unable \
+         to size apart",
+    );
+    for key in reserves {
+        assert!(
+            !governing(key).class.settable_by_a_request(),
+            "`{key}` is a request's to set, and a request that sizes any of the four has sized the \
+             room its own failure is reported in",
+        );
+    }
+
+    assert_eq!(
+        (
+            unit_of("log.handler_reserve_time"),
+            unit_of("limits.fatal_reserve_time"),
+        ),
+        (None, Some(Unit::Duration)),
+        "the two time halves are read the same way, and they are not: the `[limits]` one is a \
+         quantity the block's own table names, and this one is a `[log]` key the table is not \
+         written for — its memory half's case owns why that boundary is where it is",
     );
 }

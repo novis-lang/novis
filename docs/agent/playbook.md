@@ -5713,6 +5713,19 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   round zero, and every section under it never runs while the case still reports as a pass — a clean
   fatal is one. Churn between values the program still fits in, and put the deliberate exhaustion
   last. [until: reviewed 2026-09-18]
+- **`throw new Exception` does not compile, and a hostile case that does not compile is a failure
+  rather than a pass.** Novis declares `RuntimeError`, `LogicError`, `ParseError`, `IOError`,
+  `TimeoutError` and `ArithmeticError`; `Exception` is PHP's name for the root and E0303 says only
+  `no matching declaration`, which reads like a missing import. Take the spelling from
+  `grep -rho "throw new [A-Za-z\\\\]*" tests/conformance` before writing one.
+  [until: reviewed 2026-09-18]
+- **A `limits.cpu_time` a program sets for itself does not stop it under `nvs run`.** The watchdog
+  is registered once from the ceiling in force before the task starts, and `RunningRequest::new`
+  answers `None` for a request under no cap (`crates/nvs-cli/src/main.rs:2459`), so a later
+  `Core\Config::set` moves the number and nothing charges it. An attack that needs a CPU stop writes
+  the ceiling into the `nvs.toml` the run reads; a memory ceiling set from inside *is* charged, and
+  is the cheap way to reach a limit handler.
+  [until: gone crates/nvs-cli/src/main.rs:let (view, cpu_limit) = ceiling]
 
 ## Splitting a file that got too big
 
