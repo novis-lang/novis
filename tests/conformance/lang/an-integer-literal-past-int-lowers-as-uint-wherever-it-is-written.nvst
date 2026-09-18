@@ -1,0 +1,38 @@
+--TEST--
+An integer literal too large for an `int` is a `uint` wherever it is written, including where the expected type never reaches the literal — `rule:types/arithmetic`
+--FILE--
+<?nvs
+// The checker's magnitude rule: digits past `int`'s range are legal exactly
+// where `uint` is expected, so by the time one of them is compiled there is
+// only one type it can have. Both sides of that boundary, on a binding that
+// states the type itself.
+int $last = 9223372036854775807;
+uint $first = 9223372036854775808;
+uint $largest = 18446744073709551615;
+echo $last, " ", $first, " ", $largest, "\n";
+
+// The same three inside an array literal, which is the shape that has to read
+// the magnitude rather than the expectation: an element is compiled as an
+// ordinary expression, so nothing hands it the `uint` the annotation states.
+array<uint> $asks = [0, 9223372036854775807, 9223372036854775808, 18446744073709551615];
+foreach ($asks as uint $ask) {
+    echo $ask, "\n";
+}
+
+// And as an argument, where the expectation does reach it, so the two paths
+// agree on the answer rather than only on the boundary.
+class Ask {
+    public static function ceiling(uint $bytes): uint {
+        return $bytes;
+    }
+}
+echo Ask::ceiling(18446744073709551615), "\n";
+echo $asks[3] == Ask::ceiling(18446744073709551615) ? "the two paths agree\n" : "they disagree\n";
+--EXPECT--
+9223372036854775807 9223372036854775808 18446744073709551615
+0
+9223372036854775807
+9223372036854775808
+18446744073709551615
+18446744073709551615
+the two paths agree

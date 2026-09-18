@@ -2415,17 +2415,23 @@ impl<'a> Lowering<'a> {
     }
 
     /// `rule:types/arithmetic`, mirroring the checker's own rule: a bare integer
-    /// literal means `uint` exactly where that's the expected type,
-    /// `int` otherwise. `nvs_types::expr::literals::infer_int_literal`
-    /// enforces `rule:types/arithmetic`'s magnitude rule
-    /// at check time — too large for `int` is only legal where `uint`
-    /// is expected, and too large even for `uint`'s full `u64` range
-    /// is a diagnostic regardless — so `lower_method`'s usual "trusts
-    /// its input already passed `nvs_types::check_program`" contract
-    /// (see the crate docs) covers this too: the `unwrap_or_else`
-    /// panics below are unreachable for anything the checker accepted,
-    /// the same defensive-invariant shape as `Env::get`'s own panic on
-    /// an undeclared local just above.
+    /// literal means `uint` where that's the expected type or where the
+    /// digits leave no other reading, `int` otherwise.
+    /// `nvs_types::expr::literals::infer_int_literal` enforces
+    /// `rule:types/arithmetic`'s magnitude rule at check time — too large for
+    /// `int` is only legal where `uint` is expected, and too large even for
+    /// `uint`'s full `u64` range is a diagnostic regardless — so
+    /// `lower_method`'s usual "trusts its input already passed
+    /// `nvs_types::check_program`" contract (see the crate docs) covers this
+    /// too, and the `unwrap_or_else` panics below are unreachable for anything
+    /// the checker accepted, the same defensive-invariant shape as `Env::get`'s
+    /// own panic on an undeclared local just above.
+    ///
+    /// **The expected type is a hint here rather than the answer**, because a
+    /// site that has one does not always pass it down: an element of an
+    /// `array<uint>` literal arrives with `None`. So the magnitude is read as
+    /// well, and digits the checker could only have accepted as a `uint` lower
+    /// as one.
     fn lower_int_literal(
         &mut self,
         span: Span,
@@ -2456,12 +2462,24 @@ impl<'a> Lowering<'a> {
             let n: u64 = u64::from_str_radix(&digits, radix).unwrap_or_else(|_| {
                 panic!("nvs-ir: integer literal `{digits}` doesn't fit a `uint`")
             });
-            self.emit(*cur, Ty::Uint, InstKind::ConstUint(n))
-        } else {
-            let n: i64 = i64::from_str_radix(&digits, radix).unwrap_or_else(|_| {
-                panic!("nvs-ir: integer literal `{digits}` doesn't fit an `int`")
-            });
-            self.emit(*cur, Ty::Int, InstKind::ConstInt(n))
+            return self.emit(*cur, Ty::Uint, InstKind::ConstUint(n));
+        }
+        // No expected type reached here, and not every site that has one passes
+        // it down: an element of an `array<uint>` literal arrives with `None`,
+        // because `Self::lower_array_literal` lowers its items as ordinary
+        // expressions. The checker has already applied the magnitude rule above,
+        // so digits too large for an `int` are digits it accepted as a `uint` —
+        // and answering `Ty::Uint` here is what the caller then builds the array
+        // out of. The `u64` parse is the same defensive invariant as the branch
+        // above: the checker refuses what fits neither.
+        match i64::from_str_radix(&digits, radix) {
+            Ok(n) => self.emit(*cur, Ty::Int, InstKind::ConstInt(n)),
+            Err(_) => {
+                let n: u64 = u64::from_str_radix(&digits, radix).unwrap_or_else(|_| {
+                    panic!("nvs-ir: integer literal `{digits}` fits neither an `int` nor a `uint`")
+                });
+                self.emit(*cur, Ty::Uint, InstKind::ConstUint(n))
+            }
         }
     }
 
