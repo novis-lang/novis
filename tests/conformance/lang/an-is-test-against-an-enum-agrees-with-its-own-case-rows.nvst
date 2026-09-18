@@ -29,6 +29,9 @@ enum Wide: uint {
 enum Nothing: int {
 }
 
+class Box {
+}
+
 class Probe {
     // 1 where the whole-enum row answered what the case rows did. The value
     // is named on stdout when it did not, so a failure says which one moved
@@ -84,6 +87,12 @@ echo "agreed=", $agreed as string, "/9\n";
 mixed $one = 1;
 echo "nothing=", Probe::yn($one is Nothing), "\n";
 
+// `rule:enums/closed-integer-type` makes a case a named integer rather than an
+// object, on the subject side as well as on the type side, so an object answers
+// no enum row at all.
+mixed $box = new Box();
+echo "object=", Probe::yn($box is Rank), "\n";
+
 // The O(n) element walk `as array<T>` already pays for, over the row above.
 mixed $ranks = [Rank::Bronze, Rank::Silver];
 mixed $strays = [Rank::Bronze, 99];
@@ -98,5 +107,6 @@ if ($m is Rank) {
 --EXPECT--
 agreed=9/9
 nothing=n
+object=n
 array=yn
 narrowed=2

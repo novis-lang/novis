@@ -1,5 +1,5 @@
 --TEST--
-`instanceof` walks up, never sideways or down — a sibling branch, a subclass of the receiver's own class, and an unrelated interface all answer false
+`is` walks up, never sideways or down — a sibling branch, a subclass of the receiver's own class, and an unrelated interface all answer false
 --FILE--
 <?nvs
 interface Flies {
@@ -30,11 +30,11 @@ class Ask {
     }
 
     public static function of(Animal $a): string {
-        return Ask::yn($a instanceof Animal)
-            . Ask::yn($a instanceof Dog)
-            . Ask::yn($a instanceof Bird)
-            . Ask::yn($a instanceof Chick)
-            . Ask::yn($a instanceof Flies);
+        return Ask::yn($a is Animal)
+            . Ask::yn($a is Dog)
+            . Ask::yn($a is Bird)
+            . Ask::yn($a is Chick)
+            . Ask::yn($a is Flies);
     }
 }
 

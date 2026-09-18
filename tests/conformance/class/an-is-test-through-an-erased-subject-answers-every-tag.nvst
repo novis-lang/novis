@@ -1,5 +1,5 @@
 --TEST--
-`instanceof` through a subject whose tag nothing proved — a `mixed`, a plain `object`, a `?Class` tested and untested — walks the concrete class, and every non-object tag answers `false` rather than throwing — `rule:types/conversion`, `rule:php-migration/every-divergence-is-deliberate-and-listed` row 14
+`is` through a subject whose tag nothing proved — a `mixed`, a plain `object`, a `?Class` tested and untested — walks the concrete class, and every non-object tag answers `false` rather than throwing — `rule:types/conversion`, `rule:php-migration/every-divergence-is-deliberate-and-listed` row 14
 --FILE--
 <?nvs
 final class Ask {
@@ -30,11 +30,11 @@ final class Dog extends Animal {
 }
 
 // `rule:types/conversion`'s one unchecked position: nothing proved this holds an object
-// at all, which is precisely the question `instanceof` is being asked.
+// at all, which is precisely the question `is` is being asked.
 mixed $erased = new Dog();
-echo Ask::yn($erased instanceof Dog),
-    Ask::yn($erased instanceof Animal),
-    Ask::yn($erased instanceof Named),
+echo Ask::yn($erased is Dog),
+    Ask::yn($erased is Animal),
+    Ask::yn($erased is Named),
     "\n";
 
 // The same three questions through a plain `object` and through a nullable
@@ -45,25 +45,25 @@ echo Ask::yn($erased instanceof Dog),
 object $opaque = new Dog();
 ?Animal $untested = new Dog();
 ?Animal $narrowed = new Dog();
-echo Ask::yn($opaque instanceof Dog),
-    Ask::yn($opaque instanceof Animal),
-    Ask::yn($opaque instanceof Named),
+echo Ask::yn($opaque is Dog),
+    Ask::yn($opaque is Animal),
+    Ask::yn($opaque is Named),
     "\n";
-echo Ask::yn($untested instanceof Dog),
-    Ask::yn($untested instanceof Animal),
-    Ask::yn($untested instanceof Named),
+echo Ask::yn($untested is Dog),
+    Ask::yn($untested is Animal),
+    Ask::yn($untested is Named),
     "\n";
 if ($narrowed != null) {
-    echo Ask::yn($narrowed instanceof Dog),
-        Ask::yn($narrowed instanceof Animal),
-        Ask::yn($narrowed instanceof Named),
+    echo Ask::yn($narrowed is Dog),
+        Ask::yn($narrowed is Animal),
+        Ask::yn($narrowed is Named),
         "\n";
 }
 
 // The test still walks up and never sideways or down through an erased
 // subject: a base instance is not its own subclass.
 mixed $base = new Animal();
-echo Ask::yn($base instanceof Animal), Ask::yn($base instanceof Dog), "\n";
+echo Ask::yn($base is Animal), Ask::yn($base is Dog), "\n";
 
 // Every tag a `mixed` can carry that is not an object answers `false` — the
 // answer PHP gives, and the reason this is a run-time question rather than the
@@ -74,27 +74,27 @@ mixed $flag = true;
 mixed $txt = "dog";
 mixed $arr = ["k" => "v"];
 mixed $nil = null;
-echo Ask::yn($num instanceof Dog),
-    Ask::yn($ratio instanceof Dog),
-    Ask::yn($flag instanceof Dog),
-    Ask::yn($txt instanceof Dog),
-    Ask::yn($arr instanceof Dog),
-    Ask::yn($nil instanceof Dog),
+echo Ask::yn($num is Dog),
+    Ask::yn($ratio is Dog),
+    Ask::yn($flag is Dog),
+    Ask::yn($txt is Dog),
+    Ask::yn($arr is Dog),
+    Ask::yn($nil is Dog),
     "\n";
 
 // The nullable half of the same rule: a `?Class` holding `null` is not an
 // instance of anything, and asking costs no test.
 ?Animal $missing = null;
-echo Ask::yn($missing instanceof Animal), Ask::yn($missing instanceof Named), "\n";
+echo Ask::yn($missing is Animal), Ask::yn($missing is Named), "\n";
 
 // A subject nothing names is only read, so the test releases it once it has
 // answered — a fresh object here used to outlive the expression that built it,
 // which `tools/leak-check.sh` is what pins.
-echo Ask::yn((new Dog()) instanceof Named), Ask::yn((new Animal()) instanceof Dog), "\n";
+echo Ask::yn((new Dog()) is Named), Ask::yn((new Animal()) is Dog), "\n";
 
 // A method call through the concrete class the test just proved, so the row
 // above is answering about a live object rather than a stale handle.
-echo $erased instanceof Named ? "named" : "anonymous", "\n";
+echo $erased is Named ? "named" : "anonymous", "\n";
 --EXPECT--
 yyy
 yyy

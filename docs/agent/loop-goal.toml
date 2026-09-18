@@ -635,7 +635,7 @@ cases = [
   "tests/conformance/lang/a-for-header-declares-its-own-counter.nvst",
   "tests/conformance/lang/a-class-constant-is-read-at-its-declared-type.nvst",
   "tests/conformance/lang/new-static-through-two-levels-returns-the-called-class.nvst",
-  "tests/conformance/lang/an-instanceof-guard-narrows-to-an-interface.nvst",
+  "tests/conformance/lang/an-is-guard-narrows-to-an-interface.nvst",
 ]
 
 # ---------------------------------------------------------------------------------------------------
@@ -2315,7 +2315,7 @@ name = "conformance (the class reference)"
 args = ["test", "tests/conformance/"]
 cases = [
   "tests/conformance/class/a-class-reference-instantiates-the-subclass-it-names.nvst",
-  "tests/conformance/class/a-class-reference-carries-a-static-call-and-an-instanceof.nvst",
+  "tests/conformance/class/a-class-reference-carries-a-static-call-and-a-type-test.nvst",
   "tests/conformance/class/a-name-outside-the-hierarchy-throws-at-the-conversion.nvst",
   "tests/conformance/reject/a-subclass-with-another-constructor-refuses-a-dynamic-new.nvst",
 ]
@@ -11352,7 +11352,7 @@ stage = "1 floor"
 name = "conformance (`is`, `instanceof` and `as` answer the same question about one Core value)"
 args = ["test", "tests/conformance/"]
 cases = [
-  "tests/conformance/core/one-core-value-answers-the-same-from-is-instanceof-and-as.nvst",
+  "tests/conformance/core/one-core-value-answers-the-same-from-is-and-as.nvst",
 ]
 
 # ---------------------------------------------------------------------------------------------------

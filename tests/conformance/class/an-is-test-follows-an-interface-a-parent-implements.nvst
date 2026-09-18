@@ -1,5 +1,5 @@
 --TEST--
-`instanceof` answers for an interface reached through the parent, and for the runtime class behind a base-typed local
+`is` answers for an interface reached through the parent, and for the runtime class behind a base-typed local
 --FILE--
 <?nvs
 interface Named {
@@ -25,11 +25,11 @@ class Dog extends Animal {
 }
 
 var $d = new Dog();
-echo $d instanceof Dog, ";", $d instanceof Animal, ";", $d instanceof Named, "\n";
+echo $d is Dog, ";", $d is Animal, ";", $d is Named, "\n";
 Animal $a = $d;
-echo $a instanceof Dog, ";", $a->name(), "\n";
+echo $a is Dog, ";", $a->name(), "\n";
 var $plain = new Animal("cat");
-echo $plain instanceof Dog, ";", $plain instanceof Named, "\n";
+echo $plain is Dog, ";", $plain is Named, "\n";
 --EXPECT--
 1;1;1
 1;dog

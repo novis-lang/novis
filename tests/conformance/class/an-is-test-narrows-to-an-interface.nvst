@@ -1,5 +1,5 @@
 --TEST--
-`instanceof` against an interface narrows its subject to that interface, so the interface's own members resolve (`rule:classes/no-traits`, `rule:types/declaration`)
+`is` against an interface narrows its subject to that interface, so the interface's own members resolve (`rule:classes/no-traits`, `rule:types/declaration`)
 --FILE--
 <?nvs
 // The subject is declared `object`, which names no member at all: every call
@@ -24,12 +24,12 @@ class Plain {
 }
 
 object $a = new Tag();
-if ($a instanceof Labelled) {
+if ($a is Labelled) {
     echo $a->label(), "\n";
 }
 
 object $b = new Plain();
-if ($b instanceof Labelled) {
+if ($b is Labelled) {
     echo "labelled\n";
 } else {
     echo "not labelled\n";
@@ -38,7 +38,7 @@ if ($b instanceof Labelled) {
 // The negated form installs the residue on the *other* edge, so the call sits
 // after the guard rather than inside it.
 object $c = new Tag();
-if (!($c instanceof Labelled)) {
+if (!($c is Labelled)) {
     echo "not labelled\n";
 } else {
     echo $c->label(), "\n";

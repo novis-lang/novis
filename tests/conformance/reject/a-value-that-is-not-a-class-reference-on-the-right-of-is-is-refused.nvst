@@ -1,0 +1,39 @@
+--TEST--
+A value on the right of `is` that is not a `class<T>` is `E0496`, and a written name that resolves to nothing at all is the ordinary `E0303` — `rule:types/class-reference-sites`, `rule:types/type-test`
+--FILE--
+<?nvs
+final class Box {
+    public int $n = 1;
+}
+
+mixed $m = new Box();
+string $name = "Box";
+
+// `rule:types/conversion`: a class name is written, never computed — the same line
+// `$$var` and `eval` are already on. `rule:types/class-reference-sites` opens exactly one door,
+// and a bare `string` is not it: the help names the conversion that is. This is
+// the same report `new $v()` and `$v::f()` make, because the three spellings
+// are one mistake.
+bool $a = $m is $name;
+// A written name that resolves to nothing at all is the ordinary
+// undeclared-class diagnostic, exactly as `new Undeclared()` reports it — one
+// mistake, one code, wherever the name is written.
+bool $b = $m is Undeclared;
+echo "unreached\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0496]: the right-hand side of `is` is a type or a class reference, and this is neither
+   --> %s:14:17
+   |
+14 | bool $a = $m is $name;
+   |                 ^^^^^ not a class name
+   = help: Novis has no dynamic class names (`rule:types/conversion`, the rule that rejects `$$var` and `eval`) — write the class, or convert the name once and carry the result: `$name as class<Base>` yields a class reference this site accepts, checked against `Base`'s hierarchy where the conversion stands (`rule:types/class-reference-sites`)
+
+error[E0303]: `Undeclared` is not declared
+   --> %s:18:17
+   |
+18 | bool $b = $m is Undeclared;
+   |                 ^^^^^^^^^^ no matching declaration
+
+error: aborting due to 2 errors

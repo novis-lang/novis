@@ -328,7 +328,7 @@
       "because": ["0150", "0192"],
       "divergesFromPhp": "`int` and `uint` are separate tags, so a `BIGINT UNSIGNED` value answers `is uint` and not `is int` where `is_int()` was true for both, and `string` and `bytes` are separate the same way; `is 3.14` is refused outright, there being no float literal type",
       "seeAlso": ["types/narrowing", "types/conversion", "types/unions-and-mixed", "types/literal-types", "types/class-reference-sites", "php-migration/one-type-test"],
-      "guardedBy": ["tests/conformance/class/instanceof-through-an-erased-subject-answers-every-tag.nvst"]
+      "guardedBy": ["tests/conformance/class/an-is-test-through-an-erased-subject-answers-every-tag.nvst"]
     },
     {
       "id": "types/narrowing",
@@ -338,7 +338,7 @@
       "seeAlso": ["types/unions-and-mixed", "types/conversion", "types/enum-case-type", "types/type-test", "types/class-reference-sites"],
       "guardedBy": [
         "tests/conformance/lang/a-null-test-narrows-a-nullable-local.nvst",
-        "tests/conformance/lang/an-instanceof-narrows-its-subject-on-the-true-edge.nvst",
+        "tests/conformance/lang/an-is-test-narrows-its-subject-on-the-true-edge.nvst",
         "tests/conformance/lang/a-match-and-a-switch-over-true-narrow-per-arm.nvst",
         "tests/conformance/lang/a-comparison-against-a-literal-narrows-its-subject.nvst",
         "crates/nvs-types/tests/narrowing.rs"
@@ -605,7 +605,7 @@
       "because": ["0125", "0007", "0126", "0192"],
       "seeAlso": ["types/class-reference", "types/property-key-access", "types/type-test", "php-migration/one-type-test"],
       "guardedBy": [
-        "tests/conformance/class/a-class-reference-carries-a-static-call-and-an-instanceof.nvst",
+        "tests/conformance/class/a-class-reference-carries-a-static-call-and-a-type-test.nvst",
         "tests/conformance/reject/a-subclass-with-another-constructor-refuses-a-dynamic-new.nvst",
         "crates/nvs-ir/tests/class_reference.rs"
       ]

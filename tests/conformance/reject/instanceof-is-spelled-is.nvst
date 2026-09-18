@@ -1,0 +1,24 @@
+--TEST--
+`instanceof` is not a Novis operator: `E0253` refuses it where it is written and names `is` — `rule:php-migration/one-type-test`, `rule:types/type-test`
+--FILE--
+<?nvs
+// The one divergence from PHP that no untyped binding makes reachable
+// (`rule:php-migration/every-divergence-is-deliberate-and-listed`): it is a
+// choice of spelling, taken because one operator answers what PHP splits
+// across two. The refused word does not compile, so a converted program pays a
+// mechanical rewrite and never a silent change of meaning.
+class Animal {}
+
+mixed $pet = new Animal();
+echo $pet instanceof Animal, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0253]: `instanceof` is not a Novis operator; the type test is `is`
+   --> %s:10:11
+   |
+10 | echo $pet instanceof Animal, "\n";
+   |           ^^^^^^^^^^ no operator is spelled this way
+   = help: write `$x is Request`; a class reference on the right is `$x is $cls` (`rule:types/type-test`)
+
+error: aborting due to 1 error

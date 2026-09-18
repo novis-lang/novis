@@ -1,8 +1,8 @@
 --TEST--
-An `instanceof` guard narrows an erased subject to an interface, and a nested guard replaces that residue rather than intersecting with it — `rule:classes/no-traits`, `rule:types/erased-member-access`
+An `is` guard narrows an erased subject to an interface, and a nested guard replaces that residue rather than intersecting with it — `rule:classes/no-traits`, `rule:types/erased-member-access`
 --FILE--
 <?nvs
-// `instanceof` narrows its subject to an *interface*, which is the direction a
+// `is` narrows its subject to an *interface*, which is the direction a
 // program written against an abstraction actually uses: the subject arrives
 // erased and the guard is what makes the interface's members resolve.
 interface Labelled {
@@ -26,7 +26,7 @@ final class Describe {
     // An erased `object` names no member at all, so every call below is
     // reachable only through the guard above it.
     public static function of(object $v): string {
-        if ($v instanceof Labelled) {
+        if ($v is Labelled) {
             return $v->label();
         }
         return "unlabelled";
@@ -37,9 +37,9 @@ final class Describe {
     // inner guard is a `Counted` and nothing else. The label is therefore read
     // out before the second test rather than after it.
     public static function both(object $v): string {
-        if ($v instanceof Labelled) {
+        if ($v is Labelled) {
             string $name = $v->label();
-            if ($v instanceof Counted) {
+            if ($v is Counted) {
                 return $name . ":" . ($v->total() as string);
             }
             return $name;

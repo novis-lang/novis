@@ -1,12 +1,12 @@
 --TEST--
-`$cls::f()` dispatches on the descriptor and `$x instanceof $cls` tests against it — `rule:types/class-reference-sites`'s other two sites
+`$cls::f()` dispatches on the descriptor and `$x is $cls` tests against it — `rule:types/class-reference-sites`'s other two sites
 --FILE--
 <?nvs
 // The two sites that take a class reference and are not `new`. A static call
 // through one is virtual: the implementor's body wins where it has one, and
-// the bound's is the fallback where it has not. An `instanceof` against one
-// asks the same question a written class does, of a class this program only
-// learns at run time.
+// the bound's is the fallback where it has not. An `is` against one asks the
+// same question a written class name does, of a class this program only learns
+// at run time.
 class Formatter {
     public static function name(): string {
         return "plain";
@@ -44,20 +44,20 @@ Formatter $two = new $quoted();
 
 // The subject's class is the implementor, so it tests true against its own
 // reference and false against a sibling's.
-echo $one instanceof $angled ? "yes" : "no", "\n";
-echo $one instanceof $quoted ? "yes" : "no", "\n";
-echo $two instanceof $quoted ? "yes" : "no", "\n";
+echo $one is $angled ? "yes" : "no", "\n";
+echo $one is $quoted ? "yes" : "no", "\n";
+echo $two is $quoted ? "yes" : "no", "\n";
 
 // A descriptor of the bound is a supertype, and the test walks the supertype
 // set exactly as the written form does — so both spellings agree here.
 class<Formatter> $base = Formatter::class as class<Formatter>;
-echo $one instanceof $base ? "yes" : "no", "\n";
-echo $one instanceof Formatter ? "yes" : "no", "\n";
+echo $one is $base ? "yes" : "no", "\n";
+echo $one is Formatter ? "yes" : "no", "\n";
 
 // And the test answers rather than throwing when the subject is a `mixed`
-// holding no object at all, which is the whole reason `instanceof` exists.
+// holding no object at all, which is the whole reason the test exists.
 mixed $nothing = null;
-echo $nothing instanceof $angled ? "yes" : "no", "\n";
+echo $nothing is $angled ? "yes" : "no", "\n";
 --EXPECT--
 angled
 plain

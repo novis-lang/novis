@@ -1,5 +1,5 @@
 --TEST--
-A test the declared type already answers compiles and answers it, in both directions, and so does one written inside a branch that has already narrowed its subject — `rule:types/type-test`, `rule:types/narrowing`
+A test the declared type already answers compiles and answers it — in both directions, against a class no value of that declaration can ever hold, and inside a branch that has already narrowed its subject — `rule:types/type-test`, `rule:types/narrowing`
 --FILE--
 <?nvs
 // `rule:types/type-test` is total: nothing is refused for having a knowable
@@ -8,11 +8,19 @@ A test the declared type already answers compiles and answers it, in both direct
 // is a case rather than a unit test: what is frozen is the answer a program
 // gets, not which pass settled it.
 //
-// The neighbouring operator does refuse a subject of this shape
-// (`rule:php-migration/a-declared-type-answers-before-the-program-runs`),
-// because `instanceof` needs a class to test against and a scalar has none.
 // `is` is applicable everywhere, every value having a representation, so a
-// knowable answer here is not a meaningless question.
+// knowable answer here is not a meaningless question. That is where it most
+// visibly replaced the class-only operator, which refused a subject of this
+// shape where it was written (`rule:php-migration/one-type-test`).
+
+enum Mode: int {
+    Read = 1,
+    Write = 2,
+}
+
+final class Box {
+    public int $n = 1;
+}
 
 class Show {
     public static function yn(bool $b): string {
@@ -47,6 +55,21 @@ if ($m is int) {
     echo "narrowed-again=", Show::yn($m is int), "\n";
     echo "narrowed-is-string=", Show::yn($m is string), "\n";
 }
+
+// The class row of the same rule: a declaration that can hold no object at all
+// answers `false` against a class, where it is written and with no diagnostic.
+// A scalar, an `array<T>` (`rule:iteration/two-interfaces` gave iteration its
+// own interfaces rather than making an array an object), an enum case (a named
+// integer, `rule:enums/closed-integer-type`) and a union naming no class are
+// the four shapes of that, and each is an answer rather than a refusal.
+array<string> $rows = ["a"];
+Mode $mode = Mode::Read;
+int|string $u = 5;
+echo "int-is-Box=", Show::yn($n is Box), "\n";
+echo "string-is-Box=", Show::yn($s is Box), "\n";
+echo "array-is-Box=", Show::yn($rows is Box), "\n";
+echo "enum-is-Box=", Show::yn($mode is Box), "\n";
+echo "union-is-Box=", Show::yn($u is Box), "\n";
 --EXPECT--
 int-is-int=y
 int-is-string=n
@@ -56,3 +79,8 @@ nullable-is-null=y
 nullable-is-int=n
 narrowed-again=y
 narrowed-is-string=n
+int-is-Box=n
+string-is-Box=n
+array-is-Box=n
+enum-is-Box=n
+union-is-Box=n

@@ -1,5 +1,5 @@
 --TEST--
-`instanceof` answers for the four global interfaces the compiler declares and no source does — `rule:classes/comparable`, `rule:classes/stringable`, `rule:iteration/two-interfaces`
+`is` answers for the four global interfaces the compiler declares and no source does — `rule:classes/comparable`, `rule:classes/stringable`, `rule:iteration/two-interfaces`
 --FILE--
 <?nvs
 // `Stringable` and `Comparable` have no declaration anywhere: the compiler
@@ -43,15 +43,18 @@ var $c = new Coin(5);
 var $p = new Plain();
 Iterator<int> $it = Nums::upTo(2);
 
-echo ($m instanceof Stringable) as string, "|\n";
-echo ($m instanceof Comparable) as string, "|\n";
-echo ($c instanceof Stringable) as string, "|\n";
-echo ($p instanceof Stringable) as string, "|\n";
-echo ($p instanceof Comparable) as string, "|\n";
+echo ($m is Stringable) as string, "|\n";
+echo ($m is Comparable) as string, "|\n";
+echo ($c is Stringable) as string, "|\n";
+echo ($p is Stringable) as string, "|\n";
+echo ($p is Comparable) as string, "|\n";
 // `rule:iteration/generators`'s state machine is a synthesized class implementing
-// `Iterator`, so the same edge exists for a generator's own object.
-echo ($it instanceof Iterator) as string, "|\n";
-echo ($m instanceof Iterator) as string, "|\n";
+// `Iterator`, so the same edge exists for a generator's own object. The right
+// of `is` is a type (`rule:types/type-test`), so the argument `rule:iteration/two-interfaces`
+// makes mandatory is written here as it is in a declaration; the walk itself
+// compares descriptors and the argument is erased before it runs.
+echo ($it is Iterator<int>) as string, "|\n";
+echo ($m is Iterator<int>) as string, "|\n";
 --EXPECT--
 1|
 1|

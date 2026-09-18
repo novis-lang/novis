@@ -1,5 +1,5 @@
 --TEST--
-`instanceof` answers for a `Core` class the way it answers for a declared one, and a `Core` class is final for the test — `rule:types/class-reference-sites`
+`is` answers for a `Core` class the way it answers for a declared one, and a `Core` class is final for the test — `rule:types/class-reference-sites`
 --FILE--
 <?nvs
 final class Box {
@@ -16,26 +16,26 @@ var $uri = Core\Uri::parse("https://example.test/a?b=c");
 // The true edge narrows, which is the whole point of asking: a `mixed` that
 // answers is a `Core\Time\Date` after the test, with its members reachable and
 // no `as` to throw (`rule:types/narrowing`).
-if ($date instanceof Core\Time\Date) {
+if ($date is Core\Time\Date) {
     echo $date->format("yyyy-MM-dd"), "|\n";
 }
-if ($uri instanceof Core\Uri) {
+if ($uri is Core\Uri) {
     echo "a uri|\n";
 }
 
 // The test reads the value's own descriptor, so a `Core` class answers for
 // itself and for nothing else: there is no hierarchy under one to walk, and a
 // declared class and a `Core` class never answer for each other.
-if (!($box instanceof Core\Time\Date)) {
+if (!($box is Core\Time\Date)) {
     echo "a box is no date|\n";
 }
-if (!($date instanceof Core\Time\DateTime)) {
+if (!($date is Core\Time\DateTime)) {
     echo "a date is no datetime|\n";
 }
-if (!($date instanceof Box)) {
+if (!($date is Box)) {
     echo "a date is no box|\n";
 }
-if (!($box instanceof Core\Uri)) {
+if (!($box is Core\Uri)) {
     echo "a box is no uri|\n";
 }
 --EXPECT--

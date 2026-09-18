@@ -1,0 +1,65 @@
+--TEST--
+`$x is $cls` tests the subject against the class a `class<T>` holds, narrows it to `T` on the true edge, and answers `false` for a subject that holds no object — `rule:types/type-test`, `rule:types/class-reference-sites`, `rule:types/narrowing`
+--FILE--
+<?nvs
+// The one arm of `is` whose right-hand side is a value rather than a type, and
+// a `$` is what opens it. The reference carries the descriptor the walk
+// compares against, so a class this program only learns at run time asks the
+// same question a written name does.
+interface Named {
+    public function name(): string;
+}
+
+class Animal implements Named {
+    public function name(): string {
+        return "animal";
+    }
+}
+
+class Dog extends Animal {
+    public function name(): string {
+        return "dog";
+    }
+}
+
+class Rock {
+}
+
+class<Animal> $animal = Animal::class as class<Animal>;
+class<Animal> $dog = Dog::class as class<Animal>;
+
+mixed $pet = new Dog();
+
+// True for the class the reference holds and for every ancestor of the
+// subject's own class, exactly as a written name is.
+echo ($pet is $dog) as string, "|\n";
+echo ($pet is $animal) as string, "|\n";
+
+// False sideways and down: the walk is over the subject's supertype set, never
+// an equality on the class the reference names.
+mixed $plain = new Animal();
+echo ($plain is $dog) as string, "|\n";
+
+// `rule:types/narrowing`: a `class<T>` holds a `T` or an implementor of one, so
+// the true edge knows the subject is an `Animal` and the member resolves with
+// no conversion.
+if ($pet is $animal) {
+    echo $pet->name(), "|\n";
+}
+
+// A subject whose declared type can hold no object is settled `false` where it
+// is written and costs no diagnostic: `is` refuses no left-hand side.
+int $n = 7;
+echo ($n is $animal) as string, "|\n";
+
+// And a subject holding an object of an unrelated class answers `false` rather
+// than throwing, which is the whole reason the test exists.
+mixed $rock = new Rock();
+echo ($rock is $animal) as string, "|\n";
+--EXPECT--
+1|
+1|
+|
+dog|
+|
+|

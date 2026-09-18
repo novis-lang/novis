@@ -1,0 +1,37 @@
+--TEST--
+`is` and `as` ask one question about a `Core` value and agree on the answer — `rule:types/type-test`, `rule:types/class-reference-sites`, `rule:types/conversion`
+--FILE--
+<?nvs
+// Both read the same descriptor: the process-wide one
+// `nvs_stdlib::class_descriptors` publishes for a `Core` class with instances.
+// `is` answers `bool` and `as` answers the instance or throws, so what differs
+// between them is what they do with the answer and never the answer itself.
+mixed $date = Core\Time\Date::at(2026, 9, 17);
+
+echo ($date is Core\Time\Date) as string, "|\n";
+echo ($date as Core\Time\Date)->format("yyyy-MM-dd"), "|\n";
+
+// And they agree on `false` for a class the value is not: a `Core` class
+// answers for itself alone, so a sibling is no closer than a declared class is.
+mixed $uri = Core\Uri::parse("https://example.test/a");
+echo ($uri is Core\Time\Date) as string, "|\n";
+try {
+    Core\Time\Date $wrong = $uri as Core\Time\Date;
+    echo "converted|\n";
+} catch (Throwable $e) {
+    echo "threw|\n";
+}
+
+// The test narrows its subject on the true edge, so both member calls inside
+// the branch need no conversion at all (`rule:types/narrowing`).
+if ($uri is Core\Uri) {
+    echo $uri->host(), "|\n";
+    echo $uri->scheme(), "|\n";
+}
+--EXPECT--
+1|
+2026-09-17|
+|
+threw|
+example.test|
+https|
