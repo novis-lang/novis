@@ -2345,6 +2345,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   edited" and "no citation dangles" cannot both hold. Drop the `rule:` prefix in the frozen prose —
   the id still reads as a name — and delete it from `changes.creates`, which is the machine-read
   relation, not the reasoning. [until: reviewed 2026-09-18]
+- **Goal `one-type-test`'s gate greps `-i`, so a CamelCase `InstanceOf` in Rust counts as a hit.** The
+  handoff's by-eye list of what still spells the word missed `crates/nvs-stdlib/src/ast.rs`, where the
+  literal was one arm of a roster filter probing for a node that no longer exists. Build the remaining
+  list by running the gate's own `argv` from `docs/agent/loop-goal.toml` rather than by reading the
+  previous handoff's list. [until: gone docs/agent/loop-goal.toml:7 the gate]
 
 ## Running things
 
@@ -7981,3 +7986,9 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   anchors included, for the rows that still refuse too. `grep -rn` the diagnostic code and the target's
   own spelling across `tests/conformance/` before widening any acceptance.
   [until: reviewed 2026-09-17]
+- **Respelling `instanceof` as `is` can falsify the sentence around it, not just the word in it.**
+  `crates/nvs-stdlib/src/debug.rs` and `docs/rules/errors/debug-dump.md` both argued a bound from
+  "a program cannot act on that union: `instanceof` against a `Core` class is `E0496`", which `is`
+  makes untrue — `Core\Cli\Text|Core\Html\Markup $r = …; if ($r is Core\Html\Markup)` compiles and
+  narrows. Run the two lines through `target/debug/nvs.exe run` before swapping the word, and rewrite
+  the claim in the rule as well as in the comment. [until: reviewed 2026-09-18]
