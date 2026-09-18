@@ -7,10 +7,18 @@
 //! fixture supplies. They are asserted here instead, where the tables
 //! themselves are in hand — both rosters' *refusals* are pinned by a `.nvst`
 //! alongside, since those a program does observe.
+//!
+//! `rule:testing/doubles`' structural check is asserted here for the opposite
+//! reason: its two refusals reject a program, so what a `.nvst` case can pin is
+//! one of them at a time against a frozen message, while the pair of shapes
+//! that must *not* be refused — a complete double, and a partial that leaves a
+//! method to the real implementation — is a question about the checker rather
+//! than about anything a program prints.
 
 mod common;
 
-use common::{check_src_declared, check_src_table};
+use common::{check_src, check_src_declared, check_src_table};
+use nvs_diagnostics::code;
 use nvs_types::defaults::ConstArg;
 use nvs_types::testing::Injection;
 
@@ -272,4 +280,137 @@ fn the_match_is_nominal_so_the_name_has_to_resolve_to_core_test() {
         check_src_table("<?nvs\nclass T {\n  #[Test]\n  public function m(): void {}\n}\n");
     assert!(diags.has_errors());
     assert!(exprs.tests("T").is_none());
+}
+
+// ------------------------------------------------------------------
+// `rule:testing/doubles` -- the structural check between a shape of
+// closures and the interface the call site wrote.
+// ------------------------------------------------------------------
+
+/// ADR 0079 § 10's worked example, at the checker: the shape answers every
+/// method `Clock` declares, so the call is accepted and its `T` is the
+/// interface — which is what lets the double be passed where one is taken.
+#[test]
+fn a_double_is_the_interface_it_names() {
+    let diags = check_src(
+        "<?nvs\ninterface Clock {\n  public function now(): int;\n}\n\
+         final class Session {\n  private Clock $clock;\n  \
+         public function constructor(Clock $clock) { $this->clock = $clock; }\n}\n\
+         Session $s = new Session(Core\\Test::double<Clock>({ now: fn(): int => 1 }));\n",
+    );
+    assert!(!diags.has_errors(), "{diags:?}");
+}
+
+/// The first of § 10's two refusals. `zone` is declared and unanswered, and
+/// there is nothing the double could return for it — `rule:testing/doubles` is
+/// strict for that reason rather than by preference.
+#[test]
+fn a_double_missing_a_method_is_refused() {
+    let diags = check_src(
+        "<?nvs\ninterface Clock {\n  public function now(): int;\n  \
+         public function zone(): string;\n}\n\
+         Clock $c = Core\\Test::double<Clock>({ now: fn(): int => 1 });\n",
+    );
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_DOUBLE_METHOD_MISSING)),
+        "{diags:?}"
+    );
+}
+
+/// The second, and the one that catches a renamed member: `tomorrow` stands in
+/// for nothing `Clock` declares, so the double would otherwise go on answering
+/// a contract no call site asks for.
+#[test]
+fn a_double_declaring_a_method_the_interface_lacks_is_refused() {
+    let diags = check_src(
+        "<?nvs\ninterface Clock {\n  public function now(): int;\n}\n\
+         Clock $c = Core\\Test::double<Clock>({ now: fn(): int => 1, \
+         tomorrow: fn(): int => 2 });\n",
+    );
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_DOUBLE_METHOD_UNKNOWN)),
+        "{diags:?}"
+    );
+}
+
+/// The shape a `double` is refused for is a complete `partial`: `zone` is left
+/// to the real implementation, which is the whole of what a partial is. The
+/// field half of the check still applies to one, which the second assertion is
+/// — overriding a method the interface does not declare overrides nothing.
+#[test]
+fn a_partial_delegates_what_it_does_not_override() {
+    let src = "<?nvs\ninterface Clock {\n  public function now(): int;\n  \
+               public function zone(): string;\n}\n\
+               final class SystemClock implements Clock {\n  \
+               public function now(): int { return 1; }\n  \
+               public function zone(): string { return \"utc\"; }\n}\n";
+    let diags = check_src(&format!(
+        "{src}Clock $c = Core\\Test::partial<Clock>(new SystemClock(), \
+         {{ now: fn(): int => 2 }});\n"
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+
+    let diags = check_src(&format!(
+        "{src}Clock $c = Core\\Test::partial<Clock>(new SystemClock(), \
+         {{ tomorrow: fn(): int => 2 }});\n"
+    ));
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_DOUBLE_METHOD_UNKNOWN)),
+        "{diags:?}"
+    );
+}
+
+/// The third refusal, and the division of labour behind it: a name that
+/// resolved to a class is this walk's own `E0827`, while a type argument that
+/// named no declaration at all is the written-class read's `E0447` — one
+/// mistake, one diagnostic, whichever half of the question it fails.
+#[test]
+fn a_double_of_anything_but_an_interface_is_refused() {
+    let class = "<?nvs\nfinal class SystemClock {\n  \
+                 public function now(): int { return 1; }\n}\n";
+    let diags = check_src(&format!(
+        "{class}object $c = Core\\Test::double<SystemClock>({{ now: fn(): int => 1 }});\n"
+    ));
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_DOUBLE_TYPE_ARG_NOT_AN_INTERFACE)),
+        "{diags:?}"
+    );
+
+    // The same call written with a `partial`, whose `$real` would have been the
+    // one thing that could answer the rest: it is refused for the same reason,
+    // since what the shape stands in for is still not a contract.
+    let diags = check_src(&format!(
+        "{class}object $c = Core\\Test::partial<SystemClock>(new SystemClock(), \
+         {{ now: fn(): int => 1 }});\n"
+    ));
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_DOUBLE_TYPE_ARG_NOT_AN_INTERFACE)),
+        "{diags:?}"
+    );
+
+    // Not a declaration at all, which the written-class read already refuses —
+    // and this walk deliberately adds nothing to.
+    let diags = check_src("<?nvs\nobject $c = Core\\Test::double<int>({ now: fn(): int => 1 });\n");
+    assert!(
+        diags
+            .iter()
+            .any(|d| d.code == Some(code::E_TYPE_ARG_NOT_A_CLASS)),
+        "{diags:?}"
+    );
+    assert!(
+        !diags
+            .iter()
+            .any(|d| d.code == Some(code::E_DOUBLE_TYPE_ARG_NOT_AN_INTERFACE)),
+        "{diags:?}"
+    );
 }

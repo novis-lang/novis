@@ -412,6 +412,14 @@ pub(crate) fn infer_static_call(
         // call, so this is the arm that actually reports it. See
         // [`crate::reasons`].
         crate::reasons::check_call(owner, name, args, &slots, ctx, env);
+        // `rule:testing/doubles`' structural check, at the one point where the
+        // interface the call site wrote and the shape it answers with are both
+        // typed. Static-only, like both members: a double declares no class, so
+        // this is the whole of what `crate::conformance` would otherwise have
+        // asked of one. See [`crate::conformance::check_double_answers`].
+        crate::conformance::check_double_answers(
+            owner, name, &written, &arg_types, &slots, expr.span, env,
+        );
         // A member that opens an isolate, which its row says by marking an
         // entry parameter — `rule:concurrency/an-upgrade-is-spawn-shaped`'s `Core\Socket::upgrade`. Its entry
         // takes ADR 0006 § *Decision*'s operand rule and its other arguments

@@ -48,15 +48,16 @@
 //! than only at the use sites (`crate::expr`'s `require_stringable` and the
 //! object comparison check).
 
-use nvs_diagnostics::{Diagnostic, code};
-use nvs_hir::{QName, implements_interface};
+use nvs_diagnostics::{Diagnostic, Span, code};
+use nvs_hir::{QName, SymbolKind, implements_interface};
 use nvs_syntax::ast::{ClassDecl, ClassMemberKind, Modifier};
 use rustc_hash::FxHashSet;
 
 use crate::Env;
-use crate::expr_table::Delegation;
+use crate::derive::stands_in_for_a_class;
+use crate::expr_table::{ArgSlot, Delegation};
 use crate::signatures::{resolve_method, resolve_property};
-use crate::ty::Ty;
+use crate::ty::{Ty, TypeId};
 use crate::{span_text, strip_sigil};
 
 /// Reports one `E0449` per member of `decl`'s interfaces that nothing
@@ -525,6 +526,163 @@ fn own_obligations(qname: &QName, env: &Env<'_>, out: &mut Vec<(QName, String)>)
         .collect();
     names.sort();
     out.extend(names.into_iter().map(|n| (qname.clone(), n.clone())));
+}
+
+/// Reports `E0827` where what a double names is not an interface, one `E0825`
+/// per method that interface requires and the shape of answers leaves out, and
+/// one `E0826` per field that shape names which the interface does not declare
+/// — `rule:testing/doubles`, checked at the call rather than at a declaration
+/// because a double declares nothing.
+///
+/// The obligation set is [`check_class_conformance`]'s, asked of the interface
+/// instead of of a class: what a double owes is exactly what an implementor
+/// would have had to write, so an `rule:classes/interface-default-methods`
+/// default is owed by neither — the interface answers that one itself — and a
+/// `private` interface method is part of no contract, so naming one is the
+/// *second* refusal rather than an accepted answer.
+///
+/// A `partial` owes nothing of the first half: the real implementation behind
+/// it answers every method its shape leaves out, which is the whole of what
+/// makes it a partial. It is held to the second half unchanged, since a field
+/// naming no method of the interface overrides nothing whichever member built
+/// it.
+///
+/// **What is compared is the argument's own inferred type**, which
+/// [`crate::expr::literals::check_object_literal`] interned from the fields as
+/// written — the declared parameter is `object`
+/// (`rule:types/object-top`), because the constraint this position really
+/// carries is the interface the *call site* wrote and no registry row can name
+/// that. An argument that is not a shape at all therefore names no method,
+/// which for a `double` is every method missing at once: there is no answer it
+/// could default to.
+pub(crate) fn check_double_answers(
+    owner: &QName,
+    method: &str,
+    written: &[TypeId],
+    arg_types: &[TypeId],
+    slots: &[ArgSlot],
+    call_span: Span,
+    env: &mut Env<'_>,
+) {
+    // `Core\Test` is the only owner that stands in for a class rather than
+    // building one ([`crate::derive::stands_in_for_a_class`]), and its two
+    // members are the whole roster — every other `Core` call reaches this with
+    // nothing to ask. The parameter index is the member's own: `$answers` is
+    // `double`'s first and `partial`'s second, behind the `$real` it delegates
+    // to.
+    let answers_at = match (stands_in_for_a_class(&owner.to_string()), method) {
+        (true, "double") => 0,
+        (true, "partial") => 1,
+        _ => return,
+    };
+    let Some(first) = written.first().copied() else {
+        return;
+    };
+    // A type argument that names no declaration at all is
+    // `E_TYPE_ARG_NOT_A_CLASS`, reported where the written class is read
+    // (`crate::expr::args::written_class_of`), so this asks only the narrower
+    // question that refusal leaves open: the name resolved, and to what kind.
+    let Ty::Class(interface, _) = env.interner.get(first) else {
+        return;
+    };
+    let interface = interface.clone();
+    if env.symbols.get(&interface).map(|symbol| symbol.kind) != Some(SymbolKind::Interface) {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_DOUBLE_TYPE_ARG_NOT_AN_INTERFACE,
+                format!("`{owner}::{method}` stands in for an interface, and `{interface}` is not one"),
+            )
+            .with_primary(call_span, format!("`{interface}` written here"))
+            .with_help(
+                "`rule:testing/doubles`: a shape of closures can answer an interface's declarations \
+                 and nothing else — a class also carries state and bodies of its own, which a \
+                 double neither holds nor runs",
+            ),
+        );
+        return;
+    }
+    let named = answered_methods(answers_at, arg_types, slots, env);
+
+    // Every field first, so a shape that both misnames one method and omits
+    // another reads as the two mistakes it is, in the order ADR 0079 § 10's
+    // own example prints them.
+    let unknown: Vec<String> = named
+        .iter()
+        .filter(|name| {
+            !resolve_method(&interface, name, env.signatures, env.graph)
+                .is_some_and(|(_, sig)| !sig.interface_private)
+        })
+        .cloned()
+        .collect();
+    for name in unknown {
+        env.diags.report(
+            Diagnostic::error(
+                code::E_DOUBLE_METHOD_UNKNOWN,
+                format!("`{interface}` declares no method `{name}`"),
+            )
+            .with_primary(call_span, format!("this stands in for `{interface}`"))
+            .with_help(format!(
+                "drop the `{name}:` field, or declare `{name}` on `{interface}` \
+                 (`rule:testing/doubles`)"
+            )),
+        );
+    }
+    if method == "partial" {
+        return;
+    }
+
+    let mut seen = FxHashSet::default();
+    seen.insert(interface.clone());
+    let mut owed: Vec<(QName, String)> = Vec::new();
+    own_obligations(&interface, env, &mut owed);
+    collect_obligations(&interface, env, &mut seen, &mut owed);
+    // One diagnostic per *method*, not per declaration that names it: an
+    // interface redeclaring a parent's member owes it once, and the author has
+    // one field to write either way.
+    let mut reported = FxHashSet::default();
+    for (declaring, name) in owed {
+        if named.contains(&name) || !reported.insert(name.clone()) {
+            continue;
+        }
+        env.diags.report(
+            Diagnostic::error(
+                code::E_DOUBLE_METHOD_MISSING,
+                format!("`{declaring}::{name}` is not implemented by this double"),
+            )
+            .with_primary(call_span, format!("this stands in for `{interface}`"))
+            .with_help(format!(
+                "give the shape a `{name}:` field whose closure answers it, or build a \
+                 `Core\\Test::partial` and delegate it to a real implementation \
+                 (`rule:testing/doubles`)"
+            )),
+        );
+    }
+}
+
+/// The method names one double's shape of answers implements, in the order the
+/// shape interned them — which [`crate::ty::TypeInterner::shape`] sorts, so
+/// the refusals below it come out in one order for one program.
+///
+/// The argument is found through its [`ArgSlot`] rather than by position, so a
+/// call writing `answers:` by name is read exactly as the positional spelling
+/// is. An argument that filled no parameter, or one whose type is not a shape,
+/// answers nothing — see [`check_double_answers`] for what that then means.
+fn answered_methods(
+    param: usize,
+    arg_types: &[TypeId],
+    slots: &[ArgSlot],
+    env: &Env<'_>,
+) -> Vec<String> {
+    let Some(index) = slots.iter().position(|slot| *slot == ArgSlot::Param(param)) else {
+        return Vec::new();
+    };
+    let Some(ty) = arg_types.get(index) else {
+        return Vec::new();
+    };
+    match env.interner.get(*ty) {
+        Ty::Shape(fields) => fields.iter().map(|field| field.name.clone()).collect(),
+        _ => Vec::new(),
+    }
 }
 
 #[cfg(test)]

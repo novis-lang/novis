@@ -3743,6 +3743,53 @@ pub mod code {
     /// list is where this steps aside and the call's own rules decide.
     pub const E_SECRET_INTO_CONTAINER: Code = Code::new("E0824");
 
+    /// A `Core\Test::double<T>` whose shape of answers leaves a method `T`
+    /// requires unimplemented.
+    ///
+    /// [`E_INTERFACE_METHOD_MISSING`] is the same defect written as a class
+    /// declaration, and the two keep separate codes because what the author
+    /// does about them differs: a class declares the member, while a double
+    /// either names a `method:` field whose closure answers it or is written as
+    /// `Core\Test::partial` and delegates it to a real implementation.
+    ///
+    /// There is no answer for it to default to, which is why this is refused
+    /// rather than filled in: `rule:testing/doubles` is strict because a double
+    /// of `now(): Instant` has nothing legal to return.
+    pub const E_DOUBLE_METHOD_MISSING: Code = Code::new("E0825");
+    /// A `Core\Test::double<T>`/`partial<T>` whose shape of answers names a
+    /// method `T` does not declare.
+    ///
+    /// The other half of `rule:testing/doubles`' structural check, and the one
+    /// that catches a renamed interface member: the shape's field would
+    /// otherwise stand in for a method nothing calls, and the double would go
+    /// on passing against a contract it no longer answers.
+    ///
+    /// A `private` interface method (`rule:classes/interface-private-methods`)
+    /// is named by this too. It is an internal helper for that interface's own
+    /// bodies rather than part of its contract, so no implementor defines it
+    /// and no double may answer it either.
+    pub const E_DOUBLE_METHOD_UNKNOWN: Code = Code::new("E0826");
+    /// A `Core\Test::double<T>`/`partial<T>` whose `T` names a declaration that
+    /// is not an interface.
+    ///
+    /// `rule:testing/doubles` checks a shape of closures against an
+    /// **interface** because that is the whole of what a double can answer: a
+    /// class also carries state and method bodies, so a shape standing in for
+    /// one would silently leave every property unset and every inherited body
+    /// unreachable, and the members it did answer would be the ones a call site
+    /// never dispatches through.
+    ///
+    /// [`E_PROGRAM_TYPE_ARG_NOT_AN_INTERFACE`] is the same demand at
+    /// `rule:programs/implementing`'s enumeration, and the two keep separate
+    /// codes because they want the interface for different reasons — that one
+    /// for the static type its answers carry, this one for the contract its
+    /// declarations are.
+    ///
+    /// A type argument that is not a class or interface *name* at all takes
+    /// [`E_TYPE_ARG_NOT_A_CLASS`] instead, so one mistake is still one
+    /// diagnostic.
+    pub const E_DOUBLE_TYPE_ARG_NOT_AN_INTERFACE: Code = Code::new("E0827");
+
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
     pub const E_INTERNAL: Code = Code::new("E0901");
