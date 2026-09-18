@@ -1747,8 +1747,23 @@ def reads_of(c):
 #:
 #: Nothing is traded for the concurrency. A leak verdict is per-process and deterministic, so
 #: concurrency cannot change one -- unlike the abi-probe cost guards, which are cost-class
-#: assertions and must have an idle machine. Those run strictly AFTER this sweep, which is why
-#: they still can, and it is why `machine.py` hands out half a box and not all of it.
+#: assertions and must have an idle machine. Those run strictly AFTER this sweep, and it is why
+#: `machine.py` hands out half a box and not all of it. Finished is not the same as idle, though,
+#: and `COST_SETTLE` is what the driver does about the shadow this sweep leaves behind it.
+
+#: How long a red cost-class check waits before it is asked a second time, in seconds.
+#:
+#: A cost is a measurement of a machine, and this machine is not idle the moment the sweep above
+#: returns. Measured on the 20260918-110653 run: the last valgrind fixture exited 0.14s before the
+#: abi-probe guards started, and the binary that runs in 6s on a quiet box took 26s there. The
+#: fan-out ratio guard read its placed half at 22.2ms against 0.8ms alone while its serial half,
+#: which needs one core and no wake-ups, was unchanged -- so this is the sweep's shadow and not a
+#: regression, and a ratio guard cannot tell the two apart from the inside.
+#:
+#: So a red one is asked once more and only a second red is a red. A regression fails both asks; a
+#: shadow fails one, and the trace and the failure line say which happened. Paid on a red alone,
+#: which is why it is generous.
+COST_SETTLE = 30
 
 
 def plain_crate_test(args):
@@ -3072,7 +3087,8 @@ class Goal:
         #   position, the sweep waited 1m50s for a build with 41s of work in front of it and 1m57s
         #   behind it; from here the wait is nothing and the run is 3s.
         # * They are cost-class guards, and a cost measured while a WSL build and a valgrind sweep
-        #   are running is not the cost. Here, everything else has finished and the machine is idle.
+        #   are running is not the cost. Here, everything else has finished, which is necessary and
+        #   not sufficient -- `asked_again` is what a guard red from the sweep's shadow costs.
         #
         # What it costs is reporting order: a red guard is now named after a red fixture rather than
         # before one. That is the smaller loss -- and a red guard is not reported LATER in wall-clock
@@ -3087,6 +3103,8 @@ class Goal:
                 continue
             trace(f"cargo {c['name']}")
             fail = self.run_cargo_check(c, native)
+            if fail:
+                fail = self.asked_again(c, native, fail)
             if fail:
                 return fail
             self.remember(c)
@@ -3106,6 +3124,26 @@ class Goal:
         if fail and c["kind"] == "cargo-named" and "--release" not in c.get("args", []):
             self.failed_name = c["name"]
         return fail
+
+    def asked_again(self, c, leg, first):
+        """A red cost-class check, asked once more on a machine given `COST_SETTLE` to come back.
+
+        Only the `--release` checks reach this, and only once everything else in the sweep has
+        finished -- the constant's own note has the measurement that says finishing is not enough.
+        `first` is the verdict being retried, kept so a second red reports the guard's own line
+        rather than a summary of the pair.
+
+        The cached run is dropped first, or `cargo()` hands back the very verdict being asked
+        again. That one cache is the only one to drop: `plain_crate_test` wants `test -p`, so a
+        `--release` check never takes the shared-build path."""
+        self.trace(f"cargo {c['name']} came back red -- {COST_SETTLE}s for the machine, then again")
+        time.sleep(COST_SETTLE)
+        self._cargo.pop(tuple(c.get("args", [])), None)
+        again = self.cargo_check(c, leg)
+        if not again:
+            self.trace(f"cargo {c['name']} passed on the second ask: {first}")
+            return ""
+        return f"{again} (asked twice, {COST_SETTLE}s apart)"
 
     def fast_check(self):
         """The check `fast_path` names, if the goal still holds one of that name and kind."""

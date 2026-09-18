@@ -3088,13 +3088,16 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   the rerun the tool does to check — which reads exactly like a shared port or temp path. Read the
   two sides of the assertion first: the same elements in a different order means the `Debug` impl is
   what needs fixing, not the isolation. [until: reviewed 2026-09-17]
-- **A ratio-based perf guard in the floor can go red inside the full sweep and pass alone, and the
-  sweep's report says nothing about load.** `a_cpu_bound_fan_out_across_four_worker_cores_is_near_linear_by_the_margin_this_test_names`
-  measures four worker cores against one, so the five database containers the sweep leaves up and
-  whatever it just finished compress the ratio — it failed the acceptance check after a 1385 s sweep
-  and passes in 0.19 s on its own at the same commit. Reproduce a red `abi-probe` check alone with
-  `cargo test --release -p nvs-abi-probe --test perf_guards <name>` before treating it as a
-  regression, and only then read the margin. [until: reviewed 2026-10-18]
+- **A ratio-based perf guard in the floor can go red inside the full sweep and pass alone, and a
+  sweep failure line without `asked twice` in it is
+  that.** `a_cpu_bound_fan_out_across_four_worker_cores_is_near_linear_by_the_margin_this_test_names`
+  measures four worker cores against one, and the valgrind sweep that runs immediately before it
+  leaves a shadow that lands on the placed half alone — 22.2 ms against 0.8 ms on its own, with the
+  serial half unchanged at 3.4 ms, 0.14 s after the last fixture exited. `tools/loop.py`'s
+  `asked_again` re-asks a red `--release` check after `COST_SETTLE`, so one red is the shadow and a
+  doubled one is the tree; either way, read the margin from
+  `cargo test --release -p nvs-abi-probe --test perf_guards <name>` run alone.
+  [until: reviewed 2026-10-18]
 
 ## Writing a test case
 
