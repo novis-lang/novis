@@ -8,8 +8,8 @@ goal's Stage 1 floor, and it holds every closure goal's checks.
 
 Settled before the first session: **this goal builds nothing.** If `python tools/owners.py --check` or
 `python tools/plan.py --past` names an open item, a closure goal left it behind — that is a `BLOCKED`
-naming the item, never a new owner or a deferral invented to pass. The one other expected hold is CI:
-if GitHub still refuses to start jobs, stage 4 is a `BLOCKED` naming the billing block.
+naming the item, never a new owner or a deferral invented to pass. CI is not this goal's: goal
+`ci-green`, last on the chain, holds that check.
 
 ## Next group
 
@@ -24,6 +24,5 @@ if GitHub still refuses to start jobs, stage 4 is a `BLOCKED` naming the billing
 
 ## Backlog
 
-- Stage 4, CI green on `main` — `gh run list --branch main --workflow ci.yml`.
 - Stage 5, `python tools/plan.py --past` and `--sync` writing `done`; the status block's *Done* field.
 - When this goal's last check goes green the driver takes goal `dossier`.

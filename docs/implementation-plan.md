@@ -49,7 +49,9 @@
 > goal after them the chain has already walked. What a crate still owes is its own module doc's `#
 > Known gaps`; the corpus and bench figures are `python tools/disk.py`'s and the perf notes'.
 >
-> **Blocking:** Nothing waits on the user. Every `spec-*-outstanding.txt` ratchet under
+> **Blocking:** Nothing holds the run. One thing waits on the user and gates only the chain's last
+> goal: GitHub starts no CI job while the account's payments fail, and goal `ci-green` needs `main`
+> pushed and a green `ci.yml` run for it. Every `spec-*-outstanding.txt` ratchet under
 > `crates/nvs-stdlib/tests/` now holds zero keys: goal `bigint` registered `Core\BigInt` and struck
 > the last one, by the user's decision of 2026-09-18, so goal `gap-zero`'s ratchet half and its
 > deletion of the index have both landed, so what a shipped feature still owes is a numbered `#
