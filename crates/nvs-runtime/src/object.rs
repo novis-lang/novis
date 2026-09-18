@@ -62,7 +62,7 @@
 //! # Decision: `ClassDesc` is opaque, and its address is the class identity
 //!
 //! Compiled code never reads a field of one. It passes the pointer to
-//! [`nvs_object_new`] and [`nvs_object_instanceof`], and those are the only
+//! [`nvs_object_new`] and [`nvs_object_is_class`], and those are the only
 //! operations that exist. So the struct is an ordinary Rust type, not a
 //! `#[repr(C)]` one, and `nvs-codegen` bakes each descriptor's address into
 //! the code it emits as a constant — the normal JIT move, and the reason there
@@ -316,7 +316,7 @@ pub struct ClassDesc {
     /// `String` per field per class, once per process, not per instance.
     fields: Vec<String>,
     /// Every *other* class and interface an instance of this one also is,
-    /// flattened at definition time so `instanceof` is one linear scan of a
+    /// flattened at definition time so a class test is one linear scan of a
     /// short slice rather than a chain walk plus a per-level interface search.
     /// Does not include this descriptor itself; [`ClassDesc::conforms_to`]
     /// checks identity first.
@@ -1504,7 +1504,7 @@ impl ClassDesc {
     }
 
     /// Whether an instance of this class is also an instance of `other` —
-    /// `instanceof`'s whole test, and a typed `catch`'s.
+    /// the whole of `$x is C`, and of a typed `catch`'s dispatch.
     ///
     /// # Safety
     ///
@@ -3416,7 +3416,7 @@ impl NvsObj {
         }
     }
 
-    /// Whether this object is an instance of `class` — `instanceof`.
+    /// Whether this object is an instance of `class` — `$x is C`.
     ///
     /// # Safety
     ///
@@ -3919,7 +3919,7 @@ pub unsafe extern "C" fn nvs_object_release(ptr: *mut ObjHeader) {
     }
 }
 
-/// `$obj instanceof Class`, and the type test a typed `catch` clause performs.
+/// `$obj is Class`, and the type test a typed `catch` clause performs.
 ///
 /// A null `ptr` answers `false`, the same "a null payload *is* `null`"
 /// treatment every retain/release primitive here already gives one — and the
@@ -3936,7 +3936,7 @@ pub unsafe extern "C" fn nvs_object_release(ptr: *mut ObjHeader) {
               whose liveness the signature cannot express"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvs_object_instanceof(
+pub unsafe extern "C" fn nvs_object_is_class(
     ptr: *const ObjHeader,
     class: *const ClassDesc,
 ) -> bool {
@@ -3949,16 +3949,16 @@ pub unsafe extern "C" fn nvs_object_instanceof(
     }
 }
 
-/// [`nvs_object_instanceof`] over a subject whose tag nothing proved — a
-/// `mixed`, or a `?Box` no test narrowed, which is the shape `$x instanceof
-/// Box` exists to interrogate.
+/// [`nvs_object_is_class`] over a subject whose tag nothing proved — a
+/// `mixed`, or a `?Box` no test narrowed, which is the shape `$x is Box`
+/// exists to interrogate.
 ///
 /// The subject arrives as a whole [`Value`] by address, the same shape
 /// [`nvs_object_slot_get`]'s receiver takes and for the same reason: an
 /// unchecked untag in compiled code would dereference an `int` payload. Unlike
 /// that fetch there is nothing to throw about — a tag that is not an object
-/// simply answers `false`, which is PHP's own answer, and a subject whose
-/// *declared* type can hold no object was `E0497` at check time.
+/// simply answers `false`, and a subject whose *declared* type can hold no
+/// object was folded to a constant at check time.
 ///
 /// # Safety
 ///
@@ -3970,7 +3970,7 @@ pub unsafe extern "C" fn nvs_object_instanceof(
               neither of whose liveness the signature can express"
 )]
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn nvs_value_instanceof(
+pub unsafe extern "C" fn nvs_value_is_class(
     subject: *const Value,
     class: *const ClassDesc,
 ) -> bool {
@@ -3984,7 +3984,7 @@ pub unsafe extern "C" fn nvs_value_instanceof(
     };
     #[expect(unsafe_code, reason = "the caller guarantees both pointees are live")]
     unsafe {
-        nvs_object_instanceof(ptr, class)
+        nvs_object_is_class(ptr, class)
     }
 }
 
@@ -5308,7 +5308,7 @@ mod tests {
     }
 
     #[test]
-    fn instanceof_sees_the_parent_and_the_interface() {
+    fn a_class_test_sees_the_parent_and_the_interface() {
         let (table, animal, dog, greets) = hierarchy();
         #[expect(unsafe_code, reason = "the table outlives the objects")]
         unsafe {
@@ -5376,7 +5376,7 @@ mod tests {
             let raw = nvs_object_new(table.desc(animal));
             nvs_object_retain(raw);
             assert_eq!(NvsObj::refcount_of(raw), 2);
-            assert!(nvs_object_instanceof(raw, table.desc(animal)));
+            assert!(nvs_object_is_class(raw, table.desc(animal)));
 
             nvs_object_field_set(raw, 0, Value::int(7));
             assert_eq!(nvs_object_field_get(raw, 0).as_int(), Some(7));

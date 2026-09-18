@@ -2980,12 +2980,12 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
             (crate::object::nvs_object_release as *const ()).cast::<u8>(),
         ),
         (
-            "nvs_object_instanceof",
-            (crate::object::nvs_object_instanceof as *const ()).cast::<u8>(),
+            "nvs_object_is_class",
+            (crate::object::nvs_object_is_class as *const ()).cast::<u8>(),
         ),
         (
-            "nvs_value_instanceof",
-            (crate::object::nvs_value_instanceof as *const ()).cast::<u8>(),
+            "nvs_value_is_class",
+            (crate::object::nvs_value_is_class as *const ()).cast::<u8>(),
         ),
         (
             "nvs_object_slot_get",

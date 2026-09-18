@@ -136,7 +136,7 @@
 //!   by definition — is testable at all;
 //! * [`NvsObj`]/[`ObjHeader`]/[`ClassDesc`]/[`ClassTable`], M4's class-instance
 //!   representation, with the `nvs_object_new`/`_retain`/`_release`/
-//!   `_instanceof`/`_field_get`/`_field_set`/`_class_name` primitives behind
+//!   `_is_class`/`_field_get`/`_field_set`/`_class_name` primitives behind
 //!   `nvs_ir::InstKind::New`/`FieldGet`/`FieldSet` and an instance
 //!   `InstKind::Call`'s receiver. It does not wait on the codegen that emits
 //!   any of them, for [`NvsStr`]'s reason: it is testable without a backend,
@@ -329,9 +329,9 @@ pub use object::{
     FIELDS_OFFSET, FieldDefault, HookRow, MethodRow, NvsObj, OBJ_ALIGN, OBJ_CLASS_OFFSET,
     OBJ_REFCOUNT_OFFSET, ObjHeader, ShapeCodec, construct, field_offset, immortal_object_bytes,
     nvs_abstract_method, nvs_class_method, nvs_object_class_name, nvs_object_field_get,
-    nvs_object_field_set, nvs_object_instanceof, nvs_object_key_get, nvs_object_key_set,
+    nvs_object_field_set, nvs_object_is_class, nvs_object_key_get, nvs_object_key_set,
     nvs_object_new, nvs_object_release, nvs_object_retain, nvs_object_slot_get,
-    nvs_object_slot_optional_get, nvs_object_slot_probe, nvs_object_slot_set, nvs_value_instanceof,
+    nvs_object_slot_optional_get, nvs_object_slot_probe, nvs_object_slot_set, nvs_value_is_class,
     write_erased_property,
 };
 pub use peer::{

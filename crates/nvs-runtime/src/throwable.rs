@@ -1162,7 +1162,7 @@ pub unsafe extern "C" fn nvs_trace_push(ctx: *mut Ctx, label: *const u8, len: us
 /// It may be **null**: a helper's bare-message failure has no object behind
 /// it unless [`Ctx::set_runtime_error_class`] installed a class to build one
 /// from. Every operation a `catch` dispatch performs on the result is
-/// null-tolerant — `nvs_object_instanceof` answers `false`, so no clause
+/// null-tolerant — `nvs_object_is_class` answers `false`, so no clause
 /// matches and the throw is re-raised unchanged.
 ///
 /// # Safety

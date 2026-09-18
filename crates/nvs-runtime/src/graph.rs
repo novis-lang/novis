@@ -74,7 +74,7 @@
 //! arrives back as one, slots intact, because [`crate::Ctx::class_desc`] asks
 //! the `Core` resolver after the program's table — and all three spellings that
 //! read a descriptor answer for it: `$v is Core\Time\Date`,
-//! `$v instanceof Core\Time\Date` and `$v as Core\Time\Date`, the last throwing
+//! `$v is Core\Time\Date` and `$v as Core\Time\Date`, the last throwing
 //! where the other two answer `false`. The address they test against is the one
 //! `nvs_stdlib::class_descriptors` publishes for the process.
 
