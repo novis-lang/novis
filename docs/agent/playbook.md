@@ -3134,6 +3134,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   "a blessed output is a claim, not a formality" points at the wrong one of the two. Check the
   bytes with `od -c <file>.out` before believing the echo, and never "fix" an example because the
   bless line looked wrong. [until: reviewed 2026-09-18]
+- **An `[[app]]` block whose `entry` names a file that is not on disk refuses the whole
+  configuration, so every program in the checkout stops running.** The tree is resolved before any
+  program is, and `E0605` names the missing entry rather than the file you ran, so a block written
+  ahead of the proof file it grants reads as a broken example, a broken fixture and a broken
+  acceptance sweep at once. Write the `.nvs` first and the block second, or put both in one edit.
+  [until: reviewed 2026-09-18]
 
 ## Writing a test case
 
@@ -5664,6 +5670,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   exists to show, while a `read = true` beside it prints fine. Write a page's fixture grants as
   booleans and send the reader to `nvs config dump`, which is `nvs_config::audit` and does render a
   list. [until: gone crates/nvs-config/src/request.rs:as_text]
+- **`Core\Config::get` answers nothing for a key only the run mode derives, so a directive page
+  prints `(nothing)` for a value that is genuinely in force.** `get` reads the request overlay, the
+  secrets and the written table and no fourth thing (`crates/nvs-config/src/request.rs:88-97`),
+  while `mode::DERIVED` is applied by whoever reads the key — so `debug.inline` answers nothing in
+  a checkout whose mode has it `false`. Give such an example a `?? '(nothing, so the mode decides)'`
+  fallback, or write the key in `nvs.toml` the way `[control] socket` and `[debug] keep_temporary`
+  are written. [until: reviewed 2026-09-18]
 
 ## Splitting a file that got too big
 
