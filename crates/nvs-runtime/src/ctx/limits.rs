@@ -573,6 +573,13 @@ impl Ctx {
     /// file was already parsed and refused at the boundary that could name the
     /// line, so this is not a second place to refuse it.
     ///
+    /// A written `0` is a count and not that spelling, so it takes the default
+    /// as well: this field holds `0` as its own sentinel for an absent ceiling,
+    /// and reading a number an operator wrote as the sentinel would take the
+    /// net off for the value they were most likely reaching for the opposite
+    /// with. Nothing here can mean "no nesting at all" — the smallest ceiling
+    /// is one level — so the safe direction is the only one left.
+    ///
     fn configured_max_script_depth(&self) -> u32 {
         let Some(written) = self
             .config
@@ -583,6 +590,7 @@ impl Ctx {
         };
         let setting = nvs_config::Setting::Text(written);
         match nvs_config::Quantity::parse("max_script_depth", nvs_config::Unit::Count, &setting) {
+            Ok(nvs_config::Quantity::Count(0)) => Self::DEFAULT_MAX_SCRIPT_DEPTH,
             Ok(nvs_config::Quantity::Count(depth)) => u32::try_from(depth).unwrap_or(u32::MAX),
             Ok(nvs_config::Quantity::Unbounded) => 0,
             _ => Self::DEFAULT_MAX_SCRIPT_DEPTH,

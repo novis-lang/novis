@@ -126,9 +126,13 @@ fn an_unstated_uncapped_or_malformed_cpu_time_is_no_ceiling() {
 
 /// `[limits] max_script_depth` is the one ceiling in this block whose *unstated* reading is a
 /// number rather than "no cap", and `Ctx::max_script_depth`'s field doc owns why. Asserted here as
-/// the whole shape it differs in — unstated and malformed both default, and only `false` is off —
-/// because a reader that answered `0` for any of the three would still look right on the one line
-/// that reads a written value back.
+/// the whole shape it differs in — unstated, malformed and a written zero all default, and only
+/// `false` is off — because a reader that answered `0` for any of those three would still look
+/// right on the one line that reads a written value back.
+///
+/// The zero is the one that has to be asserted from outside: this reader answers a depth and holds
+/// `0` as its own sentinel for "no ceiling", so a written zero arriving as a count reaches the same
+/// number by the other road, and every net in a deployment that wrote it is off.
 #[test]
 fn an_unstated_or_malformed_max_script_depth_defaults_while_false_removes_the_ceiling() {
     assert_eq!(
@@ -145,6 +149,18 @@ fn an_unstated_or_malformed_max_script_depth_defaults_while_false_removes_the_ce
         ctx_reading("[limits]\nmax_script_depth = \"as deep as it goes\"\n").max_script_depth(),
         Ctx::DEFAULT_MAX_SCRIPT_DEPTH,
         "on is the safe direction for a net, so a malformed value is not read as off",
+    );
+    assert_eq!(
+        ctx_reading("[limits]\nmax_script_depth = 0\n").max_script_depth(),
+        Ctx::DEFAULT_MAX_SCRIPT_DEPTH,
+        "a written zero is read as this reader's own sentinel, so the number an operator is most \
+         likely to reach for meaning `no nesting` means `no ceiling` instead",
+    );
+    assert_eq!(
+        ctx_reading("[limits]\nmax_script_depth = \"0\"\n").max_script_depth(),
+        Ctx::DEFAULT_MAX_SCRIPT_DEPTH,
+        "and the quoted spelling, which is the one every `Core\\Config` value arrives in, takes the \
+         same answer by the other parse arm",
     );
     assert_eq!(
         ctx_reading("[limits]\nmax_script_depth = false\n").max_script_depth(),
