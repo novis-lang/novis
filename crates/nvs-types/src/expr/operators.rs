@@ -1520,7 +1520,7 @@ pub(crate) fn reject_increment_on_non_numeric(ty: TypeId, span: Span, env: &mut 
 
 /// `rule:expressions/nullable-conversion-availability`'s
 /// class row, which is **absolute**: `as` converts between the types `rule:types/conversion` tabulates and `rule:types/literal-types`'s literal and enum-case types, and none of those
-/// is a class. `$obj as ?SomeClass` asks class membership, which `instanceof`
+/// is a class. `$obj as ?SomeClass` asks class membership, which `is`
 /// plus `rule:types/unions-and-mixed`'s narrowing already answers; `$s as ?Core\Uri` asks for a
 /// parse, which is that class's own `tryParse` (§ 3a).
 ///
@@ -1557,7 +1557,7 @@ fn check_class_target_conversion(ty: &Type, to: TypeId, span: Span, env: &mut En
              than throwing"
         )
     } else {
-        "ask `$x instanceof Name` and use the value the test narrows; text becomes a value \
+        "ask `$x is Name` and use the value the test narrows; text becomes a value \
          through that class's own named constructor"
             .to_owned()
     };
@@ -1881,7 +1881,7 @@ fn reject_unrelated_class_conversion(from: TypeId, to: TypeId, span: Span, env: 
         .with_primary(span, "converted here")
         .with_help(
             "`rule:types/conversion` tabulates no conversion into a class, and these two share no value at \
-             all: ask `$x instanceof Name` and use the value the test narrows, or call that \
+             all: ask `$x is Name` and use the value the test narrows, or call that \
              class's own named constructor",
         ),
     );
@@ -2243,7 +2243,7 @@ fn conversion_help(from: ConvKind, to: ConvKind) -> &'static str {
         }
         (_, Void) => "`void` is a return type, not a value's type — there is nothing to produce",
         (_, Object) => {
-            "`rule:types/conversion` tabulates no conversion into a class: ask `$x instanceof Name` and use \
+            "`rule:types/conversion` tabulates no conversion into a class: ask `$x is Name` and use \
              the value the test narrows, or call that class's own named constructor"
         }
         (Array, Str) => {

@@ -2,58 +2,57 @@
 
 ## State
 
-**Goal `one-type-test`: stages 1–6 are green and only stage 7, the gate, is red.** Stage 6's nine
-conformance cases are all on disk and passing, so what is left is the sweep of the word out of
-`crates/`, `docs/` and the remaining `tests/conformance` help strings. Stage 5 finished this session:
-`crates/nvs-stdlib` no longer spells it anywhere.
+**Goal `one-type-test`: stages 1–6 are green, stage 7 — the gate — is red on two of its four checks.**
+The word sweep is the visible one; the other is `docs/rules/php-migration.json:199`, where the
+divergence rule still reads `"status": "designed"` and the gate wants `shipped`. The chapter and
+`php-migration.md` are generated from the fragments and that json, so both are `python tools/rules.py
+--render`'s output and never hand-edited (`tools/rules.py`'s module doc).
 
-**Two of those sentences were false rather than merely stale, and both were rewritten from a probe.**
-`Core\Cli\Text|Core\Html\Markup $r = Core\Debug::render(1); if ($r is Core\Html\Markup)` compiles,
-runs and narrows, so `Core\Debug`'s bound is now argued from the sink — `rendered_for` asks the
-channel in force, so a caller narrowing that union would branch on the deployment's configuration —
-in its home `docs/rules/errors/debug-dump.md:15` and restated in the module doc. And nothing on the
-`is` path consults `crate::core_lib::has_instances` (`testable_core_class`'s only callers are
-`crates/nvs-types/src/expr/operators.rs:1867` and `crates/nvs-ir/src/lower/closure.rs:387`), so
-`crates/nvs-stdlib/src/instance.rs:468` now says *downcast target* where it said *`instanceof`'s
-right-hand side*.
+**`crates/nvs-types/src/expr/` is clean.** Every help string in `members.rs`, `calls.rs` and
+`operators.rs` names `is`, and the five conformance cases that freeze them verbatim moved in the same
+commits. What was stale rather than merely misspelled, and is now rewritten from the code: the
+`members.rs` module doc described `infer_instanceof`, `E0497` and a right-hand-side rule that
+`crates/nvs-types/src/expr/type_test.rs` has owned since the checker moved — neither the function nor
+the code exists — and `calls.rs` cited `crate::locals::instanceof_residue`, which is
+`crates/nvs-types/src/locals.rs:475`'s `type_test_residue`. What members.rs still owns is
+`reject_dynamic_class_name`, the one `E0496` the three value spellings share.
 
-**The hole that leaves is unchanged and is stage 7's to close or to carry.** `$m is Core\Str`
-type-checks and dies at codegen — `crates/nvs-codegen/src/emit.rs:2678` — where `rule:types/type-test`
-says a knowable answer folds to `false`. The comment above it at `:2673` also names
-`expr::members::testable_class_name`, a symbol that does not exist; the function is
-`testable_core_class`.
+**The hole from the last session is unchanged and is still stage 7's to close or to carry.** `$m is
+Core\Str` type-checks and dies at codegen — `crates/nvs-codegen/src/emit.rs:2678` — where
+`rule:types/type-test` says a knowable answer folds to `false`. The comment at `:2673` names
+`expr::members::testable_class_name`, which does not exist; the function is `testable_core_class`.
 
 ## Next group
 
-**Stage 7: the `nvs-types` help strings and the conformance cases that freeze them** — one file set:
-`crates/nvs-types/src/expr/` plus `tests/conformance/`. Each help string is frozen verbatim by at
-least one `.nvst`, so the string and its case move in the same slice or the suite goes red.
-`rule:php-migration/one-type-test` is what all three follow.
+**Stage 7: the rest of `crates/nvs-types`, prose only** — one file set: `crates/nvs-types/src/` plus
+`crates/nvs-types/tests/`. None of these lines is a diagnostic string, so no `.nvst` moves with them
+and the suite cannot go red on the wording; `rule:types/type-test` and `rule:types/narrowing` are what
+they follow. Two of them *compare* the two spellings, which § *Standing decisions* closes outright —
+cite `rule:php-migration/one-type-test` rather than naming the word.
 
-- [ ] **The two erased-receiver help strings say `is`** — `crates/nvs-types/src/expr/members.rs:883`
-      and `crates/nvs-types/src/expr/members.rs:888`, frozen by
-      `tests/conformance/lang/a-class-name-constant-needs-a-class-the-compiler-resolves.nvst:40` and
-      `:47`. The module doc above them, `crates/nvs-types/src/expr/members.rs:53` and `:452`, is the
-      same slice's prose.
-- [ ] **`calls.rs`'s three help strings and its two notes** — `crates/nvs-types/src/expr/calls.rs:1166`,
-      `:1235` and `:1323`, frozen by
-      `tests/conformance/lang/a-first-class-callable-names-a-member-not-a-class.nvst:42`,
-      `tests/conformance/reject/a-call-through-a-mixed-receiver-refuses-what-it-cannot-defer.nvst:49`
-      and `:56`, and
-      `tests/conformance/lang/a-method-call-through-an-erased-receiver-is-a-diagnostic.nvst:30`; the
-      notes are `crates/nvs-types/src/expr/calls.rs:275` and `:1307`.
-- [ ] **`operators.rs`'s three `as`-into-a-class help strings** —
-      `crates/nvs-types/src/expr/operators.rs:1560`, `:1884` and `:2246`, plus the note at `:1523`.
-      Grep `tests/` for each string before editing it: these three may be unfrozen, unlike the six above.
+- [ ] **`locals.rs`'s narrowing prose** — `crates/nvs-types/src/locals.rs:29`, `:35`, `:38`, `:67`,
+      `:72`, `:381`, `:386`, `:627`. The module doc's own heading lists the refused word beside `is`
+      as two separate spellings, where `rule:types/narrowing` has four and `is` is the general one.
+- [ ] **`layout.rs`'s four descriptor-edge comments** — `crates/nvs-types/src/layout.rs:125`, `:463`,
+      `:595`, `:1169`. Each names the operator to say which edges a descriptor needs;
+      `rule:types/type-test` is the same test under its living name.
+- [ ] **The seven one-line citations** — `crates/nvs-types/src/callables.rs:21`,
+      `crates/nvs-types/src/core_lib.rs:226`, `crates/nvs-types/src/expr/mod.rs:97`,
+      `crates/nvs-types/src/expr_table.rs:737`, `crates/nvs-types/src/expr/type_test.rs:141`,
+      `crates/nvs-types/tests/classes.rs:319`, `crates/nvs-types/tests/type_test.rs:182`.
 
 ## Backlog
 
-- The rest of stage 7 in `crates/`: `nvs-types` `locals.rs`, `layout.rs`, `callables.rs`,
-  `core_lib.rs:226`, `expr_table.rs:737`, `expr/mod.rs:97`, `type_test.rs:141` and its two test files.
-- The rest of stage 7 in `crates/`: `crates/nvs-hir/src/errors.rs:92` and
-  `crates/nvs-hir/src/members.rs:1185`.
-- `docs/` is the other half of the gate: `docs/rules/` fragments (classes, core-api, expressions,
-  types) then `python tools/rules.py --render`, plus `docs/reference/`, `docs/spec/` and the six
-  `docs/agent/playbook.md` bullets.
-- `crates/nvs-codegen/src/emit.rs:2673` names `expr::members::testable_class_name`, which is
-  `testable_core_class` — a one-word fix outside this goal's file sets.
+- `crates/nvs-hir/src/errors.rs` and `crates/nvs-hir/src/members.rs`, one line each — the last two in
+  `crates/` outside the gate's exclusions.
+- `docs/rules/`: 11 lines across 10 fragments, including
+  `docs/rules/php-migration/every-divergence-is-deliberate-and-listed.md`, which the gate does **not**
+  exclude even though the chapter it renders into is excluded — it has to point at
+  `rule:php-migration/one-type-test` instead of spelling the word. `python tools/rules.py --render`
+  after each.
+- `docs/spec/02-php-migration.md` (4), `docs/reference/tools/30-php-differences.md` (4),
+  `docs/spec/01-core-library.md`, `docs/reference/findings.md` (2).
+- `docs/agent/playbook.md` (11) and `tests/conformance/reject/new-takes-a-class-name-not-a-string.nvst`
+  (2) — the playbook's are in bullets whose trailers may already have fired.
+- `docs/rules/php-migration.json:199` → `"status": "shipped"`, and re-render. Last, with the sweep done.
+- `crates/nvs-codegen/src/emit.rs:2678`'s `Core`-class fold, above.
