@@ -833,6 +833,271 @@ fn a_deferred_deadline_is_a_requests_to_set_while_the_cap_beside_it_is_the_hosts
     );
 }
 
+/// `rule:concurrency/deferred-is-bounded-by-two-directives` prices a host against a **product** —
+/// `max_concurrent × [limits.hard]` memory, on top of the requests still being answered — and a
+/// product is bounded only while both of its factors are. So this reads the cap against the other
+/// factor rather than against the sibling key beside it, which the case above already pins.
+///
+/// `[limits]` is `Runtime`, because a request lowering its own ceiling is its own business, and
+/// `[limits.hard]` is the `System` row above it that no request can move. A registry that let go of
+/// either factor would leave an operator's arithmetic true of nothing: the cap would go on refusing
+/// to be raised while every tree it counts grew underneath it.
+///
+/// The two factors are also two *units*, which is what stops the product being nonsense — the cap
+/// counts trees and the ceiling is bytes — so a cap written in a size's spelling is refused rather
+/// than read as two hundred and sixty-eight million trees.
+///
+/// Past the cap `Core\Task::afterResponse` throws at the call site rather than queueing
+/// (`nvs_runtime::deferred`), and the registry's half of that is that there is nothing else to
+/// write. `[deferred]` governs two numbers and no behaviour, so an operator who wanted a queue or a
+/// wait in front of a non-durable executor has no key for one and no row would govern it.
+// covers: directive:deferred.max_concurrent
+#[test]
+fn the_deferred_cap_is_priced_against_a_ceiling_no_request_can_move() {
+    let cap = governing("deferred.max_concurrent");
+    let ceiling = governing("limits.hard.memory");
+    let per_request = governing("limits.memory");
+
+    assert_eq!(
+        (cap.key, ceiling.key),
+        ("deferred.max_concurrent", "limits.hard"),
+        "the rule's product is these two rows, and `limits.hard.memory` resolving through any \
+         other one would mean the ceiling being multiplied is not the ceiling an operator wrote",
+    );
+    assert_eq!(
+        (cap.class, ceiling.class),
+        (Class::System, Class::System),
+        "both factors of `max_concurrent × [limits.hard]` are the operator's, and a registry that \
+         let go of either would leave the cap refusing to be raised while every tree it counts \
+         grew underneath it",
+    );
+    assert_eq!(
+        per_request.class,
+        Class::Runtime,
+        "the ceiling a request may move is the soft one, which is the whole reason the product is \
+         written against the hard row and not against `[limits]`",
+    );
+    assert!(
+        per_request.class.settable_by_a_request() && !ceiling.class.settable_by_a_request(),
+        "a request may lower what it is allowed to hold and may not raise what anything else is \
+         allowed to hold — the two halves of `[limits]` that make the cap's arithmetic an operator's",
+    );
+
+    // The units, which is what the multiplication means at all: a count of trees times a size.
+    let quantity = |key: &str, unit, text: &str| {
+        nvs_config::Quantity::parse(key, unit, &nvs_config::Setting::Text(text.to_string()))
+    };
+    assert!(
+        matches!(
+            quantity(cap.key, nvs_config::Unit::Count, "256"),
+            Ok(nvs_config::Quantity::Count(256))
+        ),
+        "the cap is a plain count of request trees, which is the factor an operator multiplies",
+    );
+    assert!(
+        quantity(cap.key, nvs_config::Unit::Count, "256M").is_err(),
+        "a size's spelling in the cap is refused rather than read as two hundred and sixty-eight \
+         million trees — a cap that admitted the other factor's unit would price a host at a \
+         figure nobody wrote",
+    );
+    assert!(
+        matches!(
+            quantity(ceiling.key, nvs_config::Unit::Bytes, "512M"),
+            Ok(nvs_config::Quantity::Bytes(536_870_912))
+        ),
+        "and the other factor is bytes, so the product is bytes per core and not a number with no \
+         unit at all",
+    );
+
+    // Being full is a refusal and not a setting. `nvs_runtime::deferred` throws at the call site
+    // while the request can still do the work inline, and no key here can turn that into a queue.
+    for invented in [
+        "deferred.overflow",
+        "deferred.on_capacity",
+        "deferred.max_queued",
+        "deferred.queue_depth",
+        "deferred.wait",
+    ] {
+        assert!(
+            lookup(invented).is_none(),
+            "`{invented}` resolves to a row, so `[deferred]` has a second thing to say about being \
+             full — and the throw past the cap is a default somebody can configure away rather \
+             than the whole of the behaviour",
+        );
+    }
+
+    assert_eq!(
+        governing("deferred.max_concurrent.default").key,
+        "deferred.max_concurrent",
+        "a key invented underneath the cap is still governed by the cap's row, so a spelling \
+         nobody audited cannot fall through to being governed by nothing and settable by anyone",
+    );
+}
+
+/// `rule:packaging/extension-loading-is-root-controlled`: an extension is loaded from an
+/// `[[extension]]` entry in the root-owned file and from nowhere else, so the row is `System` — the
+/// class that answers nobody — down to every key of every entry.
+///
+/// **`Reload` is the half the rule states outright**, and it is not bookkeeping: `Boot` here would
+/// mean an operator could not add, replace or drop an extension without dropping every request in
+/// flight. The swap re-verifies each pin against the file on disk and refuses the whole set if one
+/// does not match, and the set folds into every compiled unit's key
+/// (`rule:config/the-extension-set-is-in-every-unit-key`), so nothing compiled against the old set
+/// is reused against the new one.
+///
+/// The entry's keys are read back out of the block rather than listed here, and that the pin is one
+/// of them is the rule's own reasoning: a checksum spelled as a naming convention over a repeated
+/// key — an `image_sha256` beside an `image` — would be a pin an entry could simply omit without
+/// looking incomplete, which is why the format has an array-of-tables shape at all.
+// covers: directive:extension
+#[test]
+fn an_extension_entry_carries_its_pin_and_no_part_of_it_is_a_programs() {
+    let keys = keys_listed("[[extension]]\nnvs_no_such_key = true\n");
+    assert_eq!(
+        keys.iter().map(String::as_str).collect::<Vec<_>>(),
+        ["path", "sha256"],
+        "a key added to `[[extension]]` joins this census in the commit that adds it, and the pin \
+         sitting beside the path as a field of the same entry is what the shape buys",
+    );
+
+    let mut asked = vec!["extension".to_string(), "extension.0".to_string()];
+    for key in &keys {
+        asked.push(format!("extension.{key}"));
+        asked.push(format!("extension.0.{key}"));
+    }
+
+    for key in asked {
+        let row = governing(&key);
+        assert_eq!(
+            row.key, "extension",
+            "`{key}` resolves through `{}` rather than through the one `extension` row, so which \
+             binaries this host loads is no longer one class",
+            row.key,
+        );
+        assert_eq!(
+            row.class,
+            Class::System,
+            "`{key}` decides what native code runs inside every request on this host, so it is \
+             the class that answers nobody",
+        );
+        assert!(
+            !row.class.settable_by_a_request(),
+            "`Core\\Config::set(\"{key}\", …)` has to refuse: a project that could cause code to \
+             be loaded is the one thing this rule exists to refuse, and a pin it could write is a \
+             pin it could write to match whatever it put on disk",
+        );
+        assert_eq!(
+            row.apply,
+            Apply::Reload,
+            "`{key}` is reloadable rather than boot-only, which the rule states outright: a `Boot` \
+             here would price adding or dropping an extension at every request in flight",
+        );
+    }
+}
+
+/// The one `http` row, read as the *default* answer for the whole `[http.*]` tree rather than as
+/// one more row: `rule:config/three-changeability-classes` names a response header as its
+/// counter-example to `System`, so a request may shape its own response because it could already
+/// have written the header by hand.
+///
+/// What that leaves worth asserting is the **exceptions**, and that they have exactly two grounds.
+/// A key is taken back out of the blanket when it is a secret every request's door reads — the CSRF
+/// key, which a request able to choose would be choosing which forgeries its co-residents accept —
+/// or when it settles a resource more than one request shares: the outbound pool's caps and the
+/// process-wide TLS configuration and proxy. Neither ground is about `[http]` being outbound or
+/// inbound, which is why `[http.client]`'s per-call bounds are still the blanket's.
+///
+/// So the census runs the other way round from a list of exceptions. Every row under `http` is read
+/// out of the registry and each has to be one of those, and `[http.client]`'s own keys are read out
+/// of the block: one added to it joins this case in the commit that adds it, and lands either on an
+/// exception or on a bound over the single call the request is making.
+///
+/// `http.client.socket` is the row that makes this worth asserting at all. It carries a row and
+/// restates the blanket's own answer, so a census reading "a row under `http` means `System`" would
+/// pass against a registry that had quietly made it one.
+// covers: directive:http
+#[test]
+fn the_one_http_row_answers_for_a_response_and_its_exceptions_are_shared_or_secret() {
+    let blanket = governing("http.errors.detail");
+    assert_eq!(
+        blanket.key, "http",
+        "`http.errors.detail` resolves through `{}`, so the block a response is shaped by is no \
+         longer one row with exceptions written against it",
+        blanket.key,
+    );
+    assert_eq!(
+        (blanket.class, blanket.apply),
+        (Class::Runtime, Apply::Reload),
+        "a handler that wanted another policy could write the header itself, so shaping its own \
+         response buys it nothing — and a changed block reaches the next request by the snapshot \
+         being rebuilt",
+    );
+
+    let mut carved: Vec<&str> = DIRECTIVES
+        .iter()
+        .filter(|row| row.key.starts_with("http.") && row.class != blanket.class)
+        .map(|row| row.key)
+        .collect();
+    carved.sort_unstable();
+    assert_eq!(
+        carved,
+        [
+            "http.client.pool_idle",
+            "http.client.pool_idle_timeout",
+            "http.client.proxy",
+            "http.client.tls",
+            "http.csrf_key",
+            "http.csrf_key_file",
+        ],
+        "a key leaves the blanket row for one of two reasons and no third — it is a secret the \
+         door reads for every request, or it settles something more than one request shares — so a \
+         seventh exception is a decision to write down rather than a row to add",
+    );
+    for key in &carved {
+        assert_eq!(
+            governing(key).class,
+            Class::System,
+            "`{key}` is not this request's to choose, and the class that answers nobody is the \
+             only one that says so",
+        );
+    }
+
+    for key in keys_in("http.client") {
+        let dotted = format!("http.client.{key}");
+        let row = governing(&dotted);
+        if row.key != "http" {
+            assert!(
+                carved.contains(&row.key) || row.key == "http.client.socket",
+                "`{dotted}` resolves through `{}`, which is neither the blanket row nor one of the \
+                 exceptions above — so the block now answers a third way nothing has stated",
+                row.key,
+            );
+            continue;
+        }
+        assert!(
+            [
+                "connect_timeout",
+                "deadline",
+                "idle",
+                "max_duration",
+                "max_redirects"
+            ]
+            .contains(&key.as_str()),
+            "`{dotted}` falls through to the blanket row, so a request may set it — which is only \
+             right for a bound over the one call that request is making",
+        );
+    }
+
+    let socket = governing("http.client.socket");
+    assert_eq!(
+        (socket.key, socket.class),
+        ("http.client.socket", Class::Runtime),
+        "the one row under `[http.client]` that is not an exception restates the blanket's answer, \
+         and a census reading a row there as `System` would pass against a registry that had made \
+         it one",
+    );
+}
+
 /// `rule:config/three-changeability-classes` names a response header as its counter-example to `System`, and `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s policy
 /// blocks are what that names: a request may set any of them for itself, because it could already
 /// write the header directly. The registry states that as the one `http` row covering the whole
