@@ -2,20 +2,28 @@
 
 ## State
 
-**Goal `gap-zero` is met — every stage that carries a check is green.** Stage 3: `python
-tools/playbook.py --check` reads `none -- every path any bullet names still exists`, `python
-tools/owners.py --registers` reads 5 registers with the deleted index absent as it requires, and
-`python tools/check-links.py` and `python tools/chain.py --check` pass. Stage 5: `python
-tools/plan.py --past` reads 11 of 11 past milestones complete and `--check` finds every `Carried by`
-cell agreeing with the chain.
+**Goal `gap-zero` is met.** The DONE claim that failed its sweep failed on a flaky floor check, not on
+the tree: `conformance (Core by name)` read `2082 passed, 1 failed` because
+`tests/conformance/core/process-a-capture-is-whole-not-a-pipes-worth.nvst` was killed at the runner's
+deadline. The case's answer was never wrong — the suite passes 2083 of 2083 at the commit the sweep
+failed on.
 
-**Stage 4 carries no check, by the user's decision of 2026-09-18.** GitHub starts no CI job while the
-account's payments fail, so the CI check moved whole to goal `ci-green`, pinned last on the chain. A
-session here neither asks `gh` nor reports a `BLOCKED` about CI.
+**`Core\Process::run` is not implicated.** `crates/nvs-stdlib/src/process.rs:707`'s `drain` reads both
+pipes on concurrent readers and only then waits, so the deadlock the case exists to catch is not what
+it hit. What the case costs is eight OS process spawns and the draining of what they write, and both
+are set by how contended the machine is rather than by what the case computes.
 
-**The three gates a goal meets only at its end are green**: `python tools/verify.py --doc`, `python
-tools/owners.py --closes gap-zero` (owns no module-doc gap) and `python tools/playbook.py --closes
-gap-zero` (owns no row).
+**Two things landed.** The case's Windows child now writes whole thousand-octet lines plus the
+remainder instead of one line per hundred octets — every size, every count and every `--EXPECT--` line
+is unchanged, and the case is faster on an idle machine than before. And
+`nvs_test::run::CASE_TIMEOUT` is 300s: its own doc claimed headroom over "a case that is merely slow"
+that it did not have for a case whose cost is process creation.
+
+Measured on this machine under `nproc`-many busy loops, one leg of the case took 177s when its child
+emitted 262,100 octets per stream as 2,621 line-sized writes and 4.2s when the same bytes arrived as
+262 larger ones, with the child itself costing the same either way. The full case stayed noisy across
+that change because its eight spawns dominate and spawn cost under saturation swings several-fold,
+which is the variance the deadline now absorbs rather than reports.
 
 ## Next group
 
@@ -28,10 +36,6 @@ gap-zero` (owns no row).
 
 ## Backlog
 
-- Goal `ci-green` needs `main` pushed and a green `ci.yml` run, and waits on the account's billing —
-  `docs/implementation-plan.md` § *Blocking*.
-- 24 module-doc gaps stand, each deferred to a milestone still ahead — `python tools/owners.py
-  --check` is the list, and each item lives in the module doc that owes it.
-- 327 playbook bullets carry a live `[until:]` trailer; `docs/agent/playbook.md` grows faster than
-  either pruning signal can fall — `python tools/playbook.py --check` § *HOW FAST THIS FILE IS
-  GROWING*.
+- The deadline now clears the observed overrun with room, but nothing proves the flake gone; if the
+  case reddens again the next lever is the driver not pooling the conformance suite beside cargo
+  builds — `tools/loop.py`.

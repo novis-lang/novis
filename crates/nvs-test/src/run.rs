@@ -33,17 +33,24 @@ use crate::expect::{matches, normalize, shown};
 
 /// How long one case's process may run before the runner gives up on it.
 ///
-/// Not a performance budget. A conformance case compiles and runs a program of
-/// a few dozen lines, and the whole tree finishes in seconds on a pooled run,
-/// so this leaves orders of magnitude of headroom over a case that is merely
-/// slow: it is the line past which a case has stopped running and started
-/// being wedged.
+/// Not a performance budget. It is the line past which a case has stopped
+/// running and started being wedged, and it is set far above what the slowest
+/// healthy case costs rather than close to it.
 ///
-/// It exists because without it one such case takes the suite with it, and a
+/// The headroom is for the handful of cases that spawn child processes, whose
+/// cost is set by how contended the machine is and not by what they compute: a
+/// pooled suite sharing a machine with a build makes every process creation a
+/// scheduling question, and a deadline drawn just above what those cases take
+/// on an idle machine reports them as wedged on a busy one. That failure reads
+/// as a defect in whatever the case was about, which is the most expensive
+/// wrong answer this constant can give.
+///
+/// It exists because without it one wedged case takes the suite with it, and a
 /// suite that hangs reports nothing at all. On a hosted runner that is the
 /// difference between a red build and one that burns the whole job budget
-/// before anything says why.
-pub const CASE_TIMEOUT: Duration = Duration::from_secs(60);
+/// before anything says why — which this still buys, a wedged case being one
+/// that would not have finished at any deadline.
+pub const CASE_TIMEOUT: Duration = Duration::from_secs(300);
 
 /// How the runner reaches the two binaries it drives.
 #[derive(Debug, Clone)]
