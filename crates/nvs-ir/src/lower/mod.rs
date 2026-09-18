@@ -74,8 +74,8 @@ use nvs_syntax::ast::{
     ArrayItem, AssignOp, BinaryOp, Block, CallArgs, CatchArm, CatchClause, ClassMemberKind,
     DestructureElement, DestructureTarget, Expr, ExprKind, FnBody, FnExpr, ForInit, ForeachBinding,
     IncDecOp, MatchArm, MemberName, MethodMember, Modifier, NamespaceDecl, NewTarget,
-    ObjectLiteralField, SpawnOption, SpawnOptionKey, Stmt, StmtKind, StringPart, SwitchCase, Type,
-    TypeAtom, TypeKind, UnaryOp as AstUnaryOp,
+    ObjectLiteralField, SpawnOption, SpawnOptionKey, Stmt, StmtKind, StringPart, SwitchCase,
+    TestOperand, Type, TypeAtom, TypeKind, UnaryOp as AstUnaryOp,
 };
 use nvs_types::EnumTable;
 use nvs_types::expr_table::{ArgSlot, ExprInfo, ExprTypeTable, ForeachDrive, ResolvedCall};

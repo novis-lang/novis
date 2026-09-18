@@ -274,15 +274,13 @@ impl<'a> Lowering<'a> {
             ExprKind::Index { base, index } => {
                 self.lower_index(base, index.as_deref(), expr, env, cur)
             }
-            // `rule:types/type-test`'s `$x is T` — the question `instanceof`
-            // one arm below answers only for a class, against a written *type*
-            // rather than a class value. See `Self::lower_type_test`.
-            ExprKind::TypeTest { expr: inner, .. } => {
-                self.lower_type_test(inner, expr, env, cur)
-            }
-            ExprKind::InstanceOf { expr: inner, class } => {
-                self.lower_instanceof(inner, class, expr, env, cur)
-            }
+            // `rule:types/type-test`'s `$x is T` and `$x is $cls` — the one
+            // type test, against a written type or against the descriptor a
+            // class reference carries. See `Self::lower_type_test`.
+            ExprKind::TypeTest {
+                expr: inner,
+                against,
+            } => self.lower_type_test(inner, against, expr, env, cur),
             ExprKind::Clone(inner) => self.lower_clone_expr(inner, env, cur),
             // Everything that wears this syntax is an inlined constant.
             // `rule:enums/no-class-machinery` makes `EnumName::CaseName` "an integer constant,
@@ -5113,18 +5111,20 @@ impl<'a> Lowering<'a> {
     /// `rule:types/type-test`'s `$x is T` — `bool` for every subject, and
     /// never a throw.
     ///
-    /// **The checker's record says which of two shapes this is**, and reading
+    /// **The checker's record says which of three shapes this is**, and reading
     /// it is not optional: `nvs_types::expr_table::ExprInfo::TypeTest` carries
     /// the interned right-hand side and means the answer is a run-time `bool`,
-    /// while `ExprInfo::SettledTypeTest` carries the constant the checker
-    /// folded to. The fold cannot be re-derived here, which is why it travels
-    /// as a record — two settled tests can share both representations and fold
-    /// opposite ways (`?int $x; $x is int|null` against `$x is string|float`),
-    /// so the erasures this crate holds do not distinguish them. A folded test
-    /// still **runs its subject**: `f() is int` calls `f`.
+    /// `ExprInfo::ClassRefTest` means the value arm, whose class arrives as the
+    /// descriptor the operand evaluates to, and `ExprInfo::SettledTypeTest`
+    /// carries the constant the checker folded to. The fold cannot be
+    /// re-derived here, which is why it travels as a record — two settled tests
+    /// can share both representations and fold opposite ways (`?int $x; $x is
+    /// int|null` against `$x is string|float`), so the erasures this crate
+    /// holds do not distinguish them. A folded test still **runs its subject**:
+    /// `f() is int` calls `f`.
     ///
     /// **What the test costs is [`TestShape`]'s question, not this one's**: a
-    /// tag comparison, or the descriptor walk `instanceof` and `as C` already
+    /// tag comparison, or the descriptor walk `as C` already
     /// emit. Against a tag row, a subject that is not a [`Ty::Tagged`] carries
     /// exactly one tag, so its answer is a constant — and always `false`,
     /// since a subject whose representation *is* the tested one folded at the
@@ -5133,12 +5133,15 @@ impl<'a> Lowering<'a> {
     /// float` reaches it: the two types are not disjoint, so neither fold
     /// fires, and an `int` still does not carry a `float`'s tag.
     ///
-    /// The subject is only read, so a fresh one nothing else owns is released
-    /// once the test has read it — [`Self::lower_instanceof`]'s own rule, and
-    /// the result being a [`Ty::Bool`] is what makes "right after" safe.
+    /// The subject is only read, so a fresh one nothing else owns —
+    /// `(new Dog()) is Animal`, a call's return, a field read off a temporary —
+    /// is released once the test has read it. Same rule
+    /// [`Self::lower_clone_expr`] applies to its own operand, and the result
+    /// being a [`Ty::Bool`] is what makes "right after" safe.
     fn lower_type_test(
         &mut self,
         inner: &Expr,
+        against: &TestOperand,
         expr: &Expr,
         env: &mut Env,
         cur: &mut BlockId,
@@ -5146,17 +5149,42 @@ impl<'a> Lowering<'a> {
         let plan = match self.exprs.lookup(expr.span) {
             Some(&ExprInfo::TypeTest { tested }) => TypeTestPlan::AtRunTime(tested),
             Some(&ExprInfo::SettledTypeTest { answer }) => TypeTestPlan::Settled(answer),
+            Some(ExprInfo::ClassRefTest { .. }) => TypeTestPlan::AgainstDescriptor,
             _ => panic!(
-                "nvs-ir: an `is` at {:?} with neither a tested type nor a settled answer \
-                 recorded in the typed-expression table — `nvs_types::expr::type_test` records \
-                 one of the two for every test it accepts, so this is a checker that did not \
-                 run or a record under a different span",
+                "nvs-ir: an `is` at {:?} with no tested type, no class reference and no settled \
+                 answer recorded in the typed-expression table — `nvs_types::expr::type_test` \
+                 records one of the three for every test it accepts, so this is a checker that \
+                 did not run or a record under a different span",
                 expr.span
             ),
         };
         let (value, subject) = self.lower_expr(inner, None, env, cur);
         let result = match plan {
             TypeTestPlan::Settled(answer) => self.emit(*cur, Ty::Bool, InstKind::ConstBool(answer)),
+            // The subject is written first and evaluated first; the class side
+            // is second, and needs no lifecycle of its own — [`Ty::ClassDesc`]
+            // is not refcounted, the same reason
+            // [`Self::lower_static_call_on_a_class_reference`] lowers its own
+            // and moves on.
+            TypeTestPlan::AgainstDescriptor => {
+                let TestOperand::Value(operand) = against else {
+                    panic!(
+                        "nvs-ir: an `is` at {:?} recorded a class-reference test over a written \
+                         type — the checker records that entry only for the value arm, whose \
+                         right-hand side the parser reaches through a `$`",
+                        expr.span
+                    );
+                };
+                let (desc, _) = self.lower_expr(operand, Some(Ty::ClassDesc), env, cur);
+                self.emit(
+                    *cur,
+                    Ty::Bool,
+                    InstKind::InstanceOf {
+                        value,
+                        class: TestedClass::Descriptor(desc),
+                    },
+                )
+            }
             TypeTestPlan::AtRunTime(tested) => {
                 let Some(shape) = test_shape(tested, self.exprs, self.checked_types, self.enums)
                 else {
@@ -5702,92 +5730,6 @@ impl<'a> Lowering<'a> {
         equal
     }
 
-    /// `$x instanceof Name` — the tested class comes from
-    /// `self.exprs`, exactly like a property access's declaring class,
-    /// because resolving a bare `Animal` to `Ns\Animal` needs the
-    /// namespace/import context this crate cannot see. A `Core` class, an
-    /// enum and an undeclared name all record nothing and are refused at
-    /// the checker (`E0496`/`E0303`), so the miss below is an
-    /// internal-consistency failure rather than a hole.
-    ///
-    /// **A right-hand side that is not a written name is `rule:types/class-reference-sites`'s
-    /// `$x instanceof $cls`**, and it records nothing either — for the
-    /// opposite reason. There is no name to resolve: the operand is a
-    /// `class<T>`, so the descriptor to test against is the value it
-    /// evaluates to, and which form this site takes is decided by the shape
-    /// of the expression rather than by an entry. The checker refuses every
-    /// *other* dynamic spelling where it is written (`E0496`), which is what
-    /// makes reading the syntax sufficient here.
-    ///
-    /// **The subject may be a [`Ty::Tagged`], and the runtime checks its
-    /// tag.** A `mixed` or an untested `?Box` is the shape `instanceof`
-    /// exists for, so it travels as a whole value by address exactly as
-    /// `rule:types/erased-member-access`'s name-keyed access does, and a tag that is not an
-    /// object answers `false` rather than throwing — PHP's own answer,
-    /// and the one every subject whose *declared* type can hold no
-    /// object gets at compile time instead (`E0497`).
-    fn lower_instanceof(
-        &mut self,
-        inner: &Expr,
-        class: &Expr,
-        expr: &Expr,
-        env: &mut Env,
-        cur: &mut BlockId,
-    ) -> (ValueId, Ty) {
-        let (value, ty) = self.lower_expr(inner, None, env, cur);
-        if !matches!(ty, Ty::Object | Ty::Tagged) {
-            guarded_by!(
-                code::E_INSTANCEOF_SUBJECT_NOT_OBJECT,
-                "nvs-ir reached `instanceof` over representation {ty:?}. A subject whose declared \
-                 type can hold no object has its answer before the program runs, so the checker \
-                 refuses it where it is written rather than lowering a test that is constantly \
-                 `false`; what does reach here is an object or the `Ty::Tagged` this method's doc \
-                 comment describes"
-            );
-        }
-        // The subject is written first and evaluated first; the class side is
-        // second, and for the dynamic form it is an expression of its own.
-        let tested = match &class.kind {
-            ExprKind::ConstFetch(_) => {
-                let Some(ExprInfo::InstanceOf { class }) = self.exprs.lookup(expr.span) else {
-                    panic!(
-                        "nvs-ir: an `instanceof` at {:?} has no resolved class recorded in the \
-                         typed-expression table — it wasn't checked with the same table, every \
-                         right-hand side naming no declared class being `E0496` or `E0303` at \
-                         the checker",
-                        expr.span
-                    );
-                };
-                TestedClass::Named(class.to_string())
-            }
-            // The class side needs no lifecycle: [`Ty::ClassDesc`] is not
-            // refcounted, the same reason
-            // [`Self::lower_static_call_on_a_class_reference`] lowers its own
-            // and moves on.
-            _ => {
-                let (desc, _) = self.lower_expr(class, Some(Ty::ClassDesc), env, cur);
-                TestedClass::Descriptor(desc)
-            }
-        };
-        let result = self.emit(
-            *cur,
-            Ty::Bool,
-            InstKind::InstanceOf {
-                value,
-                class: tested,
-            },
-        );
-        // The subject is only read, so a fresh one nothing else owns —
-        // `(new Dog()) instanceof Animal`, a call's return, a field read off a
-        // temporary — is released once the test has read it. Same rule
-        // [`Self::lower_clone_expr`] applies to its own operand, and the result
-        // being a [`Ty::Bool`] is what makes "right after" safe.
-        if !self.aliasing_read(inner) && ty.is_refcounted() {
-            self.emit_release(*cur, value);
-        }
-        result
-    }
-
     /// `rule:classes/clone-is-shallow`: PHP's shallow, same-heap, single-level copy, with
     /// no `__clone` hook to run — so the whole operation is one
     /// instruction, and the result is a fresh object with exactly one
@@ -5936,6 +5878,9 @@ struct TestSubject {
 enum TypeTestPlan {
     /// The answer is a run-time `bool`, tested against this interned type.
     AtRunTime(TypeId),
+    /// The value arm: the class arrives as the descriptor the right-hand side
+    /// evaluates to, so there is no interned type to read off the record.
+    AgainstDescriptor,
     /// The checker settled the answer. The subject still runs.
     Settled(bool),
 }

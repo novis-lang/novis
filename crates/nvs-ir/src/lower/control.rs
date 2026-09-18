@@ -2224,7 +2224,6 @@ impl<'a> Lowering<'a> {
             | ExprKind::PreIncDec { expr: inner, .. }
             | ExprKind::PostIncDec { expr: inner, .. }
             | ExprKind::Conversion { expr: inner, .. }
-            | ExprKind::TypeTest { expr: inner, .. }
             | ExprKind::Clone(inner)
             | ExprKind::YieldFrom(inner)
             | ExprKind::Print(inner)
@@ -2233,6 +2232,15 @@ impl<'a> Lowering<'a> {
             | ExprKind::Paren(inner)
             | ExprKind::Require { path: inner } => {
                 self.collect_reassigned_in_expr(inner, seen, out)
+            }
+            ExprKind::TypeTest {
+                expr: inner,
+                against,
+            } => {
+                self.collect_reassigned_in_expr(inner, seen, out);
+                if let TestOperand::Value(operand) = against {
+                    self.collect_reassigned_in_expr(operand, seen, out);
+                }
             }
             ExprKind::Binary { lhs, rhs, .. } => {
                 self.collect_reassigned_in_expr(lhs, seen, out);
@@ -2248,10 +2256,6 @@ impl<'a> Lowering<'a> {
                     self.collect_reassigned_in_expr(then, seen, out);
                 }
                 self.collect_reassigned_in_expr(else_, seen, out);
-            }
-            ExprKind::InstanceOf { expr: inner, class } => {
-                self.collect_reassigned_in_expr(inner, seen, out);
-                self.collect_reassigned_in_expr(class, seen, out);
             }
             ExprKind::Call { callee, args } => {
                 self.collect_reassigned_in_expr(callee, seen, out);

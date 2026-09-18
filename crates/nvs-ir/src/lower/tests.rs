@@ -2847,17 +2847,24 @@ fn a_closure_is_called_through_the_variable_holding_it() {
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-/// `$x instanceof Name` — one `instanceof` naming the *resolved* class
-/// label the checker recorded, with no retain of the receiver.
+/// `$x is Name` — one class test naming the *resolved* class label the
+/// checker recorded, with no retain of the receiver.
+///
+/// The subject is the **base** and the target a subclass, so neither fold
+/// fires and the instruction survives to be printed: a test whose answer the
+/// declaration settles carries a constant instead
+/// (`rule:types/type-test`), which would assert nothing about the label.
 #[test]
 fn an_instanceof_names_the_class_the_checker_resolved() {
     let (f, map, file) = lower_first_method(
         "<?nvs
 class Animal {
 }
+class Dog extends Animal {
+}
 class T {
   function m(Animal $a): bool {
-    return $a instanceof Animal;
+    return $a is Dog;
   }
 }
 ",
@@ -2865,21 +2872,19 @@ class T {
     assert_snapshot!(print_function(&f, map.file(file)));
 }
 
-/// The dynamic `$x instanceof $name` form has no class to name, so the
-/// checker reports `E0496` and records nothing. This crate never sees such
-/// a program — the fixture reaches lowering only because these tests skip
-/// the diagnostics gate — so the miss is an internal-consistency panic
-/// rather than a hole a checked program can reach.
+/// A value on the right of `is` that is not a `class<T>` names no class, so
+/// the checker reports `E0496` and this crate never sees the program: the
+/// fixture does not get past the diagnostics gate these tests run first.
 #[test]
 #[should_panic(expected = "E0496")]
-fn a_dynamic_instanceof_records_nothing_to_lower() {
+fn a_value_naming_no_class_records_nothing_to_lower() {
     lower_first_method(
         "<?nvs
 class Animal {
 }
 class T {
   function m(Animal $a, string $n): bool {
-    return $a instanceof $n;
+    return $a is $n;
   }
 }
 ",
@@ -2889,9 +2894,9 @@ class T {
 /// A `mixed` subject keeps its [`crate::ir::Ty::Tagged`] representation all
 /// the way into the instruction: `nvs-codegen` calls
 /// `nvs_value_instanceof` for it, which reads the tag rather than
-/// dereferencing an unchecked payload. Every subject whose *declared* type
-/// can hold no object is `E0497` at the checker, so no third
-/// representation reaches here.
+/// dereferencing an unchecked payload. A subject whose *declared* type can
+/// hold no object settles at the checker instead, so no third representation
+/// reaches here.
 #[test]
 fn an_instanceof_over_a_mixed_subject_keeps_its_tag() {
     let (f, _, _) = lower_first_method(
@@ -2900,7 +2905,7 @@ class Animal {
 }
 class T {
   function m(mixed $a): bool {
-    return $a instanceof Animal;
+    return $a is Animal;
   }
 }
 ",

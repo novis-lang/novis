@@ -102,7 +102,7 @@ use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, Span, code};
 use nvs_syntax::ast::{
     Arg, ArrayItem, Block, CallArgs, ClassMember, ClassMemberKind, DestructureElement,
     DestructureTarget, DocComment, DocTag, DocTagKind, Expr, ExprKind, FnBody, MemberName,
-    Modifier, NamespaceDecl, Stmt, StmtKind, StringPart,
+    Modifier, NamespaceDecl, Stmt, StmtKind, StringPart, TestOperand,
 };
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -946,10 +946,12 @@ fn walk_expr(expr: &Expr, src: &SourceFile, ctx: &Ctx<'_>, env: &mut Env<'_>) {
             }
             e!(else_);
         }
-        ExprKind::Conversion { expr, .. } | ExprKind::TypeTest { expr, .. } => e!(expr),
-        ExprKind::InstanceOf { expr, class } => {
+        ExprKind::Conversion { expr, .. } => e!(expr),
+        ExprKind::TypeTest { expr, against } => {
             e!(expr);
-            walk_class_side(class, src, ctx, env);
+            if let TestOperand::Value(operand) = against {
+                e!(operand);
+            }
         }
         // A bare `strlen($s)` names a storage row
         // `rule:classes/no-free-functions-or-constants` does not have, not a call on a

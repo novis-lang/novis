@@ -120,7 +120,8 @@ use nvs_syntax::ast::{
     Arg, ArrayItem, AttributeGroup, AutoloadDecl, AutoloadKind, BinaryOp, Block, CallArgs,
     ClassMember, ClassMemberKind, ConstMember, DestructureElement, DestructureTarget, Expr,
     ExprKind, FnBody, ImplementsClause, MemberName, MethodMember, Name, NamespaceDecl, NewTarget,
-    Param, PropertyHook, PropertyHookBody, Stmt, StmtKind, StringPart, Type, TypeAtom, TypeKind,
+    Param, PropertyHook, PropertyHookBody, Stmt, StmtKind, StringPart, TestOperand, Type, TypeAtom,
+    TypeKind,
 };
 use nvs_syntax::{check_declarations, parse_file};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -1268,15 +1269,18 @@ fn walk_expr(expr: &Expr, src: &SourceFile, out: &mut Harvest) {
             }
             e!(else_);
         }
-        ExprKind::Conversion { expr, ty } | ExprKind::TypeTest { expr, ty } => {
+        ExprKind::Conversion { expr, ty } => {
             e!(expr);
             walk_type(ty, src, out);
         }
-        ExprKind::ConstFetch(name) => record_name(name, src, out),
-        ExprKind::InstanceOf { expr, class } => {
+        ExprKind::TypeTest { expr, against } => {
             e!(expr);
-            e!(class);
+            match against {
+                TestOperand::Type(ty) => walk_type(ty, src, out),
+                TestOperand::Value(operand) => e!(operand),
+            }
         }
+        ExprKind::ConstFetch(name) => record_name(name, src, out),
         ExprKind::Call { callee, args } => {
             e!(callee);
             walk_args(args, src, out);

@@ -2822,7 +2822,7 @@ class Circle extends Shape {
 }
 
 var $s = new Shape();
-if ($s instanceof Circle) { echo \"circle\"; }
+if ($s is Circle) { echo \"circle\"; }
 ",
         );
         assert_relocated(&jit, "Circle");
@@ -2860,7 +2860,7 @@ class Circle extends Shape {
 }
 
 var $s = new Shape();
-if ($s instanceof Circle) { echo \"circle\"; }
+if ($s is Circle) { echo \"circle\"; }
 ",
         ),
         (

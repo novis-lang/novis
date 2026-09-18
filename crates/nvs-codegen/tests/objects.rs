@@ -124,10 +124,10 @@ class Rock {
 }
 
 var $d = new Dog(\"rex\");
-if ($d instanceof Dog) { echo \"dog \"; }
-if ($d instanceof Animal) { echo \"animal \"; }
-if ($d instanceof Greets) { echo \"greets \"; }
-if ($d instanceof Rock) { echo \"rock \"; }
+if ($d is Dog) { echo \"dog \"; }
+if ($d is Animal) { echo \"animal \"; }
+if ($d is Greets) { echo \"greets \"; }
+if ($d is Rock) { echo \"rock \"; }
 ";
     assert_eq!(output_of(source), "dog animal greets ");
 }
@@ -182,7 +182,7 @@ fn a_class_test_emits_the_same_descriptor_walk_instanceof_emits() {
     // `InstanceOf` too would pass a count.
     let subject = "<?nvs\nclass Animal {}\nclass Dog extends Animal {}\nmixed $d = new Dog();\n";
     let tested = format!("{subject}echo $d is Animal;\n");
-    let spelled = format!("{subject}echo $d instanceof Animal;\n");
+    let spelled = format!("{subject}echo $d is Animal;\n");
     assert_eq!(kinds(&tested), kinds(&spelled));
     assert_eq!(count(&kinds(&tested), "InstanceOf"), 1);
     assert_eq!(output_of(&tested), "1");

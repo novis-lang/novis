@@ -75,10 +75,10 @@ fn new_static_allocates_the_called_class_through_two_levels() {
     // allocation actually used.
     let source = format!(
         "{LATE_BINDING}var $leaf = LeafRegistry::make();
-if ($leaf instanceof LeafRegistry) {{ echo \"leaf \"; }}
-if ($leaf instanceof MidRegistry) {{ echo \"mid \"; }}
+if ($leaf is LeafRegistry) {{ echo \"leaf \"; }}
+if ($leaf is MidRegistry) {{ echo \"mid \"; }}
 var $base = Registry::make();
-if ($base instanceof MidRegistry) {{ echo \"wrong\"; }} else {{ echo \"base\"; }}
+if ($base is MidRegistry) {{ echo \"wrong\"; }} else {{ echo \"base\"; }}
 "
     );
     assert_eq!(output_of(&source), "leaf mid base");

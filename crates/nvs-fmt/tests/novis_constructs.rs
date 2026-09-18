@@ -34,7 +34,7 @@ class Inbox
     public function stamp(secret  tainted string $token, ?tainted string $note): tainted   bytes
     {
         tainted  string $line = $note ?? $this->subject;
-        if ($this->tainted   instanceof Inbox) {
+        if ($this->tainted   is Inbox) {
             echo 'is it tainted?really', \"\\n\";
         }
         return $line as bytes;
@@ -51,7 +51,7 @@ class Inbox
     public function stamp(secret tainted string $token, ?tainted string $note): tainted bytes
     {
         tainted string $line = $note ?? $this->subject;
-        if ($this->tainted   instanceof Inbox) {
+        if ($this->tainted   is Inbox) {
             echo 'is it tainted?really', \"\\n\";
         }
         return $line as bytes;

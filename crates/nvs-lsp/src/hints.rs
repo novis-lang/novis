@@ -73,7 +73,7 @@ use lsp_types::{InlayHint, InlayHintKind, InlayHintLabel};
 use nvs_diagnostics::{BytePos, PositionEncoding, Span};
 use nvs_syntax::ast::{
     Block, CallArgs, ClassMember, ClassMemberKind, Expr, ExprKind, FnBody, FnExpr, ForInit, Param,
-    PropertyHook, PropertyHookBody, Stmt, StmtKind, Type,
+    PropertyHook, PropertyHookBody, Stmt, StmtKind, TestOperand, Type,
 };
 use nvs_types::ExprInfo;
 use nvs_types::expr_table::ArgSlot;
@@ -311,8 +311,13 @@ impl Hinting<'_> {
             ExprKind::Unary { expr, .. }
             | ExprKind::PreIncDec { expr, .. }
             | ExprKind::PostIncDec { expr, .. }
-            | ExprKind::Conversion { expr, .. }
-            | ExprKind::TypeTest { expr, .. } => self.expr(expr),
+            | ExprKind::Conversion { expr, .. } => self.expr(expr),
+            ExprKind::TypeTest { expr, against } => {
+                self.expr(expr);
+                if let TestOperand::Value(operand) = against {
+                    self.expr(operand);
+                }
+            }
             ExprKind::Binary { lhs, rhs, .. } => {
                 self.expr(lhs);
                 self.expr(rhs);
@@ -326,7 +331,6 @@ impl Hinting<'_> {
                 self.opt_expr(then.as_deref());
                 self.expr(else_);
             }
-            ExprKind::InstanceOf { expr, .. } => self.expr(expr),
             ExprKind::Call { callee, args } => {
                 self.expr(callee);
                 self.args(expr.span, args);

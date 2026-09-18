@@ -1,5 +1,5 @@
 ---
-source: crates/nvs-ir/src/lower.rs
+source: crates/nvs-ir/src/lower/tests.rs
 expression: "print_function(&f, map.file(file))"
 ---
 fn m(object, object) -> bool {
@@ -7,8 +7,8 @@ fn m(object, object) -> bool {
     safepoint
     v0 = param 0  ; object
     v1 = param 1  ; object
-    ; stmt s0 @6:5-6:33
-    v2 = instanceof v1, Animal  ; bool
+    ; stmt s0 @8:5-8:22
+    v2 = instanceof v1, Dog  ; bool
     release v1
     release v0
     return v2

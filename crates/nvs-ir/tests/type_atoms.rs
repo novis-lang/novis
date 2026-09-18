@@ -391,7 +391,7 @@ const LOWERS_IN_A_BODY: &[&str] = &[
     "int $v = 1; $v += 2;",
     "int $v = $this->count > 0 ? 1 : 2;",
     "string $v = $this->count as string;",
-    "bool $v = $this instanceof Greets;",
+    "bool $v = $this is Greets;",
     "int $v = (1 + 2);",
     "int $v = match ($this->count) { 0 => 1, default => 2 };",
     // Reads that name a member rather than a variable.

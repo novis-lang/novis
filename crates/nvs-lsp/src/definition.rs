@@ -152,7 +152,7 @@ pub fn type_at(
 /// answers there and is the right answer rather than a duplicated one.
 fn instance_of(analysed: &Analysed, info: &ExprInfo) -> Option<QName> {
     match info {
-        ExprInfo::New { class, .. } | ExprInfo::InstanceOf { class } => Some(class.clone()),
+        ExprInfo::New { class, .. } => Some(class.clone()),
         ExprInfo::EnumCase { enum_, .. } => Some(enum_.clone()),
         _ => class_of(&analysed.interner, recorded_ty(info)?),
     }
@@ -171,9 +171,30 @@ const fn recorded_ty(info: &ExprInfo) -> Option<TypeId> {
         | ExprInfo::HookedProperty { ty, .. } => *ty,
         ExprInfo::Index { elem_ty, .. } => *elem_ty,
         ExprInfo::NarrowedRead { to } => *to,
+        // `$x is Shape` names a type and allocates nothing, so the cursor on
+        // it opens that declaration. A test the checker settled carries a
+        // constant instead and has no type to open, which is the same silence
+        // every unresolved node here gets.
+        ExprInfo::TypeTest { tested } => *tested,
+        ExprInfo::ClassRefTest { base } => *base,
         ExprInfo::Call(call) | ExprInfo::ClassRefCall(call) => call.return_ty,
         _ => return None,
     })
+}
+
+/// The one class a type names, borrowed out of the interner rather than
+/// cloned — [`class_of`]'s question asked where the answer is a *target* and
+/// not a fact about a value, so it must live as long as the analysis.
+///
+/// A nullable is one class beside `null` and is deliberately not unwrapped
+/// here: `is ?Foo` is a union in the interner and a union names no single
+/// declaration, which is the same silence [`class_of`] gives one.
+fn class_named_by(interner: &TypeInterner, ty: TypeId) -> Option<&QName> {
+    match interner.get(ty) {
+        Ty::Class(qname, _) | Ty::Enum(qname, _) | Ty::EnumCase(qname, _, _) => Some(qname),
+        Ty::ClassRef(inner) => class_named_by(interner, *inner),
+        _ => None,
+    }
 }
 
 /// The class a type is an instance of, through the two wrappers that do not
@@ -504,6 +525,16 @@ pub(crate) fn named_at(analysed: &Analysed, offset: BytePos) -> Option<(Target<'
                 (ExprInfo::EnumCase { enum_, .. }, Some(qualifier)) => {
                     Some((Target::Type(enum_), qualifier))
                 }
+                // `$x is Shape` writes a type where no other expression does,
+                // so the name is reached through the interner rather than off
+                // the record: the entry carries the type it lowered, and the
+                // class inside it is the declaration to open. A test against
+                // anything but one class — a scalar, a union — names no single
+                // declaration and falls through to the node above.
+                (ExprInfo::TypeTest { tested }, _) => Some((
+                    Target::Type(class_named_by(&analysed.interner, *tested)?),
+                    node.span,
+                )),
                 _ => Some((target_of(info)?, node.span)),
             }
         })
@@ -609,7 +640,7 @@ pub(crate) const fn covers(span: Span, offset: BytePos) -> bool {
 /// cursor sitting on one of its arguments.
 pub(crate) fn target_of(info: &ExprInfo) -> Option<Target<'_>> {
     Some(match info {
-        ExprInfo::New { class, .. } | ExprInfo::InstanceOf { class } => Target::Type(class),
+        ExprInfo::New { class, .. } => Target::Type(class),
         // The bound, which is the only class this site named — the one
         // allocated is whatever descriptor is in hand, and no compile
         // knows it (`nvs_types::ExprInfo::NewDynamic`).

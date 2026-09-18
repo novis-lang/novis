@@ -138,7 +138,7 @@ use nvs_stdlib::registry;
 use nvs_syntax::ast::{
     Block, CallArgs, ClassMember, ClassMemberKind, DestructureElement, DestructureTarget, Expr,
     ExprKind, FnBody, FnExpr, ForInit, MemberName, Name, NewTarget, Param, PropertyHook,
-    PropertyHookBody, Stmt, StmtKind, StringPart, Type,
+    PropertyHookBody, Stmt, StmtKind, StringPart, TestOperand, Type,
 };
 use nvs_types::expr::quals::{is_secret, is_tainted};
 use nvs_types::{ExprInfo, TypeId};
@@ -828,8 +828,16 @@ impl Named<'_> {
             ExprKind::Unary { expr, .. }
             | ExprKind::PreIncDec { expr, .. }
             | ExprKind::PostIncDec { expr, .. }
-            | ExprKind::Conversion { expr, .. }
-            | ExprKind::TypeTest { expr, .. } => self.expr(expr),
+            | ExprKind::Conversion { expr, .. } => self.expr(expr),
+            ExprKind::TypeTest { expr, against } => {
+                self.expr(expr);
+                // Not a class position: the value arm's operand is an ordinary
+                // value holding a descriptor, and the type arm is a type the
+                // token walk has already coloured.
+                if let TestOperand::Value(operand) = against {
+                    self.expr(operand);
+                }
+            }
             ExprKind::Binary { lhs, rhs, .. } => {
                 self.expr(lhs);
                 self.expr(rhs);
@@ -842,13 +850,6 @@ impl Named<'_> {
                 self.expr(cond);
                 self.opt_expr(then.as_deref());
                 self.expr(else_);
-            }
-            ExprKind::InstanceOf { expr, class } => {
-                self.expr(expr);
-                // Not a class position: `rule:classes/no-traits` leaves an
-                // interface and an enum both legal on the right of
-                // `instanceof`, so the tree does not say which this is.
-                self.expr(class);
             }
             ExprKind::Call { callee, args } => {
                 self.expr(callee);
