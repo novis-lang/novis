@@ -1,0 +1,28 @@
+--TEST--
+A double whose closure cannot stand in for the method it names is refused — `rule:testing/doubles`, `rule:types/callable-variance`
+--FILE--
+<?nvs
+// The third question the structural check asks, after the name is known to
+// belong to the contract: `now` is declared and answered, and what answers it
+// hands back a `string` where every call site dispatching through `Clock` was
+// promised an `int`. A double that only matched names would pass this program
+// and fail at the first call.
+//
+// The comparison is ordinary assignability over the answer's own signature, so
+// `rule:types/callable-variance` is what a double is held to and nothing was
+// invented for it: a closure may declare fewer parameters and accept wider
+// ones, and only the unsound directions are refused.
+interface Clock {
+    public function now(): int;
+}
+
+Clock $clock = Core\Test::double<Clock>({
+    now: fn(): string => "not a timestamp",
+});
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0828]: `now:` answers `Clock::now` with `callable(): string`
+%A
+error: aborting due to 1 error
