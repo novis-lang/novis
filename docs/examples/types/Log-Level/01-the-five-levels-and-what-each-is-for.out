@@ -1,0 +1,5 @@
+{"level":"debug","msg":"the cart held 3 items","source":{"file":"docs/examples/types/Log-Level/01-the-five-levels-and-what-each-is-for.nvs","line":6}}
+{"level":"info","msg":"order ORD-1042 was placed","source":{"file":"docs/examples/types/Log-Level/01-the-five-levels-and-what-each-is-for.nvs","line":7}}
+{"level":"warn","msg":"the address service was slow, used the address on file","source":{"file":"docs/examples/types/Log-Level/01-the-five-levels-and-what-each-is-for.nvs","line":8}}
+{"level":"error","msg":"the payment could not be taken","source":{"file":"docs/examples/types/Log-Level/01-the-five-levels-and-what-each-is-for.nvs","line":9}}
+{"level":"critical","msg":"the payments service cannot be reached at all","source":{"file":"docs/examples/types/Log-Level/01-the-five-levels-and-what-each-is-for.nvs","line":10}}

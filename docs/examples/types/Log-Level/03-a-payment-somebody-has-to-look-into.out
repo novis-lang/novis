@@ -1,0 +1,3 @@
+{"level":"warn","msg":"the card was declined, trying again","source":{"file":"docs/examples/types/Log-Level/03-a-payment-somebody-has-to-look-into.nvs","line":17},"fields":{"order":"ORD-1042","attempt":1}}
+{"level":"warn","msg":"the card was declined, trying again","source":{"file":"docs/examples/types/Log-Level/03-a-payment-somebody-has-to-look-into.nvs","line":17},"fields":{"order":"ORD-1042","attempt":2}}
+{"level":"error","msg":"the order was not taken","source":{"file":"docs/examples/types/Log-Level/03-a-payment-somebody-has-to-look-into.nvs","line":25},"fields":{"order":"ORD-1042","attempts":2}}

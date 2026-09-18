@@ -1,0 +1,25 @@
+<?nvs
+// The everyday job: one card, two tries, and a record the support desk can
+// find again tomorrow. The order number goes in the fields beside the message
+// instead of inside it, so a search for that order finds every line about it.
+
+string $order = "ORD-1042";
+array<bool> $tries = [false, false];
+
+int $number = 1;
+foreach ($tries as bool $wentThrough) {
+    array<mixed> $where = ["order" => $order, "attempt" => $number];
+    if ($wentThrough) {
+        Core\Log::write(Core\Log\Level::Info, "the payment went through", $where);
+    } else {
+        // A try that failed and will be made again is a `Warn`. Nobody chose
+        // it, and nothing is lost yet.
+        Core\Log::write(Core\Log\Level::Warn, "the card was declined, trying again", $where);
+    }
+    $number = $number + 1;
+}
+
+// Nothing is going to be tried again now, so this one goes up a level. An
+// `Error` is what somebody is expected to look into.
+array<mixed> $result = ["order" => $order, "attempts" => 2];
+Core\Log::write(Core\Log\Level::Error, "the order was not taken", $result);

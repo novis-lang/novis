@@ -2,6 +2,7 @@
 `[log] level` is the minimum level written, with the bound named on both sides: the last level a deployment drops and the first one it keeps — `rule:errors/log-level`
 --FILE--
 <?nvs
+// covers: Core\Log\Level
 // `rule:errors/log-level`'s last paragraph. The directive names a floor, not a filter for
 // one level, so the roster is walked past it in both directions: `Debug` and
 // `Info` are quieter than `Warn` and are written nowhere, `Warn` is the level
@@ -32,5 +33,5 @@ level = "Warn"
 [capabilities.fs]
 read = ["."]
 --EXPECT--
-{"level":"warn","msg":"the floor itself","source":{"file":"case.nvs","line":22}}
-{"level":"error","msg":"above the floor","source":{"file":"case.nvs","line":23}}
+{"level":"warn","msg":"the floor itself","source":{"file":"case.nvs","line":23}}
+{"level":"error","msg":"above the floor","source":{"file":"case.nvs","line":24}}

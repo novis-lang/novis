@@ -1,0 +1,10 @@
+<?nvs
+// One record at each of the five levels, quietest first. Nothing here says
+// which levels to keep, so all five are written. Whoever runs the server picks
+// the quietest one they want, and the rest stop being written.
+
+Core\Log::write(Core\Log\Level::Debug, "the cart held 3 items");
+Core\Log::write(Core\Log\Level::Info, "order ORD-1042 was placed");
+Core\Log::write(Core\Log\Level::Warn, "the address service was slow, used the address on file");
+Core\Log::write(Core\Log\Level::Error, "the payment could not be taken");
+Core\Log::write(Core\Log\Level::Critical, "the payments service cannot be reached at all");

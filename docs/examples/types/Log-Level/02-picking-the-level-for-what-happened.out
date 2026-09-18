@@ -1,0 +1,4 @@
+{"level":"info","msg":"order ORD-1042 was placed","source":{"file":"docs/examples/types/Log-Level/02-picking-the-level-for-what-happened.nvs","line":25}}
+{"level":"warn","msg":"the card was tried a second time","source":{"file":"docs/examples/types/Log-Level/02-picking-the-level-for-what-happened.nvs","line":25}}
+{"level":"error","msg":"the card was declined","source":{"file":"docs/examples/types/Log-Level/02-picking-the-level-for-what-happened.nvs","line":25}}
+{"level":"critical","msg":"the payments service cannot be reached at all","source":{"file":"docs/examples/types/Log-Level/02-picking-the-level-for-what-happened.nvs","line":25}}

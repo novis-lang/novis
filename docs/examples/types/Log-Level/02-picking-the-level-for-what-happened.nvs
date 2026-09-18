@@ -1,0 +1,26 @@
+<?nvs
+// Which level something deserves is a decision, and it is worth making once.
+// Keeping it in a single place means two parts of your program are never loud
+// about the same thing in two different ways.
+
+class Report {
+    public static function levelFor(string $outcome): Core\Log\Level {
+        return match ($outcome) {
+            "placed" => Core\Log\Level::Info,
+            "retried" => Core\Log\Level::Warn,
+            "declined" => Core\Log\Level::Error,
+            default => Core\Log\Level::Critical,
+        };
+    }
+}
+
+array<string> $events = [
+    "placed" => "order ORD-1042 was placed",
+    "retried" => "the card was tried a second time",
+    "declined" => "the card was declined",
+    "unreachable" => "the payments service cannot be reached at all",
+];
+
+foreach ($events as string $outcome => string $message) {
+    Core\Log::write(Report::levelFor($outcome), $message);
+}
