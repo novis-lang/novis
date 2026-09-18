@@ -182,16 +182,23 @@ fn a_key_reports_the_block_it_is_written_in() {
 /// than a copy of it, which is the whole point of the case below: a key added to one of those
 /// blocks joins this list in the commit that adds it, with no edit here to remember.
 fn keys_in(block: &str) -> Vec<String> {
-    let text = format!("[{block}]\nnvs_no_such_key = true\n");
+    keys_listed(&format!("[{block}]\nnvs_no_such_key = true\n"))
+}
+
+/// The keys `text`'s refusal lists, for a block whose header is not `[name]` — an array of tables
+/// is written `[[app]]`, and a `[app]` in its place is refused for being the wrong *shape* rather
+/// than for the unknown key, which lists nothing.
+fn keys_listed(text: &str) -> Vec<String> {
     let mut sources = SourceMap::new();
-    let (_, parsed) = nvs_config::file::parse::<Config>(&mut sources, "nvs.toml", &text);
+    let header = text.lines().next().unwrap_or_default();
+    let (_, parsed) = nvs_config::file::parse::<Config>(&mut sources, "nvs.toml", text);
     let message = parsed
         .err()
-        .unwrap_or_else(|| panic!("`[{block}]` accepted an unknown key"))
+        .unwrap_or_else(|| panic!("`{header}` accepted an unknown key"))
         .message;
     let listed = message
         .split_once("expected ")
-        .unwrap_or_else(|| panic!("`[{block}]` refused without listing its keys: {message:?}"))
+        .unwrap_or_else(|| panic!("`{header}` refused without listing its keys: {message:?}"))
         .1;
     // Every backtick-quoted name in the list, rather than a split on one separator: serde writes
     // ``a` or `b`` for a two-key block and reaches "one of `a`, `b`, `c`" only at three, so a
@@ -204,9 +211,196 @@ fn keys_in(block: &str) -> Vec<String> {
         .collect();
     assert!(
         !keys.is_empty(),
-        "`[{block}]` reported no keys at all: {message:?}",
+        "`{header}` reported no keys at all: {message:?}",
     );
     keys
+}
+
+/// `[[app]]` is the roster of applications, so every key of a block is `System` and applying a
+/// change to one is a `Reload`.
+///
+/// Both halves are the security content rather than bookkeeping. A block states what one
+/// application may do, so a request able to set any key of one would be choosing its own grants —
+/// and, since the roster is an array, another application's by index. The apply class is `Reload`
+/// because a block is folded onto the global tree by `Snapshot::build` while the snapshot is being
+/// built, so a changed block reaches the next request by that fold running again and re-creates
+/// nothing.
+///
+/// Asked of every key `[[app]]` accepts and of the nested spellings beneath them, because the
+/// claim holds only through the module doc's longest-prefix rule: a row added under `app`, or a
+/// `limits` row somehow reached from `app.0.limits.memory`, would take a key back out of `System`
+/// with every other assertion in this file still passing.
+// covers: directive:app
+#[test]
+fn every_key_of_an_app_block_is_system_class_applied_at_reload() {
+    let keys = keys_listed("[[app]]\nnvs_no_such_key = true\n");
+    assert_eq!(
+        keys.iter().map(String::as_str).collect::<Vec<_>>(),
+        [
+            "root",
+            "entry",
+            "mode",
+            "origin",
+            "limits",
+            "capabilities",
+            "log"
+        ],
+        "a key added to `[[app]]` joins this census in the commit that adds it, because the one \
+         `app` row is what governs it and nothing else names it",
+    );
+
+    let mut asked = vec!["app".to_string(), "app.0".to_string()];
+    for key in &keys {
+        asked.push(format!("app.{key}"));
+        asked.push(format!("app.0.{key}"));
+    }
+    asked.push("app.0.limits.hard.memory".to_string());
+    asked.push("app.0.capabilities.fs.read".to_string());
+    asked.push("app.0.capabilities.script.spawn".to_string());
+
+    for key in asked {
+        let row = governing(&key);
+        assert_eq!(
+            row.key, "app",
+            "`{key}` resolves through `{}` rather than through the one `app` row, so what a \
+             block may say is no longer one class",
+            row.key,
+        );
+        assert_eq!(
+            row.class,
+            Class::System,
+            "`{key}` is part of what an operator granted one application, and a request that \
+             could set it would be choosing its own capabilities (`rule:config/three-changeability-classes`)",
+        );
+        assert!(
+            !row.class.settable_by_a_request(),
+            "`Core\\Config::set(\"{key}\", …)` has to refuse: the class says who may set a \
+             directive, and this is the one class that answers nobody",
+        );
+        assert_eq!(
+            row.apply,
+            Apply::Reload,
+            "`{key}` is folded onto the tree while a snapshot is built, so a new snapshot applies \
+             it and nothing is re-created (`rule:config/reloadability-is-its-own-field`)",
+        );
+    }
+}
+
+/// `rule:concurrency/cache-memory-is-charged-to-the-core`: the per-core tier's ceiling is the
+/// operator's, and a new one costs nothing to apply.
+///
+/// `System` because the memory the key bounds belongs to the core and not to any one request, so a
+/// request that raised it would be spending what every other request on that core then goes
+/// without. `Reload` because the ceiling is read by the next write and enforced by forgetting
+/// entries, which re-dials nothing and re-creates nothing.
+///
+/// Asserted beside `cache.shared`, which is `Boot`, because that is what the row costs: three
+/// tiers written as three rows rather than as one `cache` row is the only way the block holds two
+/// apply classes at once, and a blanket row added above them would pass every other assertion here
+/// while making an operator restart for a ceiling change.
+// covers: directive:cache.local
+#[test]
+fn the_local_tiers_ceiling_is_one_system_key_applied_at_reload_beside_a_boot_sibling() {
+    let keys = keys_in("cache.local");
+    assert_eq!(
+        keys.iter().map(String::as_str).collect::<Vec<_>>(),
+        ["max_size"],
+        "`[cache.local]` accepts {keys:?}, and the row covers whatever the block holds: a second \
+         key joins this census in the commit that adds it",
+    );
+
+    let row = governing("cache.local.max_size");
+    assert_eq!(
+        row.key, "cache.local",
+        "`cache.local.max_size` resolves through `{}` rather than through the tier's own row",
+        row.key,
+    );
+    assert_eq!(
+        row.class,
+        Class::System,
+        "the bytes this key bounds are the core's, so a request raising it spends what every \
+         other request on that core then goes without (`rule:concurrency/cache-memory-is-charged-to-the-core`)",
+    );
+    assert!(
+        !row.class.settable_by_a_request(),
+        "`Core\\Config::set(\"cache.local.max_size\", …)` has to refuse, which is what `System` \
+         means and the whole of what it means",
+    );
+    assert_eq!(
+        row.apply,
+        Apply::Reload,
+        "a new ceiling is read by the next write and enforced by forgetting entries \
+         (`rule:config/reloadability-is-its-own-field`)",
+    );
+    assert_eq!(
+        governing("cache.shared.url").apply,
+        Apply::Boot,
+        "the coherent tier is dialled once per core, so moving it re-dials every connection — and \
+         `[cache]` holding both apply classes is why these are per-tier rows",
+    );
+}
+
+/// `rule:concurrency/the-process-tier-is-one-store-per-process`: both keys of the middle tier are
+/// the operator's, and both are read by the next caller rather than at boot.
+///
+/// `max_size` is the row above's argument doubled — the map it bounds is held once for the whole
+/// process, so a request raising it spends what every request on the box then goes without — and
+/// `fill_wait` is how long a request on one core may be held waiting on a fetch another core
+/// started, which is not a bound its beneficiary may choose either.
+///
+/// The last assertion is the one that would fail first if the block were ever stated as a single
+/// `cache` row: there is none, so a tier nobody wrote a row for is ungoverned rather than
+/// silently inheriting a class. The registry states rules, not the list of legal keys —
+/// `deny_unknown_fields` is what refuses a fourth tier.
+// covers: directive:cache.process
+#[test]
+fn both_process_tier_keys_are_system_at_reload_and_no_blanket_cache_row_answers_for_them() {
+    let keys = keys_in("cache.process");
+    assert_eq!(
+        keys.iter().map(String::as_str).collect::<Vec<_>>(),
+        ["max_size", "fill_wait"],
+        "`[cache.process]` accepts {keys:?}: a key added to the block joins this census in the \
+         commit that adds it, because the one row is what governs all of them",
+    );
+
+    for key in ["cache.process.max_size", "cache.process.fill_wait"] {
+        let row = governing(key);
+        assert_eq!(
+            row.key, "cache.process",
+            "`{key}` resolves through `{}` rather than through the tier's own row",
+            row.key,
+        );
+        assert_eq!(
+            row.class,
+            Class::System,
+            "`{key}` bounds what one process spends on behalf of every request on it, which is \
+             not a request's call (`rule:concurrency/the-process-tier-is-one-store-per-process`)",
+        );
+        assert!(
+            !row.class.settable_by_a_request(),
+            "`Core\\Config::set(\"{key}\", …)` has to refuse: a request that shortened the wait \
+             would be deciding for the callers queued behind the one fill",
+        );
+        assert_eq!(
+            row.apply,
+            Apply::Reload,
+            "a new ceiling is read by the next write and a new wait by the next fill, and neither \
+             re-creates the map — it exists before the workers do \
+             (`rule:config/reloadability-is-its-own-field`)",
+        );
+    }
+
+    assert_eq!(
+        governing("cache.local.max_size").key,
+        "cache.local",
+        "the two tiers are two rows: one answering for both would be a single figure for a map \
+         held once per process and a map held once per core",
+    );
+    assert!(
+        lookup("cache").is_none() && lookup("cache.nvs_no_such_tier.max_size").is_none(),
+        "a blanket `cache` row would hand every future tier whichever class it happened to carry, \
+         and `cache.shared` being `Boot` beside these two is what that row could not say",
+    );
 }
 
 /// `rule:config/three-changeability-classes` names a response header as its counter-example to `System`, and `rule:http-server/an-unsafe-or-unbounded-default-is-a-defect`'s policy

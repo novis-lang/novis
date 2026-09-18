@@ -1,0 +1,5 @@
+memory: 64M
+spawn:  true
+narrow: yes
+memory: 32M
+reroot: no

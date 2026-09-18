@@ -251,6 +251,20 @@ entry = "examples/queue-purge.nvs"
 [app.capabilities.queue]
 purge = true
 
+# The one block in this file that exists to be *read about* rather than to let a
+# fixture run: `docs/examples/config/app/` is the website's page for the `[[app]]`
+# directive, and its example prints the settings its own blocks put in force. So
+# this block has to be narrower than the `root = "."` one at the top and has to
+# disagree with it about something a program can print — `64M` against the `256M`
+# `[limits]` sets below, which is the whole demonstration. It grants nothing: what
+# the example shows about capabilities is `script.spawn` arriving from the wide
+# block untouched, which only holds while this block stays silent about it.
+[[app]]
+entry = "docs/examples/config/app/01-settings-for-one-application.nvs"
+
+[app.limits]
+memory = "64M"
+
 # The bound `examples/config.nvs` is written around: ADR 0005's `Runtime`
 # directive moves freely up to a ceiling the operator keeps, so `512M` is
 # the last value `Core\Config::set("memory", …)` accepts and `1G` is the
@@ -262,6 +276,21 @@ memory = "256M"
 
 [limits.hard]
 memory = "512M"
+
+# The other two tiers' blocks, written at exactly the figures `nvs_stdlib::cache`
+# ships — 32 MiB a tier and a five-second fill wait — so this repository behaves
+# the same with them as it did without them. They are here to be *read*:
+# `docs/examples/config/cache-local/` and `docs/examples/config/cache-process/`
+# are the website's pages for these two directives, and a page whose example
+# prints `(unset)` teaches nothing about a key an operator is about to write.
+# Changing either figure changes those programs' frozen output, which is the
+# point — a value written down is a value a reader can see arriving.
+[cache.local]
+max_size = "32M"
+
+[cache.process]
+max_size = "32M"
+fill_wait = "5s"
 
 # ADR 0059 § 1's coherent tier, as the deployment decision it is: `Core\Cache::shared()`
 # and `Core\RateLimit::consume` both open *this* store, and neither takes an argument

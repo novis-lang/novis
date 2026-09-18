@@ -1,0 +1,36 @@
+<?nvs
+// A program runs under whichever `[[app]]` blocks in `nvs.toml` cover its own
+// file. This one is covered by two of them -- a block for the whole directory
+// tree, and a narrower block naming this single file:
+//
+//     [[app]]
+//     root = "."
+//
+//     [app.capabilities.script]
+//     spawn = true
+//
+//     [[app]]
+//     entry = "docs/examples/config/app/01-settings-for-one-application.nvs"
+//
+//     [app.limits]
+//     memory = "64M"
+//
+// The narrower block wins wherever both say something, and says nothing about
+// everything else.
+
+// The wider block never mentions memory, so this is the narrow block's own
+// value. Any other file in the tree still gets whatever `[limits]` sets.
+echo 'memory: ', Core\Config::get('limits.memory') ?? '(unset)', "\n";
+
+// Inherited from the wider block: a setting the narrow one is silent about is
+// not cleared by it.
+echo 'spawn:  ', Core\Config::get('capabilities.script.spawn') ?? '(unset)', "\n";
+
+// A program may tighten its own limit for the rest of the run.
+echo 'narrow: ', Core\Config::set('limits.memory', '32M') ? 'yes' : 'no', "\n";
+echo 'memory: ', Core\Config::get('limits.memory') ?? '(unset)', "\n";
+
+// It cannot edit the blocks themselves. Those belong to whoever deploys the
+// application, and a program able to rewrite one could grant itself anything in
+// the file -- including another application's permissions.
+echo 'reroot: ', Core\Config::set('app.0.root', '/') ? 'yes' : 'no', "\n";
