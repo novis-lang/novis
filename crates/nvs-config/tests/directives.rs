@@ -3143,3 +3143,218 @@ fn the_mode_ceiling_is_the_operators_half_of_a_block_with_no_blanket_over_it() {
         );
     }
 }
+
+/// The other half of that block, read through the field the mode's own tests do not read.
+/// `every_derived_default_names_a_directive_the_registry_holds` asks whether each of
+/// `rule:config/a-mode-is-five-defaults`'s five rows is held and settable; this one asks what applying
+/// one costs, which is the question that decides whether `mode.default` can be one line.
+///
+/// A mode is a shorthand for five defaults, so a `Boot` row among them would make the shorthand
+/// something a running host can only half-apply: `nvs ctl reload` over an edited `[mode] default`
+/// would move four directives and name the fifth, and a request's own flip would silently be four
+/// fifths of a mode. Each row reads plausibly on its own line either way — the claim is that the six
+/// of them agree.
+// covers: directive:mode.default
+#[test]
+fn a_mode_change_applies_whole_because_every_default_it_selects_reloads() {
+    let default = governing(nvs_config::mode::KEY);
+    assert_eq!(
+        (
+            nvs_config::mode::KEY,
+            default.key,
+            default.class,
+            default.apply
+        ),
+        (
+            "mode.default",
+            "mode.default",
+            Class::Runtime,
+            Apply::Reload
+        ),
+        "the key the mode is read and written at \
+         (`rule:config/a-program-may-read-and-flip-its-mode`) is no longer the row the registry \
+         governs by that name, so one of the two homes is describing a key the other does not have",
+    );
+
+    for row in nvs_config::mode::DERIVED {
+        let held = governing(row.key);
+        assert_eq!(
+            held.apply,
+            Apply::Reload,
+            "`{}` is a default `mode.default` selects and applying it takes a restart, so the one \
+             line an operator edits is a mode a running host can only partly be in",
+            row.key,
+        );
+    }
+}
+
+/// `rule:observability/metrics-and-trace-blocks-are-system`'s second block, asserted as the two
+/// things only this one has: a fraction, and a header an outbound call carries.
+///
+/// The class is counted over the keys the block accepts rather than read off `exporter`, for the
+/// reason the `[metrics]` case beside this one gives — but the consequence here is the sharper of
+/// the two. A program that could move `sample` selects which requests are worth recording, and one
+/// that could drop `propagate` leaves its own hop out of somebody else's story, both of which are
+/// the reconnaissance channel `rule:testing/debug-mode-directive` already refuses.
+///
+/// `Reload` beside `System` is not decoration: `export::head_sample` reads the fraction per request
+/// off the published snapshot, so an operator turning recording down on a host under load reaches
+/// the next request rather than the next boot.
+///
+/// The last claim is the one an operator gets wrong rather than an attacker: the exporter and the
+/// fraction are two lines, and the fraction is none until it is written, so naming a collector and
+/// stopping there produces a collector nothing ever arrives at.
+// covers: directive:trace
+#[test]
+fn every_key_of_the_trace_block_is_the_operators_and_an_exporter_alone_records_nothing() {
+    let block = governing("trace");
+    assert_eq!(
+        (block.key, block.class, block.apply),
+        ("trace", Class::System, Apply::Reload),
+        "`[trace]` resolves through `{}`: the fraction is read off the standing snapshot per \
+         request, and `Boot` would make an operator restart a host to stop recording it",
+        block.key,
+    );
+
+    let keys = keys_in("trace");
+    for expected in ["exporter", "endpoint", "sample", "propagate"] {
+        assert!(
+            keys.contains(&expected.to_string()),
+            "`[trace]` no longer accepts `{expected}`, so the page describes a key the file \
+             refuses: {keys:?}",
+        );
+    }
+    for key in &keys {
+        let written = format!("trace.{key}");
+        let row = governing(&written);
+        assert!(
+            !row.class.settable_by_a_request(),
+            "`{written}` lands on `{}` at {:?}, which a request may write — a program that picks \
+             its own sample has chosen which of its requests anybody gets to read about",
+            row.key,
+            row.class,
+        );
+    }
+
+    let text = "[trace]\nexporter = \"otlp\"\nendpoint = \"https://collector.example/v1\"\n";
+    let mut sources = SourceMap::new();
+    let (_, parsed) = nvs_config::file::parse::<Config>(&mut sources, "nvs.toml", text);
+    let named_a_collector =
+        parsed.unwrap_or_else(|err| panic!("{text}-- did not parse: {}", err.message));
+    assert_eq!(
+        nvs_config::export::validate(&named_a_collector, &BTreeMap::new())
+            .err()
+            .map(|refused| refused.code),
+        None,
+        "a tree naming a collector and no fraction is refused at boot, so the pair below is being \
+         asserted about a tree no operator can write",
+    );
+    assert_eq!(
+        nvs_config::export::head_sample(&named_a_collector),
+        0.0,
+        "an exporter written on its own now records something, so the fraction has grown a second \
+         home — the one an operator reads is the line they did not write",
+    );
+}
+
+/// `rule:config/opcache-revalidation-is-system-class` and
+/// `rule:config/opcache-file-cache-directives-are-system` are one class over one block, and this is
+/// the class rather than either rule's semantics — `the_opcache_block_is_read_into_a_revalidation_policy`
+/// and `the_validate_default_is_selected_by_the_run_mode` own what the keys mean.
+///
+/// `Class::System` exactly, and not merely a class no request may set: `RuntimeTighten` is the one
+/// that reads plausibly here and is the mistake this case exists to catch. Every other key a request
+/// may only tighten has a safe direction — a dump turned off, a grant dropped — and this block has
+/// none, because "check my sources *more* often" is a `stat` storm on a hot file and "read my code
+/// from a smaller cache" is still a program choosing how its own code is loaded.
+///
+/// Counted over the keys the block accepts rather than over the seven the two rules name, for the
+/// reason the blocks above are: an eighth key added to the file inherits the blanket, and a
+/// carve-out written beside it inherits nothing at all.
+// covers: directive:opcache
+#[test]
+fn every_key_of_the_opcache_block_is_system_class_because_it_has_no_safe_direction() {
+    let block = governing("opcache");
+    assert_eq!(
+        (block.key, block.class, block.apply),
+        ("opcache", Class::System, Apply::Reload),
+        "`[opcache]` resolves through `{}`: what the block decides is read by the next compile, and \
+         `Boot` would make an operator restart a host to re-check a file sooner",
+        block.key,
+    );
+
+    let keys = keys_in("opcache");
+    for expected in [
+        "validate",
+        "revalidate_freq",
+        "file_cache",
+        "file_cache_dir",
+        "file_cache_max_size",
+        "file_cache_gc_probability",
+        "file_cache_gc_divisor",
+    ] {
+        assert!(
+            keys.contains(&expected.to_string()),
+            "`[opcache]` no longer accepts `{expected}`, so the two rules over this block describe \
+             a key the file refuses: {keys:?}",
+        );
+    }
+    for key in &keys {
+        let written = format!("opcache.{key}");
+        let row = governing(&written);
+        assert_eq!(
+            row.class,
+            Class::System,
+            "`{written}` lands on `{}` at {:?} — a request that may tighten this block is a request \
+             that may pin the code it likes or choose the cache its code is read from, and neither \
+             direction of either key is safe",
+            row.key,
+            row.class,
+        );
+    }
+}
+
+/// The one key of that block that is not `Reload`, asserted beside the sibling whose name it is a
+/// prefix of. `reloadability_is_a_field_of_its_own_and_not_the_changeability_class` names this row in
+/// `rule:config/reloadability-is-its-own-field`'s `Boot` list; what is asked here is why it is a row
+/// at all — `file_cache` and `file_cache_dir` are two keys one `starts_with` apart, and a registry
+/// that governed the first through the second would make turning the cache off wait for a restart.
+///
+/// The second half is `rule:config/opcache-file-cache-directives-are-system`'s *only spelling*
+/// clause. `[cache]` is `Core\Cache`'s tiers and holds nothing about compiled units, so an operator
+/// who writes the artifact directory there has written a key the file does not know — and the
+/// failure this pins is the helpful repair where it starts to work, which would put the directory a
+/// request may not set beside the tiers it may.
+// covers: directive:opcache.file_cache_dir
+#[test]
+fn the_artifact_directory_is_one_boot_row_in_a_reload_block_and_has_no_second_spelling() {
+    let directory = governing("opcache.file_cache_dir");
+    assert_eq!(
+        (directory.key, directory.class, directory.apply),
+        ("opcache.file_cache_dir", Class::System, Apply::Boot),
+        "`opcache.file_cache_dir` resolves through `{}`: every unit this process has already mapped \
+         was read out of the standing directory, so a reload cannot be what moves it",
+        directory.key,
+    );
+
+    let bool_beside_it = governing("opcache.file_cache");
+    assert_eq!(
+        (bool_beside_it.key, bool_beside_it.apply),
+        ("opcache", Apply::Reload),
+        "`opcache.file_cache` is governed by `{}`, so a prefix that did not end on a dot has caught \
+         the key whose name it opens — turning the cache off now waits for a restart it does not need",
+        bool_beside_it.key,
+    );
+
+    assert!(
+        lookup("cache.dir").is_none(),
+        "`[cache] dir` now names a directive, so the artifact cache has a second spelling under the \
+         block that holds `Core\\Cache`'s tiers — and the one a request may not set is beside two it may",
+    );
+    let tiers = keys_in("cache");
+    assert!(
+        !tiers.contains(&"dir".to_string()),
+        "`[cache]` accepts `dir`, so an operator writing the artifact directory there is told \
+         nothing: {tiers:?}",
+    );
+}
