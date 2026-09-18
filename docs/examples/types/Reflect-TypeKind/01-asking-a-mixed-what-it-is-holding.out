@@ -1,0 +1,7 @@
+nothing at all:   Null
+a yes or no:      Bool
+a whole number:   Int
+some text:        Text
+a list:           Array
+a thing you made: Object
+a function:       Object

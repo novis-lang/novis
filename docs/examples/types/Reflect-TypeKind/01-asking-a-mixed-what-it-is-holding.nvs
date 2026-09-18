@@ -1,0 +1,49 @@
+<?nvs
+// A `mixed` can hold anything, so it is the one place where the type is not
+// written down and you may have to ask. The answer is always exactly one of
+// ten kinds, which is why the list below needs no "anything else" arm.
+
+class Kind {
+    public static function of(mixed $value): string {
+        return match (Core\Reflect::typeOf($value)) {
+            Core\Reflect\TypeKind::Null => "Null",
+            Core\Reflect\TypeKind::Bool => "Bool",
+            Core\Reflect\TypeKind::Int => "Int",
+            Core\Reflect\TypeKind::Uint => "Uint",
+            Core\Reflect\TypeKind::Float => "Float",
+            Core\Reflect\TypeKind::Decimal => "Decimal",
+            Core\Reflect\TypeKind::Text => "Text",
+            Core\Reflect\TypeKind::Bytes => "Bytes",
+            Core\Reflect\TypeKind::Array => "Array",
+            Core\Reflect\TypeKind::Object => "Object",
+        };
+    }
+}
+
+class Point {
+    public int $x = 1;
+}
+
+// The same variable, one assignment after another. The answer follows what is
+// in it right now and never what it was declared as.
+mixed $slot = null;
+echo "nothing at all:   ", Kind::of($slot), "\n";
+
+$slot = true;
+echo "a yes or no:      ", Kind::of($slot), "\n";
+
+$slot = 42;
+echo "a whole number:   ", Kind::of($slot), "\n";
+
+$slot = "novis";
+echo "some text:        ", Kind::of($slot), "\n";
+
+$slot = [1, 2, 3];
+echo "a list:           ", Kind::of($slot), "\n";
+
+$slot = new Point();
+echo "a thing you made: ", Kind::of($slot), "\n";
+
+// A closure is an ordinary object here, so it does not get a kind of its own.
+$slot = fn (int $n): int => $n + 1;
+echo "a function:       ", Kind::of($slot), "\n";

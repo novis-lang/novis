@@ -1,0 +1,59 @@
+<?nvs
+// Settings that arrived from somewhere outside your program land in a `mixed`,
+// because nobody can promise what is in them. Checking each one against the
+// kind you meant to read is a few lines, and it happens at startup instead of
+// at three in the morning.
+
+class Settings {
+    public static function name(Core\Reflect\TypeKind $kind): string {
+        return match ($kind) {
+            Core\Reflect\TypeKind::Null => "nothing",
+            Core\Reflect\TypeKind::Bool => "a yes or no",
+            Core\Reflect\TypeKind::Int => "a whole number",
+            Core\Reflect\TypeKind::Uint => "a count",
+            Core\Reflect\TypeKind::Float => "an approximate number",
+            Core\Reflect\TypeKind::Decimal => "an exact amount",
+            Core\Reflect\TypeKind::Text => "text",
+            Core\Reflect\TypeKind::Bytes => "octets",
+            Core\Reflect\TypeKind::Array => "a list",
+            Core\Reflect\TypeKind::Object => "an object",
+        };
+    }
+}
+
+decimal $priceAsWritten = 19.90;
+
+array<mixed> $arrived = [
+    "port" => 8080,
+    "host" => "0.0.0.0",
+    "retries" => 3,
+    "debug" => "yes",
+    "unitPrice" => $priceAsWritten,
+];
+
+// What each setting is read as further in. This is the part worth writing
+// down: it is the same list the rest of the program already assumes.
+array<Core\Reflect\TypeKind> $expected = [
+    "port" => Core\Reflect\TypeKind::Int,
+    "host" => Core\Reflect\TypeKind::Text,
+    "retries" => Core\Reflect\TypeKind::Int,
+    "debug" => Core\Reflect\TypeKind::Bool,
+    "unitPrice" => Core\Reflect\TypeKind::Decimal,
+];
+
+uint $wrong = 0;
+
+foreach ($arrived as string $setting => mixed $value) {
+    Core\Reflect\TypeKind $found = Core\Reflect::typeOf($value);
+    if ($found == $expected[$setting]) {
+        echo $setting, ": ", Settings::name($found), ", as expected\n";
+    } else {
+        $wrong = $wrong + 1;
+        echo $setting, ": ", Settings::name($found), ", but it is read as ",
+            Settings::name($expected[$setting]), "\n";
+    }
+}
+
+// `debug` is the one somebody typed by hand, and the word "yes" is text and
+// not a yes. Refusing to start beats starting with debugging quietly off.
+echo "\n", $wrong, " setting(s) are not what this program reads\n";
