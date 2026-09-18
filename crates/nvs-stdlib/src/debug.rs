@@ -66,18 +66,17 @@
 //!
 //! **The carrier is `Core\Cli\Text` under every sink, and that is a bound
 //! rather than a hole.** A member answering the sink's own carrier would have
-//! to *declare* both of `rule:errors/renderings`' two, and a program cannot act
-//! on that union: `instanceof` against a `Core` class is `E0496` by
-//! [ADR 0125](/docs/decisions/0125.md) § 4 — a decided refusal and not a
-//! missing feature, computed and registry-shaped class names both being
-//! request-controlled spellings the checker does not admit — so
-//! `rule:types/narrowing` reaches neither arm and the union would be inert
-//! everywhere but `echo`, which needs no union to begin with. Declaring one
+//! to *declare* both of `rule:errors/renderings`' two, and which arm a call
+//! answers is the channel's question rather than the program's:
+//! [`rendered_for`] asks the sink in force, so a caller narrowing that union
+//! with `is` (`rule:types/type-test`) would be branching on the deployment's
+//! configuration and never on anything its own source says. Declaring one
 //! class while answering the other is the worse trade, since it hands a
 //! `Core\Html\Markup` to the `as string` conversion written for the terminal
 //! carrier and bypasses `rule:core-classes/html-to-source`'s demand for a
-//! reason. So the plaintext rendering is what `render` answers, and a program
-//! that wants the block in a body turns on the directive above instead.
+//! reason. So the plaintext rendering is what `render` answers — one carrier a
+//! caller can embed under either sink — and a program that wants the block in
+//! a body turns on the directive above instead.
 //!
 //! # The walk is not here
 //!
@@ -377,8 +376,8 @@ mod tests {
                 CoreTy::Instance(name) if name == crate::cli::NAME
             ),
             "`render` answers one class under every sink, which the module doc \
-             states as a bound: the union the other reading needs is inert while \
-             `instanceof` against a `Core` class is `E0496`"
+             states as a bound: the arm of the union the other reading needs is \
+             the channel's question rather than the program's"
         );
     }
 
