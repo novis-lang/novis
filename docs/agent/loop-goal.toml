@@ -612,7 +612,7 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "1 floor"
-name = "nvs-types (constants, `static` and `instanceof`)"
+name = "nvs-types (constants, `static` and the class test)"
 args = ["test", "-p", "nvs-types"]
 tests = [
   # Item 45 -- the checker half: a class constant's own declared type at a read.
@@ -620,7 +620,7 @@ tests = [
   # Item 46 -- `rule:statements/static-is-a-member-modifier`'s late static binding, as a type rather than as a dispatch.
   "a_static_return_type_resolves_to_the_called_class",
   # Item 47 -- the direction a program written against an abstraction actually uses.
-  "an_instanceof_test_narrows_its_subject_to_an_interface",
+  "an_is_test_narrows_its_subject_to_an_interface",
   # Item 48 -- one arity rule, both sides of the `Core`/user-class line.
   "a_core_class_with_no_constructor_refuses_arguments",
 ]
@@ -1255,7 +1255,7 @@ name = "nvs-types (narrowing and reachability)"
 args = ["test", "-p", "nvs-types"]
 tests = [
   # Item 37 -- three of `rule:types/unions-and-mixed`'s four spellings, and the residue no longer restricted to a class.
-  "an_instanceof_test_narrows_its_subject",
+  "an_is_test_over_a_written_class_narrows_its_subject",
   "a_comparison_against_a_literal_narrows_its_subject",
   # Item 38. The `match (true)` arm is a case rather than a cargo test, and so is the reachability
   # half's accepting side. The refusal half landed as `E0739`: `nvs_types::returns` decides whether a
@@ -4333,7 +4333,7 @@ args = ["test", "-p", "nvs-codegen"]
 tests = [
   "the_object_module_emits_every_program_the_jit_module_does",
   "a_class_descriptor_address_is_a_relocation_not_an_immediate",
-  "an_instanceof_target_is_a_relocation_not_an_immediate",
+  "a_class_test_target_is_a_relocation_not_an_immediate",
   "a_statically_resolved_call_target_is_a_relocation_not_an_immediate",
   "the_two_modules_answer_the_same_for_every_lowering_fixture",
 ]
@@ -6732,7 +6732,7 @@ name = "nvs-syntax (`is` parses a type, not an expression, and keeps its precede
 args = ["test", "-p", "nvs-syntax"]
 tests = [
   "is_parses_its_right_hand_side_with_parse_type_and_not_as_an_expression",
-  "is_binds_at_the_same_level_as_instanceof_and_below_unary_not",
+  "is_binds_below_unary_not_and_above_every_binary_operator",
   "is_over_a_union_and_a_nullable_parses_as_one_type_and_not_as_a_comparison_chain",
   "is_no_longer_reports_the_reserved_word_refusal_and_let_still_does",
 ]
@@ -6740,10 +6740,10 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "1 floor"
-name = "nvs-syntax (a value where a type belongs is refused in the parser)"
+name = "nvs-syntax (a `$value` after `is` is the value arm, and a parenthesis still opens a type)"
 args = ["test", "-p", "nvs-syntax"]
 tests = [
-  "is_against_a_variable_is_e0812_and_its_help_names_instanceof",
+  "a_variable_after_is_parses_as_a_value_operand_and_a_parenthesis_as_a_type",
 ]
 
 # ---------------------------------------------------------------------------------------------------
@@ -6757,7 +6757,7 @@ args = ["test", "-p", "nvs-types"]
 tests = [
   "a_statically_true_test_over_a_declared_type_checks_and_folds_to_true",
   "a_statically_false_test_over_a_declared_type_checks_and_folds_to_false",
-  "neither_direction_reports_the_instanceof_subject_refusal",
+  "neither_direction_reports_anything_about_the_subject",
   "a_test_over_a_union_member_and_over_a_non_member_both_check",
 ]
 
@@ -6783,7 +6783,7 @@ name = "nvs-types (`is` narrows the true edge alone)"
 args = ["test", "-p", "nvs-types"]
 tests = [
   "an_is_test_narrows_its_subject_on_the_true_edge",
-  "an_is_test_does_not_narrow_the_false_edge_and_neither_does_instanceof",
+  "an_is_test_does_not_narrow_the_false_edge_in_either_arm",
   "a_write_inside_the_narrowed_block_widens_the_binding_again",
   "narrowing_never_changes_the_declared_type_of_the_binding",
 ]
@@ -6794,11 +6794,11 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "1 floor"
-name = "nvs-codegen (a tag test, the instanceof walk reused, and the array walk reused)"
+name = "nvs-codegen (a tag test, the descriptor walk reused, and the array walk reused)"
 args = ["test", "-p", "nvs-codegen"]
 tests = [
   "a_scalar_test_emits_one_tag_comparison",
-  "a_class_test_emits_the_same_descriptor_walk_instanceof_emits",
+  "a_class_test_emits_one_descriptor_walk_and_nothing_else",
   "an_array_element_test_calls_the_same_walk_the_conversion_calls_and_not_a_second_one",
   "a_folded_test_emits_no_code_at_all",
 ]
@@ -9608,14 +9608,14 @@ tests = [
 
 # ---------------------------------------------------------------------------------------------------
 # Stage 3 -- the guarded sites. Goal prose stage 3. `--guarded` lists by file, then line, so these
-# codes appear in this order: call.rs, control.rs's key then subject, expr.rs, mod.rs, stmt.rs's `unset`.
+# codes appear in this order: call.rs, control.rs's key then subject, mod.rs, stmt.rs's `unset`.
 # ---------------------------------------------------------------------------------------------------
 [[check]]
 kind = "command"
 stage = "1 floor"
-name = "the by-reference, foreach, instanceof, element-write and unset sites are guarded by their codes"
+name = "the by-reference, foreach, element-write and unset sites are guarded by their codes"
 argv = ["python", "tools/holes.py", "--guarded"]
-want = ["E0439", "E0723", "E0443", "E0497", "E0700", "E0234"]
+want = ["E0439", "E0723", "E0443", "E0700", "E0234"]
 
 [[check]]
 kind = "nvs-suite"
@@ -11315,18 +11315,18 @@ tests = [
 [[check]]
 kind = "cargo-named"
 stage = "1 floor"
-name = "nvs-types (a Core class is a written name `instanceof` accepts, and the test is recorded)"
+name = "nvs-types (a `Core` class is a written name `is` accepts, and the test is recorded)"
 args = ["test", "-p", "nvs-types"]
 tests = [
-  "a_core_class_is_a_testable_instanceof_target",
-  "an_instanceof_over_a_core_class_records_the_resolved_name",
-  "a_dynamic_right_hand_side_and_an_enum_are_still_refused",
+  "a_core_name_on_the_right_of_is_is_a_written_type_like_any_other",
+  "a_core_class_on_the_right_of_is_records_a_type_test_like_any_other",
+  "a_value_naming_no_class_is_refused_and_an_enum_is_a_row_of_the_table",
 ]
 
 [[check]]
 kind = "nvs-suite"
 stage = "1 floor"
-name = "conformance (a mixed holding a Core instance answers `instanceof` by naming the class)"
+name = "conformance (a mixed holding a Core instance answers `is` by naming the class)"
 args = ["test", "tests/conformance/"]
 cases = [
   "tests/conformance/core/a-mixed-holding-a-core-instance-is-tested-by-name.nvst",
@@ -11361,7 +11361,7 @@ cases = [
 [[check]]
 kind = "nvs-suite"
 stage = "1 floor"
-name = "conformance (`is`, `instanceof` and `as` answer the same question about one Core value)"
+name = "conformance (`is` and `as` answer the same question about one Core value)"
 args = ["test", "tests/conformance/"]
 cases = [
   "tests/conformance/core/one-core-value-answers-the-same-from-is-and-as.nvst",

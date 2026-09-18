@@ -34,7 +34,7 @@ fn check_with_erased_object(decls: &str, body: &str) -> Diagnostics {
 /// The direction a program written against an abstraction actually takes: the
 /// subject is proved to implement the interface, so its members resolve.
 #[test]
-fn an_instanceof_test_narrows_its_subject_to_an_interface() {
+fn an_is_test_narrows_its_subject_to_an_interface() {
     let diags = check_with_erased_object(
         "interface Labelled {\n  function label(): string;\n}",
         "    if ($v is Labelled) {\n      echo $v->label();\n    }",
@@ -189,7 +189,7 @@ fn a_nullable_scalar_and_a_nullable_array_both_narrow() {
 /// is written on: the class the test names has no `null` in it, so proving it
 /// removes `E_NULLABLE_RECEIVER` exactly as `!= null` does.
 #[test]
-fn an_instanceof_test_narrows_its_subject() {
+fn an_is_test_over_a_written_class_narrows_its_subject() {
     let diags = check_with_node("if ($n is Node) {\n  echo $n->label();\n}\n");
     assert!(!diags.has_errors(), "{diags:?}");
 }
@@ -198,7 +198,7 @@ fn an_instanceof_test_narrows_its_subject() {
 /// every other thing the declared type can hold, `null` among them, so the
 /// `else` branch has proved nothing to install.
 #[test]
-fn an_instanceof_proves_nothing_on_its_false_edge() {
+fn an_is_test_proves_nothing_on_its_false_edge() {
     let diags =
         check_with_node("if ($n is Node) {\n  echo \"yes\";\n} else {\n  echo $n->label();\n}\n");
     assert!(refuses_nullable_receiver(&diags), "{diags:?}");
@@ -207,7 +207,7 @@ fn an_instanceof_proves_nothing_on_its_false_edge() {
 /// A `!` inverts which edge proves the class rather than removing it, which is
 /// the guard clause a ported program writes.
 #[test]
-fn an_instanceof_guard_clause_narrows_the_rest_of_the_block() {
+fn an_is_guard_clause_narrows_the_rest_of_the_block() {
     let diags = check_with_node("if (!($n is Node)) {\n  return;\n}\necho $n->label();\n");
     assert!(!diags.has_errors(), "{diags:?}");
 }
@@ -215,7 +215,7 @@ fn an_instanceof_guard_clause_narrows_the_rest_of_the_block() {
 /// A write drops a class narrowing exactly as it drops a `!= null`
 /// one — [`LocalScope::overwrite`] does not care which test installed it.
 #[test]
-fn a_write_inside_an_instanceof_block_widens_it_again() {
+fn a_write_inside_an_is_narrowed_block_widens_it_again() {
     let diags = check_with_node("if ($n is Node) {\n  $n = null;\n  echo $n->label();\n}\n");
     assert!(refuses_nullable_receiver(&diags), "{diags:?}");
 }
@@ -225,7 +225,7 @@ fn a_write_inside_an_instanceof_block_widens_it_again() {
 /// one. The residue is `Labelled` rather than `Node` — a nominal type either
 /// way, so nothing downstream can tell which of the two installed it.
 #[test]
-fn an_instanceof_against_an_interface_drops_null_too() {
+fn an_is_test_against_an_interface_drops_null_too() {
     let diags = check_src(
         "<?nvs\ninterface Labelled {\n  function label(): string;\n}\n\
          class Node implements Labelled {\n  function label(): string { return \"n\"; }\n}\n\
@@ -256,7 +256,7 @@ fn an_is_test_narrows_its_subject_on_the_true_edge() {
 /// written class name that grew a false edge of its own would still look right
 /// beside the value arm.
 #[test]
-fn an_is_test_does_not_narrow_the_false_edge_and_neither_does_instanceof() {
+fn an_is_test_does_not_narrow_the_false_edge_in_either_arm() {
     let written =
         check_with_node("if ($n is Node) {\n  echo \"yes\";\n} else {\n  echo $n->label();\n}\n");
     assert!(refuses_nullable_receiver(&written), "{written:?}");

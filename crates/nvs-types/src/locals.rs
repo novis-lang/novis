@@ -525,7 +525,7 @@ fn type_test(cond: &Expr) -> Option<(Span, Span, bool)> {
 ///
 /// An **enum case** (`$m == Mode::Read`) is that third one, and it is read
 /// back off [`crate::expr_table::ExprInfo::EnumCase`] instead, for
-/// [`instanceof_residue`]'s reason: which case a written name means is a
+/// [`type_test_residue`]'s reason: which case a written name means is a
 /// question about the namespace and the imports of the site that wrote it, and
 /// this walk carries neither. The residue is `rule:types/enum-case-type`'s `Ty::EnumCase` and
 /// not the whole enum — that is the point of the guard — and it costs nothing
@@ -562,7 +562,7 @@ pub(crate) fn literal_residue(
         // case's own type, which is `Ty::EnumCase` rather than the enum. The
         // enum and the case are read back off
         // [`crate::expr_table::ExprInfo::EnumCase`], recorded when the operand
-        // was checked a moment ago, for [`instanceof_residue`]'s reason
+        // was checked a moment ago, for [`type_test_residue`]'s reason
         // exactly — the name is placed by the writing site's namespace and
         // imports, and this walk carries neither.
         _ => {

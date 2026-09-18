@@ -30,7 +30,7 @@ Three causes, and they want different fixes. Do not assume the first one.
    the way [conventions.md](conventions.md) asks, and never reconciles `loop-goal.toml`. Confirmed
    examples: `an_instanceof_narrows_its_operand` is
    [narrowing.rs:145](../../crates/nvs-types/tests/narrowing.rs#L145)
-   `an_instanceof_test_narrows_its_subject`; `a_literal_comparison_narrows_its_operand` is
+   `an_is_test_over_a_written_class_narrows_its_subject`; `a_literal_comparison_narrows_its_operand` is
    [narrowing.rs:207](../../crates/nvs-types/tests/narrowing.rs#L207)
    `a_comparison_against_a_literal_narrows_its_subject`;
    `a_fixture_attribute_is_resolved_for_the_cases_that_name_it` is
