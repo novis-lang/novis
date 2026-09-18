@@ -2,13 +2,14 @@
 """AGENTS.md § *Session workflow* step 3, as one command.
 
 `cargo fmt`, `tools/lints.py --check`, `tools/directives.py --check` and `--check-template`,
-`tools/owners.py --check`, `cargo
+`tools/owners.py --check`, the fuzz workspace's lock file brought back in step, `cargo
 build`, `cargo test`, the `.nvst` trees through the binary the build just produced, `cargo clippy
 --all-targets -- -D warnings`, and -- once `editors/vscode` exists -- that extension's headless
 suites, in that order, stopping at the first failure. The script gates precede the compile steps
 because they decide what the tree means rather than whether it builds. Green prints one
-line per step; a failure prints that step's output and nothing else. `fmt` is the one step that
-*writes*: it formats rather than checks, and *Why `fmt` formats* below is the measurement.
+line per step; a failure prints that step's output and nothing else. `fmt` *writes* source: it
+formats rather than checks, and *Why `fmt` formats* below is the measurement. `fuzz-lock` and
+`reference` write the one derived file each of them owns.
 
 `cargo doc` with rustdoc's broken-link lint denied is the one gate deliberately **not** in that
 list. It is `--doc`, run alone, and `tools/loop.py` runs it when a goal's acceptance list is
@@ -198,6 +199,10 @@ CACHE_TTL = 3600  # seconds. A tree hash cannot go stale on its own; this is a b
 # fixture, an insta `.snap` and a `Cargo.toml` all change what the steps will answer.
 INPUT_DIRS = ("crates", "benches", "tests", "examples", "editors", "docs/reference")
 INPUT_FILES = ("Cargo.toml", "Cargo.lock", "rustfmt.toml", "rust-toolchain.toml",
+               # The `fuzz-lock` step's own manifest. Everything else that step resolves against
+               # is a manifest under `crates/` or the root lock, both hashed already;
+               # `fuzz/Cargo.lock` is what it writes, so it is derived and stays out.
+               "fuzz/Cargo.toml",
                # The steps that are a script rather than `cargo`. Their verdict changes when
                # the script does -- a crate added to `lints.py`'s roster, a reader counted a
                # third way in `directives.py`, a chapter rule changed in `reference.py` -- and
@@ -519,6 +524,49 @@ def summarize_owners(out):
         "ran, but printed no summary line -- check the log"
 
 
+FUZZ = ROOT / "fuzz"
+
+
+def run_fuzz_lock(step):
+    """Resolve the `fuzz/` workspace, which rewrites `fuzz/Cargo.lock` when it has fallen behind.
+
+    `fuzz/` is its own workspace -- cargo-fuzz requires it -- so nothing the root build does
+    touches its lock, and a dependency a crate under `crates/` gains reaches that file only the
+    next time cargo runs in `fuzz/`. That is a `cargo +nightly fuzz run` some session later, which
+    re-locks as a side effect and leaves the file dirty under a session that did not cause it.
+    Resolving here puts the rewrite in the session that added the dependency, and
+    `tools/session.py`'s `GENERATED` puts it in that session's commit.
+
+    `cargo metadata` is the cheapest command that resolves: it compiles nothing and adds what is
+    missing without upgrading what is locked. Offline first, because the root build has already
+    fetched whatever a workspace crate newly depends on and the index is otherwise a network
+    round trip on every verification; the second attempt is for a machine whose cache has never
+    held `fuzz/`'s own dependencies. Its JSON is dropped -- the lock file is the whole output."""
+    lock = FUZZ / "Cargo.lock"
+    before = lock.read_bytes() if lock.is_file() else b""
+    args = ["cargo", "metadata", "--format-version", "1", "--manifest-path",
+            str(FUZZ / "Cargo.toml")]
+    said = ""
+    for extra in (["--offline"], []):
+        p = subprocess.run(args + extra, cwd=ROOT, stdout=subprocess.DEVNULL,
+                           stderr=subprocess.PIPE, encoding="utf-8", errors="replace")
+        said += p.stderr or ""
+        if p.returncode == 0:
+            break
+    after = lock.read_bytes() if lock.is_file() else b""
+    if p.returncode == 0:
+        said += ("fuzz-lock: rewrote fuzz/Cargo.lock\n" if after != before
+                 else "fuzz-lock: fuzz/Cargo.lock in step\n")
+    return p.returncode, said
+
+
+def summarize_fuzz_lock(out):
+    if "rewrote fuzz/Cargo.lock" in out:
+        return "fuzz/Cargo.lock had fallen behind the workspace and was rewritten -- commit it"
+    return "fuzz/Cargo.lock in step with the workspace" if "in step" in out else \
+        "ran, but printed no summary line -- check the log"
+
+
 def doc_step(opts):
     """The rustdoc gate: every ``[`Foo::bar`]`` in a doc comment, resolved.
 
@@ -585,6 +633,14 @@ def steps_for(opts):
         # Sub-second, and unscoped: it walks every crate's doc comments, so `-p` narrows nothing.
         steps.append(Step("owners", ["tools/owners.py", "--check"], summarize_owners,
                           exe=sys.executable))
+        # The last of the steps that cost under a second, and the second that writes: `fuzz/` is
+        # a workspace of its own, so its lock follows a dependency added under `crates/` only
+        # when something resolves it, and `run_fuzz_lock` is that something. Unscoped, because a
+        # lock is resolved over the whole graph whatever `-p` says.
+        if (FUZZ / "Cargo.toml").is_file():
+            steps.append(Step("fuzz-lock", ["metadata", "--format-version", "1", "--offline",
+                                            "--manifest-path", "fuzz/Cargo.toml"],
+                              summarize_fuzz_lock, runner=run_fuzz_lock))
     # Bare, whatever `-p` says: these are the shapes `tools/disk.py`'s `LIVE_QUERIES` keep, and a
     # `-p` build resolves features over one package's graph and writes a second copy of every
     # workspace crate beside the first -- AGENTS.md's rule. `-p` narrows which test binaries

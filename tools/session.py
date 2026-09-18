@@ -429,7 +429,8 @@ def covers(pathspec: str, path: str) -> bool:
 
 
 #: Files no session writes by hand and every session can leave dirty: `verify.py` regenerates
-#: them in place, on purpose, so the tree follows the registry without a session remembering to.
+#: them in place, on purpose, so the tree follows the registry -- and `fuzz/`'s lock follows the
+#: workspace's dependencies -- without a session remembering to.
 #: They are derived from what the session's own commits changed, so they belong to this session
 #: whatever it named -- and because nothing in the wrap *writes* them, `written_paths` cannot see
 #: them and the sweep below would leave them for a hand-rolled `git add` that never comes.
@@ -437,7 +438,7 @@ def covers(pathspec: str, path: str) -> bool:
 #: This is the one leak that survived `uncommitted_writes`: a session adding a `Core` member ran
 #: `verify.py`, which rewrote `docs/novis.md`, and ended with the file dirty. The next session
 #: inherited it, and an INTERRUPTED session left it behind for good.
-GENERATED = ("docs/novis.md",)
+GENERATED = ("docs/novis.md", "fuzz/Cargo.lock")
 
 
 def dirty_generated() -> list[str]:
