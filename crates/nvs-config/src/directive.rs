@@ -199,6 +199,13 @@ pub const DIRECTIVES: &[Directive] = &[
     // the next write and a new wait by the next fill — neither re-creates the map, which exists
     // before the workers do, and neither re-dials anything.
     Directive { key: "cache.process", class: Class::System, apply: Apply::Reload },
+    // `rule:config/one-local-control-socket`'s one door to a running server. `System` because the
+    // socket's owner and mode *are* the authentication, so a request that could write this key
+    // would be choosing where that door is and which account answers it. `Boot` because the
+    // endpoint is a kernel object created as the server starts — a new name is a new object, and a
+    // reload that renamed it would leave `nvs ctl` addressing the old one. Keyed at the dotted key
+    // rather than at `[control]`, so a second key added to the block is governed by nothing and
+    // `Core\Config::set` refuses it for want of a row rather than inheriting this one's class.
     Directive { key: "control.socket", class: Class::System, apply: Apply::Boot },
     // `rule:core-classes/temporary-dir-sweep`. `System` because the root is the runtime's and not a request's — a request that
     // could move it would be choosing where every *other* request's temporaries land — and `Boot`

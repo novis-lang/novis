@@ -286,6 +286,101 @@ fn every_key_of_an_app_block_is_system_class_applied_at_reload() {
     }
 }
 
+/// `rule:config/three-changeability-classes`: the grants are the one row a request may write at
+/// all, and only ever downwards.
+///
+/// `RuntimeTighten` because `rule:security/isolate-shares-nothing` gives the block a direction
+/// rather than a ceiling — a script may drop a right it holds and can never add one it does not —
+/// so the class is neither `System`, which answers nobody, nor `Runtime`, which answers "freely, up
+/// to what the operator kept" for a value that has no quantity to be under. `Reload` because a
+/// changed grant is folded onto the tree while the next snapshot is built and re-creates nothing.
+///
+/// Asked of every grant the block accepts rather than of the ones somebody listed, and of the
+/// families as well as their keys, because one row governs all of them through the longest-prefix
+/// rule: a row added under `capabilities` would take a whole family back out of the class with
+/// every other assertion in this file still passing.
+///
+/// The last assertion is the boundary this block shares with `[[app]]`. The same grant written
+/// inside an application's block is the `app` row's and therefore `System`, because a request able
+/// to write `app.0.capabilities.fs.read` would be choosing an application's grants rather than
+/// narrowing its own — two questions that look like one key.
+// covers: directive:capabilities
+#[test]
+fn every_grant_is_the_one_tightening_row_and_the_same_grant_under_an_app_block_is_not() {
+    let families = keys_in("capabilities");
+    assert_eq!(
+        families.iter().map(String::as_str).collect::<Vec<_>>(),
+        [
+            "script", "fs", "net", "tls", "process", "debug", "db", "mail", "cache", "queue"
+        ],
+        "`[capabilities]` accepts {families:?}: a family added to the block joins this census in \
+         the commit that adds it, because which grants exist is not the registry's question and \
+         this is the only place that notices",
+    );
+
+    let mut asked = vec!["capabilities".to_string()];
+    for family in &families {
+        asked.push(format!("capabilities.{family}"));
+        for grant in keys_in(&format!("capabilities.{family}")) {
+            asked.push(format!("capabilities.{family}.{grant}"));
+        }
+    }
+
+    for key in &asked {
+        let row = governing(key);
+        assert_eq!(
+            row.key, "capabilities",
+            "`{key}` resolves through `{}` rather than through the one grants row, so what a \
+             script may give up is no longer one class",
+            row.key,
+        );
+        assert_eq!(
+            row.class,
+            Class::RuntimeTighten,
+            "`{key}` is a right a script may drop and never add \
+             (`rule:security/isolate-shares-nothing`), which is the one class that says so",
+        );
+        assert!(
+            row.class.settable_by_a_request(),
+            "`{key}` is writable by a request in principle — the direction is what bounds it, and \
+             a class answering nobody would be `System` and a different decision",
+        );
+        assert_eq!(
+            row.apply,
+            Apply::Reload,
+            "`{key}` is folded onto the tree while a snapshot is built, so a new snapshot applies \
+             it and nothing is re-created (`rule:config/reloadability-is-its-own-field`)",
+        );
+    }
+
+    assert!(
+        !DIRECTIVES
+            .iter()
+            .any(|row| row.key.starts_with("capabilities.")),
+        "a row under `capabilities` would govern one family by longest prefix, and the sweep above \
+         would go on passing for every other one",
+    );
+
+    for key in [
+        "app.0.capabilities.fs.read",
+        "app.capabilities.script.spawn",
+    ] {
+        let row = governing(key);
+        assert_eq!(
+            row.key, "app",
+            "`{key}` is part of what an operator wrote for one application, so it resolves \
+             through `{}` rather than through the grants row",
+            row.key,
+        );
+        assert_eq!(
+            row.class,
+            Class::System,
+            "`{key}` answers who may grant rather than who may give one up, and a request able to \
+             write it would be choosing an application's capabilities by index",
+        );
+    }
+}
+
 /// `rule:concurrency/cache-memory-is-charged-to-the-core`: the per-core tier's ceiling is the
 /// operator's, and a new one costs nothing to apply.
 ///
@@ -400,6 +495,124 @@ fn both_process_tier_keys_are_system_at_reload_and_no_blanket_cache_row_answers_
         lookup("cache").is_none() && lookup("cache.nvs_no_such_tier.max_size").is_none(),
         "a blanket `cache` row would hand every future tier whichever class it happened to carry, \
          and `cache.shared` being `Boot` beside these two is what that row could not say",
+    );
+}
+
+/// `rule:core-api/two-cache-tiers`: the coherent tier is a *store* rather than a map, and every key
+/// naming or reaching it is the operator's and applies at boot.
+///
+/// `System` because where a fleet's coherent state lives is not a decision one request may make for
+/// the rest — and because four of the five keys are how that store is *reached*, so a request able
+/// to write them would be re-pointing a credential as well as an address. `Boot` because each core
+/// holds one connection to the store: moving it re-dials every one of them, which is the same
+/// "re-creates the runtime's mapping" the artifact directory is `Boot` for.
+///
+/// The last assertion is the one the three-rows-per-tier shape exists for. `[cache]` holds two apply
+/// classes at once — this tier's `Boot` beside the two in-memory tiers' `Reload` — so a blanket row
+/// above them could only be right about one, and which of the two it got wrong is either an
+/// operator restarting for a ceiling change or a fleet believing it moved a store it did not.
+// covers: directive:cache.shared
+#[test]
+fn every_shared_tier_key_is_system_class_applied_at_boot_beside_two_reload_siblings() {
+    let keys = keys_in("cache.shared");
+    assert_eq!(
+        keys.iter().map(String::as_str).collect::<Vec<_>>(),
+        ["url", "password", "password_file", "database", "timeout"],
+        "`[cache.shared]` accepts {keys:?}, and the one row governs whatever the block holds: a \
+         key added to it joins this census in the commit that adds it",
+    );
+
+    for key in keys.iter().map(|key| format!("cache.shared.{key}")) {
+        let row = governing(&key);
+        assert_eq!(
+            row.key, "cache.shared",
+            "`{key}` resolves through `{}` rather than through the tier's own row",
+            row.key,
+        );
+        assert_eq!(
+            row.class,
+            Class::System,
+            "`{key}` is part of naming and reaching the store a deployment shares, which is the \
+             operator's decision and not a request's (`rule:core-api/two-cache-tiers`)",
+        );
+        assert!(
+            !row.class.settable_by_a_request(),
+            "`Core\\Config::set(\"{key}\", …)` has to refuse: a request that could write any of \
+             these would be pointing every other core at a store it chose",
+        );
+        assert_eq!(
+            row.apply,
+            Apply::Boot,
+            "every core holds an open connection to this store, so a change here re-dials all of \
+             them rather than being read by the next caller \
+             (`rule:config/reloadability-is-its-own-field`)",
+        );
+    }
+
+    for sibling in ["cache.local.max_size", "cache.process.fill_wait"] {
+        assert_eq!(
+            governing(sibling).apply,
+            Apply::Reload,
+            "`{sibling}` bounds a map this process already holds, so it applies without re-dialling \
+             anything — and `[cache]` carrying both apply classes is why the tiers are three rows",
+        );
+    }
+}
+
+/// `rule:config/one-local-control-socket`: the one local door to a running server is the operator's,
+/// and it is created once.
+///
+/// `System` because the socket's owner and mode *are* the authentication, so a request able to write
+/// the key would be choosing where that door is and which account answers it — the registry's class
+/// is the only thing standing between a served request and that choice. `Boot` because the endpoint
+/// is a kernel object created as the server starts, and a reload that renamed it would leave
+/// `nvs ctl` addressing the old one.
+///
+/// The last assertion is the one that distinguishes this row's *shape* from `[capabilities]`', and
+/// the registry states both. This row is keyed at the dotted key, so `[control]` has no blanket row
+/// and a second key added to the block is governed by nothing — which `Core\Config::set` reads as
+/// unwritable rather than as this row's class. A blanket `control` row would hand that future key
+/// `System`/`Boot` by accident, which is the right answer arrived at by not asking.
+// covers: directive:control.socket
+#[test]
+fn the_control_socket_is_one_system_key_applied_at_boot_and_its_block_has_no_row() {
+    let keys = keys_in("control");
+    assert_eq!(
+        keys.iter().map(String::as_str).collect::<Vec<_>>(),
+        ["socket"],
+        "`[control]` accepts {keys:?}, and there is one local endpoint by design: a second key \
+         joins this census in the commit that adds it, and needs a row of its own to be governed",
+    );
+
+    let row = governing("control.socket");
+    assert_eq!(
+        row.key, "control.socket",
+        "`control.socket` resolves through `{}`, so the block rather than the key is what the \
+         registry is stating something about",
+        row.key,
+    );
+    assert_eq!(
+        row.class,
+        Class::System,
+        "who owns the socket is the whole of its authentication, so where it lives is not a \
+         decision one served request may make (`rule:config/one-local-control-socket`)",
+    );
+    assert!(
+        !row.class.settable_by_a_request(),
+        "`Core\\Config::set(\"control.socket\", …)` has to refuse: a request that moved the door \
+         would be choosing which account answers the next administrative operation",
+    );
+    assert_eq!(
+        row.apply,
+        Apply::Boot,
+        "the endpoint is created as the server starts, so a new name is a new kernel object rather \
+         than a value the next caller reads (`rule:config/reloadability-is-its-own-field`)",
+    );
+
+    assert!(
+        lookup("control").is_none() && lookup("control.nvs_no_such_key").is_none(),
+        "a blanket `control` row would govern a key nobody has written a row for, and handing a \
+         future key `System`/`Boot` by accident is the right answer reached without asking",
     );
 }
 
