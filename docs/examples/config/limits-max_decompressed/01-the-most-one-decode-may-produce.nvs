@@ -1,0 +1,29 @@
+<?nvs
+// A compressed frame can be tiny and still unpack into more memory than the
+// host has. This is the ceiling on what one decode may produce, and every
+// `Core\Compress` and `Core\Zip` call runs under it whether it asks to or not.
+
+echo 'the most one decode may produce: ', Core\Config::get('limits.max_decompressed') ?? '(unset)', "\n";
+
+// 16 KiB of one octet, which is the shape a bomb has: small on the wire and
+// large in the heap.
+bytes $payload = Core\Str::repeat("A", 16384) as bytes;
+bytes $frame = Core\Compress::compress($payload, Core\Codec::Gzip);
+echo 'on the wire:                     ', Core\Bytes::length($frame), " octets\n";
+
+// A call may name a tighter ceiling of its own, and then it gets the smaller of
+// the two. Passing it throws rather than answering a prefix — a truncated
+// decode that looks like success is the failure this bound exists to prevent.
+try {
+    Core\Compress::decompress($frame, Core\Codec::Gzip, 16383);
+    echo "one octet short:                 got the whole thing anyway\n";
+} catch (ParseError $bomb) {
+    echo "one octet short:                 refused\n";
+}
+echo 'at its own ceiling:              ', Core\Bytes::length(Core\Compress::decompress($frame, Core\Codec::Gzip, 16384)), " octets\n";
+
+// What a call cannot do is ask for more than the deployment allows: asking for
+// more gets the operator's number, and the operator's number is not a program's
+// to move.
+echo 'raise the ceiling from here:     ', Core\Config::set('limits.max_decompressed', '4G') ? 'accepted' : 'refused', "\n";
+echo 'still:                           ', Core\Config::get('limits.max_decompressed') ?? '(unset)', "\n";

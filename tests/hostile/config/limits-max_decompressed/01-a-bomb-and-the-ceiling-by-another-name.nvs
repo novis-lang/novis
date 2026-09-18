@@ -1,0 +1,113 @@
+<?nvs
+// Attack: the absolute half of the decompression bound is the number standing
+// between a hundred kilobytes on the wire and as much of this host's heap as
+// the archive cares to name. So this reaches for the key by every other name,
+// hands it every value that would remove it, asks for more of it than there is,
+// and then builds the bomb for real — eighty megabytes of one octet, which is
+// a frame small enough to post and an output the ceiling has to refuse.
+// hostile: timeout-ms 60000
+
+// 1. Every other name for the ceiling. An accepted one is a request choosing
+//    how much of the heap an archive it was handed may claim.
+array<string> $names = [
+    'limits.max_decompressed',
+    'limits.MAX_DECOMPRESSED',
+    'limits.Max_Decompressed',
+    'limits.max_decompressed.',
+    '.limits.max_decompressed',
+    'limits..max_decompressed',
+    'limits.max.decompressed',
+    'limits.max-decompressed',
+    'limits.maxdecompressed',
+    'limits.hard.max_decompressed',
+    'limits.max_decompressed.hard',
+    'app.limits.max_decompressed',
+    'app.0.limits.max_decompressed',
+    "limits.max_decompressed\u{0000}",
+    "limits.memory\u{0000}limits.max_decompressed",
+    'limits.memory/../max_decompressed',
+    Core\Str::repeat('limits.', 20000) . 'max_decompressed',
+];
+foreach ($names as string $key) {
+    Core\Config::set($key, '4G');
+    Core\Config::set($key, '18446744073709551615');
+    Core\Config::set($key, 'false');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 2. Every value under the real name, including the two that would read as "no
+//    ceiling" anywhere else in this block.
+array<string> $values = [
+    'false',
+    'true',
+    '0',
+    '-1',
+    '18446744073709551615',
+    '18446744073709551616',
+    '1024G',
+    '64M',
+    '64MiB',
+    '67108864',
+    '67108865',
+    '',
+    'M',
+    'NaN',
+    'inf',
+];
+foreach ($values as string $value) {
+    Core\Config::set('limits.max_decompressed', $value);
+}
+Core\Config::restore('limits.max_decompressed');
+
+// 3. A call asking for more than the deployment allows, in every shape a `uint`
+//    has. The bound a call gets is the smaller of its ask and the operator's,
+//    so an ask that wins here is a bound named by whoever sent the archive.
+bytes $small = Core\Compress::compress(Core\Str::repeat('A', 16384) as bytes, Core\Codec::Gzip);
+array<uint> $asks = [0, 1, 16383, 16384, 16385, 67108864, 67108865, 4294967296, 18446744073709551615];
+foreach ($asks as uint $ask) {
+    try {
+        Core\Compress::decompress($small, Core\Codec::Gzip, $ask);
+    } catch (ParseError $refused) {
+    }
+}
+
+// 4. The same frame through a stream, fed one octet at a time. The bound is the
+//    whole stream's, so a chunking that charges each `add` separately is a
+//    ceiling divided by however many pieces the sender chose to send.
+Core\Compress\Decompressor $stream = Core\Compress::decompressor(Core\Codec::Gzip, 1024);
+int $at = 0;
+int $len = Core\Bytes::length($small) as int;
+while ($at < $len) {
+    $stream->add(Core\Bytes::slice($small, $at, 1));
+    $at = $at + 1;
+}
+try {
+    $stream->finish();
+} catch (ParseError $chunked) {
+    echo "one octet at a time: refused\n";
+}
+
+// 5. The bomb itself. Eighty megabytes of one octet compresses to about eighty
+//    kilobytes, so the ratio leaves room and the absolute ceiling is the only
+//    thing left saying no. What the host must not do is hold the output.
+bytes $bomb = Core\Compress::compress(Core\Str::repeat('A', 83886080) as bytes, Core\Codec::Gzip);
+echo 'on the wire: ', Core\Bytes::length($bomb), " octets\n";
+try {
+    uint $unpacked = Core\Bytes::length(Core\Compress::decompress($bomb, Core\Codec::Gzip));
+    echo 'unpacked to: ', $unpacked, " octets\n";
+} catch (ParseError $refused) {
+    echo "the bomb was refused\n";
+}
+
+// 6. And refused again, however many times it is sent. A ceiling that leaks the
+//    output it refused is one a sender reaches by sending twice.
+uint $again = 0;
+while ($again < 8) {
+    try {
+        Core\Compress::decompress($bomb, Core\Codec::Gzip);
+    } catch (ParseError $refused) {
+    }
+    $again = $again + 1;
+}
+echo "still standing\n";

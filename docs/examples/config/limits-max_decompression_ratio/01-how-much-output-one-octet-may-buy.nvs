@@ -1,0 +1,27 @@
+<?nvs
+// The other half of the same bound, and the half that catches the attack: a
+// ceiling on the output alone is one a tiny request still reaches, because
+// being small on the wire is exactly what a decompression bomb is for.
+
+echo 'output per octet of input: ', Core\Config::get('limits.max_decompression_ratio') ?? '(unset)', "\n";
+echo 'and the absolute ceiling:  ', Core\Config::get('limits.max_decompressed') ?? '(unset)', "\n";
+
+// 16 KiB of one octet compresses to a few dozen, so this frame unpacks at a
+// ratio in the hundreds — well inside the deployment's, and nowhere near the
+// absolute ceiling.
+bytes $frame = Core\Compress::compress(Core\Str::repeat("A", 16384) as bytes, Core\Codec::Gzip);
+echo 'this frame:                ', Core\Bytes::length($frame), " octets in, 16384 out\n";
+
+// A call that knows what it is reading may name a tighter ratio, with the
+// absolute ceiling left wide open, and the frame is then refused for what it
+// would multiply rather than for what it would total.
+try {
+    Core\Compress::decompress($frame, Core\Codec::Gzip, 1048576, 2);
+    echo "at 2 to 1:                 got the whole thing anyway\n";
+} catch (ParseError $bomb) {
+    echo "at 2 to 1:                 refused\n";
+}
+echo 'at the deployment\'s ratio: ', Core\Bytes::length(Core\Compress::decompress($frame, Core\Codec::Gzip)), " octets\n";
+
+// And the deployment's ratio is nobody's to loosen from in here.
+echo 'loosen it from here:       ', Core\Config::set('limits.max_decompression_ratio', '1000000') ? 'accepted' : 'refused', "\n";

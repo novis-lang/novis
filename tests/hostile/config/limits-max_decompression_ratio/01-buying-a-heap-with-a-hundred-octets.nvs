@@ -1,0 +1,107 @@
+<?nvs
+// Attack: the ratio is the half that catches the archive small enough to post
+// a thousand times, so this works it from every side — the key by every other
+// name, the value in every shape that would read as "no ratio", frames whose
+// output per octet climbs past the deployment's with the absolute ceiling left
+// wide open, and the same frame sliced into chunks small enough that no single
+// one of them looks like an attack.
+// hostile: timeout-ms 60000
+
+// 1. Every other name for the ratio.
+array<string> $names = [
+    'limits.max_decompression_ratio',
+    'limits.MAX_DECOMPRESSION_RATIO',
+    'limits.Max_Decompression_Ratio',
+    'limits.max_decompression_ratio.',
+    '.limits.max_decompression_ratio',
+    'limits..max_decompression_ratio',
+    'limits.max.decompression.ratio',
+    'limits.max-decompression-ratio',
+    'limits.maxdecompressionratio',
+    'limits.hard.max_decompression_ratio',
+    'limits.max_decompression_ratio.hard',
+    'app.limits.max_decompression_ratio',
+    'app.0.limits.max_decompression_ratio',
+    "limits.max_decompression_ratio\u{0000}",
+    'limits.max_decompressed/../max_decompression_ratio',
+    Core\Str::repeat('limits.', 20000) . 'max_decompression_ratio',
+];
+foreach ($names as string $key) {
+    Core\Config::set($key, '1000000');
+    Core\Config::set($key, 'false');
+    Core\Config::set($key, '0');
+    Core\Config::get($key);
+    Core\Config::restore($key);
+}
+
+// 2. Every value under the real name. `false` is the one worth the line: it is
+//    how this file spells "no ceiling" for the limits a request may raise, and
+//    a ratio that read it the same way would be a bound switched off by a word
+//    the block's own documentation teaches.
+array<string> $values = [
+    'false',
+    'true',
+    '0',
+    '1',
+    '-1',
+    '1000',
+    '1001',
+    '1000000000000',
+    '18446744073709551615',
+    '18446744073709551616',
+    '0.001',
+    '1e9',
+    '',
+    'NaN',
+    'inf',
+];
+foreach ($values as string $value) {
+    Core\Config::set('limits.max_decompression_ratio', $value);
+}
+Core\Config::restore('limits.max_decompression_ratio');
+
+// 3. Frames whose ratio climbs. A short run of one octet carries enough header
+//    to stay well under the deployment's ratio; a long one approaches what
+//    deflate can do with a single repeated byte, which is past it. Somewhere in
+//    this list the bound has to start saying no, with the absolute ceiling
+//    nowhere in sight.
+array<uint> $sizes = [16384, 65536, 262144, 1048576, 4194304, 8388608];
+foreach ($sizes as uint $size) {
+    bytes $frame = Core\Compress::compress(Core\Str::repeat('A', $size) as bytes, Core\Codec::Gzip);
+    try {
+        uint $out = Core\Bytes::length(Core\Compress::decompress($frame, Core\Codec::Gzip));
+        echo $size, ': ', $out, " octets back\n";
+    } catch (ParseError $refused) {
+        echo $size, ": refused\n";
+    }
+}
+
+// 4. The same frame through a stream, one octet per chunk. The bound is the
+//    whole stream's, so a decoder charging each `add` its own ratio would let
+//    any archive through for the cost of sending it slowly.
+bytes $bomb = Core\Compress::compress(Core\Str::repeat('A', 4194304) as bytes, Core\Codec::Gzip);
+Core\Compress\Decompressor $stream = Core\Compress::decompressor(Core\Codec::Gzip);
+int $at = 0;
+int $len = Core\Bytes::length($bomb) as int;
+while ($at < $len) {
+    $stream->add(Core\Bytes::slice($bomb, $at, 1));
+    $at = $at + 1;
+}
+try {
+    $stream->finish();
+    echo "one octet at a time: got the whole thing\n";
+} catch (ParseError $chunked) {
+    echo "one octet at a time: refused\n";
+}
+
+// 5. And the ask itself, at both ends of what a `uint` holds. A call may lower
+//    the ratio and may not raise it, so an ask that wins here is a sender
+//    choosing how much of this heap its own archive is worth.
+array<uint> $asks = [0, 1, 2, 999, 1000, 1001, 18446744073709551615];
+foreach ($asks as uint $ask) {
+    try {
+        Core\Compress::decompress($bomb, Core\Codec::Gzip, 67108864, $ask);
+    } catch (ParseError $refused) {
+    }
+}
+echo "still standing\n";

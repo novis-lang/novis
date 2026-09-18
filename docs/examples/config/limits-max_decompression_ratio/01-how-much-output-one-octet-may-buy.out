@@ -1,0 +1,6 @@
+output per octet of input: 1000
+and the absolute ceiling:  64M
+this frame:                52 octets in, 16384 out
+at 2 to 1:                 refused
+at the deployment's ratio: 16384 octets
+loosen it from here:       refused
