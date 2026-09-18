@@ -1335,6 +1335,7 @@ mod tests {
 
     /// A case's integer indexes [`SCHEMES`], so the two tables are one roster
     /// written twice — see [`CHARSET`] for why they cannot be one table.
+    // covers: Core\Charset
     #[test]
     fn the_case_table_and_the_scheme_table_are_one_roster() {
         assert_eq!(CHARSET.cases.len(), SCHEMES.len());

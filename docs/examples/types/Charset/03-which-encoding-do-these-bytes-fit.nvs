@@ -1,0 +1,15 @@
+<?nvs
+// Somebody uploads a file and does not say how it was written. You can ask
+// whether the bytes fit an encoding before you try to read them as text.
+
+bytes $uploaded = Core\Encoding::fromHex("436166e9");
+
+echo "utf-8:        ", Core\Encoding::isValidText($uploaded, Core\Charset::Utf8) ? "yes" : "no", "\n";
+echo "windows-1252: ", Core\Encoding::isValidText($uploaded, Core\Charset::Windows1252) ? "yes" : "no", "\n";
+echo "koi8-r:       ", Core\Encoding::isValidText($uploaded, Core\Charset::Koi8R) ? "yes" : "no", "\n";
+
+// A yes is not proof. Many older encodings give every byte a letter, so the
+// same file fits several of them and reads as something different in each. Use
+// what the sender told you where you can, and guess only where you must.
+echo Core\Encoding::decodeText($uploaded, Core\Charset::Windows1252), "\n";
+echo Core\Encoding::decodeText($uploaded, Core\Charset::Koi8R), "\n";

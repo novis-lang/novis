@@ -1,0 +1,2 @@
+Café
+a conversion is exact or it throws: Core\Encoding::decodeText() found at offset 3 a byte sequence that is not `Core\Charset::Utf8`, and nothing is replaced with U+FFFD or dropped

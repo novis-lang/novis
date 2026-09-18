@@ -2,6 +2,8 @@
 `Core\Encoding::encodeText` and `::decodeText` agree, over every charset the registry names crossed with a table of texts: a text a charset can spell comes back as itself — spec § 7, `rule:types/conversion`
 --FILE--
 <?nvs
+// covers: Core\Charset
+//
 // `encoding-text-trio-converts-through-a-charset.nvst` pins what the trio
 // answers on a handful of rows, and
 // `encoding-charset-conversion-names-the-character-it-cannot-spell.nvst` what

@@ -1,0 +1,2 @@
+436166e9204772f6df656e7761686e
+Core\Encoding::encodeText(): `Core\Charset::Windows1252` has no spelling for '🦀' (U+1F980) at offset 5 of "Crab 🦀" — it is exact or it throws, and there is no transliterating or ignoring mode

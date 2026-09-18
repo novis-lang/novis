@@ -1,0 +1,18 @@
+<?nvs
+// A file arrives from an old system. Its bytes are not UTF-8, so reading them
+// as text needs the name of the encoding they were written in.
+
+// The bytes as they arrive. In a real program they come from a file or from a
+// request; here they are written out so the example stands on its own.
+bytes $arrived = Core\Encoding::fromHex("436166e9");
+
+// Read under the encoding that system uses. You get ordinary text back.
+echo Core\Encoding::decodeText($arrived, Core\Charset::Windows1252), "\n";
+
+// The same bytes are not UTF-8 at all. Novis says so instead of handing you a
+// string with a question mark where the letter should be.
+try {
+    echo Core\Encoding::decodeText($arrived, Core\Charset::Utf8), "\n";
+} catch (Throwable $wrong) {
+    echo $wrong->message, "\n";
+}

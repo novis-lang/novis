@@ -1,0 +1,19 @@
+<?nvs
+// A partner's system reads one legacy encoding and nothing else. Name it, and
+// your text is written out in it.
+
+string $name = "Café Größenwahn";
+
+// Written out as Western European bytes. Each accented letter takes one byte
+// there, where UTF-8 spends two.
+bytes $written = Core\Encoding::encodeText($name, Core\Charset::Windows1252);
+echo Core\Encoding::toHex($written), "\n";
+
+// Nothing is quietly dropped or swapped for a question mark. A character the
+// encoding has no spelling for stops the conversion, and the message says which
+// character it was.
+try {
+    echo Core\Encoding::toHex(Core\Encoding::encodeText("Crab 🦀", Core\Charset::Windows1252)), "\n";
+} catch (Throwable $missing) {
+    echo $missing->message, "\n";
+}
