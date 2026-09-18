@@ -1,0 +1,30 @@
+<?nvs
+// The everyday job: a page of settings, with the values everybody starts with
+// and the ones this customer saved. Two questions get asked about that pair,
+// and each one wants a different part of an entry compared.
+
+array<string> $defaults = [
+    "currency" => "EUR",
+    "language" => "en",
+    "theme"    => "light",
+    "timezone" => "Europe/Vienna",
+];
+
+array<string> $saved = [
+    "language" => "de",
+    "theme"    => "light",
+    "signature" => "Mit freundlichen Grüßen",
+];
+
+// What this customer actually changed: a saved setting whose value is not the
+// one everybody starts with. `theme` was saved, but it was saved as the
+// default, so it is not a change.
+echo "changed: ", Core\Json::encode(Core\Arr::diff($saved, $defaults, {on: Core\SetOn::Both})), "\n";
+
+// Which settings they have never touched, so the page can show the defaults
+// for them. Only the names matter here.
+echo "untouched: ", Core\Json::encode(Core\Arr::diff($defaults, $saved, {on: Core\SetOn::Keys})), "\n";
+
+// And a saved setting the page no longer has, which is worth knowing before it
+// is written back.
+echo "no longer offered: ", Core\Json::encode(Core\Arr::diff($saved, $defaults, {on: Core\SetOn::Keys})), "\n";

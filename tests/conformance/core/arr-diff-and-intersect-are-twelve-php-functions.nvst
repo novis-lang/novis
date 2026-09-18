@@ -2,6 +2,7 @@
 Core\Arr::diff and ::intersect ask one question with SetOn, {by} and {comparator}, comparing by strict identity, per `rule:types/preserve-keys`
 --FILE--
 <?nvs
+// covers: Core\SetOn
 // Two members plus a three-case enum replace twelve `array_diff*` and
 // `array_intersect*` functions. Both keep the first array's keys and order,
 // which `Core\Json::encode` pins along with the values.

@@ -1,0 +1,17 @@
+<?nvs
+// Two lists, and three different questions you can ask about them. What
+// changes between them is which part of an entry is compared.
+
+array<int> $mine = ["x" => 1, "y" => 2, "z" => 3];
+array<int> $theirs = ["p" => 2, "z" => 9];
+
+// The values alone, which is what you get when you say nothing. The value 2 is
+// in both lists, so it is what they share.
+echo "values:  ", Core\Json::encode(Core\Arr::intersect($mine, $theirs)), "\n";
+
+// The names alone. Both lists have a `z`, whatever is stored under it.
+echo "names:   ", Core\Json::encode(Core\Arr::intersect($mine, $theirs, {on: Core\SetOn::Keys})), "\n";
+
+// The name and the value together. Nothing matches on both, so the answer is
+// empty.
+echo "both:    ", Core\Json::encode(Core\Arr::intersect($mine, $theirs, {on: Core\SetOn::Both})), "\n";
