@@ -55,6 +55,7 @@ use rustc_hash::FxHashSet;
 
 use crate::Env;
 use crate::derive::stands_in_for_a_class;
+use crate::expr::is_assignable;
 use crate::expr_table::{ArgSlot, Delegation};
 use crate::signatures::{resolve_method, resolve_property};
 use crate::ty::{Ty, TypeId};
@@ -529,9 +530,10 @@ fn own_obligations(qname: &QName, env: &Env<'_>, out: &mut Vec<(QName, String)>)
 }
 
 /// Reports `E0827` where what a double names is not an interface, one `E0825`
-/// per method that interface requires and the shape of answers leaves out, and
-/// one `E0826` per field that shape names which the interface does not declare
-/// — `rule:testing/doubles`, checked at the call rather than at a declaration
+/// per method that interface requires and the shape of answers leaves out, one
+/// `E0826` per field that shape names which the interface does not declare,
+/// and one `E0828` per field that names a method it cannot stand in for —
+/// `rule:testing/doubles`, checked at the call rather than at a declaration
 /// because a double declares nothing.
 ///
 /// The obligation set is [`check_class_conformance`]'s, asked of the interface
@@ -608,11 +610,11 @@ pub(crate) fn check_double_answers(
     // own example prints them.
     let unknown: Vec<String> = named
         .iter()
-        .filter(|name| {
+        .filter(|(name, _)| {
             !resolve_method(&interface, name, env.signatures, env.graph)
                 .is_some_and(|(_, sig)| !sig.interface_private)
         })
-        .cloned()
+        .map(|(name, _)| name.clone())
         .collect();
     for name in unknown {
         env.diags.report(
@@ -627,6 +629,7 @@ pub(crate) fn check_double_answers(
             )),
         );
     }
+    check_answer_signatures(&interface, &named, call_span, env);
     if method == "partial" {
         return;
     }
@@ -641,7 +644,7 @@ pub(crate) fn check_double_answers(
     // one field to write either way.
     let mut reported = FxHashSet::default();
     for (declaring, name) in owed {
-        if named.contains(&name) || !reported.insert(name.clone()) {
+        if named.iter().any(|(field, _)| *field == name) || !reported.insert(name.clone()) {
             continue;
         }
         env.diags.report(
@@ -659,9 +662,81 @@ pub(crate) fn check_double_answers(
     }
 }
 
-/// The method names one double's shape of answers implements, in the order the
-/// shape interned them — which [`crate::ty::TypeInterner::shape`] sorts, so
-/// the refusals below it come out in one order for one program.
+/// One `E0828` per field of `named` that answers a method `interface` declares
+/// with a value that cannot stand in for it — the third of
+/// `rule:testing/doubles`' three questions, asked of both members, since a
+/// `partial`'s override answers its method exactly as a `double`'s field does.
+///
+/// A field naming no method of the interface is not asked: `E0826` has already
+/// named it, and there is no signature to compare it against.
+///
+/// # Why a code of its own rather than the argument's own mismatch
+///
+/// The position a bad answer is written in is `$answers`, and that parameter
+/// is declared `object` (`rule:types/object-top`), so
+/// [`crate::expr::assign::report_mismatch`] there would report that a shape is
+/// not an object — which is false, and names neither the field nor the method
+/// it was supposed to answer. The constraint is the interface the *call site*
+/// wrote, and this walk is the only place holding both halves of it.
+///
+/// The relation is ordinary assignability over [`Ty::CallableSig`], so
+/// `rule:types/callable-arity`'s prefix arity and
+/// `rule:types/callable-variance`'s contravariant parameters and covariant
+/// return are what a double is held to, with no comparison of its own: a
+/// closure declaring fewer parameters than the method is accepted here for the
+/// reason `nvs_runtime::closure` accepts it at the call.
+fn check_answer_signatures(
+    interface: &QName,
+    named: &[(String, TypeId)],
+    call_span: Span,
+    env: &mut Env<'_>,
+) {
+    for (name, field) in named {
+        let Some((declaring, sig)) = resolve_method(interface, name, env.signatures, env.graph)
+        else {
+            continue;
+        };
+        if sig.interface_private {
+            continue;
+        }
+        // Bare `callable` carries no parameter list to compare
+        // (`rule:types/callable-is-a-closure`), and that is the accepted case
+        // rather than a refusal: the field promises a closure and nothing more,
+        // which is what `nvs_runtime::closure` checks a tag at a time.
+        if matches!(env.interner.get(*field), Ty::Callable) {
+            continue;
+        }
+        let expected = env.interner.callable_sig(sig.params.clone(), sig.return_ty);
+        if is_assignable(*field, expected, env.interner, env.graph, env.signatures) {
+            continue;
+        }
+        let found = env.interner.describe(*field);
+        let wanted = env.interner.describe(expected);
+        env.diags.report(
+            Diagnostic::error(
+                code::E_DOUBLE_METHOD_SIGNATURE,
+                format!("`{name}:` answers `{declaring}::{name}` with `{found}`"),
+            )
+            .with_primary(call_span, format!("`{declaring}::{name}` is `{wanted}`"))
+            .with_help(format!(
+                "write the field as a closure the interface's own call sites can use: it may \
+                 declare fewer parameters than `{name}`, but each one it does declare has to \
+                 accept what they pass, and its result has to satisfy what they were promised \
+                 (`rule:testing/doubles`)"
+            )),
+        );
+    }
+}
+
+/// The method names one double's shape of answers implements paired with the
+/// type of the field naming each, in the order the shape interned them — which
+/// [`crate::ty::TypeInterner::shape`] sorts, so the refusals below it come out
+/// in one order for one program.
+///
+/// The field's own type is carried rather than its name alone because
+/// [`check_answer_signatures`] is the one reader that needs both: what a double
+/// owes is a method's *signature*, and the shape is where the answer's is
+/// written.
 ///
 /// The argument is found through its [`ArgSlot`] rather than by position, so a
 /// call writing `answers:` by name is read exactly as the positional spelling
@@ -672,7 +747,7 @@ fn answered_methods(
     arg_types: &[TypeId],
     slots: &[ArgSlot],
     env: &Env<'_>,
-) -> Vec<String> {
+) -> Vec<(String, TypeId)> {
     let Some(index) = slots.iter().position(|slot| *slot == ArgSlot::Param(param)) else {
         return Vec::new();
     };
@@ -680,7 +755,10 @@ fn answered_methods(
         return Vec::new();
     };
     match env.interner.get(*ty) {
-        Ty::Shape(fields) => fields.iter().map(|field| field.name.clone()).collect(),
+        Ty::Shape(fields) => fields
+            .iter()
+            .map(|field| (field.name.clone(), field.ty))
+            .collect(),
         _ => Vec::new(),
     }
 }

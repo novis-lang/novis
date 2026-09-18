@@ -414,3 +414,67 @@ fn a_double_of_anything_but_an_interface_is_refused() {
         "{diags:?}"
     );
 }
+
+/// A field naming a method the interface does declare is still held to that
+/// method's signature, in each of the three ways one can fail to answer it: a
+/// result the call site was not promised, a parameter it cannot pass, and a
+/// field that is no closure at all.
+#[test]
+fn a_double_answering_a_method_it_cannot_stand_in_for_is_refused() {
+    let clock = "<?nvs\ninterface Clock {\n  public function now(): int;\n}\n";
+    let refuses = |src: &str| {
+        let diags = check_src(src);
+        assert!(
+            diags
+                .iter()
+                .any(|d| d.code == Some(code::E_DOUBLE_METHOD_SIGNATURE)),
+            "{diags:?}"
+        );
+    };
+
+    refuses(&format!(
+        "{clock}Clock $c = Core\\Test::double<Clock>({{ now: fn(): string => \"x\" }});\n"
+    ));
+    refuses(&format!(
+        "{clock}Clock $c = Core\\Test::double<Clock>({{ now: 1 }});\n"
+    ));
+
+    // A parameter the interface's own call sites pass and the answer refuses:
+    // `advance` is handed an `int` by everything dispatching through `Ticker`,
+    // and a closure taking a `string` answers it in name only.
+    let ticker = "<?nvs\ninterface Ticker {\n  public function advance(int $by): int;\n}\n";
+    refuses(&format!(
+        "{ticker}Ticker $t = Core\\Test::double<Ticker>(\
+         {{ advance: fn(string $by): int => 1 }});\n"
+    ));
+
+    // A `partial`'s override is one answer of the same kind, so the check does
+    // not stop at the member that owes every method.
+    refuses(&format!(
+        "{clock}final class SystemClock implements Clock {{\n  \
+         public function now(): int {{ return 1; }}\n}}\n\
+         Clock $c = Core\\Test::partial<Clock>(new SystemClock(), \
+         {{ now: fn(): string => \"x\" }});\n"
+    ));
+}
+
+/// The three directions the same comparison accepts, none of which a double
+/// needs a rule of its own for: `rule:types/callable-arity`'s prefix arity, and
+/// `rule:types/callable-variance`'s contravariant parameters and covariant
+/// return.
+#[test]
+fn a_double_may_answer_with_a_wider_closure_than_the_method_declares() {
+    let ticker = "<?nvs\ninterface Ticker {\n  public function advance(int $by): mixed;\n}\n";
+    for answer in [
+        // Declares fewer parameters than the method — what the runtime already
+        // does, since a callee is handed only the arguments it declares.
+        "fn(): int => 1",
+        // Accepts more than the call site passes, and returns less.
+        "fn(mixed $by): int => 1",
+    ] {
+        let diags = check_src(&format!(
+            "{ticker}Ticker $t = Core\\Test::double<Ticker>({{ advance: {answer} }});\n"
+        ));
+        assert!(!diags.has_errors(), "{answer}: {diags:?}");
+    }
+}

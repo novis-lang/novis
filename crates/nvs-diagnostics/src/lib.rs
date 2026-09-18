@@ -3789,6 +3789,20 @@ pub mod code {
     /// [`E_TYPE_ARG_NOT_A_CLASS`] instead, so one mistake is still one
     /// diagnostic.
     pub const E_DOUBLE_TYPE_ARG_NOT_AN_INTERFACE: Code = Code::new("E0827");
+    /// A `Core\Test::double<T>`/`partial<T>` whose shape answers a method `T`
+    /// does declare with a value that cannot stand in for it.
+    ///
+    /// The third question `rule:testing/doubles`' structural check asks, after
+    /// the name is known to belong to the contract: a closure whose parameters
+    /// refuse what the interface's own call sites pass, or whose result is not
+    /// what they were promised, answers the method in name only. A field that
+    /// is not a closure at all is named by this too — nothing else at the call
+    /// asks what a field holds, since the declared parameter is `object`.
+    ///
+    /// A field typed bare `callable` is accepted: it carries no parameter list
+    /// to compare (`rule:types/callable-is-a-closure`), and the call it stands
+    /// in for is checked one argument at a time by `nvs_runtime::closure`.
+    pub const E_DOUBLE_METHOD_SIGNATURE: Code = Code::new("E0828");
 
     // --- E09xx internal ----------------------------------------------------
     /// The compiler reached a state it believes impossible.
