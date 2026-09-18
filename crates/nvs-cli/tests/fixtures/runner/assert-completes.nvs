@@ -1,0 +1,39 @@
+<?nvs
+// ADR 0079 § 16, from the language surface: a body runs under the test's own
+// clock and is judged by what it left behind. The first test spends a budget on
+// a body that finishes and then reads the moved clock, so the pass and the
+// advance are one claim rather than two; the second leaves a child running
+// inside the body, which is the only way a body "has not finished" once the
+// clock is virtual and a `Duration` sleep therefore costs nothing.
+//
+// A `.nvst` case cannot ask either question -- it is top-level statements and
+// so is never inside a `#[Test]`, which is where a clock is fixed -- so the
+// accepted side of this member lives here. `tests/conformance/core/`'s three
+// `assert-completes-*` cases are the refused side.
+//
+// The child path is written from `crates/nvs-cli`, which is where `cargo test`
+// runs this crate from and where a relative `spawn script` path is anchored
+// (`crates/nvs-cli/src/script.rs`). `crates/nvs-cli/src/runner.rs`'s own tests
+// are the only reader of this file.
+use Core\Test;
+use Core\Time;
+
+final class AssertCompletesTest {
+    #[Test(at: "2026-01-01T00:00:00Z")]
+    public function itPassesABodyThatFinishes(): void {
+        Test::assertCompletes(fn(): void => { Test::assertTrue(true); }, {within: 2h});
+        // The budget was spent on the clock this test declared, which is what
+        // makes a retry or a backoff inside the body elapse at once. A member
+        // that passed the body without moving the clock passes the line above
+        // and fails this one.
+        Test::assertSame(Time::now()->toIso(), "2026-01-01T02:00:00Z");
+    }
+
+    #[Test(at: "2026-01-01T00:00:00Z")]
+    public function itFailsABodyThatLeavesWorkRunning(): void {
+        Test::assertCompletes(
+            fn(): void => { var $orphan = spawn script 'tests/fixtures/runner/task-tree-child.nvs'; },
+            {within: 50ms},
+        );
+    }
+}

@@ -2846,6 +2846,55 @@ mod tests {
         );
     }
 
+    /// `rule:testing/task-tree-and-virtual-clock`'s budget, accepted side.
+    ///
+    /// The clock only exists inside a `#[Test(at: ...)]`, so this is the one
+    /// place `Core\Test::assertCompletes` can be asked anything but its
+    /// refusal — `tests/conformance/core/assert-completes-*` is the other side,
+    /// and the split is `Core\Test::advance`'s.
+    ///
+    /// The advance is asserted with the pass rather than beside it, because a
+    /// member that ran the body and answered `void` without moving the clock is
+    /// exactly the plausible wrong implementation: it passes on every body that
+    /// was going to finish anyway, and buys nothing for the retry and backoff
+    /// code the member exists for.
+    #[test]
+    fn assert_completes_passes_a_body_that_finishes_under_the_clock() {
+        let verdicts = verdicts("assert-completes.nvs");
+        let (method, verdict, failures) = &verdicts[0];
+        assert_eq!(
+            (method.as_str(), *verdict),
+            ("itPassesABodyThatFinishes", "passed"),
+            "failures: {failures:?}"
+        );
+    }
+
+    /// § 16's other half at the same boundary: a body that returned with work
+    /// of its own still going is the failure, and the message carries the
+    /// budget it overran.
+    ///
+    /// Two failures are reported and that is the point — the member's own, and
+    /// the runner's for the tree the test as a whole left behind
+    /// ([`Outcome::with_tasks_left_running`]). A member that merely threw
+    /// without naming the duration leaves the second line looking identical,
+    /// which is why the assertion is on the text and not on the count.
+    #[test]
+    fn assert_completes_fails_a_body_still_running_naming_the_duration() {
+        let verdicts = verdicts("assert-completes.nvs");
+        let (method, verdict, failures) = &verdicts[1];
+        assert_eq!(
+            (method.as_str(), *verdict),
+            ("itFailsABodyThatLeavesWorkRunning", "failed"),
+            "the body left a child running, so the budget was overrun"
+        );
+        assert!(
+            failures.iter().any(|one| one
+                == "Core\\Test::assertCompletes failed: `$body` returned with 1 task(s) of its \
+                    own still running, after the 50ms `within` named"),
+            "the failure names the budget it overran: {failures:?}"
+        );
+    }
+
     /// `rule:testing/inline-snapshots`, both halves in one case because they are one claim: the
     /// updater writes the produced rendering into the `$expected` literal that
     /// asked for it, and nothing else in `nvs test` writes to a source file at
