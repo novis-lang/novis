@@ -1820,6 +1820,15 @@ def rustc_version():
 # Held by whatever background release build is in flight; see `Goal.prebuild`.
 PREBUILD_LOCK = threading.Lock()
 
+# Held by whatever `overlap` command is in flight; see `Goal.start_overlap`.
+OVERLAP_LOCK = threading.Lock()
+
+#: The configuration a fixture runs under in the valgrind sweep, layered over `nvs.toml`, for a
+#: fixture whose cost under memcheck is the distance to a ceiling its leak verdict does not depend
+#: on. The named file says what it changes and why that is the same kill path. The native and WSL
+#: legs never read this: a fixture's pinned output is judged against the repository's own tree.
+VALGRIND_CONFIG = {"examples/limits.nvs": "tools/valgrind-limits.toml"}
+
 # A `command` check is an argv run in a directory, exit 0, with `want` as ordered substrings across
 # both streams. It exists because the acceptance test grew a leg that is neither `nvs run` stdout nor
 # `cargo test`: from M4B, `editors/vscode` is TypeScript and its suites are `npm` scripts. Kept
@@ -1868,7 +1877,8 @@ CHECK_KEYS = {
     "contains":    (("file",),                    ("args", "exit", "stderr_contains",
                                                    "stdout_contains", "needs")),
     "min-bytes":   (("file", "min_bytes"),        ("args", "exit", "stream", "needs")),
-    "command":     (("name", "argv"),             ("cwd", "want", "memoize", "exit", "setup")),
+    "command":     (("name", "argv"),             ("cwd", "want", "memoize", "exit", "setup",
+                                                   "overlap")),
     "nvs-suite":   (("name", "args"),             ("cases", "memoize", "min_passing")),
     "cargo-named": (("name", "args", "tests"),    ("memoize",)),
 }
@@ -1883,6 +1893,17 @@ CHECK_KEYS = {
 # different tiers and the tier decides the order; `Goal.setup_checks` is where that is done. Such a
 # check almost always wants `memoize = false` beside it: what it converges is a database or a file
 # outside the tree, and a memo keyed on the tree would answer green for a server that was replaced.
+#
+# `overlap` on a `command` is the other key that moves a check between tiers, and it is for a check
+# whose cost is a clock rather than work: a fuzz run told to last five minutes lasts five minutes on
+# one core, and in the commands tier the whole sweep stood behind it. Such a check is started in the
+# background once the native CLI is built and judged after the valgrind sweep, ahead of the release
+# checks, so its verdict and its duration are what they were and only its place in the reporting
+# order moves -- the trade `check()` already makes for the release profile. It must be a check whose
+# verdict does not depend on what runs beside it, which is why a cost-class guard can never carry
+# it, and it cannot also be `setup`, which asks for the opposite end of the sweep.
+# `Goal.start_overlap` owns the mechanism.
+#
 # Allowed on every kind. `stage` is read by this driver for the run order and by `holes.py` for the
 # worklist it prints, which is why an unstaged check is still legal but a misspelled one is not.
 COMMON_KEYS = ("kind", "stage")
@@ -1953,6 +1974,13 @@ def validate_spec(spec):
                             f"{known}")
         if "setup" in c and not isinstance(c["setup"], bool):
             raise GoalError(f"{where}: `setup` is a flag, not {c['setup']!r}")
+        if "overlap" in c and not isinstance(c["overlap"], bool):
+            raise GoalError(f"{where}: `overlap` is a flag, not {c['overlap']!r}")
+        if c.get("overlap") and c.get("setup"):
+            raise GoalError(f"{where}: `overlap` and `setup` ask for opposite ends of the sweep")
+        if c.get("overlap") and measures_release_cli(c):
+            raise GoalError(f"{where}: a check that measures the release CLI is cost-class, and "
+                            f"`overlap` runs a check beside everything else")
         if c.get("exit", "nonzero") != "nonzero":
             raise GoalError(f'{where}: `exit` is absent or "nonzero", not {c["exit"]!r}')
         if kind == "contains" and not (c.get("stderr_contains") or c.get("stdout_contains")):
@@ -2076,15 +2104,20 @@ class Goal:
         self.skipped = []  # memo keys this run answered from the file rather than by running
         self._ran_green = set()  # memo keys THIS run made green; a later duplicate is not a memo hit
         # The two memos that are a leg rather than a check, as specs so they key like one: the
-        # fixtures they run over, and for the valgrind sweep the suppressions it runs under.
+        # fixtures they run over, and for the valgrind sweep the suppressions it runs under and
+        # the configuration any fixture is given there.
         supp = ROOT / "tools" / "valgrind.supp"
+        configs = {f: (ROOT / p).read_text(encoding="utf-8") if (ROOT / p).is_file() else ""
+                   for f, p in sorted(VALGRIND_CONFIG.items())}
         self.leg_specs = {
             "wsl leg": {"kind": "wsl leg", "name": "wsl leg", "files": list(self.files),
                         "programs": list(self.all_programs)},
             "valgrind sweep": {"kind": "valgrind sweep", "name": "valgrind sweep",
                                "files": list(self.files), "skip": sorted(self.valgrind_skip),
-                               "supp": supp.read_text(encoding="utf-8") if supp.is_file() else ""},
+                               "supp": supp.read_text(encoding="utf-8") if supp.is_file() else "",
+                               "configs": configs},
         }
+        self._overlap = {}  # (argv tuple, cwd) -> the thread running that `overlap` command
         self._prebuild = None  # the thread warming the release profile
         self._prebuilt = frozenset()  # the arg lists it warms, so `cargo()` knows to wait for it
         self.floor_gate = True  # do the carried floor and the release profile run this sweep?
@@ -2101,6 +2134,10 @@ class Goal:
         # be written on the check itself.
         self.setup_checks = [c for c in cargo if c.get("setup")]
         cargo = [c for c in cargo if not c.get("setup")]
+        # A tier of its own for the reason `setup` is one, at the other end: `start_overlap` starts
+        # these beside the sweep and `check()` judges them once the valgrind sweep is behind it.
+        self.overlap_checks = [c for c in cargo if c.get("overlap")]
+        cargo = [c for c in cargo if not c.get("overlap")]
         # Stage 0 is catch-up: work a later ADR reopened inside a milestone that
         # was already reported done. It runs before everything else so the
         # ledger names it while it is unfinished -- a Stage 3 fixture failing is
@@ -2183,11 +2220,53 @@ class Goal:
         in the same directory, exactly as `cargo()` shares a cargo run. A floor folds in the same
         tool gate -- `reference.py --check`, `rules.py --check` -- once per goal that named it, and
         the tree cannot change inside one check() call, so every run after the first answers the
-        same thing again. Each check still judges its own exit and `want` against the result."""
+        same thing again. Each check still judges its own exit and `want` against the result.
+
+        A command `start_overlap` has in flight is waited for rather than started a second time."""
         key = (tuple(argv), cwd)
+        running = self._overlap.pop(key, None)
+        if running:
+            running.join()
         if key not in self._commands:
             self._commands[key] = capture(argv[0], argv[1:], cwd=ROOT / cwd)
         return self._commands[key]
+
+    def start_overlap(self, leg):
+        """Start every `overlap` command this sweep owes, in the background, and return at once.
+
+        `CHECK_KEYS`' note owns what the key means. The mechanism is `command()`'s own cache: the
+        thread files its result where `command()` looks, and `command()` joins a thread still in
+        flight, so `cargo_check` judges an overlapped check exactly as it judges any other and what
+        it times is the wait that was left rather than the run. The run's own cost goes on `ran`
+        under a label that says it was overlapped, because the three slowest are ranked by what a
+        check cost and a fuzz build that doubled should still show there.
+
+        One at a time across the whole run, for `prebuild`'s reason: a sweep that fails early
+        returns with the thread still running, and the next sweep's `Goal` knows nothing about it.
+        Nothing with the gate shut or over remembered inputs -- the same two questions `check()`
+        asks at the judging end, asked here so nothing is started that nothing will read."""
+        for c in self.swept(self.overlap_checks):
+            if self.remembered(c):
+                continue
+            argv = [(leg.binary if a == "{nvs}" else a) for a in c["argv"]]
+            cwd = c.get("cwd", ".")
+            key = (tuple(argv), cwd)
+            if key in self._overlap or key in self._commands:
+                continue
+            label = f"{c['name']} [{c.get('stage', '?')}] (overlapped)"
+
+            # This sweep's own two containers, bound now: `begin()` replaces both, and a thread
+            # that outlived its sweep must not file a verdict in the next one's cache.
+            def run(argv=argv, cwd=cwd, key=key, label=label,
+                    commands=self._commands, ran=self.ran):
+                with OVERLAP_LOCK:
+                    started = time.monotonic()
+                    commands[key] = capture(argv[0], argv[1:], cwd=ROOT / cwd)
+                    ran.append((label, time.monotonic() - started))
+
+            self._overlap[key] = threading.Thread(target=run, daemon=True)
+            self._overlap[key].start()
+            self.trace(f"{c['name']} started in the background")
 
     def suite(self, leg, args, exact=False):
         """`nvs test` on a leg, with the result shared by every check that asks for the same
@@ -2729,10 +2808,22 @@ class Goal:
         # this said 1.
         vg_error = 97
 
+        def config_for(f):
+            # `VALGRIND_CONFIG` owns which fixture and why. Naming any `--config` turns off the
+            # search for `./nvs.toml`, so the repository's own file is named first and the
+            # fixture's is layered over it, later-wins. Pathed as `supp` is, for its reason.
+            if f not in VALGRIND_CONFIG:
+                return ""
+            base, over = "nvs.toml", VALGRIND_CONFIG[f]
+            if leg.name != "wsl":
+                base, over = str(ROOT / base), str(ROOT / over)
+            return f"--config {base} --config {over} "
+
         def cmd_for(f):
             return (f"cd {leg.repo} && " if leg.name == "wsl" else "") + (
                 f"valgrind --error-exitcode={vg_error} --leak-check=full "
-                f"--errors-for-leak-kinds=definite --suppressions={supp} -q {leg.binary} run {f}"
+                f"--errors-for-leak-kinds=definite --suppressions={supp} -q "
+                f"{leg.binary} {config_for(f)}run {f}"
             )
 
         def shell(line):
@@ -2862,6 +2953,7 @@ class Goal:
         if any(plain_crate_test(c.get("args", [])) for c in self.catch_up_checks + self.cargo_checks):
             n += 1
         n += sum(1 for c in self.swept(self.cargo_checks) if not self.remembered(c))
+        n += sum(1 for c in self.swept(self.overlap_checks) if not self.remembered(c))
         if self.floor_gate:
             n += sum(1 for c in self.release_checks if not self.remembered(c))
         # The whole Linux leg -- probe, build and fixtures -- is skipped when its two consumers are
@@ -2905,6 +2997,7 @@ class Goal:
         self._cargo = {}
         self._suite = {}
         self._commands = {}
+        self._overlap = {}
         self._exes = None
         self._crate_runs = {}
         self.short = []  # thresholds not met yet, judged after everything else
@@ -2980,6 +3073,10 @@ class Goal:
             if fail:
                 return fail
             self.remember(c)
+
+        # Behind the setup tier, which may be preparing what one of these reads, and ahead of
+        # everything else, which is the whole of what they overlap.
+        self.start_overlap(native)
 
         # Held for the whole sweep and not just for the fixtures: on a Linux host `leg` stays
         # `native`, so this is also the origin the valgrind sweep's own run of `examples/http.nvs`
@@ -3088,6 +3185,19 @@ class Goal:
         fail = self.valgrind(leg)
         if fail:
             return fail
+
+        # The `overlap` commands, running since the setup tier. Judged here because this is the
+        # last point ahead of the release checks, which must not start while one is still running:
+        # from here the wait is whatever of the command's own clock the sweep did not cover.
+        self.hold(self.overlap_checks, "overlapped command(s)")
+        for c in self.swept(self.overlap_checks):
+            if self.skip(c, what=f"command {c['name']}"):
+                continue
+            trace(f"command {c['name']} (overlapped since the setup tier)")
+            fail = self.run_cargo_check(c, native)
+            if fail:
+                return fail
+            self.remember(c)
 
         # The `--release` checks, held back from their stages to here. Two reasons, and the second
         # is the one that must not be traded away:
@@ -5018,7 +5128,7 @@ def run_cli():
         say(f"{GOAL_TOML.relative_to(ROOT).as_posix()}: {len(goal.checks)} checks, "
             f"{len(goal.files)} fixtures, legs: {', '.join(legs)}", C.CYAN)
         for c in (goal.catch_up_checks + goal.setup_checks + goal.program_floor
-                  + goal.cargo_checks + goal.program_checks):
+                  + goal.cargo_checks + goal.program_checks + goal.overlap_checks):
             if "file" in c:
                 # The argv `program_check` actually builds, in its order and behind its subcommand:
                 # a check's own `args` go *ahead* of the fixture, so a line printed the other way
@@ -5029,7 +5139,8 @@ def run_cli():
                 continue
             if c["kind"] == "command":
                 memo = "  (memoized against the tree)" if c.get("memoize") else ""
-                note = "  (setup: runs before the fixtures)" if c.get("setup") else memo
+                note = ("  (setup: runs before the fixtures)" if c.get("setup")
+                        else "  (overlap: runs beside the sweep)" if c.get("overlap") else memo)
                 say(f"  [{c.get('stage', '?')}] {c['kind']:<11} {c['name']}: "
                     f"{' '.join(c['argv'])} in {c.get('cwd', '.')}{note}")
                 continue
