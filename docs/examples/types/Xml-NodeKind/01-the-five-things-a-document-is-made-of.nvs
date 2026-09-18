@@ -1,0 +1,37 @@
+<?nvs
+// Everything a parsed document is made of is one of five kinds. This walks a
+// small document and says, for each node, which kind it is.
+
+class Walk {
+    public static function name(Core\Xml\NodeKind $kind): string {
+        return match ($kind) {
+            Core\Xml\NodeKind::Document => "document",
+            Core\Xml\NodeKind::Element => "element",
+            Core\Xml\NodeKind::Text => "text",
+            Core\Xml\NodeKind::Comment => "comment",
+            Core\Xml\NodeKind::ProcessingInstruction => "instruction",
+        };
+    }
+
+    public static function show(Core\Xml\Node $node, string $indent): void {
+        var $kind = $node->kind();
+        echo $indent, Walk::name($kind);
+        // Only two kinds are named: an element by its tag, an instruction by
+        // the program it is addressed to. The other three carry their content
+        // instead.
+        if ($kind == Core\Xml\NodeKind::Element || $kind == Core\Xml\NodeKind::ProcessingInstruction) {
+            echo " ", $node->name();
+        }
+        if ($kind != Core\Xml\NodeKind::Element && $kind != Core\Xml\NodeKind::Document) {
+            echo ": ", $node->text();
+        }
+        echo "\n";
+        foreach ($node->children() as Core\Xml\Node $child) {
+            Walk::show($child, $indent . "  ");
+        }
+    }
+}
+
+var $doc = Core\Xml::parse("<?xml version=\"1.0\"?><?render mode=\"draft\"?><order id=\"1042\"><!-- from the shop --><item>Coffee beans</item></order>");
+
+Walk::show($doc, "");

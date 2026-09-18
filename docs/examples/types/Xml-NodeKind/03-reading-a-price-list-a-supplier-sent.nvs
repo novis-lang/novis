@@ -1,0 +1,51 @@
+<?nvs
+// Reading a price list a supplier sent. A file written by hand is indented, so
+// the children of a tag are not all tags: the line breaks between them are text
+// nodes, and the note somebody left is a comment node. Asking each child its
+// kind is what keeps them out of the count.
+
+class Feed {
+    // An element carries no characters of its own. The words a tag wraps are
+    // in the text node underneath it, which is why this looks one level down.
+    public static function label(Core\Xml\Node $element): tainted string {
+        tainted string $words = "";
+        foreach ($element->children() as Core\Xml\Node $child) {
+            if ($child->kind() == Core\Xml\NodeKind::Text) {
+                $words = $words . $child->text();
+            }
+        }
+        return $words;
+    }
+}
+
+var $xml = "<prices>\n  <item sku=\"CB-100\">Coffee beans</item>\n  <!-- winter price, review in March -->\n  <item sku=\"TL-220\">Tea leaves</item>\n</prices>";
+var $doc = Core\Xml::parse($xml);
+
+uint $children = 0;
+uint $items = 0;
+uint $notes = 0;
+
+foreach ($doc->children() as Core\Xml\Node $prices) {
+    foreach ($prices->children() as Core\Xml\Node $child) {
+        $children = $children + 1;
+
+        if ($child->kind() == Core\Xml\NodeKind::Comment) {
+            $notes = $notes + 1;
+            echo "note: ", Core\Str::trim($child->text()), "\n";
+            continue;
+        }
+        if ($child->kind() != Core\Xml\NodeKind::Element) {
+            continue;
+        }
+
+        $items = $items + 1;
+        echo "item: ", Feed::label($child);
+        foreach ($child->attributes() as string $name => tainted string $value) {
+            echo " (", $name, " ", $value, ")";
+        }
+        echo "\n";
+    }
+}
+
+echo "\n", $children, " children of <prices>, of which ", $items, " are products and ",
+    $notes, " a note somebody left\n";
