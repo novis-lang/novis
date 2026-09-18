@@ -97,6 +97,10 @@ files = [
 
 modules = [
   "crates/nvs-config/src/directive.rs",
+  # Expression lowering — `Lowering::lower_expr`'s dispatch itself, and the shapes with nowhere
+  # more specific to be: member access, the nullsafe chain, `match`, the literals and the array
+  # forms.
+  "crates/nvs-ir/src/lower/expr.rs",
 ]
 
 rules = ["testing/four-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
