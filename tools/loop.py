@@ -2086,7 +2086,7 @@ class Goal:
                                "supp": supp.read_text(encoding="utf-8") if supp.is_file() else ""},
         }
         self._prebuild = None  # the thread warming the release profile
-        self._prebuilt = ()  # the args it is warming, so `cargo()` knows to wait for it
+        self._prebuilt = frozenset()  # the arg lists it warms, so `cargo()` knows to wait for it
         self.floor_gate = True  # do the carried floor and the release profile run this sweep?
         self.held = []  # what a shut gate did not run; non-empty means "green" is not "reached"
         self.fast_path = ""  # a check name to try before the sweep; see `fast_fail`
@@ -2172,7 +2172,7 @@ class Goal:
     def cargo(self, args):
         """`cargo` with the result shared by every check that asks for the same argument list."""
         key = tuple(args)
-        if key == self._prebuilt:
+        if key in self._prebuilt:
             self.join_prebuild()
         if key not in self._cargo:
             self._cargo[key] = capture("cargo", args)
@@ -2300,22 +2300,31 @@ class Goal:
 
     # -- the release build, moved off the critical path ---------------------------------
 
-    def release_args(self):
-        """The one check in the goal whose cost is a BUILD and not a test.
+    def release_builds(self):
+        """Every check in the goal whose cost is a BUILD and not a test, one argument list each.
 
-        `--release` is a different profile from everything else here, so nothing it needs is on
+        `--release` is a different profile from everything else here, so nothing they need is on
         disk when the sweep starts, and this workspace's release profile is `lto = "thin"` with
         `codegen-units = 1` -- measured at 133s after a one-line change to `nvs-runtime`, against
-        the ~130s the whole rest of the sweep costs. Found by its `--release` rather than named,
-        so a goal that moves the guard to another crate does not have to come back here.
+        the ~130s the whole rest of the sweep costs. Found by their `--release` rather than named,
+        so a goal that moves a guard to another crate does not have to come back here.
 
-        `None` when there is no such check, or when its verdict is already remembered against this
-        tree: `prebuild` would then be warming a profile nothing is going to ask about."""
+        **All of them, not the first.** Each names its own `-p <crate>`, which is a compilation of
+        its own, so a list that stopped at one left the rest to compile inside their own checks --
+        and a cost-class guard that starts 0.6s after a 2m31s link measures the link, which is how
+        `nvs-cli`'s warm-start margin read 1.8x on a tree that prints 13x idle.
+
+        Deduplicated, because several stages name the same probe; and a check whose verdict is
+        already remembered against this tree is left out, since `prebuild` would then be warming a
+        profile nothing is going to ask about."""
+        builds = []
         for c in self.checks:
             if c["kind"] in PROGRAM_KINDS or "--release" not in c.get("args", []):
                 continue
-            return None if self.remembered(c) else c["args"]
-        return None
+            if self.remembered(c) or c["args"] in builds:
+                continue
+            builds.append(c["args"])
+        return builds
 
     def release_cli(self):
         """The other release build: `target/release/nvs.exe`, when a check measures it.
@@ -2337,7 +2346,7 @@ class Goal:
         return None
 
     def prebuild(self):
-        """Start that build now, in the background, and let the rest of the sweep run beside it.
+        """Start those builds now, in the background, and let the rest of the sweep run beside them.
 
         The sweep was strictly serial, so the release build was ~60% of an acceptance check that a
         session waits out before the next one can start. Nothing else in the sweep touches the
@@ -2350,14 +2359,14 @@ class Goal:
         before it starts the real invocation, which by then is a no-op build and a 3s test run.
 
         Nothing at all when the floor gate is shut: that is the whole point of the gate, since
-        this build IS the sweep's critical path and not merely a step in it. Measured on the
+        these builds ARE the sweep's critical path and not merely a step in it. Measured on the
         20260904-143054 run, the sweep waited **84s** at `join_prebuild` for a build that had been
         running since t=0, and everything else fitted underneath it."""
         if not self.floor_gate:
             return
-        args = self.release_args()
+        builds = self.release_builds()
         cli = self.release_cli()
-        if not args and not cli:
+        if not builds and not cli:
             return
         def build():
             # One at a time across the whole run. A sweep that fails before it reaches the guard
@@ -2365,15 +2374,16 @@ class Goal:
             # way -- and `load_goal()` hands the next session a fresh `Goal` that knows nothing
             # about it. Without the lock those two cargos would build the same units at once.
             with PREBUILD_LOCK:
-                if args:
+                for args in builds:
                     capture("cargo", [*args, "--no-run"])
                 if cli:
                     capture("cargo", cli)
 
-        # The test profile's args, or nothing to match: a key is a tuple, so a `cargo()` looking
-        # for one never matches the `None` a CLI-only prebuild leaves here, and the thread is
-        # joined by the bench check instead.
-        self._prebuilt = tuple(args) if args else None
+        # Every warmed argument list, and a `cargo()` that finds its own in here waits out the
+        # WHOLE thread: the builds are serial, so a guard released as soon as its own finished
+        # would be measuring the next one. A CLI-only prebuild leaves this empty and is joined by
+        # the bench check instead.
+        self._prebuilt = frozenset(tuple(args) for args in builds)
         self._prebuild = threading.Thread(target=build, daemon=True)
         self._prebuild.start()
         self.trace("release build started in the background")
