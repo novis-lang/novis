@@ -1,0 +1,27 @@
+<?nvs
+// A whole number moving into a place that wants a fraction is the one
+// conversion the language makes on its own, and this is what it costs. Every
+// round hands the last round's count to a method that wants a fraction, so
+// nothing here can be settled before the program starts. Nothing here asks
+// for memory.
+// bench: iterations 300000
+// bench: allocations 0
+
+class Bench {
+    public static function shifted(float $x): float {
+        return $x + 1.0;
+    }
+
+    public static function run(uint $rounds): int {
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            float $x = Bench::shifted($total + 1);   // chained: $total is last round's
+            $total = ($x as int) % 1024;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(300000), "\n";

@@ -1,0 +1,41 @@
+<?nvs
+// Attack: push whole numbers from the far ends of their range into places
+// that want a fraction, round after round, and catch whatever comes back so
+// the program keeps going. Most of these cannot be held exactly and have to
+// be turned away.
+// hostile: timeout-ms 20000
+
+class Sink
+{
+    public static function take(float $x): float
+    {
+        return $x + 1.0;
+    }
+}
+
+array<int> $edges = [
+    9007199254740992,
+    9007199254740993,
+    9223372036854775807,
+    -9223372036854775807,
+    0,
+    -1,
+];
+
+int $refused = 0;
+int $taken = 0;
+uint $round = 0;
+
+while ($round < 20000) {
+    foreach ($edges as int $edge) {
+        try {
+            float $x = Sink::take($edge + ($round as int));
+            $taken = $taken + 1;
+        } catch (ArithmeticError $e) {
+            $refused = $refused + 1;
+        }
+    }
+    $round = $round + 1;
+}
+
+echo $refused, ' ', $taken, "\n";

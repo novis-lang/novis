@@ -1,0 +1,15 @@
+<?nvs
+// A price list for a small shop. Some prices are round numbers and some are
+// not, and a list declared to hold fractions takes both. Nothing is written
+// at the place where the round ones move across.
+// dossier: known-gap crates/nvs-ir/src/lib.rs -- a whole number written straight into an `array<float>` keeps its integer bits instead of widening, so the round prices read back as tiny fractions
+
+array<float> $prices = [4, 2.5, 3];
+float $total = 0.0;
+
+foreach ($prices as float $price) {
+    echo $price, "\n";
+    $total = $total + $price;
+}
+
+echo "total ", $total, "\n";

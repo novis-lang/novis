@@ -1,0 +1,88 @@
+--TEST--
+Every row the widening table names happens at a binding with no `as` written — the numeric one, the three wider positions, the three object ones, and a numeric literal taking its type from its target — `rule:types/implicit-widening`
+--FILE--
+<?nvs
+// covers: lang:types/widening-without-as
+interface Shape {
+    public function area(): float;
+}
+
+class Rect implements Shape {
+    public function area(): float {
+        return 3.5;
+    }
+}
+
+class Square extends Rect {}
+
+class Q {
+    public static function scale(float $x): float {
+        return $x;
+    }
+
+    // The `return` position widens exactly as the argument one does.
+    public static function give(int $n): float {
+        return $n;
+    }
+
+    public static function text(mixed $m): string {
+        return $m as string;
+    }
+}
+
+int $i = 3;
+uint $u = 4;
+
+// The one conversion the language performs on its own, in each of the four
+// places `rule:types/implicit-widening` names it: an assignment, an argument,
+// a return, and the far side of an operator.
+float $stored = $i;
+float $unsigned = $u;
+
+// The wider positions. These change no representation the way the numeric row
+// does, and they are equally unwritten.
+"read"|"write" $mode = "read";
+string $base = $mode;
+?int $optional = $i;
+int|string $either = $i;
+mixed $anything = $i;
+object $plain = new Rect();
+Rect $parent = new Square();
+Shape $contract = new Rect();
+
+// A numeric literal is not a conversion at all: it is untyped until it lands,
+// and takes whichever of the four numeric types the target declares.
+int $asInt = 7;
+uint $asUint = 7;
+float $asFloat = 7;
+decimal $asDecimal = 7;
+
+// The whole table, asserted by counting rather than row by row, so a row that
+// starts answering plausibly on its own still fails here.
+array<bool> $rows = [
+    $stored == 3.0,
+    $unsigned == 4.0,
+    Q::scale($i) == 3.0,
+    Q::give($i) == 3.0,
+    ($stored + $i) == 6.0,
+    $base == "read",
+    $optional == 3,
+    Q::text($either) == "3",
+    Q::text($anything) == "3",
+    $plain is Rect,
+    $parent is Square,
+    $contract->area() == 3.5,
+    $asInt == 7,
+    $asUint == 7,
+    $asFloat == 7.0,
+    $asDecimal == 7,
+];
+int $held = 0;
+foreach ($rows as bool $row) {
+    if ($row) {
+        $held = $held + 1;
+    }
+}
+echo $held, "/", Core\Arr::count($rows), "\n";
+--EXPECT--
+16/16

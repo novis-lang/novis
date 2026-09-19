@@ -6000,6 +6000,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   not name a single class, interface or enum on its own" — right about the shape, wrong about the
   kind. Chain through a wrapper instead, `type B = ?A;` or `type B = array<A>;`, which is what a
   hostile case needs to build a long chain that compiles at all. [until: reviewed 2026-09-19]
+- **`echo` of a control character prints its picture, not the character.** A case that echoes `"\r"`,
+  `"\v"`, `"\f"` or `"\e"` to show what an escape produced gets `␍ ␋ ␌ ␛` back, because the terminal
+  sink substitutes the U+240x picture for a control character, so an `--EXPECT--` written from a run
+  pins the picture rather than the escape. Assert an escape by comparing it with the same code point
+  written the long way — `"\r" == "\u{D}"` — or by `Core\Str::length`, and keep control characters out
+  of the expected output entirely. [until: reviewed 2026-09-19]
 
 ## Splitting a file that got too big
 

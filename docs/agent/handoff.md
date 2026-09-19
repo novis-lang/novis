@@ -5,22 +5,18 @@
 Goal `lang:types`: every feature in `docs/reference/lang/20-types.md` owes the five artefacts of
 `rule:testing/four-proofs`, and the chapter is the whole file set — 18 features, one section each.
 
-Nine are complete: the six that were, plus `nullable-union-literal-and-enum-case-types`,
-`void-never-self-static` and `type-aliases`. Nine still owe;
+Eleven are complete: the nine that were, plus `literals` and `widening-without-as`. Seven still owe;
 `python tools/dossier.py --owed --group lang:types` is the list. Nothing is blocked.
 
-`void-never-self-static`'s proof found a checker hole and it is fixed in the same group: `void` and
-`never` were accepted as a binding's declared type, and a `var` took its type from a call that hands
-nothing back, which left the name standing for nothing and made `nvs-ir` report an operand used
-before it is defined. `nvs_types::locals`' `reject_void_or_never_binding` refuses all three now,
-under `E0742`, whose constant is `E_VOID_OR_NEVER_OUTSIDE_RETURN` rather than `..._PARAMETER`.
-
-Two sentences in the chapter were stale against pinned behaviour and are rewritten: a `never` method
-does run (`tests/conformance/core/a-never-method-is-a-terminator.nvst` has pinned that all along),
-and a `type` alias *is* a member of a class, interface or enum body (`rule:types/class-scoped-alias`).
-
-`target/release/nvs.exe` was rebuilt this session, because the checker changed and `dossier.py`
-prefers it.
+`widening-without-as`'s proof found a silent wrong-number bug, and it is **recorded rather than
+fixed**: an `array<float>` literal stores an integer element's bits unconverted, so `[4, 2.5]` reads
+back `4.9406564584125E-324` for the `4`. It is item 19 of `crates/nvs-ir/src/lib.rs` § *Known gaps*
+(owner M10), which carries the analysis and both halves of the fix, and
+`docs/examples/lang/types/widening-without-as/03-a-price-list-that-mixes-both.nvs` is the proof
+marked `dossier: known-gap`. Its `.out` is hand-written and holds the right answer, so re-blessing
+that file hides the bug rather than fixing it. The object-literal half is a representation question
+at the shape-assignment boundary, which is why the finding was recorded and not closed in the slice
+that found it.
 
 `docs/agent/loop-goal.toml`'s `[context] rules` and its copy at
 `docs/agent/goals/dossier/80-lang-types.toml` now carry the next group's chapter rules; keep swapping
@@ -32,20 +28,21 @@ them per group rather than naming the chapter's whole `types/` set, which is 47 
 under `docs/examples/lang/types/`, `tests/hostile/lang/types/`, `benches/members/lang/types/` and
 `tests/conformance/`. One slice is one feature with all five artefacts.
 
-- [ ] **`lang:types/literals`** — owes all five. `rule:types/literal-types` and
-      `rule:types/duration-literal` specify it. `docs/reference/lang/20-types.md:407`
-- [ ] **`lang:types/widening-without-as`** — owes all five. `rule:types/implicit-widening`
-      specifies it. `docs/reference/lang/20-types.md:486`
 - [ ] **`lang:types/the-conversion-operator-as`** — owes all five. `rule:types/conversion`,
       `rule:expressions/nullable-conversion-availability` and
-      `rule:expressions/conversion-keeps-qualifiers` specify it.
-      `docs/reference/lang/20-types.md:527`
+      `rule:expressions/conversion-keeps-qualifiers` specify it; the table there is closed, so a
+      count over its rows is the case shape. `docs/reference/lang/20-types.md:526`
+- [ ] **`lang:types/narrowing`** — owes all five. `rule:types/narrowing` names exactly four
+      spellings, which is a sweep to assert by counting. `docs/reference/lang/20-types.md:659`
+- [ ] **`lang:types/truthiness`** — owes all five. `rule:expressions/truthy-positions` names six
+      positions and `rule:enums/truthiness` the enum row.
+      `docs/reference/lang/20-types.md:735`
 
 ## Backlog
 
-- `E0233`'s help still says "move it out to file scope" now that a class body takes a `type` too —
-  `crates/nvs-types/src/locals.rs:1448`.
-- `E0307` refuses an alias that names another alias while naming class kinds — the rule's fragment
-  `docs/rules/types/alias-is-never-a-bare-class.md` lists only class-shaped atoms.
-- Nine `lang:types` features still owe every artefact; `python tools/dossier.py --owed --group
-  lang:types` is the list, and `docs/implementation-plan.md` § *Open now* owns the ordering.
+- `lang:types/parameters`, `properties-and-constants`, `qualifiers-tainted-and-secret` and
+  `what-does-not-exist` still owe all five — `python tools/dossier.py --owed --group lang:types`.
+- Gap 19 in `crates/nvs-ir/src/lib.rs` is a correctness bug, not a missing feature: it is owned by
+  M10 today, and it may deserve a goal on the chain instead — the user's call.
+- `docs/reference/lang/20-types.md:408` lists `\0` through `\777` as octal escapes without saying
+  that the assembled string must still be valid UTF-8; `E0431` refuses `"\777"` alone.

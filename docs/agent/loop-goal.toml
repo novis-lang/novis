@@ -111,8 +111,9 @@ modules = [
 rules = ["testing/four-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088",
   # The chapter's own rules: a feature here is documented by the reference section the item anchors
   # and specified by one of these, so a session that does not get them peeks them by hand.
-  "types/literal-types", "types/duration-literal", "types/implicit-widening", "types/conversion",
-  "expressions/nullable-conversion-availability", "expressions/conversion-keeps-qualifiers"]
+  "types/conversion", "expressions/nullable-conversion-availability",
+  "expressions/conversion-keeps-qualifiers", "types/narrowing", "expressions/truthy-positions",
+  "enums/truthiness"]
 
 adrs = ["0134", "0079 §15"]
 
