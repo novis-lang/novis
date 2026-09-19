@@ -1,0 +1,32 @@
+<?nvs
+// Shows two `catch` clauses on one `try`. Each clause names one class, and the
+// first clause whose class matches the error is the one that runs.
+
+class Settings
+{
+    public static function port(string $text): int
+    {
+        if ($text == "") {
+            throw new LogicError("no port was given");
+        }
+        ?int $port = $text as ?int;
+        if ($port == null) {
+            throw new RuntimeError("the port is not a number: " . $text);
+        }
+        return $port;
+    }
+}
+
+array<string> $inputs = ["8080", "", "http"];
+
+foreach ($inputs as string $input) {
+    try {
+        int $port = Settings::port($input);
+        echo "port ", $port, "\n";
+    } catch (LogicError) {
+        // You may leave the variable out when you do not need the error itself.
+        echo "this program has a bug: it asked for a port without a value\n";
+    } catch (RuntimeError $wrong) {
+        echo "bad setting: ", $wrong->message, "\n";
+    }
+}

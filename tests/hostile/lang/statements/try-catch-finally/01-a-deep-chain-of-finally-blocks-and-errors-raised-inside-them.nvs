@@ -1,0 +1,103 @@
+<?nvs
+// Attack: the `try` block is pushed in every shape that could break the way a
+// program leaves it. A recursion with no end puts a `finally` in every frame it
+// builds, and errors are raised inside `finally` blocks. The last step raises
+// one there with nothing to catch it.
+// hostile: timeout-ms 30000
+// hostile: ends-early
+// covers: lang:statements/try-catch-finally
+
+class Attack
+{
+    // A recursion with no end. Every frame holds a `finally`, so stopping it
+    // means running all of them on the way out.
+    public static function forever(int $depth): int
+    {
+        try {
+            return Attack::forever($depth + 1) + 1;
+        } finally {
+            Attack::$unwound = Attack::$unwound + 1;
+        }
+    }
+
+    public static int $unwound = 0;
+
+    public static function boom(string $why): int
+    {
+        throw new RuntimeError($why);
+    }
+
+    // A `finally` that throws while a first error is already on its way out.
+    // The second error replaces the first one.
+    public static function replaces(): int
+    {
+        try {
+            throw new LogicError('the first error');
+        } finally {
+            throw new RuntimeError('the second error');
+        }
+    }
+}
+
+// 1. Two hundred thousand guarded blocks, each caught and each with a
+// `finally`.
+int $rounds = 0;
+int $closed = 0;
+int $i = 0;
+while ($i < 200000) {
+    try {
+        $rounds = $rounds + Attack::boom('row ' . $i);
+    } catch (RuntimeError $e) {
+        $rounds = $rounds + 1;
+    } finally {
+        $closed = $closed + 1;
+    }
+    $i = $i + 1;
+}
+echo $rounds, ' ', $closed, "\n";
+
+// 2. An error raised inside a `finally` replaces the one that was travelling.
+try {
+    echo Attack::replaces(), "\n";
+} catch (RuntimeError $second) {
+    echo $second->message, "\n";
+}
+
+// 3. A recursion with no end, every frame guarded. The engine stops it, and
+// each frame runs its `finally` while the error travels out.
+try {
+    echo Attack::forever(0), "\n";
+} catch (RecursionError $deep) {
+    if (Attack::$unwound > 0) {
+        echo "unwound\n";
+    }
+}
+
+// 4. Two hundred thousand blocks left by `return` from inside the `try`, so
+// the `finally` runs after the value is picked.
+class Leaves
+{
+    public static function value(int $n): int
+    {
+        try {
+            return $n + 1;
+        } finally {
+            Attack::$unwound = Attack::$unwound + 1;
+        }
+    }
+}
+int $sum = 0;
+int $j = 0;
+while ($j < 200000) {
+    $sum = $sum + Leaves::value($sum % 7);
+    $j = $j + 1;
+}
+echo $sum, "\n";
+
+// 5. The last step raises an error inside a `finally` and nothing catches it.
+// The program ends with status 1.
+try {
+    echo "last\n";
+} finally {
+    throw new RuntimeError('nothing catches this');
+}

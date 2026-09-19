@@ -1,0 +1,3 @@
+port 8080
+this program has a bug: it asked for a port without a value
+bad setting: the port is not a number: http

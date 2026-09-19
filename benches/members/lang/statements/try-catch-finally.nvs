@@ -1,0 +1,34 @@
+<?nvs
+// Runs a guarded block: a `try` with a `catch` and a `finally` around one call,
+// which throws on one round in four. A program does this around every row it
+// reads from a file or a request.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(int $rounds): int {
+        int $acc = 1;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: this round's row comes out of the last round.
+            int $row = $acc % 97;
+            try {
+                $acc = ($acc + Bench::step($row, $i % 4)) % 1000003;
+            } catch (RuntimeError $e) {
+                $acc = ($acc + $row + 2) % 1000003;
+            } finally {
+                $acc = $acc + 1;
+            }
+            $i = $i + 1;
+        }
+        return $acc;
+    }
+
+    public static function step(int $row, int $kind): int {
+        if ($kind == 0) {
+            throw new RuntimeError("unusable row");
+        }
+        return $row * 3;
+    }
+}
+
+echo Bench::run(200000), "\n";

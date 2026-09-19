@@ -1,0 +1,33 @@
+<?nvs
+// Shows `finally` around work that must always be closed. The block runs on
+// every way out of the `try`: a normal `return`, and a caught error as well.
+
+class Job
+{
+    public static int $running = 0;
+
+    public static function run(string $name, bool $fails): string
+    {
+        self::$running = self::$running + 1;
+        try {
+            if ($fails) {
+                throw new IOError("cannot write " . $name);
+            }
+            return "done " . $name;
+        } catch (IOError $e) {
+            return "failed: " . $e->message;
+        } finally {
+            // Both ways out of the block above pass through here.
+            self::$running = self::$running - 1;
+            echo "[", $name, " closed] ";
+        }
+    }
+}
+
+// This prints: [report closed] done report
+echo Job::run("report", false), "\n";
+// This prints: [invoice closed] failed: cannot write invoice
+echo Job::run("invoice", true), "\n";
+
+// This prints 0. Every job gave its slot back, the failed one too.
+echo Job::$running, "\n";

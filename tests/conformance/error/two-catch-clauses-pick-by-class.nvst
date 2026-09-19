@@ -2,6 +2,7 @@
 Two `catch` clauses on one `try` each bind their own variable, and the first matching class wins
 --FILE--
 <?nvs
+// covers: lang:statements/try-catch-finally
 class Sorted {
     public static function of(int $n): string {
         try {

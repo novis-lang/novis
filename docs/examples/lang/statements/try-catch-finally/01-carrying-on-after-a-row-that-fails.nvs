@@ -1,0 +1,30 @@
+<?nvs
+// Shows the block form of `try`. The `catch` clause runs when the code inside
+// the `try` block throws an error, and the program carries on after the block.
+
+class Amount
+{
+    public static function of(string $text): int
+    {
+        ?int $value = $text as ?int;
+        if ($value == null) {
+            throw new RuntimeError("not a whole number: " . $text);
+        }
+        return $value;
+    }
+}
+
+array<string> $rows = ["12", "seven", "30"];
+int $total = 0;
+
+foreach ($rows as string $row) {
+    try {
+        $total = $total + Amount::of($row);
+    } catch (RuntimeError $e) {
+        // This prints: skipped: not a whole number: seven
+        echo "skipped: ", $e->message, "\n";
+    }
+}
+
+// This prints 42. The row that failed added nothing.
+echo $total, "\n";
