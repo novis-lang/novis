@@ -195,7 +195,8 @@ The rules of a generator body:
 - Each call makes its own state object: two generators from one method advance independently.
 - A generator is drained once. A second `foreach` over the same `Iterator` object sees nothing.
 - Calling `current()` on a generator before its first `advance()`, or after `advance()` has
-  answered `false`, is not checked: it answers a stale slot rather than throwing.
+  answered `false`, throws `LogicError`. The parked element is readable only inside the protocol,
+  so neither point can answer the element type's null payload or the last element again.
 
 ```nvs
 <?nvs
@@ -391,10 +392,10 @@ a=1;b=2;
 
 # Materialising a sequence: `Core\Arr::from`
 
-`Core\Arr::from` takes an array, an `Iterable<T>` or an `Iterator<T>` and answers an
-`array<T>` with keys `0…n-1` — what PHP's `iterator_to_array` does without preserved keys. Its
-`limit` option stops a generator early. A `Core` collection is not accepted there; use the
-collection's own members (`keys()`, `values()`) instead.
+`Core\Arr::from` takes whatever `foreach` takes — an array, an `Iterable<T>`, an `Iterator<T>` or a
+`Core` collection — and answers an `array<T>` with keys `0…n-1`, which is what PHP's
+`iterator_to_array` does without preserved keys. Its `limit` option stops a generator early. A
+collection is drained exactly as `foreach` walks it, so a `Core\ObjectMap` gives its keys.
 
 ```nvs
 <?nvs

@@ -2,6 +2,7 @@
 Each call to a generator method makes its own state machine — two live at once interleave without sharing a cursor
 --FILE--
 <?nvs
+// covers: lang:iteration/generators
 class G {
     public static function count(int $n): Iterator<int> {
         int $i = 0;

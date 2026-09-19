@@ -1,0 +1,4 @@
+attempt 1 waits 1s
+attempt 2 waits 2s
+attempt 3 waits 4s
+attempt 4 waits 8s

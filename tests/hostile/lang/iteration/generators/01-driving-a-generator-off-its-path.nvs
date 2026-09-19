@@ -1,0 +1,138 @@
+<?nvs
+// Attack: a program drives generators in every way a generator is not meant to be driven.
+// It reads values outside the loop, holds fifty thousand suspended bodies, and stacks four
+// thousand of them. Each step should end with an error or the right answer. The last step
+// fills the memory and stops the program, and the runtime should stay standing.
+// covers: lang:iteration/generators
+// hostile: timeout-ms 20000
+// hostile: ends-early
+
+class Gen
+{
+    public static function count(int $n): Iterator<int>
+    {
+        int $i = 0;
+        while ($i < $n) {
+            yield $i;
+            $i = $i + 1;
+        }
+    }
+
+    public static function plusOne(Iterator<int> $inner): Iterator<int>
+    {
+        foreach ($inner as int $v) {
+            yield $v + 1;
+        }
+    }
+
+    public static function guarded(): Iterator<int>
+    {
+        try {
+            int $i = 0;
+            while (true) {
+                yield $i;
+                $i = $i + 1;
+            }
+        } finally {
+            echo "4: the finally ran\n";
+        }
+    }
+
+    public static function fails(int $at): Iterator<int>
+    {
+        int $i = 0;
+        while (true) {
+            if ($i == $at) {
+                throw new LogicError('the body gave up');
+            }
+            yield $i;
+            $i = $i + 1;
+        }
+    }
+
+    public static function text(string $seed): Iterator<string>
+    {
+        string $s = $seed;
+        while (true) {
+            yield $s;
+            $s = $s . $s;
+        }
+    }
+}
+
+// 1. A value is read before the first step of the loop, and again after the last one.
+try {
+    var $cursor = Gen::count(1);
+    int $early = $cursor->current();
+    echo '1: read ', $early, " before the loop\n";
+} catch (Throwable $e) {
+    echo '1: caught ', $e->message, "\n";
+}
+try {
+    var $spent = Gen::count(1);
+    while ($spent->advance()) {
+    }
+    int $late = $spent->current();
+    echo '1: read ', $late, " after the loop\n";
+} catch (Throwable $e) {
+    echo '1: caught ', $e->message, "\n";
+}
+
+// 2. Fifty thousand generators are started and left suspended, all alive at the same time.
+try {
+    array<Iterator<int>> $live = [];
+    int $k = 0;
+    while ($k < 50000) {
+        var $one = Gen::count(4);
+        $one->advance();
+        $live[] = $one;
+        $k = $k + 1;
+    }
+    echo '2: holding ', Core\Arr::count($live), " suspended bodies\n";
+} catch (Throwable $e) {
+    echo '2: caught ', $e->message, "\n";
+}
+
+// 3. Four thousand generators each read the next one, so one value travels through all of them.
+try {
+    Iterator<int> $chain = Gen::count(2);
+    int $d = 0;
+    while ($d < 4000) {
+        $chain = Gen::plusOne($chain);
+        $d = $d + 1;
+    }
+    foreach ($chain as int $v) {
+        echo '3: ', $v, "\n";
+    }
+} catch (Throwable $e) {
+    echo '3: caught ', $e->message, "\n";
+}
+
+// 4. A generator is abandoned while it is suspended inside a `try`, and another one throws.
+try {
+    foreach (Gen::guarded() as int $v) {
+        if ($v == 2) {
+            break;
+        }
+    }
+    echo "4: the loop ended\n";
+} catch (Throwable $e) {
+    echo '4: caught ', $e->message, "\n";
+}
+try {
+    foreach (Gen::fails(3) as int $v) {
+        echo '4: ', $v, "\n";
+    }
+} catch (Throwable $e) {
+    echo '4: caught ', $e->message, "\n";
+}
+
+// 5. A generator with no end doubles its value every time, and the loop keeps every one.
+// The strings fill the memory, so this step ends the program.
+array<string> $kept = [];
+int $n = 0;
+foreach (Gen::text('0123456789abcdef') as string $chunk) {
+    $kept[] = $chunk;
+    $n = $n + 1;
+}
+echo '5: kept ', $n, "\n";

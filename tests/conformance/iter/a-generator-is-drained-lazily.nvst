@@ -2,6 +2,7 @@
 A generator runs only as far as the `foreach` asks, and a fresh call starts it over — `rule:iteration/two-interfaces`
 --FILE--
 <?nvs
+// covers: lang:iteration/generators
 class Series {
     public static function squaresUpTo(int $n): Iterator<int> {
         var $i = 1;
