@@ -1,0 +1,79 @@
+<?nvs
+// Attack: the four type names, each handed something it must not accept. Text
+// that names no class at all, and text naming a real class that has nothing
+// to do with the one asked for. A closure that calls itself far deeper than
+// the stack goes. An object built with fifty-two fields and checked against a
+// shape that wants two of them. Two hundred thousand instances made through
+// one class reference.
+// hostile: timeout-ms 40000
+
+interface Renders
+{
+    public function render(): string;
+}
+
+class LinesReport implements Renders
+{
+    public function render(): string
+    {
+        return 'lines';
+    }
+}
+
+class Unrelated
+{
+    public int $n = 0;
+}
+
+// The names are built at run time so nothing can decide them in advance.
+array<string> $settings = ['NoSuchClassAnywhere', 'Unrelated', 'LinesReport'];
+
+foreach ($settings as string $setting) {
+    try {
+        class<Renders> $format = $setting as class<Renders>;
+        Renders $report = new $format();
+        echo $setting, ' -> ', $report->render(), "\n";
+    } catch (Throwable $e) {
+        echo $setting, ' -> refused: ', $e->message, "\n";
+    }
+}
+
+// A closure calling itself a million deep. Running out of stack is a fine
+// answer; coming apart is not.
+callable $countDown = fn deeper(int $n): int => ($n <= 0) ? 0 : deeper($n - 1) + 1;
+try {
+    echo $countDown(1000000) as int, "\n";
+} catch (Throwable $e) {
+    echo 'ran out: ', $e->message, "\n";
+}
+
+// An object with fifty-two fields, where the shape asks for two.
+type Pair = {a: int, b: int};
+class Shapes
+{
+    public static function add(Pair $p): int
+    {
+        return $p->a + $p->b;
+    }
+}
+var $fat = {
+    a: 1, b: 2, c: 3, d: 4, e: 5, f: 6, g: 7, h: 8, i: 9, j: 10,
+    k: 11, l: 12, m: 13, n: 14, o: 15, p: 16, q: 17, r: 18, s: 19, t: 20,
+    u: 21, v: 22, w: 23, x: 24, y: 25, z: 26,
+    aa: 27, bb: 28, cc: 29, dd: 30, ee: 31, ff: 32, gg: 33, hh: 34, ii: 35,
+    jj: 36, kk: 37, ll: 38, mm: 39, nn: 40, oo: 41, pp: 42, qq: 43, rr: 44,
+    ss: 45, tt: 46, uu: 47, vv: 48, ww: 49, xx: 50, yy: 51, zz: 52,
+};
+echo Shapes::add($fat), "\n";
+
+// One class reference, two hundred thousand instances through it, so nothing
+// gets to cache the answer once.
+class<Renders> $once = $settings[2] as class<Renders>;
+uint $made = 0;
+uint $i = 0;
+while ($i < 200000) {
+    Renders $each = new $once();
+    $made = $made + Core\Str::length($each->render());
+    $i = $i + 1;
+}
+echo $made, " characters rendered\n";

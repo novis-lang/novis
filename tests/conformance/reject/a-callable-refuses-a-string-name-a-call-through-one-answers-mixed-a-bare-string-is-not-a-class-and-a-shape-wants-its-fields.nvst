@@ -1,0 +1,48 @@
+--TEST--
+The four type names refusing what they do not hold: a `callable` given a function's name as text, a call through one used without converting it, a plain `string` at the two sites that take a class reference, and a shape literal short of a field it names (`rule:types/callable-is-a-closure`, `rule:types/class-reference-sites`, `rule:types/shape-type`)
+--FILE--
+<?nvs
+// covers: lang:types/callable-classes-object-shapes
+
+class Cell {
+    public int $n = 1;
+    public static function make(): string {
+        return "made";
+    }
+}
+
+// `rule:types/callable-is-a-closure`: a closure is the only thing a
+// `callable` holds, so there is no callable string to fall back on.
+callable $named = "strtoupper";
+
+// `rule:types/callable-is-a-closure`: a call through a `callable` value
+// answers `mixed`, which does not widen into anything narrower on its own.
+callable $double = fn(int $x): int => $x * 2;
+int $four = $double(2);
+
+// `rule:types/class-reference-sites`: a class's name as text is not a class
+// reference, and the sites that take one refuse a bare `string` rather than
+// resolving a name at run time.
+string $name = "Cell";
+echo $name::make(), "\n";
+object $o = new Cell();
+echo ($o is $name) ? "y" : "n", "\n";
+
+// `rule:types/shape-type`: a shape is satisfied by the fields a value
+// carries, so a literal missing one it names does not satisfy it.
+type Point = {x: int, y: int};
+Point $short = {x: 1};
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0418]: a string is not callable in Novis; take a reference with first-class callable syntax instead
+%A
+error[E0401]: expected `int`, found `mixed`
+%A
+error[E0496]: the class side of a `::` call must be a written class name
+%A
+error[E0496]: the right-hand side of `is` is a type or a class reference, and this is neither
+%A
+error[E0401]: expected `{x: int, y: int}`, found `{x: int}`
+%A
+error: aborting due to 5 errors

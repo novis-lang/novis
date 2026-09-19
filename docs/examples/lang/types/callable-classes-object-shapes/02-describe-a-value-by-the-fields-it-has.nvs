@@ -1,0 +1,19 @@
+<?nvs
+// A point on a map, described by the fields it carries rather than by a class
+// it was made from. A shape needs a name to be written in front of a value,
+// so it gets one with `type`. A value carrying more fields than the shape asks
+// for still fits it.
+
+type Point = {x: int, y: int};
+
+class Grid {
+    public static function describe(Point $p): string {
+        return "(" . ($p->x as string) . ", " . ($p->y as string) . ")";
+    }
+}
+
+Point $home = {x: 3, y: 4};
+var $pin = {x: 10, y: 20, label: "office"};
+
+echo Grid::describe($home), "\n";
+echo Grid::describe($pin), " ", $pin->label, "\n";

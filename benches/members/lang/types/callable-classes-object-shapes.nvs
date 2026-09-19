@@ -1,0 +1,22 @@
+<?nvs
+// A rule handed to a loop and called once per row -- the shape a filter, a
+// sort comparison or a formatting hook has. The call goes through a value
+// rather than a written name, so what is measured here is what that
+// indirection costs on top of an ordinary call, once per round.
+// bench: iterations 400000
+// bench: allocations 1
+
+class Bench {
+    public static function run(uint $rounds): int {
+        callable $step = fn(int $seen): int => $seen * 3 % 1009 + 1;
+        int $carry = 1;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $carry = $step($carry) as int;        // chained: $carry is last round's
+            $i = $i + 1;
+        }
+        return $carry;
+    }
+}
+
+echo Bench::run(400000), "\n";
