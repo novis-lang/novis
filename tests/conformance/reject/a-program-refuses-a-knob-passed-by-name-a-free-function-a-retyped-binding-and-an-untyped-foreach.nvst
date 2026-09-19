@@ -1,0 +1,38 @@
+--TEST--
+The four shapes the primer program is built out of, each broken one way: a knob passed as a parameter name, a free function, a binding given a second type, and a `foreach` binding with none (`rule:core-api/options-bag`, `rule:classes/no-free-functions-or-constants`, `rule:types/declaration`)
+--FILE--
+<?nvs
+// covers: lang:programs/a-complete-program-annotated
+array<string> $amounts = ["3", "11", "7"];
+
+// `rule:core-api/options-bag`: a knob is a key inside the one trailing
+// literal, never a parameter of its own, so there is no parameter named
+// `order` for this to fill.
+array<string> $ordered = Core\Arr::sort($amounts, order: Core\Order::Asc);
+
+// `rule:classes/no-free-functions-or-constants`: every callable is a member of
+// a class, so the PHP habit finds no name to call.
+echo count($amounts), "\n";
+
+// `rule:types/declaration`: the type is declared once and never changes, so a
+// `string` cannot be written into a name declared `int`.
+int $total = 0;
+$total = "seven";
+
+// `rule:types/declaration`: the binding a `foreach` takes out is declared the
+// same way, and leaving the type off is not a shorter spelling of it.
+foreach ($amounts as $each) {
+    echo $each, "\n";
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0486]: no parameter of this call can be filled by the name `order`
+%A
+error[E0320]: `count` is not a function that exists
+%A
+error[E0401]: expected `int`, found `string`
+%A
+error[E0101]: expected a `foreach` binding's type
+%A
+error: aborting due to 4 errors

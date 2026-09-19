@@ -1,0 +1,24 @@
+<?nvs
+// The first ten lines of an ordinary program: a short list of text values put
+// in order, then walked through and added up as numbers. It is what a web
+// handler does with the fields a form sent, before it answers.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(int $rounds): int {
+        array<string> $pool = ["3", "11", "7", "5"];
+        int $total = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            array<string> $amounts = [$pool[$total % 4], "11", "7"];
+            array<string> $ordered = Core\Arr::sort($amounts, {order: Core\Order::Asc});
+            foreach ($ordered as string $each) {
+                $total = $total + ($each as int);
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";
