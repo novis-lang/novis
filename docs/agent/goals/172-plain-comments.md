@@ -76,9 +76,14 @@ Then, in this session and only after every worker has stopped:
 - **The rule is not reopened here.** `docs/examples/README.md` § *How a comment is written* is the
   standard, and `comment_problems` in `tools/dossier.py` holds the bounds a script can judge. A
   bound that seems wrong goes in the handoff's `## Backlog`; it is not loosened to pass a file.
-- **A line the check names is rewritten, never trimmed.** A long sentence becomes two sentences that
-  each say one thing. Dropping a word, swapping a dash for a comma, or splitting a sentence at a
-  point where neither half stands alone all pass the check and fail the rule.
+- **A comment the check names is written again from the code, never patched.** Read the lines under
+  it, then write what they do and what the result is, in the words of the rule's table. Dropping a
+  word, swapping a dash for a comma, or replacing "answers" with "returns" inside the same winding
+  sentence all pass the check and fail the rule: the sentence was the problem, not the word.
+- **The voice is the thing being removed.** These comments were written in this repository's essay
+  voice — code that *asks* and *answers*, facts told by contrast, its own words for cast, syntax and
+  method. The reader is somebody who looked a feature up, often not in their first language. The
+  test for every rewritten comment is whether it would survive a word-for-word translation.
 - **Passing the check is the floor, not the goal.** Every comment in a file the sweep opens is read
   against the rule, including the ones the check did not name: a short sentence with a figure of
   speech in it, a word only somebody who works on Novis would know. A beginner and an expert read it

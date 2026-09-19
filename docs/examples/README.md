@@ -48,6 +48,9 @@ A beginner and an expert should both read it once and come away with the same pi
 - **`**The examples below**`, only where the prose is hard to follow without code.** One closing
   sentence naming what the examples show, in order. It is a promise: the examples in the same
   directory show exactly that. A feature the prose fully explains gets no such sentence.
+- **Plain English, the same as a comment.** § *How a comment is written* below says what that
+  means — say what it does and what the result is, the word programmers already know, no idiom, no
+  "rather than" — and its word table holds here too.
 - **No code, no internals, no history.** No ADR numbers, no crate names, no "the registry". One
   "replaces PHP's `sort`, `usort`, …" hint is welcome where it helps somebody arriving from PHP.
 
@@ -72,7 +75,7 @@ And one that needs both:
 A queue that lets tasks running at the same time hand values to each other safely.
 
 One task puts values in with `send`, another takes them out with a plain `foreach`. You choose how
-many values the channel holds when you create it. When it is full, the sender waits until there is
+many values fit in the channel when you create it. When it is full, the sender waits until there is
 room, so a fast producer can never flood a slow consumer or fill up memory. Call `close` when you
 are done sending; the receiving loop finishes what is queued and then ends.
 
@@ -121,17 +124,45 @@ A comment in one of these files is read by the same person `about.md` is written
 looked the feature up and has never seen this repository. So it is written the way the description
 is. **A beginner and an expert should both read it once and come away with the same picture.**
 
-- **Short sentences, one idea each.** If a sentence has to be read twice, it is two sentences. A
-  sentence that needs a dash, a semicolon and a "rather than" to get to its end is three.
-- **Everyday words, and the literal thing.** Say "this setting can only be changed by whoever runs
-  the server", not "this one is not a program's to change". No figures of speech: not "the same
-  figure buys more here", not "earns a longer clock", not "works the boundary from both sides".
-- **Say what the next lines do and why somebody would care**, in the reader's words — "your
-  program", "the server", "the person who runs it". The words the implementation uses for itself
-  stay out: shard, tier, slot, row, longest match, single filler, refcount, lowering, the registry.
-- **A name the reader will type is welcome** — the setting, the class, the member, the error they
-  will catch — in backticks. A term they need and may not know gets a few plain words the first
-  time: "a grapheme (what a person counts as one character)".
+**Write it the way a good manual does, not the way this repository's own documents do.** The rules,
+the decision records and the goals here are written in a dense essay voice, and an agent that has
+just read them writes comments in it. That voice is the thing to avoid. Many readers do not have
+English as their first language, and the comment has to work for them on the first read.
+
+- **Say what the line does, then what the result is.** That is the whole comment, in that order:
+  "`as ?int` converts the value to a whole number. If that is not possible, the result is `null`."
+  Add why somebody wants this only when it is not obvious. Name the real value where there is one —
+  "the result is `null`", "this prints `3`" — so the reader can check it against the output.
+- **The subject is the code or the reader.** "`Core\Str::length` returns …", "This loop adds …",
+  "You can change …". Code does not *ask*, *answer*, *hand back*, *refuse*, *decide* or *know*, and
+  a value does not *become a surprise*. It returns, gives, prints, throws, stops, is, has.
+- **Say what happens, not what does not.** "The result is `null`" — not "`null` rather than a
+  silently wrong number". A comparison makes the reader hold two ideas to get one. Where the
+  difference really is the point, give it a sentence of its own: "PHP returns `3` here."
+- **Use the word programmers already know.** cast, syntax, method, function, variable, returns,
+  throws an error, `null`, loop, string. These are the easy words for this reader, and a paraphrase
+  of one is harder than the term. This repository's own vocabulary stays out:
+
+  | Not | Write |
+  |---|---|
+  | spelling | syntax, "the way to write" |
+  | answers, hands back, hands you | returns, gives |
+  | refuses, is refused, a refusal | throws an error, does not compile, is not allowed |
+  | member | method, function |
+  | binding, name | variable |
+  | holds | is, has, contains |
+  | mark, marked | say what it is: "tainted", "secret", and explain it once |
+  | shard, tier, slot, refcount, lowering, the registry | nothing — the reader never needs these |
+
+- **No idioms and no figures of speech.** Not "a wall of emoji", "goes through", "at the edge",
+  "further down", "earns its place", "on purpose", "the rest of that family". If a phrase would not
+  survive a word-for-word translation, write the literal thing.
+- **Short sentences, one idea each.** If a sentence has to be read twice, it is two sentences.
+- **A name the reader will type goes in backticks** — the setting, the class, the method, the error
+  they will catch. A term they need and may not know gets a few plain words the first time:
+  "a grapheme (what a person counts as one character)".
+- **PHP is mentioned once, at most, and at the top.** Most readers looked up a Novis feature, not a
+  migration guide. "now that casts are gone" is history and tells them nothing they can use.
 - **No internals and no history.** No ADR numbers, no rule ids, no crate or Rust names, no
   milestone, nothing about how the behaviour came to be.
 - **Keep it short.** Up to four lines at the top of the file, one or two lines above a step. A
@@ -161,6 +192,18 @@ The same comment, first the way it goes wrong and then the way it is written:
 // Your program may change this setting while it runs. Most settings do not allow that.
 ```
 
+One that was already short, and still hard:
+
+```nvs
+// The conversion is checked. A price with a fraction is not a whole number,
+// so asking with `?int` answers `null` rather than losing the fraction.
+```
+
+```nvs
+// `as ?int` converts a value to a whole number. 3.9 is not a whole number,
+// so the result is `null`.
+```
+
 And an attack:
 
 ```nvs
@@ -171,16 +214,16 @@ And an attack:
 
 ```nvs
 // Attack: a request tries to raise its own memory limit. Only the person who runs
-// the server may set that limit, so every attempt below should be refused.
+// the server may set that limit, so every attempt below should fail.
 ```
 
 If a comment would only make sense to somebody who works on Novis, it is the wrong comment.
 
 `python tools/dossier.py --comments <file or directory> ...` judges what a script can: the line
-bounds above, a sentence longer than a plain one gets, a dash joining two sentences, and the
-implementation's words. It reads and never runs a program. Passing it is the floor, not the rule —
-a short sentence can still be one nobody follows — and the answer to a line it names is to write
-two sentences, never to trim a word until the count fits. `[all] comments = true` in
+bounds above, a sentence longer than a plain one gets, a dash joining two sentences, and the words
+in the *Not* column of the table. It reads and never runs a program. Passing it is the floor, not
+the rule — a short sentence can still be one nobody follows — and the answer to a line it names is
+to write the sentence again from what the code does, never to swap one word until it passes. `[all] comments = true` in
 `tools/data/dossier-policy.toml` makes it part of `--gate`; goal `plain-comments` writes that line
 once the programs that landed before this section are inside the bounds.
 
