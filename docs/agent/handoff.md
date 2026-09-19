@@ -2,43 +2,46 @@
 
 ## State
 
-Goal `lang:programs`, four of its nine features finished with all four proofs plus `about.md`:
-`a-complete-program-annotated`, `a-program-is-a-file-of-top-level-statements`, `comments` and
-`code-mode-and-html-mode`. `python tools/dossier.py --verify --group lang:programs` now names five
-features owing, and none of those four is among them.
+Goal `lang:programs`, six of its nine features finished with all four proofs plus `about.md`:
+the four that were already done, and now `names-and-casing` and `namespaces-and-use`. `python
+tools/dossier.py --verify --group lang:programs` names three owing, all of them in the handoff's
+next group. Both new benches declare `// bench: allocations 0` and both measure it; the figures
+are in `docs/perf/members.ndjson`.
 
-Two findings came out of the proofs and both are fixed. The chapter's bullet on `#!` said a shebang
-line "is not recognized in this build — it is HTML-mode text", which contradicts
-`rule:tooling/shebang-opens-code-mode` and the binary; it is rewritten, and the new reject case pins
-both halves. That case then failed the lossless corpus: the `E0009` recovery consumed the refused
-`<?nvs` without recording trivia for it, so `rule:ide/tokens-plus-trivia-reproduce-the-file` did not
-hold over any file holding one (`crates/nvs-syntax/src/lexer.rs:561`). The chapter edit restaled
-every perf figure in it; all are re-measured and current.
+One finding came out of the namespace proofs and is in `## Backlog` rather than in code: a second
+`namespace` declaration in one file parses and takes effect, so every declaration after it
+resolves under the newer name, which `docs/reference/lang/10-programs.md` § *Namespaces and
+`use`* does not allow. No rule fragment decides it either way and no milestone at M9 or later
+scopes it, so `python tools/owners.py --check` refuses the `# Known gaps` item it would otherwise
+be — whether to refuse a second declaration is a call for the user.
+
+Two of the three remaining features — `require` and `autoload` — each need a second file beside
+the example program, and whether an example directory may hold one is `docs/examples/README.md`'s
+to say. Not checked this session.
 
 ## Next group
 
-Three more features of the same chapter — one file set: `docs/reference/lang/10-programs.md`, plus a
-fresh directory each under `docs/examples/lang/programs/`, `tests/hostile/lang/programs/` and
-`benches/members/lang/programs/`. Each item is one feature with `about.md` and all four proofs, in
-the shapes `docs/examples/README.md`, `tests/hostile/README.md` and `benches/members/README.md` own
-(`rule:testing/four-proofs`).
+**Stage 2: the dossier, one feature per slice** — one file set: `docs/reference/lang/10-programs.md`,
+a fresh directory each under `docs/examples/lang/programs/`, `tests/hostile/lang/programs/` and
+`benches/members/lang/programs/`, and two `.nvst` cases under `tests/conformance/`. Each item is
+one feature with `about.md` and all four proofs, in the shapes `docs/examples/README.md`,
+`tests/hostile/README.md` and `benches/members/README.md` own (`rule:testing/four-proofs`).
 
-- [ ] **`lang:programs/names-and-casing`** — owes about, 3 examples, 2 tests, hostile, perf.
-      `docs/reference/lang/10-programs.md:127`
-- [ ] **`lang:programs/namespaces-and-use`** — owes about, 3 examples, 2 tests, hostile, perf.
-      `docs/reference/lang/10-programs.md:153`
 - [ ] **`lang:programs/require-run-another-file-in-this-frame`** — owes about, 3 examples, 2 tests,
       hostile, perf. `docs/reference/lang/10-programs.md:201`
+- [ ] **`lang:programs/autoload-find-a-class-by-its-namespace`** — owes about, 3 examples, 2 tests,
+      hostile, perf. `docs/reference/lang/10-programs.md:229`
+- [ ] **`lang:programs/ending-a-program`** — owes about, 3 examples, 2 tests, hostile, perf.
+      `docs/reference/lang/10-programs.md:250`
 
 ## Backlog
 
-- `?>` inside a `//` or `#` comment does not leave code mode — the line comment runs to the newline
-  and swallows it (`crates/nvs-syntax/src/lexer.rs:471`). PHP's closing tag wins inside a line
-  comment, so this is a divergence that `rule:php-migration/every-divergence-is-deliberate-and-listed`
-  does not list. It needs a decision — reproduce PHP, or list it — and no proof written here asserts
-  either way.
-- `lang:programs` still owes `autoload-find-a-class-by-its-namespace` and `ending-a-program` after
-  the group above; `docs/reference/lang/10-programs.md:229` and `:250`.
-- `nvs fmt` indents the `}` of a `try`/`catch` whose body leaves code mode one level too far
-  (`tests/hostile/lang/programs/code-mode-and-html-mode/01-…:51-54`). It is a fixed point, so the
-  corpus is stable and nothing is red; it is a layout bug for whoever owns `crates/nvs-fmt/src/indent.rs`.
+- A second `namespace` declaration per file is accepted and re-points every declaration after it;
+  the chapter allows one. Verified with `target/debug/nvs.exe check`. Needs a user call, since
+  refusing it is a new `E01xx` code and a rule fragment, and nothing owns it today.
+- `rule:core-api/casing-checks-the-leading-character` says only the first character's case is
+  checked, and a class constant is checked whole: `public const int MaxLines = 1;` is `E0113` with
+  the rename `MAX_LINES`. The fragment owes a clause naming SCREAMING_SNAKE_CASE as the exception.
+- `docs/reference/lang/10-programs.md` § *Names and casing* says "No identifier may start with
+  `_`" with no diagnostic of its own; `_hidden` is reported as the camelCase error whose rename
+  drops the underscore. Accurate, and worth a sentence in the chapter saying so.
