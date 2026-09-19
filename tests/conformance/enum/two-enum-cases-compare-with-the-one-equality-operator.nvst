@@ -2,6 +2,7 @@
 `==` and `!=` over two cases of one enum answer their backing integers' comparison — `rule:expressions/disjoint-comparison-refused` and `rule:expressions/equality-semantics` and ADR 0010 §§ 3, 5
 --FILE--
 <?nvs
+// covers: lang:enums/comparing-cases
 enum Rank {
     Bronze,
     Silver,

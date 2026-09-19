@@ -1,0 +1,30 @@
+<?nvs
+// Compares two cases of one enum with `==`. A program meets this shape when a request carries a
+// status and a class tests it before every step.
+// bench: iterations 400000
+// bench: calls 0
+// bench: allocations 0
+
+enum Rank { Bronze = 1, Silver = 2, Gold = 3 }
+
+class Bench {
+    public static function run(int $rounds): int {
+        array<Rank> $ranks = [Rank::Bronze, Rank::Silver, Rank::Gold];
+        int $total = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: the case compared this round is picked by the number the
+            // last round produced, so the comparison stays inside the loop.
+            Rank $held = $ranks[$total % 3];
+            if ($held == Rank::Silver) {
+                $total = $total + 2;
+            } else {
+                $total = $total + 1;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

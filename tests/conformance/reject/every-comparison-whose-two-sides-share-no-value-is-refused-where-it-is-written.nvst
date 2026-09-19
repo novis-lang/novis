@@ -32,6 +32,7 @@ var $twoBytes = $b < $b;
 var $twoArrays = $xs < $xs;
 var $twoObjects = $meter < $meter;
 echo "unreached\n";
+// covers: lang:enums/comparing-cases
 --EXPECTF-ERROR--
 error[E0466]: `int` and `string` are disjoint; no value is both, so this comparison is always false
    --> %s:21:26

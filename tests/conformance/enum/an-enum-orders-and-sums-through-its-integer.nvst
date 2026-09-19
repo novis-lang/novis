@@ -2,6 +2,7 @@
 an enum case is its integer, so `as int` is all that relational and arithmetic use of one needs — `rule:enums/no-class-machinery`
 --FILE--
 <?nvs
+// covers: lang:enums/comparing-cases
 enum Suit {
     Clubs = 1,
     Diamonds,

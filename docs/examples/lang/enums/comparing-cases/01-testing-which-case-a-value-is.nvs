@@ -1,0 +1,25 @@
+<?nvs
+// Shows how to compare two cases of one enum. `==` is true when both sides are
+// the same case. `!=` is true when they are different cases.
+
+enum Rank { Bronze, Silver, Gold }
+
+Rank $held = Rank::Silver;
+
+// This prints `the same`.
+if ($held == Rank::Silver) {
+    echo "the same\n";
+}
+
+// This prints `not gold`.
+if ($held != Rank::Gold) {
+    echo "not gold\n";
+}
+
+Rank $other = Rank::Gold;
+
+// This prints `different`. Two variables compare the same way as a variable and
+// a case.
+if ($held != $other) {
+    echo "different\n";
+}

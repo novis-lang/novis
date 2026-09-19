@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to test whether one case is higher than another. `<` and `>` do not
+// work on cases. Convert both sides with `as int` and compare the numbers.
+
+enum Rank { Bronze = 1, Silver = 2, Gold = 3 }
+
+Rank $held = Rank::Silver;
+
+// This prints `below gold`. `Silver` is 2 and `Gold` is 3.
+if (($held as int) < (Rank::Gold as int)) {
+    echo "below gold\n";
+}
+
+// This prints `at least bronze`. `Bronze` is 1.
+if (($held as int) >= (Rank::Bronze as int)) {
+    echo "at least bronze\n";
+}
+
+// The numbers work in arithmetic as well. This prints 1.
+echo (Rank::Gold as int) - ($held as int), "\n";

@@ -1,0 +1,108 @@
+<?nvs
+// Attack: a program compares enum cases millions of times at the ends of the
+// number ranges. It uses the largest `uint`, a negative case, zero, and a
+// method that compares and then calls itself. Every answer should agree with
+// the numbers behind the cases, and the runtime should stay standing.
+// covers: lang:enums/comparing-cases
+// hostile: timeout-ms 20000
+
+enum Mask: uint
+{ None = 0, All = 18446744073709551615 }
+
+enum Signal
+{ Stop = -9223372036854775807, Idle = 0, Go = 9223372036854775807 }
+
+// 1. Four million comparisons at the ends of a `uint`-backed enum. Every round
+// checks that `==` agrees with the numbers.
+class Ends
+{
+    public static function sweep(int $rounds): int
+    {
+        array<Mask> $masks = [Mask::None, Mask::All];
+        int $wrong = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            Mask $a = $masks[$i % 2];
+            Mask $b = $masks[($i + 1) % 2];
+            if (($a == $b) != (($a as uint) == ($b as uint))) {
+                $wrong = $wrong + 1;
+            }
+            if (($a != $a) != false) {
+                $wrong = $wrong + 1;
+            }
+            $i = $i + 1;
+        }
+        return $wrong;
+    }
+}
+
+echo '1: disagreements ', Ends::sweep(4000000), "\n";
+
+// 2. The same sweep over an enum whose cases run from the smallest number
+// through zero to the largest.
+class Across
+{
+    public static function sweep(int $rounds): int
+    {
+        array<Signal> $signals = [Signal::Stop, Signal::Idle, Signal::Go];
+        int $wrong = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            Signal $a = $signals[$i % 3];
+            Signal $b = $signals[($i + 2) % 3];
+            if (($a == $b) != (($a as int) == ($b as int))) {
+                $wrong = $wrong + 1;
+            }
+            $i = $i + 1;
+        }
+        return $wrong;
+    }
+}
+
+echo '2: disagreements ', Across::sweep(4000000), "\n";
+
+// 3. Every ordered pair of three cases compared through `as int`, two million
+// times over.
+class Pairs
+{
+    public static function count(int $rounds): int
+    {
+        array<Signal> $signals = [Signal::Stop, Signal::Idle, Signal::Go];
+        int $lower = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            foreach ($signals as Signal $a) {
+                foreach ($signals as Signal $b) {
+                    if (($a as int) < ($b as int)) {
+                        $lower = $lower + 1;
+                    }
+                }
+            }
+            $i = $i + 1;
+        }
+        return $lower;
+    }
+}
+
+echo '3: ', Pairs::count(200000), "\n";
+
+// 4. A method that compares a case and then calls itself, with no end.
+class Runaway
+{
+    public static function down(Signal $s): int
+    {
+        if ($s == Signal::Go) {
+            return Runaway::down($s);
+        }
+        return 0;
+    }
+}
+
+try {
+    int $reached = Runaway::down(Signal::Go);
+    echo '4: BAD, the call returned ', $reached, "\n";
+} catch (Throwable $e) {
+    echo '4: caught ', $e->message, "\n";
+}
+
+echo "the runtime is still running\n";
