@@ -1,0 +1,29 @@
+<?nvs
+// Turning values into a line of text is what a request does for every log
+// entry it writes. This measures a join of four pieces with `.`, two appends
+// with `.=`, and the number-to-text conversion each makes. Every round takes
+// its input from the round before, so no work can be skipped.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        string $customer = "Ada";
+        string $unit = " EUR";
+        uint $width = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: this round's order number comes out of the last
+            // round's measured line.
+            uint $order = $i + $width % 7;
+            string $line = "order " . $order . " for " . $customer;
+            $line .= ": ";
+            $line .= $order * 2;
+            $line .= $unit;
+            $width = Core\Str::length($line);
+            $i = $i + 1;
+        }
+        return $width;
+    }
+}
+
+echo Bench::run(200000), "\n";

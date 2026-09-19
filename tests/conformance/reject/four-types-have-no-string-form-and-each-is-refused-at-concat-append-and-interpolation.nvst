@@ -1,0 +1,74 @@
+--TEST--
+The four types with no text of their own — `bytes`, an `array<T>`, an enum case and a call returning `void` — are refused where they are joined rather than rendered as something plausible, each with the help that names what to write instead, and `.`, `.=` and an interpolated piece take the same refusal because they are one conversion site, `rule:types/string-is-utf8`, `rule:types/conversion`
+--FILE--
+<?nvs
+// covers: lang:expressions/string-operators
+// Four types have no text of their own, and each is refused where it is
+// written rather than rendered as something plausible. The help names what
+// to write instead, because that choice belongs to the program: which
+// encoding the octets are in, which of the array's values matter, what an
+// enum case should be called. `.`, `.=` and an interpolated piece are the
+// same conversion site and take the same refusal.
+enum Suit { Clubs, Hearts }
+
+class Audit {
+    public static function record(string $message): void {}
+}
+
+bytes $b = "hi" as bytes;
+array<int> $xs = [1, 2];
+
+string $fromBytes = "x" . $b;
+string $fromArray = "x" . $xs;
+string $fromCase = "x" . Suit::Clubs;
+string $fromVoid = "x" . Audit::record("m");
+
+string $line = "x";
+$line .= $b;
+
+string $filled = "x{$xs}";
+echo "unreached\n";
+--EXPECTF-ERROR--
+error[E0707]: `bytes` has no string form
+   --> %s:18:27
+   |
+18 | string $fromBytes = "x" . $b;
+   |                           ^^ converted to `string` here
+   = help: `rule:types/conversion` makes that conversion explicit, because which encoding the octets are in is a decision — `$b as string`
+
+error[E0707]: `array<int>` has no string form
+   --> %s:19:27
+   |
+19 | string $fromArray = "x" . $xs;
+   |                           ^^^ converted to `string` here
+   = help: an `array<T>` has no text of its own; render it — `Core\Json::encode($a)` — or build the string from its elements
+
+error[E0707]: `Suit` has no string form
+   --> %s:20:26
+   |
+20 | string $fromCase = "x" . Suit::Clubs;
+   |                          ^^^^^^^^^^^ converted to `string` here
+   = help: an enum case is a named integer (`rule:enums/no-class-machinery`), not text — `$case as int`, or a member of your own that names it
+
+error[E0707]: `void` has no string form
+   --> %s:21:26
+   |
+21 | string $fromVoid = "x" . Audit::record("m");
+   |                          ^^^^^^^^^^^^^^^^^^ converted to `string` here
+   = help: a call that returns `void` has no value at all, so there is nothing here to print
+
+error[E0707]: `bytes` has no string form
+   --> %s:24:10
+   |
+24 | $line .= $b;
+   |          ^^ converted to `string` here
+   = help: `rule:types/conversion` makes that conversion explicit, because which encoding the octets are in is a decision — `$b as string`
+
+error[E0707]: `array<int>` has no string form
+   --> %s:26:21
+   |
+26 | string $filled = "x{$xs}";
+   |                     ^^^ converted to `string` here
+   = help: an `array<T>` has no text of its own; render it — `Core\Json::encode($a)` — or build the string from its elements
+
+error: aborting due to 6 errors

@@ -1,0 +1,132 @@
+--TEST--
+Every operand `.` accepts renders the same text under `.`, under `.=` and inside an interpolated string — a `string`, the four number types, both `bool`s, `null` and a `Stringable` object — so the whole table is asserted by counting agreements rather than by reading one row off a line, and an append leaves every other holder of the same text alone, `rule:types/string-is-utf8`, `rule:classes/stringable`
+--FILE--
+<?nvs
+// covers: lang:expressions/string-operators
+// The operand table of `.` and `.=`, one entry per row. Each row is rendered
+// three ways — joined with `.`, built up with `.=`, and filled into a
+// double-quoted string — and the three are then counted against each other,
+// so a row that renders one way and not another fails here even though its
+// own line still looks right.
+
+class Label implements Stringable {
+    public function constructor(public string $text) {}
+    public function toString(): string { return $this->text; }
+}
+
+string $str = "s";
+int $int = -5;
+uint $uint = 7;
+float $float = 1.5;
+decimal $dec = 12.50;
+bool $yes = true;
+bool $no = false;
+?string $nul = null;
+Label $obj = new Label("L");
+
+// `true` is `1`, while `false` and `null` are empty; a `decimal` keeps the
+// scale it was written with, and an object renders as its `toString`.
+array<string> $joined = [
+    "<" . $str . ">",
+    "<" . $int . ">",
+    "<" . $uint . ">",
+    "<" . $float . ">",
+    "<" . $dec . ">",
+    "<" . $yes . ">",
+    "<" . $no . ">",
+    "<" . $nul . ">",
+    "<" . $obj . ">",
+];
+echo Core\Str::join($joined, ""), "\n";
+
+// The same table again, built a piece at a time.
+array<string> $appended = [];
+string $cell = "<";
+$cell .= $str;
+$cell .= ">";
+$appended[] = $cell;
+$cell = "<";
+$cell .= $int;
+$cell .= ">";
+$appended[] = $cell;
+$cell = "<";
+$cell .= $uint;
+$cell .= ">";
+$appended[] = $cell;
+$cell = "<";
+$cell .= $float;
+$cell .= ">";
+$appended[] = $cell;
+$cell = "<";
+$cell .= $dec;
+$cell .= ">";
+$appended[] = $cell;
+$cell = "<";
+$cell .= $yes;
+$cell .= ">";
+$appended[] = $cell;
+$cell = "<";
+$cell .= $no;
+$cell .= ">";
+$appended[] = $cell;
+$cell = "<";
+$cell .= $nul;
+$cell .= ">";
+$appended[] = $cell;
+$cell = "<";
+$cell .= $obj;
+$cell .= ">";
+$appended[] = $cell;
+
+// And once more through interpolation, which is the same conversion at a
+// third site.
+array<string> $filled = [
+    "<$str>",
+    "<$int>",
+    "<$uint>",
+    "<$float>",
+    "<$dec>",
+    "<$yes>",
+    "<$no>",
+    "<$nul>",
+    "<$obj>",
+];
+
+uint $rows = Core\Arr::count($joined);
+uint $same = 0;
+uint $i = 0;
+while ($i < $rows) {
+    if ($joined[$i] == $appended[$i]) {
+        if ($joined[$i] == $filled[$i]) {
+            $same = $same + 1;
+        }
+    }
+    $i = $i + 1;
+}
+echo $same, " of ", $rows, "\n";
+
+// `.` is left-associative and its result is a `string`, whichever types the
+// two sides had.
+string $chained = $int . $float . $uint;
+echo $chained, "\n";
+
+// An append writes to its own binding only: the text another variable holds
+// is not touched by it.
+string $first = "abc";
+string $second = $first;
+$second .= "d";
+echo $first, " ", $second, "\n";
+
+// `.=` reaches a property and an array element the same way it reaches a
+// variable.
+Label $target = new Label("p");
+$target->text .= "q";
+array<string> $slots = ["a"];
+$slots[0] .= "b";
+echo $target->text, " ", $slots[0], "\n";
+--EXPECT--
+<s><-5><7><1.5><12.50><1><><><L>
+9 of 9
+-51.57
+abc abcd
+pq ab

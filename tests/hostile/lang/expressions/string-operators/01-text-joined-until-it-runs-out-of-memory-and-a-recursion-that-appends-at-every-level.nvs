@@ -1,0 +1,82 @@
+<?nvs
+// Attack: joining text is given far more work than a program does. Values of
+// every kind are joined millions of times. A recursion appends at every
+// level, and a text is appended to itself until no memory is left. The
+// program should stop with an error, and must not crash or hang.
+// hostile: timeout-ms 20000
+
+class Attack
+{
+    // 1. Every kind of value that has a text form, joined over and over. The
+    // conversion must give the same answer every time.
+    public static function everyKind(uint $rounds): uint
+    {
+        int $negative = -9223372036854775807;
+        uint $huge = 18446744073709551615;
+        float $tiny = 0.000000000000000001;
+        decimal $money = 79228162514264337593543950335;
+        bool $yes = true;
+        ?string $nothing = null;
+        uint $width = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            string $line = $negative . '|' . $huge . '|' . $tiny;
+            $line .= $money;
+            $line .= $yes;
+            $line .= $nothing;
+            $width = $width + Core\Str::length($line);
+            $i = $i + 1;
+        }
+        return $width;
+    }
+
+    // 2. A recursion that appends at every level, so the text and the stack
+    // grow together and whichever limit is reached first stops it.
+    public static function deep(uint $depth, string $carried): string
+    {
+        if ($depth == 0) {
+            return $carried;
+        }
+        return Attack::deep($depth - 1, $carried . 'novis-');
+    }
+
+    // 3. A text of tens of millions of characters, filled into a message. The
+    // braces make the whole thing one more piece to copy.
+    public static function interpolated(uint $doublings): uint
+    {
+        string $big = 'novis';
+        uint $i = 0;
+        while ($i < $doublings) {
+            $big = $big . $big;
+            $i = $i + 1;
+        }
+        string $message = "length {$big} end";
+        return Core\Str::length($message);
+    }
+
+    // 4. A text appended to itself, which doubles it every round. This is the
+    // fastest way there is to ask for more memory than the machine has.
+    public static function untilItIsGone(uint $rounds): uint
+    {
+        string $grown = 'novis';
+        uint $i = 0;
+        while ($i < $rounds) {
+            $grown .= $grown;
+            $i = $i + 1;
+        }
+        return Core\Str::length($grown);
+    }
+}
+
+echo Attack::everyKind(200000), "\n";
+
+// The recursion is caught, so running out of stack does not keep the attacks
+// after it from running.
+try {
+    echo Core\Str::length(Attack::deep(1000000, '')), "\n";
+} catch (RecursionError $e) {
+    echo $e->message, "\n";
+}
+
+echo Attack::interpolated(22), "\n";
+echo Attack::untilItIsGone(64), "\n";

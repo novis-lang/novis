@@ -1,0 +1,53 @@
+<?nvs
+// Shows the job `.` and `.=` do most often at work: turning records into the
+// text a customer reads. A class that implements `Stringable` joins in as
+// whatever its `toString` returns. An amount is then formatted in one place,
+// and every line that mentions it comes out the same.
+
+class Money implements Stringable {
+    public function constructor(public decimal $amount, public string $currency) {}
+
+    public function toString(): string {
+        return $this->amount . " " . $this->currency;
+    }
+}
+
+class Line {
+    public function constructor(
+        public string $item,
+        public uint $quantity,
+        public Money $price,
+    ) {}
+}
+
+class Confirmation {
+    public function constructor(public string $customer, public array<Line> $lines) {}
+
+    // The subject is one join. Nothing here is cast: the number and the
+    // object both have a text form already.
+    public function subject(): string {
+        return "Your order, " . $this->customer . " (" . Core\Arr::count($this->lines) . " items)";
+    }
+
+    // The body grows a piece at a time, because how many lines there are is
+    // only known while this runs.
+    public function body(): string {
+        string $body = "Hello $this->customer,\n\n";
+        foreach ($this->lines as Line $line) {
+            $body .= "  " . $line->quantity . " x " . $line->item . " at " . $line->price . "\n";
+        }
+        $body .= "\nThank you.";
+        return $body;
+    }
+}
+
+Confirmation $mail = new Confirmation("Ada", [
+    new Line("desk lamp", 2, new Money(19.99, "EUR")),
+    new Line("cable", 1, new Money(4.50, "EUR")),
+]);
+
+// This prints: Your order, Ada (2 items)
+echo $mail->subject(), "\n";
+
+// This prints the greeting, one line per item, and the closing line.
+echo $mail->body(), "\n";

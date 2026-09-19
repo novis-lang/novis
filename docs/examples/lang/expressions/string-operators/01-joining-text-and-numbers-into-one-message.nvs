@@ -1,0 +1,26 @@
+<?nvs
+// Shows how to join text and numbers with `.`. Every value gets its text form
+// first, so no cast is needed, and the result is always a `string`.
+
+string $customer = "Ada";
+uint $order = 1042;
+decimal $total = 19.99;
+
+// This prints: Order 1042 for Ada came to 19.99 EUR
+echo "Order " . $order . " for " . $customer . " came to " . $total . " EUR", "\n";
+
+// A double-quoted text fills the values in where they stand, which reads
+// better than a long chain of joins. This prints the same line.
+echo "Order $order for $customer came to $total EUR", "\n";
+
+// Use braces when the value is more than a plain variable.
+array<string> $items = ["desk lamp", "cable"];
+// This prints: First item: desk lamp
+echo "First item: {$items[0]}", "\n";
+
+// `true` joins as 1, while `false` and `null` join as nothing at all. This
+// prints: [1] [] []
+bool $paid = true;
+bool $shipped = false;
+?string $note = null;
+echo "[" . $paid . "] [" . $shipped . "] [" . $note . "]", "\n";
