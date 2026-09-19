@@ -2,49 +2,48 @@
 
 ## State
 
-Goal `lang:errors` is four of its twelve features in. `lang:errors/an-uncaught-throw`,
-`assertion-failures`, `capability-denials-are-catchable` and `fatal-errors-limits-no-catch-sees` are
-`complete.` in `python tools/dossier.py --id`; the other eight owe everything.
+Goal `lang:errors` is eight of its twelve features in. `an-uncaught-throw`, `assertion-failures`,
+`capability-denials-are-catchable`, `constructing-and-subclassing`,
+`fatal-errors-limits-no-catch-sees`, `properties-not-accessors`, `rethrowing` and `the-throwable-tree`
+are `complete.` in `python tools/dossier.py --id`; the other four owe everything.
 
-Three things the rest of the goal will use. **An example may declare the status it ends with** —
-`// dossier: exit 1`, `docs/examples/README.md` § *`// dossier: exit 1`* — which is what a feature
-whose subject is the *ending* carries instead of a program that runs to its last line. **An example
-that needs a capability or a limit is an `[[app]]` block in the root `nvs.toml` keyed by that
-example's own `entry`**, because an example runs from the repository root; `[app.limits] memory =
-"16M"` is the ceiling the conformance cases are already written around, and two 8 MiB slabs breach
-it. **A `.nvst` case needs no such block**: it carries its own `--FILE nvs.toml--` section.
+Four things the rest of the goal will use. **The two `.nvst` cases a feature owes are usually already
+in `tests/conformance/error/`** — attributing one is a one-line `// covers:` edit in its `--FILE--`
+block, the marker takes a comma-separated list, so one case may serve two features. **A marker shifts
+the lines under it**, and the playbook bullet above says what that breaks. **An example may declare
+the status it ends with** — `// dossier: exit 1`, `docs/examples/README.md` § *`// dossier: exit 1`*.
+**An example that needs a capability or a limit is an `[[app]]` block in the root `nvs.toml` keyed by
+that example's own `entry`**; a `.nvst` case needs none, since it carries its own `--FILE nvs.toml--`
+section.
 
-Two features are excused their perf figure in `tools/data/dossier-policy.toml` for one reason —
-their subject is an ending, so there is no loop: `an-uncaught-throw` and
-`fatal-errors-limits-no-catch-sees`.
+Two features are excused their perf figure in `tools/data/dossier-policy.toml` because their subject
+is an ending: `an-uncaught-throw` and `fatal-errors-limits-no-catch-sees`.
 
 ## Next group
 
-**Three more features of goal `lang:errors`, one slice each** — one file set: the reference chapter
-`docs/reference/lang/70-errors.md`, plus the four proof trees under
+**Stage 2: the last four features of goal `lang:errors`, one slice each** — one file set: the
+reference chapter `docs/reference/lang/70-errors.md`, plus the four proof trees under
 `docs/examples/lang/errors/`, `tests/hostile/lang/errors/`, `benches/members/lang/errors/` and
 `tests/conformance/error/`. `rule:testing/feature-proofs` is what each owes; `python
 tools/dossier.py --id '<feature>'` prints the paths.
 
-- [ ] **`lang:errors/constructing-and-subclassing`** — owes about, examples, hostile, perf, tests.
-      `docs/reference/lang/70-errors.md:136`. A user class extends `Throwable` directly, so the
-      examples are a program's own exception class and the `{previous: …}` chain.
-- [ ] **`lang:errors/the-throwable-tree`** — owes about, examples, hostile, perf, tests.
-      `docs/reference/lang/70-errors.md:8`. `tests/conformance/error/` already holds cases that pin
-      the tree; check what a `covers:` marker alone would attribute before writing a new one.
-- [ ] **`lang:errors/properties-not-accessors`** — owes about, examples, hostile, perf, tests.
-      `docs/reference/lang/70-errors.md:79`. The property table is at
-      `docs/reference/lang/70-errors.md:84`; pin `backtrace` rather than `location` for anything a
-      `Core` member raised, for the reason the playbook's new bullet gives.
+- [ ] **`lang:errors/throw`** — owes about, examples, hostile, perf, tests.
+      `docs/reference/lang/70-errors.md:177`. `throw` is a statement and an expression, so the
+      examples want it after `??`, in a `match` arm and in a ternary.
+- [ ] **`lang:errors/try-catch-finally`** — owes about, examples, hostile, perf, tests.
+      `docs/reference/lang/70-errors.md:201`. Clause order, one class per clause, one binding per
+      clause, and what `finally` runs on every way out.
+- [ ] **`lang:errors/recursion-depth`** — owes about, examples, hostile, perf, tests.
+      `docs/reference/lang/70-errors.md:370`. The limit fires at about 3,676 frames on this host;
+      measure it again rather than copying that number.
+- [ ] **`lang:errors/inspecting-a-value`** — owes about, examples, hostile, perf, tests.
+      `docs/reference/lang/70-errors.md:510`.
 
 ## Backlog
 
-- Five features of this goal after the group above: `throw` (`70-errors.md:176`), `try-catch-finally`
-  (`:200`), `rethrowing` (`:309`), `recursion-depth` (`:369`), `inspecting-a-value` (`:509`).
-- `docs/reference/lang/70-errors.md:88` says `location` is the `file:line` of the `throw` and empty
-  only until the object is thrown, which a fault raised inside a `Core` member disagrees with — it
-  reads empty unless the frame that raised it also catches it. The tested behaviour is the one to
-  keep; the sentence is what needs the qualifier.
-- A denied `Core\IO::read` costs 846 ns, 21 allocations and 1754 bytes for a call that does no work
-  (`docs/perf/members.ndjson`) — the message and its `help:` line are built before anyone asks for
-  them.
+- A throw and a supertype catch cost 17 allocations and 980 bytes per round, and a rethrow round trip
+  22 and 1,237 — `docs/perf/members.ndjson`, features `lang:errors/the-throwable-tree` and
+  `lang:errors/rethrowing`. Nothing is wrong with them; they are the first figures anyone has for the
+  throw path, and whoever owns `crates/nvs-runtime/src/throwable.rs` may want a look.
+- `tests/hostile/lang/errors/properties-not-accessors` reads 3,673 frames out of a chain asked to go
+  10,000 deep: the recursion limit ends it first, which goal item `recursion-depth` is about.

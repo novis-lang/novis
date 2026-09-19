@@ -6071,6 +6071,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   while `backtrace` is filled either way. Print `Core\Arr::count($e->backtrace)` when the claim is
   that the throw unwound, and leave `location` to the case that owns it.
   [until: reviewed 2026-09-19]
+- **Adding a `// covers:` marker to a `.nvst` case shifts every line under it, and a case whose
+  `--EXPECT--` pins a `file:line` then fails.** `a-location-is-the-throw-site-and-a-rethrow-moves-it`
+  froze `rethrown=case.nvs:16`, and the one marker line moved the rethrow to 17, so a one-line
+  attribution edit turned the conformance suite red. Before marking a case, `grep -n 'case.nvs:'` it:
+  where a number is pinned, move it by the number of lines the marker adds, in the same edit.
+  [until: reviewed 2026-09-19]
 
 ## Splitting a file that got too big
 
@@ -8330,6 +8336,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   output no longer matches. Put the call that can throw in its own statement and echo the variable.
   [until: reviewed 2026-09-19]
 - **An array literal written in a `foreach` subject position binds `mixed`, so `foreach (["a", "b"] as string $x)` is refused as `E0401`.** A literal takes its element type from the declaration it is assigned to, and a subject position gives it none. Declare it first — `array<string> $queue = ["a", "b"];` — and iterate the variable. [until: reviewed 2026-09-19]
+- **An example that prints `location` or `backtrace` freezes its own line numbers into the blessed
+  `.out`.** `verify.py`'s `nvs-fmt` step rewrites proof files in place after you blessed them, and any
+  later comment edit above the `throw` moves the number too, so the example goes red with nothing
+  wrong in it. Bless such an example last, after `python tools/verify.py` has formatted the tree, and
+  re-run `python tools/dossier.py --run examples --group <group>` after any edit above a `throw`.
+  [until: reviewed 2026-09-19]
 
 ## Divergences and refusals already pinned
 
