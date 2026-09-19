@@ -1,0 +1,37 @@
+<?nvs
+// Shows a real use: a page needs a customer and their orders, and both answers come
+// from somewhere slow. These are ordinary functions, so the page can ask for them at
+// the same time or one at a time. The functions are written the same way either way.
+
+class Store {
+    public static function customer(): string {
+        Core\Time::sleep(5ms);
+        return "Ada Lovelace";
+    }
+
+    public static function orders(): array<string> {
+        Core\Time::sleep(5ms);
+        return ["A-1001", "A-1002"];
+    }
+
+    public static function banner(): string {
+        Core\Time::sleep(5ms);
+        return "Free delivery this week";
+    }
+}
+
+// Neither answer needs the other, so both are asked for at the same time.
+var $page = Core\Task::all({
+    customer: Store::customer(...),
+    orders: Store::orders(...),
+});
+
+echo $page->customer, "\n";
+
+foreach ($page->orders as string $order) {
+    echo "order ", $order, "\n";
+}
+
+// The same kind of function, called on its own line.
+string $banner = Store::banner();
+echo $banner, "\n";

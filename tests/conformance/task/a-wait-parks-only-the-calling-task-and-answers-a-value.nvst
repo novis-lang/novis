@@ -1,0 +1,58 @@
+--TEST--
+A member that waits parks only the calling task: a sibling runs while it sleeps and resumes first, each task's own statements keep their order, and the waiting call answers its value with nothing to unwrap — `rule:concurrency/one-scheduler`, `rule:concurrency/a-child-belongs-to-the-calling-task`
+--FILE--
+<?nvs
+// covers: lang:concurrency/no-colouring-i-o-just-waits
+// The trace is a static string and not `echo` on purpose: output written inside a
+// task is collected and emitted one whole task at a time, so an `echo` trace reads
+// `long, long, short, short` whatever the two tasks actually did. This is the
+// discriminator for the whole no-colouring claim — a `sleep` that parked the
+// scheduler rather than the task would order the trace the same way `echo` does.
+class Trace {
+    public static string $steps = "";
+
+    public static function note(string $what): void
+    {
+        Trace::$steps = Trace::$steps . $what . "\n";
+    }
+}
+
+class Slow {
+    // An ordinary static method. Nothing about it is coloured by the wait inside it:
+    // no `async`, and no promise at the call site below.
+    public static function value(): int
+    {
+        Core\Time::sleep(5ms);
+        return 7;
+    }
+}
+
+Core\Task::all({
+    long: fn(): void => {
+        Trace::note("long starts");
+        Core\Time::sleep(40ms);
+        Trace::note("long wakes");
+    },
+    short: fn(): void => {
+        Trace::note("short starts");
+        Core\Time::sleep(5ms);
+        Trace::note("short wakes");
+    },
+});
+
+// Both tasks start before either one wakes, and `short` — which waits for an eighth
+// of the time — wakes first, so the sleep in `long` parked that one task and nothing
+// else. Each task's own two lines keep their order, which is the sequential half:
+// neither task ran its second statement before its first.
+echo Trace::$steps;
+
+// The value half: `$n` is an `int` here and not a handle, so it is multiplied in the
+// same expression with no `await` and no callback.
+int $n = Slow::value();
+echo "a waiting call answers a value: ", $n * 2, "\n";
+--EXPECT--
+long starts
+short starts
+short wakes
+long wakes
+a waiting call answers a value: 14

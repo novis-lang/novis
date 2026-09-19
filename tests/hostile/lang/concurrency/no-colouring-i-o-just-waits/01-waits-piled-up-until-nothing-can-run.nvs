@@ -1,0 +1,67 @@
+<?nvs
+// Attack: two hundred thousand waits in a row, and two thousand frames that have
+// each waited. Then fifty thousand tasks wait at once, and one task waits an hour.
+// The last step calls itself far past the stack limit, waiting at every level. The
+// runtime must stay standing and must stop the last one with an error.
+// covers: lang:concurrency/no-colouring-i-o-just-waits
+// hostile: timeout-ms 60000
+
+class Pile
+{
+    // Every level waits before it calls itself. Each frame was parked and resumed,
+    // and the whole chain is still on the stack when the deepest one returns.
+    public static function down(int $n): int
+    {
+        if ($n <= 0) {
+            return 0;
+        }
+
+        Core\Time::sleep(0ms);
+
+        return Pile::down($n - 1) + 1;
+    }
+}
+
+// Step 1: two hundred thousand waits, one after another. Each one parks this task
+// and gives it back, so nothing may be kept from the one before.
+uint $waits = 0;
+while ($waits < 200000) {
+    Core\Time::sleep(0ms);
+    $waits = $waits + 1;
+}
+echo 'step 1: ', $waits, " waits in a row\n";
+
+// Step 2: two thousand frames deep, each one having waited on the way down.
+echo 'step 2: reached level ', Pile::down(2000), "\n";
+
+// Step 3: fifty thousand tasks that each wait, 256 of them at a time. Every one of
+// them is parked, so the memory for the parked tasks is what is under attack here.
+var $many = Core\Task::map(Core\Arr::range(1, 50000), fn(int $n): int => {
+    Core\Time::sleep(1ms);
+    return $n;
+}, { limit: 256 });
+echo 'step 3: ', Core\Arr::count($many), " tasks waited at the same time\n";
+
+// Step 4: a wait of one hour. The deadline is what ends it, and the task must not
+// run one more line of its own afterwards.
+try {
+    Core\Task::all({
+        hour: fn(): int => {
+            Core\Time::sleep(1h);
+            return 1;
+        },
+    }, { deadline: 50ms });
+    echo "step 4: the hour passed, which it must not\n";
+} catch (TimeoutError $late) {
+    echo "step 4: the deadline ended a wait of one hour\n";
+}
+
+// Step 5: two hundred thousand frames deep, waiting at every level. The stack limit
+// is what has to stop this, with an error the program can catch.
+int $reached = 0;
+try {
+    $reached = Pile::down(200000);
+    echo 'step 5: reached level ', $reached, ", which it must not\n";
+} catch (RecursionError $deep) {
+    echo "step 5: the stack limit stopped a chain of waits\n";
+}
