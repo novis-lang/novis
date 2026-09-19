@@ -102,6 +102,9 @@ modules = [
   "crates/nvs-runtime/src/object.rs",
   # The one worklist every refcounted value is freed through.
   "crates/nvs-runtime/src/release.rs",
+  # `rule:types/conversion`'s conversion table — the implicit widenings `convert` applies at a
+  # binding, and the explicit `as` the § 2 grid decides.
+  "crates/nvs-ir/src/lower/convert.rs",
 ]
 
 rules = ["testing/feature-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
