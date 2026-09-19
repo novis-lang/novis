@@ -100,6 +100,9 @@ modules = [
   # § *The description* and § *How a comment is written* are what `about.md` and every
   # comment in the three `.nvs` proofs are held to, and no other field carries them.
   "docs/examples/README.md",
+  # Resolves a parsed `Type` into an interned `TypeId` (`rule:types/grammar`'s grammar, made
+  # concrete).
+  "crates/nvs-types/src/lower.rs",
 ]
 
 rules = ["testing/four-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "types/arithmetic", "php-migration/absent-storage-is-never-a-zero-value", "expressions/truthy-table", "0134", "0026", "0117", "0004", "0088"]
