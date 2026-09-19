@@ -1,0 +1,17 @@
+--TEST--
+the token before the name being written says whether a statement starts there, so the right-hand side of a declaration is offered the words that open an expression and none that open a statement, and a loop's body is offered `break` where a method's body alone is not — `rule:ide/keywords-are-offered-where-the-compiler-accepts-them`
+--FILE--
+<?nvs
+class Cart {
+    public function total(): int {
+        while (true) {
+            var $x = n<|>;
+        }
+        return 1;
+    }
+}
+--REQUEST--
+completion prefix=n
+--EXPECT--
+new     keyword
+null    keyword

@@ -157,9 +157,9 @@ pub fn for_document(
 /// The dimming an editor is sent for one document: one `Unnecessary` tag per
 /// private declaration in it that nothing in the index refers to.
 ///
-/// **Silent under the default scope**, and that is the rule rather than a
-/// shortcut. `rule:ide/check-scope-defaults-to-open-documents` indexes the open
-/// documents and their graph by default, and a member unreferenced across that
+/// **Silent at open scope**, and that is the rule rather than a shortcut.
+/// `rule:ide/check-scope-defaults-to-the-workspace`'s `"open"` indexes the open
+/// documents and their graph alone, and a member unreferenced across that
 /// much of a workspace is not a member that is unreferenced — so where the
 /// index does not span the workspace the honest answer is nothing at all,
 /// rather than a guess a client renders in grey.

@@ -58,16 +58,16 @@ use lsp_types::request::{
 };
 use lsp_types::{
     CodeAction, CodeActionKind, CodeActionOrCommand, CodeActionParams, CodeLens, CodeLensParams,
-    Command, CompletionItem, CompletionParams, CompletionResponse, DidChangeTextDocumentParams,
-    DidCloseTextDocumentParams, DidOpenTextDocumentParams, DocumentHighlight,
-    DocumentHighlightKind, DocumentHighlightParams, DocumentLink, DocumentLinkParams,
-    DocumentSymbolParams, DocumentSymbolResponse, FoldingRange, FoldingRangeParams,
-    GotoDefinitionParams, GotoDefinitionResponse, HoverParams, InitializeParams, InlayHint,
-    InlayHintParams, Location, Position, PublishDiagnosticsParams, Range, ReferenceParams,
-    SelectionRange, SelectionRangeParams, SemanticTokens, SemanticTokensParams,
-    SemanticTokensResult, SignatureHelp, SignatureHelpParams, SymbolKind, TextDocumentIdentifier,
-    TextEdit, TypeHierarchyItem, TypeHierarchyPrepareParams, TypeHierarchySubtypesParams,
-    TypeHierarchySupertypesParams, Uri, WorkspaceEdit,
+    Command, CompletionItem, CompletionParams, CompletionResponse, CompletionTriggerKind,
+    DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
+    DocumentHighlight, DocumentHighlightKind, DocumentHighlightParams, DocumentLink,
+    DocumentLinkParams, DocumentSymbolParams, DocumentSymbolResponse, FoldingRange,
+    FoldingRangeParams, GotoDefinitionParams, GotoDefinitionResponse, HoverParams,
+    InitializeParams, InlayHint, InlayHintParams, Location, Position, PublishDiagnosticsParams,
+    Range, ReferenceParams, SelectionRange, SelectionRangeParams, SemanticTokens,
+    SemanticTokensParams, SemanticTokensResult, SignatureHelp, SignatureHelpParams, SymbolKind,
+    TextDocumentIdentifier, TextEdit, TypeHierarchyItem, TypeHierarchyPrepareParams,
+    TypeHierarchySubtypesParams, TypeHierarchySupertypesParams, Uri, WorkspaceEdit,
 };
 use nvs_diagnostics::{BytePos, PositionEncoding, SourceId, SourceMap};
 
@@ -161,10 +161,11 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
 
     // The one index `rule:ide/five-features-are-one-reference-index` names,
     // held here because this is what owns the store it is built from. Empty at
-    // this point under the default scope — nothing is open yet — and filled by
-    // the refresh below as documents arrive; under
-    // `rule:ide/check-scope-defaults-to-open-documents`'s `Workspace` it
-    // already holds every `.nvs` file under the root the client named.
+    // this point at open scope — nothing is open yet — and filled by the
+    // refresh below as documents arrive; under
+    // `rule:ide/check-scope-defaults-to-the-workspace`'s `Workspace`, which is
+    // the default, it already holds every `.nvs` file under the root the
+    // client named.
     let mut index = SymbolIndex::build(&documents, settings.scope, settings.root.as_deref());
 
     // The edit whose analysis `nvs.lsp.debounce` is holding back, and the
@@ -924,13 +925,13 @@ fn code_lens(
 
 /// The settings one `.lspt` case is answered under.
 ///
-/// The roster's own defaults, except that the scope is the directory the
-/// runner materialised the case into: a case's `--FILE--` sections are the
-/// whole of its world, so `Workspace` over that directory is what makes the
-/// index hold exactly them and nothing of the host it ran on. Under the
-/// default scope the readers that are only correct at workspace scope would
-/// freeze an answer no case could have selected
-/// (`rule:ide/check-scope-defaults-to-open-documents`).
+/// The roster's own defaults, with the root set to the directory the runner
+/// materialised the case into: a case's `--FILE--` sections are the whole of
+/// its world, so `Workspace` over that directory is what makes the index hold
+/// exactly them and nothing of the host it ran on. The scope is written out
+/// rather than left to the default because a case is answered at workspace
+/// scope whatever a client's default is
+/// (`rule:ide/check-scope-defaults-to-the-workspace`).
 fn case_settings(root: &Path) -> Settings {
     Settings {
         scope: CheckScope::Workspace,
@@ -972,7 +973,13 @@ pub(crate) fn items_of_case(
 ) -> Vec<CompletionItem> {
     let settings = case_settings(root);
     let index = SymbolIndex::build(documents, settings.scope, settings.root.as_deref());
-    completion::at(analysed, &index, offset, settings.php_names)
+    completion::at(
+        analysed,
+        &index,
+        offset,
+        settings.php_names,
+        PositionEncoding::Utf8,
+    )
 }
 
 /// [`references`] for one `.lspt` case, over an index built for that case
@@ -1040,6 +1047,11 @@ fn reference_count(count: usize) -> String {
 /// worth keeping. Nothing is filtered by the prefix already typed either — the
 /// client does that, and it does it without a round trip. The lookup is
 /// [`completion::at`], which the `.lspt` suite calls too.
+///
+/// A request a trigger character raised is answered only where that character
+/// finished a spelling ([`completion::continues_a_trigger`]): the editor asks
+/// on the keystroke, and a `:` or a `>` is far more often an operator than the
+/// end of `::` or `->`.
 fn completion(
     documents: &Documents,
     index: &SymbolIndex,
@@ -1053,7 +1065,20 @@ fn completion(
         return CompletionResponse::Array(Vec::new());
     };
     let offset = offset_at(analysed.map.file(analysed.entry), position, encoding);
-    CompletionResponse::Array(completion::at(&analysed, index, offset, settings.php_names))
+    let triggered = params
+        .context
+        .as_ref()
+        .is_some_and(|context| context.trigger_kind == CompletionTriggerKind::TRIGGER_CHARACTER);
+    if triggered && !completion::continues_a_trigger(&analysed, offset) {
+        return CompletionResponse::Array(Vec::new());
+    }
+    CompletionResponse::Array(completion::at(
+        &analysed,
+        index,
+        offset,
+        settings.php_names,
+        encoding,
+    ))
 }
 
 /// `textDocument/hover` — what the name under the cursor documents.

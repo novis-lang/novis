@@ -1,10 +1,10 @@
 --TEST--
-a type alias declares a name for a type rather than a body, and a cursor in that name is offered the words that open a statement — `type` not among them, since the grammar takes it nowhere else, `rule:ide/the-index-answers-the-cursor`
+a type alias declares a name for a type rather than a body, and a cursor in that name follows the word `type`, so it is offered what an expression may open with — `type` not among them, since the grammar takes it nowhere else, `rule:ide/the-index-answers-the-cursor`
 --FILE--
 <?nvs
 type I<|>d = uint;
 --REQUEST--
-completion prefix=u
+completion prefix=t
 --EXPECT--
-unset   keyword
-use     keyword
+throw   keyword
+true    keyword

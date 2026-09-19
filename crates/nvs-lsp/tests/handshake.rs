@@ -327,14 +327,13 @@ fn every_setting_is_read_off_initialization_options() {
 
 #[test]
 fn a_client_that_configured_nothing_gets_the_roster_defaults() {
-    // `rule:ide/check-scope-defaults-to-open-documents`: the default does not
-    // change what the editor did before the setting existed, so an unconfigured
-    // client and a client that sent `"open"` are the same server.
+    // `rule:ide/check-scope-defaults-to-the-workspace`: an unconfigured client
+    // and a client that sent `"workspace"` are the same server.
     assert_eq!(
         Settings::from_initialize(&InitializeParams::default()),
         Settings::default()
     );
-    assert_eq!(Settings::default().scope, CheckScope::Open);
+    assert_eq!(Settings::default().scope, CheckScope::Workspace);
     assert!(
         Settings::default().code_lens,
         "a lens is offered unless it was turned off"

@@ -114,13 +114,21 @@
 //!
 //! A statement position also offers the **types a bare name could reach**,
 //! beside those words rather than instead of them: the `use` declarations in
-//! force in the entry document, and every type the workspace index holds. Each
-//! is labelled with the shortest spelling that resolves at that cursor — an
-//! import's own short name, a last segment for a declaration in the namespace
-//! in force, and the qualified name for everything else — which is
-//! `nvs_hir::resolve_ref`'s order read backwards. It is admitted here and not
-//! at M4B for one reason, and it is ADR 0099 § 3's: at M4B it would have been
-//! a workspace symbol search with no index under it.
+//! force in the entry document, every type the workspace index holds, and the
+//! `Core` registry's classes and enums. Each is labelled with the shortest
+//! spelling that resolves at that cursor — an import's own short name, a last
+//! segment for a declaration in the namespace in force — which is
+//! `nvs_hir::resolve_ref`'s order read backwards, and a type neither reaches is
+//! labelled with its last segment and carries the `use` line that makes it
+//! resolve
+//! (`rule:ide/a-bare-name-reaches-every-type-and-imports-the-one-accepted`).
+//!
+//! **Which of those lists a cursor gets is read off the token before the name
+//! being written** ([`Written`]): a `$` takes variables alone, `use` and `new`
+//! take types alone, the start of a statement takes every word and the inside
+//! of an expression the words that open one
+//! (`rule:ide/keywords-are-offered-where-the-compiler-accepts-them`). What a
+//! client cannot rank by the match it made itself, [`Tier`] ranks.
 //!
 //! # What a half-written name reaches in PHP's inventory
 //!
@@ -144,6 +152,15 @@
 //! are written first, because a whole language's built-ins arriving beside the
 //! keyword list on every keystroke is a list about the alphabet rather than
 //! about this program.
+//!
+//! # What markup offers
+//!
+//! Nothing, except at a half-written open tag: `<?` is not yet one of
+//! `nvs_syntax::OPEN_TAGS`, so the lexer still reads it as markup, and it is
+//! the one place in a run of markup where the developer is writing Novis. The
+//! tags are offered there and [`crate::regions`] cuts the same bytes out of
+//! the HTML region, so the editor's HTML service does not answer beside them
+//! (`rule:ide/completion-is-asked-where-a-spelling-ends`).
 //!
 //! # What a namespace separator offers
 //!
@@ -228,7 +245,7 @@
 //! statement sit beside them as noise no filter here removes. The seventh is
 //! how far a namespace reaches: the declarations offered under a prefix are
 //! the ones the index holds, so under
-//! `rule:ide/check-scope-defaults-to-open-documents`'s default a type in a
+//! `rule:ide/check-scope-defaults-to-the-workspace`'s `"open"` a type in a
 //! file nobody has opened is not among them. That setting is the answer, and
 //! this arm deliberately has no second one — a directory walk of its own is
 //! what `rule:ide/completion-offers-only-what-the-compiler-derived` refuses.
@@ -236,21 +253,26 @@
 
 use std::collections::BTreeMap;
 
-use lsp_types::{CompletionItem, CompletionItemKind, Documentation, MarkupContent, MarkupKind};
-use nvs_diagnostics::{BytePos, SourceFile, Span};
+use lsp_types::{
+    CompletionItem, CompletionItemKind, CompletionItemLabelDetails, CompletionTextEdit,
+    Documentation, MarkupContent, MarkupKind, TextEdit,
+};
+use nvs_diagnostics::{BytePos, Diagnostics, PositionEncoding, SourceFile, Span};
 use nvs_hir::QName;
 use nvs_stdlib::php_names::{self, Candidate, Item, Kind};
 use nvs_stdlib::registry::{self, CoreClass, CoreConst, CoreEnum, CoreMethod};
 use nvs_syntax::ast::{
-    ClassMember, ClassMemberKind, EnumCase, MethodMember, Modifier, PropertyMember, StmtKind,
+    ClassMember, ClassMemberKind, EnumCase, MethodMember, Modifier, PropertyMember, Stmt, StmtKind,
 };
-use nvs_syntax::{IndexNode, NodePath};
+use nvs_syntax::{IndexNode, Keyword, NodePath, OPEN_TAGS, Token, TokenKind, tokenize};
 use nvs_types::{ExprInfo, Ty, TypeId};
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 
 use crate::definition::{declared_type, imports_of, namespace_at, resolved_name, text_of};
 use crate::document::Analysed;
 use crate::index::{DeclKind, SymbolIndex};
+use crate::position::range_at;
+use crate::regions::half_written_tag;
 use crate::settings::PhpNames;
 
 /// Every access shape a member is written inside, as `nvs_syntax::walk` spells
@@ -288,17 +310,93 @@ pub fn at(
     symbols: &SymbolIndex,
     offset: BytePos,
     php: PhpNames,
+    encoding: PositionEncoding,
 ) -> Vec<CompletionItem> {
     let path = analysed.index.at(offset);
+    let cursor = Cursor {
+        analysed,
+        symbols,
+        path: &path,
+        offset,
+        encoding,
+    };
     let mut items = match asked(analysed, &path, offset) {
         Asked::Member(class, reach) => members_of(analysed, &class, reach),
         Asked::TypeMember(owner) => type_members_of(analysed, &owner),
         Asked::Namespace(prefix) => under(symbols, &prefix),
-        Asked::Position => position(analysed, symbols, &path, offset, php),
+        Asked::OpenTag(written) => open_tags(&cursor, written),
+        Asked::Position => position(&cursor, php),
         Asked::Nothing => return Vec::new(),
     };
     items.sort_by(|left, right| left.label.cmp(&right.label));
     items
+}
+
+/// Whether a request a trigger character raised at `offset` is one this module
+/// answers.
+///
+/// A trigger character is one keystroke of a longer spelling, and the editor
+/// asks on the keystroke rather than on the spelling: `:` is half of `::`, `>`
+/// is a comparison far more often than the end of `->`, and `?` is a ternary
+/// before it is the second byte of an open tag. Answering those with whatever
+/// the position offers opens a list nobody asked for, so a triggered request is
+/// answered only where the text before the cursor ends in the whole spelling.
+/// A request the developer raised by hand, or by typing a name, is not asked
+/// this.
+#[must_use]
+pub fn continues_a_trigger(analysed: &Analysed, offset: BytePos) -> bool {
+    let Some(upto) = analysed
+        .map
+        .file(analysed.entry)
+        .text()
+        .get(..offset as usize)
+    else {
+        return false;
+    };
+    ["->", "::", "\\", "$"]
+        .iter()
+        .any(|spelling| upto.ends_with(spelling))
+        || open_tag_written(upto).is_some()
+}
+
+/// What every arm of a bare position reads: the analysis, the index, and where
+/// the cursor is in both.
+struct Cursor<'a> {
+    analysed: &'a Analysed,
+    symbols: &'a SymbolIndex,
+    path: &'a NodePath,
+    offset: BytePos,
+    /// The units a range on the wire is counted in. An item that names the
+    /// text it replaces, or a line it adds elsewhere, is the one place this
+    /// module writes a range.
+    encoding: PositionEncoding,
+}
+
+impl Cursor<'_> {
+    /// The entry document's text up to the cursor.
+    fn upto(&self) -> &str {
+        self.analysed
+            .map
+            .file(self.analysed.entry)
+            .text()
+            .get(..self.offset as usize)
+            .unwrap_or_default()
+    }
+
+    /// An edit that replaces the `len` bytes before the cursor with `text`.
+    fn replacing(&self, len: usize, text: String) -> CompletionTextEdit {
+        let len = BytePos::try_from(len).expect("a name is shorter than its file");
+        let file = self.analysed.map.file(self.analysed.entry);
+        let span = Span {
+            file: self.analysed.entry,
+            start: self.offset - len,
+            end: self.offset,
+        };
+        CompletionTextEdit::Edit(TextEdit {
+            range: range_at(file, span, self.encoding),
+            new_text: text,
+        })
+    }
 }
 
 /// What the cursor is asking for, which is decided before anything is looked
@@ -313,6 +411,9 @@ enum Asked {
     /// A name reaching into the namespace these segments spell — what that
     /// namespace holds, and no word.
     Namespace(Vec<String>),
+    /// A half-written open tag in a run of markup, this many bytes of it
+    /// written so far — the tags that open code, and nothing else.
+    OpenTag(usize),
     /// No access at all — what may be written where a statement or an
     /// expression goes.
     Position,
@@ -349,7 +450,24 @@ fn asked(analysed: &Analysed, path: &NodePath, offset: BytePos) -> Asked {
     // which is what makes this an answer rather than a gap, and what separates
     // markup from the other three spellings in `NOT_CODE`: a cursor in a string
     // has nothing else to ask.
-    if path.innermost().is_some_and(|node| node.kind == MARKUP) {
+    //
+    // The one thing Novis answers in markup is the tag that leaves it: `<?`
+    // is not yet a tag, so the lexer still reads it as markup, and what the
+    // developer is writing there is one of `nvs_syntax::OPEN_TAGS`.
+    if in_markup(analysed, path, offset) {
+        let upto = analysed
+            .map
+            .file(analysed.entry)
+            .text()
+            .get(..offset as usize);
+        return upto
+            .and_then(open_tag_written)
+            .map_or(Asked::Nothing, Asked::OpenTag);
+    }
+    // `Name:` is half of `Name::`, and nothing may be written between the two
+    // colons, so the position's own list would be offered at the one place no
+    // entry of it parses.
+    if after_a_lone_colon(analysed, offset) {
         return Asked::Nothing;
     }
     if let Some(prefix) = namespace_written(analysed, offset) {
@@ -393,6 +511,89 @@ fn access_in(path: &NodePath) -> Option<(IndexNode, Reach)> {
 fn ended_at(analysed: &Analysed, offset: BytePos) -> Option<(IndexNode, Reach)> {
     let before = analysed.index.at(offset.checked_sub(1)?);
     access_in(&before).filter(|(access, _)| access.span.end == offset)
+}
+
+/// Whether the cursor at `offset` is writing markup.
+///
+/// Inside a run of it, or at the end of one: a span is half-open, so the
+/// cursor after the last byte of a run is outside that node, and what is typed
+/// there still extends the run — the file stops there, or an open tag follows.
+fn in_markup(analysed: &Analysed, path: &NodePath, offset: BytePos) -> bool {
+    let markup = |node: Option<IndexNode>| node.is_some_and(|node| node.kind == MARKUP);
+    markup(path.innermost())
+        || offset
+            .checked_sub(1)
+            .is_some_and(|before| markup(analysed.index.at(before).innermost()))
+}
+
+/// How many bytes of a half-written open tag `upto` ends in, or `None` where
+/// it ends in none.
+///
+/// [`half_written_tag`] is the one reading of "half-written", shared with
+/// [`crate::regions`] so the server offers the tags exactly where it stops
+/// reporting the bytes as HTML.
+fn open_tag_written(upto: &str) -> Option<usize> {
+    let at = upto.rfind("<?")?;
+    half_written_tag(&upto[at..]).filter(|len| at + len == upto.len())
+}
+
+/// The tags that open code, each replacing the `written` bytes of one already
+/// typed.
+///
+/// The item names the text it replaces because `<?` is no word: a client left
+/// to choose would insert the whole tag after the two bytes already there.
+fn open_tags(cursor: &Cursor<'_>, written: usize) -> Vec<CompletionItem> {
+    let details = ["starts a block of Novis code", "prints one expression"];
+    OPEN_TAGS
+        .iter()
+        .zip(details)
+        .enumerate()
+        .map(|(rank, (tag, detail))| CompletionItem {
+            text_edit: Some(cursor.replacing(written, (*tag).to_owned())),
+            filter_text: Some((*tag).to_owned()),
+            // The code tag first, which is the order the lexer lists them in.
+            sort_text: Some(rank.to_string()),
+            ..item(
+                (*tag).to_owned(),
+                CompletionItemKind::KEYWORD,
+                detail.to_owned(),
+            )
+        })
+        .collect()
+}
+
+/// Whether the name being written at `offset` follows a single `:` that itself
+/// follows a bare name, as `Core\Str:` does.
+///
+/// A variable before the colon is a ternary's middle operand and is left
+/// alone, and so is a colon with a space after it, which is where a `case`
+/// arm and a ternary's last operand are written.
+fn after_a_lone_colon(analysed: &Analysed, offset: BytePos) -> bool {
+    let Some(before) = offset.checked_sub(1) else {
+        return false;
+    };
+    if analysed
+        .index
+        .at(before)
+        .innermost()
+        .is_some_and(|node| NOT_CODE.contains(&node.kind))
+    {
+        return false;
+    }
+    let Some(upto) = analysed
+        .map
+        .file(analysed.entry)
+        .text()
+        .get(..offset as usize)
+    else {
+        return false;
+    };
+    let stem = &upto[..upto.len() - name_run(upto).len()];
+    let Some(named) = stem.strip_suffix(':') else {
+        return false;
+    };
+    let owner = name_run(named);
+    !owner.is_empty() && !named[..named.len() - owner.len()].ends_with('$')
 }
 
 /// The productions whose text is not code, so a separator written inside one
@@ -532,45 +733,109 @@ fn namespace_kind(kind: DeclKind) -> Option<CompletionItemKind> {
 /// compiler answers with an `E02xx`. `else`, `elseif`, `case`, `catch` and
 /// `finally` are absent for the other reason: they continue a construct rather
 /// than open one, and the construct that takes them writes them itself.
-const STATEMENT_WORDS: &[&str] = &[
-    "abstract",
-    "autoload",
-    "break",
-    "class",
-    "clone",
-    "continue",
-    "do",
-    "echo",
-    "empty",
-    "enum",
-    "false",
-    "final",
-    "fn",
-    "for",
-    "foreach",
-    "if",
-    "interface",
-    "isset",
-    "match",
-    "namespace",
-    "new",
-    "null",
-    "parent",
-    "print",
-    "require",
-    "return",
-    "self",
-    "static",
-    "switch",
-    "throw",
-    "true",
-    "try",
-    "unset",
-    "use",
-    "var",
-    "while",
-    "yield",
+///
+/// Each word carries the two things that decide whether it is offered. Its
+/// [`Slot`] is which of the two dispatches it came from: a word that opens a
+/// statement form is written only where a statement starts, and one that
+/// opens a primary expression is written there and inside an expression alike.
+/// Its [`Within`] is what has to be around the cursor for the compiler to
+/// accept it: `break` leaves a loop, `self` names the class it is written in,
+/// and a type declaration nested in a body is `E0233`.
+const STATEMENT_WORDS: &[(&str, Slot, Within)] = &[
+    ("abstract", Slot::Statement, Within::NoBody),
+    ("autoload", Slot::Statement, Within::NoBody),
+    ("break", Slot::Statement, Within::LoopOrSwitch),
+    ("class", Slot::Statement, Within::NoBody),
+    ("clone", Slot::Expression, Within::Anything),
+    ("continue", Slot::Statement, Within::Loop),
+    ("do", Slot::Statement, Within::Anything),
+    ("echo", Slot::Statement, Within::Anything),
+    ("empty", Slot::Expression, Within::Anything),
+    ("enum", Slot::Statement, Within::NoBody),
+    ("false", Slot::Expression, Within::Anything),
+    ("final", Slot::Statement, Within::NoBody),
+    ("fn", Slot::Expression, Within::Anything),
+    ("for", Slot::Statement, Within::Anything),
+    ("foreach", Slot::Statement, Within::Anything),
+    ("if", Slot::Statement, Within::Anything),
+    ("interface", Slot::Statement, Within::NoBody),
+    ("isset", Slot::Expression, Within::Anything),
+    ("match", Slot::Expression, Within::Anything),
+    ("namespace", Slot::Statement, Within::NoBody),
+    ("new", Slot::Expression, Within::Anything),
+    ("null", Slot::Expression, Within::Anything),
+    ("parent", Slot::Expression, Within::Class),
+    ("print", Slot::Expression, Within::Anything),
+    ("require", Slot::Expression, Within::Anything),
+    ("return", Slot::Statement, Within::Anything),
+    ("self", Slot::Expression, Within::Class),
+    ("static", Slot::Expression, Within::Class),
+    ("switch", Slot::Statement, Within::Anything),
+    ("throw", Slot::Expression, Within::Anything),
+    ("true", Slot::Expression, Within::Anything),
+    ("try", Slot::Statement, Within::Anything),
+    ("unset", Slot::Statement, Within::Anything),
+    ("use", Slot::Statement, Within::NoBody),
+    ("var", Slot::Statement, Within::Anything),
+    ("while", Slot::Statement, Within::Anything),
+    ("yield", Slot::Expression, Within::Body),
 ];
+
+/// Which of the grammar's two dispatches a word of [`STATEMENT_WORDS`] opens.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Slot {
+    /// A statement form of its own, written only where a statement starts.
+    Statement,
+    /// A primary expression, written wherever an expression is.
+    Expression,
+}
+
+/// What has to enclose the cursor for a word to be one the compiler accepts.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Within {
+    /// Nothing in particular.
+    Anything,
+    /// A loop, with no function body between it and the cursor.
+    Loop,
+    /// A loop or a `switch`, on the same terms.
+    LoopOrSwitch,
+    /// A class, an interface or an enum.
+    Class,
+    /// A method's, a function's or a closure's body.
+    Body,
+    /// No such body: a declaration is written at the top of a file or of a
+    /// namespace.
+    NoBody,
+}
+
+/// The node kinds that are a function body's owner, as `nvs_syntax::walk`
+/// spells them. A loop outside one of these is not a loop the cursor is in.
+const BODIES: &[&str] = &["Method", "Function", "Fn"];
+
+/// The node kinds that are a loop.
+const LOOPS: &[&str] = &["For", "Foreach", "While", "DoWhile"];
+
+/// The node kinds that declare a type with members.
+const TYPES: &[&str] = &["ClassDecl", "InterfaceDecl", "EnumDecl"];
+
+impl Within {
+    /// Whether the nodes around the cursor, innermost first, are what this
+    /// asks for.
+    fn holds(self, path: &NodePath) -> bool {
+        let kinds = || path.nodes().iter().map(|node| node.kind);
+        let before_a_body = || kinds().take_while(|kind| !BODIES.contains(kind));
+        match self {
+            Self::Anything => true,
+            Self::Loop => before_a_body().any(|kind| LOOPS.contains(&kind)),
+            Self::LoopOrSwitch => {
+                before_a_body().any(|kind| LOOPS.contains(&kind) || kind == "Switch")
+            }
+            Self::Class => kinds().any(|kind| TYPES.contains(&kind)),
+            Self::Body => kinds().any(|kind| BODIES.contains(&kind)),
+            Self::NoBody => !kinds().any(|kind| BODIES.contains(&kind)),
+        }
+    }
+}
 
 /// The words that may open a member of a class or an interface — the modifiers
 /// `nvs_syntax::parser`'s `parse_modifiers` takes, and the two introducers
@@ -607,25 +872,111 @@ const CASE_WORDS: &[&str] = &["case"];
 /// cannot be the question. A member's own node — a property, a class constant,
 /// an enum case — is a value position with no local in scope and no word of
 /// its own, and answers nothing.
-fn position(
-    analysed: &Analysed,
-    symbols: &SymbolIndex,
-    path: &NodePath,
-    offset: BytePos,
-    php: PhpNames,
-) -> Vec<CompletionItem> {
+///
+/// Inside a body of statements, **the token before the name being written**
+/// says which of its lists the cursor may have ([`Written`]): a `$` is a
+/// variable and nothing else, `new` and `use` take a type, the start of a
+/// statement takes every word, and the inside of an expression takes the
+/// words that open one. The tree cannot say this, because the name being
+/// written is usually what stops the statement around it from parsing.
+fn position(cursor: &Cursor<'_>, php: PhpNames) -> Vec<CompletionItem> {
+    let Cursor {
+        analysed,
+        path,
+        offset,
+        ..
+    } = *cursor;
     match path.innermost().map(|node| node.kind) {
         Some("ClassDecl" | "InterfaceDecl") => words(MEMBER_WORDS),
         Some("EnumDecl") => words(CASE_WORDS),
         Some("Property" | "Const" | "EnumCase") => Vec::new(),
-        _ => {
-            let mut items = words(STATEMENT_WORDS);
-            items.extend(in_scope(analysed, offset));
-            items.extend(in_reach(analysed, symbols, offset));
-            items.extend(php_builtins(analysed, offset, php));
-            items
-        }
+        _ => match written(cursor) {
+            Written::Variable => in_scope(cursor),
+            Written::Import => in_reach(cursor, Spelled::Qualified),
+            Written::TypeName => in_reach(cursor, Spelled::Shortest),
+            Written::Statement | Written::Expression => {
+                let statement = written(cursor) == Written::Statement;
+                let mut items = statement_words(path, statement);
+                items.extend(in_scope(cursor));
+                items.extend(in_reach(cursor, Spelled::Shortest));
+                items.extend(php_builtins(analysed, offset, php));
+                items
+            }
+        },
     }
+}
+
+/// What the text before the name being written says may be written there.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Written {
+    /// After a `$`: a variable, and no word or type.
+    Variable,
+    /// After `use`: a type, by its qualified name, because a declaration's
+    /// name is absolute (`rule:statements/a-qualified-name-is-absolute`).
+    Import,
+    /// After `new`, `extends` or `implements`: a type.
+    TypeName,
+    /// Where a statement starts.
+    Statement,
+    /// Inside an expression.
+    Expression,
+}
+
+/// Which [`Written`] the cursor is at.
+///
+/// Read off the lexer's own tokens, so a `;` inside a string or a comment is
+/// not a statement's end. The last token that ends at or before the name being
+/// written decides, and no token at all is the top of a file.
+fn written(cursor: &Cursor<'_>) -> Written {
+    let upto = cursor.upto();
+    let name = name_run(upto);
+    let stem = &upto[..upto.len() - name.len()];
+    if stem.ends_with('$') {
+        return Written::Variable;
+    }
+    let file = cursor.analysed.map.file(cursor.analysed.entry);
+    let tokens = tokenize(file, &mut Diagnostics::new());
+    let before = tokens
+        .iter()
+        .take_while(|token| token.span.end as usize <= stem.len())
+        .filter(|token| token.kind != TokenKind::Eof)
+        .last()
+        .map(|token: &Token| token.kind);
+    match before {
+        Some(TokenKind::Keyword(Keyword::Use)) => Written::Import,
+        Some(TokenKind::Keyword(Keyword::New | Keyword::Extends | Keyword::Implements)) => {
+            Written::TypeName
+        }
+        None
+        | Some(
+            TokenKind::Semicolon
+            | TokenKind::LBrace
+            | TokenKind::RBrace
+            | TokenKind::RParen
+            | TokenKind::Colon
+            | TokenKind::OpenTagNvs
+            | TokenKind::CloseTag
+            | TokenKind::InlineHtml
+            | TokenKind::Keyword(Keyword::Else | Keyword::Do),
+        ) => Written::Statement,
+        Some(_) => Written::Expression,
+    }
+}
+
+/// The words of [`STATEMENT_WORDS`] that may be written at a cursor inside
+/// `path`, at the start of a `statement` or inside an expression.
+fn statement_words(path: &NodePath, statement: bool) -> Vec<CompletionItem> {
+    STATEMENT_WORDS
+        .iter()
+        .filter(|(_, slot, within)| (statement || *slot == Slot::Expression) && within.holds(path))
+        .map(|(word, _, _)| {
+            Tier::Keyword.ranks(item(
+                (*word).to_owned(),
+                CompletionItemKind::KEYWORD,
+                String::new(),
+            ))
+        })
+        .collect()
 }
 
 /// One list of reserved words, as items a client can insert.
@@ -637,30 +988,85 @@ fn words(offered: &[&str]) -> Vec<CompletionItem> {
     offered
         .iter()
         .map(|word| {
-            item(
+            Tier::Keyword.ranks(item(
                 (*word).to_owned(),
                 CompletionItemKind::KEYWORD,
                 String::new(),
-            )
+            ))
         })
         .collect()
 }
 
+/// Where an item of a bare position ranks among the others, best first.
+///
+/// A client orders a list by how well each label matches what was typed and
+/// breaks a tie on `sortText`, so this decides the order of an empty prefix and
+/// of every tie: what this body declared, then the types this file already
+/// reaches — imported, in its own namespace, written somewhere in it — then
+/// the rest of `Core`, the rest of the workspace, the reserved words, and last
+/// the PHP names, which are an audit and not a program's own vocabulary. Every
+/// input is a table an arm below already reads. A member list has no tiers:
+/// every row of one is as likely as the next, and its order is its labels'.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Tier {
+    Variable,
+    Imported,
+    SameNamespace,
+    Used,
+    Core,
+    Workspace,
+    Keyword,
+    Php,
+}
+
+impl Tier {
+    /// `item`, carrying this tier as the first character of its `sortText` and
+    /// its own label after it.
+    fn ranks(self, item: CompletionItem) -> CompletionItem {
+        CompletionItem {
+            sort_text: Some(format!("{}{}", self as u8, item.label)),
+            ..item
+        }
+    }
+}
+
 /// The variables the body the cursor is in declared, with the type each was
 /// declared at.
-fn in_scope(analysed: &Analysed, offset: BytePos) -> Vec<CompletionItem> {
-    analysed
-        .bodies_at(offset)
+///
+/// Each item names the text it replaces — the `$` and as much of the name as
+/// is written — because a lone `$` is no word to a client, and one left to
+/// choose would insert the label after it and write `$$name`. After `::` the
+/// `$` opens a static property, which is the access arm's and no local.
+fn in_scope(cursor: &Cursor<'_>) -> Vec<CompletionItem> {
+    let upto = cursor.upto();
+    let name = name_run(upto);
+    let stem = &upto[..upto.len() - name.len()];
+    if stem.ends_with("::$") {
+        return Vec::new();
+    }
+    let typed = name.len() + usize::from(stem.ends_with('$'));
+    cursor
+        .analysed
+        .bodies_at(cursor.offset)
         .into_iter()
         .next()
         .unwrap_or_default()
         .iter()
         .map(|local| {
-            item(
-                format!("${}", local.name),
-                CompletionItemKind::VARIABLE,
-                analysed.interner.describe(local.ty),
-            )
+            let label = format!("${}", local.name);
+            Tier::Variable.ranks(CompletionItem {
+                // Only a name that starts with `$` is a variable being
+                // written; a bare word keeps the client's own word range.
+                text_edit: stem
+                    .ends_with('$')
+                    .then(|| cursor.replacing(typed, label.clone())),
+                filter_text: Some(label.clone()),
+                ..item(
+                    label.clone(),
+                    CompletionItemKind::VARIABLE,
+                    cursor.analysed.interner.describe(local.ty),
+                )
+            })
         })
         .collect()
 }
@@ -679,41 +1085,214 @@ fn in_scope(analysed: &Analysed, offset: BytePos) -> Vec<CompletionItem> {
 /// The two tables are the ones the compiler already keeps: the entry
 /// document's `use` declarations, and the workspace index's declaration side.
 /// A name the index does not hold is not searched for anywhere else.
-fn in_reach(analysed: &Analysed, symbols: &SymbolIndex, offset: BytePos) -> Vec<CompletionItem> {
+///
+/// **A type no short name reaches is offered by its last segment, and
+/// accepting it writes the `use` line too.** The item inserts the short name
+/// and carries one more edit that adds `use Qualified\Name;` at
+/// [`import_site`], so what is left in the buffer is a name that resolves —
+/// the same bar, met by an edit. Its `filterText` is both
+/// spellings, so `Str` and `Core\Str` both find it, and so do the initials a
+/// client's own fuzzy match reads across the separator. Where the short name
+/// is already taken in this file, or there is nowhere to write the line, the
+/// item is the qualified name and edits nothing else. After `use`
+/// ([`Spelled::Qualified`]) every type is its qualified name, because that is
+/// the only spelling a `use` declaration takes.
+///
+/// `nvs_stdlib::registry`'s classes and enums are in the list on the same
+/// terms as the workspace's own: they are the two rosters [`under`] reads
+/// after a separator, reached here before one is written.
+fn in_reach(cursor: &Cursor<'_>, spelled: Spelled) -> Vec<CompletionItem> {
+    let Cursor {
+        analysed,
+        symbols,
+        offset,
+        ..
+    } = *cursor;
     let imports = imports_of(analysed);
     let short: FxHashMap<String, String> = imports
         .iter()
         .map(|(name, target)| (target.to_string(), name.clone()))
         .collect();
     let here = namespace_at(analysed, offset);
+    let file = analysed.map.file(analysed.entry);
+    let used: FxHashSet<&str> = file
+        .path()
+        .map(|path| symbols.occurrences_in(path))
+        .unwrap_or_default()
+        .iter()
+        .map(|occurrence| occurrence.symbol.as_str())
+        .collect();
+    let core = registry::CLASSES
+        .iter()
+        .map(|class| (class.name.to_owned(), CompletionItemKind::CLASS))
+        .chain(
+            registry::ENUMS
+                .iter()
+                .map(|core| (core.name.to_owned(), CompletionItemKind::ENUM)),
+        )
+        .map(|(symbol, kind)| (symbol, kind, Tier::Core));
+    let declared = symbols.files().flat_map(|path| {
+        symbols.declarations_in(path).iter().filter_map(|declared| {
+            let kind = namespace_kind(declared.kind)?;
+            Some((declared.symbol.clone(), kind, Tier::Workspace))
+        })
+    });
+    let candidates: Vec<(String, CompletionItemKind, Tier)> = declared.chain(core).collect();
+    // A short name is free to import under only where nothing in force in this
+    // file already answers to it.
+    let mut taken: FxHashSet<String> = imports.keys().cloned().collect();
+    taken.extend(candidates.iter().filter_map(|(symbol, _, _)| {
+        let segments = QName::parse(symbol).segments().to_vec();
+        (segments.len() == here.len() + 1 && segments.starts_with(&here))
+            .then(|| segments[here.len()].clone())
+    }));
+    let site = import_site(cursor);
     let mut found: BTreeMap<String, CompletionItem> = BTreeMap::new();
-    for path in symbols.files() {
-        for declared in symbols.declarations_in(path) {
-            let Some(kind) = namespace_kind(declared.kind) else {
-                continue;
-            };
-            let label = written_as(&declared.symbol, &here, &short);
-            found
-                .entry(label.clone())
-                .or_insert_with(|| item(label, kind, declared.symbol.clone()));
-        }
+    for (symbol, kind, origin) in candidates {
+        let reached = written_as(&symbol, &here, &short);
+        let tier = if short.contains_key(&symbol) {
+            Tier::Imported
+        } else if reached != symbol {
+            Tier::SameNamespace
+        } else if used.contains(symbol.as_str()) {
+            Tier::Used
+        } else {
+            origin
+        };
+        let last = symbol.rsplit('\\').next().unwrap_or(&symbol).to_owned();
+        let offered = if spelled == Spelled::Qualified {
+            item(symbol.clone(), kind, symbol.clone())
+        } else if reached != symbol || last == symbol {
+            item(reached, kind, symbol.clone())
+        } else if let Some(site) = site.as_ref().filter(|_| !taken.contains(&last)) {
+            CompletionItem {
+                filter_text: Some(format!("{last} {symbol}")),
+                label_details: Some(CompletionItemLabelDetails {
+                    detail: None,
+                    description: Some(symbol.clone()),
+                }),
+                additional_text_edits: Some(vec![site.importing(&symbol)]),
+                ..item(last, kind, symbol.clone())
+            }
+        } else {
+            item(symbol.clone(), kind, symbol.clone())
+        };
+        found.entry(symbol).or_insert_with(|| tier.ranks(offered));
+    }
+    if spelled == Spelled::Qualified {
+        return found.into_values().collect();
     }
     // An import whose target the index does not hold is still a name in force
     // — a `Core` class, or one in a file the current scope does not reach
-    // (`rule:ide/check-scope-defaults-to-open-documents`). What it declares is
+    // (`rule:ide/check-scope-defaults-to-the-workspace`). What it declares is
     // read off the registry, which is the one table that can say.
     for (name, target) in &imports {
-        let spelled = target.to_string();
-        found.entry(name.clone()).or_insert_with(|| {
-            let kind = if registry::core_enum(&spelled).is_some() {
+        let target = target.to_string();
+        found.entry(target.clone()).or_insert_with(|| {
+            let kind = if registry::core_enum(&target).is_some() {
                 CompletionItemKind::ENUM
             } else {
                 CompletionItemKind::CLASS
             };
-            item(name.clone(), kind, spelled)
+            Tier::Imported.ranks(item(name.clone(), kind, target))
         });
     }
     found.into_values().collect()
+}
+
+/// Which spelling of a type [`in_reach`] offers.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Spelled {
+    /// The shortest one that resolves at the cursor, importing where it has to.
+    Shortest,
+    /// The qualified name and nothing else, which is what `use` takes.
+    Qualified,
+}
+
+/// Where a `use` line is added to the entry document, and what separates it
+/// from what is already there.
+struct ImportSite {
+    /// The empty range the line is inserted at.
+    range: lsp_types::Range,
+    /// What is written before the declaration: the line break that ends the
+    /// line it follows, and a blank line where it starts a group of its own.
+    lead: &'static str,
+}
+
+impl ImportSite {
+    /// The edit that imports `symbol` here.
+    fn importing(&self, symbol: &str) -> TextEdit {
+        TextEdit {
+            range: self.range,
+            new_text: format!("{}use {symbol};", self.lead),
+        }
+    }
+}
+
+/// Where a new `use` line goes for a name written at the cursor, or `None`
+/// where this module will not choose.
+///
+/// After the last `use` declaration the cursor's namespace already has, which
+/// keeps the group together; failing that after the `namespace Name;` line in
+/// force; failing that after the open tag. Every one of those is above the
+/// cursor and ends before the name being written, so the edit never touches
+/// the text the item itself replaces. A bracketed namespace with no `use` in
+/// it and a file with no open tag — a shebang script — have no such line, and
+/// there the type is offered by its qualified name instead.
+fn import_site(cursor: &Cursor<'_>) -> Option<ImportSite> {
+    let Cursor {
+        analysed,
+        offset,
+        encoding,
+        ..
+    } = *cursor;
+    let file = analysed.map.file(analysed.entry);
+    let loaded = analysed
+        .loaded
+        .iter()
+        .find(|loaded| loaded.id == analysed.entry)?;
+    // The statements the cursor's namespace is made of: a bracketed block's
+    // own where the cursor is inside one, and otherwise the file's, from the
+    // `namespace Name;` line in force onward.
+    let block = loaded.stmts.iter().find_map(|stmt| match &stmt.kind {
+        StmtKind::NamespaceDecl(decl) => decl
+            .body
+            .as_ref()
+            .filter(|block| block.span.start <= offset && offset < block.span.end),
+        _ => None,
+    });
+    let bracketed = block.is_some();
+    let stmts: &[Stmt] = block.map_or(&loaded.stmts, |block| &block.stmts);
+    let above = || stmts.iter().filter(|stmt| stmt.span.end <= offset);
+    let governing = above()
+        .rfind(|stmt| matches!(&stmt.kind, StmtKind::NamespaceDecl(decl) if decl.body.is_none()));
+    let last_use = above().rfind(|stmt| {
+        matches!(stmt.kind, StmtKind::UseDecl(_))
+            && governing.is_none_or(|decl| decl.span.end <= stmt.span.start)
+    });
+    let (after, lead) = match (last_use, governing) {
+        (Some(stmt), _) => (stmt.span.end, "\n"),
+        (None, Some(decl)) => (decl.span.end, "\n\n"),
+        (None, None) if bracketed => return None,
+        (None, None) => {
+            let tag = tokenize(file, &mut Diagnostics::new())
+                .into_iter()
+                .find(|token| token.kind == TokenKind::OpenTagNvs)?;
+            (tag.span.end, "\n")
+        }
+    };
+    (after <= offset).then(|| ImportSite {
+        range: range_at(
+            file,
+            Span {
+                file: analysed.entry,
+                start: after,
+                end: after,
+            },
+            encoding,
+        ),
+        lead,
+    })
 }
 
 /// How `symbol` is written at a cursor whose namespace is `here` and whose
@@ -773,7 +1352,7 @@ fn php_builtins(analysed: &Analysed, offset: BytePos, php: PhpNames) -> Vec<Comp
             if php == PhpNames::Resolved && shape.insertion().is_none() {
                 continue;
             }
-            found.push(php_item(candidate, shape, typed));
+            found.push(Tier::Php.ranks(php_item(candidate, shape, typed)));
         }
     }
     found
@@ -1261,7 +1840,8 @@ mod tests {
     /// the grammar has no table of it to compare against.
     #[test]
     fn every_word_offered_is_one_the_lexer_reserves() {
-        for word in STATEMENT_WORDS.iter().chain(MEMBER_WORDS).chain(CASE_WORDS) {
+        let statement = STATEMENT_WORDS.iter().map(|(word, _, _)| word);
+        for word in statement.chain(MEMBER_WORDS).chain(CASE_WORDS) {
             assert!(
                 Keyword::from_lowercase(word).is_some(),
                 "`{word}` is offered by completion and is not a reserved word"

@@ -201,16 +201,20 @@ pub fn server_capabilities(encoding: PositionEncodingKind) -> ServerCapabilities
             // type the analysis already computed, so there is no second round
             // trip to save.
             resolve_provider: Some(false),
-            // The three positions where a member list appears rather than a
-            // keyword list. `$` is not among them — a variable completion is
-            // offered wherever an expression is, and a trigger character there
-            // would suppress the client's own re-filtering as the name is
-            // typed.
+            // The last character of each spelling a list follows and no word
+            // character starts: `->`, `::`, a namespace separator, the `$` of
+            // a variable — which a client's word pattern does not read as a
+            // word on its own, so it would never ask — and the `<?` of a
+            // half-written open tag. Each is also an operator's character, so
+            // `crate::completion::continues_a_trigger` answers a triggered
+            // request only where the whole spelling was written. `-` is not
+            // among them: it finishes nothing.
             trigger_characters: Some(vec![
-                "-".to_owned(),
                 ">".to_owned(),
                 ":".to_owned(),
                 "\\".to_owned(),
+                "$".to_owned(),
+                "?".to_owned(),
             ]),
             all_commit_characters: None,
             work_done_progress_options: WorkDoneProgressOptions::default(),

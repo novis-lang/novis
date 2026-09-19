@@ -1,0 +1,16 @@
+--TEST--
+`break` leaves a loop, so it is offered where a loop is around the cursor with no function body in between, and the same method's body outside the loop is not offered it — `rule:ide/keywords-are-offered-where-the-compiler-accepts-them`
+--FILE--
+<?nvs
+class Cart {
+    public function total(): int {
+        while (true) {
+            b<|>r;
+        }
+        return 1;
+    }
+}
+--REQUEST--
+completion prefix=b
+--EXPECT--
+break   keyword

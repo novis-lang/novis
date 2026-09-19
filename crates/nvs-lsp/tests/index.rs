@@ -170,7 +170,8 @@ fn the_crate_has_exactly_one_symbol_index_construction_site() {
         );
     }
 
-    // Every other module reads a `&SymbolIndex`. A module holding one by value
+    // Every other module reads a `&SymbolIndex`, with a lifetime where the
+    // reference is a struct's field. A module holding one by value
     // is a module that built it, and an import is how one says the name at all
     // before it can take a reference to it. `lib.rs` is the crate's export list
     // rather than a reader, and naming the type there is what makes it public
@@ -185,7 +186,11 @@ fn the_crate_has_exactly_one_symbol_index_construction_site() {
             .lines()
             .map(str::trim_start)
             .filter(|line| !line.starts_with("//") && !line.starts_with("use "))
-            .filter(|line| line.contains("SymbolIndex") && !line.contains("&SymbolIndex"))
+            .filter(|line| {
+                line.contains("SymbolIndex")
+                    && !line.contains("&SymbolIndex")
+                    && !line.contains("&'a SymbolIndex")
+            })
             .collect();
         assert!(
             held.is_empty(),
@@ -318,8 +323,8 @@ fn the_index_holds_every_declaration_and_every_resolved_use() {
     let index = SymbolIndex::build(&documents, CheckScope::Open, None);
 
     // The required file is indexed although nobody opened it: an open
-    // document's graph is in scope under `rule:ide/check-scope-defaults-to-open-documents`'s
-    // default.
+    // document's graph is in scope under either value of
+    // `rule:ide/check-scope-defaults-to-the-workspace`.
     assert!(
         index.holds(&dir.at("lib.nvs")),
         "the required file is indexed"

@@ -419,7 +419,7 @@ impl<'a> Lexer<'a> {
     fn match_open_tag(&self) -> Option<(TokenKind, usize)> {
         for (spelling, kind) in [
             ("<?php", TokenKind::OpenTagPhp),
-            ("<?nvs", TokenKind::OpenTagNvs),
+            (OPEN_TAGS[0], TokenKind::OpenTagNvs),
         ] {
             if let Some(head) = self.rest().get(..spelling.len())
                 && head.eq_ignore_ascii_case(spelling)
@@ -433,8 +433,8 @@ impl<'a> Lexer<'a> {
                 }
             }
         }
-        if self.starts_with("<?=") {
-            return Some((TokenKind::OpenTagEcho, 3));
+        if self.starts_with(OPEN_TAGS[1]) {
+            return Some((TokenKind::OpenTagEcho, OPEN_TAGS[1].len()));
         }
         None
     }
@@ -1462,6 +1462,15 @@ impl<'a> Lexer<'a> {
         }
     }
 }
+
+/// The two tags that open code in a run of markup, as they are written: the
+/// code tag first and the echo tag second
+/// (`rule:statements/nvs-is-the-only-open-tag`).
+///
+/// [`Lexer::match_open_tag`] reads its spellings from here, so a reader outside
+/// this crate that offers a tag — an editor completing a half-written `<?` —
+/// offers exactly what the lexer accepts.
+pub const OPEN_TAGS: [&str; 2] = ["<?nvs", "<?="];
 
 /// Tokenizes an entire file in one call, for tests and for anything that
 /// wants the whole stream rather than pulling it lazily.

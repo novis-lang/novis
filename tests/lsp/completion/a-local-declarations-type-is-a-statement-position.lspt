@@ -1,10 +1,10 @@
 --TEST--
-a written type is a property of the declaration and never a node of its own, so a cursor inside one is inside the declaration and is offered what opens a statement — narrowed past `st` because four characters of `string` also reach the PHP inventory, which a case of its own freezes, `rule:ide/the-index-answers-the-cursor`
+a written type is a property of the declaration and never a node of its own, so a cursor inside one is inside the declaration and is offered what opens a statement — narrowed to `sw` because four characters of `string` also reach the PHP inventory, which a case of its own freezes, and `self` is not offered outside a class, `rule:ide/the-index-answers-the-cursor`
 --FILE--
 <?nvs
 stri<|>ng $name = "hi";
 echo $name;
 --REQUEST--
-completion prefix=se
+completion prefix=sw
 --EXPECT--
-self    keyword
+switch  keyword

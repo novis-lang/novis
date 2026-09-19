@@ -32,6 +32,7 @@ use std::fs;
 use std::path::Path;
 
 use lsp_types::PositionEncodingKind;
+use nvs_diagnostics::PositionEncoding;
 use nvs_lsp::{
     Analysed, CheckScope, Documents, PhpNames, Response, SymbolIndex, analyse, completion, uri_of,
 };
@@ -64,7 +65,14 @@ fn analysed(source: &str) -> (Documents, Analysed) {
 fn rendered(source: &str, at: u32) -> String {
     let (documents, analysis) = analysed(source);
     let index = SymbolIndex::build(&documents, CheckScope::Open, None);
-    Response::Completion(completion::at(&analysis, &index, at, PhpNames::All)).render()
+    Response::Completion(completion::at(
+        &analysis,
+        &index,
+        at,
+        PhpNames::All,
+        PositionEncoding::Utf8,
+    ))
+    .render()
 }
 
 /// The offset just past the first `written` in `source`.
@@ -249,7 +257,7 @@ fn ending_items(source: &str, php: PhpNames) -> Vec<lsp_types::CompletionItem> {
     let (documents, analysis) = analysed(source);
     let index = SymbolIndex::build(&documents, CheckScope::Open, None);
     let at = u32::try_from(source.len()).expect("a test document is short");
-    completion::at(&analysis, &index, at, php)
+    completion::at(&analysis, &index, at, php, PositionEncoding::Utf8)
 }
 
 /// The prefix every PHP-name case below writes, chosen because the inventory
@@ -410,14 +418,16 @@ fn the_php_names_setting_selects_among_the_shapes_and_nothing_else() {
 /// Each trigger character `initialize` declares, and the construct it is one
 /// character of.
 ///
-/// `-` and `>` share a construct because they are the two characters of one
-/// arrow: a client fires on each keystroke, and what the pair promises is that
-/// the arrow it is halfway through reaches a member list.
-const TRIGGERED: [(&str, &str); 4] = [
-    ("-", "$b->"),
+/// Each is the last character of its construct, because a client fires on the
+/// keystroke and `nvs_lsp::completion::continues_a_trigger` answers only where
+/// the whole spelling was written. The open tag's construct leaves code first:
+/// `<?` is half-written only in a run of markup.
+const TRIGGERED: [(&str, &str); 5] = [
     (">", "$b->"),
     (":", "User::"),
     ("\\", "Core\\"),
+    ("$", "echo $"),
+    ("?", "?>\n<?"),
 ];
 
 /// A class with both halves declared, so every construct below has something
@@ -466,9 +476,12 @@ fn every_trigger_character_reaches_an_arm_that_is_not_the_position_list() {
             !offered.is_empty(),
             "`{character}` is a trigger character and `{construct}` is offered nothing"
         );
-        let words: Vec<&str> = kinds(&offered)
-            .into_iter()
-            .filter(|kind| *kind == "keyword")
+        // An open tag is rendered as a keyword and is no word of the position
+        // list, which is what this refuses.
+        let words: Vec<&str> = offered
+            .lines()
+            .filter(|line| !line.starts_with("<?"))
+            .filter(|line| line.split_whitespace().nth(1) == Some("keyword"))
             .collect();
         assert!(
             words.is_empty(),
@@ -543,12 +556,14 @@ fn sources() -> Vec<Source> {
 /// this repository, and what the arm may *insert* is bounded by the registry
 /// (`rule:php-migration/an-item-inserts-only-a-registered-member`). No
 /// directory is walked and no annotation is read for it.
-const SOURCED: [(&str, &str); 19] = [
+const SOURCED: [(&str, &str); 21] = [
     ("at", "asked("),
     ("members_of", "registry::class("),
     ("type_members_of", "registry::class("),
     ("declared_type_members", "declared_type("),
+    ("open_tags", "OPEN_TAGS"),
     ("position", "words("),
+    ("statement_words", "STATEMENT_WORDS"),
     ("under", "registry::CLASSES"),
     ("in_reach", "symbols.declarations_in("),
     ("in_scope", ".bodies_at("),

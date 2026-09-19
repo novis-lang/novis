@@ -22,7 +22,7 @@
 //!
 //! **A value this cannot read leaves the setting at its default.** A misspelled
 //! scope, a string where a boolean belongs, a client that sent nothing at all —
-//! each takes what `rule:ide/check-scope-defaults-to-open-documents` and the
+//! each takes what `rule:ide/check-scope-defaults-to-the-workspace` and the
 //! roster say the default is. The alternative is refusing `initialize` over a
 //! typo in a `settings.json`, which leaves a developer with no server at all
 //! and nothing on screen saying why.
@@ -108,7 +108,7 @@ impl Default for Settings {
     /// nothing gets.
     fn default() -> Self {
         Self {
-            scope: CheckScope::Open,
+            scope: CheckScope::Workspace,
             code_lens: true,
             php_names: PhpNames::All,
             // The same 150 the manifest declares, because a client that sends
@@ -162,7 +162,7 @@ fn at<'a>(options: Option<&'a Value>, path: &[&str]) -> Option<&'a Value> {
 }
 
 /// The scope `setting` spells, or `None` for a spelling that is not one of the
-/// two `rule:ide/check-scope-defaults-to-open-documents` names.
+/// two `rule:ide/check-scope-defaults-to-the-workspace` names.
 fn scope_named(setting: &str) -> Option<CheckScope> {
     match setting {
         "open" => Some(CheckScope::Open),

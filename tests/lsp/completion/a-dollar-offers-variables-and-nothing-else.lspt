@@ -1,0 +1,12 @@
+--TEST--
+a `$` starts a variable and nothing else, so the cursor after one is offered the variables the body declared and no word or type — `rule:ide/completion-is-asked-where-a-spelling-ends`
+--FILE--
+<?nvs
+var $foo = 123;
+var $bar = "hi";
+if ($<|>
+--REQUEST--
+completion
+--EXPECT--
+$bar    variable  string
+$foo    variable  int

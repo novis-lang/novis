@@ -49,7 +49,7 @@
 //!
 //! # Decision: the scope selects the tree, and never the construction site
 //!
-//! `rule:ide/check-scope-defaults-to-open-documents` makes `nvs.check.scope` a
+//! `rule:ide/check-scope-defaults-to-the-workspace` makes `nvs.check.scope` a
 //! property of the *query*, and here that is literal: [`CheckScope`] is read by
 //! the tree selection, which answers which files are entry points, and by
 //! nothing else. The one construction site never sees it at all, so a
@@ -92,18 +92,22 @@ use crate::document::{Analysed, Documents, analyse_file};
 pub use nvs_syntax::ast::Visibility;
 
 /// Which files the index is built over — the `nvs.check.scope` setting
-/// `rule:ide/check-scope-defaults-to-open-documents` freezes.
+/// `rule:ide/check-scope-defaults-to-the-workspace` freezes.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum CheckScope {
-    /// The open documents and the graphs they resolve, which is what the
-    /// server published diagnostics for before this setting existed.
-    #[default]
+    /// The open documents and the graphs they resolve, and nothing else under
+    /// the workspace root. The setting for a tree too large to read in full.
     Open,
     /// Every `.nvs` file under the workspace root as well.
     ///
-    /// The expensive setting, and the one whose cost is measured least, which
-    /// is why it is not the default: the tree is walked once per build and a
-    /// repository nobody has opened a file in is still read in full.
+    /// The default, because a name is completed, found and counted out of what
+    /// the index holds, and an index of the open documents alone offers a
+    /// developer only the classes they already have in front of them. It is
+    /// the expensive setting: the tree is walked once per build and a
+    /// repository nobody has opened a file in is still read in full. What that
+    /// spends is one declaration and occurrence list per file under the root,
+    /// held for the life of the session.
+    #[default]
     Workspace,
 }
 
@@ -329,7 +333,7 @@ impl SymbolIndex {
     /// the index" is unreachability for a member only its own file can name,
     /// and says nothing whatever about a public one, which anything outside the
     /// indexed tree may still be using. How much of the workspace *is* indexed
-    /// when this is asked is `rule:ide/check-scope-defaults-to-open-documents`'s
+    /// when this is asked is `rule:ide/check-scope-defaults-to-the-workspace`'s
     /// answer, and the caller is what holds the setting.
     #[must_use]
     pub fn unused_private(&self, path: &Path) -> Vec<&Declaration> {
@@ -347,7 +351,7 @@ impl SymbolIndex {
     /// A supertype the index has never seen drops out rather than appearing as
     /// a name with no site: an editor cannot navigate to one, and a `Core`
     /// class or a file outside the scope
-    /// `rule:ide/check-scope-defaults-to-open-documents` selects is exactly
+    /// `rule:ide/check-scope-defaults-to-the-workspace` selects is exactly
     /// that case.
     #[must_use]
     pub fn supertypes(&self, symbol: &str) -> Vec<&Declaration> {

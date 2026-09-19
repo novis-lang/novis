@@ -7,6 +7,4 @@ echo LI<|>MIT;
 --REQUEST--
 completion prefix=e
 --EXPECT--
-echo    keyword
 empty   keyword
-enum    keyword

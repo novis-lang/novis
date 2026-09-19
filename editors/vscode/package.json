@@ -122,8 +122,8 @@
             "Open documents and the files they require or autoload.",
             "Every file the workspace index holds."
           ],
-          "default": "open",
-          "description": "Which files diagnostics are published for. Workspace scope also dims unreferenced private members, which is only correct at that scope."
+          "default": "workspace",
+          "description": "Which files the server reads: completion, references and diagnostics cover these. Workspace scope also dims unreferenced private members, which is only correct at that scope. Choose \"open\" for a very large workspace."
         },
         "nvs.codeLens.enable": {
           "type": "boolean",

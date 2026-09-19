@@ -1,0 +1,9 @@
+--TEST--
+a bare name reaches the `Core` registry before any separator is written, and a class no short name reaches is offered by its last segment with the qualified name beside it — `rule:ide/a-bare-name-reaches-every-type-and-imports-the-one-accepted`
+--FILE--
+<?nvs
+Str<|>
+--REQUEST--
+completion prefix=Str limit=1
+--EXPECT--
+Str     class     Core\Str

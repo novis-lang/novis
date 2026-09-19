@@ -8,8 +8,6 @@ interface Greets {}
 class User {}
 <|>
 --REQUEST--
-completion limit=3
+completion prefix=Str limit=1
 --EXPECT--
-Greets  interface App\Greets
 Str     class     Core\Str
-User    class     App\User

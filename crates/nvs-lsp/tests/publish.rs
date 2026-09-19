@@ -223,6 +223,16 @@ fn dimmed(params: &PublishDiagnosticsParams) -> Vec<String> {
         .collect()
 }
 
+/// A client that set `nvs.check.scope` to the open documents alone.
+fn open_scope() -> InitializeParams {
+    InitializeParams {
+        initialization_options: Some(serde_json::json!({
+            "check": { "scope": "open" },
+        })),
+        ..InitializeParams::default()
+    }
+}
+
 /// That directory as the one workspace folder a client named, with
 /// `nvs.check.scope` set to walk it.
 fn workspace_scope(dir: &TempDir) -> InitializeParams {
@@ -259,28 +269,28 @@ fn reads_the_tree(codes: &[String]) -> bool {
     })
 }
 
-/// Unused-member dimming, which the default scope does not produce and
-/// workspace scope produces exactly once.
+/// Unused-member dimming, which open scope does not produce and workspace
+/// scope, the default, produces exactly once.
 ///
 /// Two halves of one rule. `rule:ide/five-features-are-one-reference-index`'s
 /// fifth reader is only correct at workspace scope — a private member with no
 /// occurrence in an index that spans one buffer's graph is a member this server
 /// has not looked hard enough for — so
-/// `rule:ide/check-scope-defaults-to-open-documents` has it silent under the
-/// default rather than wrong. Silent is asserted as the absence of a tag, not
-/// as a different message.
+/// `rule:ide/check-scope-defaults-to-the-workspace` has it silent at open
+/// scope rather than wrong. Silent is asserted as the absence of a tag, not as
+/// a different message.
 #[test]
 fn unused_member_dimming_is_silent_at_open_scope_and_correct_at_workspace_scope() {
     let dir = TempDir::new("dimming");
     dir.write("hoard.nvs", HOARD);
     let uri = dir.uri("hoard.nvs");
 
-    served(|client| {
+    served_with(open_scope(), |client| {
         open(client, &uri, 1, HOARD);
         assert!(
             dimmed(&published(client)).is_empty(),
-            "the default scope indexes one graph, which is not enough to call \
-             anything unused"
+            "open scope indexes one graph, which is not enough to call anything \
+             unused"
         );
     });
 

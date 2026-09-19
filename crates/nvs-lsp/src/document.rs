@@ -326,14 +326,25 @@ impl Analysed {
     /// bindings, and a method's is inside the file's own script frame on the
     /// same terms — so which of them a reader takes is its own question, and
     /// this orders them rather than answering it.
+    ///
+    /// **A cursor past the end of every body is in the script frame.** A span is
+    /// half-open, so the cursor at the last byte of a file with no trailing
+    /// newline is outside the frame that covers the whole file — and that is
+    /// where a developer types in a file they have just started. Nothing else
+    /// can be there: a method or a closure ends at a `}` that the frame still
+    /// covers. So where no body covers `offset`, the widest body that starts
+    /// before it answers, which is that frame.
     pub(crate) fn bodies_at(&self, offset: BytePos) -> Vec<&[LocalBinding]> {
-        let mut bodies: Vec<(Span, &[LocalBinding])> = self
-            .exprs
-            .local_scopes()
-            .filter(|(body, _)| {
-                body.file == self.entry && body.start <= offset && offset < body.end
-            })
-            .collect();
+        let scopes = || {
+            self.exprs
+                .local_scopes()
+                .filter(|(body, _)| body.file == self.entry && body.start <= offset)
+        };
+        let mut bodies: Vec<(Span, &[LocalBinding])> =
+            scopes().filter(|(body, _)| offset < body.end).collect();
+        if bodies.is_empty() {
+            bodies.extend(scopes().max_by_key(|(body, _)| body.end - body.start));
+        }
         bodies.sort_by_key(|(body, _)| body.end - body.start);
         bodies.into_iter().map(|(_, locals)| locals).collect()
     }

@@ -369,7 +369,7 @@ describe("the frozen identifiers", () => {
     assert.equal(properties["nvs.lsp.enable"].default, true);
     assert.equal(properties["nvs.lsp.debounce"].default, 150);
     assert.equal(properties["nvs.lsp.trace.server"].default, "off");
-    assert.equal(properties["nvs.check.scope"].default, "open");
+    assert.equal(properties["nvs.check.scope"].default, "workspace");
     assert.deepEqual(properties["nvs.check.scope"].enum, ["open", "workspace"]);
     assert.equal(properties["nvs.codeLens.enable"].default, true);
     assert.equal(properties["nvs.template.services"].default, true);

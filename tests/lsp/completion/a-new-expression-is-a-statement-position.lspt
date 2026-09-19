@@ -1,5 +1,5 @@
 --TEST--
-`new` opens an expression rather than an access, so a cursor on the keyword is offered the words a statement may open with, `rule:ide/the-request-set-is-closed`
+`new` opens an expression rather than an access, so a cursor on the keyword is offered the words an expression may open with, `rule:ide/the-request-set-is-closed`
 --FILE--
 <?nvs
 class User
@@ -11,5 +11,4 @@ var $u = ne<|>w User();
 --REQUEST--
 completion prefix=cl
 --EXPECT--
-class   keyword
 clone   keyword

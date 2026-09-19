@@ -55,6 +55,24 @@
 //! is the client's job, and it is the client that knows what it wants to put in
 //! the gap.
 //!
+//! # Decision: a half-written open tag is a hole too
+//!
+//! `<?` with nothing after it lexes as markup, because it is not yet one of
+//! [`nvs_syntax::OPEN_TAGS`] — and it is the one moment in a run of markup
+//! where the developer is writing Novis. [`crate::completion`] offers the tags
+//! there, so the HTML service must not answer beside it, and the only way to
+//! say so on this wire is a range: the run is cut around the half-written tag,
+//! exactly as it is cut around a whole `<?= … ?>`.
+//!
+//! The hole is the half-written tag **and the one character after it**. A
+//! client reads a region as half-open, so a cursor at the end of a hole is on
+//! the first byte of the run that follows and would be forwarded; the cursor
+//! that matters here is exactly that one, the one still typing the tag. The
+//! extra character is almost always the end of the line, and where it is not,
+//! the service loses one byte of a document that is mid-edit anyway.
+//! [`half_written_tag`] is the one reading of "half-written", and the
+//! completion arm asks it too.
+//!
 //! # Formatting does not cross this wire
 //!
 //! A client's format pass reads these
@@ -84,8 +102,8 @@
 //!    — owner: M10
 
 use lsp_types::TextDocumentIdentifier;
-use nvs_diagnostics::{Diagnostics, PositionEncoding, SourceFile, SourceMap};
-use nvs_syntax::{TokenKind, tokenize};
+use nvs_diagnostics::{BytePos, Diagnostics, PositionEncoding, SourceFile, SourceMap, Span};
+use nvs_syntax::{OPEN_TAGS, TokenKind, tokenize};
 
 use crate::document::{Analysed, Documents};
 use crate::position::range_at;
@@ -190,10 +208,61 @@ pub fn for_source(file: &SourceFile, encoding: PositionEncoding) -> Vec<Region> 
     let mut diags = Diagnostics::new();
     tokenize(file, &mut diags)
         .into_iter()
-        .filter(|token| token.kind == TokenKind::InlineHtml && token.span.start < token.span.end)
-        .map(|token| Region {
-            range: range_at(file, token.span, encoding),
+        .filter(|token| token.kind == TokenKind::InlineHtml)
+        .flat_map(|token| around_half_written_tags(file, token.span))
+        .map(|span| Region {
+            range: range_at(file, span, encoding),
             language: HTML.to_owned(),
+        })
+        .collect()
+}
+
+/// The length of the half-written open tag `rest` starts with, or `None` where
+/// it starts with none.
+///
+/// Half-written is `<?` and as much of the code tag's name as has been typed,
+/// followed by nothing that could still be part of a tag: `<?`, `<?n` and
+/// `<?nv`. `<?=` is a whole tag and the lexer's, and `<?xml` is markup's own
+/// processing instruction and stays with the HTML service.
+pub(crate) fn half_written_tag(rest: &str) -> Option<usize> {
+    let tag = OPEN_TAGS[0];
+    (2..tag.len()).rev().find(|&len| {
+        rest.starts_with(&tag[..len])
+            && !rest[len..]
+                .chars()
+                .next()
+                .is_some_and(|next| next.is_alphanumeric() || next == '_' || next == '=')
+    })
+}
+
+/// `run`, which is one token of markup, as the pieces of it an HTML service may
+/// have: everything but each half-written open tag and the character after it.
+///
+/// The module doc's *a half-written open tag is a hole too* is the reasoning.
+fn around_half_written_tags(file: &SourceFile, run: Span) -> Vec<Span> {
+    let text = &file.text()[run.range()];
+    let mut pieces = Vec::new();
+    let mut from = 0;
+    let mut search = 0;
+    while let Some(found) = text[search..].find("<?") {
+        let at = search + found;
+        let Some(len) = half_written_tag(&text[at..]) else {
+            search = at + 2;
+            continue;
+        };
+        pieces.push(from..at);
+        let after = text[at + len..].chars().next().map_or(0, char::len_utf8);
+        from = at + len + after;
+        search = from;
+    }
+    pieces.push(from..text.len());
+    pieces
+        .into_iter()
+        .filter(|piece| piece.start < piece.end)
+        .map(|piece| Span {
+            start: run.start + BytePos::try_from(piece.start).expect("inside the run"),
+            end: run.start + BytePos::try_from(piece.end).expect("inside the run"),
+            ..run
         })
         .collect()
 }
