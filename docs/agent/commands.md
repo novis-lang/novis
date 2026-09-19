@@ -286,7 +286,8 @@ still reported by `build`. `tools/verify.py` § *Why `fmt` formats, and runs fir
 **A step whose inputs have not changed is not run again**, and that is decided a step at a time. Each step
 is green against a key over what *it* reads, so documentation reaches no step, a reformatted `.nvs` under
 `tests/hostile/` reaches `build` and `test` alone, and a comment or a re-wrapped line in a `.rs` file
-reaches the steps that read source as text and not the `.nvst` trees. That is not a check being skipped:
+reaches the steps that read source as text and not the `.nvst` trees — `test` then runs the binaries
+cargo last built for that same code, with no rebuild. That is not a check being skipped:
 the step's inputs are identical in every respect it can observe. A step is recorded the moment it is
 green, so a run that goes red at `test` keeps the verdicts before it; an entry expires after an hour,
 `--no-cache` runs everything, and a `-p` verdict never satisfies an unscoped run. `tools/verify.py` §

@@ -19,11 +19,16 @@ the files a `build.rs` reads. A case tree's key is `binary` plus its own directo
 - **raw** -- the bytes. `fmt` reads these, and so do the script steps that grep doc comments, and
   so does every test binary: a policy test here reads source as text (`include_str!("cache.rs")`,
   a walk over `crates/*/src`), and for such a test a comment is an input like any other.
-- **full** -- the code and the text of every comment, with the layout between tokens removed.
-  `clippy` lints doc comments and `// SAFETY:` comments, and a doc-test is a doc comment.
+- **docs** -- the code and the text of every doc comment, with the layout between tokens removed.
+  `clippy` and rustdoc lint doc comments, and a doc-test is one. A plain comment is not in this
+  tier because nothing here reads one: no crate enables a lint that does (`grep -rn
+  'undocumented_unsafe_blocks\|safety_comment\|clippy::restriction' Cargo.toml crates benches` is
+  the evidence, and the grep to re-run before enabling one).
 - **code** -- the tokens alone. `rustc` reads nothing else, so this is what `build` and the
   behaviour of the binary hang on. A doc comment leaves one placeholder per run of them: whether
-  an item has one can decide a build, what it says cannot.
+  an item has one can decide a build, what it says cannot. The one thing `rustc` does read in a
+  comment is a bidirectional-text character, which it denies, so a file with one in any comment
+  has every comment folded into this tier.
 
 Layout is removed conservatively: a run of whitespace is kept, as one space, between two words
 and between two operator characters, so `& &x` and `&&x` never share a key. It is dropped
@@ -34,8 +39,10 @@ before any of that and hashed verbatim. A `.rs` file that some other file embeds
 
 What the code tier does not see is a line number. A formatting-only edit moves `line!()` and the
 location in a panic message, and a step answered from the cache was proved against the old ones.
-No test in this tree pins a Rust line number in its expectation; one that starts to belongs to a
-test binary, and those read raw.
+The steps that can be answered that way run the binary over `tests/conformance`,
+`tests/differential` and the reference chapters, and no expectation in those names a Rust line --
+`\.rs:\d+` matches there only in a case's prose comment. A Rust test that pins one is in a test
+binary, and those read raw.
 
 The tiers are memoized against a file's raw digest in `.agent-tmp/verify-norms.json`, so a run
 re-scans only the files that changed. `SCANNER` is folded into every tiered digest: a change to the
@@ -51,7 +58,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 TMP = ROOT / ".agent-tmp"
 NORMS = TMP / "verify-norms.json"
-SCANNER = "1"
+SCANNER = "2"
 
 # Everything cargo reads, relative to ROOT. Directories are walked in full -- a `.nvst`
 # fixture, an insta `.snap` and a `Cargo.toml` all change what the steps will answer.
@@ -107,13 +114,15 @@ _GLUE = re.compile(r"(?<=\w) (?=\W)|(?<=\W) (?=\w)"
                    r"|(?<=[()\[\]{},;\x01\x02]) | (?=[()\[\]{},;\x01\x02])")
 _DOC_RUN = re.compile("\x01(?: ?\x01)+")
 _INCLUDE = re.compile(r'include_(?:str|bytes)!\(\s*"([^"\n]+)"')
+# What `text_direction_codepoint_in_comment` denies: the embeddings, overrides and isolates.
+_BIDI = re.compile("[‪-‮⁦-⁩]")
 
 
 def scan(text):
-    """`(code, literals, comments)`: the tokens with their layout removed, the literals lifted out
-    of them in order, and every comment's text in order. The module doc's *A `.rs` file has three
-    readers* is what each is for."""
-    code, literals, comments = [], [], []
+    """`(code, literals, docs, plain)`: the tokens with their layout removed, the literals lifted
+    out of them in order, and the text of every doc comment and of every other comment, in order.
+    The module doc's *A `.rs` file has three readers* is what each is for."""
+    code, literals, docs, plain = [], [], [], []
     pos = 0
     while True:
         m = _TOKEN.search(text, pos)
@@ -140,34 +149,38 @@ def scan(text):
             body = text[m.start():end]
             is_doc = (body.startswith("/*!")
                       or (body.startswith("/**") and not body.startswith(("/***", "/**/"))))
-            comments.append(body)
+            (docs if is_doc else plain).append(body)
             code.append(" \x01 " if is_doc else " ")
         elif kind == "doc":
-            comments.append(m.group().rstrip())
+            docs.append(m.group().rstrip())
             code.append(" \x01 ")
         elif kind == "line":
-            comments.append(m.group().rstrip())
+            plain.append(m.group().rstrip())
             code.append(" ")
         else:
             literals.append(m.group())
             code.append("\x02")
         pos = end
     flat = _GLUE.sub("", _WS.sub(" ", "".join(code)).strip())
-    return _DOC_RUN.sub("\x01", flat), literals, comments
+    return _DOC_RUN.sub("\x01", flat), literals, docs, plain
 
 
 def tiers(text):
-    """`(code, full)` digests of one `.rs` file's text."""
-    code, literals, comments = scan(text)
+    """`(code, docs)` digests of one `.rs` file's text."""
+    code, literals, docs, plain = scan(text)
     h = hashlib.blake2b(digest_size=16)
     h.update(SCANNER.encode())
     h.update(code.encode("utf-8", "replace"))
     for lit in literals:
         h.update(b"\0")
         h.update(lit.encode("utf-8", "replace"))
+    if any(_BIDI.search(comment) for comment in docs + plain):
+        for comment in docs + plain:
+            h.update(b"\2")
+            h.update(comment.encode("utf-8", "replace"))
     code_digest = h.hexdigest()
     h.update(b"\1")
-    for comment in comments:
+    for comment in docs:
         h.update(b"\0")
         h.update(comment.encode("utf-8", "replace"))
     return code_digest, h.hexdigest()
@@ -186,8 +199,27 @@ def rustc_version():
     return (p.stdout or "") + (p.stderr or "")
 
 
+def git_ignored():
+    """What git ignores: a file path, or a wholly ignored directory with a trailing `/`. Empty
+    when git cannot answer, and then everything is hashed, which is the wide direction."""
+    try:
+        p = subprocess.run(["git", "ls-files", "--others", "--ignored", "--exclude-standard",
+                            "--directory"], cwd=ROOT, capture_output=True, encoding="utf-8",
+                           errors="replace")
+    except OSError:
+        return set()
+    return {line for line in p.stdout.split("\n") if line} if p.returncode == 0 else set()
+
+
 def input_paths():
-    """Every file a step reads, sorted, as ROOT-relative posix strings."""
+    """Every file a step reads, sorted, as ROOT-relative posix strings.
+
+    What git ignores is not one of them, which is `tools/loop.py`'s rule for its own memo and for
+    the same reason: every rule in `.gitignore` is build output, a cache or machine-local state,
+    and two of those files are written by the checks themselves -- `editors/vscode/nvs.vsix` by
+    the driver's sweep and `tests/db/queue-sqlite.db` by a test -- so hashing them made a step's
+    own run the edit that staled it."""
+    ignored = git_ignored()
     seen = set()
     for name in INPUT_FILES:
         if (ROOT / name).is_file():
@@ -199,9 +231,10 @@ def input_paths():
         if not base.is_dir():
             continue
         for dirpath, dirnames, filenames in os.walk(base):
-            dirnames[:] = [d for d in dirnames if d not in NOT_INPUTS]
-            rel = Path(dirpath).relative_to(ROOT)
-            seen.update((rel / f).as_posix() for f in filenames)
+            rel = Path(dirpath).relative_to(ROOT).as_posix()
+            dirnames[:] = [d for d in dirnames
+                           if d not in NOT_INPUTS and f"{rel}/{d}/" not in ignored]
+            seen.update(f"{rel}/{f}" for f in filenames if f"{rel}/{f}" not in ignored)
     return sorted(seen)
 
 
@@ -319,13 +352,13 @@ STEP_READS = {
     "build": lambda t: t.binary(),
     "test": _everything,
     # The one test job that reads no file as text: a doc-test is a doc comment, compiled.
-    "test:doc": lambda t: t.binary() + t.part(is_rust, "full"),
+    "test:doc": lambda t: t.binary() + t.part(is_rust, "docs"),
     "conformance": lambda t: t.binary() + t.part(under("tests/conformance")),
     "differential": lambda t: t.binary() + t.part(under("tests/differential")),
     "reference": lambda t: t.binary() + t.part(_only("tools/reference.py")),
-    "clippy": lambda t: t.binary() + t.part(is_rust, "full"),
+    "clippy": lambda t: t.binary() + t.part(is_rust, "docs"),
     "extension": lambda t: t.binary() + t.part(under("editors")),
-    "doc": lambda t: t.binary() + t.part(is_rust, "full"),
+    "doc": lambda t: t.binary() + t.part(is_rust, "docs"),
 }
 
 

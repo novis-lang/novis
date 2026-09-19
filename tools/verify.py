@@ -103,9 +103,9 @@ has not moved is answered from `.agent-tmp/verify-green.json` rather than run.
   one runs `build` and `test` and answers the other eleven steps.
 - A `.rs` file is read three ways. `fmt`, the script steps and the test binaries read its bytes --
   a policy test here reads source as text, so for a test binary a comment is an input. `clippy`
-  and the doc-tests read the code and the comments with the layout removed. `build`, and every
-  step that only runs `target/debug/nvs`, read the code alone, so a comment or a re-wrapped line
-  cannot reach the `.nvst` trees, `reference` or `extension`.
+  and the doc-tests read the code and the doc comments with the layout removed. `build`, and
+  every step that only runs `target/debug/nvs`, read the code alone, so a comment or a re-wrapped
+  line cannot reach the `.nvst` trees, `reference` or `extension`.
 - The plan and the goal chain are read by `owners` alone, so they are in its key and no other.
 
 This is **not** a check being skipped: the step's inputs are identical in every respect the step
@@ -117,7 +117,16 @@ is deleted, and `--no-cache` runs everything.
 
 `build` is the one step with a second condition. `nvs-fmt`, `test`, the `.nvst` trees, `reference`
 and `extension` use what `build` leaves on disk, and a key cannot say what another cargo command
-has left there since. So `build` is answered from the cache only when every one of those is too.
+has left there since. So `build` is answered from the cache only when every one of those is too
+-- or, for `test`, when the test binaries can be shown to be the right ones without cargo.
+
+That showing is `jobs_on_disk`. A comment or a re-wrapped line in a `.rs` file changes what the
+test binaries *read* and nothing about what they *are*, and cargo would still recompile every
+crate above the edit to say so, which is most of what such a run costs. So each time `test` builds,
+it records the code-tier key it built from and the size and modification time of every file cargo
+produced for a workspace package. While that key holds and every one of those files is untouched,
+they are the executables this code compiles to, and `test` runs them as recorded. Any other cargo
+command that rebuilt one moves its modification time, and the step goes back to cargo.
 
 A `-p` run's `test` verdict is keyed with its package, so it never satisfies an unscoped run; an
 unscoped one satisfies any `-p`, because the superset already proved the subset. Anything
@@ -232,6 +241,8 @@ PROGRESS = TMP / "verify-progress.json"  # the step in flight; see the module do
 # Each test binary's seconds in the last run, so the next one starts the slowest first: started
 # last, one long binary is the whole step's tail. A missing or unreadable file only costs order.
 TEST_TIMES = TMP / "verify-test-times.json"
+# What the last `cargo test --no-run` built, and from which code -- `jobs_on_disk`.
+TEST_BUILT = TMP / "verify-test-built.json"
 
 TAIL_LINES = 60  # of the failing step only; the full log is always on disk
 CACHE_TTL = 3600  # seconds. A key cannot go stale on its own; this is a belt on braces.
@@ -331,17 +342,55 @@ def run(step):
     return step.code == 0
 
 
-def test_jobs(package):
+def jobs_on_disk(binary_key):
+    """The jobs the last build recorded, if they are still what this code compiles to: the same
+    code-tier key, and every file cargo produced then untouched since. None sends `test` back to
+    cargo -- the module docstring's *Why a step whose inputs did not change is not run*."""
+    if not binary_key:
+        return None
+    try:
+        built = json.loads(TEST_BUILT.read_text(encoding="utf-8"))
+        if built.get("binary") != binary_key or not built.get("jobs"):
+            return None
+        for path, (mtime, size) in built["files"].items():
+            st = os.stat(path)
+            if st.st_mtime_ns != mtime or st.st_size != size:
+                return None
+        return built["jobs"]
+    except (OSError, ValueError, TypeError, AttributeError, KeyError):
+        return None
+
+
+def test_jobs(package, binary_key=None):
     """What `cargo test` would run, as jobs -- or `(None, output)` when the build fails.
 
-    A job is `{name, argv, cwd, env, rerun}`. The build is the bare `cargo test --no-run`, so on a
+    A job is `{name, owner, argv, cwd, env, rerun}`, `owner` being its package. The build is the
+    bare `cargo test --no-run`, so on a
     tree `build` just compiled it costs only the test harnesses, and its diagnostics are rendered
     to stderr as a plain `cargo test` would print them. `package` narrows which of the binaries
     then run and never what is built: a `-p` on the build resolves features over that one
     package's graph and writes a second copy of every workspace crate beside the first --
     AGENTS.md's rule, and commands.md § *A debug cargo command never takes `-p`* for the
     measurement. A scoped run skips the doc-tests, which cargo can only narrow with a `-p`. The
-    package is read off `package_id` the way `tools/loop.py`'s `test_executables` reads it."""
+    package is read off `package_id` the way `tools/loop.py`'s `test_executables` reads it.
+
+    With `binary_key`, the code-tier key of the tree, the build is skipped when `jobs_on_disk`
+    can answer for it, and recorded under that key when it cannot."""
+    jobs = jobs_on_disk(binary_key)
+    note = "test binaries as last built: this code and those files are unchanged\n"
+    if jobs is None:
+        jobs, note = build_test_jobs(binary_key)
+        if jobs is None:
+            return None, note
+    jobs = [j for j in jobs if not package or j["owner"] == package]
+    if not package:
+        jobs.append({"name": "doc-tests", "owner": "", "argv": ["cargo", "test", "--doc"],
+                     "cwd": str(ROOT), "env": {}, "rerun": "cargo test --doc"})
+    return jobs, note
+
+
+def build_test_jobs(binary_key):
+    """`cargo test --no-run`, as every workspace test binary's job -- or `(None, output)`."""
     built = subprocess.run(
         ["cargo", "test", "--no-run", "--message-format=json-render-diagnostics"],
         cwd=ROOT, capture_output=True, encoding="utf-8", errors="replace")
@@ -349,20 +398,29 @@ def test_jobs(package):
         return None, (built.stderr or "") + (built.stdout or "")
     flags = {"lib": "--lib", "bin": "--bin", "test": "--test", "example": "--example",
              "bench": "--bench"}
-    jobs = []
+    jobs, files = [], {}
     for line in built.stdout.splitlines():
         try:
             m = json.loads(line)
         except ValueError:
             continue
-        if m.get("reason") != "compiler-artifact" or not m.get("executable"):
+        if m.get("reason") != "compiler-artifact":
+            continue
+        if m.get("package_id", "").startswith("path+"):
+            # Every file of a workspace package, not the test binaries alone: a test spawns
+            # `target/debug/nvs`, and that is the `bin` artifact beside it.
+            for name in m.get("filenames", []):
+                try:
+                    st = os.stat(name)
+                    files[name] = [st.st_mtime_ns, st.st_size]
+                except OSError:
+                    pass
+        if not m.get("executable"):
             continue
         if not m.get("profile", {}).get("test"):
             continue
         source, _, tail = m.get("package_id", "").rpartition("#")
         owner = tail.split("@", 1)[0] if "@" in tail else source.rstrip("/").rsplit("/", 1)[-1]
-        if package and owner != package:
-            continue
         target = m["target"]["name"]
         kind = next((k for k in m["target"].get("kind", []) if k in flags), "lib")
         cwd = str(Path(m["manifest_path"]).parent)
@@ -370,11 +428,15 @@ def test_jobs(package):
         # `cargo test` narrows the run and keeps every hash, a `-p` would not.
         rerun = (f"python tools/verify.py -p {owner}" if kind == "lib"
                  else f"cargo test {flags[kind]} {target}")
-        jobs.append({"name": f"{owner} {kind} {target}", "argv": [m["executable"]], "cwd": cwd,
-                     "env": {"CARGO_MANIFEST_DIR": cwd}, "rerun": rerun})
-    if not package:
-        jobs.append({"name": "doc-tests", "argv": ["cargo", "test", "--doc"],
-                     "cwd": str(ROOT), "env": {}, "rerun": "cargo test --doc"})
+        jobs.append({"name": f"{owner} {kind} {target}", "owner": owner, "argv": [m["executable"]],
+                     "cwd": cwd, "env": {"CARGO_MANIFEST_DIR": cwd}, "rerun": rerun})
+    if binary_key and jobs:
+        try:
+            TMP.mkdir(exist_ok=True)
+            TEST_BUILT.write_text(json.dumps({"binary": binary_key, "jobs": jobs, "files": files}),
+                                  encoding="utf-8", newline="\n")
+        except OSError:
+            pass
     return jobs, ""
 
 
@@ -393,10 +455,11 @@ def run_job(job):
 def run_tests(step, package=None):
     """The `test` step -- the module docstring's *Why `test` runs its binaries side by side*.
     `package` is `-p`: which binaries run, off the one build. `step.skip_doc` drops the doc-tests
-    job, the one job with a key of its own, and `step.doc_green` reports it back when it ran."""
-    jobs, fail = test_jobs(package)
+    job, the one job with a key of its own, and `step.doc_green` reports it back when it ran.
+    `step.binary_key` is the tree's code-tier key, which lets `test_jobs` skip the build."""
+    jobs, note = test_jobs(package, getattr(step, "binary_key", None))
     if jobs is None:
-        return 1, fail
+        return 1, note
     if getattr(step, "skip_doc", False):
         jobs = [j for j in jobs if j["name"] != "doc-tests"]
     try:
@@ -424,7 +487,8 @@ def run_tests(step, package=None):
 
     # Passing binaries first, by name, so the tail a red step prints is the failures.
     names = {j["name"] for j in failed}
-    out = [f"     Running {n}\n{results[n][2]}" for n in sorted(results) if n not in names]
+    out = [note] if note else []
+    out += [f"     Running {n}\n{results[n][2]}" for n in sorted(results) if n not in names]
     for j in failed:
         out.append(f"     Running {j['name']}  -- FAILED, exit {results[j['name']][1]}\n"
                    f"{results[j['name']][2]}")
@@ -1089,14 +1153,23 @@ def main():
     for i, step in enumerate(steps):
         entry = answered(step)
         if entry is not None and step.name == "build":
-            # Only if nothing after it will use the binary -- the module docstring.
-            if any(answered(s) is None for s in steps[i + 1:] if s.name in NEEDS_BINARY):
+            # Only if nothing after it will use what `build` leaves -- the module docstring. `test`
+            # does not when its binaries are provably the ones this code compiles to.
+            def leans_on_build(s):
+                if s.name not in NEEDS_BINARY or answered(s) is not None:
+                    return False
+                return s.name != "test" or jobs_on_disk(tree and tree.key("build")) is None
+            if any(leans_on_build(s) for s in steps[i + 1:]):
                 entry = None
         if entry is not None:
             unchanged[step.name] = entry
             continue
-        if step.name == "test" and not opts.package:
-            step.skip_doc = held(cache, tree, opts, "test:doc") is not None
+        if step.name == "test":
+            # `--no-cache` is every step for real, and cargo's build is part of this one.
+            step.binary_key = (tree.key("build") if tree is not None and not opts.no_cache
+                               else None)
+            if not opts.package:
+                step.skip_doc = held(cache, tree, opts, "test:doc") is not None
         progress(done, step, len(steps), index=i + 1)
         ok = run(step)
         if step.name in WRITES and step.out.strip():
