@@ -2462,6 +2462,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   reads best, run `python tools/verify.py` before the wrap so the rewrite happens there, and keep
   what `nvs-fmt` wrote — re-indenting it by hand only dirties the next session's tree.
   [until: reviewed 2026-09-19]
+- **`rule:testing/a-failing-proof-is-fixed-or-recorded`'s second answer is not available to a session
+  working a goal: `python tools/owners.py --check` refuses a `— owner: <goal-slug>` trailer
+  outright.** A recorded gap may name only a milestone at M9 or later whose plan file states the
+  scope, because a goal walks and is retired while the gap outlives it. Budget a proof's finding as
+  work to *build* in the session that found it, and reach for a module doc `# Known gaps` entry only
+  where a milestone will really carry it. [until: reviewed 2026-09-19]
 
 ## Running things
 
@@ -6099,6 +6105,16 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   in above the code, and the failure prints as an unrelated diagnostic mismatch. Put the marker in
   and re-run that case alone before writing anything else, or pick the case whose block starts at
   `%A`. [until: reviewed 2026-09-19]
+- **A `// covers:` marker added at the top of an `--EXPECTF-ERROR--` case moves the diagnostic's own
+  line anchor and turns a green case red.** The expectation reproduces `--> case.nvs:3:6` verbatim,
+  so every line inserted above the refused line shifts the source line it names by one. Put the
+  marker *below* the last line of the `--FILE--` block in a reject case, where it attributes the case
+  and moves nothing. [until: reviewed 2026-09-19]
+- **A declaration inside a `try` block is in scope after the block, so a case that repeats a setup
+  under a second heading fails with `E0406` rather than running.** The three `try` blocks of an
+  agreement case naturally want the same variable names in the section that follows them, and the
+  compiler sees one scope. Give the second set its own names; nothing about the assertion depends on
+  reusing them. [until: reviewed 2026-09-19]
 
 ## Splitting a file that got too big
 
