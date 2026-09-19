@@ -1,0 +1,64 @@
+--TEST--
+`await` answers a record of four fields, and each one is read from a different part of the child's run: `ok` from how it ended, `value` from its top-level `return`, `output` from what it printed under `output: 'capture'`, and `error` as null while `ok` holds — ADR 0006 § *Decision*
+--FILE nvs.toml--
+# `rule:security/capability-check-at-the-door`: `spawn script` goes through a door that asks for
+# `script.spawn` first. This grants it and nothing else.
+[capabilities.script]
+spawn = true
+--FILE adder.nvs--
+<?nvs
+// A child that answers on every field at once: it prints while it runs and
+// returns a value the parent converts with `as`.
+int $total = 0;
+foreach (Core\Arr::range(1, 10) as int $n) {
+    $total += $n;
+}
+echo "adding\n";
+return ["sum" => $total, "count" => 10];
+--FILE quiet.nvs--
+<?nvs
+// A child with no top-level `return` at all. ADR 0006 § *Decision* answers
+// `null` here and says why it is deliberately not `require`'s `1`, and this is
+// the case that holds it there.
+echo "the quiet child ran\n";
+--FILE--
+<?nvs
+// covers: lang:concurrency/isolates-spawn-script-and-await
+// The record the chapter documents, field by field, and the two `output:`
+// spellings that decide where the child's own printing goes.
+
+var $job = spawn script "adder.nvs" with(output: "capture");
+var $done = await $job;
+
+echo "ok=", $done->ok ? "true" : "false", "\n";
+
+// `value` crosses as data and is converted at the parent, so the shape the
+// child returned is the shape the parent reads.
+var $answer = $done->value as array<int>;
+echo "sum=", $answer["sum"], " count=", $answer["count"], "\n";
+
+// `capture` keeps the child's line out of this program's own output until the
+// parent prints it here.
+echo "output=", $done->output;
+
+// `error` is the null half of the record while `ok` holds.
+echo "error=", $done->error?->class ?? "none", "\n";
+
+// `inherit` sends the child's printing straight out, so it arrives above the
+// next line this program prints, and the `output` field is left empty.
+var $quiet = spawn script "quiet.nvs" with(output: "inherit");
+var $ran = await $quiet;
+echo "inherited output is ", Core\Str::length($ran->output), " characters\n";
+
+// A child with no `return` answers `null` rather than `require`'s `1`, which is
+// ADR 0006 § *Decision*'s own sentence on the row above this one.
+var $answered = $ran->value as ?int;
+echo "a child with no return answered ", $answered ?? "null", "\n";
+--EXPECT--
+ok=true
+sum=55 count=10
+output=adding
+error=none
+the quiet child ran
+inherited output is 0 characters
+a child with no return answered null

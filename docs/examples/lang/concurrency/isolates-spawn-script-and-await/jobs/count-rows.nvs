@@ -1,0 +1,6 @@
+<?nvs
+// The examples in the folder above start this script. It reads an order file
+// and returns the number of rows it read.
+
+echo "read the order file\n";
+return 1200;

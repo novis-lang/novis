@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to run another file and collect its result. `spawn script` starts
+// the file. `await` waits for it to finish and gives you a result to read.
+
+// A path starts at the folder where you run the program.
+string $path = "docs/examples/lang/concurrency/isolates-spawn-script-and-await/jobs/count-rows.nvs";
+var $handle = spawn script $path with(output: "capture");
+
+// The file is running now. Your program can do other work on this line.
+echo "the file was started\n";
+
+var $result = await $handle;
+
+// `ok` is true when the file finished without an error.
+echo "ok: ", $result->ok ? "true" : "false", "\n";
+
+// `value` is what the file returned. Convert it with `as`.
+int $rows = $result->value as int;
+echo "rows: ", $rows, "\n";
+
+// `output` is everything the file printed, because this spawn asked to keep it.
+echo "it printed: ", $result->output;

@@ -1,0 +1,19 @@
+<?nvs
+// Shows two files running at the same time. Start both first, then wait for
+// both. The second file does not wait for the first one to finish.
+
+string $dir = "docs/examples/lang/concurrency/isolates-spawn-script-and-await/jobs";
+string $first = $dir . "/fetch-prices.nvs";
+string $second = $dir . "/fetch-stock.nvs";
+
+var $prices = spawn script $first with(output: "capture");
+var $stock = spawn script $second with(output: "capture");
+
+// Each `await` takes one handle. Wait for them in any order you like.
+var $gotPrices = await $prices;
+var $gotStock = await $stock;
+
+int $found = ($gotPrices->value as int) + ($gotStock->value as int);
+echo "prices said: ", $gotPrices->output;
+echo "stock said: ", $gotStock->output;
+echo "items to show: ", $found, "\n";

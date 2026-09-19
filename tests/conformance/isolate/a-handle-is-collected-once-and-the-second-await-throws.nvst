@@ -12,6 +12,7 @@ echo "from the child";
 return 7;
 --FILE--
 <?nvs
+// covers: lang:concurrency/isolates-spawn-script-and-await
 // The handle is a `Core\Script\Handle`, whose one slot holds the key its
 // running isolate was filed under on this request
 // (`nvs_runtime::Ctx::hold_started_script`). `await` takes that entry, not the

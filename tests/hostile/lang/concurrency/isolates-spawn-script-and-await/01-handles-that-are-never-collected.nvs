@@ -1,0 +1,61 @@
+<?nvs
+// Attack: a thousand files are started and never collected, and the same handle
+// is collected twice. A handle that is dropped has to be freed by the runtime,
+// and a second `await` has to throw instead of waiting again. The program must
+// reach its last line.
+// hostile: timeout-ms 60000
+
+string $jobs = 'tests/hostile/lang/concurrency/isolates-spawn-script-and-await/jobs';
+string $small = $jobs . '/does-nothing.nvs';
+
+// Step 1: a thousand files started and never collected. Nothing here waits for
+// them, so the runtime is what has to clean them up.
+uint $i = 0;
+while ($i < 1000) {
+    spawn script $small with(output: 'capture');
+    $i = $i + 1;
+}
+echo "step 1: a thousand files were started and left alone\n";
+
+// Step 2: two hundred handles, each collected twice. The second `await` throws
+// `LogicError`, and this program catches every one of them.
+uint $twice = 0;
+uint $j = 0;
+while ($j < 200) {
+    var $handle = spawn script $small with(output: 'capture');
+    var $first = await $handle;
+    try {
+        var $second = await $handle;
+    } catch (LogicError $already) {
+        $twice = $twice + 1;
+    }
+    $j = $j + 1;
+}
+echo 'step 2: ', $twice, " of 200 second collections were refused\n";
+
+// Step 3: a file that starts itself. Nothing in it stops the chain, so the
+// runtime stops it and the result comes back here as a value.
+string $forever = $jobs . '/starts-itself-again.nvs';
+var $chain = spawn script $forever with(output: 'capture');
+var $stopped = await $chain;
+echo 'step 3: the chain came back with ok=', $stopped->ok ? 'true' : 'false', "\n";
+
+// Step 4: a path of a million characters. This is the program's own mistake, so
+// it throws here and the long name reaches nothing that runs it.
+try {
+    string $long = $jobs . '/' . Core\Str::repeat('b', 1048576) . '.nvs';
+    spawn script $long;
+    echo "step 4: a file with a name of a million characters was started\n";
+} catch (Throwable $mistake) {
+    echo "step 4: the long name was not started\n";
+}
+
+// Step 5: a file that is not a program at all.
+try {
+    spawn script $jobs . '/not-a-program.txt';
+    echo "step 5: a file that is not a program was started\n";
+} catch (Throwable $broken) {
+    echo "step 5: the file that is not a program was not started\n";
+}
+
+echo "the runtime is still standing\n";

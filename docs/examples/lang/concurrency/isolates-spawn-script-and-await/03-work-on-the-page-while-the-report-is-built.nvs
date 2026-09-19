@@ -1,0 +1,18 @@
+<?nvs
+// Shows why you start a file instead of calling a function. The report is built
+// while this program writes the page. Collect it at the end.
+
+string $path = "docs/examples/lang/concurrency/isolates-spawn-script-and-await/jobs/build-report.nvs";
+var $handle = spawn script $path with(output: "capture");
+
+// This part of the page is written while the report is still being built.
+echo "<h1>Sales</h1>\n";
+echo "<p>Numbers for last month.</p>\n";
+
+var $report = await $handle;
+if ($report->ok) {
+    string $line = $report->value as string;
+    echo "<p>", $line, "</p>\n";
+} else {
+    echo "<p>The report is not ready.</p>\n";
+}

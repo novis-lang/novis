@@ -1,0 +1,28 @@
+<?nvs
+// Measures one `spawn script` and one `await`: starting a file, waiting for it,
+// and reading the value it returned. A program that runs a job per item on a
+// list pays this once per item.
+// bench: iterations 2000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $scripts = [
+            "benches/members/lang/concurrency/isolates-spawn-script-and-await/returns-one.nvs",
+            "benches/members/lang/concurrency/isolates-spawn-script-and-await/returns-three.nvs",
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the file started this round is picked by the value the
+            // last one returned.
+            string $path = $scripts[($total % 2) as int];
+            var $handle = spawn script $path with(output: "capture");
+            var $result = await $handle;
+            $total = $total + ($result->value as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2000), "\n";

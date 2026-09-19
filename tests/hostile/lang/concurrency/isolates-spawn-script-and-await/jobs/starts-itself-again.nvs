@@ -1,0 +1,16 @@
+<?nvs
+// The attack in the folder above starts this script. It starts itself again,
+// and the copy it starts does the same. Nothing here stops the chain, so the
+// runtime is what has to stop it.
+
+string $me = 'tests/hostile/lang/concurrency/isolates-spawn-script-and-await/jobs/starts-itself-again.nvs';
+var $handle = spawn script $me with(output: 'capture');
+var $result = await $handle;
+
+// The copy started above either returned a depth or stopped. This run counts
+// itself either way.
+uint $deeper = 0;
+if ($result->ok) {
+    $deeper = $result->value as uint;
+}
+return $deeper + 1;

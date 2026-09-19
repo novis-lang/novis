@@ -1,0 +1,6 @@
+<?nvs
+// The examples in the folder above start this script. It counts the items in
+// stock and returns that number.
+
+echo "stock is ready\n";
+return 5;
