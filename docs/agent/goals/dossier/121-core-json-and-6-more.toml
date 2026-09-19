@@ -42,7 +42,7 @@ playbook = [
 
 plan = ["Open now", "Blocking"]
 
-# The environment tables of `docs/agent/goals/dossier/171-the-description-is-owed.toml`, the goal this one was
+# The environment tables of `docs/agent/goals/71-dossier.toml`, the goal this one was
 # appended behind: a generated goal runs that goal's whole acceptance list as its
 # floor, so it needs the same containers and the same WSL target. Regenerated,
 # never hand-edited.
