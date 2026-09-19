@@ -1,0 +1,54 @@
+<?nvs
+// Attack: the report for an uncaught throw is written when the program is
+// already failing. This gives it a message of a million characters, a call
+// stack hundreds of frames deep, and two hooks that throw while it is written.
+// hostile: ends-early
+// hostile: timeout-ms 30000
+
+// Step 1: a very long message. This one is caught, so the program carries on.
+try {
+    throw new RuntimeError(Core\Str::repeat('m', 1048576));
+} catch (RuntimeError $long) {
+    echo 'step 1: caught a message of ', Core\Str::length($long->message), " characters\n";
+}
+
+class Deep
+{
+    public static function down(int $n): int
+    {
+        return Deep::down($n + 1) + 1;
+    }
+}
+
+// Step 2: a call stack as deep as the runtime allows. The `RecursionError` is
+// caught, so the program carries on.
+try {
+    echo Deep::down(0), "\n";
+} catch (RecursionError $deep) {
+    echo 'step 2: caught the depth limit with ', Core\Arr::count($deep->backtrace), " frames\n";
+}
+
+// Step 3: both hooks throw while the runtime reports the failure. Neither may
+// replace the failure, and neither may run twice.
+Core\Fatal::onUncaughtThrow(fn (Throwable $failure): void => {
+    throw new LogicError('the uncaught handler throws as well');
+});
+
+Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+    throw new LogicError('the exit hook throws as well');
+});
+
+class Nest
+{
+    public static function to(int $depth): void
+    {
+        if ($depth == 0) {
+            throw new RuntimeError(Core\Str::repeat('x', 1048576));
+        }
+        Nest::to($depth - 1);
+    }
+}
+
+// Nothing catches this throw. The runtime reports it from 500 frames down,
+// with a message of a million characters, and the program ends here.
+Nest::to(500);

@@ -73,3 +73,10 @@ perf = "Every name here is a compile error, so there is no program to iterate; t
 # each already carries its own figure.
 [skip."lang:classes/what-a-class-cannot-declare"]
 perf = "Every declaration here is a compile error, so there is no program to iterate; the replacements carry their own figures."
+
+# A program reaches this ending exactly once, so a loop around it is impossible and a bench would
+# report process startup and JIT warm-up moving instead. The cost of the throw itself is
+# `lang:errors/throw`'s figure, measured against `rule:errors/throw-is-not-slower`, and what the
+# floor does with the record afterwards is off the request path by construction.
+[skip."lang:errors/an-uncaught-throw"]
+perf = "A program ends once at an uncaught throw, so there is nothing to iterate; `lang:errors/throw` carries the throw's own figure."

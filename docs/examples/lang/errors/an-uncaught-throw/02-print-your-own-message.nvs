@@ -1,0 +1,25 @@
+<?nvs
+// Shows how to print your own message when an error ends the program.
+// dossier: exit 1
+
+// This closure runs when a throw reaches the top of the program and nothing
+// caught it. The program still ends, and the exit status is still 1.
+Core\Fatal::onUncaughtThrow(fn (Throwable $e): void => {
+    echo "import stopped: ", $e->message, "\n";
+    echo "check your file, then run the import again\n";
+});
+
+class Import {
+    public static function row(string $line): string {
+        if (Core\Str::length($line) == 0) {
+            throw new RuntimeError("an empty line is not a row");
+        }
+        return $line;
+    }
+}
+
+echo Import::row("ada,lovelace"), "\n";
+
+// The second row is empty, so this throw ends the program. The closure above
+// runs first and prints the two lines you wrote for your user.
+echo Import::row(""), "\n";

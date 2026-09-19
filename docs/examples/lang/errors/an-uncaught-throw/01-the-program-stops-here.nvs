@@ -1,0 +1,20 @@
+<?nvs
+// Shows what happens when no `catch` handles a throw. The program ends at
+// the line that threw, with exit status 1.
+// dossier: exit 1
+
+class Repo {
+    public static function get(int $id): string {
+        throw new RuntimeError("no row " . $id);
+    }
+}
+
+// This prints. Everything printed before the throw stays printed.
+echo "loading order 7\n";
+
+// Nothing catches this error, so the program ends here. The error output gets
+// the class `RuntimeError`, the message, and one line for each function.
+echo Repo::get(7), "\n";
+
+// This line never runs.
+echo "done\n";

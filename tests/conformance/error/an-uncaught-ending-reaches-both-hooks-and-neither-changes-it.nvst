@@ -1,0 +1,36 @@
+--TEST--
+An uncaught throw runs `Core\Fatal::onUncaughtThrow` with the live `Throwable` and then the exit queue, and neither hook changes the ending the floor still reports at status 1 — `rule:errors/on-uncaught-throw`, `rule:errors/engine-floor`
+--FILE--
+<?nvs
+// covers: lang:errors/an-uncaught-throw
+// `rule:errors/on-uncaught-throw` puts two observers on this ending and gives
+// each a different view of it: the handler sees the `Throwable` itself, the
+// exit queue behind it sees the report. The case asserts the order of the two
+// and that the record below is written regardless, which is the half that
+// makes "there is no `set_exception_handler`" a fact rather than an absence.
+
+Core\Fatal::onUncaughtThrow(fn (Throwable $failure): void => {
+    echo "handler: ", $failure->message, "\n";
+});
+
+// Not a tier of the ladder: it runs at every non-fatal ending, and this case
+// pins what it reads off the one an uncaught throw causes.
+Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+    echo "exit hook: status ", $report->status(), "\n";
+    echo "exit hook: uncaught ",
+        $report->reason() == Core\Script\ExitReason::UncaughtThrow ? "yes" : "no", "\n";
+    echo "exit hook: error ", $report->error()?->message ?? "none", "\n";
+});
+
+echo "working\n";
+
+// Thrown at the file's top level, so the backtrace is the root frame alone.
+throw new RuntimeError("nothing catches this");
+--EXPECT--
+working
+handler: nothing catches this
+exit hook: status 1
+exit hook: uncaught yes
+exit hook: error nothing catches this
+--EXPECTF-ERROR--
+{"level":"error","msg":"nothing catches this","fields":{"class":"RuntimeError"},"nodes":[{"function":"<script>","file":"%s","line":%d}]}

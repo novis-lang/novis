@@ -1,0 +1,32 @@
+<?nvs
+// Shows how to write a summary line even when an error ends the program.
+// dossier: exit 1
+
+final class Counter {
+    public static int $written = 0;
+}
+
+// This closure runs at every ending: a normal one, an `exit`, and an error
+// that nothing caught. `status()` is 1 for an ending an error caused.
+Core\Script::onExit(fn (Core\Script\ExitReport $report): void => {
+    echo "--- rows written: ", Counter::$written, "\n";
+    echo "--- exit status: ", $report->status(), "\n";
+    echo "--- error: ", $report->error()?->message ?? "none", "\n";
+});
+
+class Rows {
+    public static function write(string $row): void {
+        if (Core\Str::length($row) == 0) {
+            throw new RuntimeError("row " . Counter::$written . " is empty");
+        }
+        Counter::$written = Counter::$written + 1;
+        echo "wrote ", $row, "\n";
+    }
+}
+
+Rows::write("ada,lovelace");
+Rows::write("grace,hopper");
+
+// This row is empty, so the program ends here. The summary above is still
+// printed, and it reports the two rows that did get written.
+Rows::write("");
