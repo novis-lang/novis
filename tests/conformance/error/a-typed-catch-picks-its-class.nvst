@@ -2,6 +2,7 @@
 A typed `catch` matches its class and every subclass of it, and `Throwable` is the root of the tree — spec § 10
 --FILE--
 <?nvs
+// covers: lang:errors/try-catch-finally
 class Parser {
     public static function positive(int $n): int {
         if ($n < 0) {

@@ -1,0 +1,32 @@
+<?nvs
+// Shows a `catch` that cannot handle what it caught. It throws an error of its
+// own and gives the caught one as the cause. That new error leaves the `try` it
+// was thrown in, and the caller handles it.
+
+final class Settings {
+    public static function port(array<string> $raw): int {
+        try {
+            return $raw["port"] as int;
+        } catch (RuntimeError $unusable) {
+            throw new LogicError("the port setting is unusable", {previous: $unusable});
+        }
+    }
+}
+
+array<string> $withoutPort = ["host" => "localhost"];
+array<string> $withText = ["port" => "eight"];
+
+try {
+    echo Settings::port($withoutPort), "\n";
+} catch (LogicError $first) {
+    echo $first->message, "\n";
+    // The cause says what the inner error was.
+    echo "caused by: ", $first->previous?->message ?? "nothing", "\n";
+}
+
+try {
+    echo Settings::port($withText), "\n";
+} catch (LogicError $second) {
+    echo $second->message, "\n";
+    echo "caused by: ", $second->previous?->message ?? "nothing", "\n";
+}

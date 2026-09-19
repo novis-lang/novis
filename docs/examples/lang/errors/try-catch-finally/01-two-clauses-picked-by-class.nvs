@@ -1,0 +1,29 @@
+<?nvs
+// Shows two `catch` clauses in the order they are tried. `TimeoutError` is a
+// kind of `RuntimeError`, so the narrow clause is written first. A
+// `RuntimeError` clause written first would take both errors.
+
+final class Feed {
+    public static function read(string $name): string {
+        if ($name == "slow") {
+            throw new TimeoutError("the feed did not answer");
+        }
+        if ($name == "gone") {
+            throw new RuntimeError("the feed is not there");
+        }
+        return "3 rows";
+    }
+}
+
+array<string> $names = ["daily", "slow", "gone"];
+
+foreach ($names as string $name) {
+    try {
+        string $rows = Feed::read($name);
+        echo $name, ": ", $rows, "\n";
+    } catch (TimeoutError $slow) {
+        echo $name, ": timed out, ", $slow->message, "\n";
+    } catch (RuntimeError $other) {
+        echo $name, ": failed, ", $other->message, "\n";
+    }
+}

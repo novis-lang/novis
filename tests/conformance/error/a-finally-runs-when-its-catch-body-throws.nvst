@@ -2,6 +2,7 @@
 A `finally` runs when its own `catch` clause's body throws, before the new exception leaves the region — `rule:errors/propagation` ("`error_block` is where this frame's refcount decrements and `finally` blocks go"), lowered by `nvs_ir::lower::Lowering::lower_try`
 --FILE--
 <?nvs
+// covers: lang:errors/try-catch-finally
 final class Ladder {
     // The shape the case is named for: the clause body throws, and the
     // region's own `finally` runs before the new exception reaches the

@@ -1,0 +1,93 @@
+<?nvs
+// Attack: guarded blocks are pushed as far as the runtime allows. A thousand
+// nested regions unwind at once. A `finally` throws while another error is in
+// flight. Every step is caught, and the runtime should still be standing.
+// hostile: timeout-ms 30000
+
+final class Nest
+{
+    public static int $closed = 0;
+
+    // Every level adds a region, so one throw at the bottom runs a thousand
+    // `finally` blocks on the way out.
+    public static function down(int $depth): int
+    {
+        if ($depth == 0) {
+            throw new IOError('the bottom of the nest');
+        }
+        try {
+            return Nest::down($depth - 1);
+        } finally {
+            Nest::$closed = Nest::$closed + 1;
+        }
+    }
+
+    // The `finally` throws while the first error is still on its way out, so
+    // the error that reaches the caller is the second one.
+    public static function replaceTheError(): int
+    {
+        try {
+            throw new RuntimeError('the first error');
+        } finally {
+            throw new LogicError('the second error');
+        }
+    }
+}
+
+// Step 1: one throw unwinds a thousand nested regions.
+try {
+    echo Nest::down(1000), "\n";
+} catch (IOError $fromTheBottom) {
+    echo 'step 1: ', Nest::$closed, ' regions closed by ', $fromTheBottom->message, "\n";
+}
+
+// Step 2: two hundred thousand regions, each one throwing and catching.
+int $acc = 0;
+int $round = 0;
+while ($round < 200000) {
+    try {
+        throw new RuntimeError('round ' . $round);
+    } catch (RuntimeError $caught) {
+        $acc = $acc + 1;
+    } finally {
+        $acc = $acc + 1;
+    }
+    $round = $round + 1;
+}
+echo 'step 2: ', $acc, " clauses and finally blocks\n";
+
+// Step 3: a `finally` that throws while another error is in flight.
+int $second = 0;
+int $pass = 0;
+while ($pass < 50000) {
+    try {
+        echo Nest::replaceTheError(), "\n";
+    } catch (LogicError $fromFinally) {
+        $second = $second + 1;
+    } catch (RuntimeError $fromBody) {
+        $second = $second + 1000000;
+    }
+    $pass = $pass + 1;
+}
+echo 'step 3: ', $second, " errors came out of the finally\n";
+
+// Step 4: a loop that leaves its regions through `break` and `continue`.
+int $left = 0;
+int $lap = 0;
+while ($lap < 100000) {
+    try {
+        if ($lap % 2 == 0) {
+            $lap = $lap + 1;
+            continue;
+        }
+        if ($lap > 99990) {
+            break;
+        }
+    } finally {
+        $left = $left + 1;
+    }
+    $lap = $lap + 1;
+}
+echo 'step 4: ', $left, " regions left through break or continue\n";
+
+echo "the runtime is still standing\n";

@@ -1,0 +1,36 @@
+<?nvs
+// Measures a guarded block that does not throw: a `try` with a `catch` and a
+// `finally` around one call that succeeds. A web request runs through many of
+// these blocks, and almost none of them fail.
+// bench: iterations 400000
+// bench: calls 1
+// bench: allocations 0
+
+class Bench {
+    public static function step(int $row): int {
+        if ($row < 0) {
+            throw new RuntimeError("a negative row");
+        }
+        return $row * 3;
+    }
+
+    public static function run(int $rounds): int {
+        int $acc = 1;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: this round's row comes out of the last round.
+            int $row = $acc % 97;
+            try {
+                $acc = ($acc + Bench::step($row)) % 1000003;
+            } catch (RuntimeError $failed) {
+                $acc = $acc + 2;
+            } finally {
+                $acc = $acc + 1;
+            }
+            $i = $i + 1;
+        }
+        return $acc;
+    }
+}
+
+echo Bench::run(400000), "\n";
