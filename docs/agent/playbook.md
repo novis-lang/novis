@@ -5896,6 +5896,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   calls, debug and release alike, and a fatter body stops sooner. Keep a proof that must succeed
   under about 2,000, and let one that must fail recurse with no base case at all.
   [until: reviewed 2026-09-19]
+- **A `!= null` test joined by `&&` narrows neither receiver, so `->` on either is still `E0459`.**
+  `if ($a != null && $b != null) { echo $a->city; }` reports "this receiver is nullable" for both,
+  while the same two tests written as two separate `if` blocks compile —
+  `rule:expressions/nullable-conversion`'s narrowing reads one test per guarded branch and not a
+  conjunction of them. Write one `if` per nullable receiver, or `?->` with `??` where the value is
+  only echoed. [until: reviewed 2026-09-19]
 
 ## Splitting a file that got too big
 
