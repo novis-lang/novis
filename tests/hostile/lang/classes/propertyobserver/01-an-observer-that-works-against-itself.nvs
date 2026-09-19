@@ -1,0 +1,101 @@
+<?nvs
+// Attack: a program turns its own observer against itself. The observer writes
+// the property it was just told about, reads a property while reporting a read,
+// and keeps every write it ever saw. The runtime should stay standing.
+// hostile: timeout-ms 20000
+// hostile: ends-early
+// covers: lang:classes/propertyobserver
+
+final class Endless implements PropertyObserver
+{
+    public int $n = 0;
+    public string $text = '';
+
+    public function constructor()
+    {
+    }
+
+    // Reporting a read reads the same property again.
+    public function onPropertyGet(string $name, mixed $value): void
+    {
+        int $again = $this->n;
+    }
+
+    // Reporting a write writes the same property again.
+    public function onPropertySet(string $name, mixed $value): void
+    {
+        $this->n = 1;
+    }
+}
+
+final class Hoarder implements PropertyObserver
+{
+    public int $n = 0;
+    public array<string> $seen = [];
+
+    public function constructor()
+    {
+    }
+
+    public function onPropertyGet(string $name, mixed $value): void
+    {
+    }
+
+    // Every write of `$n` is kept forever, and the list itself is a property.
+    public function onPropertySet(string $name, mixed $value): void
+    {
+        if ($name == 'n') {
+            $this->seen[] = Core\Str::repeat($name, 64);
+        }
+    }
+}
+
+final class Refuser implements PropertyObserver
+{
+    public int $n = 0;
+
+    public function constructor()
+    {
+    }
+
+    public function onPropertyGet(string $name, mixed $value): void
+    {
+    }
+
+    public function onPropertySet(string $name, mixed $value): void
+    {
+        throw new LogicError('this class refuses every write');
+    }
+}
+
+// 1. A write reports a write, which writes again, and never settles.
+var $endless = new Endless();
+try {
+    $endless->n = 1;
+    echo "1: BAD, the write finished\n";
+} catch (Throwable $e) {
+    echo '1: caught ', $e->message, "\n";
+}
+
+// 2. A read reports a read, which reads again, and never settles.
+try {
+    int $read = $endless->n;
+    echo '2: BAD, the read answered ', $read, "\n";
+} catch (Throwable $e) {
+    echo '2: caught ', $e->message, "\n";
+}
+
+// 3. A million writes, each one keeping a string the program never frees.
+var $hoarder = new Hoarder();
+int $written = 0;
+while ($written < 1000000) {
+    $hoarder->n = $written;
+    $written = $written + 1;
+}
+echo '3: wrote ', $written, ' times, holding ', Core\Arr::count($hoarder->seen), " strings\n";
+
+// 4. An observer throws on every write, and nothing catches this one, so the
+//    program ends here.
+var $refuser = new Refuser();
+$refuser->n = 1;
+echo "4: BAD, the program is still running\n";

@@ -1,0 +1,44 @@
+<?nvs
+// Shows how far one observer reaches. A private property, a property with a
+// hook, and a property a subclass declares all call the same two methods.
+
+class Record implements PropertyObserver {
+    private int $id;
+    public string $title;
+
+    // The `set` hook stores the lower case text. The observer is told what the
+    // hook stored, not what was written.
+    public string $slug {
+        set (string $v) {
+            $this->slug = Core\Str::lower($v);
+        }
+    }
+
+    public function constructor(int $id, string $title) {
+        $this->id = $id;
+        $this->title = $title;
+        $this->slug = $title;
+    }
+
+    public function onPropertyGet(string $name, mixed $value): void {
+        echo "read ", $name, "\n";
+    }
+
+    public function onPropertySet(string $name, mixed $value): void {
+        echo "wrote ", $name, " = ", $value, "\n";
+    }
+}
+
+// A subclass inherits the two methods, and the property it adds is observed too.
+class Article extends Record {
+    public int $words;
+
+    public function constructor(int $id, string $title, int $words) {
+        parent::constructor($id, $title);
+        $this->words = $words;
+    }
+}
+
+var $article = new Article(7, "Hello World", 240);
+$article->words = 250;
+echo $article->title, "\n";

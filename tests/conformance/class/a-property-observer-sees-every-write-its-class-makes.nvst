@@ -2,6 +2,7 @@
 A class implementing `PropertyObserver` is told of every read and write of every property it declares, hooked or not, always after the value has settled — `rule:classes/property-observer`, `rule:classes/property-observer-pipeline` and `rule:classes/property-observer-costs-nothing-when-unused`
 --FILE--
 <?nvs
+// covers: lang:classes/propertyobserver
 // `rule:classes/property-observer`: `PropertyObserver` is a reserved *global* interface, named
 // like `Comparable` and `Stringable` and not under `Core`. `$value` is
 // `mixed` because one observer sees properties of every type.

@@ -1,0 +1,30 @@
+<?nvs
+// Shows the two methods an observer writes. `Account` prints one line for every
+// read and every write of its own properties.
+
+class Account implements PropertyObserver {
+    public string $owner;
+    public int $balance;
+
+    public function constructor(string $owner) {
+        // The constructor writes both properties, so `onPropertySet` runs twice here.
+        $this->owner = $owner;
+        $this->balance = 0;
+    }
+
+    // `$name` is the property, and `$value` is the value it now has.
+    public function onPropertyGet(string $name, mixed $value): void {
+        echo "read ", $name, " = ", $value, "\n";
+    }
+
+    public function onPropertySet(string $name, mixed $value): void {
+        echo "wrote ", $name, " = ", $value, "\n";
+    }
+}
+
+var $account = new Account("Ada");
+$account->balance = 120;
+
+// A read calls `onPropertyGet` first, then gives you the value. This prints
+// the line from the observer and then 120.
+echo $account->balance, "\n";

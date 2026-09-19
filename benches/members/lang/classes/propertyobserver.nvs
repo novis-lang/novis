@@ -1,0 +1,34 @@
+<?nvs
+// Writes and reads one property of a class that observes itself. A record that
+// tracks its own changes pays this on every field it updates.
+// bench: iterations 400000
+// bench: allocations 0
+
+final class Tracked implements PropertyObserver {
+    public int $level;
+
+    public function constructor(int $start) {
+        $this->level = $start;
+    }
+
+    public function onPropertyGet(string $name, mixed $value): void {
+    }
+
+    public function onPropertySet(string $name, mixed $value): void {
+    }
+}
+
+class Bench {
+    public static function run(int $rounds): int {
+        var $tracked = new Tracked(1);
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: this round writes what the last one stored.
+            $tracked->level = $tracked->level + 1;
+            $i = $i + 1;
+        }
+        return $tracked->level;
+    }
+}
+
+echo Bench::run(400000), "\n";
