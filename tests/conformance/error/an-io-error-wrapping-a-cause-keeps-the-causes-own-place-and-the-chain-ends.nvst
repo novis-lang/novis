@@ -1,0 +1,81 @@
+--TEST--
+An `IOError` wrapping a cause carries it at `previous` with the cause's own location and message untouched, and the chain walks to a `null` end — `rule:errors/propagation` and `rule:errors/throwable-hierarchy`
+--FILE--
+<?nvs
+// covers: IOError
+// The everyday shape for this class: a helper that knows what it was doing
+// wraps the failure that knows what went wrong. Asked as a walk to the end of
+// the chain rather than one `previous` read, so a wrap that kept only the
+// nearest cause fails here while printing a plausible first line.
+class Wrap {
+    public static function three(): void {
+        try {
+            try {
+                throw new ParseError("the document is not a document");
+            } catch (ParseError $inner) {
+                throw new IOError("the saved report is unusable", {previous: $inner});
+            }
+        } catch (IOError $middle) {
+            throw new IOError("the nightly run has nothing to send", {previous: $middle});
+        }
+    }
+}
+
+try {
+    Wrap::three();
+    echo "not reached\n";
+} catch (IOError $outer) {
+    echo $outer->message, "\n";
+    uint $depth = 0;
+    var $cursor = $outer->previous;
+    while ($cursor != null) {
+        $depth = $depth + 1;
+        echo "  ", $depth, ": ", $cursor->message, "\n";
+        // `?->` and not `->`: assigning to the binding being narrowed drops the
+        // narrowing for the right-hand side of that very statement.
+        $cursor = $cursor?->previous;
+    }
+    // Three errors, so two causes and then the end of the chain. Counted,
+    // because a walk that stopped at the first cause prints a plausible line
+    // and a wrong number.
+    echo "causes=", $depth, "\n";
+}
+
+// Wrapping is not rethrowing: the cause keeps the place it was raised at, and
+// the wrapper's own location is the line that wrapped it. Compared rather than
+// printed, because a case's file name is not part of what this pins.
+try {
+    try {
+        throw new ParseError("bad field");
+    } catch (ParseError $cause) {
+        throw new IOError("could not read it", {previous: $cause});
+    }
+} catch (IOError $wrapper) {
+    var $kept = $wrapper->previous;
+    if ($kept != null) {
+        if ($kept->location != $wrapper->location) {
+            echo "the cause kept its own place\n";
+        }
+        if ($kept->message == "bad field") {
+            echo "and its own message\n";
+        }
+    }
+}
+
+// An error raised on its own has no cause at all, which is what makes the walk
+// above terminate rather than loop.
+try {
+    throw new IOError("nothing underneath");
+} catch (IOError $alone) {
+    if ($alone->previous == null) {
+        echo "no cause\n";
+    }
+}
+--EXPECT--
+the nightly run has nothing to send
+  1: the saved report is unusable
+  2: the document is not a document
+causes=2
+the cause kept its own place
+and its own message
+no cause

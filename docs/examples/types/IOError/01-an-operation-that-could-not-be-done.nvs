@@ -1,0 +1,24 @@
+<?nvs
+// An IOError says that something outside the program did not happen, and names
+// what was being attempted. Code that raises one is usually a small helper
+// standing in front of a machine, a disk or a network.
+
+class Store {
+    public static function fetch(string $name): string {
+        // Stands in for the operation: nothing here is the program's mistake,
+        // so the answer is a refusal the caller can act on.
+        if ($name != "settings") {
+            throw new IOError("no document called " . $name);
+        }
+        return "theme=dark";
+    }
+}
+
+echo Store::fetch("settings"), "\n";
+
+try {
+    echo Store::fetch("holidays"), "\n";
+} catch (IOError $missing) {
+    echo "could not load it: ", $missing->message, "\n";
+    echo "carrying on with the defaults\n";
+}

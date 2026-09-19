@@ -1,0 +1,29 @@
+<?nvs
+// A helper usually knows what it was doing, and the failure underneath knows
+// what went wrong. Keeping both means the report can say the first and still
+// show the second.
+
+class Report {
+    public static function load(string $document): string {
+        try {
+            Core\Json::decode($document);
+            return "loaded";
+        } catch (ParseError $cause) {
+            // The cause travels with the new error instead of being replaced
+            // by it.
+            throw new IOError("the saved report is unusable", {previous: $cause});
+        }
+    }
+}
+
+try {
+    echo Report::load("{oops}"), "\n";
+} catch (IOError $failed) {
+    echo $failed->message, "\n";
+    // `previous` is empty for an error raised on its own, so it is read through
+    // a binding the compiler can see is no longer null.
+    var $cause = $failed->previous;
+    if ($cause != null) {
+        echo "  because: ", $cause->message, "\n";
+    }
+}

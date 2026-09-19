@@ -1,0 +1,31 @@
+<?nvs
+// What this looks like at work: a value can come from more than one place, and
+// each place may be unreachable. Trying them in order means one machine being
+// down shows up as a slower page rather than a broken one.
+
+class Prices {
+    public static function from(string $source): string {
+        if ($source == "cache") {
+            throw new IOError("the cache server is not answering");
+        }
+        if ($source == "database") {
+            throw new IOError("the database is not accepting connections");
+        }
+        return "yesterday's prices";
+    }
+}
+
+array<string> $places = ["cache", "database", "file"];
+string $prices = "";
+foreach ($places as string $place) {
+    try {
+        $prices = Prices::from($place);
+        echo "served from ", $place, "\n";
+        break;
+    } catch (IOError $unreachable) {
+        // Worth saying out loud: the page is fine, and somebody should still
+        // know this happened.
+        echo "skipping ", $place, ": ", $unreachable->message, "\n";
+    }
+}
+echo $prices, "\n";
