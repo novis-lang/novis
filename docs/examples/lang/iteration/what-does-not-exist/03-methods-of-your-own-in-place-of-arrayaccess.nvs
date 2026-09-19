@@ -1,0 +1,44 @@
+<?nvs
+// Shows a real use: a basket that PHP would give `ArrayAccess` and `Countable`. Novis has
+// neither interface, so the class names its own methods. A reader of this code sees what
+// each one does without looking the interface up.
+
+class Line {
+    public function constructor(public string $sku, public int $quantity) {}
+}
+
+class Basket implements Iterable<Line> {
+    private array<Line> $lines = [];
+
+    public function put(string $sku, int $quantity): void {
+        $this->lines[] = new Line($sku, $quantity);
+    }
+
+    // This replaces `offsetGet`, and the name says which line it returns.
+    public function lineAt(int $position): Line {
+        return $this->lines[$position];
+    }
+
+    // This replaces `count`, and it returns the number of lines.
+    public function size(): int {
+        return Core\Arr::count($this->lines) as int;
+    }
+
+    public function iterate(): Iterator<Line> {
+        foreach ($this->lines as Line $line) {
+            yield $line;
+        }
+    }
+}
+
+var $basket = new Basket();
+$basket->put("COFFEE-1KG", 2);
+$basket->put("FILTER-100", 1);
+
+// This prints 2 lines, then COFFEE-1KG.
+echo $basket->size(), " lines\n";
+echo $basket->lineAt(0)->sku, "\n";
+
+foreach ($basket as Line $line) {
+    echo $line->sku, " x", $line->quantity, "\n";
+}

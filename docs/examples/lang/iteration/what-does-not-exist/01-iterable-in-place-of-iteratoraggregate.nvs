@@ -1,0 +1,27 @@
+<?nvs
+// Shows the replacement for PHP's `IteratorAggregate` and `Traversable`. A class becomes
+// walkable by implementing `Iterable<T>` and writing one method, `iterate()`.
+
+class Playlist implements Iterable<string> {
+    private array<string> $tracks = [];
+
+    public function add(string $title): void {
+        $this->tracks[] = $title;
+    }
+
+    // This replaces `getIterator()`. The return type names what the loop reads.
+    public function iterate(): Iterator<string> {
+        foreach ($this->tracks as string $title) {
+            yield $title;
+        }
+    }
+}
+
+var $playlist = new Playlist();
+$playlist->add("Blue in Green");
+$playlist->add("So What");
+
+// The object is now a subject a `foreach` loop accepts.
+foreach ($playlist as string $title) {
+    echo $title, "\n";
+}

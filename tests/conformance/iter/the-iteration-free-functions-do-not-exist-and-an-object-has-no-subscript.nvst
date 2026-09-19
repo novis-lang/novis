@@ -1,0 +1,37 @@
+--TEST--
+`iterator_to_array`, `count`, `current`, `next` and `reset` are not functions that exist, and an object has no subscript to read — `rule:iteration/no-magic-collection-interfaces`
+--FILE--
+<?nvs
+// covers: lang:iteration/what-does-not-exist
+class Steps {
+    public static function upTo(int $n): Iterator<int> {
+        int $i = 0;
+        while ($i < $n) {
+            yield $i;
+            $i = $i + 1;
+        }
+    }
+}
+
+class Bag {
+    public int $size = 0;
+}
+
+// Every one of PHP's iteration free functions is refused where it is written. The
+// replacements are `Core\Arr::from` and `Core\Arr::count`.
+array<int> $rows = [1, 2, 3];
+echo iterator_to_array(Steps::upTo(3)), "\n";
+echo count($rows), "\n";
+echo current($rows), "\n";
+echo next($rows), "\n";
+echo reset($rows), "\n";
+
+// An object has no subscript, because no interface turns a subscript into a method call.
+var $bag = new Bag();
+echo $bag[0], "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0320]: `iterator_to_array` is not a function that exists
+%A
+error: aborting due to 6 errors

@@ -2462,6 +2462,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   measured` for features the session never opened, which reads like unfinished work rather than a
   re-measure. Run `python tools/dossier.py --record-perf --group <group>` after any edit to a
   reference chapter and before the gate. [until: reviewed 2026-09-19]
+- **A `dossier.py --verify` check's failure detail is its *stderr*, which is the release-binary
+  notice, while the reason it failed is on stdout.** The acceptance report for goal `lang-iteration`
+  read `exit 1 -- dossier: target/release/nvs.exe is missing or older than the tree`, which is a line
+  `current_binary` prints before it builds that binary itself; the real reason was the gate line
+  saying three features owed every proof. Run the check's own argv and read stdout — `dossier gate:`
+  names what is owed — rather than rebuilding anything by hand. [until: reviewed 2026-09-19]
 
 ## Running things
 

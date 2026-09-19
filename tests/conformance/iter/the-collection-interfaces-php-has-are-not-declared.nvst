@@ -1,0 +1,24 @@
+--TEST--
+`Countable`, `ArrayAccess`, `IteratorAggregate`, `Traversable` and `Generator` are not declared, so naming one in an `implements` clause or in a type position is a compile error — `rule:iteration/no-magic-collection-interfaces`
+--FILE--
+<?nvs
+// covers: lang:iteration/what-does-not-exist
+class Sized implements Countable {}
+
+class Indexed implements ArrayAccess {}
+
+class Aggregate implements IteratorAggregate {}
+
+class Walked implements Traversable {}
+
+// The same refusal reaches a type position: `Generator` is not a name a program may write,
+// even though a method with `yield` is what PHP would call one.
+class Steps {
+    public static function take(Generator $g): void {}
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0303]: `Countable` is not declared
+%A
+error: aborting due to 5 errors

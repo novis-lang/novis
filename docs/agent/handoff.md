@@ -2,48 +2,40 @@
 
 ## State
 
-Goal `lang:iteration` is live and three of its six features carry every feature proof:
-`core-collections-are-iterable`, `generators` and `materialising-a-sequence-core-arr-from`.
-`what-foreach-walks`, `the-two-interfaces` and `what-does-not-exist` owe all of theirs.
+Goal `lang:iteration` is **met**: `python tools/dossier.py --verify --group lang:iteration` reports
+`nothing owed` and `0 failed` twice over its six features. `what-foreach-walks`,
+`the-two-interfaces` and `what-does-not-exist` landed their feature proofs this session, joining the
+three that were already complete.
 
-Two sentences in `docs/reference/lang/60-iteration.md` were wrong about the binary and are
-rewritten: `current()` outside the protocol throws `LogicError` rather than answering a stale slot,
-and `Core\Arr::from` accepts a `Core` collection. Both were already pinned by green conformance
-cases.
+`what-does-not-exist` is excused its perf figure in `tools/data/dossier-policy.toml`, by the
+precedent of `lang:expressions/refused-in-expression-position`: every name in it is a compile error,
+so there is no program to iterate. Its attack carries `// hostile: expect-refusal`, and the compiler
+answers it with 32 errors and no crash.
 
-The attack written against `Core\Arr::from` found a real hole: draining a sequence with no `limit`
-grew past `[limits] memory` without bound, because the native loop passes no statement boundary and
-calls no member, so nothing in it read the balance. One left running here reached 6 GB against a
-256 MB ceiling. `crates/nvs-runtime/src/sequence.rs`'s `drain` now asks
-`crate::abi::affordable` per element. The stop is pinned by
-`tests/conformance/core/arr-from-over-a-sequence-with-no-end-is-stopped-by-the-memory-ceiling.nvst`.
-That refusal does not run the program's `onLimit` handler, which `rule:errors/on-limit` says fires
-for every resource `FATAL`; goal `limit-handler-reach` was inserted at the end of the chain for it.
-Nothing is blocked.
+The two benches are deliberately a pair: the array subject measures 21.97 units with 0 calls and 0
+allocations, the hand-written cursor 151.55 units with 18 calls and 1 allocation per round. That gap
+is the cost of `rule:iteration/foreach-subjects`'s interface forms, and it is now on the ledger.
+
+`python tools/owners.py --closes lang-iteration` and `python tools/playbook.py --closes
+lang-iteration` both report nothing owned, and `python tools/verify.py --doc` is green. Nothing is
+blocked.
 
 ## Next group
 
-**Stage: feature proofs for `lang:iteration`** — one file set, the same one this session loaded:
-`docs/reference/lang/60-iteration.md`, `docs/examples/lang/iteration/`,
-`tests/hostile/lang/iteration/`, `benches/members/lang/iteration/`, `tests/conformance/iter/`.
-One feature with all of its feature proofs is one slice, in the order
-`rule:testing/feature-proofs` names them. The corpus under `tests/conformance/iter/` already holds
-cases for all three; a `// covers:` marker in the `--FILE--` block is what attributes one, and two
-per feature is what is owed.
+**Stage: feature proofs for the next generated goal** — the chain's next entry is goal `lang-errors`
+(`docs/agent/goals/dossier/86-lang-errors.md`), and a goal switch overwrites this file with its own
+handoff. These items stand only if the driver stays on `lang:iteration`.
 
-- [ ] **`lang:iteration/what-foreach-walks`** — owes about, examples, hostile, perf, tests.
-      `rule:iteration/foreach-subjects`. `docs/reference/lang/60-iteration.md:9`
-- [ ] **`lang:iteration/the-two-interfaces`** — owes about, examples, hostile, perf, tests.
-      `rule:iteration/two-interfaces`. `docs/reference/lang/60-iteration.md:29`
-- [ ] **`lang:iteration/what-does-not-exist`** — owes about, examples, hostile, perf, tests. Every
-      proof here is a refusal, so read `tests/hostile/README.md` on a compile diagnostic never
-      being a pass before writing the attack. `docs/reference/lang/60-iteration.md:423`
+- [ ] **Re-read the group ledger before writing anything** — `python tools/dossier.py --group
+      lang:iteration` prints all six features and what each holds.
+      `rule:testing/feature-proofs`. `docs/reference/lang/60-iteration.md:9`
+- [ ] **A chapter edit re-stales every perf figure in it** — the ledger keys a `lang` feature's
+      figure to its reference file, so editing `docs/reference/lang/60-iteration.md` marks all six
+      stale at once and each needs `--record-perf` again. `rule:testing/member-perf-ledger`.
+      `docs/reference/lang/60-iteration.md:422`
 
 ## Backlog
 
-- Editing a sentence of `docs/reference/lang/60-iteration.md` makes every `lang:iteration` perf
-  figure stale; re-record the group before the gate (playbook, Tooling).
-- `Core\Arr::from`'s own member feature still owes examples, a bench and a hostile case under
-  `core/Arr/from/` — a different feature from this group's, and not this goal's.
-- Goal `limit-handler-reach` (chain position 172) holds the handler half of the ceiling fix; its
-  own handoff names the three slices.
+- Goal `limit-handler-reach` still owes the `onLimit` half of the memory ceiling — `rule:errors/on-limit`.
+- `lang:iteration/the-two-interfaces` sits at 151.55 units, past `[report.ceiling] constant = 100`
+  in `tools/data/dossier-policy.toml`; advisory only, and honest for an interface-dispatched loop.
