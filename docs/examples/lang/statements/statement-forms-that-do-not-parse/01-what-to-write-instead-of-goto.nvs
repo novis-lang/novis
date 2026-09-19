@@ -1,0 +1,41 @@
+<?nvs
+// `goto` and its labels do not parse. Shows the three ways to leave a piece of
+// work early instead: an early `return`, a `break`, and a flag.
+
+class Orders
+{
+    // Returns the first total above the limit, or 0 when there is none.
+    public static function firstOver(array<int> $totals, int $limit): int
+    {
+        foreach ($totals as int $total) {
+            // An early `return` leaves the method at once.
+            if ($total > $limit) {
+                return $total;
+            }
+        }
+        return 0;
+    }
+}
+
+array<int> $totals = [400, 1200, 250, 3000];
+
+// This prints 1200.
+echo Orders::firstOver($totals, 1000), "\n";
+
+// `break` leaves a loop. This one stops at the first total below 300.
+int $small = 0;
+foreach ($totals as int $total) {
+    if ($total < 300) {
+        $small = $total;
+        break;
+    }
+}
+
+// This prints 250.
+echo $small, "\n";
+
+// A flag carries the decision to the statements after the loop.
+bool $found = $small > 0;
+if ($found) {
+    echo "one small order\n";
+}

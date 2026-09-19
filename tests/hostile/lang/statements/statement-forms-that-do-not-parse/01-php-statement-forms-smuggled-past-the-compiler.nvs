@@ -1,0 +1,40 @@
+<?nvs
+// Attack: a program uses the PHP statement forms Novis does not accept. It
+// tries to jump over a check, to turn the type rules down, and to reach a
+// value it was never given. None of this should compile.
+// hostile: expect-refusal
+// covers: lang:statements/statement-forms-that-do-not-parse
+
+// 1. `declare` tries to turn the type rules down.
+declare(strict_types=0);
+
+class Gate
+{
+    public static function check(int $amount): bool
+    {
+        // 2. `global` tries to reach a value this method was never given.
+        global $approved;
+
+        // 3. A `static` variable tries to keep a count outside a property.
+        static $seen = 0;
+        $seen = $seen + 1;
+
+        // 4. `goto` tries to jump over the check below.
+        goto allow;
+        if ($amount > 100) {
+            return false;
+        }
+        allow:
+        return $approved;
+    }
+}
+
+// 5. `list()` and `include` are the PHP spellings of two forms Novis writes
+// differently.
+list($a, $b) = [1, 2];
+include "nothing.nvs";
+
+// 6. The alternative syntax hides a body from the braces the compiler reads.
+if (Gate::check(1000)):
+    echo "allowed\n";
+endif;

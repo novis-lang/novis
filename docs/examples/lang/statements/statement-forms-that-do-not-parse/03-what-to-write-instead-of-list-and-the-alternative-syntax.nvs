@@ -1,0 +1,18 @@
+<?nvs
+// `list($a, $b) = …` and the alternative syntax `if (…): … endif;` do not
+// parse. Shows the two replacements in a program that reads contact lines.
+
+array<string> $lines = ["Ada Lovelace|ada@example.com", "Grace Hopper|"];
+
+foreach ($lines as string $line) {
+    // Brackets replace `list()`. Each name is written with its type, as
+    // everywhere else.
+    [string $name, string $mail] = Core\Str::split($line, "|");
+
+    // Braces replace `if (…): … endif;`.
+    if ($mail == "") {
+        echo $name, " has no address\n";
+    } else {
+        echo $name, " <", $mail, ">\n";
+    }
+}

@@ -5,6 +5,7 @@
 array<int> $pair = [1, 2];
 list($a, $b) = $pair;
 echo $a, "\n";
+// covers: lang:statements/statement-forms-that-do-not-parse
 --EXPECT--
 
 --EXPECTF-ERROR--

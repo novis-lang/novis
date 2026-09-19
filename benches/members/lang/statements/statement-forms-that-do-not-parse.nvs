@@ -1,0 +1,31 @@
+<?nvs
+// Runs the loop with a `break` and a flag that replaces PHP's `goto`. A
+// program meets this shape whenever it searches a list and stops at the first
+// match.
+// bench: iterations 200000
+// bench: calls 0
+// bench: allocations 0
+
+class Bench {
+    public static function run(int $rounds): int {
+        array<int> $totals = [400, 1200, 250, 3000, 90];
+        int $acc = 1;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: this round's limit comes out of the last round.
+            int $limit = ($acc % 1000) + 200;
+            int $found = 0;
+            foreach ($totals as int $total) {
+                if ($total > $limit) {
+                    $found = $total;
+                    break;
+                }
+            }
+            $acc = ($acc + $found + 1) % 1000003;
+            $i = $i + 1;
+        }
+        return $acc;
+    }
+}
+
+echo Bench::run(200000), "\n";

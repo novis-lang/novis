@@ -12,6 +12,7 @@ if ($n == 0) {
     goto done;
 }
 echo $n, "\n";
+// covers: lang:statements/statement-forms-that-do-not-parse
 --EXPECT--
 
 --EXPECTF-ERROR--
