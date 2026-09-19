@@ -1,0 +1,56 @@
+--TEST--
+Arithmetic takes `int`, `uint`, `float` and `decimal` and refuses everything else where it is written — a `string`, a `bool`, an array, a mixed signedness, a `decimal` beside a `float`, `%` on a `float`, and a division's union at an `int` binding — `rule:types/arithmetic`
+--FILE--
+<?nvs
+// covers: lang:expressions/arithmetic
+// `rule:types/arithmetic`'s rows are a closed list, and closed is what this
+// case asks about. Each line names one kind of operand the table has no row
+// for, so an operator that quietly grew a row loses its error while the rest
+// of the file keeps reporting and hides the change in a count.
+//
+// The two mixed-kind lines are the ones PHP would accept. `int` beside
+// `uint` and `decimal` beside a `float` literal each have no common type to
+// answer in, and the table refuses them where they are written instead of
+// picking one side.
+//
+// The last line is the division union. `7 / 2` is `3.5`, so the result is
+// `int|float` and an `int` binding cannot take it; `Core\Math::intDiv` is
+// the member that was meant.
+//
+// The array line reports twice. Its operand is refused and the value left
+// for `echo` has no text form, so the second error is the consequence of the
+// first and is expected here.
+string $s = "3";
+bool $flag = true;
+array<int> $list = [1];
+uint $u = 3;
+int $n = 2;
+decimal $d = 1.5;
+
+echo $s * 2, "\n";
+echo $flag + 1, "\n";
+echo $list + 1, "\n";
+echo $u + $n, "\n";
+echo $d + 0.2, "\n";
+echo 1.5 % 2.0, "\n";
+int $half = 7 / 2;
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0716]: `*` has no meaning for `string`
+%A
+error[E0716]: `+` has no meaning for `bool`
+%A
+error[E0467]: `+` is not defined with an array operand
+%A
+error[E0707]: `array<int>` has no string form
+%A
+error[E0407]: `int` and `uint` have no representable common type in arithmetic
+%A
+error[E0455]: `decimal` and `float` have no representable common type in arithmetic
+%A
+error[E0717]: `%` has no meaning for `float`
+%A
+error[E0401]: expected `int`, found `int|float`
+%A
+error: aborting due to 8 errors

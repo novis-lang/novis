@@ -1,0 +1,21 @@
+<?nvs
+// Shows the arithmetic operators on whole numbers and on fractions, and what
+// dividing two whole numbers gives.
+
+int $apples = 7;
+int $baskets = 2;
+
+// Dividing two whole numbers gives a whole number when it comes out even and
+// a fraction when it does not. This prints 3.5 and 2.
+echo $apples / $baskets, " ", 6 / 3, "\n";
+
+// For a whole number use `Core\Math::intDiv`, which drops the remainder, and
+// `%` for the remainder itself. This prints 3 and 1.
+echo Core\Math::intDiv($apples, $baskets), " ", $apples % $baskets, "\n";
+
+// `**` raises a number to a power. This prints 1024.
+echo 2 ** 10, "\n";
+
+// A fraction on either side makes the result a fraction. This prints 3.75
+// and 3.5.
+echo 1.5 + 2.25, " ", 3 + 0.5, "\n";

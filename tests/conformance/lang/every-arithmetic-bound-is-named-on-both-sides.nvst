@@ -1,0 +1,72 @@
+--TEST--
+Every arithmetic bound is named on both sides: the last value each operator accepts and the first one it refuses stand on the same line, and an erased operand with no row takes the same refusal as a catchable throw — `rule:types/arithmetic`
+--FILE--
+<?nvs
+// covers: lang:expressions/arithmetic
+// `rule:types/arithmetic` throws where PHP wraps or promotes, and a case
+// that only asks for the throw would still pass if an operator started
+// throwing one value early. So each line below names the last value the
+// operator accepts beside the first one it refuses: a bound that has moved
+// in either direction loses one half of its line while the other half still
+// prints what it always did.
+//
+// The last line is the same table asked through `mixed`, where the operand
+// types name no row until the program runs. That path answers from the value
+// and raises the refusal as an error something can catch, so it is the one
+// place a non-numeric operand is a throw and not a compile error.
+class Bound {
+    public static function add(int $a, int $b): string {
+        try { return ($a + $b) as string; } catch (ArithmeticError $e) { return "throws"; }
+    }
+
+    public static function sub(int $a, int $b): string {
+        try { return ($a - $b) as string; } catch (ArithmeticError $e) { return "throws"; }
+    }
+
+    public static function mul(int $a, int $b): string {
+        try { return ($a * $b) as string; } catch (ArithmeticError $e) { return "throws"; }
+    }
+
+    public static function pow(int $a, int $b): string {
+        try { return ($a ** $b) as string; } catch (ArithmeticError $e) { return "throws"; }
+    }
+
+    public static function div(int $a, int $b): string {
+        try { return ($a / $b) as string; } catch (ArithmeticError $e) { return "throws"; }
+    }
+
+    public static function mod(int $a, int $b): string {
+        try { return ($a % $b) as string; } catch (ArithmeticError $e) { return "throws"; }
+    }
+
+    public static function unsigned(uint $a, uint $b): string {
+        try { return ($a - $b) as string; } catch (ArithmeticError $e) { return "throws"; }
+    }
+
+    public static function erased(mixed $a, mixed $b): string {
+        try { return ($a + $b) as string; } catch (Throwable $e) { return "throws"; }
+    }
+}
+
+int $largest = 9223372036854775807;
+int $smallest = -9223372036854775807 - 1;
+
+echo "add ", Bound::add($largest, 0), " ", Bound::add($largest, 1), "\n";
+echo "sub ", Bound::sub($smallest, 0), " ", Bound::sub($smallest, 1), "\n";
+echo "mul ", Bound::mul(4611686018427387903, 2), " ", Bound::mul(4611686018427387904, 2), "\n";
+echo "pow ", Bound::pow(2, 62), " ", Bound::pow(2, 63), "\n";
+echo "pow-negative ", Bound::pow(1, -1), " ", Bound::pow(2, -1), "\n";
+echo "div ", Bound::div(6, 3), " ", Bound::div(6, 0), "\n";
+echo "mod ", Bound::mod(7, 3), " ", Bound::mod(7, 0), "\n";
+echo "uint-sub ", Bound::unsigned(1, 1), " ", Bound::unsigned(0, 1), "\n";
+echo "erased ", Bound::erased(2, 3), " ", Bound::erased("3", 2), "\n";
+--EXPECT--
+add 9223372036854775807 throws
+sub -9223372036854775808 throws
+mul 9223372036854775806 throws
+pow 4611686018427387904 throws
+pow-negative 1 throws
+div 2 throws
+mod 1 throws
+uint-sub 0 throws
+erased 5 throws
