@@ -1,0 +1,30 @@
+<?nvs
+// Work nobody is waiting for any more should stop rather than hold a request
+// open. A helper that carries the time left raises a TimeoutError as soon as a
+// step would go past it.
+
+class Budget {
+    public int $left;
+    public function constructor(int $milliseconds) {
+        $this->left = $milliseconds;
+    }
+
+    public function spend(string $step, int $cost): void {
+        if ($cost > $this->left) {
+            throw new TimeoutError($step . " needs " . $cost as string
+                . "ms and only " . $this->left as string . "ms are left");
+        }
+        $this->left = $this->left - $cost;
+        echo $step, " took ", $cost, "ms\n";
+    }
+}
+
+var $budget = new Budget(100);
+try {
+    $budget->spend("looking up the customer", 30);
+    $budget->spend("reading their orders", 40);
+    $budget->spend("asking the shipper", 60);
+    echo "all three finished\n";
+} catch (TimeoutError $late) {
+    echo "gave up: ", $late->message, "\n";
+}

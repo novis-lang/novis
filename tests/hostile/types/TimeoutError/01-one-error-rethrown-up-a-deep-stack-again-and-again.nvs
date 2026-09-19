@@ -1,0 +1,57 @@
+<?nvs
+// Attack: never build a second error, keep throwing the first one. Each level
+// of a deep stack catches the same object and throws it again, so whatever a
+// throw records about where it happened is written over and over onto one
+// error that is never released.
+// hostile: timeout-ms 20000
+
+class Ladder
+{
+    public static function up(uint $rungs): void
+    {
+        if ($rungs == 0) {
+            throw new TimeoutError('waited too long');
+        }
+        try {
+            Ladder::up($rungs - 1);
+        } catch (TimeoutError $again) {
+            // The same instance, not a new one: a rethrow moves what it records
+            // about its place, and nothing here ever lets it go.
+            throw $again;
+        }
+    }
+}
+
+uint $round = 0;
+while ($round < 500) {
+    try {
+        Ladder::up(300);
+    } catch (TimeoutError $done) {
+    }
+    $round = $round + 1;
+}
+echo "rethrown\n";
+
+// The same error rethrown from one frame, a million times over, so the count is
+// on one object rather than spread across a stack.
+try {
+    throw new TimeoutError('the first one');
+} catch (TimeoutError $held) {
+    uint $again = 0;
+    while ($again < 1000000) {
+        try {
+            throw $held;
+        } catch (TimeoutError $caught) {
+        }
+        $again = $again + 1;
+    }
+    echo "one error, a million throws\n";
+}
+
+// And a stack as deep as the runtime will allow, with the rethrow at every
+// level of it.
+try {
+    Ladder::up(1000000);
+} catch (Throwable $whatever) {
+    echo "deep\n";
+}

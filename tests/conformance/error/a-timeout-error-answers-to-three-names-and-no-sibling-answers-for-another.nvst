@@ -1,0 +1,74 @@
+--TEST--
+Every class on the `RuntimeError` branch answers to exactly three of the tree's names — itself, `RuntimeError` and `Throwable` — so no sibling arm ever takes another sibling's throw — `rule:errors/throwable-hierarchy` and `rule:php-migration/one-type-test`
+--FILE--
+<?nvs
+// covers: TimeoutError
+// One question asked of every class on the branch, answered by *counting*: a
+// class that had quietly grown a second parent, or a sibling that had come to
+// stand for another, passes every single-arm case in this directory and fails
+// here.
+class Branch {
+    public static function names(Throwable $e): uint {
+        uint $answers = 0;
+        if ($e is Throwable) { $answers = $answers + 1; }
+        if ($e is LogicError) { $answers = $answers + 1; }
+        if ($e is RuntimeError) { $answers = $answers + 1; }
+        if ($e is IOError) { $answers = $answers + 1; }
+        if ($e is ParseError) { $answers = $answers + 1; }
+        if ($e is TimeoutError) { $answers = $answers + 1; }
+        if ($e is RecursionError) { $answers = $answers + 1; }
+        return $answers;
+    }
+}
+
+try {
+    throw new TimeoutError("waited too long");
+} catch (Throwable $timeout) {
+    echo "timeout=", Branch::names($timeout), "\n";
+}
+try {
+    throw new IOError("the disk is full");
+} catch (Throwable $io) {
+    echo "io=", Branch::names($io), "\n";
+}
+try {
+    throw new ParseError("not a document");
+} catch (Throwable $parse) {
+    echo "parse=", Branch::names($parse), "\n";
+}
+try {
+    throw new RecursionError("too far down");
+} catch (Throwable $recursion) {
+    echo "recursion=", Branch::names($recursion), "\n";
+}
+
+// The three a timeout answers to, named: itself, the half of the tree it is on,
+// and the root. The other half is the one this must not answer to, and a
+// `LogicError` arm written above the `RuntimeError` one below would take it if
+// it did.
+try {
+    throw new TimeoutError("waited too long");
+} catch (LogicError $ours) {
+    echo "not reached\n";
+} catch (RuntimeError $theirs) {
+    echo "a RuntimeError arm takes it\n";
+}
+
+// A sibling's arm does not, and a sibling's arm is all that stands between this
+// clause and the one below it.
+try {
+    throw new TimeoutError("waited too long");
+} catch (IOError $sibling) {
+    echo "not reached\n";
+} catch (ParseError $otherSibling) {
+    echo "not reached\n";
+} catch (TimeoutError $itself) {
+    echo "its own arm takes it\n";
+}
+--EXPECT--
+timeout=3
+io=3
+parse=3
+recursion=3
+a RuntimeError arm takes it
+its own arm takes it
