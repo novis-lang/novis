@@ -1,0 +1,26 @@
+<?nvs
+// Measures a denied call: the check of the capability, the throw it raises, and
+// the `catch` that takes it. A program meets this on every call it has no grant
+// for, which is what a job running under a narrow `nvs.toml` does all day.
+// bench: iterations 50000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $paths = ["orders.csv", "customers.csv", "shipping.csv"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            try {
+                // Chained: the path read this round comes out of the last
+                // round's message, so the call stays inside the loop.
+                Core\IO::read($paths[$total % 3]);
+            } catch (RuntimeError $denied) {
+                $total = $total + Core\Str::length($denied->message);
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(50000), "\n";

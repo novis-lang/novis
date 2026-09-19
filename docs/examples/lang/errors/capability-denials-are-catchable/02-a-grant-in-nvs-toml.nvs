@@ -1,0 +1,14 @@
+<?nvs
+// Shows a program with one capability and not the other. `nvs.toml` grants
+// `fs.read` for one directory, so reading a file there works. Writing a file
+// needs `fs.write`, and this program does not have it.
+
+string $dir = "docs/examples/lang/errors/capability-denials-are-catchable/data";
+
+echo Core\Str::trim(Core\IO::read($dir . "/notice.txt")), "\n";
+
+try {
+    Core\IO::write($dir . "/notice.txt", "The shop is open all night.");
+} catch (RuntimeError $denied) {
+    echo $denied->message, "\n";
+}

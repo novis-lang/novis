@@ -1,0 +1,12 @@
+<?nvs
+// Shows what a program sees when it reads a file and `nvs.toml` does not allow
+// it. The call throws a `RuntimeError`. The `catch` takes it, and the program
+// keeps running.
+
+try {
+    echo Core\IO::read("orders.csv");
+} catch (RuntimeError $denied) {
+    echo $denied->message, "\n";
+}
+
+echo "still running\n";

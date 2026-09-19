@@ -1,0 +1,45 @@
+--TEST--
+An ungranted predicate is refused rather than answered `false`, and the denial unwinds out of two frames and through a `finally` to reach a `catch (Throwable)`, carrying a backtrace and no cause — `rule:security/denial-is-a-runtime-error`
+--FILE--
+<?nvs
+// covers: lang:errors/capability-denials-are-catchable
+// A predicate that answered `false` with the grant missing would leave an
+// ungranted deployment looking like an empty one, and a check of the message
+// cannot see that half of the rule.
+
+final class Report
+{
+    public static function isOnDisk(): bool
+    {
+        return Core\IO::exists("report.txt");
+    }
+
+    public static function collect(): bool
+    {
+        try {
+            return Report::isOnDisk();
+        } finally {
+            // The denial is a throw and nothing else, so the way out of this
+            // frame is the way out of any other.
+            echo "the finally ran\n";
+        }
+    }
+}
+
+try {
+    echo Report::collect() ? "answered true\n" : "answered false\n";
+} catch (Throwable $denied) {
+    echo $denied is RuntimeError ? "class: RuntimeError\n" : "class: other\n";
+    echo "frames: ", Core\Arr::count($denied->backtrace), "\n";
+    echo $denied->previous == null ? "no cause\n" : "has a cause\n";
+}
+
+// The grant was the only thing missing: nothing was consumed and nothing was
+// left behind, so the program goes on from the statement after the `catch`.
+echo "still running\n";
+--EXPECT--
+the finally ran
+class: RuntimeError
+frames: 2
+no cause
+still running

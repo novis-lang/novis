@@ -1,0 +1,36 @@
+--TEST--
+A capability nobody granted throws a `RuntimeError` naming the member, the capability in its configuration spelling and the argument that fell outside the grant, over a `help:` line, and the statement after the `catch` runs — `rule:security/denial-is-a-runtime-error`
+--FILE--
+<?nvs
+// covers: lang:errors/capability-denials-are-catchable
+// `rule:security/denial-is-a-runtime-error` makes a denial an ordinary throw
+// rather than an escalation, so the arm real code already carries is the arm
+// that has to take it: `RuntimeError`, and not the `Throwable` a program only
+// writes when it means to catch everything.
+
+try {
+    Core\IO::read("orders.csv");
+    echo "unreachable: the read returned\n";
+} catch (RuntimeError $denied) {
+    echo $denied->message, "\n";
+}
+
+// `fs.read` and `fs.write` are separate grants, so the message names the one
+// that was missing rather than the namespace holding both — the reader of it is
+// the operator, and what they need is the string they will write down.
+try {
+    Core\IO::write("orders.csv", "id,total");
+    echo "unreachable: the write returned\n";
+} catch (RuntimeError $refused) {
+    echo $refused->message, "\n";
+}
+
+// A denial is known before any work is done and leaves nothing behind, so the
+// program is where it was: the next statement is the one after the `catch`.
+echo "still running\n";
+--EXPECT--
+Core\IO::read needs the capability `fs.read` for orders.csv, which is not granted
+help: grant it in nvs.toml under `[capabilities.fs]`
+Core\IO::write needs the capability `fs.write` for orders.csv, which is not granted
+help: grant it in nvs.toml under `[capabilities.fs]`
+still running

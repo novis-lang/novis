@@ -1,0 +1,3 @@
+The shop closes at 18:00.
+Core\IO::write needs the capability `fs.write` for docs/examples/lang/errors/capability-denials-are-catchable/data/notice.txt, which is not granted
+help: grant it in nvs.toml under `[capabilities.fs]`

@@ -1,0 +1,48 @@
+<?nvs
+// Attack: a program may read one directory. It tries to reach a file outside
+// that directory. It then asks for a path of a million characters, and makes
+// the runtime deny the same read fifty thousand times. Every attempt fails.
+// hostile: timeout-ms 30000
+
+string $dir = 'tests/hostile/lang/errors/capability-denials-are-catchable/data';
+
+// Step 1: the read the grant allows, so the steps below test the boundary and
+// not an empty grant.
+try {
+    echo 'step 1: read ', Core\Str::length(Core\IO::read($dir . '/allowed.txt')), " characters\n";
+} catch (Throwable $denied) {
+    echo "step 1: the granted read was denied\n";
+}
+
+// Step 2: `..` climbs out of the granted directory to a file at the top of the
+// repository.
+try {
+    Core\IO::read($dir . '/../../../../../../nvs.toml');
+    echo "step 2: read a file outside the granted directory\n";
+} catch (Throwable $escaped) {
+    echo "step 2: the climb out was denied\n";
+}
+
+// Step 3: a path of a million characters, inside the granted directory.
+try {
+    Core\IO::read($dir . '/' . Core\Str::repeat('a', 1048576) . '.txt');
+    echo "step 3: read a file with a name of a million characters\n";
+} catch (Throwable $long) {
+    echo "step 3: the long path was denied\n";
+}
+
+// Step 4: fifty thousand denied reads. Each one builds a message and throws it,
+// and none of them may be kept after the `catch`.
+uint $caught = 0;
+uint $i = 0;
+while ($i < 50000) {
+    try {
+        Core\IO::read('orders.csv');
+    } catch (Throwable $refused) {
+        $caught = $caught + 1;
+    }
+    $i = $i + 1;
+}
+echo 'step 4: caught ', $caught, " denials\n";
+
+echo "the runtime is still standing\n";
