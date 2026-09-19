@@ -1,0 +1,26 @@
+<?nvs
+// Shows an enum as the element type of an array and as the type of a loop
+// variable. `array<Suit>` is an array where every element is one case of
+// `Suit`.
+
+enum Suit { Clubs, Hearts, Spades }
+
+class Deck {
+    // A generator declared `Iterator<Suit>` gives one case at a time.
+    public static function red(): Iterator<Suit> {
+        yield Suit::Hearts;
+    }
+}
+
+array<Suit> $hand = [Suit::Spades, Suit::Clubs];
+
+// This prints 2 and then 0. The loop variable is declared `Suit`.
+foreach ($hand as Suit $card) {
+    echo $card as int, "\n";
+}
+
+// This prints 1. The generator is declared `Iterator<Suit>`, so the loop
+// variable is a `Suit` here too.
+foreach (Deck::red() as Suit $card) {
+    echo $card as int, "\n";
+}

@@ -2,6 +2,7 @@
 An enum names a property's type and a parameter's type, and converts to its integer at every use — `rule:enums/closed-integer-type`
 --FILE--
 <?nvs
+// covers: lang:enums/an-enum-as-a-type
 enum Level {
     Low = 1,
     Mid = 5,

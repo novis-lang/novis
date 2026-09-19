@@ -1,0 +1,32 @@
+<?nvs
+// Shows a list of orders printed with a text label for each status. A case is
+// not an array key, so the table of labels is indexed with `$status as int`.
+
+enum Status { Placed, Paid, Shipped }
+
+class Order {
+    public function constructor(public string $reference, public Status $status) {}
+}
+
+class Labels {
+    // The keys are the numbers behind the cases: 0, 1 and 2.
+    public static function table(): array<string> {
+        array<string> $labels = [];
+        $labels[Status::Placed as int] = "waiting for payment";
+        $labels[Status::Paid as int] = "ready to ship";
+        $labels[Status::Shipped as int] = "on its way";
+        return $labels;
+    }
+}
+
+array<Order> $orders = [
+    new Order("A-1042", Status::Shipped),
+    new Order("A-1043", Status::Placed),
+];
+
+var $labels = Labels::table();
+
+// This prints `A-1042: on its way` and then `A-1043: waiting for payment`.
+foreach ($orders as Order $order) {
+    echo $order->reference, ": ", $labels[$order->status as int], "\n";
+}

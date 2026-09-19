@@ -1,0 +1,96 @@
+<?nvs
+// Attack: a program pushes enum-typed values past every limit it can reach.
+// It uses huge array keys, a generator with no end, and a method that calls
+// itself. The last step fills the memory and stops the program. Every other
+// step should end with an error, and the runtime should stay standing.
+// covers: lang:enums/an-enum-as-a-type
+// hostile: timeout-ms 20000
+// hostile: ends-early
+
+enum Level
+{ Low = 1, Mid = 5, High = 9 }
+
+enum Far
+{ End = 9223372036854775807, Start = -9223372036854775807 }
+
+// 1. An array keyed at the largest and the smallest numbers there are, read
+// back through the same cases.
+try {
+    array<string> $sparse = [];
+    $sparse[Far::End as int] = 'end';
+    $sparse[Far::Start as int] = 'start';
+    echo '1: ', $sparse[Far::End as int], ',', $sparse[Far::Start as int], "\n";
+} catch (Throwable $e) {
+    echo '1: caught ', $e->message, "\n";
+}
+
+// 2. A generator declared `Iterator<Level>` that never stops. The loop reads
+// cases until their numbers add up to more than ten million.
+class Endless
+{
+    public static function levels(): Iterator<Level>
+    {
+        while (true) {
+            yield Level::Mid;
+        }
+    }
+
+    public static function drain(int $rounds): int
+    {
+        int $seen = 0;
+        foreach (Endless::levels() as Level $l) {
+            $seen = $seen + ($l as int);
+            if ($seen > $rounds) {
+                break;
+            }
+        }
+        return $seen;
+    }
+}
+
+try {
+    echo '2: ', Endless::drain(10000000), "\n";
+} catch (Throwable $e) {
+    echo '2: caught ', $e->message, "\n";
+}
+
+// 3. A method whose parameter and return type are both `Level`, calling itself
+// with no end.
+class Runaway
+{
+    public static function down(Level $l): Level
+    {
+        if (($l as int) > 0) {
+            return Runaway::down($l);
+        }
+        return $l;
+    }
+}
+
+try {
+    Level $reached = Runaway::down(Level::High);
+    echo '3: BAD, the call returned ', $reached as int, "\n";
+} catch (Throwable $e) {
+    echo '3: caught ', $e->message, "\n";
+}
+
+echo "3: the runtime is still running\n";
+
+// 4. An `array<Level>` filled with ten million cases. This step reaches the
+// memory limit, which stops the program.
+class Filled
+{
+    public static function build(int $rounds): uint
+    {
+        array<Level> $levels = [];
+        int $i = 0;
+        while ($i < $rounds) {
+            $levels[] = Level::High;
+            $i = $i + 1;
+        }
+        return Core\Arr::count($levels);
+    }
+}
+
+uint $built = Filled::build(10000000);
+echo '4: BAD, the array grew to ', $built, " cases\n";

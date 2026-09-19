@@ -1,0 +1,32 @@
+<?nvs
+// Passes an enum through an array element, a parameter and a return value. A program meets this
+// shape when a request carries a level and a class decides what to do with it.
+// bench: iterations 400000
+// bench: allocations 0
+
+enum Level { Low = 1, Mid = 5, High = 9 }
+
+class Bench {
+    public static function raise(Level $l): Level {
+        if (($l as int) < 5) {
+            return Level::Mid;
+        }
+        return Level::High;
+    }
+
+    public static function run(int $rounds): int {
+        array<Level> $levels = [Level::Low, Level::Mid];
+        int $total = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: the case passed this round is picked by the number the
+            // last round produced, so the call stays inside the loop.
+            Level $wanted = $levels[$total % 2];
+            $total = $total + (Bench::raise($wanted) as int);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

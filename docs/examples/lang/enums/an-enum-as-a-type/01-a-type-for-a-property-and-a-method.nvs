@@ -1,0 +1,31 @@
+<?nvs
+// Shows an enum used as a type. The name `Level` is the type of a property, of
+// a parameter and of a return value. Each of them accepts the three cases of
+// `Level` and no other value.
+
+enum Level { Low = 1, Mid = 5, High = 9 }
+
+class Gate {
+    // This property stores one case of `Level`.
+    public Level $level;
+
+    public function constructor(Level $level) {
+        $this->level = $level;
+    }
+
+    // The parameter and the return type are both `Level`.
+    public function raise(Level $to): Level {
+        if (($to as int) > ($this->level as int)) {
+            $this->level = $to;
+        }
+        return $this->level;
+    }
+}
+
+var $gate = new Gate(Level::Low);
+
+// This prints 5. `Mid` is higher than `Low`, so the gate moves up to `Mid`.
+echo $gate->raise(Level::Mid) as int, "\n";
+
+// This prints 5 again. `Low` is lower, so the gate stays at `Mid`.
+echo $gate->raise(Level::Low) as int, "\n";

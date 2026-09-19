@@ -2,6 +2,7 @@
 An enum case converted with `as int` is an ordinary int array key — the array orders by insertion, not by case order
 --FILE--
 <?nvs
+// covers: lang:enums/an-enum-as-a-type
 enum Level {
     Low = 1,
     Mid = 5,
