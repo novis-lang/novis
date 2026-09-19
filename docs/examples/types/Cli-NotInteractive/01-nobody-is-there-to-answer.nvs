@@ -1,0 +1,12 @@
+<?nvs
+// A question asked where no person is watching — a nightly job, a build step.
+// The program does not sit and wait for an answer that will never come: the
+// question gives up at once, and the code around it decides what happens next.
+
+try {
+    tainted string $who = Core\Cli::ask("Who is running this release?");
+    echo "released by ", $who, "\n";
+} catch (Core\Cli\NotInteractive $nobody) {
+    echo $nobody->message, "\n";
+    echo "released by the nightly job\n";
+}

@@ -1,0 +1,20 @@
+<?nvs
+// Deleting last month's releases is not something to guess at. Run from a desk,
+// the question settles it. Run from a job with nobody watching, the script says
+// what it needed and leaves every file where it is — which is the reason this
+// question was given no fallback answer.
+
+final class Cleanup {
+    public static function sweep(int $old): string {
+        try {
+            if (Core\Cli::confirm("Delete the " . ($old as string) . " oldest releases?")) {
+                return "deleted " . ($old as string) . " releases";
+            }
+            return "kept everything";
+        } catch (Core\Cli\NotInteractive $nobody) {
+            return "kept everything: nobody could answer. Run this from a terminal, or pass --delete-old to answer yes in advance";
+        }
+    }
+}
+
+echo Cleanup::sweep(4), "\n";

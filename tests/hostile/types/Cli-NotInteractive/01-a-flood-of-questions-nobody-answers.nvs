@@ -1,0 +1,73 @@
+<?nvs
+// Attack: ask hundreds of thousands of questions where there is nobody to
+// answer, ask one whose text is megabytes long, and then carry the refusal up
+// through a deep chain of calls. Anything kept per question — the text, the
+// terminal it tried to reach, the failure itself — grows without limit here.
+// hostile: timeout-ms 30000
+
+final class Nobody
+{
+    // Every round asks and is refused. A run that held on to one handle, one
+    // message or one probe per question would not finish this.
+    public static function churn(int $rounds): uint
+    {
+        uint $kept = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            try {
+                tainted string $said = Core\Cli::ask('who is there?');
+                $kept = $kept + Core\Str::length($said);
+            } catch (Core\Cli\NotInteractive $none) {
+                // The message is read, so a run cannot pass by never building one.
+                if (Core\Str::length($none->message) > 0) {
+                    $kept = $kept + 1;
+                }
+            }
+            $i = $i + 1;
+        }
+        return $kept;
+    }
+
+    // One question of a few megabytes. The text is prepared for a terminal that
+    // is not there, so nothing should be written and nothing should be copied
+    // more than the once.
+    public static function huge(int $doublings): uint
+    {
+        string $question = 'who is there? ';
+        int $i = 0;
+        while ($i < $doublings) {
+            $question = $question . $question;
+            $i = $i + 1;
+        }
+        try {
+            tainted string $said = Core\Cli::ask($question);
+            return Core\Str::length($said);
+        } catch (Core\Cli\NotInteractive $none) {
+            return Core\Str::length($question);
+        }
+    }
+
+    // Every frame catches what the frame under it was refused and throws a
+    // fresh refusal carrying the same message, so the chain holds as many live
+    // failures as it is deep.
+    public static function rethrow(int $depth): bool
+    {
+        if ($depth == 0) {
+            return Core\Cli::confirm('still there?');
+        }
+        try {
+            return Nobody::rethrow($depth - 1);
+        } catch (Core\Cli\NotInteractive $rising) {
+            throw new Core\Cli\NotInteractive($rising->message);
+        }
+    }
+}
+
+echo Nobody::churn(200000), "\n";
+echo Nobody::huge(18), "\n";
+
+try {
+    echo Nobody::rethrow(20000) ? "answered\n" : "declined\n";
+} catch (Throwable $gaveUp) {
+    echo "the chain ended\n";
+}
