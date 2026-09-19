@@ -824,6 +824,12 @@ pub(crate) fn ends_in_break_or_continue(stmt: &Stmt) -> bool {
 /// so the narrowing that branch proves holds for the rest of this block —
 /// installed here rather than in [`check_stmt`]'s `If` arm, which cannot see
 /// what follows it.
+///
+/// A guard that ends in `break` or `continue` carries the same narrowing, and
+/// for the same reason: neither reaches the statement after the `if`, so the
+/// rest of this block is only ever walked on the edge where the condition was
+/// false. [`terminates`] itself stays narrower than that, because it also
+/// decides what an `if`/`else` join may assume about definite assignment.
 pub(crate) fn check_block(
     stmts: &[Stmt],
     live: &mut FxHashSet<String>,
@@ -840,7 +846,7 @@ pub(crate) fn check_block(
             then,
             else_: None,
         } = &stmt.kind
-            && terminates(then)
+            && (terminates(then) || ends_in_break_or_continue(then))
         {
             carried.absorb(narrow(cond, false, scope, env));
         }
