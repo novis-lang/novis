@@ -1,0 +1,58 @@
+--TEST--
+An isolate shares nothing with its *siblings* either: the same child spawned five times reads the fresh store every time, so a store is built for each child rather than reused between them — ADR 0006 § *Decision*, `rule:statements/an-isolate-has-its-own-statics`
+--FILE nvs.toml--
+# `rule:security/capability-check-at-the-door`: `spawn script` goes through a door that asks for
+# `script.spawn` first. This grants it and nothing else.
+[capabilities.script]
+spawn = true
+--FILE child.nvs--
+<?nvs
+// One child, spawned five times by the parent below. It reports the store it
+// was given and then writes over it, so a store carried from one child to the
+// next would show up twice: in the line this echoes and in what it returns.
+final class Tally {
+    public static int $runs = 0;
+}
+
+echo Tally::$runs;
+Tally::$runs = Tally::$runs + 1;
+return Tally::$runs;
+--FILE--
+<?nvs
+// covers: lang:concurrency/a-child-shares-nothing
+// The sweep shape rather than the single read: five children, one assertion
+// over all of them. A runtime that built the statics base once and handed the
+// same one to every child still prints `1` for the first child, so a case
+// reading one line cannot tell the two apart — these two counts can.
+
+final class Tally {
+    public static int $runs = 0;
+}
+
+// The parent writes its own store first. It is the one thing in this program a
+// child could reach if statics crossed the boundary at all.
+Tally::$runs = 100;
+
+uint $fresh = 0;
+uint $total = 0;
+uint $i = 0;
+while ($i < 5) {
+    var $handle = spawn script "child.nvs" with(output: "capture");
+    var $done = await $handle;
+    $total = $total + ($done->value as uint);
+    if ($done->output == "0") {
+        $fresh = $fresh + 1;
+    }
+    $i = $i + 1;
+}
+
+// Both counts are the assertion. `5 of 5` says no child read what an earlier
+// one wrote; a total of 5 rather than 15 says each `return` answered 1, which
+// only holds when the store behind it was built for that child alone.
+echo "fresh: ", $fresh, " of 5\n";
+echo "total: ", $total, "\n";
+echo "the parent still reads ", Tally::$runs, "\n";
+--EXPECT--
+fresh: 5 of 5
+total: 5
+the parent still reads 100

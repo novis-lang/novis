@@ -1,0 +1,13 @@
+<?nvs
+// The attack in the folder above starts this script many times. It fills its
+// own class static and then stops with an error, so the run ends while the list
+// is still there.
+
+final class Store
+{
+    public static array<int> $rows = [];
+}
+
+Store::$rows = Core\Arr::range(1, 100000);
+echo 'the list is ', Core\Arr::count(Store::$rows), " long\n";
+throw new RuntimeError('this script stopped on purpose');

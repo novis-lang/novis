@@ -1,0 +1,6 @@
+<?nvs
+// The attack in the folder above starts this script many times. It prints a
+// million characters, so every run fills its own place to print to.
+
+echo Core\Str::repeat('x', 1048576);
+return 1;

@@ -1,0 +1,22 @@
+<?nvs
+// Shows that a script you start with `spawn script` cannot change your data.
+// It gets its own copy of every class static, and your own copy stays as it is.
+
+final class Orders {
+    public static int $counted = 0;
+}
+
+Orders::$counted = 7;
+echo "before: ", Orders::$counted, "\n";
+
+// A path starts at the folder where you run the program.
+string $path = "docs/examples/lang/concurrency/a-child-shares-nothing/scripts/count-orders.nvs";
+var $handle = spawn script $path with(output: "capture");
+var $result = await $handle;
+
+// The script printed two lines while it ran. With `capture` they come back as
+// text. It read 0, because its own copy of `Orders::$counted` starts at 0.
+echo $result->output;
+
+// The script set `Orders::$counted` to 42. This still prints 7.
+echo "after: ", Orders::$counted, "\n";

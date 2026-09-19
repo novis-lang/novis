@@ -1,0 +1,11 @@
+<?nvs
+// The attack in the folder above starts this script many times. It fills its
+// own class static with a long list and leaves the list there when it ends.
+
+final class Store
+{
+    public static array<int> $rows = [];
+}
+
+Store::$rows = Core\Arr::range(1, 200000);
+return Core\Arr::count(Store::$rows);

@@ -28,6 +28,7 @@ echo "child wrote ", Ledger::$entries, "\n";
 return "done";
 --FILE--
 <?nvs
+// covers: lang:concurrency/a-child-shares-nothing
 // ADR 0006 § *Decision*'s table, as a program: what a child shares with its
 // parent is compiled code and the budget, and this case is two of the rows
 // that say "no" — class statics, and the output buffer.

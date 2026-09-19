@@ -1,0 +1,70 @@
+<?nvs
+// Attack: many started scripts each fill their own memory and leave it full.
+// Nothing a script writes may reach the program that started it, and nothing a
+// script leaves behind may still be held once it has ended. The program at the
+// top must read its own list unchanged at the last step.
+// hostile: timeout-ms 60000
+
+final class Store
+{
+    public static array<int> $rows = [];
+}
+
+string $jobs = 'tests/hostile/lang/concurrency/a-child-shares-nothing/jobs';
+Store::$rows = Core\Arr::range(1, 1000);
+uint $mine = Core\Arr::count(Store::$rows);
+
+// Step 1: a hundred and fifty scripts, each filling a list of two hundred
+// thousand numbers. Memory still held here is memory that was not freed.
+string $fills = $jobs . '/fills-a-static.nvs';
+uint $rows = 0;
+uint $i = 0;
+while ($i < 150) {
+    var $handle = spawn script $fills with(output: 'capture');
+    var $result = await $handle;
+    $rows = $rows + ($result->value as uint);
+    $i = $i + 1;
+}
+echo 'step 1: ', $rows, " rows were counted and freed again\n";
+
+// Step 2: a script that starts a script of its own. Two levels, and neither of
+// them may change the list this program holds.
+string $nested = $jobs . '/starts-another-script.nvs';
+var $deep = spawn script $nested with(output: 'capture');
+var $reached = await $deep;
+uint $counted = $reached->value as uint;
+echo 'step 2: two levels counted ', $counted, " rows\n";
+
+// Step 3: twenty scripts that each print a million characters. Only the length
+// is kept here, so a buffer that grows is one that was not given back.
+string $loud = $jobs . '/prints-a-lot.nvs';
+uint $characters = 0;
+uint $j = 0;
+while ($j < 20) {
+    var $printer = spawn script $loud with(output: 'capture');
+    var $printed = await $printer;
+    $characters = $characters + Core\Str::length($printed->output);
+    $j = $j + 1;
+}
+echo 'step 3: read ', $characters, " characters back\n";
+
+// Step 4: twenty scripts that fill a list and then stop with an error. A run
+// that ends this way still has to give its memory back.
+string $failing = $jobs . '/writes-then-throws.nvs';
+uint $failures = 0;
+uint $k = 0;
+while ($k < 20) {
+    var $bad = spawn script $failing with(output: 'capture');
+    var $stopped = await $bad;
+    if (!$stopped->ok) {
+        $failures = $failures + 1;
+    }
+    $k = $k + 1;
+}
+echo 'step 4: ', $failures, " scripts stopped with an error\n";
+
+// Step 5: the list this program made at the start. None of the scripts above
+// could reach it, so it is still one thousand long.
+echo 'step 5: this program still holds ', Core\Arr::count(Store::$rows), ' of its ', $mine, " rows\n";
+
+echo "the runtime is still standing\n";

@@ -1,0 +1,23 @@
+<?nvs
+// Shows the two ways to handle what a started script prints. A script has its
+// own place to print to. You decide where that text goes.
+
+string $path = "docs/examples/lang/concurrency/a-child-shares-nothing/scripts/say-what-it-did.nvs";
+
+// `output: "capture"` keeps the text for you. Nothing reaches the screen while
+// the script runs.
+var $first = spawn script $path with(output: "capture");
+var $kept = await $first;
+echo "the script said: ", $kept->output;
+
+// `value` is what the script returned. Convert it with `as`.
+int $files = $kept->value as int;
+echo "it removed ", $files, " files\n";
+
+// `output: "inherit"` sends the text to your own screen instead. All of it is
+// there once `await` has returned.
+var $second = spawn script $path with(output: "inherit");
+var $shown = await $second;
+
+// `output` is empty this time, because the text went to the screen.
+echo "kept text: ", Core\Str::length($shown->output), " characters\n";

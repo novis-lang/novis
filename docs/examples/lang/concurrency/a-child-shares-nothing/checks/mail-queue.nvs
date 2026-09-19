@@ -1,0 +1,10 @@
+<?nvs
+// One health check. The example in the folder above starts it. Its own
+// `Report::$problems` starts at 0, whatever the other checks wrote in theirs.
+
+final class Report {
+    public static int $problems = 0;
+}
+
+echo "the mail queue is empty\n";
+return Report::$problems;

@@ -1,0 +1,30 @@
+<?nvs
+// Measures what a started script costs to set up and take down: its own class
+// statics, its own place to print to, and the result it returns. A program that
+// runs a job for every item on a list meets this once per item.
+// bench: iterations 2000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $scripts = [
+            "benches/members/lang/concurrency/a-child-shares-nothing/counts-once.nvs",
+            "benches/members/lang/concurrency/a-child-shares-nothing/counts-three-times.nvs",
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the script started this round is picked by the number the
+            // last one returned.
+            string $path = $scripts[($total % 2) as int];
+            var $handle = spawn script $path with(output: "capture");
+            var $result = await $handle;
+            // Every round reads the same number back, because each script starts
+            // with a fresh copy of `Counter::$seen`.
+            $total = $total + ($result->value as uint) + Core\Str::length($result->output);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2000), "\n";

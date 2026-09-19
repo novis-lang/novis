@@ -1,0 +1,28 @@
+<?nvs
+// Shows a health check made of three scripts. Each script has its own data. One
+// check cannot change what another check counted. This program adds the three
+// numbers up itself.
+
+final class Report {
+    public static int $problems = 0;
+}
+
+string $dir = "docs/examples/lang/concurrency/a-child-shares-nothing/checks";
+array<string> $checks = ["disk-space", "mail-queue", "old-sessions"];
+
+foreach ($checks as string $name) {
+    string $path = $dir . "/" . $name . ".nvs";
+    var $handle = spawn script $path with(output: "capture");
+    var $result = await $handle;
+
+    // All three scripts declare `Report::$problems` and start it at 0. The
+    // number each one returns is its own count.
+    int $problems = $result->value as int;
+    Report::$problems = Report::$problems + $problems;
+
+    echo $name, ": ", $problems, " problem(s)\n";
+    echo "  ", $result->output;
+}
+
+// This program added the three numbers up itself. The scripts could not.
+echo "total: ", Report::$problems, " problem(s)\n";

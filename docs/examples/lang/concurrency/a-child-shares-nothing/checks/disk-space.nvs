@@ -1,0 +1,11 @@
+<?nvs
+// One health check. The example in the folder above starts it. It counts the
+// problems it found in its own `Report::$problems`, and returns that number.
+
+final class Report {
+    public static int $problems = 0;
+}
+
+echo "two disks are above 90 percent\n";
+Report::$problems = Report::$problems + 2;
+return Report::$problems;

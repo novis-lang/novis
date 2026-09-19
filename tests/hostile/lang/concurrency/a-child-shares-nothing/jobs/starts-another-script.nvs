@@ -1,0 +1,16 @@
+<?nvs
+// The attack in the folder above starts this script. It starts a script of its
+// own, so there are two levels between the list below and the program at the
+// top.
+
+final class Store
+{
+    public static array<int> $rows = [];
+}
+
+Store::$rows = Core\Arr::range(1, 50000);
+
+var $handle = spawn script 'tests/hostile/lang/concurrency/a-child-shares-nothing/jobs/fills-a-static.nvs' with(output: 'capture');
+var $result = await $handle;
+
+return Core\Arr::count(Store::$rows) + ($result->value as uint);
