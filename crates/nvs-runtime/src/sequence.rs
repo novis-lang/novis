@@ -32,9 +32,17 @@
 //! sequence holds it twice at the moment it builds its result. Handing back a
 //! cursor the caller drives itself would buy that back only for a member that
 //! can consume one element at a time, and `Core\Arr::from`'s whole job is to
-//! materialise. `limit` is what bounds this against a generator that never
-//! ends: the spec's `{limit?: uint}` is that argument, and a caller passing
-//! `None` is trusting its own.
+//! materialise. `limit` is the *caller's* bound on that, and the spec's
+//! `{limit?: uint}` is that argument.
+//!
+//! **`[limits] memory` is what bounds a sequence that never ends**, and [`drain`]
+//! asks for it one element at a time through [`crate::abi::affordable`].
+//! `counting_alloc` charges the `Vec` and every element to the request as they
+//! are taken, but a native loop passes no statement boundary and calls no
+//! member, so nothing between two pushes would otherwise read the balance:
+//! the request would hold the host's memory rather than its own ceiling, which
+//! `rule:programs/memory-priority` does not permit whatever the caller passed
+//! for `limit`.
 //!
 //! [`for_each`] is the entry for the member that *can* consume one element at
 //! a time, such as `Core\IO::writeStream` — a stream reaching disk
@@ -42,6 +50,13 @@
 //! with the `Vec` taken out, and [`drain`] is written over it, so there is one
 //! cursor loop rather than a second one that could disagree about when
 //! `iterate()` is called or who owns an element.
+//!
+//! The refusal stops the request and the fatal names the ceiling, and the
+//! program's own `Core\Fatal::onLimit` handler does not run for it — the same
+//! breach raised by an array append inside compiled code does run it. Goal
+//! `limit-handler-reach` is where the two seams are made to agree, and
+//! `tests/conformance/core/arr-from-over-a-sequence-with-no-end-is-stopped-by-the-memory-ceiling.nvst`
+//! pins the stop while asserting nothing about the handler.
 
 use std::mem::ManuallyDrop;
 
@@ -92,6 +107,22 @@ pub fn drain(
 ) -> Result<Vec<Value>, Fault> {
     let mut out = Vec::new();
     let mut collect = |value: Value| {
+        // Asked in front of the push, for the reason `crate::abi::affordable`
+        // gives: the balance already carries what this loop has taken, and this
+        // is the only thing in the loop that reads it. A sequence with no end is
+        // stopped here, at the ceiling, rather than where the host runs out.
+        if let Err(fault) = crate::abi::affordable(Some(size_of::<Value>()), what) {
+            #[expect(
+                unsafe_code,
+                reason = "`each` hands the sink an owned reference and releases \
+                          nothing it has given away, so this element is this \
+                          frame's on the call that refuses it"
+            )]
+            unsafe {
+                value.release();
+            }
+            return Err(fault);
+        }
         out.push(value);
         Ok(())
     };
