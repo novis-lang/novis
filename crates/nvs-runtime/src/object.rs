@@ -5626,6 +5626,32 @@ mod tests {
         }
     }
 
+    /// An object whose slots hold no refcounted value costs exactly one
+    /// allocation to create and free. [`crate::release`]'s worklist is a `Vec`
+    /// that allocates on its first push, and such an object never pushes — the
+    /// shape every class whose properties are scalars has, which is why the
+    /// count is measured rather than argued.
+    // covers: lang:classes/declaring-a-class
+    #[test]
+    fn creating_and_freeing_a_leaf_object_allocates_once() {
+        let mut table = ClassTable::new();
+        let point = table.define("Point", &["x", "y"], &[]);
+
+        let before = counting_alloc::allocated_bytes();
+        #[expect(unsafe_code, reason = "the table outlives the object below")]
+        unsafe {
+            let object = NvsObj::new(table.desc(point));
+            object.set_field(0, Value::int(1));
+            object.set_field(1, Value::int(2));
+            drop(object);
+        }
+        assert_eq!(
+            counting_alloc::allocated_bytes() - before,
+            obj_layout(2).size(),
+            "creating and freeing a leaf object allocated more than the object"
+        );
+    }
+
     #[test]
     fn a_debug_rendering_names_the_class() {
         let (table, animal, _dog, _greets) = hierarchy();

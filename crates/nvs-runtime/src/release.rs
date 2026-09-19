@@ -18,9 +18,13 @@
 //! than dropping them.
 //!
 //! The cost, stated as AGENTS.md requires: **one `Vec` allocation per
-//! outermost release that actually frees a container**, and nothing at all for
-//! a release that only decrements or that frees a string. The worklist starts
-//! empty and is only ever touched once a count has already reached zero.
+//! outermost release that frees a container holding another container**, and
+//! nothing at all for a release that only decrements, that frees a string, or
+//! that frees a container whose own slots hold no refcounted value. The
+//! worklist starts empty, is only ever touched once a count has already
+//! reached zero, and allocates only when a dismantle hands it a second
+//! allocation to take apart — which is why freeing a leaf object costs exactly
+//! the one `dealloc` that object is.
 
 use crate::array;
 use crate::object;
@@ -64,8 +68,15 @@ pub(crate) unsafe fn release_value(value: Value) {
         return;
     };
 
-    let mut work = vec![first];
-    while let Some(dying) = work.pop() {
+    // The first one is dismantled out of a local rather than out of the
+    // worklist, so a container whose slots hold nothing refcounted — the
+    // common shape, and every object of a class whose properties are scalars —
+    // never allocates the `Vec` at all. `Vec::new` allocates on its first
+    // push, which is the first time a dismantle finds a second allocation
+    // behind the one it is taking apart.
+    let mut work: Vec<Dying> = Vec::new();
+    let mut dying = first;
+    loop {
         #[expect(
             unsafe_code,
             reason = "every entry reached zero in `step_field`, so nothing else \
@@ -78,6 +89,10 @@ pub(crate) unsafe fn release_value(value: Value) {
                 Dying::Array(ptr) => array::dismantle(ptr, &mut work),
             }
         }
+        let Some(next) = work.pop() else {
+            return;
+        };
+        dying = next;
     }
 }
 
