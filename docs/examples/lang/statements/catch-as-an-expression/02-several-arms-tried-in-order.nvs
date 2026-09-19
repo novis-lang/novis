@@ -1,0 +1,32 @@
+<?nvs
+// Shows several arms written after one expression. They are tried in order and
+// the first class that matches wins. The arms belong to the expression on the
+// left, not to each other.
+
+class Field {
+    public static function toAmount(string $text): int {
+        if ($text == "") {
+            throw new LogicError("the field is empty");
+        }
+        if ($text == "?") {
+            throw new IOError("the field is unreadable");
+        }
+        return 42;
+    }
+}
+
+// Nothing threw, so the result is the call's own value. This prints 42.
+echo Field::toAmount("42") catch (LogicError $l) => -1 catch (IOError $io) => -2, "\n";
+
+// The first arm matches. This prints -1.
+echo Field::toAmount("") catch (LogicError $l) => -1 catch (IOError $io) => -2, "\n";
+
+// The second arm matches. This prints -2.
+echo Field::toAmount("?") catch (LogicError $l) => -1 catch (IOError $io) => -2, "\n";
+
+// An error no arm matches keeps travelling, so the `try` around it catches it.
+try {
+    echo Field::toAmount("") catch (IOError $io) => -2, "\n";
+} catch (LogicError $left) {
+    echo "left the expression: ", $left->message, "\n";
+}

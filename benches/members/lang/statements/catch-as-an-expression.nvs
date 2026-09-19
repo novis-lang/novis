@@ -1,0 +1,29 @@
+<?nvs
+// A request handler reads an optional value and falls back to a default when it
+// is not there. This measures that guard on both paths: seven rounds in eight
+// find the value, and the eighth takes the arm. Every round uses the number the
+// round before it produced.
+// bench: iterations 200000
+
+class Lookup {
+    public static function price(int $sku): int {
+        if ($sku % 8 == 0) {
+            throw new IOError("no row");
+        }
+        return $sku * 3;
+    }
+
+    public static function run(int $rounds): int {
+        int $acc = 1;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: this round's key comes out of the last round.
+            int $found = Lookup::price($acc % 64) catch (IOError $missing) => 7;
+            $acc = ($acc + $found) % 1000003;
+            $i = $i + 1;
+        }
+        return $acc;
+    }
+}
+
+echo Lookup::run(200000), "\n";
