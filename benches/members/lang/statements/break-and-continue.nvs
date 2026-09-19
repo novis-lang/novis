@@ -1,0 +1,35 @@
+<?nvs
+// A search over a table skips the rows it does not want and stops at the first
+// row it does. This measures both words in that shape: one `continue` for every
+// row that is skipped, and one `break` for the row that ends the search. Every
+// round searches for the value the round before it produced.
+// bench: iterations 300000
+// bench: allocations 0
+// bench: calls 0
+
+class Scan {
+    public static function run(int $rounds): int {
+        array<int> $rows = [3, 8, 11, 4, 19, 6, 25, 7];
+        int $acc = 1;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: this round's target comes out of the last round.
+            int $target = $acc % 26;
+            int $found = 0;
+            foreach ($rows as int $row) {
+                if ($row % 2 == 0) {
+                    continue;
+                }
+                if ($row >= $target) {
+                    $found = $row;
+                    break;
+                }
+            }
+            $acc = ($acc + $found + 1) % 1000003;
+            $i = $i + 1;
+        }
+        return $acc;
+    }
+}
+
+echo Scan::run(300000), "\n";

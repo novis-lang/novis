@@ -1,0 +1,39 @@
+<?nvs
+// Shows `continue 2` and `break 2`, which act on the second level out. Level 1
+// is the inner loop and level 2 is the outer one. A shop checks its orders for
+// one product, and an order holding a `pen` is not shipped at all.
+
+class Order {
+    public function constructor(public string $id, public array<string> $items) {}
+}
+
+array<Order> $orders = [
+    new Order("A-1", ["book", "pen", "lamp"]),
+    new Order("A-2", ["cup", "mug"]),
+    new Order("A-3", ["ring", "box"]),
+];
+
+string $wanted = "ring";
+string $foundIn = "";
+
+foreach ($orders as Order $order) {
+    echo "order ", $order->id, "\n";
+    foreach ($order->items as string $item) {
+        if ($item == "pen") {
+            // `continue 2` starts the outer loop's next iteration, so the rest
+            // of this order and the line after the inner loop are both skipped.
+            echo "  holds a pen, skipping this order\n";
+            continue 2;
+        }
+        if ($item == $wanted) {
+            $foundIn = $order->id;
+            // `break 2` leaves both loops, so the `box` after it is never read.
+            break 2;
+        }
+        echo "  ", $item, "\n";
+    }
+    echo "  order checked\n";
+}
+
+// This prints A-3.
+echo "found in ", $foundIn, "\n";

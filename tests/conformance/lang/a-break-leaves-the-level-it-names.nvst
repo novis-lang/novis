@@ -2,6 +2,7 @@
 `break N` and `continue N` leave the N-th enclosing loop or `switch`, counted PHP's way — `rule:types/arithmetic`'s neighbours in the statement grammar, and `nvs_ir::lower::Lowering::lower_break`/`lower_continue`
 --FILE--
 <?nvs
+// covers: lang:statements/break-and-continue
 // A level names an enclosing statement by count, outermost last: level 1 is
 // the innermost, and every loop *and* every `switch` is one of them. Nothing
 // below is a rendering of what Novis chose — the whole file is byte-identical

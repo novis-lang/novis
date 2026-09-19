@@ -1,0 +1,113 @@
+<?nvs
+// Attack: `break` and `continue` leave loops early, and a level can name a loop
+// far outside the one it is written in. This gives them work no program does: a
+// jump out of ten nested loops, millions of skips, and a `finally` on every one.
+// Nothing may crash, hang or lose memory.
+// hostile: timeout-ms 30000
+// covers: lang:statements/break-and-continue
+
+class Attack
+{
+    // 1. Ten loops inside each other, each holding a string it built. The
+    // innermost one leaves all ten with `break 10` or `continue 10`.
+    public static function deepJump(array<string> $rows, bool $leave): int
+    {
+        int $seen = 0;
+        foreach ($rows as string $a) {
+            string $sa = $a . '-';
+            foreach ($rows as string $b) {
+                string $sb = $sa . $b;
+                foreach ($rows as string $c) {
+                    string $sc = $sb . $c;
+                    foreach ($rows as string $d) {
+                        string $sd = $sc . $d;
+                        foreach ($rows as string $e) {
+                            string $se = $sd . $e;
+                            foreach ($rows as string $f) {
+                                string $sf = $se . $f;
+                                foreach ($rows as string $g) {
+                                    string $sg = $sf . $g;
+                                    foreach ($rows as string $h) {
+                                        string $sh = $sg . $h;
+                                        foreach ($rows as string $i) {
+                                            string $si = $sh . $i;
+                                            foreach ($rows as string $j) {
+                                                $seen = $seen + Core\Str::length($si . $j) as int;
+                                                if ($leave) {
+                                                    break 10;
+                                                }
+                                                continue 10;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return $seen;
+    }
+
+    // 2. A jump out of a `try` runs the `finally` first. Both words do it here,
+    // hundreds of thousands of times, while the `try` holds a fresh string.
+    public static function throughFinally(int $rounds): int
+    {
+        int $ran = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            $i = $i + 1;
+            try {
+                string $held = 'row-' . $i as string;
+                if ($i % 3 == 0) {
+                    continue;
+                }
+                if ($i == $rounds - 1) {
+                    break;
+                }
+                $ran = $ran + Core\Str::length($held) as int;
+            } finally {
+                $ran = $ran + 1;
+            }
+        }
+        return $ran;
+    }
+
+    // 3. A `switch` is a level for `break` and never one for `continue`, so the
+    // two words inside one mean different things. A million rounds run both.
+    public static function switchLevels(int $rounds): int
+    {
+        int $acc = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            $i = $i + 1;
+            switch ($i % 4) {
+                case 0:
+                    continue 2;
+                case 1:
+                    break;
+                default:
+                    $acc = $acc + 1;
+            }
+            $acc = $acc + 2;
+        }
+        return $acc;
+    }
+}
+
+array<string> $rows = ['alpha', 'beta'];
+
+// The ten-level jump, taken a hundred thousand times in each form. A value the
+// jump fails to free would show as memory that keeps growing.
+int $total = 0;
+int $r = 0;
+while ($r < 100000) {
+    $total = $total + Attack::deepJump($rows, true);
+    $total = $total + Attack::deepJump($rows, false);
+    $r = $r + 1;
+}
+echo $total, "\n";
+
+echo Attack::throughFinally(2000000), "\n";
+echo Attack::switchLevels(5000000), "\n";

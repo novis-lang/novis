@@ -1,0 +1,18 @@
+<?nvs
+// Shows how `break` stops a loop as soon as the work is done. This loop looks
+// for the first reading above 100 and stops there.
+
+array<int> $readings = [12, 40, 96, 140, 3, 220];
+
+int $found = 0;
+foreach ($readings as int $reading) {
+    if ($reading > 100) {
+        $found = $reading;
+        break;
+    }
+    echo "checked ", $reading, "\n";
+}
+
+// The loop stopped at 140 and never read the two values after it.
+// This prints 140.
+echo "first above 100: ", $found, "\n";
