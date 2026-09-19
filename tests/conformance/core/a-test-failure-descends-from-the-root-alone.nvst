@@ -1,0 +1,75 @@
+--TEST--
+`Core\Test\Failure` descends from `Throwable` directly, so neither a `LogicError` nor a `RuntimeError` clause admits it and only the root does, and a `Core\Test\Failure` clause admits nothing but its own — `rule:testing/failure-ledger`
+--FILE--
+<?nvs
+// covers: Core\Test\Failure
+// The place in spec § 10's tree, with no runner and no ledger anywhere near it:
+// what this pins is which `catch` clause a failed check reaches, which
+// `crates/nvs-hir/src/errors.rs` decides on its own. A test's failures are not
+// the program's errors, and this is the assertion that says so.
+use Core\Test\Failure;
+
+final class Placement {
+    // Neither branch of the tree a running program throws into: a check that
+    // did not hold is not a mistake in the code and not the world saying no, so
+    // the clauses written for those two must not take it.
+    public static function clause(): string {
+        try {
+            throw new Failure("the basket should have been emptied");
+        } catch (LogicError $notAMistake) {
+            return "a LogicError clause";
+        } catch (RuntimeError $notTheWorldSayingNo) {
+            return "a RuntimeError clause";
+        } catch (Throwable $theRoot) {
+            return "only a Throwable clause";
+        }
+    }
+
+    // And by its own name, which is what a helper written around a failed check
+    // uses — the rule makes catching one necessary rather than merely allowed.
+    public static function byName(): string {
+        try {
+            throw new Failure("the record had three wrong fields");
+        } catch (Failure $failed) {
+            return $failed->message;
+        }
+    }
+
+    // The bound from the other side: a clause written for a failed check does
+    // not quietly take an error the program itself raised, so a helper that
+    // gathers failures never swallows a bug in the code under test.
+    public static function notAProgramError(): string {
+        try {
+            throw new LogicError("the call was wrong");
+        } catch (Failure $wrong) {
+            return "a Failure clause";
+        } catch (Throwable $right) {
+            return "not a Failure clause";
+        }
+    }
+
+    // A frame between the throw and the caller that re-raises the same value
+    // hands on the same message, which is what lets a wrapper report a failure
+    // it decided not to handle.
+    public static function rethrown(): string {
+        try {
+            try {
+                throw new Failure("the two amounts did not match");
+            } catch (Failure $passingThrough) {
+                throw $passingThrough;
+            }
+        } catch (Failure $outside) {
+            return $outside->message;
+        }
+    }
+}
+
+echo Placement::clause(), "\n";
+echo Placement::byName(), "\n";
+echo Placement::notAProgramError(), "\n";
+echo Placement::rethrown(), "\n";
+--EXPECT--
+only a Throwable clause
+the record had three wrong fields
+not a Failure clause
+the two amounts did not match

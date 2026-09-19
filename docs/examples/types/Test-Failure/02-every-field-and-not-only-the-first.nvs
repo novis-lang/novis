@@ -1,0 +1,31 @@
+<?nvs
+// Three fields of one record to check. Run the checks one after another and the
+// first disappointment stops the rest, so you learn about one wrong field per
+// run. Catching each failure instead lets the helper name all of them at once.
+//
+// Catching them changes nothing about the verdict: the test has already failed
+// three times, because each check recorded its outcome before it threw. What
+// this buys is a better report, not a quieter one.
+
+use Core\Test;
+use Core\Test\Failure;
+
+final class Fields {
+    // Returns the field's name when it is wrong, and an empty string when it is
+    // right, so the caller can collect the names.
+    public static function wrong(string $name, string $expected, string $actual): string {
+        try {
+            Test::assertEquals($actual, $expected, {message: $name});
+            return '';
+        } catch (Failure $mismatch) {
+            return $name;
+        }
+    }
+}
+
+string $report = '';
+$report = $report . Fields::wrong('street', 'Kärntner Ring 1', 'Kärntner Ring 1');
+$report = $report . Fields::wrong(' city', 'Vienna', 'Wien');
+$report = $report . Fields::wrong(' postcode', '1010', '1100');
+
+echo 'wrong fields:', $report, "\n";

@@ -1,0 +1,26 @@
+<?nvs
+// What a check throws when it does not hold, and what that value says. The
+// message names the check and why it was not satisfied, with anything you added
+// in front of it.
+
+use Core\Test;
+use Core\Test\Failure;
+
+try {
+    Test::assertTrue(false, {message: 'the basket should have been emptied'});
+} catch (Failure $failed) {
+    echo $failed->message, "\n";
+}
+
+// It hangs off the root of the error tree directly rather than under the errors
+// a running program raises, so a clause written for one of those does not take
+// it and a test's own failures stay separate from the program's.
+try {
+    Test::assertEquals(2, 3);
+} catch (LogicError $notAMistakeInTheCode) {
+    echo "a LogicError clause\n";
+} catch (RuntimeError $notTheWorldSayingNo) {
+    echo "a RuntimeError clause\n";
+} catch (Throwable $theRoot) {
+    echo "only a Throwable clause\n";
+}

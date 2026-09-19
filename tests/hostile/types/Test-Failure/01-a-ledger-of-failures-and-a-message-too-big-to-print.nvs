@@ -1,0 +1,98 @@
+<?nvs
+// Attack: fail a check a hundred thousand times, then fail one with a message
+// megabytes long, then carry a failure up through a deep chain of frames that
+// each catch it and throw a fresh one. Every failed check both throws a value
+// that keeps its whole message and writes an entry into a ledger the test
+// cannot reach, so anything held per failure grows without limit here.
+// hostile: timeout-ms 60000
+
+use Core\Test;
+use Core\Test\Failure;
+
+final class Pile
+{
+    // One failed check per round, caught and read. The ledger is the half no
+    // program can clear, so this is the question of what a test that fails a
+    // hundred thousand times costs the runner that has to report it.
+    public static function churn(int $rounds): uint
+    {
+        uint $read = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            try {
+                Test::assertTrue(false, { message: 'round after round' });
+            } catch (Failure $failed) {
+                // Read, so a run cannot pass by never building the message.
+                if (Core\Str::length($failed->message) > 0) {
+                    $read = $read + 1;
+                }
+            }
+            $i = $i + 1;
+        }
+        return $read;
+    }
+
+    // One failure whose own message is a few megabytes. The check puts the
+    // given text in front of its own, so this asks whether that text is kept
+    // once or copied at every step on the way out.
+    public static function huge(int $doublings): uint
+    {
+        string $note = "and here is more about what went wrong\n";
+        int $i = 0;
+        while ($i < $doublings) {
+            $note = $note . $note;
+            $i = $i + 1;
+        }
+        try {
+            Test::assertTrue(false, { message: $note });
+            return 0;
+        } catch (Failure $failed) {
+            return Core\Str::length($failed->message);
+        }
+    }
+
+    // Every frame catches what the frame under it failed with and throws a
+    // fresh failure carrying the same message, so the chain holds as many live
+    // failures as it is deep.
+    public static function rethrow(int $depth): bool
+    {
+        if ($depth == 0) {
+            Test::assertTrue(false, { message: 'the bottom of the chain' });
+            return true;
+        }
+        try {
+            return Pile::rethrow($depth - 1);
+        } catch (Failure $rising) {
+            throw new Failure($rising->message);
+        }
+    }
+
+    // A body that fails is discharged from the ledger, so this removes as many
+    // entries as the loop above added and asks whether the two paths agree
+    // about what an entry is.
+    public static function discharge(int $rounds): uint
+    {
+        uint $done = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            Test::expectFailure(fn (): void => {
+                Test::assertTrue(false, { message: 'expected to fail' });
+            });
+            $done = $done + 1;
+            $i = $i + 1;
+        }
+        return $done;
+    }
+}
+
+echo Pile::churn(100000), "\n";
+echo Pile::huge(17), "\n";
+echo Pile::discharge(100000), "\n";
+
+try {
+    echo Pile::rethrow(20000) ? "reached the bottom\n" : "declined\n";
+} catch (Failure $gaveUp) {
+    echo "the chain ended in a failure\n";
+} catch (Throwable $cameApart) {
+    echo 'the chain came apart: ', $cameApart->message, "\n";
+}

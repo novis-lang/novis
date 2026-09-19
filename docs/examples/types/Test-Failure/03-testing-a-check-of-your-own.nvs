@@ -1,0 +1,38 @@
+<?nvs
+// A check you wrote yourself is worth checking. `expectFailure` runs a body,
+// insists that something in it failed, and takes that failure off the test's
+// record — the one way a failure is ever consumed on purpose.
+
+use Core\Test;
+use Core\Test\Failure;
+
+final class Money {
+    // The helper under test: an amount is a whole number of cents and is never
+    // below zero.
+    public static function assertValidCents(int $amount): void {
+        Test::assertTrue($amount >= 0, {message: 'an amount cannot be negative'});
+    }
+}
+
+// Good input passes and leaves nothing behind.
+Money::assertValidCents(1250);
+echo "1250 is accepted\n";
+
+// Bad input has to be refused, and this is how that is said without the test
+// itself failing.
+Test::expectFailure(fn (): void => {
+    Money::assertValidCents(-1);
+});
+echo "-1 is refused\n";
+
+// A body in which nothing failed is itself a failure. That is the half worth
+// knowing about: a helper that quietly stopped checking would otherwise go on
+// passing forever.
+try {
+    Test::expectFailure(fn (): void => {
+        Money::assertValidCents(0);
+    });
+    echo "nothing was refused\n";
+} catch (Failure $nothingFailed) {
+    echo "0 is accepted, so there was nothing to refuse\n";
+}
