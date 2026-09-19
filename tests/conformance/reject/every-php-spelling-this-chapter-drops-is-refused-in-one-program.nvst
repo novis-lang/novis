@@ -1,0 +1,70 @@
+--TEST--
+Every PHP spelling the types chapter drops is refused, swept in one program so the count of refusals is the assertion rather than any one row — `rule:types/conversion`, `rule:classes/no-free-functions-or-constants`, `rule:expressions/bracket-destructuring`
+--FILE--
+<?nvs
+// covers: lang:types/what-does-not-exist
+// The chapter's last table is a list of spellings a program arriving from PHP
+// still contains, each with the one thing to write instead. This case offers
+// every one of them to the compiler at once, so a row that quietly started
+// compiling loses an error while every other line still looks right. The
+// replacements themselves are pinned by the case beside this one.
+class Holder {
+    public int $n = 1;
+
+    public static function twice(int $n): int {
+        return $n * 2;
+    }
+}
+
+mixed $m = 1;
+string $s = "abc";
+array<int> $pair = [1, 2];
+Holder $h = new Holder();
+
+int $cast = (int)$m;
+int $converted = intval($m);
+settype($m, "string");
+echo gettype($m), "\n";
+echo is_int($m), "\n";
+resource $handle = 1;
+callable $named = "Holder::twice";
+callable $bound = [$h, "twice"];
+echo $s[0], "\n";
+echo "3" * 2, "\n";
+echo "3" == 3 ? "y" : "n", "\n";
+echo "a" < "b" ? "y" : "n", "\n";
+list($x, $y) = $pair;
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0225]: `(int)expr` is not supported
+%A
+error[E0401]: expected `int`, found `mixed`
+%A
+error[E0320]: `intval` is not a function that exists
+%A
+error[E0401]: expected `int`, found `mixed`
+%A
+error[E0208]: `settype` is not supported
+%A
+error[E0320]: `gettype` is not a function that exists
+%A
+error[E0320]: `is_int` is not a function that exists
+%A
+error[E0303]: `resource` is not declared
+%A
+error[E0418]: a string is not callable in Novis; take a reference with first-class callable syntax instead
+%A
+error[E0419]: an array is not callable in Novis; take a reference with first-class callable syntax instead
+%A
+error[E0482]: `string` cannot be subscripted
+%A
+error[E0716]: `*` has no meaning for `string`
+%A
+error[E0466]: `string` and `int` are disjoint; no value is both, so this comparison is always false
+%A
+error[E0715]: `<` has no meaning for `string`
+%A
+error[E0230]: `list(...)` is not supported
+%A
+error: aborting due to 17 errors

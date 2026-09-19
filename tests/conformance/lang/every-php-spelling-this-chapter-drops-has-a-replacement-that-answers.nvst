@@ -1,0 +1,96 @@
+--TEST--
+Every row of the chapter's last table has a replacement that answers, counted in one program so a replacement that stopped working changes the count — `rule:types/conversion`, `rule:types/narrowing`, `rule:classes/no-free-functions-or-constants`
+--FILE--
+<?nvs
+// covers: lang:types/what-does-not-exist
+// The other half of the table: for every PHP spelling the chapter drops, the
+// one thing written instead, run rather than described. The list is returned
+// as one `array<string>` and counted, so a replacement that started answering
+// something else changes a line and one that stopped answering at all changes
+// the count.
+class Swap {
+    public static function run(): array<string> {
+        mixed $m = 1;
+        string $s = "abc";
+        array<int> $pair = [7, 9];
+        float $price = 3.9;
+
+        // `(int)$x` and the `intval` family are all one operator.
+        int $cast = $m as int;
+        string $text = $m as string;
+        float $real = $m as float;
+        bool $flag = $m as bool;
+
+        // `gettype` and `is_int` are a conversion that may answer `null`, and
+        // `is_null` is a comparison (`rule:types/narrowing`).
+        ?int $whole = $m as ?int;
+        bool $isNumber = $whole != null;
+        bool $isNothing = $m == null;
+
+        // A handle is an object, and a `callable` is written with `fn`.
+        Core\Regex\Pattern $handle = Core\Regex::compile("a+");
+        callable $twice = fn(int $n): int => $n * 2;
+
+        // A string is read and ordered by members, never by `[]` or `<`.
+        string $first = Core\Str::at($s, 0);
+        string $rest = Core\Str::slice($s, 1);
+        int $product = ("3" as int) * 2;
+        int $order = Core\Str::compare("a", "b");
+
+        // Destructuring is brackets, and every leaf names its type.
+        [int $left, int $right] = $pair;
+
+        // The truncation `(int)` did quietly is a question or a throw.
+        ?int $narrowed = $price as ?int;
+        string $thrown = "accepted";
+        try {
+            int $truncated = $price as int;
+            $thrown = $truncated as string;
+        } catch (Throwable $e) {
+            $thrown = "threw";
+        }
+
+        return [
+            $cast as string,
+            $text,
+            $real as string,
+            $flag ? "true" : "false",
+            $isNumber ? "a number" : "not a number",
+            $isNothing ? "null" : "not null",
+            Core\Regex::matches("aaa", $handle) ? "matched" : "no match",
+            $twice(21) as string,
+            $first,
+            $rest,
+            $product as string,
+            $order as string,
+            $left as string,
+            $right as string,
+            $narrowed == null ? "null" : "truncated",
+            $thrown,
+        ];
+    }
+}
+
+array<string> $out = Swap::run();
+echo "replacements ", Core\Arr::count($out), "\n";
+foreach ($out as string $one) {
+    echo $one, "\n";
+}
+--EXPECT--
+replacements 16
+1
+1
+1
+true
+a number
+not null
+matched
+42
+a
+bc
+6
+-1
+7
+9
+null
+threw

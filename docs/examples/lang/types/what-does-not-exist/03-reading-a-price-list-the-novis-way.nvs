@@ -1,0 +1,33 @@
+<?nvs
+// Shows a price list being read line by line: no cast, no free function, and
+// text that never takes part in arithmetic. This is what most of the work of
+// bringing a PHP program over looks like.
+
+class PriceList {
+    public static function summarise(array<string> $lines): string {
+        int $total = 0;
+        string $firstName = "";
+
+        foreach ($lines as string $line) {
+            // Every name in a destructuring says what it holds.
+            [string $name, string $amount] = Core\Str::split($line, ",");
+
+            // A field that is not a number answers `null` here, rather than
+            // turning into a zero somewhere further down.
+            ?int $price = $amount as ?int;
+            if ($price == null) {
+                continue;
+            }
+            $total = $total + $price;
+
+            // Two pieces of text are ordered with a member, not with `<`.
+            if ($firstName == "" || Core\Str::compare($name, $firstName) < 0) {
+                $firstName = $name;
+            }
+        }
+
+        return "total " . ($total as string) . ", first name " . $firstName;
+    }
+}
+
+echo PriceList::summarise(["pears,220", "apples,150", "plums,not a price"]), "\n";

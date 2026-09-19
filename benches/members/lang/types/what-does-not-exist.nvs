@@ -1,0 +1,25 @@
+<?nvs
+// Measures where a program brought over from PHP now spends its time. It
+// converts a field, reads one character, and puts two pieces of text in order.
+// Each of those was a cast, a bracket or a `<` before.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $fields = ["17", "42", "308"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            string $field = $fields[$total % 3];
+            $total = $total + ($field as uint);
+            $total = $total + Core\Str::length(Core\Str::at($field, 0));
+            if (Core\Str::compare($field, "42") < 0) {
+                $total = $total + 1;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

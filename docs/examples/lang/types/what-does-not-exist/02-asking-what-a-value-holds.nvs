@@ -1,0 +1,35 @@
+<?nvs
+// Shows how to ask what a value holds, now that `gettype` and `is_int` are
+// gone and there are no free functions at all.
+
+class Describe {
+    public static function of(mixed $value): string {
+        // Nothing at all is a comparison against `null`.
+        if ($value == null) {
+            return "nothing";
+        }
+
+        // `is` answers whether the value is an object of that class.
+        if ($value is Core\Regex\Pattern) {
+            return "a compiled pattern";
+        }
+
+        // For a number, ask for the conversion and see whether it answered.
+        ?int $whole = $value as ?int;
+        if ($whole != null) {
+            return "a whole number";
+        }
+        ?float $fraction = $value as ?float;
+        if ($fraction != null) {
+            return "a number with a fraction";
+        }
+
+        return "something else";
+    }
+}
+
+echo Describe::of(null), "\n";
+echo Describe::of(7), "\n";
+echo Describe::of(2.5), "\n";
+echo Describe::of("hello"), "\n";
+echo Describe::of(Core\Regex::compile("a+")), "\n";
