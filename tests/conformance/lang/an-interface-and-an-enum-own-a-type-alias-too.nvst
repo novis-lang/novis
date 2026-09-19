@@ -2,6 +2,7 @@
 An interface and an enum own a `type` member exactly as a class does, reached through their own name — `rule:types/type-alias`
 --FILE--
 <?nvs
+// covers: lang:types/type-aliases
 interface Priced {
     type Money = {amount: int, currency: string};
 

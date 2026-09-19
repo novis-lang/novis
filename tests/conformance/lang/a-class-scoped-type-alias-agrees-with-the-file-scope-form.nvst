@@ -2,6 +2,7 @@
 A class-scoped alias and the same expansion written at file scope are one type, in both directions and with no conversion at either crossing — `rule:types/type-alias`
 --FILE--
 <?nvs
+// covers: lang:types/type-aliases
 type Loose = {total: int, note?: string};
 
 class Order {

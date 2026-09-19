@@ -1,0 +1,27 @@
+<?nvs
+// An alias can be a member of a class, and then it belongs to that class:
+// inside the body it is enough to write the short name, and everywhere else
+// it is reached through its owner. It is not handed down to subclasses — a
+// name that means one thing belongs to one place.
+
+final class Basket {
+    type Lines = array<string>;
+
+    public function constructor(public Lines $lines) {}
+
+    public function add(string $line): Lines {
+        $this->lines[] = $line;
+        return $this->lines;      // the short name, inside the owner
+    }
+}
+
+class Printer {
+    public static function show(Basket::Lines $lines): void {      // and through the owner, outside
+        foreach ($lines as string $line) {
+            echo "- ", $line, "\n";
+        }
+    }
+}
+
+Basket $basket = new Basket(["two coffees"]);
+Printer::show($basket->add("one tea"));

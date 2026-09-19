@@ -1,0 +1,27 @@
+<?nvs
+// The set of fields a method hands back, given a name once. Without the name
+// the same field list would be written at every signature that passes it
+// along, and changing one of them would mean changing all of them. A field
+// list also cannot open a statement on its own, so naming it is what makes it
+// usable as a declared type at all.
+
+type Invoice = {number: string, total: decimal, paid: bool};
+
+class Billing {
+    public static function build(string $number, decimal $total): Invoice {
+        return {number: $number, total: $total, paid: false};
+    }
+
+    public static function settle(Invoice $invoice): Invoice {
+        return {number: $invoice->number, total: $invoice->total, paid: true};
+    }
+
+    public static function line(Invoice $invoice): string {
+        return $invoice->number . " " . ($invoice->total as string)
+            . ($invoice->paid ? " (paid)" : " (open)");
+    }
+}
+
+Invoice $draft = Billing::build("INV-1042", 19.99 as decimal);
+echo Billing::line($draft), "\n";
+echo Billing::line(Billing::settle($draft)), "\n";

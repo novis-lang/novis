@@ -1,0 +1,111 @@
+<?nvs
+// Attack: names for types, piled up until resolving one is real work. A
+// chain thirty long, each name standing for the one before it. An array
+// nested six deep behind a single name. A set of five possible types whose
+// value is a different one of them every round, a million times over. A field
+// list a name stands for, built and thrown away a million times. A structure
+// a hundred thousand deep held behind one name and let go in one go.
+// hostile: timeout-ms 60000
+
+type C00 = int;
+type C01 = ?C00;
+type C02 = ?C01;
+type C03 = ?C02;
+type C04 = ?C03;
+type C05 = ?C04;
+type C06 = ?C05;
+type C07 = ?C06;
+type C08 = ?C07;
+type C09 = ?C08;
+type C10 = ?C09;
+type C11 = ?C10;
+type C12 = ?C11;
+type C13 = ?C12;
+type C14 = ?C13;
+type C15 = ?C14;
+type C16 = ?C15;
+type C17 = ?C16;
+type C18 = ?C17;
+type C19 = ?C18;
+type C20 = ?C19;
+type C21 = ?C20;
+type C22 = ?C21;
+type C23 = ?C22;
+type C24 = ?C23;
+type C25 = ?C24;
+type C26 = ?C25;
+type C27 = ?C26;
+type C28 = ?C27;
+type C29 = ?C28;
+
+type N1 = array<int>;
+type N2 = array<N1>;
+type N3 = array<N2>;
+type N4 = array<N3>;
+type N5 = array<N4>;
+type N6 = array<N5>;
+
+type Anything = int|string|float|bool|null;
+type Wide = {a: int, b: string, c: float, d: bool, e: int, f: string, g: float, h: bool};
+type Nest = array<mixed>;
+
+class Poke
+{
+    public static function deep(C29 $n): C00
+    {
+        return ($n ?? 0) + 1;
+    }
+
+    public static function wide(Wide $w): int
+    {
+        return $w->a + $w->e;
+    }
+}
+
+// Thirty names deep, a million times, each round carrying the last one's
+// answer so nothing about the chain can be folded away.
+C29 $carried = 0;
+uint $i = 0;
+while ($i < 1000000) {
+    $carried = Poke::deep($carried) % 1000;
+    $i = $i + 1;
+}
+echo $carried ?? -1, " after a million turns through thirty names\n";
+
+// Six levels of array behind one name, read from the bottom.
+N6 $box = [[[[[[1, 2]]]]]];
+echo $box[0][0][0][0][0][1], " at the bottom of six\n";
+
+// Five possible types behind one name, a different one every round.
+array<Anything> $rotation = [1, 'two', 3.5, true, null];
+uint $numbers = 0;
+uint $j = 0;
+while ($j < 1000000) {
+    Anything $one = $rotation[($j % 5) as int];
+    if ($one is int) {
+        $numbers = $numbers + 1;
+    }
+    $j = $j + 1;
+}
+echo $numbers, " of a million were whole numbers\n";
+
+// A field list behind one name, built and dropped a million times.
+int $sum = 0;
+uint $k = 0;
+while ($k < 1000000) {
+    Wide $w = { a: ($sum % 3), b: 'x', c: 0.5, d: true, e: 1, f: 'y', g: 1.5, h: false };
+    $sum = $sum + Poke::wide($w);
+    $k = $k + 1;
+}
+echo $sum, " after a million field lists\n";
+
+// A hundred thousand levels behind one name, released all at once, which is
+// where a recursive release comes apart.
+Nest $tower = [];
+uint $depth = 0;
+while ($depth < 100000) {
+    $tower = ['under' => $tower];
+    $depth = $depth + 1;
+}
+$tower = [];
+echo "towered and released\n";

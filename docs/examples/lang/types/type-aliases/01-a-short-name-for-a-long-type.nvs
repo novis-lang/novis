@@ -1,0 +1,24 @@
+<?nvs
+// Three types that would be tiresome to write out at every place they are
+// used, each given a name at the top of the file. The name and the type it
+// stands for are interchangeable: a value can move between them freely,
+// because after the compiler has read the file there is only one type there.
+
+type UserId = uint;
+type Answer = int|string;
+type Grid = array<array<float>>;
+
+class Report {
+    public static function line(UserId $id, Answer $answer): string {
+        return "user " . ($id as string) . " answered " . ($answer as string);
+    }
+}
+
+UserId $id = 1042;
+uint $plain = $id;          // the alias and `uint` are one type, in both directions
+
+echo Report::line($id, 7), "\n";
+echo Report::line($plain, "maybe"), "\n";
+
+Grid $grid = [[1.5, 2.0], [0.5]];
+echo $grid[0][1], " ", $grid[1][0], "\n";

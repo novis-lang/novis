@@ -2,6 +2,7 @@
 A class-scoped `type` alias is the shape it names, reached as a bare `Name` inside its owner and as `Owner::Name` from anywhere — `rule:types/type-alias` and `rule:types/shape-type`
 --FILE--
 <?nvs
+// covers: lang:types/type-aliases
 class Order {
     type Meta = {total: int, note?: string};
 
