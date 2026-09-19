@@ -1,0 +1,25 @@
+<?nvs
+// Reads the cases of an enum whose numbers were written into the declaration. A program meets this
+// shape when it stores the step a workflow has reached as the number behind the case.
+// bench: iterations 400000
+// bench: calls 0
+// bench: allocations 0
+
+enum Step { Ordered, Packed, Shipped = 10, Delivered }
+
+class Bench {
+    public static function run(int $rounds): int {
+        int $total = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: the case read this round is picked by the number the last
+            // round produced, so the read stays inside the loop.
+            Step $held = $total % 3 == 0 ? Step::Shipped : Step::Packed;
+            $total = $total + ($held as int);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

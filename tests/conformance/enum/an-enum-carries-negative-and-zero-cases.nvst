@@ -2,6 +2,7 @@
 An enum's cases may be negative or zero, auto-increment continues from a negative one, and the values index an array like any other int — `rule:enums/closed-integer-type`
 --FILE--
 <?nvs
+// covers: lang:enums/declaring-an-enum
 enum Dir {
     Back = -2,
     Left,

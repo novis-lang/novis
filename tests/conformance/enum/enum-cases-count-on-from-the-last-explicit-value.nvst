@@ -2,6 +2,7 @@
 An enum case with no `=` takes the previous case's value plus one, whether or not that previous case was explicit — `rule:enums/closed-integer-type`
 --FILE--
 <?nvs
+// covers: lang:enums/declaring-an-enum
 enum Plain {
     First,
     Second,

@@ -1,0 +1,130 @@
+<?nvs
+// Attack: a program declares enums that are as large and as extreme as a
+// declaration can be. One has a hundred cases, one puts its cases at the ends
+// of the number ranges, and one gives many cases the same number. Every number
+// read should be the number the declaration gives, and the runtime should stay
+// standing.
+// covers: lang:enums/declaring-an-enum
+// hostile: timeout-ms 20000
+
+enum Row
+{
+    Row000, Row001, Row002, Row003, Row004, Row005, Row006, Row007, Row008, Row009,
+    Row010, Row011, Row012, Row013, Row014, Row015, Row016, Row017, Row018, Row019,
+    Row020, Row021, Row022, Row023, Row024, Row025, Row026, Row027, Row028, Row029,
+    Row030, Row031, Row032, Row033, Row034, Row035, Row036, Row037, Row038, Row039,
+    Row040, Row041, Row042, Row043, Row044, Row045, Row046, Row047, Row048, Row049,
+    Row050, Row051, Row052, Row053, Row054, Row055, Row056, Row057, Row058, Row059,
+    Row060, Row061, Row062, Row063, Row064, Row065, Row066, Row067, Row068, Row069,
+    Row070, Row071, Row072, Row073, Row074, Row075, Row076, Row077, Row078, Row079,
+    Row080, Row081, Row082, Row083, Row084, Row085, Row086, Row087, Row088, Row089,
+    Row090, Row091, Row092, Row093, Row094, Row095, Row096, Row097, Row098, Row099
+}
+
+enum Edge
+{ Low = -9223372036854775807, Zero = 0, High = 9223372036854775807 }
+
+enum Wide: uint
+{ None = 0, Half = 9223372036854775808, All = 18446744073709551615 }
+
+enum Same
+{ First = 7, Second = 7, Third = 7, Fourth = 7 }
+
+// 1. Four million rounds read the first, the middle and the last case of the
+// hundred, and count every number that is not the one counting gives.
+class Hundred
+{
+    public static function sweep(int $rounds): int
+    {
+        int $wrong = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            if ((Row::Row000 as int) != 0) {
+                $wrong = $wrong + 1;
+            }
+            if ((Row::Row050 as int) != 50) {
+                $wrong = $wrong + 1;
+            }
+            if ((Row::Row099 as int) != 99) {
+                $wrong = $wrong + 1;
+            }
+            $i = $i + 1;
+        }
+        return $wrong;
+    }
+}
+
+echo '1: wrong numbers ', Hundred::sweep(4000000), "\n";
+
+// 2. The same sweep over the smallest and the largest numbers an `int` and a
+// `uint` can hold, and over the case counted on from the smallest one.
+class Ends
+{
+    public static function sweep(int $rounds): int
+    {
+        int $wrong = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            if ((Edge::Low as int) >= 0) {
+                $wrong = $wrong + 1;
+            }
+            if ((Edge::High as int) != 9223372036854775807) {
+                $wrong = $wrong + 1;
+            }
+            if ((Wide::All as uint) != 18446744073709551615) {
+                $wrong = $wrong + 1;
+            }
+            if ((Wide::Half as uint) <= (Edge::High as int) as uint) {
+                $wrong = $wrong + 1;
+            }
+            $i = $i + 1;
+        }
+        return $wrong;
+    }
+}
+
+echo '2: wrong numbers ', Ends::sweep(4000000), "\n";
+
+// 3. Four cases carry one number, so every pair of them should be equal.
+class Aliases
+{
+    public static function sweep(int $rounds): int
+    {
+        int $different = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            if (Same::First != Same::Fourth) {
+                $different = $different + 1;
+            }
+            if ((Same::Second as int) != (Same::Third as int)) {
+                $different = $different + 1;
+            }
+            $i = $i + 1;
+        }
+        return $different;
+    }
+}
+
+echo '3: different pairs ', Aliases::sweep(4000000), "\n";
+
+// 4. A method that reads a case of the hundred and then calls itself, with no
+// end.
+class Runaway
+{
+    public static function down(Row $r): int
+    {
+        if ($r == Row::Row099) {
+            return Runaway::down($r);
+        }
+        return 0;
+    }
+}
+
+try {
+    int $reached = Runaway::down(Row::Row099);
+    echo '4: BAD, the call returned ', $reached, "\n";
+} catch (Throwable $e) {
+    echo '4: caught ', $e->message, "\n";
+}
+
+echo "the runtime is still running\n";

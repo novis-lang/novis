@@ -1,0 +1,40 @@
+--TEST--
+An enum declaration refuses a `string` backing, a case value that is not an integer literal, PHP's `case` keyword, a member in the body, and an auto-incremented value with no room left in the backing type — `rule:enums/one-backing-type`, `rule:enums/declaration`
+--FILE--
+<?nvs
+// covers: lang:enums/declaring-an-enum
+
+// `rule:enums/one-backing-type`: only `int` and `uint` back an enum, and each
+// case's value is an integer literal, so both halves of this declaration are
+// refused where they are written.
+enum Suit: string { Hearts = "h", Spades = "s" }
+
+// `rule:enums/declaration`: the body is a comma list of bare names, so PHP's
+// `case` keyword is refused once per case that writes it.
+enum Colour { case Red; case Blue; }
+
+// `rule:enums/declaration`: an enum body holds cases and nothing else, and a
+// constant belongs to a class that takes the enum.
+enum Size {
+    Small,
+    Large,
+    const int COUNT = 2;
+}
+
+// `rule:enums/declaration`: a case with no written value is the previous case's
+// value plus one, and nothing is left above the largest `int`.
+enum Top { Last = 9223372036854775807, Past }
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0219]: an enum cannot be backed by `string`
+%A
+error[E0436]: an enum case's value must be an integer literal
+%A
+error[E0239]: an enum case is not written with `case`
+%A
+error[E0220]: an enum declares only cases and an optional backing type
+%A
+error[E0437]: this case's auto-incremented value runs past its enum's backing type
+%A
+error: aborting due to 7 errors

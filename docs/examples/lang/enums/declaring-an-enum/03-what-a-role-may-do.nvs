@@ -1,0 +1,25 @@
+<?nvs
+// Shows why you choose the numbers yourself. Each permission gets a number with
+// a single bit set, so one `uint` can hold several permissions at once.
+
+enum Permission: uint { Read = 1, Write = 2, Delete = 4, Invite = 8 }
+
+class Role {
+    // Adds one permission to a set of permissions.
+    public static function add(uint $set, Permission $p): uint {
+        return $set | ($p as uint);
+    }
+
+    // Returns `true` when the set contains the permission.
+    public static function has(uint $set, Permission $p): bool {
+        return ($set & ($p as uint)) != 0;
+    }
+}
+
+uint $editor = Role::add(Role::add(0, Permission::Read), Permission::Write);
+
+// An editor may read and write, and may not delete.
+// This prints `read: yes`, `write: yes` and `delete: no`.
+echo Role::has($editor, Permission::Read) ? "read: yes" : "read: no", "\n";
+echo Role::has($editor, Permission::Write) ? "write: yes" : "write: no", "\n";
+echo Role::has($editor, Permission::Delete) ? "delete: yes" : "delete: no", "\n";

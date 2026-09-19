@@ -1,0 +1,19 @@
+<?nvs
+// Shows an enum whose cases carry numbers you choose. These are the exit codes
+// a command line program returns to the shell that started it.
+
+enum Exit: int { Ok = 0, Usage = 64, NoInput = 66, Software = 70, Interrupted = 130 }
+
+// This prints 0, 64 and 130.
+echo Exit::Ok as int, "\n";
+echo Exit::Usage as int, "\n";
+echo Exit::Interrupted as int, "\n";
+
+// You can write a number for the first case only. Every case after it counts on
+// from the case before it.
+enum Attempt: int { First = 1, Second, Third }
+
+// This prints 1, 2 and 3.
+echo Attempt::First as int, "\n";
+echo Attempt::Second as int, "\n";
+echo Attempt::Third as int, "\n";

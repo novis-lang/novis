@@ -1,0 +1,17 @@
+<?nvs
+// Shows an enum written without any numbers. The first case is 0, and every
+// case after it is one more than the case before it.
+
+enum Step { Ordered, Packed, Shipped, Delivered }
+
+// `as int` gives the number behind a case. This prints 0, 1, 2 and 3.
+echo Step::Ordered as int, "\n";
+echo Step::Packed as int, "\n";
+echo Step::Shipped as int, "\n";
+echo Step::Delivered as int, "\n";
+
+// A variable of type `Step` holds one of these four cases and nothing else.
+Step $current = Step::Packed;
+
+// This prints `packed`.
+echo $current == Step::Packed ? "packed" : "somewhere else", "\n";
