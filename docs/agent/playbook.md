@@ -5716,12 +5716,15 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   build to discover. Run `target/debug/nvs.exe fmt <file>` the moment the fixture prints what you want,
   then re-run it: the layout rewrite is quotes and spacing and never changes stdout, so the `exact`
   check's `want` survives it. [until: gone crates/nvs-fmt/tests/identity.rs]
-- **A new `.nvs` proof is corpus the moment you save it, so an unformatted example or attack fails
-  `nvs-fmt`'s identity test.** `crates/nvs-fmt/tests/identity.rs` walks `docs/examples/` as well as
-  `tests/`, so a file that runs, blesses and passes `dossier.py --verify` still fails `verify.py` in
-  a crate you never touched. The canonical layout wants `'single quotes'` for a string with no
-  escape: run `target/debug/nvs.exe fmt <dir>` before blessing, since formatting after a `--bless`
-  moves the bytes the `.out` came from.
+- **A new attack under `tests/hostile/` is corpus the moment you save it, so an unformatted one
+  fails `nvs-fmt`'s identity test — and an example under `docs/examples/` is not.**
+  `crates/nvs-fmt/tests/identity.rs:49` walks the top-level `examples/` and `tests/` and nothing
+  else, so an attack that runs and passes `dossier.py --verify` still fails `verify.py` in a crate
+  you never touched, while a `docs/examples/` file the formatter would change is left alone — which
+  is why every landed example is in double quotes and formatting one would only diverge it from its
+  neighbours. Run `target/debug/nvs.exe fmt tests/hostile/<dir>` on the attack and leave the
+  examples as written; the layout rewrite is quotes and spacing, so it never moves what a `.out`
+  recorded.
   [until: gone crates/nvs-fmt/tests/identity.rs:the_identity_printer_reproduces_every_corpus_file]
 - **`Core\Config` never answers for an `[[app]]` block's `mode` or `origin`, so an example built on
   either prints `(unset)` while the setting is in force.** `Snapshot::build` lifts those two onto
@@ -5845,6 +5848,21 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   clauses in one file both calling theirs `$notThisOne` — fails to compile for a reason that has
   nothing to do with what is being caught. Give each clause a name saying what that branch means, or
   put each `try` in its own static method the way the landed `types/` cases do.
+  [until: reviewed 2026-09-19]
+- **A multi-operand `echo` prints each operand as it is evaluated, so a call that throws in the
+  middle of one leaves the earlier operands already on stdout.** `echo $name, ": ", Thing::of($x),
+  "\n"` writes `$name` and the separator before the throw, and the `catch` arm that prints the same
+  prefix again produces a blessed `.out` reading `Hallbeck: Hallbeck: skipped, …` — which looks like
+  a runtime bug and is not one. In an example or a case whose `try` calls something, bind the value
+  to a local inside the `try` and `echo` only once it exists. [until: reviewed 2026-09-19]
+
+- **`if ($x != null)` narrows only a plain variable, only while nothing in the block reassigns it,
+  and `while ($x != null)` does not narrow the body at all.** Walking a `previous` chain the obvious
+  way fails twice over: `while ($at != null) { $at = $at->previous; }` reports the receiver nullable
+  because the loop test does not narrow, and moving the test into an `if` still fails because the
+  assignment inside the block drops the narrowing — and a property path like
+  `$e->previous->message` is never narrowed by testing the path. Read the value into a fresh local
+  at the top of the body, test *that*, and assign the next step to the outer name.
   [until: reviewed 2026-09-19]
 
 ## Splitting a file that got too big
