@@ -525,30 +525,19 @@ def about_problem(path: Path) -> str:
     return ""
 
 
-#: What a script can judge of `docs/examples/README.md` § *How a comment is written*. That section
-#: is the rule and says why; these are the bounds it states, and the words it names that a script
-#: can match without catching an everyday use of them.
+#: What a script can judge of `AGENTS.md` § *Text an end user reads*. That section is the rule and
+#: says why; these are the three bounds it states as numbers. Which words a comment uses is the
+#: writer's to get right from the rule, and nothing here reads them.
 COMMENT_TOP_LINES = 4
 COMMENT_STEP_LINES = 2
 COMMENT_SENTENCE_WORDS = 25
 COMMENT_DIRECTIVE_RE = re.compile(r"^//\s*(?:bench|hostile|covers|dossier|requires):")
-COMMENT_INTERNAL_RE = re.compile(
-    r"\b(?:shards?|refcounts?|reference counts?|lowering|the registry|allocators?|optimi[sz]ers?|"
-    r"hoist(?:s|ed)?|longest[- ]match|single[- ]filler|stack frames?|ADR ?\d+|nvs[-_]\w+)\b|rule:\w",
-    re.I)
-#: The *Not* column of that section's table, and the idioms it names: this repository's own voice,
-#: which a reader who looked a feature up has never met. `connection refused` is the one everyday
-#: use any of them has.
-COMMENT_HOUSE_RE = re.compile(
-    r"\b(?:spellings?|answers|answered|hands?(?: \w+)? back|hands|handed|(?<!connection )refus\w+|"
-    r"members?|bindings?|holds|asks|asked|asking|stands? in for|lets? go of|rather than|"
-    r"further down|on purpose|at the edge|goes through|earns?)\b", re.I)
 
 
 def comment_problems(path: Path) -> list[str]:
     """What is wrong with the shape of a proof program's comments, as `line: what` -- only what a
-    script can judge. Whether a comment reads plainly is a person's to check; a sentence too long
-    to be plain, a block too long to be skimmed and a word only the implementation uses are not.
+    script can count. Whether a comment reads plainly is the writer's to get right; a sentence too
+    long to be plain, a block too long to be skimmed and a dash joining two sentences are not.
 
     A directive line is a tool's and is skipped, and so is an indented line, which is how a
     configuration example shows the block it is about."""
@@ -581,13 +570,6 @@ def comment_problems(path: Path) -> list[str]:
                 problems.append(f"{number}: a {words}-word sentence opening "
                                 f"`{' '.join(sentence.split()[:5])} ...`; "
                                 f"{COMMENT_SENTENCE_WORDS} is the bound")
-        # What sits in backticks is a name the reader types, and is never judged as a word.
-        prose = re.sub(r"`[^`]*`", "", prose)
-        for word in sorted({m.group(0).lower() for m in COMMENT_INTERNAL_RE.finditer(prose)}):
-            problems.append(f"{number}: `{word}` is the implementation's word, not the reader's")
-        for word in sorted({m.group(0).lower() for m in COMMENT_HOUSE_RE.finditer(prose)}):
-            problems.append(f"{number}: `{word}` is this repository's word; the rule's table has "
-                            f"the plain one")
     return problems
 
 
@@ -603,9 +585,9 @@ def check_comments(targets: list[Path]) -> int:
             print(f"  {rel(path)}")
             for problem in problems:
                 print(f"      {problem}")
-    rule = "`How a comment is written` in docs/examples/README.md"
+    rule = "`Text an end user reads` in AGENTS.md"
     if bad:
-        print(f"dossier comments: {bad} of {len(files)} program(s) miss {rule}.")
+        print(f"dossier comments: {bad} of {len(files)} program(s) miss the bounds of {rule}.")
         return 1
     print(f"dossier comments: {len(files)} program(s), each inside the bounds of {rule}.")
     return 0
@@ -1968,22 +1950,11 @@ are not style rules: breaking one silently destroys their work or the parent's.
 - **example** -- three small, self-contained programs a reader learns from, each printing, each a
   *different* use, and the third the thing somebody actually does at work. No framework, no
   database, no socket. `docs/examples/README.md` is the shape.
-- **every comment you write in a `.nvs` file** -- example, hostile and perf alike -- is read by
-  somebody who looked the feature up, often not in their first language. **Do not write it in the
-  voice of this brief or of any document in this repository**; write it the way a good manual
-  does. Say what the line does, then what the result is, with the real value: "`as ?int` converts
-  the value to a whole number. If that is not possible, the result is `null`." The subject is the
-  code or "you", and code *returns, gives, prints, throws* -- it never *answers, hands back,
-  refuses, asks* or *holds*. Say what happens, not what does not: no "rather than". Use the word a
-  programmer knows -- cast, syntax, method, variable, returns -- and never this repository's word
-  for it (spelling, member, binding). No idiom, no figure of speech, no ADR number, no crate name.
-  Up to four lines at the top, one or two above a step. `docs/examples/README.md` § *How a comment
-  is written* is the rule, with the word table and three before-and-after pairs; read it before
-  your first file. `about.md` is written in the same plain English. **Then check every `.nvs` you wrote**,
-  all of them in one call: `python tools/dossier.py --comments <file> <file> ...`. It reads and
-  never runs, so it is safe here. It judges only length and vocabulary, so passing it is the
-  floor and not the goal: a file is handed back when it passes *and* a beginner would follow it.
-  Rewrite the sentence as two; never trim a word to get under a bound.
+- **every comment you write in a `.nvs` file, and every `about.md`**, is held to `AGENTS.md` §
+  *Text an end user reads*, which is the whole rule. It is in your context already if your harness
+  inlines `AGENTS.md`; if it is not, read that section before your first file. Nothing checks the
+  words, so they are right the first time. `python tools/dossier.py --comments <file> <file> ...`
+  counts the three bounds the rule states as numbers; it reads and never runs, so it is safe here.
 - **hostile** -- the file you write when you are trying to make the runtime come apart. It has no
   expected output: it passes if nothing panicked, aborted, hung or leaked. Throwing is a pass; a
   limit stopping it cleanly is a pass. Unbounded input, deep nesting, one element either side of a
@@ -2806,20 +2777,13 @@ def goal_prose(n: int, label: str, members: list[Entry], proofs: dict[str, Proof
         "- **An example is written for a reader, not for a test.** Small, self-contained, three",
         "  per member, each a *different* use, and the third is the one that earns its place: make",
         "  it the thing somebody actually does with this feature at work.",
-        "- **A comment in any proof's `.nvs` file is written like a good manual, not like this",
-        "  file.** Example, attack and bench alike are read by somebody who looked the feature up,",
-        "  often not in their first language. Say what the line does and then what the result is;",
-        "  the subject is the code or \"you\"; code *returns* and *throws*, it never *answers*,",
-        "  *hands back* or *refuses*; say what happens and not what does not; use the word a",
-        "  programmer knows (cast, syntax, method, variable) and not this repository's word for it",
-        "  (spelling, member, binding); no idiom, no ADR number, no crate name. Up to four lines at",
-        "  the top, one or two above a step. `about.md` is written in the same plain English.",
-        "  `docs/examples/README.md` § *How a comment is written* is the rule, and",
-        "  `python tools/dossier.py --comments <paths>` judges the half of it a script can: run it",
-        "  over every `.nvs` this session wrote before the wrap, and a file it names is rewritten,",
-        "  not trimmed. A file you touch for another reason is brought up to it; the landed ones",
-        "  are goal `plain-comments`'s to sweep, behind every generated goal, and that goal is",
-        "  also where the check becomes a gate.",
+        "- **Every comment in a proof's `.nvs` file, and every `about.md`, follows `AGENTS.md` §",
+        "  *Text an end user reads*.** That section is the whole rule and is already in your",
+        "  context. Nothing checks the words, so they are right at the first write;",
+        "  `python tools/dossier.py --comments <paths>` counts only the three bounds the rule",
+        "  states as numbers. A file you touch for another reason is brought up to the rule; the",
+        "  landed ones are goal `plain-comments`'s to sweep, behind every generated goal, and that",
+        "  goal is also where the bounds become a gate.",
         "- **A `.out` file is created with `--bless` and then read.** Blessing is how the expected",
         "  output is *created*; a red example is never made green by re-blessing it.",
         "- **A hostile case has no expected output.** Its whole assertion is that the runtime",
