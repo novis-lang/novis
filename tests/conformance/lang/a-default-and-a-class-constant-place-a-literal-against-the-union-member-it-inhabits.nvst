@@ -1,0 +1,66 @@
+--TEST--
+A property default, a parameter default and a class constant each place a written literal against the member of a union it inhabits, and a literal-union position takes the word it names — `rule:types/literal-types`
+--FILE--
+<?nvs
+// covers: lang:types/properties-and-constants
+// `rule:types/literal-types`: a literal is the type of the value it names, and
+// a position that admits that value accepts the literal. A default is an
+// ordinary assignment written in a declaration, so the same placement holds at
+// a property's, at a parameter's and at a class constant's — a union is read
+// one level deep at each of the three.
+
+class Gate
+{
+    public const "open"|"closed" SHUT = "closed";
+
+    public ?string $label = "plain";
+    public ?int $count = 3;
+    public int|string $either = 7;
+    public "open"|"closed" $state = "open";
+    public "read"|"write"|"admin" $mode = "admin";
+    public 1|2|4 $level = 4;
+    public bool|null $flag = true;
+    // The member the literal already is wins over one it would widen into, and
+    // where there is no such member the widening still happens.
+    public ?float $ratio = 1;
+
+    public static function describe(
+        ?string $note = "none",
+        "open"|"closed" $state = "closed",
+        ?float $weight = 2,
+    ): string {
+        return ($note ?? "-") . "/" . $state . "/" . (($weight ?? 0.0) as string);
+    }
+}
+
+Gate $gate = new Gate();
+
+echo $gate->label ?? "-", " ", $gate->count ?? 0, " ", $gate->either as string, "\n";
+echo $gate->state, " ", $gate->mode, " ", $gate->level as string, "\n";
+echo ($gate->flag ?? false) as string, " ", $gate->ratio ?? 0.0, "\n";
+echo Gate::SHUT, "\n";
+echo Gate::describe(), "\n";
+echo Gate::describe("hi", "open", 3.5), "\n";
+
+// One question asked of every one of them: a fresh instance's slot holds the
+// constant the declaration wrote, counted rather than read off a line.
+uint $placed = 0;
+
+if ($gate->label == "plain") { $placed = $placed + 1; }
+if ($gate->count == 3) { $placed = $placed + 1; }
+if ($gate->either == 7) { $placed = $placed + 1; }
+if ($gate->state == "open") { $placed = $placed + 1; }
+if ($gate->mode == "admin") { $placed = $placed + 1; }
+if ($gate->level == 4) { $placed = $placed + 1; }
+if ($gate->flag == true) { $placed = $placed + 1; }
+if ($gate->ratio == 1.0) { $placed = $placed + 1; }
+
+echo $placed, " of 8 slots hold what was written\n";
+--EXPECT--
+plain 3 7
+open admin 4
+1 1
+closed
+none/closed/2
+hi/open/3.5
+8 of 8 slots hold what was written

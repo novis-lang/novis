@@ -500,10 +500,49 @@ fn place_const(value: ConstArg, declared: TypeId, env: &Env<'_>) -> Option<Const
 /// The shared literal decoder behind both entry points above: the value, or
 /// `None` for a shape neither accepts. Reports nothing — each caller names its
 /// own position in its own diagnostic.
+///
+/// **A union is read one level deep**, because a default is an ordinary
+/// assignment written in a declaration and `rule:types/literal-types`'s
+/// placement rule already reads one there: `?string $label = "plain"` places
+/// the literal against the `string` member, and `"read"|"write" $mode = "read"`
+/// against the member that is that very word. The atom grid is asked about the
+/// whole declared type first, so a `null` against `?int` and every type naming
+/// no union at all take the path they always did, and then about each member in
+/// turn. Each member is tried twice over: one the literal already *is* wins
+/// over one it would have to widen into, so `int|float $n = 3` holds an `int`
+/// rather than answering to the order the union happened to be written in.
 pub(crate) fn literal_default(
     expr: &Expr,
     declared: TypeId,
     env: &mut Env<'_>,
+) -> Option<ConstArg> {
+    if let Some(value) = literal_atom_default(expr, declared, env, true) {
+        return Some(value);
+    }
+    let Ty::Union(members) = env.interner.get(declared).clone() else {
+        return None;
+    };
+    for widen in [false, true] {
+        for member in &members {
+            if let Some(value) = literal_atom_default(expr, *member, env, widen) {
+                return Some(value);
+            }
+        }
+    }
+    None
+}
+
+/// One atom of [`literal_default`]'s type-directed grid, for a `declared` that
+/// names a single type rather than a union of them.
+///
+/// `widen` admits the one cross-type spelling in the grid — an integer literal
+/// at a `float` — and is `false` while a union is looking for the member the
+/// literal already is.
+fn literal_atom_default(
+    expr: &Expr,
+    declared: TypeId,
+    env: &mut Env<'_>,
+    widen: bool,
 ) -> Option<ConstArg> {
     let (negated, inner) = match &expr.kind {
         ExprKind::Unary {
@@ -536,7 +575,7 @@ pub(crate) fn literal_default(
         // An integer literal in a `float` position is the one cross-type
         // spelling accepted, for `rule:types/arithmetic`'s reason: `int` widens to
         // `float` at any ordinary assignment, and a default is one.
-        (Ty::Float, ExprKind::Int(span)) => int_magnitude(*span, env).map(|m| {
+        (Ty::Float, ExprKind::Int(span)) if widen => int_magnitude(*span, env).map(|m| {
             #[expect(
                 clippy::cast_precision_loss,
                 reason = "the same widening `rule:types/arithmetic` already allows at an \
@@ -552,6 +591,26 @@ pub(crate) fn literal_default(
         ) if !negated => Some(ConstArg::Str(crate::string_lit::cook_string_literal(
             env.src, *span,
         ))),
+        // A literal type is the one value it names, so the literal that is that
+        // value is the only constant it has — `rule:types/literal-types`. What
+        // the slot receives is the base type's constant, since a literal type
+        // has no representation of its own.
+        (Ty::StringLiteral(want), ExprKind::Str(span)) if !negated => {
+            let value = crate::string_lit::cook_string_literal(env.src, *span);
+            (value == want).then_some(ConstArg::Str(value))
+        }
+        (Ty::IntLiteral(want), ExprKind::Int(span)) => int_magnitude(*span, env)
+            .and_then(|m| {
+                if negated {
+                    negate_int(m)
+                } else {
+                    i64::try_from(m).ok()
+                }
+            })
+            .filter(|value| *value == want)
+            .map(ConstArg::Int),
+        (Ty::True, ExprKind::Bool(true)) if !negated => Some(ConstArg::Bool(true)),
+        (Ty::False, ExprKind::Bool(false)) if !negated => Some(ConstArg::Bool(false)),
         // A written `null` against a type that admits one. The guard asks
         // [`crate::ty::TypeInterner::is_nullable`] rather than matching `Ty::Union`
         // here, because `?T`, `A|B|null` and a bare `null` are three spellings
