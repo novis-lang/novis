@@ -566,6 +566,13 @@ impl<'a> Lexer<'a> {
             // named rather than lexed as `<` `?` `nvs` and reported three
             // tokens later as something the author did not write. Consuming it
             // and carrying on is the recovery that matches the intent.
+            //
+            // The bytes it consumed are kept as trivia, because
+            // `rule:ide/tokens-plus-trivia-reproduce-the-file` holds over a file
+            // that was refused as much as over one that compiled. The kind is
+            // [`TriviaKind::LineComment`] — trivia nothing past the lexer reads —
+            // since `rule:ide/one-grammar-one-tree` closes that set at four and a
+            // recovery path is not a reason to reopen it.
             let start = self.pos;
             self.pos += u32::try_from(len).expect("tag length is at most 5 bytes");
             diags.report(
@@ -575,6 +582,7 @@ impl<'a> Lexer<'a> {
                 )
                 .with_primary(self.mk_span(start, self.pos), "remove the `<?nvs`"),
             );
+            self.push_trivia(TriviaKind::LineComment, start);
             return;
         }
 
@@ -1561,6 +1569,26 @@ mod tests {
                 .count(),
             1
         );
+        // …and the bytes it consumed are kept as trivia, so
+        // `rule:ide/tokens-plus-trivia-reproduce-the-file` holds over a file
+        // that was refused as much as over one that compiled.
+        let src = "#!/usr/bin/env nvs\n<?nvs echo 1;";
+        let mut map = SourceMap::new();
+        let id = map.add("t.nvs", src);
+        let mut diags = Diagnostics::new();
+        let mut lexer = Lexer::with_trivia(map.file(id));
+        while lexer.next_token(&mut diags).kind != Eof {}
+        let start = u32::try_from(src.find("<?nvs").expect("the tag is in the source"))
+            .expect("the source is short");
+        assert!(
+            lexer
+                .trivia()
+                .iter()
+                .any(|t| t.span.start == start && t.span.end == start + 5),
+            "the refused tag is not covered by any trivium: {:?}",
+            lexer.trivia()
+        );
+
         // …and after a `?>` the file is an ordinary template, where the tag is
         // the reopen it looks like.
         assert_eq!(
