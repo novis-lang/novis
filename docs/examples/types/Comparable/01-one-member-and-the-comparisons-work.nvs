@@ -1,0 +1,39 @@
+<?nvs
+// A class that says how two of its values are ordered can be compared with the
+// usual operators. The one member you write is `compareTo`.
+
+final class Distance implements Comparable {
+    public int $metres;
+
+    public function constructor(int $metres) {
+        $this->metres = $metres;
+    }
+
+    // Negative when this trip is the shorter one, zero when the two are the
+    // same length, positive when this one is longer.
+    public function compareTo(Distance $other): int {
+        return $this->metres - $other->metres;
+    }
+}
+
+var $walk = new Distance(1200);
+var $ride = new Distance(8400);
+var $sameWalk = new Distance(1200);
+
+if ($walk < $ride) {
+    echo "the walk is the shorter trip\n";
+}
+if ($ride >= $walk) {
+    echo "the ride is at least as long as the walk\n";
+}
+
+// Two trips of the same length: neither comes first, and `compareTo` says so
+// with a zero.
+if ($walk->compareTo($sameWalk) == 0) {
+    echo "the walk and the other walk are the same length\n";
+}
+
+// `<=>` hands you the number itself. Read its sign: below zero means the left
+// trip comes first, above zero means the right one does.
+echo "walk against ride: ", $walk <=> $ride, "\n";
+echo "ride against walk: ", $ride <=> $walk, "\n";

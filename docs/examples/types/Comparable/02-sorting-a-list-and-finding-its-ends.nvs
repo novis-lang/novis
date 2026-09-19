@@ -1,0 +1,42 @@
+<?nvs
+// Once a class can order two of its values, the members that put things in
+// order work on a whole list of them. None of them needs to be told how.
+
+final class Reading implements Comparable {
+    public string $city;
+    public int $celsius;
+
+    public function constructor(string $city, int $celsius) {
+        $this->city = $city;
+        $this->celsius = $celsius;
+    }
+
+    public function compareTo(Reading $other): int {
+        return $this->celsius - $other->celsius;
+    }
+}
+
+array<Reading> $readings = [
+    new Reading("Lisbon", 24),
+    new Reading("Reykjavik", 6),
+    new Reading("Cairo", 37),
+    new Reading("Vienna", 19),
+];
+
+// The coldest and the warmest of the day, without walking the list yourself.
+// An empty list has neither, so both answer `null` and the check is what lets
+// you read the city.
+var $coldest = Core\Arr::min($readings);
+var $warmest = Core\Arr::max($readings);
+if ($coldest != null) {
+    echo "coldest: ", $coldest->city, "\n";
+}
+if ($warmest != null) {
+    echo "warmest: ", $warmest->city, "\n";
+}
+
+// Sorting puts the list in that same order, coldest first.
+Core\Arr::sort($readings);
+foreach ($readings as Reading $reading) {
+    echo $reading->city, " ", $reading->celsius, "\n";
+}
