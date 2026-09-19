@@ -374,10 +374,18 @@ CRASH_MARKERS = (
 # ------------------------------------------------------------------------------ small helpers
 
 
-#: Every subprocess this file runs, decoded the same way. Not the platform default: `nvs meta
-#: --json` carries the em dashes its own reference cards are written with, and cp1252 refuses them
-#: -- which arrives as a `NoneType` where the JSON was, several frames from the cause.
-CAPTURE = {"capture_output": True, "text": True, "encoding": "utf-8", "errors": "replace"}
+#: Every subprocess this file runs, decoded the same way and started with nothing to read. Not the
+#: platform default decoding: `nvs meta --json` carries the em dashes its own reference cards are
+#: written with, and cp1252 refuses them -- which arrives as a `NoneType` where the JSON was,
+#: several frames from the cause.
+#:
+#: Input is closed for the reason `nvs-test`'s runner closes it: a prompt reads the controlling
+#: terminal, and a process keeping one inherited from whoever started the sweep is interactive.
+#: The example that asks a question would then reach one answer under the loop driver and another
+#: under a person's shell -- where it would also stop the sweep dead, waiting five minutes to be
+#: answered by somebody who is reading a progress line rather than a question.
+CAPTURE = {"capture_output": True, "text": True, "encoding": "utf-8", "errors": "replace",
+           "stdin": subprocess.DEVNULL}
 
 
 def read(path: Path) -> str:
