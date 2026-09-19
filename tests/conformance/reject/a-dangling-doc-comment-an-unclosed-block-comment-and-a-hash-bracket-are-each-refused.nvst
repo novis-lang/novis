@@ -1,0 +1,32 @@
+--TEST--
+A `///` run with nothing under it documents nothing and is refused, `#[` opens an attribute rather than a comment so an undeclared name inside it is reported, and a block comment that is never closed runs to the end of the file and is refused (`rule:tooling/doc-comment-attaches-to-the-next-declaration`, `rule:tooling/doc-comment-is-three-slashes`)
+--FILE--
+<?nvs
+// covers: lang:programs/comments
+// `rule:tooling/doc-comment-attaches-to-the-next-declaration`: a doc comment
+// belongs to the declaration below it across no blank line. A blank line
+// leaves it documenting nothing, and a note to the reader is `//`.
+/// Documents nothing at all.
+
+echo "never", "\n";
+
+// `rule:tooling/doc-comment-is-three-slashes`: `#` opens a comment but `#[`
+// opens an attribute, so what follows is read as a name rather than skipped.
+#[Unwritten]
+class Sample {
+    public static function run(): int { return 1; }
+}
+
+/* A block comment ends at its first closing marker, and this one never writes
+   one, so it runs to the end of the file and takes the statement below with it.
+echo "also never", "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0127]: this doc comment is attached to nothing
+%A
+error[E0303]: `Unwritten` is not declared
+%A
+error[E0002]: unterminated block comment
+%A
+error: aborting due to 3 errors

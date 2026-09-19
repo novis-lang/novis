@@ -1,0 +1,55 @@
+--TEST--
+A comment is trivia in all three spellings, it may sit between any two tokens, a block comment ends at its first `*/` and never nests, and exactly three slashes is a doc comment while four or more is an ordinary one (`rule:tooling/doc-comment-is-three-slashes`)
+--FILE--
+<?nvs
+// covers: lang:programs/comments
+// A `//` comment runs to the end of the line, on a line of its own or after
+// code.
+echo "first", "\n"; // trailing
+
+# A `#` comment is the same thing spelled differently.
+echo "second", "\n"; # trailing
+
+/* A block comment covers any span, including part of one line. */
+echo /* between two tokens */ "third", "\n";
+
+/* It may also
+   run over several lines. */
+
+// `rule:tooling/doc-comment-is-three-slashes`: exactly three slashes is a doc
+// comment, and four or more is an ordinary comment -- a divider is not
+// documentation. Neither is visible to the program.
+/// Documents the class under it.
+class Greeter {
+    //// ------------------------------------------------------------
+    //// An ordinary comment, four slashes wide.
+    //// ------------------------------------------------------------
+
+    /// Documents the method under it.
+    public static function greet(string $who): string {
+        return "hello, " . $who;
+    }
+}
+
+echo Greeter::greet("world"), "\n";
+
+// A block comment ends at its first `*/`, so a second `/*` inside one opens
+// nothing and the statement after it is code.
+/* outer /* inner */ echo "fourth", "\n";
+
+// Outside a comment the same characters are ordinary text: what is between
+// the quotes is the value, marker or not.
+echo "a // and a /* and a #", "\n";
+
+// The line is what ends a line comment, so a statement below one still runs.
+int $n = 0; // set here
+$n = $n + 7; # added here
+echo $n, "\n";
+--EXPECT--
+first
+second
+third
+hello, world
+fourth
+a // and a /* and a #
+7

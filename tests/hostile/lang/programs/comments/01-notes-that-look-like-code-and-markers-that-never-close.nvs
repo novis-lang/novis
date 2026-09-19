@@ -1,0 +1,74 @@
+<?nvs
+// Attack: notes written the way nobody writes them. Runs of markers that
+// almost close and then do not, text that looks like the end of the program,
+// and a note wedged between every single piece of a statement. The program
+// has to come out the other side and still run.
+// hostile: timeout-ms 20000
+
+// One note holding every marker that means something somewhere else: ?> and
+// <?nvs and "an open string and 'another one and a backslash \ and $name and
+// */ and /* and a semicolon; and a closing brace } and a --EXPECT-- and a
+// <?= too. None of it ends this note. Only the end of the line does.
+
+//////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////// a long run of slashes is an ordinary note, not four doc comments
+//////////////////////////////////////////////////////////////////////////////
+
+# A hash note carrying the same load: ?> <?nvs */ /* "' \ $name ; } #[ and on
+# to the end of the line.
+
+echo 'one', "\n";
+
+/* A block note full of starts that start nothing: /* /* /* /* /* /* /* /* /*
+   and a line of stars that stops one short of closing: ****************
+   and another one: *_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*_*
+   and only now does it end. */
+
+/*/ This one opens with a slash straight after the star, which closes nothing.
+    It is still going here. */
+
+/************************************************************************/
+
+/**/
+
+echo 'two', "\n";
+
+// A note between every piece of one statement.
+echo/* a */ 'three'/* b */,/* c */ "\n"/* d */;
+
+// A note in the middle of a list, and one inside a call.
+array<int> $counts = [/* first */ 1, /* second */ 2, /* third */ 3];
+echo Core\Arr::count(/* the whole list */ $counts), "\n";
+
+/// A note for whoever calls this, holding markers of its own: */ and /* and
+/// ?> and a lone star * on its way past.
+class Attack
+{
+    /// A method whose own notes are longer than its body.
+    public static function run(int $rounds): int
+    {
+        int $seen = 0; // what the last round left here
+        int $i = 0;    /* and the counter beside it */
+        while ($i < $rounds) {
+            // Every line of this loop carries a note, and every value feeds
+            // the next one, so nothing here can be quietly dropped.
+            $seen = $seen + ($i % 3); /* chained */
+            $i = $i + 1;              # and on
+        }
+        return $seen;
+    }
+}
+
+echo Attack::run(200000), "\n";
+
+// One long note on a single line, far longer than any line a person writes by hand: this is the sort of thing that arrives when somebody pastes a whole paragraph of notes onto one line and never breaks it up, and it keeps going, and going, and it still has to end at the newline and nowhere else, and it is still going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and going, and it ends here.
+
+echo 'four', "\n";
+
+// A note carrying text that is not plain ASCII: Grüße, καλημέρα, こんにちは,
+// 🇦🇹 and an e with its own accent added on top: é. The note has to end at
+// the newline and the program has to keep counting bytes correctly after it.
+echo 'five', "\n";
+
+// The very last thing in the file is a note, and the file stops in the middle
+// of it with no newline after it.

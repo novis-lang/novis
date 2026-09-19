@@ -1,0 +1,18 @@
+<?nvs
+// Three slashes write a doc comment. It belongs to the declaration on the
+// line under it, and your editor shows it to whoever types that name.
+
+/// One greeting, written the same way everywhere in the program.
+class Greeting {
+    /// Greets `$name` by name.
+    /// The name is used as it arrives, so capitalise it before you pass it in.
+    public static function forName(string $name): string {
+        //// ----------------------------------------------------
+        //// Four slashes or more is an ordinary note, so a
+        //// divider like this one is not part of the docs.
+        //// ----------------------------------------------------
+        return "Hello, " . $name . "!";
+    }
+}
+
+echo Greeting::forName("Ada"), "\n";

@@ -1,0 +1,26 @@
+<?nvs
+// What comments are for at work: writing down why a line says what it says,
+// and putting a line aside for a while without losing it.
+
+array<int> $basketCents = [1299, 450, 9900];
+
+int $total = 0;
+foreach ($basketCents as int $price) {
+    $total = $total + $price;
+}
+
+// Baskets over 100 euro ship for free. That number comes from the shipping
+// contract rather than from us, so it is written down beside the code that
+// uses it.
+int $shippingCents = 495;
+if ($total >= 10000) {
+    $shippingCents = 0;
+}
+
+// Put aside while finance checks the new rate. Not deleted, because it is
+// coming back.
+// $shippingCents = $shippingCents * 2;
+
+echo "Items:    ", $total, "\n";
+echo "Shipping: ", $shippingCents, "\n";
+echo "Total:    ", $total + $shippingCents, "\n";
