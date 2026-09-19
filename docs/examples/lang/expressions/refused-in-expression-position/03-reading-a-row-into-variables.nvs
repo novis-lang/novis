@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to read the parts of a row into variables, the way a program does
+// when it imports a file. PHP offers `list(...)`, `extract` and `$$name` for
+// this; Novis has `[...]` for a list and an array you index by name.
+
+array<string> $line = ["2026-09-19", "ada@example.com", "19.99"];
+
+// `[...]` on the left takes the elements in order, one variable each. This
+// prints the three values on one line.
+[string $date, string $email, string $amount] = $line;
+echo $date, " ", $email, " ", $amount, "\n";
+
+array<string> $form = ["email" => "grace@example.com", "country" => "US"];
+
+// A row whose parts have names is an array with string keys. You read the key
+// you want, and `??` gives a value for a key that is not there.
+echo $form["email"], "\n";
+echo $form["phone"] ?? "no phone given", "\n";
+
+// The key can come from a variable, which is what `$$name` was for in PHP. An
+// array read does the same work and the compiler still knows the type.
+string $wanted = "country";
+echo $form[$wanted], "\n";

@@ -1,0 +1,70 @@
+<?nvs
+// Attack: hand the compiler every construct this chapter does not allow, all
+// in one file, repeated and nested as deep as the parser will follow. The
+// compiler must print errors and stop. It must not crash, hang, or run any
+// line of this.
+// hostile: expect-refusal
+// hostile: timeout-ms 20000
+
+class Target
+{
+    public const int LIMIT = 1;
+
+    public static int $count = 0;
+
+    public static function twice(int $n): int
+    {
+        return $n * 2;
+    }
+}
+
+// 1. `self`, `static` and `parent` where no class encloses them. Each one is
+// read as a constant, called, read as a property, and given to `new`.
+echo self::LIMIT, "\n";
+echo static::LIMIT, "\n";
+echo parent::LIMIT, "\n";
+echo self::twice(2), "\n";
+echo static::$count, "\n";
+var $built = new self();
+var $late = new static();
+var $up = new parent();
+
+// 2. Variable variables, in both forms and stacked on each other.
+string $name = "value";
+string $value = "name";
+echo $$name, "\n";
+echo $$$name, "\n";
+echo ${$name}, "\n";
+echo ${${$name}}, "\n";
+
+// 3. Casts, one inside another until the nesting is deeper than a person
+// would ever write.
+mixed $raw = "7";
+int $deep = (int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)(int)$raw;
+string $text = (string)(array)(object)(bool)(float)$raw;
+
+// 4. The PHP functions with no free function behind them.
+eval("echo 1;");
+extract(["a" => 1]);
+settype($raw, "int");
+echo compact("raw"), "\n";
+echo strlen("abc"), "\n";
+echo array_map("strtoupper", ["a"]), "\n";
+
+// 5. `list(...)`, plain and nested.
+array<int> $pair = [1, 2];
+list($a, $b) = $pair;
+list($c, list($d, $e)) = [1, [2, 3]];
+
+// 6. Error suppression, the by-reference marker, backticks and `die`.
+echo @$pair[99], "\n";
+var $alias =& $pair;
+string $shelled = `whoami`;
+die("stop");
+
+// 7. Reading another file, and `yield` used as a value.
+include "neighbour.nvs";
+require_once "neighbour.nvs";
+var $taken = yield 1;
+
+echo "this line must never run\n";

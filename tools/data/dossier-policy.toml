@@ -48,3 +48,9 @@ constant = 100
 # movement in everything except the thing being measured.
 [skip."lang:programs/ending-a-program"]
 perf = "A program ends once, so nothing can be iterated: a bench here would measure startup, not `exit`."
+
+# Every construct in this feature is a compile error, so no program containing one runs at all. A
+# bench would have to be written out of the *replacements* — `Core\Str::length`, `as`, `[...]`,
+# `require` — each of which is a feature of its own with its own figure.
+[skip."lang:expressions/refused-in-expression-position"]
+perf = "Every construct here is a compile error, so there is no program to iterate; the replacements carry their own figures."

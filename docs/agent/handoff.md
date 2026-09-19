@@ -2,44 +2,53 @@
 
 ## State
 
-Goal `lang:expressions` is four features in. `and-the-ternary`, `arithmetic`,
-`arrays-in-expressions` and `object-literals` each carry all five artefacts, and
-`python tools/dossier.py --id` prints `complete.` for each. Eleven of the chapter's features still
-owe theirs — `python tools/dossier.py --owed --group 'lang:expressions'` is the list.
+Goal `lang:expressions` is five features in. `and-the-ternary`, `arithmetic`,
+`arrays-in-expressions`, `object-literals` and `refused-in-expression-position` each carry all five
+artefacts. Ten of the chapter's features still owe theirs — `python tools/dossier.py --owed --group
+'lang:expressions'` is the list.
 
-One reference sentence was wrong and is fixed: `docs/reference/lang/30-expressions.md:571` said a
-`[...$a]` spread copies `$a`'s entries "keys included", while `rule:types/arrays` and
-`nvs_array_spread` both renumber an integer-looking key under the receiving literal's own counter.
-The chapter's own example could not tell the two apart; the new `.nvst` case prints the keys.
+`refused-in-expression-position`'s attack found a compiler crash, and it is fixed rather than
+recorded. `self::`, `static::` and `parent::` written at the top level of a file passed `nvs check`
+with no errors at all and then panicked `nvs-ir`, at each of the four sites that resolve a class
+side: a class constant, a static property, a static call and `new`. `E0303` is reported there now,
+by `crates/nvs-types/src/expr/mod.rs`'s `reject_class_side_outside_class`, whose doc comment owns
+why the report sits at those four call sites and not in `check_expr`'s own arm.
 
-Two findings are recorded rather than fixed. `??=` whose target is an absent array key throws
-instead of writing the default (`crates/nvs-ir/src/lib.rs` gap 20), carried by
-`docs/examples/lang/expressions/and-the-ternary/03-settings-with-their-gaps-filled-in.nvs`. A
-self-referential `type` alias is refused by the type-depth bound with a message about arrays
-(`crates/nvs-types/src/lower.rs`, `lower_type_at_depth` § *Known gaps*).
+One reference sentence was wrong and is fixed: `docs/reference/lang/30-expressions.md:663` listed
+backticks among the constructs "parsed only so the diagnostic can name the replacement". A bare
+backtick is `E0001` from the lexer — there is no shell-execution form for a diagnostic to name a
+replacement for (`rule:core-classes/process-is-argv-only`) and the character itself is
+``html`…` ``'s delimiter (`rule:core-classes/html-literal`).
+
+That chapter edit staled the perf figure of every feature measured against the file, as the last one
+did. `--record-perf` re-measured all five and every deterministic count came back identical.
 
 ## Next group
 
-One slice is one feature with all five proofs. The three below are the chapter's own refusal and
-parsing features, which share what they have to explain — one file set:
+One slice is one feature with all five proofs. The two below are the chapter's remaining parsing
+features, and they share one file set with the three landed ones:
 `docs/reference/lang/30-expressions.md` plus the four proof trees under
 `docs/examples/lang/expressions/`, `tests/hostile/lang/expressions/`,
 `benches/members/lang/expressions/` and `tests/conformance/`.
 
-- [ ] **`lang:expressions/refused-in-expression-position`** — owes examples, hostile, perf, tests.
-      Every construct in it is a compile error, so the attack declares `// hostile: expect-refusal`
-      and the three examples show the replacements running. `rule:testing/four-proofs`.
-      `docs/reference/lang/30-expressions.md:661`
-- [ ] **`lang:expressions/operators-php-has-that-do-not-parse`** — owes examples, hostile, perf,
-      tests. Same shape as the one above. `rule:testing/four-proofs`.
-      `docs/reference/lang/30-expressions.md:60`
-- [ ] **`lang:expressions/precedence-and-associativity`** — owes examples, hostile, perf, tests.
-      `rule:testing/four-proofs`. `docs/reference/lang/30-expressions.md:8`
+**Stage 2: the dossier** — one file set, named above.
+
+- [ ] **`lang:expressions/operators-php-has-that-do-not-parse`** — owes all five. Every entry is a
+      parse error, so the attack declares `// hostile: expect-refusal` and the three examples show
+      the replacements running. A `[skip]` on `perf` is likely right for the same reason
+      `refused-in-expression-position` took one, and
+      `tools/data/dossier-policy.toml` is where it goes with its reason.
+      `rule:testing/four-proofs`. `docs/reference/lang/30-expressions.md:61`
+- [ ] **`lang:expressions/precedence-and-associativity`** — owes all five. This one does run, so it
+      owes a bench: chain the operands so no optimiser can hoist the loop, and measure a written
+      expression whose shape the table decides. `rule:testing/four-proofs`.
+      `docs/reference/lang/30-expressions.md:9`
 
 ## Backlog
 
-- An array-literal round measures 363.5 ns/op over 7 allocations against 5.0 for an arithmetic one;
-  `docs/perf/members.md` owns the figures.
-- `??=` on an absent array key — `crates/nvs-ir/src/lib.rs` gap 20.
-- A self-referential `type` alias has no diagnostic of its own —
-  `crates/nvs-types/src/lower.rs` § *Known gaps*.
+- `var $x =& $y` reports `E0102` plus `E0706` (a bitwise-AND type error) rather than `E0701`; the
+  declared spelling `$x =& $y` is refused correctly — `crates/nvs-types/src/expr/assign.rs:526`.
+- Eight features of this chapter still owe every artefact —
+  `python tools/dossier.py --owed --group 'lang:expressions'`.
+- Any edit to `docs/reference/lang/30-expressions.md` stales every landed feature's perf figure in
+  this chapter; budget a `--record-perf` run with it.
