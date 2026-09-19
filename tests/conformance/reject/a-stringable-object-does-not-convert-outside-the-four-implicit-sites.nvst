@@ -1,0 +1,33 @@
+--TEST--
+The four implicit sites are the only ones: an argument declared `string` refuses a `Stringable` object, in a program's own method and in a `Core` member alike — `rule:classes/stringable`
+--FILE--
+<?nvs
+// covers: lang:classes/stringable
+final class Money implements Stringable {
+    public function constructor(private int $cents) {}
+
+    public function toString(): string {
+        return $this->cents . " c";
+    }
+}
+
+final class Receipt {
+    public static function line(string $text): string {
+        return "* " . $text;
+    }
+}
+
+var $m = new Money(250);
+
+// `rule:classes/stringable` names four positions that convert an object implicitly:
+// `echo`, `.`, interpolation and `as string`. An argument is not one of them, so
+// both calls below are type errors and `Receipt::line($m as string)` is the
+// spelling that works.
+echo Receipt::line($m), "\n";
+echo Core\Str::length($m), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `Money`
+%A
+error: aborting due to 2 errors

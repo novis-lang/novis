@@ -2,6 +2,7 @@
 Interpolation, `.`, `echo` and `as string` each call the operand's `toString()`, dispatching on its runtime class — `rule:classes/stringable`
 --FILE--
 <?nvs
+// covers: lang:classes/stringable
 // `rule:classes/stringable` names exactly four positions that implicitly convert to
 // `string`, and one resolved `toString()` serves all four.
 class Label implements Stringable {

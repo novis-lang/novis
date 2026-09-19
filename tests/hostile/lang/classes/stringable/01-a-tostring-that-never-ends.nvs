@@ -1,0 +1,103 @@
+<?nvs
+// Attack: a program writes `toString` methods that fight back. One renders the
+// object it is rendering, two render each other, and one returns a text that
+// doubles every time it is called. The runtime should stay standing.
+// hostile: timeout-ms 20000
+// hostile: ends-early
+// covers: lang:classes/stringable
+
+final class Mirror implements Stringable
+{
+    // Rendering this object renders it again.
+    public function toString(): string
+    {
+        return "mirror {$this}";
+    }
+}
+
+final class Ping implements Stringable
+{
+    public Pong $other;
+
+    public function constructor()
+    {
+        $this->other = new Pong($this);
+    }
+
+    public function toString(): string
+    {
+        return 'ping ' . $this->other;
+    }
+}
+
+final class Pong implements Stringable
+{
+    public function constructor(private Ping $other)
+    {}
+
+    public function toString(): string
+    {
+        return 'pong ' . $this->other;
+    }
+}
+
+final class Grower implements Stringable
+{
+    public string $text = 'x';
+
+    public function constructor()
+    {
+    }
+
+    // Every render builds a text twice as long as the one before it.
+    public function toString(): string
+    {
+        $this->text = $this->text . $this->text;
+        return $this->text;
+    }
+}
+
+final class Refuser implements Stringable
+{
+    public function toString(): string
+    {
+        throw new LogicError('this class has no text form');
+    }
+}
+
+// 1. An object renders itself, which renders it again.
+var $mirror = new Mirror();
+try {
+    string $text = $mirror as string;
+    echo '1: BAD, the render answered ', Core\Str::length($text), " characters\n";
+} catch (Throwable $e) {
+    echo '1: caught ', $e->message, "\n";
+}
+
+// 2. Two objects render each other.
+var $ping = new Ping();
+try {
+    string $pair = 'pair: ' . $ping;
+    echo '2: BAD, the render answered ', Core\Str::length($pair), " characters\n";
+} catch (Throwable $e) {
+    echo '2: caught ', $e->message, "\n";
+}
+
+// 3. A `toString` that throws instead of returning a text.
+var $refuser = new Refuser();
+try {
+    string $refused = $refuser as string;
+    echo '3: BAD, the render answered ', $refused, "\n";
+} catch (Throwable $e) {
+    echo '3: caught ', $e->message, "\n";
+}
+
+// 4. Forty renders of a text that doubles every time. This passes any memory
+//    limit within a few dozen rounds, and the program ends here.
+var $grower = new Grower();
+int $rendered = 0;
+while ($rendered < 40) {
+    string $step = $grower as string;
+    $rendered = $rendered + 1;
+}
+echo '5: BAD, the program is still running\n';

@@ -2,6 +2,7 @@
 `Stringable` is the only route from an object to a string, and an interpolation of one that lacks it is refused — `rule:classes/stringable`
 --FILE--
 <?nvs
+// covers: lang:classes/stringable
 class Point {
     public int $x;
 
@@ -15,6 +16,6 @@ echo "point $p\n";
 
 --EXPECTF-ERROR--
 error[E0412]: `Point` cannot be converted to `string` here; it does not implement `Stringable`
-   --> case.nvs:10:13
+   --> case.nvs:11:13
 %A
 error: aborting due to 1 error

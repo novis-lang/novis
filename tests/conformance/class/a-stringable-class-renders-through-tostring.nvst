@@ -2,6 +2,7 @@
 `Stringable::toString` is an ordinary interface method, callable by name like any other — there is no `__toString` — `rule:classes/stringable`
 --FILE--
 <?nvs
+// covers: lang:classes/stringable
 class Money implements Stringable {
     public int $cents;
 

@@ -1,0 +1,34 @@
+<?nvs
+// Renders an object into a line of text, the way a log line or a receipt does.
+// Each round joins the object to a string, which calls `toString` once.
+// bench: iterations 200000
+
+final class Money implements Stringable {
+    public int $cents;
+
+    public function constructor(int $cents) {
+        $this->cents = $cents;
+    }
+
+    public function toString(): string {
+        return $this->cents . " c";
+    }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $money = new Money(1);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the amount this round renders comes from the last one.
+            $money->cents = ($total % 1000003) as int;
+            string $line = "price " . $money;
+            $total = $total + Core\Str::length($line);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";
