@@ -1,0 +1,45 @@
+<?nvs
+// A server spends its day calling methods. This measures four call forms, once
+// each per round. They are a static call, an instance call, one that leaves
+// out a default, and one through a variable. Each round starts from the answer
+// the round before it gave.
+// bench: iterations 200000
+// bench: allocations 0
+// bench: calls 4
+// dossier: known-gap crates/nvs-runtime/src/lib.rs -- a call through a `callable` builds its argument slots in a heap vector and reaches the callee without passing a call probe, so this round allocates once where a call allocates nothing and is counted as three calls of the four it makes
+
+class Step {
+    public static function widen(int $n): int {
+        return $n + 7;
+    }
+
+    public function shift(int $n): int {
+        return $n + 3;
+    }
+
+    public static function pad(int $n, int $by = 5): int {
+        return $n + $by;
+    }
+}
+
+class Bench {
+    public static function run(int $rounds): int {
+        Step $step = new Step();
+        callable $fold = fn(int $n): int => $n * 3;
+        int $acc = 1;
+        int $i = 0;
+
+        while ($i < $rounds) {
+            // Chained: this round's argument is last round's answer.
+            $acc = Step::widen($acc);
+            $acc = $step->shift($acc);
+            $acc = Step::pad($acc);
+            $acc = ($fold($acc) as int) % 1000003;
+            $i = $i + 1;
+        }
+
+        return $acc;
+    }
+}
+
+echo Bench::run(200000), "\n";

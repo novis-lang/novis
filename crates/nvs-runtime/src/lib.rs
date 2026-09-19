@@ -197,7 +197,7 @@
 //!
 //! ## Known gaps
 //!
-//! Each is a missing *representation*, not a missing decision, and each is
+//! Each is a hole in what is built rather than in what was decided, and each is
 //! named at the item it blocks:
 //!
 //! 8. **`nvs_safepoint` clears `DEBUG_BREAK` and acts on nothing.** The flag is
@@ -217,6 +217,27 @@
 //!    `if ($status)` whose enum arrived through an `array<mixed>` or an erased
 //!    parameter taking the branch PHP never took.
 //!    — owner: M10
+//! 10. **A call through a `callable` builds its argument slots in a heap
+//!     vector.** [`call_closure`] collects the closure and the trimmed
+//!     arguments into a `Vec` per invocation, so every callback costs one
+//!     allocation of one `Value` per slot where a compiled call writes the
+//!     same slots into a stack frame.
+//!     `benches/members/lang/expressions/calls.nvs` measures it as 32 bytes a
+//!     round against a declared `allocations 0`. Closing it is an inline
+//!     representation for a call site's arguments, which is the optimising
+//!     tier's work and not a slice's.
+//!     — owner: M12
+//! 11. **A closure call passes no call probe.** `rule:testing/debug-probes`
+//!     puts an entry and an exit probe at every call site, and codegen emits
+//!     them from `nvs_codegen`'s invoke path alone; a call through a
+//!     `callable` is a helper call to [`closure::nvs_call_closure`], so
+//!     [`nvs_probe_call_enter`] never fires for it. A trace and a profile
+//!     therefore attribute a callback's work to whatever called it, and
+//!     `nvs run --count` reports fewer calls than the program made. Closing it
+//!     means deciding what a call site with no compile-time callee name
+//!     reports as its label, and re-measuring every recorded figure whose
+//!     bench calls a closure.
+//!     — owner: M10
 
 mod abi;
 // Compiled where it is used: by the `#[global_allocator]` below in an

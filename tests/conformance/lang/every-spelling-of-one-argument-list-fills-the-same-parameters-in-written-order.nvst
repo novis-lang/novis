@@ -2,7 +2,7 @@
 Every spelling of one argument list fills the same parameters, written order is evaluation order, and an `inout` argument is written back once and not at all through a throw — `rule:core-api/parameters-are-callable-by-name`, `rule:statements/inout-is-written-at-the-call`
 --FILE--
 <?nvs
-// covers: lang:types/parameters
+// covers: lang:types/parameters, lang:expressions/calls
 // `rule:core-api/parameters-are-callable-by-name` gives a name and a position
 // one meaning, so the claim here is agreement: seven spellings of one call are
 // asked the same question and counted, rather than one of them being read off

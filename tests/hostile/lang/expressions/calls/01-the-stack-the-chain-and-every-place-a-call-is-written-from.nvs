@@ -1,0 +1,166 @@
+<?nvs
+// Attack: the call itself, driven until something gives. The stack grows until
+// the engine stops it. A chain of calls runs as long as memory allows, and one
+// error is thrown from the bottom of thousands of frames. Nothing may crash,
+// hang or lose memory.
+// covers: lang:expressions/calls
+
+class Attack
+{
+    public callable $step;
+
+    public function constructor()
+    {
+        $this->step = fn(int $n): int => $n + 1;
+    }
+
+    // 1. A call that calls itself, so the stack grows until the engine stops
+    // it. The error is caught, so the attacks after this one still run.
+    public static function deeper(int $depth): int
+    {
+        if ($depth <= 0) {
+            return 0;
+        }
+
+        return 1 + Attack::deeper($depth - 1);
+    }
+
+    // 2. Two methods calling each other, which grows the stack the same way
+    // through a longer cycle.
+    public static function ping(int $depth): int
+    {
+        if ($depth <= 0) {
+            return 0;
+        }
+
+        return Attack::pong($depth - 1);
+    }
+
+    public static function pong(int $depth): int
+    {
+        return 1 + Attack::ping($depth);
+    }
+
+    // 3. A method that gives back an object, so the next call can be written
+    // on the result of the last one.
+    public function next(): Attack
+    {
+        return new Attack();
+    }
+
+    // 4. A method whose arguments are the next calls down, used to nest one
+    // call inside another until the nesting runs out of room.
+    public static function add(int $a, int $b): int
+    {
+        return $a + $b;
+    }
+
+    // 5. A throw from the bottom of a long chain of calls, so one unwind
+    // crosses thousands of frames.
+    public static function fail(int $depth): int
+    {
+        if ($depth <= 0) {
+            throw new RuntimeError('the bottom of the chain');
+        }
+
+        return Attack::fail($depth - 1);
+    }
+
+    // 6. A call that returns nothing, made for its effect alone.
+    public static function tick(): void
+    {
+    }
+}
+
+// The stack runs until the engine stops it, once through one method and once
+// through a pair calling each other.
+try {
+    echo Attack::deeper(100000000), "\n";
+} catch (RecursionError $stopped) {
+    echo $stopped->message, "\n";
+}
+
+try {
+    echo Attack::ping(100000000), "\n";
+} catch (RecursionError $stopped) {
+    echo $stopped->message, "\n";
+}
+
+// A call written on the result of a call, as deep as the parser will take one.
+// The same chain is then built a quarter of a million times over.
+Attack $walked = new Attack();
+echo $walked->next()->next()->next()->next()->next()->next()->next()->next()
+    ->next()->next()->next()->next()->next()->next()->next()->next()->next()
+    ->next()->next()->next()->next()->next()->next()->next()->next()
+    is Attack ? 'chain standing' : 'chain gone', "\n";
+
+int $links = 0;
+while ($links < 250000) {
+    $walked = $walked->next();
+    $links = $links + 1;
+}
+echo $links, "\n";
+
+// Every argument is itself a call, nested until the nesting runs out of room,
+// and the whole nest is evaluated two hundred thousand times.
+int $nested = 0;
+int $round = 0;
+while ($round < 200000) {
+    $nested = Attack::add(Attack::add(Attack::add(Attack::add(Attack::add(
+        Attack::add(Attack::add(Attack::add(Attack::add(Attack::add(
+            $round % 7, 1), 1), 1), 1), 1), 1), 1), 1), 1), 1);
+    $round = $round + 1;
+}
+echo $nested, "\n";
+
+// One throw unwinding thousands of frames at once, a hundred times over.
+int $unwound = 0;
+int $attempt = 0;
+while ($attempt < 100) {
+    try {
+        echo Attack::fail(5000);
+    } catch (RuntimeError $bottom) {
+        $unwound = $unwound + 1;
+    }
+    $attempt = $attempt + 1;
+}
+echo $unwound, "\n";
+
+// The three places a value holding a function is called from, hammered in one
+// loop, with twelve arguments more than the function declares.
+Attack $holder = new Attack();
+callable $direct = fn(int $n): int => $n + 1;
+array<callable> $held = ['step' => fn(int $n): int => $n + 1];
+int $reached = 0;
+int $call = 0;
+while ($call < 200000) {
+    $reached = $direct($reached, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12) as int;
+    $reached = $held['step']($reached) as int;
+    $reached = ($holder->step)($reached) as int;
+    $reached = $reached % 1000003;
+    $call = $call + 1;
+}
+echo $reached, "\n";
+
+// The other side of the same bound: fewer arguments than the function
+// declares, tens of thousands of times, each one caught.
+callable $pair = fn(int $a, int $b): int => $a + $b;
+int $refused = 0;
+$call = 0;
+while ($call < 50000) {
+    try {
+        echo $pair(1) as int;
+    } catch (Throwable $short) {
+        $refused = $refused + 1;
+    }
+    $call = $call + 1;
+}
+echo $refused, "\n";
+
+// A call that gives nothing back, made for its effect alone, in a tight loop.
+$call = 0;
+while ($call < 300000) {
+    Attack::tick();
+    $call = $call + 1;
+}
+echo "still standing\n";

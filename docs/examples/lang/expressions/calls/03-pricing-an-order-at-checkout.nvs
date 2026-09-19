@@ -1,0 +1,60 @@
+<?nvs
+// Shows calls doing the work of a checkout. The basket totals itself, and the
+// shipping charge comes from the handler the customer chose. The running total
+// is added up through a parameter that is written back. All amounts are in
+// cents.
+
+class Basket {
+    public function constructor(private array<int> $lines) {}
+
+    public function goods(): int {
+        int $total = 0;
+
+        foreach ($this->lines as int $line) {
+            $total = $total + $line;
+        }
+
+        return $total;
+    }
+}
+
+class Checkout {
+    // `inout` writes the new value back into the caller's own variable, so
+    // every step adds to the same total without assigning the result.
+    public static function add(inout int $total, int $amount): void {
+        $total = $total + $amount;
+    }
+
+    // Most callers take the standard rate, so it has a default and is named
+    // at the call that needs a different one.
+    public static function tax(int $amount, int $rate = 20): int {
+        return Core\Math::intDiv($amount * $rate, 100);
+    }
+}
+
+// One handler per shipping method, chosen by the name that arrives with the
+// order. Each one is given the value of the goods and returns the charge.
+array<callable> $shipping = [
+    "standard" => fn(int $goods): int => $goods >= 5000 ? 0 : 495,
+    "express" => fn(int $goods): int => 1295,
+    "collect" => fn(int $goods): int => 0,
+];
+
+Basket $basket = new Basket([1299, 450, 2600]);
+string $method = "standard";
+
+int $total = 0;
+Checkout::add(inout $total, $basket->goods());
+Checkout::add(inout $total, $shipping[$method]($basket->goods()) as int);
+Checkout::add(inout $total, Checkout::tax($basket->goods()));
+
+// This prints: goods 4349 shipping standard total 5713
+echo "goods ", $basket->goods(), " shipping ", $method, " total ", $total, "\n";
+
+// A reduced rate is named at the call, and nothing else about it changes.
+// This prints: reduced total 5061
+int $reduced = 0;
+Checkout::add(inout $reduced, $basket->goods());
+Checkout::add(inout $reduced, $shipping[$method]($basket->goods()) as int);
+Checkout::add(inout $reduced, Checkout::tax($basket->goods(), rate: 5));
+echo "reduced total ", $reduced, "\n";

@@ -1,0 +1,87 @@
+--TEST--
+Every form a call is written in reaches one body with one argument list, whichever spelling the arguments take, and a call site evaluates its receiver before them — `rule:core-api/parameters-are-callable-by-name`, `rule:types/callable-is-a-closure`
+--FILE--
+<?nvs
+// covers: lang:expressions/calls
+// Agreement, not one answer: eleven spellings of one call are asked the same
+// question and counted. The class side, an object in a variable, the result of
+// another call, a `new` with no brackets around it, and the four places a
+// value holding a closure is called from all reach one body — and the last one
+// crosses the two halves, naming the arguments through a receiver that is
+// itself a call. A form that grew a convention of its own still prints
+// plausibly on its own line and fails the count.
+
+class Rate {
+    public callable $part;
+
+    public function constructor() {
+        $this->part = fn (int $amount, int $rate): int => Rate::of($amount, $rate);
+    }
+
+    public static function of(int $amount, int $rate = 20): int {
+        return Core\Math::intDiv($amount * $rate, 100);
+    }
+
+    public function own(int $amount, int $rate = 20): int {
+        return Rate::of($amount, $rate);
+    }
+
+    public static function make(): Rate {
+        return new Rate();
+    }
+}
+
+// The receiver's evaluation order is the half a chained call could quietly
+// change: the object has to exist before the arguments are evaluated, and the
+// trace below is the order the two were reached in.
+class Trace {
+    public static array<string> $order = [];
+
+    public static function receiver(): Rate {
+        Trace::$order = Core\Arr::append(Trace::$order, "receiver");
+
+        return new Rate();
+    }
+
+    public static function argument(int $amount): int {
+        Trace::$order = Core\Arr::append(Trace::$order, "argument");
+
+        return $amount;
+    }
+}
+
+Rate $held = new Rate();
+callable $direct = fn (int $amount, int $rate): int => Rate::of($amount, $rate);
+array<callable> $table = ["part" => fn (int $amount, int $rate): int => Rate::of($amount, $rate)];
+
+array<int> $answers = [
+    Rate::of(250),
+    Rate::of(250, 20),
+    Rate::of(rate: 20, amount: 250),
+    $held->own(250),
+    Rate::make()->own(250),
+    new Rate()->own(250),
+    $direct(250, 20) as int,
+    $table["part"](250, 20) as int,
+    ($held->part)(250, 20) as int,
+    (fn (int $amount): int => Rate::of($amount))(250),
+    Rate::make()->own(rate: 20, amount: 250),
+];
+
+int $agree = 0;
+
+foreach ($answers as int $answer) {
+    if ($answer == 50) {
+        $agree = $agree + 1;
+    }
+}
+
+echo "forms agreeing on 50: ", $agree, " of ", Core\Arr::count($answers), "\n";
+
+// The receiver first, then the argument, however far the chain runs.
+echo "chained ", Trace::receiver()->own(Trace::argument(250)), "\n";
+echo "reached ", Core\Str::join(Trace::$order, ","), "\n";
+--EXPECT--
+forms agreeing on 50: 11 of 11
+chained 50
+reached receiver,argument
