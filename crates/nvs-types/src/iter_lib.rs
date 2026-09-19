@@ -119,7 +119,10 @@ pub(crate) fn seed(table: &mut SignatureTable, interner: &mut TypeInterner) {
     // ([`crate::signatures::writes_static_return`] owns why), so the nullable is
     // interned over the interface's own class and a call site substitutes
     // nothing into it. `has_body` is what makes an implementor owe nothing for
-    // this member and free to override it anyway.
+    // this member, and what lets one declare its own. It does not make the
+    // interface's own body reachable through an implementor: nothing declares a
+    // reserved interface in source, so `nvs_hir::members` finds no entry to
+    // inherit and `Slug::tryParse($s)` is `E0309`.
     let mut try_parse = bodiless(&["s"], vec![tainted_string_ty], maybe_parses);
     try_parse.is_static = true;
     try_parse.has_body = true;

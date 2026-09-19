@@ -1,0 +1,110 @@
+--TEST--
+A `parse` declared `: static` answers the class the call named, so a subclass inheriting the member is built rather than the base that wrote it, and `Parses` is a type a value answers to — one parameter declared at the contract admits implementors sharing no ancestor — `rule:statements/static-is-a-member-modifier` and `rule:types/type-test`
+--FILE--
+<?nvs
+// covers: Parses
+// What a class gains by claiming the contract is asserted here from both ends,
+// because either end read alone looks like the whole of it.
+//
+// One end is what `parse` answers. It is declared `static`, so the class named at
+// the call is the class that gets built -- a subclass inheriting the member is
+// built rather than the base that wrote it, which a `parse` returning `self`
+// could not have said. The other end is the contract as a type: a parameter
+// declared at `Parses` admits any implementor, and two classes with no ancestor
+// in common both arrive at one. That second end is what every route capture,
+// query parameter and command argument declared at a class is a spelling of.
+//
+// `Parses` needs no `use`: it is one of the interfaces the compiler declares for
+// every program, beside `Comparable` and `Stringable`.
+class CouponCode implements Parses
+{
+    public tainted string $text = "";
+
+    public function constructor(tainted string $text)
+    {
+        $this->text = $text;
+    }
+
+    public static function parse(tainted string $s): static
+    {
+        if ($s != Core\Str::upper($s)) {
+            throw new ParseError("a coupon code is written in capitals");
+        }
+        return new static($s);
+    }
+}
+
+// Declares nothing of its own, so the `parse` it answers through is the base's,
+// unchanged. What it is built as is the whole question below.
+class PromoCode extends CouponCode {}
+
+// A second implementor, sharing no ancestor with the first. Without it the
+// parameter below could be admitting one family rather than the contract.
+class RoomNumber implements Parses
+{
+    public tainted string $text = "";
+
+    public function constructor(tainted string $text)
+    {
+        $this->text = $text;
+    }
+
+    public static function parse(tainted string $s): static
+    {
+        if (Core\Str::length($s) == 0) {
+            throw new ParseError("a room number is not empty");
+        }
+        return new static($s);
+    }
+}
+
+final class Door
+{
+    // The binding site, with nothing around it: what is asked for is the
+    // contract, never a list of the classes carrying it.
+    public static function admits(Parses $value): string
+    {
+        if ($value is PromoCode) {
+            return "a promo code";
+        }
+        if ($value is CouponCode) {
+            return "a coupon code";
+        }
+        return "another implementor";
+    }
+}
+
+// The base's own call answers the base, and is not its subclass.
+var $base = CouponCode::parse("SUMMER24");
+echo "base ", ($base is CouponCode) ? "yes" : "no", " ", ($base is PromoCode) ? "yes" : "no", "\n";
+
+// The subclass's call answers the subclass, through a member the subclass never
+// declared -- and is still the base as well, which is what inheriting means.
+var $sub = PromoCode::parse("WINTER10");
+echo "sub ", ($sub is PromoCode) ? "yes" : "no", " ", ($sub is CouponCode) ? "yes" : "no", "\n";
+
+// Every implementor answers to the contract, including the one that reached it
+// by extending another class rather than by naming it.
+echo "is-parses ", ($base is Parses) ? "yes" : "no", " ", ($sub is Parses) ? "yes" : "no", " ", (RoomNumber::parse("204") is Parses) ? "yes" : "no", "\n";
+
+// Three classes, two of them unrelated, all admitted at one parameter -- and
+// each still the class it was built as once it is through.
+echo "admits ", Door::admits($base), "\n";
+echo "admits ", Door::admits($sub), "\n";
+echo "admits ", Door::admits(RoomNumber::parse("204")), "\n";
+
+// A refusal is the class's own throw, and the binding site neither swallows it
+// nor rewraps it: nothing gets past the door half-checked.
+try {
+    echo Door::admits(CouponCode::parse("summer24")), "\n";
+} catch (ParseError $refusal) {
+    echo "refused ", $refusal->message, "\n";
+}
+--EXPECT--
+base yes no
+sub yes yes
+is-parses yes yes yes
+admits a coupon code
+admits a promo code
+admits another implementor
+refused a coupon code is written in capitals

@@ -64,6 +64,13 @@ pub const STRINGABLE: &str = "Stringable";
 /// `rule:expressions/try-parse`'s single implementation of "is this text a
 /// `T`" stays single.
 ///
+/// That default is not reachable *through* an implementor: `Slug::tryParse($s)`
+/// is `E0309`, because a reserved interface is declared here rather than in
+/// source and its default body has no compiled function to dispatch to. A class
+/// implementing `Parses` therefore declares `parse` alone and satisfies the
+/// interface, and reaches the non-throwing question by declaring its own
+/// `tryParse` or by catching the throw.
+///
 /// This is what a binding site asks a class for instead of naming one: a route
 /// capture, a `#[Query]`, a command argument and a command option all build a
 /// value out of text that arrived from outside the process, and all of them
