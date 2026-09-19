@@ -5972,6 +5972,17 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   status-carrying branch in full and give the program data that takes the zero branch —
   `docs/examples/lang/programs/ending-a-program/03-tell-the-shell-whether-the-check-passed.nvs` is
   that shape. [until: gone tools/dossier.py:return "fail", f"exit {out.returncode}]
+- **A `decimal` class constant declares cleanly and fails at the *read*, with `E0792: has no
+  compile-time value to inline`.** A constant is inlined at every use site, and
+  `crates/nvs-types/src/defaults.rs`'s module doc says the `ConstArg` variant carrying
+  `InstKind::ConstDecimal` is unbuilt, so the grid folds the literal to nothing — the declaration
+  itself says nothing about it. Keep the rate as an `int` percentage and divide, or write the
+  literal at the use site. [until: exists crates/nvs-types/src/defaults.rs:ConstArg::Decimal]
+- **A numeric literal takes `decimal` from a declared target, and a ternary is not one.**
+  `decimal $postage = $heavy ? 4.90 : 2.50;` is `E0401: expected decimal, found float`, because the
+  arms are checked with no expectation to place them in and `float` is what a bare fraction is.
+  Declare the binding with one literal and assign the other in an `if`, or write `as decimal` on
+  each arm. [until: reviewed 2026-09-19]
 
 ## Splitting a file that got too big
 
