@@ -40,6 +40,24 @@ capability used without being granted, a `secret` asked to print itself — say 
 
 and then compiling cleanly is what fails the case instead.
 
+**The second exception is a program that ends before its last line**, for the same reason. A case
+is usually several numbered attacks in one file, and the program is one process: an uncaught throw
+or a limit in step 2 means steps 3 to 5 were never delivered, and a runtime that survived step 2
+has said nothing about them. So:
+
+- **Catch everything that can be caught**, and say in the comment that it is caught so the attack
+  after it still runs. A `RecursionError`, a `LogicError`, a `ParseError` — each goes in a `try`.
+- **What cannot be caught goes last.** A memory limit and `exit` end the program whatever is
+  wrapped around them, so the step that reaches one is the file's final step, and the case says so:
+
+      // hostile: ends-early
+
+- A feature that deserves two endings gets two files. `02-slug.nvs` costs nothing.
+
+A non-zero exit status without the marker fails the case as *ended before its last line*. With the
+marker, running to the last line is what fails it — the ending it declares did not happen, and the
+marker comes off or the attack is made to land.
+
 ## What to write
 
 Write what an attacker writes. The shapes that have found things in languages like this one:
@@ -87,10 +105,11 @@ comes off with the fix.
 **Softening the attack until it survives is not one of the two answers.** A case that has been
 weakened to go green is worse than no case: it reports that a thing was tried and held.
 
-## The four directives a case may carry
+## The directives a case may carry
 
     // hostile: timeout-ms 4000     how long it may run before it counts as unbounded (default 10s)
     // hostile: expect-refusal      the compiler saying no is this case's assertion
+    // hostile: ends-early          the last step ends the program, and that ending is the attack
     // dossier: known-gap <file>    it breaks something; the fix is recorded there, not here
     // requires: unimplemented      skip: the feature does not run yet
 

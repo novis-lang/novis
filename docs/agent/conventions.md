@@ -160,7 +160,8 @@ foreach ($labels as string $label) {
 
 **An attack** — `tests/hostile/<path>/01-slug.nvs`, no expected output at all. It passes when the
 *runtime* survives: a throw, a limit, a clean fatal and a clean run are all passes; a panic, a hang,
-a crash-shaped exit, a definite leak — **and a compile diagnostic** — are not.
+a crash-shaped exit, a definite leak — **and a compile diagnostic, or an ending before the last
+line** — are not. Every step that can be caught is caught; the one that cannot goes last.
 
 ```nvs
 <?nvs
@@ -168,6 +169,7 @@ a crash-shaped exit, a definite leak — **and a compile diagnostic** — are no
 // stop at its memory limit with an error, and must not crash.
 // hostile: timeout-ms 20000     (optional; 10s otherwise)
 // hostile: expect-refusal       (only when being refused IS the assertion)
+// hostile: ends-early           (only when the last step ends the program: a memory limit, `exit`)
 ```
 
 **A bench** — `benches/members/<path>.nvs`, one file, iterations declared, inputs chained so no

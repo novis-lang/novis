@@ -350,6 +350,9 @@ REPORT = {"outlier_factor": 5.0, "ceiling": {}}
 TIMEOUT_RE = re.compile(r"(?://|#)\s*hostile:\s*timeout-ms\s+([0-9]+)")
 #: `// hostile: expect-refusal` -- this attack's whole point is that the compiler says no.
 REFUSAL_EXPECTED_RE = re.compile(r"(?://|#)\s*hostile:\s*expect-refusal")
+#: `// hostile: ends-early` -- this attack's last step is the one that ends the program, so a
+#: non-zero exit status is what it is written to produce rather than a sign that steps went unrun.
+ENDS_EARLY_RE = re.compile(r"(?://|#)\s*hostile:\s*ends-early")
 #: `// dossier: known-gap crates/nvs-stdlib/src/str.rs -- one sentence`. A proof that found a real
 #: bug too large for the slice that found it. The path names the module doc whose `# Known gaps`
 #: section carries the entry, which is where this repository already keeps exactly this fact.
@@ -1119,12 +1122,21 @@ def run_one_hostile(nvs: Path, path: Path, valgrind: bool) -> tuple[str, str]:
     limit stopping it, a clean fatal and a successful run are all passes. A panic, an abort, a hang,
     a crash-shaped exit status or a definite leak are not.
 
-    **A compile diagnostic is the one failure that looks like a pass**, and it is checked for
-    explicitly. An attack that does not compile was never delivered -- a typo would otherwise
-    "survive" every sweep for the rest of the repository's life, which is the exact shape of
-    `loop-authoring.md` § 3's "a green suite is not a run guard". Where the refusal *is* the
+    **Two failures look like a pass, and both are an attack that was never delivered.** Each is
+    checked for explicitly, because either would otherwise "survive" every sweep for the rest of the
+    repository's life, which is the exact shape of `loop-authoring.md` § 3's "a green suite is not a
+    run guard".
+
+    One is a compile diagnostic: a typo delivers none of the file. Where the refusal *is* the
     assertion -- a sink handed a tainted value, a capability used without being granted -- the case
     says `// hostile: expect-refusal`, and then compiling cleanly is what fails it.
+
+    The other is a program that ends before its last line: an uncaught throw or a limit in step two
+    delivers step two and none of the steps behind it, and the runtime surviving that says nothing
+    about them. So a non-zero exit status fails the case. Where the last step *is* the one that
+    ends the program -- a memory limit cannot be caught, and neither can `exit` -- the case says
+    `// hostile: ends-early`, and then running to the last line is what fails it, so the marker
+    cannot outlive the ending it declares.
     """
     source = read(path)
     if UNIMPL_RE.search(source):
@@ -1160,6 +1172,14 @@ def run_one_hostile(nvs: Path, path: Path, valgrind: bool) -> tuple[str, str]:
     # exception (0xC0000005 and friends) rather than an exit code a program chose.
     if out.returncode < 0 or out.returncode > 255:
         return "fail", f"crash-shaped exit status {out.returncode}"
+    ends_early = bool(ENDS_EARLY_RE.search(source))
+    if out.returncode != 0 and not ends_early:
+        first = next((ln for ln in out.stderr.splitlines() if ln.strip()), "")
+        return "fail", (f"ended before its last line (exit {out.returncode}), so the steps behind "
+                        f"that point never ran -- catch what stopped it, or make that step the "
+                        f"last one and declare `ends-early`: {first[:120]}")
+    if out.returncode == 0 and ends_early:
+        return "fail", "declares `ends-early`, but ran to its last line -- remove the marker"
     return "ok", ""
 
 

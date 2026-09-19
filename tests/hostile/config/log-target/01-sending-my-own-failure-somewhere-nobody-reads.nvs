@@ -6,6 +6,7 @@
 // that still arrives after all of this is the only evidence that none of it
 // landed.
 // hostile: timeout-ms 20000
+// hostile: ends-early
 
 // 1. Every other name for the same destination, including the per-application
 //    copy of the block and the two keys beside it that shape the same record.

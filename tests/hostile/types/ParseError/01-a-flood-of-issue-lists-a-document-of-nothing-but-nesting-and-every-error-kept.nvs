@@ -3,6 +3,7 @@
 // eight-entry lists, hand the reader a document that is nothing but nesting,
 // then refuse to let any of the errors go.
 // hostile: timeout-ms 20000
+// hostile: ends-early
 
 uint $round = 0;
 uint $seen = 0;

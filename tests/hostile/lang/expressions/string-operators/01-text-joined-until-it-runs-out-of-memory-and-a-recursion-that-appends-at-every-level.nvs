@@ -4,6 +4,7 @@
 // level, and a text is appended to itself until no memory is left. The
 // program should stop with an error, and must not crash or hang.
 // hostile: timeout-ms 20000
+// hostile: ends-early
 
 class Attack
 {

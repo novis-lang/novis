@@ -6,6 +6,7 @@
 // out of under it a thousand times — and then actually runs out of memory with
 // a handler registered, which is the moment the net either exists or does not.
 // hostile: timeout-ms 30000
+// hostile: ends-early
 
 // Registered first, so every line below runs with the net in play: a handler
 // installed only at the end would let an attack that took the reserve away

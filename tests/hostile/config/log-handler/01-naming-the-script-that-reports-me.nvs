@@ -5,6 +5,7 @@
 // it, and then a real failure at the end — because a ladder left standing after
 // all of this is the only evidence that none of it landed.
 // hostile: timeout-ms 30000
+// hostile: ends-early
 
 // 1. Every other name for the same rung, including the two keys that size the
 //    room it runs in and the per-application copy of the block.

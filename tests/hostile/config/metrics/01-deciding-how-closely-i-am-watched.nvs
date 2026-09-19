@@ -6,6 +6,7 @@
 // where the per-core series bound is, because a registry that grows with
 // traffic is a leak with a dashboard on it.
 // hostile: timeout-ms 20000
+// hostile: ends-early
 
 // 1. Every other name for the four keys, including the tracing block on the
 //    same footing and a per-application copy of both.

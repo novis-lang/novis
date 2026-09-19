@@ -4,6 +4,7 @@
 // with a great deal of output still behind it, and a status far past the
 // largest one a shell can carry.
 // hostile: timeout-ms 20000
+// hostile: ends-early
 
 class Ending
 {

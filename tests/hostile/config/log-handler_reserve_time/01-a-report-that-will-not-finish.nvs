@@ -5,6 +5,7 @@
 // report that blocks on a destination that stopped answering looks like from
 // the inside. The runtime has to end this program rather than wait for it.
 // hostile: timeout-ms 60000
+// hostile: ends-early
 
 array<string> $names = [
     'log.handler_reserve_time',
