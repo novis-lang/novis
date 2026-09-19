@@ -89,12 +89,20 @@ of these.
 - **An example is written for a reader, not for a test.** Small, self-contained, three
   per member, each a *different* use, and the third is the one that earns its place: make
   it the thing somebody actually does with this feature at work.
-- **A comment in any proof's `.nvs` file is written the way `about.md` is.** Example,
-  attack and bench alike are read by somebody who looked the feature up: short sentences,
-  one idea each, everyday words, no figure of speech, no ADR number, no crate name, none of
-  the implementation's own vocabulary. Up to four lines at the top, one or two above a
-  step. `docs/examples/README.md` § *How a comment is written* is the rule. A file you
-  touch for another reason is brought up to it; the landed ones are not swept.
+- **A comment in any proof's `.nvs` file is written like a good manual, not like this
+  file.** Example, attack and bench alike are read by somebody who looked the feature up,
+  often not in their first language. Say what the line does and then what the result is;
+  the subject is the code or "you"; code *returns* and *throws*, it never *answers*,
+  *hands back* or *refuses*; say what happens and not what does not; use the word a
+  programmer knows (cast, syntax, method, variable) and not this repository's word for it
+  (spelling, member, binding); no idiom, no ADR number, no crate name. Up to four lines at
+  the top, one or two above a step. `about.md` is written in the same plain English.
+  `docs/examples/README.md` § *How a comment is written* is the rule, and
+  `python tools/dossier.py --comments <paths>` judges the half of it a script can: run it
+  over every `.nvs` this session wrote before the wrap, and a file it names is rewritten,
+  not trimmed. A file you touch for another reason is brought up to it; the landed ones
+  are goal `plain-comments`'s to sweep, behind every generated goal, and that goal is
+  also where the check becomes a gate.
 - **A `.out` file is created with `--bless` and then read.** Blessing is how the expected
   output is *created*; a red example is never made green by re-blessing it.
 - **A hostile case has no expected output.** Its whole assertion is that the runtime

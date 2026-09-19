@@ -148,11 +148,11 @@ nothing is copied out of an existing file to get the shape right. `python tools/
 
 ```nvs
 <?nvs
-// One or two plain sentences: what this shows, in a reader's words. No rule
-// ids, no record numbers, no internal vocabulary — the audience has never
-// seen this repository.
+// Shows how to count the characters of a text. `Core\Str::length` counts
+// what a person sees, so "é" and "ö" are one character each.
 
 array<string> $labels = ["Order #1042", "Café Größenwahn"];
+// This prints 11 and 15.
 foreach ($labels as string $label) {
     echo Core\Str::length($label), "\n";
 }
@@ -164,7 +164,8 @@ a crash-shaped exit, a definite leak — **and a compile diagnostic** — are no
 
 ```nvs
 <?nvs
-// Attack: what this tries to break, in one line.
+// Attack: a text of one billion characters is measured. The program should
+// stop at its memory limit with an error, and must not crash.
 // hostile: timeout-ms 20000     (optional; 10s otherwise)
 // hostile: expect-refusal       (only when being refused IS the assertion)
 ```
@@ -174,7 +175,7 @@ optimiser can delete the loop:
 
 ```nvs
 <?nvs
-// What real work this stands for, in one line.
+// Counts the characters of a short label, as a program does before it shortens or pads one.
 // bench: iterations 400000
 
 class Bench {
@@ -192,6 +193,12 @@ class Bench {
 
 echo Bench::run(400000), "\n";
 ```
+
+**Every comment in those three is a model, not a placeholder**: what the lines do, then the result
+with its real value, in the words a programmer already knows. They are read on the website, often by
+somebody whose first language is not English, so they are written like a manual and not like this
+file. [docs/examples/README.md](../examples/README.md) § *How a comment is written* is the rule and
+holds the word table; `python tools/dossier.py --comments <paths>` checks what a script can.
 
 **A `covers:` marker** — the one thing that attributes a *test* to a feature, since a case lives
 where its suite wants it. In the `--FILE--` block of a `.nvst` case, or immediately above a Rust
