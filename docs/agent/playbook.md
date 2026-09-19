@@ -2413,6 +2413,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   example and fixture unrunnable in the meantime. Write the `.nvs` files first and the grant block
   second, and when a run fails on a path you have not created yet, that is what happened.
   [until: reviewed 2026-09-19]
+- **A new `.nvs` file under `tests/` fails `cargo test` until `nvs fmt` has been over it.**
+  `crates/nvs-fmt/tests/identity.rs` holds every corpus file to the printer's own layout, and a
+  string written `"plain"` with nothing to escape comes back `'plain'`, so a hostile case that runs
+  and passes still turns the gate red. Format the file as you write it rather than after `verify.py`
+  says so. [until: gone crates/nvs-fmt/tests/identity.rs:the_identity_printer_reproduces_every_corpus_file]
 
 ## Running things
 
@@ -5884,6 +5889,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `E0459` on the assignment while every other read in the body is fine. The narrowing holds for the
   body but not across the write that re-widens the binding. Spell the step `$cursor =
   $cursor?->previous;` — `?->` answers `null` and the loop's own condition is what ends it.
+  [until: reviewed 2026-09-19]
+- **A fixture that recurses to a fixed depth stops at about 4,400 calls, not the "about 65,000
+  frames" `rule:errors/stack-depth` names.** That figure is 8 MB of reserved stack over a minimal
+  frame; an ordinary static method with one local throws `RecursionError` between 4,400 and 5,200
+  calls, debug and release alike, and a fatter body stops sooner. Keep a proof that must succeed
+  under about 2,000, and let one that must fail recurse with no base case at all.
   [until: reviewed 2026-09-19]
 
 ## Splitting a file that got too big
