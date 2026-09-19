@@ -1,0 +1,54 @@
+--TEST--
+Every PHP enum member is written outside the enum instead: a `match` for the case name, a static method for the case list, and the two conversions for `from` and `tryFrom` — `rule:enums/no-class-machinery`
+--FILE--
+<?nvs
+// covers: lang:enums/what-replaces-php-s-enum-members
+enum Level { Debug = 10, Info = 20, Warn = 30 }
+
+class Levels {
+    // `rule:enums/no-class-machinery`: PHP's `->name` is the one member with no
+    // conversion behind it, so it is a `match` in a class of your own. The
+    // match is exhaustive over the declaration, so a case added later stops
+    // this method at compile time rather than at the first request that meets
+    // it.
+    public static function name(Level $l): string {
+        return match ($l) {
+            Level::Debug => "debug",
+            Level::Info => "info",
+            Level::Warn => "warn",
+        };
+    }
+
+    // PHP's `E::cases()`, as an ordinary static method returning `array<Level>`.
+    public static function all(): array<Level> {
+        return [Level::Debug, Level::Info, Level::Warn];
+    }
+
+    public static function parse(string $s): ?Level {
+        foreach (Levels::all() as Level $l) {
+            if (Levels::name($l) == $s) {
+                return $l;
+            }
+        }
+        return null;
+    }
+}
+
+echo Levels::name(Level::Info), "\n";
+echo Core\Arr::count(Levels::all()), "\n";
+echo (Levels::parse("warn") ?? Level::Debug) as int, "\n";
+echo (Levels::parse("nope") ?? Level::Debug) as int, "\n";
+
+// PHP's `E::A->value`, `E::from($n)` and `E::tryFrom($n)`, in that order.
+echo Level::Warn as int, "\n";
+echo (20 as Level) as int, "\n";
+?Level $none = 99 as ?Level;
+echo $none == null ? "null" : "some", "\n";
+--EXPECT--
+info
+3
+30
+10
+30
+20
+null

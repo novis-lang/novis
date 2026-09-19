@@ -1,0 +1,129 @@
+<?nvs
+// Attack: a program hammers everything that stands in for PHP's enum members.
+// It names cases millions of times, builds the list of every case again and
+// again, looks a case up by ten thousand characters of text, and walks the
+// steps of a workflow without end. Every answer should be the one the `match`
+// gives, and the runtime should stay standing.
+// covers: lang:enums/what-replaces-php-s-enum-members
+// hostile: timeout-ms 20000
+
+enum Level
+{ Debug, Info, Warn, Error }
+
+class Levels
+{
+    public static function name(Level $l): string
+    {
+        return match ($l) {
+            Level::Debug => 'debug',
+            Level::Info => 'info',
+            Level::Warn => 'warn',
+            Level::Error => 'error',
+        };
+    }
+
+    public static function all(): array<Level>
+    {
+        return [Level::Debug, Level::Info, Level::Warn, Level::Error];
+    }
+
+    public static function byName(string $wanted): ?Level
+    {
+        foreach (Levels::all() as Level $l) {
+            if (Levels::name($l) == $wanted) {
+                return $l;
+            }
+        }
+        return null;
+    }
+}
+
+// 1. Four million names, each for a case built from the round before it.
+class Names
+{
+    public static function sweep(int $rounds): int
+    {
+        int $wrong = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            Level $held = ($i % 4) as Level;
+            if (Core\Str::length(Levels::name($held)) < 4) {
+                $wrong = $wrong + 1;
+            }
+            $i = $i + 1;
+        }
+        return $wrong;
+    }
+}
+
+echo '1: wrong names ', Names::sweep(4000000), "\n";
+
+// 2. Four hundred thousand copies of the list of every case, each one walked.
+// Nothing should be left behind by the copies.
+class Lists
+{
+    public static function sweep(int $rounds): int
+    {
+        int $seen = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            foreach (Levels::all() as Level $l) {
+                $seen = $seen + ($l as int);
+            }
+            $i = $i + 1;
+        }
+        return $seen;
+    }
+}
+
+echo '2: seen ', Lists::sweep(400000), "\n";
+
+// 3. A lookup by name, given ten thousand characters, an empty text and a name
+// that is one character short of a real one.
+class Lookups
+{
+    public static function sweep(int $rounds): int
+    {
+        string $long = Core\Str::repeat('warn', 2500);
+        int $found = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            if (Levels::byName($long) != null) {
+                $found = $found + 1;
+            }
+            if (Levels::byName('') != null) {
+                $found = $found + 1;
+            }
+            if (Levels::byName('war') != null) {
+                $found = $found + 1;
+            }
+            $i = $i + 1;
+        }
+        return $found;
+    }
+}
+
+echo '3: found ', Lookups::sweep(50000), "\n";
+
+// 4. A step of a workflow that walks to the next step, with no end.
+class Runaway
+{
+    public static function next(Level $l): Level
+    {
+        return match ($l) {
+            Level::Debug => Runaway::next(Level::Info),
+            Level::Info => Runaway::next(Level::Debug),
+            Level::Warn => Level::Warn,
+            Level::Error => Level::Error,
+        };
+    }
+}
+
+try {
+    Level $reached = Runaway::next(Level::Debug);
+    echo '4: BAD, the walk ended at ', Levels::name($reached), "\n";
+} catch (Throwable $e) {
+    echo '4: caught ', $e->message, "\n";
+}
+
+echo "the runtime is still running\n";

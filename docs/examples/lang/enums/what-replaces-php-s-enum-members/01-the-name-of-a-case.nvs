@@ -1,0 +1,24 @@
+<?nvs
+// Shows how to get the name of a case. A case has no `->name`, so the names
+// live in a `match` inside a class of your own.
+
+enum Level { Debug, Info, Warn }
+
+class Levels {
+    // Returns the name of a level. The `match` covers every case of `Level`,
+    // so adding a case to the enum stops this method at compile time.
+    public static function name(Level $l): string {
+        return match ($l) {
+            Level::Debug => "debug",
+            Level::Info => "info",
+            Level::Warn => "warn",
+        };
+    }
+}
+
+// This prints `info` and `warn`.
+echo Levels::name(Level::Info), "\n";
+echo Levels::name(Level::Warn), "\n";
+
+// The number behind a case needs no class. This prints 2.
+echo Level::Warn as int, "\n";

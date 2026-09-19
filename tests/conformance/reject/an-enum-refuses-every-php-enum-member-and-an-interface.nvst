@@ -1,0 +1,46 @@
+--TEST--
+PHP's enum members are refused where they are written: `->name`, `->value`, `cases`, `from`, `tryFrom`, a method in the body and an `implements` clause — `rule:enums/no-class-machinery`
+--FILE--
+<?nvs
+// covers: lang:enums/what-replaces-php-s-enum-members
+enum Level { Debug, Info }
+
+// `rule:enums/no-class-machinery`: an enum is a closed set of integers rather
+// than a class, so it implements nothing and declares no member of its own.
+enum Ranked implements Countable { Low, High }
+
+enum Spoken {
+    Yes,
+    No,
+    public static function label(): string { return "yes"; }
+}
+
+// A case is a compile-time integer, so it carries no property: `->value` is
+// `as int` and `->name` is a `match` in a class that takes the enum.
+Level $held = Level::Info;
+echo $held->name, "\n";
+echo $held->value, "\n";
+
+// The three static members PHP puts on a backed enum. `cases` is a static
+// method of your own, `from` is `$n as Level` and `tryFrom` is `$n as ?Level`.
+Level::cases();
+Level::from(1);
+Level::tryFrom(1);
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0218]: an enum cannot implement an interface
+%A
+error[E0220]: an enum declares only cases and an optional backing type
+%A
+error[E0405]: `Level` has no property named `name`
+%A
+error[E0405]: `Level` has no property named `value`
+%A
+error[E0309]: `Level` has no method named `cases`
+%A
+error[E0309]: `Level` has no method named `from`
+%A
+error[E0309]: `Level` has no method named `tryFrom`
+%A
+error: aborting due to 7 errors

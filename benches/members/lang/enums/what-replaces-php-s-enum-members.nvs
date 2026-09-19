@@ -1,0 +1,35 @@
+<?nvs
+// Turns a case into the text a person reads, through the `match` in a class of your own that
+// replaces PHP's `->name`. A program meets this shape when it writes a status into a page or a log
+// line. The length of the text is added up so the call stays inside the loop.
+// bench: iterations 400000
+
+enum Level { Debug, Info, Warn, Error }
+
+class Levels {
+    public static function name(Level $l): string {
+        return match ($l) {
+            Level::Debug => "debug",
+            Level::Info => "info",
+            Level::Warn => "warn",
+            Level::Error => "error",
+        };
+    }
+}
+
+class Bench {
+    public static function run(int $rounds): int {
+        int $total = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: the case named this round is built from the total the last
+            // round produced.
+            Level $held = (($total + $i) % 4) as Level;
+            $total = $total + (Core\Str::length(Levels::name($held)) as int);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";
