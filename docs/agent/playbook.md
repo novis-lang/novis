@@ -7661,12 +7661,14 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   that misreading before `Novis: Restart Language Server` turned out to be the whole fix. The
   status item and the `nvs.lsp.trace.server` channel answer it without guessing.
   [until: gone editors/vscode/src/redactions.ts:filter: blur]
-- **`cargo build --release` cannot replace `target/release/nvs.exe` while an editor's `nvs lsp`
-  holds it**, and on Windows it fails with `failed to remove file ... Zugriff verweigert (os error
-  5)`. A `nvs.path` pointing at that binary is a lock on it for the life of the window, so a
+- **`cargo build --release` by hand cannot replace `target/release/nvs.exe` while an editor's `nvs
+  lsp` holds it**, and on Windows it fails with `failed to remove file ... Zugriff verweigert (os
+  error 5)`. A `nvs.path` pointing at that binary is a lock on it for the life of the window, so a
   release build made to test a server change silently leaves the old binary in place and the editor
-  keeps answering from it. Stop the server first — `nvs.lsp.enable` to `false`, or close the window
-  — then build. [until: gone editors/vscode/src/extension.ts:const SUBCOMMAND]
+  keeps answering from it. `tools/dossier.py` and `tools/loop.py` retry that failure once with the
+  old binary renamed aside (`tools/relink.py`), so a release build through either owes nothing — by
+  hand, stop the server first with `nvs.lsp.enable` set to `false`, or close the window.
+  [until: gone editors/vscode/src/extension.ts:const SUBCOMMAND]
 - **No tier in this repository draws a decoration, so a change to how one looks is unverified until
   someone opens an editor.** `test:headless` runs the reveal state machine and the position
   conversion in plain Node, and the extension-host tier does not render; the README's *No pixel
