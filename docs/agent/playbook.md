@@ -5908,6 +5908,30 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `rule:expressions/nullable-conversion`'s narrowing reads one test per guarded branch and not a
   conjunction of them. Write one `if` per nullable receiver, or `?->` with `??` where the value is
   only echoed. [until: reviewed 2026-09-19]
+- **A bare array literal in a `foreach` head is `array<mixed>`, so the binding cannot be typed.**
+  Nothing in `foreach ([1, 2] as int $d)` gives the literal a target to take its element type from,
+  so the checker settles on `mixed` and then refuses the `int` binding. Declare the list first —
+  `array<int> $ds = [1, 2]; foreach ($ds as int $d)` — which every proof program under
+  `docs/examples/` and `tests/hostile/` has to do anyway. [until: reviewed 2026-09-19]
+- **`as` binds tighter than an arithmetic operator, and a `float` that is not whole refuses to
+  become an `int`.** `$minutes / 60 as int` parses as `$minutes / (60 as int)` and is `int|float`,
+  and the parenthesised `($minutes / 60) as int` then throws `cannot convert this value to int` for
+  every quotient with a fraction. There is no `Core\Math::intdiv`, so a proof program that wants
+  whole-number division keeps the value in `int` arithmetic (`%` and subtraction) instead.
+  [until: reviewed 2026-09-19]
+- **About twenty nested parentheses already reach the parser's recursion limit, and a hostile case
+  that trips it fails.** The limit is 96 levels and one parenthesised expression costs several, so
+  `((((...))))` written to look extreme stops the program being read at all — which
+  `tests/hostile/README.md` counts as a failure, because an attack that does not compile was never
+  delivered. Keep a depth attack in a hostile file well under it, or build the nesting at run time
+  out of values. [until: reviewed 2026-09-19]
+- **A new `.nvs` file under `tests/hostile/` is part of the `nvs fmt` corpus, so an unformatted one
+  fails `verify.py` in `nvs-fmt`'s identity test.** The canonical layout single-quotes a string with
+  no escape in it and writes an options bag as `{ key: value }`, which is not how the reference
+  chapters spell either, so a program copied out of one arrives unformatted. Run
+  `target/debug/nvs.exe fmt tests/hostile/<dir>` before verifying; `docs/examples/` and
+  `benches/members/` are not in that corpus and keep the chapters' spelling.
+  [until: reviewed 2026-09-19]
 
 ## Splitting a file that got too big
 
