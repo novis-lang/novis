@@ -1,0 +1,33 @@
+<?nvs
+// Shows how `clone` makes a copy you can edit without changing the original.
+// A program does this when it prepares a draft of a record it already saved.
+
+class Address {
+    public function constructor(public string $city) {}
+}
+
+class Profile {
+    public array<string> $tags = [];
+
+    public function constructor(public string $name, public Address $address) {}
+}
+
+var $saved = new Profile("Ada", new Address("Berlin"));
+$saved->tags[] = "customer";
+
+var $draft = clone $saved;
+
+// `name` and `tags` are copied into the draft. These writes change the draft only.
+$draft->name = "Ada Lovelace";
+$draft->tags[] = "draft";
+echo $saved->name, "|", $draft->name, "\n";
+echo Core\Arr::count($saved->tags), "|", Core\Arr::count($draft->tags), "\n";
+
+// `address` holds an object. The copy shares that object, so this write is read
+// through both profiles. It prints `Vienna|Vienna`.
+$draft->address->city = "Vienna";
+echo $saved->address->city, "|", $draft->address->city, "\n";
+
+// Give the draft its own `Address` when you want the two to differ.
+$draft->address = new Address("Berlin");
+echo $saved->address->city, "|", $draft->address->city, "\n";

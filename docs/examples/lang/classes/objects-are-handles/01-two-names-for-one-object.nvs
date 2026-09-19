@@ -1,0 +1,23 @@
+<?nvs
+// Shows what happens when you assign an object to a second variable. Both
+// variables name the same object, so a write through one is read through the other.
+
+class Counter {
+    public int $value = 0;
+}
+
+var $counter = new Counter();
+var $alias = $counter;
+
+// The write goes through `$alias`. Both variables name one object, so this prints `5|5`.
+$alias->value = 5;
+echo $counter->value, "|", $alias->value, "\n";
+
+// `==` on two objects is true when they are the same object. This prints `1`.
+echo ($counter == $alias) as string, "\n";
+
+// A second `new` makes a second object. It has the same value and is still a
+// different object, so `==` is false and `as string` prints an empty text.
+var $other = new Counter();
+$other->value = 5;
+echo ($counter == $other) as string, "|done\n";

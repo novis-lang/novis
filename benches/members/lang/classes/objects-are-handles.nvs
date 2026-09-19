@@ -1,0 +1,29 @@
+<?nvs
+// Hands one object to a method and writes through it, as a program does when it
+// gives a record to a helper. Passing the object does not copy it.
+// bench: iterations 400000
+// bench: allocations 0
+// bench: calls 1
+
+class Counter {
+    public uint $value = 0;
+}
+
+class Bench {
+    public static function bump(Counter $counter, uint $by): void {
+        $counter->value = $counter->value + $by;
+    }
+
+    public static function run(uint $rounds): uint {
+        var $counter = new Counter();
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the amount added this round comes from the last one.
+            Bench::bump($counter, $counter->value % 7 + 1);
+            $i = $i + 1;
+        }
+        return $counter->value;
+    }
+}
+
+echo Bench::run(400000), "\n";

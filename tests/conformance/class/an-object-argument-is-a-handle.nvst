@@ -2,6 +2,7 @@
 An object passed to a method is the caller's object; assigning it to a second name does not copy it
 --FILE--
 <?nvs
+// covers: lang:classes/objects-are-handles
 class Box {
     public int $value;
 
