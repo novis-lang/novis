@@ -2,43 +2,42 @@
 
 ## State
 
-Goal `lang-concurrency`'s own gate is green: `python tools/dossier.py --group lang:concurrency`
-reports all ten features complete, nothing owed.
+Goal `lang-concurrency` is **reached**. `python tools/dossier.py --verify --group lang:concurrency`
+reports nothing owed across all ten features, `examples: 30 ok, 0 failed` and `hostile: 10 ok,
+0 failed`. The three gates a goal meets only at its end are green too: `verify.py --doc` resolves
+every link, and `owners.py --closes lang-concurrency` and `playbook.py --closes lang-concurrency`
+each report the goal owns no gap.
 
-**The goal cannot be reached right now, and no session can change that.** The working tree does not
-compile — debug or release — from an **uncommitted** edit under `crates/nvs-lsp/` that no loop
-session made: `server.rs:976` and `server.rs:1076` call `completion::at` with six arguments and
-`completion.rs:308` declares five. `git status --porcelain` shows four modified files there, made
-while this session ran. So `dossier.py --verify` has no binary to judge a proof against, `verify.py`
-would stop at `build` for the same reason, and the full gate was not reached. That edit belongs to
-the person at the keyboard: do not repair it, and do not commit it.
+The tree that would not compile last session does now. The uncommitted `crates/nvs-lsp/` edit that
+made `completion::at` take six arguments against a five-argument declaration was the person at the
+keyboard's, and they landed it themselves as `fa358ee3e` and `985a38bfd`; the working tree is clean
+and `python tools/verify.py` is 14 of 14 green (4903 tests, 2221 conformance, 279 differential).
 
-Landed this session: `tools/relink.py`, and the two builders that now use it. An editor whose
-`nvs.path` points into this tree runs `nvs lsp` for the life of its window and holds
-`target/release/nvs.exe`, which Windows will not let cargo delete, so every release build in that
-window failed at the link — and `dossier.py` reported it as *the tree does not build in release*.
-A build that fails that way is now retried once with the running copy renamed aside, which Windows
-does allow. Proven against a real holder, and against one that was not holding.
+Landed this session: the playbook bullet about a release build an editor's `nvs lsp` blocks now says
+`dossier.py` and `loop.py` retry it through `tools/relink.py`, so only a by-hand build still needs
+the server stopped.
 
 ## Next group
 
-**Stage 2: the dossier** — one file set: `tools/dossier.py`, `tools/loop.py`, `tools/relink.py` and
-the check's own argv (`rule:testing/feature-proofs`).
+**Goal `lang-attributes`, stage 1: one slice is one feature, all its feature proofs together** — one
+file set: `docs/reference/lang/90-attributes.md` and each feature's own four proof trees. Every item
+owes examples, hostile, perf and tests plus its `about.md`, per `rule:testing/feature-proofs`. The
+goal file's § *Running this goal wide* is the fan-out protocol; `python tools/dossier.py --partition
+--group 'lang:attributes'` is what writes the briefs.
 
-- [ ] **Re-run the goal's check once `cargo build` is green again** — `python tools/dossier.py
-      --verify --group lang:concurrency`. Nothing owed and `0 failed` twice is the goal reached, so
-      run the three DONE gates before claiming it. `tools/dossier.py:508`
-- [ ] **First read `git status --porcelain`.** While `crates/nvs-lsp/src/server.rs:976` still hands
-      `completion::at` six arguments the tree is mid-edit by a person, and the right move is to hold
-      rather than to repair somebody else's file. `crates/nvs-lsp/src/server.rs:976`
-- [ ] **Re-point the playbook bullet that tells a person to stop the server before a release
-      build** — the tools free the binary themselves now, so what is left for a person is a bare
-      `cargo build --release` typed by hand. `docs/agent/playbook.md:7658`
+- [ ] **`lang:attributes/an-attribute-is-a-shape-literal-attached-to-a-declaration`** — the base
+      syntax every other item builds on, so it goes first.
+      `docs/reference/lang/90-attributes.md:9`
+- [ ] **`lang:attributes/reading-attributes-back-core-attributes-get-and-all`** — the read side of
+      the same section, sharing its examples' vocabulary.
+      `docs/reference/lang/90-attributes.md:93`
+- [ ] **`lang:attributes/the-names-the-compiler-acts-on`** — the roster the two above are read
+      against, adjacent in the same chapter.
+      `docs/reference/lang/90-attributes.md:116`
 
 ## Backlog
 
-- One `target/release/nvs.exe.held-N` stays on disk per live editor window; the next successful
-  release build deletes it (`tools/relink.py:sweep`).
-- `tools/bench.py` builds nothing by design, so the warm-start figure can still be taken on a
-  binary from before a change (`tools/loop.py:release_cli`).
-- `[context] modules` names nothing under `tools/`, so this session's file set was not in the pack.
+- The five remaining `lang:attributes` features — `core-json-derive`, `core-route`, `core-api`,
+  `core-command`, `core-program-implementing-i` — are in `docs/agent/goals/dossier/88-lang-attributes.md`.
+- Goal `the-description-is-owed` is where the `about.md` check is switched on; until then only the
+  goal file's own paragraph asks for one.
