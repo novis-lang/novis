@@ -1,0 +1,24 @@
+<?nvs
+// Builds a shopping list and a table of prices, then reads both back.
+
+array<string> $basket = ["bread", "milk"];
+// `$basket[] = ...` adds a value at the end. Its key is the next number.
+$basket[] = "coffee";
+
+foreach ($basket as string $position => string $item) {
+    echo $position, ": ", $item, "\n";
+}
+
+// `[...$basket]` copies every value of the list into the new list.
+array<string> $withGift = [...$basket, "flowers"];
+echo Core\Arr::count($withGift), " items\n";
+
+// A table gives every value a name you choose.
+array<int> $prices = ["bread" => 250, "milk" => 120];
+$prices["coffee"] = 890;
+echo "milk costs ", $prices["milk"], " cents\n";
+
+// Every key is text. `$shelf[8]` and `$shelf["8"]` are the same entry, so a
+// number used as a key always finds the value you stored under it.
+array<string> $shelf = [8 => "tea"];
+echo $shelf["8"], "\n";

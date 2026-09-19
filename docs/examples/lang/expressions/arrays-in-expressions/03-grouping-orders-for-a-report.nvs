@@ -1,0 +1,28 @@
+<?nvs
+// Groups orders by country and adds up what each country spent, the way a
+// small report does. Writing into a key that is not there yet creates the
+// inner array for you.
+
+array<array<string>> $orders = [
+    ["country" => "AT", "total" => "42"],
+    ["country" => "DE", "total" => "17"],
+    ["country" => "AT", "total" => "8"],
+];
+
+array<array<string>> $byCountry = [];
+
+foreach ($orders as string $position => array<string> $order) {
+    // Destructuring reads two keys of one order into two variables.
+    ["country" => string $country, "total" => string $total] = $order;
+
+    // The first order of a country creates the list under its name.
+    $byCountry[$country][] = $total;
+}
+
+foreach ($byCountry as string $country => array<string> $totals) {
+    uint $sum = 0;
+    foreach ($totals as string $index => string $amount) {
+        $sum = $sum + ($amount as uint);
+    }
+    echo $country, ": orders ", Core\Arr::count($totals), ", total ", $sum, "\n";
+}

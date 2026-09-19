@@ -1,0 +1,30 @@
+<?nvs
+// A request builds a small table for one row of data, writes into it and
+// reads the values back. This measures those four steps together: the array
+// literal, an append, a write by key and a read by key. Every round takes
+// its input from the round before it, so no work can be skipped.
+// bench: iterations 200000
+
+class Bench
+{
+    public static function run(uint $rounds): uint
+    {
+        uint $total = 1;
+        uint $i = 0;
+
+        while ($i < $rounds) {
+            array<uint> $row = ["sku" => $total % 7, "qty" => 2];   // chained: $total is last round's
+
+            $row[] = $i;
+            $row["qty"] = $row["qty"] + $row["sku"];
+
+            $total = $total + $row["qty"] + $row["0"] % 3;
+
+            $i = $i + 1;
+        }
+
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

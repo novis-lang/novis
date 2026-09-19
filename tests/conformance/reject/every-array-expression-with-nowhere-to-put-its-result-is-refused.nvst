@@ -1,0 +1,54 @@
+--TEST--
+An array expression with nowhere to put its result is refused where it is written: a literal under `var`, `+` over two arrays, an element written through a temporary, `[]` in a read position, `list(...)`, and a destructuring leaf with no type — `rule:types/arrays`
+--FILE--
+<?nvs
+// covers: lang:expressions/arrays-in-expressions
+// Each line below is an array expression the language has no answer for,
+// and each is refused where it is written rather than given a plausible
+// one. They are asked together because the diagnostics are what a reader
+// meets first, and one that stopped firing would otherwise leave a program
+// running on a value nobody decided.
+//
+// `var` has no target type to check a literal against, so the element type
+// would have to be inferred and `rule:types/arrays` does not infer one.
+//
+// `$a + $b` is the PHP operation `Core\Arr::underlay` replaces, and the
+// temporary write is the one `rule:types/arrays` cannot express: the array
+// is separated before the element is written, and a temporary is not
+// stored anywhere the separated copy could go back to.
+//
+// `[]` names no existing element, so every position but an assignment
+// target is refused, and `list(...)` is gone in favour of the one
+// destructuring bracket. The last line is that bracket without the type
+// every leaf declares.
+class Make {
+    public static function row(): array<int> {
+        return [1, 2];
+    }
+}
+
+array<int> $a = [1, 2];
+array<int> $b = ["k" => 3];
+
+var $loose = [1, 2];
+echo Core\Arr::count($a + $b), "\n";
+Make::row()["k"] = 1;
+echo $a[], "\n";
+list(int $x, int $y) = $a;
+[int $p, $q] = $a;
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0414]: `var` cannot infer an array literal's element type
+%A
+error[E0467]: `+` is not defined with an array operand
+%A
+error[E0700]: an array element cannot be written through a temporary
+%A
+error[E0481]: `[]` can only be assigned to
+%A
+error[E0230]: `list(...)` is not supported
+%A
+error[E0101]: expected a destructuring leaf's type
+%A
+error: aborting due to 6 errors

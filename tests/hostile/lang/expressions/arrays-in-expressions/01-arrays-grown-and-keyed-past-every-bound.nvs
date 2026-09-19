@@ -1,0 +1,135 @@
+<?nvs
+// Attack: push arrays past every size and key a program should reach. A
+// list grows to millions of values, an append runs out of keys, and keys
+// of a million characters are stored. The program should finish or stop
+// with an error, and must not crash.
+// hostile: timeout-ms 30000
+
+class Attack
+{
+    // 1. Grow one list to millions of values.
+    public static function grow(uint $values): uint
+    {
+        array<uint> $list = [];
+        uint $i = 0;
+
+        while ($i < $values) {
+            $list[] = $i;
+            $i = $i + 1;
+        }
+
+        return Core\Arr::count($list);
+    }
+
+    // 2. Store a value at the largest key a number can have, then add one
+    // more value. There is no key left for it, so the append throws.
+    public static function pastTheLastKey(): uint
+    {
+        array<uint> $edge = [];
+        $edge[9223372036854775807] = 1;
+
+        try {
+            $edge[] = 2;
+        } catch (Throwable $full) {
+            return 1;
+        }
+
+        return 0;
+    }
+
+    // 3. Keys of a million characters that all begin with the same text.
+    public static function longKeys(uint $keys): uint
+    {
+        string $prefix = Core\Str::repeat('k', 1000000);
+        array<uint> $wide = [];
+        uint $i = 0;
+
+        while ($i < $keys) {
+            $wide[$prefix . ($i as string)] = $i;
+            $i = $i + 1;
+        }
+
+        return Core\Arr::count($wide);
+    }
+
+    // 4. Copy a large array and write one value into the copy each round.
+    // Every write has to separate the copy from the array it came from.
+    public static function copyStorm(uint $rounds, uint $size): uint
+    {
+        array<uint> $source = [];
+        uint $i = 0;
+
+        while ($i < $size) {
+            $source[] = $i;
+            $i = $i + 1;
+        }
+
+        uint $seen = 0;
+        uint $round = 0;
+
+        while ($round < $rounds) {
+            array<uint> $copy = $source;
+            $copy['0'] = $round;
+            $seen = $seen + $copy['0'] + Core\Arr::count($copy);
+            $round = $round + 1;
+        }
+
+        return $seen;
+    }
+
+    // 5. Read keys that are not there, over and over, and catch every error.
+    public static function missing(uint $rounds): uint
+    {
+        array<uint> $small = ['one' => 1];
+        uint $caught = 0;
+        uint $round = 0;
+
+        while ($round < $rounds) {
+            try {
+                $caught = $caught + $small[($round as string)];
+            } catch (RuntimeError $gone) {
+                $caught = $caught + 1;
+            }
+
+            $round = $round + 1;
+        }
+
+        return $caught;
+    }
+
+    // 6. Build a grid by writing into keys that do not exist yet. Then
+    // remove every row, one at a time.
+    public static function grid(uint $side): uint
+    {
+        array<array<uint>> $cells = [];
+        uint $row = 0;
+
+        while ($row < $side) {
+            uint $column = 0;
+
+            while ($column < $side) {
+                $cells[($row as string)][($column as string)] = $row + $column;
+                $column = $column + 1;
+            }
+
+            $row = $row + 1;
+        }
+
+        uint $left = Core\Arr::count($cells);
+        uint $gone = 0;
+
+        while ($gone < $side) {
+            unset($cells[($gone as string)]);
+            $gone = $gone + 1;
+        }
+
+        return $left + Core\Arr::count($cells);
+    }
+}
+
+echo Attack::grow(2000000), "\n";
+echo Attack::pastTheLastKey(), "\n";
+echo Attack::longKeys(20), "\n";
+echo Attack::copyStorm(200, 100000), "\n";
+echo Attack::missing(200000), "\n";
+echo Attack::grid(300), "\n";

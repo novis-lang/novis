@@ -1,0 +1,87 @@
+--TEST--
+An `int` subscript and its decimal string name one entry in every position a key is written — a literal, a read, a write, `isset`, a `foreach` binding, a destructuring leaf, a nested write and `unset` — while a spread renumbers that one key and preserves every other — `rule:types/arrays`
+--FILE--
+<?nvs
+// covers: lang:expressions/arrays-in-expressions
+// `rule:types/arrays` normalises an `int` subscript to its decimal string,
+// and the case pinning that asks it of the subscript alone. This one asks
+// it of every position a key can be written in, so a position that grew a
+// comparison of its own fails here while still reading plausibly on its
+// own line.
+//
+// The count is what asserts it. Each `agree` call adds one and the total
+// is printed once, so a position that stops naming the entry the others
+// name loses a point while every other line prints what it always did.
+// `"08"` rides along in each of them: it is the key normalisation would
+// swallow if it ever became a conversion.
+//
+// The spread is the one position that does not agree, and the rule says so
+// in the same sentence: an integer-looking key is renumbered under the
+// receiving literal's own counter, which is PHP's own spread, and every
+// other key is preserved. It is asserted here beside the positions that do
+// agree, so a change in either direction is one line of this output.
+class Keys {
+    public static function agree(bool $same): uint {
+        if ($same) {
+            return 1;
+        }
+
+        return 0;
+    }
+}
+
+uint $agreed = 0;
+
+// A literal's own key, read back through both spellings.
+array<string> $a = [8 => "lit", "08" => "padded", "k" => "kay"];
+$agreed = $agreed + Keys::agree($a["8"] == "lit");
+$agreed = $agreed + Keys::agree($a[8] == $a["8"]);
+$agreed = $agreed + Keys::agree(Core\Arr::count($a) == 3);
+
+// A write through the `int` subscript lands on the entry the string names.
+$a[8] = "written";
+$agreed = $agreed + Keys::agree($a["8"] == "written");
+$agreed = $agreed + Keys::agree($a["08"] == "padded");
+
+// `isset`, for a key that is there and one that is not.
+$agreed = $agreed + Keys::agree(isset($a[8]) == isset($a["8"]));
+$agreed = $agreed + Keys::agree(isset($a[9]) == isset($a["9"]));
+
+// The `foreach` key binding, which is a `string` whatever was written.
+string $seen = "";
+foreach ($a as string $key => string $value) {
+    $seen = $seen . "[" . $key . "]";
+}
+$agreed = $agreed + Keys::agree($seen == "[8][08][k]");
+
+// A destructuring leaf's key.
+[8 => string $eight, "08" => string $padded] = $a;
+$agreed = $agreed + Keys::agree($eight == $a["8"]);
+$agreed = $agreed + Keys::agree($padded == "padded");
+
+// A nested write, where the key creates the inner array.
+array<array<string>> $g = [];
+$g[8]["c"] = "one";
+$g["8"]["d"] = "two";
+$agreed = $agreed + Keys::agree(Core\Arr::count($g) == 1);
+$agreed = $agreed + Keys::agree(Core\Arr::count($g["8"]) == 2);
+
+// `unset`, which removes the entry the other positions named and leaves
+// `"08"` where it was.
+array<string> $copy = $a;
+unset($copy[8]);
+$agreed = $agreed + Keys::agree(($copy["8"] ?? "gone") == "gone");
+$agreed = $agreed + Keys::agree($copy["08"] == "padded");
+
+echo $agreed, "\n";
+
+// The spread, renumbering the one key and preserving the rest.
+array<string> $spread = [...$a, "tail"];
+string $keys = "";
+foreach ($spread as string $spreadKey => string $spreadValue) {
+    $keys = $keys . "[" . $spreadKey . "=" . $spreadValue . "]";
+}
+echo $keys, "\n";
+--EXPECT--
+14
+[0=written][08=padded][k=kay][1=tail]

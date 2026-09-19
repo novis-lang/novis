@@ -1,0 +1,27 @@
+<?nvs
+// Reads settings where a key may be missing. Reading a key that is not
+// there throws an error, so this shows the two safe ways to ask for one.
+
+array<string> $settings = ["theme" => "dark", "language" => "de"];
+
+// `??` gives the value on the right when the key is missing.
+echo $settings["theme"] ?? "light", "\n";
+echo $settings["timezone"] ?? "UTC", "\n";
+
+// `isset` tells you whether a key is there.
+if (isset($settings["timezone"])) {
+    echo "a timezone is set\n";
+} else {
+    echo "no timezone is set\n";
+}
+
+// `unset` removes one entry. Every other entry keeps its key.
+unset($settings["language"]);
+echo Core\Arr::count($settings), " setting left\n";
+
+// Without a guard the missing key throws a `RuntimeError`, which you can catch.
+try {
+    echo $settings["language"], "\n";
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
