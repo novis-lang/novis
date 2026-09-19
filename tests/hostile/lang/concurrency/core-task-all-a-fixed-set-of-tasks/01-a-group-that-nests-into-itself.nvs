@@ -1,0 +1,78 @@
+<?nvs
+// Attack: groups of jobs that nest into each other a hundred thousand levels deep, and
+// build large strings inside every job. One job throws while its siblings still run.
+// The runtime must stay standing and leave nothing running.
+// covers: lang:concurrency/core-task-all-a-fixed-set-of-tasks
+// hostile: timeout-ms 60000
+
+class Nest
+{
+    // Each level starts one more group, so the task tree grows as deep as it is let to.
+    public static function deeper(int $level): int
+    {
+        if ($level <= 0) {
+            return 0;
+        }
+
+        var $below = Core\Task::all({
+            next: fn(): int => Nest::deeper($level - 1),
+        });
+
+        return $below->next + 1;
+    }
+
+    public static function big(int $size): uint
+    {
+        return Core\Str::length(Core\Str::repeat('x', $size as uint));
+    }
+
+    public static function angry(): int
+    {
+        throw new RuntimeError('this job gave up');
+    }
+}
+
+// Step 1: a hundred thousand groups inside each other, each one waiting for the next.
+echo 'step 1: reached level ', Nest::deeper(100000), "\n";
+
+// Step 2: eight jobs at a time, each building a string of a million characters and
+// dropping it again. Only the count is kept, so memory that grows here was not freed.
+uint $seen = 0;
+uint $round = 0;
+while ($round < 10) {
+    var $wide = Core\Task::all({
+        a: fn(): uint => Nest::big(1000000),
+        b: fn(): uint => Nest::big(1000000),
+        c: fn(): uint => Nest::big(1000000),
+        d: fn(): uint => Nest::big(1000000),
+        e: fn(): uint => Nest::big(1000000),
+        f: fn(): uint => Nest::big(1000000),
+        g: fn(): uint => Nest::big(1000000),
+        h: fn(): uint => Nest::big(1000000),
+    });
+    $seen = $seen + $wide->a + $wide->h;
+    $round = $round + 1;
+}
+echo 'step 2: built ', $seen, " characters and kept none of them\n";
+
+// Step 3: one job throws while its siblings are still working. The throw has to arrive
+// here as itself, with nothing of the group left running.
+try {
+    var $mixed = Core\Task::all({
+        slow:  fn(): int => Nest::deeper(5000),
+        cross: Nest::angry(...),
+    });
+    echo "step 3: the group finished, which it must not\n";
+} catch (RuntimeError $gave) {
+    echo 'step 3: caught ', $gave->message, "\n";
+}
+
+// Step 4: the same throw, one level down, thrown from a group inside a job of a group.
+try {
+    var $outer = Core\Task::all({
+        inner: fn(): int => Core\Task::all({ deep: Nest::angry(...) })->deep,
+    });
+    echo "step 4: the outer group finished, which it must not\n";
+} catch (RuntimeError $again) {
+    echo 'step 4: caught ', $again->message, "\n";
+}

@@ -1,0 +1,48 @@
+--TEST--
+`Core\Task::all` answers a shape carrying the argument's own field names, each field typed by that field's callable rather than by the group, and a callable declaring no return type gives `mixed` for that field alone — `rule:concurrency/all-answers-a-typed-shape` and `rule:concurrency/an-all-field-answers-what-its-callable-declares`
+--FILE--
+<?nvs
+// covers: lang:concurrency/core-task-all-a-fixed-set-of-tasks
+class Page {
+    public static function rows(): array<int> {
+        return [10, 20, 30];
+    }
+
+    // A field whose callable declares no return type is the `mixed` half of the rule:
+    // the group is handed a plain `callable`, so there is nothing to read a type off.
+    public static function loose(callable $job): mixed {
+        return Core\Task::all({one: $job})->one;
+    }
+}
+
+var $kept = fn(): string => "from a variable";
+
+var $group = Core\Task::all({
+    rows:  Page::rows(...),
+    label: fn(): string => "all",
+    kept:  $kept,
+    total: fn(): int => 60,
+});
+
+// Each field keeps its own callable's type, so none of these needs a cast: `rows` is
+// walked as an array, `label` is measured as a string, `total` is added to as an int.
+echo Core\Arr::count($group->rows), "\n";
+echo Core\Str::length($group->label), "\n";
+echo $group->kept, "\n";
+echo $group->total + 1, "\n";
+
+// The field names are the argument's own, in the argument's own order.
+foreach ($group->rows as int $row) {
+    echo "row ", $row, "\n";
+}
+
+echo Page::loose(fn(): int => 7) as int, "\n";
+--EXPECT--
+3
+3
+from a variable
+61
+row 10
+row 20
+row 30
+7

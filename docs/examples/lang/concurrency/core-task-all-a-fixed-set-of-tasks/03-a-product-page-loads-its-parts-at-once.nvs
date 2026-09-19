@@ -1,0 +1,31 @@
+<?nvs
+// Shows a real use: a product page needs three things before it can be drawn, and
+// none of them needs the others. Running them together takes as long as the slowest
+// one, instead of as long as all three added up.
+
+class Catalog {
+    public static function product(): string {
+        return "Espresso machine";
+    }
+
+    public static function stock(): int {
+        return 12;
+    }
+
+    public static function reviews(): array<string> {
+        return ["fast", "quiet"];
+    }
+}
+
+var $page = Core\Task::all({
+    product: Catalog::product(...),
+    stock:   Catalog::stock(...),
+    reviews: Catalog::reviews(...),
+});
+
+echo $page->product, "\n";
+echo "in stock: ", $page->stock, "\n";
+
+foreach ($page->reviews as string $review) {
+    echo "- ", $review, "\n";
+}

@@ -1,0 +1,20 @@
+--TEST--
+`Core\Task::all` refuses an array of callables, a shape whose fields are not callables, and a subject that is not a shape at all, naming the same expected type each time — `rule:concurrency/all-answers-a-typed-shape`
+--FILE--
+<?nvs
+// covers: lang:concurrency/core-task-all-a-fixed-set-of-tasks
+// An array of callables has no field names to answer under, so it is not the subject
+// even though every element is a callable.
+var $a = Core\Task::all([fn(): int => 1]);
+
+// A shape whose field holds a value rather than a function has nothing to run.
+var $b = Core\Task::all({rows: [1, 2, 3]});
+
+// And a subject that is not a shape at all.
+var $c = Core\Task::all("not a shape");
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `{name: callable(): T, ...}`, found `array<mixed>`
+%A
+error: aborting due to 3 errors
