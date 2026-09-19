@@ -2474,6 +2474,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   figure — but it has to come after the session's **last** chapter edit, or it is paid twice, which is
   what happened here when a proof turned up two stale sentences in the chapter it was proving. Write the
   proofs, fix the prose, then record. [until: reviewed 2026-09-19]
+- **The line the driver quotes from a failed `dossier.py` check is often not the failure.** `dossier:
+  target/release/nvs.exe is missing or older than the tree` is the routine note it prints on stderr
+  *before* asking cargo for a current binary, so it heads the ledger entry while the real verdict sits
+  two lines below it and says something else entirely. Re-run the check's own argv and read the last
+  lines of its output, never the one line the ledger quotes.
+  [until: gone tools/dossier.py:is missing or older than the tree]
 
 ## Running things
 

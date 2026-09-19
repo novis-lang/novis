@@ -2,51 +2,43 @@
 
 ## State
 
-Goal `lang-concurrency` is reached. All ten features of the concurrency chapter carry their
-feature proofs, and the carried floor check that failed the last DONE sweep —
-`native examples/queue-purge.nvs` — is green because the defect under it is fixed rather than
-retried.
+Goal `lang-concurrency`'s own gate is green: `python tools/dossier.py --group lang:concurrency`
+reports all ten features complete, nothing owed.
 
-That failure was not a flake. Every wire driver filed `connect`'s handshake deadline on the
-socket and never lifted it, so a caller that files no statement deadline of its own held a
-connection whose clock was already spent and lost it on the first read that had to *wait* —
-invisible on an idle machine, certain under load. `crates/nvs-db/src/pg.rs:666` carries the
-reasoning and the other three drivers point at it; `rule:core-classes/db-statement-members` is
-the contract it restores.
+**The goal cannot be reached right now, and no session can change that.** The working tree does not
+compile — debug or release — from an **uncommitted** edit under `crates/nvs-lsp/` that no loop
+session made: `server.rs:976` and `server.rs:1076` call `completion::at` with six arguments and
+`completion.rs:308` declares five. `git status --porcelain` shows four modified files there, made
+while this session ran. So `dossier.py --verify` has no binary to judge a proof against, `verify.py`
+would stop at `build` for the same reason, and the full gate was not reached. That edit belongs to
+the person at the keyboard: do not repair it, and do not commit it.
 
-`python tools/verify.py` is 14 of 14, `--doc` is green, `python tools/db-matrix.py --all` is 8
-of 8 legs, and `owners.py --closes lang-concurrency` and `playbook.py --closes lang-concurrency`
-each own nothing. Nothing is blocked.
+Landed this session: `tools/relink.py`, and the two builders that now use it. An editor whose
+`nvs.path` points into this tree runs `nvs lsp` for the life of its window and holds
+`target/release/nvs.exe`, which Windows will not let cargo delete, so every release build in that
+window failed at the link — and `dossier.py` reported it as *the tree does not build in release*.
+A build that fails that way is now retried once with the running copy renamed aside, which Windows
+does allow. Proven against a real holder, and against one that was not holding.
 
 ## Next group
 
-The chain's next goal is `lang-attributes`, whose own handoff `goal-switch.py` installs, so this
-group is only what to take if the switch has not happened yet.
+**Stage 2: the dossier** — one file set: `tools/dossier.py`, `tools/loop.py`, `tools/relink.py` and
+the check's own argv (`rule:testing/feature-proofs`).
 
-**Stage 2: the dossier** — one file set: `docs/reference/lang/90-attributes.md`,
-`docs/examples/lang/attributes/`, `tests/hostile/lang/attributes/`,
-`benches/members/lang/attributes/` and `tests/conformance/`.
-
-- [ ] **`lang:attributes/an-attribute-is-a-shape-literal-attached-to-a-declaration`** — owes
-      examples, hostile, perf, tests (`rule:testing/feature-proofs`).
-      `docs/reference/lang/90-attributes.md:9`
-- [ ] **`lang:attributes/reading-attributes-back-core-attributes-get-and-all`** — owes the same
-      four proofs, and shares the reading half with the item above.
-      `docs/reference/lang/90-attributes.md:93`
-- [ ] **`lang:attributes/the-names-the-compiler-acts-on`** — owes the same four proofs.
-      `docs/reference/lang/90-attributes.md:116`
+- [ ] **Re-run the goal's check once `cargo build` is green again** — `python tools/dossier.py
+      --verify --group lang:concurrency`. Nothing owed and `0 failed` twice is the goal reached, so
+      run the three DONE gates before claiming it. `tools/dossier.py:508`
+- [ ] **First read `git status --porcelain`.** While `crates/nvs-lsp/src/server.rs:976` still hands
+      `completion::at` six arguments the tree is mid-edit by a person, and the right move is to hold
+      rather than to repair somebody else's file. `crates/nvs-lsp/src/server.rs:976`
+- [ ] **Re-point the playbook bullet that tells a person to stop the server before a release
+      build** — the tools free the binary themselves now, so what is left for a person is a bare
+      `cargo build --release` typed by hand. `docs/agent/playbook.md:7658`
 
 ## Backlog
 
-- `nvs schema apply` and `nvs queue migrate` open through `crate::schema::opened`, which files a
-  10s handshake budget and no statement deadline; with the leak fixed their statements are
-  unbounded, which is right for a migration a person is watching and is stated nowhere —
-  `crates/nvs-cli/src/schema.rs:71`.
-- `worker.rs:1525` cites `crate::queue`'s `open_and_apply`, which that module no longer has; the
-  macro it describes now lives beside `schema::opened`.
-- A task's `echo` is held until its group returns and is then printed one task at a time; the
-  chapter never says so — `docs/reference/lang/80-concurrency.md` § *`Core\Task::all`*.
-- Tasks do not start in the order their fields are written, which no chapter or rule states —
-  `docs/reference/lang/80-concurrency.md` § *`Core\Task::all`*.
-- `Core\Arr` has no `push`, so a trace across tasks is built by string concatenation — a gap only
-  if `docs/reference/core/` means to offer one.
+- One `target/release/nvs.exe.held-N` stays on disk per live editor window; the next successful
+  release build deletes it (`tools/relink.py:sweep`).
+- `tools/bench.py` builds nothing by design, so the warm-start figure can still be taken on a
+  binary from before a change (`tools/loop.py:release_cli`).
+- `[context] modules` names nothing under `tools/`, so this session's file set was not in the pack.
