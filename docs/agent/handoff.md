@@ -2,37 +2,36 @@
 
 ## State
 
-Goal `lang-statements`: eleven of its thirteen features carry complete feature proofs. `for`,
-`switch` and `return` landed this session beside the eight already done, and `python
-tools/dossier.py --id '<feature>'` prints `complete.` for each of the eleven. Every example and every
-attack in the group runs green (`python tools/dossier.py --run all --group lang:statements`), and
-`docs/perf/members.ndjson` carries a current figure for the three new benches.
+Goal `lang-statements` is complete. All thirteen features carry their feature proofs, and `python
+tools/dossier.py --verify --group lang:statements` prints `nothing owed`, `0 failed`, `0 failed` —
+the goal's own acceptance check. The last two features landed this session:
+`expression-statements-blocks-and-declarations` and `statement-forms-that-do-not-parse`.
+`docs/perf/members.ndjson` carries a current figure for both new benches.
 
-Two features are left, both anchored in `docs/reference/lang/40-statements.md`. The group's
-acceptance check names the later of the two while either is owed, which is the ordinary in-progress
-state and not a regression.
-
-The tests column keeps closing by a `// covers:` marker on a case already on disk that nobody had
-attributed (`rule:testing/proof-attribution`) — six more this session, all under
-`tests/conformance/lang/`. Look for one before writing a new case. Nothing is blocked.
+The tests column closed four more times by a `covers:` marker on a case already on disk
+(`rule:testing/proof-attribution`) rather than by a new case. Two of those are `--EXPECTF-ERROR--`
+reject cases, where the marker has to be appended at the *end* of the `--FILE--` block; the playbook
+bullet under *Writing a test case* says why. Nothing is blocked.
 
 ## Next group
 
-**One file set: `docs/reference/lang/40-statements.md` plus the two remaining proof trees under
-`lang/statements/`.** One slice is one feature with all its feature proofs
-(`rule:testing/feature-proofs`): `about.md`, three examples with blessed `.out` files, one attack,
-one bench, and two tests carrying a `covers:` marker.
+**Goal `lang-classes` — one file set: `docs/reference/lang/50-classes.md` plus the proof trees under
+`lang/classes/`.** The goal switch installs that goal's own handoff over this one; these are its
+first three features in file order, so the anchors are here if the switch is delayed. One slice is
+one feature with all its feature proofs (`rule:testing/feature-proofs`): `about.md`, three examples
+with blessed `.out` files, one attack, one bench, and two tests carrying a `covers:` marker.
 
-- [ ] **`lang:statements/expression-statements-blocks-and-declarations`** — owes examples, hostile,
-      perf, tests. What a statement is: an expression with a `;`, a block, a typed declaration,
-      `var`, and the scope a block does *not* open. `docs/reference/lang/40-statements.md:9`
-- [ ] **`lang:statements/statement-forms-that-do-not-parse`** — owes examples, hostile, perf, tests.
-      The forms Novis refuses. An example has to run and match its `.out`, so the three here show the
-      accepted spelling of each refused form rather than the refusal, and the two `.nvst` cases carry
-      the diagnostics with `--EXPECTF-ERROR--`. `docs/reference/lang/40-statements.md:475`
+- [ ] **`lang:classes/declaring-a-class`** — owes examples, hostile, perf, tests.
+      `docs/reference/lang/50-classes.md:9`
+- [ ] **`lang:classes/constants-and-class`** — owes examples, hostile, perf, tests.
+      `docs/reference/lang/50-classes.md:374`
+- [ ] **`lang:classes/comparable`** — owes examples, hostile, perf, tests.
+      `docs/reference/lang/50-classes.md:1008`
 
 ## Backlog
 
-- Both features above are what the group still owes; nothing else in `lang:statements` is open.
-- `python tools/dossier.py --record-perf --group lang:statements` after the last bench of the group
-  lands — a figure goes stale whenever `docs/reference/lang/40-statements.md` is touched.
+- `declare(strict_types=…)` is refused only as a cascade of four generic parser and name-resolution
+  errors, while `goto`, `global`, function-scope `static`, `list()` and `include` each get a named
+  `E02xx` naming the replacement. `docs/reference/lang/40-statements.md:479`
+- The alternative syntax `if (…): … endif;` has no named diagnostic and no conformance case either;
+  it falls out as `expected an expression`. `docs/reference/lang/40-statements.md:480`

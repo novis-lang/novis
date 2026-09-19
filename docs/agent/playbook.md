@@ -6061,6 +6061,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   an uncaught throw or `exit`, and run `python tools/dossier.py --run hostile --group <group>` while
   you still have the file open rather than leaving it to the driver's acceptance check.
   [until: reviewed 2026-09-19]
+- **A `covers:` marker inserted at the top of a `.nvst` case's `--FILE--` block shifts every line
+  number that case's `--EXPECTF-ERROR--` pins.** The expected diagnostic quotes `case.nvs:NN`
+  counted from `<?nvs` as line 1, so a green reject case turns red the moment a line is added above
+  the construct it refuses, and the failure reads as a changed diagnostic rather than a moved line.
+  Append the marker after the last code line of the block instead — it is still inside `--FILE--`,
+  and nothing the expectation names moves. [until: reviewed 2026-09-19]
 
 ## Splitting a file that got too big
 
