@@ -2,7 +2,7 @@
 A `RecursionError` raised by the runtime at the soft depth is an ordinary one — it answers to the same names as one the program throws, and unwinding hands the depth back — `rule:errors/stack-depth`, `rule:errors/throwable-hierarchy`
 --FILE--
 <?nvs
-// covers: RecursionError
+// covers: RecursionError, lang:errors/recursion-depth
 // This class has two producers — the runtime, at the soft depth, and a `throw`
 // in a program — and every other case in this directory only ever asks the
 // second one. One question asked of both, answered by *naming* every arm that

@@ -1,0 +1,88 @@
+<?nvs
+// Attack: the call stack is filled in every way a program can fill it. A
+// function calls itself, two functions call each other, every level leaves a
+// `finally` behind, and a handler starts a new runaway recursion. Every step is
+// caught, and the runtime should still be standing at the end.
+// hostile: timeout-ms 60000
+
+final class Runaway
+{
+    public static int $closed = 0;
+
+    public static function alone(int $n): int
+    {
+        return Runaway::alone($n + 1) + 1;
+    }
+
+    // Two functions that call each other fill the stack just as well as one.
+    public static function pingTo(int $n): int
+    {
+        return Runaway::pongTo($n + 1) + 1;
+    }
+
+    public static function pongTo(int $n): int
+    {
+        return Runaway::pingTo($n + 1) + 1;
+    }
+
+    // Every level leaves a `finally` behind, so the unwinding runs thousands of
+    // them before the handler sees the error.
+    public static function withCleanUp(int $n): int
+    {
+        try {
+            return Runaway::withCleanUp($n + 1) + 1;
+        } finally {
+            Runaway::$closed = Runaway::$closed + 1;
+        }
+    }
+}
+
+// Step 1: one function calling itself, two hundred times over. The depth has to
+// be given back after every one of them.
+int $stopped = 0;
+int $round = 0;
+while ($round < 200) {
+    try {
+        echo Runaway::alone(0), "\n";
+    } catch (RecursionError $tooDeep) {
+        $stopped = $stopped + 1;
+    }
+    $round = $round + 1;
+}
+echo 'step 1: ', $stopped, " runaway calls stopped\n";
+
+// Step 2: two functions calling each other.
+try {
+    echo Runaway::pingTo(0), "\n";
+} catch (RecursionError $mutual) {
+    echo 'step 2: ', $mutual->message, "\n";
+}
+
+// Step 3: a runaway recursion with a `finally` at every level.
+try {
+    echo Runaway::withCleanUp(0), "\n";
+} catch (RecursionError $cleaned) {
+    echo 'step 3: ', Runaway::$closed > 0 ? 'finally blocks ran' : 'none ran', "\n";
+}
+
+// Step 4: a handler that starts the same runaway recursion again. The frames are
+// gone by then, so it gets the whole stack a second time.
+try {
+    echo Runaway::alone(0), "\n";
+} catch (RecursionError $first) {
+    try {
+        echo Runaway::alone(0), "\n";
+    } catch (RecursionError $second) {
+        echo "step 4: the handler ran out of stack as well\n";
+    }
+}
+
+// Step 5: a runaway recursion with nothing catching it in the frame it reaches,
+// caught by a `Throwable` clause far above it.
+try {
+    echo Runaway::pingTo(0), "\n";
+} catch (Throwable $any) {
+    echo 'step 5: ', $any->message, "\n";
+}
+
+echo "the runtime is still standing\n";
