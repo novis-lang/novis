@@ -1,0 +1,17 @@
+<?nvs
+// Shows what you get when a script you started fails. `await` returns a result
+// with `ok` set to false, and `error` has the class name and the message.
+
+// A path starts at the folder where you run the program.
+string $jobs = "docs/examples/lang/concurrency/a-child-s-failure-is-a-value/jobs";
+string $path = $jobs . "/import-orders.nvs";
+
+var $handle = spawn script $path with(output: "capture");
+var $result = await $handle;
+
+echo "ok: ", $result->ok ? "true" : "false", "\n";
+// `error` is empty when the script worked, so read it with `?->`.
+echo "error: ", $result->error?->class, ": ", $result->error?->message, "\n";
+// The script printed this line before it failed. The failure did not lose it.
+echo "output: ", $result->output;
+echo "this program is still running\n";

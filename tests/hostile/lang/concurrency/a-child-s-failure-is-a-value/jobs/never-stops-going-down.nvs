@@ -1,0 +1,14 @@
+<?nvs
+// The attack in the folder above starts this script. It calls itself with no
+// end, so it fails with a `RecursionError` that nothing in it catches.
+
+final class Down
+{
+    public static function step(int $n): int
+    {
+        return Down::step($n + 1);
+    }
+}
+
+echo "going down\n";
+Down::step(0);

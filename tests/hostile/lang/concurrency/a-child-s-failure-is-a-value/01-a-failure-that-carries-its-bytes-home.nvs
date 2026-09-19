@@ -1,0 +1,63 @@
+<?nvs
+// Attack: a failing script sends as much as it can back to the program that
+// started it. It fails with a message of four million characters, after
+// printing a million more. Every failure has to arrive as a value, and none of
+// it may still be held once the program has read the result.
+// hostile: timeout-ms 60000
+
+string $jobs = 'tests/hostile/lang/concurrency/a-child-s-failure-is-a-value/jobs';
+
+// Step 1: twenty large failures, one after another. Only the count is kept, so
+// memory that grows here is memory the runtime did not free.
+string $huge = $jobs . '/fails-with-a-huge-message.nvs';
+uint $bytes = 0;
+uint $i = 0;
+while ($i < 20) {
+    var $handle = spawn script $huge with(output: 'capture');
+    var $result = await $handle;
+    $bytes = $bytes + Core\Str::length($result->error?->message ?? '');
+    $bytes = $bytes + Core\Str::length($result->output);
+    $i = $i + 1;
+}
+echo 'step 1: read ', $bytes, " characters back from twenty failures\n";
+
+// Step 2: a script that runs out of stack. It fails in a way its own code
+// cannot catch, and it still has to arrive here as a result.
+string $down = $jobs . '/never-stops-going-down.nvs';
+var $deep = spawn script $down with(output: 'capture');
+var $fell = await $deep;
+echo 'step 2: ', $fell->ok ? 'the deep script ended well' : 'failed with ' . ($fell->error?->class ?? 'nothing'), "\n";
+
+// Step 3: a script that started a script that failed. Two boundaries, and the
+// message of the innermost failure crosses both.
+string $nested = $jobs . '/fails-with-its-own-childs-message.nvs';
+var $outer = spawn script $nested with(output: 'capture');
+var $inner = await $outer;
+echo 'step 3: ', Core\Str::length($inner->error?->message ?? ''), " characters from two levels down\n";
+
+// Step 4: two hundred failures in a row. Each one builds a result, and none of
+// them may be kept after the program has read it.
+string $quick = $jobs . '/fails-at-once.nvs';
+uint $failures = 0;
+uint $j = 0;
+while ($j < 200) {
+    var $one = spawn script $quick with(output: 'capture');
+    var $done = await $one;
+    if (!$done->ok) {
+        $failures = $failures + 1;
+    }
+    $j = $j + 1;
+}
+echo 'step 4: ', $failures, " failures in a row\n";
+
+// Step 5: a path of a million characters. This is the program's own mistake,
+// so it throws here, and the long name may not reach anything that runs it.
+try {
+    string $long = $jobs . '/' . Core\Str::repeat('a', 1048576) . '.nvs';
+    spawn script $long;
+    echo "step 5: started a script with a name of a million characters\n";
+} catch (Throwable $mistake) {
+    echo "step 5: the long path was not started\n";
+}
+
+echo "the runtime is still standing\n";

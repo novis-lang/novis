@@ -10,6 +10,7 @@
 spawn = true
 --FILE--
 <?nvs
+// covers: lang:concurrency/a-child-s-failure-is-a-value
 // `rule:security/isolate-shares-nothing`'s failure-is-a-value rule is about what the *child* did. A path
 // that names nothing and an `output:` spelling that is neither of the two the
 // ADR gives were both written by the parent before any child existed, so they

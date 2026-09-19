@@ -1,0 +1,5 @@
+<?nvs
+// The examples in the folder above start this script. It writes one invoice
+// for each order it was given.
+
+echo "wrote 2 invoices\n";

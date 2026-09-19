@@ -20,6 +20,7 @@ throw new RuntimeError("the child could not finish");
 return "answered";
 --FILE--
 <?nvs
+// covers: lang:concurrency/a-child-s-failure-is-a-value
 // ADR 0006 § *Failure is a value, not an exception*: there is no `try` around
 // either call below and none is needed. Nothing unwinds across the boundary,
 // for the reason nothing unwinds across a JIT frame (`rule:errors/propagation`) — the status

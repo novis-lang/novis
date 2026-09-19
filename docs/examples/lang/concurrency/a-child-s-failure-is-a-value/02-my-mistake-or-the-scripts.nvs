@@ -1,0 +1,26 @@
+<?nvs
+// Shows the two ways starting a script can go wrong. A mistake in this program
+// throws here. A failure inside the script comes back as a result.
+
+string $jobs = "docs/examples/lang/concurrency/a-child-s-failure-is-a-value/jobs";
+
+// This file name points to nothing, so `spawn script` throws in this program.
+string $wrong = $jobs . "/no-such-job.nvs";
+try {
+    spawn script $wrong;
+} catch (RuntimeError $mine) {
+    echo "my mistake: there is no script at that path\n";
+}
+
+// `output:` takes "capture" or "inherit". Any other word is a `LogicError`.
+string $path = $jobs . "/import-orders.nvs";
+try {
+    spawn script $path with(output: "capturr");
+} catch (LogicError $typo) {
+    echo "my mistake: ", $typo->message, "\n";
+}
+
+// This script starts, runs and then fails. That is a result, not a throw.
+var $handle = spawn script $path with(output: "capture");
+var $result = await $handle;
+echo "the script failed: ", $result->error?->message, "\n";

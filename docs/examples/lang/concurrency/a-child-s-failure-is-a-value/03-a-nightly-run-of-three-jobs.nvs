@@ -1,0 +1,22 @@
+<?nvs
+// Shows a program that runs three jobs and reports each one. The first job
+// fails, and the other two still run. This is what a nightly job runner does.
+
+string $jobs = "docs/examples/lang/concurrency/a-child-s-failure-is-a-value/jobs";
+array<string> $names = ["import-orders", "build-invoices", "send-receipts"];
+
+int $failed = 0;
+foreach ($names as string $name) {
+    string $path = $jobs . "/" . $name . ".nvs";
+    var $handle = spawn script $path with(output: "capture");
+    var $result = await $handle;
+    // A failed job is a result you can read, so the loop goes on to the next.
+    if ($result->ok) {
+        echo $name, ": done\n";
+    } else {
+        echo $name, ": failed, ", $result->error?->message, "\n";
+        $failed = $failed + 1;
+    }
+}
+
+echo $failed, " of 3 jobs failed\n";

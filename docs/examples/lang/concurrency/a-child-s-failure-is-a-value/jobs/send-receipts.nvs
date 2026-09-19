@@ -1,0 +1,5 @@
+<?nvs
+// The examples in the folder above start this script. It sends one receipt
+// for each invoice it was given.
+
+echo "sent 2 receipts\n";

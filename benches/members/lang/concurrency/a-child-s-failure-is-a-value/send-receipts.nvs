@@ -1,0 +1,5 @@
+<?nvs
+// The bench beside this folder starts this script. It stops when the mail
+// server is gone.
+
+throw new RuntimeError("the mail server closed the connection");

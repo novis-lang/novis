@@ -1,0 +1,28 @@
+<?nvs
+// Measures a failed script: starting it, waiting for it, and reading the error
+// it came back with. A job runner meets this every time one of its jobs stops
+// with an error.
+// bench: iterations 2000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $jobs = [
+            "benches/members/lang/concurrency/a-child-s-failure-is-a-value/import-orders.nvs",
+            "benches/members/lang/concurrency/a-child-s-failure-is-a-value/send-receipts.nvs",
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the script started this round is picked by the length of
+            // the message the last one failed with.
+            string $path = $jobs[($total % 2) as int];
+            var $handle = spawn script $path with(output: "capture");
+            var $result = await $handle;
+            $total = $total + Core\Str::length($result->error?->message ?? "");
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(2000), "\n";

@@ -1,0 +1,10 @@
+<?nvs
+// The attack in the folder above starts this script. It starts a third script
+// that fails, and then fails itself with the message that came back.
+
+string $path = 'tests/hostile/lang/concurrency/a-child-s-failure-is-a-value/jobs/fails-at-once.nvs';
+var $handle = spawn script $path with(output: 'capture');
+var $result = await $handle;
+
+string $message = 'the script I started failed: ' . ($result->error?->message ?? 'no message');
+throw new RuntimeError($message);
