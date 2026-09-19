@@ -2,6 +2,7 @@
 A `match` written with no arms at all is `E0476`, never a panic — `nvs_types::expr`'s `Match` arm, and PHP's own answer is `UnhandledMatchError` on every evaluation
 --FILE--
 <?nvs
+// covers: lang:expressions/match
 int $k = 2;
 // A `match` is an expression, so an arm-less one has nothing to bind.
 mixed $m = match ($k) { };
@@ -11,16 +12,16 @@ echo $m, "\n";
 match ($k) { };
 --EXPECTF-ERROR--
 error[E0476]: a `match` with no arms has no value
-  --> %s:4:12
+  --> %s:5:12
   |
-4 | mixed $m = match ($k) { };
+5 | mixed $m = match ($k) { };
   |            ^^^^^^^^^^^^^^ every path through this `match` throws
   = help: write the arm this was meant to have, or `throw` outright if the intent was to refuse every subject
 
 error[E0476]: a `match` with no arms has no value
-  --> %s:8:1
+  --> %s:9:1
   |
-8 | match ($k) { };
+9 | match ($k) { };
   | ^^^^^^^^^^^^^^ every path through this `match` throws
   = help: write the arm this was meant to have, or `throw` outright if the intent was to refuse every subject
 

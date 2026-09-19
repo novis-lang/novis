@@ -2,6 +2,7 @@
 A `match` expression picks the first arm whose label equals the subject, takes `default` last, and throws a `LogicError` when no arm matches
 --FILE--
 <?nvs
+// covers: lang:expressions/match
 class Pick {
     public static function label(int $n): string {
         return match ($n) {

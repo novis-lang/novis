@@ -1,0 +1,38 @@
+<?nvs
+// Shows what `match` is for at work: turning a stored status into the line a
+// customer reads. A `match` is an expression, so it goes straight into the
+// string being built. This one has no `default`, so a status nobody wrote an
+// arm for throws a `LogicError` instead of sending a wrong message.
+
+class Order {
+    public function constructor(
+        public string $reference,
+        public string $status,
+    ) {}
+}
+
+class Mail {
+    public static function line(Order $order): string {
+        return "Order " . $order->reference . ": " . match ($order->status) {
+            "paid", "packing" => "we are preparing your parcel",
+            "shipped" => "your parcel is on its way",
+            "delivered" => "your parcel has arrived",
+        };
+    }
+}
+
+array<Order> $orders = [
+    new Order("A-1", "paid"),
+    new Order("A-2", "shipped"),
+    new Order("A-3", "cancelled"),
+];
+
+foreach ($orders as Order $order) {
+    try {
+        echo Mail::line($order), "\n";
+    } catch (LogicError $e) {
+        // "cancelled" has no arm, so this order is reported and the run
+        // carries on. This prints: Order A-3 has no message for cancelled
+        echo "Order ", $order->reference, " has no message for ", $order->status, "\n";
+    }
+}

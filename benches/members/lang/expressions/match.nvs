@@ -1,0 +1,34 @@
+<?nvs
+// A server maps one value to another all day: a status code to a label, a
+// route name to a handler. This measures both forms of `match`, once each
+// per round. One is over numbers and one is over conditions. Every round
+// uses the number the round before it produced.
+// bench: iterations 400000
+// bench: allocations 0
+// bench: calls 0
+
+class Route {
+    public static function run(int $rounds): int {
+        int $acc = 1;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: this round's subject comes out of the last round.
+            int $weight = match ($acc % 7) {
+                0, 1 => 3,
+                2 => 5,
+                3, 4 => 7,
+                default => 11,
+            };
+            int $band = match (true) {
+                $acc > 900000 => 2,
+                $acc > 1000 => 1,
+                default => 0,
+            };
+            $acc = ($acc + $weight + $band) % 1000003;
+            $i = $i + 1;
+        }
+        return $acc;
+    }
+}
+
+echo Route::run(400000), "\n";

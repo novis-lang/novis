@@ -1,0 +1,80 @@
+--TEST--
+Every `match` arm is compared with its subject by `==`, so each of the seven disjoint pairings is refused at the condition that wrote it — one error per condition, never at the subject and never at the working arm beside it, `rule:expressions/disjoint-comparison-refused`
+--FILE--
+<?nvs
+// covers: lang:expressions/match
+// A `match` compares every condition with its subject by `==`, so a
+// condition whose type shares no value with the subject is refused where it
+// is written. Seven disjoint pairings sit here, each beside a condition that
+// is fine, and each is reported once at its own condition — never at the
+// subject, and never at the arms around it.
+enum Rank { Bronze, Silver }
+
+class Meter { public function constructor(public int $reading) {} }
+class Gauge { public function constructor(public int $reading) {} }
+
+int $n = 1;
+string $s = "1";
+bytes $b = "1" as bytes;
+Rank $rank = Rank::Bronze;
+Meter $meter = new Meter(1);
+
+var $numberAgainstText = match ($n) { 1 => "a", "one" => "b", default => "c" };
+var $textAgainstNumber = match ($s) { "1" => 1, 1 => 2, default => 3 };
+var $textAgainstBytes = match ($s) { $b => 1, default => 0 };
+var $enumAgainstInt = match ($rank) { Rank::Bronze => 1, 0 => 2, default => 3 };
+var $twoClasses = match ($meter) { new Gauge(1) => 1, default => 0 };
+var $presentAgainstNull = match ($n) { null => 1, default => 0 };
+var $conditionIsNotBool = match (true) { $n > 0 => 1, 5 => 2, default => 3 };
+echo "unreached\n";
+--EXPECTF-ERROR--
+error[E0466]: `int` and `string` are disjoint; no value is both, so this comparison is always false
+   --> %s:19:49
+   |
+19 | var $numberAgainstText = match ($n) { 1 => "a", "one" => "b", default => "c" };
+   |                                                 ^^^^^ compared here
+   = help: convert one side deliberately and then compare — `$s == ($n as string)`
+
+error[E0466]: `string` and `int` are disjoint; no value is both, so this comparison is always false
+   --> %s:20:49
+   |
+20 | var $textAgainstNumber = match ($s) { "1" => 1, 1 => 2, default => 3 };
+   |                                                 ^ compared here
+   = help: convert one side deliberately and then compare — `$s == ($n as string)`
+
+error[E0466]: `string` and `bytes` are disjoint; no value is both, so this comparison is always false
+   --> %s:21:38
+   |
+21 | var $textAgainstBytes = match ($s) { $b => 1, default => 0 };
+   |                                      ^^ compared here
+   = help: convert one side deliberately and then compare — `$s == ($n as string)`
+
+error[E0466]: `Rank` and `int` are disjoint; no value is both, so this comparison is always false
+   --> %s:22:58
+   |
+22 | var $enumAgainstInt = match ($rank) { Rank::Bronze => 1, 0 => 2, default => 3 };
+   |                                                          ^ compared here
+   = help: an enum case carries an integer — compare `$e as int` against the number
+
+error[E0466]: `Meter` and `Gauge` are disjoint; no value is both, so this comparison is always false
+   --> %s:23:36
+   |
+23 | var $twoClasses = match ($meter) { new Gauge(1) => 1, default => 0 };
+   |                                    ^^^^^^^^^^^^ compared here
+   = help: two unrelated classes have no value in common — compare something both of them carry, such as an id property
+
+error[E0466]: `int` cannot hold `null`, so this test is always false
+   --> %s:24:40
+   |
+24 | var $presentAgainstNull = match ($n) { null => 1, default => 0 };
+   |                                        ^^^^ compared here
+   = help: declare the binding nullable — `?T` — if it is meant to be optional, or drop the test
+
+error[E0466]: `bool` and `int` are disjoint; no value is both, so this comparison is always false
+   --> %s:25:55
+   |
+25 | var $conditionIsNotBool = match (true) { $n > 0 => 1, 5 => 2, default => 3 };
+   |                                                       ^ compared here
+   = help: convert one side deliberately and then compare — `$s == ($n as string)`
+
+error: aborting due to 7 errors

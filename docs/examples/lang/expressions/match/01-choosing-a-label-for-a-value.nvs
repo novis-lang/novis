@@ -1,0 +1,25 @@
+<?nvs
+// Shows how `match` turns one value into another. Each arm has one or more
+// values on the left and the result on the right. The first arm whose value
+// equals the subject gives the result of the whole `match`.
+
+class Day {
+    public static function name(int $day): string {
+        return match ($day) {
+            1, 2, 3, 4, 5 => "weekday",
+            6 => "Saturday",
+            7 => "Sunday",
+            // `default` is used when none of the other arms matched.
+            default => "not a day",
+        };
+    }
+}
+
+// This prints: day 3: weekday
+echo "day 3: ", Day::name(3), "\n";
+
+// This prints: day 6: Saturday
+echo "day 6: ", Day::name(6), "\n";
+
+// This prints: day 99: not a day
+echo "day 99: ", Day::name(99), "\n";
