@@ -106,6 +106,9 @@ modules = [
   # whether a member *exists*, never what type it has, since that needed this crate's type table
   # in the first place.
   "crates/nvs-types/src/signatures.rs",
+  # A parameter's default value — the constant a call site materializes when it leaves that
+  # parameter out.
+  "crates/nvs-types/src/defaults.rs",
 ]
 
 rules = ["testing/four-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088",
