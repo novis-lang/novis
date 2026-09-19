@@ -97,6 +97,15 @@ files = [
 
 modules = [
   "docs/reference/lang/20-types.md",
+  # Per-function-body local-variable checking: `rule:types/declaration`'s declare-once rule
+  # ("there is no shadowing") and flow-sensitive definite assignment ("reading a binding on a path
+  # that may not have reached its initialiser is a compile error").
+  "crates/nvs-types/src/locals.rs",
+  # Per-class property and method signatures — the groundwork the M2 follow-up list's item 1 named
+  # as blocking property/method-call/`new` expression typing: `nvs_hir::members` only ever checked
+  # whether a member *exists*, never what type it has, since that needed this crate's type table
+  # in the first place.
+  "crates/nvs-types/src/signatures.rs",
 ]
 
 rules = ["testing/four-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088",
