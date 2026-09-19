@@ -1,0 +1,38 @@
+<?nvs
+// Attack: a program tries to live through the limit that stops it. It hides
+// the allocation inside `try` and `finally`, replaces one limit handler with
+// another, and has the handler allocate more memory. The program still ends.
+// hostile: ends-early
+// hostile: timeout-ms 30000
+
+// Step 1: a handler that replaces an earlier one. Only the second may run.
+Core\Fatal::onLimit(fn (array<string> $report): void => {
+    echo "step 1: the replaced handler ran\n";
+});
+
+// Step 2: the handler asks for eight megabytes while the program is already
+// over its limit.
+Core\Fatal::onLimit(fn (array<string> $report): void => {
+    echo 'step 2: the handler ran for the ', $report['limit'], " limit\n";
+    string $more = Core\Str::repeat('y', 8388608);
+    echo 'step 2: the handler held ', Core\Str::length($more), " more bytes\n";
+});
+
+// Step 3: the allocation, under a `finally` inside a `catch`. Neither of them
+// may run.
+try {
+    try {
+        array<string> $ballast = [];
+        int $slab = 0;
+        while ($slab < 64) {
+            $ballast[] = Core\Str::repeat('x', 8388608);
+            $slab = $slab + 1;
+        }
+    } finally {
+        echo "step 3: the finally ran\n";
+    }
+} catch (Throwable $never) {
+    echo "step 3: the catch ran\n";
+}
+
+echo "step 4: the program went on\n";

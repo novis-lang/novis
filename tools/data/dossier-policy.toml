@@ -80,3 +80,11 @@ perf = "Every declaration here is a compile error, so there is no program to ite
 # floor does with the record afterwards is off the request path by construction.
 [skip."lang:errors/an-uncaught-throw"]
 perf = "A program ends once at an uncaught throw, so there is nothing to iterate; `lang:errors/throw` carries the throw's own figure."
+
+# The same ending, reached from the other side, and the skip is the sibling's argument unchanged: a
+# `FATAL` stops the request where it stands, so the loop a bench needs cannot be written around one.
+# What is on the request path is the accounting that decides the breach, which every allocating
+# member's own figure already carries, and `rule:errors/on-limit`'s handler runs once out of a
+# reserve that exists so it can.
+[skip."lang:errors/fatal-errors-limits-no-catch-sees"]
+perf = "A `FATAL` stops the program where it stands, so there is nothing to iterate; the allocation accounting that reaches the ceiling is measured by every allocating member's own figure."

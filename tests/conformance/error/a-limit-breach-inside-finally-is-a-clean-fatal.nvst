@@ -2,6 +2,7 @@
 A memory-limit breach inside `try { … } finally { … }` is `rule:errors/on-limit`'s clean `FATAL`, and the `finally` does not run — `rule:errors/on-limit`, `rule:errors/propagation`
 --FILE--
 <?nvs
+// covers: lang:errors/fatal-errors-limits-no-catch-sees
 // `rule:errors/on-limit`'s breach is a `FATAL`, so it reaches no `catch` and no
 // `finally`: every copy of a `finally` body lives behind a landing block's
 // catchable exit, and `nvs_ir::ir::Terminator::Catch` admits a `THROWN` alone.

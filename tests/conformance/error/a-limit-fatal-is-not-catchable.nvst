@@ -2,6 +2,7 @@
 A resource-limit breach is `rule:errors/on-limit`'s `FATAL` rather than an exception: `catch (Throwable)` — the clause that names every class a program can throw — does not see it, nothing after the guarded region runs, and the one thing that observes it is the tier-1 handler `Core\Fatal::onLimit` registered, which is handed the limit's own name — `rule:errors/on-limit`, M6's *Verify*
 --FILE--
 <?nvs
+// covers: lang:errors/fatal-errors-limits-no-catch-sees
 // `rule:errors/on-limit`'s ladder, at its top and its bottom in one program.
 // `a-limit-breach-inside-finally-is-a-clean-fatal.nvst` pins the `finally`
 // half; what this case is written around is the `catch` below and the tier

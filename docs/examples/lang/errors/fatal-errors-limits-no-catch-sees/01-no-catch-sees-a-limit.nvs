@@ -1,0 +1,25 @@
+<?nvs
+// Shows what a memory limit does to a program. `nvs.toml` gives this program
+// 16 megabytes. Holding more than that stops it where it stands. No `catch`
+// and no `finally` runs, and the program ends with status 1.
+// dossier: exit 1
+
+echo "before the limit\n";
+
+try {
+    array<string> $ballast = [];
+    int $slab = 0;
+    while ($slab < 4) {
+        $ballast[] = Core\Str::repeat("x", 8388608);
+        $slab = $slab + 1;
+    }
+    echo "not reached\n";
+} catch (Throwable $never) {
+    // A limit is not a throw, so no class matches it. `Throwable` is the widest
+    // clause there is, and it does not run either.
+    echo "not reached: the catch ran\n";
+} finally {
+    echo "not reached: the finally ran\n";
+}
+
+echo "not reached: the program went on\n";

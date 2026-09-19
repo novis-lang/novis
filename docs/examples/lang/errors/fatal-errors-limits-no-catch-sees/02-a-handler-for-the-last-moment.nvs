@@ -1,0 +1,20 @@
+<?nvs
+// Shows the one hook a limit runs. `Core\Fatal::onLimit` registers a function
+// that runs when a limit stops the program. The function receives the name of
+// the limit that fired. The program still ends after it.
+// dossier: exit 1
+
+Core\Fatal::onLimit(fn (array<string> $report): void => {
+    echo "stopped by the ", $report["limit"], " limit\n";
+});
+
+echo "working\n";
+
+array<string> $ballast = [];
+int $slab = 0;
+while ($slab < 4) {
+    $ballast[] = Core\Str::repeat("x", 8388608);
+    $slab = $slab + 1;
+}
+
+echo "not reached\n";
