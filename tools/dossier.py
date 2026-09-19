@@ -538,8 +538,8 @@ COMMENT_INTERNAL_RE = re.compile(
 #: use any of them has.
 COMMENT_HOUSE_RE = re.compile(
     r"\b(?:spellings?|answers|answered|hands?(?: \w+)? back|hands|handed|(?<!connection )refus\w+|"
-    r"members?|bindings?|holds|rather than|further down|on purpose|at the edge|goes through|"
-    r"earns?)\b", re.I)
+    r"members?|bindings?|holds|asks|asked|asking|stands? in for|lets? go of|rather than|"
+    r"further down|on purpose|at the edge|goes through|earns?)\b", re.I)
 
 
 def comment_problems(path: Path) -> list[str]:

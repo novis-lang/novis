@@ -147,6 +147,9 @@ English as their first language, and the comment has to work for them on the fir
   |---|---|
   | spelling | syntax, "the way to write" |
   | answers, hands back, hands you | returns, gives |
+  | asks, asking, asks for | checks, tests, needs |
+  | stands in for | replaces |
+  | lets go of, drops | frees, deletes |
   | refuses, is refused, a refusal | throws an error, does not compile, is not allowed |
   | member | method, function |
   | binding, name | variable |
