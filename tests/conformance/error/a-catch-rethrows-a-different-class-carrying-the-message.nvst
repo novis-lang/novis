@@ -2,6 +2,7 @@
 A `catch` that throws a *different* class is caught by the outer `try` on that class, and the message it built from the inner one survives
 --FILE--
 <?nvs
+// covers: lang:errors/rethrowing
 class Layer {
     public static function low(int $n): int {
         return 100 % $n;

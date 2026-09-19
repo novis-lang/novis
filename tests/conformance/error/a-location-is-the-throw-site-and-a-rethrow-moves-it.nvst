@@ -2,6 +2,7 @@
 `$e->location` is written at the `throw` rather than at the `new`: one never thrown reads empty, and a rethrow moves it to the rethrow site — spec § 10
 --FILE--
 <?nvs
+// covers: lang:errors/properties-not-accessors, lang:errors/rethrowing
 // The synthesized constructor leaves `location` empty and `nvs_raise` fills it
 // at the `throw`, from the same site constant a record producer takes — the
 // site that agrees with the `backtrace` beside it, which holds the frames the
@@ -29,5 +30,5 @@ try {
 }
 --EXPECT--
 unthrown=[]
-rethrown=case.nvs:16
+rethrown=case.nvs:17
 message=first

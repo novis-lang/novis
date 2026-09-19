@@ -1,0 +1,76 @@
+<?nvs
+// Attack: one error object is sent on as often as the runtime allows. It is
+// rethrown out of every frame of a deep call chain. Then it is rethrown two
+// hundred thousand times, and out of a `catch` that has a `finally`. Every step
+// is caught, and the runtime should still be standing at the end.
+// hostile: timeout-ms 30000
+
+final class Relay
+{
+    // Every level catches the same object and sends it on, so its place is
+    // written again on the way out of each one.
+    public static function down(IOError $error, int $depth): void
+    {
+        if ($depth == 0) {
+            throw $error;
+        }
+        try {
+            Relay::down($error, $depth - 1);
+        } catch (IOError $seen) {
+            throw $seen;
+        }
+    }
+}
+
+// Step 1: one object rethrown out of a thousand frames.
+var $travelling = new IOError('the socket closed');
+try {
+    Relay::down($travelling, 1000);
+    echo "step 1: nothing came back\n";
+} catch (Throwable $back) {
+    echo 'step 1: came back as ', $back->message, "\n";
+}
+
+// Step 2: two hundred thousand rethrows of that same object.
+uint $places = 0;
+int $round = 0;
+while ($round < 200000) {
+    try {
+        try {
+            throw $travelling;
+        } catch (IOError $inner) {
+            throw $inner;
+        }
+    } catch (IOError $outer) {
+        $places = $places + Core\Str::length($outer->location);
+    }
+    $round = $round + 1;
+}
+echo 'step 2: ', $places, " characters of places written\n";
+
+// Step 3: a rethrow out of a `catch` that has a `finally` beside it, with a
+// cause hanging off the error.
+var $cause = new LogicError('the first thing that went wrong');
+var $wrapped = new RuntimeError('and then this', { previous: $cause });
+int $ran = 0;
+int $pass = 0;
+while ($pass < 100000) {
+    try {
+        try {
+            throw $wrapped;
+        } catch (RuntimeError $held) {
+            throw $held;
+        } finally {
+            $ran = $ran + 1;
+        }
+    } catch (RuntimeError $last) {
+        var $first = $last->previous;
+        if ($first != null) {
+            $ran = $ran + 1;
+        }
+    }
+    $pass = $pass + 1;
+}
+echo 'step 3: ', $ran, " finally blocks and causes\n";
+
+echo "the runtime is still standing\n";
