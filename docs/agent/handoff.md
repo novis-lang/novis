@@ -2,20 +2,14 @@
 
 ## State
 
-Goal `types-interface` is met. All six reserved global interfaces — `Comparable`, `Iterable`,
-`Iterator`, `Parses`, `PropertyObserver`, `Stringable` — now have a description, examples and a
-conformance case, and `python tools/dossier.py --verify --group 'types:interface'` prints
-`nothing owed`, `0 failed`, `0 failed`. An interface owes no bench and no attack, which is data in
-`tools/data/dossier-policy.toml` rather than a decision this session made.
-
-Five of the six were written by the fan-out the goal authorizes (`dossier.py --partition`), one
-worker per feature; this session wrote `Comparable`, then read every page and program and ran every
-new case before committing. Two workers hand-derived an `--EXPECT--` block they could not execute;
-both match the binary byte for byte.
-
-`Parses`' seeded `tryParse` default is **not** reachable through an implementor — `Slug::tryParse($s)`
-is `E0309` — and that bound is now stated in the prose at `crates/nvs-hir/src/interfaces.rs:61` and
-`crates/nvs-types/src/iter_lib.rs:118`, which previously promised a reader the opposite.
+Goal `types-interface` is met: `python tools/dossier.py --verify --group 'types:interface'` prints
+`nothing owed`, and both DONE gates own nothing (`owners.py --closes types-interface`,
+`playbook.py --closes types-interface`). What stopped the goal switch was the floor's
+`nvs-cli (cost margins)` check, and that is the machine rather than the tree — the only Rust the
+goal touched was two doc comments, the guard's cold arm was unchanged at 57ms through both red
+asks, and the same binary at the same commit reads 12.3x against its 4x margin once the box is
+idle. `tools/loop.py`'s `COST_SETTLES` now gives a red cost guard the recovery time that was
+measured, so the next full sweep waits the shadow out instead of reporting it.
 
 ## Next group
 
@@ -24,14 +18,22 @@ advances at the goal switch and installs that goal's own sibling handoff; these 
 items, and each owes all four proofs rather than the two an interface owes:
 
 - [ ] **`lang:programs/a-program-is-a-file-of-top-level-statements`** — owes examples, hostile, perf,
-      tests. `docs/reference/lang/10-programs.md:9`
+      tests. `docs/reference/lang/10-programs.md:8`
 - [ ] **`lang:programs/a-complete-program-annotated`** — owes examples, hostile, perf, tests.
-      `docs/reference/lang/10-programs.md:26`
+      `docs/reference/lang/10-programs.md:25`
 - [ ] **`lang:programs/also-a-line-comment`** — owes examples, hostile, perf, tests.
-      `docs/reference/lang/10-programs.md:114`
+      `docs/reference/lang/10-programs.md:113`
 
 ## Backlog
 
+- The release units behind `cargo test --release -p nvs-cli --bin nvs` were invalidated between two
+  identical invocations twenty minutes apart — a 2m10s rebuild with nothing edited — and a
+  `git status` on its own did not reproduce it, so the `.git/index` attribution in
+  `docs/agent/playbook.md`'s bullet is unconfirmed and every sweep that runs the release checks
+  still pays that link.
+- The warm-start margin has no control of its own, so it cannot tell a slow loader from a dilated
+  machine from the inside; `benches/abi-probe/tests/perf_guards.rs`'s fan-out guard is the shape
+  that answers that, and `tools/bench.py`'s `QUIET_FLOOR_MS` is the other one.
 - `Parses` seeds a `tryParse` default with no compiled function, so an implementor cannot reach it;
   the open question is whether that body gets compiled or the seed goes, since
   `rule:expressions/try-parse` gives a laundering `parse` no non-throwing twin at all. Analysis in

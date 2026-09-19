@@ -3145,13 +3145,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   two sides of the assertion first: the same elements in a different order means the `Debug` impl is
   what needs fixing, not the isolation. [until: reviewed 2026-09-17]
 - **A ratio-based perf guard in the floor can go red inside the full sweep and pass alone, and a
-  sweep failure line without `asked twice` in it is
+  sweep failure line without `asked … times` in it is
   that.** `a_cpu_bound_fan_out_across_four_worker_cores_is_near_linear_by_the_margin_this_test_names`
   measures four worker cores against one, and the valgrind sweep that runs immediately before it
   leaves a shadow that lands on the placed half alone — 22.2 ms against 0.8 ms on its own, with the
   serial half unchanged at 3.4 ms, 0.14 s after the last fixture exited. `tools/loop.py`'s
-  `asked_again` re-asks a red `--release` check after `COST_SETTLE`, so one red is the shadow and a
-  doubled one is the tree; either way, read the margin from
+  `asked_again` re-asks a red `--release` check after each wait in `COST_SETTLES`, so a red that
+  recovers is the shadow and one that survives the ladder is the tree; either way, read the margin from
   `cargo test --release -p nvs-abi-probe --test perf_guards <name>` run alone.
   [until: reviewed 2026-10-18]
 - **A `cargo test --release -p nvs-cli` recompiles the whole crate for two and a half minutes after
@@ -3212,6 +3212,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   stops *every* program in the tree with `E0605`. Point it at `[db.schema]` — in-memory SQLite, no
   container — and grant `connect` alone, which is enough to `create table`.
   [until: reviewed 2026-09-19]
+- **A red cost margin at the end of a sweep is the machine when one arm of the ratio moved and the
+  other did not.** The warm-start margin read 3.62x and 3.85x thirty seconds apart against the 4x it
+  names, then 12.3x on the same binary three minutes later — its warm arm tripled while its cold arm
+  held at 57ms, so the compiler was untouched and the shadow fell on the half that maps pages. Read
+  both figures off the failure line before believing a ratio guard; the link is not what does it,
+  since the same test reads 12.3x straight off a 2m09s release build. [until: reviewed 2026-09-19]
 
 ## Writing a test case
 
