@@ -103,6 +103,14 @@ modules = [
   # Resolves a parsed `Type` into an interned `TypeId` (`rule:types/grammar`'s grammar, made
   # concrete).
   "crates/nvs-types/src/lower.rs",
+  # A call's target: which member `$obj->m()`, `C::m()` and `new C()` resolve to, and
+  # `rule:types/callable-is-a-closure`'s rule that only a closure is ever callable.
+  "crates/nvs-types/src/expr/calls.rs",
+  # A member reference that is not a call: a property access, a class constant, an enum case — and
+  # which receiver shapes this checker diagnoses rather than `nvs_hir`.
+  "crates/nvs-types/src/expr/members.rs",
+  # A minimal bidirectional expression checker: the dispatch, and the modules each rule lives in.
+  "crates/nvs-types/src/expr/mod.rs",
 ]
 
 rules = ["testing/four-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "types/arithmetic", "php-migration/absent-storage-is-never-a-zero-value", "expressions/truthy-table", "0134", "0026", "0117", "0004", "0088"]
