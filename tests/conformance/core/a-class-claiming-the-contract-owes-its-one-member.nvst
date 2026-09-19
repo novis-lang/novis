@@ -2,6 +2,7 @@
 A class claiming `Parses` owes the one member the contract requires, so a class with no `parse` is refused where it is declared and never at a binding site that names it — `rule:expressions/try-parse` and `rule:classes/comparable`
 --FILE--
 <?nvs
+// covers: lang:classes/parses
 // `Parses` is what a binding site asks a class for instead of naming one, so the
 // question "may this class stand in a capture" has to be answerable from the
 // class's own declaration and nowhere else. That makes the missing member an

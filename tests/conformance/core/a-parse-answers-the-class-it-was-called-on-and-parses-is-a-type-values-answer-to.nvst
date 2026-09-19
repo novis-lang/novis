@@ -3,6 +3,7 @@ A `parse` declared `: static` answers the class the call named, so a subclass in
 --FILE--
 <?nvs
 // covers: Parses
+// covers: lang:classes/parses
 // What a class gains by claiming the contract is asserted here from both ends,
 // because either end read alone looks like the whole of it.
 //

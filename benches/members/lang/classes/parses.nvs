@@ -1,0 +1,35 @@
+<?nvs
+// Builds a value out of a short piece of text, as a route capture or a command
+// argument does on every request.
+// bench: iterations 200000
+
+final class Sku implements Parses {
+    public function constructor(public tainted string $code) {}
+
+    public static function parse(tainted string $s): static {
+        if (Core\Str::length($s) != 8) {
+            throw new ParseError("a product code has 8 characters");
+        }
+        if ($s != Core\Str::upper($s)) {
+            throw new ParseError("a product code is written in upper case");
+        }
+        return new static($s);
+    }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $codes = ["ABC-1234", "XYZ-0001", "QQQ-9999"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the text this round parses is picked by the last one.
+            var $sku = Sku::parse($codes[$total % 3]);
+            $total = $total + Core\Str::length($sku->code);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

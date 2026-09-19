@@ -1,0 +1,67 @@
+<?nvs
+// Attack: a program hands `parse` the text an attacker would send. A text of
+// fifty million characters, a class whose `parse` calls itself, and two hundred
+// thousand refusals in a row. The runtime should stay standing.
+// hostile: timeout-ms 20000
+// hostile: ends-early
+// covers: lang:classes/parses
+
+final class Sku implements Parses
+{
+    public function constructor(public tainted string $code)
+    {}
+
+    public static function parse(tainted string $s): static
+    {
+        if (Core\Str::length($s) != 8) {
+            throw new ParseError('a product code has 8 characters');
+        }
+        return new static($s);
+    }
+}
+
+final class Endless implements Parses
+{
+    public function constructor(public tainted string $text)
+    {}
+
+    // Parsing the text parses it again.
+    public static function parse(tainted string $s): static
+    {
+        return static::parse($s);
+    }
+}
+
+// 1. A text of fifty million characters, handed to a class that wants eight.
+tainted string $huge = Core\Str::repeat('a', 50000000);
+try {
+    var $sku = Sku::parse($huge);
+    echo "1: BAD, the parse accepted it\n";
+} catch (Throwable $e) {
+    echo '1: caught ', $e->message, "\n";
+}
+
+// 2. A `parse` that calls itself and never returns.
+try {
+    var $endless = Endless::parse('x');
+    echo "2: BAD, the parse returned\n";
+} catch (Throwable $e) {
+    echo '2: caught ', $e->message, "\n";
+}
+
+// 3. Two hundred thousand refusals, one after another.
+uint $refused = 0;
+uint $i = 0;
+while ($i < 200000) {
+    try {
+        var $short = Sku::parse('nope');
+    } catch (ParseError $refusal) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo '3: refused ', $refused, " times\n";
+
+// 4. One more refusal, with nothing to catch it, so the program ends here.
+var $last = Sku::parse('nope');
+echo "5: BAD, the program is still running\n";
