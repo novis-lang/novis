@@ -1,0 +1,31 @@
+<?nvs
+// A property is a typed slot on the object. One with a starting value is
+// ready the moment the object exists; one without has to be filled in by the
+// constructor, and the program will not compile until it is.
+
+class Ticket
+{
+    public string $subject;
+    public string $status = "open";
+    public array<string> $labels = [];
+    public ?string $assignee = null;
+
+    public function constructor(string $subject)
+    {
+        $this->subject = $subject;
+    }
+}
+
+Ticket $first = new Ticket("printer is jammed");
+
+echo $first->subject, " [", $first->status, "]\n";
+echo "labels: ", Core\Arr::count($first->labels), ", assignee: ", $first->assignee ?? "nobody", "\n";
+
+// Each object has its own slots, so writing to one leaves the other alone.
+Ticket $second = new Ticket("badge reader is offline");
+$second->status = "waiting";
+$second->labels = ["hardware"];
+$second->assignee = "Ada";
+
+echo $second->subject, " [", $second->status, "] ", Core\Str::join($second->labels, ", "), " -> ", $second->assignee ?? "nobody", "\n";
+echo $first->subject, " [", $first->status, "]\n";

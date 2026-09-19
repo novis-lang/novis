@@ -1,0 +1,49 @@
+--TEST--
+A property with nothing to fill it, a path out of a constructor that leaves one unassigned, a default that has to be computed and a constant with no type are each refused where they are written — `rule:classes/definite-property-initialization`, `rule:types/declaration`
+--FILE--
+<?nvs
+// covers: lang:types/properties-and-constants
+// Four ways a slot could be read before it holds anything, and each is
+// refused at its cause rather than at the read. `E0409` is
+// `rule:classes/definite-property-initialization` twice over — once where
+// there is no constructor to attach the obligation to, and once where there
+// is one and a path out of it assigns nothing — so a class cannot reach the
+// run at all with a slot that was never filled.
+//
+// The other two are about *when* the value exists: a default is written into
+// every fresh instance before any code runs, so it has to be known by then,
+// and a constant is read at its declared type, so the type is written where
+// every other one is.
+class Child extends Base {
+    public string $own;
+}
+
+class Base {
+    public int $kept = 1;
+}
+
+class Limits {
+    public const WIDTH = 5;
+    public int $n;
+    public string $computed = Core\Str::upper("x");
+
+    public function constructor(bool $lucky) {
+        if ($lucky) {
+            $this->n = 1;
+        }
+    }
+}
+
+echo "never reached\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0409]: `$own` has no default value, and `Child` declares no constructor to assign it
+%A
+error[E0246]: a constant declares its type
+%A
+error[E0409]: `$n` is not assigned on every path out of the constructor
+%A
+error[E0472]: a property default must be a `string` constant
+%A
+error: aborting due to 4 errors

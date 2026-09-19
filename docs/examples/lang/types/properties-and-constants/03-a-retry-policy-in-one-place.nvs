@@ -1,0 +1,53 @@
+<?nvs
+// What this looks like at work: the rules a job follows are constants, so
+// they are written down once and read by name; what the job is currently
+// doing is properties, so each job has its own. Nothing about a job can be
+// half filled in, because the constructor has to leave every slot holding
+// something.
+
+class Policy
+{
+    public const uint ATTEMPTS = 3;
+    public const uint TIMEOUT_MS = 250;
+    public const string DEAD_LETTER = "parked";
+}
+
+class Job
+{
+    public string $name;
+    public uint $attempt = 1;
+    public string $state = "ready";
+    public ?string $lastError = null;
+
+    public function constructor(string $name)
+    {
+        $this->name = $name;
+    }
+
+    public function fail(string $reason): void
+    {
+        $this->lastError = $reason;
+
+        if ($this->attempt < Policy::ATTEMPTS) {
+            $this->attempt = $this->attempt + 1;
+            $this->state = "ready";
+
+            return;
+        }
+
+        $this->state = Policy::DEAD_LETTER;
+    }
+}
+
+Job $job = new Job("send-invoice");
+
+echo $job->name, ": ", $job->state, ", attempt ", $job->attempt, " of ", Policy::ATTEMPTS, "\n";
+
+array<string> $failures = ["timed out", "timed out", "connection refused"];
+
+foreach ($failures as string $reason) {
+    $job->fail($reason);
+    echo "after \"", $reason, "\": ", $job->state, ", attempt ", $job->attempt, "\n";
+}
+
+echo "last error: ", $job->lastError ?? "none", ", giving up after ", Policy::TIMEOUT_MS, "ms per try\n";

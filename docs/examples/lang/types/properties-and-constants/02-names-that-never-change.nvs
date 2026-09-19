@@ -1,0 +1,36 @@
+<?nvs
+// A constant is a name for a value fixed before the program runs. It is
+// written with the type it has, and reading it hands you that type — not a
+// wider one — so it can stand wherever that type is wanted, including as
+// another class's starting value.
+
+class Limits
+{
+    public const uint ATTEMPTS = 3;
+    public const string QUEUE = "outbound";
+    public const float BACKOFF = 1.5;
+}
+
+class Delivery
+{
+    public uint $left = Limits::ATTEMPTS;
+    public string $queue = Limits::QUEUE;
+    public static uint $made = 0;
+
+    public function constructor()
+    {
+        Delivery::$made = Delivery::$made + 1;
+    }
+}
+
+echo "queue ", Limits::QUEUE, ", up to ", Limits::ATTEMPTS, " attempts, backing off by ", Limits::BACKOFF, "\n";
+
+Delivery $one = new Delivery();
+Delivery $two = new Delivery();
+$two->left = $two->left - 1;
+
+echo "first has ", $one->left, " attempts left, second has ", $two->left, "\n";
+
+// A static property belongs to the class rather than to any one object, so
+// both of those were counted in the same place.
+echo "deliveries made: ", Delivery::$made, "\n";

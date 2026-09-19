@@ -1,0 +1,95 @@
+<?nvs
+// Attack: make and throw away objects faster than anything can tidy up after
+// them. Half a million of them carry a list each, so a slot that is handed
+// out instead of copied shows up as two objects sharing one list; a chain
+// fifty thousand links long is walked from one end to the other; and the
+// counter that belongs to the class rather than to any object is written to
+// by every single one of them.
+// hostile: timeout-ms 20000
+
+class Limits
+{
+    public const uint DEPTH = 50000;
+    public const string TAG = 'limits';
+}
+
+class Node
+{
+    public ?Node $next = null;
+    public string $tag = Limits::TAG;
+    public array<int> $marks = [];
+    public uint $depth;
+    public static uint $made = 0;
+
+    public function constructor(uint $depth)
+    {
+        $this->depth = $depth;
+        Node::$made = Node::$made + 1;
+    }
+}
+
+class Walk
+{
+    public static function length(?Node $from): uint
+    {
+        uint $seen = 0;
+        ?Node $at = $from;
+
+        while ($at != null) {
+            $seen = $seen + 1;
+            $at = $at?->next;
+        }
+
+        return $seen;
+    }
+}
+
+// A chain as long as the limit above, built one link at a time.
+Node $head = new Node(0);
+Node $cursor = $head;
+uint $built = 1;
+
+while ($built < Limits::DEPTH) {
+    Node $link = new Node($built);
+    $cursor->next = $link;
+    $cursor = $link;
+    $built = $built + 1;
+}
+
+echo Walk::length($head), "\n";
+
+// Every object starts with its own empty list. Writing into one must not
+// reach any other, however many of them are alive at once.
+array<Node> $held = [];
+uint $made = 0;
+
+while ($made < 20000) {
+    Node $fresh = new Node($made);
+    $fresh->marks = [$made as int];
+    $held[] = $fresh;
+    $made = $made + 1;
+}
+
+uint $shared = 0;
+
+foreach ($held as Node $node) {
+    if (Core\Arr::count($node->marks) != 1) {
+        $shared = $shared + 1;
+    }
+}
+
+echo $shared, "\n";
+
+// Objects built and dropped inside the same loop, each one touching the slot
+// that belongs to the class.
+uint $churn = 0;
+
+while ($churn < 500000) {
+    Node $throwaway = new Node($churn);
+    $throwaway->next = new Node($churn);
+    $throwaway->marks = [1, 2, 3];
+    $churn = $churn + 1;
+}
+
+echo Node::$made > 1000000 ? "counted\n" : "undercounted\n";
+echo Core\Str::length($head->tag), "\n";

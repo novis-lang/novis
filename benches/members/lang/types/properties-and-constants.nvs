@@ -1,0 +1,42 @@
+<?nvs
+// Reading a slot off an object, writing one back and reading a name that
+// never changes are the three things a method body does between calls. Each
+// round reads what the round before it wrote, so none of the work can be
+// settled early.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Limits
+{
+    public const int STEP = 3;
+}
+
+class Counter
+{
+    public int $seen = 1;
+    public int $carried = 1;
+
+    public function constructor()
+    {
+        $this->seen = 1;
+    }
+}
+
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
+        Counter $counter = new Counter();
+        uint $i = 0;
+
+        while ($i < $rounds) {
+            $counter->carried = ($counter->seen + Limits::STEP) % 1021;   // chained: last round's slot
+            $counter->seen = $counter->carried + 1;
+            $i = $i + 1;
+        }
+
+        return $counter->seen;
+    }
+}
+
+echo Bench::run(400000), "\n";
