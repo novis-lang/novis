@@ -1,0 +1,65 @@
+<?nvs
+// Attack: make the issue list the expensive part. Throw and drop thousands of
+// eight-entry lists, hand the reader a document that is nothing but nesting,
+// then refuse to let any of the errors go.
+// hostile: timeout-ms 20000
+
+uint $round = 0;
+uint $seen = 0;
+while ($round < 5000) {
+    try {
+        Core\Arr::shapeAs<{a: int, b: int, c: int, d: int, e: int, f: int, g: int, h: int}>([
+            'a' => 'x',
+            'b' => 'x',
+            'c' => 'x',
+            'd' => 'x',
+            'e' => 'x',
+            'f' => 'x',
+            'g' => 'x',
+            'h' => 'x',
+        ]);
+    } catch (ParseError $dropped) {
+        // Counted and then let go: nothing may be held after the clause ends.
+        $seen = $seen + Core\Arr::count($dropped->issues);
+    }
+    $round = $round + 1;
+}
+echo 'dropped ', $seen, " entries\n";
+
+// Nothing but opening brackets, so the reader runs out of depth rather than out
+// of document.
+try {
+    Core\Json::decode(Core\Str::repeat('[', 200000));
+} catch (ParseError $nesting) {
+    echo "nesting refused\n";
+}
+
+// A quarter of a million characters of one broken value.
+try {
+    Core\Json::decode(Core\Str::repeat('1', 250000) . 'x');
+} catch (ParseError $long) {
+    echo "long refused\n";
+}
+
+// Now the opposite of the first loop: every error and every list it carries is
+// kept alive at the same time, which is where a cap has to stop this.
+array<ParseError> $kept = [];
+uint $held = 0;
+while ($held < 200000) {
+    try {
+        Core\Arr::shapeAs<{a: int, b: int, c: int, d: int, e: int, f: int, g: int, h: int}>([
+            'a' => 'x',
+            'b' => 'x',
+            'c' => 'x',
+            'd' => 'x',
+            'e' => 'x',
+            'f' => 'x',
+            'g' => 'x',
+            'h' => 'x',
+        ]);
+    } catch (ParseError $keep) {
+        $kept[] = $keep;
+    }
+    $held = $held + 1;
+}
+echo 'kept ', Core\Arr::count($kept), "\n";

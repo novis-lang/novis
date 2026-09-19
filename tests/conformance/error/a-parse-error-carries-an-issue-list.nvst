@@ -2,6 +2,7 @@
 ParseError carries spec § 10's `issues` list: empty unless a thrower populated it, one entry for a malformed JSON document — `rule:core-classes/derive-reports-every-field`
 --FILE--
 <?nvs
+// covers: ParseError
 // § 5: `issues` is declared `array<Issue>`, not `?array<Issue>`, so it is
 // always readable — a hand-written `new ParseError(...)` simply has none.
 try {

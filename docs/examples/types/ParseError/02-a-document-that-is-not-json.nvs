@@ -1,0 +1,23 @@
+<?nvs
+// Not every failure is about a field. A document that is broken, or nested
+// deeper than the reader was allowed to go, is refused the same way — one
+// entry, and its path is empty because nothing in particular was at fault.
+
+try {
+    Core\Json::decode("{\"total\": }");
+} catch (ParseError $broken) {
+    echo "entries=", Core\Arr::count($broken->issues), "\n";
+    echo "path=[", $broken->issues["0"]->path, "]\n";
+    echo $broken->message, "\n";
+}
+
+// A limit on how deep the reader may go is how a program refuses a document
+// built to exhaust it.
+try {
+    Core\Json::decode("[[[1]]]", {maxDepth: 2});
+} catch (ParseError $deep) {
+    echo $deep->message, "\n";
+}
+
+// A document that is fine throws nothing at all.
+echo Core\Json::encode(Core\Json::decode("{\"total\": 3}")), "\n";

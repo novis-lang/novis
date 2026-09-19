@@ -1,0 +1,80 @@
+--TEST--
+A `ParseError`'s `issues` list reports every failed field exactly once, in the order its contract has — name order for a shape, which has no written one, and declaration order for a class — `rule:core-classes/derive-reports-every-field`, `rule:core-classes/derive-field-list` and `rule:types/shape-type`
+--FILE--
+<?nvs
+// covers: ParseError
+// Asked as an order over a whole contract rather than off one line: a walk
+// driven by the *subject* would answer plausibly field by field and still
+// report these three the wrong way round, because the document's keys arrive in
+// neither of the two orders below.
+string $shapeOrder = "";
+try {
+    Core\Arr::shapeAs<{zeta: int, alpha: int, mid: int}>(["mid" => "x", "zeta" => "x", "alpha" => "x"]);
+    echo "not reached\n";
+} catch (ParseError $shape) {
+    foreach ($shape->issues as ({path: string, message: string}) $issue) {
+        $shapeOrder = $shapeOrder . $issue->path . " ";
+    }
+    echo "shape=", $shapeOrder, "\n";
+}
+
+// The class door is the same walk — `rule:core-classes/derive-field-list` makes a
+// decode an ordinary `new` over the declared properties — but not the same
+// order, and that is the point of asking both. A shape is structural, so there
+// is no written order for the report to follow and it comes in name order; a
+// class has one, and the report is in it. The two disagree here on purpose: the
+// fields are named so that neither order can pass for the other.
+#[Core\Json\Derive]
+class Row {
+    public int $zeta;
+    public int $alpha;
+    public int $mid;
+    public function constructor(int $zeta, int $alpha, int $mid) {
+        $this->zeta = $zeta;
+        $this->alpha = $alpha;
+        $this->mid = $mid;
+    }
+}
+
+string $classOrder = "";
+try {
+    Core\Json::decodeAs<Row>("{\"mid\":\"x\",\"zeta\":\"x\",\"alpha\":\"x\"}");
+    echo "not reached\n";
+} catch (ParseError $klass) {
+    foreach ($klass->issues as ({path: string, message: string}) $issue) {
+        $classOrder = $classOrder . $issue->path . " ";
+    }
+    echo "class=", $classOrder, "\n";
+}
+
+// Each door named all three fields, and the two orders are different strings:
+// a report that had quietly adopted one order for both would print plausibly on
+// either line above and fail here.
+if ($shapeOrder != $classOrder) {
+    echo "the two orders are not the same order\n";
+}
+
+// The count is the report's own arithmetic too: a field that fit contributes
+// nothing at all, so two of these four are absent from the list rather than
+// present and empty.
+try {
+    Core\Arr::shapeAs<{ok: int, bad: int, alsoOk: string, alsoBad: bool}>([
+        "ok" => 1,
+        "bad" => "x",
+        "alsoOk" => "s",
+        "alsoBad" => "yes",
+    ]);
+    echo "not reached\n";
+} catch (ParseError $mixed) {
+    echo "failed=", Core\Arr::count($mixed->issues), "\n";
+    foreach ($mixed->issues as ({path: string, message: string}) $issue) {
+        echo "  ", $issue->path, "\n";
+    }
+}
+--EXPECT--
+shape=alpha mid zeta
+class=zeta alpha mid
+the two orders are not the same order
+failed=2
+  alsoBad
+  bad

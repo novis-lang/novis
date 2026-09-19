@@ -1,0 +1,18 @@
+<?nvs
+// A form arrives as text, whatever the fields are meant to hold. Reading it
+// into the shape the rest of the program wants reports every field that did
+// not fit, not just the first one.
+
+try {
+    Core\Arr::shapeAs<{name: string, age: int, subscribed: bool}>([
+        "name" => "Ada",
+        "age" => "thirty",
+        "subscribed" => "yes",
+    ]);
+} catch (ParseError $bad) {
+    echo "this form has ", Core\Arr::count($bad->issues), " problem(s):\n";
+    // Each entry says where the trouble was and what it was.
+    foreach ($bad->issues as ({path: string, message: string}) $issue) {
+        echo "  ", $issue->path, ": ", $issue->message, "\n";
+    }
+}
