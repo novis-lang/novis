@@ -2,6 +2,7 @@
 A checked `as` into a closed set of enum cases tests membership at run time and throws naming the set — `rule:types/enum-case-type` and `rule:types/literal-types`
 --FILE--
 <?nvs
+// covers: lang:types/nullable-union-literal-and-enum-case-types
 enum Mode {
     Read = 1,
     Write = 2,

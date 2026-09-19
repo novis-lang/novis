@@ -1,0 +1,31 @@
+<?nvs
+// What a handler really does with a request: turn every untrusted field into
+// the exact type it will act on, once, at the top. The account is a number or
+// a name, the action is one of an enum's cases, and only two of those cases
+// may be granted here — the third cannot reach this method at all.
+
+enum Action { Read, Write, Delete }
+
+class Gate {
+    public static function grant(Action::Read|Action::Write $action, int|string $account): string {
+        array<string> $verbs = ["read", "write", "delete"];
+        return "account " . ($account as string) . " may " . $verbs[$action as int];
+    }
+}
+
+array<array<string>> $requests = [
+    ["account" => "1042", "action" => "0"],
+    ["account" => "ada", "action" => "1"],
+    ["account" => "ada", "action" => "2"],
+];
+
+foreach ($requests as array<string> $request) {
+    try {
+        string $raw = $request["account"];
+        int|string $account = ($raw as ?int) ?? $raw;
+        Action $asked = ($request["action"] as int) as Action;
+        echo Gate::grant($asked as Action::Read|Action::Write, $account), "\n";
+    } catch (Throwable $e) {
+        echo "refused: this gate grants nothing else\n";
+    }
+}

@@ -1,0 +1,17 @@
+<?nvs
+// A setting that may simply not be there. `?uint` holds a whole number or
+// nothing, and `as ?uint` answers nothing where the text is not a number
+// instead of stopping the program, so one line can fall back to a default.
+
+array<string> $settings = ["page" => "3", "limit" => "many"];
+
+?uint $page = $settings["page"] as ?uint;
+?uint $limit = $settings["limit"] as ?uint;
+
+echo "page ", $page ?? 1, "\n";
+echo "limit ", $limit ?? 20, "\n";
+
+// Nothing is a type of its own, so a name that is allowed to be empty says
+// so, and the reader of that line never has to guess.
+?string $note = null;
+echo "note ", $note ?? "(none)", "\n";

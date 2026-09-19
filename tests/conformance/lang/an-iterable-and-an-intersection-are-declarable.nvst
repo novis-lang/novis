@@ -2,6 +2,7 @@
 `iterable` and an intersection are declarable in both positions and compile to a representation — `rule:types/grammar`
 --FILE--
 <?nvs
+// covers: lang:types/nullable-union-literal-and-enum-case-types
 // `rule:types/grammar`'s grammar spells both, and until this landed a program that
 // merely *declared* one type-checked and then panicked `nvs-ir` below the
 // checker that accepted it. Neither is inhabitable yet — `nvs_types::expr::assign`

@@ -1,0 +1,30 @@
+<?nvs
+// The work a handler does at its edge: text turned into one of a closed set
+// of words, a number turned into one of an enum's cases, and a field that
+// may be missing turned into a number or a default. Each round picks its
+// input from the running total, so nothing here can be settled ahead of time.
+// bench: iterations 200000
+// bench: allocations 0
+// bench: calls 0
+
+enum Action { Read, Write, Admin }
+
+class Bench {
+    public static function run(uint $rounds): int {
+        array<string> $words = ["read", "write", "read"];
+        array<string> $numbers = ["1", "2", "no"];
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            int $slot = ($total + ($i as int)) % 3;   // chained: $total is last round's
+            "read"|"write" $mode = $words[$slot] as "read"|"write";
+            Action $action = ($mode == "read" ? 0 : 1) as Action;
+            ?uint $count = $numbers[$slot] as ?uint;
+            $total = $total + ($action as int) + (($count ?? 1) as int);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

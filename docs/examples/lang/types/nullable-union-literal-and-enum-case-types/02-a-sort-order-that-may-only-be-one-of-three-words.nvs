@@ -1,0 +1,19 @@
+<?nvs
+// The type of this parameter is three words. Nothing else can be passed to
+// it, so the method below never needs to check what it was given, and a
+// fourth word is caught where it arrives rather than somewhere further down.
+
+class Report {
+    public static function sortBy("newest"|"oldest"|"name" $order): string {
+        return "sorting by " . $order;
+    }
+}
+
+array<string> $asked = ["newest", "name", "sideways"];
+foreach ($asked as string $one) {
+    try {
+        echo Report::sortBy($one as "newest"|"oldest"|"name"), "\n";
+    } catch (Throwable $e) {
+        echo "not a sort order: ", $one, "\n";
+    }
+}
