@@ -1,0 +1,11 @@
+<?nvs
+// One line says where your classes live, and after that you name a class and
+// never a file. `App\Text\Greeter` is read from `app/Text/Greeter.nvs`: the
+// `App` prefix is dropped, and what is left becomes folders and a file name.
+
+autoload 'App' from './app';
+
+use App\Text\Greeter;
+
+echo Greeter::hello("Alice"), "\n";
+echo App\Text\Greeter::hello("Bo"), "\n";

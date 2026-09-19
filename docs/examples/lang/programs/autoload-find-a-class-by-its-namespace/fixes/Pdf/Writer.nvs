@@ -1,0 +1,11 @@
+<?nvs
+// Our own copy of the writer, kept in the folder that is searched first. The
+// installed one is still on disk and is simply never reached.
+
+namespace Acme\Pdf;
+
+class Writer {
+    public static function describe(): string {
+        return "writer: our patched copy";
+    }
+}

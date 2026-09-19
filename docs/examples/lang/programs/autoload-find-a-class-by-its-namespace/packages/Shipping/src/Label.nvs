@@ -1,0 +1,11 @@
+<?nvs
+// The shipping package. Adding it needed no new line in the program: its
+// folder matched the pattern, so its namespace was found with it.
+
+namespace Shipping;
+
+class Label {
+    public static function forOrder(int $order, string $town): string {
+        return "SHIP-" . $order . " to " . $town;
+    }
+}

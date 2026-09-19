@@ -1,0 +1,13 @@
+<?nvs
+// One prefix may name several folders. They are searched in the order you
+// wrote them and the first file found wins, so a folder holding your own fixes
+// can sit in front of the one you installed. Anything you have not patched is
+// still found where it was installed.
+
+autoload 'Acme' from './fixes', './vendor';
+
+use Acme\Pdf\Writer;
+use Acme\Pdf\Reader;
+
+echo Writer::describe(), "\n";
+echo Reader::describe(), "\n";

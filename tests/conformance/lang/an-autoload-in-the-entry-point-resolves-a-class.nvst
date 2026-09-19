@@ -2,6 +2,7 @@
 An `autoload` declared in the entry point itself, after the code that needs it, resolves a class no `require` names — `rule:programs/autoload`
 --FILE--
 <?nvs
+// covers: lang:programs/autoload-find-a-class-by-its-namespace
 // `rule:programs/autoload`'s map is read by `nvs_hir` while the require/autoload graph is
 // being built, which is before any code runs — so *where* the declaration is
 // written cannot matter, and the entry point is a file like any other. The

@@ -1,0 +1,11 @@
+<?nvs
+// The writer as it was installed. The folder of fixes is searched before this
+// one, so this file is never the one that is read.
+
+namespace Acme\Pdf;
+
+class Writer {
+    public static function describe(): string {
+        return "writer: the installed copy";
+    }
+}

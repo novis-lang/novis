@@ -1,0 +1,24 @@
+<?nvs
+// Calls a method on a class that was found by its name rather than by its
+// file, which is how a program reaches nearly every class it uses.
+// bench: iterations 200000
+// bench: calls 1
+// bench: allocations 0
+
+autoload 'Loaded' from './autoload-find-a-class-by-its-namespace';
+
+use Loaded\Step;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = Step::next($total);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

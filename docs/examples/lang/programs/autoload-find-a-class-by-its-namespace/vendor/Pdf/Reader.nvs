@@ -1,0 +1,11 @@
+<?nvs
+// The reader as it was installed. Nothing replaces it, so the search falls
+// through the folder of fixes and finds it here.
+
+namespace Acme\Pdf;
+
+class Reader {
+    public static function describe(): string {
+        return "reader: the installed copy";
+    }
+}

@@ -1,0 +1,11 @@
+<?nvs
+// The billing package. Its folder under `packages/` is what names the
+// namespace, so nothing has to be written down twice.
+
+namespace Billing;
+
+class Invoice {
+    public static function number(int $order): string {
+        return "INV-" . $order;
+    }
+}

@@ -2,6 +2,7 @@
 one prefix declared by two explicit `autoload` statements does not compile — `rule:programs/autoload`
 --FILE--
 <?nvs
+// covers: lang:programs/autoload-find-a-class-by-its-namespace
 // Two roots for one prefix is the ordered-probe form on the line above; two
 // *statements* for one prefix is not, because nothing says which is first
 // once the map is the union of every declaration in the bootstrap chain. One
