@@ -6087,6 +6087,18 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   much as in `reject/`. Put the marker on the **last** line of the `--FILE--` block in any case
   carrying an `--EXPECTF-ERROR--` section, and at the top everywhere else.
   [until: reviewed 2026-09-19]
+- **`echo` with several arguments writes each one as it is evaluated, so a call in argument position
+  that echoes puts its own lines in the middle of yours.** `echo "  bump gave ", $l->bump(), "\n";`
+  on a `PropertyObserver` class prints `  bump gave ` first, then the observer's lines, then `1` —
+  which reads as a broken pipeline rather than as evaluation order, and costs a blessed `.out` or an
+  `--EXPECT--` block to discover. Assign the call to a variable first and echo the variable when the
+  callee can print anything: `int $bumped = $l->bump();`. [until: reviewed 2026-09-19]
+
+- **Adding a `// covers:` marker to a case whose expectation pins a line number moves that number.**
+  A `--EXPECTF-ERROR--` block naming `--> case.nvs:10:13` is one line stale the moment a marker goes
+  in above the code, and the failure prints as an unrelated diagnostic mismatch. Put the marker in
+  and re-run that case alone before writing anything else, or pick the case whose block starts at
+  `%A`. [until: reviewed 2026-09-19]
 
 ## Splitting a file that got too big
 
