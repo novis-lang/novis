@@ -12,6 +12,7 @@ class Account {
     }
 }
 echo "unreachable\n";
+// covers: lang:classes/declaring-a-class
 --EXPECT--
 
 --EXPECTF-ERROR--

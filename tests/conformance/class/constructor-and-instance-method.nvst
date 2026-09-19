@@ -2,6 +2,7 @@
 a constructor assigns every declared property, and a method reads them back
 --FILE--
 <?nvs
+// covers: lang:classes/declaring-a-class
 class Point {
     public int $x;
     public int $y;

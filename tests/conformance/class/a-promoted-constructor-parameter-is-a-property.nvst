@@ -2,6 +2,7 @@
 A promoted constructor parameter is an ordinary property — declared, visible, inherited, and namable by an `implements … by $field` clause — `rule:classes/delegation-by-field`, `rule:classes/definite-property-initialization`
 --FILE--
 <?nvs
+// covers: lang:classes/declaring-a-class
 // `constructor(public int $n)` is exactly `constructor(int $n) { $this->n =
 // $n; }` with the assignment supplied by the compiler: one slot, one declared
 // type, one visibility keyword. `nvs_types::signatures` records the property,

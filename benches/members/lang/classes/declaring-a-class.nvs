@@ -1,0 +1,32 @@
+<?nvs
+// Creates an object and reads a value back out of it through a method. A program
+// meets this shape every time it turns a database row or a request into one of
+// its own classes.
+// bench: iterations 400000
+// bench: calls 2
+// bench: allocations 1
+
+final class Point {
+    public function constructor(public int $x, public int $y) {}
+
+    public function sum(): int {
+        return $this->x + $this->y;
+    }
+}
+
+class Bench {
+    public static function run(int $rounds): int {
+        int $acc = 1;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: the object made this round is built from the last round's
+            // answer, so the loop cannot be skipped.
+            var $point = new Point($acc % 8, 3);
+            $acc = $acc + $point->sum();
+            $i = $i + 1;
+        }
+        return $acc;
+    }
+}
+
+echo Bench::run(400000), "\n";

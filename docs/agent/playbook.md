@@ -6073,6 +6073,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   the construct it refuses, and the failure reads as a changed diagnostic rather than a moved line.
   Append the marker after the last code line of the block instead — it is still inside `--FILE--`,
   and nothing the expectation names moves. [until: reviewed 2026-09-19]
+- **A `// covers:` marker added at the top of a `--FILE--` block shifts every line number that
+  case's `--EXPECTF-ERROR--` pins.** Such a section names the offending line three times over
+  (`--> %s:29:14`, the gutter number and the caret row), and `%s` wildcards the path alone, so one
+  inserted line fails the case on a number rather than on its claim — in `class/` and `lang/` as
+  much as in `reject/`. Put the marker on the **last** line of the `--FILE--` block in any case
+  carrying an `--EXPECTF-ERROR--` section, and at the top everywhere else.
+  [until: reviewed 2026-09-19]
 
 ## Splitting a file that got too big
 

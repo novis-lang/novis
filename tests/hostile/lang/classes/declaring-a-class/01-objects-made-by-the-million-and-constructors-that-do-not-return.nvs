@@ -1,0 +1,84 @@
+<?nvs
+// Attack: classes are created in ways a normal program never does. Half a
+// million objects are held at once. One constructor throws, and another
+// creates its own class forever. Every step should end in an error the
+// program can catch, and the runtime should stay standing.
+// hostile: ends-early
+// covers: lang:classes/declaring-a-class
+
+// 1. Half a million objects of a tiny class, all held at the same time.
+final class Tiny
+{
+    public function constructor(public int $n)
+    {}
+}
+
+array<Tiny> $held = [];
+int $i = 0;
+while ($i < 500000) {
+    $held[] = new Tiny($i);
+    $i = $i + 1;
+}
+echo '1: holding ', Core\Arr::count($held), " objects\n";
+
+// 2. The constructor throws, so `new` never gives back an object.
+final class Refuser
+{
+    public int $n;
+
+    public function constructor(int $n)
+    {
+        throw new RuntimeError('this class refuses to be created');
+    }
+}
+
+try {
+    var $never = new Refuser(1);
+    echo "2: BAD, the object was created\n";
+} catch (Throwable $e) {
+    echo '2: caught ', $e->message, "\n";
+}
+
+// 3. The constructor creates another object of its own class, so it never
+// reaches its own last line.
+final class Endless
+{
+    public ?Endless $deeper;
+
+    public function constructor(int $depth)
+    {
+        $this->deeper = new Endless($depth + 1);
+    }
+}
+
+try {
+    var $bottomless = new Endless(0);
+    echo "3: BAD, the object was created\n";
+} catch (Throwable $e) {
+    echo "3: caught the constructor that does not return\n";
+}
+
+// 4. Two objects point at each other, a hundred thousand times over. Each pair
+// is dropped as soon as the next one is made.
+final class Link
+{
+    public ?Link $peer = null;
+
+    public function constructor(public int $n)
+    {}
+}
+
+int $pairs = 0;
+while ($pairs < 100000) {
+    var $left = new Link($pairs);
+    var $right = new Link($pairs + 1);
+    $left->peer = $right;
+    $right->peer = $left;
+    $pairs = $pairs + 1;
+}
+echo '4: made ', $pairs, " pairs that point at each other\n";
+
+// 5. A constructor throws again, and this time nothing catches it. The program
+// ends here.
+var $last = new Refuser(2);
+echo "5: BAD, the program is still running\n";

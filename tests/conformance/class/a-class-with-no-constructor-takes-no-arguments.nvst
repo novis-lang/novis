@@ -32,6 +32,7 @@ echo $ok->n, $inherited->n, "\n";
 Plain $one = new Plain(1);
 Plain $two = new Plain(1, 2);
 Derived $short = new Derived();
+// covers: lang:classes/declaring-a-class
 --EXPECTF-ERROR--
 error[E0402]: expected 0 argument(s), found 1 — `Plain` declares no `constructor`
    --> %s:29:14

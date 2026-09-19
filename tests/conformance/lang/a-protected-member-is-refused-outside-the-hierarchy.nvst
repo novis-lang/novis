@@ -1,0 +1,38 @@
+--TEST--
+A `protected` property and a `protected` method are refused in a class that does not extend the one declaring them, and reached in a class that does — `rule:core-api/written-visibility`
+--FILE--
+<?nvs
+// covers: lang:classes/declaring-a-class
+// `protected` is the middle of the three levels, so it takes both classes to
+// bound it: `Branch` extends `Ledger` and reads the same two members without
+// a word from the checker, while `Report` merely holds one. Exactly two
+// diagnostics is what says the subclass half passed.
+class Ledger {
+    protected int $balance = 0;
+
+    protected function audit(): int {
+        return $this->balance;
+    }
+}
+
+class Branch extends Ledger {
+    public function total(): int {
+        return $this->balance + $this->audit();
+    }
+}
+
+class Report {
+    public function show(Ledger $ledger): int {
+        int $seen = $ledger->balance;
+        return $seen + $ledger->audit();
+    }
+}
+echo "never reached", "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0471]: `Ledger::$balance` is `protected`, so only `Ledger` and the classes that extend it reach it
+%A
+error[E0471]: `Ledger::audit()` is `protected`, so only `Ledger` and the classes that extend it reach it
+%A
+error: aborting due to 2 errors

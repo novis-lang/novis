@@ -10,6 +10,7 @@ class Old {
     }
 }
 echo "unreachable\n";
+// covers: lang:classes/declaring-a-class
 --EXPECT--
 
 --EXPECTF-ERROR--

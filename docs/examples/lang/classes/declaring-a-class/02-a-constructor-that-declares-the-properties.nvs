@@ -1,0 +1,29 @@
+<?nvs
+// Shows constructor promotion. A visibility keyword on a constructor parameter
+// declares a property of that name and type, and assigns the argument to it.
+
+class Product {
+    // These three lines declare three properties and fill them. There is no
+    // second place where `$name`, `$priceCents` and `$currency` are written.
+    public function constructor(
+        public string $name,
+        public int $priceCents,
+        private string $currency = "EUR"
+    ) {}
+
+    public function price(): string {
+        return $this->priceCents . " " . $this->currency;
+    }
+}
+
+var $book = new Product("The Art of Computer Programming", 8990);
+
+// A default on the parameter is a default for the argument. `$currency` is
+// `EUR` here, because the third argument was left out.
+var $mug = new Product("Coffee mug", 1250, "CHF");
+
+// This prints `The Art of Computer Programming: 8990 EUR`.
+echo $book->name, ": ", $book->price(), "\n";
+
+// This prints `Coffee mug: 1250 CHF`.
+echo $mug->name, ": ", $mug->price(), "\n";
