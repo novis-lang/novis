@@ -1,0 +1,44 @@
+<?nvs
+// Placing an order. How much is left on the shelf is only known once the row is
+// read inside the transaction, so the decision to abandon the order can only be
+// made there — and the sentence it gives up with is the one the shop shows the
+// customer.
+
+use Core\Db;
+use Core\Db\Connection;
+use Core\Db\Transaction;
+use Core\Db\RolledBack;
+
+final class Checkout {
+    public static function place(Connection $db, string $sku, int $wanted): string {
+        try {
+            $db->transaction(fn (Transaction $tx): void => {
+                var $row = $tx->query('select stock from items where sku = ?', [$sku])->first();
+                if ($row == null) {
+                    $tx->rollBack('we do not stock that item');
+                }
+                var $stock = $row?->int('stock');
+                if ($stock == null || $stock < $wanted) {
+                    $tx->rollBack('we do not have that many left');
+                }
+                $tx->execute('update items set stock = stock - ? where sku = ?', [$wanted, $sku]);
+                $tx->execute('insert into orders (sku, quantity) values (?, ?)', [$sku, $wanted]);
+            });
+            return 'ordered';
+        } catch (RolledBack $abandoned) {
+            // Nothing was written, and the reason says which of the two checks
+            // inside the closure was the one that stopped it.
+            return $abandoned->reason;
+        }
+    }
+}
+
+var $db = Db::connect('schema');
+$db->execute('create table items (sku text not null primary key, stock int not null)', []);
+$db->execute('create table orders (id integer primary key, sku text not null, quantity int not null)', []);
+$db->execute("insert into items (sku, stock) values ('mug', 4)", []);
+
+echo Checkout::place($db, 'mug', 3), "\n";
+echo Checkout::place($db, 'mug', 3), "\n";
+echo Checkout::place($db, 'kettle', 1), "\n";
+echo 'orders placed: ', $db->query('select id from orders', [])->count(), "\n";

@@ -1,0 +1,31 @@
+<?nvs
+// A transaction is a closure: it returns and the work is kept, it throws and
+// the work is undone. This one reads part-way through that the batch has a
+// reading no thermometer could have produced, and gives up on all of it.
+
+use Core\Db;
+use Core\Db\Transaction;
+use Core\Db\RolledBack;
+
+var $db = Db::connect('schema');
+$db->execute('create table readings (id integer primary key, celsius int not null)', []);
+
+array<int> $batch = [19, 21, -400, 23];
+
+try {
+    $db->transaction(fn (Transaction $tx): void => {
+        foreach ($batch as int $celsius) {
+            if ($celsius < -273) {
+                $tx->rollBack('a reading below absolute zero is in the batch');
+            }
+            $tx->execute('insert into readings (celsius) values (?)', [$celsius]);
+        }
+    });
+    echo "the batch was kept\n";
+} catch (RolledBack $abandoned) {
+    echo 'gave up: ', $abandoned->reason, "\n";
+}
+
+// The two good readings before the bad one are gone as well. That is the point
+// of asking for the whole batch at once.
+echo 'rows kept: ', $db->query('select id from readings', [])->count(), "\n";

@@ -266,6 +266,28 @@ entry = "tests/hostile/types/Db-DbError/01-a-flood-of-refusals-and-a-statement-t
 [app.capabilities.db]
 connect = ["schema"]
 
+# `Core\Db\RolledBack`'s examples and attack, on the same in-memory SQLite block and for the same
+# reason its sibling's are: a transaction the program abandons is a decision the program made, so
+# every line below is answered by SQLite exactly as a server would answer it and the sweep needs no
+# container. The second example is not here because it throws the class directly and opens nothing.
+[[app]]
+entry = "docs/examples/types/Db-RolledBack/01-giving-up-on-a-batch.nvs"
+
+[app.capabilities.db]
+connect = ["schema"]
+
+[[app]]
+entry = "docs/examples/types/Db-RolledBack/03-a-checkout-that-says-why.nvs"
+
+[app.capabilities.db]
+connect = ["schema"]
+
+[[app]]
+entry = "tests/hostile/types/Db-RolledBack/01-a-flood-of-rollbacks-and-a-reason-too-big-to-keep.nvs"
+
+[app.capabilities.db]
+connect = ["schema"]
+
 # The retention entry ADR 0153 § 5 is written around, and the only program in this repository that
 # removes queue rows at all. `queue.purge` is deny-by-default and covers `Core\Queue`'s `delete` and
 # `purge` together, because the authority the two need is the same one — permission to make a

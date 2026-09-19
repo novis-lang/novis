@@ -1,0 +1,90 @@
+--TEST--
+`Core\Db\RolledBack` carries the string it was raised with as both `reason` and `message`, is caught by a `RuntimeError` clause and not by a `LogicError` one, and a `RolledBack` clause does not catch its sibling `Core\Db\DbError` — `rule:core-classes/db-transactions`
+--FILE--
+<?nvs
+// covers: Core\Db\RolledBack
+// The class on its own, with no server anywhere near it: what this pins is the
+// property `crates/nvs-hir/src/errors.rs` declares for it and which `catch`
+// clause it reaches, neither of which any driver has a say in.
+// db-a-roll-back-survives-a-catch-of-throwable.nvst is where the member that
+// raises it is asserted against a real transaction.
+use Core\Db\DbError;
+use Core\Db\RolledBack;
+
+final class Abandoned {
+    // Giving up is the world saying no rather than a bug in the program, so it
+    // lands in the parent that means exactly that.
+    public static function clause(): string {
+        try {
+            throw new RolledBack("the basket no longer adds up");
+        } catch (LogicError $wrong) {
+            return "a LogicError clause";
+        } catch (RuntimeError $right) {
+            return "a RuntimeError clause";
+        }
+    }
+
+    // The other half of the pair the sibling case asserts from its own side:
+    // the two `Core\Db` names sit beside each other, so a clause written for a
+    // rollback the program chose must not take a refusal the server made.
+    public static function sibling(): string {
+        try {
+            throw new DbError("the server said no");
+        } catch (RolledBack $wrong) {
+            return "a RolledBack clause";
+        } catch (RuntimeError $right) {
+            return "not a RolledBack clause";
+        }
+    }
+
+    // § 18's own property, and the one string it is: the reason the caller gave
+    // is readable under both names, so a log line and a branch never disagree
+    // about why the work was abandoned.
+    public static function reason(): string {
+        try {
+            throw new RolledBack("the stock would have gone negative");
+        } catch (RolledBack $abandoned) {
+            if ($abandoned->reason == $abandoned->message) {
+                return $abandoned->reason;
+            }
+            return "two different strings";
+        }
+    }
+
+    // A frame between the throw and the caller that re-raises the same value
+    // hands on the same reason — the property travels with the value rather
+    // than being read off the frame that built it.
+    public static function rethrown(): string {
+        try {
+            try {
+                throw new RolledBack("the import was not good enough");
+            } catch (RolledBack $passingThrough) {
+                throw $passingThrough;
+            }
+        } catch (RolledBack $outside) {
+            return $outside->reason;
+        }
+    }
+
+    // And the root admits it, which is what makes an outermost handler able to
+    // report a rollback it was not written for.
+    public static function root(): string {
+        try {
+            throw new RolledBack("nothing was written");
+        } catch (Throwable $anything) {
+            return $anything->message;
+        }
+    }
+}
+
+echo Abandoned::clause(), "\n";
+echo Abandoned::sibling(), "\n";
+echo Abandoned::reason(), "\n";
+echo Abandoned::rethrown(), "\n";
+echo Abandoned::root(), "\n";
+--EXPECT--
+a RuntimeError clause
+not a RolledBack clause
+the stock would have gone negative
+the import was not good enough
+nothing was written
