@@ -13,9 +13,11 @@
 //! other request: the bytes `nvs/regions` stops reporting as HTML are exactly
 //! the ones completion offers the open tags at.
 
-use lsp_types::{CompletionItem, CompletionTextEdit, Position, Range, TextEdit};
+use lsp_types::{CompletionItem, CompletionTextEdit, InsertTextFormat, Position, Range, TextEdit};
 use nvs_diagnostics::{PositionEncoding, SourceMap};
-use nvs_lsp::{CheckScope, Documents, PhpNames, SymbolIndex, analyse, completion, regions, uri_of};
+use nvs_lsp::{
+    CheckScope, Client, Documents, PhpNames, SymbolIndex, analyse, completion, regions, uri_of,
+};
 
 /// What is offered at the end of `source`, which is where a developer types.
 ///
@@ -23,14 +25,48 @@ use nvs_lsp::{CheckScope, Documents, PhpNames, SymbolIndex, analyse, completion,
 /// byte of a file is outside every half-open span in it, and a list that is
 /// only right one line above the end of the file is wrong in every new file.
 fn offered(source: &str) -> Vec<CompletionItem> {
+    offered_to(Client::default(), source)
+}
+
+/// A client that places the cursor and runs both of the editor's commands.
+const EDITOR: Client = Client {
+    snippets: true,
+    suggest: true,
+    parameter_hints: true,
+};
+
+/// The mark a document below writes where its cursor is.
+const CURSOR: &str = "<|>";
+
+/// What `client` is offered at the [`CURSOR`] in `source`, or at its end
+/// where it writes none.
+fn offered_to(client: Client, source: &str) -> Vec<CompletionItem> {
+    let cursor = source.find(CURSOR).unwrap_or(source.len());
+    let source = source.replacen(CURSOR, "", 1);
     let uri = uri_of(&std::env::temp_dir().join("nvs-completion-edit.nvs"))
         .expect("a temp path is UTF-8");
     let mut documents = Documents::new();
-    documents.open(uri.clone(), 1, source.to_owned());
+    documents.open(uri.clone(), 1, source);
     let analysis = analyse(&documents, &uri).expect("an open document analyses");
     let index = SymbolIndex::build(&documents, CheckScope::Open, None);
-    let at = u32::try_from(source.len()).expect("a test document is short");
-    completion::at(&analysis, &index, at, PhpNames::Off, PositionEncoding::Utf8)
+    let at = u32::try_from(cursor).expect("a test document is short");
+    completion::at(
+        &analysis,
+        &index,
+        at,
+        PhpNames::Off,
+        client,
+        PositionEncoding::Utf8,
+    )
+}
+
+/// What accepting the item labelled `label` writes, and the command it runs.
+fn accepting(items: &[CompletionItem], label: &str) -> (String, Option<String>) {
+    let item = named(items, label);
+    (
+        item.insert_text.clone().unwrap_or_else(|| label.to_owned()),
+        item.command.as_ref().map(|command| command.command.clone()),
+    )
 }
 
 /// Whether a trigger character typed at the end of `source` is answered.
@@ -156,6 +192,212 @@ fn a_tie_is_broken_by_what_this_file_already_reaches() {
         "a local, an import, this namespace's own type, the rest of `Core`, then a word"
     );
     assert!(order.windows(2).all(|pair| pair[0] != pair[1]));
+}
+
+/// Two classes, an interface and an enum, which is every kind `new` is asked
+/// about.
+const TYPES: &str = "<?nvs
+interface Shape {}
+enum Colour { case Red; }
+abstract class Base { public function constructor(int $sides) {} }
+class Square extends Base {}
+class Point { public function constructor() {} }
+class Origin extends Point {}
+";
+
+#[test]
+fn a_type_in_an_expression_writes_its_scope_and_opens_the_list_again() {
+    for written in [
+        "var $a = ",
+        "echo ",
+        "return ",
+        "foo(",
+        "foo(1, ",
+        "var $a = [",
+        "var $a = $b ?? ",
+        "var $a = $b ? ",
+        "var $a = 1 | ",
+        "if (",
+    ] {
+        let items = offered_to(EDITOR, &format!("{TYPES}{written}"));
+        for label in ["Square", "Shape", "Colour", "Str"] {
+            assert_eq!(
+                accepting(&items, label),
+                (format!("{label}::"), Some(Client::SUGGEST.to_owned())),
+                "`{written}` is followed by a value, and `{label}` there is a receiver"
+            );
+        }
+    }
+}
+
+#[test]
+fn a_type_is_written_alone_where_a_type_or_a_statement_may_start() {
+    for written in [
+        "",
+        "?",
+        "tainted ",
+        "function f(",
+        "function f(int $a, ",
+        "function f(?",
+        "function f(int|",
+        "function f(tainted ",
+        "function f(): ",
+        "function f(int $a): ?",
+        "function f<T>(",
+        "var $f = fn(",
+        "try {} catch (",
+        "class A extends ",
+        "class A implements Shape, ",
+        "var $a = $b is ",
+        "var $a = $b as ?",
+        "#[",
+        "var $a = 1 < ",
+        "class ",
+    ] {
+        let items = offered_to(EDITOR, &format!("{TYPES}{written}"));
+        assert_eq!(
+            accepting(&items, "Square"),
+            ("Square".to_owned(), None),
+            "`{written}` may be followed by a type, so the name is the whole of it"
+        );
+    }
+}
+
+#[test]
+fn a_written_type_is_offered_types_and_no_word_or_variable() {
+    let items = offered_to(
+        EDITOR,
+        &format!("{TYPES}var $total = 1;\nfunction f(int $a, "),
+    );
+    assert!(items.iter().any(|item| item.label == "Square"));
+    assert!(
+        items
+            .iter()
+            .all(|item| item.label != "match" && item.label != "$total"),
+        "a parameter's type is neither an expression nor a variable"
+    );
+}
+
+#[test]
+fn new_offers_what_it_compiles_on_and_writes_the_call() {
+    let items = offered_to(EDITOR, &format!("{TYPES}var $a = new "));
+    for refused in ["Shape", "Colour", "Base", "Str"] {
+        assert!(
+            items.iter().all(|item| item.label != refused),
+            "`new {refused}` does not compile"
+        );
+    }
+    for (label, written) in [
+        ("Square", "Square($0)"),
+        ("Point", "Point()"),
+        ("Origin", "Origin()"),
+    ] {
+        assert_eq!(
+            named(&items, label).insert_text.as_deref(),
+            Some(written),
+            "the cursor is inside the parentheses only where an argument goes"
+        );
+    }
+    let square = named(&items, "Square");
+    assert_eq!(square.insert_text_format, Some(InsertTextFormat::SNIPPET));
+    assert_eq!(
+        square
+            .command
+            .as_ref()
+            .map(|command| command.command.as_str()),
+        Some(Client::PARAMETER_HINTS)
+    );
+    let point = named(&items, "Point");
+    assert_eq!(point.insert_text_format, None);
+    assert_eq!(point.command, None);
+    let (constructed, _) = nvs_stdlib::registry::CONSTRUCTORS[0];
+    let short = constructed
+        .rsplit('\\')
+        .next()
+        .expect("a name has a last segment");
+    assert_eq!(
+        named(&items, short)
+            .additional_text_edits
+            .as_ref()
+            .map(Vec::len),
+        Some(1),
+        "a `Core` class with a constructor is offered, and still imports itself"
+    );
+}
+
+#[test]
+fn a_qualified_name_in_a_snippet_keeps_its_separators() {
+    let source = "<?nvs\nnamespace App;\nclass Str { public function constructor(int $a) {} }\n";
+    let items = offered_to(EDITOR, &format!("{source}var $a = new App\\"));
+    assert_eq!(
+        named(&items, "Str").insert_text.as_deref(),
+        Some("Str($0)"),
+        "after a separator the label is the rest of the name"
+    );
+    let items = offered_to(
+        EDITOR,
+        &format!("{source}namespace Other;\nclass Str {{}}\nvar $a = new S"),
+    );
+    assert_eq!(
+        named(&items, r"App\Str").insert_text.as_deref(),
+        Some(r"App\\Str($0)"),
+        "a snippet reads a lone `\\` as an escape"
+    );
+}
+
+#[test]
+fn a_class_word_is_a_receiver_inside_an_expression_and_a_call_after_new() {
+    let inside = |written: &str| {
+        offered_to(
+            EDITOR,
+            &format!(
+                "{TYPES}class Last extends Point {{ public function f() {{ {written}{CURSOR} }} }}"
+            ),
+        )
+    };
+    let items = inside("return ");
+    for word in ["self", "static", "parent"] {
+        assert_eq!(
+            accepting(&items, word),
+            (format!("{word}::"), Some(Client::SUGGEST.to_owned()))
+        );
+    }
+    let items = inside("");
+    assert_eq!(accepting(&items, "static"), ("static".to_owned(), None));
+    assert_eq!(accepting(&items, "self"), ("self".to_owned(), None));
+    assert_eq!(
+        accepting(&items, "parent"),
+        ("parent::".to_owned(), Some(Client::SUGGEST.to_owned())),
+        "`parent` opens no statement of its own"
+    );
+    let items = inside("return new ");
+    assert_eq!(
+        named(&items, "static").insert_text.as_deref(),
+        Some("static($0)")
+    );
+}
+
+#[test]
+fn what_already_follows_the_cursor_is_not_written_twice() {
+    let items = offered_to(EDITOR, &format!("{TYPES}var $a = new Squ{CURSOR} (4);"));
+    assert_eq!(accepting(&items, "Square"), ("Square".to_owned(), None));
+    let items = offered_to(EDITOR, &format!("{TYPES}var $a = new Squ{CURSOR}are(4);"));
+    assert_eq!(
+        accepting(&items, "Square"),
+        ("Square".to_owned(), None),
+        "the rest of the name the cursor is inside is read past"
+    );
+}
+
+#[test]
+fn a_client_that_named_nothing_gets_plain_text_and_no_command() {
+    let items = offered(&format!("{TYPES}var $a = "));
+    assert_eq!(accepting(&items, "Square"), ("Square::".to_owned(), None));
+    let items = offered(&format!("{TYPES}var $a = new "));
+    let square = named(&items, "Square");
+    assert_eq!(square.insert_text.as_deref(), Some("Square()"));
+    assert_eq!(square.insert_text_format, None);
+    assert_eq!(square.command, None);
 }
 
 #[test]

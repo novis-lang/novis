@@ -68,6 +68,10 @@ pub struct Settings {
     /// — a negative number, a fraction — is one this cannot read and takes the
     /// default like any other.
     pub debounce: Duration,
+    /// What the client said it does with a completion item beyond inserting
+    /// its text. Not a setting, and here because it arrives in the same
+    /// message and is read once the same way.
+    pub client: Client,
     /// The workspace directory a [`CheckScope::Workspace`] pass walks, from
     /// the first folder the client named.
     ///
@@ -76,6 +80,55 @@ pub struct Settings {
     /// guessing a root from an open file's parent would index whatever happened
     /// to be beside it.
     pub root: Option<PathBuf>,
+}
+
+/// What a client does with a completion item beyond inserting its text.
+///
+/// Every field is `false` for a client that said nothing, and an item for that
+/// client is plain text and carries no command
+/// (`rule:ide/an-accepted-type-writes-what-follows-it`).
+///
+/// The two commands are the editor's own and not this server's, so they are
+/// never in `executeCommandProvider`. A client names the ones it runs in
+/// `capabilities.experimental.commands`, a list of command ids, and a command
+/// it did not name is never sent: a client that does not know an id answers it
+/// with an error on every accepted item.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct Client {
+    /// `completionItem.snippetSupport`: an item may place the cursor.
+    pub snippets: bool,
+    /// The client runs [`Client::SUGGEST`], which opens the completion list.
+    pub suggest: bool,
+    /// The client runs [`Client::PARAMETER_HINTS`], which opens signature help.
+    pub parameter_hints: bool,
+}
+
+impl Client {
+    /// The command that opens the completion list at the cursor.
+    pub const SUGGEST: &'static str = "editor.action.triggerSuggest";
+    /// The command that opens signature help at the cursor.
+    pub const PARAMETER_HINTS: &'static str = "editor.action.triggerParameterHints";
+
+    /// What `params` declared.
+    fn from_initialize(params: &InitializeParams) -> Self {
+        let capabilities = &params.capabilities;
+        let names = |command: &str| {
+            at(capabilities.experimental.as_ref(), &["commands"])
+                .and_then(Value::as_array)
+                .is_some_and(|commands| commands.iter().any(|id| id.as_str() == Some(command)))
+        };
+        Self {
+            snippets: capabilities
+                .text_document
+                .as_ref()
+                .and_then(|document| document.completion.as_ref())
+                .and_then(|completion| completion.completion_item.as_ref())
+                .and_then(|item| item.snippet_support)
+                .unwrap_or(false),
+            suggest: names(Self::SUGGEST),
+            parameter_hints: names(Self::PARAMETER_HINTS),
+        }
+    }
 }
 
 /// How much of the PHP inventory a completion offers.
@@ -115,6 +168,7 @@ impl Default for Settings {
             // the section it holds sends this number anyway and the two
             // disagreeing would be a default nobody can read off either side.
             debounce: Duration::from_millis(150),
+            client: Client::default(),
             root: None,
         }
     }
@@ -143,6 +197,7 @@ impl Settings {
                 .and_then(Value::as_u64)
                 .map(Duration::from_millis)
                 .unwrap_or(defaults.debounce),
+            client: Client::from_initialize(params),
             root: root_of(params),
         }
     }

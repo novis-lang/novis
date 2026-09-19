@@ -3,7 +3,7 @@
 
 # The editor
 
-*60 of 71 rules below are **designed** rather than shipped, and are marked where they appear.*
+*60 of 72 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="ide-one-grammar-one-tree"></a>
 
@@ -896,6 +896,45 @@ other processing instruction stay markup's own.
 
 <sub>See also [`ide/a-template-region-gets-the-editors-services-and-formatter`](ide.md#ide-a-template-region-gets-the-editors-services-and-formatter), [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag). Decided in [0193](../decisions/0193.md).</sub>
 
+<a id="ide-an-accepted-type-writes-what-follows-it"></a>
+
+## Accepting a type writes `Name::` inside an expression and `Name()` after `new`, and the name alone wherever a type or a statement may start
+
+`rule:ide/an-accepted-type-writes-what-follows-it`
+
+Accepting a type from a completion list writes `Name::` inside an expression and `Name()` after `new`, and
+the name alone everywhere else. Inside an expression a type's name is a receiver and nothing else, so the
+item asks the client to open the list again and the static half of that class is on screen without a
+keystroke. After `new` the name is a call: the cursor is left between the parentheses, with signature help
+open, where a constructor the class declares or inherits takes a parameter, and after them where none
+does. `self`, `static` and `parent` are receivers and calls on the same terms, and `parent` writes its `::`
+at the start of a statement too, where it opens nothing else.
+
+**The start of a statement writes the name alone**, because `User $u = …` and `User::create()` both start
+there and nothing before the name tells them apart. So does every place a type is written — after
+`extends`, `implements`, `is`, `as` and `#[`, in a parameter list, in a `catch`, after the `:` of a return
+type — and so does a position the tokens do not give away, such as the right of a `<`. A `::` nobody
+wanted is deleted by hand and a missing one is two keystrokes, so every doubt is the bare name. A type
+alias is never a receiver.
+
+Which of these a cursor is at is read off the lexer's tokens before the name, because a written type is
+no node and the name being typed is usually what stops the statement around it from parsing. One token
+decides most of it. A `(` and a `,` are read with the bracket they belong to — a `function`, a `fn` or a
+`catch` in front of it makes it a list of types — and a `:` opens a return type only after the `)` of such
+a list. A `?`, a `|` and a `&` continue a type where one was being written.
+
+**After `new`, only a name `new` compiles on is offered**: no interface, no enum, no alias, no `abstract`
+class, and of `Core` the classes the registry names a constructor for. **What follows the cursor is not
+written twice** — no `::` in front of one, no `()` in front of a `(`.
+
+The two commands, `editor.action.triggerSuggest` and `editor.action.triggerParameterHints`, are an
+editor's and not this server's. A client lists the ones it runs in `capabilities.experimental.commands`
+and is sent no other, because a client answers an id it does not know with an error on every accepted
+item. A client without snippet support gets `Name()` as plain text. There is no setting that turns any of
+this off.
+
+<sub>See also [`ide/a-bare-name-reaches-every-type-and-imports-the-one-accepted`](ide.md#ide-a-bare-name-reaches-every-type-and-imports-the-one-accepted), [`ide/completion-is-asked-where-a-spelling-ends`](ide.md#ide-completion-is-asked-where-a-spelling-ends), [`ide/keywords-are-offered-where-the-compiler-accepts-them`](ide.md#ide-keywords-are-offered-where-the-compiler-accepts-them). Decided in [0194](../decisions/0194.md).</sub>
+
 <a id="ide-keywords-are-offered-where-the-compiler-accepts-them"></a>
 
 ## A reserved word is offered only where the token before it and the nodes around it let the compiler accept it
@@ -907,8 +946,9 @@ token before the name being written** says whether a statement starts there: aft
 an open or close tag, `else` or `do`, or at the top of the file, every word may be written; after anything
 else the cursor is inside an expression and is offered only the words that open one — `new`, `match`, `fn`,
 `null`, `true` and the rest of the grammar's primary-expression dispatch — and never `class`, `if` or
-`return`. After `new`, `extends` and `implements` it is offered types and no word at all. The tokens are
-the lexer's own, so a `;` inside a string is not a statement's end; the tree cannot answer this, because
+`return`. Where a type is written it is offered types and no word at all, and after `new` the classes
+`new` compiles on beside `self`, `static` and `parent` inside a class
+([`ide/an-accepted-type-writes-what-follows-it`](ide.md#ide-an-accepted-type-writes-what-follows-it) is which tokens say so). The tokens are the lexer's own, so a `;` inside a string is not a statement's end; the tree cannot answer this, because
 the name being written is usually what stops the statement around it from parsing.
 
 **What encloses the cursor** decides the rest, read off the index's ancestor list
@@ -923,7 +963,7 @@ reserved words by a test. What this adds is when each is offered. It errs toward
 ternary's last operand and a `case` arm's first statement are one position, and both lists are offered
 there.
 
-<sub>See also [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed). Decided in [0193](../decisions/0193.md).</sub>
+<sub>See also [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed). Decided in [0193](../decisions/0193.md), [0194](../decisions/0194.md).</sub>
 
 <a id="ide-three-of-four-item-shapes-insert-nothing"></a>
 

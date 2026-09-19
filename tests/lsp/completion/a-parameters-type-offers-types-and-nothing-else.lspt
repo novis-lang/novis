@@ -1,0 +1,14 @@
+--TEST--
+a name written where a parameter's type goes is offered the types a bare name reaches and no variable or reserved word, which is read off the `function` in front of the `(` because a written type is no node — `rule:ide/an-accepted-type-writes-what-follows-it`
+--FILE--
+<?nvs
+namespace Shop;
+
+class Money {}
+var $money = new Money();
+
+function total(int $count, Mon<|>
+--REQUEST--
+completion prefix=Mon
+--EXPECT--
+Money   class     Shop\Money

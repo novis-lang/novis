@@ -1,0 +1,16 @@
+--TEST--
+after `new` only a name `new` compiles on is offered, so an interface, an enum and an `abstract` class are absent and no reserved word is among them outside a class — `rule:ide/an-accepted-type-writes-what-follows-it`
+--FILE--
+<?nvs
+namespace Shop;
+
+interface Priced {}
+enum Payment { case Card; }
+abstract class PricedItem implements Priced {}
+class PricedBook extends PricedItem {}
+
+var $b = new P<|>
+--REQUEST--
+completion prefix=P
+--EXPECT--
+PricedBook class     Shop\PricedBook

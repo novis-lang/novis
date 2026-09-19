@@ -28,7 +28,7 @@ use lsp_types::{
     ClientCapabilities, GeneralClientCapabilities, InitializeParams, InitializeResult,
     PositionEncodingKind, WorkspaceFolder,
 };
-use nvs_lsp::{CheckScope, PhpNames, Settings};
+use nvs_lsp::{CheckScope, Client, PhpNames, Settings};
 
 /// Run one full `initialize`/`initialized`/`shutdown`/`exit` exchange against a
 /// server in this process, and hand back what it declared.
@@ -322,6 +322,35 @@ fn every_setting_is_read_off_initialization_options() {
         })))
         .php_names,
         PhpNames::Off
+    );
+}
+
+#[test]
+fn a_command_is_sent_only_to_a_client_that_named_it() {
+    // `rule:ide/an-accepted-type-writes-what-follows-it`: the two commands are
+    // the editor's own, so a client says which of them it runs.
+    let capabilities: lsp_types::ClientCapabilities = serde_json::from_value(serde_json::json!({
+        "textDocument": { "completion": { "completionItem": { "snippetSupport": true } } },
+        "experimental": { "commands": [Client::SUGGEST] },
+    }))
+    .expect("the capabilities are the protocol's own shape");
+    let client = Settings::from_initialize(&InitializeParams {
+        capabilities,
+        ..InitializeParams::default()
+    })
+    .client;
+    assert_eq!(
+        client,
+        Client {
+            snippets: true,
+            suggest: true,
+            parameter_hints: false,
+        }
+    );
+    assert_eq!(
+        Settings::from_initialize(&InitializeParams::default()).client,
+        Client::default(),
+        "a client that said nothing gets plain text and no command"
     );
 }
 

@@ -1,0 +1,23 @@
+--TEST--
+`self` names the class it is written in and `parent` the one that class extends, so a `::` after either offers that class's static half although the access resolved to nothing yet — `rule:ide/an-accepted-type-writes-what-follows-it`
+--FILE--
+<?nvs
+class Base {
+    public const int FLOOR = 1;
+    public static function make(): Base { return new Base(); }
+}
+
+class Counter extends Base {
+    public const int LIMIT = 10;
+    public static int $count = 0;
+    public function bump(): void {
+        var $a = self::<|>
+        if (true) {
+        }
+    }
+}
+--REQUEST--
+completion
+--EXPECT--
+$count  property  int
+LIMIT   constant  int

@@ -123,12 +123,34 @@
 //! resolve
 //! (`rule:ide/a-bare-name-reaches-every-type-and-imports-the-one-accepted`).
 //!
-//! **Which of those lists a cursor gets is read off the token before the name
-//! being written** ([`Written`]): a `$` takes variables alone, `use` and `new`
-//! take types alone, the start of a statement takes every word and the inside
-//! of an expression the words that open one
+//! **Which of those lists a cursor gets is read off the tokens before the name
+//! being written** ([`Written`]): a `$` takes variables alone, `use` and a
+//! written type take types alone, `new` takes the classes it compiles on, the
+//! start of a statement takes every word and the inside of an expression the
+//! words that open one
 //! (`rule:ide/keywords-are-offered-where-the-compiler-accepts-them`). What a
 //! client cannot rank by the match it made itself, [`Tier`] ranks.
+//!
+//! # What accepting a type writes after its name
+//!
+//! A type's name is the whole of what is written in three of the places one is
+//! offered, and in the other two something always follows it
+//! (`rule:ide/an-accepted-type-writes-what-follows-it`). **Inside an
+//! expression the name is a receiver**, so the item writes `Name::` and asks
+//! the client to open the list again, which is the static half of that class.
+//! **After `new` it is a call**, so the item writes `Name()` and, where the
+//! constructor declares a parameter, leaves the cursor between the parentheses
+//! with signature help open.
+//!
+//! **Everywhere else the name is written alone**, and the start of a statement
+//! is one of those places: `User $u = …` and `User::create()` both start
+//! there, and nothing before the name tells them apart. [`Written::Other`] is
+//! the same answer for every token that says neither, because a `::` nobody
+//! wanted is deleted by hand and a missing one is two keystrokes.
+//!
+//! What follows the cursor is read too: an item writes no `::` in front of one
+//! and no `()` in front of a `(`. A command is sent only to a client that named
+//! it ([`Client`]), and a client without snippets gets `Name()` as plain text.
 //!
 //! # What a half-written name reaches in PHP's inventory
 //!
@@ -236,10 +258,10 @@
 //! receiver half of an access, which is a position and is answered as though
 //! it were not: `$u<|>->name` is a variable being written, and offering the
 //! variables in scope there is right and is not done, because the walk decides
-//! it is in an access before it asks what half of one. The fifth is the
-//! parameter list and the return type of a method, which are inside its own
-//! node and no statement's, so a cursor there is answered as the body it
-//! precedes rather than as the type position it is. The sixth is the inside of
+//! it is in an access before it asks what half of one. The fifth is a written
+//! type the tokens do not give away — a property's, and a type argument
+//! between `<` and `>` — which is answered as the position around it. The
+//! sixth is the inside of
 //! a string literal, answered as the position around it: the variables are
 //! what an interpolation slot takes and are right, and the words that open a
 //! statement sit beside them as noise no filter here removes. The seventh is
@@ -254,8 +276,8 @@
 use std::collections::BTreeMap;
 
 use lsp_types::{
-    CompletionItem, CompletionItemKind, CompletionItemLabelDetails, CompletionTextEdit,
-    Documentation, MarkupContent, MarkupKind, TextEdit,
+    Command, CompletionItem, CompletionItemKind, CompletionItemLabelDetails, CompletionTextEdit,
+    Documentation, InsertTextFormat, MarkupContent, MarkupKind, TextEdit,
 };
 use nvs_diagnostics::{BytePos, Diagnostics, PositionEncoding, SourceFile, Span};
 use nvs_hir::QName;
@@ -268,12 +290,14 @@ use nvs_syntax::{IndexNode, Keyword, NodePath, OPEN_TAGS, Token, TokenKind, toke
 use nvs_types::{ExprInfo, Ty, TypeId};
 use rustc_hash::{FxHashMap, FxHashSet};
 
-use crate::definition::{declared_type, imports_of, namespace_at, resolved_name, text_of};
+use crate::definition::{
+    declared_type, imports_of, namespace_at, resolved_name, supertype_names, text_of,
+};
 use crate::document::Analysed;
-use crate::index::{DeclKind, SymbolIndex};
+use crate::index::{DeclKind, Declaration, SymbolIndex};
 use crate::position::range_at;
 use crate::regions::half_written_tag;
-use crate::settings::PhpNames;
+use crate::settings::{Client, PhpNames};
 
 /// Every access shape a member is written inside, as `nvs_syntax::walk` spells
 /// them, with the half of the class each one reaches.
@@ -310,6 +334,7 @@ pub fn at(
     symbols: &SymbolIndex,
     offset: BytePos,
     php: PhpNames,
+    client: Client,
     encoding: PositionEncoding,
 ) -> Vec<CompletionItem> {
     let path = analysed.index.at(offset);
@@ -318,12 +343,17 @@ pub fn at(
         symbols,
         path: &path,
         offset,
+        client,
         encoding,
     };
     let mut items = match asked(analysed, &path, offset) {
         Asked::Member(class, reach) => members_of(analysed, &class, reach),
         Asked::TypeMember(owner) => type_members_of(analysed, &owner),
-        Asked::Namespace(prefix) => under(symbols, &prefix),
+        Asked::Namespace(prefix) => followed(
+            &cursor,
+            After::of(written(&cursor)),
+            under(symbols, &prefix),
+        ),
         Asked::OpenTag(written) => open_tags(&cursor, written),
         Asked::Position => position(&cursor, php),
         Asked::Nothing => return Vec::new(),
@@ -366,6 +396,8 @@ struct Cursor<'a> {
     symbols: &'a SymbolIndex,
     path: &'a NodePath,
     offset: BytePos,
+    /// What the client does with an item beyond inserting its text.
+    client: Client,
     /// The units a range on the wire is counted in. An item that names the
     /// text it replaces, or a line it adds elsewhere, is the one place this
     /// module writes a range.
@@ -381,6 +413,17 @@ impl Cursor<'_> {
             .text()
             .get(..self.offset as usize)
             .unwrap_or_default()
+    }
+
+    /// The entry document's text after the name the cursor is inside.
+    fn after_the_name(&self) -> &str {
+        self.analysed
+            .map
+            .file(self.analysed.entry)
+            .text()
+            .get(self.offset as usize..)
+            .unwrap_or_default()
+            .trim_start_matches(is_name)
     }
 
     /// An edit that replaces the `len` bytes before the cursor with `text`.
@@ -873,12 +916,13 @@ const CASE_WORDS: &[&str] = &["case"];
 /// an enum case — is a value position with no local in scope and no word of
 /// its own, and answers nothing.
 ///
-/// Inside a body of statements, **the token before the name being written**
-/// says which of its lists the cursor may have ([`Written`]): a `$` is a
-/// variable and nothing else, `new` and `use` take a type, the start of a
-/// statement takes every word, and the inside of an expression takes the
-/// words that open one. The tree cannot say this, because the name being
-/// written is usually what stops the statement around it from parsing.
+/// Inside a body of statements, **the tokens before the name being written**
+/// say which of its lists the cursor may have ([`Written`]): a `$` is a
+/// variable and nothing else, `use` and a written type take a type, `new`
+/// takes a class it compiles on, the start of a statement takes every word,
+/// and the inside of an expression takes the words that open one. The tree
+/// cannot say this, because the name being written is usually what stops the
+/// statement around it from parsing.
 fn position(cursor: &Cursor<'_>, php: PhpNames) -> Vec<CompletionItem> {
     let Cursor {
         analysed,
@@ -894,11 +938,22 @@ fn position(cursor: &Cursor<'_>, php: PhpNames) -> Vec<CompletionItem> {
             Written::Variable => in_scope(cursor),
             Written::Import => in_reach(cursor, Spelled::Qualified),
             Written::TypeName => in_reach(cursor, Spelled::Shortest),
-            Written::Statement | Written::Expression => {
-                let statement = written(cursor) == Written::Statement;
-                let mut items = statement_words(path, statement);
-                items.extend(in_scope(cursor));
+            Written::Constructed => {
+                let mut items = Vec::new();
+                if Within::Class.holds(path) {
+                    items.extend(words(CLASS_WORDS));
+                }
                 items.extend(in_reach(cursor, Spelled::Shortest));
+                followed(cursor, After::Arguments, items)
+            }
+            placed @ (Written::Statement | Written::Expression | Written::Other) => {
+                let mut items = statement_words(cursor, placed);
+                items.extend(in_scope(cursor));
+                items.extend(followed(
+                    cursor,
+                    After::of(placed),
+                    in_reach(cursor, Spelled::Shortest),
+                ));
                 items.extend(php_builtins(analysed, offset, php));
                 items
             }
@@ -906,7 +961,7 @@ fn position(cursor: &Cursor<'_>, php: PhpNames) -> Vec<CompletionItem> {
     }
 }
 
-/// What the text before the name being written says may be written there.
+/// What the tokens before the name being written say may be written there.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Written {
     /// After a `$`: a variable, and no word or type.
@@ -914,19 +969,26 @@ enum Written {
     /// After `use`: a type, by its qualified name, because a declaration's
     /// name is absolute (`rule:statements/a-qualified-name-is-absolute`).
     Import,
-    /// After `new`, `extends` or `implements`: a type.
+    /// After `new`: a class `new` compiles on.
+    Constructed,
+    /// Where a type is written: after `extends`, `implements`, `is`, `as` or
+    /// `#[`, in a parameter list, in a `catch`, and after the `:` of a return
+    /// type.
     TypeName,
-    /// Where a statement starts.
+    /// Where a statement starts, which is also where a typed local does.
     Statement,
-    /// Inside an expression.
+    /// Inside an expression, after a token only a value follows.
     Expression,
+    /// After a token that says none of the above — a name, a literal, a `<`.
+    /// The expression's list, because that is what is usually being written.
+    Other,
 }
 
 /// Which [`Written`] the cursor is at.
 ///
 /// Read off the lexer's own tokens, so a `;` inside a string or a comment is
-/// not a statement's end. The last token that ends at or before the name being
-/// written decides, and no token at all is the top of a file.
+/// not a statement's end. The tokens that end at or before the name being
+/// written decide, and no token at all is the top of a file.
 fn written(cursor: &Cursor<'_>) -> Written {
     let upto = cursor.upto();
     let name = name_run(upto);
@@ -936,47 +998,448 @@ fn written(cursor: &Cursor<'_>) -> Written {
     }
     let file = cursor.analysed.map.file(cursor.analysed.entry);
     let tokens = tokenize(file, &mut Diagnostics::new());
-    let before = tokens
+    let before: Vec<TokenKind> = tokens
         .iter()
         .take_while(|token| token.span.end as usize <= stem.len())
-        .filter(|token| token.kind != TokenKind::Eof)
-        .last()
-        .map(|token: &Token| token.kind);
-    match before {
-        Some(TokenKind::Keyword(Keyword::Use)) => Written::Import,
-        Some(TokenKind::Keyword(Keyword::New | Keyword::Extends | Keyword::Implements)) => {
-            Written::TypeName
+        .map(|token: &Token| token.kind)
+        .filter(|kind| *kind != TokenKind::Eof)
+        .collect();
+    placed(&before)
+}
+
+/// What a name written straight after `before` is.
+///
+/// One token decides most of it. Three do not: a `(` and a `,` open a
+/// parameter's type in a declaration and a value in a call, and a `:` opens a
+/// return type after a declaration's `)` and a statement everywhere else —
+/// so each is read with the bracket it belongs to. A `?`, a `|`, a `&` and a
+/// parameter's modifier continue a type where one was being written, which is
+/// asked of the tokens before that type.
+fn placed(before: &[TokenKind]) -> Written {
+    use TokenKind as T;
+    let Some((last, earlier)) = before.split_last() else {
+        return Written::Statement;
+    };
+    match last {
+        T::Keyword(Keyword::Use) => Written::Import,
+        T::Keyword(Keyword::New) => Written::Constructed,
+        T::Keyword(Keyword::Extends | Keyword::Implements | Keyword::Is | Keyword::As)
+        | T::AttributeOpen => Written::TypeName,
+        T::LParen if declares(earlier) => Written::TypeName,
+        T::Comma if lists_types(earlier) => Written::TypeName,
+        T::Colon if returns(earlier) => Written::TypeName,
+        T::Question | T::Pipe | T::Amp => match placed(before_the_type(earlier)) {
+            found @ (Written::TypeName | Written::Statement) => found,
+            _ => Written::Expression,
+        },
+        T::Keyword(word) if PARAMETER_WORDS.contains(word) => {
+            match placed(before_the_type(earlier)) {
+                found @ (Written::TypeName | Written::Statement) => found,
+                _ => Written::Other,
+            }
         }
-        None
-        | Some(
-            TokenKind::Semicolon
-            | TokenKind::LBrace
-            | TokenKind::RBrace
-            | TokenKind::RParen
-            | TokenKind::Colon
-            | TokenKind::OpenTagNvs
-            | TokenKind::CloseTag
-            | TokenKind::InlineHtml
-            | TokenKind::Keyword(Keyword::Else | Keyword::Do),
-        ) => Written::Statement,
-        Some(_) => Written::Expression,
+        T::Semicolon
+        | T::LBrace
+        | T::RBrace
+        | T::RParen
+        | T::Colon
+        | T::OpenTagNvs
+        | T::CloseTag
+        | T::InlineHtml
+        | T::Keyword(Keyword::Else | Keyword::Do) => Written::Statement,
+        T::LParen
+        | T::LBracket
+        | T::Comma
+        | T::FatArrow
+        | T::Equals
+        | T::PlusEquals
+        | T::MinusEquals
+        | T::StarEquals
+        | T::StarStarEquals
+        | T::SlashEquals
+        | T::PercentEquals
+        | T::DotEquals
+        | T::AmpEquals
+        | T::PipeEquals
+        | T::CaretEquals
+        | T::LtLtEquals
+        | T::GtGtEquals
+        | T::QuestionQuestionEquals
+        | T::QuestionQuestion
+        | T::Dot
+        | T::Plus
+        | T::Minus
+        | T::Star
+        | T::StarStar
+        | T::Slash
+        | T::Percent
+        | T::AmpAmp
+        | T::PipePipe
+        | T::PipeGreater
+        | T::Caret
+        | T::Tilde
+        | T::Bang
+        | T::BangEquals
+        | T::EqualsEquals
+        | T::LtEquals
+        | T::GtEquals
+        | T::Spaceship
+        | T::LtLt
+        | T::Ellipsis
+        | T::At
+        | T::OpenTagEcho
+        | T::Keyword(
+            Keyword::And
+            | Keyword::Case
+            | Keyword::Clone
+            | Keyword::Echo
+            | Keyword::Or
+            | Keyword::Print
+            | Keyword::Return
+            | Keyword::Throw
+            | Keyword::Xor
+            | Keyword::Yield,
+        ) => Written::Expression,
+        _ => Written::Other,
     }
 }
 
-/// The words of [`STATEMENT_WORDS`] that may be written at a cursor inside
-/// `path`, at the start of a `statement` or inside an expression.
-fn statement_words(path: &NodePath, statement: bool) -> Vec<CompletionItem> {
+/// The words a parameter or a typed local writes in front of its type.
+const PARAMETER_WORDS: &[Keyword] = &[
+    Keyword::Inout,
+    Keyword::Private,
+    Keyword::Protected,
+    Keyword::Public,
+    Keyword::Readonly,
+    Keyword::Secret,
+    Keyword::Tainted,
+];
+
+/// The reserved words that are a type's whole spelling.
+const TYPE_WORDS: &[Keyword] = &[
+    Keyword::Array,
+    Keyword::Bool,
+    Keyword::Bytes,
+    Keyword::Callable,
+    Keyword::Decimal,
+    Keyword::False,
+    Keyword::Float,
+    Keyword::Int,
+    Keyword::Iterable,
+    Keyword::Mixed,
+    Keyword::Never,
+    Keyword::Null,
+    Keyword::Object,
+    Keyword::SelfKw,
+    Keyword::Static,
+    Keyword::String,
+    Keyword::True,
+    Keyword::Uint,
+    Keyword::Void,
+];
+
+/// `before` without the type, or the constant expression, it ends in: names,
+/// separators, `?`, `|`, `&`, `::` and the words above.
+///
+/// The two read the same, which is why the caller asks what came before the
+/// run and never what the run is.
+fn before_the_type(before: &[TokenKind]) -> &[TokenKind] {
+    use TokenKind as T;
+    let run = before
+        .iter()
+        .rev()
+        .take_while(|kind| match kind {
+            T::Ident | T::Backslash | T::Question | T::Pipe | T::Amp | T::DoubleColon => true,
+            T::Keyword(word) => TYPE_WORDS.contains(word) || PARAMETER_WORDS.contains(word),
+            _ => false,
+        })
+        .count();
+    &before[..before.len() - run]
+}
+
+/// Whether a `(` written straight after `before` opens a list of declared
+/// types: a function's, a method's or a closure's parameters, or a `catch`.
+///
+/// A method's name may be any word, so what is matched is the `function` in
+/// front of it. A type parameter list between the name and the `(` is read
+/// past.
+fn declares(before: &[TokenKind]) -> bool {
+    use TokenKind as T;
+    let named = |before: &[TokenKind]| matches!(before, [.., T::Keyword(Keyword::Function), _]);
+    match before {
+        [
+            ..,
+            T::Keyword(Keyword::Fn | Keyword::Function | Keyword::Catch),
+        ] => true,
+        [.., T::Gt | T::GtGt] => before
+            .iter()
+            .enumerate()
+            .rev()
+            .filter(|(_, kind)| **kind == T::Lt)
+            .any(|(at, _)| named(&before[..at])),
+        _ => named(before),
+    }
+}
+
+/// Whether a `:` written straight after `before` opens a return type, which
+/// is one that follows the `)` of a declaration's parameters.
+fn returns(before: &[TokenKind]) -> bool {
+    let [inside @ .., TokenKind::RParen] = before else {
+        return false;
+    };
+    enclosing(inside).is_some_and(|open| {
+        inside[open] == TokenKind::LParen
+            && !matches!(inside[..open], [.., TokenKind::Keyword(Keyword::Catch)])
+            && declares(&inside[..open])
+    })
+}
+
+/// Whether a `,` written straight after `before` is followed by a type: the
+/// next name of an `extends` or `implements` list, or the next parameter of a
+/// declaration.
+fn lists_types(before: &[TokenKind]) -> bool {
+    use TokenKind as T;
+    let list = before.iter().rev().find(|kind| {
+        !matches!(
+            kind,
+            T::Ident | T::Backslash | T::Comma | T::Variable | T::Lt | T::Gt | T::GtGt
+        )
+    });
+    if matches!(
+        list,
+        Some(T::Keyword(Keyword::Extends | Keyword::Implements))
+    ) {
+        return true;
+    }
+    enclosing(before).is_some_and(|open| before[open] == T::LParen && declares(&before[..open]))
+}
+
+/// Where the bracket that is still open at the end of `before` was written.
+fn enclosing(before: &[TokenKind]) -> Option<usize> {
+    use TokenKind as T;
+    let mut closed = 0_usize;
+    for (at, kind) in before.iter().enumerate().rev() {
+        match kind {
+            T::RParen | T::RBracket | T::RBrace => closed += 1,
+            T::LParen | T::LBracket | T::LBrace if closed == 0 => return Some(at),
+            T::LParen | T::LBracket | T::LBrace => closed -= 1,
+            _ => {}
+        }
+    }
+    None
+}
+
+/// The three words that name a class from inside it.
+const CLASS_WORDS: &[&str] = &["parent", "self", "static"];
+
+/// The words of [`STATEMENT_WORDS`] that may be written at the cursor, which
+/// is at the start of a statement or inside an expression.
+///
+/// A word of [`CLASS_WORDS`] is a receiver the way a type's name is, and
+/// writes its `::` on the same terms. `parent` writes it at the start of a
+/// statement too, where it opens nothing else.
+fn statement_words(cursor: &Cursor<'_>, placed: Written) -> Vec<CompletionItem> {
+    let statement = placed == Written::Statement;
     STATEMENT_WORDS
         .iter()
-        .filter(|(_, slot, within)| (statement || *slot == Slot::Expression) && within.holds(path))
+        .filter(|(_, slot, within)| {
+            (statement || *slot == Slot::Expression) && within.holds(cursor.path)
+        })
         .map(|(word, _, _)| {
-            Tier::Keyword.ranks(item(
+            let offered = item(
                 (*word).to_owned(),
                 CompletionItemKind::KEYWORD,
                 String::new(),
-            ))
+            );
+            let receiver = CLASS_WORDS.contains(word)
+                && (placed == Written::Expression || (statement && *word == "parent"));
+            Tier::Keyword.ranks(if receiver {
+                scoped(cursor, offered)
+            } else {
+                offered
+            })
         })
         .collect()
+}
+
+/// What accepting a type writes after its name — the module doc's *What
+/// accepting a type writes after its name*.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum After {
+    /// Nothing: the name is the whole of it.
+    Nothing,
+    /// `::`, and the list opened again.
+    Scope,
+    /// `()`, with the cursor inside where there is an argument to write.
+    Arguments,
+}
+
+impl After {
+    /// What follows a type offered at `placed`.
+    fn of(placed: Written) -> Self {
+        match placed {
+            Written::Expression => Self::Scope,
+            Written::Constructed => Self::Arguments,
+            _ => Self::Nothing,
+        }
+    }
+}
+
+/// `items`, each writing what `after` says follows it.
+///
+/// After `new` this is a filter as well: a name `new` does not compile on is
+/// not offered. An item's `detail` is the qualified name it was offered for,
+/// which is what the two tables that answer are keyed on.
+fn followed(cursor: &Cursor<'_>, after: After, items: Vec<CompletionItem>) -> Vec<CompletionItem> {
+    match after {
+        After::Nothing => items,
+        After::Scope => items
+            .into_iter()
+            .map(|offered| {
+                let receiver = matches!(
+                    offered.kind,
+                    Some(
+                        CompletionItemKind::CLASS
+                            | CompletionItemKind::INTERFACE
+                            | CompletionItemKind::ENUM
+                    )
+                );
+                if receiver {
+                    scoped(cursor, offered)
+                } else {
+                    offered
+                }
+            })
+            .collect(),
+        After::Arguments => {
+            let classes = Classes::of(cursor.symbols);
+            items
+                .into_iter()
+                .filter_map(|offered| {
+                    let takes = if offered.kind == Some(CompletionItemKind::KEYWORD) {
+                        Takes::Arguments
+                    } else {
+                        classes.constructed(offered.detail.as_deref()?)?
+                    };
+                    Some(called(cursor, offered, takes))
+                })
+                .collect()
+        }
+    }
+}
+
+/// `offered`, writing `::` after its label and opening the list again.
+fn scoped(cursor: &Cursor<'_>, offered: CompletionItem) -> CompletionItem {
+    if cursor.after_the_name().starts_with("::") {
+        return offered;
+    }
+    CompletionItem {
+        insert_text: Some(format!("{}::", offered.label)),
+        command: cursor.client.suggest.then(|| Command {
+            title: "Suggest".to_owned(),
+            command: Client::SUGGEST.to_owned(),
+            arguments: None,
+        }),
+        ..offered
+    }
+}
+
+/// `offered`, writing the parentheses of a `new` after its label.
+fn called(cursor: &Cursor<'_>, offered: CompletionItem, takes: Takes) -> CompletionItem {
+    if cursor.after_the_name().trim_start().starts_with('(') {
+        return offered;
+    }
+    if takes == Takes::Nothing || !cursor.client.snippets {
+        return CompletionItem {
+            insert_text: Some(format!("{}()", offered.label)),
+            ..offered
+        };
+    }
+    // A snippet reads `\`, `$` and `}` as its own, and a qualified name is
+    // written with the first of them.
+    let label = offered.label.replace('\\', r"\\");
+    CompletionItem {
+        insert_text: Some(format!("{label}($0)")),
+        insert_text_format: Some(InsertTextFormat::SNIPPET),
+        command: cursor.client.parameter_hints.then(|| Command {
+            title: "Parameter hints".to_owned(),
+            command: Client::PARAMETER_HINTS.to_owned(),
+            arguments: None,
+        }),
+        ..offered
+    }
+}
+
+/// Whether a `new` has an argument to write.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Takes {
+    /// No constructor anywhere above the class declares a parameter.
+    Nothing,
+    /// One does, or one is declared where the index cannot read it.
+    Arguments,
+}
+
+/// Every declaration the index holds, by the name it declares.
+struct Classes<'a>(FxHashMap<&'a str, &'a Declaration>);
+
+impl<'a> Classes<'a> {
+    /// The index's declarations, keyed once for a list that asks about each.
+    fn of(symbols: &'a SymbolIndex) -> Self {
+        Self(
+            symbols
+                .files()
+                .flat_map(|path| symbols.declarations_in(path))
+                .map(|declared| (declared.symbol.as_str(), declared))
+                .collect(),
+        )
+    }
+
+    /// What `new` on `symbol` takes, or `None` where it does not compile: an
+    /// interface, an enum, an alias, an `abstract` class, and a `Core` class
+    /// the registry names no constructor for.
+    fn constructed(&self, symbol: &str) -> Option<Takes> {
+        let Some(declared) = self.0.get(symbol) else {
+            return registry::constructor_of(symbol).map(|constructor| {
+                if constructor.params.is_empty() {
+                    Takes::Nothing
+                } else {
+                    Takes::Arguments
+                }
+            });
+        };
+        let construction = declared.construction.filter(|class| !class.is_abstract)?;
+        Some(match construction.parameters {
+            Some(0) => Takes::Nothing,
+            Some(_) => Takes::Arguments,
+            None => self.inherited(declared, 0),
+        })
+    }
+
+    /// What the constructor `declared` inherits takes. A class with nothing
+    /// above it takes nothing, and a superclass the index does not hold is one
+    /// whose constructor cannot be read.
+    fn inherited(&self, declared: &Declaration, depth: usize) -> Takes {
+        // A hierarchy with a cycle in it is a compile error this may still be
+        // asked about, and no real one is this deep.
+        const DEEPEST: usize = 32;
+        let mut takes = Takes::Nothing;
+        for above in &declared.supertypes {
+            let Some(parent) = self.0.get(above.as_str()) else {
+                takes = Takes::Arguments;
+                continue;
+            };
+            let Some(class) = parent.construction else {
+                continue;
+            };
+            return match class.parameters {
+                Some(0) => Takes::Nothing,
+                Some(_) => Takes::Arguments,
+                None if depth < DEEPEST => self.inherited(parent, depth + 1),
+                None => Takes::Arguments,
+            };
+        }
+        takes
+    }
 }
 
 /// One list of reserved words, as items a client can insert.
@@ -1465,7 +1928,39 @@ fn named_class(analysed: &Analysed, access: IndexNode, receiver: Span) -> Option
         .file(analysed.entry)
         .text()
         .get(receiver.range())?;
-    resolved_name(analysed, text, receiver.start)
+    class_word(analysed, text, receiver.start)
+        .or_else(|| resolved_name(analysed, text, receiver.start))
+}
+
+/// The class `word` names where it is one of [`CLASS_WORDS`] written at `at`:
+/// the class around it, or for `parent` the one that class extends.
+fn class_word(analysed: &Analysed, word: &str, at: BytePos) -> Option<QName> {
+    if !CLASS_WORDS.contains(&word) {
+        return None;
+    }
+    let path = analysed.index.at(at);
+    let around = path
+        .nodes()
+        .iter()
+        .find(|node| TYPES.contains(&node.kind))?
+        .span;
+    let own = analysed
+        .module
+        .symbols
+        .iter()
+        .find(|symbol| {
+            let name = symbol.decl_span;
+            name.file == around.file && around.start <= name.start && name.end <= around.end
+        })?
+        .qname
+        .clone();
+    if word != "parent" {
+        return Some(own);
+    }
+    let (stmt, file) = declared_type(analysed, &own)?;
+    let (extends, _) = supertype_names(stmt);
+    let base = extends.first()?;
+    resolved_name(analysed, text_of(file, *base), base.start)
 }
 
 /// The owner an `Owner::` written immediately before `offset` names, where the
@@ -1497,7 +1992,7 @@ fn owner_written(analysed: &Analysed, offset: BytePos) -> Option<QName> {
         .strip_suffix("::")?;
     let owner = name_run(stem);
     let at = BytePos::try_from(stem.len() - owner.len()).ok()?;
-    resolved_name(analysed, owner, at)
+    class_word(analysed, owner, at).or_else(|| resolved_name(analysed, owner, at))
 }
 
 /// Every name of `owner` that may be written after `Owner::` in type position:
@@ -1813,9 +2308,10 @@ fn core_cases(core: &CoreEnum, reach: Reach) -> Vec<CompletionItem> {
 
 /// One offered name, with the two fields `crate::render` freezes beside it.
 ///
-/// Nothing else is set. `insert_text` would be the label again, and a
+/// Nothing else is set here. `insert_text` would be the label again, and a
 /// `text_edit` is a range this server has no reason to narrow: what the client
-/// replaces is the word it is already completing.
+/// replaces is the word it is already completing. [`followed`] is where a
+/// type's item learns what is written after its name.
 fn item(label: String, kind: CompletionItemKind, detail: String) -> CompletionItem {
     CompletionItem {
         label,

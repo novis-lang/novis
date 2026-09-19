@@ -3,8 +3,9 @@ token before the name being written** says whether a statement starts there: aft
 an open or close tag, `else` or `do`, or at the top of the file, every word may be written; after anything
 else the cursor is inside an expression and is offered only the words that open one — `new`, `match`, `fn`,
 `null`, `true` and the rest of the grammar's primary-expression dispatch — and never `class`, `if` or
-`return`. After `new`, `extends` and `implements` it is offered types and no word at all. The tokens are
-the lexer's own, so a `;` inside a string is not a statement's end; the tree cannot answer this, because
+`return`. Where a type is written it is offered types and no word at all, and after `new` the classes
+`new` compiles on beside `self`, `static` and `parent` inside a class
+(`rule:ide/an-accepted-type-writes-what-follows-it` is which tokens say so). The tokens are the lexer's own, so a `;` inside a string is not a statement's end; the tree cannot answer this, because
 the name being written is usually what stops the statement around it from parsing.
 
 **What encloses the cursor** decides the rest, read off the index's ancestor list

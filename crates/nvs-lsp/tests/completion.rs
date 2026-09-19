@@ -34,7 +34,8 @@ use std::path::Path;
 use lsp_types::PositionEncodingKind;
 use nvs_diagnostics::PositionEncoding;
 use nvs_lsp::{
-    Analysed, CheckScope, Documents, PhpNames, Response, SymbolIndex, analyse, completion, uri_of,
+    Analysed, CheckScope, Client, Documents, PhpNames, Response, SymbolIndex, analyse, completion,
+    uri_of,
 };
 use nvs_stdlib::{php_names, registry};
 
@@ -70,6 +71,7 @@ fn rendered(source: &str, at: u32) -> String {
         &index,
         at,
         PhpNames::All,
+        Client::default(),
         PositionEncoding::Utf8,
     ))
     .render()
@@ -257,7 +259,14 @@ fn ending_items(source: &str, php: PhpNames) -> Vec<lsp_types::CompletionItem> {
     let (documents, analysis) = analysed(source);
     let index = SymbolIndex::build(&documents, CheckScope::Open, None);
     let at = u32::try_from(source.len()).expect("a test document is short");
-    completion::at(&analysis, &index, at, php, PositionEncoding::Utf8)
+    completion::at(
+        &analysis,
+        &index,
+        at,
+        php,
+        Client::default(),
+        PositionEncoding::Utf8,
+    )
 }
 
 /// The prefix every PHP-name case below writes, chosen because the inventory
@@ -548,6 +557,8 @@ fn sources() -> Vec<Source> {
 /// to it by the module's `every_word_offered_is_one_the_lexer_reserves`. The
 /// rows that are dispatches, and the one that is the constructor, name what
 /// they route to — which is what stops an arm being added with no row here.
+/// The rows that shape an item another row produced name the item they were
+/// handed, and the one that filters a list names the index it asks.
 ///
 /// The PHP-name arm is the one row whose table is not built from the program
 /// under the cursor, and it is admitted by the same rule rather than beside it:
@@ -556,7 +567,7 @@ fn sources() -> Vec<Source> {
 /// this repository, and what the arm may *insert* is bounded by the registry
 /// (`rule:php-migration/an-item-inserts-only-a-registered-member`). No
 /// directory is walked and no annotation is read for it.
-const SOURCED: [(&str, &str); 21] = [
+const SOURCED: [(&str, &str); 24] = [
     ("at", "asked("),
     ("members_of", "registry::class("),
     ("type_members_of", "registry::class("),
@@ -564,6 +575,9 @@ const SOURCED: [(&str, &str); 21] = [
     ("open_tags", "OPEN_TAGS"),
     ("position", "words("),
     ("statement_words", "STATEMENT_WORDS"),
+    ("followed", "Classes::of(cursor.symbols)"),
+    ("scoped", "..offered"),
+    ("called", "..offered"),
     ("under", "registry::CLASSES"),
     ("in_reach", "symbols.declarations_in("),
     ("in_scope", ".bodies_at("),
