@@ -2,6 +2,8 @@
 A `mixed` converts to a scalar only on request, and each row throws where it fails — `rule:types/conversion` and `rule:types/unions-and-mixed`, with `rule:expressions/nullable-conversion`'s `as ?int` twin beside it
 --FILE--
 <?nvs
+// covers: lang:types/mixed
+
 // `rule:types/unions-and-mixed`: `mixed` is the one unchecked position, so nothing here is known
 // statically. The row `rule:types/conversion`'s table defines is picked by the value's own
 // runtime tag — `"42"` takes the `string -> int` row, `2.5` the `float -> int`

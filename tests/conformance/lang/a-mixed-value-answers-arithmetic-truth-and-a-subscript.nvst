@@ -2,6 +2,8 @@
 One `mixed` value answers an operator, a condition and a subscript, and each answer agrees with the same value's declared-type twin — `rule:types/conversion` and `rule:types/arithmetic`, `rule:expressions/truthy-positions`, `rule:types/erased-member-access`
 --FILE--
 <?nvs
+// covers: lang:types/mixed
+
 // Three families read a `mixed` operand's runtime tag rather than its static
 // type: `rule:types/arithmetic`'s arithmetic (`Helper::ValueAdd`), `rule:expressions/truthy-positions`'s truthy
 // table, and `rule:types/erased-member-access`'s deferral one storage kind along, a subscript

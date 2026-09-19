@@ -1,0 +1,24 @@
+<?nvs
+// A value that came from outside and is used without being converted first,
+// so every step has to be worked out while the program runs, from whatever
+// turned up. This is the cost the typed path does not pay, and the reason
+// to convert once near the edge. Each round carries the last round's value,
+// so nothing here can be settled ahead of time.
+// bench: iterations 300000
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): int {
+        mixed $carry = 1;
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $carry = ($carry + 7) % 997;                 // chained: $carry is last round's
+            $total = $total + ($carry as int);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(300000), "\n";

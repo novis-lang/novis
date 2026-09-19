@@ -1,0 +1,81 @@
+<?nvs
+// Attack: the one unchecked position, asked for everything the value inside
+// it is not. Arithmetic over text, an array and nothing at all. A subscript
+// through a value that is not a table. A property read on something with no
+// properties. Numbers past the far end of every type they are converted
+// into. A table fifty thousand deep, carried as one unchecked value and
+// then dropped. A million values whose type changes every round.
+// hostile: timeout-ms 60000
+
+class Poke
+{
+    // Every one of these is decided while the program runs, from whatever
+    // turned up, so each is a separate chance to come apart.
+    public static function add(mixed $a, mixed $b): string
+    {
+        try {
+            return ($a + $b) as string;
+        } catch (Throwable $e) {
+            return 'refused';
+        }
+    }
+    public static function key(mixed $base, mixed $k): string
+    {
+        try {
+            return $base[$k] as string;
+        } catch (Throwable $e) {
+            return 'refused';
+        }
+    }
+    public static function whole(mixed $v): string
+    {
+        try {
+            return ($v as int) as string;
+        } catch (Throwable $e) {
+            return 'refused';
+        }
+    }
+}
+
+// Arithmetic against every kind of operand there is, including the ones that
+// have no arithmetic at all.
+mixed $text = 'abc';
+mixed $table = ['k' => 'v'];
+mixed $nothing = null;
+mixed $number = 7;
+echo Poke::add($text, $number), ' ', Poke::add($table, $number), ' ', Poke::add($nothing, $number), ' ', Poke::add($text, $text), "\n";
+
+// A subscript through things that are not tables, and a key that is not a key.
+echo Poke::key($number, 'k'), ' ', Poke::key($text, 0), ' ', Poke::key($nothing, 'k'), ' ', Poke::key($table, $table), "\n";
+
+// The far ends of every conversion: the largest whole number written out, one
+// past it, and a float too big for any of them.
+mixed $huge = '9223372036854775807';
+mixed $past = '9223372036854775808';
+mixed $wide = 1.0e300;
+echo Poke::whole($huge), ' ', Poke::whole($past), ' ', Poke::whole($wide), ' ', Poke::whole(Core\Str::repeat('9', 100000)), "\n";
+
+// Fifty thousand tables inside one another, held as one unchecked value and
+// then released in one go, which is where a recursive release comes apart.
+mixed $deep = [];
+uint $depth = 0;
+while ($depth < 50000) {
+    $deep = ['inner' => $deep];
+    $depth = $depth + 1;
+}
+$deep = 0;
+echo "nested and released\n";
+
+// A million rounds whose operand is a different kind of thing every time, so
+// nothing about the last round can be assumed about this one.
+array<mixed> $rotation = [1, '2', 3.5, true, null, ['x'], 4];
+int $seen = 0;
+uint $i = 0;
+while ($i < 1000000) {
+    mixed $v = $rotation[$i % 7];
+    if ($v is int) {
+        $seen = $seen + 1;
+    }
+    $i = $i + 1;
+}
+echo $seen, " whole numbers out of a million turns\n";

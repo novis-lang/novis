@@ -1,0 +1,15 @@
+<?nvs
+// Query parameters arrive as `mixed`, because nobody has checked them yet.
+// `as ?uint` hands back the number when the text really is one, and `null`
+// when it is not, so a bad value becomes a default instead of a surprise
+// further down.
+
+array<mixed> $query = ["page" => "3", "size" => "abc", "sort" => "name"];
+
+uint $firstPage = 1;
+uint $defaultSize = 20;
+
+uint $page = ($query["page"] as ?uint) ?? $firstPage;
+uint $size = ($query["size"] as ?uint) ?? $defaultSize;
+
+echo "page ", $page, ", ", $size, " per row\n";

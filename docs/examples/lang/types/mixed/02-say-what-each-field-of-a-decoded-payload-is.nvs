@@ -1,0 +1,18 @@
+<?nvs
+// A decoded JSON document hands you one `mixed` per field. `is` asks what a
+// value really is without changing it, so a field can be described, logged
+// or routed before anybody decides to convert it.
+
+array<mixed> $payload = ["id" => 4102, "name" => "Ada", "paid" => true, "note" => null];
+
+foreach ($payload as string $field => mixed $value) {
+    if ($value is int) {
+        echo $field, " is a whole number\n";
+    } else if ($value is string) {
+        echo $field, " is text\n";
+    } else if ($value is bool) {
+        echo $field, " is a yes or no\n";
+    } else {
+        echo $field, " was not sent\n";
+    }
+}

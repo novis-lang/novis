@@ -1,0 +1,25 @@
+<?nvs
+// The shape a real handler takes: convert everything once, at the edge, and
+// work with real types afterwards. A line that does not convert is reported
+// and skipped, and the rest of the order still goes through — nothing
+// half-converted ever reaches the total.
+
+array<mixed> $lines = [
+    ["sku" => "A-1", "quantity" => "2", "price" => "9.95"],
+    ["sku" => "B-7", "quantity" => "many", "price" => "4.00"],
+    ["sku" => "C-3", "quantity" => 1, "price" => "12.50"],
+];
+
+decimal $total = 0.00;
+foreach ($lines as mixed $line) {
+    try {
+        string $sku = $line["sku"] as string;
+        uint $quantity = $line["quantity"] as uint;
+        decimal $price = $line["price"] as decimal;
+        $total = $total + $price * $quantity;
+        echo $sku, ": ", $quantity, " x ", $price, "\n";
+    } catch (Throwable $e) {
+        echo "skipped a line that did not convert\n";
+    }
+}
+echo "total ", $total, "\n";
