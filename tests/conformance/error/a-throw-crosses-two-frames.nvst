@@ -2,6 +2,7 @@
 A throw two calls deep reaches the `catch` at the top, and the frames in between run no further
 --FILE--
 <?nvs
+// covers: lang:statements/throw
 class Inner {
     public static function boom(int $n): int {
         if ($n > 2) {

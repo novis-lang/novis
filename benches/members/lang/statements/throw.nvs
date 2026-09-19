@@ -1,0 +1,30 @@
+<?nvs
+// Raises an error and catches it one frame up, as a program does when a row it
+// reads turns out to be unusable. Each round reports the value that the round
+// before it produced.
+// bench: iterations 200000
+// bench: calls 2
+
+class Bench {
+    public static function run(int $rounds): int {
+        int $acc = 1;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: this round's row comes out of the last round.
+            int $row = $acc % 97;
+            try {
+                $acc = ($acc + Bench::check($row)) % 1000003;
+            } catch (RuntimeError $e) {
+                $acc = ($acc + $row + 1) % 1000003;
+            }
+            $i = $i + 1;
+        }
+        return $acc;
+    }
+
+    public static function check(int $row): int {
+        throw new RuntimeError("unusable row");
+    }
+}
+
+echo Bench::run(200000), "\n";

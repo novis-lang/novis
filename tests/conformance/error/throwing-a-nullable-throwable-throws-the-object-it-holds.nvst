@@ -2,6 +2,7 @@
 A `throw` whose operand is a `?Throwable` raises the object the tag holds — `rule:errors/propagation`
 --FILE--
 <?nvs
+// covers: lang:statements/throw
 // The checker settles neither question a `?Throwable` asks: whether there is
 // an object at all, and whether it descends from `Throwable`. Both hold here,
 // so the raise is the one a declared exception type already gets.

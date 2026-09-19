@@ -1,0 +1,23 @@
+<?nvs
+// Shows `throw` written where a value is expected. `??` takes the value on the
+// left when there is one. When there is none, the `throw` on the right runs.
+
+class Settings
+{
+    public static function need(array<string> $config, string $key): string
+    {
+        return $config[$key] ?? throw new LogicError("the setting `" . $key . "` is missing");
+    }
+}
+
+array<string> $config = ["host" => "localhost", "user" => "app"];
+
+// This prints localhost
+echo Settings::need($config, "host"), "\n";
+
+try {
+    echo Settings::need($config, "port"), "\n";
+} catch (LogicError $e) {
+    // This prints: the setting `port` is missing
+    echo $e->message, "\n";
+}

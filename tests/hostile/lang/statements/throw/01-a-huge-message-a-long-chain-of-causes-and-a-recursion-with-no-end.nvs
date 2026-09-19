@@ -1,0 +1,77 @@
+<?nvs
+// Attack: errors are raised in every shape that could break the unwinding. A
+// message of six hundred thousand characters is thrown. A chain of ten
+// thousand causes is built and walked. An error comes out of a recursion with
+// no end. The last step throws with nothing to catch it.
+// hostile: timeout-ms 30000
+// hostile: ends-early
+// covers: lang:statements/throw
+
+class Attack
+{
+    // A recursion with no end. It stops only when the engine stops it.
+    public static function forever(int $depth): int
+    {
+        return Attack::forever($depth + 1) + 1;
+    }
+
+    public static function boom(string $why): int
+    {
+        throw new RuntimeError($why);
+    }
+}
+
+// 1. Two hundred thousand errors, raised and caught one after another.
+int $caught = 0;
+int $i = 0;
+while ($i < 200000) {
+    try {
+        $caught = $caught + Attack::boom('row ' . $i);
+    } catch (RuntimeError $e) {
+        $caught = $caught + 1;
+    }
+    $i = $i + 1;
+}
+echo $caught, "\n";
+
+// 2. An error carrying a message of six hundred thousand characters. The
+// `catch` reads its length, so nothing may shorten or copy it away.
+string $big = '';
+int $built = 0;
+while ($built < 100000) {
+    $big = $big . 'novis-';
+    $built = $built + 1;
+}
+try {
+    echo Attack::boom($big), "\n";
+} catch (RuntimeError $huge) {
+    echo Core\Str::length($huge->message), "\n";
+}
+
+// 3. A chain of ten thousand causes, built one on top of another and then
+// walked from the top.
+Throwable $chain = new RuntimeError('root');
+int $links = 0;
+while ($links < 10000) {
+    $chain = new RuntimeError('link ' . $links, { previous: $chain });
+    $links = $links + 1;
+}
+?Throwable $step = $chain;
+int $walked = 0;
+while ($step != null) {
+    $walked = $walked + 1;
+    $step = $step?->previous;
+}
+echo $walked, "\n";
+
+// 4. An error out of a recursion with no end. It is caught, so the last step
+// below still runs.
+try {
+    echo Attack::forever(0), "\n";
+} catch (RecursionError $deep) {
+    echo "stopped\n";
+}
+
+// 5. The last step throws and nothing catches it. The program ends with
+// status 1.
+throw new RuntimeError('nothing catches this');
