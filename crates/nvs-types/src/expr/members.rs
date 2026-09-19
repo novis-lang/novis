@@ -730,7 +730,7 @@ pub(crate) fn report_computed_member_name(span: Span, help: &str, env: &mut Env<
 pub(crate) const COMPUTED_PROPERTY_HELP: &str = "`rule:types/property-key-access` admits `$obj->$key` only where `$key` is a `property<T>` the receiver \
      satisfies — convert the name with `as property<ClassName>`, where the set it may hold is \
      checked, or write the member out; data whose keys are only known at run time belongs in an \
-     `array<string, T>`";
+     `array<T>`, whose keys are `string`";
 
 /// [`report_computed_member_name`]'s help at a call, where it does not.
 pub(crate) const COMPUTED_METHOD_HELP: &str = "`rule:classes/no-call-magic` refuses a computed *dispatch* itself rather than its spelling, and `rule:types/property-key`'s \

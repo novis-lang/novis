@@ -1474,7 +1474,7 @@ fn json_reachable(
         // ADR 0010: an enum travels as its backing value, range-checked on
         // the way back in.
         Ty::Enum(..) | Ty::EnumCase(..) => true,
-        // `rule:types/object-top`'s inline shape, and `array<T>`/`array<string, T>`, both
+        // `rule:types/object-top`'s inline shape, and `array<T>`, both
         // reachable exactly when what they hold is.
         Ty::Shape(fields) => fields
             .iter()

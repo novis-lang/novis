@@ -1555,13 +1555,14 @@ sum:3 4x
 | `@expr` | nothing to suppress: a failure is a `Throwable` |
 | `` `cmd` `` | `Core\Process` |
 | `$a = &$b`, `&$x` | no references: `inout` parameters, or an object to share |
-| `$$name`, `${expr}` | an `array<string, T>` keyed by name |
-| `\|>` | not an operator; the token does not parse |
+| `$$name`, `${expr}` | an `array<T>`, whose keys are the names |
 | `$a + $b` on arrays | `Core\Arr::underlay($a, $b)` |
 | `$s[0]` on a string | `Core\Str::at`, `Core\Str::slice` |
 | `$s++` on a string | no string increment; a binding never changes type |
 
-`<>` is accepted as a second spelling of `!=`.
+`<>` is `E0241` at the two characters, for the reason `===` is `E0232`: `!=` is the one spelling of inequality. Both are lexed as the operator they meant, so the rest of the file reports its own errors in the same run.
+
+PHP 8.5's `|>` is the one row that is a difference rather than a drop: `|>` is Novis's pipeline operator, and it substitutes a hole instead of applying a callable — *The pipeline operator* below.
 
 ```nvs error
 <?nvs
@@ -26655,7 +26656,7 @@ populates.
 | `namespace A { … }` (the braced form), two namespaces in one file | `namespace A;` once, before any declaration — one file is one namespace | `E0243` |
 | `use function …;`, `use const …;` | nothing to import: functions and constants are class members | `E0306` |
 | `\Core\Str::length($s)` (leading `\`) | `Core\Str::length($s)` — a name with a `\` in it is already absolute | `E0240` |
-| `$obj->{$name}`, `$obj->$name` | write the member; hold run-time keys in an `array<string, T>` | `E0235` |
+| `$obj->{$name}`, `$obj->$name` | write the member; hold run-time keys in an `array<T>`, whose keys are `string` | `E0235` |
 | `new $className()`, `$className::f()`, `$x is $className` over a `string` | a written class name, or a class reference: `class<T> $cls = $className as class<T>;` then the same three spellings. The `as` is where a name that is not a `T` throws, so every site downstream of it holds a class that already passed | `E0496` at all three |
 | `__DIR__`, `__FILE__`, `__LINE__`, `__CLASS__`, `PHP_EOL` | no magic constants; `Throwable::$location` carries a file and line, `"\n"` is the newline | `E0319` |
 
@@ -26669,7 +26670,7 @@ populates.
 | `global $x;` | pass it as a parameter, or use a `static` property or a constant | `E0204` |
 | `static $n = 0;` inside a function | a `private static` property | `E0209` |
 | `static fn(…) => …` | `fn(…) => …` — a closure captures `$this` only if it uses it | `E0210` |
-| `$$name`, `${"name"}` | an `array<string, T>` keyed by name | `E0202` |
+| `$$name`, `${"name"}` | an `array<T>`, whose keys are the names | `E0202` |
 | `eval($code)` | none: `require` a file, or `spawn script` one | `E0201` |
 | `extract($arr)` | destructure: `[int $a, int $b] = $arr;` | `E0205` |
 | `compact("a", "b")` | write the array: `{a: $a, b: $b}` or `["a" => $a]` | `E0320` |

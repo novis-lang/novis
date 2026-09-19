@@ -1383,7 +1383,7 @@ impl<'src, 'd> Parser<'src, 'd> {
                         "variable variables (`$$name` / `${expr}`) are not supported",
                     )
                     .with_primary(span, "defeats name resolution and type inference")
-                    .with_help("use an explicit `array<string, T>` keyed by name instead"),
+                    .with_help("use an explicit `array<T>` instead — its keys are `string`, so one entry per name"),
                 );
                 Expr {
                     span,

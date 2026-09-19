@@ -27,14 +27,14 @@ error[E0235]: a member name cannot be computed (`->$name` / `->{expr}`)
    |
 11 | echo $b->$n, "\n";
    |          ^^ this names a member only when the statement runs
-   = help: `rule:types/property-key-access` admits `$obj->$key` only where `$key` is a `property<T>` the receiver satisfies — convert the name with `as property<ClassName>`, where the set it may hold is checked, or write the member out; data whose keys are only known at run time belongs in an `array<string, T>`
+   = help: `rule:types/property-key-access` admits `$obj->$key` only where `$key` is a `property<T>` the receiver satisfies — convert the name with `as property<ClassName>`, where the set it may hold is checked, or write the member out; data whose keys are only known at run time belongs in an `array<T>`, whose keys are `string`
 
 error[E0235]: a member name cannot be computed (`->$name` / `->{expr}`)
    --> %s:14:6
    |
 14 | $b->{$n} = "z";
    |      ^^ this names a member only when the statement runs
-   = help: `rule:types/property-key-access` admits `$obj->$key` only where `$key` is a `property<T>` the receiver satisfies — convert the name with `as property<ClassName>`, where the set it may hold is checked, or write the member out; data whose keys are only known at run time belongs in an `array<string, T>`
+   = help: `rule:types/property-key-access` admits `$obj->$key` only where `$key` is a `property<T>` the receiver satisfies — convert the name with `as property<ClassName>`, where the set it may hold is checked, or write the member out; data whose keys are only known at run time belongs in an `array<T>`, whose keys are `string`
 
 error[E0235]: a member name cannot be computed (`->$name` / `->{expr}`)
    --> %s:17:11
@@ -48,6 +48,6 @@ error[E0235]: a member name cannot be computed (`->$name` / `->{expr}`)
    |
 20 | echo $b?->$n, "\n";
    |           ^^ this names a member only when the statement runs
-   = help: `rule:types/property-key-access` admits `$obj->$key` only where `$key` is a `property<T>` the receiver satisfies — convert the name with `as property<ClassName>`, where the set it may hold is checked, or write the member out; data whose keys are only known at run time belongs in an `array<string, T>`
+   = help: `rule:types/property-key-access` admits `$obj->$key` only where `$key` is a `property<T>` the receiver satisfies — convert the name with `as property<ClassName>`, where the set it may hold is checked, or write the member out; data whose keys are only known at run time belongs in an `array<T>`, whose keys are `string`
 
 error: aborting due to 4 errors
