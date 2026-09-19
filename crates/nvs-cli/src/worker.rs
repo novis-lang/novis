@@ -39,7 +39,8 @@
 //! flag and a bit rather than a cancellation because every wait here is bounded and short: the tail
 //! a stop pays is one [`IDLE_TURN`] in the ordinary case, one statement's round trip while a claim
 //! is in flight, and at worst one [`CONNECT_DEADLINE`] for a worker still shaking hands with a
-//! server that is not answering.
+//! server that is not answering — or one [`STATEMENT_DEADLINE`] for one that stopped answering
+//! mid-statement, which is the only wait here a peer rather than this process decides the length of.
 //!
 //! ## What a job's grants are
 //!
@@ -129,6 +130,21 @@ const CONNECT_DEADLINE: Duration = Duration::from_secs(2);
 /// Short because the wait is what the program's own polling is waiting on, and cheap because it is
 /// a park rather than a spin — the core runs the script while a worker holds this.
 const IDLE_TURN: Duration = Duration::from_millis(10);
+
+/// How long one of a worker's exchanges with its server may take.
+///
+/// Filed per exchange and not once per connection, which is the whole of what
+/// `nvs_db::Connection::set_deadline` bounds: a statement is a send and every row of the answer, and
+/// the work *between* two statements — a claimed job's own isolate, which is unbounded by design —
+/// is not part of either. A worker that filed none would park forever on a server that stopped
+/// answering without closing the socket, and this task is stopped by a flag read between turns
+/// rather than by a cancellation, so nothing else would ever end it.
+///
+/// Three orders of magnitude above a healthy claim's round trip, which is milliseconds against a
+/// server on the same host or the same rack. What it costs is the other side of that: a worker
+/// whose server went away mid-statement ends after this rather than at once, so a drain arriving in
+/// that window waits this long.
+const STATEMENT_DEADLINE: Duration = Duration::from_secs(10);
 
 /// The root every worker task takes.
 ///
@@ -309,7 +325,9 @@ fn turn(ctx: &mut nvs_runtime::Ctx, conn: &mut Wire, window: i64) -> io::Result<
     let now = nvs_stdlib::queue::now_millis();
     let cutoff = now.saturating_sub(window);
     let mut claimed = false;
+    conn.bound_next_exchange();
     for queue in roster(conn, now, cutoff)? {
+        conn.bound_next_exchange();
         if let Some(job) = claim(conn, &queue, now, cutoff)? {
             // Run before the next queue is claimed against, rather than after the roster has been
             // walked: a claim this worker is holding is a job nothing else may take, so the
@@ -317,6 +335,10 @@ fn turn(ctx: &mut nvs_runtime::Ctx, conn: &mut Wire, window: i64) -> io::Result<
             // rides with it for the same reason — the row is released by [`report`] and not by the
             // end of the turn.
             let failure = run(ctx, &job);
+            // Filed again rather than once for the whole turn: the job above ran between the two
+            // statements, and a clock that covered it would bound a write-back by how long
+            // somebody else's code took.
+            conn.bound_next_exchange();
             report(conn, &job, now, failure.as_ref())?;
             claimed = true;
         }
@@ -1663,6 +1685,23 @@ enum Wire {
 }
 
 impl Wire {
+    /// Gives the next exchange on this connection [`STATEMENT_DEADLINE`] to finish in.
+    ///
+    /// The four wire drivers file it on the socket they are waiting on. SQLite is a file this
+    /// process opened, so there is no peer to wait for and nothing to bound — what a statement
+    /// there can wait on is another connection's write lock, which is `sqlite3_busy_timeout`'s and
+    /// `nvs_db::sqlite`'s to answer.
+    fn bound_next_exchange(&mut self) {
+        let at = Some(Instant::now() + STATEMENT_DEADLINE);
+        match self {
+            Wire::Postgres(postgres) => postgres.set_deadline(at),
+            Wire::MySql(mysql) => mysql.set_deadline(at),
+            Wire::MariaDb(maria) => maria.set_deadline(at),
+            Wire::SqlServer(tds) => tds.set_deadline(at),
+            Wire::Sqlite(_) => {}
+        }
+    }
+
     /// This connection borrowed as the dialect its statements are written in.
     fn dialect(&mut self) -> Dialect<'_> {
         match self {
