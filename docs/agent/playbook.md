@@ -2463,6 +2463,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   scope, because a goal walks and is retired while the gap outlives it. Budget a proof's finding as
   work to *build* in the session that found it, and reach for a module doc `# Known gaps` entry only
   where a milestone will really carry it. [until: reviewed 2026-09-19]
+- **An edit to a reference chapter marks every perf record keyed to that file stale, so a bench
+  measured before the edit is owed again.** `dossier.py` keys a figure to the text of the file the
+  feature is implemented at, and for a language feature that file is the chapter, not a crate. Make
+  every chapter edit first and run `--record-perf` last, or pay the release build twice.
+  [until: gone tools/dossier.py:stale]
 
 ## Running things
 
@@ -8338,6 +8343,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   reads `$this->printer` is refused however the caller set the object up, while the same read from
   outside the class is left to throw at run time. Put the read in the method that does the write, or
   outside the class. [until: gone tests/conformance/class/lateinit-refuses-a-read-before-any-write.nvst]
+- **`echo a, b, c` writes each argument as it reaches it, so a throw in a later argument leaves the
+  earlier text on stdout.** The arguments are evaluated and written one at a time, so a `try` block
+  whose `echo` opens with a `"BAD="` label prints that label and *then* throws, and the expected
+  output no longer matches. Put the call that can throw in its own statement and echo the variable.
+  [until: reviewed 2026-09-19]
 
 ## Divergences and refusals already pinned
 

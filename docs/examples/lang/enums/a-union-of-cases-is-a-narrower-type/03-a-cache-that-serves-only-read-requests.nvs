@@ -1,0 +1,34 @@
+<?nvs
+// Shows a cache that serves only two kinds of web request. The method of the
+// request arrives as the whole enum, and `as ?` decides whether this cache can
+// handle it.
+
+enum Method { Get, Head, Post, Put, Delete }
+
+class Cache {
+    // Only a request that reads can be served from a cache, so this parameter
+    // accepts those two cases and nothing else.
+    public static function serve(Method::Get|Method::Head $method): string {
+        if ($method == Method::Head) {
+            return "sent the headers";
+        }
+        return "sent the page";
+    }
+}
+
+class Router {
+    public static function handle(Method $method): string {
+        var $readOnly = $method as ?Method::Get|Method::Head;
+        if ($readOnly == null) {
+            return "passed to the application";
+        }
+        return Cache::serve($readOnly);
+    }
+}
+
+array<Method> $incoming = [Method::Get, Method::Head, Method::Post];
+// This prints `sent the page`, then `sent the headers`, then
+// `passed to the application`.
+foreach ($incoming as Method $method) {
+    echo Router::handle($method), "\n";
+}

@@ -1,0 +1,94 @@
+--TEST--
+A union of enum cases is a type at every binding site, widens to its enum for free, and is entered by a checked conversion that throws or answers `null` (`rule:types/literal-types`, `rule:enums/closed-integer-type`)
+--FILE--
+<?nvs
+// covers: lang:enums/a-union-of-cases-is-a-narrower-type
+// `rule:types/literal-types` makes `E::A|E::B` an ordinary union of two atoms,
+// so the claim worth pinning is that it is ordinary *everywhere*: the sweep
+// below writes one two-case type at a variable, a parameter, a property, a
+// return type, an `array<T>` element and a `foreach` binding, and asserts the
+// same case comes back out of each. The widening row of that rule's table is
+// the second half — a narrowed value reaches a whole-enum parameter with no
+// conversion — and the checked row is the third: `as` throws naming the set,
+// `as ?` answers `null`, and both accept an `int` through the backing type.
+enum Mode: int {
+    Read = 0,
+    Write = 1,
+    Append = 2,
+    Exec = 3,
+}
+
+final class Holder {
+    public function constructor(public Mode::Read|Mode::Write $mode) {}
+
+    public static function pick(bool $first): Mode::Read|Mode::Write {
+        if ($first) {
+            return Mode::Read;
+        }
+        return Mode::Write;
+    }
+
+    public static function widen(Mode $any): int {
+        return $any as int;
+    }
+
+    public static function narrowOnly(Mode::Read|Mode::Write $m): int {
+        return $m as int;
+    }
+}
+
+Mode::Read|Mode::Write $direct = Mode::Write;
+echo "variable=", $direct as int, "\n";
+echo "return=", Holder::pick(true) as int, "\n";
+
+var $held = new Holder(Mode::Write);
+echo "property=", $held->mode as int, "\n";
+echo "widened=", Holder::widen($held->mode), "\n";
+
+array<Mode::Read|Mode::Write> $both = [Mode::Read, Mode::Write];
+int $sum = 0;
+foreach ($both as Mode::Read|Mode::Write $one) {
+    $sum = $sum + ($one as int);
+}
+echo "elements=", $sum, "\n";
+
+Mode $wanted = Mode::Write;
+echo "checked=", ($wanted as Mode::Read|Mode::Write) as int, "\n";
+
+Mode $outside = Mode::Exec;
+try {
+    // `echo` prints each argument as it reaches it, so the conversion is run
+    // before anything is written.
+    int $refused = ($outside as Mode::Read|Mode::Write) as int;
+    echo "BAD=", $refused, "\n";
+} catch (RuntimeError $e) {
+    echo "threw=", $e->message, "\n";
+}
+
+var $maybe = $outside as ?Mode::Read|Mode::Write;
+echo "maybe=", $maybe == null ? "null" : "some", "\n";
+
+// An `int` reaches the set through the backing type, and stops at the same
+// membership test.
+echo "fromInt=", (1 as Mode::Read|Mode::Write) as int, "\n";
+var $far = 9 as ?Mode::Read|Mode::Write;
+echo "fromFarInt=", $far == null ? "null" : "some", "\n";
+
+// A single `==` narrows its subject to that one case, so the narrowed value
+// reaches the two-case parameter with no conversion written.
+Mode $compared = Mode::Read;
+if ($compared == Mode::Read) {
+    echo "narrowed=", Holder::narrowOnly($compared), "\n";
+}
+--EXPECT--
+variable=1
+return=0
+property=1
+widened=1
+elements=1
+checked=1
+threw=`3` is not one of `Mode::Read`, `Mode::Write`
+maybe=null
+fromInt=1
+fromFarInt=null
+narrowed=0

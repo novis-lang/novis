@@ -1,0 +1,53 @@
+--TEST--
+A two-case union admits neither a case outside it nor a value typed as the whole enum, at an argument, at a declaration, after an `||` of two comparisons and at the checked conversion itself (`rule:types/literal-types`, `rule:types/narrowing`)
+--FILE--
+<?nvs
+// covers: lang:enums/a-union-of-cases-is-a-narrower-type
+// `rule:types/literal-types`'s third row makes a wider value reach a narrower
+// union through a guard or a checked `as`, and every line below is a way of
+// arriving without one. The `||` is the one worth pinning: a single `==`
+// narrows its subject to that case's own type, so a reader expects two of them
+// to narrow to the pair, and they do not — the guard proves membership of a
+// set the checker builds no residue for, and `as Mode::Read|Mode::Write` is
+// what enters it. The last line is the other half: the conversion is proved
+// impossible where the operand names one case and the set does not hold it.
+enum Mode {
+    Read,
+    Write,
+    Exec,
+}
+
+final class Open {
+    public static function file(Mode::Read|Mode::Write $m): int {
+        return $m as int;
+    }
+}
+
+echo Open::file(Mode::Exec), "\n";
+
+Mode $held = Mode::Read;
+echo Open::file($held), "\n";
+
+Mode $either = Mode::Write;
+if ($either == Mode::Read || $either == Mode::Write) {
+    echo Open::file($either), "\n";
+}
+
+Mode::Read|Mode::Write $narrow = Mode::Exec;
+echo $narrow as int, "\n";
+
+echo (Mode::Exec as Mode::Read|Mode::Write) as int, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `Mode::Read|Mode::Write`, found `Mode`
+%A
+error[E0401]: expected `Mode::Read|Mode::Write`, found `Mode`
+%A
+error[E0401]: expected `Mode::Read|Mode::Write`, found `Mode`
+%A
+error[E0401]: expected `Mode::Read|Mode::Write`, found `Mode`
+%A
+error[E0470]: `Mode::Exec` is not one of `Mode::Read`, `Mode::Write`
+%A
+error: aborting due to 5 errors

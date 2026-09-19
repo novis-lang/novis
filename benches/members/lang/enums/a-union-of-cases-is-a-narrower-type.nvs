@@ -1,0 +1,26 @@
+<?nvs
+// Checks a value of the whole enum into a two-case type. A program meets this shape when a
+// request names a mode and only some of the modes are allowed.
+// bench: iterations 400000
+// bench: calls 0
+// bench: allocations 0
+
+enum Mode { Read, Write, Append, Exec }
+
+class Bench {
+    public static function run(int $rounds): int {
+        array<Mode> $modes = [Mode::Read, Mode::Write];
+        int $total = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: the case checked this round is picked by the number the
+            // last round produced, so the check stays inside the loop.
+            Mode $wanted = $modes[$total % 2];
+            $total = $total + (($wanted as Mode::Read|Mode::Write) as int) + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

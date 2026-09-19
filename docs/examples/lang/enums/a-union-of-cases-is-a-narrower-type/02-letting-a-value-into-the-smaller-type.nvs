@@ -1,0 +1,34 @@
+<?nvs
+// Shows the two ways a value of the whole enum enters a smaller type. One
+// throws an error when the value is not one of the named cases, the other
+// returns `null`.
+
+enum Mode { Read, Write, Append, Exec }
+
+class File {
+    public static function open(Mode::Read|Mode::Write $mode): string {
+        return "opened in mode " . (($mode as int) as string);
+    }
+}
+
+Mode $wanted = Mode::Write;
+// `as Mode::Read|Mode::Write` checks the value while the program runs. This
+// prints `opened in mode 1`.
+echo File::open($wanted as Mode::Read|Mode::Write), "\n";
+
+Mode $other = Mode::Exec;
+try {
+    echo File::open($other as Mode::Read|Mode::Write), "\n";
+} catch (RuntimeError $error) {
+    // The message names every case the type accepts.
+    echo "stopped: ", $error->message, "\n";
+}
+
+// `as ?Mode::Read|Mode::Write` returns `null` for a value outside the set.
+// This prints `no mode`.
+var $maybe = $other as ?Mode::Read|Mode::Write;
+if ($maybe == null) {
+    echo "no mode\n";
+} else {
+    echo File::open($maybe), "\n";
+}

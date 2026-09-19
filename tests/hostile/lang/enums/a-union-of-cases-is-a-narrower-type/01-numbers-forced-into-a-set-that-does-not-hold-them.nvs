@@ -1,0 +1,83 @@
+<?nvs
+// Attack: a program forces tens of thousands of numbers into a type that
+// accepts two enum cases. Almost none of them belong, so almost every round
+// throws an error or returns `null`. Every step should end in an error the
+// program can catch, and the runtime should stay standing.
+// covers: lang:enums/a-union-of-cases-is-a-narrower-type
+// hostile: timeout-ms 20000
+
+enum Mode
+{ Read, Write, Append, Exec }
+
+// 1. Twenty thousand numbers converted with `as`, each miss caught.
+class Forced
+{
+    public static function count(int $rounds): int
+    {
+        int $caught = 0;
+        int $i = -10000;
+        while ($i < $rounds) {
+            try {
+                var $narrow = $i as Mode::Read|Mode::Write;
+                $caught = $caught + ($narrow as int);
+            } catch (Throwable $e) {
+                $caught = $caught + 1;
+            }
+            $i = $i + 1;
+        }
+        return $caught;
+    }
+}
+
+echo '1: ', Forced::count(10000), "\n";
+
+// 2. The same sweep with `as ?`, which returns `null` for a number outside the
+// set instead of throwing.
+class Quiet
+{
+    public static function nulls(int $rounds): int
+    {
+        int $empty = 0;
+        int $i = -10000;
+        while ($i < $rounds) {
+            var $narrow = $i as ?Mode::Read|Mode::Write;
+            if ($narrow == null) {
+                $empty = $empty + 1;
+            }
+            $i = $i + 1;
+        }
+        return $empty;
+    }
+}
+
+echo '2: ', Quiet::nulls(10000), "\n";
+
+// 3. The largest and the smallest numbers there are, forced into the set.
+array<int> $ends = [9223372036854775807, -9223372036854775807];
+foreach ($ends as int $end) {
+    try {
+        var $narrow = $end as Mode::Read|Mode::Write;
+        echo '3: BAD, ', $end, ' was accepted as ', $narrow as int, "\n";
+    } catch (Throwable $e) {
+        echo '3: caught ', $e->message, "\n";
+    }
+}
+
+// 4. A function that converts and then calls itself, with no end.
+class Runaway
+{
+    public static function down(int $n): int
+    {
+        var $narrow = $n as Mode::Read|Mode::Write;
+        return Runaway::down(1 - ($narrow as int));
+    }
+}
+
+try {
+    int $reached = Runaway::down(0);
+    echo '4: BAD, the call returned ', $reached, "\n";
+} catch (Throwable $e) {
+    echo '4: caught ', $e->message, "\n";
+}
+
+echo "the runtime is still running\n";

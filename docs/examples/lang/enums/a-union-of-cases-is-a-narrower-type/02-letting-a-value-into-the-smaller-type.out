@@ -1,0 +1,3 @@
+opened in mode 1
+stopped: `3` is not one of `Mode::Read`, `Mode::Write`
+no mode

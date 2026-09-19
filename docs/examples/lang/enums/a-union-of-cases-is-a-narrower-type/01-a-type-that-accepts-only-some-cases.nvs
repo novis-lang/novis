@@ -1,0 +1,28 @@
+<?nvs
+// Shows a parameter that accepts two of an enum's four cases. Writing the cases
+// with `|` between them makes a type of its own.
+
+enum Mode { Read, Write, Append, Exec }
+
+class File {
+    // This parameter accepts `Mode::Read` and `Mode::Write`. No other case of
+    // `Mode` compiles here.
+    public static function open(Mode::Read|Mode::Write $mode): string {
+        return "opened in mode " . (($mode as int) as string);
+    }
+}
+
+// This prints `opened in mode 0` and `opened in mode 1`.
+echo File::open(Mode::Read), "\n";
+echo File::open(Mode::Write), "\n";
+
+// A value of the smaller type fits everywhere the whole enum is wanted.
+class Log {
+    public static function line(Mode $mode): string {
+        return "mode=" . (($mode as int) as string);
+    }
+}
+
+Mode::Read|Mode::Write $chosen = Mode::Write;
+// This prints `mode=1`.
+echo Log::line($chosen), "\n";
