@@ -488,18 +488,22 @@ def find_readers(keys: list[Key]) -> None:
     pattern cannot match a newline, and its boundaries read one as a non-key character,
     so one search answers exactly what a search of each literal would. A file that does
     not contain the field's name cannot match its access pattern, which spells the name
-    verbatim, so the substring test skips the regex over most of the corpus."""
+    verbatim, so the substring test skips the regex over most of the corpus. The literal
+    pattern spells every segment but `<name>` verbatim too, so the same test over those
+    segments skips it over most of the literals."""
     files = [(rel, code, "\n".join(literals), set(literals))
              for rel, code, literals in corpus()]
     unique = bare_names(keys)
     for key in keys:
         literal = literal_re(key.dotted)
+        spelled = [s for s in key.dotted.split(".") if s != NAME]
         access = access_re(key.field.name, key.receivers)
         narrow = access_re(key.field.name, key.receivers - BINDINGS)
         name = key.field.name
         bare = name if name in unique else None
         for rel, code, joined, texts in files:
-            if rel not in REGISTRIES and literal.search(joined):
+            if (rel not in REGISTRIES and all(s in joined for s in spelled)
+                    and literal.search(joined)):
                 key.readers.append(f"{rel} (key)")
             elif name in code and reads_field(code, key, access, narrow, bare):
                 key.readers.append(f"{rel} (field)")
