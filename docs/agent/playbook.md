@@ -6054,6 +6054,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   case red with output that reads exactly like a real regression in the checker. Put the marker on
   the last line of the `--FILE--` block whenever the expectation is a diagnostic, with a comment
   beside it saying why it sits there. [until: reviewed 2026-09-19]
+- **A hostile file whose last step is a top-level `return;` is not `ends-early`, and declaring the
+  marker fails the sweep.** The suite reads that marker as "the program did not reach its end", and a
+  `return` outside any method is an ordinary ending, so a file that behaves exactly as its comment
+  says is reported as `declares ends-early, but ran to its last line`. Keep `ends-early` for a limit,
+  an uncaught throw or `exit`, and run `python tools/dossier.py --run hostile --group <group>` while
+  you still have the file open rather than leaving it to the driver's acceptance check.
+  [until: reviewed 2026-09-19]
 
 ## Splitting a file that got too big
 
