@@ -97,6 +97,11 @@ files = [
 
 modules = [
   "docs/reference/lang/50-classes.md",
+  # Novis's class instance: one heap allocation, a four-word header, and the object's fields
+  # inline behind it — plus the `ClassDesc` every instance points back at.
+  "crates/nvs-runtime/src/object.rs",
+  # The one worklist every refcounted value is freed through.
+  "crates/nvs-runtime/src/release.rs",
 ]
 
 rules = ["testing/feature-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
