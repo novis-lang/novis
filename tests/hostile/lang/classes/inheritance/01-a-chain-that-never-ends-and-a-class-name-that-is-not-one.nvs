@@ -1,0 +1,89 @@
+<?nvs
+// Attack: a program tries to break a class hierarchy. It calls through a chain
+// of parent classes that never ends. It makes a million objects of a class it
+// picked while running. It converts text that names no class at all. The
+// runtime should stay standing.
+// hostile: ends-early
+// covers: lang:classes/inheritance
+
+class L0
+{
+    public function constructor(public int $n)
+    {}
+
+    public function step(int $k): int
+    {
+        return $k + $this->n;
+    }
+}
+
+class L1 extends L0
+{
+    public function step(int $k): int
+    {
+        return parent::step($k) + 1;
+    }
+}
+
+class L2 extends L1
+{
+    public function step(int $k): int
+    {
+        return parent::step($k) + 1;
+    }
+}
+
+class L3 extends L2
+{
+    public function step(int $k): int
+    {
+        return parent::step($k) + 1;
+    }
+}
+
+class L4 extends L3
+{
+    public function step(int $k): int
+    {
+        return parent::step($k) + 1;
+    }
+}
+
+final class Endless extends L4
+{
+    public function step(int $k): int
+    {
+        // Calls itself on the object, so this chain never reaches `L0`.
+        return $this->step($k + 1) + 1;
+    }
+}
+
+// 1. A call goes down five levels of parent classes.
+L0 $deep = new L4(2);
+echo '1: five levels answer ', $deep->step(0), "\n";
+
+// 2. A method calls itself through the object and never returns.
+var $endless = new Endless(1);
+try {
+    int $reached = $endless->step(0);
+    echo '2: BAD, the call returned ', $reached, "\n";
+} catch (Throwable $e) {
+    echo '2: caught ', $e->message, "\n";
+}
+
+// 3. One million objects are made through a class the program picked while
+//    running, and each one is used once.
+class<L0> $cls = 'L4' as class<L0>;
+int $made = 0;
+int $sum = 0;
+while ($made < 1000000) {
+    L0 $one = new $cls($made % 7);
+    $sum = ($sum + $one->step(1)) % 1000003;
+    $made = $made + 1;
+}
+echo '3: made ', $made, ' objects that add up to ', $sum, "\n";
+
+// 4. Text that names no class is converted to a class. Nothing catches the
+//    error, so the program ends here.
+class<L0> $missing = 'NoSuchClass' as class<L0>;
+echo '4: BAD, the program is still running with ', $missing as string, "\n";

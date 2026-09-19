@@ -49,6 +49,7 @@ echo $three->render("body"), "\n";
 // refusal leaves standing.
 class<Formatter> $again = Angled::class as class<Formatter>;
 echo (new $again("4: "))->render("body"), "\n";
+// covers: lang:classes/inheritance
 --EXPECT--
 1: <body>
 2: body

@@ -1,0 +1,36 @@
+<?nvs
+// Shows `extends`. A subclass starts with everything its parent has, and
+// `parent::` runs the version the parent wrote.
+
+class Invoice {
+    public function constructor(public string $customer, public int $cents) {}
+
+    public function line(): string {
+        return $this->customer . ": " . $this->cents . " cents";
+    }
+}
+
+class OverdueInvoice extends Invoice {
+    public function constructor(string $customer, int $cents, public int $days) {
+        // The parent's constructor assigns the properties the parent declares.
+        parent::constructor($customer, $cents);
+    }
+
+    public function line(): string {
+        // `parent::line()` is the version above this one, so this method adds
+        // to that text instead of writing it again.
+        return parent::line() . ", " . $this->days . " days late";
+    }
+}
+
+// A subclass fits everywhere its parent fits, so both objects go in the
+// same array.
+array<Invoice> $book = [
+    new Invoice("Ada", 1200),
+    new OverdueInvoice("Bo", 3400, 12),
+];
+
+// Each object answers with its own version of `line`.
+foreach ($book as Invoice $invoice) {
+    echo $invoice->line(), "\n";
+}

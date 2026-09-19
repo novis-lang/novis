@@ -1,0 +1,47 @@
+--TEST--
+A subclass constructor that skips `parent::constructor(...)` on one path is refused, while every path calling it and a parent with no constructor are both fine — rule:classes/definite-property-initialization
+--FILE--
+<?nvs
+// A parent's own properties are assigned in the parent's constructor, so a
+// subclass discharges them by calling it. The call is trusted rather than
+// re-derived, which is why one path missing it is the whole refusal.
+class Account {
+    public function constructor(public string $owner) {}
+}
+
+// Refused: the path where `$sponsored` is false leaves `Account::$owner` with
+// nothing in it.
+class Trial extends Account {
+    public function constructor(string $owner, public bool $sponsored) {
+        if ($sponsored) {
+            parent::constructor($owner);
+        }
+    }
+}
+
+// Legal, and the other side of the same bound: both arms call it, so every
+// path through this constructor discharges the parent.
+class Paid extends Account {
+    public function constructor(string $owner, public int $cents) {
+        if ($cents > 0) {
+            parent::constructor($owner);
+        } else {
+            parent::constructor("unbilled");
+        }
+    }
+}
+
+// Legal: a parent that declares no constructor demands nothing of a subclass
+// that declares one.
+class Plain {}
+
+class Counted extends Plain {
+    public function constructor(public int $n) {}
+}
+// covers: lang:classes/inheritance
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0410]: `Trial` extends another class, but a path through its constructor never calls `parent::constructor(...)`
+%A
+error: aborting due to 1 error

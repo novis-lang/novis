@@ -1,0 +1,36 @@
+<?nvs
+// Calls a method through a variable typed at the parent class, so the subclass
+// version runs, and tests what the object is. A program that keeps its work in
+// a class hierarchy does both on every request.
+// bench: iterations 400000
+// bench: calls 1
+// bench: allocations 0
+
+abstract class Step {
+    public abstract function apply(int $n): int;
+}
+
+final class Doubling extends Step {
+    public function apply(int $n): int {
+        return $n + $n;
+    }
+}
+
+class Bench {
+    public static function run(int $rounds): int {
+        Step $step = new Doubling();
+        int $acc = 1;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: this round starts from what the last one returned.
+            $acc = $step->apply($acc) % 1000003;
+            if ($step is Doubling) {
+                $acc = $acc + 1;
+            }
+            $i = $i + 1;
+        }
+        return $acc;
+    }
+}
+
+echo Bench::run(400000), "\n";

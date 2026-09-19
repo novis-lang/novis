@@ -23,6 +23,7 @@ class Strict extends Formatter {
 class<Formatter> $cls = Formatter::class as class<Formatter>;
 Formatter $made = new $cls("p: ");
 echo $made->prefix, "\n";
+// covers: lang:classes/inheritance
 --EXPECTF-ERROR--
 error[E0794]: `new` over `class<Formatter>` cannot check its arguments
    --> %s:21:19

@@ -1,0 +1,41 @@
+<?nvs
+// Shows `abstract` and `final`. An abstract class says which methods a
+// subclass has to write, and writes the work that is the same for all of them.
+
+abstract class Exporter {
+    public function constructor(public string $title) {}
+
+    // This method has no body. Every subclass writes it.
+    public abstract function row(string $value): string;
+
+    // This one has a body, and it calls the method that does not.
+    public function render(array<string> $values): string {
+        string $out = $this->title . "\n";
+        foreach ($values as string $value) {
+            $out = $out . $this->row($value) . "\n";
+        }
+        return $out;
+    }
+}
+
+// `final` says no class extends this one.
+final class CsvExporter extends Exporter {
+    public function row(string $value): string {
+        return "\"" . $value . "\"";
+    }
+}
+
+final class ListExporter extends Exporter {
+    public function row(string $value): string {
+        return "- " . $value;
+    }
+}
+
+array<string> $names = ["Ada", "Bo"];
+
+// There is no object of `Exporter` itself. `array<Exporter>` still holds both
+// subclasses, because both are exporters.
+array<Exporter> $exporters = [new CsvExporter("names.csv"), new ListExporter("Names")];
+foreach ($exporters as Exporter $exporter) {
+    echo $exporter->render($names);
+}

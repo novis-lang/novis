@@ -42,6 +42,7 @@ Shape $bad = new Shape();
 class Counter {
     public abstract function reset(): void;
 }
+// covers: lang:classes/inheritance
 --EXPECT--
 
 --EXPECTF-ERROR--

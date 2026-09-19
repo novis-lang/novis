@@ -54,6 +54,7 @@ foreach ($all as string $k => Shape $s) {
 }
 echo "\n";
 echo ($all[0] is Shape) as string, "|", ($all[1] is Square) as string, "|\n";
+// covers: lang:classes/inheritance
 --EXPECT--
 20
 area=9;area=10;area=1;

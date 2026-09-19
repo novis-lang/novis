@@ -24,6 +24,7 @@ class Sub extends Base {
 
     public function label(): string { return "sub"; }
 }
+// covers: lang:classes/inheritance
 --EXPECT--
 
 --EXPECTF-ERROR--
