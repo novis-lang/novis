@@ -1,0 +1,19 @@
+<?nvs
+// Shows what happens to a value you mark as confidential, and the one way to
+// print it on purpose.
+
+secret string $token = "hunter2";
+
+// The mark spreads to anything built from it, so this header is confidential too.
+secret string $header = "Bearer " . $token;
+
+// Comparing is allowed. The answer is a yes or a no rather than the value.
+bool $matches = $header == "Bearer hunter2";
+
+// Printing it needs a written reason, and that reason stays in your code where
+// the next person can read it.
+string $shown = Core\Secret::reveal($token, "showing the token in this example");
+
+echo $matches ? "the header is the one we expected" : "the header is different", "\n";
+echo "the token is ", Core\Str::length($shown), " characters long", "\n";
+echo $shown, "\n";

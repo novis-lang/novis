@@ -1,0 +1,67 @@
+--TEST--
+Every sink a `tainted` or `secret` value can reach refuses it, counted in one program so a sink that stopped checking loses an error — `rule:security/sink-predicate`, `rule:security/every-grammar-is-a-sink`, `rule:security/unclassified-parameter-refuses-tainted`, `rule:core-classes/secret-reveal`
+--FILE--
+<?nvs
+// covers: lang:types/qualifiers-tainted-and-secret
+// One marked value is offered to every sink in turn, so the assertion is the
+// number of refusals rather than any one of them. A sink that quietly started
+// accepting a marked value drops an error here while every other line still
+// looks right.
+//
+// The four grammars are the roster `rule:security/every-grammar-is-a-sink`
+// fixes: a regex pattern, a format template, a byte-packing format and a date
+// pattern. The last `secret` group is every place a value is written down for
+// a person to read, and `Core\Str::length` stands for the parameters nobody
+// classified (`rule:security/unclassified-parameter-refuses-tainted`).
+tainted string $raw = "a+b";
+secret string $token = "hunter2";
+secret tainted string $both = $token . $raw;
+
+string $plain = $raw;
+
+Core\Regex\Pattern $rx = Core\Regex::compile($raw);
+string $formatted = Core\Str::format($raw, 1);
+bytes $packed = Core\Bytes::pack($raw, 1);
+Core\Time\Date $day = Core\Time\Date::at(2026, 9, 19);
+string $stamped = $day->format($raw);
+
+// `reveal` removes `secret` and leaves `tainted` where it was, so this answer
+// is still refused by a plain binding (`rule:core-classes/secret-reveal`).
+string $revealed = Core\Secret::reveal($both, "pinning what reveal leaves behind");
+
+echo $token, "\n";
+print($token);
+Core\Debug::dump($token);
+string $json = Core\Json::encode($token);
+uint $length = Core\Str::length($token);
+throw new RuntimeError($token);
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `tainted string`
+%A
+error[E0401]: expected `string`, found `tainted string`
+%A
+error[E0401]: expected `string`, found `tainted string`
+%A
+error[E0401]: expected `string`, found `tainted string`
+%A
+error[E0401]: expected `string`, found `tainted string`
+%A
+error[E0401]: expected `string`, found `tainted string`
+%A
+error[E0790]: a `secret`-qualified value cannot be written by `echo`; output is read by a person or captured into a log, so the value would be disclosed rather than used
+%A
+error[E0790]: a `secret`-qualified value cannot be written by `print`; output is read by a person or captured into a log, so the value would be disclosed rather than used
+%A
+error[E0724]: a `secret`-qualified value cannot be passed to `Core\Debug::dump`; a dump is written to be read by a person, so the value would be disclosed rather than used
+%A
+error[E0791]: a `secret`-qualified value cannot be passed to `Core\Json::encode`; an encoded document is on its way to a response, a log or a queue, and none of those is the credential being used
+%A
+error[E0401]: expected `string`, found `secret string`
+%A
+error[E0422]: a `secret`-qualified value cannot be passed as a `Throwable` message; it would surface in a stack trace or an error page
+%A
+error[E0401]: expected `string`, found `secret string`
+%A
+error: aborting due to 13 errors
