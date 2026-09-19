@@ -97,6 +97,9 @@ files = [
 
 modules = [
   "crates/nvs-hir/src/interfaces.rs",
+  # Seeding the checker's signature table with the members of every compiler-declared global
+  # interface.
+  "crates/nvs-types/src/iter_lib.rs",
 ]
 
 rules = ["testing/four-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
