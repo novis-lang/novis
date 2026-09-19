@@ -2385,6 +2385,9 @@ fn reject_impossible_literal_conversion(
     if accepted.contains(&operand) {
         return;
     }
+    if int_literal_reaches_a_case(operand, &accepted, env) {
+        return;
+    }
     // § 6: the accepted set is generated from the type, never written per
     // site, so every atom is rendered by the interner that holds it.
     let cases_only = accepted
@@ -2410,6 +2413,37 @@ fn reject_impossible_literal_conversion(
             "write one of the accepted values, or widen the target type to include this one",
         ),
     );
+}
+
+/// An `int` literal converted into a set of enum cases, one of which carries
+/// that value: `1 as Mode::Read|Mode::Write` reaches `Mode::Write` on every
+/// execution, so it is the opposite of [`reject_impossible_literal_conversion`]'s
+/// row — the operand settles the question by itself and settles it in the set's
+/// favour. The check is over the cases' *values* because that is what the
+/// conversion tests at run time: `rule:types/conversion` makes `int → Mode` a
+/// checked conversion over the backing type, and a set of cases narrows which
+/// values pass without changing what is compared. [`Ty::EnumCase`] carries the
+/// case's name rather than its value, and names the [`crate::enums::EnumTable`]
+/// lookup below as the way to the value for anything that needs it.
+///
+/// This does not fold an int literal into an enum case anywhere else: assigning
+/// `1` to a `Mode` stays refused, which is the hole § 3 keeps shut.
+fn int_literal_reaches_a_case(operand: TypeId, accepted: &[TypeId], env: &Env<'_>) -> bool {
+    let Ty::IntLiteral(value) = *env.interner.get(operand) else {
+        return false;
+    };
+    accepted.iter().any(|id| {
+        let Ty::EnumCase(qname, _, case) = env.interner.get(*id) else {
+            return false;
+        };
+        match env.enums.case(qname, case) {
+            Some(crate::enums::EnumValue::Int(written)) => written == value,
+            Some(crate::enums::EnumValue::Uint(written)) => {
+                u64::try_from(value).is_ok_and(|operand| operand == written)
+            }
+            None => false,
+        }
+    })
 }
 
 /// The atoms of a target type that is **entirely** literals and enum cases,

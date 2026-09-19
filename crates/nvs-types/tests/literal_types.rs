@@ -435,6 +435,60 @@ fn a_literal_conversion_the_operand_disproves_is_refused() {
     );
 }
 
+/// The operand settling the question by itself settles it both ways: an `int`
+/// literal carrying a case's value converts into a set holding that case, and
+/// one carrying no case's value does not. `1 as Mode::Read|Mode::Write` reaches
+/// `Mode::Write` on every execution, so refusing it would refuse a conversion
+/// that works, and the membership test is over the cases' values because that
+/// is what runs. Assigning `1` to a `Mode` is a different question and stays
+/// refused.
+// covers: lang:enums/a-union-of-cases-is-a-narrower-type
+#[test]
+fn an_int_literal_converts_into_the_case_set_that_holds_its_value() {
+    let diags = check_src(concat!(
+        "<?nvs\n",
+        "enum Mode { Read, Write, Admin }\n",
+        "enum Mask: uint { None = 0, All = 7 }\n",
+        "class T {\n",
+        "  function m(): void {\n",
+        "    Mode::Read|Mode::Write $named = 1 as Mode::Read|Mode::Write;\n",
+        "    Mask::None|Mask::All $wide = 7 as Mask::None|Mask::All;\n",
+        "  }\n",
+        "}\n",
+    ));
+    assert!(!diags.has_errors(), "{diags:?}");
+
+    let diags = check_src(concat!(
+        "<?nvs\n",
+        "enum Mode { Read, Write, Admin }\n",
+        "class T {\n",
+        "  function m(): void {\n",
+        "    Mode::Read|Mode::Write $named = 9 as Mode::Read|Mode::Write;\n",
+        "  }\n",
+        "}\n",
+    ));
+    let reported = diags
+        .iter()
+        .find(|d| d.code == Some(code::E_ENUM_CASE_SUBSET_MISMATCH))
+        .unwrap_or_else(|| panic!("{diags:?}"));
+    assert!(
+        reported.message.starts_with("`9` is not one of "),
+        "{}",
+        reported.message
+    );
+
+    let diags = check_src(concat!(
+        "<?nvs\n",
+        "enum Mode { Read, Write, Admin }\n",
+        "class T {\n",
+        "  function m(): void {\n",
+        "    Mode $whole = 1;\n",
+        "  }\n",
+        "}\n",
+    ));
+    assert!(diags.has_errors(), "{diags:?}");
+}
+
 /// § 6's second diagnostic, and why it is a second one: the set it names is a
 /// set of *cases*. The two rows around it stay legal — the case the subset
 /// does name, and the whole enum arriving at run time, which is § 4's checked
