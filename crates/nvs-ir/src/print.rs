@@ -601,6 +601,7 @@ fn helper_name(h: Helper) -> &'static str {
         Helper::ValueBitNot => "value_bit_not",
         Helper::ValueIndexGet => "value_index_get",
         Helper::ValueIndexOptionalGet => "value_index_optional_get",
+        Helper::ValueToArrayKey => "value_to_array_key",
         Helper::SecretEq => "secret_eq",
         Helper::CallClosure => "call_closure",
         Helper::CallClosureProven => "call_closure_proven",

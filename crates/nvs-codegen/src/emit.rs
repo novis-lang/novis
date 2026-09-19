@@ -4013,6 +4013,7 @@ fn helper_symbol(helper: Helper) -> Result<&'static str, CodegenError> {
         Helper::ValueBitNot => "nvs_value_bit_not",
         Helper::ValueIndexGet => "nvs_value_index_get",
         Helper::ValueIndexOptionalGet => "nvs_value_index_optional_get",
+        Helper::ValueToArrayKey => "nvs_value_to_array_key",
         Helper::SecretEq => "nvs_secret_eq",
         Helper::CallClosure => "nvs_call_closure",
         Helper::CallClosureProven => "nvs_call_closure_proven",

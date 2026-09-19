@@ -2664,6 +2664,24 @@ pub enum Helper {
     /// carries no error edge — the same split
     /// [`AbsentKey`] draws for the statically typed pair.
     ValueIndexOptionalGet,
+    /// `$a[$k]` where the *key* carries no static type — a subscript, an
+    /// array literal's explicit `key =>` and an `unset` alike, over a
+    /// [`crate::ty::Ty::Tagged`] key.
+    ///
+    /// `rule:types/arrays` keys every array by a `string` and normalizes an
+    /// `int`/`uint` to its own decimal, and `nvs_types`'
+    /// `check_array_key_type` refuses a `float`, `bool`, `null` or enum key
+    /// wherever the declared type shows it. A `mixed` shows nothing, which is
+    /// `rule:types/unions-and-mixed`'s one unchecked position reaching the key
+    /// slot: the tag answers instead, and this helper is that answer — the
+    /// same normalization, plus a **catchable throw** naming the tag for
+    /// every kind `E0434` would have refused outright.
+    ///
+    /// The result is always [`crate::ty::Ty::Str`] and always a fresh buffer
+    /// with exactly one owner, as [`Self::UintToString`]'s is, so
+    /// `Lowering::lower_array_key`'s callers stage and release a key the same
+    /// way whichever arm produced it.
+    ValueToArrayKey,
     /// `a == b` over two operands at least one of which the checker typed
     /// `secret` —
     /// `rule:security/secret-comparison-is-constant-time`

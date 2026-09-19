@@ -2345,6 +2345,14 @@ impl<'a> Lowering<'a> {
     /// for anything that already passed `nvs_types::check_program` — rather
     /// than a live known gap.
     ///
+    /// A [`Ty::Tagged`] key is the one shape that check never sees, because
+    /// `mixed` is `rule:types/unions-and-mixed`'s unchecked position and the
+    /// checker says so where it refuses the other four: the value's own tag
+    /// is what decides, so the key goes to [`Helper::ValueToArrayKey`] and
+    /// arrives here as the `Ty::Str` every array is keyed by, or throws.
+    /// That is the same deferral [`Self::lower_erased_method_call`] makes for
+    /// a receiver, one slot along.
+    ///
     /// Returns the key value, **the representation it is in** — `Ty::Str` or
     /// `Ty::Int`, which is what every caller's refcount decision turns
     /// on, since an `int` owns nothing to retain or release — and whether it
@@ -2369,6 +2377,18 @@ impl<'a> Lowering<'a> {
                     Ty::Str,
                     InstKind::HelperCall {
                         helper: Helper::UintToString,
+                        args: vec![v],
+                    },
+                    env,
+                );
+                (sv, Ty::Str, false)
+            }
+            Ty::Tagged => {
+                let (sv, _) = self.emit_fallible(
+                    *cur,
+                    Ty::Str,
+                    InstKind::HelperCall {
+                        helper: Helper::ValueToArrayKey,
                         args: vec![v],
                     },
                     env,

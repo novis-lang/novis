@@ -436,6 +436,51 @@ fn value_index(base: Value, key: Value, absent_is_null: bool) -> Result<Value, F
     }
 }
 
+/// `nvs_ir::Helper::ValueToArrayKey` — `rule:types/arrays`'s key
+/// normalization, performed on a tag because the key's declared type was a
+/// `mixed` and showed nothing.
+///
+/// The three rows the checker would have accepted are the three rows here: a
+/// `string` is already the key, and an `int` or a `uint` is its own decimal,
+/// which is the same normalization `$a[8]` gets where the subscript's type is
+/// visible. Every other tag is the compile-time refusal `E0434` makes, raised
+/// here as a **catchable throw** naming the tag instead, for
+/// [`not_subscriptable`]'s reason — a `mixed` deferred the question rather
+/// than answering it differently.
+///
+/// The answer is **owned**: a `string` key is copied rather than passed back,
+/// because the caller stages whatever this returns as a temporary it releases,
+/// exactly as it does for [`nvs_uint_to_string`]'s freshly rendered buffer.
+#[expect(
+    unsafe_code,
+    reason = "a Tag::Str argument owns a reference to a live allocation, so \
+              its bytes are live for the copy taken from them here"
+)]
+fn value_to_array_key(key: Value) -> Result<Value, Fault> {
+    if let Some(text) = key.str_ptr() {
+        let bytes = unsafe { NvsStr::bytes_of(text) };
+        return Ok(Value::str(NvsStr::new(bytes)));
+    }
+    if let Some(index) = key.as_int() {
+        return Ok(Value::str(NvsStr::new(index.to_string().as_bytes())));
+    }
+    if let Some(index) = key.as_uint() {
+        return Ok(Value::str(NvsStr::new(index.to_string().as_bytes())));
+    }
+    Err(Fault::thrown(format!(
+        "`{}` is not an array key — array keys are `int`, `uint`, or `string`",
+        tag_name(key)
+    )))
+}
+
+crate::nvs_helper! {
+    /// `nvs_ir::Helper::ValueToArrayKey` — the key of `$a[$k]` where `$k` is
+    /// a `mixed`. See [`value_to_array_key`].
+    fn nvs_value_to_array_key(_ctx, args: [1]) {
+        value_to_array_key(args[0])
+    }
+}
+
 crate::nvs_helper! {
     /// `nvs_ir::Helper::ValueIndexGet` — `$m[$k]` where the base's static
     /// type named no element type, so its tag names one instead. See
@@ -2809,6 +2854,7 @@ pub fn symbols() -> Vec<(&'static str, *const u8)> {
         ("nvs_array_row_for_write", address(nvs_array_row_for_write)),
         ("nvs_array_required_get", address(nvs_array_required_get)),
         ("nvs_array_optional_get", address(nvs_array_optional_get)),
+        ("nvs_value_to_array_key", address(nvs_value_to_array_key)),
         ("nvs_value_index_get", address(nvs_value_index_get)),
         (
             "nvs_value_index_optional_get",
@@ -3187,6 +3233,27 @@ mod tests {
             string_result(nvs_uint_to_string, Value::uint(u64::MAX)),
             "18446744073709551615"
         );
+    }
+
+    /// `rule:types/arrays`'s key normalization performed on a tag, because
+    /// the key was a `mixed` and its declared type showed nothing: the three
+    /// kinds that are keys, and the three the checker refuses where it can
+    /// see them.
+    // covers: lang:types/mixed
+    #[test]
+    fn a_tagged_array_key_normalizes_or_throws() {
+        assert_eq!(string_result(nvs_value_to_array_key, Value::int(8)), "8");
+        assert_eq!(
+            string_result(nvs_value_to_array_key, Value::uint(u64::MAX)),
+            "18446744073709551615"
+        );
+        for refused in [Value::float(1.5), Value::bool(true), Value::null()] {
+            let mut ctx = Ctx::buffered();
+            assert!(
+                call(nvs_value_to_array_key, &mut ctx, &[refused]).is_err(),
+                "a key kind `rule:types/arrays` refuses has to throw here too"
+            );
+        }
     }
 
     #[test]
