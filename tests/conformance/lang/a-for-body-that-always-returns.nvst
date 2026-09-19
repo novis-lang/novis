@@ -2,6 +2,8 @@
 A `for` whose body always leaves the frame never runs its step clause
 --FILE--
 <?nvs
+// covers: lang:statements/return
+// covers: lang:statements/for
 class Scan {
     public static function firstOver(array<int> $xs, int $limit): int {
         var $i = 0;

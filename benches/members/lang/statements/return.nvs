@@ -1,0 +1,25 @@
+<?nvs
+// Calls a method that gives a value back, once per round, and takes one of two
+// `return` statements. A program meets this shape in every helper it calls.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function step(int $acc): int {
+        if ($acc % 7 == 0) {
+            return ($acc + 5) % 1000003;
+        }
+        return ($acc + 3) % 1000003;
+    }
+
+    public static function run(int $rounds): int {
+        int $acc = 1;
+        for (int $i = 0; $i < $rounds; $i++) {
+            // Chained: this round's value comes out of the last round.
+            $acc = Bench::step($acc);
+        }
+        return $acc;
+    }
+}
+
+echo Bench::run(400000), "\n";

@@ -1,0 +1,81 @@
+<?nvs
+// Attack: methods return from as deep inside the program as they can. One
+// calls itself a hundred thousand times. One returns a text of a million
+// characters, again and again. One returns out of a `try` that has a
+// `finally`. The runtime should survive all of it and stay standing.
+// hostile: timeout-ms 60000
+// covers: lang:statements/return
+
+class Deep
+{
+    // Calls itself until the counter runs out, then returns from the bottom.
+    public static function down(int $left): int
+    {
+        if ($left <= 0) {
+            return 0;
+        }
+        return Deep::down($left - 1) + 1;
+    }
+
+    // Returns from inside three loops, so two of them never finish a round.
+    public static function out(): int
+    {
+        for (int $a = 0; $a < 1000; $a++) {
+            for (int $b = 0; $b < 1000; $b++) {
+                for (int $c = 0; $c < 1000; $c++) {
+                    return $a + $b + $c;
+                }
+            }
+        }
+        return -1;
+    }
+
+    // The `finally` block runs even though the `try` block returned.
+    public static function held(inout int $seen): string
+    {
+        try {
+            return 'from the try block';
+        } finally {
+            $seen = $seen + 1;
+        }
+    }
+
+    public static function big(): string
+    {
+        return Core\Str::repeat('z', 1000000);
+    }
+}
+
+// 1. A hundred thousand calls that have not returned yet, one inside the next.
+try {
+    echo Deep::down(100000), "\n";
+} catch (Throwable $e) {
+    echo 'caught: ', $e->message, "\n";
+}
+
+// 2. Three hundred thousand returns out of three loops.
+int $sum = 0;
+for (int $i = 0; $i < 300000; $i++) {
+    $sum = $sum + Deep::out();
+}
+echo $sum, "\n";
+
+// 3. A hundred thousand returns out of a `try` that has a `finally`.
+int $seen = 0;
+string $last = '';
+for (int $k = 0; $k < 100000; $k++) {
+    $last = Deep::held(inout $seen);
+}
+echo $seen, ' ', $last, "\n";
+
+// 4. Two hundred returns of a text of a million characters.
+uint $bytes = 0;
+for (int $n = 0; $n < 200; $n++) {
+    $bytes = $bytes + Core\Str::length(Deep::big());
+}
+echo $bytes, "\n";
+
+// 5. The last `return` is outside any method, so it ends the program here.
+echo "ending\n";
+return;
+echo "never\n";

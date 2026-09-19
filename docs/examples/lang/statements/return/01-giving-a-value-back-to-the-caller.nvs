@@ -1,0 +1,26 @@
+<?nvs
+// Shows `return`, which leaves a method and gives a value back to the caller.
+// The first `return` that runs ends the method, so the loop stops there.
+
+class Basket
+{
+    // Gives the first price over the limit, or 0 when there is none.
+    public static function firstOver(array<int> $prices, int $limit): int
+    {
+        foreach ($prices as int $price) {
+            if ($price > $limit) {
+                return $price;
+            }
+        }
+        return 0;
+    }
+}
+
+array<int> $prices = [300, 1200, 4500];
+
+// This prints 1200. The method ends at the first price over 1000, so 4500 is
+// never looked at.
+echo Basket::firstOver($prices, 1000), "\n";
+
+// This prints 0. No price is over 9000, so the last line of the method runs.
+echo Basket::firstOver($prices, 9000), "\n";

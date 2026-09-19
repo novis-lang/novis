@@ -2,6 +2,7 @@
 `return` inside a `while` leaves the method at once, and `continue` skips only the rest of one iteration
 --FILE--
 <?nvs
+// covers: lang:statements/return
 class Search {
     public static function firstOver(array<int> $ns, int $least): int {
         foreach ($ns as string $k => int $v) {

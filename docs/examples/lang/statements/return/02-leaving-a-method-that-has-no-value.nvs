@@ -1,0 +1,21 @@
+<?nvs
+// Shows `return;` with no value. A `void` method gives nothing back, so its
+// `return` carries no value, and it is how such a method ends early.
+
+class Mailer
+{
+    public static function send(string $address, string $text): void
+    {
+        if ($address == "") {
+            echo "no address, nothing sent\n";
+            return;
+        }
+
+        echo "sent to ", $address, ": ", $text, "\n";
+    }
+}
+
+// The first call ends at the `return`, so it prints one line about the missing
+// address. The second call prints the message it sent.
+Mailer::send("", "your order is on its way");
+Mailer::send("ada@example.com", "your order is on its way");
