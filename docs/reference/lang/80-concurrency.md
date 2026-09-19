@@ -204,14 +204,20 @@ var $job = spawn script 'jobs/report.nvs' with(
 var $result = await $job;
 ```
 
-- The operand is any `string` expression naming a file, relative to the working directory. A
-  variable or a computed path is fine. A closure, a `callable`, or a `Class::method(...)` reference
-  is refused: the operand must be a `string`.
+- The entry is either a **path** — any `string` expression naming a file, relative to the working
+  directory, so a variable or a computed path is fine — or a **static method**, written
+  `Class::method(...)`. An `fn` literal is refused (`E0802`): an isolate shares nothing but compiled
+  code, and a literal would carry the scope around it across that boundary.
 - `with(…)` is optional. `output: 'capture'` collects what the child writes into the result;
   `output: 'inherit'` lets the child write straight to the parent's standard output, interleaved
   with the parent's own lines in whatever order the two run — only after `await` is all of it
-  there. Any other spelling throws `LogicError` at the spawn. `args:` is accepted, but no member exists for the child
-  to read it with. `limits:`, `grants:` and `on:` are refused at compile time.
+  there. Any other spelling throws `LogicError` at the spawn. `args:` takes any value, copies it into
+  the child, and the child reads it back with `Core\Script::args()`; a child spawned without the
+  option reads `null`. `limits:` sets a sub-cap the child runs under — tighter than what is left of
+  the tree's budget, never wider — and `grants:` names the capabilities it holds, intersected with
+  the ones its parent holds. `on: 'worker'` starts the child on another core; `on: 'here'`, which is
+  also what a spawn with no `on:` does, starts it on the parent's own, and the placement decides
+  which core runs it and nothing else about it.
 - `await` takes a handle and nothing else; `await $n` on an `int` is a type error. A handle can be
   awaited **once**: a second `await` of the same handle throws `LogicError`.
 - Spawning needs the `script.spawn` capability. Without it the spawn throws a catchable
@@ -222,7 +228,7 @@ The result is a record with four fields:
 | Field | Type | Holds |
 |---|---|---|
 | `ok` | `bool` | `true` when the child ended normally |
-| `value` | `mixed` | what the child's top-level `return` answered — convert it with `as`; a child with no `return` answers `1` |
+| `value` | `mixed` | what the child's top-level `return` answered — convert it with `as`; a child with no `return` answers `null` |
 | `output` | `string` | everything the child wrote, when `output` is `'capture'`; empty when inherited |
 | `error` | `?{class: string, message: string}` | the class name and message of the child's uncaught throw; `null` when `ok` |
 
@@ -378,8 +384,8 @@ help: grant it in nvs.toml under `[capabilities.script]`
 - `async`, a promise-style `await`, `Fiber`, generators as coroutines: a task is a closure handed to
   `Core\Task`, and waiting is implicit.
 - `pcntl_fork`, `pthreads`, `parallel`, a `spawn worker`: an isolate is the one unit of separate
-  execution, and it is a whole file.
-- `spawn script Class::method(...)`, closures as spawn operands, and `limits:`/`grants:`/`on:` at
-  the spawn site: refused.
+  execution, and its entry is a whole file or a static method.
+- A closure or an `fn` literal as a spawn entry: refused, because a literal would carry the scope
+  around it into a child that shares nothing but compiled code.
 - State shared between requests, or between an isolate and its parent, other than the values that
   cross at `await`.

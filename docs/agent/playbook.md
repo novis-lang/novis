@@ -2468,6 +2468,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `current_binary` prints before it builds that binary itself; the real reason was the gate line
   saying three features owed every proof. Run the check's own argv and read stdout — `dossier gate:`
   names what is owed — rather than rebuilding anything by hand. [until: reviewed 2026-09-19]
+- **A `lang:` feature's perf figure is hashed against its *reference chapter*, so one word changed in
+  `docs/reference/lang/*.md` re-stales every figure in that chapter's group.** The repair is one
+  `python tools/dossier.py --record-perf --group '<group>'`, which re-measures only what has no current
+  figure — but it has to come after the session's **last** chapter edit, or it is paid twice, which is
+  what happened here when a proof turned up two stale sentences in the chapter it was proving. Write the
+  proofs, fix the prose, then record. [until: reviewed 2026-09-19]
 
 ## Running things
 
@@ -6092,12 +6098,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   attribution edit turned the conformance suite red. Before marking a case, `grep -n 'case.nvs:'` it:
   where a number is pinned, move it by the number of lines the marker adds, in the same edit.
   [until: reviewed 2026-09-19]
-- **A `spawn script` path is resolved against the working directory, never against the file that
-  spawns.** Every proof program runs from the repository root, so a child sitting beside its parent is
-  not found and the parent throws a `RuntimeError` naming a path that plainly exists. Write the child's
-  path from the repository root — `docs/examples/…/jobs/child.nvs` — or use a `.nvst` case, whose
-  `--FILE child.nvs--` sections are written into one directory together.
-  [until: gone docs/reference/lang/80-concurrency.md:relative to the working directory]
 
 ## Splitting a file that got too big
 
@@ -8362,6 +8362,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   later comment edit above the `throw` moves the number too, so the example goes red with nothing
   wrong in it. Bless such an example last, after `python tools/verify.py` has formatted the tree, and
   re-run `python tools/dossier.py --run examples --group <group>` after any edit above a `throw`.
+  [until: reviewed 2026-09-19]
+- **`Core\Arr::count` answers `uint`, and an `int` binding or a bare `0` beside one does not compile.**
+  `int $n = Core\Arr::count($rows)` is `E0401: expected int, found uint`, and
+  `uint $d = $ok ? ($v as uint) : 0` is `uint|int` because the literal is an `int` — both read as a
+  mistake in the member rather than in the binding. Bind counts as `uint`, convert the other side with
+  `as uint`, and write the zero as a `uint $d = 0;` on its own line before the `if`.
   [until: reviewed 2026-09-19]
 
 ## Divergences and refusals already pinned
