@@ -1,0 +1,36 @@
+<?nvs
+// A closure is what a program hands to a sort or a filter. It is called far
+// more often than it is written. This measures three calls per round. They go
+// to a closure with no captures, one holding a captured number, and one
+// written as a block.
+// bench: iterations 200000
+// bench: allocations 0
+// dossier: known-gap crates/nvs-runtime/src/lib.rs -- a call through a `callable` builds its argument slots in a heap vector, so each of these three calls allocates where a call allocates nothing
+
+class Bench {
+    public static function run(int $rounds): int {
+        int $step = 3;
+        callable $plain = fn(int $n): int => $n + 1;
+        callable $holding = fn(int $n): int => $n + $step;
+        callable $block = fn(int $n): int => {
+            int $doubled = $n * 2;
+
+            return $doubled - $n;
+        };
+
+        int $acc = 1;
+        int $i = 0;
+
+        while ($i < $rounds) {
+            // Chained: this round's argument is last round's answer.
+            $acc = $plain($acc) as int;
+            $acc = $holding($acc) as int;
+            $acc = ($block($acc) as int) % 1000003;
+            $i = $i + 1;
+        }
+
+        return $acc;
+    }
+}
+
+echo Bench::run(200000), "\n";

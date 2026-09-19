@@ -1,0 +1,30 @@
+<?nvs
+// Shows the two ways to write a closure. After the arrow comes either one
+// expression, whose value the closure gives back, or a block in braces that
+// runs several lines and returns.
+
+// One expression. The result is the value of `$x + 1`.
+callable $next = fn(int $x): int => $x + 1;
+
+// A block, for work that takes more than one line. A block says what it
+// returns; only the one-expression form may leave the type out.
+callable $total = fn(array<int> $amounts): int => {
+    int $sum = 0;
+
+    foreach ($amounts as int $amount) {
+        $sum = $sum + $amount;
+    }
+
+    return $sum;
+};
+
+// A closure is called through the variable holding it. The call gives back
+// `mixed`, so write `as` to say which type you are reading. This prints 8 12.
+array<int> $prices = [3, 4, 5];
+echo $next(7) as int, " ", $total($prices) as int, "\n";
+
+// A closure is a value, so it goes straight into a call that asks for one.
+// This prints: BAG,BOX
+array<string> $names = ["bag", "box"];
+array<mixed> $shouted = Core\Arr::map($names, fn(string $name) => Core\Str::upper($name));
+echo Core\Str::join($shouted as array<string>, ","), "\n";

@@ -1,0 +1,125 @@
+<?nvs
+// Attack: closures are made, captured and called until one of them forgets
+// what it was holding. A million are kept at once, one captures text millions
+// of characters long, and calls are nested as deep as the engine allows.
+// Nothing may crash, hang or lose what it captured.
+// hostile: timeout-ms 20000
+// covers: lang:expressions/closures
+
+class Attack
+{
+    // 1. A closure made and thrown away on every call, so the engine builds
+    // and frees millions of them.
+    public static function fresh(int $seed): int
+    {
+        callable $once = fn (int $n): int => $n + $seed;
+
+        return $once($seed) as int;
+    }
+
+    // 2. A closure that calls a method that makes another closure, so the
+    // nesting runs as deep as the stack allows.
+    public static function deeper(int $depth): int
+    {
+        if ($depth <= 0) {
+            return 0;
+        }
+
+        callable $down = fn (int $n): int => Attack::deeper($n - 1);
+
+        return 1 + ($down($depth) as int);
+    }
+
+    // 3. A closure given the wrong kind of value, which throws rather than
+    // reading the number that is not there.
+    public static function refuse(callable $rule, mixed $value): string
+    {
+        return $rule($value) as string;
+    }
+}
+
+// Ten thousand closures held at once, each one carrying its own captured
+// number, and every one of them called afterwards.
+array<callable> $held = [];
+int $made = 0;
+
+while ($made < 10000) {
+    $held = Core\Arr::append($held, fn (): int => $made);
+    $made = $made + 1;
+}
+
+int $called = 0;
+int $sum = 0;
+
+foreach ($held as callable $one) {
+    $sum = ($sum + ($one() as int)) % 1000003;
+    $called = $called + 1;
+}
+
+echo $called, ' ', $sum, "\n";
+
+// Millions of closures built and dropped one at a time.
+int $round = 0;
+int $rolling = 0;
+
+while ($round < 500000) {
+    $rolling = (Attack::fresh($round) + $rolling) % 1000003;
+    $round = $round + 1;
+}
+
+echo $rolling, "\n";
+
+// A capture of text millions of characters long, copied into the closure
+// where it is written and read back out of it.
+string $long = '';
+int $built = 0;
+
+while ($built < 400000) {
+    $long = $long . 'novis-';
+    $built = $built + 1;
+}
+
+callable $measure = fn (): uint => Core\Str::length($long);
+$long = '';
+echo $measure() as uint, ' ', Core\Str::length($long), "\n";
+
+// Closures nested until the engine stops the stack, caught so the attack
+// after it still runs.
+try {
+    echo Attack::deeper(100000000), "\n";
+} catch (RecursionError $stopped) {
+    echo $stopped->message, "\n";
+}
+
+// A closure handed a value of a kind it does not declare, tens of thousands
+// of times, each refusal caught.
+callable $needsText = fn (string $s): string => Core\Str::upper($s);
+int $refused = 0;
+int $attempt = 0;
+
+while ($attempt < 20000) {
+    try {
+        echo Attack::refuse($needsText, $attempt);
+    } catch (Throwable $wrong) {
+        $refused = $refused + 1;
+    }
+    $attempt = $attempt + 1;
+}
+
+echo $refused, "\n";
+
+// A closure called with far more arguments than it declares, and one written
+// and called where it stands, hundreds of thousands of times.
+callable $spareStep = fn (int $n): int => $n + 1;
+int $spare = 0;
+$attempt = 0;
+
+while ($attempt < 200000) {
+    $spare = $spareStep($spare, 1, 2, 3, 4, 5, 6, 7, 8, 9) as int;
+    $spare = (fn (int $n): int => $n + 1)($spare) as int;
+    $spare = $spare % 1000003;
+    $attempt = $attempt + 1;
+}
+
+echo $spare, "\n";
+echo "still standing\n";

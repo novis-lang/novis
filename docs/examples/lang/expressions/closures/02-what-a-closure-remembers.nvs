@@ -1,0 +1,45 @@
+<?nvs
+// Shows what a closure remembers. Every variable it uses is copied into the
+// closure when the closure is written. Changing that variable afterwards does
+// not change what the closure reads.
+
+string $greeting = "Hello";
+callable $greet = fn(string $name): string => $greeting . ", " . $name;
+
+// The variable changes, the copy inside the closure does not.
+// This prints: Hello, Ada
+$greeting = "Goodbye";
+echo $greet("Ada") as string, "\n";
+
+// One closure per round, each holding that round's number. This prints 0,1,2
+array<callable> $labels = [];
+int $round = 0;
+
+while ($round < 3) {
+    $labels = Core\Arr::append($labels, fn(): string => $round as string);
+    $round = $round + 1;
+}
+
+array<string> $printed = [];
+
+foreach ($labels as callable $label) {
+    $printed = Core\Arr::append($printed, $label() as string);
+}
+
+echo Core\Str::join($printed, ","), "\n";
+
+class Discount {
+    public function constructor(private int $percent) {}
+
+    // Inside a method the object is captured too, so the closure reads the
+    // property through it. This gives back a closure the caller can keep.
+    public function rule(): callable {
+        return fn(int $price): int => $price - Core\Math::intDiv($price * $this->percent, 100);
+    }
+}
+
+// The closure carries the discount with it wherever it is used.
+// This prints 900 450
+Discount $tenth = new Discount(10);
+callable $apply = $tenth->rule();
+echo $apply(1000) as int, " ", $apply(500) as int, "\n";
