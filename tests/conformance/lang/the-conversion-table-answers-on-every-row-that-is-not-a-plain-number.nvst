@@ -1,0 +1,159 @@
+--TEST--
+Every `rule:types/conversion` row that is not a plain number answers with a value or a throw — money, bytes, an enum, a class name, a property name, a closed set of words, an element type and a `Stringable` — and the refusals are counted
+--FILE--
+<?nvs
+// covers: lang:types/the-conversion-operator-as
+// `rule:types/conversion`'s table is closed, and its `int`/`uint`/`float` rows
+// are already asserted at both ends elsewhere. This walks every other row
+// once: each is asked for the value it gives, and where it can fail it is
+// asked for the refusal too. The refusals are counted rather than read off a
+// line, so a row that quietly starts answering instead of throwing fails here
+// even though every other line still prints what it used to.
+
+enum Mode: int
+{
+    Read = 1,
+    Write = 2,
+    Admin = 4,
+}
+
+class Label implements Stringable
+{
+    public string $name = "ready";
+
+    public function toString(): string
+    {
+        return "label ready";
+    }
+}
+
+int $whole = 7;
+uint $units = 3;
+float $tenth = 0.1;
+decimal $money = 19.90;
+decimal $round = 42.00;
+uint $refused = 0;
+
+// Money, in and out. A `float` becomes the shortest decimal that reads back as
+// that same `float`, and a `decimal` keeps the scale it was written with.
+echo $whole as decimal, " ", $units as decimal, "\n";
+echo $tenth as decimal, " ", $money as float, "\n";
+echo "1.05" as decimal, " ", $money as string, "\n";
+echo $round as int, "\n";
+
+try {
+    echo $money as int, "\n";
+} catch (ArithmeticError $scale) {
+    $refused = $refused + 1;
+}
+
+try {
+    echo "1.0.0" as decimal, "\n";
+} catch (RuntimeError $notADecimal) {
+    $refused = $refused + 1;
+}
+
+// Text and bytes are the same buffer read two ways, and only one direction is
+// checked.
+bytes $raw = "café" as bytes;
+echo $raw as string, "\n";
+
+// An enum and its backing number.
+Mode $mode = Mode::Admin;
+echo $mode as int, " ", 2 as Mode as int, "\n";
+
+try {
+    echo 3 as Mode as int, "\n";
+} catch (RuntimeError $noSuchCase) {
+    $refused = $refused + 1;
+}
+
+// A closed subset of the cases, and a closed set of words.
+Mode $writing = Mode::Write;
+Mode::Read|Mode::Write $writable = $writing as Mode::Read|Mode::Write;
+echo $writable as int, "\n";
+
+try {
+    Mode::Read|Mode::Write $outside = $mode as Mode::Read|Mode::Write;
+    echo $outside as int, "\n";
+} catch (RuntimeError $notThatCase) {
+    $refused = $refused + 1;
+}
+
+string $word = "closed";
+echo $word as "open"|"closed", "\n";
+
+string $other = "ajar";
+
+try {
+    echo $other as "open"|"closed", "\n";
+} catch (RuntimeError $notInTheSet) {
+    $refused = $refused + 1;
+}
+
+// A class name and a property name, each checked against what the program
+// actually declares.
+string $className = "Label";
+string $propertyName = "name";
+echo ($className as class<Label>) as string, " ", ($propertyName as property<Label>) as string, "\n";
+
+string $unknownClass = "Ledger";
+string $unknownProperty = "colour";
+
+try {
+    echo ($unknownClass as class<Label>) as string, "\n";
+} catch (RuntimeError $notThatClass) {
+    $refused = $refused + 1;
+}
+
+try {
+    echo ($unknownProperty as property<Label>) as string, "\n";
+} catch (RuntimeError $notThatProperty) {
+    $refused = $refused + 1;
+}
+
+// An array's element type: every element has to satisfy the new one already.
+array<mixed> $words = ["alpha", "beta"];
+array<string> $names = $words as array<string>;
+echo $names[0], "\n";
+
+array<mixed> $ragged = [1, "two"];
+
+try {
+    array<int> $ints = $ragged as array<int>;
+    echo "took it\n";
+} catch (RuntimeError $notThatElement) {
+    $refused = $refused + 1;
+}
+
+// An object renders itself only where it says it can, and `mixed` carries a
+// tag the conversion has to agree with.
+Label $label = new Label();
+echo $label as string, "\n";
+
+mixed $anything = "8";
+echo $anything as int, "\n";
+
+mixed $notANumber = [1];
+
+try {
+    echo $notANumber as int, "\n";
+} catch (RuntimeError $wrongTag) {
+    $refused = $refused + 1;
+}
+
+echo $refused, " of 9 rows refused the value they cannot hold\n";
+--EXPECT--
+7 3
+0.1 19.9
+1.05 19.90
+42
+café
+4 2
+2
+closed
+Label name
+alpha
+label ready
+8
+9 of 9 rows refused the value they cannot hold

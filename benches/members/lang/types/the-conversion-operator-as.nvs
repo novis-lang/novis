@@ -1,0 +1,24 @@
+<?nvs
+// Reading a whole number out of text is the conversion a program does most
+// often: a form, a query string or a line of a file hands you text, and the
+// work needs the number. Every round converts the text the round before it
+// chose, so nothing here can be worked out before the program runs. Nothing
+// here asks for memory.
+// bench: iterations 200000
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): int {
+        array<string> $texts = ["17", "204", "9", "1350"];
+        int $total = 1;
+        uint $i = 0;
+        while ($i < $rounds) {
+            int $n = $texts[$total % 4] as int;   // chained: $total is last round's
+            $total = ($total + $n) % 997;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

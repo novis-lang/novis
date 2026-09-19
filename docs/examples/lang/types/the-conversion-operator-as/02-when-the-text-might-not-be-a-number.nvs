@@ -1,0 +1,16 @@
+<?nvs
+// Input you did not write yourself is often not what you hoped for. Putting a
+// question mark in front of the type asks the same conversion and hands back
+// nothing, instead of stopping the program, when the answer will not fit.
+
+array<string> $answers = ["30", "thirty", "30.5", ""];
+
+foreach ($answers as string $answer) {
+    ?int $days = $answer as ?int;
+
+    if ($days != null) {
+        echo $days + 1, "\n";
+    } else {
+        echo "not a whole number of days\n";
+    }
+}

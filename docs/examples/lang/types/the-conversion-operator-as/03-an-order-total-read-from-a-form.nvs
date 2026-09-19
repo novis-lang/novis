@@ -1,0 +1,36 @@
+<?nvs
+// An order arrives as rows of text: how many, and what each one costs. The
+// quantity has to be a whole number that is not negative and the price has to
+// be exact money, so each is converted as it is read. A row that is not a
+// number at all is reported and left out, rather than guessed at.
+
+class Order
+{
+    public static function lineTotal(array<string> $row): decimal
+    {
+        uint $quantity = $row[0] as uint;
+        decimal $price = $row[1] as decimal;
+
+        // `as` binds to the value next to it, so this is the quantity as a
+        // decimal, multiplied by the price.
+        return $quantity as decimal * $price;
+    }
+}
+
+array<array<string>> $rows = [
+    ["3", "19.90"],
+    ["1", "4.05"],
+    ["two", "9.99"],
+];
+
+decimal $total = 0.00;
+
+foreach ($rows as array<string> $row) {
+    try {
+        $total = $total + Order::lineTotal($row);
+    } catch (RuntimeError $e) {
+        echo "left out a row whose quantity is not a number: ", $row[0], "\n";
+    }
+}
+
+echo "total ", $total as string, "\n";
