@@ -1,0 +1,41 @@
+<?nvs
+// Shows one log line built out of a caught error. It says what went wrong,
+// where it was thrown, and which error caused it. The chain is followed to the
+// first cause.
+
+class CheckoutFailed extends RuntimeError {
+    public function constructor(string $message, ?Throwable $cause) {
+        parent::constructor($message, {previous: $cause});
+    }
+}
+
+final class Checkout {
+    public static function pay(string $order): string {
+        try {
+            throw new TimeoutError("the payment service did not answer");
+        } catch (TimeoutError $slow) {
+            throw new CheckoutFailed("order " . $order . " was not paid", $slow);
+        }
+    }
+}
+
+try {
+    echo Checkout::pay("4021"), "\n";
+} catch (Throwable $failed) {
+    string $line = $failed->message . " at " . $failed->location;
+    var $cause = $failed->previous;
+    bool $more = true;
+    while ($more) {
+        // `previous` is `null` at the end of the chain, so it is read into a
+        // name and checked before anything is asked of it.
+        var $here = $cause;
+        if ($here == null) {
+            $more = false;
+        } else {
+            $line = $line . ", caused by: " . $here->message;
+            $cause = $here->previous;
+        }
+    }
+    echo $line, "\n";
+    echo "frames: ", Core\Arr::count($failed->backtrace), "\n";
+}

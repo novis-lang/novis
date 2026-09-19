@@ -2,6 +2,7 @@
 A `catch` binding answers through properties, so every PHP accessor is refused where it is written — spec § 10, `rule:errors/propagation`
 --FILE--
 <?nvs
+// covers: lang:errors/properties-not-accessors
 // Spec § 10 gives the exception tree `message`, `previous`, `backtrace` and
 // `location`, and `nvs_types::error_lib` seeds exactly those plus the
 // synthesized constructor. A ported program writes PHP's accessors on

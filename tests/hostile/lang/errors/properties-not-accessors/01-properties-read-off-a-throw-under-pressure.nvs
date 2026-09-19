@@ -1,0 +1,90 @@
+<?nvs
+// Attack: the four properties of an error are read under pressure. One throw
+// travels out of as many frames as the stack allows. One object is thrown again
+// and again, and a hundred thousand errors are read field by field. Every step
+// is caught, and the runtime should still be standing at the end.
+// hostile: timeout-ms 30000
+
+final class Deep
+{
+    // Every frame is appended to the backtrace on the way out.
+    public static function down(int $depth): void
+    {
+        if ($depth == 0) {
+            throw new IOError('the bottom');
+        }
+        Deep::down($depth - 1);
+    }
+
+    // The same object, thrown from a different line each round. `location` is
+    // rewritten by every throw of it.
+    public static function again(IOError $reused, int $round): void
+    {
+        if ($round % 2 == 0) {
+            throw $reused;
+        }
+        throw $reused;
+    }
+}
+
+// Step 1: a call chain deeper than the stack allows. The error that ends it
+// carries a frame for every level, and the whole list is read back.
+try {
+    Deep::down(10000);
+    echo "step 1: nothing was thrown\n";
+} catch (Throwable $deep) {
+    int $frames = 0;
+    foreach ($deep->backtrace as string $frame) {
+        $frames = $frames + 1;
+    }
+    echo 'step 1: read ', $frames, " frames\n";
+}
+
+// Step 2: one object thrown fifty thousand times, with its place read after
+// each throw.
+var $reused = new IOError('the same error again');
+uint $places = 0;
+int $round = 0;
+while ($round < 50000) {
+    try {
+        Deep::again($reused, $round);
+    } catch (IOError $back) {
+        $places = $places + Core\Str::length($back->location);
+    }
+    $round = $round + 1;
+}
+echo 'step 2: ', $places, " characters of places read\n";
+
+// Step 3: a hundred thousand errors, each one read field by field.
+uint $read = 0;
+int $made = 0;
+while ($made < 100000) {
+    var $cause = new LogicError('cause ' . $made);
+    var $error = new RuntimeError('failure ' . $made, { previous: $cause });
+    $read = $read + Core\Str::length($error->message);
+    $read = $read + Core\Str::length($error->location);
+    $read = $read + Core\Arr::count($error->backtrace);
+    var $first = $error->previous;
+    if ($first != null) {
+        $read = $read + Core\Str::length($first->message);
+    }
+    $made = $made + 1;
+}
+echo 'step 3: ', $read, " characters read\n";
+
+// Step 4: the issue list of a parse error, read ten thousand times.
+uint $issues = 0;
+int $pass = 0;
+while ($pass < 10000) {
+    try {
+        Core\Arr::shapeAs<{name: string, age: int, active: bool}>(['name' => 1, 'age' => 'x', 'active' => 'x']);
+    } catch (ParseError $bad) {
+        foreach ($bad->issues as ({path: string, message: string}) $issue) {
+            $issues = $issues + Core\Str::length($issue->path);
+        }
+    }
+    $pass = $pass + 1;
+}
+echo 'step 4: ', $issues, " characters of field names read\n";
+
+echo "the runtime is still standing\n";

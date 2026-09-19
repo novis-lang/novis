@@ -1,0 +1,28 @@
+<?nvs
+// Measures reading what a caught error carries: the message, the place it was
+// thrown from, and the number of frames. A program that logs a failure reads
+// these for every one it reports.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $failure = new IOError("the settings file is missing");
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            try {
+                throw $failure;
+            } catch (IOError $caught) {
+                // Chained: every round adds the length of the message and of
+                // the place it was thrown from.
+                $total = $total + Core\Str::length($caught->message);
+                $total = $total + Core\Str::length($caught->location);
+                $total = $total + Core\Arr::count($caught->backtrace);
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";
