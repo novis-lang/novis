@@ -1,0 +1,29 @@
+<?nvs
+// Shows how to get the name of a class as a string. On a value, `::class`
+// gives the class that value really is.
+
+class Notification {
+    public static function label(): string {
+        // `static::class` is the class the call was made on. It is not always
+        // the class this method is written in.
+        return static::class;
+    }
+}
+
+class EmailNotification extends Notification {}
+
+class SmsNotification extends Notification {}
+
+// `Class::class` is the name of that class, written as text. This prints
+// Notification.
+echo Notification::class, "\n";
+
+// The call decides what `static::class` gives. This prints EmailNotification
+// and then SmsNotification.
+echo EmailNotification::label(), "\n";
+echo SmsNotification::label(), "\n";
+
+// A variable declared as the parent class can hold a subclass. `::class` gives
+// the class the value was created from, so this prints SmsNotification.
+Notification $sent = new SmsNotification();
+echo $sent::class, "\n";

@@ -2,6 +2,7 @@
 A user-declared class constant reads at its own declared type through `extends`, `implements` and `self::`, and lowers to its value — `rule:types/declaration`, `rule:classes/no-free-functions-or-constants`
 --FILE--
 <?nvs
+// covers: lang:classes/constants-and-class
 // A user-declared class constant carries its own declared type, and that type
 // is what a read has — not the type its literal would have on its own. ADR
 // 0007 § 1's "nothing is untyped" is what makes the annotation load-bearing:

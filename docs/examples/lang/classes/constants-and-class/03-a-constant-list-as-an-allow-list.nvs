@@ -1,0 +1,27 @@
+<?nvs
+// Shows a constant list checked on the way in, which is what a service does
+// with a small fixed table of allowed values.
+
+class Images {
+    public const array<string> TYPES = ["image/png", "image/jpeg", "image/webp"];
+
+    // Returns true when this service stores files of that type.
+    public static function allowed(string $type): bool {
+        return Core\Arr::contains(self::TYPES, $type);
+    }
+}
+
+array<string> $uploads = ["image/png", "application/pdf", "image/webp"];
+foreach ($uploads as string $type) {
+    if (Images::allowed($type)) {
+        echo $type, " is stored\n";
+    } else {
+        echo $type, " is rejected\n";
+    }
+}
+
+// Every read of the constant gives a new list. This one adds a type to the
+// list it got, and the constant still holds three types, so this prints 4 3.
+array<string> $mine = Images::TYPES;
+$mine[] = "image/gif";
+echo Core\Arr::count($mine), " ", Core\Arr::count(Images::TYPES), "\n";

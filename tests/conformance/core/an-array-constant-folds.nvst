@@ -2,6 +2,7 @@
 An `array<T>` class constant folds to a value and is inlined afresh at every read — `rule:classes/no-free-functions-or-constants`, `rule:types/conversion` and `rule:types/arrays`
 --FILE--
 <?nvs
+// covers: lang:classes/constants-and-class
 use Core\Arr;
 
 // `rule:classes/no-free-functions-or-constants` inlines a class constant at every use site — there is no storage a

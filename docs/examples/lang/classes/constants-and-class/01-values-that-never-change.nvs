@@ -1,0 +1,31 @@
+<?nvs
+// Shows a class holding values that never change. Every constant writes its
+// type, and code inside the class reads it with `self::`.
+
+class Upload {
+    public const uint MAX_BYTES = 1048576;
+    public const string FOLDER = "uploads";
+    // The element type is `float`, so this constant holds 1.0 and 2.5.
+    public const array<float> STEP_SECONDS = [1, 2.5];
+
+    // Returns true when a file of this size may be stored.
+    public static function fits(uint $bytes): bool {
+        return $bytes <= self::MAX_BYTES;
+    }
+}
+
+// From outside the class, the name of the class comes first. This prints
+// 1048576 and then uploads.
+echo Upload::MAX_BYTES, "\n";
+echo Upload::FOLDER, "\n";
+
+if (Upload::fits(500)) {
+    echo "500 bytes fit\n";
+}
+if (!Upload::fits(4000000)) {
+    echo "4000000 bytes do not fit\n";
+}
+
+// The first value is written as a whole number. The declared type makes it a
+// float, so this division prints 0.5.
+echo Upload::STEP_SECONDS[0] / 2, "\n";

@@ -1,0 +1,37 @@
+<?nvs
+// Reads the class name off a value and takes its length. A program does this
+// when it writes the name of the handler that ran into a log line.
+// bench: iterations 400000
+// bench: allocations 1
+
+class Handler {
+    public const int WEIGHT = 2;
+}
+
+class Retry extends Handler {}
+
+class Bench {
+    public static function run(int $rounds): int {
+        var $plain = new Handler();
+        var $retry = new Retry();
+        // Declared as the parent class, so the name is read at run time
+        // instead of being put in place while the program is built.
+        Handler $current = $plain;
+        int $acc = 1;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: the value read this round is picked by the last round's
+            // total, so the read stays inside the loop.
+            if ($acc % 4 == 0) {
+                $current = $retry;
+            } else {
+                $current = $plain;
+            }
+            $acc = $acc + (Core\Str::length($current::class) as int) + Handler::WEIGHT;
+            $i = $i + 1;
+        }
+        return $acc;
+    }
+}
+
+echo Bench::run(400000), "\n";

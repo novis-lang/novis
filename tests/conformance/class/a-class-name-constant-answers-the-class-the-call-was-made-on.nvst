@@ -2,6 +2,7 @@
 `static::class` is the class the call was made on and `$obj::class` the class the receiver is, both read off a descriptor the frame already holds — `rule:statements/static-is-a-member-modifier`'s late static binding at the one member that used to be folded instead
 --FILE--
 <?nvs
+// covers: lang:classes/constants-and-class
 namespace App;
 
 class User {
