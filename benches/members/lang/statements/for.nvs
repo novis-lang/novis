@@ -1,0 +1,20 @@
+<?nvs
+// Runs a `for` loop that counts through a fixed number of rounds and does one
+// small step in each. A program meets this shape whenever it walks a list by
+// position.
+// bench: iterations 400000
+// bench: calls 0
+// bench: allocations 0
+
+class Bench {
+    public static function run(int $rounds): int {
+        int $acc = 1;
+        for (int $i = 0; $i < $rounds; $i++) {
+            // Chained: this round's step comes out of the last round.
+            $acc = ($acc + ($acc % 7) + 3) % 1000003;
+        }
+        return $acc;
+    }
+}
+
+echo Bench::run(400000), "\n";

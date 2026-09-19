@@ -1,0 +1,14 @@
+<?nvs
+// Shows the three parts of a `for` header: where the counter starts, how long
+// the loop runs, and how the counter changes after every round.
+
+array<string> $steps = ["unpack the archive", "check the files", "install"];
+
+for (uint $i = 0; $i < Core\Arr::count($steps); $i++) {
+    // The counter is also the position in the array.
+    echo $i + 1, ". ", $steps[$i], "\n";
+}
+
+// You can read the counter after the loop. It holds the value that ended the
+// loop, so this prints 3.
+echo $i, "\n";

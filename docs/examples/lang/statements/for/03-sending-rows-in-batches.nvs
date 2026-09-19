@@ -1,0 +1,31 @@
+<?nvs
+// Shows a counter that moves by more than one. A program does this to send a
+// long list in batches, because one request per row would be too many requests.
+
+class Store
+{
+    // Writes one batch and returns how many rows it held.
+    public static function write(array<int> $rows): uint
+    {
+        echo "writing ", Core\Json::encode($rows), "\n";
+        return Core\Arr::count($rows);
+    }
+}
+
+array<int> $ids = [11, 12, 13, 14, 15, 16, 17];
+uint $total = Core\Arr::count($ids);
+uint $written = 0;
+
+for (uint $start = 0; $start < $total; $start = $start + 3) {
+    array<int> $batch = [];
+    // The inner loop stops at the end of the batch or at the end of the list,
+    // whichever comes first.
+    for (uint $at = $start; $at < $start + 3 && $at < $total; $at++) {
+        $batch[] = $ids[$at];
+    }
+    $written = $written + Store::write($batch);
+}
+
+// Seven rows do not divide into batches of three, so the last batch is
+// shorter. This prints 7.
+echo $written, "\n";

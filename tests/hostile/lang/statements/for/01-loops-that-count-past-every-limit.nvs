@@ -1,0 +1,61 @@
+<?nvs
+// Attack: `for` loops are written to run far longer than a program should.
+// Their counters are also pushed past the end of the numbers that hold them.
+// The runtime should count through them, throw an error where a number no
+// longer fits, and stay standing.
+// hostile: timeout-ms 60000
+// hostile: ends-early
+// covers: lang:statements/for
+
+// 1. Fifty million rounds, with two counters in the step list.
+int $acc = 0;
+int $down = 50000000;
+for (int $i = 0; $i < 50000000; $i++, $down--) {
+    $acc = $acc + 1;
+}
+echo $acc, ' ', $down, "\n";
+
+// 2. The second part is a list, so every expression in it runs on every test.
+// This one builds a text of six hundred thousand characters, six per test.
+string $big = '';
+for (int $k = 0; $big = $big . 'novis-', $k < 100000; $k++) {
+}
+echo Core\Str::length($big), "\n";
+
+// 3. A header with all three parts empty. Only the `break` inside the body
+// ends this loop, after one million rounds.
+int $spins = 0;
+for (;;) {
+    $spins = $spins + 1;
+    if ($spins >= 1000000) {
+        break;
+    }
+}
+echo $spins, "\n";
+
+// 4. Eight million rounds over three loops inside each other.
+int $inner = 0;
+for (int $a = 0; $a < 200; $a++) {
+    for (int $b = 0; $b < 200; $b++) {
+        for (int $c = 0; $c < 200; $c++) {
+            $inner = $inner + 1;
+        }
+    }
+}
+echo $inner, "\n";
+
+// 5. The counter steps below zero. A `uint` holds no negative values, so this
+// throws an error, and the program catches it.
+try {
+    for (uint $u = 2; true; $u--) {
+        $acc = $acc + ($u as int);
+    }
+} catch (Throwable $e) {
+    echo 'caught: ', $e->message, "\n";
+}
+
+// 6. The last loop pushes its counter past the largest `int`. Nothing catches
+// that error, so the program ends here.
+for (int $n = 9223372036854775800; true; $n++) {
+    $acc = $n;
+}

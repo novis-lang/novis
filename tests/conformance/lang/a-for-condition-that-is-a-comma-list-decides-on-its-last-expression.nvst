@@ -2,6 +2,7 @@
 A `for` condition that is a comma list evaluates every expression and decides on the last
 --FILE--
 <?nvs
+// covers: lang:statements/for
 // Every expression in the clause runs on every trip through the header —
 // including the trip that fails the test, which is why `$j` ends at `6`.
 int $j = 0;

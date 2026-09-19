@@ -2,6 +2,7 @@
 `for` runs its initializer once, its condition before each iteration and its step after one
 --FILE--
 <?nvs
+// covers: lang:statements/for
 var $sum = 0;
 var $i = 0;
 for ($i = 0; $i < 5; $i += 1) {
