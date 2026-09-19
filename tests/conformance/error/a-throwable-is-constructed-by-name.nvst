@@ -2,6 +2,7 @@
 a `Throwable`'s synthesized constructor is callable by name like any other member — `message:` on its own, and `options: {previous: …}` for the chain (`rule:core-api/shape-rules` R2, spec § 10)
 --FILE--
 <?nvs
+// covers: lang:errors/constructing-and-subclassing
 // The constructor is `constructor(string $message, {previous?: Throwable|null})`
 // and nothing about it is special-cased: the required parameter is `$message`.
 try {

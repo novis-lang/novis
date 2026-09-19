@@ -2,6 +2,7 @@
 a user class extending `RuntimeError` adds its own readonly-shaped data, and both the exact class and its supertype catch it — spec § 10
 --FILE--
 <?nvs
+// covers: lang:errors/constructing-and-subclassing
 class NotFound extends RuntimeError {
     public string $path;
 

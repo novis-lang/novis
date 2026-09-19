@@ -1,0 +1,4 @@
+{"port":8080}
+cannot start without cache.json
+the file is cache.json
+caused by: Core\Json::decode(): expected value at line 1 column 10
