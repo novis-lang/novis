@@ -658,6 +658,10 @@ def chapter_features(directory: Path, area: str) -> list[Entry]:
     thing the language or a tool *has* -- which makes them a live roster rather than a list somebody
     maintains. The frontmatter's `id` is the chapter, so a heading moving between chapters renames
     its feature and its four trees move with it.
+
+    A fenced block is skipped whole, because a sample program is written in the language the chapter
+    documents rather than in Markdown: `# also a line comment` inside one is a comment Novis accepts,
+    and reading it as a heading invents a feature nothing ships and then owes it four proofs.
     """
     out: list[Entry] = []
     for path in sorted(directory.glob("*.md")):
@@ -668,8 +672,17 @@ def chapter_features(directory: Path, area: str) -> list[Entry]:
         chapter = cid.group(1) if cid else path.stem
         body = text[m.end():] if m else text
         line_no = text[: m.end()].count("\n") + 1 if m else 0
+        fence = ""
         for line in body.split("\n"):
             line_no += 1
+            marker = line.strip()[:3]
+            if fence:
+                if marker == fence:
+                    fence = ""
+                continue
+            if marker in ("```", "~~~"):
+                fence = marker
+                continue
             if line.startswith("# "):
                 title = line[2:].strip()
                 slug = slugify(title)
