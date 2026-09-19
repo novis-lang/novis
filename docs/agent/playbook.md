@@ -3231,6 +3231,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   raises `the calibration did not measure anything` — the bench is not what is wrong. Re-run it: three
   refusals in a row are ordinary on this box, and changing `--reps` is not what makes the next one
   land. [until: reviewed 2026-09-19]
+- **`python tools/dossier.py --run` reaches for `target/release/nvs.exe` first, so a compiler fix
+  landed this session is invisible to it.** An attack that passes under `target/debug/nvs.exe`
+  fails the same sweep as `stderr carries 'panicked at'`, and nothing says which binary answered.
+  Pass `--nvs target/debug/nvs.exe` to see your own fix, and rebuild `cargo build --release -p
+  nvs-cli` once before the wrap when the session changed `crates/` — otherwise every later session's
+  floor check judges the old compiler. [until: reviewed 2026-09-19]
 
 ## Writing a test case
 
@@ -8200,6 +8206,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `r"Core\Env\Mode"`, and `E0303 no matching declaration` is what the short spelling gets. Read the
   `*_NAME` constant beside the `CoreMethod` row before writing an enum case into an example.
   [until: gone crates/nvs-stdlib/src/env.rs:Core\Env\Mode]
+- **An integer literal in a `??` fallback keeps its own `int`, so a `uint` binding refuses the whole
+  expression.** `uint $page = ($q["page"] as ?uint) ?? 1;` is `E0401: expected `uint`, found
+  `uint|int``, because the literal takes no hint from the `as ?uint` beside it. Declare the fallback
+  as a binding of the target type — `uint $firstPage = 1;` — rather than writing `?? (1 as uint)`,
+  which reads as a conversion nobody asked for. [until: reviewed 2026-09-19]
 
 ## Divergences and refusals already pinned
 
