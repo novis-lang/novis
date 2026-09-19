@@ -1,0 +1,32 @@
+<?nvs
+// Shows a program reading the settings somebody wrote, filling in the ones
+// they left out, and printing the address it will connect to.
+// dossier: known-gap crates/nvs-ir/src/lib.rs -- `??=` on an array key that is not there stops the program with an error instead of writing the default into it
+
+class Proxy
+{
+    public string $host = "proxy.local";
+    public int $port = 3128;
+}
+
+array<string> $settings = ["host" => "db.example.com"];
+
+// `??=` writes the right side only when the left side is missing. "host" is
+// already written, so it keeps its value, and "port" is added.
+$settings["host"] ??= "localhost";
+$settings["port"] ??= "5432";
+
+// This prints "db.example.com:5432".
+echo $settings["host"], ":", $settings["port"], "\n";
+
+?Proxy $proxy = null;
+
+// `?->` gives `null` when there is no proxy, and `??` turns that into the
+// text to print. This prints "direct".
+echo $proxy?->host ?? "direct", "\n";
+
+$proxy = new Proxy();
+
+// The same two lines read the object once there is one. This prints
+// "proxy.local:3128".
+echo $proxy?->host ?? "direct", ":", $proxy?->port ?? 0, "\n";

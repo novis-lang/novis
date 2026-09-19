@@ -1,0 +1,32 @@
+<?nvs
+// Filling in a missing value and then choosing what to do with it is one of
+// the first things a request does with its input. This measures the three
+// short operators over values known only while the program runs. Every round
+// takes its input from the round before it, so no work can be skipped.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
+        array<?int> $values = [null, 0, 1, null, 2, 0, 3, null];
+        int $total = 1;
+        uint $i = 0;
+
+        while ($i < $rounds) {
+            ?int $value = $values[$total % 8];   // chained: $total is last round's
+
+            int $filled = $value ?? 7;
+            int $chosen = $filled ?: 5;
+
+            $total = $total + ($chosen > 4 ? 1 : 2);
+
+            $i = $i + 1;
+        }
+
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

@@ -1,0 +1,107 @@
+--TEST--
+`??`, `??=`, `?:`, `?->` and the ternary each run only the side they end up using, counted over a whole table rather than read off a line — `rule:php-migration/absent-storage-is-never-a-zero-value`, `rule:expressions/truthy-table`
+--FILE--
+<?nvs
+// covers: lang:expressions/and-the-ternary
+// Short-circuiting is observable rather than an optimisation: the side that
+// is not used may call a method, and a program that calls it anyway has
+// changed what the operator means. So every spelling puts a counting call on
+// the side it is meant to skip, and the case asserts the count beside the
+// answer — an operator that evaluates both sides prints the right answer and
+// the wrong count.
+//
+// The two questions are separated on purpose. `??` counts a fallback per
+// `null`, `?:` counts one per row `rule:expressions/truthy-table` calls
+// falsy, and the same table holds `"0"` — falsy — beside `"x"`, so an
+// operator that grew the other one's question lands on a different count.
+//
+// `?->` is the third shape: the chain stops at the first `null` receiver, so
+// a null head makes no call at all and a live head makes exactly one, the
+// step after it never being reached.
+class Count {
+    public static int $calls = 0;
+
+    public static function make(string $tag): string {
+        Count::$calls = Count::$calls + 1;
+        return $tag;
+    }
+}
+
+class Chain {
+    public ?Chain $next = null;
+
+    public function step(): ?Chain {
+        Count::$calls = Count::$calls + 1;
+        return $this->next;
+    }
+}
+
+array<?string> $lefts = ["a", null, "b", null, null];
+int $fellBack = 0;
+
+foreach ($lefts as ?string $left) {
+    string $got = $left ?? Count::make("d");
+    if ($got == "d") {
+        $fellBack = $fellBack + 1;
+    }
+}
+
+echo "coalesce ", $fellBack, " ", Count::$calls, "\n";
+
+Count::$calls = 0;
+array<string> $maybe = ["x", "", "0", "y", ""];
+int $elvisFell = 0;
+
+foreach ($maybe as string $one) {
+    string $kept = $one ?: Count::make("d");
+    if ($kept == "d") {
+        $elvisFell = $elvisFell + 1;
+    }
+}
+
+echo "elvis ", $elvisFell, " ", Count::$calls, "\n";
+
+Count::$calls = 0;
+int $lower = 0;
+int $n = 0;
+
+while ($n < 6) {
+    string $arm = $n < 3 ? Count::make("low") : Count::make("high");
+    if ($arm == "low") {
+        $lower = $lower + 1;
+    }
+    $n = $n + 1;
+}
+
+echo "ternary ", $lower, " ", Count::$calls, "\n";
+
+Count::$calls = 0;
+?string $slot = null;
+$slot ??= Count::make("first");
+$slot ??= Count::make("second");
+
+echo "assign ", $slot, " ", Count::$calls, "\n";
+
+Count::$calls = 0;
+?Chain $missing = null;
+?Chain $endOfMissing = $missing?->step()?->step();
+echo "nullsafe-missing ", ($endOfMissing == null) as string, " ", Count::$calls, "\n";
+
+Count::$calls = 0;
+?Chain $head = new Chain();
+?Chain $endOfHead = $head?->step()?->step();
+echo "nullsafe-head ", ($endOfHead == null) as string, " ", Count::$calls, "\n";
+
+// `rule:php-migration/absent-storage-is-never-a-zero-value` makes the guard
+// cover every level of the chain under it, so an absent key at either depth
+// yields the right side instead of throwing.
+array<array<string>> $nested = ["a" => ["b" => "deep"]];
+echo "nested ", $nested["a"]["b"] ?? "-", " ", $nested["a"]["z"] ?? "-", " ", $nested["z"]["b"] ?? "-", "\n";
+--EXPECT--
+coalesce 3 3
+elvis 3 3
+ternary 3 6
+assign first 1
+nullsafe-missing 1 0
+nullsafe-head 1 1
+nested deep - -

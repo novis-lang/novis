@@ -1,0 +1,25 @@
+<?nvs
+// Shows the two ways to pick one of two values. `?:` keeps the left side when
+// it counts as something, and `? :` picks a side from a test you write.
+
+array<string> $form = ["display_name" => "", "city" => "Vienna"];
+
+// An empty piece of text counts as nothing, so the right side is used here.
+// This prints "anonymous".
+echo $form["display_name"] ?: "anonymous", "\n";
+
+// This value counts as something, so it is kept. This prints "Vienna".
+echo $form["city"] ?: "somewhere", "\n";
+
+int $items = 1;
+
+// `? :` tests something and then gives you one of the two sides. This prints
+// "1 item".
+echo $items, " ", $items == 1 ? "item" : "items", "\n";
+
+bool $discounted = true;
+
+// The two sides may have different types. A whole number and a fraction both
+// become `float` here, and this prints 8.
+float $price = $discounted ? 8 : 9.5;
+echo $price, "\n";

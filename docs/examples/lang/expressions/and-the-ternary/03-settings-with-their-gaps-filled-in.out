@@ -1,0 +1,3 @@
+db.example.com:5432
+direct
+proxy.local:3128

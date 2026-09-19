@@ -1,0 +1,132 @@
+<?nvs
+// Attack: push every short operator past the sizes a program normally sees.
+// Long chains of fallbacks, long chains of `?->` steps and deeply nested
+// `? :` run millions of times; huge text and a huge list are tested by `?:`,
+// which should look at their size and never copy them.
+// hostile: timeout-ms 20000
+
+class Link
+{
+    public ?Link $next = null;
+    public int $depth = 0;
+}
+
+class Walk
+{
+    // A run of `?->` steps far longer than any real object graph. The chain
+    // stops at the first `null`, and a step past one reads nothing.
+    public static function deep(?Link $head): int
+    {
+        return $head?->next?->next?->next?->next?->next?->next?->next
+            ?->next?->next?->next?->next?->next?->next?->next?->next
+            ?->next?->next?->next?->next?->next?->next?->next?->next
+            ?->depth ?? -1;
+    }
+
+    // A long run of fallbacks in one expression. Every value in it is `null`,
+    // so only the text at the end is left.
+    public static function fallbacks(?string $a, ?string $b, ?string $c): string
+    {
+        return $a ?? $b ?? $c ?? $a ?? $b ?? $c ?? $a ?? $b ?? $c
+            ?? $a ?? $b ?? $c ?? $a ?? $b ?? $c ?? $a ?? $b ?? $c
+            ?? $a ?? $b ?? $c ?? $a ?? $b ?? 'end';
+    }
+
+    // Nested tests in one expression. Each one picks the next.
+    public static function nested(int $n): int
+    {
+        return $n > 19 ? 19 : $n > 18 ? 18 : $n > 17 ? 17 : $n > 16 ? 16
+            : $n > 15 ? 15 : $n > 14 ? 14 : $n > 13 ? 13 : $n > 12 ? 12
+            : $n > 11 ? 11 : $n > 10 ? 10 : $n > 9 ? 9 : $n > 8 ? 8
+            : $n > 7 ? 7 : $n > 6 ? 6 : $n > 5 ? 5 : $n > 4 ? 4
+            : $n > 3 ? 3 : $n > 2 ? 2 : $n > 1 ? 1 : 0;
+    }
+}
+
+// A short chain of links, walked by an expression written for a much longer
+// one.
+Link $head = new Link();
+Link $cursor = $head;
+int $built = 1;
+
+while ($built < 8) {
+    Link $link = new Link();
+    $link->depth = $built;
+    $cursor->next = $link;
+    $cursor = $link;
+    $built = $built + 1;
+}
+
+int $walked = 0;
+int $round = 0;
+
+while ($round < 1000000) {
+    $walked = $walked + Walk::deep($head) + Walk::deep(null);
+    $round = $round + 1;
+}
+
+echo $walked, "\n";
+
+// The same three variables, all of them `null`, through the long run of
+// fallbacks.
+?string $none = null;
+int $ended = 0;
+int $run = 0;
+
+while ($run < 1000000) {
+    if (Walk::fallbacks($none, $none, $none) == 'end') {
+        $ended = $ended + 1;
+    }
+    $run = $run + 1;
+}
+
+echo $ended, "\n";
+
+int $picked = 0;
+int $pass = 0;
+
+while ($pass < 200000) {
+    $picked = $picked + Walk::nested($pass % 25);
+    $pass = $pass + 1;
+}
+
+echo $picked, "\n";
+
+// A text of four million characters and a list of a million elements. `?:`
+// asks whether each one counts as something, a question about size alone.
+string $huge = Core\Str::repeat('x', 4000000);
+array<int> $long = Core\Arr::fill(1000000, 0);
+array<int> $nothing = [];
+
+int $kept = 0;
+int $sized = 0;
+
+while ($sized < 1000000) {
+    string $text = $huge ?: 'empty';
+    array<int> $list = $long ?: $nothing;
+
+    if (Core\Str::length($text) > 0 && Core\Arr::count($list) > 0) {
+        $kept = $kept + 1;
+    }
+
+    $sized = $sized + 1;
+}
+
+echo $kept, "\n";
+
+// Every round builds a fresh list, reads a key that is not in it, and then
+// lets the list go. `??` gives a value where a plain read stops the program.
+int $missed = 0;
+int $churn = 0;
+
+while ($churn < 1000000) {
+    array<string> $fresh = Core\Str::split('a,b,c,d,e,f,g,h', ',');
+
+    if (($fresh['99'] ?? 'gone') == 'gone') {
+        $missed = $missed + 1;
+    }
+
+    $churn = $churn + 1;
+}
+
+echo $missed, "\n";
