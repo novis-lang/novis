@@ -3242,6 +3242,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   Pass `--nvs target/debug/nvs.exe` to see your own fix, and rebuild `cargo build --release -p
   nvs-cli` once before the wrap when the session changed `crates/` — otherwise every later session's
   floor check judges the old compiler. [until: reviewed 2026-09-19]
+- **`python tools/dossier.py` judges your program with `target/release/nvs.exe` first, and an
+  ordinary session never rebuilds that one.** Its `binary()` prefers the release profile and only
+  falls back to debug, so a `--bless` or a `--run examples` straight after a compiler fix reports the
+  *previous* binary's diagnostic and reads as if the fix had not worked. Pass `--nvs
+  target/debug/nvs.exe` while authoring, and spend one `cargo build --release` before the goal's own
+  dossier check has to see something you changed under `crates/`.
+  [until: gone tools/dossier.py:for profile in ("release", "debug")]
 
 ## Writing a test case
 
@@ -3339,12 +3346,14 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
 - **Clippy refuses a float literal that approximates π or e, and refuses `assert!` over two
   constants.** A compile-time invariant belongs in `const _: () = assert!(…);`, not a `#[test]`.
   [until: reviewed 2026-09-06]
-- **A property's declared default runs, and the constant is checked — but only a literal or `[]` is
-  one.** `public int $n = 4;` reaches the slot of every fresh instance, inherited defaults included,
-  because `nvs_runtime::NvsObj::new` writes a per-class image the descriptor carries. `= null`, an
-  enum case, a `decimal`, a non-empty array literal and a `Class::CONST` are all `E0472`, and a
-  `static` property is skipped entirely since it occupies no instance slot.
-  [until: reviewed 2026-09-06]
+- **A property's declared default runs, and the constant is checked — a literal of the declared type,
+  `= []`, `= null` where the type admits one, an enum case and another class's `const` are the
+  constants it accepts.** `public int $n = 4;` reaches the slot of every fresh instance, inherited
+  defaults included, because `nvs_runtime::NvsObj::new` writes a per-class image the descriptor
+  carries. A union is read one level deep, so `?string $label = "plain"` and `"read"|"write" $mode =
+  "read"` place against the member the literal inhabits. A `decimal` and a non-empty array literal
+  are still `E0472` at a property, and a `static` property is skipped entirely since it occupies no
+  instance slot. [until: reviewed 2026-09-06]
 - **Two `foreach` headers in one file may reuse a binding name only at the same type.** A binding is
   function-scoped, so `foreach ($names as string $n)` followed by `foreach ($heap as int $n)` is
   `E0406: `$n` is already declared` at the *second* header, while a second `string $n` walk is fine
@@ -3876,11 +3885,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   expected array<int>, found array<mixed>` at the literal, and `foreach ([1, 2, 3] as int $n)` is
   `E0401: expected 'int', found 'mixed'` pointing at the *binding*. Declare a typed local on the
   line above (`array<int> $against = [4, 2];`) and use that. [until: reviewed 2026-09-06]
-- **A parameter default at a *literal or union* declared type is `E0451`.** `#[\Core\Query]
-  "asc"|"desc" $order = "asc"` does not compile, because `nvs_types::defaults::literal_default`
-  decodes a default against the declared type and has no arm for `Ty::StringLiteral` or `Ty::Union`.
-  A `#[Query]` with no default is simply required and a link is not obliged to supply one, so write
-  the parameter without a default. [until: exists crates/nvs-types/src/defaults.rs:StringLiteral]
 - **Widening a union of enum-case types rewrites every `E0401` that names it, and a
   `--EXPECTF-ERROR--` case has the whole list frozen in it.** The accepted set is generated from the
   parameter's type, so a refusal case

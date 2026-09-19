@@ -111,9 +111,11 @@ modules = [
 rules = ["testing/four-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088",
   # The chapter's own rules: a feature here is documented by the reference section the item anchors
   # and specified by one of these, so a session that does not get them peeks them by hand.
-  "types/conversion", "expressions/nullable-conversion-availability",
-  "expressions/conversion-keeps-qualifiers", "types/narrowing", "expressions/truthy-positions",
-  "enums/truthiness"]
+  "expressions/truthy-positions", "expressions/truthy-table", "enums/truthiness",
+  "statements/inout-is-the-by-reference-spelling", "statements/inout-is-written-at-the-call",
+  "statements/an-inout-argument-is-a-local", "core-api/parameters-are-callable-by-name",
+  "classes/no-free-functions-or-constants", "classes/definite-property-initialization",
+  "types/class-constant"]
 
 adrs = ["0134", "0079 §15"]
 

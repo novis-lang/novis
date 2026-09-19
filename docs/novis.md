@@ -1300,8 +1300,8 @@ echo Core\Json::encode($xs), "\n";
 ### Properties and constants
 
 A property is `visibility [static] T $name [= default];` — the default is a scalar literal, `[]`,
-an enum case or a class constant, and a `?T` property takes no `null` default (assign it in the
-constructor). A class constant is `visibility const T NAME = literal;`, and the type is written there as it is
+an enum case or a class constant, and a union takes whichever of those its own members admit:
+`?string $label = null`, `?string $label = "plain"`, `"read"|"write" $mode = "read"`. A class constant is `visibility const T NAME = literal;`, and the type is written there as it is
 everywhere else (`E0246`). Constants are read at their declared type — `const uint WIDTH = 5` is
 a `uint`. The classes chapter owns everything else about members.
 
