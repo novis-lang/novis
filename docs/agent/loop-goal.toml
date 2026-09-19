@@ -97,6 +97,10 @@ files = [
 
 modules = [
   "docs/reference/lang/60-iteration.md",
+  # Per-function-body local-variable checking: `rule:types/declaration`'s declare-once rule
+  # ("there is no shadowing") and flow-sensitive definite assignment ("reading a binding on a path
+  # that may not have reached its initialiser is a compile error").
+  "crates/nvs-types/src/locals.rs",
 ]
 
 rules = ["testing/feature-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
