@@ -255,6 +255,7 @@ pub(crate) fn infer_static_call(
     env: &mut Env<'_>,
 ) -> TypeId {
     let class_ty = check_expr(class, None, live, scope, ctx, env);
+    super::reject_class_side_outside_class(class, ctx, env);
     check_member_name(method, live, scope, ctx, env);
     // `C::$m()` is [`infer_method_call`]'s refusal written on the class side,
     // and for the same reason — the member a call names is never computed.
@@ -598,7 +599,7 @@ pub(crate) fn infer_new(
     ctx: &Ctx<'_>,
     env: &mut Env<'_>,
 ) -> TypeId {
-    let target_ty = check_new_target(target, live, scope, ctx, env);
+    let target_ty = check_new_target(target, expr.span, live, scope, ctx, env);
     let target_qname = class_qname_of(target_ty, env.interner);
     let target_ty = check_new_type_args(
         type_args,
@@ -1692,6 +1693,7 @@ fn report_callable_call_arity(
 
 pub(crate) fn check_new_target(
     target: &NewTarget,
+    span: Span,
     live: &mut FxHashSet<String>,
     scope: &LocalScope,
     ctx: &Ctx<'_>,
@@ -1746,8 +1748,17 @@ pub(crate) fn check_new_target(
                 env.interner.mixed()
             }
         }
-        NewTarget::SelfTy | NewTarget::StaticTy => class_of_ctx(ctx, env),
+        NewTarget::SelfTy | NewTarget::StaticTy => {
+            let keyword = if matches!(target, NewTarget::SelfTy) {
+                "self"
+            } else {
+                "static"
+            };
+            report_class_keyword_outside_class(keyword, span, ctx, env);
+            class_of_ctx(ctx, env)
+        }
         NewTarget::ParentTy => {
+            report_class_keyword_outside_class("parent", span, ctx, env);
             let parent = ctx
                 .current_class
                 .and_then(|c| env.graph.get(c))

@@ -1,0 +1,50 @@
+--TEST--
+Inside a declaration, `self::`, `parent::` and `static::` each resolve at the four sites a class side is asked for, with `self`/`parent` fixed where they are written and `static` following the class the call was made on — the accepting half of the bound the reject case beside this one draws, `rule:classes/no-free-functions-or-constants`
+--FILE--
+<?nvs
+// covers: lang:expressions/refused-in-expression-position
+// The other side of the bound: inside a declaration the same four spellings
+// each resolve, so what the refusal is about is where they are written and
+// not the spelling itself. `self::` and `parent::` are fixed where they
+// stand, and `static::` follows the class the call was made on.
+class Base {
+    public const string LABEL = "base";
+
+    public static int $made = 0;
+
+    public static function name(): string {
+        return "Base";
+    }
+
+    public static function make(): static {
+        self::$made = self::$made + 1;
+        return new static();
+    }
+}
+
+final class Child extends Base {
+    public const string LABEL = "child";
+
+    public static function name(): string {
+        return "Child";
+    }
+
+    public static function written(): string {
+        return self::LABEL . " over " . parent::LABEL;
+    }
+
+    public static function called(): string {
+        return static::name();
+    }
+}
+
+echo Child::written(), "\n";
+echo Child::called(), "\n";
+var $made = Child::make();
+echo $made is Child ? "a Child" : "not a Child", "\n";
+echo Base::$made, "\n";
+--EXPECT--
+child over base
+Child
+a Child
+1

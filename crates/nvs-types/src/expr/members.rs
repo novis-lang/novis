@@ -85,6 +85,7 @@ pub(crate) fn infer_class_const(
     env: &mut Env<'_>,
 ) -> TypeId {
     check_expr(class, None, live, scope, ctx, env);
+    super::reject_class_side_outside_class(class, ctx, env);
     let qname = resolve_class_expr(class, ctx, env);
     // `rule:testing/interaction-after-the-fact`'s method reference. The
     // spelling names no constant, and at the argument positions

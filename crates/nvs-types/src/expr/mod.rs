@@ -488,6 +488,7 @@ pub(crate) fn infer(
         ),
         ExprKind::StaticPropertyAccess { class, name } => {
             check_expr(class, None, live, scope, ctx, env);
+            reject_class_side_outside_class(class, ctx, env);
             // A static property's storage is resolved where the access is
             // written, so `static::` — which PHP re-resolves against the
             // *called* class — has no honest answer here. See
@@ -1049,6 +1050,58 @@ fn report_unsubscriptable(base: &Expr, base_ty: TypeId, env: &mut Env<'_>) {
         )
         .with_primary(base.span, format!("this is `{desc}`"))
         .with_help(help),
+    );
+}
+
+/// `self::`, `static::` or `parent::` written where no class encloses it —
+/// the expressions chapter's *Refused in expression position* entry for the
+/// three class keywords.
+///
+/// Asked at each of the three `::` sites that resolve a class side rather than
+/// once inside [`check_expr`], because `nvs_hir::members` splits the same way:
+/// a bare `self` in *value* position is already its `E0321`, and a class side
+/// reaches this instead. One site is deliberately not here — `Foo::class`
+/// never resolves its class side as a value and answers with
+/// [`code::E_CLASS_NAME_CONST_NOT_STATIC`]. A *type* position, `self $x`,
+/// carries this same message from `crate::lower::resolve_special`.
+///
+/// Reported rather than erased to `mixed`, for the reason
+/// [`super::calls::check_new_target`]'s undeclared-class arm gives: a class
+/// side that resolves to nothing records nothing in the typed-expression
+/// table, and `nvs-ir` then panics naming the table it found no entry in,
+/// which is an internal message for an ordinary mistake.
+pub(crate) fn reject_class_side_outside_class(class: &Expr, ctx: &Ctx<'_>, env: &mut Env<'_>) {
+    let keyword = match &class.kind {
+        ExprKind::SelfExpr => "self",
+        ExprKind::StaticExpr => "static",
+        ExprKind::ParentExpr => "parent",
+        _ => return,
+    };
+    report_class_keyword_outside_class(keyword, class.span, ctx, env);
+}
+
+/// [`reject_class_side_outside_class`]'s report, reached by `new self()` too —
+/// a `NewTarget` names its keyword in the target rather than in an expression,
+/// so it has no `Expr` to read one off.
+pub(crate) fn report_class_keyword_outside_class(
+    keyword: &str,
+    span: Span,
+    ctx: &Ctx<'_>,
+    env: &mut Env<'_>,
+) {
+    if ctx.current_class.is_some() {
+        return;
+    }
+    env.diags.report(
+        Diagnostic::error(
+            code::E_UNDEFINED_CLASS,
+            format!("`{keyword}` used outside any class"),
+        )
+        .with_primary(span, "no enclosing class")
+        .with_help(
+            "`self`, `static` and `parent` each name a class through the declaration they are \
+             written in — name the class itself, or move this inside one",
+        ),
     );
 }
 

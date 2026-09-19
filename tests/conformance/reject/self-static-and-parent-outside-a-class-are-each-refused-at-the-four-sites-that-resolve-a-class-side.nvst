@@ -1,0 +1,60 @@
+--TEST--
+`self`, `static` and `parent` written at the top level of a file are `E0303` at each of the four sites that resolve a class side — a class constant, a static property, a static call and `new` — while a written class name on the left of the same four is not reported, `rule:classes/no-free-functions-or-constants`
+--FILE--
+<?nvs
+// covers: lang:expressions/refused-in-expression-position
+// `self`, `static` and `parent` each name a class through the declaration
+// they are written in. At the top level of a file there is no declaration to
+// name one, so each site that resolves a class side has nothing to resolve.
+// Before this was reported, all four recorded no entry at all and `nvs-ir`
+// panicked naming the table it found empty.
+class Target {
+    public const int LIMIT = 1;
+
+    public static int $count = 0;
+
+    public static function twice(int $n): int {
+        return $n * 2;
+    }
+}
+
+echo self::LIMIT, "\n";
+echo self::$count, "\n";
+echo parent::twice(2), "\n";
+var $made = new static();
+// The control: a written class name on the left of the same four spellings
+// resolves, so none of them is reported and the expectation below carries
+// exactly four diagnostics.
+echo Target::LIMIT, Target::$count, Target::twice(2), "\n";
+var $ok = new Target();
+echo "unreached\n";
+--EXPECTF-ERROR--
+error[E0303]: `self` used outside any class
+   --> %s:18:6
+   |
+18 | echo self::LIMIT, "\n";
+   |      ^^^^ no enclosing class
+   = help: `self`, `static` and `parent` each name a class through the declaration they are written in — name the class itself, or move this inside one
+
+error[E0303]: `self` used outside any class
+   --> %s:19:6
+   |
+19 | echo self::$count, "\n";
+   |      ^^^^ no enclosing class
+   = help: `self`, `static` and `parent` each name a class through the declaration they are written in — name the class itself, or move this inside one
+
+error[E0303]: `parent` used outside any class
+   --> %s:20:6
+   |
+20 | echo parent::twice(2), "\n";
+   |      ^^^^^^ no enclosing class
+   = help: `self`, `static` and `parent` each name a class through the declaration they are written in — name the class itself, or move this inside one
+
+error[E0303]: `static` used outside any class
+   --> %s:21:13
+   |
+21 | var $made = new static();
+   |             ^^^^^^^^^^^^ no enclosing class
+   = help: `self`, `static` and `parent` each name a class through the declaration they are written in — name the class itself, or move this inside one
+
+error: aborting due to 4 errors
