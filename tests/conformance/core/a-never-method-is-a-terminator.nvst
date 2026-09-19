@@ -2,6 +2,7 @@
 A method declared `: never` lowers whether or not it is called, and a call to one does not come back: the statement after it is never reached and the frame leaves through the enclosing `catch` — `rule:types/grammar`, `rule:errors/propagation`
 --FILE--
 <?nvs
+// covers: lang:types/void-never-self-static
 // `rule:types/grammar` makes `never` a return-only atom, and it is the one atom whose
 // value question has no value in it: a frame that cannot come back hands its
 // caller nothing. `nvs_ir::lower::erase_checked_ty` gives it `void`'s

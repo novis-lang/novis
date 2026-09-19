@@ -1,0 +1,43 @@
+<?nvs
+// What a small family of record types costs at its edge: a base class that
+// builds whichever kind was asked for, a chain of calls that each hand the
+// object back, and a call made only for what it does. Each round starts from
+// the running total, so nothing here can be settled ahead of time. The two
+// allocations a round are the object itself: naming the class outright counts
+// exactly the same, so asking for the called class costs nothing extra.
+// bench: iterations 200000
+// bench: allocations 2
+// bench: calls 5
+
+class Row {
+    public function constructor(public int $n) {}
+
+    public static function make(int $n): static {
+        return new static($n);
+    }
+
+    public function add(int $k): self {
+        $this->n = $this->n + $k;
+        return $this;
+    }
+
+    public static function seen(int $v): void {}
+}
+
+final class Total extends Row {}
+
+class Bench {
+    public static function run(uint $rounds): int {
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            Total $row = Total::make($total % 7);   // chained: $total is last round's
+            $total = $total + $row->add(1)->add(2)->n;
+            Row::seen($total);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

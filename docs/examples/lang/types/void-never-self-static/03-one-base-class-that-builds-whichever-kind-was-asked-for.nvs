@@ -1,0 +1,48 @@
+<?nvs
+// The shape a small family of record types takes at work: the base class
+// writes the loading once, and each kind still gets back its own type,
+// because `load` returns `static` — the class the call named. The failure
+// path says `never`, so anyone reading the signature knows it does not come
+// back and there is no answer to check.
+
+class Record {
+    public function constructor(public uint $id) {}
+
+    public static function load(uint $id): static {
+        if ($id == 0) {
+            Record::refuse("a record id is never zero");
+        }
+        return new static($id);
+    }
+
+    public static function refuse(string $why): never {
+        throw new RuntimeError($why);
+    }
+
+    public function label(): string {
+        return "record #" . $this->id;
+    }
+}
+
+final class Invoice extends Record {
+    public function label(): string {
+        return "invoice #" . $this->id;
+    }
+}
+
+final class Customer extends Record {
+    public function label(): string {
+        return "customer #" . $this->id;
+    }
+}
+
+Invoice $invoice = Invoice::load(1042);
+Customer $customer = Customer::load(7);
+echo $invoice->label(), "\n";
+echo $customer->label(), "\n";
+
+try {
+    Invoice::load(0);
+} catch (Throwable $e) {
+    echo "refused an impossible id\n";
+}

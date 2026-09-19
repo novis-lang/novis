@@ -2,6 +2,7 @@
 `new static()` through two levels of inheritance answers the called class, at a static call, an instance call and through `parent::` — `rule:statements/static-is-a-member-modifier`
 --FILE--
 <?nvs
+// covers: lang:types/void-never-self-static
 // `rule:statements/static-is-a-member-modifier`'s late static binding, read as a *type* rather than as a dispatch:
 // a member declaring `static` answers the class the call named, not the class
 // the declaration is written in. Two levels of inheritance, which is where a

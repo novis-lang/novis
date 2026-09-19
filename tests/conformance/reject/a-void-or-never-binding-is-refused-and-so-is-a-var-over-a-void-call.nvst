@@ -1,0 +1,37 @@
+--TEST--
+`void` and `never` are refused as a binding's declared type, and `var` is refused the type of a call that hands nothing back — `rule:types/grammar`
+--FILE--
+<?nvs
+// covers: lang:types/void-never-self-static
+// `rule:types/grammar`: "`void` and `never` are return-only." A binding is
+// neither, and until this landed both spellings type-checked: the written one
+// declared a name for a value that does not exist, and the inferred one
+// defined that name with nothing at all, which `nvs-ir` then reported as an
+// operand used before it is defined.
+final class Hands {
+    public static function nothing(): void {}
+}
+
+void $written = Hands::nothing();
+
+never $empty;
+
+var $inferred = Hands::nothing();
+
+// The call is fine on a line of its own. What is refused is giving a name to
+// what it hands back, because it hands back nothing.
+Hands::nothing();
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0742]: `void` is a return type only, and this is a binding
+   --> case.nvs:12:1
+%A
+error[E0742]: `never` is a return type only, and this is a binding
+   --> case.nvs:14:1
+%A
+error[E0742]: `void` is a return type only, and this is a binding
+   --> case.nvs:16:17
+%A
+error: aborting due to 3 errors

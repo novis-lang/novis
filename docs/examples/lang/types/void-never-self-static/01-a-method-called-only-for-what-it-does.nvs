@@ -1,0 +1,19 @@
+<?nvs
+// A method that hands nothing back says `void`. The reader of the signature
+// then knows there is no answer to wait for, and the checker makes sure
+// nobody tries to use one.
+
+class Audit {
+    public static function note(string $what, uint $count): void {
+        echo "[audit] ", $what, " x", $count, "\n";
+    }
+
+    public static function line(string $text): void {
+        echo $text, "\n";
+    }
+}
+
+Audit::line("import starting");
+Audit::note("rows read", 120);
+Audit::note("rows skipped", 3);
+Audit::line("import finished");

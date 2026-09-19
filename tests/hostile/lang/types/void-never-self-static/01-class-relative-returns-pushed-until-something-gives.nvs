@@ -1,0 +1,92 @@
+<?nvs
+// Attack: the class-relative return types pushed until something gives. A
+// million objects asked for by the class the call named, five levels below
+// the class that writes the building, each dropped at once. One object handed
+// back a million times in a row. A method that does not come back, reached
+// down a stack asked for more depth than there is. A call made only for its
+// effect, in the tightest loop there is.
+// hostile: timeout-ms 60000
+
+class Node
+{
+    public function constructor(public int $n)
+    {}
+
+    public static function make(int $n): static
+    {
+        return new static($n);
+    }
+
+    public function add(int $k): self
+    {
+        $this->n = $this->n + $k;
+        return $this;
+    }
+
+    public static function nothing(int $v): void
+    {}
+
+    public static function stop(string $why): never
+    {
+        throw new RuntimeError($why);
+    }
+
+    // Calls itself until the count runs out, then leaves through a method
+    // with no way back, so the unwind starts at the bottom of the stack.
+    public static function dive(int $left): int
+    {
+        if ($left <= 0) {
+            Node::stop('bottom');
+        }
+        return Node::dive($left - 1) + 1;
+    }
+}
+
+class A extends Node
+{}
+class B extends A
+{}
+class C extends B
+{}
+class D extends C
+{}
+final class E extends D
+{}
+
+// A million objects, each asked for by the class the call named and let go
+// on the next turn.
+int $sum = 0;
+uint $i = 0;
+while ($i < 1000000) {
+    E $made = E::make($sum % 5);
+    $sum = $sum + $made->n + 1;
+    $i = $i + 1;
+}
+echo "made a million\n";
+
+// One object handed back a million times, with a call made only for its
+// effect in between.
+E $one = E::make(0);
+uint $j = 0;
+while ($j < 1000000) {
+    $one->add(1);
+    Node::nothing($one->n);
+    $j = $j + 1;
+}
+echo $one->n, " after a million\n";
+
+// A deep stack that leaves through a method with no way back. Every other
+// round asks for more depth than there is, so half of these run out of stack
+// and half reach the bottom. Being refused is a fine answer; coming apart is
+// not.
+uint $round = 0;
+uint $caught = 0;
+while ($round < 50) {
+    try {
+        Node::dive($round % 2 == 0 ? 1000000 : 500);
+    } catch (Throwable $e) {
+        $caught = $caught + 1;
+    }
+    $round = $round + 1;
+}
+echo $caught, " deep dives unwound\n";

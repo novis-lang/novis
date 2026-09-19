@@ -1,0 +1,45 @@
+--TEST--
+A `self` return is the declaring class however the call was reached, while a `static` return is the class the call named — `rule:statements/static-is-a-member-modifier`, `rule:types/grammar`
+--FILE--
+<?nvs
+// covers: lang:types/void-never-self-static
+// The two class-relative return types differ in which class they name. `self`
+// is the class the method was written in, so what comes back is typed as that
+// class wherever it was reached from; `static` is the class the call itself
+// named, so a base class hands back whichever subclass was asked for. Neither
+// touches dispatch: the value keeps the class it really is either way.
+class Base {
+    public static function make(): static {
+        return new static();
+    }
+
+    public function same(): self {
+        return $this;
+    }
+
+    public function name(): string {
+        return "base";
+    }
+}
+
+class Child extends Base {
+    public function name(): string {
+        return "child";
+    }
+}
+
+// `static` is the called class, so these two calls answer two classes.
+echo Base::make()->name(), " ", Child::make()->name(), "\n";
+echo Child::make() is Child ? "child" : "not child", "\n";
+
+// `self` is `Base` however it was reached, and what comes back still
+// dispatches on the class it really is.
+Child $c = new Child();
+Base $b = $c->same();
+echo $b->name(), " ", $c->same()->name(), "\n";
+echo $b is Child ? "still a child" : "no longer a child", "\n";
+--EXPECT--
+base child
+child
+child child
+still a child

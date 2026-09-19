@@ -974,6 +974,54 @@ fn check_exit_level(
     }
 }
 
+/// `rule:types/grammar`: `void` and `never` are return-only, so neither names a
+/// binding either — a written one, or the type a `var` takes from a call that
+/// hands nothing back.
+///
+/// Unrefused, the written form declares a name for a value that does not exist
+/// and the inferred form defines that name with nothing at all, which
+/// `nvs-ir` reports as an operand used before it is defined — an internal error
+/// for a program the checker accepted. Recovers as `mixed` so one refused type
+/// costs one diagnostic rather than a second at every use of the name.
+fn reject_void_or_never_binding(
+    ty: TypeId,
+    span: Span,
+    inferred: bool,
+    env: &mut Env<'_>,
+) -> TypeId {
+    let atom = match env.interner.get(ty) {
+        Ty::Void => "void",
+        Ty::Never => "never",
+        _ => return ty,
+    };
+    let (label, help) = if inferred {
+        (
+            format!("this hands back `{atom}`"),
+            format!(
+                "a call returning `{atom}` gives nothing to name — call it as a statement of its \
+                 own, on a line with no `var`"
+            ),
+        )
+    } else {
+        (
+            format!("declared `{atom}` here"),
+            format!(
+                "`{atom}` says what a call hands back, not what a name holds — write the type the \
+                 value actually has, or drop the binding"
+            ),
+        )
+    };
+    env.diags.report(
+        Diagnostic::error(
+            code::E_VOID_OR_NEVER_OUTSIDE_RETURN,
+            format!("`{atom}` is a return type only, and this is a binding"),
+        )
+        .with_primary(span, label)
+        .with_help(help),
+    );
+    env.interner.mixed()
+}
+
 #[expect(
     clippy::too_many_lines,
     reason = "one match arm per AST statement variant, each a couple of lines"
@@ -1292,7 +1340,8 @@ pub(crate) fn check_stmt(
             let name_str = strip_sigil(span_text(env.src, *name)).to_owned();
             match ty {
                 Some(ty) => {
-                    let declared_ty = lower_type(ty, ctx, env);
+                    let written = lower_type(ty, ctx, env);
+                    let declared_ty = reject_void_or_never_binding(written, ty.span, false, env);
                     declare_binding(scope, &name_str, declared_ty, *name, true, env);
                     if let Some(value) = value {
                         check_expr(value, Some(declared_ty), live, scope, ctx, env);
@@ -1321,7 +1370,9 @@ pub(crate) fn check_stmt(
                             .with_help("write the type explicitly: `array<T> $name = [...];`"),
                         );
                     }
-                    let inferred_ty = check_expr(value, None, live, scope, ctx, env);
+                    let synthesized = check_expr(value, None, live, scope, ctx, env);
+                    let inferred_ty =
+                        reject_void_or_never_binding(synthesized, value.span, true, env);
                     declare_binding(scope, &name_str, inferred_ty, *name, true, env);
                     live.insert(name_str);
                 }

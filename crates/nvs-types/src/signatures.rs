@@ -1204,7 +1204,7 @@ fn reject_void_or_never_params(
         };
         env.diags.report(
             Diagnostic::error(
-                code::E_VOID_OR_NEVER_PARAMETER,
+                code::E_VOID_OR_NEVER_OUTSIDE_RETURN,
                 format!("`{atom}` is a return type only, and this is a parameter"),
             )
             .with_primary(span, format!("declared `{atom}` here"))
