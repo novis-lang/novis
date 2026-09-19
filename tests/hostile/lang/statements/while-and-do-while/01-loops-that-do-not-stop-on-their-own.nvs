@@ -1,0 +1,64 @@
+<?nvs
+// Attack: loops are written so that nothing inside them ends them. One runs
+// fifty million rounds. One builds a text of six hundred thousand characters.
+// One has no end and is left only by a `break`. The last loop has a condition
+// that throws, with nothing to catch it.
+// hostile: timeout-ms 60000
+// hostile: ends-early
+// covers: lang:statements/while-and-do-while
+
+class Attack
+{
+    public static function stop(): bool
+    {
+        throw new RuntimeError('the condition failed');
+    }
+}
+
+// 1. Fifty million rounds of a `while` loop.
+int $acc = 0;
+int $i = 0;
+while ($i < 50000000) {
+    $acc = $acc + 1;
+    $i = $i + 1;
+}
+echo $acc, "\n";
+
+// 2. A `do … while` that grows a text of six hundred thousand characters.
+string $big = '';
+int $built = 0;
+do {
+    $big = $big . 'novis-';
+    $built = $built + 1;
+} while ($built < 100000);
+echo Core\Str::length($big), "\n";
+
+// 3. A loop whose condition is always true. Only the `break` inside it ends
+// the loop, after one million rounds.
+int $spins = 0;
+while (true) {
+    $spins = $spins + 1;
+    if ($spins >= 1000000) {
+        break;
+    }
+}
+echo $spins, "\n";
+
+// 4. Every round runs `continue`, so the bottom of the body is never reached.
+// Only the counter at the top ends this loop.
+int $skipped = 0;
+int $reached = 0;
+while ($skipped < 1000000) {
+    $skipped = $skipped + 1;
+    if ($skipped > 0) {
+        continue;
+    }
+    $reached = $reached + 1;
+}
+echo $skipped, ' ', $reached, "\n";
+
+// 5. The last loop asks its condition and the call throws. Nothing catches it,
+// so the program ends with status 1.
+while (Attack::stop()) {
+    echo "never\n";
+}

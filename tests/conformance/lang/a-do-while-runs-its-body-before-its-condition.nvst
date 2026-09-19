@@ -2,6 +2,7 @@
 `do`/`while` runs its body once before it tests anything, and `continue` re-tests rather than restarts
 --FILE--
 <?nvs
+// covers: lang:statements/while-and-do-while
 // The whole of what separates `do` from `while`: a condition false from the
 // start still leaves the body having run exactly once.
 int $j = 10;

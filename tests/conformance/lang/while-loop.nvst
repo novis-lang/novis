@@ -2,6 +2,7 @@
 a `while` loop runs its body until the condition is false
 --FILE--
 <?nvs
+// covers: lang:statements/while-and-do-while
 var $i = 0;
 var $total = 0;
 while ($i < 5) {

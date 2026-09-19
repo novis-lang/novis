@@ -6048,6 +6048,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   copies the array it is given, so the loop is quadratic in the number of entries. Build a large
   array with `Core\Arr::fill(n, v)`, and keep an appending loop to about ten thousand rounds.
   [until: reviewed 2026-09-19]
+- **A `covers:` marker added at the top of an `--EXPECTF-ERROR--` case shifts every line number
+  that case's expected diagnostic pins.** `a-foreach-key-binding-is-a-string-and-nothing-else.nvst`
+  names `case.nvs:27` and four lines below it, so one line inserted under `<?nvs` turned a green
+  case red with output that reads exactly like a real regression in the checker. Put the marker on
+  the last line of the `--FILE--` block whenever the expectation is a diagnostic, with a comment
+  beside it saying why it sits there. [until: reviewed 2026-09-19]
 
 ## Splitting a file that got too big
 
