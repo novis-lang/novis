@@ -48,9 +48,8 @@ A beginner and an expert should both read it once and come away with the same pi
 - **`**The examples below**`, only where the prose is hard to follow without code.** One closing
   sentence naming what the examples show, in order. It is a promise: the examples in the same
   directory show exactly that. A feature the prose fully explains gets no such sentence.
-- **Plain English, the same as a comment.** § *How a comment is written* below says what that
-  means — say what it does and what the result is, the word programmers already know, no idiom, no
-  "rather than" — and its word table holds here too.
+- **Plain English, the same as a comment.** [`AGENTS.md`](../../AGENTS.md) § *Text an end user
+  reads* is the rule for both, and its word table holds here too.
 - **No code, no internals, no history.** No ADR numbers, no crate names, no "the registry". One
   "replaces PHP's `sort`, `usort`, …" hint is welcome where it helps somebody arriving from PHP.
 
@@ -107,7 +106,8 @@ a program somebody skims for fifteen seconds and then writes their own version o
   *different* uses, and the third is the one that earns its place: make it the one somebody does at
   work.
 - **Comments are plain.** One sentence at the top saying what the example shows, and a line where
-  something would otherwise surprise. § *How a comment is written* below is the whole rule.
+  something would otherwise surprise. [`AGENTS.md`](../../AGENTS.md) § *Text an end user reads* is
+  the whole rule.
 - **Every example prints.** The `.out` file is the proof it still works, so an example that computes
   something and shows nothing cannot be checked.
 - **Nothing is asserted.** An example is not a test and never carries `Core\Test`. What it *shows*
@@ -116,119 +116,16 @@ a program somebody skims for fifteen seconds and then writes their own version o
 
 ## How a comment is written
 
-**This section is the rule for every `.nvs` file a feature's proofs are made of** — the examples
-here, the attacks under `tests/hostile/` and the programs under `benches/members/`. Those two trees'
-READMEs point here instead of restating it.
+[`AGENTS.md`](../../AGENTS.md) § *Text an end user reads* is the whole rule, for every `.nvs` file a
+feature's proofs are made of — the examples here, the attacks under `tests/hostile/` and the programs
+under `benches/members/` — and for `about.md`. It lives there because every agent has it in context
+before it writes anything, and nothing checks the words afterwards.
 
-A comment in one of these files is read by the same person `about.md` is written for: somebody who
-looked the feature up and has never seen this repository. So it is written the way the description
-is. **A beginner and an expert should both read it once and come away with the same picture.**
-
-**Write it the way a good manual does, not the way this repository's own documents do.** The rules,
-the decision records and the goals here are written in a dense essay voice, and an agent that has
-just read them writes comments in it. That voice is the thing to avoid. Many readers do not have
-English as their first language, and the comment has to work for them on the first read.
-
-- **Say what the line does, then what the result is.** That is the whole comment, in that order:
-  "`as ?int` converts the value to a whole number. If that is not possible, the result is `null`."
-  Add why somebody wants this only when it is not obvious. Name the real value where there is one —
-  "the result is `null`", "this prints `3`" — so the reader can check it against the output.
-- **The subject is the code or the reader.** "`Core\Str::length` returns …", "This loop adds …",
-  "You can change …". Code does not *ask*, *answer*, *hand back*, *refuse*, *decide* or *know*, and
-  a value does not *become a surprise*. It returns, gives, prints, throws, stops, is, has.
-- **Say what happens, not what does not.** "The result is `null`" — not "`null` rather than a
-  silently wrong number". A comparison makes the reader hold two ideas to get one. Where the
-  difference really is the point, give it a sentence of its own: "PHP returns `3` here."
-- **Use the word programmers already know.** cast, syntax, method, function, variable, returns,
-  throws an error, `null`, loop, string. These are the easy words for this reader, and a paraphrase
-  of one is harder than the term. This repository's own vocabulary stays out:
-
-  | Not | Write |
-  |---|---|
-  | spelling | syntax, "the way to write" |
-  | answers, hands back, hands you | returns, gives |
-  | asks, asking, asks for | checks, tests, needs |
-  | stands in for | replaces |
-  | lets go of, drops | frees, deletes |
-  | refuses, is refused, a refusal | throws an error, does not compile, is not allowed |
-  | member | method, function |
-  | binding, name | variable |
-  | holds | is, has, contains |
-  | mark, marked | say what it is: "tainted", "secret", and explain it once |
-  | shard, tier, slot, refcount, lowering, the registry | nothing — the reader never needs these |
-
-- **No idioms and no figures of speech.** Not "a wall of emoji", "goes through", "at the edge",
-  "further down", "earns its place", "on purpose", "the rest of that family". If a phrase would not
-  survive a word-for-word translation, write the literal thing.
-- **Short sentences, one idea each.** If a sentence has to be read twice, it is two sentences.
-- **A name the reader will type goes in backticks** — the setting, the class, the method, the error
-  they will catch. A term they need and may not know gets a few plain words the first time:
-  "a grapheme (what a person counts as one character)".
-- **PHP is mentioned once, at most, and at the top.** Most readers looked up a Novis feature, not a
-  migration guide. "now that casts are gone" is history and tells them nothing they can use.
-- **No internals and no history.** No ADR numbers, no rule ids, no crate or Rust names, no
-  milestone, nothing about how the behaviour came to be.
-- **Keep it short.** Up to four lines at the top of the file, one or two lines above a step. A
-  configuration example may also show the block it is about. What does not fit belongs in
-  `about.md`, and a comment never repeats what `about.md` already says.
-
-What the top comment says depends on the tree, and the rest is the same everywhere:
-
-| Tree | The top comment |
-|---|---|
-| an example | one sentence: what this program shows |
-| an attack | `// Attack:` and then what it tries, and what should happen instead, in one or two plain sentences; each numbered step gets one line saying what it tries |
-| a bench | one sentence: what is measured, and where somebody meets it in real code |
-
-A directive line — `// bench:`, `// hostile:`, `// covers:`, `// dossier:`, `// requires:` — is
-read by a tool, is not prose, and is left exactly as its own README spells it.
-
-The same comment, first the way it goes wrong and then the way it is written:
-
-```nvs
-// Unlike almost everything else in a configuration file, this one is a program's
-// to change while it runs — a job that knows its own work is quick can say so,
-// and the answer is `yes` rather than a silent refusal.
-```
-
-```nvs
-// Your program may change this setting while it runs. Most settings do not allow that.
-```
-
-One that was already short, and still hard:
-
-```nvs
-// The conversion is checked. A price with a fraction is not a whole number,
-// so asking with `?int` answers `null` rather than losing the fraction.
-```
-
-```nvs
-// `as ?int` converts a value to a whole number. 3.9 is not a whole number,
-// so the result is `null`.
-```
-
-And an attack:
-
-```nvs
-// Attack: the ceiling is the only thing standing between a request and as much
-// of this host as it cares to ask for, and it is one longest-match row away
-// from the block the request *is* allowed to write.
-```
-
-```nvs
-// Attack: a request tries to raise its own memory limit. Only the person who runs
-// the server may set that limit, so every attempt below should fail.
-```
-
-If a comment would only make sense to somebody who works on Novis, it is the wrong comment.
-
-`python tools/dossier.py --comments <file or directory> ...` judges what a script can: the line
-bounds above, a sentence longer than a plain one gets, a dash joining two sentences, and the words
-in the *Not* column of the table. It reads and never runs a program. Passing it is the floor, not
-the rule — a short sentence can still be one nobody follows — and the answer to a line it names is
-to write the sentence again from what the code does, never to swap one word until it passes. `[all] comments = true` in
-`tools/data/dossier-policy.toml` makes it part of `--gate`; goal `plain-comments` writes that line
-once the programs that landed before this section are inside the bounds.
+`python tools/dossier.py --comments <file or directory> ...` counts the three bounds that rule states
+as numbers: the lines in a comment block, the words in a sentence, and a dash joining two sentences.
+It reads and never runs a program. `[all] comments = true` in `tools/data/dossier-policy.toml` makes
+it part of `--gate`; goal `plain-comments` writes that line once the programs that landed before the
+rule are inside the bounds.
 
 ## Creating the `.out`
 

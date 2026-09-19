@@ -89,7 +89,7 @@ true.
 
 The one place a comment *is* asked to be plainer is a program an end user reads: the `.nvs` files
 under `docs/examples/`, `tests/hostile/` and `benches/members/`. Their comments follow
-[docs/examples/README.md](../examples/README.md) § *How a comment is written*.
+[AGENTS.md](../../AGENTS.md) § *Text an end user reads*.
 
 ## A `.nvst` test case
 
@@ -196,11 +196,12 @@ class Bench {
 echo Bench::run(400000), "\n";
 ```
 
-**Every comment in those three is a model, not a placeholder**: what the lines do, then the result
-with its real value, in the words a programmer already knows. They are read on the website, often by
-somebody whose first language is not English, so they are written like a manual and not like this
-file. [docs/examples/README.md](../examples/README.md) § *How a comment is written* is the rule and
-holds the word table; `python tools/dossier.py --comments <paths>` checks what a script can.
+**Every comment in those three is a model, not a placeholder**, written to
+[AGENTS.md](../../AGENTS.md) § *Text an end user reads*, which is the rule.
+
+**The fifth artefact is `about.md`**, the description the website shows above the examples. It has
+no skeleton here: [docs/examples/README.md](../examples/README.md) § *The description* is its shape
+and carries two models.
 
 **A `covers:` marker** — the one thing that attributes a *test* to a feature, since a case lives
 where its suite wants it. In the `--FILE--` block of a `.nvst` case, or immediately above a Rust

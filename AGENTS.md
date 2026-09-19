@@ -5,7 +5,8 @@ requests and CLI programs **securely and fast**.
 
 This file is inlined into every agent's context before it does anything, so it holds only what cannot be
 looked up on demand: the routing table's three entries, the priority ordering, the rules whose whole cost
-is that you did not know they existed, and the session workflow. **Everything else is one call away.**
+is that you did not know they existed, the one rule nothing can check — how text an end user reads is
+written — and the session workflow. **Everything else is one call away.**
 
 **Every fact in this repository has exactly one home.** If two documents state the same thing, the one
 named as the home is authoritative and the other is a bug — fix it rather than reconciling it in your head.
@@ -71,9 +72,9 @@ When choosing between designs:
 ## The rules you will otherwise break
 
 Each is one sentence here because not knowing it exists is the entire cost. The mechanism, and why, is in
-[docs/agent/commands.md](docs/agent/commands.md), except the last two, whose homes are
-[docs/agent/conventions.md](docs/agent/conventions.md) § *A code comment* and
-[docs/agent/grounding.md](docs/agent/grounding.md).
+[docs/agent/commands.md](docs/agent/commands.md), except the last three, whose homes are
+[docs/agent/conventions.md](docs/agent/conventions.md) § *A code comment*,
+[docs/agent/grounding.md](docs/agent/grounding.md) and `rule:testing/four-proofs`.
 
 1. **A shell never carries file content into the tree.** Create and edit files with Write and Edit — never
    a heredoc, a `>` redirect or a `sed -i`, because the shell parses your apostrophes and backticks before
@@ -98,10 +99,127 @@ Each is one sentence here because not knowing it exists is the entire cost. The 
 7. **A comment says what the code does now, and is rewritten as a whole** — never edited by leaving the
    old sentence beside the new one, so no comment ever reads as a changelog. `git log` is the only
    history this repository keeps: no dates, no counts of things that can change, no measured figures
-   the code does not enforce.
+   the code does not enforce. A comment an end user reads is the exception, and § *Text an end user
+   reads* below is its rule.
 8. **Verify a claim before you make it, not when it is questioned.** Every claim carries a `file:line`
    or the words *not checked*, and advice you volunteered meets the same bar as the answer — a
    follow-up that sends you to the code and changes what you said means the answer went out early.
+9. **A feature is finished when its five artefacts exist, not when it works** — `about.md`, tests from
+   Novis and from Rust, three examples, one bench, one attack. `python tools/dossier.py --id
+   '<feature>'` prints what it still owes and the path of each, and every `.nvs` and `about.md` among
+   them is held to § *Text an end user reads* below.
+
+## Text an end user reads
+
+**This section is the whole rule, and it is here because nothing checks the wording: it is followed at
+the first write, not repaired afterwards.** It covers every comment in a `.nvs` file under
+`docs/examples/`, `tests/hostile/` and `benches/members/`, and every `about.md`. Those are published on
+the website and read by somebody who looked a feature up and has never seen this repository. **A
+beginner and an expert should both read it once and come away with the same picture.**
+
+**Write it the way a good manual does, not the way this file does.** This file, the orientation pack,
+the rules and the goals are written in a dense essay voice, and an agent that has just read them writes
+comments in it. That voice is the thing to avoid. Many readers do not have English as their first
+language, and the text has to work for them on the first read.
+
+- **Say what the line does, then what the result is.** That is the whole comment, in that order:
+  "`as ?int` converts the value to a whole number. If that is not possible, the result is `null`."
+  Add why somebody wants this only when it is not obvious. Name the real value where there is one —
+  "the result is `null`", "this prints `3`" — so the reader can check it against the output.
+- **The subject is the code or the reader.** "`Core\Str::length` returns …", "This loop adds …",
+  "You can change …". Code does not *ask*, *answer*, *hand back*, *refuse*, *decide*, *hold* or *know*,
+  and a value does not *become a surprise*. It returns, gives, prints, throws, stops, is, has.
+- **Say what happens, not what does not.** "The result is `null`" — not "`null` rather than a
+  silently wrong number". No "rather than" at all: a comparison makes the reader hold two ideas to get
+  one. Where the difference really is the point, give it a sentence of its own: "PHP returns `3` here."
+- **Use the word programmers already know.** cast, syntax, method, function, variable, returns,
+  throws an error, `null`, loop, string. These are the easy words for this reader, and a paraphrase
+  of one is harder than the term. This repository's own vocabulary stays out:
+
+  | Not | Write |
+  |---|---|
+  | spelling | syntax, "the way to write" |
+  | answers, hands back, hands you | returns, gives |
+  | asks, asking, asks for | checks, tests, needs |
+  | stands in for | replaces |
+  | lets go of, drops | frees, deletes |
+  | refuses, is refused, a refusal | throws an error, does not compile, is not allowed |
+  | member | method, function |
+  | binding, name | variable |
+  | holds | is, has, contains |
+  | mark, marked | say what it is: "tainted", "secret", and explain it once |
+  | shard, tier, slot, refcount, lowering, the registry | nothing — the reader never needs these |
+
+- **No idioms and no figures of speech.** Not "a wall of emoji", "goes through", "at the edge",
+  "further down", "earns its place", "on purpose", "the rest of that family". If a phrase would not
+  survive a word-for-word translation, write the literal thing.
+- **Short sentences, one idea each.** No sentence over 25 words, and no dash joining two sentences:
+  write two. If a sentence has to be read twice, it is two sentences.
+- **A name the reader will type goes in backticks** — the setting, the class, the method, the error
+  they will catch. A term they need and may not know gets a few plain words the first time:
+  "a grapheme (what a person counts as one character)".
+- **PHP is mentioned once, at most, and at the top.** Most readers looked up a Novis feature, not a
+  migration guide. "now that casts are gone" is history and tells them nothing they can use.
+- **No internals and no history.** No ADR numbers, no rule ids, no crate or Rust names, no
+  milestone, nothing about how the behaviour came to be.
+- **Keep it short.** Up to four lines at the top of the file, one or two lines above a step. A
+  configuration example may also show the block it is about. What does not fit belongs in
+  `about.md`, and a comment never repeats what `about.md` already says.
+
+What the top comment says depends on the tree, and the rest is the same everywhere:
+
+| Tree | The top comment |
+|---|---|
+| an example | one sentence: what this program shows |
+| an attack | `// Attack:` and then what it tries, and what should happen instead, in one or two plain sentences; each numbered step gets one line saying what it tries |
+| a bench | one sentence: what is measured, and where somebody meets it in real code |
+
+A directive line — `// bench:`, `// hostile:`, `// covers:`, `// dossier:`, `// requires:` — is read by
+a tool, is not prose, and is left exactly as its own README spells it.
+
+The same comment, first the way it goes wrong and then the way it is written:
+
+```nvs
+// Unlike almost everything else in a configuration file, this one is a program's
+// to change while it runs — a job that knows its own work is quick can say so,
+// and the answer is `yes` rather than a silent refusal.
+```
+
+```nvs
+// Your program may change this setting while it runs. Most settings do not allow that.
+```
+
+One that was already short, and still hard:
+
+```nvs
+// The conversion is checked. A price with a fraction is not a whole number,
+// so asking with `?int` answers `null` rather than losing the fraction.
+```
+
+```nvs
+// `as ?int` converts a value to a whole number. 3.9 is not a whole number,
+// so the result is `null`.
+```
+
+And an attack:
+
+```nvs
+// Attack: the ceiling is the only thing standing between a request and as much
+// of this host as it cares to ask for, and it is one longest-match row away
+// from the block the request *is* allowed to write.
+```
+
+```nvs
+// Attack: a request tries to raise its own memory limit. Only the person who runs
+// the server may set that limit, so every attempt below should fail.
+```
+
+If a comment would only make sense to somebody who works on Novis, it is the wrong comment.
+
+`python tools/dossier.py --comments <paths>` judges the three bounds a script can count — lines in a
+block, words in a sentence, a dash joining two — and nothing about the words. Passing it says nothing
+about whether the comment is plain; a line it names is written again from what the code does, never
+trimmed until it passes.
 
 ## Session workflow
 

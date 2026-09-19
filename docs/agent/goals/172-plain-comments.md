@@ -6,7 +6,7 @@ position: last
 
 Every example, attack and bench is copied to the website, and its comments are read by somebody who
 looked the feature up. Once this goal is green, **every comment in every one of those programs is
-inside the bounds of `docs/examples/README.md` § *How a comment is written*, and a program that
+inside the bounds of `AGENTS.md` § *Text an end user reads*, and a program that
 leaves them is a red check** for every goal that follows, the same as a feature without its test.
 
 This goal rewrites comments in programs that are already on disk. It writes no new proof, changes no
@@ -54,8 +54,8 @@ The carve-out of the generated dossier goals holds here, for the same reason: a 
 derived from a feature's path, so two workers cannot name the same file, and the result is judged
 mechanically. Hand each worker one chapter or class, the three directories it owns, and these rules:
 
-- **Read `docs/examples/README.md` § *How a comment is written* first.** It carries a before and an
-  after for an example and for an attack.
+- **`AGENTS.md` § *Text an end user reads* is the rule**, and it is in your context already. It
+  carries a before and an after for an example and for an attack.
 - **Change comment lines and nothing else.** Not a statement, not a string, not a blank line between
   statements, not a directive line (`// bench:`, `// hostile:`, `// covers:`, `// dossier:`,
   `// requires:`), not a `.out`.
@@ -73,9 +73,10 @@ Then, in this session and only after every worker has stopped:
 
 ## Standing decisions
 
-- **The rule is not reopened here.** `docs/examples/README.md` § *How a comment is written* is the
-  standard, and `comment_problems` in `tools/dossier.py` holds the bounds a script can judge. A
-  bound that seems wrong goes in the handoff's `## Backlog`; it is not loosened to pass a file.
+- **The rule is not reopened here.** `AGENTS.md` § *Text an end user reads* is the standard, and
+  `comment_problems` in `tools/dossier.py` counts the three bounds it states as numbers and reads no
+  words. A bound that seems wrong goes in the handoff's `## Backlog`; it is not loosened to pass a
+  file.
 - **A comment the check names is written again from the code, never patched.** Read the lines under
   it, then write what they do and what the result is, in the words of the rule's table. Dropping a
   word, swapping a dash for a comma, or replacing "answers" with "returns" inside the same winding

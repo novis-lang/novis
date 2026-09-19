@@ -86,8 +86,8 @@ Write what an attacker writes. The shapes that have found things in languages li
 Every case opens with an `// Attack:` comment saying what it tries and what should happen instead,
 and each numbered step gets one line saying what that step tries. **These comments are read by
 people looking the feature up, not only by us**, so they are written in plain words a beginner
-follows: [`docs/examples/README.md`](../../docs/examples/README.md) § *How a comment is written* is
-the rule, and it holds here unchanged. The list above is for choosing the attack; its vocabulary —
+follows: [`AGENTS.md`](../../AGENTS.md) § *Text an end user reads* is the rule, and it holds here
+unchanged. The list above is for choosing the attack; its vocabulary —
 refcount, shard, variance — does not go into the comment.
 
 ## When a case actually breaks something

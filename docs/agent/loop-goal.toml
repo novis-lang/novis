@@ -97,8 +97,7 @@ files = [
 
 modules = [
   "docs/reference/lang/30-expressions.md",
-  # § *The description* and § *How a comment is written* are what `about.md` and every
-  # comment in the three `.nvs` proofs are held to, and no other field carries them.
+  # § *The description* is the shape `about.md` is held to, and no other field carries it.
   "docs/examples/README.md",
   # Resolves a parsed `Type` into an interned `TypeId` (`rule:types/grammar`'s grammar, made
   # concrete).

@@ -47,7 +47,7 @@ The rules, of which the chained input and the `int` subscript are the ones that 
 
 - **The top comment is one plain sentence**: what is measured, and where somebody meets it in real
   code. It is read by people looking the feature up, so it follows
-  [`docs/examples/README.md`](../../docs/examples/README.md) § *How a comment is written* — no
+  [`AGENTS.md`](../../AGENTS.md) § *Text an end user reads* — no
   optimiser, no lowering, no allocator in it. Why the loop is shaped the way it is belongs here in
   this file, not in the bench.
 - **`// bench: iterations N` is required**, and N is the number of times the measured operation
