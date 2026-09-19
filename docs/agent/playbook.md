@@ -6092,6 +6092,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   attribution edit turned the conformance suite red. Before marking a case, `grep -n 'case.nvs:'` it:
   where a number is pinned, move it by the number of lines the marker adds, in the same edit.
   [until: reviewed 2026-09-19]
+- **A `spawn script` path is resolved against the working directory, never against the file that
+  spawns.** Every proof program runs from the repository root, so a child sitting beside its parent is
+  not found and the parent throws a `RuntimeError` naming a path that plainly exists. Write the child's
+  path from the repository root — `docs/examples/…/jobs/child.nvs` — or use a `.nvst` case, whose
+  `--FILE child.nvs--` sections are written into one directory together.
+  [until: gone docs/reference/lang/80-concurrency.md:relative to the working directory]
 
 ## Splitting a file that got too big
 

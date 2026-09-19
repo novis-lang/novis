@@ -1,0 +1,73 @@
+--TEST--
+The value a child throws reaches the caller as its own class carrying its own data, from `Core\Task::all` and from `Core\Task::map` alike, and a `catch` for a class it is not does not take it — `rule:concurrency/nothing-is-still-running-when-a-call-returns` and `rule:errors/throwable-hierarchy`
+--FILE--
+<?nvs
+// covers: lang:concurrency/a-child-s-throw
+// The agreement shape: one question asked of both group calls, asserting that
+// they answer the same way rather than what each answered on its own. A group
+// call that wrapped the child's throw would miss the `ImportFailed` arm in
+// both, and one that rebuilt it as its supertype would lose `$row`.
+class ImportFailed extends RuntimeError {
+    public int $row;
+
+    public function constructor(string $message, int $row) {
+        parent::constructor($message);
+        $this->row = $row;
+    }
+}
+
+class Runner {
+    public static function fromAll(): string {
+        try {
+            Core\Task::all({
+                // Returns at once, so the group has a survivor to cancel and
+                // the case is not one child on its own.
+                good: fn(): int => {
+                    Core\Time::sleep(2s);
+                    return 1;
+                },
+                bad: fn(): int => {
+                    throw new ImportFailed("no price", 31);
+                },
+            });
+        } catch (ImportFailed $e) {
+            return "all: " . $e->message . " at row " . ($e->row as string);
+        }
+        return "all: nothing propagated";
+    }
+
+    public static function fromMap(): string {
+        try {
+            Core\Task::map([31, 32], fn(int $n): int => {
+                throw new ImportFailed("no price", $n);
+            });
+        } catch (ImportFailed $e) {
+            return "map: " . $e->message;
+        }
+        return "map: nothing propagated";
+    }
+}
+
+echo Runner::fromAll(), "\n";
+echo Runner::fromMap(), "\n";
+
+// The other side of the bound. A `catch` for a class the throw is not may not
+// take it, so "its own class" is asserted from both directions rather than
+// read off one arm that happened to match.
+try {
+    try {
+        Core\Task::all({
+            bad: fn(): int => {
+                throw new ImportFailed("no price", 31);
+            },
+        });
+    } catch (LogicError $wrong) {
+        echo "a LogicError catch took it", "\n";
+    }
+} catch (ImportFailed $right) {
+    echo "the LogicError arm let it through", "\n";
+}
+--EXPECT--
+all: no price at row 31
+map: no price
+the LogicError arm let it through

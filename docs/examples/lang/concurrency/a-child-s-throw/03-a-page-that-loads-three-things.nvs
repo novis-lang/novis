@@ -1,0 +1,34 @@
+<?nvs
+// Shows a page that loads three things at the same time. One of them is not
+// there, so the page says so instead of showing half of itself.
+
+class Store {
+    public static function user(): string {
+        return "Ada";
+    }
+
+    public static function orders(): int {
+        return 3;
+    }
+
+    public static function recommendations(): int {
+        throw new RuntimeError("the recommendation service is down");
+    }
+}
+
+try {
+    var $page = Core\Task::all({
+        user: fn(): string => {
+            return Store::user();
+        },
+        orders: fn(): int => {
+            return Store::orders();
+        },
+        recommendations: fn(): int => {
+            return Store::recommendations();
+        },
+    });
+    echo $page->user, " has ", $page->orders, " orders\n";
+} catch (RuntimeError $e) {
+    echo "this page cannot be built: ", $e->message, "\n";
+}

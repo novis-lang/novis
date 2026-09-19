@@ -1,0 +1,34 @@
+<?nvs
+// Measures a group of tasks in which one throws: the throw, the cancelling of
+// the other task, and the `catch` that takes the error. A page that loads
+// several things at once meets this every time one of them is missing.
+// bench: iterations 20000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $reasons = ["no price in the row", "the service is down"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the message thrown this round is picked by the length of
+            // the message thrown last round.
+            string $reason = $reasons[($total % 2) as int];
+            try {
+                Core\Task::all({
+                    good: fn(): int => {
+                        return 1;
+                    },
+                    bad: fn(): int => {
+                        throw new RuntimeError($reason);
+                    },
+                });
+            } catch (RuntimeError $e) {
+                $total = $total + Core\Str::length($e->message);
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(20000), "\n";

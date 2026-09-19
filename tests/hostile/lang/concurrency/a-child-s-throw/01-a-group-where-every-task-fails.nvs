@@ -1,0 +1,88 @@
+<?nvs
+// Attack: groups of tasks in which every task fails. Five hundred tasks throw
+// at once. A task parked on a full channel is cancelled by a sibling's throw.
+// One error has to arrive from each group, and the runtime must stay standing.
+// hostile: timeout-ms 60000
+
+class Trace
+{
+    public static int $ranOn = 0;
+}
+
+class Nest
+{
+    public static function down(int $depth): int
+    {
+        if ($depth == 0) {
+            throw new RuntimeError('the innermost task gave up');
+        }
+        Core\Task::all({
+            deeper: fn(): int => {
+                return Nest::down($depth - 1);
+            },
+        });
+        return $depth;
+    }
+}
+
+// Step 1: five hundred tasks, every one of them throwing. One error reaches
+// this `catch`, and the other four hundred and ninety-nine are cancelled.
+try {
+    Core\Task::map(Core\Arr::range(1, 500), fn(int $n): int => {
+        throw new RuntimeError('task ' . ($n as string) . ' gave up');
+    });
+    echo "step 1: the group returned with every task throwing\n";
+} catch (Throwable $first) {
+    echo "step 1: one error arrived out of five hundred\n";
+}
+
+// Step 2: a task parked on a full channel while a sibling throws. Cancelling a
+// task that is waiting has to free it, or this group waits for ever.
+var $chan = new Core\Task\Channel<int>(1);
+try {
+    Core\Task::all({
+        blocked: fn(): int => {
+            foreach (Core\Arr::range(1, 100) as int $i) {
+                $chan->send($i);
+            }
+            Trace::$ranOn = Trace::$ranOn + 1;
+            return 1;
+        },
+        thrower: fn(): int => {
+            Core\Time::sleep(10ms);
+            throw new RuntimeError('the sender is on its own now');
+        },
+    });
+    echo "step 2: the group returned with a task still parked\n";
+} catch (Throwable $stuck) {
+    echo 'step 2: the parked task was cancelled, ', Trace::$ranOn, " ran on\n";
+}
+
+// Step 3: a throw of four million characters, twenty times over. None of it may
+// still be held once the `catch` has ended.
+uint $bytes = 0;
+uint $i = 0;
+while ($i < 20) {
+    try {
+        Core\Task::all({
+            big: fn(): int => {
+                throw new RuntimeError(Core\Str::repeat('a', 4194304));
+            },
+        });
+    } catch (Throwable $huge) {
+        $bytes = $bytes + Core\Str::length($huge->message);
+    }
+    $i = $i + 1;
+}
+echo 'step 3: ', $bytes, " characters thrown out of twenty groups\n";
+
+// Step 4: groups inside groups, fifty deep, and the innermost one throws. The
+// error has to climb out of every level.
+try {
+    Nest::down(50);
+    echo "step 4: fifty levels of groups returned\n";
+} catch (Throwable $deep) {
+    echo 'step 4: ', $deep->message, "\n";
+}
+
+echo "the runtime is still standing\n";
