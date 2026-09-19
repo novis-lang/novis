@@ -2,7 +2,7 @@
 A `RuntimeError` clause takes every one of the seven classes below it, including the three whose names are namespaced, and none of the three on the other half — both sides counted rather than read off one arm — and the value it binds keeps the narrow name it was thrown under — spec § 10
 --FILE--
 <?nvs
-// covers: RuntimeError
+// covers: RuntimeError, lang:errors/the-throwable-tree
 // `RuntimeError` is the half of the tree the world raises, and a program that
 // writes one clause for all of it is relying on the branch being complete. What
 // this pins is that completeness from both sides by counting: a class that grew

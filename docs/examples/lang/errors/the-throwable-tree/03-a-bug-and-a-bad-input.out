@@ -1,0 +1,3 @@
+skipped a line: undefined array key `count`
+stopping, this is a bug: a line with a count below zero
+total 500

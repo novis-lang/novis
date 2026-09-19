@@ -1,0 +1,25 @@
+<?nvs
+// Measures catching an error by a class above it in the tree: an `IOError`
+// caught by a `RuntimeError` arm. A program meets this shape whenever one arm
+// handles a whole branch.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            try {
+                // Chained: the message carries the last round's total, so the
+                // throw stays inside the loop.
+                throw new IOError("file " . $total);
+            } catch (RuntimeError $wide) {
+                $total = $total + Core\Str::length($wide->message);
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

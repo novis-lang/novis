@@ -1,0 +1,29 @@
+<?nvs
+// Shows that a `catch` arm also catches every class under the one it names.
+// `IOError`, `ParseError` and `TimeoutError` are kinds of `RuntimeError`.
+
+final class Feed {
+    public static function fetch(string $source): string {
+        if ($source == "slow") {
+            throw new TimeoutError("the feed did not answer in time");
+        }
+        if ($source == "gone") {
+            throw new IOError("the feed file is missing");
+        }
+        return Core\Json::encode(Core\Json::decode($source));
+    }
+}
+
+array<string> $sources = ["{\"ok\": true}", "slow", "gone", "{\"ok\": }"];
+foreach ($sources as string $source) {
+    try {
+        echo Feed::fetch($source), "\n";
+    } catch (ParseError $bad) {
+        // The narrow arm goes first. It takes the parse errors and nothing else.
+        echo "bad input: ", $bad->message, "\n";
+    } catch (RuntimeError $other) {
+        // The wide arm takes the rest of the branch, here a timeout and a
+        // missing file.
+        echo "the feed said no: ", $other->message, "\n";
+    }
+}

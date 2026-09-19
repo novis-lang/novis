@@ -2,7 +2,7 @@
 A `LogicError` clause takes the program's own faults and nothing on the `RuntimeError` branch, counted over the whole branch rather than read off one line, and three unrelated `Core` members agree on which half their refusal belongs to — spec § 10
 --FILE--
 <?nvs
-// covers: LogicError
+// covers: LogicError, lang:errors/the-throwable-tree
 // The tree splits at the root into what the code got wrong and what the world
 // said no to. What this pins is that the two halves are disjoint from both
 // sides — the sweep counts, so a class that quietly grew a second parent fails
