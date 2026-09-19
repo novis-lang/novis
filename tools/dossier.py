@@ -1217,9 +1217,12 @@ def run_one_hostile(nvs: Path, path: Path, valgrind: bool) -> tuple[str, str]:
     repository's life, which is the exact shape of `loop-authoring.md` § 3's "a green suite is not a
     run guard".
 
-    One is a compile diagnostic: a typo delivers none of the file. Where the refusal *is* the
-    assertion -- a sink handed a tainted value, a capability used without being granted -- the case
-    says `// hostile: expect-refusal`, and then compiling cleanly is what fails it.
+    One is a compile diagnostic: a typo delivers none of the file. A refused file delivers none of
+    itself, so it also writes nothing to stdout, and that second half is what tells it apart from an
+    attack that spawns a deliberately broken child and catches the throw -- that one's stderr carries
+    the child's diagnostics while its own steps go on printing. Where the refusal *is* the assertion
+    -- a sink handed a tainted value, a capability used without being granted -- the case says
+    `// hostile: expect-refusal`, and then compiling cleanly is what fails it.
 
     The other is a program that ends before its last line: an uncaught throw or a limit in step two
     delivers step two and none of the steps behind it, and the runtime surviving that says nothing
@@ -1248,7 +1251,7 @@ def run_one_hostile(nvs: Path, path: Path, valgrind: bool) -> tuple[str, str]:
     for marker in CRASH_MARKERS:
         if marker in blob:
             return "fail", f"stderr carries {marker!r}"
-    refused = bool(REFUSED_RE.search(out.stderr))
+    refused = bool(REFUSED_RE.search(out.stderr)) and not out.stdout.strip()
     if REFUSAL_EXPECTED_RE.search(source):
         if not refused:
             return "fail", "declares `expect-refusal`, but the compiler accepted it"
