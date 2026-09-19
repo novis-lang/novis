@@ -337,7 +337,7 @@
     },
     {
       "id": "testing/one-slice-is-one-feature",
-      "title": "One slice writes all four of a feature's proofs together",
+      "title": "One slice writes all five of a feature's artefacts together",
       "status": "shipped",
       "because": ["0134"],
       "seeAlso": ["testing/four-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "testing/roster-is-derived"],
