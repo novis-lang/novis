@@ -2,6 +2,8 @@
 `rule:types/decimal`: a decimal literal is exact, arithmetic over it never rounds, and rendering keeps the scale
 --FILE--
 <?nvs
+// covers: lang:types/numbers-bool-int-uint-float-decimal
+
 // The money case `float` cannot represent: 0.1 + 0.2 is 0.3, not
 // 0.30000000000000004.
 decimal $tenth = 0.1;

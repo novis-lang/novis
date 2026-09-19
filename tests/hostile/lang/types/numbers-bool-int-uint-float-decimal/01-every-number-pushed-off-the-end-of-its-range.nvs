@@ -1,0 +1,136 @@
+<?nvs
+// Attack: every number type asked for a value it cannot hold. One past the
+// top of an int and a uint, one below the bottom, a negation with no positive
+// twin, a division by zero in all four kinds, a power far past any range, a
+// decimal grown until it runs out of digits on both sides, and a float pushed
+// to infinity and then asked to become a whole number.
+// hostile: timeout-ms 40000
+
+int $top = 9223372036854775807;
+int $bottom = -9223372036854775807 - 1;
+uint $ceiling = 18446744073709551615;
+
+try {
+    echo $top + 1, "\n";
+} catch (Throwable $e) {
+    echo 'int top: ', $e->message, "\n";
+}
+try {
+    echo $bottom - 1, "\n";
+} catch (Throwable $e) {
+    echo 'int bottom: ', $e->message, "\n";
+}
+try {
+    echo -$bottom, "\n";
+} catch (Throwable $e) {
+    echo 'negating the bottom: ', $e->message, "\n";
+}
+try {
+    echo $ceiling + 1, "\n";
+} catch (Throwable $e) {
+    echo 'uint ceiling: ', $e->message, "\n";
+}
+try {
+    uint $floor = 0;
+    echo $floor - 1, "\n";
+} catch (Throwable $e) {
+    echo 'uint floor: ', $e->message, "\n";
+}
+try {
+    echo $top * $top, "\n";
+} catch (Throwable $e) {
+    echo 'int product: ', $e->message, "\n";
+}
+try {
+    echo $top ** $top, "\n";
+} catch (Throwable $e) {
+    echo 'int power: ', $e->message, "\n";
+}
+
+// Zero on the right of every kind of division and remainder there is.
+int $zero = 0;
+try {
+    echo $top / $zero, "\n";
+} catch (Throwable $e) {
+    echo 'int by zero: ', $e->message, "\n";
+}
+try {
+    echo $top % $zero, "\n";
+} catch (Throwable $e) {
+    echo 'int remainder by zero: ', $e->message, "\n";
+}
+try {
+    float $wide = 1.5;
+    echo $wide / 0.0, "\n";
+} catch (Throwable $e) {
+    echo 'float by zero: ', $e->message, "\n";
+}
+try {
+    decimal $money = 1.50;
+    echo $money / 0, "\n";
+} catch (Throwable $e) {
+    echo 'decimal by zero: ', $e->message, "\n";
+}
+
+// A decimal grown until it runs out of room to the left, and then one grown
+// until it runs out of room to the right.
+decimal $big = 1;
+uint $left = 0;
+try {
+    while ($left < 100) {
+        $big = $big * 1000;
+        $left = $left + 1;
+    }
+    echo 'grew a decimal past every bound with no complaint', "\n";
+} catch (Throwable $e) {
+    echo 'decimal left of the point: ', $e->message, "\n";
+}
+decimal $small = 1;
+uint $right = 0;
+try {
+    while ($right < 100) {
+        $small = $small / 3;
+        $right = $right + 1;
+    }
+    echo 'decimal right of the point: ', $small, ' -- rounded away rather than refused', "\n";
+} catch (Throwable $e) {
+    echo 'decimal right of the point: ', $e->message, "\n";
+}
+
+// A float taken past the largest one there is, which is the one type here
+// that answers with a value rather than stopping, and then asked to be a
+// whole number again.
+float $huge = 1.0;
+uint $doubles = 0;
+while ($doubles < 5000) {
+    $huge = $huge * 10.0;
+    $doubles = $doubles + 1;
+}
+echo $huge, "\n";
+try {
+    echo $huge as int, "\n";
+} catch (Throwable $e) {
+    echo 'infinity as a whole number: ', $e->message, "\n";
+}
+try {
+    float $nothing = $huge - $huge;
+    echo $nothing, ' ', $nothing == $nothing ? 'equal to itself' : 'not equal to itself', "\n";
+} catch (Throwable $e) {
+    echo 'infinity minus itself: ', $e->message, "\n";
+}
+
+// Counting all the way up in a type that refuses to wrap, one step at a time,
+// from the last value that fits.
+uint $step = 18446744073709551610;
+uint $taken = 0;
+try {
+    while ($taken < 100) {
+        $step = $step + 1;
+        $taken = $taken + 1;
+    }
+    echo 'walked past the ceiling with no complaint', "\n";
+} catch (Throwable $e) {
+    echo 'walked into the ceiling after ', $taken, " steps\n";
+}
+
+echo "still here\n";

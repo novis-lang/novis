@@ -1,0 +1,23 @@
+<?nvs
+// Two kinds of fraction, for two different jobs. A `decimal` keeps exactly
+// the number that was written down, places after the point included, which is
+// what money needs. A `float` is the quick, slightly inexact one every machine
+// has in hardware, which is what a measurement needs. The two look the same
+// when printed and are not the same: a tenth plus a fifth is a fifth of a
+// penny off in one of them.
+
+float $quick = 0.1;
+float $more = 0.2;
+float $floatSum = $quick + $more;
+echo $floatSum, " ", $floatSum == 0.3 ? "exactly 0.3" : "not quite 0.3", "\n";
+
+decimal $tenth = 0.1;
+decimal $fifth = 0.2;
+decimal $exactSum = $tenth + $fifth;
+echo $exactSum, " ", $exactSum == 0.3 ? "exactly 0.3" : "not quite 0.3", "\n";
+
+decimal $price = 1.10;
+echo $price * 3, "\n";
+
+float $grams = 2.5;
+echo $grams * 3, "\n";

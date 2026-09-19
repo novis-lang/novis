@@ -2,6 +2,8 @@
 Integer `+`, `-`, `*` and unary `-` answer one step inside their type's bound and throw `ArithmeticError` at it, on the `int` arm and the `uint` arm alike — `rule:types/arithmetic` and `rule:php-migration/every-divergence-is-deliberate-and-listed`
 --FILE--
 <?nvs
+// covers: lang:types/numbers-bool-int-uint-float-decimal
+
 // `rule:types/arithmetic` names this the divergence from PHP it is least willing to
 // trade: PHP promotes an overflowing integer to `float`, which changes a
 // binding's type behind its declaration, and the alternative — wrapping — is
