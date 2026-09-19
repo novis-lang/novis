@@ -821,11 +821,12 @@ expected `iterable`, found `array<int>`
 
 ### `void`, `never`, `self`, `static`
 
-`void` and `never` are return types only; as a parameter type each is refused. A `void` call is
-not an operand: `echo Helper::nothing()` is a compile error. `never` is accepted by the checker as
-a return type, but a program that declares a `never` method does not run — treat it as absent.
-`self` is the declaring class and `static` the called class, in a return position; neither is a
-value (`return self;` is refused — write `self::member`).
+`void` and `never` are return types only; neither names a parameter or a binding, and `var` is
+refused the type of a call that hands nothing back. A `void` call is not an operand: `echo
+Helper::nothing()` is a compile error. `never` declares a method that does not come back — it throws,
+or it ends the program — and a call to one is not read as an exit, so a caller with another path
+still has to return a value on that one. `self` is the declaring class and `static` the called class,
+in a return position; neither is a value (`return self;` is refused — write `self::member`).
 
 ```nvs
 <?nvs
@@ -869,10 +870,12 @@ echo Helper::nothing();
 
 ### `type` aliases
 
-`type Name = T;` gives a type expression a `PascalCase` name at file scope — beside `namespace` and
-`use`, never inside a class or a function body. The alias is a compile-time name only. It may not
-name a single bare class, interface or enum (`type Bar = Foo;` is refused: a class has its own
-name); `?Foo`, a union, a shape and an `array<…>` are all allowed.
+`type Name = T;` gives a type expression a `PascalCase` name, written at file scope beside `namespace`
+and `use` or as a member of a class, interface or enum body — never inside a method body, a block or a
+closure, where it is refused by name. A body's alias takes no visibility modifier, is reached as
+`Owner::Name` from anywhere and as a bare `Name` inside its owner, and is not inherited. The alias is
+a compile-time name only. It may not name a single bare class, interface or enum (`type Bar = Foo;` is
+refused: a class has its own name); `?Foo`, a union, a shape and an `array<…>` are all allowed.
 
 ```nvs
 <?nvs
