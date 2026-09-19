@@ -117,6 +117,9 @@ modules = [
   # `rule:core-classes/derive-attribute`'s derive pass: which classes carry `#[Json\Derive]` or
   # `#[Db\Derive]`, which of their properties are fields, and what wire key each field has.
   "crates/nvs-types/src/derive.rs",
+  # What an operator's operands have to be, and what it produces: `rule:types/arithmetic`'s
+  # result-type table and the three refusals layered onto it.
+  "crates/nvs-types/src/expr/operators.rs",
 ]
 
 rules = ["testing/four-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "types/arithmetic", "php-migration/absent-storage-is-never-a-zero-value", "expressions/truthy-table", "0134", "0026", "0117", "0004", "0088"]
