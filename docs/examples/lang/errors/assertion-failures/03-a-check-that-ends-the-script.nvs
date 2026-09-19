@@ -1,0 +1,18 @@
+<?nvs
+// Shows a check outside a test. Nothing catches the failure, so the program
+// ends with exit status 1.
+// dossier: exit 1
+
+array<string> $config = ["host" => "localhost", "port" => "5432"];
+
+echo "checking the configuration\n";
+
+// This assertion passes, so the program carries on.
+Core\Test::assertCount($config, 2);
+
+// This one fails. Outside a `#[Test]` method a failure is an ordinary throw,
+// so it ends the program here and the error output gets the message.
+Core\Test::assertTrue(Core\Arr::hasKey($config, "password"),
+    {message: "the password is missing"});
+
+echo "this line never runs\n";

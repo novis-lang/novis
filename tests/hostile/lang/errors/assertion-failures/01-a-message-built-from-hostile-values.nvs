@@ -1,0 +1,54 @@
+<?nvs
+// Attack: a failed assertion builds its message out of the values it compared.
+// This gives it two strings of a million characters, an array nested a thousand
+// levels deep, and two objects that point at each other.
+// hostile: timeout-ms 30000
+
+// Step 1: two long strings that differ in the last character. The failure is
+// caught, so the program carries on.
+string $left = Core\Str::repeat('a', 1048576);
+string $right = Core\Str::repeat('a', 1048575) . 'b';
+try {
+    Core\Test::assertEquals($left, $right);
+    echo "step 1: two different strings compared equal\n";
+} catch (Throwable $failure) {
+    echo 'step 1: caught a message of ', Core\Str::length($failure->message), " characters\n";
+}
+
+// Step 2: an array nested a thousand levels deep, compared entry by entry.
+array<mixed> $nested = ['leaf' => 1];
+int $level = 0;
+while ($level < 1000) {
+    $nested = ['inner' => $nested];
+    $level = $level + 1;
+}
+try {
+    Core\Test::assertEqualsDeep($nested, ['inner' => 1]);
+    echo "step 2: a nested array compared equal\n";
+} catch (Throwable $failure) {
+    echo "step 2: caught the deep comparison\n";
+}
+
+final class Node
+{
+    public ?Node $next = null;
+
+    public function constructor(public string $name)
+    {
+    }
+}
+
+// Step 3: two objects that point at each other. The message has to stop at the
+// cycle instead of following it.
+var $first = new Node('first');
+var $second = new Node('second');
+$first->next = $second;
+$second->next = $first;
+try {
+    Core\Test::assertSame($first, $second);
+    echo "step 3: two different objects compared the same\n";
+} catch (Throwable $failure) {
+    echo "step 3: caught the comparison of two objects in a cycle\n";
+}
+
+echo "the runtime is still standing\n";

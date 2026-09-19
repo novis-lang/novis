@@ -1,0 +1,24 @@
+<?nvs
+// Shows which `catch` arm takes a failed assertion. `Core\Test\Failure` is not
+// a `RuntimeError`.
+
+class Cart {
+    public static function total(array<int> $prices): int {
+        int $sum = 0;
+        foreach ($prices as int $price) {
+            $sum = $sum + $price;
+        }
+        return $sum;
+    }
+}
+
+// The `RuntimeError` arm does not match a failure. The `Throwable` arm is the
+// one that runs.
+try {
+    Core\Test::assertEquals(Cart::total([100, 250]), 999);
+} catch (RuntimeError $error) {
+    echo "the RuntimeError arm caught it\n";
+} catch (Throwable $failure) {
+    echo "the Throwable arm caught it\n";
+    echo $failure->message, "\n";
+}

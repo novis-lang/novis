@@ -5979,13 +5979,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   path to be what finds a hole in `rule:ide/tokens-plus-trivia-reproduce-the-file`.
   [until: reviewed 2026-12-19]
 
-- **An example that exits non-zero cannot be blessed, so a feature whose point is the exit status
-  has to show it on the path that succeeds.** `tools/dossier.py`'s `bless` and its example runner
-  both treat a non-zero status as a failure before they look at stdout at all, so an `exit(3);` in
-  a `docs/examples/` program is reported as `exit 3:` and no `.out` is ever written. Write the
-  status-carrying branch in full and give the program data that takes the zero branch —
-  `docs/examples/lang/programs/ending-a-program/03-tell-the-shell-whether-the-check-passed.nvs` is
-  that shape. [until: gone tools/dossier.py:return "fail", f"exit {out.returncode}]
 - **A `decimal` class constant declares cleanly and fails at the *read*, with `E0792: has no
   compile-time value to inline`.** A constant is inlined at every use site, and
   `crates/nvs-types/src/defaults.rs`'s module doc says the `ConstArg` variant carrying
@@ -6064,6 +6057,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `// hostile: ends-early` is declared, while proving one step of the four it claims in its own top
   comment. Put the step that cannot be caught last, and read the program's own output before
   declaring `ends-early`. [until: reviewed 2026-09-19]
+- **Two `catch` arms cannot share a variable name when they name different classes.** A `catch`
+  binding is declared in the enclosing function's scope rather than in its own arm, so
+  `catch (Throwable $failure)` and a later `catch (Core\Test\Failure $failure)` in one file are two
+  declarations of one name and `E0406` refuses the whole file. Give each arm its own name, and
+  reuse one only where every arm that declares it names the same class.
+  [until: gone crates/nvs-hir/src/lower:catch-binding-scope]
 
 ## Splitting a file that got too big
 
