@@ -1,0 +1,84 @@
+<?nvs
+// Attack: a program tries to break interfaces. Two methods written in an
+// interface call each other and never stop. A class passes its work to a
+// property that was never given an object. A chain of forwards is built a
+// million objects deep. The runtime should stay standing.
+// covers: lang:classes/interfaces
+
+interface Loops
+{
+    public function down(int $k): int
+    {
+        return $this->up($k + 1);
+    }
+
+    public function up(int $k): int
+    {
+        return $this->down($k + 1);
+    }
+}
+
+interface Speaks
+{
+    public function say(string $word): string;
+}
+
+final class Plain implements Loops, Speaks
+{
+    public function say(string $word): string
+    {
+        return $word;
+    }
+}
+
+// This class passes `say` on to whatever object `$inner` holds.
+final class Forwards implements Speaks by $inner
+{
+    public function constructor(private Speaks $inner)
+    {}
+}
+
+// This one never gives `$inner` an object.
+final class Empty implements Speaks by $inner
+{
+    private lateinit Speaks $inner;
+
+    public function constructor()
+    {}
+}
+
+// 1. Two methods written in an interface call each other and never return.
+var $looping = new Plain();
+try {
+    int $reached = $looping->down(0);
+    echo '1: BAD, the call returned ', $reached, "\n";
+} catch (Throwable $e) {
+    echo '1: caught ', $e->message, "\n";
+}
+
+// 2. A forward runs before the property it forwards to holds anything.
+try {
+    Speaks $empty = new Empty();
+    string $said = $empty->say('x');
+    echo '2: BAD, the forward answered ', $said, "\n";
+} catch (Throwable $e) {
+    echo '2: caught ', $e->message, "\n";
+}
+
+// 3. One object forwards to the next, a million times over.
+Speaks $chain = new Plain();
+int $built = 0;
+while ($built < 1000000) {
+    $chain = new Forwards($chain);
+    $built = $built + 1;
+}
+echo '3: built ', $built, " forwards\n";
+
+// 4. The whole chain is called, so every forward has to run before the last
+//    object can answer.
+try {
+    string $answer = $chain->say('end');
+    echo '4: the chain answered ', $answer, "\n";
+} catch (Throwable $e) {
+    echo '4: caught ', $e->message, "\n";
+}

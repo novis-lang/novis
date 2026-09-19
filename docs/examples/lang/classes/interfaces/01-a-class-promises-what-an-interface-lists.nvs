@@ -1,0 +1,39 @@
+<?nvs
+// Shows `implements`. An interface lists the methods a class must write, and
+// a variable declared at the interface holds any class that implements it.
+
+interface Priced {
+    public function cents(): int;
+}
+
+interface Named {
+    public function name(): string;
+}
+
+// A class implements as many interfaces as it needs, separated by a comma.
+class Book implements Priced, Named {
+    public function constructor(private string $title, private int $cents) {}
+
+    public function cents(): int {
+        return $this->cents;
+    }
+
+    public function name(): string {
+        return $this->title;
+    }
+}
+
+class Shipping implements Priced {
+    public function cents(): int {
+        return 499;
+    }
+}
+
+// Both classes fit here, because both are `Priced`.
+array<Priced> $order = [new Book("Novis", 2500), new Shipping()];
+
+int $total = 0;
+foreach ($order as Priced $item) {
+    $total = $total + $item->cents();
+}
+echo "total ", $total, " cents\n";

@@ -1,0 +1,70 @@
+--TEST--
+An interface constant is one value through every route that reaches it, and an interface `static` is a default only the implementor that redeclares it answers differently — `rule:classes/interface-default-methods`
+--FILE--
+<?nvs
+// A constant and a `static` method on an interface are reachable through the
+// interface, through an interface extending it, through every implementor and
+// through a subclass of one. The constant agrees on all five; the `static` is
+// a default, so the one class that writes its own is the only route that
+// answers differently.
+interface Ships {
+    public const int MAX_BOXES = 3;
+
+    public function label(): string;
+
+    public static function carrier(): string {
+        return "post";
+    }
+}
+
+interface Tracks extends Ships {
+    public function code(): string;
+}
+
+class Parcel implements Tracks {
+    public function label(): string {
+        return "parcel";
+    }
+
+    public function code(): string {
+        return "P-1";
+    }
+}
+
+class Express extends Parcel {
+    public static function carrier(): string {
+        return "courier";
+    }
+}
+
+// A second implementor that reaches `Ships` directly rather than through
+// `Tracks`, so the sweep below is not one chain asked five times.
+class Crate implements Ships {
+    public function label(): string {
+        return "crate";
+    }
+}
+
+// Asserted by counting: a route that answered its own value fails here while
+// still printing a plausible number on its own line.
+array<int> $reached = [Ships::MAX_BOXES, Tracks::MAX_BOXES, Parcel::MAX_BOXES, Express::MAX_BOXES, Crate::MAX_BOXES];
+int $agree = 0;
+foreach ($reached as int $boxes) {
+    if ($boxes == Ships::MAX_BOXES) {
+        $agree = $agree + 1;
+    }
+}
+echo $agree, " of ", Core\Arr::count($reached), " agree on ", Ships::MAX_BOXES, "\n";
+
+// The default and its one override, through the same five routes.
+echo Ships::carrier(), " ", Tracks::carrier(), " ", Parcel::carrier(), " ", Crate::carrier(), " ", Express::carrier(), "\n";
+
+// A receiver typed at the interface reaches the implementor's method, and the
+// subclass is both interfaces.
+Ships $held = new Express();
+echo $held->label(), " ", ($held is Tracks) as string, ($held is Ships) as string, "|\n";
+// covers: lang:classes/interfaces
+--EXPECT--
+5 of 5 agree on 3
+post post post post courier
+parcel 11|

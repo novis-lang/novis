@@ -1,0 +1,38 @@
+<?nvs
+// Shows `implements I by $field`. A class that holds an object which already
+// does the work passes every method of the interface on to it.
+
+interface SendsMail {
+    public function send(string $to, string $subject): string;
+    public function name(): string;
+}
+
+// The class that really sends the mail.
+class SmtpMailer implements SendsMail {
+    public function send(string $to, string $subject): string {
+        return "sent \"" . $subject . "\" to " . $to;
+    }
+
+    public function name(): string {
+        return "smtp";
+    }
+}
+
+// This class is a `SendsMail` too. `by $inner` writes the forwarding methods,
+// so it does not repeat them.
+class LoggingMailer implements SendsMail by $inner {
+    public function constructor(private SendsMail $inner) {}
+
+    // A method the class writes itself is used instead of the forward.
+    public function name(): string {
+        return "logging(" . $this->inner->name() . ")";
+    }
+}
+
+SendsMail $mailer = new LoggingMailer(new SmtpMailer());
+
+// `send` is forwarded to the object in `$inner`.
+echo $mailer->send("ada@example.com", "Welcome"), "\n";
+
+// `name` is the method this class wrote.
+echo $mailer->name(), "\n";

@@ -49,6 +49,7 @@ echo $p->greet(), "|", $p->age(), "\n";
 echo $l->greet(), "|", $l->age(), "\n";
 echo ($l is Named) as string, ($l is Aged) as string, ($l is Person) as string, "\n";
 echo ($p is Loud) as string, "|\n";
+// covers: lang:classes/interfaces
 --EXPECT--
 hello ada|36
 HELLO BOB|40

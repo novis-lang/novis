@@ -8,6 +8,7 @@ trait Greets {
     }
 }
 echo "after\n";
+// covers: lang:classes/interfaces
 --EXPECT--
 
 --EXPECTF-ERROR--

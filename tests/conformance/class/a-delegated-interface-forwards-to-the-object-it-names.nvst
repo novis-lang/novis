@@ -98,6 +98,7 @@ int $agreed = 0;
 if ($p->greet("a") == $g->greet("a")) { $agreed = $agreed + 1; }
 if ($p->count() == $c->count()) { $agreed = $agreed + 1; }
 echo "agreed=", $agreed, "/2\n";
+// covers: lang:classes/interfaces
 --EXPECT--
 Hello, world
 HI

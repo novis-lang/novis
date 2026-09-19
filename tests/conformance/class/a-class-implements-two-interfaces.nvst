@@ -57,6 +57,7 @@ echo Ask::yn($q is Shape), Ask::yn($q is Named), Ask::yn($q is Square), "\n";
 
 var $c = new Circle();
 echo Ask::yn($c is Shape), Ask::yn($c is Named), "\n";
+// covers: lang:classes/interfaces
 --EXPECT--
 9;SQUARE
 0

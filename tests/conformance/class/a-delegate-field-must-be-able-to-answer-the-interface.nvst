@@ -55,6 +55,7 @@ final class Half implements Greets by $voice, Counts {
 }
 
 echo "unreachable\n";
+// covers: lang:classes/interfaces
 --EXPECTF-ERROR--
 error[E0720]: `NoField` delegates `Greets` to `$missing`, which is not a property
 %A

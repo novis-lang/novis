@@ -1,0 +1,43 @@
+<?nvs
+// Shows a method with a body inside an interface. Every class that implements
+// the interface gets that method, and may write its own version instead.
+
+interface Greets {
+    public const int MAX_LEN = 20;
+
+    // No body: every class writes this one.
+    public function name(): string;
+
+    // A body: every class gets this one for free. It calls `name`, which the
+    // class provides.
+    public function greet(): string {
+        return "Hello, " . $this->name() . "!";
+    }
+}
+
+class Person implements Greets {
+    public function constructor(private string $who) {}
+
+    public function name(): string {
+        return $this->who;
+    }
+}
+
+class Shop implements Greets {
+    public function name(): string {
+        return "the shop";
+    }
+
+    // This class writes its own version. `Greets::greet()` is still the
+    // interface's version, so this method adds to it.
+    public function greet(): string {
+        return Greets::greet() . " How can we help?";
+    }
+}
+
+echo (new Person("Ada"))->greet(), "\n";
+echo (new Shop())->greet(), "\n";
+
+// A constant on an interface is read through the interface or through any
+// class that implements it. Both print 20.
+echo Greets::MAX_LEN, " ", Person::MAX_LEN, "\n";

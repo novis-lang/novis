@@ -1,0 +1,40 @@
+<?nvs
+// Calls a method through a variable typed at an interface, and a method the
+// interface itself wrote. A program that keeps its collaborators behind
+// interfaces does this on every request.
+// bench: iterations 400000
+// bench: calls 2
+// bench: allocations 0
+
+interface Priced {
+    public function cents(int $count): int;
+
+    // The interface writes this one, and the class below does not replace it.
+    public function withTax(int $count): int {
+        return $this->cents($count) + 19;
+    }
+}
+
+final class Item implements Priced {
+    public function constructor(private int $base) {}
+
+    public function cents(int $count): int {
+        return $this->base + ($count % 97);
+    }
+}
+
+class Bench {
+    public static function run(int $rounds): int {
+        Priced $item = new Item(7);
+        int $acc = 1;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: this round starts from what the last one returned.
+            $acc = ($acc + $item->withTax($acc)) % 1000003;
+            $i = $i + 1;
+        }
+        return $acc;
+    }
+}
+
+echo Bench::run(400000), "\n";
