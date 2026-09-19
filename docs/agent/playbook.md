@@ -2430,6 +2430,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   re-measures all eighteen of `lang:types` when one paragraph moves, and `dossier.py --verify
   --group` then reports `perf: stale` against features nobody touched. Re-record the group in one
   call: `python tools/dossier.py --record-perf --group lang:types`. [until: reviewed 2026-09-19]
+- **A `lang:` feature's perf figure goes stale the moment its *reference chapter* is edited, because
+  that chapter is the implementing file the ledger fingerprints.** One sentence fixed in
+  `docs/reference/lang/30-expressions.md` marked every complete feature of `lang:expressions` stale
+  at once, and `dossier.py --verify` then reports the group as owing perf, which reads exactly like a
+  bench nobody wrote. Run `python tools/dossier.py --record-perf --group <group>` after any edit to a
+  reference chapter the goal's features live in, before the wrap. [until: reviewed 2026-09-19]
 
 ## Running things
 
@@ -8242,6 +8248,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `uint|int``, because the literal takes no hint from the `as ?uint` beside it. Declare the fallback
   as a binding of the target type — `uint $firstPage = 1;` — rather than writing `?? (1 as uint)`,
   which reads as a conversion nobody asked for. [until: reviewed 2026-09-19]
+- **A shape `type` alias that names itself does not compile, and the diagnostic is `array type nests
+  past depth 32`.** `type Node = {value: int, next: ?Node};` expands through the alias until the
+  depth bound stops it and reports once per field, so a linked list or a tree written as a shape
+  reads as a depth problem in an annotation nobody nested. Write the recursive case as a class;
+  `crates/nvs-types/src/lower.rs`'s `lower_type_at_depth` § *Known gaps* carries the wording.
+  [until: gone crates/nvs-types/src/lower.rs:array type nests past depth]
 
 ## Divergences and refusals already pinned
 
