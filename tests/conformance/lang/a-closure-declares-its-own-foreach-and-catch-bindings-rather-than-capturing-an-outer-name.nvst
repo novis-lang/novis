@@ -1,0 +1,56 @@
+--TEST--
+A `foreach` binding and a `catch` binding inside a closure declare locals of that closure, so one spelled the same as a binding of the enclosing body shadows it instead of capturing it, pinning `rule:types/implicit-capture` and `rule:iteration/foreach-subjects`
+--FILE--
+<?nvs
+// covers: lang:expressions/closures
+// A capture is recorded for a name the closure *reads* from the body around
+// it. Declaring a name is not reading one: the binding a `foreach` or a
+// `catch` introduces belongs to the closure, whatever the enclosing body
+// happens to have called its own.
+class Log {
+    public static int $outer = 0;
+    public static string $caught = "";
+}
+
+array<int> $first = [1, 2];
+foreach ($first as int $v) {
+    Log::$outer = Log::$outer + $v;
+}
+
+var $inner = fn (): int => {
+    array<int> $second = [3, 4];
+    int $total = 0;
+    foreach ($second as int $v) {
+        $total = $total + $v;
+    }
+    return $total;
+};
+echo Log::$outer, " ", $inner(), "\n";
+
+try {
+    throw new RuntimeError("from the body");
+} catch (RuntimeError $e) {
+    Log::$caught = $e->message;
+}
+
+var $said = fn (): string => {
+    string $message = "nothing thrown";
+    try {
+        throw new LogicError("from the closure");
+    } catch (LogicError $e) {
+        $message = $e->message;
+    }
+    return $message;
+};
+echo Log::$caught, " / ", $said(), "\n";
+
+// The enclosing binding is untouched by either closure, and still reads as
+// what the body last put in it.
+foreach ($first as int $v) {
+    Log::$outer = Log::$outer + $v;
+}
+echo Log::$outer, "\n";
+--EXPECT--
+3 7
+from the body / from the closure
+6

@@ -50,8 +50,12 @@
 //!   the second statement, and `$m = null;` itself is still checked against
 //!   `?M` rather than against the narrowed `M`. Adding a new write path to
 //!   this crate owes a call to it; that list is `check_assign`,
-//!   `check_compound_assign`, `PreIncDec`/`PostIncDec`, `check_inout_arg`,
-//!   `check_unset_target` and [`declare_binding`] below.
+//!   `check_compound_assign`, `PreIncDec`/`PostIncDec`, `check_inout_arg` and
+//!   `check_unset_target`. A path that *declares* the name instead —
+//!   [`declare_binding`] and [`bind_catch_arm`] below — calls
+//!   [`LocalScope::drop_narrowing`], which drops the same narrowing and
+//!   resolves nothing, because a declaration is not a write of an enclosing
+//!   binding that shares the spelling.
 //! * **A loop body drops every narrowing installed outside it**
 //!   ([`check_stmt`]'s `While`/`DoWhile`/`For`/`Foreach` arms), because a
 //!   write at the *end* of the body invalidates a read at its start on the
@@ -272,6 +276,23 @@ impl LocalScope {
             layer.remove(name);
         }
         self.declared_ty(name)
+    }
+
+    /// Drops whatever a dominating condition proved about `name`, resolving
+    /// nothing.
+    ///
+    /// A `foreach`, `catch` or destructuring binding *declares* `name` in this
+    /// body, so it is not a write of an enclosing binding that happens to share
+    /// the spelling. [`Self::overwrite`] is the wrong call for one: it resolves
+    /// the name, which records a capture as a side effect (see
+    /// [`Self::declared_ty`]), and `nvs-ir` then panics on a capture the
+    /// enclosing frame has no binding for. The narrowing still has to go — from
+    /// here on the name means the new binding.
+    pub(crate) fn drop_narrowing(&self, name: &str) {
+        self.narrowed.borrow_mut().remove(name);
+        for layer in self.shadowed.borrow_mut().iter_mut() {
+            layer.remove(name);
+        }
     }
 
     /// Records `name` as captured by this body without reading it — how a
@@ -643,8 +664,10 @@ pub(crate) struct Suspended;
 
 impl Suspended {
     /// Puts back every suspended narrowing a write inside the body did not
-    /// invalidate — [`LocalScope::overwrite`] reaches into the suspended
-    /// layer too, so anything the body assigned is simply no longer there.
+    /// invalidate — dropping a narrowing reaches into the suspended layer too,
+    /// through either [`LocalScope::overwrite`] or
+    /// [`LocalScope::drop_narrowing`], so anything the body assigned or
+    /// redeclared is simply no longer there.
     fn resume(self, scope: &LocalScope) {
         let layer = scope
             .shadowed
@@ -683,10 +706,11 @@ fn declare_binding(
     strict: bool,
     env: &mut Env<'_>,
 ) {
-    // A `foreach`/`catch`/destructuring binding writes the name, so it drops
-    // whatever a dominating condition proved about it — the module docs' rule
-    // that every write path goes through `overwrite`.
-    scope.overwrite(name);
+    // A `foreach`/`catch`/destructuring binding declares the name rather than
+    // writing an enclosing one of the same spelling, so it drops what a
+    // dominating condition proved about it without resolving it — see
+    // [`LocalScope::drop_narrowing`].
+    scope.drop_narrowing(name);
     if let Some(existing) = scope.by_name.get(name) {
         if !strict && existing.ty == ty {
             return;
@@ -725,11 +749,10 @@ pub(crate) fn bind_catch_arm(
     span: Span,
     env: &mut Env<'_>,
 ) -> ArmBinding {
-    // The binding writes the name, so it drops whatever a dominating condition
-    // proved about it — the module docs' rule that every write path goes
-    // through `overwrite`, which [`declare_binding`] follows for the same
-    // reason.
-    scope.overwrite(name);
+    // The arm declares the name, so it drops whatever a dominating condition
+    // proved about it without resolving it — [`declare_binding`] takes the
+    // same path, and [`LocalScope::drop_narrowing`] owns why.
+    scope.drop_narrowing(name);
     let existing = {
         let arms = scope.arm_bound.borrow();
         arms.get(name)
