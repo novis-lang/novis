@@ -1,0 +1,66 @@
+<?nvs
+// Attack: give the compiler every concurrency name this chapter does not have, in one
+// file, nested as deep as the parser will follow. The compiler must print errors and
+// stop. It must not crash, hang, or run any line of this.
+// covers: lang:concurrency/what-does-not-exist
+// hostile: expect-refusal
+// hostile: timeout-ms 20000
+
+// 1. The classes that are not declared, in `new`, in a static call and as a type.
+var $fiber = new Fiber(fn(): int => 1);
+Fiber::suspend(1);
+var $thread = new Thread();
+var $worker = new Worker();
+var $runtime = new parallel\Runtime();
+
+class Holder
+{
+    public Fiber $parked;
+
+    public function take(Thread $t, Worker $w): parallel\Runtime
+    {
+        return $t;
+    }
+}
+
+// 2. The free functions, plain and nested inside each other.
+var $pid = pcntl_fork();
+pcntl_wait($pid);
+var $handle = curl_multi_init();
+curl_multi_exec($handle, $pid);
+var $run = parallel(fn(): int => 1);
+var $deep = parallel(parallel(parallel(fn(): int => pcntl_fork())));
+
+// 3. A generator driven as a coroutine, which it is not.
+class Steps
+{
+    public static function upTo(int $n): Iterator<int>
+    {
+        yield $n;
+    }
+}
+
+var $steps = Steps::upTo(3);
+$steps->send(1);
+$steps->throw(new RuntimeError("stop"));
+$steps->getReturn();
+$steps->send($steps->send($steps->send(1)));
+
+// 4. `spawn worker`, which is not a spawn, and an entry that is a literal.
+var $byWorker = spawn worker "child.nvs";
+var $byLiteral = spawn script fn(): int => 1;
+
+// 5. State that outlives the frame that wrote it.
+class Counter
+{
+    public static function next(): int
+    {
+        static $seen = 0;
+        return $seen;
+    }
+}
+
+global $shared;
+echo $GLOBALS["shared"], "\n";
+
+echo "this line must never run\n";

@@ -1,0 +1,29 @@
+<?nvs
+// Shows the replacement for `pcntl_fork` and threads. `spawn script` runs a whole
+// file, or a static method, beside your program. Both kinds of entry have a name.
+
+class Report {
+    public static function build(int $days): string {
+        return "sales for " . $days . " days";
+    }
+}
+
+// The first kind of entry is a file. A path starts at the folder where you run the program.
+string $path = "docs/examples/lang/concurrency/what-does-not-exist/scripts/count-orders.nvs";
+var $file = spawn script $path with(output: "capture");
+
+// The second kind is a static method, written `Class::method(...)`. `args:` gives it
+// the values its parameters need.
+var $method = spawn script Report::build(...) with(args: ["days" => 7]);
+
+// A closure is not allowed as the entry. A closure carries the variables around it,
+// and a spawned file shares nothing with your program except compiled code.
+
+// `await` waits for one entry and gives you its result.
+var $counted = await $file;
+var $built = await $method;
+
+int $orders = $counted->value as int;
+string $text = $built->value as string;
+echo "orders: ", $orders, "\n";
+echo "report: ", $text, "\n";

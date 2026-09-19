@@ -1,0 +1,40 @@
+--TEST--
+`Fiber`, `Thread`, `Worker` and `parallel\Runtime` are not declared, PHP's concurrency functions are not functions that exist, and a generator has none of the coroutine methods — `rule:concurrency/one-scheduler`
+--FILE--
+<?nvs
+// covers: lang:concurrency/what-does-not-exist
+var $fiber = new Fiber(fn(): int => 1);
+var $thread = new Thread();
+var $worker = new Worker();
+var $runtime = new parallel\Runtime();
+
+// The same refusal reaches a type position: none of these is a name a program may write.
+class Holder {
+    public function park(Thread $t): Worker {
+        return $t;
+    }
+}
+
+// `Core\Task::map` is what `curl_multi_*` was for, and it is a member rather than a
+// free function, so the old names resolve to nothing at all.
+var $pid = pcntl_fork();
+var $multi = curl_multi_init();
+var $run = parallel(fn(): int => 1);
+
+// A generator answers an `Iterator<T>`, which is walked and never driven: there is no
+// `send`, no `throw` and no `getReturn` to resume it with.
+class Steps {
+    public static function upTo(int $n): Iterator<int> {
+        yield $n;
+    }
+}
+
+var $steps = Steps::upTo(3);
+$steps->send(1);
+$steps->getReturn();
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0303]: `Fiber` is not declared
+%A
+error: aborting due to 11 errors

@@ -67,6 +67,13 @@ perf = "Every operator here is a compile error, so there is no program to iterat
 [skip."lang:iteration/what-does-not-exist"]
 perf = "Every name here is a compile error, so there is no program to iterate; the replacements carry their own figures."
 
+# Every name in this feature is one the compiler does not declare or does not parse, so a program
+# holding any of them never reaches the loop a bench needs. The replacements are
+# `lang:concurrency/core-task-all-a-fixed-set-of-tasks`, `lang:concurrency/core-task-map-one-task-per-element`
+# and `lang:concurrency/isolates-spawn-script-and-await`, and each carries its own figure.
+[skip."lang:concurrency/what-does-not-exist"]
+perf = "Every name here is a compile error, so there is no program to iterate; the replacements carry their own figures."
+
 # All three refusals — a magic method, an anonymous class, a nested class — are compile errors, so no
 # program holding one reaches the loop a bench needs. The replacements are `lang:classes/property-hooks`,
 # `lang:classes/propertyobserver`, `lang:classes/stringable` and `lang:classes/declaring-a-class`, and

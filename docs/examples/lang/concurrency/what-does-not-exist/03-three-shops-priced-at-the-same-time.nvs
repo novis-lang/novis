@@ -1,0 +1,22 @@
+<?nvs
+// Shows a real use: a product page needs a price from three shops before it can be
+// drawn. `Core\Task::map` runs one job per element and returns the answers under the
+// same keys, in the same order, whatever order the jobs finished in.
+
+class Shop {
+    // A real program would ask the shop over the network here. Each call returns its
+    // own answer, so no job writes into storage another job can read.
+    public static function priceIn(string $city): int {
+        array<int> $board = ["Hamburg" => 700, "Munchen" => 750, "Koln" => 680];
+        return $board[$city];
+    }
+}
+
+array<string> $shops = ["north" => "Hamburg", "south" => "Munchen", "west" => "Koln"];
+
+var $prices = Core\Task::map($shops, fn(string $city): int => Shop::priceIn($city));
+
+// This prints north: 700, then south: 750, then west: 680.
+foreach ($prices as string $region => int $cents) {
+    echo $region, ": ", $cents, "\n";
+}
