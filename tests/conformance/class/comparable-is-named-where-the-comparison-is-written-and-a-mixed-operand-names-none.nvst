@@ -1,0 +1,75 @@
+--TEST--
+ordering two objects reads the class named where the comparison is written: every spelling agrees at the class's own type, and the same two values behind a `mixed` are refused as a catchable throw — `rule:classes/comparable`, `rule:classes/ordering-lowers-to-compare-to`
+--FILE--
+<?nvs
+// covers: lang:classes/comparable
+// All five spellings lower to one `compareTo` call at compile time, so the
+// class has to be named where the comparison is written. A `mixed` operand
+// names none, and `rule:types/arithmetic`'s tag-dispatched ordering has no row
+// for an object at all — so a class that *does* implement `Comparable` is
+// refused there exactly as a class without it is, and the refusal arrives as a
+// throw because the tags are where it first became answerable.
+final class Money implements Comparable {
+    public function constructor(public int $cents) {}
+
+    public function compareTo(self $other): int {
+        return $this->cents <=> $other->cents;
+    }
+}
+
+final class Loose {
+    // Both parameters are `mixed`, so nothing below is a statically typed
+    // comparison in disguise.
+    public static function order(mixed $a, mixed $b): string {
+        try {
+            return ($a <=> $b) as string;
+        } catch (Throwable $e) {
+            return "throws: " . $e->message;
+        }
+    }
+}
+
+var $small = new Money(100);
+var $large = new Money(900);
+
+// Typed at its own class, one `compareTo` fixes all five spellings. The count
+// is what asserts they agree: an operator that grew a comparison of its own
+// fails here while still reading plausibly on any single line.
+int $agreed = 0;
+if ($small < $large) {
+    $agreed = $agreed + 1;
+}
+if ($small <= $large) {
+    $agreed = $agreed + 1;
+}
+if ($large > $small) {
+    $agreed = $agreed + 1;
+}
+if ($large >= $small) {
+    $agreed = $agreed + 1;
+}
+if (($small <=> $large) < 0) {
+    $agreed = $agreed + 1;
+}
+echo "agreed ", $agreed as string, "/5\n";
+
+// The same two values, with their class not named at the site.
+echo Loose::order($small, $large), "\n";
+
+// The refusal is the ordering operators' and nothing else's: `==` still
+// answers, and it stays identity (`rule:expressions/object-identity-equality`).
+if ($small == $small) {
+    echo "equality still answers\n";
+}
+var $sameCents = new Money(100);
+if ($small != $sameCents) {
+    echo "equal contents are not equality\n";
+}
+// Asking the content question out loud is `compareTo` answering zero.
+echo ($small->compareTo($sameCents) == 0) as string, "|\n";
+--EXPECT--
+agreed 5/5
+throws: no ordering for a `object` against a `object` — ordering two objects needs the `Comparable` class named where the comparison is written (`rule:classes/comparable`)
+equality still answers
+equal contents are not equality
+1|

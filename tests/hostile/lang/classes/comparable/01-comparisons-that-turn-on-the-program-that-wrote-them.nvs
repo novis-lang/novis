@@ -1,0 +1,163 @@
+<?nvs
+// Attack: the ordering operators are pointed at classes that answer badly. One
+// `compareTo` throws, one never stops, one walks a chain of two hundred
+// thousand objects, one rewrites the value it was asked about. Each should end
+// in an error the program can catch, and the runtime should stay standing.
+// covers: lang:classes/comparable
+
+// 1. `compareTo` returns the smallest `int` there is, for every pair.
+final class Extreme implements Comparable
+{
+    public function constructor(public int $n)
+    {}
+
+    public function compareTo(self $other): int
+    {
+        return -9223372036854775807 - 1;
+    }
+}
+
+var $low = new Extreme(1);
+var $high = new Extreme(2);
+// This method ignores both values, so every pair is ordered the same way. The
+// operators read the sign of a number that has no positive twin.
+if ($low < $high) {
+    echo "1: the smallest int reads as negative\n";
+}
+if ($high < $low) {
+    echo "1: the swapped pair reads as negative too\n";
+}
+echo '1: ', $low <=> $high, "\n";
+
+// 2. `compareTo` throws instead of answering.
+final class Refuser implements Comparable
+{
+    public function constructor(public int $n)
+    {}
+
+    public function compareTo(self $other): int
+    {
+        throw new RuntimeError('this class refuses to be ordered');
+    }
+}
+
+try {
+    if (new Refuser(1) < new Refuser(2)) {
+        echo "2: BAD, the comparison answered\n";
+    }
+} catch (Throwable $e) {
+    echo '2: caught ', $e->message, "\n";
+}
+
+// 3. `compareTo` compares the same two objects again, so it never reaches an
+// answer of its own.
+final class Endless implements Comparable
+{
+    public function constructor(public int $n)
+    {}
+
+    public function compareTo(self $other): int
+    {
+        if ($this < $other) {
+            return -1;
+        }
+        return 1;
+    }
+}
+
+try {
+    if (new Endless(1) < new Endless(2)) {
+        echo "3: BAD, the comparison answered\n";
+    }
+} catch (Throwable $e) {
+    echo '3: caught ', $e->message, "\n";
+}
+
+// 4. `compareTo` walks into the next object in a chain of two hundred thousand.
+final class Node implements Comparable
+{
+    public function constructor(public int $n, public ?Node $next = null)
+    {}
+
+    public function compareTo(self $other): int
+    {
+        ?Node $mine = $this->next;
+        ?Node $theirs = $other->next;
+        if ($mine != null) {
+            if ($theirs != null) {
+                return $mine <=> $theirs;
+            }
+        }
+        return $this->n <=> $other->n;
+    }
+}
+
+final class Build
+{
+    public static function chain(int $depth, int $leaf): Node
+    {
+        var $head = new Node($leaf);
+        int $i = 0;
+        while ($i < $depth) {
+            $head = new Node($leaf, $head);
+            $i = $i + 1;
+        }
+        return $head;
+    }
+}
+
+try {
+    int $order = Build::chain(200000, 1) <=> Build::chain(200000, 2);
+    echo '4: the chains are ordered ', $order, "\n";
+} catch (Throwable $e) {
+    echo '4: caught ', $e->message, "\n";
+}
+
+// 5. `compareTo` rewrites the number it orders by, while five thousand of
+// these are being sorted.
+final class Shifty implements Comparable
+{
+    public function constructor(public int $n)
+    {}
+
+    public function compareTo(self $other): int
+    {
+        $this->n = ($this->n * 31 + 7) % 1009;
+        return $this->n <=> $other->n;
+    }
+}
+
+try {
+    array<Shifty> $list = [];
+    int $k = 0;
+    while ($k < 5000) {
+        $list[] = new Shifty(($k * 7919) % 1009);
+        $k = $k + 1;
+    }
+    Core\Arr::sort($list);
+    echo '5: sorted ', Core\Arr::count($list), " of them\n";
+} catch (Throwable $e) {
+    echo '5: caught ', $e->message, "\n";
+}
+
+// 6. The two objects are held in `mixed` variables, so their class is not known
+// where the comparison is written.
+final class Plain implements Comparable
+{
+    public function constructor(public int $n)
+    {}
+
+    public function compareTo(self $other): int
+    {
+        return $this->n <=> $other->n;
+    }
+}
+
+mixed $left = new Plain(1);
+mixed $right = new Plain(2);
+try {
+    mixed $dynamic = $left <=> $right;
+    echo '6: the pair is ordered ', $dynamic as string, "\n";
+} catch (Throwable $e) {
+    echo '6: caught ', $e->message, "\n";
+}

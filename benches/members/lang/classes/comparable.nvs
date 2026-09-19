@@ -1,0 +1,33 @@
+<?nvs
+// Orders two objects with `<=>` in a loop. A program meets this shape whenever
+// it compares a value of its own class against a limit or against a neighbour.
+// bench: iterations 400000
+// bench: calls 1
+// bench: allocations 0
+
+final class Mark implements Comparable {
+    public function constructor(public int $n) {}
+
+    public function compareTo(self $other): int {
+        return $this->n <=> $other->n;
+    }
+}
+
+class Bench {
+    public static function run(int $rounds): int {
+        var $left = new Mark(0);
+        var $right = new Mark(5);
+        int $acc = 1;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: the number compared this round comes out of the last
+            // round's answer, so the comparison stays inside the loop.
+            $left->n = $acc % 8;
+            $acc = $acc + ($left <=> $right) + 2;
+            $i = $i + 1;
+        }
+        return $acc;
+    }
+}
+
+echo Bench::run(400000), "\n";

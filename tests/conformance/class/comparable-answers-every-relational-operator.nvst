@@ -2,6 +2,7 @@
 one `compareTo` drives `<`, `>`, `<=`, `>=` and `<=>` alike, and its sign is what each of them reads — `rule:classes/ordering-lowers-to-compare-to`
 --FILE--
 <?nvs
+// covers: lang:classes/comparable
 class Version implements Comparable {
     public int $n;
 

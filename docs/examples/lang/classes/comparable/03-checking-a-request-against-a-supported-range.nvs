@@ -1,0 +1,45 @@
+<?nvs
+// Shows two comparisons guarding a range. A service does this to check that
+// the version a client asks for is one it still answers.
+
+final class ApiVersion implements Comparable {
+    public function constructor(public uint $number) {}
+
+    public function compareTo(self $other): int {
+        return $this->number <=> $other->number;
+    }
+}
+
+final class Api {
+    // The oldest version this service still answers.
+    public static function oldest(): ApiVersion {
+        return new ApiVersion(3);
+    }
+
+    // The newest one it knows about.
+    public static function newest(): ApiVersion {
+        return new ApiVersion(7);
+    }
+
+    // Returns the version to answer with, or `null` when the request asks for
+    // one outside the range above.
+    public static function accept(ApiVersion $wanted): ?ApiVersion {
+        if ($wanted < Api::oldest()) {
+            return null;
+        }
+        if ($wanted > Api::newest()) {
+            return null;
+        }
+        return $wanted;
+    }
+}
+
+array<uint> $requested = [2, 3, 5, 7, 9];
+foreach ($requested as uint $number) {
+    var $answer = Api::accept(new ApiVersion($number));
+    if ($answer == null) {
+        echo "version ", $number, " is not supported\n";
+    } else {
+        echo "version ", $answer->number, " accepted\n";
+    }
+}

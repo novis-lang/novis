@@ -2,6 +2,7 @@
 `<`, `>` and their siblings over two objects go through `Comparable::compareTo` — `rule:classes/comparable`
 --FILE--
 <?nvs
+// covers: lang:classes/comparable
 class Weight implements Comparable {
     public int $grams;
 
