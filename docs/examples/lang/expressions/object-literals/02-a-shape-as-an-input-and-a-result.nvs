@@ -1,0 +1,29 @@
+<?nvs
+// Uses a named shape as the type of what a method takes and of what it
+// returns. Any object with at least those fields fits.
+
+type Money = {amount: int, currency: string};
+
+class Prices
+{
+    // The parameter takes any object that has these two fields.
+    public static function format(Money $price): string
+    {
+        return ($price->amount as string) . " " . $price->currency;
+    }
+
+    // A shape is also a return type, and the literal is the result.
+    public static function double(Money $price): Money
+    {
+        return {amount: $price->amount * 2, currency: $price->currency};
+    }
+}
+
+Money $coffee = {amount: 350, currency: "EUR"};
+echo Prices::format($coffee), "\n";
+echo Prices::format(Prices::double($coffee)), "\n";
+
+// This object has a third field. It still fits, because it has the two
+// fields the shape asks for.
+var $line = {amount: 120, currency: "EUR", note: "milk"};
+echo Prices::format($line), "\n";

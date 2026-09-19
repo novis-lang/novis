@@ -1,0 +1,72 @@
+--TEST--
+A shape proves its own fields and nothing else: field order in a literal does not change the type, an object with more fields satisfies it, a name it does not list is read off the object at run time and throws only where that object has none, an optional field is proven in type and not in presence, and `==` stays identity — `rule:types/shape-type`
+--FILE--
+<?nvs
+// covers: lang:expressions/object-literals
+// A shape is a structural constraint and not a class, so what it proves is
+// narrower than what the object behind it holds. Each block below asks one
+// half of that, and the two halves fail in opposite directions: a checker
+// that grew nominal would refuse the wide object, and one that started
+// proving the whole object would stop throwing on the erased read.
+//
+// The field order block is the type's own identity. `{y: 2, x: 1}` and
+// `{x: 1, y: 2}` are one shape, so the second literal satisfies `Point`
+// and both encode to the same JSON.
+//
+// `==` is identity for every object (`rule:expressions/object-identity-equality`), which
+// the two literals holding equal fields ask about. The alias asks the same
+// question from the other side: one object under two names, where a write
+// through either is read through both.
+type Point = {x: int, y: int};
+type Optional = {id: string, label?: string};
+
+class Take {
+    public static function point(Point $p): int {
+        return $p->x + $p->y;
+    }
+}
+
+// The order fields are written in is not part of the type.
+Point $ordered = {x: 1, y: 2};
+Point $reversed = {y: 2, x: 1};
+echo Core\Json::encode($ordered), Core\Json::encode($reversed), "\n";
+
+// Two objects, equal field by field, and one object under two names.
+Point $alias = $ordered;
+$alias->y = 99;
+echo ($ordered == $reversed) as string, "|", ($ordered == $alias) as string, "|", $ordered->y, "\n";
+
+// An object with a field the shape never names satisfies it and keeps that
+// field. Read through the shape, the name is erased: the object answers it
+// at run time, so the same expression prints on the object that has the
+// field and throws on the one that does not.
+var $wide = {x: 3, y: 4, note: "extra"};
+echo Take::point($wide), " ", $wide->note, "\n";
+Point $narrow = $wide;
+Point $plain = {x: 5, y: 6};
+echo $narrow->note, "\n";
+try {
+    echo $plain->note, "\n";
+} catch (RuntimeError $erased) {
+    echo $erased->message, "\n";
+}
+
+// An optional field: the shape proves its type, never its presence.
+Optional $bare = {id: "7"};
+Optional $full = {id: "8", label: "eight"};
+echo $bare->label ?? "-", $full->label ?? "-", "\n";
+echo isset($bare->label) as string, "|", isset($full->label) as string, "|\n";
+try {
+    echo $bare->label, "\n";
+} catch (RuntimeError $absent) {
+    echo $absent->message, "\n";
+}
+--EXPECT--
+{"x":1,"y":2}{"x":1,"y":2}
+|1|99
+7 extra
+extra
+`$shape{x,y}` has no field `note`
+-eight
+|1|
+`$shape{id}` has no field `label`

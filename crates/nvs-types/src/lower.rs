@@ -62,6 +62,18 @@ pub(crate) fn lower_optional_type(ty: Option<&Type>, ctx: &Ctx<'_>, env: &mut En
     }
 }
 
+/// Lowers one declared type, bounded at [`MAX_ARRAY_DEPTH`] so that no
+/// annotation can make checking superlinear (`rule:types/arrays`).
+///
+/// # Known gaps
+///
+/// 1. The bound's message names an `array type` whatever the type actually
+///    was, so a shape past the depth is refused with a sentence about arrays.
+///    A `type` alias naming itself is the easiest way to reach it — the alias
+///    expands until the depth stops it, and each of the shape's fields reports
+///    — and a self-referential alias has no diagnostic of its own. That is a
+///    cycle check in alias resolution; this wording is a separate, smaller
+///    fix.
 fn lower_type_at_depth(ty: &Type, depth: u32, ctx: &Ctx<'_>, env: &mut Env<'_>) -> TypeId {
     if depth > MAX_ARRAY_DEPTH {
         env.diags.report(

@@ -1,0 +1,31 @@
+<?nvs
+// A request builds a small object for one step of its work, writes a field
+// and reads both of them back. This measures the object literal together
+// with those reads and that write. Every round takes its input from the
+// round before it, so no work can be skipped.
+// bench: iterations 200000
+
+type Point = {x: int, y: int};
+
+class Bench
+{
+    public static function run(uint $rounds): int
+    {
+        int $total = 1;
+        uint $i = 0;
+
+        while ($i < $rounds) {
+            Point $point = {x: $total % 97, y: 3};   // chained: $total is last round's
+
+            $point->y = $point->x + $point->y;
+
+            $total = $total + $point->y + $point->x % 5;
+
+            $i = $i + 1;
+        }
+
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";
