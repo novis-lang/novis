@@ -2,6 +2,7 @@
 A four-arm `if`/`else if`/`else` chain runs exactly one arm, and a chain nested inside another arm does the same
 --FILE--
 <?nvs
+// covers: lang:statements/if-elseif-else
 class Grade {
     public static function of(int $score): string {
         if ($score >= 90) {

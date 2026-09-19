@@ -1,0 +1,109 @@
+<?nvs
+// Attack: conditions are pushed in every shape that could break the choice of
+// arm. Two million arms are decided, a condition holds a text of six hundred
+// thousand characters, and a condition runs a recursion with no end. The last
+// condition throws with nothing to catch it.
+// hostile: timeout-ms 30000
+// hostile: ends-early
+// covers: lang:statements/if-elseif-else
+
+class Attack
+{
+    // A recursion with no end, inside a condition. It stops only when the
+    // engine stops it.
+    public static function forever(int $depth): bool
+    {
+        if (Attack::forever($depth + 1)) {
+            return true;
+        }
+        return false;
+    }
+
+    public static function boom(): bool
+    {
+        throw new RuntimeError('the condition failed');
+    }
+}
+
+// 1. Two million decisions over a chain of eight arms, reaching every arm.
+int $hits = 0;
+int $i = 0;
+while ($i < 2000000) {
+    int $v = ($hits + $i) % 8;
+    if ($v == 0) {
+        $hits = $hits + 1;
+    } elseif ($v == 1) {
+        $hits = $hits + 2;
+    } elseif ($v == 2) {
+        $hits = $hits + 3;
+    } elseif ($v == 3) {
+        $hits = $hits + 4;
+    } elseif ($v == 4) {
+        $hits = $hits + 5;
+    } elseif ($v == 5) {
+        $hits = $hits + 6;
+    } elseif ($v == 6) {
+        $hits = $hits + 7;
+    } else {
+        $hits = $hits + 8;
+    }
+    $i = $i + 1;
+}
+echo $hits, "\n";
+
+// 2. A text of six hundred thousand characters, and an empty one, each read as
+// a condition. Nothing may shorten or copy the long one to decide this.
+string $big = '';
+int $built = 0;
+while ($built < 100000) {
+    $big = $big . 'novis-';
+    $built = $built + 1;
+}
+if ($big) {
+    echo Core\Str::length($big), "\n";
+}
+string $none = '';
+if ($none) {
+    echo "long\n";
+} else {
+    echo "empty\n";
+}
+
+// 3. A condition whose value is decided while the program runs, changing type
+// on every round.
+int $true = 0;
+int $false = 0;
+int $round = 0;
+while ($round < 200000) {
+    mixed $m = $round + 1;
+    if ($round % 4 == 1) {
+        $m = '';
+    } elseif ($round % 4 == 2) {
+        $m = [];
+    } elseif ($round % 4 == 3) {
+        $m = '0';
+    }
+    if ($m) {
+        $true = $true + 1;
+    } else {
+        $false = $false + 1;
+    }
+    $round = $round + 1;
+}
+echo $true, ' ', $false, "\n";
+
+// 4. A condition that runs a recursion with no end. The engine stops it, and
+// the error is caught here.
+try {
+    if (Attack::forever(0)) {
+        echo "never\n";
+    }
+} catch (RecursionError $deep) {
+    echo "stopped\n";
+}
+
+// 5. The last condition throws and nothing catches it. The program ends with
+// status 1.
+if (Attack::boom()) {
+    echo "never\n";
+}

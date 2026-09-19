@@ -1,0 +1,57 @@
+--TEST--
+`elseif` and `else if` decide the same chain, and a body of one statement needs no braces
+--FILE--
+<?nvs
+// covers: lang:statements/if-elseif-else
+class Chain {
+    // The two spellings of the same chain, written the two ways.
+    public static function joined(int $n): string {
+        if ($n == 1) {
+            return "one";
+        } elseif ($n == 2) {
+            return "two";
+        } elseif ($n == 3) {
+            return "three";
+        } else {
+            return "other";
+        }
+    }
+
+    public static function split(int $n): string {
+        if ($n == 1) {
+            return "one";
+        } else if ($n == 2) {
+            return "two";
+        } else if ($n == 3) {
+            return "three";
+        } else {
+            return "other";
+        }
+    }
+}
+
+// Asserted by agreement over the whole range, not by one arm's answer: a chain
+// that grew its own reading of one spelling fails here while each arm still
+// looks right on its own line.
+var $same = "";
+int $n = 0;
+while ($n < 5) {
+    if (Chain::joined($n) == Chain::split($n)) {
+        $same = $same . "=";
+    } else {
+        $same = $same . "!";
+    }
+    $n = $n + 1;
+}
+echo $same, "\n";
+echo Chain::joined(2), " ", Chain::split(2), "\n";
+
+// A body of one statement needs no braces, in any arm of the chain.
+string $label = "";
+int $m = 7;
+if ($m > 10) $label = "big"; elseif ($m > 5) $label = "medium"; else $label = "small";
+echo $label, "\n";
+--EXPECT--
+=====
+two two
+medium

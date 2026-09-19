@@ -2,6 +2,7 @@
 `if`/`else if`/`else` takes exactly one branch
 --FILE--
 <?nvs
+// covers: lang:statements/if-elseif-else
 class Sign {
     public static function of(int $n): string {
         if ($n > 0) {
