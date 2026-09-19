@@ -1,0 +1,95 @@
+<?nvs
+// Attack: reach the depth limit over and over, and make each one expensive to
+// undo. Every frame holds a new object, every frame has a finally block to run
+// on the way out, and the handler that catches the error goes straight back
+// down again from inside itself.
+// hostile: timeout-ms 20000
+
+class Load
+{
+    public array<string> $rows;
+
+    public function constructor()
+    {
+        $this->rows = ['order', 'customer', 'shipping address'];
+    }
+}
+
+class Heavy
+{
+    public static function down(uint $depth): uint
+    {
+        // One object and one finally per frame, so unwinding the whole stack
+        // has thousands of releases and thousands of blocks to run.
+        var $held = new Load();
+        try {
+            return Heavy::down($depth + 1) + Core\Arr::count($held->rows);
+        } finally {
+            $held = new Load();
+        }
+    }
+}
+
+uint $round = 0;
+while ($round < 200) {
+    try {
+        Heavy::down(0);
+    } catch (RecursionError $stopped) {
+    }
+    $round = $round + 1;
+}
+echo "hit two hundred times\n";
+
+// The handler for one runaway starts the next one, so the limit is reached from
+// inside the unwinding of the last time it was reached.
+class Nested
+{
+    public static function again(uint $left): void
+    {
+        try {
+            Heavy::down(0);
+        } catch (RecursionError $stopped) {
+            if ($left > 0) {
+                Nested::again($left - 1);
+            }
+        }
+    }
+}
+
+Nested::again(50);
+echo "fifty of them inside each other\n";
+
+// Two classes calling each other, so no single function's frame is what the
+// limit counts, and a closure doing the same thing through a call it cannot
+// see the end of.
+class Ping
+{
+    public static function go(uint $depth): uint
+    {
+        return Pong::go($depth + 1);
+    }
+}
+
+class Pong
+{
+    public static function go(uint $depth): uint
+    {
+        return Ping::go($depth + 1);
+    }
+}
+
+try {
+    Ping::go(0);
+} catch (RecursionError $mutual) {
+    echo "two classes, one stack\n";
+}
+
+callable $forever = fn down(uint $depth): uint => down($depth + 1);
+
+try {
+    $forever(0);
+} catch (Throwable $anything) {
+    echo "through a closure\n";
+}
+
+echo "still standing\n";

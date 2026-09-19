@@ -1,0 +1,75 @@
+--TEST--
+A `RecursionError` raised by the runtime at the soft depth is an ordinary one — it answers to the same names as one the program throws, and unwinding hands the depth back — `rule:errors/stack-depth`, `rule:errors/throwable-hierarchy`
+--FILE--
+<?nvs
+// covers: RecursionError
+// This class has two producers — the runtime, at the soft depth, and a `throw`
+// in a program — and every other case in this directory only ever asks the
+// second one. One question asked of both, answered by *naming* every arm that
+// takes the throw, so a runtime-raised one that had quietly become a value of
+// its own kind fails here while each single-arm case still passes.
+class Names {
+    public static function of(Throwable $e): string {
+        string $answers = "";
+        if ($e is Throwable) { $answers = $answers . "Throwable "; }
+        if ($e is LogicError) { $answers = $answers . "LogicError "; }
+        if ($e is RuntimeError) { $answers = $answers . "RuntimeError "; }
+        if ($e is IOError) { $answers = $answers . "IOError "; }
+        if ($e is ParseError) { $answers = $answers . "ParseError "; }
+        if ($e is TimeoutError) { $answers = $answers . "TimeoutError "; }
+        if ($e is RecursionError) { $answers = $answers . "RecursionError "; }
+        if ($e is ArithmeticError) { $answers = $answers . "ArithmeticError "; }
+        return $answers;
+    }
+}
+
+class Down {
+    // Never reaches a base case: the soft depth is what stops it.
+    public static function forever(uint $depth): uint {
+        return Down::forever($depth + 1) + 1;
+    }
+
+    // A depth every host clears, so what this asserts is that the room is
+    // there, never how much of it there is.
+    public static function to(uint $steps): uint {
+        if ($steps == 0) {
+            return 0;
+        }
+        return Down::to($steps - 1) + 1;
+    }
+}
+
+try {
+    Down::forever(0);
+} catch (Throwable $raised) {
+    echo "raised=", Names::of($raised), "\n";
+    echo "message=", $raised->message, "\n";
+}
+
+try {
+    throw new RecursionError("by hand");
+} catch (Throwable $thrown) {
+    echo "thrown=", Names::of($thrown), "\n";
+}
+
+// The depth is a bound on the stack, not a budget the program spends once:
+// `rule:errors/propagation` pops the frames as it unwinds, so the handler runs
+// with the room it started with and the next runaway gets just as far. Ten
+// rounds of it, counted rather than read off one line — a depth that came back
+// short would still print plausibly on any single round.
+uint $reached = 0;
+uint $round = 0;
+while ($round < 10) {
+    try {
+        Down::forever(0);
+    } catch (RecursionError $again) {
+    }
+    $reached = $reached + Down::to(500);
+    $round = $round + 1;
+}
+echo "after=", $reached, "\n";
+--EXPECT--
+raised=Throwable RuntimeError RecursionError
+message=the call stack is too deep
+thrown=Throwable RuntimeError RecursionError
+after=5000

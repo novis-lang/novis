@@ -1,0 +1,50 @@
+<?nvs
+// The language stops a runaway call far deeper than most code should ever go.
+// Where you know the real limit, say so yourself: the error then names what was
+// too deep, and it arrives while everything is still in a state you can report.
+
+class Menu {
+    public string $label;
+    public array<Menu> $items;
+
+    public function constructor(string $label) {
+        $this->label = $label;
+        $this->items = [];
+    }
+
+    public function add(Menu $item): void {
+        $this->items[] = $item;
+    }
+}
+
+class Render {
+    public static function lines(Menu $menu, uint $depth): uint {
+        // Three levels is what the design allows. A menu nested deeper is a
+        // mistake in the shop's settings, not something to draw.
+        if ($depth > 3) {
+            throw new RecursionError("the menu is nested deeper than three levels");
+        }
+        echo Core\Str::repeat("  ", $depth), $menu->label, "\n";
+        uint $drawn = 1;
+        foreach ($menu->items as Menu $item) {
+            $drawn = $drawn + Render::lines($item, $depth + 1);
+        }
+        return $drawn;
+    }
+}
+
+var $shop = new Menu("Shop");
+var $clothes = new Menu("Clothes");
+var $coats = new Menu("Coats");
+var $winter = new Menu("Winter");
+var $wool = new Menu("Wool");
+$shop->add($clothes);
+$clothes->add($coats);
+$coats->add($winter);
+$winter->add($wool);
+
+try {
+    echo Render::lines($shop, 0), " entries drawn\n";
+} catch (RecursionError $deep) {
+    echo "menu not drawn: ", $deep->message, "\n";
+}
