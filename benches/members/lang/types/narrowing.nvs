@@ -1,0 +1,30 @@
+<?nvs
+// Almost every real function starts by asking whether what it was handed is
+// there at all, and then using it — this is what that question plus the use
+// costs. Every round feeds the round before it back in, so nothing here can be
+// settled before the program runs. Nothing here asks for memory.
+// bench: iterations 300000
+// bench: allocations 0
+
+class Bench {
+    public static function step(?int $carried, int $fallback): int {
+        if ($carried == null) {
+            return $fallback;
+        }
+
+        return $carried + 1;
+    }
+
+    public static function run(uint $rounds): int {
+        int $total = 1;
+        uint $i = 0;
+        while ($i < $rounds) {
+            ?int $maybe = ($total % 7 == 0) ? null : $total;   // chained: $total is last round's
+            $total = (Bench::step($maybe, 3) * 7) % 1021;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(300000), "\n";

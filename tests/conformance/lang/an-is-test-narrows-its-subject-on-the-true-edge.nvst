@@ -2,6 +2,7 @@
 `is` narrows its subject to the class it names, on the edge where the test holds — `rule:types/unions-and-mixed`
 --FILE--
 <?nvs
+// covers: lang:types/narrowing
 // `rule:types/unions-and-mixed` names `is` as the first of the four narrowing forms,
 // and makes it flow-sensitive and branch-local.
 

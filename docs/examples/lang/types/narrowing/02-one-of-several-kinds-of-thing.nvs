@@ -1,0 +1,51 @@
+<?nvs
+// A value can be one of several kinds of thing. Asking which kind it is lets
+// you reach the members that kind has, inside the branch where the answer
+// holds. Asking about one kind says nothing about the rest, so the last one
+// still has to be named.
+
+class Card
+{
+    public function pay(): string
+    {
+        return "paid by card";
+    }
+}
+
+class Cash
+{
+    public function count(): string
+    {
+        return "counted out";
+    }
+}
+
+class Till
+{
+    public static function take(Card|Cash $payment): string
+    {
+        if ($payment is Card) {
+            return $payment->pay();
+        }
+
+        return ($payment as Cash)->count();
+    }
+
+    // The same questions can be the arms of a `match (true)`, and each arm
+    // reads the value as what its own test proved.
+    public static function describe(mixed $thing): string
+    {
+        return match (true) {
+            $thing is Card => "a card, " . $thing->pay(),
+            $thing is Cash => "cash, " . $thing->count(),
+            $thing is string => "a note that says " . $thing,
+            default => "something else",
+        };
+    }
+}
+
+echo Till::take(new Card()), "\n";
+echo Till::take(new Cash()), "\n";
+echo Till::describe(new Cash()), "\n";
+echo Till::describe("keep the change"), "\n";
+echo Till::describe(7), "\n";

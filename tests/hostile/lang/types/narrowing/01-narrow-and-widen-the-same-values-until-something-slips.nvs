@@ -1,0 +1,90 @@
+<?nvs
+// Attack: prove what a value is, use it, then take the proof away again —
+// hundreds of thousands of times, from every spelling at once. Objects are
+// dropped inside the very branch that proved them, so a reference counted twice
+// or forgotten shows up as growing memory, and a chain twenty thousand links
+// long is walked by a test that has to hold across every frame.
+// hostile: timeout-ms 20000
+
+class Leaf
+{
+    public ?Leaf $next = null;
+    public string $tag = 'leaf';
+}
+
+class Attack
+{
+    public static function chain(?Leaf $node, uint $depth): uint
+    {
+        if ($node == null) {
+            return $depth;
+        }
+
+        ?Leaf $next = $node->next;
+
+        return Attack::chain($next, $depth + 1);
+    }
+
+    public static function arms(mixed $value): int
+    {
+        return match (true) {
+            $value is Leaf => 1,
+            $value is string => 2,
+            $value is int => 3,
+            $value is float => 4,
+            $value is array<mixed> => 5,
+            default => 6,
+        };
+    }
+}
+
+Leaf $head = new Leaf();
+Leaf $cursor = $head;
+uint $built = 0;
+
+while ($built < 20000) {
+    Leaf $node = new Leaf();
+    $cursor->next = $node;
+    $cursor = $node;
+    $built = $built + 1;
+}
+
+try {
+    echo Attack::chain($head, 0), "\n";
+} catch (RecursionError $tooDeep) {
+    echo "the call depth limit held\n";
+}
+
+array<mixed> $values = [new Leaf(), 'text', 7, 2.5, [1, 2], true];
+int $total = 0;
+uint $round = 0;
+
+while ($round < 40000) {
+    foreach ($values as mixed $value) {
+        $total = $total + Attack::arms($value);
+
+        if ($value is Leaf) {
+            $total = $total + (Core\Str::length($value->tag) as int);
+        }
+    }
+
+    $round = $round + 1;
+}
+
+echo $total, "\n";
+
+// The write inside the branch drops both the proof and the object it proved.
+uint $churn = 0;
+
+while ($churn < 200000) {
+    mixed $slot = new Leaf();
+
+    if ($slot is Leaf) {
+        $slot->next = new Leaf();
+        $slot = 'gone';
+    }
+
+    $churn = $churn + 1;
+}
+
+echo $churn, "\n";

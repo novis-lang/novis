@@ -1,0 +1,48 @@
+<?nvs
+// A job's settings are one of a few fixed words plus a mailbox that may not be
+// set. Both live on an object, and a test never proves anything about a value
+// reached through an arrow — so each one is put into a value of its own first,
+// and then asked about.
+
+class Job
+{
+    public ?string $failureMailbox = null;
+    public "read"|"write"|"admin" $mode = "read";
+}
+
+class Runner
+{
+    public static function plan(Job $job): string
+    {
+        ?string $mailbox = $job->failureMailbox;
+        "read"|"write"|"admin" $mode = $job->mode;
+
+        string $notify = "nobody is told";
+
+        if ($mailbox != null) {
+            $notify = "failures go to " . $mailbox;
+        }
+
+        if ($mode == "admin") {
+            // Inside this branch the setting is that one word, so it fits a
+            // value declared to hold only that word.
+            "admin" $elevated = $mode;
+            return "running as " . $elevated . "; " . $notify;
+        }
+
+        if ($mode == "write") {
+            return "writing; " . $notify;
+        }
+
+        return "reading only; " . $notify;
+    }
+}
+
+Job $nightly = new Job();
+$nightly->mode = "admin";
+$nightly->failureMailbox = "ops@example.com";
+
+Job $report = new Job();
+
+echo Runner::plan($nightly), "\n";
+echo Runner::plan($report), "\n";

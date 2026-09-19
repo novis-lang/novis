@@ -1,0 +1,29 @@
+<?nvs
+// A value that might be missing is asked about first. Inside the branch where
+// the answer is "it is there", the program reads it as an ordinary value:
+// nothing is converted, and nothing is given a second name.
+
+class Greeting
+{
+    public static function forName(?string $name): string
+    {
+        if ($name == null) {
+            return "hello, stranger";
+        }
+
+        // Past that guard the name is a plain string, so it can be measured
+        // and joined like any other one.
+        return "hello, " . $name . ", all " . (Core\Str::length($name) as string) . " letters of you";
+    }
+}
+
+echo Greeting::forName("Ada"), "\n";
+echo Greeting::forName(null), "\n";
+
+// The test reads just as well the other way round: the branch that runs is the
+// one the question proved.
+?string $note = "packed";
+
+if ($note != null) {
+    echo Core\Str::length($note), "\n";
+}
