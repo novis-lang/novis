@@ -3,13 +3,17 @@
 
 `cargo fmt`, `tools/lints.py --check`, `tools/directives.py --check` and `--check-template`,
 `tools/owners.py --check`, the fuzz workspace's lock file brought back in step, `cargo
-build`, `cargo test`, the `.nvst` trees through the binary the build just produced, `cargo clippy
+build`, `nvs fmt` over the `.nvs` files this working tree added or changed, `cargo test`, the
+`.nvst` trees through the binary the build just produced, `cargo clippy
 --all-targets -- -D warnings`, and -- once `editors/vscode` exists -- that extension's headless
 suites, in that order, stopping at the first failure. The script gates precede the compile steps
 because they decide what the tree means rather than whether it builds. Green prints one
-line per step; a failure prints that step's output and nothing else. `fmt` *writes* source: it
-formats rather than checks, and *Why `fmt` formats* below is the measurement. `fuzz-lock` and
-`reference` write the one derived file each of them owns.
+line per step; a failure prints that step's output and nothing else. `fmt` and `nvs-fmt` *write*
+source: they format rather than check, and *Why `fmt` formats* and *Why `nvs-fmt` formats* below
+are the measurements. `fuzz-lock` and `reference` write the one derived file each of them owns.
+
+A step whose inputs have not changed since it was last green is not run again, and that is
+decided a step at a time -- *Why a step whose inputs did not change is not run* below.
 
 `cargo doc` with rustdoc's broken-link lint denied is the one gate deliberately **not** in that
 list. It is `--doc`, run alone, and `tools/loop.py` runs it when a goal's acceptance list is
@@ -35,7 +39,7 @@ green verification is one call and about ten lines.
     python tools/verify.py --start          # run it detached and return at once
     python tools/verify.py --wait           # collect what --start left, with its exit status
     python tools/verify.py --full           # do not truncate the failing step's output
-    python tools/verify.py --no-cache       # re-run even if the tree is provably unchanged
+    python tools/verify.py --no-cache       # run every step, whatever the green cache holds
     python tools/verify.py --list           # the steps in order, running none of them
 
 `--start` / `--wait` exist because verification is 63.6% of a session's tool-execution time and
@@ -76,32 +80,67 @@ it compile the text the commit will carry and nothing is compiled twice. Its exi
 held rather than acted on: a parse error is a far better diagnostic coming from `build` one step
 later than from rustfmt, so the run goes on, and `fmt`'s own failure is reported only when every
 other step passed. rustfmt's `-l` names each file it rewrote, and the summary line quotes them
-so a session sees what changed under it. Because the step can rewrite the tree, the green
-cache's key is taken again after it when it did.
+so a session sees what changed under it. Because the step can rewrite the tree, every later
+step's key is taken again after it when it did.
 
 What this trades: a second writer editing the same tree has its files formatted too. `--check`
 failed on those files just the same, so this is the smaller intrusion, but an Edit in flight
 against one of them can miss its anchor once.
 
-## Why a second run on an unchanged tree is free
+## Why a step whose inputs did not change is not run
 
-The rule is one verification per session, at the end. Measured against `.loop/logs`, 33 of 41
-sessions ran this script more than once -- 2.4 times on average -- and most of those re-runs
-came after step 4 edited only documentation. Prose cannot break a build, so those runs paid
-about forty seconds to re-derive a verdict they already held.
+The rule is one verification per session, at the end. Measured against `.loop/logs`, sessions ran
+this script 2.4 times on average, and the re-runs followed an edit that could not reach most of
+the steps: documentation, a comment, or the layout of one file. On one day 20 of 26 sessions
+reformatted a new `.nvs` file after a red `test` step and paid three and a half minutes for every
+step again, the six before `test` included, which had just been green over the same bytes.
 
-So the verdict is cached against a content hash of every input the steps read: every file under
-`crates/`, `benches/`, `tests/`, `examples/` and `editors/`, the workspace manifests, `rustfmt.toml`,
-`rust-toolchain.toml` and the exact `rustc -vV`. A repeat run whose hash matches prints the
-cached verdict and exits, in about a fifth of a second. This is **not** a check being skipped:
-the inputs are bit-identical, so re-running the same compiler over them cannot reach a
-different answer. Only a *green* verdict is cached, the entry expires after an hour, and
-`--no-cache` forces the real thing.
+So each step is green against a key over exactly what *that step* reads, and a step whose key
+has not moved is answered from `.agent-tmp/verify-green.json` rather than run.
+`tools/verify_keys.py` is the table and its module doc the detail; the shape of it:
 
-The cache records the scope and the step list it was produced by, so a `--fast` verdict never
-satisfies a full run and a `-p nvs-ir` verdict never satisfies an unscoped one; the reverse
-directions do, because a superset already proved the subset. Anything unexpected -- an
-unreadable file, a corrupt cache -- makes it fall through and run the steps for real.
+- A file under `tests/hostile/` is read by the test binaries and by nothing else, so reformatting
+  one runs `build` and `test` and answers the other eleven steps.
+- A `.rs` file is read three ways. `fmt`, the script steps and the test binaries read its bytes --
+  a policy test here reads source as text, so for a test binary a comment is an input. `clippy`
+  and the doc-tests read the code and the comments with the layout removed. `build`, and every
+  step that only runs `target/debug/nvs`, read the code alone, so a comment or a re-wrapped line
+  cannot reach the `.nvst` trees, `reference` or `extension`.
+- The plan and the goal chain are read by `owners` alone, so they are in its key and no other.
+
+This is **not** a check being skipped: the step's inputs are identical in every respect the step
+can observe, so running it again cannot reach a different answer. What it gives up is stated in
+`verify_keys.py`: a step answered from the cache was proved against the line numbers the tree had
+then. Only a *green* step is recorded, each one the moment it passes -- so a run that goes red at
+`test` keeps the seven verdicts before it -- an entry expires after an hour, a red step's entry
+is deleted, and `--no-cache` runs everything.
+
+`build` is the one step with a second condition. `nvs-fmt`, `test`, the `.nvst` trees, `reference`
+and `extension` use what `build` leaves on disk, and a key cannot say what another cargo command
+has left there since. So `build` is answered from the cache only when every one of those is too.
+
+A `-p` run's `test` verdict is keyed with its package, so it never satisfies an unscoped run; an
+unscoped one satisfies any `-p`, because the superset already proved the subset. Anything
+unexpected -- an unreadable file, a corrupt cache -- runs the steps for real.
+
+## Why `nvs-fmt` formats
+
+`crates/nvs-fmt/tests/identity.rs` holds every `.nvs` file under `tests/` and `examples/` to the
+formatter's own layout, and a program written from the reference chapters is not in it: the
+chapters double-quote a plain string and the formatter single-quotes it. The failure arrived at
+`test`, in a crate the session never touched, and the fix was always the same command and the
+whole run again -- the measurement in the section above, which six playbook bullets had not moved.
+It is `fmt`'s argument over again, so it has `fmt`'s answer: the step formats.
+
+It runs after `build`, because the formatter is the binary, and over only the `.nvs` files git
+reports as new or modified under those two trees, `tests/fmt/input/` excepted. That bound is the
+point: the corpus at large stays the identity test's to judge, so a layout rule that changes what
+the formatter prints still fails there and is never applied to a thousand files in silence. A file
+that does not parse is refused by the formatter and left as it was; whether it was meant not to
+parse is a test's verdict, so the step is never red. The cache remembers the bytes it has been
+over, so an unchanged file is not a reason to run the step, or `build`, again.
+
+What this trades is what `fmt` trades: a second writer's new `.nvs` file is formatted too.
 
 ## Why `test` runs its binaries side by side
 
@@ -147,9 +186,9 @@ not finds the finding in the next pack under *THE RUSTDOC GATE IS RED*.
 all exit non-zero on a structural finding, and all of them are Python-only and finish in about a
 second together, so they look like cheap steps to add in front of `build`. They are CI's `docs` job
 instead, and
-the reason is the paragraph above: the green cache hashes `crates/`, `benches/`, `tests/`,
-`examples/`, `editors/` and `docs/reference/` -- and nothing else under `docs/`, on purpose,
-because "prose cannot break a build" is exactly what makes a re-run after step 4 free.
+the reason is the section above on the green cache: its keys read `crates/`, `benches/`, `tests/`,
+`examples/`, `editors/` and `docs/reference/` -- and, `owners` apart, nothing else under `docs/`,
+on purpose, because "prose cannot break a build" is exactly what makes a re-run after step 4 free.
 
 Adding a docs gate here would break that either way it went. Left as it is, the gate would be
 skipped by a cache hit in precisely the case it exists for -- a session edits the plan, re-runs
@@ -161,8 +200,9 @@ the cache.
 Two checks that look like docs gates *are* steps here, and neither is an exception, because the
 cache already hashes what each one reads. `reference.py` reads the binary `build` produced, and
 `docs/novis.md` is written rather than read. `owners.py --check` reads the `# Known gaps` blocks in
-`crates/`, which is the first thing the cache hashes; the registers it also reports on, under
-`docs/agent/`, it counts and never refuses, so nothing it can fail on sits outside the hash. The
+`crates/` and resolves each owner against the plan and the goal chain, and all three are in that
+step's key and the last two in no other; the registers it also reports on, under `docs/agent/`, it
+counts and never refuses. The
 session-side gate for the rest is `session.py --wrap`, which refuses at the
 moment a wrap would write the breakage -- see its `playbook_collisions`, its `link_findings` and its
 `rulebook_findings`. The second of those is `check-links.py` over the tree, diffed against HEAD: a
@@ -174,7 +214,6 @@ baseline to diff against, so the session's own edit under `docs/rules/` is what 
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import re
@@ -183,6 +222,8 @@ import sys
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+
+import verify_keys as keys
 
 ROOT = Path(__file__).resolve().parent.parent
 TMP = ROOT / ".agent-tmp"
@@ -193,34 +234,19 @@ PROGRESS = TMP / "verify-progress.json"  # the step in flight; see the module do
 TEST_TIMES = TMP / "verify-test-times.json"
 
 TAIL_LINES = 60  # of the failing step only; the full log is always on disk
-CACHE_TTL = 3600  # seconds. A tree hash cannot go stale on its own; this is a belt on braces.
+CACHE_TTL = 3600  # seconds. A key cannot go stale on its own; this is a belt on braces.
 
-# Everything cargo reads, relative to ROOT. Directories are walked in full -- a `.nvst`
-# fixture, an insta `.snap` and a `Cargo.toml` all change what the steps will answer.
-INPUT_DIRS = ("crates", "benches", "tests", "examples", "editors", "docs/reference")
-INPUT_FILES = ("Cargo.toml", "Cargo.lock", "rustfmt.toml", "rust-toolchain.toml",
-               # The `fuzz-lock` step's own manifest. Everything else that step resolves against
-               # is a manifest under `crates/` or the root lock, both hashed already;
-               # `fuzz/Cargo.lock` is what it writes, so it is derived and stays out.
-               "fuzz/Cargo.toml",
-               # The steps that are a script rather than `cargo`. Their verdict changes when
-               # the script does -- a crate added to `lints.py`'s roster, a reader counted a
-               # third way in `directives.py`, a chapter rule changed in `reference.py` -- and
-               # `tools/` is not otherwise hashed, so without these a
-               # green cache would answer for a policy the tree no longer has. The rest of
-               # `tools/` is deliberately not an input: `loop.py` and friends change most
-               # sessions and change nothing these steps would say.
-               "tools/lints.py", "tools/reference.py", "tools/directives.py",
-               # The third file `reference.py` reads, and the only one outside `docs/reference/`:
-               # every row of the migration table is rendered into `docs/novis.md`. Without it
-               # here, a session that edits the table alone answers from the green cache, the
-               # reference step never runs, and the stale `docs/novis.md` it leaves behind fails
-               # the driver's acceptance sweep rather than the session that wrote it.
-               "docs/spec/02-php-migration.md")
-# Directories under an INPUT_DIR that are output or a package cache, never an input. `target` is
-# cargo's; the other three belong to `editors/vscode` and between them hold tens of thousands of
-# files, which would make the green cache's own hash the slowest thing in this script.
-NOT_INPUTS = {"target", "node_modules", "out", ".vscode-test"}
+# What each step reads is `tools/verify_keys.py`'s: the walked directories, the named files and
+# each step's partition of them. The three facts about a step that are not a set of files are here.
+#: The steps that use what `build` leaves on disk. `build` is answered from the green cache only
+#: when every one of these is -- *Why a step whose inputs did not change is not run*.
+NEEDS_BINARY = {"nvs-fmt", "test", "conformance", "differential", "reference", "extension"}
+#: The steps that rewrite source, after which every later step's key is taken again.
+WRITES = {"fmt", "nvs-fmt"}
+#: Where `nvs-fmt` looks for a new or modified `.nvs` file, and the one directory under them whose
+#: files are unformatted on purpose. The first is `crates/nvs-fmt/tests/identity.rs`'s corpus.
+NVS_FMT_TREES = ("tests", "examples")
+NVS_FMT_SKIPS = "tests/fmt/input/"
 EXTENSION = ROOT / "editors" / "vscode"
 
 # `cargo test` prints one of these per test binary.
@@ -366,10 +392,13 @@ def run_job(job):
 
 def run_tests(step, package=None):
     """The `test` step -- the module docstring's *Why `test` runs its binaries side by side*.
-    `package` is `-p`: which binaries run, off the one build."""
+    `package` is `-p`: which binaries run, off the one build. `step.skip_doc` drops the doc-tests
+    job, the one job with a key of its own, and `step.doc_green` reports it back when it ran."""
     jobs, fail = test_jobs(package)
     if jobs is None:
         return 1, fail
+    if getattr(step, "skip_doc", False):
+        jobs = [j for j in jobs if j["name"] != "doc-tests"]
     try:
         last = json.loads(TEST_TIMES.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -382,6 +411,7 @@ def run_tests(step, package=None):
         results = dict(zip((j["name"] for j in jobs), pool.map(run_job, jobs)))
 
     failed = [j for j in jobs if results[j["name"]][1] != 0]
+    step.doc_green = "doc-tests" in results and results["doc-tests"][1] == 0
     # Alone, one at a time, after the pool has drained: the second run is the diagnosis.
     alone = {j["name"]: run_job(j)[1] == 0 for j in failed}
 
@@ -412,7 +442,86 @@ def run_tests(step, package=None):
     return (1 if failed else 0), "\n".join(out)
 
 
-def progress(done, step=None, total=0, finished=None):
+def changed_sources():
+    """The `.nvs` files git reports as new or modified under `NVS_FMT_TREES`, ROOT-relative."""
+    try:
+        p = subprocess.run(["git", "status", "--porcelain", "-z", "--untracked-files=all", "--",
+                            *NVS_FMT_TREES], cwd=ROOT, capture_output=True, encoding="utf-8",
+                           errors="replace")
+    except OSError:
+        return []
+    if p.returncode != 0:
+        return []
+    found, entries, i = [], p.stdout.split("\0"), 0
+    while i < len(entries):
+        entry = entries[i]
+        i += 1
+        if len(entry) < 4:
+            continue
+        status, rel = entry[:2], entry[3:]
+        if status[0] in "RC":
+            i += 1  # `-z` puts the name it was renamed from in the next field
+        if ("D" in status or not rel.endswith(".nvs") or rel.startswith(NVS_FMT_SKIPS)
+                or not (ROOT / rel).is_file()):
+            continue
+        found.append(rel)
+    return sorted(found)
+
+
+def unformatted(cache):
+    """`(todo, changed)`: the changed `.nvs` files the formatter has not been over as they now
+    stand, and all of the changed ones -- the only paths the cache still has a reason to hold."""
+    seen = cache.get("formatted", {})
+    changed = changed_sources()
+    todo = []
+    for rel in changed:
+        try:
+            if seen.get(rel) != keys.digest_of(ROOT / rel):
+                todo.append(rel)
+        except OSError:
+            continue
+    return todo, changed
+
+
+def run_nvs_fmt(step):
+    """The `nvs-fmt` step -- the module docstring's *Why `nvs-fmt` formats*. Always exit 0: a
+    refusal is a file that does not parse, and whether it was meant to is a test's verdict.
+    `step.formatted` is each file's digest as the formatter left it, for the cache."""
+    todo = getattr(step, "todo", None)
+    if todo is None:
+        todo = changed_sources()
+    step.formatted = {}
+    if not todo:
+        return 0, ""
+    if not Path(step.exe).is_file():
+        return 0, f"note: {step.exe} is not built, so nothing was formatted"
+    before = {rel: (ROOT / rel).read_bytes() for rel in todo}
+    p = subprocess.run([step.exe, "fmt", *todo], cwd=ROOT, capture_output=True, encoding="utf-8",
+                       errors="replace")
+    lines = []
+    for rel in todo:
+        try:
+            after = (ROOT / rel).read_bytes()
+        except OSError:
+            continue
+        step.formatted[rel] = keys.digest_of(ROOT / rel)
+        if after != before[rel]:
+            lines.append(f"rewrote {rel}")
+    lines.append(f"looked at {len(todo)} new or modified file(s)")
+    return 0, "\n".join(lines) + "\n\n" + (p.stdout or "") + (p.stderr or "")
+
+
+def summarize_nvs_fmt(out):
+    files = [line[len("rewrote "):] for line in out.splitlines() if line.startswith("rewrote ")]
+    looked = re.search(r"^looked at (\d+) ", out, re.MULTILINE)
+    if not files:
+        return f"clean ({looked.group(1)} new or modified)" if looked else "nothing new to format"
+    named = ", ".join(Path(f).name for f in files[:3])
+    more = f", +{len(files) - 3} more" if len(files) > 3 else ""
+    return f"formatted {len(files)} file(s): {named}{more}"
+
+
+def progress(done, step=None, total=0, finished=None, index=None):
     """Rewrite `PROGRESS`: the step about to run, or -- with `finished` -- the verdict.
 
     Best effort, and silently so: this is a watcher's convenience, and a convenience that could
@@ -423,7 +532,9 @@ def progress(done, step=None, total=0, finished=None):
         "done": [{"name": s.name, "seconds": round(s.seconds, 1)} for s in done],
     }
     if step is not None:
-        entry.update(step=step.name, index=len(done) + 1, total=total)
+        # `index` is the step's place in the list, which `done` stops giving once a step has
+        # been answered from the green cache rather than run.
+        entry.update(step=step.name, index=index or len(done) + 1, total=total)
     if finished is not None:
         entry["finished"] = finished
     try:
@@ -628,8 +739,9 @@ def steps_for(opts):
         # states the scope, and nothing else does. It is a step rather than a docs gate for
         # `reference.py`'s reason -- its input is the doc comments in `crates/`, which the green
         # cache hashes -- and the moment worth catching a wrong owner is the one the gap is
-        # written in, not the acceptance sweep a session later. The registers it reads under
-        # `docs/agent/` are counted and never refused, so nothing it gates lives outside the hash.
+        # written in, not the acceptance sweep a session later. The plan and the chain it resolves
+        # an owner against are in this step's key and no other's (`verify_keys.OWNERS_READS`); the
+        # registers it reads under `docs/agent/` are counted and never refused.
         # Sub-second, and unscoped: it walks every crate's doc comments, so `-p` narrows nothing.
         steps.append(Step("owners", ["tools/owners.py", "--check"], summarize_owners,
                           exe=sys.executable))
@@ -646,6 +758,13 @@ def steps_for(opts):
     # workspace crate beside the first -- AGENTS.md's rule. `-p` narrows which test binaries
     # `run_tests` runs, and nothing else.
     steps.append(Step("build", ["build"], summarize_build))
+    exe = ROOT / "target" / "debug" / ("nvs.exe" if os.name == "nt" else "nvs")
+    # Straight after `build`, because the formatter is the binary, and before `test`, because
+    # `nvs-fmt`'s identity test is what an unformatted file fails -- *Why `nvs-fmt` formats*.
+    # Whole-workspace runs only, for the case trees' reason below: no trustworthy binary otherwise.
+    if not opts.fast and not opts.package:
+        steps.append(Step("nvs-fmt", ["fmt", "<each new or modified .nvs under tests/, examples/>"],
+                          summarize_nvs_fmt, exe=str(exe), runner=run_nvs_fmt))
     steps.append(Step("test", ["test"], summarize_test,
                       runner=lambda step: run_tests(step, opts.package)))
     if not opts.fast:
@@ -658,7 +777,6 @@ def steps_for(opts):
         # Scoped runs skip it: `cargo build -p nvs-ir` does not produce the CLI, and a stale
         # binary would answer a question about a tree it predates.
         if not opts.package:
-            exe = ROOT / "target" / "debug" / ("nvs.exe" if os.name == "nt" else "nvs")
             for tree in CASE_TREES:
                 if (ROOT / "tests" / tree).is_dir():
                     steps.append(Step(tree, ["test", f"tests/{tree}"], summarize_cases,
@@ -718,7 +836,8 @@ def list_steps(opts):
 
     The order is the specification -- `fmt` first because it rewrites what everything after it
     reads, `lints` and `directives` before the compile steps because they decide what the tree
-    means rather than whether it builds, the `.nvst` trees
+    means rather than whether it builds, `nvs-fmt` between the binary it is and the `test` step
+    that reads what it writes, the `.nvst` trees
     after `test` so a Rust fault is reported by the Rust step -- and a second copy of that list in
     a document drifts the day a step moves. So this prints `steps_for`'s own list, and `-p`,
     `--fast` and `--doc` narrow the listing exactly as far as they narrow a run.
@@ -736,107 +855,64 @@ def list_steps(opts):
 # ------------------------------------------------------------------ the green cache
 
 
-def rustc_version():
-    p = subprocess.run(["rustc", "-vV"], capture_output=True, encoding="utf-8", errors="replace")
-    return (p.stdout or "") + (p.stderr or "")
-
-
-def input_paths():
-    """Every file the steps read, sorted, as ROOT-relative posix strings."""
-    seen = []
-    for name in INPUT_FILES:
-        if (ROOT / name).is_file():
-            seen.append(name)
-    for top in INPUT_DIRS:
-        base = ROOT / top
-        if not base.is_dir():
-            continue
-        for dirpath, dirnames, filenames in os.walk(base):
-            dirnames[:] = [d for d in dirnames if d not in NOT_INPUTS]
-            rel = Path(dirpath).relative_to(ROOT)
-            seen.extend((rel / f).as_posix() for f in filenames)
-    seen.sort()
-    return seen
-
-
-def tree_key():
-    """A content hash of every input, or None if anything at all goes wrong."""
+def take_tree():
+    """One reading of every input, or None if anything at all goes wrong -- and then nothing is
+    answered from the cache and nothing is recorded in it."""
     try:
-        h = hashlib.blake2b(digest_size=16)
-        h.update(rustc_version().encode("utf-8", "replace"))
-        for rel in input_paths():
-            h.update(rel.encode("utf-8"))
-            h.update(b"\0")
-            h.update((ROOT / rel).read_bytes())
-            h.update(b"\0")
-        return h.hexdigest()
-    except OSError:
+        return keys.Tree()
+    except (OSError, ValueError):
         return None
 
 
-def cached_verdict(key, opts, steps):
-    """The stored verdict if it provably covers this request, else None."""
-    if key is None or opts.no_cache:
-        return None
+def load_cache():
+    """`{"steps": {name: {key, when, summary, seconds}}, "formatted": {path: digest}}`, empty for
+    a file that is missing, corrupt or in the shape an earlier version of this script wrote."""
     try:
         entry = json.loads(CACHE.read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        return None
-    if entry.get("key") != key:
-        return None
-    if time.time() - float(entry.get("when", 0)) > CACHE_TTL:
-        return None
-    # A scoped verdict cannot stand in for an unscoped one; the reverse is fine.
-    if entry.get("package") not in (None, opts.package):
-        return None
-    if not set(s.name for s in steps) <= set(entry.get("steps", {})):
-        return None
-    return entry
+        entry = None
+    if not isinstance(entry, dict) or entry.get("shape") != 2:
+        entry = {}
+    return {"shape": 2,
+            "steps": entry["steps"] if isinstance(entry.get("steps"), dict) else {},
+            "formatted": entry["formatted"] if isinstance(entry.get("formatted"), dict) else {}}
 
 
-def store_verdict(key, opts, steps):
-    if key is None:
-        return
-    # Merged into the standing entry, not written over it, when the tree has not moved since that
-    # entry was made. `--doc` is a run of one step: replacing a full verdict with it would make the
-    # next unscoped run re-derive six green steps over bit-identical inputs, which is the cost the
-    # cache exists to remove. Nothing is carried over unless the key and the scope both match, so a
-    # merged entry still describes exactly one tree; `cached_verdict`'s subset rule reads it back.
-    held, held_seconds = {}, 0.0
-    try:
-        entry = json.loads(CACHE.read_text(encoding="utf-8"))
-        if (entry.get("key") == key and entry.get("package") == opts.package
-                and time.time() - float(entry.get("when", 0)) <= CACHE_TTL):
-            held = dict(entry.get("steps") or {})
-            held_seconds = float(entry.get("seconds") or 0)
-    except (OSError, ValueError, TypeError, AttributeError):
-        held, held_seconds = {}, 0.0
-    held.update({s.name: s.summarize(s.out) for s in steps})
+def amend_cache(change):
+    """Read the cache, apply `change` to it, write it back. Read again every time because two runs
+    overlap by design -- a `--doc` beside a `--start` -- and each owns only the entries it proved."""
+    cache = load_cache()
+    change(cache)
     try:
         TMP.mkdir(exist_ok=True)
-        CACHE.write_text(
-            json.dumps(
-                {
-                    "key": key,
-                    "when": time.time(),
-                    "package": opts.package,
-                    "steps": held,
-                    "seconds": round(held_seconds + sum(s.seconds for s in steps), 1),
-                },
-                indent=1,
-            ),
-            encoding="utf-8",
-            newline="\n",
-        )
+        CACHE.write_text(json.dumps(cache, indent=1), encoding="utf-8", newline="\n")
     except OSError:
         pass
 
 
-def drop_verdict():
-    try:
-        CACHE.unlink(missing_ok=True)
-    except OSError:
-        pass
+def scope_of(name, opts):
+    # `-p` narrows which test binaries run and nothing else, so it is part of that one key.
+    return opts.package if name == "test" else None
+
+
+def held(cache, tree, opts, name):
+    """The entry `name` was last green under, if the key it has now is that entry's."""
+    if tree is None or opts.no_cache:
+        return None
+    entry = cache["steps"].get(name)
+    if not isinstance(entry, dict) or time.time() - float(entry.get("when", 0)) > CACHE_TTL:
+        return None
+    # An unscoped `test` verdict proves every `-p`; the reverse does not hold.
+    wanted = {tree.key(name, scope_of(name, opts)), tree.key(name)} - {None}
+    return entry if entry.get("key") in wanted else None
+
+
+def record(tree, opts, name, summary, seconds):
+    key = tree.key(name, scope_of(name, opts)) if tree is not None else None
+    if key is None:
+        return
+    entry = {"key": key, "when": time.time(), "summary": summary, "seconds": round(seconds, 1)}
+    amend_cache(lambda cache: cache["steps"].__setitem__(name, entry))
 
 
 # ------------------------------------------------------------------ output
@@ -957,7 +1033,7 @@ def main():
                     help="the rustdoc gate alone; tools/loop.py runs it when a goal's checks pass")
     ap.add_argument("--full", action="store_true", help="do not truncate the failing step")
     ap.add_argument("--no-cache", action="store_true",
-                    help="re-run the steps even if the tree is provably unchanged")
+                    help="run every step, whatever the green cache holds")
     ap.add_argument("--start", action="store_true",
                     help="run detached and return at once; collect it with --wait")
     ap.add_argument("--wait", action="store_true",
@@ -994,33 +1070,52 @@ def main():
     scope = f" (-p {opts.package})" if opts.package else ""
     hooks_note()
 
-    key = tree_key()
-    hit = cached_verdict(key, opts, steps)
-    if hit is not None:
-        print(f"verify: green, tree unchanged since {ago(time.time() - hit['when'])}"
-              f" -- nothing to re-run{scope}")
-        for name, summary in hit["steps"].items():
-            print(f"  {name:<13} {'--':>6}   {summary}")
-        print(f"\nthat verdict cost {clock(hit['seconds'])} and covers this tree exactly; "
-              f"`--no-cache` runs it again anyway.")
-        return 0
+    cache = load_cache()
+    tree = take_tree()
+    for step in steps:
+        if step.name == "nvs-fmt":
+            step.todo, step.changed = unformatted(cache)
+
+    def answered(step):
+        """The green entry that stands in for running `step`, or None if it has to run."""
+        if step.name == "nvs-fmt":
+            return None if step.todo else {"summary": "nothing new to format", "seconds": 0}
+        return held(cache, tree, opts, step.name)
 
     done = []
+    unchanged = {}  # step name -> the entry it was answered from
     failed = None
     deferred = None  # `fmt` red: reported only if nothing after it is -- the module docstring
-    for step in steps:
-        progress(done, step, len(steps))
+    for i, step in enumerate(steps):
+        entry = answered(step)
+        if entry is not None and step.name == "build":
+            # Only if nothing after it will use the binary -- the module docstring.
+            if any(answered(s) is None for s in steps[i + 1:] if s.name in NEEDS_BINARY):
+                entry = None
+        if entry is not None:
+            unchanged[step.name] = entry
+            continue
+        if step.name == "test" and not opts.package:
+            step.skip_doc = held(cache, tree, opts, "test:doc") is not None
+        progress(done, step, len(steps), index=i + 1)
         ok = run(step)
-        if step.name == "fmt":
-            if step.out.strip():
-                # It rewrote files, so the verdict belongs to the tree the rest of the run reads.
-                key = tree_key()
-            if not ok:
-                deferred = step
-                continue
-        elif not ok:
+        if step.name in WRITES and step.out.strip():
+            # It rewrote files, so every verdict from here on belongs to the tree as it now is.
+            tree = take_tree()
+        if getattr(step, "formatted", None):
+            # A path that is no longer new or modified has been committed, and is dropped.
+            amend_cache(lambda c: c.__setitem__("formatted", {
+                **{k: v for k, v in c["formatted"].items() if k in step.changed},
+                **step.formatted}))
+        if getattr(step, "doc_green", False):
+            record(tree, opts, "test:doc", "ok", 0)
+        if step.name == "fmt" and not ok:
+            deferred = step
+            continue
+        if not ok:
             failed = step
             break
+        record(tree, opts, step.name, step.summarize(step.out), step.seconds)
         done.append(step)
     if failed is None and deferred is not None:
         failed = deferred
@@ -1028,18 +1123,36 @@ def main():
 
     total = sum(s.seconds for s in done) + (failed.seconds if failed else 0)
 
-    if failed is None:
-        store_verdict(key, opts, steps)
-        print(f"verify: {len(done)} of {len(steps)} green in {clock(total)}{scope}")
-        for s in done:
-            print(f"  {s.name:<13} {clock(s.seconds):>6}   {s.summarize(s.out)}")
+    def lines():
+        for s in steps:
+            if s.name in unchanged:
+                print(f"  {s.name:<13} {'--':>6}   {unchanged[s.name].get('summary', 'ok')}")
+            elif s in done:
+                print(f"  {s.name:<13} {clock(s.seconds):>6}   {s.summarize(s.out)}")
+
+    if failed is None and not done:
+        oldest = min((float(e["when"]) for e in unchanged.values() if "when" in e),
+                     default=time.time())
+        print(f"verify: green, nothing a step reads has changed since "
+              f"{ago(time.time() - oldest)} -- nothing to re-run{scope}")
+        lines()
+        cost = sum(float(e.get("seconds") or 0) for e in unchanged.values())
+        print(f"\nthat verdict cost {clock(cost)} and every step's inputs are as they were; "
+              f"`--no-cache` runs it again anyway.")
         return 0
 
-    drop_verdict()
+    note = (f" -- {len(unchanged)} not re-run, their inputs unchanged (`--` below)"
+            if unchanged else "")
+    if failed is None:
+        print(f"verify: {len(done) + len(unchanged)} of {len(steps)} green in "
+              f"{clock(total)}{scope}{note}")
+        lines()
+        return 0
+
+    amend_cache(lambda c: c["steps"].pop(failed.name, None))
     print(f"verify: FAILED at {failed.name} "
-          f"(step {steps.index(failed) + 1} of {len(steps)}) after {clock(total)}{scope}")
-    for s in done:
-        print(f"  {s.name:<13} {clock(s.seconds):>6}   {s.summarize(s.out)}")
+          f"(step {steps.index(failed) + 1} of {len(steps)}) after {clock(total)}{scope}{note}")
+    lines()
     print(f"  {failed.name:<13} {'---':>6}   exit {failed.code}")
 
     body, hidden = tail(failed.out, 0 if opts.full else TAIL_LINES)

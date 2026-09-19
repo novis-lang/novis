@@ -233,7 +233,7 @@ python tools/verify.py                                         # build + fmt + t
 python tools/verify.py --fast                                  # build + test only, for a mid-work check
 python tools/verify.py -p nvs-ir                               # the same build; only nvs-ir's test binaries run
 python tools/verify.py --start   ... --wait                    # run it while you write the wrap file
-python tools/verify.py --no-cache                              # re-run even on an unchanged tree
+python tools/verify.py --no-cache                              # run every step, whatever the cache holds
 python tools/verify.py --doc                                   # the rustdoc gate alone (the driver's)
 python tools/verify.py --list                                  # the steps in order, running none of them
 cargo test --release -p nvs-abi-probe                          # cost guards (skipped in debug)
@@ -283,12 +283,18 @@ sessions, each fixed with `cargo fmt` and a second run, and write mode costs the
 summary line names every file it rewrote, and its exit status is held to the end so a parse error is
 still reported by `build`. `tools/verify.py` § *Why `fmt` formats, and runs first* is the measurement.
 
-**A repeat run on an unchanged tree is free** — about two tenths of a second. The green verdict is cached
-against a content hash of every file cargo reads plus the exact `rustc -vV`, so a second run after step 4
-has edited only documentation prints the verdict it already holds rather than re-deriving it. That is not
-a check being skipped: the inputs are bit-identical. Only green is cached, the entry expires after an
-hour, and `--no-cache` forces the real thing. A `--fast` or `-p`-scoped verdict never satisfies a wider
-run; a wider one does satisfy a narrower.
+**A step whose inputs have not changed is not run again**, and that is decided a step at a time. Each step
+is green against a key over what *it* reads, so documentation reaches no step, a reformatted `.nvs` under
+`tests/hostile/` reaches `build` and `test` alone, and a comment or a re-wrapped line in a `.rs` file
+reaches the steps that read source as text and not the `.nvst` trees. That is not a check being skipped:
+the step's inputs are identical in every respect it can observe. A step is recorded the moment it is
+green, so a run that goes red at `test` keeps the verdicts before it; an entry expires after an hour,
+`--no-cache` runs everything, and a `-p` verdict never satisfies an unscoped run. `tools/verify.py` §
+*Why a step whose inputs did not change is not run* is the argument and `tools/verify_keys.py` the table.
+
+`nvs-fmt`, straight after `build`, **formats** each `.nvs` file git reports as new or modified under
+`tests/` and `examples/`, for `fmt`'s reason: `nvs-fmt`'s identity test fails on an unformatted one, and
+the fix was always the same command and the whole run again.
 
 **The docs gates are not in that list and `verify.py` runs none of them.** `rules.py --check`,
 `rules.py --render --check`, `check-links.py`, `layout.py`, `records.py --check`, `plan.py --check`,
