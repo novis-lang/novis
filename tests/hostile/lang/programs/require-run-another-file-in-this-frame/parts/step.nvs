@@ -1,0 +1,12 @@
+<?nvs
+// The file under attack. It hangs on to a string every time it runs, and it
+// calls back into the program that required it, so the same `require` site is
+// reached again one level down.
+
+Step::$kept[] = 'row ' . Step::$depth;
+
+if (Step::$depth == 0) {
+    return 0;
+}
+
+return Step::down(Step::$depth - 1);

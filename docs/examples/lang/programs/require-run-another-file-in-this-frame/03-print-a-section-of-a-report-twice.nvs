@@ -1,0 +1,15 @@
+<?nvs
+// `require` runs the file every time your program reaches it, so one file can
+// print every section of the report. The section it should print is handed
+// over through the `Section` class, which `parts/section.nvs` declares -- a
+// class crosses between files and a variable does not.
+
+echo "Support, this morning\n\n";
+
+Section::$title = "Open tickets";
+Section::$rows = ["#41 printer jam", "#42 badge reader"];
+require 'parts/section.nvs';
+
+Section::$title = "Waiting on a customer";
+Section::$rows = ["#38 refund address"];
+require 'parts/section.nvs';

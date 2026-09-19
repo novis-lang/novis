@@ -2,6 +2,7 @@
 `require` used for its value hands back what the target file's own file-scope `return` returned, `1` where it returned nothing at all, and a fresh value every time the site is reached (`rule:statements/a-require-expression-is-mixed` and `rule:statements/a-required-file-shares-declarations-not-locals`)
 --FILE--
 <?nvs
+// covers: lang:programs/require-run-another-file-in-this-frame
 // `rule:statements/a-require-expression-is-mixed`: `require`'s value is what a `return`-ing target hands back,
 // typed `mixed` at the boundary because it cannot be known statically — so
 // a typed binding takes the same explicit `as` any other `mixed` boundary

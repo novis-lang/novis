@@ -93,6 +93,12 @@ a program somebody skims for fifteen seconds and then writes their own version o
 - **Small and self-contained.** One file, no framework, no setup, runs with `nvs run <file>`. If it
   needs a database or a socket it is the wrong example for the website; find the version of the same
   idea that needs neither.
+- **A feature about another file carries that file in a subdirectory.** `require` and `autoload`
+  cannot be shown in one file, so the companion goes under the example's own directory — `parts/`,
+  `app/`, `packages/`. It has to be a *subdirectory*: the sweep counts `*.nvs` at the directory's
+  top level only, so a companion beside the examples would be read as a fourth one, while the
+  website mirror walks the whole tree and ships a companion below it. Write each companion so that
+  running it on its own does nothing and succeeds.
 - **Real work, not `foo`/`bar`.** A cart total, a log line, a slug, a config key, a retry — the
   thing a person is actually holding when they reach for this feature. Three examples means three
   *different* uses, and the third is the one that earns its place: make it the one somebody does at

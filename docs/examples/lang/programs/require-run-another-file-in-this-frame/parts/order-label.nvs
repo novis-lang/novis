@@ -1,0 +1,9 @@
+<?nvs
+// The one line that names an order. The packing slip and the confirmation
+// email both print it, so the wording is kept in one place.
+
+class OrderLabel {
+    public static function line(int $number, string $customer, string $town): string {
+        return "Order #" . $number . " - " . $customer . ", " . $town;
+    }
+}

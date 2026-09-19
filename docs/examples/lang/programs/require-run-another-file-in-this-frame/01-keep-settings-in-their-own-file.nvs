@@ -1,0 +1,9 @@
+<?nvs
+// A settings file is a file that returns a value. `require` runs it and hands
+// you back what it returned, so nothing here has to read or parse a file.
+// The value arrives as `mixed`, which is why it is converted with `as`.
+
+array<string> $settings = (require 'parts/settings.nvs') as array<string>;
+
+echo "connecting to ", $settings["host"], ":", $settings["port"], "\n";
+echo "giving up after ", $settings["timeout"], " seconds\n";

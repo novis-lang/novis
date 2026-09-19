@@ -4,6 +4,7 @@
 <?nvs
 require_once "other.nvs";
 echo "after\n";
+// covers: lang:programs/require-run-another-file-in-this-frame
 --EXPECT--
 
 --EXPECTF-ERROR--

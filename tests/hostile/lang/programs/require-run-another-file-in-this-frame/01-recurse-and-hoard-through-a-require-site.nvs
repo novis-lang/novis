@@ -1,0 +1,33 @@
+<?nvs
+// Attack: drive one `require` site as deep as the call stack allows, and then
+// keep running it while the file it runs hangs on to everything it builds.
+// hostile: timeout-ms 20000
+
+class Step
+{
+    public static uint $depth = 0;
+    public static array<string> $kept = [];
+
+    public static function down(uint $n): uint
+    {
+        Step::$depth = $n;
+        mixed $v = require 'parts/step.nvs';
+        return $v as uint;
+    }
+}
+
+try {
+    uint $reached = Step::down(4000000);
+    echo 'deep reached ', $reached, "\n";
+} catch (Throwable $tooDeep) {
+    echo "deep stopped\n";
+}
+
+Step::$depth = 0;
+uint $i = 0;
+while ($i < 300000) {
+    require 'parts/step.nvs';
+    $i = $i + 1;
+}
+
+echo 'kept ', Core\Arr::count(Step::$kept), "\n";

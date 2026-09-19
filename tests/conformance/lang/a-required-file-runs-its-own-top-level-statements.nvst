@@ -2,6 +2,7 @@
 A `require`d file's own top-level statements run where the `require` is written, once per time it is reached, in their own variable scope — `rule:statements/a-required-file-shares-declarations-not-locals`
 --FILE--
 <?nvs
+// covers: lang:programs/require-run-another-file-in-this-frame
 // `rule:statements/a-required-file-shares-declarations-not-locals`: `require` runs the target's statements in the
 // caller's frame at the point it is written, so a run is ordered against the
 // statements around it rather than hoisted like a declaration.

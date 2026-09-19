@@ -1,0 +1,9 @@
+<?nvs
+// The settings this program runs with. They live here so somebody can change
+// them without reading the program that uses them.
+
+return [
+    "host" => "db.example.test",
+    "port" => "5432",
+    "timeout" => "30",
+];

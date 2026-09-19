@@ -1,0 +1,5 @@
+<?nvs
+// The file the bench beside this one runs once per round. It reads the number
+// the round before it left behind, so no two rounds do the same work.
+
+return Bench::$seed + 1;

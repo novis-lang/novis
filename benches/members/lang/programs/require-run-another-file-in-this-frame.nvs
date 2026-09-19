@@ -1,0 +1,22 @@
+<?nvs
+// Runs another file once per round, the way a report runs the same partial for
+// every section it prints.
+// bench: iterations 200000
+// bench: calls 1
+// bench: allocations 0
+
+class Bench {
+    public static uint $seed = 0;
+
+    public static function run(uint $rounds): uint {
+        uint $i = 0;
+        while ($i < $rounds) {
+            mixed $next = require 'require-run-another-file-in-this-frame/part.nvs';
+            Bench::$seed = $next as uint;
+            $i = $i + 1;
+        }
+        return Bench::$seed;
+    }
+}
+
+echo Bench::run(200000), "\n";
