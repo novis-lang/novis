@@ -162,6 +162,9 @@ if hasattr(sys.stdout, "reconfigure"):  # a case description is prose, and conso
 ROOT = Path(__file__).resolve().parent.parent
 CASE_DIR = ROOT / "benches" / "userland"
 BASELINE = "00-baseline"
+# The configuration `--warm-start` measures against; `warm_start` says why it is named rather than
+# left to whatever `./nvs.toml` holds.
+SHIPPED_CONFIG = ROOT / "crates" / "nvs-config" / "src" / "default.toml"
 PRIMARY = "nvs"  # the engine every ratio is taken against, and the one that defines a case
 QUIET_FLOOR_MS = 5.75  # `warm_start` abstains above this start floor; its note is why
 SUITE_REPS = 5  # timed reps per engine per case, over a case that runs for tens of ms
@@ -378,6 +381,19 @@ def warm_start(binary: Path, reps: int, max_work_ms: float | None) -> int:
     difference -- a box whose quiet floor is above `QUIET_FLOOR_MS` never measures here rather
     than failing on its own speed.
 
+    It is a measurement of the tree only while every input but the binary is held still, and the
+    configuration is the input that had to be named. `nvs run` with no `--config` resolves
+    `./nvs.toml`, which here is a fixture the goals keep adding to rather than anything a user runs:
+    its `[[app]]` array has grown from twelve blocks to thirty-two since this budget was written, a
+    block costs about 42 µs to resolve, and the figure rose most of a millisecond with nothing
+    compiled changing -- so the guard read the repository's own roster as a regression in the
+    compiler. `SHIPPED_CONFIG` is named instead. It is a build input, so a directive added to the
+    product moves this figure while one added to this tree's housekeeping does not, and it is what a
+    user's start actually resolves, since `nvs` writes that file into a directory holding none.
+    Naming it costs no coverage: config resolution stays inside the measurement at what a user pays
+    for it, which is little, because that file's 53 KB are commented out to the last line and a
+    comment is nearly free -- 30 KB of them cost 0.04 ms, where 207 live directives cost 1.8.
+
     This leg also takes `WARM_START_REPS` where the suite takes `SUITE_REPS`, because a minimum
     over a handful of samples is a biased-high estimate of a cost, and here that bias lands on a
     difference of two small numbers rather than on a total of tens of milliseconds. Idle, five reps
@@ -400,10 +416,12 @@ def warm_start(binary: Path, reps: int, max_work_ms: float | None) -> int:
     source = CASE_DIR / f"{BASELINE}.nvs"
     if not source.exists():
         sys.exit(f"no {source}: the warm-start figure is measured on the baseline case")
+    if not SHIPPED_CONFIG.exists():
+        sys.exit(f"no {SHIPPED_CONFIG}: the warm-start figure names the configuration it resolves")
 
     print(f"nvs  {binary}  ({version(binary, ['--version'])})")
     floor = measure([str(binary), "--version"], reps)
-    total = measure([str(binary), "run", str(source)], reps)
+    total = measure([str(binary), "run", "--config", str(SHIPPED_CONFIG), str(source)], reps)
     for what, result in (("nvs --version", floor), ("nvs run", total)):
         if result["failed"]:
             print(f"warm start FAILED: `{what}` exit {result['code']}")
@@ -416,6 +434,8 @@ def warm_start(binary: Path, reps: int, max_work_ms: float | None) -> int:
     print(f"  start floor {fmt(floor['min_ms'])} ms   nvs --version, the OS creating a process")
     print(f"  total       {fmt(total['min_ms'])} ms   median {fmt(total['median_ms'])} ms")
     print(f"  novis work  {fmt(work_ms)} ms   the total less that floor")
+    print(f"  config      {SHIPPED_CONFIG.relative_to(ROOT).as_posix()}, so the figure moves with "
+          "the binary rather than with this tree's own `nvs.toml`")
     print("  each rep is an `rule:packaging/an-artifact-is-one-immutable-content-addressed-file` warm hit; the discarded warm-up published the artifact")
     if max_work_ms is None:
         return 0
