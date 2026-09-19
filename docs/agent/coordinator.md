@@ -320,11 +320,13 @@ page and one test-vector directory — while a crate's `tests/` and `benches/` a
 (`docs/agent/goals/`, walked by one) and `prose` (everything else there, which nothing under
 `crates/` opens); then `examples/`, `tests/`, `tools/`, `editors/`, everything else. The sets are
 supersets on purpose: a fixture, a `.nvst` suite, an `{nvs}` command and both whole-leg memos key
-on `crates`, `docs`, the fixtures and the tests; a crate's tests, which read the goals and the
-editor's manifest at run time, key on that plus `crate-tests`, `goals` and `editors`; a Python
-tool, which may read anything, keys on the whole tree. So a session that edits the plan, a rule, the
-playbook or a decision stales no cargo check, and one that edits a crate's test fixture stales no
-fixture or leg. Identical bytes into a deterministic check cannot come out a different verdict,
+on `crates-code` — `crates` with each `.rs` file as the binary reads it, its comments and layout
+removed — `docs`, the fixtures and the tests; a crate's tests, which read source as text and the
+goals and the editor's manifest at run time, key on `crates` as bytes plus those, `crate-tests`,
+`goals` and `editors`; a Python tool, which may read anything, keys on the whole tree. So a session
+that edits the plan, a rule, the playbook or a decision stales no cargo check, one that edits a
+crate's test fixture stales no fixture or leg, and one that edits a comment stales no fixture,
+suite or leg either. Identical inputs into a deterministic check cannot come out a different verdict,
 which is the same argument `verify.py` makes for its own green cache, and `PARTITIONS`, `SPLITS`
 and `reads_of` in `tools/loop.py` are the one home of which paths a partition holds and which set a
 kind gets, each with the grep that derived it. Narrowing one is a claim to be shown, never a tuning

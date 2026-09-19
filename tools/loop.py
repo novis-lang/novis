@@ -60,6 +60,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import disk  # noqa: E402  -- same directory; the retention policy has one home and it is there
 import goals as goalsmod  # noqa: E402  -- same directory; the chain has one reader and it is there
 import machine  # noqa: E402  -- same directory; how wide anything runs has one home too
+import verify_keys  # noqa: E402  -- same directory; how much of a `.rs` file a reader reads
 import written  # noqa: E402  -- same directory; how a tool reports what it wrote, and why
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -1648,6 +1649,16 @@ SUMMARY_RE = re.compile(r"(\d+)\s+passed,\s+(\d+)\s+failed")
 # on them -- the split that let a test-only text file stale every fixture, the WSL leg and the
 # valgrind sweep before it existed.
 #
+# `crates-code` is `crates` as the BINARY reads it, and is derived rather than a set of names: the
+# same files, with each `.rs` file fed as `tools/verify_keys.py`'s *code* tier -- its tokens, with
+# comments and layout removed -- in place of its bytes. A fixture, a `.nvst` suite, an `{nvs}`
+# command and the two whole-leg memos run the binary and open no Rust source, so a comment or a
+# re-wrapped line in `crates/` cannot reach their verdict, and it used to re-run every one of them,
+# the valgrind sweep and the WSL leg included. A `.rs` file some source embeds with `include_str!`
+# is data and stays bytes there too, which is `verify_keys.py`'s rule and its scan. A crate's tests
+# keep `crates`, the bytes: the policy tests read source as text, so for them a comment is an
+# input. So do the editor suites, which nobody has shown not to.
+#
 # `docs/` is three partitions by what under `crates/` opens it. `docs` is `docs/reference/` and
 # `docs/spec/`: embedded in the binary (above) and read again by `crates/nvs-cli/tests/agent.rs`,
 # `crates/nvs-stdlib/tests/php_names.rs`, `spec_registry_coverage.rs` and `nvs-lsp`'s
@@ -1698,12 +1709,12 @@ CRATE_TEST_DIRS = ("tests", "benches")
 # `other`. The files the wrap rewrites every session are `state`: their own partition counts them
 # by NAME only, so that a handoff does not stale every fixture, suite and crate test in the tree,
 # and only a set that holds `state` sees their bytes.
-OTHER, STATE = "other", "state"
+OTHER, STATE, CODE = "other", "state", "crates-code"
 STATE_FILES = re.compile(r"^docs/agent/(handoff\.md|goals/[^/]+\.handoff\.md)$")
 NOT_INPUTS = {".git", "target", ".loop", ".agent-tmp", "node_modules", "out", ".vscode-test",
               "__pycache__"}
 EVERYTHING = tuple(PARTITIONS) + (OTHER, STATE)
-PROGRAM_READS = ("crates", "docs", "examples", "tests")
+PROGRAM_READS = (CODE, "docs", "examples", "tests")
 CARGO_READS = ("crates", "crate-tests", "docs", "goals", "examples", "tests", "editors")
 EDITOR_READS = ("crates", "editors")
 TOP_OWNER = {top: name for name, tops in PARTITIONS.items() for top in tops}
@@ -2629,10 +2640,13 @@ class Goal:
         the memo never fired. A session's work lands only in tracked or untracked-unignored files.
         `NOT_INPUTS` is the same idea as a prune list, so the walk never enters `target/`. A
         `STATE_FILES` match is fed to `state` whole and to its own partition by name alone, so a
-        rewritten handoff changes `state` and nothing else.
+        rewritten handoff changes `state` and nothing else. `CODE` is fed beside `crates`, file for
+        file, with a `.rs` file's code tier where `crates` takes its bytes -- the comment over
+        `PARTITIONS` says who reads which.
         """
-        hashers = {name: hashlib.blake2b(digest_size=16) for name in EVERYTHING}
-        hashers["crates"].update(rustc_version().encode("utf-8", "replace"))
+        hashers = {name: hashlib.blake2b(digest_size=16) for name in EVERYTHING + (CODE,)}
+        for name in ("crates", CODE):
+            hashers[name].update(rustc_version().encode("utf-8", "replace"))
         # A file path, or a wholly ignored directory with a trailing `/`. Empty when git cannot
         # answer, and then everything is hashed, which is the wide direction.
         ignored = {p for p in git("ls-files", "--others", "--ignored", "--exclude-standard",
@@ -2642,8 +2656,17 @@ class Goal:
             h.update(rel.encode("utf-8") + b"\0")
             h.update(path.read_bytes())
             h.update(b"\0")
+            if h is hashers["crates"]:
+                code = hashers[CODE]
+                code.update(rel.encode("utf-8") + b"\0")
+                if rel in tiers.tier and rel not in tiers.embedded:
+                    code.update(tiers.digest(rel, "code").encode("utf-8"))
+                else:
+                    code.update(path.read_bytes())
+                code.update(b"\0")
 
         try:
+            tiers = verify_keys.Tree()
             for top in sorted(os.listdir(ROOT)):
                 if top in NOT_INPUTS or top in ignored or f"{top}/" in ignored:
                     continue
