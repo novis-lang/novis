@@ -1,0 +1,114 @@
+<?nvs
+// Attack: give the compiler every declaration this section refuses, in one
+// file, repeated and nested as deep as the parser will follow. The compiler
+// must print errors and stop. It must not crash, hang, or run any line of this.
+// hostile: expect-refusal
+// hostile: timeout-ms 20000
+
+interface Greeter {
+    public function greet(): string;
+}
+
+// 1. Every magic method name, on one class.
+class Legacy {
+    public string $name = "boxy";
+
+    public function __get(string $n): mixed {
+        return 1;
+    }
+
+    public function __set(string $n, mixed $v): void {
+    }
+
+    public function __call(string $n, array<mixed> $a): mixed {
+        return 1;
+    }
+
+    public static function __callStatic(string $n, array<mixed> $a): mixed {
+        return 1;
+    }
+
+    public function __invoke(): int {
+        return 1;
+    }
+
+    public function __clone(): void {
+    }
+
+    public function __destruct(): void {
+    }
+
+    public function __isset(string $n): bool {
+        return true;
+    }
+
+    public function __unset(string $n): void {
+    }
+
+    public function __debugInfo(): array<mixed> {
+        return [];
+    }
+
+    public static function __set_state(array<mixed> $s): Legacy {
+        return new Legacy();
+    }
+
+    public function __toString(): string {
+        return $this->name;
+    }
+}
+
+// 2. A leading underscore on a property, a constant and a class name as well.
+class _Hidden {
+    public const int _LIMIT = 1;
+    public int $_count = 0;
+}
+
+// 3. A class inside a class, nested as far as it goes.
+class Outer {
+    public class Middle {
+        public class Inner {
+            public class Deepest {
+            }
+        }
+    }
+}
+
+// 4. A class declared inside a method body, and one inside a closure body.
+class Holder {
+    public static function build(): int {
+        class InAMethod {
+            public int $n = 1;
+        }
+        return 1;
+    }
+}
+
+callable $make = fn (): int => {
+    class InAClosure {
+        public int $n = 1;
+    }
+    return 1;
+};
+
+// 5. An anonymous class, with another one nested inside its own body.
+new class implements Greeter {
+    public function greet(): string {
+        var $inner = new class implements Greeter {
+            public function greet(): string {
+                return "deeper";
+            }
+        };
+        return $inner->greet();
+    }
+};
+
+// 6. An anonymous class where a type is expected, and one given to a call.
+var $g = new class implements Greeter {
+    public function greet(): string {
+        return "argument";
+    }
+};
+echo $g->greet(), "\n";
+
+echo "this line must never run\n";

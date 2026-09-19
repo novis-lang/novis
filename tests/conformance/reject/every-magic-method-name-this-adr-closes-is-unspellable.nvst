@@ -45,6 +45,10 @@ class Legacy {
 }
 
 echo "unreachable\n";
+
+// The marker sits below the last refused line on purpose: the anchors in
+// `--EXPECTF-ERROR--` are absolute, so a line added above one moves it.
+// covers: lang:classes/what-a-class-cannot-declare
 --EXPECT--
 
 --EXPECTF-ERROR--

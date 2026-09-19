@@ -1,0 +1,43 @@
+<?nvs
+// Shows a named class where PHP would write `new class { … }`. Novis has no
+// anonymous classes, so a one-off implementation of an interface gets a name.
+
+interface Notifier {
+    public function notify(string $text): string;
+}
+
+// In PHP this class would be written inside the call at the bottom of the file.
+// Here it stands on its own, at file scope, like every other class.
+class ConsoleNotifier implements Notifier {
+    public function notify(string $text): string {
+        return "console: " . $text;
+    }
+}
+
+// A second one. A test uses this in place of the real notifier and then reads
+// what it collected.
+class RecordingNotifier implements Notifier {
+    public string $last = "";
+
+    public function notify(string $text): string {
+        $this->last = $text;
+        return "recorded: " . $text;
+    }
+}
+
+class Job {
+    public function constructor(private Notifier $notifier) {}
+
+    public function run(): string {
+        return $this->notifier->notify("job finished");
+    }
+}
+
+// This prints "console: job finished".
+echo (new Job(new ConsoleNotifier()))->run(), "\n";
+
+// The same job, told about a different notifier. This prints
+// "recorded: job finished" and then "job finished".
+var $recorder = new RecordingNotifier();
+echo (new Job($recorder))->run(), "\n";
+echo $recorder->last, "\n";

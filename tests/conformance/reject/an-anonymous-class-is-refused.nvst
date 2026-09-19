@@ -16,6 +16,8 @@ new class implements Greeter {
         return "hello";
     }
 };
+
+// covers: lang:classes/what-a-class-cannot-declare
 --EXPECT--
 
 --EXPECTF-ERROR--
