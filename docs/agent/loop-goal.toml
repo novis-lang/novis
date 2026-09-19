@@ -100,6 +100,9 @@ modules = [
   # What an operator's operands have to be, and what it produces: `rule:types/arithmetic`'s
   # result-type table and the three refusals layered onto it.
   "crates/nvs-types/src/expr/operators.rs",
+  # How a literal takes its type from the position it appears in, and what its own text has to
+  # survive first.
+  "crates/nvs-types/src/expr/literals.rs",
 ]
 
 rules = ["testing/feature-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
