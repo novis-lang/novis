@@ -3249,8 +3249,9 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   floor` line is the tell.** One sweep read a 77.5 ms floor where an idle box reads 4.6, and load
   here dilates a process multiplicatively, so the subtraction left 200 ms of machine — the spread
   gave nothing away, that run's median sitting 4% over its minimum. Read the floor line before the
-  verdict: `--warm-start` abstains above four times its budget, and a figure it does report is a
-  minimum over twenty-five reps. [until: reviewed 2026-09-19]
+  verdict: `--warm-start` abstains above `QUIET_FLOOR_MS`, a floor level rather than a multiple of
+  the budget, and a figure it does report is a minimum over twenty-five reps.
+  [until: gone tools/bench.py:QUIET_FLOOR_MS]
 
 - **`verify.py`'s test leg red on a *different* test each run, each of which "passed alone", is the
   box and not the tree.** Two runs here died on a lease-renewal test and then on a revalidation one,
@@ -3304,6 +3305,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   that the native work really happened — one rendering counts 23.9 allocations and 1,157 bytes per
   op while its `calls` figure stays at zero.
   [until: reviewed 2026-09-19]
+- **A `nvs` start-cost measurement taken from the repository root is measuring this tree's
+  `nvs.toml` as much as the binary.** That file is a fixture the goals keep adding to — 207 live
+  directives, 32 of them `[[app]]` blocks at about 42 µs each — so resolving it costs 1.9 ms of a
+  start whose whole budget is 6, and it grew most of a millisecond while a fixed budget was being
+  read against it. Name the configuration with `--config` so only the binary varies, and price what
+  an implicit one costs by running `nvs config dump --config <file>` against a one-line config
+  before believing a start-cost guard that went red. [until: reviewed 2026-09-19]
 
 ## Writing a test case
 
