@@ -2,7 +2,7 @@
 milestone: dossier
 position: last
 ---
-# Loop goal 172 — every landed comment reads plainly
+# Loop goal 173 — every landed comment reads plainly
 
 Every example, attack and bench is copied to the website, and its comments are read by somebody who
 looked the feature up. Once this goal is green, **every comment in every one of those programs is

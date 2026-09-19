@@ -99,8 +99,9 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [gap-zero](70-gap-zero.md) | post-parity, no ADR — the terminal gate | `tools/`, the ratchet test — no gap owed by anyone but a future milestone, M0–M8 complete, the index deleted |
 | [dossier](71-dossier.md) | `rule:testing/feature-proofs` | none — it writes the goals that open all of them, then optimizes the loop for their shape |
 | after `dossier` | `rule:testing/feature-proofs`, generated | one group of features per goal, its own `[context]` manifest, under `goals/dossier/` |
-| [plain-comments](172-plain-comments.md) | `rule:testing/feature-proofs` — `position: last` | `docs/examples/`, `tests/hostile/`, `benches/members/` — behind every generated goal: each landed program's comments rewritten inside the plain-comment bounds, then `[all] comments = true` makes them owed |
-| [ci-green](173-ci-green.md) | post-parity, no ADR — `position: last` | `tools/ci-green.py`, `.github/workflows/ci.yml` — always the last goal, behind every generated one: the latest CI run on `main` succeeded for the code `HEAD` holds |
+| [limit-handler-reach](172-limit-handler-reach.md) | `rule:errors/on-limit` | `crates/nvs-runtime/src/abi.rs`, `ctx/hooks.rs`, `sequence.rs` — a resource `FATAL` raised inside a member's own loop runs the program's `onLimit` handler, as one raised in compiled code already does |
+| [plain-comments](173-plain-comments.md) | `rule:testing/feature-proofs` — `position: last` | `docs/examples/`, `tests/hostile/`, `benches/members/` — behind every generated goal: each landed program's comments rewritten inside the plain-comment bounds, then `[all] comments = true` makes them owed |
+| [ci-green](174-ci-green.md) | post-parity, no ADR — `position: last` | `tools/ci-green.py`, `.github/workflows/ci.yml` — always the last goal, behind every generated one: the latest CI run on `main` succeeded for the code `HEAD` holds |
 
 ## The chain contract
 

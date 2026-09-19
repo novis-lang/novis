@@ -2456,6 +2456,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   feature is implemented at, and for a language feature that file is the chapter, not a crate. Make
   every chapter edit first and run `--record-perf` last, or pay the release build twice.
   [until: gone tools/dossier.py:stale]
+- **A `lang:` feature's perf figure is keyed to the reference chapter the feature is documented in,
+  so editing one sentence of that chapter makes every figure in it stale.** `dossier.py --verify`
+  then reports `perf: stale: docs/reference/lang/60-iteration.md changed since it was last
+  measured` for features the session never opened, which reads like unfinished work rather than a
+  re-measure. Run `python tools/dossier.py --record-perf --group <group>` after any edit to a
+  reference chapter and before the gate. [until: reviewed 2026-09-19]
 
 ## Running things
 
@@ -3272,6 +3278,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   outlives its own `timeout-ms` against the debug binary.
   [until: gone tools/dossier.py:def current_binary]
 - **`nvs-server`'s `a_fleet_lease_is_renewed_while_its_run_is_in_flight` fails under `verify.py` and passes alone.** It asserts a lease was renewed inside a wall-clock window, and 160 sibling tests sharing the machine widen it. Re-run it with `cargo test -p nvs-server --lib schedule::tests::a_fleet_lease_is_renewed_while_its_run_is_in_flight`, and when it passes finish the gate by hand: `cargo clippy --all-targets`, then `nvs test tests/conformance` and `tests/differential`. [until: gone crates/nvs-server/src/schedule.rs:the key was held again while the run was in flight]
+- **An unbounded `.nvs` program outlives the tool call that started it and keeps
+  `target/debug/nvs.exe` open.** The next `cargo build` then fails with `error: failed to remove
+  file ... Zugriff verweigert (os error 5)`, which reads as a permissions problem while the process
+  is still growing — one left running here reached 6 GB. Start anything that may not terminate
+  under `timeout 60`, and check `Get-Process nvs` before believing a build error about that file.
+  [until: reviewed 2026-09-19]
 
 ## Writing a test case
 

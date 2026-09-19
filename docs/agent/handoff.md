@@ -2,44 +2,48 @@
 
 ## State
 
-Goal `lang:iteration` is live, and one of its three features is done.
-`lang:iteration/core-collections-are-iterable` carries every feature proof: `about.md`, three
-examples with blessed output, one attack, one bench whose figure is in `docs/perf/members.ndjson`,
-and two conformance cases under `tests/conformance/iter/`.
+Goal `lang:iteration` is live and three of its six features carry every feature proof:
+`core-collections-are-iterable`, `generators` and `materialising-a-sequence-core-arr-from`.
+`what-foreach-walks`, `the-two-interfaces` and `what-does-not-exist` owe all of theirs.
 
-Writing the first of those cases found a compiler panic, now fixed. `declare_binding` and
-`bind_catch_arm` in `crates/nvs-types/src/locals.rs` called `LocalScope::overwrite`, which resolves
-the name and records a capture as a side effect, so a `foreach` or `catch` binding inside a closure
-that shadowed an enclosing name of the same spelling reached `nvs-ir` as a capture no frame held.
-`LocalScope::drop_narrowing` is the call a declaration makes now. Nothing is blocked.
+Two sentences in `docs/reference/lang/60-iteration.md` were wrong about the binary and are
+rewritten: `current()` outside the protocol throws `LogicError` rather than answering a stale slot,
+and `Core\Arr::from` accepts a `Core` collection. Both were already pinned by green conformance
+cases.
+
+The attack written against `Core\Arr::from` found a real hole: draining a sequence with no `limit`
+grew past `[limits] memory` without bound, because the native loop passes no statement boundary and
+calls no member, so nothing in it read the balance. One left running here reached 6 GB against a
+256 MB ceiling. `crates/nvs-runtime/src/sequence.rs`'s `drain` now asks
+`crate::abi::affordable` per element. The stop is pinned by
+`tests/conformance/core/arr-from-over-a-sequence-with-no-end-is-stopped-by-the-memory-ceiling.nvst`.
+That refusal does not run the program's `onLimit` handler, which `rule:errors/on-limit` says fires
+for every resource `FATAL`; goal `limit-handler-reach` was inserted at the end of the chain for it.
+Nothing is blocked.
 
 ## Next group
 
 **Stage: feature proofs for `lang:iteration`** — one file set, the same one this session loaded:
 `docs/reference/lang/60-iteration.md`, `docs/examples/lang/iteration/`,
 `tests/hostile/lang/iteration/`, `benches/members/lang/iteration/`, `tests/conformance/iter/`.
-Both are one slice each: one feature with all of its feature proofs, in the order
-`rule:testing/feature-proofs` names them.
+One feature with all of its feature proofs is one slice, in the order
+`rule:testing/feature-proofs` names them. The corpus under `tests/conformance/iter/` already holds
+cases for all three; a `// covers:` marker in the `--FILE--` block is what attributes one, and two
+per feature is what is owed.
 
-- [ ] **`lang:iteration/generators`** — owes examples, hostile, perf, tests.
-      `rule:iteration/generators`, and `rule:iteration/two-interfaces` for what a cursor binds.
-      `docs/reference/lang/60-iteration.md:148`
-- [ ] **`lang:iteration/materialising-a-sequence-core-arr-from`** — owes examples, hostile, perf,
-      tests. `rule:iteration/foreach-subjects` for the three subjects `Core\Arr::from` accepts, and
-      the section names the `limit` option and the refusal of a `Core` collection.
-      `docs/reference/lang/60-iteration.md:393`
-
-`tests/conformance/iter/` already holds twenty-one generator cases, so a new one there earns its
-place by a boundary or an invariant rather than another row of the same shape — `python
-tools/gaps.py` ranks the candidates.
+- [ ] **`lang:iteration/what-foreach-walks`** — owes about, examples, hostile, perf, tests.
+      `rule:iteration/foreach-subjects`. `docs/reference/lang/60-iteration.md:9`
+- [ ] **`lang:iteration/the-two-interfaces`** — owes about, examples, hostile, perf, tests.
+      `rule:iteration/two-interfaces`. `docs/reference/lang/60-iteration.md:29`
+- [ ] **`lang:iteration/what-does-not-exist`** — owes about, examples, hostile, perf, tests. Every
+      proof here is a refusal, so read `tests/hostile/README.md` on a compile diagnostic never
+      being a pass before writing the attack. `docs/reference/lang/60-iteration.md:423`
 
 ## Backlog
 
-- The capture fix is pinned from Novis only; a `-p nvs-types` test over `LocalScope::drop_narrowing`
-  is not written. `crates/nvs-types/src/locals.rs`.
-- `docs/perf/members.ndjson` gained two records for `lang:iteration/core-collections-are-iterable`
-  this session, the second a re-measure after the release binary was rebuilt. The file is
-  append-only history, so both stay.
-- `verify.py` went red on `nvs-server`'s lease-renewal timing test and green on it alone, so the
-  gate was finished by hand; the playbook bullet under *Running things* is how. Nothing else in
-  build, fmt, test, the `.nvst` trees or clippy was red — conformance 2195, differential 279.
+- Editing a sentence of `docs/reference/lang/60-iteration.md` makes every `lang:iteration` perf
+  figure stale; re-record the group before the gate (playbook, Tooling).
+- `Core\Arr::from`'s own member feature still owes examples, a bench and a hostile case under
+  `core/Arr/from/` — a different feature from this group's, and not this goal's.
+- Goal `limit-handler-reach` (chain position 172) holds the handler half of the ceiling fix; its
+  own handoff names the three slices.
