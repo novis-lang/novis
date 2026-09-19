@@ -1,0 +1,5 @@
+<?nvs
+// The whole program. Save it as `hello.nvs` and run `nvs run hello.nvs`.
+// There is nothing else to write: no starting function, no build step.
+
+echo "Hello, World!", "\n";

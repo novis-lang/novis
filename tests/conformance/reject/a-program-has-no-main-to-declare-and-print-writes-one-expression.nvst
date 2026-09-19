@@ -1,0 +1,25 @@
+--TEST--
+There is no `main` to declare and `print` writes a single expression, so a top-level `function` and a second `print` argument are both refused (`rule:classes/no-free-functions-or-constants`)
+--FILE--
+<?nvs
+// covers: lang:programs/a-program-is-a-file-of-top-level-statements
+// `print` writes one expression. A second one is not a shorter `echo`, and
+// the statement ends where the comma is.
+print "one", "two";
+
+// The statements in the file are already the program, so there is no `main`
+// to write -- and a function outside a class is not something this language
+// has at all.
+function main(): void {
+    echo "never", "\n";
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0101]: expected `;`
+%A
+error[E0102]: expected an expression
+%A
+error[E0215]: a function must be a method
+%A
+error: aborting due to 3 errors

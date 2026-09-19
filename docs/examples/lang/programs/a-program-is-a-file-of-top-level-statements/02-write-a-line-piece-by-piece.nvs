@@ -1,0 +1,12 @@
+<?nvs
+// Putting a line together out of several pieces.
+// `echo` takes as many values as you like and writes them one after another,
+// with nothing in between. Spaces and line breaks are yours to write.
+
+string $name = "Ada";
+int $messages = 3;
+
+echo "Hi ", $name, ", you have ", $messages, " new messages.", "\n";
+
+// `print` writes a single value, and is handy when there is only one.
+print "That is all for now.\n";

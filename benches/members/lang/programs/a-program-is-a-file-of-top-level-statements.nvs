@@ -1,0 +1,20 @@
+<?nvs
+// The plain statements a program is mostly made of, running one after
+// another at the top level of the file: a few names read, changed, and
+// written back. It is the floor under everything else a program does.
+// bench: iterations 4000000
+// bench: allocations 0
+
+int $a = 1;
+int $b = 2;
+int $total = 0;
+int $i = 0;
+
+while ($i < 4000000) {
+    $a = $total + 1;
+    $b = $a + $a;
+    $total = $total + ($b % 7);
+    $i = $i + 1;
+}
+
+echo $total, "\n";

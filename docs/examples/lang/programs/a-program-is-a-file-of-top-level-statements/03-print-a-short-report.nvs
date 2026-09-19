@@ -1,0 +1,22 @@
+<?nvs
+// A small script of the kind you run from a terminal: it prints a short
+// report and stops. The lines run from the top down, and the class they lean
+// on is written underneath them, which is allowed.
+
+array<int> $minutes = [35, 12, 90, 5];
+
+echo "Today\n";
+echo "-----\n";
+
+foreach ($minutes as int $spent) {
+    echo Report::line($spent), "\n";
+}
+
+echo "-----\n";
+echo Report::line(Core\Arr::sum($minutes) as int), " in total\n";
+
+class Report {
+    public static function line(int $minutes): string {
+        return "- " . ($minutes as string) . " min";
+    }
+}
