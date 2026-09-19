@@ -1,0 +1,54 @@
+--TEST--
+Every category of name compiles under exactly one spelling — PascalCase for a class, an interface, an enum, an enum case, a type alias and a namespace segment, camelCase for a method, a property, a parameter and a local, SCREAMING_SNAKE_CASE for a class constant and `constructor` for the constructor — only the first character's case is checked so a run of capitals passes anywhere after it, and two names differing in a later character's case are two different names (`rule:core-api/identifier-casing`, `rule:core-api/casing-checks-the-leading-character`)
+--FILE--
+<?nvs
+// covers: lang:programs/names-and-casing
+namespace App\Billing;
+
+// `rule:core-api/identifier-casing`: each category is checked against exactly
+// one pattern, and every name below is the spelling its own category takes.
+type OrderId = int;
+
+interface Priced {
+    public function priceInCents(): int;
+}
+
+enum Rank { Gold = 1, Silver = 2 }
+
+class OrderLine implements Priced {
+    public const int MAX_QUANTITY = 10;
+
+    public int $unitPriceInCents = 0;
+
+    public function constructor(int $unitPriceInCents) {
+        $this->unitPriceInCents = $unitPriceInCents;
+    }
+
+    public function priceInCents(): int {
+        return $this->unitPriceInCents * OrderLine::MAX_QUANTITY;
+    }
+}
+
+OrderId $orderId = 7;
+OrderLine $line = new OrderLine(250);
+echo $orderId, " ", $line->priceInCents(), "\n";
+
+// `rule:core-api/casing-checks-the-leading-character`: only the first
+// character decides, so a run of consecutive capitals is accepted anywhere
+// after it, in a class name and inside a method name alike.
+class HTTPXMLClient {
+    public static function parseXMLPayload(string $payloadBody): uint {
+        return Core\Str::length($payloadBody);
+    }
+}
+echo HTTPXMLClient::parseXMLPayload("<order/>"), "\n";
+
+// The same rule leaves two names that differ only in a later character's case
+// as two distinct names, in one scope.
+int $userId = 1;
+int $userID = 2;
+echo $userId, $userID, "\n";
+--EXPECT--
+7 2500
+8
+12

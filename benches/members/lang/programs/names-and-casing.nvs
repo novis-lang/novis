@@ -1,0 +1,30 @@
+<?nvs
+// A working loop written with the longest, most awkward names a real program
+// ever grows. Every name is checked once, while the program is compiled, so
+// the same loop written with short names should cost exactly the same.
+// bench: iterations 4000000
+// bench: allocations 0
+
+class HTTPXMLPayloadCounterForTheWholeBillingDepartment {
+    public const int THE_NUMBER_OF_ROUNDS_THIS_BENCHMARK_RUNS = 4000000;
+
+    public static function countEveryPayloadThisDepartmentEverReceived(int $roundCount): int {
+        int $theRunningTotalOfEveryPayloadSoFar = 0;
+        int $whatTheLastRoundLeftBehind = 1;
+        int $theIndexOfTheRoundBeingCountedRightNow = 0;
+
+        while ($theIndexOfTheRoundBeingCountedRightNow < $roundCount) {
+            // Each line feeds the next one, so none of the work can be dropped.
+            $whatTheLastRoundLeftBehind = $theRunningTotalOfEveryPayloadSoFar + 1;
+            $theRunningTotalOfEveryPayloadSoFar =
+                $theRunningTotalOfEveryPayloadSoFar + ($whatTheLastRoundLeftBehind % 7);
+            $theIndexOfTheRoundBeingCountedRightNow = $theIndexOfTheRoundBeingCountedRightNow + 1;
+        }
+
+        return $theRunningTotalOfEveryPayloadSoFar;
+    }
+}
+
+echo HTTPXMLPayloadCounterForTheWholeBillingDepartment::countEveryPayloadThisDepartmentEverReceived(
+    HTTPXMLPayloadCounterForTheWholeBillingDepartment::THE_NUMBER_OF_ROUNDS_THIS_BENCHMARK_RUNS
+), "\n";

@@ -1,0 +1,25 @@
+<?nvs
+// A file of the sort you would really write. The namespace, the class, the
+// two prices and the loop below each use the spelling their kind takes, so
+// somebody reading this can tell what every name is without looking it up.
+
+namespace App\Billing;
+
+class ShippingQuote {
+    public const int FREE_OVER_CENTS = 5000;
+    public const int FLAT_RATE_CENTS = 499;
+
+    public static function forOrder(int $totalCents): int {
+        if ($totalCents >= ShippingQuote::FREE_OVER_CENTS) {
+            return 0;
+        }
+        return ShippingQuote::FLAT_RATE_CENTS;
+    }
+}
+
+array<int> $baskets = [1200, 5000, 9900];
+
+foreach ($baskets as int $totalCents) {
+    int $shippingCents = ShippingQuote::forOrder($totalCents);
+    echo "basket ", $totalCents, " ships for ", $shippingCents, "\n";
+}
