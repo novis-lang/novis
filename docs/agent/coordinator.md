@@ -308,7 +308,7 @@ fixture — twenty-three fixtures is twenty-three workspace fingerprint scans to
 and on the WSL leg every one of them crosses the `/mnt` mount. The `nvs-suite` checks run through the
 same binary for the same reason.
 
-Two things are remembered, and neither decides a goal. Within one run, an identical `args` list runs
+Two things are remembered. Within one run, an identical `args` list runs
 cargo once — the list names `nvs-runtime` twice on purpose, for different guard tests, and the second
 run cannot answer differently. Across runs, **every check's green verdict** is remembered in
 `.loop/goal-green.json` against a content hash of **the partitions of the tree its kind reads** and
@@ -318,21 +318,28 @@ from elsewhere, the two license texts, `tools/data/php-builtins.txt`, `docs/refe
 page and one test-vector directory — while a crate's `tests/` and `benches/` are `crate-tests`;
 `docs/` is `docs` (`docs/reference/` and `docs/spec/`, embedded and read by four tests), `goals`
 (`docs/agent/goals/`, walked by one) and `prose` (everything else there, which nothing under
-`crates/` opens); then `examples/`, `tests/`, `tools/`, `editors/`, everything else. The sets are
-supersets on purpose: a fixture, a `.nvst` suite, an `{nvs}` command and both whole-leg memos key
-on `crates-code` — `crates` with each `.rs` file as the binary reads it, its comments and layout
-removed — `docs`, the fixtures and the tests; a crate's tests, which read source as text and the
-goals and the editor's manifest at run time, key on `crates` as bytes plus those, `crate-tests`,
-`goals` and `editors`; a Python tool, which may read anything, keys on the whole tree. So a session
-that edits the plan, a rule, the playbook or a decision stales no cargo check, one that edits a
-crate's test fixture stales no fixture or leg, and one that edits a comment stales no fixture,
-suite or leg either. Identical inputs into a deterministic check cannot come out a different verdict,
+`crates/` opens); `tests/` is its four case trees — `conformance`, `differential`, `hostile`,
+`lsp-cases` — and `tests` for what is left, and `benches/members/` is `bench-members`; then
+`examples/`, `tools/`, `editors/`, everything else. The sets are supersets on purpose: a fixture
+and both whole-leg memos key on `crates-code` — `crates` with each `.rs` file as the binary reads
+it, its comments and layout removed — `docs`, the fixtures and `tests`; a `.nvst` suite on that
+plus the case tree its directory is in; an `{nvs}` command on that plus every case tree; a crate's
+tests, which read source as text, walk `tests/` whole and read the goals and the editor's manifest
+at run time, key on `crates` as bytes plus all of those, `crate-tests`, `goals` and `editors`; a
+Python tool, which may read anything, keys on the whole tree. The few checks that cost minutes and
+read a short, known list — the fuzz run, the ThreadSanitizer run, the database matrix, the release
+cost guards — are named one by one with the set each was read to have. So a session that edits the
+plan, a rule, the playbook or a decision stales no cargo check, one that edits a crate's test
+fixture stales no fixture or leg, one that edits a comment stales no fixture, suite or leg, and one
+that adds a conformance case, an attack, an example and a bench stales the conformance suite, the
+crates' tests and the tool gates, and no fixture, leg, valgrind sweep, fuzz run, matrix or cost
+guard. Identical inputs into a deterministic check cannot come out a different verdict,
 which is the same argument `verify.py` makes for its own green cache, and `PARTITIONS`, `SPLITS`
-and `reads_of` in `tools/loop.py` are the one home of which paths a partition holds and which set a
-kind gets, each with the grep that derived it. Narrowing one is a claim to be shown, never a tuning
-knob. What no partition holds is a service's state — the database a `queue migrate` check reaches —
-which is not something a session changes in the tree, and which the full sweep below sees exactly
-as every sweep used to.
+`reads_of` and the two by-name tables beside it in `tools/loop.py` are the one home of which paths
+a partition holds and which set a check gets, each with the grep that derived it. Narrowing one is
+a claim to be shown, never a tuning knob. What no partition holds is a service's state — the
+database a `queue migrate` check reaches — which is not something a session changes in the tree,
+and which `python tools/loop.py --goal-only --full` sees exactly as every sweep used to.
 
 The two files the wrap rewrites every session — the handoff and a goal's `.handoff.md` — count
 toward their own partition by name alone and toward a `state` partition by content, which only the
@@ -340,12 +347,15 @@ whole-tree set holds. That is what lets a session that wrote nothing but its han
 and it is why a tool command is re-run every session: `chain.py`, `plan.py` and `playbook.py` read
 the handoff.
 
-**A goal is never reached on the memo.** A green sweep that answered anything from the file is run
-again in full, remembering nothing, before the driver declares the goal done — `python tools/loop.py
---goal-only --full` is the same sweep by hand. Between sessions the memo keeps the folded floor
-affordable; at the one moment a verdict decides something it is not consulted. When both consumers
-of the Linux binary are green, the WSL build is skipped with them — never one without the other, or
-the sweep would silently fall back to a platform with no valgrind on it.
+**The memo is what scopes the sweep a goal is reached on.** A verdict is filed under the check's own
+spec — less its `stage`, which the fold relabels — and the bytes it read, and the file outlives the
+session, the run and the goal switch. So a verdict stands for as long as no session changes a byte
+the check reads, however many sessions or goals ago it was filed, and a check runs again the first
+time one does. The sweep that declares a goal done consults it like any other: it pays for the
+checks whose inputs the goal's sessions changed, and for nothing else. `python tools/loop.py
+--goal-only --full` consults nothing and runs every check, by hand. When both consumers of the
+Linux binary are green, the WSL build is skipped with them — never one without the other, or the
+sweep would silently fall back to a platform with no valgrind on it.
 
 **The carried floor runs one session in N, and the goal's own list every session.** The floor is the
 previous goal's whole list relabelled `1 floor` — some seven hundred checks against the dozen the goal
@@ -354,8 +364,9 @@ is told, because the pack names the goal's earliest red check and a floor regres
 driver holds the carried floor, on every leg and under valgrind, together with the release profile and
 its cost guards, and opens the gate every `FLOOR_GATE_EVERY` sessions — `tools/loop.py` is that
 number's only home, with the ledger replay that set it. A held floor is not a memo hit: a sweep that
-held anything reports `held` on its cost line, and the goal-end rule above applies to it exactly as to
-a remembered check — the whole list runs again, gate open, before the goal is declared reached. Stage
+held anything reports `held` on its cost line, and a green one is run again, gate open, before the
+goal is declared reached — where each held check is answered from the memo or runs, by the rule
+above. Stage
 0 is never held: it is the goal's own reopened work, not something carried in. `--goal-only` runs
 with the gate open.
 

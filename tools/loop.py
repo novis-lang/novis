@@ -1668,26 +1668,50 @@ SUMMARY_RE = re.compile(r"(\d+)\s+passed,\s+(\d+)\s+failed")
 # opens: `grep -rn 'read_to_string\|read_dir\|include_str' crates/ -B3 | grep docs/` is the
 # evidence, and a docs-only session used to re-run every cargo check on it.
 #
-# A fixture reads the binary, its own file and whatever it opens -- `examples/*.nvs` name paths
-# under `tests/` -- so a program's set is `crates`, `docs`, `examples` and `tests`, and the two
-# whole-leg memos, the `.nvst` suites and an `{nvs}` command read the same things. A crate's tests
-# read the tree at run time (the policy tests grep other crates' sources, `spec_registry_coverage`
-# walks the goals, `extension_reference` reads `editors/vscode/package.json`), so a cargo check's
-# set is that plus `crate-tests`, `goals` and `editors` -- not `tools/` (its one read file is in
-# `crates`) and not `prose`. A Python tool reads whatever it likes -- `chain.py`, `plan.py` and
+# `tests/` and `benches/` are cut by WHO WALKS THEM, because the proof trees are where most
+# sessions write and a new case is an input only to what reads its tree. `conformance`,
+# `differential`, `hostile` and `lsp-cases` are the four case trees under `tests/`, and `tests` is
+# what is left: `tests/config/`, `tests/db/` and `tests/fmt/`. `bench-members` is
+# `benches/members/`, which the bench tools read and nothing cargo runs does -- but for the one
+# member `benches/abi-probe/tests/perf_guards.rs` opens, which is `crate-tests` with the rest of
+# `benches/`, the cargo packages there. `grep -rn 'members/' crates benches --include=*.rs` is
+# the evidence. `TEST_TREES` is all five `tests/` partitions, for a reader that walks `tests/`
+# whole.
+#
+# A fixture reads the binary, its own file and whatever it opens, so a program's set is
+# `crates-code`, `docs`, `examples` and `tests`, and the two whole-leg memos read the same things.
+# No case tree is in it: `grep -rn 'tests/' examples/` names `tests/db/` from four `.toml` files
+# and a case tree from one comment, and no program check's `file` or `args` is outside
+# `examples/`. A `.nvst` suite reads that set plus THE TREE ITS DIRECTORY IS IN (`suite_reads`);
+# `grep -rhoE 'tests/(hostile|differential|conformance|lsp)/' tests/<tree>` finds another tree
+# named only in comments. An `{nvs}` command names any path it likes in its `argv`, so it keeps
+# every `tests/` partition. A crate's tests read the tree at run time (the policy tests grep other
+# crates' sources, `nvs-fmt` and `nvs-syntax` walk `tests/` whole, `spec_registry_coverage` walks the goals,
+# `extension_reference` reads `editors/vscode/package.json`), so a cargo check's set is a
+# program's plus `crates` as bytes, `crate-tests`, `goals`, `editors` and every `tests/`
+# partition -- not `tools/` (its one read file is in `crates`), not `bench-members` and not
+# `prose`. A Python tool reads whatever it likes -- `chain.py`, `plan.py` and
 # `playbook.py` read the handoff -- so a tool command keys on the whole tree, the session's own
 # state files included, and is the one kind a wrap invalidates every session.
 #
+# `CARGO_ARGS_READS` and `COMMAND_READS` are the exceptions by name: the few checks that cost
+# minutes and whose inputs are a known, short list. Each row says what was read to show it.
+#
 # What no partition holds is a SERVICE's state -- the database a `queue migrate` check or the
 # `examples/queue.nvs` fixture reaches -- so a memo cannot see that drift. It is not a change a
-# session makes to the tree, which is what the memo exists to catch, and the full sweep the driver
-# runs before a goal is reached (`full`) sees it exactly as every sweep used to.
+# session makes to the tree, which is what the memo exists to catch, and `--goal-only --full`
+# sees it exactly as every sweep used to.
 PARTITIONS = {
     "crates": ("crates", "Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "rustfmt.toml",
                "deny.toml", "nvs.toml", "LICENSE", "THIRD-PARTY-LICENSES.txt"),
     "crate-tests": ("benches",),
     "examples": ("examples",),
     "tests": ("tests",),
+    "conformance": (),
+    "differential": (),
+    "hostile": (),
+    "lsp-cases": (),
+    "bench-members": (),
     "docs": (),
     "goals": (),
     "prose": ("docs",),
@@ -1703,6 +1727,12 @@ SPLITS = (
     ("docs/reference/", "docs"),
     ("docs/spec/", "docs"),
     ("docs/agent/goals/", "goals"),
+    ("tests/conformance/", "conformance"),
+    ("tests/differential/", "differential"),
+    ("tests/hostile/", "hostile"),
+    ("tests/lsp/", "lsp-cases"),
+    ("benches/members/lang/types/numbers-bool-int-uint-float-decimal.nvs", "crate-tests"),
+    ("benches/members/", "bench-members"),
 )
 CRATE_TEST_DIRS = ("tests", "benches")
 # Every other top-level entry -- `website/`, `fuzz/`, `docker/`, `AGENTS.md`, the dotfiles -- is
@@ -1714,9 +1744,49 @@ STATE_FILES = re.compile(r"^docs/agent/(handoff\.md|goals/[^/]+\.handoff\.md)$")
 NOT_INPUTS = {".git", "target", ".loop", ".agent-tmp", "node_modules", "out", ".vscode-test",
               "__pycache__"}
 EVERYTHING = tuple(PARTITIONS) + (OTHER, STATE)
+TEST_TREES = ("tests", "conformance", "differential", "hostile", "lsp-cases")
 PROGRAM_READS = (CODE, "docs", "examples", "tests")
-CARGO_READS = ("crates", "crate-tests", "docs", "goals", "examples", "tests", "editors")
+NVS_COMMAND_READS = (CODE, "docs", "examples", *TEST_TREES)
+CARGO_READS = ("crates", "crate-tests", "docs", "goals", "examples", "editors", *TEST_TREES)
 EDITOR_READS = ("crates", "editors")
+
+#: The `cargo-named` checks that do not get `CARGO_READS`, by their whole `args` list or, with a
+#: one-element key, by the package a `-p` names. Each is a cost guard -- a release build and a
+#: measurement, minutes of a sweep -- whose inputs were read off its source:
+#:
+#: * the two `by_the_margin_this_test_names` tests in `crates/nvs-cli/src/cache.rs` and
+#:   `serve.rs` write their program into a scratch directory of their own and open nothing in
+#:   the tree, so what they measure is the binary;
+#: * `benches/abi-probe/` compiles its own sources, and its `perf_guards` test target opens
+#:   `examples/arith.nvs` and the one bench member `SPLITS` files under `crate-tests`;
+#: * `crates/nvs-host/` opens a kernel setting, a certificate path it is handed and a key log it
+#:   wrote itself, and nothing in the tree: `grep -rnE 'read_to_string|read_dir|File::open|env!'`
+#:   over it is the evidence.
+#:
+#: `crates` and `docs` are what the binary is built from. A guard that starts opening something
+#: else loses its row in the slice that makes it do so.
+CARGO_ARGS_READS = {
+    ("test", "--release", "-p", "nvs-cli", "--bin", "nvs", "by_the_margin_this_test_names"):
+        ("crates", "docs"),
+    ("nvs-abi-probe",): ("crates", "crate-tests", "docs", "examples"),
+    ("nvs-host",): ("crates", "crate-tests", "docs"),
+}
+
+#: The `command` checks that do not get `EVERYTHING`, by a string their `argv` holds. Each costs
+#: minutes, builds the workspace itself, and was read to see what else it opens:
+#:
+#: * the fuzz run builds `fuzz/` -- `other` -- over four crates by path, and its corpus and
+#:   artifacts are git-ignored, so in no partition;
+#: * `tools/tsan.sh` runs the tests of `nvs-host` and `nvs-runtime`, whose `manifest_policy.rs`
+#:   reads every `Cargo.toml` under the root and whose capability tests name `examples/`;
+#: * `tools/db-matrix.py` runs `nvs-db`, three `nvs-stdlib` test targets and one `nvs` unit
+#:   module against the servers `tests/db/compose.yaml` describes, and none of those opens a
+#:   case tree or a fixture.
+COMMAND_READS = (
+    ("cargo +nightly fuzz run", ("crates", "docs", OTHER)),
+    ("tools/tsan.sh", ("crates", "crate-tests", "docs", "examples", "tools", OTHER)),
+    ("tools/db-matrix.py", ("crates", "crate-tests", "docs", "tests", "tools")),
+)
 TOP_OWNER = {top: name for name, tops in PARTITIONS.items() for top in tops}
 
 
@@ -1739,17 +1809,39 @@ LEG_MEMOS = ("wsl leg", "valgrind sweep")
 def reads_of(c):
     """The partitions this check's verdict can depend on, from its kind and what it runs."""
     kind = c["kind"]
-    if kind in PROGRAM_KINDS or kind == "nvs-suite" or kind in LEG_MEMOS:
+    if kind in PROGRAM_KINDS or kind in LEG_MEMOS:
         return PROGRAM_READS
+    if kind == "nvs-suite":
+        return suite_reads(c.get("args", []))
     if kind == "cargo-named":
-        return CARGO_READS
+        args = tuple(c.get("args", []))
+        package = args[args.index("-p") + 1:args.index("-p") + 2] if "-p" in args else ()
+        return CARGO_ARGS_READS.get(args) or CARGO_ARGS_READS.get(package) or CARGO_READS
     if kind == "command":
         argv = c.get("argv", [])
         if argv and argv[0] == "{nvs}":
-            return PROGRAM_READS
+            return NVS_COMMAND_READS
         if argv and argv[0] == "npm" and c.get("cwd", ".").startswith("editors/"):
             return EDITOR_READS
+        for needle, reads in COMMAND_READS:
+            if any(needle in a for a in argv):
+                return reads
     return EVERYTHING
+
+
+def suite_reads(args):
+    """What a `.nvst` suite reads: a program's set, plus the partition of every path its `args`
+    name. A directory `partition_of` files under plain `tests` -- `tests/` itself, or anything
+    that is not a case tree -- may hold any of them, so it gets every `tests/` partition, and so
+    does a suite that names no path at all."""
+    trees = set()
+    paths = [a for a in args[1:] if not a.startswith("-")]
+    for a in paths:
+        name = partition_of(a.rstrip("/") + "/")
+        trees.update(TEST_TREES if name == "tests" else (name,))
+    if not paths:
+        trees.update(TEST_TREES)
+    return PROGRAM_READS + tuple(sorted(trees - set(PROGRAM_READS)))
 
 #: The sweep runs several fixtures at once. It was strictly serial once, and is 42% of an
 #: acceptance check -- 21.3 of its 50.3 minutes over the 20260826-142040 run, 58s a session for 20
@@ -2103,14 +2195,12 @@ class Goal:
       against a content hash of *the partitions of the tree its kind reads* (`reads_of`,
       `partition_ids`) and of its own spec. Those inputs being bit-identical is the whole
       argument: a deterministic check over identical bytes cannot reach a different verdict,
-      which is `verify.py`'s rule for its own green cache. It used to key on the tree instead,
-      HEAD included, and every session commits -- so the memo never once fired inside a run --
-      and then on `crates/` and `examples/` for three checks whose cost was minutes, while the
-      floor that a walked goal folds into the next one grew to some seven hundred checks that ran
-      whole every session over a tree most sessions had not touched where it mattered. Between
-      sessions the memo is what keeps that floor affordable. **A goal is never reached on it**:
-      the driver re-runs a green sweep with `full` set, remembering nothing, before it declares
-      the goal done, so the memo only ever decides that a session is not yet finished.
+      which is `verify.py`'s rule for its own green cache. The file outlives a session, a run
+      and a goal switch, so a verdict stands until a session changes a byte the check reads,
+      however long ago it was filed. **That is what scopes the sweep a goal is reached on**: it
+      runs with the floor gate open and the memo consulted, so it pays for the checks whose
+      inputs the goal's sessions changed and for nothing else. `full` consults no memo and is
+      set by `--goal-only --full` alone.
     """
 
     def __init__(self, spec):
@@ -2156,7 +2246,7 @@ class Goal:
         self._parts = None  # partition name -> content hash, or None if unreadable; see `partition_ids`
         self._green = {}  # memo key -> the inputs hash it was last green over; see `remembered`
         self._green_dirty = False  # `_green` holds a verdict `.loop/goal-green.json` does not yet
-        self.full = False  # consult no memo: a goal is reached only on a sweep that skipped nothing
+        self.full = False  # consult no memo; `--goal-only --full` is the one thing that sets it
         self.skipped = []  # memo keys this run answered from the file rather than by running
         self._ran_green = set()  # memo keys THIS run made green; a later duplicate is not a memo hit
         # The two memos that are a leg rather than a check, as specs so they key like one: the
@@ -2696,9 +2786,12 @@ class Goal:
 
     def memo_key(self, c, leg=""):
         """What a check's verdict is filed under: its name or fixture, the leg when it runs on one,
-        and a digest of its whole spec -- so a `want` rewritten in the goal file is a different key,
-        and two checks that are the same check share one."""
-        spec = json.dumps(c, sort_keys=True)
+        and a digest of its spec -- so a `want` rewritten in the goal file is a different key, and
+        two checks that are the same check share one. `stage` is left out of the digest: it says
+        when a check runs and takes no part in what it answers, and `goal-switch.py` relabels it
+        when a goal's list becomes the next goal's floor, which is the same check over the same
+        inputs and keeps its verdict."""
+        spec = json.dumps({k: v for k, v in c.items() if k != "stage"}, sort_keys=True)
         digest = hashlib.blake2b(spec.encode("utf-8"), digest_size=6).hexdigest()
         name = c.get("name") or c.get("file") or c["kind"]
         return f"{leg + ' ' if leg else ''}{name} #{digest}"
@@ -2729,15 +2822,14 @@ class Goal:
         return want is not None and self._green.get(self.memo_key(c, leg)) == want
 
     def skip(self, c, leg="", what=""):
-        """`remembered`, taken: the key goes on `skipped` for the cost line and the goal-end
-        decision, and the status line says what was not run.
+        """`remembered`, taken: the key goes on `skipped` for the cost line, and the status line
+        says what was not run.
 
         Unless this run made the key green itself. The list names one check many times -- the
         conformance tree once per stage that leans on it -- and `remember` files the first pass
         before the duplicates are reached, so they answer from the memo too. That is not a verdict
         taken from the file: the check ran, this run, over these inputs, and it does not go on
-        `skipped`. It did once, and a scoped sweep whose only memo hits were its own duplicates
-        was re-run whole to confirm twelve verdicts it had just produced."""
+        `skipped`, so the cost line counts only what the file answered."""
         if not self.remembered(c, leg):
             return False
         key = self.memo_key(c, leg)
@@ -3264,8 +3356,8 @@ class Goal:
         # short form is that the carried floor is nearly all of a sweep's cost and almost none of
         # what a session is told, since the pack names the goal's earliest red check and a floor
         # regression is one session in twenty-five. A goal is never reached on a held floor:
-        # `held` is non-empty, and the driver runs the whole list, gate open, before it declares
-        # anything -- the same second sweep a memo hit already costs it.
+        # `held` is non-empty, and the driver runs the list again, gate open, before it declares
+        # anything -- with the memo consulted, so that sweep pays for what the goal changed.
         fails = []
         self.hold(self.program_floor, "fixture(s)")
         for c in self.swept(self.program_floor):
@@ -4139,9 +4231,10 @@ class Chain:
         self.index += 1
         self._save()
 
-        # A memoized check's verdict belongs to the goal that asked for it. Carrying it across a
-        # switch would let a check the previous goal memoized stand in for one the new goal names.
-        GOALCACHE.unlink(missing_ok=True)
+        # `.loop/goal-green.json` is carried across the switch. A verdict there is filed under the
+        # check's own spec and the bytes it read (`Goal.memo_key`, `Goal.inputs_for`), not under
+        # the goal that asked, so the floor this goal inherits arrives already answered for every
+        # check whose inputs the goal has not touched yet.
 
         # The goal the run has just LEFT. Every one of its checks is in the file above -- that is
         # what the fold did four calls ago -- so this is the one moment its own copy is provably
@@ -5218,8 +5311,8 @@ def run_cli():
     )
     ap.add_argument("--goal-only", action="store_true", help="run the acceptance test and exit")
     ap.add_argument("--full", action="store_true",
-                    help="with --goal-only: consult no memo, run every check as the driver does "
-                         "before it declares a goal reached")
+                    help="with --goal-only: consult no memo and run every check, which is also "
+                         "what sees a service's state drift that no tree hash can")
     ap.add_argument(
         "--leg-only", action="store_true",
         help="run just the Linux leg -- every fixture, both suites and the valgrind sweep against a "
@@ -5498,8 +5591,11 @@ def run_cli():
 #: that were code, and the six valgrind findings, all sat at positions a ten-session window still
 #: reaches inside the goal that made them. The blind window is at most this many sessions of
 #: three commits each, `git log` reads a slice at a time, and a goal is never declared reached on
-#: a held floor: `Goal.held` is non-empty, and `drive` runs the whole list, gate open, first.
-#: Every sweep in between is the goal's own list, so the pack still names the earliest red check.
+#: a held floor: `Goal.held` is non-empty, and `drive` runs the list again, gate open, first.
+#: An open gate still consults the memo, so what it pays for is the carried checks whose inputs
+#: some session has changed since each was last green -- nothing, over a tree the floor does not
+#: read. Every sweep in between is the goal's own list, so the pack still names the earliest red
+#: check.
 #: Measured before the gate: 128s an ordinary sweep and 691s a gated one; after it an ordinary
 #: sweep is the goal's own dozen checks. Dropping this to 5 halves the window for about a minute
 #: a session more.
@@ -5997,18 +6093,18 @@ def drive(opts, goal, chain):
         step(f"acceptance check: build, fixtures, suites, wsl leg, valgrind{held}", C.CYAN)
         checked = time.monotonic()
         fail = goal.check(verbose=True)
-        # A green sweep is the end of a goal, and a goal is not reached on a sweep that answered
-        # anything from the memo or held anything behind the floor gate: the whole list runs
-        # again, once, gate open, remembering nothing. Between sessions the memo and the gate are
-        # what keep the folded floor affordable; at the one moment a verdict decides something --
-        # this goal is done -- neither is consulted. `Goal.remembered` owns why a skipped check
-        # could not have changed, `FLOOR_GATE_EVERY` why a held one may have; this is both checked.
-        if not fail and (goal.skipped or goal.held):
-            step(f"scoped sweep green with {len(goal.skipped)} check(s) remembered and "
-                 f"{len(goal.held)} held -- running every one of them before the goal is reached",
-                 C.CYAN)
-            ledger(f"       goal cost: {goal.summary()} (scoped; confirming in full)")
-            goal.full = True
+        # A green sweep is the end of a goal, and a goal is not reached on a sweep that held
+        # anything behind the floor gate: the list runs again, once, gate open. The memo is still
+        # consulted there, and it is what scopes that sweep to the goal's own changes: a held
+        # check's verdict was filed over the bytes it read when it last ran, which may be many
+        # sessions or a goal ago, so it runs now exactly when some session since has changed one
+        # of those bytes, and is answered from the file when none has. `Goal.remembered` owns why
+        # a check over identical inputs cannot answer differently; `--goal-only --full` is the
+        # sweep that consults nothing, by hand.
+        if not fail and goal.held:
+            step(f"scoped sweep green with {len(goal.held)} check(s) held -- opening the floor "
+                 f"gate over what this goal changed before the goal is reached", C.CYAN)
+            ledger(f"       goal cost: {goal.summary()} (scoped; opening the floor gate)")
             goal.floor_gate = True
             fail = goal.check(verbose=True)
         write_counter(FLOORGATE, 0 if goal.floor_gate else floor_since)
