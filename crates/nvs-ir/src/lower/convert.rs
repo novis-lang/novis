@@ -844,12 +844,25 @@ impl<'a> Lowering<'a> {
                 // branches, and that function's `cur` is by value — the same
                 // reason `Self::lower_literal_membership` is a caller of this
                 // arm rather than a row of the table.
-                if from == Ty::Tagged
+                //
+                // `Ty::Object` is a source as much as `Ty::Tagged` is, and for
+                // the `array<T> as array<U>` arm's reason two rows below: every
+                // class erases to one representation, so `$o as Other` on a
+                // value typed `object`, and `$base as WrongSibling` on a
+                // narrowing that cannot hold, both reach `Self::convert`'s free
+                // `from == to` row and hand the operand through under a
+                // declaration it does not satisfy. The next property read off
+                // that handle then loads the target class's field offset out of
+                // another class's storage. `rule:types/conversion` is one
+                // sentence about this — `as` "produces a value of the target
+                // type or it throws" — and priority 1 is what makes it the
+                // representation's question rather than the annotation's.
+                if (from == Ty::Tagged || from == Ty::Object)
                     && to == Ty::Object
                     && let Some(class) =
                         super::closure::declared_class(ty, self.exprs, self.checked_types)
                 {
-                    return self.lower_checked_downcast(v, &class, inner, ty.span, env, cur);
+                    return self.lower_checked_downcast(v, from, &class, inner, ty.span, env, cur);
                 }
                 // `rule:core-classes/html-auto-escape`'s `"<b>" as Core\Html\Markup`, and it is here
                 // for the downcast's reason exactly: both targets erase to
@@ -1168,9 +1181,16 @@ impl<'a> Lowering<'a> {
     /// transfers instead. The false edge is where that asymmetry has to be
     /// said out loud — a fresh operand reaches no consumer there, so it is
     /// released before the throw rather than abandoned on it.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "`from` is the operand's representation, which decides only whether the hit edge \
+                  strips a tag; no other caller state travels with it, so a struct would buy the \
+                  one call site nothing"
+    )]
     fn lower_checked_downcast(
         &mut self,
         value: ValueId,
+        from: Ty,
         class: &str,
         operand: &Expr,
         span: Span,
@@ -1237,7 +1257,17 @@ impl<'a> Lowering<'a> {
             },
         );
         *cur = hit;
-        let (out, _) = self.emit(hit, Ty::Object, InstKind::Untag { operand: value });
+        // An operand that is already `Ty::Object` has no tag to strip, so the
+        // test is the whole of what this row adds and the value passes through
+        // as it stands. The retain below is owed either way: `InstKind::Untag`
+        // is a relabelling that shares its operand's reference, so both edges
+        // reach here holding exactly what the tagged path holds.
+        let out = if from == Ty::Tagged {
+            self.emit(hit, Ty::Object, InstKind::Untag { operand: value })
+                .0
+        } else {
+            value
+        };
         if borrowed {
             self.emit_retain(hit, out);
         }
