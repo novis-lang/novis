@@ -5864,6 +5864,27 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `$e->previous->message` is never narrowed by testing the path. Read the value into a fresh local
   at the top of the body, test *that*, and assign the next step to the outer name.
   [until: reviewed 2026-09-19]
+- **A `#[Core\Json\Derive]` class with no constructor compiles and then has no codec at run time**, and
+  the `LogicError` blames the one thing that is not wrong — the attribute the class plainly carries.
+  `rule:core-classes/derive-field-list` makes a decode an ordinary `new`, so with no parameter list the
+  field list is empty, and `crates/nvs-types/src/derive.rs:1878` stays quiet on the assumption
+  `ctor_init` already reported it, which it does not when every property has a default. Give the class
+  a constructor taking every field. [until: reviewed 2026-09-19]
+
+- **A `ParseError`'s `issues` come in *name* order from a shape door and in *declaration* order from a
+  class door**, so an expectation written from the shape written at the call site is red for any field
+  set that is not already alphabetical. `Core\Arr::shapeAs<{ok: int, bad: int, alsoOk: string, alsoBad:
+  bool}>` reports `alsoBad` before `bad`, while a `#[Core\Json\Derive]` class declaring `zeta, alpha,
+  mid` reports them in exactly that order. Run the program before writing the `--EXPECT--` block, and
+  name fields whose two orders differ when the order is what a case pins.
+  [until: reviewed 2026-09-19]
+
+- **Assigning to the binding a `!= null` test narrowed drops the narrowing on that statement's own
+  right-hand side**, so the walk `while ($cursor != null) { … $cursor = $cursor->previous; }` is
+  `E0459` on the assignment while every other read in the body is fine. The narrowing holds for the
+  body but not across the write that re-widens the binding. Spell the step `$cursor =
+  $cursor?->previous;` — `?->` answers `null` and the loop's own condition is what ends it.
+  [until: reviewed 2026-09-19]
 
 ## Splitting a file that got too big
 
