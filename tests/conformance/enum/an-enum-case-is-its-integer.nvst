@@ -2,6 +2,7 @@
 An enum case converts to the integer it names, and cases compare by that integer — `rule:enums/closed-integer-type`
 --FILE--
 <?nvs
+// covers: lang:enums/a-case-is-its-integer
 enum Rank {
     Bronze,
     Silver,

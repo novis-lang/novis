@@ -1,0 +1,42 @@
+--TEST--
+An enum converts to its own backing type and to nothing else, at `as string`, at `echo`, inside an interpolation and at the backing type the other enum was declared with (`rule:enums/no-class-machinery`, `rule:types/conversion`)
+--FILE--
+<?nvs
+// covers: lang:enums/a-case-is-its-integer
+// `rule:enums/closed-integer-type` makes a case a named integer, so every
+// conversion out of one is a question about a *number*. Five spellings ask for
+// something else, and each is refused where it is written: `as string` and the
+// two implicit string conversions, because a case has no text form at all, and
+// the two crossings between `int` and `uint`, because a case converts to the
+// backing type its own enum was declared with and to no other. `$case as int`
+// is the one spelling that answers, and `($case as int) as string` is the text.
+enum Rank {
+    Bronze,
+    Silver,
+}
+
+enum Mask: uint {
+    None = 0,
+    All = 7,
+}
+
+Rank $held = Rank::Silver;
+echo Rank::Silver as string, "\n";
+echo Rank::Silver, "\n";
+echo "rank $held\n";
+echo Rank::Silver as uint, "\n";
+echo Mask::All as int, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0708]: `Rank` cannot be converted to `string`
+%A
+error[E0707]: `Rank` has no string form
+%A
+error[E0707]: `Rank` has no string form
+%A
+error[E0708]: `Rank` cannot be converted to `uint`
+%A
+error[E0708]: `Mask` cannot be converted to `int`
+%A
+error: aborting due to 5 errors

@@ -1,0 +1,18 @@
+<?nvs
+// Shows the number that belongs to each enum case. `as int` is the only way to
+// read it.
+
+enum Level { Low, Mid, High }
+
+// The first case is 0, and each later case counts on from the one before it.
+// This prints 0, 1 and 2.
+echo Level::Low as int, "\n";
+echo Level::Mid as int, "\n";
+echo Level::High as int, "\n";
+
+enum Http { Ok = 200, Created = 201, NotFound = 404 }
+
+// A case can also set its own value. This prints 200, 201 and 404.
+echo Http::Ok as int, "\n";
+echo Http::Created as int, "\n";
+echo Http::NotFound as int, "\n";

@@ -1,0 +1,25 @@
+<?nvs
+// Converts an enum case to its number in a loop. A program meets this shape whenever it
+// stores a choice as a number or compares two choices by size.
+// bench: iterations 400000
+// bench: calls 0
+// bench: allocations 0
+
+enum Level { Low, Mid, High }
+
+class Bench {
+    public static function run(int $rounds): int {
+        array<Level> $levels = [Level::Low, Level::Mid, Level::High];
+        int $total = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: the case converted this round is picked by the number
+            // the last round produced, so the conversion stays inside the loop.
+            $total = $total + ($levels[$total % 3] as int) + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

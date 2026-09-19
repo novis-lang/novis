@@ -1,0 +1,27 @@
+<?nvs
+// Shows an order status written to a file as a number. A file, a database
+// column and a JSON field keep numbers and text, so the case becomes its
+// number on the way out.
+
+enum Status { New, Paid, Shipped, Closed }
+
+class Order {
+    public function constructor(public string $reference, public Status $status) {}
+
+    // Returns one line of the file: the order reference, then the status as a
+    // number.
+    public function line(): string {
+        return $this->reference . "," . (($this->status as int) as string);
+    }
+}
+
+array<Order> $orders = [
+    new Order("A-1001", Status::Paid),
+    new Order("A-1002", Status::New),
+    new Order("A-1003", Status::Shipped),
+];
+
+// This prints `A-1001,1`, then `A-1002,0`, then `A-1003,2`.
+foreach ($orders as Order $order) {
+    echo $order->line(), "\n";
+}
