@@ -1,0 +1,30 @@
+<?nvs
+// Shows the two ways a property gets its first value: a default written in the
+// class, or an assignment in the constructor.
+
+class Invoice {
+    // These three have a default, so the constructor does not touch them.
+    public string $currency = "EUR";
+    public int $total = 0;
+    public array<string> $lines = [];
+
+    // This one has no default. The constructor must give it a value.
+    public string $customer;
+
+    public function constructor(string $customer) {
+        $this->customer = $customer;
+    }
+
+    public function add(string $line, int $amount): void {
+        $this->lines[] = $line;
+        $this->total = $this->total + $amount;
+    }
+}
+
+var $invoice = new Invoice("Ada Lovelace");
+$invoice->add("Keyboard", 4900);
+$invoice->add("Cable", 900);
+
+// This prints: Ada Lovelace owes 5800 EUR for 2 lines.
+echo $invoice->customer, " owes ", $invoice->total, " ", $invoice->currency;
+echo " for ", Core\Arr::count($invoice->lines), " lines.\n";

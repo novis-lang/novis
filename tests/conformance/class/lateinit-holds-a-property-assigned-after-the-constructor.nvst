@@ -38,6 +38,7 @@ var $shared = new Engine(50);
 var $one = new Car("one");
 var $two = new Car("two");
 echo $one->fit($shared), ";", $two->fit($shared), "\n";
+// covers: lang:classes/properties
 --EXPECT--
 kit has 120
 kit now has 200

@@ -62,6 +62,7 @@ echo Registry::secret(), "\n";
 echo Base::$shared, " ", Child::$shared, "\n";
 Child::$shared = "written through the child";
 echo Base::$shared, " ", Child::$shared, "\n";
+// covers: lang:classes/properties
 --EXPECT--
 0 hits
 5

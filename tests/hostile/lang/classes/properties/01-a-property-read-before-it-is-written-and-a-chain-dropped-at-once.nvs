@@ -1,0 +1,61 @@
+<?nvs
+// Attack: a program uses properties in ways a normal one never does. It reads a
+// property before anything writes it. It links two hundred thousand objects
+// through a property and drops them at once. The runtime should stay standing.
+// hostile: ends-early
+// covers: lang:classes/properties
+
+final class Node
+{
+    public ?Node $next = null;
+
+    public function constructor(public int $depth)
+    {}
+}
+
+final class Holder
+{
+    public lateinit Node $node;
+}
+
+// 1. A property that is written after construction is read before any write.
+var $holder = new Holder();
+try {
+    int $depth = $holder->node->depth;
+    echo '1: BAD, the read gave ', $depth, "\n";
+} catch (Throwable $e) {
+    echo '1: caught ', $e->message, "\n";
+}
+
+// 2. Two hundred thousand objects are linked through a property, then dropped
+//    in one go.
+?Node $head = null;
+int $built = 0;
+while ($built < 200000) {
+    var $node = new Node($built);
+    $node->next = $head;
+    $head = $node;
+    $built = $built + 1;
+}
+echo '2: linked ', $built, " objects\n";
+$head = null;
+echo "2: the chain was dropped in one go\n";
+
+// 3. A static property collects three hundred thousand values.
+final class Bucket
+{
+    public static array<int> $values = [];
+}
+
+int $n = 0;
+while ($n < 300000) {
+    Bucket::$values[] = $n;
+    $n = $n + 1;
+}
+echo '3: the static property now has ', Core\Arr::count(Bucket::$values), " values\n";
+
+// 4. The same unwritten property is read again, with nothing to catch the
+//    error. The program ends here.
+var $last = new Holder();
+echo $last->node->depth, "\n";
+echo "4: BAD, the program is still running\n";

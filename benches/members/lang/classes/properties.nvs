@@ -1,0 +1,32 @@
+<?nvs
+// Reads and writes the properties of an object. A program does this while it
+// fills in a record and then adds up what it collected.
+// bench: iterations 400000
+// bench: allocations 0
+
+final class Row {
+    public int $count = 0;
+    public int $total = 0;
+
+    public static int $seen = 0;
+
+    public function constructor(public readonly int $weight) {}
+}
+
+class Bench {
+    public static function run(int $rounds): int {
+        var $row = new Row(3);
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: every round adds to what the round before it wrote, so
+            // the loop cannot be skipped.
+            $row->count = $row->count + 1;
+            $row->total = $row->total + $row->count + $row->weight;
+            Row::$seen = Row::$seen + 1;
+            $i = $i + 1;
+        }
+        return $row->total + Row::$seen;
+    }
+}
+
+echo Bench::run(400000), "\n";

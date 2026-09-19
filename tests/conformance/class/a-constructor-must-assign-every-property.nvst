@@ -11,6 +11,7 @@ class Box {
     }
 }
 echo "unreachable\n";
+// covers: lang:classes/properties
 --EXPECT--
 
 --EXPECTF-ERROR--

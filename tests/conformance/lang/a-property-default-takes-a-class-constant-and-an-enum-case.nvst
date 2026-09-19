@@ -42,6 +42,7 @@ if ($c->debug) { echo "debug on\n"; }
 echo $c->span, "\n";
 echo $c->widened, "\n";
 echo $c->mode as int, "\n";
+// covers: lang:classes/properties
 --EXPECT--
 12
 novis

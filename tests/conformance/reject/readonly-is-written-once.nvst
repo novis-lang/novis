@@ -32,6 +32,7 @@ class Label {
 
 var $l = new Label("a");
 $l->text = "b";
+// covers: lang:classes/properties
 --EXPECT--
 
 --EXPECTF-ERROR--

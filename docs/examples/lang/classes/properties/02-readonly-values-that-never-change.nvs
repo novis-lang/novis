@@ -1,0 +1,20 @@
+<?nvs
+// Shows `readonly`. The constructor gives each property its value, and no other
+// code can change it.
+
+final class Money {
+    public function constructor(public readonly int $cents, public readonly string $currency) {}
+
+    // The two amounts cannot change, so adding them returns a third object.
+    public function plus(Money $other): Money {
+        return new Money($this->cents + $other->cents, $this->currency);
+    }
+}
+
+var $coffee = new Money(350, "EUR");
+var $cake = new Money(425, "EUR");
+var $order = $coffee->plus($cake);
+
+// This prints 350 + 425 = 775 EUR. The first two objects still have their own
+// values.
+echo $coffee->cents, " + ", $cake->cents, " = ", $order->cents, " ", $order->currency, "\n";
