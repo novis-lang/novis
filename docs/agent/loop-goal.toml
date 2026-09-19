@@ -111,6 +111,12 @@ modules = [
   "crates/nvs-types/src/expr/members.rs",
   # A minimal bidirectional expression checker: the dispatch, and the modules each rule lives in.
   "crates/nvs-types/src/expr/mod.rs",
+  # The expression grammar: every operator at its PHP precedence, the postfix chain, and every
+  # primary.
+  "crates/nvs-syntax/src/parser/expr.rs",
+  # `rule:core-classes/derive-attribute`'s derive pass: which classes carry `#[Json\Derive]` or
+  # `#[Db\Derive]`, which of their properties are fields, and what wire key each field has.
+  "crates/nvs-types/src/derive.rs",
 ]
 
 rules = ["testing/four-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "types/arithmetic", "php-migration/absent-storage-is-never-a-zero-value", "expressions/truthy-table", "0134", "0026", "0117", "0004", "0088"]
