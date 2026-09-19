@@ -5952,6 +5952,19 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `<?nvs` a shebang file refuses was not. Run `target/debug/nvs.exe fmt <file>` on each new `.nvs` as
   soon as it runs, and expect a case exercising a recovery path to be what finds a hole in
   `rule:ide/tokens-plus-trivia-reproduce-the-file`. [until: reviewed 2026-09-19]
+- **A `covers:` marker added at the top of a `--FILE--` block shifts every line number that case's
+  `--EXPECTF-ERROR--` pins.** A reject case writing `--> case.nvs:2:1` then fails on the one line the
+  marker pushed down, and the failure reads as a diagnostic regression rather than as an edit to the
+  file above it. Put the marker on the last line of the `--FILE--` block whenever the expectation
+  names a location, and anywhere at all when `%A` swallows it. [until: reviewed 2026-12-19]
+
+- **A hostile case is a formatter corpus file and a proof, and the example and bench trees are
+  not.** `crates/nvs-fmt/tests/identity.rs:49` collects `examples/` and `tests/`, so a hand-written
+  `.nvs` under `tests/hostile/` fails `verify.py` on brace placement and on a double-quoted string
+  with nothing to interpolate, while the same file under `docs/examples/` or `benches/members/`
+  passes untouched. Run `target/debug/nvs.exe fmt <the files>` before you verify, and read the diff
+  once — it moves a `class`/`function` brace to its own line and rewrites `"plain"` as `'plain'`,
+  and it leaves every comment alone. [until: reviewed 2026-12-19]
 
 ## Splitting a file that got too big
 

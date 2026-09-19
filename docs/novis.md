@@ -430,9 +430,9 @@ How a written name resolves:
 
 ### `require`: run another file in this frame
 
-`require 'path.nvs'` reads, compiles and runs another file in the caller's own frame — same
-variables, same statics, same output — every time control reaches it, and it is an *expression*
-whose value is whatever the required file `return`s at its top level.
+`require 'path.nvs'` reads, compiles and runs another file where the `require` is written — same
+program, same statics, same output, no isolation of any kind — every time control reaches it, and it
+is an *expression* whose value is whatever the required file `return`s at its top level.
 
 ```nvs file=config.nvs
 <?nvs
@@ -451,6 +451,10 @@ example.test:8080
   compiling, so a missing file is a compile-time error; a computed path is resolved at run time and
   throws if it cannot be read.
 - The value of a `require` expression is `mixed` — convert it with `as` to the type the file returns.
+- **Declarations cross and variables do not.** Every class, interface, enum and `type` alias either
+  file declares is visible to the other as if it had been pasted in. A local does not cross in either
+  direction: each file's top-level body is its own frame and is checked on its own, so the required
+  file's `$x` is not the caller's. Hand a value across as the `return` value or through a static.
 - `include`, `include_once` and `require_once` do not exist. Each parses only so the diagnostic can
   name `require`.
 - A file that must run once — a declarations file — is reached through `autoload` instead, which
