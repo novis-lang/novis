@@ -1,0 +1,21 @@
+<?nvs
+// Shows the `limit` option, which stops the walk after the number of values you name.
+
+class Ids {
+    // This generator has no end.
+    public static function forever(string $prefix): Iterator<string> {
+        int $n = 1;
+        while (true) {
+            yield "{$prefix}-{$n}";
+            $n = $n + 1;
+        }
+    }
+}
+
+// `limit` is what makes this call return. It stops the walk after three values.
+array<string> $batch = Core\Arr::from(Ids::forever("order"), {limit: 3});
+
+// This prints order-1, order-2 and order-3.
+foreach ($batch as string $id) {
+    echo $id, "\n";
+}

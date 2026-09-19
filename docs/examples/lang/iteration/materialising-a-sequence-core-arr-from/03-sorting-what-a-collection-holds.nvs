@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to take a `Core` collection into an array and sort it. A program does this
+// when it gathers values while it works and puts them in order at the end.
+
+var $seen = new Core\ObjectSet<string>();
+$seen->add("marta");
+$seen->add("ada");
+$seen->add("kofi");
+$seen->add("ada");
+
+// A set gives its members in the order you added them, and keeps each one once.
+// This prints 3.
+array<string> $names = Core\Arr::from($seen);
+echo Core\Arr::count($names), "\n";
+
+// `Core\Arr::sort` needs every value at once, which is why the array above is made
+// first. This prints ada, kofi and marta.
+foreach (Core\Arr::sort($names) as string $name) {
+    echo $name, "\n";
+}

@@ -1,0 +1,85 @@
+<?nvs
+// Attack: a program hands `Core\Arr::from` sequences that should break it. It asks for no
+// values, for more values than exist, and for the largest number the option accepts. It
+// drains a spent cursor and one that throws halfway. The last step asks for a sequence
+// with no end, which fills the memory and stops the program.
+// covers: lang:iteration/materialising-a-sequence-core-arr-from
+// hostile: timeout-ms 20000
+// hostile: ends-early
+
+class Gen
+{
+    public static function count(int $n): Iterator<int>
+    {
+        int $i = 0;
+        while ($i < $n) {
+            yield $i;
+            $i = $i + 1;
+        }
+    }
+
+    public static function fails(int $at): Iterator<int>
+    {
+        int $i = 0;
+        while (true) {
+            if ($i == $at) {
+                throw new LogicError('the body gave up');
+            }
+            yield $i;
+            $i = $i + 1;
+        }
+    }
+
+    public static function text(string $seed): Iterator<string>
+    {
+        string $s = $seed;
+        while (true) {
+            yield $s;
+            $s = $s . $s;
+        }
+    }
+}
+
+// 1. A limit of none, a limit past the end of the sequence, and the largest limit there is.
+try {
+    echo '1: ', Core\Arr::count(Core\Arr::from(Gen::count(5), { limit: 0 })), "\n";
+    echo '1: ', Core\Arr::count(Core\Arr::from(Gen::count(3), { limit: 100 })), "\n";
+    echo '1: ', Core\Arr::count(Core\Arr::from(Gen::count(4), { limit: 18446744073709551615 })), "\n";
+} catch (Throwable $e) {
+    echo '1: caught ', $e->message, "\n";
+}
+
+// 2. A cursor that a `foreach` already walked to its end is handed over to be drained again.
+try {
+    var $spent = Gen::count(2);
+    foreach ($spent as int $v) {
+    }
+    echo '2: ', Core\Arr::count(Core\Arr::from($spent)), "\n";
+} catch (Throwable $e) {
+    echo '2: caught ', $e->message, "\n";
+}
+
+// 3. A generator throws in the middle of the drain, so the call never gives back an array.
+try {
+    array<int> $half = Core\Arr::from(Gen::fails(3));
+    echo '3: ', Core\Arr::count($half), "\n";
+} catch (Throwable $e) {
+    echo '3: caught ', $e->message, "\n";
+}
+
+// 4. Twenty thousand cursors are drained one after another, each into its own array.
+try {
+    array<uint> $sizes = [];
+    int $k = 0;
+    while ($k < 20000) {
+        $sizes[] = Core\Arr::count(Core\Arr::from(Gen::count(8), { limit: 6 }));
+        $k = $k + 1;
+    }
+    echo '4: drained ', Core\Arr::count($sizes), " sequences\n";
+} catch (Throwable $e) {
+    echo '4: caught ', $e->message, "\n";
+}
+
+// 5. A sequence with no end is drained with no limit, so this step ends the program.
+array<string> $everything = Core\Arr::from(Gen::text('0123456789abcdef'));
+echo '5: kept ', Core\Arr::count($everything), "\n";

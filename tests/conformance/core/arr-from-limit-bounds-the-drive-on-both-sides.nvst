@@ -2,6 +2,7 @@
 `Core\Arr::from`'s `{limit}` stops the drive rather than truncating the result, asserted at the exact element count and one past it — spec § 2, `rule:iteration/two-interfaces`
 --FILE--
 <?nvs
+// covers: lang:iteration/materialising-a-sequence-core-arr-from
 // Spec § 2 calls `{limit}` the only guard against materialising a sequence that
 // never ends, which is a claim about the *drive* and not about the answer: a
 // member that drained everything and then cut the result would give the same
