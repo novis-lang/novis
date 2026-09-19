@@ -1,0 +1,34 @@
+<?nvs
+// What this looks like at work: the header of a digest email, built from
+// settings a person may never have filled in. An empty setting falls back to
+// something sensible, and a line nobody would read is skipped.
+
+string $displayName = "";
+string $email = "ada@example.com";
+array<string> $topics = [];
+array<string> $starred = ["billing", "outages"];
+int $unread = 0;
+
+// `?:` hands back the left value when it counts as something, and the right
+// one when it does not, so the address stands in for a missing name.
+string $who = $displayName ?: $email;
+echo "To: ", $who, "\n";
+
+// A section with nothing in it is not worth a line.
+if ($topics) {
+    echo "Topics: ", Core\Str::join($topics, ", "), "\n";
+}
+
+if ($starred) {
+    echo "Starred: ", Core\Str::join($starred, ", "), "\n";
+}
+
+// `&&` stops as soon as the answer is settled, so the second question is only
+// asked when the first one counts as something.
+if ($unread && $starred) {
+    echo "Unread mail in a starred topic\n";
+} else {
+    echo "Nothing unread\n";
+}
+
+echo $unread ? "Unread: " . ($unread as string) : "All caught up", "\n";

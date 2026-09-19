@@ -734,11 +734,14 @@ may be `null`, so `->` cannot reach a member of it
 
 # Truthiness
 
-A condition — `if`, `while`, `for`, the ternary `?:` and its short form, `&&`, `||`, `!`, `match
-(true)`'s labels — is the one place a value is tested without `as`, and it uses PHP's table: `false`,
-`0`, `0.0`, `""`, `"0"`, `[]`, an empty `bytes` and `null` are falsy; every other value, including
-`"0.0"`, `" "` and every object, is truthy. `x as bool` answers the same table. A `mixed` is tested
-on its runtime tag. `empty($x)` is the same test negated and `isset($x)` is a `null` test.
+A condition — `if`, `while`, `for`'s middle clause, the ternary `?:` and its short form, and the
+operands of `&&`, `||` and `!` — is the one place a value is tested without `as`, and it uses PHP's
+table: `false`, `0`, `0.0`, `""`, `"0"`, `[]`, an empty `bytes` and `null` are falsy; every other
+value, including `"0.0"`, `" "`, every object and every enum case whatever integer backs it, is
+truthy. `x as bool` answers the same table. A `mixed` is tested on its runtime tag. `empty($x)` is
+the same test negated and `isset($x)` is a `null` test. Those positions are the whole list: a
+`match (true)` label is compared against `true` rather than tested, and every other `bool` position
+— a binding, an argument, a return — still wants `as bool`.
 
 ```nvs
 <?nvs

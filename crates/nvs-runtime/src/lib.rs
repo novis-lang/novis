@@ -204,6 +204,19 @@
 //!    dropped where `CPU_LIMIT` and `CANCEL` become [`FATAL`], since `nvs dap` —
 //!    the adapter a stopped frame would be handed to — does not exist.
 //!    — owner: M10
+//! 9. **An enum case that reached a `mixed` is judged in a condition by the
+//!    integer behind it.** A case backed by `0` is falsy there, while the same
+//!    case under its own declared type is truthy, so the two spellings of one
+//!    value disagree — the one thing `rule:expressions/truthy-table`'s rows are
+//!    written to prevent. `rule:enums/truthiness` makes every case truthy and
+//!    `rule:enums/representation` spends no tag on an enum, so by the time
+//!    [`helpers::value_truthy`] is handed the value there is nothing left to
+//!    tell it from an `int`; that function's doc says the same from the other
+//!    side. Closing it means spending the reserved tag, which overturns a rule
+//!    and is an ADR rather than a slice. What it costs today is a ported
+//!    `if ($status)` whose enum arrived through an `array<mixed>` or an erased
+//!    parameter taking the branch PHP never took.
+//!    — owner: M10
 
 mod abi;
 // Compiled where it is used: by the `#[global_allocator]` below in an

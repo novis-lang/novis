@@ -1,0 +1,164 @@
+--TEST--
+Each of the six truthiness positions answers the same row for the same value, counted over the whole table rather than read off a line — `rule:expressions/truthy-positions`, `rule:expressions/truthy-table`
+--FILE--
+<?nvs
+// covers: lang:types/truthiness
+// `rule:expressions/truthy-positions` closes the list at six, and the claim
+// this case makes is that they are one test rather than six: every position
+// is written out once, the hits are counted, and a row is only allowed to
+// answer 6 or 0. A position that grew a rule of its own lands in between,
+// where reading a single `if` off a line would still look right.
+//
+// `as bool` and `empty` are asked the same question beside them, because
+// `rule:expressions/truthy-table` gives all three the one table, and the
+// erased path is asked twice: once through `mixed`, where the row is picked
+// from the value's tag, and once through a declared `string`, where the
+// compiler picked it before the program ran.
+
+class Token {
+    public string $label = "t";
+}
+
+class Positions {
+    public static function count(mixed $value): int {
+        int $hits = 0;
+
+        if ($value) {
+            $hits = $hits + 1;
+        }
+
+        while ($value) {
+            $hits = $hits + 1;
+            break;
+        }
+
+        for (int $guard = 0; $value; $guard = $guard + 1) {
+            $hits = $hits + 1;
+            break;
+        }
+
+        $hits = $hits + ($value ? 1 : 0);
+
+        if ($value && true) {
+            $hits = $hits + 1;
+        }
+
+        if (!$value) {
+            $hits = $hits + 0;
+        } else {
+            $hits = $hits + 1;
+        }
+
+        return $hits;
+    }
+
+    // The same six positions over a value whose row the compiler already
+    // knows. Nothing here may disagree with the erased twin above.
+    public static function ofString(string $value): int {
+        int $hits = 0;
+
+        if ($value) {
+            $hits = $hits + 1;
+        }
+
+        while ($value) {
+            $hits = $hits + 1;
+            break;
+        }
+
+        for (int $guard = 0; $value; $guard = $guard + 1) {
+            $hits = $hits + 1;
+            break;
+        }
+
+        $hits = $hits + ($value ? 1 : 0);
+
+        if ($value && true) {
+            $hits = $hits + 1;
+        }
+
+        if (!$value) {
+            $hits = $hits + 0;
+        } else {
+            $hits = $hits + 1;
+        }
+
+        return $hits;
+    }
+}
+
+// Every falsy row of the table, including the two a reader gets wrong: the
+// one-character `"0"`, and `-0.0`, which is a zero like any other.
+array<mixed> $falsy = [false, 0, 0.0, -0.0, "", "0", [], null];
+
+// The truthy side, carrying the values that look falsy and are not.
+array<mixed> $truthy = [true, 1, -1, 0.5, "0.0", " ", "false", [0], new Token()];
+
+int $rows = 0;
+int $unanimous = 0;
+int $castAgrees = 0;
+int $emptyAgrees = 0;
+
+foreach ($falsy as mixed $value) {
+    $rows = $rows + 1;
+
+    if (Positions::count($value) == 0) {
+        $unanimous = $unanimous + 1;
+    }
+
+    if (($value as bool) == false) {
+        $castAgrees = $castAgrees + 1;
+    }
+
+    if (empty($value)) {
+        $emptyAgrees = $emptyAgrees + 1;
+    }
+}
+
+echo "falsy rows ", $rows, " unanimous ", $unanimous, " as bool ", $castAgrees, " empty ", $emptyAgrees, "\n";
+
+$rows = 0;
+$unanimous = 0;
+$castAgrees = 0;
+$emptyAgrees = 0;
+
+foreach ($truthy as mixed $value) {
+    $rows = $rows + 1;
+
+    if (Positions::count($value) == 6) {
+        $unanimous = $unanimous + 1;
+    }
+
+    if (($value as bool) == true) {
+        $castAgrees = $castAgrees + 1;
+    }
+
+    if (!empty($value)) {
+        $emptyAgrees = $emptyAgrees + 1;
+    }
+}
+
+echo "truthy rows ", $rows, " unanimous ", $unanimous, " as bool ", $castAgrees, " empty ", $emptyAgrees, "\n";
+
+array<string> $texts = ["", "0", "0.0", " ", "false"];
+int $sameAsErased = 0;
+
+foreach ($texts as string $text) {
+    if (Positions::ofString($text) == Positions::count($text)) {
+        $sameAsErased = $sameAsErased + 1;
+    }
+}
+
+echo "declared string rows agreeing with mixed ", $sameAsErased, " of 5\n";
+
+// `rule:expressions/truthy-table`'s own row for `bytes`: falsy only when
+// empty, so the one octet `"0"` is truthy where the `string` above is not.
+bytes $emptyBuffer = "" as bytes;
+bytes $zeroOctet = "0" as bytes;
+
+echo "bytes empty ", Positions::count($emptyBuffer), " one octet ", Positions::count($zeroOctet), "\n";
+--EXPECT--
+falsy rows 8 unanimous 8 as bool 8 empty 8
+truthy rows 9 unanimous 9 as bool 9 empty 9
+declared string rows agreeing with mixed 5 of 5
+bytes empty 0 one octet 6

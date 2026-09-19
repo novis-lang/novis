@@ -1,0 +1,29 @@
+<?nvs
+// A condition asks a value one question: does it count as something, or as
+// nothing? An empty piece of text, a zero, an empty list and a missing value
+// all count as nothing. Everything else counts as something.
+
+array<mixed> $submitted = [
+    "name" => "Ada",
+    "nickname" => "",
+    "age" => 0,
+    "tags" => [],
+    "note" => "0.0",
+    "reply" => null,
+];
+
+foreach ($submitted as string $field => mixed $value) {
+    if ($value) {
+        echo $field, ": filled in\n";
+    } else {
+        echo $field, ": left empty\n";
+    }
+}
+
+// One piece of text is the odd one out. A single zero digit counts as nothing,
+// the way it does in PHP, while a space or the text "0.0" counts as something.
+array<string> $answers = ["0", "0.0", " ", ""];
+
+foreach ($answers as string $answer) {
+    echo "\"", $answer, "\" ", $answer ? "counts" : "does not count", "\n";
+}

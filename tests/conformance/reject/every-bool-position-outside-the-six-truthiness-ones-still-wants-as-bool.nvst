@@ -1,0 +1,61 @@
+--TEST--
+The six truthiness positions are the whole list: a binding, an argument, a property, a return and an array element still want `as bool`, and a `match (true)` label is compared rather than tested — `rule:expressions/truthy-positions`, `rule:expressions/switch-match-equality`
+--FILE--
+<?nvs
+// covers: lang:types/truthiness
+// `rule:expressions/truthy-positions` closes its list at six, and the other
+// half of that sentence is what this case pins: every `bool` position outside
+// the list is an ordinary assignment, refused the way any other type mismatch
+// is. One `string` reaches five of them here, so a position that quietly grew
+// the exception loses its error.
+//
+// The `match (true)` arm is the last line for the same reason. It is not a
+// sixth-and-a-half position: `rule:expressions/switch-match-equality` compares
+// each arm against the subject, so a `string` arm against a `bool` subject is
+// `rule:expressions/disjoint-comparison-refused`'s error rather than a test.
+class Gate {
+    public bool $open = false;
+
+    public static function take(bool $flag): string {
+        if ($flag) {
+            return "open";
+        }
+        return "shut";
+    }
+
+    public static function asked(string $name): bool {
+        return $name;
+    }
+}
+
+string $name = "ada";
+
+bool $stored = $name;
+
+echo Gate::take($name), "\n";
+
+Gate $gate = new Gate();
+$gate->open = $name;
+
+array<bool> $flags = [$name];
+
+echo match (true) {
+    $name => "tested",
+    default => "compared",
+}, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0403]: this method declares `bool` but returns `string`
+%A
+error[E0401]: expected `bool`, found `string`
+%A
+error[E0401]: expected `bool`, found `string`
+%A
+error[E0401]: expected `bool`, found `string`
+%A
+error[E0401]: expected `bool`, found `string`
+%A
+error[E0466]: `bool` and `string` are disjoint; no value is both, so this comparison is always false
+%A
+error: aborting due to 6 errors
