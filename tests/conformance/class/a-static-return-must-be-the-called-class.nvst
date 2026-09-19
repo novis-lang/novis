@@ -35,6 +35,7 @@ class Leaf extends Base {
 }
 
 echo "unreachable\n";
+// covers: lang:classes/methods-self-static-and-parent
 --EXPECTF-ERROR--
 error[E0741]: a body declaring `static` returns a value that is not the called class
   --> %s:8:36

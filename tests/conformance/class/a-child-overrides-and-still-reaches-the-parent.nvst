@@ -45,6 +45,7 @@ echo $shape->describe(), "\n";
 echo $poly->describe(), "\n";
 echo $square->describe(), "\n";
 echo ($square is Polygon) as string, "|", ($square is Shape) as string, "|", ($poly is Square) as string, "|\n";
+// covers: lang:classes/methods-self-static-and-parent
 --EXPECT--
 shape blob
 shape pentagon with 5 sides

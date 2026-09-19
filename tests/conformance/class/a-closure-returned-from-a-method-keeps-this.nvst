@@ -37,6 +37,7 @@ echo Render::of(Core\Arr::filter($ns, $high->test())), "\n";
 
 $low->least = 4;
 echo Render::of(Core\Arr::filter($ns, $low->test())), "\n";
+// covers: lang:classes/methods-self-static-and-parent
 --EXPECT--
 1=2;2=3;3=4;
 3=4;

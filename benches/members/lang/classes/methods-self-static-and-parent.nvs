@@ -1,0 +1,40 @@
+<?nvs
+// Calls a method on an object, the version its parent wrote, and a static method
+// on the class. A program that puts its work in classes does this everywhere.
+// bench: iterations 400000
+// bench: calls 3
+// bench: allocations 0
+
+class Base {
+    public function constructor(public int $weight) {}
+
+    public function step(int $n): int {
+        return $n + $this->weight;
+    }
+}
+
+final class Leaf extends Base {
+    public function step(int $n): int {
+        return parent::step($n) + 1;
+    }
+
+    public static function seed(int $n): int {
+        return $n % 7;
+    }
+}
+
+class Bench {
+    public static function run(int $rounds): int {
+        var $leaf = new Leaf(3);
+        int $acc = 1;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: this round starts from what the last one returned.
+            $acc = $leaf->step($acc) + Leaf::seed($acc);
+            $i = $i + 1;
+        }
+        return $acc;
+    }
+}
+
+echo Bench::run(400000), "\n";

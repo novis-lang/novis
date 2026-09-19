@@ -1,0 +1,34 @@
+<?nvs
+// Shows the two kinds of method. An instance method works on one object through
+// `$this`. A static method belongs to the class and needs no object.
+
+class Temperature {
+    public function constructor(public readonly int $celsius) {}
+
+    // An instance method. `$this` is the object the method was called on.
+    public function isFreezing(): bool {
+        return $this->celsius <= 0;
+    }
+
+    // A static method. It has no `$this`, so everything it needs is a parameter.
+    public static function warmer(Temperature $a, Temperature $b): Temperature {
+        if ($a->celsius > $b->celsius) {
+            return $a;
+        }
+        return $b;
+    }
+}
+
+var $morning = new Temperature(-4);
+var $noon = new Temperature(11);
+
+// Only the first of these two prints a line.
+if ($morning->isFreezing()) {
+    echo "the morning is freezing\n";
+}
+if ($noon->isFreezing()) {
+    echo "the noon is freezing\n";
+}
+
+// This prints 11, which is the warmer of the two.
+echo "warmer: ", Temperature::warmer($morning, $noon)->celsius, "\n";

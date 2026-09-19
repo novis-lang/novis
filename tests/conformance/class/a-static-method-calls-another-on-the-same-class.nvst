@@ -25,6 +25,7 @@ class Nums {
 echo Nums::factorial(0), "|", Nums::factorial(1), "|", Nums::factorial(6), "|\n";
 echo Nums::fib(0), "|", Nums::fib(1), "|", Nums::fib(10), "|\n";
 echo Nums::describe(5), "\n";
+// covers: lang:classes/methods-self-static-and-parent
 --EXPECT--
 1|1|720|
 0|1|55|
