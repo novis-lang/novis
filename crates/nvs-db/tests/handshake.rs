@@ -130,6 +130,22 @@ const MYSQL_QUIET: &str = "SELECT CAST(SLEEP(0.5) AS CHAR)";
 /// is making.
 const TURN: Duration = Duration::from_millis(10);
 
+/// The handshake budget the cases that outlive one hand their driver.
+///
+/// Short where [`DEADLINE`] is generous, because those cases wait it out before
+/// they assert anything and a generous one would only make them slow. Two
+/// seconds and not an arbitrary number: it is what `nvs-cli`'s queue worker
+/// gives its own handshake, and that worker is the caller those cases exist
+/// for.
+const BRIEF: Duration = Duration::from_secs(2);
+
+/// [`QUIET`]'s twin for SQL Server, keeping that wire quiet for the same half
+/// second.
+///
+/// `WAITFOR DELAY` is what `pg_sleep` is. It answers no rows at all, so the case
+/// that runs it reads no value back and asserts on the statement having run.
+const MSSQL_QUIET: &str = "WAITFOR DELAY '00:00:00.500'";
+
 /// The published server or the socket this process was pointed at, as
 /// everything a case needs to reach it.
 ///
@@ -225,6 +241,14 @@ fn upgrades(leg: &Leg) -> bool {
 /// asserts: the two calls differ in that field alone, so what the server
 /// refuses is the credential and nothing else about the connection.
 fn connect_as(leg: &Leg, password: &str) -> io::Result<PgConn> {
+    connect_within(leg, password, DEADLINE)
+}
+
+/// [`connect_as`], with the handshake's own budget named by the caller.
+///
+/// A parameter because the case that outlives a budget has to wait one out, and
+/// [`DEADLINE`] is deliberately too generous to wait out.
+fn connect_within(leg: &Leg, password: &str, budget: Duration) -> io::Result<PgConn> {
     let target = PgTarget {
         host: &leg.host,
         user: &leg.user,
@@ -235,11 +259,7 @@ fn connect_as(leg: &Leg, password: &str) -> io::Result<PgConn> {
         statement_cache: 8,
     };
 
-    PgConn::connect(
-        leg.endpoint.clone(),
-        &target,
-        Some(Instant::now() + DEADLINE),
-    )
+    PgConn::connect(leg.endpoint.clone(), &target, Some(Instant::now() + budget))
 }
 
 /// Where the harness published `server`, as the address a driver connects to.
@@ -302,6 +322,11 @@ fn mysql() -> Option<Leg> {
 /// reason: the refused credential below differs from the accepted one in that
 /// field alone.
 fn mysql_connect_as(leg: &Leg, password: &str) -> io::Result<MySqlConn> {
+    mysql_connect_within(leg, password, DEADLINE)
+}
+
+/// [`connect_within`]'s twin on this driver.
+fn mysql_connect_within(leg: &Leg, password: &str, budget: Duration) -> io::Result<MySqlConn> {
     let target = MySqlTarget {
         host: &leg.host,
         user: &leg.user,
@@ -312,11 +337,7 @@ fn mysql_connect_as(leg: &Leg, password: &str) -> io::Result<MySqlConn> {
         statement_cache: 8,
     };
 
-    MySqlConn::connect(
-        leg.endpoint.clone(),
-        &target,
-        Some(Instant::now() + DEADLINE),
-    )
+    MySqlConn::connect(leg.endpoint.clone(), &target, Some(Instant::now() + budget))
 }
 
 /// A MySQL connection to `leg`, as a request that found the pool empty opens
@@ -417,6 +438,16 @@ const ZONE: i32 = 5_400;
 /// same reason the password is one: the two cases below differ in exactly one
 /// field each, so what the server then reports is attributable to that field.
 fn mariadb_connect_as(leg: &Leg, password: &str, time_zone: i32) -> io::Result<MariaConn> {
+    mariadb_connect_within(leg, password, time_zone, DEADLINE)
+}
+
+/// [`connect_within`]'s twin on this driver.
+fn mariadb_connect_within(
+    leg: &Leg,
+    password: &str,
+    time_zone: i32,
+    budget: Duration,
+) -> io::Result<MariaConn> {
     let target = MariaTarget {
         host: &leg.host,
         user: &leg.user,
@@ -427,11 +458,7 @@ fn mariadb_connect_as(leg: &Leg, password: &str, time_zone: i32) -> io::Result<M
         statement_cache: 8,
     };
 
-    MariaConn::connect(
-        leg.endpoint.clone(),
-        &target,
-        Some(Instant::now() + DEADLINE),
-    )
+    MariaConn::connect(leg.endpoint.clone(), &target, Some(Instant::now() + budget))
 }
 
 /// A MariaDB connection that opened, in UTC.
@@ -490,6 +517,11 @@ fn mssql() -> Option<Server> {
 /// alone, so a case that varied it would be asking this process a question
 /// rather than the server.
 fn mssql_connect_as(server: &Server, password: &str) -> io::Result<TdsConn> {
+    mssql_connect_within(server, password, DEADLINE)
+}
+
+/// [`connect_within`]'s twin on this driver.
+fn mssql_connect_within(server: &Server, password: &str, budget: Duration) -> io::Result<TdsConn> {
     let target = TdsTarget {
         host: &server.host,
         user: &server.user,
@@ -500,7 +532,7 @@ fn mssql_connect_as(server: &Server, password: &str) -> io::Result<TdsConn> {
         statement_cache: 8,
     };
 
-    TdsConn::connect(address(server), &target, Some(Instant::now() + DEADLINE))
+    TdsConn::connect(address(server), &target, Some(Instant::now() + budget))
 }
 
 /// A SQL Server connection to `server`, as a request that found the pool empty
@@ -1403,5 +1435,110 @@ fn a_mssql_bytes_binds_as_a_varbinary_and_comes_back_equal() {
         back.as_deref(),
         Some(&octets[..]),
         "the octets the server stored are not the ones that went out",
+    );
+}
+
+/// The budget a handshake was given bounds the handshake and nothing after it.
+///
+/// Every driver here files its `deadline` on the socket, so that the connect,
+/// the upgrade and the authentication round trips share one clock, and every one
+/// of them lifts that clock before handing the connection back. A connection
+/// that kept it runs statements until the instant passes and then fails every
+/// read that has to **wait** — so a caller that files no deadline of its own
+/// keeps working on an idle machine and loses its connection under load, which
+/// is a bug that reaches a deployment rather than a test suite.
+///
+/// `nvs-cli`'s queue worker is that caller: it opens one connection, never files
+/// a statement deadline, and claims on it for as long as the process runs.
+/// [`BRIEF`] is the budget it gives its own handshake.
+///
+/// [`QUIET`] and its twins are the statement because the leftover clock is only
+/// ever read by a wait — a server that sleeps before it answers is what makes
+/// this read one. The four cases are one question asked of four drivers, held
+/// together for the reason the module doc gives for holding two drivers'
+/// handshakes in one file; SQLite is not asked it, having no socket to file a
+/// clock on.
+#[test]
+fn a_connection_outlives_the_budget_its_handshake_was_given() {
+    let Some(leg) = postgres() else {
+        return;
+    };
+
+    let mut conn = connect_within(&leg, &leg.password, BRIEF)
+        .expect("the matrix server accepts a handshake on the leg the harness published");
+    std::thread::sleep(BRIEF);
+
+    let ran = conn.query(QUIET, &[]).and_then(|mut rows| {
+        while rows.next_row()?.is_some() {}
+        Ok(())
+    });
+    assert!(
+        ran.is_ok(),
+        "a statement run after the handshake's budget had passed did not reach the server, so \
+         that clock is still filed on this connection's socket: {:?}",
+        ran.err(),
+    );
+}
+
+/// [`a_connection_outlives_the_budget_its_handshake_was_given`] on MySQL.
+#[test]
+fn a_mysql_connection_outlives_the_budget_its_handshake_was_given() {
+    let Some(leg) = mysql() else {
+        return;
+    };
+
+    let mut conn = mysql_connect_within(&leg, &leg.password, BRIEF)
+        .expect("the matrix server accepts a handshake on the leg the harness published");
+    std::thread::sleep(BRIEF);
+
+    let ran = mysql_try(&mut conn, MYSQL_QUIET);
+    assert!(
+        ran.is_ok(),
+        "a statement run after the handshake's budget had passed did not reach the server, so \
+         that clock is still filed on this connection's socket: {:?}",
+        ran.err(),
+    );
+}
+
+/// [`a_connection_outlives_the_budget_its_handshake_was_given`] on MariaDB.
+#[test]
+fn a_mariadb_connection_outlives_the_budget_its_handshake_was_given() {
+    let Some(leg) = mariadb() else {
+        return;
+    };
+
+    let mut conn = mariadb_connect_within(&leg, &leg.password, 0, BRIEF)
+        .expect("the matrix server accepts a handshake on the leg the harness published");
+    std::thread::sleep(BRIEF);
+
+    let ran = conn.query(MYSQL_QUIET, &[]).and_then(|mut rows| {
+        while rows.next_row()?.is_some() {}
+        Ok(())
+    });
+    assert!(
+        ran.is_ok(),
+        "a statement run after the handshake's budget had passed did not reach the server, so \
+         that clock is still filed on this connection's socket: {:?}",
+        ran.err(),
+    );
+}
+
+/// [`a_connection_outlives_the_budget_its_handshake_was_given`] on SQL Server.
+#[test]
+fn a_mssql_connection_outlives_the_budget_its_handshake_was_given() {
+    let Some(server) = mssql() else {
+        return;
+    };
+
+    let mut conn = mssql_connect_within(&server, &server.password, BRIEF)
+        .expect("the matrix server accepts a handshake verified against its own anchor");
+    std::thread::sleep(BRIEF);
+
+    let ran = conn.execute_many(MSSQL_QUIET, &[&[]]);
+    assert!(
+        ran.is_ok(),
+        "a statement run after the handshake's budget had passed did not reach the server, so \
+         that clock is still filed on this connection's socket: {:?}",
+        ran.err(),
     );
 }
