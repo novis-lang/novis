@@ -1,0 +1,26 @@
+<?nvs
+// Removes one entry from a small table and writes it back, as a program does
+// when it drops the rows it has already handled. Each round works on the key
+// that the round before it produced.
+// bench: iterations 300000
+// bench: calls 0
+
+class Bench {
+    public static function run(int $rounds): int {
+        array<int> $rows = ["a" => 5, "b" => 9, "c" => 4, "d" => 7];
+        array<string> $keys = ["a", "b", "c", "d"];
+        int $acc = 1;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: this round's key comes out of the last round.
+            string $key = $keys[$acc % 4];
+            unset($rows[$key]);
+            $rows[$key] = $acc % 7 + 2;
+            $acc = ($acc + $rows[$key]) % 1000003;
+            $i = $i + 1;
+        }
+        return $acc;
+    }
+}
+
+echo Bench::run(300000), "\n";

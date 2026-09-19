@@ -1,0 +1,76 @@
+<?nvs
+// Attack: these statements are pushed far past the sizes a program should
+// meet. Megabytes are written. A large array is emptied and filled again. A
+// generator with no end is abandoned ten thousand times. The last step ends
+// the program with a status far outside one byte.
+// hostile: timeout-ms 30000
+// hostile: ends-early
+// covers: lang:statements/echo-print-unset-exit-yield
+
+class Attack
+{
+    // A generator with no end. The loop that reads it takes one value and
+    // walks away, so every one of these is left part way through.
+    public static function forever(int $seed): Iterator<int>
+    {
+        int $n = $seed;
+        while (true) {
+            yield $n;
+            $n = $n + 1;
+        }
+    }
+}
+
+// 1. One `echo` with ten values in it, run twenty thousand times.
+int $i = 0;
+while ($i < 20000) {
+    echo $i, ',', $i, ',', $i, ',', $i, ',', $i, "\n";
+    $i = $i + 1;
+}
+
+// 2. A text of six hundred thousand characters, measured by `echo` and by
+// `print`. Neither may copy it away.
+string $big = '';
+int $built = 0;
+while ($built < 100000) {
+    $big = $big . 'novis-';
+    $built = $built + 1;
+}
+echo Core\Str::length($big), "\n";
+print Core\Str::length($big) . "\n";
+
+// 3. Two hundred thousand entries, removed one key at a time and written
+// again, three times over. Each key is removed twice.
+array<int> $rows = [];
+int $round = 0;
+while ($round < 3) {
+    int $k = 0;
+    while ($k < 200000) {
+        $rows[$k] = $k;
+        $k = $k + 1;
+    }
+    $k = 0;
+    while ($k < 200000) {
+        unset($rows[$k]);
+        unset($rows[$k]);
+        $k = $k + 1;
+    }
+    $round = $round + 1;
+}
+echo Core\Arr::count($rows), "\n";
+
+// 4. A generator with no end, started and then abandoned ten thousand times.
+int $started = 0;
+int $sum = 0;
+while ($started < 10000) {
+    foreach (Attack::forever($started) as int $v) {
+        $sum = $sum + $v;
+        break;
+    }
+    $started = $started + 1;
+}
+echo $sum, "\n";
+
+// 5. The last step ends the program. A status is one byte, so 300 leaves the
+// process reporting 44.
+exit(300);

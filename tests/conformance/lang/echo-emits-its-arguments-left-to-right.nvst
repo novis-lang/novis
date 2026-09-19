@@ -2,6 +2,7 @@
 `echo` evaluates and emits each argument in order, so a side effect in one is visible to the next
 --FILE--
 <?nvs
+// covers: lang:statements/echo-print-unset-exit-yield
 class Tick {
     public int $n;
 
