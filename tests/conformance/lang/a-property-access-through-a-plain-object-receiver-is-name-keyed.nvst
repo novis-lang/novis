@@ -2,6 +2,7 @@
 A property access through a plain `object` receiver is keyed on the written name at run time, reads and writes, and throws on a name the concrete class does not carry — `rule:types/erased-member-access`
 --FILE--
 <?nvs
+// covers: lang:classes/object-the-top-of-every-class-type
 // `rule:types/erased-member-access`'s fully *erased* half. A receiver typed `object` carries no
 // field list at all, so the access answers `mixed` and nothing about it is
 // known until the concrete class is in hand: the fetch is keyed on the

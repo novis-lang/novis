@@ -2,6 +2,7 @@
 `object` is a declared type wherever a class name is one, erasing to the same pointer (`rule:types/conversion` and `rule:types/grammar`, `rule:types/erased-member-access`)
 --FILE--
 <?nvs
+// covers: lang:classes/object-the-top-of-every-class-type
 // `rule:types/grammar`: `object` is the opaque top of every class type. A value of
 // any class satisfies it, and it erases to exactly the pointer a named class
 // does — so every position that takes a class name takes this too.

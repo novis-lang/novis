@@ -1,0 +1,27 @@
+<?nvs
+// Reads a property through a value typed `object`, as a program does with a value
+// whose class it does not know. The name is looked up while the program runs.
+// bench: iterations 400000
+// bench: calls 0
+
+class Cell {
+    public uint $value = 1;
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Cell $cell = new Cell();
+        object $erased = $cell;
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the value read this round is the one the last round made.
+            $cell->value = $total % 7 + 1;
+            $total = $total + ($erased->value as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

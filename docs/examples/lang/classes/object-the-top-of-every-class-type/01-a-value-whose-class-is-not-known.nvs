@@ -1,0 +1,32 @@
+<?nvs
+// Shows what you can do with a value typed `object`. It holds an object of any
+// class, so a property read works and a method call needs a class name first.
+
+class Tag {
+    public function constructor(public string $text) {}
+}
+
+class Label {
+    public function constructor(public string $text) {}
+}
+
+class Pick {
+    public static function first(): object {
+        return new Tag("red");
+    }
+
+    public static function second(): object {
+        return new Label("blue");
+    }
+}
+
+object $one = Pick::first();
+object $two = Pick::second();
+
+// Both classes happen to have a property called `text`. The name is looked up
+// while the program runs, so this prints `red|blue`.
+echo $one->text as string, "|", $two->text as string, "\n";
+
+// `as Tag` says which class you mean. The result is an ordinary `Tag`.
+Tag $tag = $one as Tag;
+echo $tag->text, "\n";

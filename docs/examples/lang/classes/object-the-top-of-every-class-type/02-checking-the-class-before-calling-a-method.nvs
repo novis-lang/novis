@@ -1,0 +1,36 @@
+<?nvs
+// Shows how to call a method on a value typed `object`. `is` tests the class,
+// and inside that branch the call compiles.
+
+class Duck {
+    public function speak(): string {
+        return "quack";
+    }
+}
+
+class Robot {
+    public function beep(): string {
+        return "beep";
+    }
+}
+
+class Voice {
+    public static function of(object $thing): string {
+        // Each branch narrows the value to one class, which opens that class's
+        // methods for the branch.
+        if ($thing is Duck) {
+            return $thing->speak();
+        }
+        if ($thing is Robot) {
+            return $thing->beep();
+        }
+        return "silence";
+    }
+}
+
+class Stone {}
+
+// This prints one line for each value.
+echo Voice::of(new Duck()), "\n";
+echo Voice::of(new Robot()), "\n";
+echo Voice::of(new Stone()), "\n";
