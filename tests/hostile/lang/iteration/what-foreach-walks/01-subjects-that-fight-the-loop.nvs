@@ -1,0 +1,154 @@
+<?nvs
+// Attack: a program gives `foreach` the worst subjects it can build. A loop grows the array
+// it walks. Two loops share one cursor. An object throws while a loop reads it. A loop runs
+// half a million steps and breaks out. The last step fills the memory and stops the program.
+// The runtime should stay standing.
+// covers: lang:iteration/what-foreach-walks
+// hostile: timeout-ms 20000
+// hostile: ends-early
+
+class Shared implements Iterable<int>, Iterator<int>
+{
+    private int $i = -1;
+
+    // Every loop over this object gets the same cursor, because `iterate()` returns the
+    // object itself instead of a fresh iterator.
+    public function iterate(): Iterator<int>
+    {
+        return $this;
+    }
+
+    public function advance(): bool
+    {
+        $this->i = $this->i + 1;
+        return $this->i < 3;
+    }
+
+    public function current(): int
+    {
+        return $this->i;
+    }
+}
+
+class Angry implements Iterator<int>
+{
+    private int $i = -1;
+
+    public function constructor(private int $breakAt)
+    {}
+
+    public function advance(): bool
+    {
+        $this->i = $this->i + 1;
+        if ($this->i == $this->breakAt) {
+            throw new LogicError('this iterator stopped answering');
+        }
+        return true;
+    }
+
+    public function current(): int
+    {
+        if ($this->i == $this->breakAt + 1) {
+            throw new LogicError('this iterator has no value here');
+        }
+        return $this->i;
+    }
+}
+
+class Forever implements Iterable<int>
+{
+    public function iterate(): Iterator<int>
+    {
+        int $i = 0;
+        while (true) {
+            yield $i;
+            $i = $i + 1;
+        }
+    }
+}
+
+class Doubling implements Iterable<string>
+{
+    public function constructor(private string $seed)
+    {}
+
+    public function iterate(): Iterator<string>
+    {
+        string $s = $this->seed;
+        while (true) {
+            yield $s;
+            $s = $s . $s;
+        }
+    }
+}
+
+// 1. The loop adds to the array it is walking, so a loop over three values could run forever.
+try {
+    array<int> $grow = [1, 2, 3];
+    int $steps = 0;
+    foreach ($grow as int $v) {
+        $grow[] = $v + 10;
+        $steps = $steps + 1;
+    }
+    echo '1: ', $steps, ' step(s), the array now holds ', Core\Arr::count($grow), "\n";
+} catch (Throwable $e) {
+    echo '1: caught ', $e->message, "\n";
+}
+
+// 2. Two loops over one object share a single cursor, and the inner loop is entered again
+// after the cursor is already spent.
+try {
+    var $shared = new Shared();
+    string $out = '';
+    foreach ($shared as int $outer) {
+        foreach ($shared as int $inner) {
+            $out = $out . $outer . $inner . ';';
+        }
+    }
+    echo '2: ', $out, "(end)\n";
+} catch (Throwable $e) {
+    echo '2: caught ', $e->message, "\n";
+}
+
+// 3. The subject throws while the loop moves to the next step, and then while the loop
+// reads a value.
+try {
+    foreach (new Angry(2) as int $v) {
+        echo '3: ', $v, "\n";
+    }
+    echo "3: the loop ended\n";
+} catch (Throwable $e) {
+    echo '3: caught ', $e->message, "\n";
+}
+try {
+    foreach (new Angry(-1) as int $v) {
+        echo '3: ', $v, "\n";
+    }
+    echo "3: the loop ended\n";
+} catch (Throwable $e) {
+    echo '3: caught ', $e->message, "\n";
+}
+
+// 4. A subject with no end runs half a million steps before the loop breaks out of it.
+try {
+    int $seen = 0;
+    foreach (new Forever() as int $v) {
+        $seen = $seen + 1;
+        if ($seen == 500000) {
+            break;
+        }
+    }
+    echo '4: broke out after ', $seen, " step(s)\n";
+} catch (Throwable $e) {
+    echo '4: caught ', $e->message, "\n";
+}
+
+// 5. A subject with no end doubles its text every step, and the loop keeps every value.
+// The texts fill the memory, so this step ends the program.
+array<string> $kept = [];
+int $n = 0;
+foreach (new Doubling('0123456789abcdef') as string $chunk) {
+    $kept[] = $chunk;
+    $n = $n + 1;
+}
+echo '5: kept ', $n, "\n";

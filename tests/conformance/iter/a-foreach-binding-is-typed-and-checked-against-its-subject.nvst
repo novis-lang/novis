@@ -1,0 +1,34 @@
+--TEST--
+A `foreach` binding declares the type of every value it reads, and a binding that disagrees with the subject is a compile error over an array and over an `Iterator<T>` alike — `rule:iteration/foreach-subjects`
+--FILE--
+<?nvs
+// covers: lang:iteration/what-foreach-walks
+class Steps {
+    public static function upto(int $n): Iterator<int> {
+        int $i = 0;
+        while ($i < $n) {
+            yield $i;
+            $i = $i + 1;
+        }
+    }
+}
+
+// The array holds `string`, so binding its values as `int` is refused at the binding.
+array<string> $names = ["Ada", "Bob"];
+foreach ($names as int $n) {
+    echo $n, "\n";
+}
+
+// The cursor gives `int`, so binding its values as `string` is refused the same way: the
+// check reaches the cursor forms and not the array form alone.
+foreach (Steps::upto(3) as string $s) {
+    echo $s, "\n";
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `int`, found `string`
+%A
+error[E0401]: expected `string`, found `int`
+%A
+error: aborting due to 2 errors
