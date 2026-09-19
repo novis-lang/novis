@@ -1,0 +1,15 @@
+<?nvs
+// Your program can have a class called `Json` of its own. A name with a `\`
+// in it is read from the very beginning, so `Core\Json` still means the one
+// Novis ships, and the short name still means yours.
+
+namespace App\Billing;
+
+class Json {
+    public static function forInvoice(int $number, int $totalCents): string {
+        return Core\Json::encode({invoice: $number, total: $totalCents});
+    }
+}
+
+echo Json::forInvoice(1042, 5990), "\n";
+echo Core\Json::encode({ok: 1}), "\n";

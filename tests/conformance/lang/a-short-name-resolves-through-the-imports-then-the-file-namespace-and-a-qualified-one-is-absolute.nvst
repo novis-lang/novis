@@ -1,0 +1,38 @@
+--TEST--
+A short name is looked up in the file's `use` imports and then in the file's own namespace, a name holding a `\` is read from the root whatever the file's namespace and imports are, and a class declared under the file's namespace with a built-in's short name leaves that built-in reachable by its full name (`rule:statements/a-qualified-name-is-absolute`, `rule:statements/no-fallback-to-the-root-namespace`)
+--FILE--
+<?nvs
+// covers: lang:programs/namespaces-and-use
+namespace App\Billing;
+
+use Core\Str;
+use Core\Arr;
+
+// This class is `App\Billing\Json`, and it shares its short name with the
+// built-in `Core\Json` it calls.
+class Json {
+    public static function forInvoice(int $number): string {
+        return Core\Json::encode({invoice: $number});
+    }
+}
+
+// `rule:statements/a-qualified-name-is-absolute`, second half: a name with no
+// separator is looked up in the imports, then in the enclosing namespace. No
+// import introduces `Json`, so this is `App\Billing\Json`.
+echo Json::forInvoice(7), "\n";
+
+// First half: a name holding a separator is the fully-qualified name. The
+// same class, and then the built-in the short name does not reach.
+echo App\Billing\Json::forInvoice(8), "\n";
+echo Core\Json::encode({ok: 1}), "\n";
+
+// The imports answer their own short names, and the full name answers whether
+// it was imported or not.
+echo Str::upper("a"), " ", Arr::count([1, 2, 3]), "\n";
+echo Core\Str::lower("B"), "\n";
+--EXPECT--
+{"invoice":7}
+{"invoice":8}
+{"ok":1}
+A 3
+b

@@ -1,0 +1,61 @@
+<?nvs
+// Attack: a file that takes every name in the language away from Novis. The
+// namespace is forty segments deep, the classes are named after the ones Novis
+// ships, and one of them is called `Core`. A name written with a `\` in it is
+// still read from the very beginning, so the built-ins have to keep answering
+// and the program has to run to the end.
+// hostile: timeout-ms 20000
+
+namespace S01\S02\S03\S04\S05\S06\S07\S08\S09\S10\S11\S12\S13\S14\S15\S16\S17\S18\S19\S20\S21\S22\S23\S24\S25\S26\S27\S28\S29\S30\S31\S32\S33\S34\S35\S36\S37\S38\S39\S40;
+
+// Classes carrying the names of built-ins. The short name has to mean these.
+class Str
+{
+    public static function upper(string $text): string
+    {
+        return 'not the real one: ' . $text;
+    }
+}
+
+class Arr
+{
+    public static function count(array<int> $values): int
+    {
+        return -1;
+    }
+}
+
+class Json
+{
+    public static function encode(int $value): string
+    {
+        return 'not json';
+    }
+}
+
+// A class called `Core`, which is the one prefix a program may not declare
+// under. Declaring a class of that name is a different thing and is allowed.
+class Core
+{
+    public static function str(): string
+    {
+        return 'not the namespace';
+    }
+}
+
+array<int> $values = [1, 2, 3];
+
+// The shadowing classes answer for the short names.
+echo Str::upper('a'), "\n";
+echo Arr::count($values), "\n";
+echo Json::encode(7), "\n";
+echo Core::str(), "\n";
+
+// The built-ins answer for the full names, standing right beside them.
+echo Core\Str::upper('a'), "\n";
+echo Core\Arr::count($values), "\n";
+echo Core\Json::encode($values), "\n";
+
+// The file's own classes, written out in full, forty segments and all.
+echo S01\S02\S03\S04\S05\S06\S07\S08\S09\S10\S11\S12\S13\S14\S15\S16\S17\S18\S19\S20\S21\S22\S23\S24\S25\S26\S27\S28\S29\S30\S31\S32\S33\S34\S35\S36\S37\S38\S39\S40\Str::upper('b'), "\n";
+echo S01\S02\S03\S04\S05\S06\S07\S08\S09\S10\S11\S12\S13\S14\S15\S16\S17\S18\S19\S20\S21\S22\S23\S24\S25\S26\S27\S28\S29\S30\S31\S32\S33\S34\S35\S36\S37\S38\S39\S40\Core::str(), "\n";

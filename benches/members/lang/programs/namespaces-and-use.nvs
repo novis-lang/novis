@@ -1,0 +1,34 @@
+<?nvs
+// One class called two ways in one loop: by the short name an import brings
+// in, and written out in full. Which way a name is written is settled while
+// the program is compiled, so both should cost the same.
+// bench: iterations 2000000
+// bench: allocations 0
+
+namespace App\Billing;
+
+use App\Billing\Totals;
+
+class Totals {
+    public static function add(int $runningTotal, int $amount): int {
+        return $runningTotal + $amount;
+    }
+}
+
+class Bench {
+    public static function run(int $rounds): int {
+        int $total = 0;
+        int $i = 0;
+
+        while ($i < $rounds) {
+            // Each call feeds the next one, so neither can be dropped.
+            $total = Totals::add($total, 1);
+            $total = App\Billing\Totals::add($total, 2);
+            $i = $i + 1;
+        }
+
+        return $total;
+    }
+}
+
+echo Bench::run(2000000), "\n";

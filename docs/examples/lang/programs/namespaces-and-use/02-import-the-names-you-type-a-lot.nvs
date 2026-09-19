@@ -1,0 +1,18 @@
+<?nvs
+// A `use` import lets you write a long name short. It covers the whole file
+// and introduces one name, under the last part of the path.
+
+namespace App;
+
+use Core\Str;
+use Core\Arr;
+
+array<string> $words = ["order", "invoice", "receipt"];
+
+// `Str` and `Arr` are the imports above.
+echo Str::upper($words[0]), "\n";
+echo Arr::count($words), "\n";
+
+// You never have to import anything. A name written out in full works the
+// same, imported or not.
+echo Core\Str::lower("QUIET"), "\n";

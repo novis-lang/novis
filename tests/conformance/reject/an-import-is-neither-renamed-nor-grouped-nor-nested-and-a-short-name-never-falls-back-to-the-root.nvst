@@ -1,0 +1,45 @@
+--TEST--
+`use X as Y` and PHP's group form `use A\{B, C}` are each refused, a `use` inside a function body is refused because what a name resolves to may not depend on control flow, a leading `\` does not parse since a name holding a separator is already absolute, and a short name naming nothing in the imports or the file's own namespace is reported rather than falling back to the root (`rule:statements/nothing-gets-a-second-name`, `rule:statements/a-leading-separator-does-not-parse`, `rule:statements/no-fallback-to-the-root-namespace`)
+--FILE--
+<?nvs
+// covers: lang:programs/namespaces-and-use
+namespace App;
+
+// `rule:statements/nothing-gets-a-second-name`: an import introduces one name
+// under the short name its path ends in, and gives it no second spelling.
+use Core\Str as S;
+
+// One `use` per name — the group form names several and is refused whole.
+use Core\{Arr, Json};
+
+class Holder {
+    public static function run(): int {
+        // An import is file-level, so this one would only take effect once
+        // control reached it.
+        use Core\Str;
+        return 1;
+    }
+}
+
+// `rule:statements/a-leading-separator-does-not-parse`: a name with a `\` in
+// it is already read from the root, so a leading one disambiguates nothing.
+echo \Core\Str::upper("a"), "\n";
+
+// `rule:statements/no-fallback-to-the-root-namespace`: `Helper` is in neither
+// the imports nor `App`, and the lookup stops there rather than reaching a
+// `Helper` declared outside any namespace.
+echo Helper::run(), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0212]: an import cannot be renamed
+%A
+error[E0238]: an import cannot name a group of names
+%A
+error[E0233]: a nested `use` declaration is not supported
+%A
+error[E0240]: a name is already absolute
+%A
+error[E0303]: `App\Helper` is not declared
+%A
+error: aborting due to 5 errors
