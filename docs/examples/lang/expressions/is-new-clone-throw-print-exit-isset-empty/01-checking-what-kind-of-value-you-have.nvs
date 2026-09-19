@@ -1,0 +1,36 @@
+<?nvs
+// Shows how `$x is T` checks what kind of value you have right now. Inside
+// the branch where the check is true, the compiler knows the type. You can
+// read the value there without converting it first.
+
+class Temperature {
+    public function constructor(public float $celsius) {}
+}
+
+class Report {
+    public static function line(mixed $reading): string {
+        if ($reading is Temperature) {
+            // Here `$reading` is a `Temperature`, so its property is readable.
+            return "temperature " . $reading->celsius;
+        }
+        if ($reading is int) {
+            return "count " . $reading;
+        }
+        if ($reading is string) {
+            return "note " . $reading;
+        }
+        return "unknown reading";
+    }
+}
+
+// This prints: temperature 21.5
+echo Report::line(new Temperature(21.5)), "\n";
+
+// This prints: count 3
+echo Report::line(3), "\n";
+
+// This prints: note warm
+echo Report::line("warm"), "\n";
+
+// This prints: unknown reading
+echo Report::line(true), "\n";

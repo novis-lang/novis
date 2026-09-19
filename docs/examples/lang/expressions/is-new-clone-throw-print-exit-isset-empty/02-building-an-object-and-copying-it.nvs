@@ -1,0 +1,36 @@
+<?nvs
+// Shows `new` and `clone`. `new` builds an object. `clone` makes a shallow
+// copy: numbers, text and arrays are copied, and an object held in a
+// property is shared between the original and the copy.
+
+class Address {
+    public function constructor(public string $city) {}
+}
+
+class Customer {
+    public array<string> $tags = [];
+
+    public function constructor(
+        public string $name,
+        public Address $address,
+    ) {}
+}
+
+Customer $original = new Customer("Ada", new Address("Berlin"));
+$original->tags[] = "vip";
+
+Customer $copy = clone $original;
+$copy->name = "Grace";
+$copy->tags[] = "trial";
+$copy->address->city = "Hamburg";
+
+// The name and the tag list were copied, so the original still has its own.
+// This prints: Ada vip
+echo $original->name, " ", Core\Str::join($original->tags, ","), "\n";
+
+// This prints: Grace vip,trial
+echo $copy->name, " ", Core\Str::join($copy->tags, ","), "\n";
+
+// The address is one object that both of them point at, so writing the
+// city through the copy changes what the original reads: Hamburg Hamburg
+echo $original->address->city, " ", $copy->address->city, "\n";

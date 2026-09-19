@@ -2,6 +2,7 @@
 `clone` of an array is refused — `rule:classes/clone-is-shallow` makes it a new instance of the operand's class, and an array names none
 --FILE--
 <?nvs
+// covers: lang:expressions/is-new-clone-throw-print-exit-isset-empty
 // An `array<T>` is already copied when it is assigned (`rule:programs/memory-priority`'s
 // copy-on-write), so this is not a missing feature: there is nothing for
 // `clone` to do that the assignment on the line below does not already do.

@@ -2,6 +2,7 @@
 `isset(...)` is `!= null` over a local, a `mixed`, a property, an element and a chain, and a list of operands is a short-circuiting conjunction — `rule:classes/unset-is-refused-on-a-property`, `rule:php-migration/every-divergence-is-deliberate-and-listed` row 11
 --FILE--
 <?nvs
+// covers: lang:expressions/is-new-clone-throw-print-exit-isset-empty
 final class Counter {
     public int $reads = 0;
     public ?string $tag;

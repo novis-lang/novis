@@ -1,0 +1,63 @@
+--TEST--
+Each of `is`, `new`, `clone`, `throw`, `print`, `exit`, `isset` and `empty` fills a position only an expression can fill — an operand of `&&` or `+`, a call argument, the right of `??`, a ternary arm — and the eleven of them are counted rather than read off one line, `rule:expressions/truthy-table`, `rule:php-migration/absent-storage-is-never-a-zero-value`
+--FILE--
+<?nvs
+// covers: lang:expressions/is-new-clone-throw-print-exit-isset-empty
+// Each of these eight forms is an expression, so each is written here in a
+// position only an expression can fill: an operand of `&&` or `+`, a call
+// argument, the right of `??`, an arm of a ternary. The tally is counted
+// rather than read off one line, so a form that stopped composing fails
+// here even while it still works as a statement.
+class Inner { public int $v = 2; }
+class Outer {
+    public Inner $in;
+    public array<int> $list = [];
+    public function constructor() { $this->in = new Inner(); $this->list[] = 1; }
+}
+class Take {
+    public static function count(Outer $o): int { return Core\Arr::count($o->list) as int; }
+}
+
+int $score = 0;
+mixed $m = new Inner();
+
+// `is` as an operand of `&&`, and `new` as a call argument.
+if ($m is Inner && Take::count(new Outer()) == 1) { $score = $score + 1; }
+
+// `clone` as a call argument.
+Outer $orig = new Outer();
+if (Take::count(clone $orig) == 1) { $score = $score + 1; }
+
+// `isset` and `empty` as ternary conditions, over the five storage shapes
+// that answer differently.
+?int $none = null;
+array<?int> $arr = ["k" => null, "j" => 1];
+$score = $score + (isset($arr["j"]) ? 1 : 0);
+$score = $score + (isset($arr["k"]) ? 0 : 1);
+$score = $score + (isset($arr["zz"]) ? 0 : 1);
+$score = $score + (isset($none) ? 0 : 1);
+$score = $score + (empty($arr["zz"]) ? 1 : 0);
+
+// `print` gives 1, so it is an operand of `+`.
+$score = $score + print "";
+
+// `throw` on the right of `??`, of `||` and in an arm of a ternary.
+?string $absent = null;
+try { string $a = $absent ?? throw new LogicError("one"); echo $a; }
+catch (LogicError $first) { $score = $score + 1; }
+try { bool $b = false || throw new LogicError("two"); echo $b as string; }
+catch (LogicError $second) { $score = $score + 1; }
+try { int $c = $score > 0 ? throw new LogicError("three") : 0; echo $c; }
+catch (LogicError $third) { $score = $score + 1; }
+
+// Eleven positions, eleven points.
+echo "score=", $score, "\n";
+
+// `exit` is an expression as well, on the right of `??`, and it ends the
+// program where it stands.
+?string $missing = null;
+string $end = $missing ?? exit("stopped\n");
+echo "unreachable ", $end, "\n";
+--EXPECT--
+score=11
+stopped

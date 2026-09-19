@@ -1,0 +1,127 @@
+<?nvs
+// Attack: these eight expressions build objects, copy them and stop the
+// program. This one builds and copies far more than any request does. It
+// also makes two objects point at each other, and throws out of a `??`
+// chain fifty thousand times. Nothing may crash, hang or lose memory.
+// hostile: timeout-ms 30000
+// covers: lang:expressions/is-new-clone-throw-print-exit-isset-empty
+
+class Node
+{
+    public ?Node $next = null;
+    public array<int> $load = [];
+
+    public function constructor(public int $id)
+    {
+        $this->load[] = $id;
+    }
+}
+
+class Attack
+{
+    // 1. Objects built and thrown away one after another, so the memory of
+    // every round has to come back before the next one.
+    public static function churn(int $rounds): int
+    {
+        int $live = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            Node $node = new Node($i);
+            $live = $live + $node->id % 2;
+            $i = $i + 1;
+        }
+        return $live;
+    }
+
+    // 2. Copies kept in an array, each with the same object in its `next`
+    // property. All of them point at that one object at once.
+    public static function copies(int $rounds): int
+    {
+        Node $shared = new Node(-1);
+        Node $source = new Node(0);
+        $source->next = $shared;
+        array<Node> $kept = [];
+        int $i = 0;
+        while ($i < $rounds) {
+            Node $copy = clone $source;
+            $copy->id = $i;
+            $kept[] = $copy;
+            $i = $i + 1;
+        }
+        return Core\Arr::count($kept) as int;
+    }
+
+    // 3. Two objects that point at each other, copied and then dropped.
+    // Nothing else points at them, so both have to be collected.
+    public static function rings(int $rounds): int
+    {
+        int $made = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            Node $left = new Node($i);
+            Node $right = new Node($i + 1);
+            $left->next = $right;
+            $right->next = $left;
+            Node $copy = clone $left;
+            $made = $made + $copy->id % 2;
+            $i = $i + 1;
+        }
+        return $made;
+    }
+
+    // 4. A value whose type changes every round, tested against five types
+    // in a row, so no test can be settled once and reused.
+    public static function tests(int $rounds): int
+    {
+        int $hits = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            mixed $value = match ($i % 4) {
+                0 => 1,
+                1 => 'text',
+                2 => 2.5,
+                default => new Node($i),
+            };
+            if ($value is int) { $hits = $hits + 1; }
+            if ($value is string) { $hits = $hits + 1; }
+            if ($value is float) { $hits = $hits + 1; }
+            if ($value is Node) { $hits = $hits + 1; }
+            if ($value is bool) { $hits = $hits + 1; }
+            $i = $i + 1;
+        }
+        return $hits;
+    }
+
+    // 5. A missing key on the right of `??`, so every round builds an error,
+    // throws it and catches it again.
+    public static function throws(int $rounds): int
+    {
+        array<?string> $empty = [];
+        int $caught = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            try {
+                string $v = $empty['gone'] ?? throw new LogicError('missing');
+                echo $v;
+            } catch (LogicError $e) {
+                $caught = $caught + 1;
+            }
+            $i = $i + 1;
+        }
+        return $caught;
+    }
+}
+
+echo Attack::churn(1000000), "\n";
+echo Attack::copies(400000), "\n";
+echo Attack::rings(200000), "\n";
+echo Attack::tests(200000), "\n";
+echo Attack::throws(50000), "\n";
+
+// A value printed with `print`, which gives `1`, inside an expression.
+int $printed = 1 + print "printed\n";
+echo $printed, "\n";
+
+// `exit` ends the program here, so nothing after it runs.
+exit(0);
+echo "unreachable\n";

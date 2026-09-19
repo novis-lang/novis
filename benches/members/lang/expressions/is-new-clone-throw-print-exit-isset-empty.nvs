@@ -1,0 +1,36 @@
+<?nvs
+// A request tests values far more often than it builds them: what kind of
+// value is in a `mixed`, whether a setting is there, whether it is empty.
+// This measures those three tests, once each per round. Every round uses
+// the number the round before it produced.
+// bench: iterations 400000
+// bench: allocations 0
+// bench: calls 0
+
+class Probe {
+    public static function run(int $rounds): int {
+        ?string $host = "db.internal";
+        string $label = "";
+        mixed $value = 1;
+        int $acc = 1;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: this round's subject comes out of the last round.
+            $value = $acc;
+            if ($value is int) {
+                $acc = $acc + 3;
+            }
+            if (isset($host)) {
+                $acc = $acc + 5;
+            }
+            if (empty($label)) {
+                $acc = $acc + 7;
+            }
+            $acc = $acc % 1000003;
+            $i = $i + 1;
+        }
+        return $acc;
+    }
+}
+
+echo Probe::run(400000), "\n";

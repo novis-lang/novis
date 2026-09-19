@@ -1,0 +1,40 @@
+<?nvs
+// Shows how a program reads settings that may be missing. `isset` is true
+// when a key is there and its value is not `null`. `empty` is true when the
+// value is false by the truth table, so `""` is empty too. `throw` is an
+// expression, so it can sit on the right of `??`.
+
+class Config {
+    public static function start(array<?string> $settings): void {
+        // A required setting. `??` gives the value when the key is there,
+        // and throws when it is missing or `null`.
+        string $host = $settings["host"] ?? throw new LogicError("host is required");
+        echo "connecting to ", $host, "\n";
+
+        // An optional setting, with the default written after `??`.
+        string $port = $settings["port"] ?? "5432";
+        echo "port ", $port, "\n";
+
+        // `isset` tests a key without reading it, and reading it afterwards
+        // is safe because the key is known to hold text.
+        if (isset($settings["user"])) {
+            echo "user ", $settings["user"], "\n";
+        }
+
+        // `empty` is true for a key that is missing and for one that is `""`.
+        if (empty($settings["label"])) {
+            echo "no label\n";
+        }
+    }
+}
+
+// This prints four lines: connecting to db.internal, port 5432, user ada,
+// no label.
+Config::start(["host" => "db.internal", "user" => "ada", "label" => ""]);
+
+try {
+    Config::start(["port" => "6000"]);
+} catch (LogicError $e) {
+    // This prints: not started: host is required
+    echo "not started: ", $e->message, "\n";
+}

@@ -2436,6 +2436,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   at once, and `dossier.py --verify` then reports the group as owing perf, which reads exactly like a
   bench nobody wrote. Run `python tools/dossier.py --record-perf --group <group>` after any edit to a
   reference chapter the goal's features live in, before the wrap. [until: reviewed 2026-09-19]
+- **`python tools/dossier.py --record-perf --force` widens the scope past the `--id` beside it and
+  re-measures every bench whose figure is current, appending a row for each.** One call meant to
+  refresh a single rewritten bench appended thirty-nine rows to `docs/perf/members.ndjson`, which is
+  append-only, so there is no narrower undo than `git checkout -- docs/perf/members.ndjson`. Revert
+  the ledger and re-run `--record-perf --id <feature>` without `--force`: the figure is missing
+  again after the revert, so it measures without being forced to. [until: reviewed 2026-09-19]
 
 ## Running things
 
