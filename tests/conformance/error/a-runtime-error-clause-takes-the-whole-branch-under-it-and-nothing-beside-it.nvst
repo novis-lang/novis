@@ -1,0 +1,88 @@
+--TEST--
+A `RuntimeError` clause takes every one of the seven classes below it, including the three whose names are namespaced, and none of the three on the other half — both sides counted rather than read off one arm — and the value it binds keeps the narrow name it was thrown under — spec § 10
+--FILE--
+<?nvs
+// covers: RuntimeError
+// `RuntimeError` is the half of the tree the world raises, and a program that
+// writes one clause for all of it is relying on the branch being complete. What
+// this pins is that completeness from both sides by counting: a class that grew
+// a parent outside the branch, and one that quietly joined it, each change a
+// number here while every individual line still reads plausibly.
+use Core\Cli\NotInteractive;
+use Core\Db\DbError;
+use Core\Db\RolledBack;
+use Core\Test\Failure;
+
+final class Branch {
+    public static function raise(string $kind): void {
+        if ($kind == "io") { throw new IOError("io"); }
+        if ($kind == "parse") { throw new ParseError("parse"); }
+        if ($kind == "timeout") { throw new TimeoutError("timeout"); }
+        if ($kind == "recursion") { throw new RecursionError("recursion"); }
+        if ($kind == "prompt") { throw new NotInteractive("prompt"); }
+        if ($kind == "rolledback") { throw new RolledBack("rolled back"); }
+        throw new DbError("db");
+    }
+
+    // The four global classes and the three namespaced ones. The namespaced
+    // half is the part worth counting: those rows are in the tree rather than
+    // in the registry, so nothing but this says a `catch` reaches them.
+    public static function taken(): uint {
+        array<string> $kinds = ["io", "parse", "timeout", "recursion", "prompt", "rolledback", "db"];
+        uint $taken = 0;
+        foreach ($kinds as string $kind) {
+            try {
+                Branch::raise($kind);
+            } catch (RuntimeError $theWorld) {
+                $taken = $taken + 1;
+            } catch (Throwable $elsewhere) {
+            }
+        }
+        return $taken;
+    }
+
+    public static function other(string $kind): void {
+        if ($kind == "logic") { throw new LogicError("logic"); }
+        if ($kind == "math") { throw new ArithmeticError("math"); }
+        throw new Failure("check");
+    }
+
+    // The bound from outside: the three classes that hang off the root beside
+    // this branch must all miss, so a clause written for the world saying no
+    // never quietly swallows a bug or a failed check.
+    public static function missed(): uint {
+        array<string> $kinds = ["logic", "math", "check"];
+        uint $missed = 0;
+        foreach ($kinds as string $kind) {
+            try {
+                Branch::other($kind);
+            } catch (RuntimeError $wrong) {
+            } catch (Throwable $right) {
+                $missed = $missed + 1;
+            }
+        }
+        return $missed;
+    }
+
+    // Catching wide does not make the value wide: what the clause binds is
+    // still the class that was thrown, so a handler can widen its `catch` and
+    // narrow again inside it.
+    public static function keepsItsName(): string {
+        try {
+            throw new IOError("the report file went away");
+        } catch (RuntimeError $caught) {
+            if ($caught is IOError) {
+                return "still an IOError";
+            }
+            return "widened to " . $caught->message;
+        }
+    }
+}
+
+echo Branch::taken(), "\n";
+echo Branch::missed(), "\n";
+echo Branch::keepsItsName(), "\n";
+--EXPECT--
+7
+3
+still an IOError

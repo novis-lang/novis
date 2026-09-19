@@ -1,0 +1,29 @@
+<?nvs
+// A program raises this itself when something outside it refused. Here the
+// rate for a currency is not one the provider sends, which is nothing the code
+// can fix, so the caller is told rather than left with a wrong number.
+
+final class Rates {
+    public static function forCurrency(string $code): int {
+        array<string> $known = ["EUR", "GBP", "CHF"];
+        array<int> $perThousand = [1000, 1183, 1067];
+        int $row = 0;
+        while ($row < 3) {
+            if ($known[$row] == $code) {
+                return $perThousand[$row];
+            }
+            $row = $row + 1;
+        }
+        throw new RuntimeError("no rate for " . $code . " in today's feed");
+    }
+}
+
+array<string> $wanted = ["GBP", "SEK"];
+foreach ($wanted as string $code) {
+    try {
+        int $rate = Rates::forCurrency($code);
+        echo $code, ": ", $rate, "\n";
+    } catch (RuntimeError $noRate) {
+        echo $code, ": ", $noRate->message, "\n";
+    }
+}

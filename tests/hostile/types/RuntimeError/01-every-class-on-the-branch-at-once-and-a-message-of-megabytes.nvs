@@ -1,0 +1,90 @@
+<?nvs
+// Attack: raise every class on this branch hundreds of thousands of times into
+// a single clause, carry a message of several megabytes on one failure, and
+// climb out of a deep chain that swaps the class at every level. The walk that
+// decides whether a clause matches, and whatever holds the message, are what
+// this is aimed at.
+// hostile: timeout-ms 30000
+
+use Core\Cli\NotInteractive;
+use Core\Db\DbError;
+use Core\Db\RolledBack;
+
+final class Wide
+{
+    // Seven classes in turn, one clause for all of them, so every round makes
+    // the matcher walk a different distance to the same answer.
+    public static function everyKind(int $rounds): uint
+    {
+        uint $caught = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            try {
+                int $which = $i % 7;
+                if ($which == 0) { throw new IOError('io'); }
+                if ($which == 1) { throw new ParseError('parse'); }
+                if ($which == 2) { throw new TimeoutError('timeout'); }
+                if ($which == 3) { throw new RecursionError('recursion'); }
+                if ($which == 4) { throw new NotInteractive('prompt'); }
+                if ($which == 5) { throw new RolledBack('rolled back'); }
+                throw new DbError('db');
+            } catch (RuntimeError $theWorld) {
+                // The message is read, so a run cannot pass by never building one.
+                $caught = $caught + Core\Str::length($theWorld->message);
+            }
+            $i = $i + 1;
+        }
+        return $caught;
+    }
+
+    // One failure carrying megabytes of text, thrown across a frame and read on
+    // the other side.
+    public static function hugeMessage(uint $doublings): uint
+    {
+        string $text = 'the provider said no. ';
+        uint $done = 0;
+        while ($done < $doublings) {
+            $text = $text . $text;
+            $done = $done + 1;
+        }
+        try {
+            throw new RuntimeError($text);
+        } catch (RuntimeError $enormous) {
+            return Core\Str::length($enormous->message);
+        }
+    }
+
+    // Every level catches what the level under it threw and raises a different
+    // class of the same branch, so the chain holds a live failure per frame and
+    // no two neighbours are the same class.
+    public static function swap(int $depth): string
+    {
+        if ($depth == 0) {
+            throw new IOError('the bottom');
+        }
+        try {
+            return Wide::swap($depth - 1);
+        } catch (RuntimeError $rising) {
+            if ($depth % 3 == 0) { throw new TimeoutError($rising->message); }
+            if ($depth % 3 == 1) { throw new ParseError($rising->message); }
+            throw new IOError($rising->message);
+        }
+    }
+}
+
+echo Wide::everyKind(400000), "\n";
+echo Wide::hugeMessage(18), "\n";
+
+try {
+    echo Wide::swap(2000), "\n";
+} catch (RuntimeError $out) {
+    echo "the swap chain ended\n";
+}
+
+// And deeper than the call stack allows, so the limit fires with every one of
+// those frames still to unwind.
+try {
+    echo Wide::swap(200000), "\n";
+} catch (Throwable $gaveUp) {
+    echo "the deep chain ended\n";
+}

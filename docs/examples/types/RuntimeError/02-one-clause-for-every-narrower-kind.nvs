@@ -1,0 +1,33 @@
+<?nvs
+// Under this name sit the narrower ones: a file that failed, a document that
+// would not parse, a wait that ran out. A handler that treats them all the same
+// way writes one clause and catches the lot, and the binding still says which
+// kind actually arrived.
+
+final class Intake {
+    public static function step(string $stage): string {
+        try {
+            if ($stage == "upload") {
+                throw new IOError("the upload was cut off");
+            }
+            if ($stage == "document") {
+                var $rows = Core\Json::decode("[1, 2,");
+                return "parsed";
+            }
+            if ($stage == "provider") {
+                throw new TimeoutError("the provider took too long");
+            }
+            return "done";
+        } catch (RuntimeError $failed) {
+            if ($failed is ParseError) {
+                return "rejected: the file was not valid JSON";
+            }
+            return "retry later: " . $failed->message;
+        }
+    }
+}
+
+echo Intake::step("upload"), "\n";
+echo Intake::step("document"), "\n";
+echo Intake::step("provider"), "\n";
+echo Intake::step("finish"), "\n";
