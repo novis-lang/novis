@@ -1,0 +1,59 @@
+<?nvs
+// Attack: one job per element over an array of eight thousand elements. A map is
+// started inside every job of another map. One job throws while thousands of siblings
+// still run. The runtime must stay standing.
+// covers: lang:concurrency/core-task-map-one-task-per-element
+// hostile: timeout-ms 60000
+
+class Rows
+{
+    public static function build(uint $count): array<int>
+    {
+        array<int> $rows = [];
+        uint $i = 0;
+        while ($i < $count) {
+            $rows[] = $i as int;
+            $i = $i + 1;
+        }
+        return $rows;
+    }
+
+    public static function inner(int $value): uint
+    {
+        array<int> $few = [$value, $value + 1, $value + 2];
+        var $done = Core\Task::map($few, fn(int $v): uint => $v as uint);
+        return $done['0'] + $done['2'];
+    }
+
+    public static function angry(int $value): int
+    {
+        if ($value == 6000) {
+            throw new RuntimeError('row 6000 gave up');
+        }
+        return $value;
+    }
+}
+
+// Step 1: eight thousand jobs from one call, each returning a string of its own.
+array<int> $wide = Rows::build(8000);
+var $texts = Core\Task::map($wide, fn(int $value): string => Core\Str::repeat('x', 8));
+echo 'step 1: collected ', Core\Arr::count($texts), " answers\n";
+
+// Step 2: a map inside every job of a map, so the task tree is thousands of groups
+// wide and three deep.
+array<int> $nested = Rows::build(1500);
+var $sums = Core\Task::map($nested, fn(int $value): uint => Rows::inner($value));
+echo 'step 2: collected ', Core\Arr::count($sums), " sums\n";
+
+// Step 3: one job throws with every other job still running. The throw has to arrive
+// here as itself, with nothing of the group left running.
+try {
+    var $broken = Core\Task::map($wide, fn(int $value): int => Rows::angry($value));
+    echo "step 3: the map finished, which it must not\n";
+} catch (RuntimeError $gave) {
+    echo 'step 3: caught ', $gave->message, "\n";
+}
+
+// Step 4: the same array again, to show the runtime is still able to run a group.
+var $again = Core\Task::map($wide, fn(int $value): int => $value);
+echo 'step 4: collected ', Core\Arr::count($again), " answers after the throw\n";

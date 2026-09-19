@@ -1,0 +1,23 @@
+<?nvs
+// Measures what one job per element costs over a small array: starting the jobs,
+// running them and collecting the answers back under the input's keys. An import that
+// checks every row of an upload meets this once per file.
+// bench: iterations 20000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<int> $rows = ["a" => 1, "b" => 2, "c" => 3, "d" => 4];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: this round's jobs add the number the last round returned.
+            uint $seed = $total % 5;
+            var $done = Core\Task::map($rows, fn(int $value): uint => ($value as uint) + $seed);
+            $total = $total + $done["a"] + $done["d"];
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(20000), "\n";

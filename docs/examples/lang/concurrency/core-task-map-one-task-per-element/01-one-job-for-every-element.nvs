@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to run one job for every element of an array. `Core\Task::map` calls the
+// function once per element, all at the same time, and returns the results as an array.
+
+array<int> $prices = ["apple" => 3, "pear" => 4, "plum" => 5];
+
+var $cents = Core\Task::map($prices, fn(int $euros): int => $euros * 100);
+
+// The results keep the input's keys and the input's order.
+// This prints apple=300, then pear=400, then plum=500.
+foreach ($cents as string $fruit => int $amount) {
+    echo $fruit, "=", $amount, "\n";
+}

@@ -1,0 +1,39 @@
+--TEST--
+`Core\Task::map` answers under the input's own keys and in the input's own order even when the jobs finish in the opposite order, the callback may declare the value alone or the value and the key, and the result array carries the callback's own return type — `rule:concurrency/map-preserves-keys-and-order`
+--FILE--
+<?nvs
+// covers: lang:concurrency/core-task-map-one-task-per-element
+class Wait {
+    // The first element waits longest, so the jobs finish in the reverse of the input's
+    // order. Reading the result in the input's order is what the rule pins.
+    public static function forMillis(int $ms): string {
+        Core\Time::sleep(Core\Time\Duration::milliseconds($ms));
+        return "waited " . $ms;
+    }
+}
+
+array<int> $staggered = ["first" => 60, "second" => 30, "third" => 5];
+
+var $order = Core\Task::map($staggered, fn(int $ms): string => Wait::forMillis($ms));
+foreach ($order as string $key => string $text) {
+    echo $key, "=", $text, "\n";
+}
+
+// The callback may take the key as its second parameter, and the keys it is handed are
+// the input's own.
+var $labelled = Core\Task::map($staggered, fn(int $ms, string $key): string => $key . "/" . $ms);
+foreach ($labelled as string $key => string $label) {
+    echo $key, "=", $label, "\n";
+}
+
+// The result array is typed by the callback's return, so this needs no cast.
+var $doubled = Core\Task::map($staggered, fn(int $ms): int => $ms * 2);
+echo $doubled["first"] + $doubled["second"] + $doubled["third"], "\n";
+--EXPECT--
+first=waited 60
+second=waited 30
+third=waited 5
+first=first/60
+second=second/30
+third=third/5
+190

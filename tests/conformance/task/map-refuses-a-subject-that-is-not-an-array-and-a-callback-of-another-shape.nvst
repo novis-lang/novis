@@ -1,0 +1,22 @@
+--TEST--
+`Core\Task::map` refuses a subject that is not an array, a callback taking a third parameter, and a second argument that is not callable at all — `rule:concurrency/map-preserves-keys-and-order`
+--FILE--
+<?nvs
+// covers: lang:concurrency/core-task-map-one-task-per-element
+array<int> $rows = [1, 2, 3];
+
+// The callback is handed the value and the key and nothing else, so a third parameter
+// has nothing to bind to.
+var $a = Core\Task::map($rows, fn(int $v, string $k, int $extra): int => $v);
+
+// The subject is an array, and a string is not one even though it has a length.
+var $b = Core\Task::map("not an array", fn(int $v): int => $v);
+
+// The second argument has to be callable.
+var $c = Core\Task::map($rows, 7);
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `callable(int, string): int`, found `callable(int, string, int): int`
+%A
+error: aborting due to 3 errors
