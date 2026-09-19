@@ -43,6 +43,10 @@ foreach ($grid as string $r => array<int> $row) {
 }
 
 echo "unreachable\n";
+
+// This marker sits last on purpose: every line above it is named by a line
+// number in the expected diagnostic below.
+// covers: lang:statements/foreach
 --EXPECTF-ERROR--
 error[E0723]: an array's key binding is a `string`, not `int`
    --> %s:16:16

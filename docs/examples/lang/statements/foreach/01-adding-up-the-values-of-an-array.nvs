@@ -1,0 +1,21 @@
+<?nvs
+// Shows the simplest `foreach`. The body runs once for each element, and the
+// binding declares the type of the value it receives.
+
+array<int> $lineTotals = ["shirt" => 1990, "socks" => 450, "belt" => 2500];
+int $sum = 0;
+
+foreach ($lineTotals as int $cents) {
+    $sum = $sum + $cents;
+}
+
+// This prints 4940. Prices here are in cents.
+echo $sum, "\n";
+
+// The subject may be any array. A second loop in the same function may use the
+// same binding name again.
+array<string> $tags = ["new", "sale", "last one"];
+foreach ($tags as string $tag) {
+    echo "[", $tag, "] ";
+}
+echo "\n";

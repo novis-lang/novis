@@ -1,0 +1,20 @@
+<?nvs
+// Shows the key form of `foreach`. Write `$key => $value` to bind both. An
+// array key is always a `string`, so the key binding is declared `string`.
+
+array<int> $stock = ["shirt" => 4, "socks" => 0, "belt" => 12];
+
+foreach ($stock as string $item => int $left) {
+    if ($left == 0) {
+        echo $item, ": out of stock\n";
+    } else {
+        echo $item, ": ", $left, " left\n";
+    }
+}
+
+// The key is a `string` even when it looks like a number.
+array<string> $byId = ["1" => "Ada", "2" => "Grace"];
+foreach ($byId as string $id => string $name) {
+    // This prints: id 1 is Ada, then id 2 is Grace.
+    echo "id ", $id, " is ", $name, "\n";
+}

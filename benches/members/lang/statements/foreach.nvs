@@ -1,0 +1,24 @@
+<?nvs
+// Walks an array and adds up what it holds. A program does this with the rows
+// it has read from a database or a request.
+// bench: iterations 400000
+// bench: calls 0
+// bench: allocations 0
+
+class Bench {
+    public static function run(int $rounds): int {
+        array<int> $row = [3, 9, 27, 81, 243, 729, 2187, 6561];
+        int $acc = 1;
+        int $i = 0;
+        while ($i < $rounds) {
+            foreach ($row as int $v) {
+                // Chained: this round's total comes out of the last round.
+                $acc = ($acc + $v) % 1000003;
+            }
+            $i = $i + 1;
+        }
+        return $acc;
+    }
+}
+
+echo Bench::run(50000), "\n";

@@ -1,0 +1,77 @@
+<?nvs
+// Attack: a loop is given more than it can hold. An array of one million
+// elements is walked, written back through `inout`, and walked again inside
+// another loop. A loop adds and removes elements while it runs. The last loop
+// has a subject that throws, with nothing to catch it.
+// hostile: timeout-ms 60000
+// hostile: ends-early
+// covers: lang:statements/foreach
+
+class Attack
+{
+    public static function subject(): array<int>
+    {
+        throw new RuntimeError('the subject failed');
+    }
+}
+
+// 1. One million elements, built and then walked.
+array<int> $big = [];
+int $i = 0;
+while ($i < 1000000) {
+    $big['k' . $i] = $i;
+    $i = $i + 1;
+}
+int $sum = 0;
+foreach ($big as int $v) {
+    $sum = $sum + $v;
+}
+echo $sum, "\n";
+
+// 2. The same million elements written back through `inout`. This loop walks
+// the array itself, so every element must end up changed.
+foreach ($big as inout int $each) {
+    $each = $each + 1;
+}
+int $after = 0;
+foreach ($big as int $v) {
+    $after = $after + $v;
+}
+echo $after, "\n";
+
+// 3. A loop that adds and removes elements while it runs. A plain loop walks a
+// copy, so the number of visits may not change.
+array<int> $moving = [];
+int $m = 0;
+while ($m < 100000) {
+    $moving['m' . $m] = $m;
+    $m = $m + 1;
+}
+int $visits = 0;
+foreach ($moving as string $k => int $v) {
+    $moving['added' . $k] = $v;
+    unset($moving[$k]);
+    $visits = $visits + 1;
+}
+echo $visits, "\n";
+
+// 4. A loop inside a loop over the same array, one thousand by one thousand.
+array<int> $grid = [];
+int $g = 0;
+while ($g < 1000) {
+    $grid['g' . $g] = $g;
+    $g = $g + 1;
+}
+int $pairs = 0;
+foreach ($grid as int $outer) {
+    foreach ($grid as int $inner) {
+        $pairs = $pairs + 1;
+    }
+}
+echo $pairs, "\n";
+
+// 5. The last loop asks for its subject and the call throws. Nothing catches
+// it, so the program ends with status 1.
+foreach (Attack::subject() as int $never) {
+    echo $never, "\n";
+}

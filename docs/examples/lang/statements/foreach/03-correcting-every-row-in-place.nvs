@@ -1,0 +1,24 @@
+<?nvs
+// Shows `inout`, which writes the value back into the array. A program does
+// this to clean up a table of input before it stores or sends the table.
+
+array<string> $form = [
+    "name" => "  Ada Lovelace ",
+    "city" => "London  ",
+    "note" => "",
+];
+
+foreach ($form as inout string $field) {
+    $field = Core\Str::trim($field);
+}
+
+// This prints: {"name":"Ada Lovelace","city":"London","note":""}
+echo Core\Json::encode($form), "\n";
+
+// Without `inout` the binding is a copy, and the array keeps what it had.
+array<int> $counts = ["a" => 1, "b" => 2];
+foreach ($counts as int $copy) {
+    $copy = $copy * 100;
+}
+// This prints: {"a":1,"b":2}
+echo Core\Json::encode($counts), "\n";

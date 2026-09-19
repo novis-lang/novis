@@ -2,6 +2,7 @@
 `foreach` iterates the array the loop started with: writing, appending and unsetting through the loop leaves the sequence of visited pairs alone
 --FILE--
 <?nvs
+// covers: lang:statements/foreach
 class Render {
     public static function of(array<int> $a): string {
         var $out = "";
