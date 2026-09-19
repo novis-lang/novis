@@ -1,0 +1,109 @@
+--TEST--
+A `LogicError` clause takes the program's own faults and nothing on the `RuntimeError` branch, counted over the whole branch rather than read off one line, and three unrelated `Core` members agree on which half their refusal belongs to — spec § 10
+--FILE--
+<?nvs
+// covers: LogicError
+// The tree splits at the root into what the code got wrong and what the world
+// said no to. What this pins is that the two halves are disjoint from both
+// sides — the sweep counts, so a class that quietly grew a second parent fails
+// here while every line still reads plausibly — and that the library lands its
+// own refusals in the same half a program's `throw` does.
+
+final class Halves {
+    public static function raise(string $kind): void {
+        if ($kind == "io") { throw new IOError("io"); }
+        if ($kind == "parse") { throw new ParseError("parse"); }
+        if ($kind == "timeout") { throw new TimeoutError("timeout"); }
+        if ($kind == "recursion") { throw new RecursionError("recursion"); }
+        throw new RuntimeError("plain");
+    }
+
+    // Every class on the other branch, asked the same question: does a
+    // `LogicError` clause take it? All five must miss, and the count is what
+    // asserts it — reading one arm would still pass with four of them wrong.
+    public static function runtimeBranchMissed(): uint {
+        array<string> $kinds = ["io", "parse", "timeout", "recursion", "plain"];
+        uint $missed = 0;
+        foreach ($kinds as string $kind) {
+            try {
+                Halves::raise($kind);
+            } catch (LogicError $wrongHalf) {
+            } catch (Throwable $rightHalf) {
+                $missed = $missed + 1;
+            }
+        }
+        return $missed;
+    }
+
+    // The bound from the other side: a fault the program raised itself is not
+    // taken by a clause written for the world saying no, so only the root
+    // admits both and neither half is a superset of the other.
+    public static function ourFault(): string {
+        try {
+            throw new LogicError("the index was past the end");
+        } catch (RuntimeError $notTheWorld) {
+            return "a RuntimeError clause";
+        } catch (Throwable $root) {
+            return "only the root";
+        }
+    }
+
+    public static function callWith(uint $which): void {
+        if ($which == 0) {
+            var $base = Core\BigInt::parse("101", {radix: 99});
+            return;
+        }
+        if ($which == 1) {
+            var $document = Core\Json::decode("[1]", {maxDepth: 0});
+            return;
+        }
+        var $moved = Core\Time\Date::at(2026, 9, 19)->plus(3, Core\Unit::Hour);
+    }
+
+    // Three members with nothing in common but the judgement they make: a base
+    // that does not exist, a depth outside the range, and a unit too small to
+    // move a date. All three are mistakes in the call, so all three reach the
+    // same clause — counted, because two agreeing and one not still prints a
+    // plausible line each.
+    public static function libraryAgrees(): uint {
+        uint $agreed = 0;
+        uint $which = 0;
+        while ($which < 3) {
+            try {
+                Halves::callWith($which);
+            } catch (LogicError $ourBug) {
+                $agreed = $agreed + 1;
+            } catch (Throwable $somethingElse) {
+            }
+            $which = $which + 1;
+        }
+        return $agreed;
+    }
+
+    // The name test agrees with the clause that took the value, in both
+    // directions, so a program branching on `is` and a program branching on
+    // `catch` cannot be told apart.
+    public static function nameTest(): string {
+        try {
+            throw new LogicError("a state the call had no business being in");
+        } catch (Throwable $caught) {
+            if ($caught is RuntimeError) {
+                return "and a RuntimeError";
+            }
+            if ($caught is LogicError) {
+                return "a LogicError, not a RuntimeError";
+            }
+            return "neither name";
+        }
+    }
+}
+
+echo Halves::runtimeBranchMissed(), "\n";
+echo Halves::ourFault(), "\n";
+echo Halves::libraryAgrees(), "\n";
+echo Halves::nameTest(), "\n";
+--EXPECT--
+5
+only the root
+3
+a LogicError, not a RuntimeError

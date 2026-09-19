@@ -1,0 +1,4 @@
+Ferngrove: fb5
+Hallbeck: skipped, Core\BigInt::format(): radix 40 is outside the 2 to 36 this class reads and writes
+Ostrander: 5cwg0
+settings to fix: 1

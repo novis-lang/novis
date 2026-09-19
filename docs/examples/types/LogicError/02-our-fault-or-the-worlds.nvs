@@ -1,0 +1,22 @@
+<?nvs
+// Which clause a failure lands in is the whole reason the tree splits where it
+// does. A depth the program picked badly is ours to fix. A document that
+// arrived broken is not, and it is handled rather than fixed. Telling the two
+// apart by reading the message would be a guess.
+
+final class Report {
+    public static function rowsIn(string $document, uint $depth): string {
+        try {
+            var $rows = Core\Json::decode($document, {maxDepth: $depth});
+            return "read";
+        } catch (LogicError $ourBug) {
+            return "our bug: " . $ourBug->message;
+        } catch (RuntimeError $badInput) {
+            return "bad input: " . $badInput->message;
+        }
+    }
+}
+
+echo Report::rowsIn("[1, 2, 3]", 32), "\n";
+echo Report::rowsIn("[1, 2, 3]", 0), "\n";
+echo Report::rowsIn("[1, 2,", 32), "\n";

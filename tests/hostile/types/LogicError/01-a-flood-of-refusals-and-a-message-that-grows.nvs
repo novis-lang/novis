@@ -1,0 +1,67 @@
+<?nvs
+// Attack: make the library refuse hundreds of thousands of times, reading the
+// message each round, then climb out of a deep chain where every frame throws a
+// message longer than the one under it. Anything held per failure — the text,
+// the place it came from — grows without limit here.
+// hostile: timeout-ms 30000
+
+final class Churn
+{
+    // Every round asks for a base that does not exist, so every round builds a
+    // fresh message and a fresh failure. The argument is computed so no round
+    // can be folded away before the program runs.
+    public static function refusals(int $rounds): uint
+    {
+        uint $read = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            try {
+                uint $noSuchBase = (($i % 7) + 64) as uint;
+                string $digits = Core\BigInt::of($i)->format({ radix: $noSuchBase });
+                $read = $read + Core\Str::length($digits);
+            } catch (LogicError $refused) {
+                // The message is read, so a run cannot pass by never building one.
+                if (Core\Str::length($refused->message) > 0) {
+                    $read = $read + 1;
+                }
+            }
+            $i = $i + 1;
+        }
+        return $read;
+    }
+
+    // Each frame catches what the frame under it threw and throws a longer
+    // message, so the chain holds a live failure per level and the text on the
+    // deepest one is as long as the chain is deep.
+    public static function grow(int $depth): string
+    {
+        if ($depth == 0) {
+            var $document = Core\Json::decode('[1]', { maxDepth: 0 });
+            return 'unreachable';
+        }
+        try {
+            return Churn::grow($depth - 1);
+        } catch (LogicError $rising) {
+            throw new LogicError($rising->message . 'x');
+        }
+    }
+}
+
+echo Churn::refusals(400000), "\n";
+
+// Deep enough to reach the bottom and climb all the way back out, so two
+// thousand failures are live at once and the message on the last one is as long
+// as the chain is deep.
+try {
+    echo Churn::grow(2000), "\n";
+} catch (LogicError $grown) {
+    echo 'grew to ', Core\Str::length($grown->message), "\n";
+}
+
+// And deeper than the call stack allows, so the chain never reaches the bottom
+// and the limit fires with every one of those frames still to unwind.
+try {
+    echo Churn::grow(200000), "\n";
+} catch (Throwable $gaveUp) {
+    echo "the chain ended\n";
+}
