@@ -5886,11 +5886,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   called `__02_the_script_is_written_from_your_commands_complete`. Keep the slug short for any
   example whose output quotes the program's own name, and read the blessed lines rather than
   trusting the exit status. [until: reviewed 2026-09-18]
-- **A `// covers:` marker added to a `.nvst` whose expectation is a compile diagnostic moves every
-  line number in that diagnostic.** `db-column-type-is-a-case-and-not-a-vendor-name.nvst` pins
-  `--> case.nvs:28:22`, and one line at the top of its `--FILE--` block made the case red at the
-  end of the session rather than at the edit. Look for an `--EXPECTF-ERROR--` section before
-  inserting a marker, and move the number in the same edit. [until: reviewed 2026-09-18]
 - **A `Core\Db` refusal the *call* caused is a `LogicError` and not a `Core\Db\DbError`, so a case
   catching the wrong one dies on an uncaught throw with the right message.** `nvs-db` builds no fault
   and answers in `io::ErrorKind`s, and `crates/nvs-stdlib/src/db/bind.rs:149` splits them: `InvalidInput`
@@ -5982,11 +5977,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   trivium, which the `<?nvs` a shebang file refuses was not. Expect a case exercising a recovery
   path to be what finds a hole in `rule:ide/tokens-plus-trivia-reproduce-the-file`.
   [until: reviewed 2026-12-19]
-- **A `covers:` marker added at the top of a `--FILE--` block shifts every line number that case's
-  `--EXPECTF-ERROR--` pins.** A reject case writing `--> case.nvs:2:1` then fails on the one line the
-  marker pushed down, and the failure reads as a diagnostic regression rather than as an edit to the
-  file above it. Put the marker on the last line of the `--FILE--` block whenever the expectation
-  names a location, and anywhere at all when `%A` swallows it. [until: reviewed 2026-12-19]
 
 - **An example that exits non-zero cannot be blessed, so a feature whose point is the exit status
   has to show it on the path that succeeds.** `tools/dossier.py`'s `bless` and its example runner
@@ -6035,12 +6025,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   copies the array it is given, so the loop is quadratic in the number of entries. Build a large
   array with `Core\Arr::fill(n, v)`, and keep an appending loop to about ten thousand rounds.
   [until: reviewed 2026-09-19]
-- **A `covers:` marker added at the top of an `--EXPECTF-ERROR--` case shifts every line number
-  that case's expected diagnostic pins.** `a-foreach-key-binding-is-a-string-and-nothing-else.nvst`
-  names `case.nvs:27` and four lines below it, so one line inserted under `<?nvs` turned a green
-  case red with output that reads exactly like a real regression in the checker. Put the marker on
-  the last line of the `--FILE--` block whenever the expectation is a diagnostic, with a comment
-  beside it saying why it sits there. [until: reviewed 2026-09-19]
 - **A hostile file whose last step is a top-level `return;` is not `ends-early`, and declaring the
   marker fails the sweep.** The suite reads that marker as "the program did not reach its end", and a
   `return` outside any method is an ordinary ending, so a file that behaves exactly as its comment
@@ -6048,36 +6032,19 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   an uncaught throw or `exit`, and run `python tools/dossier.py --run hostile --group <group>` while
   you still have the file open rather than leaving it to the driver's acceptance check.
   [until: reviewed 2026-09-19]
-- **A `covers:` marker inserted at the top of a `.nvst` case's `--FILE--` block shifts every line
-  number that case's `--EXPECTF-ERROR--` pins.** The expected diagnostic quotes `case.nvs:NN`
-  counted from `<?nvs` as line 1, so a green reject case turns red the moment a line is added above
-  the construct it refuses, and the failure reads as a changed diagnostic rather than a moved line.
-  Append the marker after the last code line of the block instead — it is still inside `--FILE--`,
-  and nothing the expectation names moves. [until: reviewed 2026-09-19]
 - **A `// covers:` marker added at the top of a `--FILE--` block shifts every line number that
   case's `--EXPECTF-ERROR--` pins.** Such a section names the offending line three times over
   (`--> %s:29:14`, the gutter number and the caret row), and `%s` wildcards the path alone, so one
   inserted line fails the case on a number rather than on its claim — in `class/` and `lang/` as
   much as in `reject/`. Put the marker on the **last** line of the `--FILE--` block in any case
-  carrying an `--EXPECTF-ERROR--` section, and at the top everywhere else.
-  [until: reviewed 2026-09-19]
+  carrying an `--EXPECTF-ERROR--` section, at the top everywhere else, and anywhere at all when
+  `%A` swallows it. [until: reviewed 2026-09-19]
 - **`echo` with several arguments writes each one as it is evaluated, so a call in argument position
   that echoes puts its own lines in the middle of yours.** `echo "  bump gave ", $l->bump(), "\n";`
   on a `PropertyObserver` class prints `  bump gave ` first, then the observer's lines, then `1` —
   which reads as a broken pipeline rather than as evaluation order, and costs a blessed `.out` or an
   `--EXPECT--` block to discover. Assign the call to a variable first and echo the variable when the
   callee can print anything: `int $bumped = $l->bump();`. [until: reviewed 2026-09-19]
-
-- **Adding a `// covers:` marker to a case whose expectation pins a line number moves that number.**
-  A `--EXPECTF-ERROR--` block naming `--> case.nvs:10:13` is one line stale the moment a marker goes
-  in above the code, and the failure prints as an unrelated diagnostic mismatch. Put the marker in
-  and re-run that case alone before writing anything else, or pick the case whose block starts at
-  `%A`. [until: reviewed 2026-09-19]
-- **A `// covers:` marker added at the top of an `--EXPECTF-ERROR--` case moves the diagnostic's own
-  line anchor and turns a green case red.** The expectation reproduces `--> case.nvs:3:6` verbatim,
-  so every line inserted above the refused line shifts the source line it names by one. Put the
-  marker *below* the last line of the `--FILE--` block in a reject case, where it attributes the case
-  and moves nothing. [until: reviewed 2026-09-19]
 - **A declaration inside a `try` block is in scope after the block, so a case that repeats a setup
   under a second heading fails with `E0406` rather than running.** The three `try` blocks of an
   agreement case naturally want the same variable names in the section that follows them, and the
