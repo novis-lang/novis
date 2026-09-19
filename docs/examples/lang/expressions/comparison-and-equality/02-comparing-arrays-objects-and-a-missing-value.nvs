@@ -1,0 +1,37 @@
+<?nvs
+// Shows the three results that surprise people: an array compares its
+// contents, an object compares its identity, and a value that may be missing
+// is tested against `null`.
+
+class Customer {
+    public function constructor(public string $email) {}
+}
+
+// Two arrays are equal when they hold the same keys in the same order with
+// equal values. This prints 1 and then an empty line.
+array<int> $wanted = [2, 1];
+array<int> $picked = [2, 1];
+array<int> $reversed = [1, 2];
+echo ($wanted == $picked) as string, "\n";
+echo ($wanted == $reversed) as string, "\n";
+
+// Two objects are equal only when they are the same object. Two customers
+// built from the same address are two objects, so this prints an empty line.
+Customer $signedUp = new Customer("ada@example.com");
+Customer $justRead = new Customer("ada@example.com");
+echo ($signedUp == $justRead) as string, "\n";
+
+// To ask whether they describe the same person, compare what they hold. This
+// prints 1.
+echo ($signedUp->email == $justRead->email) as string, "\n";
+
+// A value that may be missing is written `?string`, and you compare it with
+// `null` to find out. This prints "no coupon".
+?string $coupon = null;
+if ($coupon == null) {
+    echo "no coupon\n";
+} else {
+    // In this branch the coupon is known to be there, so you can use it
+    // without testing it again.
+    echo "coupon of ", Core\Str::length($coupon), " characters\n";
+}

@@ -1,0 +1,36 @@
+<?nvs
+// Measures the comparisons a request makes while it decides what to do with a value: two numbers
+// tested for equality, an ordering test, a three-way `<=>`, and two short pieces of text compared
+// character by character.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        string $held = "hold";
+        string $shipped = "ship";
+        uint $matches = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: this round's subject is decided by the matches so far.
+            uint $subject = ($i + $matches) % 7;
+            if ($subject == 3) {
+                $matches = $matches + 1;
+            }
+            if ($subject != 0 && $subject < 3) {
+                $matches = $matches + 1;
+            }
+            if (($subject <=> 5) == 0) {
+                $matches = $matches + 1;
+            }
+            string $code = $subject < 3 ? $held : $shipped;
+            if ($code == "hold") {
+                $matches = $matches + 1;
+            }
+            $i = $i + 1;
+        }
+        return $matches;
+    }
+}
+
+echo Bench::run(400000), "\n";

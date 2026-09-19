@@ -431,12 +431,13 @@ pub(crate) fn reject_disjoint_equality(lhs: TypeId, rhs: TypeId, span: Span, env
     } else {
         let lhs_described = env.interner.describe(lhs);
         let rhs_described = env.interner.describe(rhs);
+        let help = disjoint_help(env.interner.get(lhs), env.interner.get(rhs));
         (
             format!(
                 "`{lhs_described}` and `{rhs_described}` are disjoint; no value is both, so this \
                  comparison is always false"
             ),
-            "convert one side deliberately and then compare — `$s == ($n as string)`",
+            help,
         )
     };
     env.diags.report(
@@ -444,6 +445,35 @@ pub(crate) fn reject_disjoint_equality(lhs: TypeId, rhs: TypeId, span: Span, env
             .with_primary(span, "compared here")
             .with_help(help),
     );
+}
+
+/// The advice `E0466` ends on, chosen from the two operands' domains.
+///
+/// The generic sentence names a cast, and a cast is the answer for most of
+/// `rule:expressions/disjoint-comparison-refused`'s refused rows — but not for
+/// the rows where no conversion exists in that direction. An enum reaches a
+/// number through `as int` and nothing else, two enums share no value at all,
+/// and two unrelated classes are joined by no conversion the language has. A
+/// help naming a cast there tells a reader to write something that does not
+/// compile.
+fn disjoint_help(lhs: &Ty, rhs: &Ty) -> &'static str {
+    let (Some(lhs_domain), Some(rhs_domain)) = (equality_domain(lhs), equality_domain(rhs)) else {
+        return "convert one side deliberately and then compare — `$s == ($n as string)`";
+    };
+    match (lhs_domain, rhs_domain) {
+        (EqDomain::Enum(_), EqDomain::Numeric) | (EqDomain::Numeric, EqDomain::Enum(_)) => {
+            "an enum case carries an integer — compare `$e as int` against the number"
+        }
+        (EqDomain::Enum(_), _) | (_, EqDomain::Enum(_)) => {
+            "an enum case is only ever equal to a case of the same enum — `match` on it, or \
+             compare `$e as int` on both sides"
+        }
+        (EqDomain::Object, EqDomain::Object) => {
+            "two unrelated classes have no value in common — compare something both of them \
+             carry, such as an id property"
+        }
+        _ => "convert one side deliberately and then compare — `$s == ($n as string)`",
+    }
 }
 
 /// Whether no single value inhabits both `lhs` and `rhs` — `rule:expressions/disjoint-comparison-refused`'s

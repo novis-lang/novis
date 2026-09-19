@@ -1,0 +1,37 @@
+<?nvs
+// Shows how to order values: numbers compare directly, text uses
+// `Core\Str::compare`, and a class states its own order by implementing
+// `Comparable`. This is the shape a checkout page uses to pick an offer.
+
+class Offer implements Comparable {
+    public function constructor(public string $carrier, public int $cents, public int $days) {}
+
+    // `compareTo` returns a negative number when this offer comes first, and
+    // a positive one when it comes last. The cheaper offer wins.
+    public function compareTo(self $other): int {
+        if ($this->cents != $other->cents) {
+            return $this->cents <=> $other->cents;
+        }
+        return Core\Str::compare($this->carrier, $other->carrier);
+    }
+}
+
+Offer $standard = new Offer("Speedy", 499, 4);
+Offer $express = new Offer("Speedy", 1299, 1);
+
+// `<=>` gives -1, 0 or 1, and reads as "how does the left compare to the
+// right". This prints -1, because 499 comes before 1299.
+echo $standard <=> $express, "\n";
+
+// Because `Offer` implements `Comparable`, the ordering operators work on two
+// offers directly. This prints "Speedy at 499".
+Offer $cheapest = $standard < $express ? $standard : $express;
+echo $cheapest->carrier, " at ", $cheapest->cents, "\n";
+
+// A delivery promise is worth paying for when it is at least two days sooner.
+// This prints "worth it".
+if ($express->days <= $standard->days - 2) {
+    echo "worth it\n";
+} else {
+    echo "not worth it\n";
+}

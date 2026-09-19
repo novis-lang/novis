@@ -1,0 +1,106 @@
+--TEST--
+A comparison whose two sides share no value is refused at the comparison itself, and its help names what to write instead — a cast for two scalars, `as int` for an enum against a number, and no cast where no conversion joins the two — while `<` names `Core\Str::compare` for text and `Comparable` for an object, `rule:expressions/disjoint-comparison-refused`, `rule:classes/comparable`
+--FILE--
+<?nvs
+// covers: lang:expressions/comparison-and-equality
+// Two sides that share no value are refused where they are written, and the
+// help names what to write instead — a cast for most rows, `as int` for an
+// enum against a number, and no cast at all where no conversion joins the
+// two. Ordering takes numbers, two `bool`s and two objects of one
+// `Comparable` class; every other operand is refused the same way.
+enum Rank { Bronze, Silver }
+enum Suit { Clubs, Hearts }
+
+class Meter { public function constructor(public int $reading) {} }
+class Gauge { public function constructor(public int $reading) {} }
+
+int $n = 1;
+string $s = "1";
+bytes $b = "1" as bytes;
+Meter $meter = new Meter(1);
+Gauge $gauge = new Gauge(1);
+array<int> $xs = [1];
+
+var $numberAgainstText = $n == $s;
+var $textAgainstBytes = $s == $b;
+var $enumAgainstInt = Rank::Bronze == 0;
+var $twoEnums = Rank::Bronze == Suit::Clubs;
+var $presentAgainstNull = $n == null;
+var $twoClasses = $meter == $gauge;
+var $twoStrings = $s < $s;
+var $twoBytes = $b < $b;
+var $twoArrays = $xs < $xs;
+var $twoObjects = $meter < $meter;
+echo "unreached\n";
+--EXPECTF-ERROR--
+error[E0466]: `int` and `string` are disjoint; no value is both, so this comparison is always false
+   --> %s:21:26
+   |
+21 | var $numberAgainstText = $n == $s;
+   |                          ^^^^^^^^ compared here
+   = help: convert one side deliberately and then compare — `$s == ($n as string)`
+
+error[E0466]: `string` and `bytes` are disjoint; no value is both, so this comparison is always false
+   --> %s:22:25
+   |
+22 | var $textAgainstBytes = $s == $b;
+   |                         ^^^^^^^^ compared here
+   = help: convert one side deliberately and then compare — `$s == ($n as string)`
+
+error[E0466]: `Rank` and `int` are disjoint; no value is both, so this comparison is always false
+   --> %s:23:23
+   |
+23 | var $enumAgainstInt = Rank::Bronze == 0;
+   |                       ^^^^^^^^^^^^^^^^^ compared here
+   = help: an enum case carries an integer — compare `$e as int` against the number
+
+error[E0466]: `Rank` and `Suit` are disjoint; no value is both, so this comparison is always false
+   --> %s:24:17
+   |
+24 | var $twoEnums = Rank::Bronze == Suit::Clubs;
+   |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^ compared here
+   = help: an enum case is only ever equal to a case of the same enum — `match` on it, or compare `$e as int` on both sides
+
+error[E0466]: `int` cannot hold `null`, so this test is always false
+   --> %s:25:27
+   |
+25 | var $presentAgainstNull = $n == null;
+   |                           ^^^^^^^^^^ compared here
+   = help: declare the binding nullable — `?T` — if it is meant to be optional, or drop the test
+
+error[E0466]: `Meter` and `Gauge` are disjoint; no value is both, so this comparison is always false
+   --> %s:26:19
+   |
+26 | var $twoClasses = $meter == $gauge;
+   |                   ^^^^^^^^^^^^^^^^ compared here
+   = help: two unrelated classes have no value in common — compare something both of them carry, such as an id property
+
+error[E0715]: `<` has no meaning for `string`
+   --> %s:27:19
+   |
+27 | var $twoStrings = $s < $s;
+   |                   ^^^^^^^ ordered here
+   = help: `Core\Str::compare` is the ordering two strings have; `rule:types/arithmetic` tabulates no `<` for text, because PHP's own answer there is a conversion Novis never makes by itself
+
+error[E0715]: `<` has no meaning for `bytes`
+   --> %s:28:17
+   |
+28 | var $twoBytes = $b < $b;
+   |                 ^^^^^^^ ordered here
+   = help: `rule:types/arithmetic`'s `< <= > >= <=>` row is the numeric types, plus two objects of one `Comparable` class (`rule:classes/comparable`); this operand is on neither half
+
+error[E0715]: `<` has no meaning for `array<int>`
+   --> %s:29:18
+   |
+29 | var $twoArrays = $xs < $xs;
+   |                  ^^^^^^^^^ ordered here
+   = help: `rule:types/arithmetic`'s `< <= > >= <=>` row is the numeric types, plus two objects of one `Comparable` class (`rule:classes/comparable`); this operand is on neither half
+
+error[E0411]: `Meter` does not implement `Comparable`; ordering two objects with `<`/`<=`/`>`/`>=`/`<=>` requires it
+   --> %s:30:19
+   |
+30 | var $twoObjects = $meter < $meter;
+   |                   ^^^^^^^^^^^^^^^ compared here
+   = help: implement `Comparable`'s `compareTo(self $other): int` on the class
+
+error: aborting due to 10 errors

@@ -1,0 +1,119 @@
+--TEST--
+Every row of the equality table answers by its own rule — numbers across all four kinds, text by its code points, an array by its contents in order, an object by identity, an enum by its case, a closure by which closure it is, and a `mixed` by the tag it holds — and each row also states the pair it must call unequal, so a row that answered `true` for everything fails, `rule:expressions/equality-semantics`
+--FILE--
+<?nvs
+// covers: lang:expressions/comparison-and-equality
+// The table is asserted by counting rather than row by row: a row states the
+// pair it calls equal and the pair it calls unequal, and the two totals at
+// the end are what the expectation reads. An implementation that answered
+// `true` everywhere passes half the rows and fails the count.
+
+enum Rank { Bronze, Silver }
+
+class Meter {
+    public function constructor(public int $reading) {}
+}
+
+uint $equal = 0;
+uint $differ = 0;
+
+// `null` is one value, so two of them are always equal.
+if (null == null) { $equal = $equal + 1; }
+
+// `bool` compares as itself.
+if (true == true) { $equal = $equal + 1; }
+if (true != false) { $differ = $differ + 1; }
+
+// The four numeric kinds are one domain and compare mathematically, with no
+// conversion written and none performed.
+uint $one = 1;
+decimal $tenth = 1.10;
+decimal $sameTenth = 1.1000;
+if (1 == 1.0) { $equal = $equal + 1; }
+if ($one == 1) { $equal = $equal + 1; }
+if (1.0 == $one) { $equal = $equal + 1; }
+if ($tenth == $sameTenth) { $equal = $equal + 1; }
+if (1 != 2) { $differ = $differ + 1; }
+if ($tenth != 1.2) { $differ = $differ + 1; }
+
+// The two IEEE edges: a NAN equals nothing, not even itself, and the two
+// zeros are equal.
+float $nan = Core\Math::fdiv(0.0, 0.0);
+if (0.0 == -0.0) { $equal = $equal + 1; }
+if ($nan != $nan) { $differ = $differ + 1; }
+
+// Text is a sequence of code points and is never read as a number, so neither
+// a leading zero nor exponent notation is absorbed.
+if ("novis" == "novis") { $equal = $equal + 1; }
+if ("1" != "01") { $differ = $differ + 1; }
+if ("1e3" != "1000") { $differ = $differ + 1; }
+
+// `bytes` compares its bytes.
+bytes $left = "ab" as bytes;
+bytes $right = "ab" as bytes;
+bytes $other = "ac" as bytes;
+if ($left == $right) { $equal = $equal + 1; }
+if ($left != $other) { $differ = $differ + 1; }
+
+// An array is equal when it has the same length, the same keys in the same
+// order, and every value equal by this same table, recursively.
+array<int> $counts = [2, 1];
+array<int> $sameCounts = [2, 1];
+array<int> $reordered = [1, 2];
+array<int> $shorter = [2];
+array<string> $keyed = ["a" => "x", "b" => "y"];
+array<string> $keyedOtherOrder = ["b" => "y", "a" => "x"];
+array<mixed> $nested = [1, [2, [3]]];
+array<mixed> $sameNested = [1, [2, [3]]];
+if ($counts == $sameCounts) { $equal = $equal + 1; }
+if ($nested == $sameNested) { $equal = $equal + 1; }
+if ($counts != $reordered) { $differ = $differ + 1; }
+if ($counts != $shorter) { $differ = $differ + 1; }
+if ($keyed != $keyedOtherOrder) { $differ = $differ + 1; }
+
+// An object is equal only to itself: a second `new` and a `clone` are two
+// other objects, whatever they hold.
+Meter $held = new Meter(7);
+Meter $alias = $held;
+Meter $rebuilt = new Meter(7);
+Meter $copied = clone $held;
+if ($held == $alias) { $equal = $equal + 1; }
+if ($held != $rebuilt) { $differ = $differ + 1; }
+if ($held != $copied) { $differ = $differ + 1; }
+
+// An enum compares by case.
+if (Rank::Silver == Rank::Silver) { $equal = $equal + 1; }
+if (Rank::Silver != Rank::Bronze) { $differ = $differ + 1; }
+
+// A closure is equal to itself. Two `fn` literals with identical bodies are
+// two closures and are not equal.
+callable $adder = fn(int $n): int => $n + 1;
+callable $sameAdder = $adder;
+callable $twin = fn(int $n): int => $n + 1;
+if ($adder == $sameAdder) { $equal = $equal + 1; }
+if ($adder != $twin) { $differ = $differ + 1; }
+
+// A `mixed` is resolved from the tag it holds at run time, and two different
+// kinds are never equal — the same answer the static rows give, reached the
+// other way.
+mixed $sevenAsInt = 7;
+mixed $sevenAsFloat = 7.0;
+mixed $sevenAsText = "7";
+if ($sevenAsInt == $sevenAsFloat) { $equal = $equal + 1; }
+if ($sevenAsInt != $sevenAsText) { $differ = $differ + 1; }
+
+// A `?T` against `null` is the null test, and it narrows: inside the second
+// branch the value is a `string` and needs no further test.
+?string $missing = null;
+?string $present = "SPRING";
+if ($missing == null) { $equal = $equal + 1; }
+if ($present != null) {
+    $differ = $differ + 1;
+    if (Core\Str::length($present) == 6) { $equal = $equal + 1; }
+}
+
+echo "equal ", $equal, "\n";
+echo "differ ", $differ, "\n";
+--EXPECT--
+equal 17
+differ 16

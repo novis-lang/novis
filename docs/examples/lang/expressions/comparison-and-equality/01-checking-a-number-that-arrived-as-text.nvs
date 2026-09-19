@@ -1,0 +1,24 @@
+<?nvs
+// Shows how to compare a value that arrived as text with a number you hold.
+// `==` converts nothing, so you convert one side yourself and the comparison
+// then says what you meant.
+
+// The quantity came from a form field, so it is text.
+string $typed = "42";
+int $inStock = 42;
+
+// Convert the text to a number and compare two numbers. This prints 1, which
+// is how `true` reads as text.
+echo (($typed as int) == $inStock) as string, "\n";
+
+// Converting the other way works too, and compares two pieces of text.
+echo ($typed == ($inStock as string)) as string, "\n";
+
+// Text is compared character by character and is never read as a number.
+// This prints an empty line, which is how `false` reads as text.
+echo ($typed == "042") as string, "\n";
+
+// Numbers of different kinds are one family and compare without any
+// conversion, so a whole number can equal a decimal one. This prints 1.
+float $price = 42.0;
+echo ($inStock == $price) as string, "\n";
