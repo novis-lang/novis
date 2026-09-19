@@ -2,16 +2,18 @@
 
 ## State
 
-Goal `lang:programs`, two of its nine features finished with all four proofs plus `about.md`:
-`a-complete-program-annotated` and `a-program-is-a-file-of-top-level-statements`. Both measured into
-`docs/perf/members.ndjson`; `python tools/dossier.py --verify --group lang:programs` now names seven
-features owing, and the two above are not among them.
+Goal `lang:programs`, four of its nine features finished with all four proofs plus `about.md`:
+`a-complete-program-annotated`, `a-program-is-a-file-of-top-level-statements`, `comments` and
+`code-mode-and-html-mode`. `python tools/dossier.py --verify --group lang:programs` now names five
+features owing, and none of those four is among them.
 
-The roster had a tenth, phantom feature: `chapter_features` in `tools/dossier.py` read every `# `
-line in a reference chapter as a heading, including the `# also a line comment` inside the sample in
-`docs/reference/lang/10-programs.md`. It now skips fenced blocks whole. That was the group's third
-listed item, so there is no proof work behind it — `docs/agent/loop-goal.md` still lists it and the
-next `python tools/dossier.py --emit-goals` clears that line.
+Two findings came out of the proofs and both are fixed. The chapter's bullet on `#!` said a shebang
+line "is not recognized in this build — it is HTML-mode text", which contradicts
+`rule:tooling/shebang-opens-code-mode` and the binary; it is rewritten, and the new reject case pins
+both halves. That case then failed the lossless corpus: the `E0009` recovery consumed the refused
+`<?nvs` without recording trivia for it, so `rule:ide/tokens-plus-trivia-reproduce-the-file` did not
+hold over any file holding one (`crates/nvs-syntax/src/lexer.rs:561`). The chapter edit restaled
+every perf figure in it; all are re-measured and current.
 
 ## Next group
 
@@ -21,25 +23,22 @@ fresh directory each under `docs/examples/lang/programs/`, `tests/hostile/lang/p
 the shapes `docs/examples/README.md`, `tests/hostile/README.md` and `benches/members/README.md` own
 (`rule:testing/four-proofs`).
 
-- [ ] **`lang:programs/comments`** — owes about, 3 examples, 2 tests, hostile, perf.
-      `docs/reference/lang/10-programs.md:109`
-- [ ] **`lang:programs/code-mode-and-html-mode`** — owes about, 3 examples, 2 tests, hostile, perf.
-      The `.out` of an example here holds the HTML-mode bytes verbatim.
-      `docs/reference/lang/10-programs.md:57`
 - [ ] **`lang:programs/names-and-casing`** — owes about, 3 examples, 2 tests, hostile, perf.
-      `docs/reference/lang/10-programs.md:125`
+      `docs/reference/lang/10-programs.md:127`
+- [ ] **`lang:programs/namespaces-and-use`** — owes about, 3 examples, 2 tests, hostile, perf.
+      `docs/reference/lang/10-programs.md:153`
+- [ ] **`lang:programs/require-run-another-file-in-this-frame`** — owes about, 3 examples, 2 tests,
+      hostile, perf. `docs/reference/lang/10-programs.md:201`
 
 ## Backlog
 
-- `Core\Json::encode` refuses a nest of 1024 empty arrays while the message says "past 1024 levels":
-  `DEPTH_CEILING_FRAMES` is `DEPTH_CEILING - 1` (`crates/nvs-stdlib/src/json.rs:936`, checked at
-  `:1436`), which is right when the innermost value is a scalar and one strict when it is `[]`. Only
-  the degenerate case differs; nothing crashes.
-- A chapter feature's anchor is one line past its `#` heading (`tools/dossier.py:663` onwards counts
-  the line before testing it). Harmless — `orient.py` windows around it — but every `implemented at`
-  is off by one.
-- `docs/agent/loop-goal.md` lists `lang:programs/also-a-line-comment`, which no longer exists;
-  `--emit-goals` is what rewrites it, and nothing should hand-edit the generated file.
-- The remaining four of the group after the next: `namespaces-and-use`,
-  `require-run-another-file-in-this-frame`, `autoload-find-a-class-by-its-namespace`,
-  `ending-a-program`.
+- `?>` inside a `//` or `#` comment does not leave code mode — the line comment runs to the newline
+  and swallows it (`crates/nvs-syntax/src/lexer.rs:471`). PHP's closing tag wins inside a line
+  comment, so this is a divergence that `rule:php-migration/every-divergence-is-deliberate-and-listed`
+  does not list. It needs a decision — reproduce PHP, or list it — and no proof written here asserts
+  either way.
+- `lang:programs` still owes `autoload-find-a-class-by-its-namespace` and `ending-a-program` after
+  the group above; `docs/reference/lang/10-programs.md:229` and `:250`.
+- `nvs fmt` indents the `}` of a `try`/`catch` whose body leaves code mode one level too far
+  (`tests/hostile/lang/programs/code-mode-and-html-mode/01-…:51-54`). It is a fixed point, so the
+  corpus is stable and nothing is red; it is a layout bug for whoever owns `crates/nvs-fmt/src/indent.rs`.

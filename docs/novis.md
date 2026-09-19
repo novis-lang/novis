@@ -307,8 +307,11 @@ string $who = "world";
   the tag stands. The `;` before `?>` is optional in both forms.
 - A `?>` followed directly by one newline swallows that newline, so a template line ending in a
   closing tag emits no blank line.
-- `<?php` is refused with a diagnostic naming `<?nvs`. There is no short open tag `<?`, and a `#!`
-  shebang line is not recognized in this build — it is HTML-mode text and is copied to the output.
+- `<?php` is refused with a diagnostic naming `<?nvs`, and there is no short open tag `<?`, so a
+  `<?xml` declaration stays text.
+- A file whose first two bytes are `#!` is in code mode from line 2 with no opening tag: line 1 is
+  trivia rather than output, and an `<?nvs` before the first `?>` is `E0009`
+  (`rule:tooling/shebang-opens-code-mode`).
 
 Output inside a request or on a terminal goes through a *sink*, and the terminal sink substitutes
 control bytes visibly rather than passing them through; that is covered with qualifiers in the

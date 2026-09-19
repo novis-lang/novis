@@ -2418,6 +2418,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   string written `"plain"` with nothing to escape comes back `'plain'`, so a hostile case that runs
   and passes still turns the gate red. Format the file as you write it rather than after `verify.py`
   says so. [until: gone crates/nvs-fmt/tests/identity.rs:the_identity_printer_reproduces_every_corpus_file]
+- **Editing a reference chapter makes every already-measured feature in that chapter stale**, because
+  a language feature's perf figure is current against its implementing file's *text* and that file is
+  the chapter itself. One bullet corrected in `docs/reference/lang/10-programs.md` turned three green
+  rows of `python tools/dossier.py --verify --group lang:programs` into `perf: stale`, which reads
+  exactly like work nobody has measured yet. Re-run `python tools/dossier.py --record-perf --group
+  <group>` straight after any chapter edit rather than after reading that failure.
+  [until: reviewed 2026-09-19]
 
 ## Running things
 
@@ -3218,6 +3225,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   held at 57ms, so the compiler was untouched and the shadow fell on the half that maps pages. Read
   both figures off the failure line before believing a ratio guard; the link is not what does it,
   since the same test reads 12.3x straight off a 2m09s release build. [until: reviewed 2026-09-19]
+- **`python tools/dossier.py --record-perf` refuses to measure on a busy machine, and the answer is
+  to run it again.** Its calibration prices one iteration by timing an empty program against a unit
+  one, so when something else holds the CPU the unit's fastest run lands below the floor's and it
+  raises `the calibration did not measure anything` — the bench is not what is wrong. Re-run it: three
+  refusals in a row are ordinary on this box, and changing `--reps` is not what makes the next one
+  land. [until: reviewed 2026-09-19]
 
 ## Writing a test case
 
@@ -5932,6 +5945,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `target/debug/nvs.exe fmt tests/hostile/<dir>` before verifying; `docs/examples/` and
   `benches/members/` are not in that corpus and keep the chapters' spelling.
   [until: reviewed 2026-09-19]
+- **A new `.nvs` under `tests/hostile/` and a new `.nvst` anywhere under `tests/` both join
+  whole-corpus tests that only fail at the end of the session.** `nvs-fmt`'s `identity` demands the
+  file already be formatted — it rewrote `"one"` to `'one'` and indented a `?>` in two new attacks —
+  and `nvs-syntax`'s `lossless` demands every byte be covered by a token or a trivium, which the
+  `<?nvs` a shebang file refuses was not. Run `target/debug/nvs.exe fmt <file>` on each new `.nvs` as
+  soon as it runs, and expect a case exercising a recovery path to be what finds a hole in
+  `rule:ide/tokens-plus-trivia-reproduce-the-file`. [until: reviewed 2026-09-19]
 
 ## Splitting a file that got too big
 
