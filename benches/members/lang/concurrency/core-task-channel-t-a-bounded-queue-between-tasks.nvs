@@ -1,0 +1,39 @@
+<?nvs
+// Measures what it costs to build a channel and move four values through it between
+// two tasks. A server that reads rows in one task and writes them out in another meets
+// this once per request.
+// bench: iterations 20000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: this round's values are built from the last round's sum.
+            uint $seed = $total % 7;
+            var $chan = new Core\Task\Channel<uint>(2);
+            var $pair = Core\Task::all({
+                fill: fn(): uint => {
+                    $chan->send($seed + 1);
+                    $chan->send($seed + 2);
+                    $chan->send($seed + 3);
+                    $chan->send($seed + 4);
+                    $chan->close();
+                    return 4;
+                },
+                drain: fn(): uint => {
+                    uint $sum = 0;
+                    foreach ($chan as uint $value) {
+                        $sum = $sum + $value;
+                    }
+                    return $sum;
+                },
+            });
+            $total = $total + $pair->drain;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(20000), "\n";

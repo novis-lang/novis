@@ -1,0 +1,92 @@
+<?nvs
+// Attack: a channel is asked for a capacity of a billion. It is then made to carry
+// more values than fit in memory, abandoned half full, deadlocked on purpose, and
+// written to after it was closed. The runtime must stay standing, and the last step
+// must stop the program with an error.
+// covers: lang:concurrency/core-task-channel-t-a-bounded-queue-between-tasks
+// hostile: timeout-ms 60000
+// hostile: ends-early
+
+class Flood
+{
+    public static function block(int $size): string
+    {
+        return Core\Str::repeat('x', $size as uint);
+    }
+}
+
+// Step 1: a channel for a billion values. The capacity is a limit, so the memory for
+// a billion values must not be taken when the channel is made.
+var $huge = new Core\Task\Channel<int>(1000000000);
+$huge->send(1);
+$huge->close();
+int $fromHuge = 0;
+foreach ($huge as int $value) {
+    $fromHuge = $fromHuge + $value;
+}
+echo 'step 1: a channel for a billion values carried ', $fromHuge, "\n";
+
+// Step 2: a hundred thousand strings of a thousand characters through a channel that
+// holds one. Only the count is kept, so memory that grows here was not freed.
+var $narrow = new Core\Task\Channel<string>(1);
+var $moved = Core\Task::all({
+    fill: fn(): int => {
+        foreach (Core\Arr::range(1, 100000) as int $n) {
+            $narrow->send(Flood::block(1000));
+        }
+        $narrow->close();
+        return 100000;
+    },
+    drain: fn(): uint => {
+        uint $characters = 0;
+        foreach ($narrow as string $block) {
+            $characters = $characters + Core\Str::length($block);
+        }
+        return $characters;
+    },
+});
+echo 'step 2: moved ', $moved->drain, " characters through a queue of one\n";
+
+// Step 3: fifty thousand channels are made, filled and then left. Nobody reads them
+// and nobody closes them, so every value in them has to be freed with the channel.
+uint $made = 0;
+while ($made < 50000) {
+    var $dropped = new Core\Task\Channel<string>(2);
+    $dropped->send(Flood::block(64));
+    $dropped->send(Flood::block(64));
+    $made = $made + 1;
+}
+echo 'step 3: made and left ', $made, " full channels\n";
+
+// Step 4: the reader stops after two values while the sender still has a thousand to
+// go, so the sender waits for room that never comes. The deadline ends the group.
+var $stuck = new Core\Task\Channel<int>(1);
+try {
+    Core\Task::all({
+        send: fn(): void => {
+            foreach (Core\Arr::range(1, 1000) as int $n) {
+                $stuck->send($n);
+            }
+            $stuck->close();
+        },
+        giveUp: fn(): void => {
+            int $taken = 0;
+            foreach ($stuck as int $n) {
+                $taken = $taken + 1;
+                if ($taken == 2) {
+                    break;
+                }
+            }
+        },
+    }, { deadline: 200ms });
+    echo "step 4: the group finished, which it must not\n";
+} catch (TimeoutError $late) {
+    echo "step 4: the deadline ended a sender nobody was reading\n";
+}
+
+// Step 5: a value is sent into a channel that is already closed. This stops the
+// program with an error, so nothing after this line runs.
+var $shut = new Core\Task\Channel<int>(4);
+$shut->close();
+$shut->send(1);
+echo "step 5: the send was accepted, which it must not\n";

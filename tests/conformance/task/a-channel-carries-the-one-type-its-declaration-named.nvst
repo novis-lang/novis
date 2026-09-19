@@ -1,0 +1,36 @@
+--TEST--
+A channel's type argument is the type of the queue in both directions: `send` takes that type and no other, the `foreach` binding declares that same type, and a class the channel was not declared with is refused as any other mismatch is — `rule:concurrency/one-scheduler`, `rule:types/grammar`
+--FILE--
+<?nvs
+// covers: lang:concurrency/core-task-channel-t-a-bounded-queue-between-tasks
+// A channel is the one place a value crosses between two tasks, so the type it carries
+// is checked where it is written rather than where it is read: a queue that accepted
+// anything would move the mismatch into the consumer, which is a different task and a
+// different line.
+class Order {}
+class Refund {}
+
+var $numbers = new Core\Task\Channel<int>(2);
+
+// Going in: the argument is the declared element type.
+$numbers->send("12");
+
+// Coming out: the `foreach` binding is that same type, so it cannot narrow or widen it.
+foreach ($numbers as string $line) {
+    echo $line, "\n";
+}
+
+var $orders = new Core\Task\Channel<Order>(2);
+
+// A class is no weaker a bound than a scalar: `Refund` is not `Order`.
+$orders->send(new Refund());
+
+foreach ($orders as Order $order) {
+    echo "one order\n";
+}
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `int`, found `string`
+%A
+error: aborting due to 3 errors

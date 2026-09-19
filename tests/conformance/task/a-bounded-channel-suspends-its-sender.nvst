@@ -2,6 +2,7 @@
 A channel's capacity is a bound on the sender, not a hint: the producer never gets more than capacity-plus-one ahead of the consumer, and it does get ahead, so neither a growing buffer nor a rendezvous passes — `rule:concurrency/nothing-is-still-running-when-a-call-returns` over `nvs_stdlib::channel`
 --FILE--
 <?nvs
+// covers: lang:concurrency/core-task-channel-t-a-bounded-queue-between-tasks
 // The neighbouring case pins that a capacity-one channel loses and reorders
 // nothing. What it cannot see is *why* the sender waited, because at capacity
 // one every send after the first waits and a rendezvous would look identical.

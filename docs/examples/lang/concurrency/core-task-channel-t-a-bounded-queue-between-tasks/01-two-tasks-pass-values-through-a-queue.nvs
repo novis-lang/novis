@@ -1,0 +1,24 @@
+<?nvs
+// Shows how one task sends values to another through a channel. `close` tells the
+// reading task that no more values are coming.
+
+var $lines = new Core\Task\Channel<string>(4);
+
+Core\Task::all({
+    write: fn(): void => {
+        $lines->send("first");
+        $lines->send("second");
+        $lines->send("third");
+        // Close the channel when you are done sending. Without this the reading
+        // task waits forever.
+        $lines->close();
+    },
+    read: fn(): void => {
+        // The loop takes one value at a time. It ends when the channel is empty
+        // and closed.
+        foreach ($lines as string $line) {
+            echo $line, "\n";
+        }
+        echo "no more lines\n";
+    },
+});

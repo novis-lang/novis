@@ -1,0 +1,27 @@
+<?nvs
+// Shows what the capacity of a channel does. This one holds 2 values. `send` waits
+// while the channel is full, so the queue never holds more than 2 values. The memory
+// it uses is the same for 8 values and for 8 million.
+
+var $jobs = new Core\Task\Channel<int>(2);
+
+var $done = Core\Task::all({
+    fill: fn(): int => {
+        foreach (Core\Arr::range(1, 8) as int $n) {
+            $jobs->send($n);
+        }
+        $jobs->close();
+        return 8;
+    },
+    work: fn(): int => {
+        int $sum = 0;
+        foreach ($jobs as int $n) {
+            echo "handled job ", $n, "\n";
+            $sum = $sum + $n;
+        }
+        return $sum;
+    },
+});
+
+// This prints 8 and 36.
+echo $done->fill, " jobs, total ", $done->work, "\n";

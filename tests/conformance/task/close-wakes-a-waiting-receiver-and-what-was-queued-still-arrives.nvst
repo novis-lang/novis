@@ -1,0 +1,80 @@
+--TEST--
+`close` is the only end-of-stream signal: a receiver suspended on an empty, open channel is woken by it, values queued before it are still delivered, a second `close` changes nothing, and a channel closed with nothing in it ends the receiver's loop having delivered none — `rule:concurrency/one-scheduler` over `nvs_stdlib::channel`
+--FILE--
+<?nvs
+// covers: lang:concurrency/core-task-channel-t-a-bounded-queue-between-tasks
+// The neighbouring case pins the capacity as a bound on the sender. This one is the
+// other half of the same contract, on the receiver's side: a `foreach` over a channel
+// ends on `close` and on nothing else, which is why a producer that forgets to close
+// leaves its consumer suspended for good.
+class Flow {
+    public static bool $waiting = false;
+    public static bool $waitingWhenSendingBegan = false;
+    public static int $received = 0;
+    public static bool $loopEnded = false;
+    public static int $afterEmptyClose = -1;
+    public static bool $emptyLoopEnded = false;
+}
+
+var $chan = new Core\Task\Channel<int>(4);
+
+Core\Task::all({
+    // The sleep is what makes the assertion a bound rather than a coincidence: the
+    // consumer reaches its `foreach` and suspends on an empty channel before the first
+    // `send`, so what wakes it afterwards is the channel and not its own scheduling.
+    produce: fn(): void => {
+        Core\Time::sleep(10ms);
+        Flow::$waitingWhenSendingBegan = Flow::$waiting;
+        foreach (Core\Arr::range(1, 3) as int $n) {
+            $chan->send($n);
+        }
+        $chan->close();
+        // Closing twice changes nothing: a second close is neither an error nor a
+        // second end-of-stream, and the group below returns rather than throwing.
+        $chan->close();
+    },
+    consume: fn(): void => {
+        Flow::$waiting = true;
+        foreach ($chan as int $n) {
+            echo "got ", $n, "\n";
+            Flow::$received += 1;
+        }
+        Flow::$loopEnded = true;
+    },
+});
+
+echo "waiting on an empty channel before the first send: ", Flow::$waitingWhenSendingBegan ? "yes" : "no", "\n";
+echo "the loop ended after close: ", Flow::$loopEnded ? "yes" : "no", "\n";
+echo "values delivered: ", Flow::$received, "\n";
+
+// The empty case is the one a channel that ended the loop on its buffer running dry
+// would pass anyway, so it is asserted on its own: nothing is ever sent here, and the
+// receiver is suspended the whole time `closeOnly` sleeps.
+var $empty = new Core\Task\Channel<int>(4);
+
+Core\Task::all({
+    closeOnly: fn(): void => {
+        Core\Time::sleep(10ms);
+        $empty->close();
+    },
+    waitOnly: fn(): void => {
+        int $seen = 0;
+        foreach ($empty as int $n) {
+            $seen += 1;
+        }
+        Flow::$afterEmptyClose = $seen;
+        Flow::$emptyLoopEnded = true;
+    },
+});
+
+echo "a receiver waiting on an empty channel ended: ", Flow::$emptyLoopEnded ? "yes" : "no", "\n";
+echo "values it saw: ", Flow::$afterEmptyClose, "\n";
+--EXPECT--
+got 1
+got 2
+got 3
+waiting on an empty channel before the first send: yes
+the loop ended after close: yes
+values delivered: 3
+a receiver waiting on an empty channel ended: yes
+values it saw: 0
