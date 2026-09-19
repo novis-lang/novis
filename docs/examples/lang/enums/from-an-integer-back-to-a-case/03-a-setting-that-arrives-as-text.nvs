@@ -1,0 +1,36 @@
+<?nvs
+// Shows how a program reads a setting written by somebody else. The text may
+// name no case, so the program uses `as ?Level` and keeps its own default.
+
+enum Level: int { Debug = 0, Info = 1, Warn = 2, Error = 3 }
+
+class Settings {
+    // Returns the level the text names. Returns `Level::Info` when the text
+    // names no level.
+    public static function level(string $text): Level {
+        ?Level $found = $text as ?Level;
+        if ($found == null) {
+            return Level::Info;
+        }
+        return $found;
+    }
+
+    // Returns `true` when a message at this level should be written.
+    public static function writes(Level $configured, Level $message): bool {
+        return ($message as int) >= ($configured as int);
+    }
+}
+
+array<string> $lines = ["2", "0", "verbose", ""];
+
+// The first two lines name a level. The last two do not, so both become
+// `Level::Info`. This prints 2, 0, 1 and 1.
+foreach ($lines as string $line) {
+    echo Settings::level($line) as int, "\n";
+}
+
+Level $configured = Settings::level("2");
+
+// A warning is written and a debug message is not. This prints `yes` and `no`.
+echo Settings::writes($configured, Level::Warn) ? "yes" : "no", "\n";
+echo Settings::writes($configured, Level::Debug) ? "yes" : "no", "\n";

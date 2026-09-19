@@ -1,0 +1,136 @@
+<?nvs
+// Attack: a program converts numbers and text that name no case, as fast as it
+// can and for as long as it can. It throws and catches hundreds of thousands of
+// errors, converts numbers at the ends of the ranges, and hands the conversion
+// ten thousand digits of text. Every failed conversion should give `null` or
+// throw an error, and the runtime should stay standing.
+// covers: lang:enums/from-an-integer-back-to-a-case
+// hostile: timeout-ms 20000
+
+enum Level: int
+{ Debug = 0, Info = 1, Warn = 2, Error = 3 }
+
+enum Wide: uint
+{ None = 0, All = 18446744073709551615 }
+
+// 1. Two hundred thousand conversions that throw, each one caught. Nothing the
+// throws leave behind should pile up.
+class Thrown
+{
+    public static function sweep(int $rounds): int
+    {
+        int $caught = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            try {
+                Level $l = ($i + 4) as Level;
+                return -1;
+            } catch (RuntimeError $e) {
+                $caught = $caught + 1;
+            }
+            $i = $i + 1;
+        }
+        return $caught;
+    }
+}
+
+echo '1: caught ', Thrown::sweep(200000), "\n";
+
+// 2. Four million conversions with `as ?Level` over numbers no case carries.
+// Every one of them should be `null`.
+class Missing
+{
+    public static function sweep(int $rounds): int
+    {
+        int $notNull = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            ?Level $maybe = ($i + 4) as ?Level;
+            if ($maybe != null) {
+                $notNull = $notNull + 1;
+            }
+            $i = $i + 1;
+        }
+        return $notNull;
+    }
+}
+
+echo '2: not null ', Missing::sweep(4000000), "\n";
+
+// 3. The numbers at the ends of the ranges. A negative number cannot even
+// become the `uint` behind `Wide`, and the largest `uint` names no case of
+// `Level`.
+class Ends
+{
+    public static function sweep(int $rounds): int
+    {
+        int $unexpected = 0;
+        int $low = -9223372036854775807;
+        int $high = 9223372036854775807;
+        int $i = 0;
+        while ($i < $rounds) {
+            if (($low as ?Level) != null) {
+                $unexpected = $unexpected + 1;
+            }
+            if (($high as ?Level) != null) {
+                $unexpected = $unexpected + 1;
+            }
+            if (($low as ?Wide) != null) {
+                $unexpected = $unexpected + 1;
+            }
+            if ((18446744073709551615 as ?Wide) == null) {
+                $unexpected = $unexpected + 1;
+            }
+            $i = $i + 1;
+        }
+        return $unexpected;
+    }
+}
+
+echo '3: unexpected ', Ends::sweep(1000000), "\n";
+
+// 4. Text the conversion has to read as a number first: ten thousand digits,
+// an empty text, and text that holds no digits at all.
+class Text
+{
+    public static function sweep(int $rounds): int
+    {
+        string $long = Core\Str::repeat('9', 10000);
+        int $found = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            if (($long as ?Level) != null) {
+                $found = $found + 1;
+            }
+            if (('' as ?Level) != null) {
+                $found = $found + 1;
+            }
+            if (('level three' as ?Level) != null) {
+                $found = $found + 1;
+            }
+            $i = $i + 1;
+        }
+        return $found;
+    }
+}
+
+echo '4: found ', Text::sweep(100000), "\n";
+
+// 5. A method that converts a number and then calls itself, with no end.
+class Runaway
+{
+    public static function down(int $n): int
+    {
+        Level $l = $n as Level;
+        return Runaway::down($l as int);
+    }
+}
+
+try {
+    int $reached = Runaway::down(1);
+    echo '5: BAD, the call returned ', $reached, "\n";
+} catch (Throwable $e) {
+    echo '5: caught ', $e->message, "\n";
+}
+
+echo "the runtime is still running\n";

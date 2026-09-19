@@ -2,6 +2,7 @@
 An `int` converts into an enum only where a case names that value, and throws naming every case otherwise — `rule:types/conversion`
 --FILE--
 <?nvs
+// covers: lang:enums/from-an-integer-back-to-a-case
 enum Mode {
     Read,
     Write,

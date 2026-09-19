@@ -2,6 +2,7 @@
 A conversion into a `uint`-backed enum runs on that backing type whatever the operand started as — `rule:types/conversion`, `rule:types/conversion`
 --FILE--
 <?nvs
+// covers: lang:enums/from-an-integer-back-to-a-case
 enum Signal: uint {
     Stop = 10,
     Go = 20,

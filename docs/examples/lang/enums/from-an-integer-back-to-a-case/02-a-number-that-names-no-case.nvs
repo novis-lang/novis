@@ -1,0 +1,25 @@
+<?nvs
+// Shows the two ways to convert a number that no case carries. `as Level`
+// throws an error. `as ?Level` returns `null`.
+
+enum Level: int { Debug = 0, Info = 1, Warn = 2, Error = 3 }
+
+// The message names every case of the enum, so you can see what was expected.
+try {
+    Level $level = 9 as Level;
+    echo "this line is never reached\n";
+} catch (RuntimeError $e) {
+    echo $e->message, "\n";
+}
+
+// `as ?Level` gives `null` for the same number, and throws nothing.
+?Level $maybe = 9 as ?Level;
+
+// This prints `no such level`.
+echo $maybe == null ? "no such level" : "found one", "\n";
+
+// Text that is not a number gives `null` as well.
+?Level $fromText = "loud" as ?Level;
+
+// This prints `no such level`.
+echo $fromText == null ? "no such level" : "found one", "\n";

@@ -1,0 +1,25 @@
+<?nvs
+// Converts a number into the case of an enum that carries it. A program meets this shape when it
+// reads a status back out of a database row or a queue message.
+// bench: iterations 400000
+// bench: calls 0
+// bench: allocations 0
+
+enum Level: int { Debug = 0, Info = 1, Warn = 2, Error = 3 }
+
+class Bench {
+    public static function run(int $rounds): int {
+        int $total = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: the number converted this round is built from the case the
+            // last round produced, so the conversion stays inside the loop.
+            Level $held = (($total + $i) % 4) as Level;
+            $total = $total + ($held as int);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";
