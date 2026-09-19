@@ -227,6 +227,7 @@ sys.path.insert(0, str(TOOLS))
 
 import goals as goalsmod  # noqa: E402  (the chain's one reader; tools/ is not a package)
 import machine  # noqa: E402  (tools/ is not a package; this is how every tool here imports a sibling)
+import relink  # noqa: E402  (freeing the release binary when an editor's `nvs lsp` holds it)
 
 BS = chr(92)  # a literal backslash, spelled so no layer of quoting can eat it
 
@@ -493,10 +494,14 @@ def current_binary(explicit: str | None = None) -> Path | None:
     back to the old one. A machine with no `cargo` to ask is different: nothing can be built, the
     binary on disk is used, and the warning says it may be about old code. Two of these at once are
     safe -- cargo takes its own lock on `target/` and the second finds the build done.
+
+    **A link that cannot replace the old binary is retried once with it moved aside**, because on
+    Windows an editor running `nvs lsp` out of this tree holds that exact file and no build can
+    land while its window is open. `relink.py` is what moves it and why that is allowed.
     """
     if explicit:
         return binary(explicit)
-    exe = ROOT / "target" / "release" / ("nvs.exe" if os.name == "nt" else "nvs")
+    exe = relink.release_cli(ROOT)
     asked = 0.0
     for p in (exe, RELEASE_STAMP) if exe.exists() else ():
         try:
@@ -513,11 +518,23 @@ def current_binary(explicit: str | None = None) -> Path | None:
         print(f"dossier: could not run cargo ({exc}) -- using the binary on disk, which may be "
               f"about old code", file=sys.stderr)
         return binary()
+    if out.returncode != 0 and relink.held(out.stderr, exe):
+        aside = relink.free(exe)
+        if aside is not None:
+            print(f"dossier: {rel(exe)} is being run by another process, so the copy it is running "
+                  f"is now {rel(aside)} and the build is retried", file=sys.stderr)
+            try:
+                out = subprocess.run(RELEASE_BUILD, cwd=ROOT, **CAPTURE)
+            except OSError as exc:
+                print(f"dossier: could not run cargo ({exc}) -- using the binary on disk, which "
+                      f"may be about old code", file=sys.stderr)
+                return binary()
     if out.returncode != 0:
         errors = [ln for ln in out.stderr.splitlines() if ln.startswith(("error", " -->"))][:6]
         print("dossier: the tree does not build in release, so there is no `nvs` to judge a proof "
               "against:\n  " + "\n  ".join(errors or out.stderr.splitlines()[-6:]))
         return None
+    relink.sweep(exe)
     try:
         RELEASE_STAMP.parent.mkdir(parents=True, exist_ok=True)
         RELEASE_STAMP.write_text("", encoding="utf-8")

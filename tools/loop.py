@@ -60,6 +60,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import disk  # noqa: E402  -- same directory; the retention policy has one home and it is there
 import goals as goalsmod  # noqa: E402  -- same directory; the chain has one reader and it is there
 import machine  # noqa: E402  -- same directory; how wide anything runs has one home too
+import relink  # noqa: E402  -- same directory; freeing the release binary an editor is running
 import verify_keys  # noqa: E402  -- same directory; how much of a `.rs` file a reader reads
 import written  # noqa: E402  -- same directory; how a tool reports what it wrote, and why
 
@@ -2694,7 +2695,15 @@ class Goal:
                 for args in builds:
                     capture("cargo", [*args, "--no-run"])
                 if cli:
-                    capture("cargo", cli)
+                    # The link replaces `target/release/nvs`, which an editor running `nvs lsp`
+                    # out of this tree holds open for the life of its window. `relink.py` moves
+                    # the copy it is running aside so the retry can land; without that the build
+                    # fails, the measurement is taken on whatever binary was there before, and
+                    # this docstring's own complaint is back.
+                    exe = relink.release_cli(ROOT)
+                    if relink.held(capture("cargo", cli).err, exe) and relink.free(exe):
+                        capture("cargo", cli)
+                    relink.sweep(exe)
 
         # Every warmed argument list, and a `cargo()` that finds its own in here waits out the
         # WHOLE thread: the builds are serial, so a guard released as soon as its own finished
