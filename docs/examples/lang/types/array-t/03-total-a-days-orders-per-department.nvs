@@ -1,0 +1,29 @@
+<?nvs
+// A day's order lines, totalled per department and answered as JSON.
+// An array whose values are arrays is how a grouped report is held. The
+// helper is handed the totals and works on its own copy, so the figures it
+// was given are still the ones printed at the end.
+
+class Report {
+    public static function withServiceFee(array<int> $totals): array<int> {
+        foreach ($totals as string $department => int $cents) {
+            $totals[$department] = $cents + 250;
+        }
+        return $totals;
+    }
+}
+
+array<array<int>> $lines = [
+    "produce" => [1299, 450],
+    "bakery" => [780],
+];
+
+array<int> $totals = [];
+foreach ($lines as string $department => array<int> $amounts) {
+    $totals[$department] = Core\Arr::sum($amounts) as int;
+}
+
+array<int> $billed = Report::withServiceFee($totals);
+
+echo Core\Json::encode($totals), "\n";
+echo Core\Json::encode($billed), "\n";

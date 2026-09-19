@@ -1,0 +1,15 @@
+<?nvs
+// A basket of prices, shown one line at a time and then added up.
+// The list says once that it holds whole numbers, so everything put into it
+// afterwards is one, and the loop that reads it says the same thing.
+
+array<int> $prices = [1299, 450];
+$prices[] = 780;
+
+int $total = 0;
+foreach ($prices as int $price) {
+    echo $price, "\n";
+    $total = $total + $price;
+}
+
+echo "total ", $total, " over ", Core\Arr::count($prices), " items\n";

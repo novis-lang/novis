@@ -1,0 +1,44 @@
+--TEST--
+The five ways an `array<T>` is asked for something it does not have: a second element type in its literal, a string form for `echo`, a `+` over two of them, a key binding that is not a `string`, and a `float` subscript (`rule:types/arrays`, `rule:types/array-combination`, `rule:types/conversion`)
+--FILE--
+<?nvs
+// covers: lang:types/array-t
+
+// `rule:types/arrays`: an array literal is checked against the element type
+// where it is written, so one entry of another type refuses there.
+array<int> $mixed = [1, "two"];
+
+// `rule:types/conversion`: an array has no text of its own, so `echo`, which
+// converts what it is given to `string`, has nothing to convert it to.
+array<int> $a = [1, 2];
+echo $a, "\n";
+
+// `rule:types/array-combination`: binary `+` over two arrays is a diagnostic
+// naming the one operation it ever meant.
+array<int> $b = [3];
+array<int> $joined = $a + $b;
+
+// `rule:types/arrays`: every key is stored as a `string`, so no array could
+// ever fill a key binding declared as anything else.
+foreach ($a as int $k => int $v) {
+    echo $k, $v;
+}
+
+// `rule:types/arrays`: a `float`, `bool` or `null` subscript is refused where
+// PHP truncates or stringifies it.
+float $f = 1.0;
+$a[$f] = 2;
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `int`, found `string`
+%A
+error[E0707]: `array<int>` has no string form
+%A
+error[E0467]: `+` is not defined with an array operand
+%A
+error[E0723]: an array's key binding is a `string`, not `int`
+%A
+error[E0434]: a `float`, `bool`, or `null` array key is not allowed
+%A
+error: aborting due to 5 errors
