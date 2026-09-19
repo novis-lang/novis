@@ -1,0 +1,61 @@
+--TEST--
+A `throw` in a `match` arm raises out of the match, and the arm supplies no value, so the method's declared `string` still holds — `rule:errors/propagation`
+--FILE--
+<?nvs
+// covers: lang:errors/throw
+// The arm that throws cannot complete, so the `match` produces no value and the
+// declared return type stands unchanged (`rule:errors/propagation`).
+class Orders {
+    public static function step(string $status): string {
+        return match ($status) {
+            "paid" => "pack",
+            default => throw new LogicError("unknown: " . $status),
+        };
+    }
+}
+
+echo Orders::step("paid"), "\n";
+
+// The raise happens while the argument is being built, so `echo` writes nothing
+// for this line.
+try {
+    echo Orders::step("returned"), "\n";
+} catch (LogicError $unknown) {
+    echo "caught ", $unknown->message, "\n";
+}
+
+// Counting rather than reading a line off the output: only the arm whose label
+// matched is evaluated, so the two arms that call `seen` run once each and the
+// subject that raises adds nothing.
+class Counter {
+    public static int $arms = 0;
+
+    public static function bump(int $n): int {
+        return match ($n) {
+            1 => Counter::seen(10),
+            2 => throw new RuntimeError("arm two"),
+            default => Counter::seen(30),
+        };
+    }
+
+    public static function seen(int $v): int {
+        Counter::$arms = Counter::$arms + 1;
+        return $v;
+    }
+}
+
+echo Counter::bump(1), "\n";
+try {
+    echo Counter::bump(2), "\n";
+} catch (RuntimeError $two) {
+    echo "caught ", $two->message, "\n";
+}
+echo Counter::bump(3), "\n";
+echo "arms that ran: ", Counter::$arms, "\n";
+--EXPECT--
+pack
+caught unknown: returned
+10
+caught arm two
+30
+arms that ran: 2

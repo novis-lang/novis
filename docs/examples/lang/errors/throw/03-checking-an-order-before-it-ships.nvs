@@ -1,0 +1,30 @@
+<?nvs
+// Shows the checks a program runs before it ships an order. Each check either
+// gives a value or throws, so the last line can use both values.
+
+final class Shipment {
+    public static function forOrder(int $quantity, ?string $address): string {
+        // The ternary gives `$quantity` when it is positive. For 0 it throws.
+        int $items = $quantity > 0
+            ? $quantity
+            : throw new LogicError("an order needs at least one item");
+        // `??` covers the second case: an address nobody filled in.
+        string $to = $address ?? throw new LogicError("an order needs an address");
+        return "ship " . $items . " item(s) to " . $to;
+    }
+}
+
+// This prints: ship 3 item(s) to 12 Baker Street
+echo Shipment::forOrder(3, "12 Baker Street"), "\n";
+
+try {
+    echo Shipment::forOrder(0, "12 Baker Street"), "\n";
+} catch (LogicError $empty) {
+    echo $empty->message, "\n";
+}
+
+try {
+    echo Shipment::forOrder(2, null), "\n";
+} catch (LogicError $nowhere) {
+    echo $nowhere->message, "\n";
+}

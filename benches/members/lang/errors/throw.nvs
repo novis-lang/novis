@@ -1,0 +1,31 @@
+<?nvs
+// Measures a `throw` written after `??`: a field that is not there raises an
+// error one frame down, and the caller catches it. A program meets this shape
+// wherever it reads a field that may be missing.
+// bench: iterations 200000
+// bench: calls 2
+
+class Bench {
+    public static function email(array<string> $row): string {
+        return $row["email"] ?? throw new LogicError("the row has no email");
+    }
+
+    public static function run(uint $rounds): uint {
+        array<string> $row = ["id" => "7"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            try {
+                $total = $total + Core\Str::length(Bench::email($row));
+            } catch (LogicError $missing) {
+                // Chained: every round adds the length of the message it
+                // caught, so the loop stays.
+                $total = $total + Core\Str::length($missing->message);
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

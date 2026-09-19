@@ -1,0 +1,83 @@
+<?nvs
+// Attack: a throw is raised from every place a value is expected, as often as
+// the runtime allows. It comes out of a `??`, out of a `match` arm, and out of
+// the argument of another `throw`. Every step is caught, and the runtime should
+// still be standing at the end.
+// hostile: timeout-ms 30000
+
+final class Deep
+{
+    // The value is never there, so the `??` throws at the bottom of the chain
+    // and the error crosses every frame above it.
+    public static function reach(array<string> $row, int $depth): string
+    {
+        if ($depth == 0) {
+            return $row['missing'] ?? throw new IOError('nothing at the bottom');
+        }
+        return Deep::reach($row, $depth - 1);
+    }
+
+    public static function step(string $status): string
+    {
+        return match ($status) {
+            'known' => 'a step',
+            default => throw new LogicError('unknown status: ' . $status),
+        };
+    }
+
+    // Building the message throws first, so the `new RuntimeError` around it is
+    // never finished.
+    public static function name(): string
+    {
+        throw new LogicError('the name was never there');
+    }
+}
+
+array<string> $row = ['id' => '7'];
+
+// Step 1: a throw after `??`, a thousand frames down.
+try {
+    echo Deep::reach($row, 1000), "\n";
+} catch (Throwable $fromTheBottom) {
+    echo 'step 1: ', $fromTheBottom->message, "\n";
+}
+
+// Step 2: two hundred thousand throws out of a `match` arm.
+uint $messages = 0;
+int $round = 0;
+while ($round < 200000) {
+    try {
+        string $step = Deep::step('gone');
+        $messages = $messages + Core\Str::length($step);
+    } catch (LogicError $unknown) {
+        $messages = $messages + Core\Str::length($unknown->message);
+    }
+    $round = $round + 1;
+}
+echo 'step 2: ', $messages, " characters of messages\n";
+
+// Step 3: a throw inside the argument of another throw.
+try {
+    throw new RuntimeError('wrapping ' . Deep::name());
+} catch (Throwable $inner) {
+    echo 'step 3: ', $inner->message, "\n";
+}
+
+// Step 4: a hundred thousand throws out of a ternary arm, each leaving through
+// a `finally`.
+int $ran = 0;
+int $pass = 0;
+while ($pass < 100000) {
+    try {
+        int $items = $pass < 0 ? $pass : throw new LogicError('no items');
+        $ran = $ran + $items;
+    } catch (LogicError $none) {
+        $ran = $ran + 1;
+    } finally {
+        $ran = $ran + 1;
+    }
+    $pass = $pass + 1;
+}
+echo 'step 4: ', $ran, " arms and finally blocks\n";
+
+echo "the runtime is still standing\n";
