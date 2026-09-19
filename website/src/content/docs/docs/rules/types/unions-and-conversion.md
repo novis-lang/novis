@@ -15,9 +15,9 @@ next:
 
 <p class="nv-section-lead">What a union permits, the four spellings of narrowing, and the single conversion operator that replaced the cast.</p>
 
-<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">8</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">7</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">1</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">4</span><span class="nv-count-label">differ from PHP</span></div></div>
+<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">8</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">8</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">0</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">4</span><span class="nv-count-label">differ from PHP</span></div></div>
 
-<ol class="nv-rule-list"><li><a href="#unions-and-mixed">A union permits only what every member permits, and <code>mixed</code> is the one position checked nowhere</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#type-test"><code>$x is T</code> tests whether a value holds a <code>T</code>, answers <code>bool</code>, and never refuses because the answer is knowable</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#narrowing">Narrowing is flow-sensitive and branch-local, and there are exactly five spellings of it</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#conversion"><code>expr as T</code> is the only conversion, and it produces a <code>T</code> or throws</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#no-legacy-cast">PHP's <code>(T)expr</code> cast does not parse, and the diagnostic names the <code>as</code> that replaces it</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#type-alias">A <code>type</code> alias is a transparent, compile-time-only synonym for a type expression</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#alias-is-never-a-bare-class">A <code>type</code> alias may not name a single bare class</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#class-scoped-alias">A <code>type</code> alias is also a member of a class, interface or enum, reached as <code>Owner::Name</code> and as a bare <code>Name</code> inside its owner</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li></ol>
+<ol class="nv-rule-list"><li><a href="#unions-and-mixed">A union permits only what every member permits, and <code>mixed</code> is the one position checked nowhere</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#type-test"><code>$x is T</code> tests whether a value holds a <code>T</code>, answers <code>bool</code>, and never refuses because the answer is knowable</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#narrowing">Narrowing is flow-sensitive and branch-local, and there are exactly four spellings of it</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#conversion"><code>expr as T</code> is the only conversion, and it produces a <code>T</code> or throws</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#no-legacy-cast">PHP's <code>(T)expr</code> cast does not parse, and the diagnostic names the <code>as</code> that replaces it</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#type-alias">A <code>type</code> alias is a transparent, compile-time-only synonym for a type expression</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#alias-is-never-a-bare-class">A <code>type</code> alias may not name a single bare class</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#class-scoped-alias">A <code>type</code> alias is also a member of a class, interface or enum, reached as <code>Owner::Name</code> and as a bare <code>Name</code> inside its owner</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li></ol>
 
 <div class="nv-rule" id="unions-and-mixed">
 
@@ -30,7 +30,7 @@ next:
 </div>
 
 A union permits only the operations valid for *every* member. Reaching a member's own operations means
-narrowing ([`types/narrowing`](/docs/rules/types/unions-and-conversion/#narrowing "Narrowing is flow-sensitive and branch-local, and there are exactly five spellings of it")), and the spelling that narrows is the `is` operator
+narrowing ([`types/narrowing`](/docs/rules/types/unions-and-conversion/#narrowing "Narrowing is flow-sensitive and branch-local, and there are exactly four spellings of it")), and the spelling that narrows is the `is` operator
 ([`types/type-test`](/docs/rules/types/unions-and-conversion/#type-test "$x is T tests whether a value holds a T, answers bool, and never refuses because the answer is knowable")) — never an `is_int()`-style free function, because there are no free
 functions, which is also why `Core\Validate` carries no numeric predicates. *Getting* a scalar out of
 a union or out of `mixed` is a different question from testing for one: that is `as T`, which throws,
@@ -60,7 +60,7 @@ diagnostic, not a runtime check.
 <p>There is no <code>is_int()</code>-style free function to narrow with — the question is the <code>is</code> operator (<code>rule:types/type-test</code>) — and <code>mixed</code> never absorbs implicitly: <code>int $n = $m;</code> is a diagnostic rather than a runtime check</p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/types/unions-and-conversion/#narrowing" title="Narrowing is flow-sensitive and branch-local, and there are exactly five spellings of it"><code>types/narrowing</code></a> <a href="/docs/rules/types/unions-and-conversion/#conversion" title="expr as T is the only conversion, and it produces a T or throws"><code>types/conversion</code></a> <a href="/docs/rules/types/declarations-and-numbers/#grammar" title="The type grammar is a closed set of atoms under unions and intersections"><code>types/grammar</code></a> <a href="/docs/rules/types/arrays-and-property-keys/#mixed-subscript" title="A subscript through a mixed is the tag's question; every other base answers it where it is written"><code>types/mixed-subscript</code></a> <a href="/docs/rules/types/unions-and-conversion/#type-test" title="$x is T tests whether a value holds a T, answers bool, and never refuses because the answer is knowable"><code>types/type-test</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0007.md">record 0007</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0012.md">record 0012</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0066.md">record 0066</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0047.md">record 0047</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0150.md">record 0150</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/a-mixed-value-converts-to-a-scalar-on-request.nvst"><code>tests/conformance/lang/a-mixed-value-converts-to-a-scalar-on-request.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/a-mixed-value-answers-arithmetic-truth-and-a-subscript.nvst"><code>tests/conformance/lang/a-mixed-value-answers-arithmetic-truth-and-a-subscript.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/a-union-operand-renders-by-its-runtime-tag.nvst"><code>tests/conformance/lang/a-union-operand-renders-by-its-runtime-tag.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-types/tests/narrowing.rs"><code>crates/nvs-types/tests/narrowing.rs</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/types/unions-and-conversion/#narrowing" title="Narrowing is flow-sensitive and branch-local, and there are exactly four spellings of it"><code>types/narrowing</code></a> <a href="/docs/rules/types/unions-and-conversion/#conversion" title="expr as T is the only conversion, and it produces a T or throws"><code>types/conversion</code></a> <a href="/docs/rules/types/declarations-and-numbers/#grammar" title="The type grammar is a closed set of atoms under unions and intersections"><code>types/grammar</code></a> <a href="/docs/rules/types/arrays-and-property-keys/#mixed-subscript" title="A subscript through a mixed is the tag's question; every other base answers it where it is written"><code>types/mixed-subscript</code></a> <a href="/docs/rules/types/unions-and-conversion/#type-test" title="$x is T tests whether a value holds a T, answers bool, and never refuses because the answer is knowable"><code>types/type-test</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0007.md">record 0007</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0012.md">record 0012</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0066.md">record 0066</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0047.md">record 0047</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0150.md">record 0150</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/a-mixed-value-converts-to-a-scalar-on-request.nvst"><code>tests/conformance/lang/a-mixed-value-converts-to-a-scalar-on-request.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/a-mixed-value-answers-arithmetic-truth-and-a-subscript.nvst"><code>tests/conformance/lang/a-mixed-value-answers-arithmetic-truth-and-a-subscript.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/a-union-operand-renders-by-its-runtime-tag.nvst"><code>tests/conformance/lang/a-union-operand-renders-by-its-runtime-tag.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-types/tests/narrowing.rs"><code>crates/nvs-types/tests/narrowing.rs</code></a></dd></div></dl>
 
 </div>
 
@@ -69,7 +69,7 @@ diagnostic, not a runtime check.
 ## `$x is T` tests whether a value holds a `T`, answers `bool`, and never refuses because the answer is knowable
 
 <div class="nv-rule-tags">
-<span class="nv-rule-status" data-status="designed">Designed</span>
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
 <span class="nv-rule-flag">Differs from PHP</span>
 <a class="nv-rule-id" href="#type-test"><code>types/type-test</code></a>
 </div>
@@ -77,10 +77,12 @@ diagnostic, not a runtime check.
 `$x is T` asks whether a value currently holds a `T` and answers `bool`, for any type a value can
 inhabit. It is **strict** — nothing is coerced on the way to the answer — and it is **total**: it
 always compiles, and a result the checker can settle by itself folds to a constant rather than
-becoming a diagnostic.
+becoming a diagnostic. It is Novis's only type test: there is no second operator for the class case
+([`php-migration/one-type-test`](/docs/rules/php-migration/divergences/#one-type-test "instanceof is refused where it is written, is is the one type test, and neither keyword is compared with PHP again")).
 
 The right-hand side is a **type**, parsed by the same production `as` uses
-([`types/conversion`](/docs/rules/types/unions-and-conversion/#conversion "expr as T is the only conversion, and it produces a T or throws")), not an expression. `is` is the question `as` was standing in for and never
+([`types/conversion`](/docs/rules/types/unions-and-conversion/#conversion "expr as T is the only conversion, and it produces a T or throws")), not an expression — with the single exception of § *The value arm* below,
+which a `$` opens and nothing else does. `is` is the question `as` was standing in for and never
 answered: `"7" as ?int` is `7`, because `string → int` is a conversion row, while `"7" is int` is
 `false`, because a `string` is not an `int`. One asks what a value can *become*, the other what it
 *is*.
@@ -102,10 +104,11 @@ if ($m is int) {
 | a shape | `$x is {x: int, y: int}` |
 | `iterable`, `callable`, a callable signature | `$x is iterable`, `$x is callable` |
 | a literal type | `$x is 5`, `$x is 'yay'`, `$x is true` |
-| a class constant or an enum case | `$x is Mode::Read`, `$x is self::Wild` |
+| a class constant or an enum case | `$x is Mode::Read`, `$x is Limits::MAX` |
 | an enum | `$x is Rank` |
-| `mixed` | `$x is mixed` — always `true`, and the RFC's wildcard |
-| a union or an intersection of any of those | `$x is int\|float`, `$x is Countable&Traversable` |
+| `mixed` | `$x is mixed` — always `true`, the wildcard |
+| a union or an intersection of any of those | `$x is int\|float`, `$x is Stringable&Comparable` |
+| a class reference held in a binding | `$x is $cls` — § *The value arm* |
 
 `array<T>` with a named element type, and a shape, each cost an O(n) walk — the same walk
 `as array<T>` already performs, in a spelling that answers instead of throwing. An enum is its cases:
@@ -113,26 +116,42 @@ if ($m is int) {
 compare per case, and [`enums/representation`](/docs/rules/enums/#representation "An enum value costs nothing beyond the integer it is") owns what that can tell apart — a value that reached
 `mixed` is its backing integer, so a case is not distinguishable there from that integer nor from
 another enum's case of the same value. Every other row is one tag comparison, or the descriptor walk
-`instanceof` already does.
+the class-test instruction performs.
 
 There is no float literal type to test against ([`types/literal-types`](/docs/rules/types/text-and-literal-types/#literal-types "A string or int literal is its own type, and a union of them is a closed set")), so `$x is 3.14` is
 refused by that rule and not by this one.
 
-## The three refusals
+## The value arm
+
+A `$` after `is` opens the one arm that is a value rather than a type: `$x is $cls` is the **dynamic
+class test**, where `$cls` is a `class<T>` ([`types/class-reference`](/docs/rules/types/objects-and-shapes/#class-reference "class<T> is a type whose value is a class descriptor, and as is its only source")). It tests the class the
+subject holds against the descriptor the reference carries — the same descriptor walk a written class
+name lowers to — and narrows the subject to `T` on the true edge. `$x is $this->cls` is the same arm;
+every other token after `is` starts a type, which keeps a DNF type's opening `(` a type.
+
+A value on the right that is **not** a `class<T>` is `E0496`, the one report `new $v(...)` and
+`$v::f(...)` already share, with its help naming `as class<T>`
+([`types/class-reference-sites`](/docs/rules/types/objects-and-shapes/#class-reference-sites "Three sites accept a class<T>, and every other operand is still refused there")). A program that wants a computed class reference binds it to a
+local and converts it there; a call or a constant after `is` is read as a type and resolves or fails
+as one.
+
+## The two refusals
 
 | refused | code | why |
 |---|---|---|
 | `$x is tainted string`, `is secret bytes` | `E0813` | [`security/tainted-qualifier`](/docs/rules/security/tainted-data/#tainted-qualifier "tainted is a compile-time qualifier on string, bytes and a shape of them, spellable in any declaration and erased before codegen") erases both qualifiers before codegen. There is no runtime bit, so the question has no answer — not merely a knowable one |
 | `$x is void`, `$x is never` | `E0811` | no value inhabits either |
-| `$x is $cls` | `E0812` | that is a *value*, not a type. `$x instanceof $cls` is the dynamic class test ([`types/class-reference-sites`](/docs/rules/types/objects-and-shapes/#class-reference-sites "Three sites accept a class<T>, and every other operand is still refused there")), and the spelling stays refused because PHP's grammar binds a variable there ([`php-migration/is-takes-pattern-matchings-type-patterns`](/docs/rules/php-migration/divergences/#is-takes-pattern-matchings-type-patterns "is implements the type-pattern half of PHP's Pattern Matching RFC and reserves every other row of it")) |
 
 Nothing else is refused. In particular a test whose answer the declaration already settles is **not**:
-`int $n; $n is int` compiles and is `true`, and `int $n; $n is string` compiles and is `false`. That
-differs from `instanceof`, which refuses a subject that can hold no object at all (`E0497`,
-[`php-migration/a-declared-type-answers-before-the-program-runs`](/docs/rules/php-migration/divergences/#a-declared-type-answers-before-the-program-runs "-> on a receiver that can hold no object, and instanceof on a subject that can hold none, are refused where they are written")) — but `instanceof` needs a class
-to test against and a scalar has none, so the operator is genuinely *inapplicable* there. `is` is
-applicable everywhere, because every value has a representation. A knowable answer is not a
-meaningless question.
+`int $n; $n is int` compiles and is `true`, `int $n; $n is string` compiles and is `false`, and
+`int $n; $n is Request` compiles and is `false` like the rest. `is` is applicable to every subject,
+because every value has a representation, and a knowable answer is not a meaningless question.
+
+A target nothing is ever an instance of settles the same way. A `Core` **namespace** class is a name
+for static members alone, so `$x is Core\Str` is `false` for every subject and every spelling that
+reaches one: a member of an intersection settles the whole test, while a union answers on its live
+members — `$x is int|Core\Str` is the `int` row. Deeper, the answer belongs to the position rather
+than to the test, so `[] is array<Core\Str>` is `true`, an empty array having no element to fail.
 
 Narrowing is the second reason. Once `is` narrows, a guard written inside an already-narrowed branch
 is statically true by construction, and refusing that would let a flow analysis turn working code into
@@ -140,9 +159,9 @@ a compile error.
 
 ## What it narrows
 
-`is` narrows its subject on the **true edge**, and is the fifth spelling in [`types/narrowing`](/docs/rules/types/unions-and-conversion/#narrowing "Narrowing is flow-sensitive and branch-local, and there are exactly five spellings of it") —
-which owns every other property of narrowing, including that it changes what is known about a binding
-and never its declared type.
+`is` narrows its subject on the **true edge**, and is one of the four spellings in
+[`types/narrowing`](/docs/rules/types/unions-and-conversion/#narrowing "Narrowing is flow-sensitive and branch-local, and there are exactly four spellings of it") — which owns every other property of narrowing, including that it changes what
+is known about a binding and never its declared type.
 
 ## Where it answers differently from PHP
 
@@ -152,35 +171,38 @@ migration spelling. `string` and `bytes` are separate the same way
 ([`types/string-is-utf8`](/docs/rules/types/text-and-literal-types/#string-is-utf8 "A string is valid UTF-8 for its whole lifetime, and its unmarked unit is the grapheme cluster"), [`types/bytes`](/docs/rules/types/text-and-literal-types/#bytes "bytes is a primitive peer to string for data that carries no encoding")), so binary data answers `is bytes` where PHP's
 `is_string()` is true. Both are consequences of a finer type system rather than of this operator, and
 `is` is simply the first spelling that makes them reachable from a mechanical rewrite of PHP source.
+What that rewrite does with PHP's own class-test operator is [`php-migration/one-type-test`](/docs/rules/php-migration/divergences/#one-type-test "instanceof is refused where it is written, is is the one type test, and neither keyword is compared with PHP again")'s.
 
 <aside class="nv-rule-diverges">
 <p class="nv-rule-diverges-label">Where this differs from PHP</p>
 <p><code>int</code> and <code>uint</code> are separate tags, so a <code>BIGINT UNSIGNED</code> value answers <code>is uint</code> and not <code>is int</code> where <code>is_int()</code> was true for both, and <code>string</code> and <code>bytes</code> are separate the same way; <code>is 3.14</code> is refused outright, there being no float literal type</p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/types/unions-and-conversion/#narrowing" title="Narrowing is flow-sensitive and branch-local, and there are exactly five spellings of it"><code>types/narrowing</code></a> <a href="/docs/rules/types/unions-and-conversion/#conversion" title="expr as T is the only conversion, and it produces a T or throws"><code>types/conversion</code></a> <a href="/docs/rules/types/unions-and-conversion/#unions-and-mixed" title="A union permits only what every member permits, and mixed is the one position checked nowhere"><code>types/unions-and-mixed</code></a> <a href="/docs/rules/types/text-and-literal-types/#literal-types" title="A string or int literal is its own type, and a union of them is a closed set"><code>types/literal-types</code></a> <a href="/docs/rules/types/objects-and-shapes/#class-reference-sites" title="Three sites accept a class&lt;T&gt;, and every other operand is still refused there"><code>types/class-reference-sites</code></a> <a href="/docs/rules/php-migration/divergences/#is-takes-pattern-matchings-type-patterns" title="is implements the type-pattern half of PHP's Pattern Matching RFC and reserves every other row of it"><code>php-migration/is-takes-pattern-matchings-type-patterns</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0150.md">record 0150</a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/types/unions-and-conversion/#narrowing" title="Narrowing is flow-sensitive and branch-local, and there are exactly four spellings of it"><code>types/narrowing</code></a> <a href="/docs/rules/types/unions-and-conversion/#conversion" title="expr as T is the only conversion, and it produces a T or throws"><code>types/conversion</code></a> <a href="/docs/rules/types/unions-and-conversion/#unions-and-mixed" title="A union permits only what every member permits, and mixed is the one position checked nowhere"><code>types/unions-and-mixed</code></a> <a href="/docs/rules/types/text-and-literal-types/#literal-types" title="A string or int literal is its own type, and a union of them is a closed set"><code>types/literal-types</code></a> <a href="/docs/rules/types/objects-and-shapes/#class-reference-sites" title="Three sites accept a class&lt;T&gt;, and every other operand is still refused there"><code>types/class-reference-sites</code></a> <a href="/docs/rules/php-migration/divergences/#one-type-test" title="instanceof is refused where it is written, is is the one type test, and neither keyword is compared with PHP again"><code>php-migration/one-type-test</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0150.md">record 0150</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0192.md">record 0192</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/class/an-is-test-through-an-erased-subject-answers-every-tag.nvst"><code>tests/conformance/class/an-is-test-through-an-erased-subject-answers-every-tag.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/class/an-is-test-against-a-core-namespace-class-answers-false.nvst"><code>tests/conformance/class/an-is-test-against-a-core-namespace-class-answers-false.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/an-is-test-over-a-mixed-subject-answers-the-scalar-class-array-and-literal-rows.nvst"><code>tests/conformance/lang/an-is-test-over-a-mixed-subject-answers-the-scalar-class-array-and-literal-rows.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/an-is-test-against-a-shape-walks-its-fields.nvst"><code>tests/conformance/lang/an-is-test-against-a-shape-walks-its-fields.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/an-is-test-against-iterable-or-callable-answers-by-what-the-value-holds.nvst"><code>tests/conformance/lang/an-is-test-against-iterable-or-callable-answers-by-what-the-value-holds.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/an-is-test-against-an-enum-agrees-with-its-own-case-rows.nvst"><code>tests/conformance/lang/an-is-test-against-an-enum-agrees-with-its-own-case-rows.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/an-is-test-against-a-union-or-an-intersection-asks-each-member.nvst"><code>tests/conformance/lang/an-is-test-against-a-union-or-an-intersection-asks-each-member.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/an-is-test-against-a-class-reference-is-the-dynamic-class-test.nvst"><code>tests/conformance/lang/an-is-test-against-a-class-reference-is-the-dynamic-class-test.nvst</code></a></dd></div></dl>
 
 </div>
 
 <div class="nv-rule" id="narrowing">
 
-## Narrowing is flow-sensitive and branch-local, and there are exactly five spellings of it
+## Narrowing is flow-sensitive and branch-local, and there are exactly four spellings of it
 
 <div class="nv-rule-tags">
 <span class="nv-rule-status" data-status="shipped">Shipped</span>
 <a class="nv-rule-id" href="#narrowing"><code>types/narrowing</code></a>
 </div>
 
-Narrowing is flow-sensitive and **branch-local**, and there are five spellings of it: `is`,
-`instanceof`, a `== null` test, a comparison against a literal-typed value, and `match (true)`. A
-`switch (true)` narrows per arm the same way. A write inside a narrowed block widens the binding
-again, because the narrowing described the value that was there, not the slot.
+Narrowing is flow-sensitive and **branch-local**, and there are four spellings of it: `is`, a
+`== null` test, a comparison against a literal-typed value, and `match (true)`. A `switch (true)`
+narrows per arm the same way. A write inside a narrowed block widens the binding again, because the
+narrowing described the value that was there, not the slot.
 
-`is` is the general one — it tests a value against any type a value can inhabit, where `instanceof`
-tests only a class ([`types/type-test`](/docs/rules/types/unions-and-conversion/#type-test "$x is T tests whether a value holds a T, answers bool, and never refuses because the answer is knowable") owns both the accepted set and why the two coexist). Every
-spelling narrows on the **true edge alone**. Subtracting a union member on the failing edge is
-deliberately not done by any of the five: it is a separable improvement, and one that has to be taken
-for all of them at once or not at all.
+`is` is the general one — it tests a value against any type a value can inhabit, and it is the only
+type test there is ([`types/type-test`](/docs/rules/types/unions-and-conversion/#type-test "$x is T tests whether a value holds a T, answers bool, and never refuses because the answer is knowable")). Its value arm narrows too: `$x is $cls`, where `$cls` is
+a `class<T>`, narrows the subject to **`T`** on the true edge, which is sound because a `class<T>`
+holds `T` or an implementor of it ([`types/class-reference-sites`](/docs/rules/types/objects-and-shapes/#class-reference-sites "Three sites accept a class<T>, and every other operand is still refused there")). Every spelling narrows on the
+**true edge alone**. Subtracting a union member on the failing edge is deliberately not done by any of
+the four: it is a separable improvement, and one that has to be taken for all of them at once or not
+at all.
 
 Nothing else narrows. In particular an equality against an enum case does not — `$m == Mode::Read`
 leaves `$m` at its declared type in the branch it guards, and `$m as Mode::Read|Mode::Write` is how a
@@ -196,7 +218,7 @@ Narrowing never changes a binding's declared type ([`types/declaration`](/docs/r
 checker knows about it on one path. A value that has to *stay* narrowed is a second binding at the
 type you want, or a checked `as` ([`types/conversion`](/docs/rules/types/unions-and-conversion/#conversion "expr as T is the only conversion, and it produces a T or throws")).
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/types/unions-and-conversion/#unions-and-mixed" title="A union permits only what every member permits, and mixed is the one position checked nowhere"><code>types/unions-and-mixed</code></a> <a href="/docs/rules/types/unions-and-conversion/#conversion" title="expr as T is the only conversion, and it produces a T or throws"><code>types/conversion</code></a> <a href="/docs/rules/types/text-and-literal-types/#enum-case-type" title="An enum case used as a type is a narrowed subtype of its enum, never its backing integer"><code>types/enum-case-type</code></a> <a href="/docs/rules/types/unions-and-conversion/#type-test" title="$x is T tests whether a value holds a T, answers bool, and never refuses because the answer is knowable"><code>types/type-test</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0007.md">record 0007</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0047.md">record 0047</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0066.md">record 0066</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0150.md">record 0150</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/a-null-test-narrows-a-nullable-local.nvst"><code>tests/conformance/lang/a-null-test-narrows-a-nullable-local.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/an-instanceof-narrows-its-subject-on-the-true-edge.nvst"><code>tests/conformance/lang/an-instanceof-narrows-its-subject-on-the-true-edge.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/a-match-and-a-switch-over-true-narrow-per-arm.nvst"><code>tests/conformance/lang/a-match-and-a-switch-over-true-narrow-per-arm.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/a-comparison-against-a-literal-narrows-its-subject.nvst"><code>tests/conformance/lang/a-comparison-against-a-literal-narrows-its-subject.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-types/tests/narrowing.rs"><code>crates/nvs-types/tests/narrowing.rs</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/types/unions-and-conversion/#unions-and-mixed" title="A union permits only what every member permits, and mixed is the one position checked nowhere"><code>types/unions-and-mixed</code></a> <a href="/docs/rules/types/unions-and-conversion/#conversion" title="expr as T is the only conversion, and it produces a T or throws"><code>types/conversion</code></a> <a href="/docs/rules/types/text-and-literal-types/#enum-case-type" title="An enum case used as a type is a narrowed subtype of its enum, never its backing integer"><code>types/enum-case-type</code></a> <a href="/docs/rules/types/unions-and-conversion/#type-test" title="$x is T tests whether a value holds a T, answers bool, and never refuses because the answer is knowable"><code>types/type-test</code></a> <a href="/docs/rules/types/objects-and-shapes/#class-reference-sites" title="Three sites accept a class&lt;T&gt;, and every other operand is still refused there"><code>types/class-reference-sites</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0007.md">record 0007</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0047.md">record 0047</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0066.md">record 0066</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0150.md">record 0150</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0192.md">record 0192</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/a-null-test-narrows-a-nullable-local.nvst"><code>tests/conformance/lang/a-null-test-narrows-a-nullable-local.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/an-is-test-narrows-its-subject-on-the-true-edge.nvst"><code>tests/conformance/lang/an-is-test-narrows-its-subject-on-the-true-edge.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/a-match-and-a-switch-over-true-narrow-per-arm.nvst"><code>tests/conformance/lang/a-match-and-a-switch-over-true-narrow-per-arm.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/a-comparison-against-a-literal-narrows-its-subject.nvst"><code>tests/conformance/lang/a-comparison-against-a-literal-narrows-its-subject.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-types/tests/narrowing.rs"><code>crates/nvs-types/tests/narrowing.rs</code></a></dd></div></dl>
 
 </div>
 
@@ -319,7 +341,9 @@ type Point  = {x: int, y: int};
 ```
 
 `TypeExpr` is any production of the type grammar ([`types/grammar`](/docs/rules/types/declarations-and-numbers/#grammar "The type grammar is a closed set of atoms under unions and intersections")) but one
-([`types/alias-is-never-a-bare-class`](/docs/rules/types/unions-and-conversion/#alias-is-never-a-bare-class "A type alias may not name a single bare class")). The alias name is then lexically valid anywhere a class
+([`types/alias-is-never-a-bare-class`](/docs/rules/types/unions-and-conversion/#alias-is-never-a-bare-class "A type alias may not name a single bare class")). The name is `PascalCase` like a class's, at both
+sites and by the same check ([`core-api/identifier-casing`](/docs/rules/core-api/naming-and-shape/#identifier-casing "An identifier's casing is fixed by its category and a mismatch is a hard compile error")), because an alias stands where a class
+name stands and reads as the type it names. The alias name is then lexically valid anywhere a class
 name is, resolved by the same contextual lookup that already tells `self`/`static`/`parent` and an
 enum's name apart from a class's, and reached through ordinary `use`/FQN resolution — nothing is
 auto-imported.
@@ -404,8 +428,9 @@ and an enum's alias has nothing to do with its cases.
   alias is an entry on nothing, and inheriting it would give one type as many names as its owner has
   descendants — what [`statements/nothing-gets-a-second-name`](/docs/rules/statements/names-and-require/#nothing-gets-a-second-name "A declaration is reachable under exactly the name it was declared with") closes.
 - **Two spellings and no third.** `self::Name` and `static::Name` in type position are not spellings
-  of this member and stay refused. An alias is resolved before there is a receiver, so `static::`
-  could only ever mean the lexical class, which the bare `Name` already says.
+  of this member and are `E0135` where they are written, as `parent::Name` is
+  ([`types/grammar`](/docs/rules/types/declarations-and-numbers/#grammar "The type grammar is a closed set of atoms under unions and intersections")). An alias is resolved before there is a receiver, so `static::` could only
+  ever mean the lexical class, which the bare `Name` already says.
 - **A name is one thing.** A body's alias sharing a name with a class constant or an enum case is
   `E0304` at the later of the two declarations. `Owner::Name` in type position is therefore read as
   an alias, then an enum case, then a class constant, and no program that compiles depends on that

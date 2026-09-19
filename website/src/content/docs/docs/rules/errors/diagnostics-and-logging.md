@@ -274,11 +274,12 @@ CLI dumps go to stderr, not stdout, so piping and redirection keep working while
 
 **`render` answers `Core\Cli\Text` under every sink**, and that is a bound rather than a rounding of
 the table above. A member whose carrier varied would have to *declare* both of
-[`security/capture-answers-the-carrier`](/docs/rules/security/laundering/#capture-answers-the-carrier "Capturing a sink yields that sink's carrier, never a plain string")'s classes, and no program can act on that union:
-`instanceof` against a `Core` class is `E0496` by decision and not by omission (`docs/decisions/0125.md` § 4),
-so [`types/narrowing`](/docs/rules/types/unions-and-conversion/#narrowing "Narrowing is flow-sensitive and branch-local, and there are exactly five spellings of it") reaches neither arm and the union is inert everywhere but `echo` — which
-needs no union to begin with. A *dump* is still rendered for the sink in force, which is what
-[`errors/renderings`](/docs/rules/errors/diagnostics-and-logging/#renderings "The sink in force picks the rendering, and no call site may name one") says and what the `[debug] inline` row spends.
+[`security/capture-answers-the-carrier`](/docs/rules/security/laundering/#capture-answers-the-carrier "Capturing a sink yields that sink's carrier, never a plain string")'s classes, and which arm a call answers is the channel's
+question rather than the program's — so a caller narrowing that union with `is`
+([`types/type-test`](/docs/rules/types/unions-and-conversion/#type-test "$x is T tests whether a value holds a T, answers bool, and never refuses because the answer is knowable")) would branch on the deployment's configuration and never on anything its own
+source says, where the plaintext carrier is the one it can embed under either sink. A *dump* is still
+rendered for the sink in force, which is what [`errors/renderings`](/docs/rules/errors/diagnostics-and-logging/#renderings "The sink in force picks the rendering, and no call site may name one") says and what the
+`[debug] inline` row spends.
 
 **A JSON body is never modified, in either mode.** Injecting a `debug` key would make the served
 shape disagree with the published contract in exactly the environment where clients are written

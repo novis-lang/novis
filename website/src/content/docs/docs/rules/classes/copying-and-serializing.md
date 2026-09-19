@@ -68,7 +68,8 @@ using PHP's own rule for what one level means. A scalar or `array<T>` property i
 semantics it already has, so the two sides diverge on the first write. An object-typed property — held
 directly or reached through a cloned array — keeps pointing at the same instance, host handles
 included; `clone` never crosses a heap, so nothing is asked to leave the arena it is in. The copy
-answers `instanceof` as the original did, so it is not a fresh construction of the declared type.
+answers `is` for every type the original did ([`types/type-test`](/docs/rules/types/unions-and-conversion/#type-test "$x is T tests whether a value holds a T, answers bool, and never refuses because the answer is knowable")), so it is not a fresh
+construction of the declared type.
 
 Storage is written through the privileged path construction already uses, not through ordinary
 property assignment. Two things follow: a `readonly` property survives the copy without throwing, and

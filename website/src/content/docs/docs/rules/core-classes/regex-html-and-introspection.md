@@ -44,9 +44,12 @@ What this costs is that a pattern's performance class is a property of the patte
 something a caller can override. That is the trade taken deliberately: an engine choice a developer
 cannot see is the failure mode the whole design exists to avoid.
 
-The budget's default is a stated constant today rather than a configuration key, because there is no
-configuration subsystem in front of it yet — `crates/nvs-stdlib/src/regex.rs` names it and records
-the gap.
+The budget's default is `[limits] max_regex_steps`, an ordinary `Runtime` directive
+([`config/three-changeability-classes`](/docs/rules/config/changeability-classes/#three-changeability-classes "nvs.toml states defaults, not ceilings, and every directive carries one of three changeability classes")): a request may widen or narrow it for itself, a
+`[limits.hard]` entry is how a host bounds that, and a deployment that has written nothing gets the
+constant `crates/nvs-stdlib/src/regex.rs` states. `false` does not spell an unbounded tier — it
+reads as that same constant, because a pattern allowed to backtrack forever is the hang this rule
+exists to stop.
 
 <aside class="nv-rule-diverges">
 <p class="nv-rule-diverges-label">Where this differs from PHP</p>
@@ -619,9 +622,17 @@ The return value is a **typed** node tree — one class per production, named fo
 grammar's own walk names — never an untyped array or a stringly-keyed structure. Handing back the
 parse tree as untyped data would be exactly the shortcut `token_get_all()` takes, reintroduced at the
 one place a fully-typed alternative is easiest to give. Those classes are identity rather than
-surface: a `Core` class sits in no hierarchy and `instanceof` against one is refused, so a node's
+surface: none carries a registry row, so no source can name one in a type position, and a node's
 production is what `Core\Reflect::forObject` answers and `kind()` is the same production spelled
 short.
+
+**A node says where it is and never what it says.** `line()`, `column()` and `offset()` name the
+first character of the production — the line and column counted from 1, the column in characters and
+the offset in bytes — so a `#[Test]` that walks the tree reports a `file:line` rather than only a
+verdict, and a structural rule becomes a report rather than a check. No member answers a node's own
+source text: the position is derived from the argument rather than carried out of it, which is what
+keeps `parse`'s `$source` qualifier-neutral, and a caller wanting the text holds the string it passed
+and slices it at the offset itself.
 
 **A parsed tree is inert. There is no path from an AST value back into execution.** `eval` does not
 exist and stays rejected: a string has no stable identity, no cache key, and no capability-grantable
@@ -634,7 +645,7 @@ different name; it is the same refusal restated.
 <p><code>token_get_all</code>'s untyped arrays are replaced by one type per production, and there is no <code>eval</code> for a rewritten tree to reach</p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-classes/regex-html-and-introspection/#reflect" title="Core\Reflect is read-only structural introspection, and it is a first-class feature rather than an extension"><code>core-classes/reflect</code></a> <a href="/docs/rules/types/declarations-and-numbers/#declaration" title="Every binding declares its type, and no binding's type ever changes"><code>types/declaration</code></a> <a href="/docs/rules/programs/names-and-files/#compile-target" title="A compile target changes the host context, never the language"><code>programs/compile-target</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0019.md">record 0019</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0006.md">record 0006</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/core-ast-parse-answers-the-compilers-own-tree.nvst"><code>tests/conformance/core/core-ast-parse-answers-the-compilers-own-tree.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/core-ast-parse-stops-where-the-compiler-stops.nvst"><code>tests/conformance/core/core-ast-parse-stops-where-the-compiler-stops.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/core-ast-node-walk-is-a-whole-tree-asserted-by-counting.nvst"><code>tests/conformance/core/core-ast-node-walk-is-a-whole-tree-asserted-by-counting.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/core-ast-nodes-is-children-closed-transitively.nvst"><code>tests/conformance/core/core-ast-nodes-is-children-closed-transitively.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/ast-parse-answers-a-typed-node-per-production.nvst"><code>tests/conformance/core/ast-parse-answers-a-typed-node-per-production.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/ast-parse-file-reads-through-the-io-door-under-fs-read.nvst"><code>tests/conformance/core/ast-parse-file-reads-through-the-io-door-under-fs-read.nvst</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-classes/regex-html-and-introspection/#reflect" title="Core\Reflect is read-only structural introspection, and it is a first-class feature rather than an extension"><code>core-classes/reflect</code></a> <a href="/docs/rules/types/declarations-and-numbers/#declaration" title="Every binding declares its type, and no binding's type ever changes"><code>types/declaration</code></a> <a href="/docs/rules/programs/names-and-files/#compile-target" title="A compile target changes the host context, never the language"><code>programs/compile-target</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0019.md">record 0019</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0006.md">record 0006</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/core-ast-parse-answers-the-compilers-own-tree.nvst"><code>tests/conformance/core/core-ast-parse-answers-the-compilers-own-tree.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/core-ast-parse-stops-where-the-compiler-stops.nvst"><code>tests/conformance/core/core-ast-parse-stops-where-the-compiler-stops.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/core-ast-node-walk-is-a-whole-tree-asserted-by-counting.nvst"><code>tests/conformance/core/core-ast-node-walk-is-a-whole-tree-asserted-by-counting.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/core-ast-nodes-is-children-closed-transitively.nvst"><code>tests/conformance/core/core-ast-nodes-is-children-closed-transitively.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/ast-parse-answers-a-typed-node-per-production.nvst"><code>tests/conformance/core/ast-parse-answers-a-typed-node-per-production.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/ast-parse-file-reads-through-the-io-door-under-fs-read.nvst"><code>tests/conformance/core/ast-parse-file-reads-through-the-io-door-under-fs-read.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/core-ast-node-position-names-the-first-character-of-its-production.nvst"><code>tests/conformance/core/core-ast-node-position-names-the-first-character-of-its-production.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/core-ast-node-positions-hold-over-the-whole-walk-asserted-by-counting.nvst"><code>tests/conformance/core/core-ast-node-positions-hold-over-the-whole-walk-asserted-by-counting.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/core-ast-node-column-counts-characters-where-offset-counts-bytes.nvst"><code>tests/conformance/core/core-ast-node-column-counts-characters-where-offset-counts-bytes.nvst</code></a></dd></div></dl>
 
 </div>
 

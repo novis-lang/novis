@@ -68,8 +68,9 @@ diagnostic naming the replacement: an interface method with a body for shared be
 `implements I by $field;` for shared state ([`classes/delegation-by-field`](/docs/rules/classes/interfaces-and-delegation/#delegation-by-field "implements I by $field forwards every member I requires to that property")).
 
 A trait bundles two unrelated things — sharing behaviour and sharing state — under one flattening
-mechanism, and gives the reused code no type identity at all: a class using `Greets` is not
-`instanceof Greets`, cannot be checked for it, and does not appear as a capability under reflection.
+mechanism, and gives the reused code no type identity at all: a class using `Greets` is not a
+`Greets`, cannot be tested for one ([`types/type-test`](/docs/rules/types/unions-and-conversion/#type-test "$x is T tests whether a value holds a T, answers bool, and never refuses because the answer is knowable")), and does not appear as a capability
+under reflection.
 An interface is the vehicle this language already uses for "declare a capability", and delegation is
 the vehicle for "hold a collaborator". Splitting them means each half is a type the checker and the
 IDE can see.
@@ -98,9 +99,9 @@ silently copied per consuming class — has no destination at all.
 </div>
 
 An `interface` method may carry a body. A `public` one is a default: every implementor gets it for
-free, may override it exactly as it overrides an inherited method, and is genuinely `instanceof` the
-interface — reflectable and checkable at every call site that asks for the type, which is what a trait
-never gave.
+free, may override it exactly as it overrides an inherited method, and genuinely *is* the interface —
+`$impl is I` answers `true` ([`types/type-test`](/docs/rules/types/unions-and-conversion/#type-test "$x is T tests whether a value holds a T, answers bool, and never refuses because the answer is knowable")), reflectable and checkable at every call site
+that asks for the type, which is what a trait never gave.
 
 `$this` inside an interface's own method body is typed as that interface, not the concrete class.
 Only members the interface itself declares, or one it `extends` does, are reachable through it. That

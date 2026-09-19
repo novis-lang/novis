@@ -6,8 +6,8 @@ editUrl: false
 lastUpdated: false
 tableOfContents: false
 prev:
-  link: /docs/rules/testing/the-four-proofs/
-  label: "The four proofs"
+  link: /docs/rules/testing/feature-proofs/
+  label: "Feature proofs"
 next:
   link: /docs/rules/testing/measuring-performance/
   label: "Measuring performance"
@@ -44,7 +44,7 @@ A second closure test covers the other half: nothing in the standard library rea
 system except through a door. Neither test subsumes the other — one catches a member that goes
 through a door undeclared, the other a member that reaches the OS with no door at all.
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/testing/the-four-proofs/#four-proofs" title="A feature is finished when it has a test from both sides, three examples, a measured figure and an attack"><code>testing/four-proofs</code></a> <a href="/docs/rules/testing/the-four-proofs/#hostile-case-contract" title="A hostile case passes when nothing came apart, and a compile diagnostic is never a pass"><code>testing/hostile-case-contract</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0118.md">record 0118</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-stdlib/tests/capability.rs"><code>crates/nvs-stdlib/tests/capability.rs</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/testing/feature-proofs/#feature-proofs" title="A feature is finished when its feature proofs exist: a description, a test from both sides, three examples, a measured figure and an attack"><code>testing/feature-proofs</code></a> <a href="/docs/rules/testing/feature-proofs/#hostile-case-contract" title="A hostile case passes when nothing came apart, and a compile diagnostic is never a pass"><code>testing/hostile-case-contract</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0118.md">record 0118</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-stdlib/tests/capability.rs"><code>crates/nvs-stdlib/tests/capability.rs</code></a></dd></div></dl>
 
 </div>
 
@@ -183,7 +183,7 @@ The differential oracle cannot find these. It checks that Novis agrees with **PH
 agrees with **itself** under different codegen, and a probe-attached run and an optimised run are
 both Novis. The cost is CI wall-clock proportional to the added axes, and nothing at all at run time.
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/testing/coverage-and-probes/#debug-probes" title="Coverage, tracing and profiling are one per-request flag word checked at fixed probe sites, never a second compiled tier"><code>testing/debug-probes</code></a> <a href="/docs/rules/testing/continuous-integration/#the-deep-lane" title="Miri, the fuzzers and the unsafe audit run nightly and at release, and the fuzz corpus persists"><code>testing/the-deep-lane</code></a> <a href="/docs/rules/testing/the-four-proofs/#nvst-is-separate" title=".nvst proves the language; #[Test] is how a program written in Novis tests itself"><code>testing/nvst-is-separate</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0018.md">record 0018</a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/testing/coverage-and-probes/#debug-probes" title="Coverage, tracing and profiling are one per-request flag word checked at fixed probe sites, never a second compiled tier"><code>testing/debug-probes</code></a> <a href="/docs/rules/testing/continuous-integration/#the-deep-lane" title="Miri, the fuzzers and the unsafe audit run nightly and at release, and the fuzz corpus persists"><code>testing/the-deep-lane</code></a> <a href="/docs/rules/testing/feature-proofs/#nvst-is-separate" title=".nvst proves the language; #[Test] is how a program written in Novis tests itself"><code>testing/nvst-is-separate</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0018.md">record 0018</a></dd></div></dl>
 
 </div>
 

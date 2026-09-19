@@ -17,7 +17,7 @@ next:
 
 <div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">7</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">6</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">1</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">0</span><span class="nv-count-label">differ from PHP</span></div></div>
 
-<ol class="nv-rule-list"><li><a href="#bench-counters"><code>#[Bench]</code> reports counted semantic work, and CI may gate on the counts but never on wall-clock</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#perf-two-mechanisms">A per-PR guard and the historical dashboard are separate measurements, and never one</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#perf-secondary-figures">Wall-clock and the PHP ratio ride beside the instruction count as same-host figures only</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#perf-history-file">The performance history is an append-only NDJSON file in the repository</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#member-perf-ledger">A member's figure is Novis against Novis, fingerprinted, and re-measured only when its implementing file moves</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#userland-benchmarks">A cross-engine comparison is a <code>benches/userland/</code> case with one twin per engine</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#valgrind-on-wsl">The historical leg runs under callgrind on Linux or WSL, and nowhere else</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li></ol>
+<ol class="nv-rule-list"><li><a href="#bench-counters"><code>#[Bench]</code> reports counted semantic work, and CI may gate on the counts but never on wall-clock</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#perf-two-mechanisms">A per-PR guard and the historical dashboard are separate measurements, and never one</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#perf-secondary-figures">Wall-clock and the PHP ratio ride beside the instruction count as same-host figures only</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#perf-history-file">The performance history is an append-only NDJSON file in the repository</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#member-perf-ledger">A member's record is four counts that compare on any machine and one clock that compares on its own, re-measured only when its implementing file's text moves</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#userland-benchmarks">A cross-engine comparison is a <code>benches/userland/</code> case with one twin per engine</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#valgrind-on-wsl">The historical leg runs under callgrind on Linux or WSL, and nowhere else</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li></ol>
 
 <div class="nv-rule" id="bench-counters">
 
@@ -44,7 +44,7 @@ this rule's question; "did Novis get faster" is [`testing/perf-two-mechanisms`](
 not overlap. There is no per-member cost table and there will not be one — a hand-written claim
 about what a `Core` member costs is a number with no guard test.
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/testing/coverage-and-probes/#debug-probes" title="Coverage, tracing and profiling are one per-request flag word checked at fixed probe sites, never a second compiled tier"><code>testing/debug-probes</code></a> <a href="/docs/rules/testing/measuring-performance/#perf-two-mechanisms" title="A per-PR guard and the historical dashboard are separate measurements, and never one"><code>testing/perf-two-mechanisms</code></a> <a href="/docs/rules/testing/measuring-performance/#member-perf-ledger" title="A member's figure is Novis against Novis, fingerprinted, and re-measured only when its implementing file moves"><code>testing/member-perf-ledger</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0079.md">record 0079</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0018.md">record 0018</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0041.md">record 0041</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0026.md">record 0026</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0004.md">record 0004</a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/testing/coverage-and-probes/#debug-probes" title="Coverage, tracing and profiling are one per-request flag word checked at fixed probe sites, never a second compiled tier"><code>testing/debug-probes</code></a> <a href="/docs/rules/testing/measuring-performance/#perf-two-mechanisms" title="A per-PR guard and the historical dashboard are separate measurements, and never one"><code>testing/perf-two-mechanisms</code></a> <a href="/docs/rules/testing/measuring-performance/#member-perf-ledger" title="A member's record is four counts that compare on any machine and one clock that compares on its own, re-measured only when its implementing file's text moves"><code>testing/member-perf-ledger</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0079.md">record 0079</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0018.md">record 0018</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0041.md">record 0041</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0026.md">record 0026</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0004.md">record 0004</a></dd></div></dl>
 
 </div>
 
@@ -74,7 +74,7 @@ from one.
 
 Benchmarking an Novis **program's** own code is neither of these — that is [`testing/bench-counters`](/docs/rules/testing/measuring-performance/#bench-counters "#[Bench] reports counted semantic work, and CI may gate on the counts but never on wall-clock").
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/testing/measuring-performance/#perf-secondary-figures" title="Wall-clock and the PHP ratio ride beside the instruction count as same-host figures only"><code>testing/perf-secondary-figures</code></a> <a href="/docs/rules/testing/measuring-performance/#perf-history-file" title="The performance history is an append-only NDJSON file in the repository"><code>testing/perf-history-file</code></a> <a href="/docs/rules/testing/measuring-performance/#bench-counters" title="#[Bench] reports counted semantic work, and CI may gate on the counts but never on wall-clock"><code>testing/bench-counters</code></a> <a href="/docs/rules/testing/measuring-performance/#member-perf-ledger" title="A member's figure is Novis against Novis, fingerprinted, and re-measured only when its implementing file moves"><code>testing/member-perf-ledger</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0026.md">record 0026</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0143.md">record 0143</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/benches/abi-probe/tests/perf_guards.rs"><code>benches/abi-probe/tests/perf_guards.rs</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/testing/measuring-performance/#perf-secondary-figures" title="Wall-clock and the PHP ratio ride beside the instruction count as same-host figures only"><code>testing/perf-secondary-figures</code></a> <a href="/docs/rules/testing/measuring-performance/#perf-history-file" title="The performance history is an append-only NDJSON file in the repository"><code>testing/perf-history-file</code></a> <a href="/docs/rules/testing/measuring-performance/#bench-counters" title="#[Bench] reports counted semantic work, and CI may gate on the counts but never on wall-clock"><code>testing/bench-counters</code></a> <a href="/docs/rules/testing/measuring-performance/#member-perf-ledger" title="A member's record is four counts that compare on any machine and one clock that compares on its own, re-measured only when its implementing file's text moves"><code>testing/member-perf-ledger</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0026.md">record 0026</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0143.md">record 0143</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/benches/abi-probe/tests/perf_guards.rs"><code>benches/abi-probe/tests/perf_guards.rs</code></a></dd></div></dl>
 
 </div>
 
@@ -130,30 +130,51 @@ guard asserting equality between two runs would not, so no such guard exists.
 
 <div class="nv-rule" id="member-perf-ledger">
 
-## A member's figure is Novis against Novis, fingerprinted, and re-measured only when its implementing file moves
+## A member's record is four counts that compare on any machine and one clock that compares on its own, re-measured only when its implementing file's text moves
 
 <div class="nv-rule-tags">
 <span class="nv-rule-status" data-status="shipped">Shipped</span>
 <a class="nv-rule-id" href="#member-perf-ledger"><code>testing/member-perf-ledger</code></a>
 </div>
 
-A member's figure is Novis measured against Novis, and there is no column for another engine.
-`ns/op` is wall clock with the empty program's start-up floor subtracted; `units` is that figure
-divided by a fixed calibration program measured in the same sweep. Every record carries a machine
-fingerprint and the report **refuses to print a delta across two of them** — `units` divides out
-clock speed well enough to see a threefold regression and not well enough to claim five percent.
+A member's record is four counts and one clock, taken in one sweep over one bench program. The
+counts — statements executed, calls made, allocations, bytes, each per operation — are what the
+program did, read off [`testing/debug-probes`](/docs/rules/testing/coverage-and-probes/#debug-probes "Coverage, tracing and profiling are one per-request flag word checked at fixed probe sites, never a second compiled tier")'s sites in [`testing/bench-counters`](/docs/rules/testing/measuring-performance/#bench-counters "#[Bench] reports counted semantic work, and CI may gate on the counts but never on wall-clock")'s
+counting mode and off the allocator's own totals. They are the same on every machine and every day
+for the same commit, so the report diffs each against the previous record wherever that was taken.
+The clock — `ns/op`, the fastest of the reps, with the median beside it — is wall clock with the
+empty program's start-up floor subtracted; `units` is that figure divided by a fixed calibration
+program measured in the same sweep. Every record carries a machine fingerprint and the report
+**refuses to print a clock delta across two of them** — `units` divides out clock speed well enough
+to see a threefold regression and not well enough to claim five percent, and a clock delta inside
+the spread the median shows is the machine rather than the code. There is no column for another
+engine.
 
-The gate accepts a record from any machine and only the report insists on this one's, so a fresh
-clone owes nothing it already has a current record for.
+**A bench declares what it expects, and its first run is judged against that rather than against
+history.** `// bench: allocations 0` and its siblings name a count per operation; `// bench:
+complexity constant` with a `<name>.scale.nvs` sibling names how the clock may grow with the input,
+checked as a ratio inside one run — the one wall-clock comparison that holds on any machine. A bench
+that misses what it declared is a failing proof: no record is written, and
+[`testing/a-failing-proof-is-fixed-or-recorded`](/docs/rules/testing/feature-proofs/#a-failing-proof-is-fixed-or-recorded "A proof that fails is fixed or recorded as a known gap, and never weakened") names the two answers.
 
-**A figure is re-measured only when the commit that last touched its implementing file changes.**
-That currency rule is what makes a roster of hundreds affordable. The granularity is the file rather
-than the member, which is conservative in the only safe direction: a comment-only edit stales its
-file's figures, and the cost of being wrong is one command rather than a wrong number.
+**What the counts cannot see is accepted.** A `Core` member is one helper call however much it does
+inside, so a member that got slower without allocating is invisible to every count and visible only
+to the clock on the machine that took it and to the scaling ratio. The ledger's job is to find
+regressions and to hand a person with a profiler a shortlist — the report's *Candidates* — and never
+to certify that a member is as fast as it could be.
 
-Nothing here gates a build. A regression is a row with a delta on it.
+**A figure is re-measured only when the implementing file's text, with its trailing `mod tests` cut
+off, changes.** That currency rule is what makes a roster of hundreds affordable, and the text rather
+than the commit is what lets a session measure before the wrap commits the tests it spliced into
+that same file. The granularity is the file rather than the member, which is conservative in the
+only safe direction: a comment edit stales its file's figures, and the cost of being wrong is one
+command rather than a wrong number.
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/testing/the-four-proofs/#four-proofs" title="A feature is finished when it has a test from both sides, three examples, a measured figure and an attack"><code>testing/four-proofs</code></a> <a href="/docs/rules/testing/measuring-performance/#perf-two-mechanisms" title="A per-PR guard and the historical dashboard are separate measurements, and never one"><code>testing/perf-two-mechanisms</code></a> <a href="/docs/rules/testing/measuring-performance/#userland-benchmarks" title="A cross-engine comparison is a benches/userland/ case with one twin per engine"><code>testing/userland-benchmarks</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0134.md">record 0134</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0026.md">record 0026</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/perf/members.ndjson"><code>docs/perf/members.ndjson</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tools/dossier.py"><code>tools/dossier.py</code></a></dd></div></dl>
+The gate accepts a record from any machine and only the report's clock columns insist on this one's,
+so a fresh clone owes nothing it already has a current record for. Nothing here gates a build. A
+regression is a row with a delta on it.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/testing/feature-proofs/#feature-proofs" title="A feature is finished when its feature proofs exist: a description, a test from both sides, three examples, a measured figure and an attack"><code>testing/feature-proofs</code></a> <a href="/docs/rules/testing/measuring-performance/#perf-two-mechanisms" title="A per-PR guard and the historical dashboard are separate measurements, and never one"><code>testing/perf-two-mechanisms</code></a> <a href="/docs/rules/testing/measuring-performance/#userland-benchmarks" title="A cross-engine comparison is a benches/userland/ case with one twin per engine"><code>testing/userland-benchmarks</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0134.md">record 0134</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0026.md">record 0026</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0191.md">record 0191</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/perf/members.ndjson"><code>docs/perf/members.ndjson</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tools/dossier.py"><code>tools/dossier.py</code></a></dd></div></dl>
 
 </div>
 
@@ -175,7 +196,7 @@ It changes nothing about the historical dashboard, whose headline metric stays t
 count. Which workloads populate that dashboard is a benchmark-design question rather than a language
 decision, and it grows as real compiled programs exist to measure.
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/testing/measuring-performance/#perf-secondary-figures" title="Wall-clock and the PHP ratio ride beside the instruction count as same-host figures only"><code>testing/perf-secondary-figures</code></a> <a href="/docs/rules/testing/measuring-performance/#member-perf-ledger" title="A member's figure is Novis against Novis, fingerprinted, and re-measured only when its implementing file moves"><code>testing/member-perf-ledger</code></a> <a href="/docs/rules/testing/measuring-performance/#perf-two-mechanisms" title="A per-PR guard and the historical dashboard are separate measurements, and never one"><code>testing/perf-two-mechanisms</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0026.md">record 0026</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0100.md">record 0100</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/benches/userland/README.md"><code>benches/userland/README.md</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tools/bench.py"><code>tools/bench.py</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/testing/measuring-performance/#perf-secondary-figures" title="Wall-clock and the PHP ratio ride beside the instruction count as same-host figures only"><code>testing/perf-secondary-figures</code></a> <a href="/docs/rules/testing/measuring-performance/#member-perf-ledger" title="A member's record is four counts that compare on any machine and one clock that compares on its own, re-measured only when its implementing file's text moves"><code>testing/member-perf-ledger</code></a> <a href="/docs/rules/testing/measuring-performance/#perf-two-mechanisms" title="A per-PR guard and the historical dashboard are separate measurements, and never one"><code>testing/perf-two-mechanisms</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0026.md">record 0026</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0100.md">record 0100</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/benches/userland/README.md"><code>benches/userland/README.md</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tools/bench.py"><code>tools/bench.py</code></a></dd></div></dl>
 
 </div>
 

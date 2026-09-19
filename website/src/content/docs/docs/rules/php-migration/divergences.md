@@ -15,9 +15,9 @@ next:
 
 <p class="nv-section-lead">Every departure from PHP is listed, and each exists because PHP left a binding untyped. Absent storage is never a zero value.</p>
 
-<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">11</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">6</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">5</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">11</span><span class="nv-count-label">differ from PHP</span></div></div>
+<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">11</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">7</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">4</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">11</span><span class="nv-count-label">differ from PHP</span></div></div>
 
-<ol class="nv-rule-list"><li><a href="#every-divergence-is-deliberate-and-listed">Every departure from PHP's observable behaviour is listed as a divergence, and each exists only because PHP left a binding untyped</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-declared-type-answers-before-the-program-runs"><code>-&gt;</code> on a receiver that can hold no object, and <code>instanceof</code> on a subject that can hold none, are refused where they are written</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#absent-storage-is-never-a-zero-value">Absent storage never reads as a zero value: an unassigned variable and <code>[]</code> in a read position are refused, and an absent key throws</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#an-element-write-needs-storage-to-write-back-into">An element write through a temporary is refused, because the separated copy has nowhere to be written back</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-body-never-falls-off-its-end">A non-<code>void</code> body hands back a value at every exit; nothing returns <code>null</code> for a declaration it did not make</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#no-return-leaves-a-finally">A <code>return</code> never leaves a <code>finally</code> block, and neither does a <code>break</code> or <code>continue</code> whose target lies outside it</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-constructor-return-carries-no-value">A constructor's <code>return</code> carries no value; a bare <code>return;</code> may still leave early</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-readonly-property-declares-no-default">A <code>readonly</code> property declares no default; a value known at the declaration is a <code>const</code></a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#no-partial-application">Partial function application is not adopted; the closure literal already spells it</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#let-and-is-are-reserved"><code>let</code> and <code>is</code> cannot name anything; <code>var</code> declares, <code>as</code> converts, and <code>is</code> is the type test</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#is-takes-pattern-matchings-type-patterns"><code>is</code> implements the type-pattern half of PHP's Pattern Matching RFC and reserves every other row of it</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li></ol>
+<ol class="nv-rule-list"><li><a href="#every-divergence-is-deliberate-and-listed">Every departure from PHP's observable behaviour is listed as a divergence, and each exists only because PHP left a binding untyped</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-declared-type-answers-before-the-program-runs"><code>-&gt;</code> on a receiver that can hold no object is refused where it is written</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#absent-storage-is-never-a-zero-value">Absent storage never reads as a zero value: an unassigned variable and <code>[]</code> in a read position are refused, and an absent key throws</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#an-element-write-needs-storage-to-write-back-into">An element write through a temporary is refused, because the separated copy has nowhere to be written back</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-body-never-falls-off-its-end">A non-<code>void</code> body hands back a value at every exit; nothing returns <code>null</code> for a declaration it did not make</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#no-return-leaves-a-finally">A <code>return</code> never leaves a <code>finally</code> block, and neither does a <code>break</code> or <code>continue</code> whose target lies outside it</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-constructor-return-carries-no-value">A constructor's <code>return</code> carries no value; a bare <code>return;</code> may still leave early</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-readonly-property-declares-no-default">A <code>readonly</code> property declares no default; a value known at the declaration is a <code>const</code></a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#no-partial-application">Partial function application is not adopted; the closure literal already spells it</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#let-and-is-are-reserved"><code>let</code> and <code>is</code> cannot name anything; <code>var</code> declares, <code>as</code> converts, and <code>is</code> is the type test</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#one-type-test"><code>instanceof</code> is refused where it is written, <code>is</code> is the one type test, and neither keyword is compared with PHP again</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li></ol>
 
 <div class="nv-rule" id="every-divergence-is-deliberate-and-listed">
 
@@ -30,8 +30,8 @@ next:
 </div>
 
 PHP-compatible observable behaviour is the second priority, so a departure from it is never discovered
-later: every one is listed, PHP's behaviour beside Novis's. Each is reachable in PHP only *because* a
-binding somewhere is untyped, and each is what a declared type answers instead.
+later: every one is listed, PHP's behaviour beside Novis's. Almost every one is reachable in PHP only
+*because* a binding somewhere is untyped, and is what a declared type answers instead.
 
 The list, by where each is stated: array keys are always `string` ([`types/arrays`](/docs/rules/types/arrays-and-property-keys/#arrays "An array is PHP's ordered hash with string keys and a declared element type")); `int` and
 `uint` are distinct types, reported distinctly ([`types/uint`](/docs/rules/types/declarations-and-numbers/#uint "uint is a distinct unsigned 64-bit integer, and it costs no bytes a value did not already hold")); every binding is declared and its
@@ -41,12 +41,18 @@ integer overflow, a fractional value where an integer is wanted, and an `int` to
 all throw ([`types/arithmetic`](/docs/rules/types/declarations-and-numbers/#arithmetic "An arithmetic operator answers in its operands' own type, and overflow throws rather than wrapping or promoting")); a return type is mandatory on every function, method and closure,
 `void` or `never` stated when there is no value ([`types/declaration`](/docs/rules/types/declarations-and-numbers/#declaration "Every binding declares its type, and no binding's type ever changes")); absent storage never reads
 as a zero value ([`php-migration/absent-storage-is-never-a-zero-value`](/docs/rules/php-migration/divergences/#absent-storage-is-never-a-zero-value "Absent storage never reads as a zero value: an unassigned variable and [] in a read position are refused, and an absent key throws")); a declared type answers
-`->` and `instanceof` before the program runs
-([`php-migration/a-declared-type-answers-before-the-program-runs`](/docs/rules/php-migration/divergences/#a-declared-type-answers-before-the-program-runs "-> on a receiver that can hold no object, and instanceof on a subject that can hold none, are refused where they are written")); an element write needs storage
+`->` before the program runs
+([`php-migration/a-declared-type-answers-before-the-program-runs`](/docs/rules/php-migration/divergences/#a-declared-type-answers-before-the-program-runs "-> on a receiver that can hold no object is refused where it is written")); an element write needs storage
 to write back into ([`php-migration/an-element-write-needs-storage-to-write-back-into`](/docs/rules/php-migration/divergences/#an-element-write-needs-storage-to-write-back-into "An element write through a temporary is refused, because the separated copy has nowhere to be written back")); a body
 never falls off its end ([`php-migration/a-body-never-falls-off-its-end`](/docs/rules/php-migration/divergences/#a-body-never-falls-off-its-end "A non-void body hands back a value at every exit; nothing returns null for a declaration it did not make")); and a spread carrying a
 string key after an integer-looking one is accepted where PHP fatals, the variadic tail being the
 array itself ([`types/arrays`](/docs/rules/types/arrays-and-property-keys/#arrays "An array is PHP's ordered hash with string keys and a declared element type")).
+
+**One divergence is not of that kind**, and it is listed here so the exception is not mistaken for an
+oversight: PHP's own class-test operator is refused where it is written and `$x is T` is the one type
+test ([`php-migration/one-type-test`](/docs/rules/php-migration/divergences/#one-type-test "instanceof is refused where it is written, is is the one type test, and neither keyword is compared with PHP again")). No untyped binding makes it reachable — it is a choice of
+spelling, taken because one operator answers what PHP splits across two. It costs a converted program
+a mechanical rewrite and never a silent change of meaning, since the refused word does not compile.
 
 The consequence to plan around: the imported `.phpt` corpus passes at a **structurally lower** rate
 than a compatibility-first design would, and a failure in one of these classes is intentional
@@ -57,13 +63,13 @@ divergence, not a bug. The tracked number distinguishes the two, or it reads as 
 <p>The imported <code>.phpt</code> corpus passes at a structurally lower rate than a compatibility-first design would, and a failure in a listed class is intentional rather than a regression</p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/types/declarations-and-numbers/#declaration" title="Every binding declares its type, and no binding's type ever changes"><code>types/declaration</code></a> <a href="/docs/rules/types/unions-and-conversion/#conversion" title="expr as T is the only conversion, and it produces a T or throws"><code>types/conversion</code></a> <a href="/docs/rules/types/unions-and-conversion/#no-legacy-cast" title="PHP's (T)expr cast does not parse, and the diagnostic names the as that replaces it"><code>types/no-legacy-cast</code></a> <a href="/docs/rules/types/declarations-and-numbers/#arithmetic" title="An arithmetic operator answers in its operands' own type, and overflow throws rather than wrapping or promoting"><code>types/arithmetic</code></a> <a href="/docs/rules/types/arrays-and-property-keys/#arrays" title="An array is PHP's ordered hash with string keys and a declared element type"><code>types/arrays</code></a> <a href="/docs/rules/types/declarations-and-numbers/#uint" title="uint is a distinct unsigned 64-bit integer, and it costs no bytes a value did not already hold"><code>types/uint</code></a> <a href="/docs/rules/php-migration/divergences/#absent-storage-is-never-a-zero-value" title="Absent storage never reads as a zero value: an unassigned variable and [] in a read position are refused, and an absent key throws"><code>php-migration/absent-storage-is-never-a-zero-value</code></a> <a href="/docs/rules/php-migration/divergences/#a-declared-type-answers-before-the-program-runs" title="-&gt; on a receiver that can hold no object, and instanceof on a subject that can hold none, are refused where they are written"><code>php-migration/a-declared-type-answers-before-the-program-runs</code></a> <a href="/docs/rules/php-migration/divergences/#an-element-write-needs-storage-to-write-back-into" title="An element write through a temporary is refused, because the separated copy has nowhere to be written back"><code>php-migration/an-element-write-needs-storage-to-write-back-into</code></a> <a href="/docs/rules/php-migration/divergences/#a-body-never-falls-off-its-end" title="A non-void body hands back a value at every exit; nothing returns null for a declaration it did not make"><code>php-migration/a-body-never-falls-off-its-end</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0007.md">record 0007</a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/types/declarations-and-numbers/#declaration" title="Every binding declares its type, and no binding's type ever changes"><code>types/declaration</code></a> <a href="/docs/rules/types/unions-and-conversion/#conversion" title="expr as T is the only conversion, and it produces a T or throws"><code>types/conversion</code></a> <a href="/docs/rules/types/unions-and-conversion/#no-legacy-cast" title="PHP's (T)expr cast does not parse, and the diagnostic names the as that replaces it"><code>types/no-legacy-cast</code></a> <a href="/docs/rules/types/declarations-and-numbers/#arithmetic" title="An arithmetic operator answers in its operands' own type, and overflow throws rather than wrapping or promoting"><code>types/arithmetic</code></a> <a href="/docs/rules/types/arrays-and-property-keys/#arrays" title="An array is PHP's ordered hash with string keys and a declared element type"><code>types/arrays</code></a> <a href="/docs/rules/types/declarations-and-numbers/#uint" title="uint is a distinct unsigned 64-bit integer, and it costs no bytes a value did not already hold"><code>types/uint</code></a> <a href="/docs/rules/php-migration/divergences/#absent-storage-is-never-a-zero-value" title="Absent storage never reads as a zero value: an unassigned variable and [] in a read position are refused, and an absent key throws"><code>php-migration/absent-storage-is-never-a-zero-value</code></a> <a href="/docs/rules/php-migration/divergences/#a-declared-type-answers-before-the-program-runs" title="-&gt; on a receiver that can hold no object is refused where it is written"><code>php-migration/a-declared-type-answers-before-the-program-runs</code></a> <a href="/docs/rules/php-migration/divergences/#an-element-write-needs-storage-to-write-back-into" title="An element write through a temporary is refused, because the separated copy has nowhere to be written back"><code>php-migration/an-element-write-needs-storage-to-write-back-into</code></a> <a href="/docs/rules/php-migration/divergences/#a-body-never-falls-off-its-end" title="A non-void body hands back a value at every exit; nothing returns null for a declaration it did not make"><code>php-migration/a-body-never-falls-off-its-end</code></a> <a href="/docs/rules/php-migration/divergences/#one-type-test" title="instanceof is refused where it is written, is is the one type test, and neither keyword is compared with PHP again"><code>php-migration/one-type-test</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0007.md">record 0007</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0192.md">record 0192</a></dd></div></dl>
 
 </div>
 
 <div class="nv-rule" id="a-declared-type-answers-before-the-program-runs">
 
-## `->` on a receiver that can hold no object, and `instanceof` on a subject that can hold none, are refused where they are written
+## `->` on a receiver that can hold no object is refused where it is written
 
 <div class="nv-rule-tags">
 <span class="nv-rule-status" data-status="shipped">Shipped</span>
@@ -73,36 +79,25 @@ divergence, not a bug. The tracked number distinguishes the two, or it reads as 
 
 `$i->name` where `$i` is declared `int` is refused where it is written (`E0495`); PHP warns *"Attempt
 to read property"* and yields `null`. A union naming no single class takes the same code, having no
-one property set to resolve against. `1 instanceof Box`, or `instanceof` over a declared scalar, an
-`array<T>`, an enum or a union naming no class, is refused the same way (`E0497`); PHP answers
-`false`, having no declaration to read. The subject's declaration has ruled the question out, so the
-test is dead code that reads as a live one — the same call
+one property set to resolve against. The receiver's declaration has ruled the question out, so the
+access is dead code that reads as a live one — the same call
 [`expressions/disjoint-comparison-refused`](/docs/rules/expressions/truthiness-and-equality/#disjoint-comparison-refused "Comparing two types that no single value inhabits is a compile error") makes for `==` over two statically disjoint types.
 
-**What is refused is a subject that can hold no object at all, not a test whose answer is knowable**,
-and the two are easy to run together when reading this rule quickly. `$leaf instanceof Leaf` where
-`$leaf` is declared `Leaf` is statically true and **accepted**; so is `$leaf instanceof Other` for an
-unrelated class, which is statically false. `instanceof` is refused only where it is *inapplicable* —
-it needs a class to test against and a scalar has none. The general test that is applicable to every
-subject, and so refuses none, is `is` ([`types/type-test`](/docs/rules/types/unions-and-conversion/#type-test "$x is T tests whether a value holds a T, answers bool, and never refuses because the answer is knowable")).
+**What is refused is a receiver that can hold no object at all, not an access whose outcome is
+knowable.** The type test is the other way round and refuses nothing: `$x is T` is applicable to every
+subject, and an answer its declaration settles folds to a constant rather than reporting
+([`types/type-test`](/docs/rules/types/unions-and-conversion/#type-test "$x is T tests whether a value holds a T, answers bool, and never refuses because the answer is knowable")).
 
 `mixed` is the exception and keeps PHP's timing: it is the one unchecked position, so `$m->name`
 defers to [`types/erased-member-access`](/docs/rules/types/objects-and-shapes/#erased-member-access "A member reached through an erased receiver is answered at run time, and a failure is a throw")'s name-keyed fetch, which throws — in PHP's own wording —
-for a receiver that turns out not to be an object and for a name its class does not carry. `mixed`,
-`object`, a shape and any union holding a class keep the run-time `instanceof` test, and every
-non-object tag answers `false` there exactly as PHP does.
-
-The class side is not a divergence. PHP's dynamic `$x instanceof $name` is spelled over a class
-reference — `$x instanceof $cls`, where `$cls` is a `class<T>` ([`types/class-reference`](/docs/rules/types/objects-and-shapes/#class-reference "class<T> is a type whose value is a class descriptor, and as is its only source")) — and
-tests the class that value holds; a bare `string` on the right is `E0496`, the name having been
-checked at the `as` that produced the reference, not at the test.
+for a receiver that turns out not to be an object and for a name its class does not carry.
 
 <aside class="nv-rule-diverges">
 <p class="nv-rule-diverges-label">Where this differs from PHP</p>
-<p><code>$i-&gt;name</code> on an <code>int</code> and <code>1 instanceof Box</code> are compile errors (<code>E0495</code>, <code>E0497</code>) rather than a warning yielding <code>null</code> and a <code>false</code>; only <code>mixed</code>, <code>object</code>, a shape and a union holding a class keep PHP's run-time answer</p>
+<p><code>$i-&gt;name</code> on an <code>int</code> is a compile error (<code>E0495</code>) rather than a warning yielding <code>null</code>; only <code>mixed</code> keeps PHP's run-time answer, through a name-keyed fetch that throws</p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/types/objects-and-shapes/#erased-member-access" title="A member reached through an erased receiver is answered at run time, and a failure is a throw"><code>types/erased-member-access</code></a> <a href="/docs/rules/types/unions-and-conversion/#narrowing" title="Narrowing is flow-sensitive and branch-local, and there are exactly five spellings of it"><code>types/narrowing</code></a> <a href="/docs/rules/types/unions-and-conversion/#unions-and-mixed" title="A union permits only what every member permits, and mixed is the one position checked nowhere"><code>types/unions-and-mixed</code></a> <a href="/docs/rules/types/objects-and-shapes/#class-reference" title="class&lt;T&gt; is a type whose value is a class descriptor, and as is its only source"><code>types/class-reference</code></a> <a href="/docs/rules/types/unions-and-conversion/#type-test" title="$x is T tests whether a value holds a T, answers bool, and never refuses because the answer is knowable"><code>types/type-test</code></a> <a href="/docs/rules/expressions/truthiness-and-equality/#disjoint-comparison-refused" title="Comparing two types that no single value inhabits is a compile error"><code>expressions/disjoint-comparison-refused</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0007.md">record 0007</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0150.md">record 0150</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/a-property-through-a-receiver-that-holds-no-object-is-a-compile-error.nvst"><code>tests/conformance/lang/a-property-through-a-receiver-that-holds-no-object-is-a-compile-error.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/instanceof-refuses-a-subject-that-can-hold-no-object.nvst"><code>tests/conformance/lang/instanceof-refuses-a-subject-that-can-hold-no-object.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/class/instanceof-through-an-erased-subject-answers-every-tag.nvst"><code>tests/conformance/class/instanceof-through-an-erased-subject-answers-every-tag.nvst</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/types/objects-and-shapes/#erased-member-access" title="A member reached through an erased receiver is answered at run time, and a failure is a throw"><code>types/erased-member-access</code></a> <a href="/docs/rules/types/unions-and-conversion/#unions-and-mixed" title="A union permits only what every member permits, and mixed is the one position checked nowhere"><code>types/unions-and-mixed</code></a> <a href="/docs/rules/types/unions-and-conversion/#type-test" title="$x is T tests whether a value holds a T, answers bool, and never refuses because the answer is knowable"><code>types/type-test</code></a> <a href="/docs/rules/expressions/truthiness-and-equality/#disjoint-comparison-refused" title="Comparing two types that no single value inhabits is a compile error"><code>expressions/disjoint-comparison-refused</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0007.md">record 0007</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0150.md">record 0150</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0192.md">record 0192</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/lang/a-property-through-a-receiver-that-holds-no-object-is-a-compile-error.nvst"><code>tests/conformance/lang/a-property-through-a-receiver-that-holds-no-object-is-a-compile-error.nvst</code></a></dd></div></dl>
 
 </div>
 
@@ -351,19 +346,19 @@ once, because the cost of reserving now is near zero while the cost of taking ei
 breaking rename. A converted program renames any `let` or `is` it used as a name, and the rewrite is
 mechanical.
 
-**The two are reserved for unrelated reasons, and only one of them still has no construct.** PHP's
-*Deprecations for PHP 8.6* RFC gives each its own motivation: `let` for the block-scoping construct,
-whose own RFC was declined, and `is` for the Pattern Matching RFC, by name.
+**The two are reserved for unrelated reasons, and only one of them still has no construct.**
 
 - **`let` is the empty kind** — the family of `eval`, `goto` and `list`, where the spelling is held
   and nothing is behind it, so nothing a user wrote has to be renamed out from under a future
-  decision.
-- **`is` is not.** It is the type test, `$x is T` ([`types/type-test`](/docs/rules/types/unions-and-conversion/#type-test "$x is T tests whether a value holds a T, answers bool, and never refuses because the answer is knowable")), which takes the settled
-  half of the RFC PHP reserved the word for and leaves the rest of it unclaimed
-  ([`php-migration/is-takes-pattern-matchings-type-patterns`](/docs/rules/php-migration/divergences/#is-takes-pattern-matchings-type-patterns "is implements the type-pattern half of PHP's Pattern Matching RFC and reserves every other row of it")).
+  decision. Its block-scoping RFC was declined in PHP and nothing replaces it here.
+- **`is` is not.** It is the type test, `$x is T` ([`types/type-test`](/docs/rules/types/unions-and-conversion/#type-test "$x is T tests whether a value holds a T, answers bool, and never refuses because the answer is knowable")), and the only one there is.
+- **`instanceof` is neither**, and is the third spelling this rule's diagnostics have to know about:
+  it is a word Novis refuses where a PHP program writes it, naming `is` as the rewrite
+  ([`php-migration/one-type-test`](/docs/rules/php-migration/divergences/#one-type-test "instanceof is refused where it is written, is is the one type test, and neither keyword is compared with PHP again")). It was never a name in either language, so nothing is
+  reserved by refusing it — the token exists only so the refusal can spell it.
 
 The diagnostics name the living spellings: `var` declares an inferred local
-([`types/var-inference`](/docs/rules/types/declarations-and-numbers/#var-inference "var takes a local's type from its initializer and fixes it there for good")), `is` and `instanceof` test ([`types/narrowing`](/docs/rules/types/unions-and-conversion/#narrowing "Narrowing is flow-sensitive and branch-local, and there are exactly five spellings of it")) and `as` converts
+([`types/var-inference`](/docs/rules/types/declarations-and-numbers/#var-inference "var takes a local's type from its initializer and fixes it there for good")), `is` tests ([`types/narrowing`](/docs/rules/types/unions-and-conversion/#narrowing "Narrowing is flow-sensitive and branch-local, and there are exactly four spellings of it")) and `as` converts
 ([`expressions/nullable-conversion`](/docs/rules/expressions/conversion-and-intrinsics/#nullable-conversion "expr as ?T yields the converted value or null, and never throws")). Like every reserved word, both match in lower case only
 ([`classes/reserved-spellings-are-lower-case`](/docs/rules/classes/declaring-a-class/#reserved-spellings-are-lower-case "Keywords, contextual keywords and the <?nvs tag are lower case and nothing else")).
 
@@ -372,75 +367,68 @@ The diagnostics name the living spellings: `var` declares an inferred local
 <p><code>let</code> and <code>is</code> cannot name anything (deprecated as identifiers in 8.6), so a converted program renames them</p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/types/declarations-and-numbers/#var-inference" title="var takes a local's type from its initializer and fixes it there for good"><code>types/var-inference</code></a> <a href="/docs/rules/types/unions-and-conversion/#narrowing" title="Narrowing is flow-sensitive and branch-local, and there are exactly five spellings of it"><code>types/narrowing</code></a> <a href="/docs/rules/types/unions-and-conversion/#type-test" title="$x is T tests whether a value holds a T, answers bool, and never refuses because the answer is knowable"><code>types/type-test</code></a> <a href="/docs/rules/expressions/conversion-and-intrinsics/#nullable-conversion" title="expr as ?T yields the converted value or null, and never throws"><code>expressions/nullable-conversion</code></a> <a href="/docs/rules/classes/declaring-a-class/#reserved-spellings-are-lower-case" title="Keywords, contextual keywords and the &lt;?nvs tag are lower case and nothing else"><code>classes/reserved-spellings-are-lower-case</code></a> <a href="/docs/rules/security/closed-doors/#no-eval" title="There is no eval, and no Core member compiles a string produced at run time"><code>security/no-eval</code></a> <a href="/docs/rules/php-migration/converting-and-completing/#a-deprecation-is-a-refusal" title="What PHP deprecates for removal is refused at compile time, never phased in behind a warning"><code>php-migration/a-deprecation-is-a-refusal</code></a> <a href="/docs/rules/php-migration/divergences/#is-takes-pattern-matchings-type-patterns" title="is implements the type-pattern half of PHP's Pattern Matching RFC and reserves every other row of it"><code>php-migration/is-takes-pattern-matchings-type-patterns</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0124.md">record 0124</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0150.md">record 0150</a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/types/declarations-and-numbers/#var-inference" title="var takes a local's type from its initializer and fixes it there for good"><code>types/var-inference</code></a> <a href="/docs/rules/types/unions-and-conversion/#narrowing" title="Narrowing is flow-sensitive and branch-local, and there are exactly four spellings of it"><code>types/narrowing</code></a> <a href="/docs/rules/types/unions-and-conversion/#type-test" title="$x is T tests whether a value holds a T, answers bool, and never refuses because the answer is knowable"><code>types/type-test</code></a> <a href="/docs/rules/expressions/conversion-and-intrinsics/#nullable-conversion" title="expr as ?T yields the converted value or null, and never throws"><code>expressions/nullable-conversion</code></a> <a href="/docs/rules/classes/declaring-a-class/#reserved-spellings-are-lower-case" title="Keywords, contextual keywords and the &lt;?nvs tag are lower case and nothing else"><code>classes/reserved-spellings-are-lower-case</code></a> <a href="/docs/rules/security/closed-doors/#no-eval" title="There is no eval, and no Core member compiles a string produced at run time"><code>security/no-eval</code></a> <a href="/docs/rules/php-migration/converting-and-completing/#a-deprecation-is-a-refusal" title="What PHP deprecates for removal is refused at compile time, never phased in behind a warning"><code>php-migration/a-deprecation-is-a-refusal</code></a> <a href="/docs/rules/php-migration/divergences/#one-type-test" title="instanceof is refused where it is written, is is the one type test, and neither keyword is compared with PHP again"><code>php-migration/one-type-test</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0124.md">record 0124</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0150.md">record 0150</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0192.md">record 0192</a></dd></div></dl>
 
 </div>
 
-<div class="nv-rule" id="is-takes-pattern-matchings-type-patterns">
+<div class="nv-rule" id="one-type-test">
 
-## `is` implements the type-pattern half of PHP's Pattern Matching RFC and reserves every other row of it
+## `instanceof` is refused where it is written, `is` is the one type test, and neither keyword is compared with PHP again
 
 <div class="nv-rule-tags">
-<span class="nv-rule-status" data-status="designed">Designed</span>
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
 <span class="nv-rule-flag">Differs from PHP</span>
-<a class="nv-rule-id" href="#is-takes-pattern-matchings-type-patterns"><code>php-migration/is-takes-pattern-matchings-type-patterns</code></a>
+<a class="nv-rule-id" href="#one-type-test"><code>php-migration/one-type-test</code></a>
 </div>
 
-Novis's `is` implements the **type-pattern half** of PHP's Pattern Matching RFC and deliberately
-claims none of the rest, because PHP reserved the spelling for that RFC by name and has not yet voted
-on it. PHP 8.6 deprecates `is` as an identifier, and the *Deprecations for PHP 8.6* RFC gives one
-motivation and no other: to reserve it for pattern matching. That is a claim on the spelling, so
-Novis's job is to be a subset that stays true rather than a superset that has to be taken back.
+Novis has one type test, `$x is T`, and `instanceof` is refused where it is written: the diagnostic
+names the rewrite — *write `$x is Request`; a class reference on the right is `$x is $cls`* — and the
+converter performs it mechanically. PHP keeps both operators, and this is a deliberate divergence
+taken for good in 0192: `is` asks every question the pair used to split, so a language with both would
+be carrying a keyword for a special case of its own operator.
 
-[`types/type-test`](/docs/rules/types/unions-and-conversion/#type-test "$x is T tests whether a value holds a T, answers bool, and never refuses because the answer is knowable") is the operator and owns its table. This rule owns the **relationship**: what
-we took, what we left, and what a future session must read before claiming any of it.
+[`types/type-test`](/docs/rules/types/unions-and-conversion/#type-test "$x is T tests whether a value holds a T, answers bool, and never refuses because the answer is knowable") is the operator and owns its table. This rule owns everything about **either
+keyword and PHP**, and it is the only place any of it is written.
 
-## Taken, and identical to the RFC
+## What a converted program meets
 
-Type patterns (`is string`, `is Request`, `is ?array`, `is int|float`, `is iterable`, `is true`,
-`is mixed`), unions and intersections under DNF, literal patterns (`is 5`, `is 'yay'`,
-`is "beep"|"boop"`, `is null`), and class-constant patterns (`is MyEnum::Case`, `is self::Wild`).
-Every one of those is already a `Type` in our grammar, and the RFC's semantics for them are strict —
-the same strictness `is_int()` has — which is what `is` answers with.
+| PHP | Novis | why |
+|---|---|---|
+| `$x instanceof C` | `$x is C` | the converter rewrites it; the two answer identically for a class name |
+| `$x instanceof $cls` where `$cls` is a `string` | `E0496`, help *`as class<T>`* | a class reference is checked where it is made, not at the test ([`types/class-reference-sites`](/docs/rules/types/objects-and-shapes/#class-reference-sites "Three sites accept a class<T>, and every other operand is still refused there")) |
+| `$x instanceof $obj` | `E0496`, the same report | an object is not a class reference; `$obj::class as class<T>` is the spelling |
+| `$x is C` used as an identifier | renamed | [`php-migration/let-and-is-are-reserved`](/docs/rules/php-migration/divergences/#let-and-is-are-reserved "let and is cannot name anything; var declares, as converts, and is is the type test") |
 
-One row is not taken: `is 3.14`. [`types/literal-types`](/docs/rules/types/text-and-literal-types/#literal-types "A string or int literal is its own type, and a union of them is a closed set") has no float literal type on purpose, so
-the test is refused rather than answered differently. A refusal is the safe side of a divergence.
+The converter is M11's, over `php-rs-parser`, and rewrites only the first row. The other two are left
+to `E0496` on purpose: a string or an object on the right of `instanceof` is a place where PHP resolves
+a name at run time, and the fix is a conversion the author picks the type for, not one a rewriter can
+guess.
 
-## Reserved, and not designed
+## What `$x is $cls` means here, and why it is not PHP's
 
-Variable binding and capture (`$p is Point(x: 3, y: $y)`), object destructuring, array sequence and
-associative patterns, comparison patterns (`is >5 & <10`), pinning (`^$var`), and `match ($x) is {…}`.
-Each parses to a refusal naming itself as reserved.
+`$x is $cls` tests the class a value holds against the descriptor a `class<T>` carries, and narrows
+its subject to `T` on the true edge ([`types/narrowing`](/docs/rules/types/unions-and-conversion/#narrowing "Narrowing is flow-sensitive and branch-local, and there are exactly four spellings of it")). The value arm starts with `$`; every
+other token after `is` starts a type. PHP's Pattern Matching RFC refuses a bare variable as a whole
+pattern and so has no dynamic class test through `is` at all — the spelling is unclaimed there rather
+than claimed differently, which is why taking it costs nothing a converted program can trip over.
 
-These are precisely the rows the RFC has **not** settled: it is in discussion rather than voted, and
-the binding shorthand and the placement of `is` inside `match()` are both under open objection. A
-meaning invented for any of them now is a meaning that has to be taken back, and the taking back is a
-breaking change to a spelling that already compiles.
+## The RFC is not read again
 
-## Why `$x is $cls` is refused rather than useful
+PHP 8.6 deprecates `is` as an identifier to reserve it for pattern matching, and that RFC is in
+discussion. **No session re-reads it, tracks its vote, or compares either keyword with PHP again.**
+What was read once is frozen in 0192 § 1, and a session that finds itself weighing what PHP would do
+with either word has left the rule.
 
-A bare variable on the right of `is` is a **capture** in PHP's grammar — it binds and always matches —
-and the pinned form `^$var` compares with identity, which asks whether the subject *is* that descriptor
-rather than an instance of it. So PHP has no dynamic class test through `is`, and the RFC says `is` and
-`instanceof` coexist rather than one replacing the other.
-
-Novis could give `$x is $cls` the dynamic meaning, since it has no binding patterns. It does not,
-because that is the worst divergence available: the same line would mean two different things in the
-two languages and compile silently in both. `$x instanceof $cls` is the dynamic class test
-([`types/class-reference-sites`](/docs/rules/types/objects-and-shapes/#class-reference-sites "Three sites accept a class<T>, and every other operand is still refused there")), and it is the one thing `is` structurally cannot express.
-
-## What this rule is for
-
-Before any session claims a reserved row above, it re-reads the RFC as accepted rather than as
-described here — the contested parts are the ones most likely to have moved — and records the result.
-[`types/type-test`](/docs/rules/types/unions-and-conversion/#type-test "$x is T tests whether a value holds a T, answers bool, and never refuses because the answer is knowable")'s three refusals and this rule's reserved list are one decision seen from two
-sides, and neither is edited without the other.
+The shapes a pattern grammar would need — object and array patterns, comparison patterns, pinning,
+`match ($x) is {…}` — keep refusing as syntax Novis does not have, and **no diagnostic names an RFC**.
+Any future pattern syntax is a Novis design question, opened by its own record and decided on Novis's
+priorities.
 
 <aside class="nv-rule-diverges">
 <p class="nv-rule-diverges-label">Where this differs from PHP</p>
-<p>PHP reserved <code>is</code> for pattern matching and has not voted it; Novis ships the settled type-pattern half now, refuses <code>is 3.14</code> for want of a float literal type, and leaves binding, destructuring, array patterns, comparison patterns and pinning unclaimed</p>
+<p>PHP keeps <code>instanceof</code> beside the <code>is</code> it has reserved; Novis refuses the spelling outright and names the rewrite, and gives <code>$x is $cls</code> the dynamic class test PHP's Pattern Matching RFC leaves unclaimed</p>
 </aside>
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/types/unions-and-conversion/#type-test" title="$x is T tests whether a value holds a T, answers bool, and never refuses because the answer is knowable"><code>types/type-test</code></a> <a href="/docs/rules/types/text-and-literal-types/#literal-types" title="A string or int literal is its own type, and a union of them is a closed set"><code>types/literal-types</code></a> <a href="/docs/rules/types/objects-and-shapes/#class-reference-sites" title="Three sites accept a class&lt;T&gt;, and every other operand is still refused there"><code>types/class-reference-sites</code></a> <a href="/docs/rules/php-migration/divergences/#let-and-is-are-reserved" title="let and is cannot name anything; var declares, as converts, and is is the type test"><code>php-migration/let-and-is-are-reserved</code></a> <a href="/docs/rules/php-migration/divergences/#every-divergence-is-deliberate-and-listed" title="Every departure from PHP's observable behaviour is listed as a divergence, and each exists only because PHP left a binding untyped"><code>php-migration/every-divergence-is-deliberate-and-listed</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0150.md">record 0150</a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/types/unions-and-conversion/#type-test" title="$x is T tests whether a value holds a T, answers bool, and never refuses because the answer is knowable"><code>types/type-test</code></a> <a href="/docs/rules/types/unions-and-conversion/#narrowing" title="Narrowing is flow-sensitive and branch-local, and there are exactly four spellings of it"><code>types/narrowing</code></a> <a href="/docs/rules/types/objects-and-shapes/#class-reference-sites" title="Three sites accept a class&lt;T&gt;, and every other operand is still refused there"><code>types/class-reference-sites</code></a> <a href="/docs/rules/php-migration/divergences/#let-and-is-are-reserved" title="let and is cannot name anything; var declares, as converts, and is is the type test"><code>php-migration/let-and-is-are-reserved</code></a> <a href="/docs/rules/php-migration/divergences/#every-divergence-is-deliberate-and-listed" title="Every departure from PHP's observable behaviour is listed as a divergence, and each exists only because PHP left a binding untyped"><code>php-migration/every-divergence-is-deliberate-and-listed</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0192.md">record 0192</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/reject/instanceof-is-spelled-is.nvst"><code>tests/conformance/reject/instanceof-is-spelled-is.nvst</code></a></dd></div></dl>
 
 </div>

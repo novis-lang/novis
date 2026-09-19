@@ -248,6 +248,15 @@ and silently letting the last one win is how a JSON endpoint acquires an HTML pr
 refusal needs is two *different* writers: one member called twice declares one thing twice, so a body
 written in a loop is an ordinary program and is left alone.
 
+**That error is reported where a response is statically certain, which is a `#[Route]` handler.**
+`echo` is bound by context and not by syntax — the same body writes a response under a request and a
+terminal sink under `nvs run` — so a method that is not a handler writes no response for two writers
+to disagree over and is left alone rather than refused on suspicion. One response is outside the
+check and stays there: a mount's entry script, whose top-level frame is the request body and which is
+the same compiled unit the command line runs, so nothing distinguishes the two uses at compile time.
+There the default decides instead of the refusal — `echo` alone means `text/html`, and a typed member
+written beside it wins the content type it declared last.
+
 <dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/security/tainted-data/#sink-predicate" title="A string or bytes parameter is a sink when its content becomes an instruction a parser executes"><code>security/sink-predicate</code></a> <a href="/docs/rules/security/laundering/#capture-answers-the-carrier" title="Capturing a sink yields that sink's carrier, never a plain string"><code>security/capture-answers-the-carrier</code></a> <a href="/docs/rules/security/laundering/#launderer-answers-a-carrier" title="A launderer answers its sink's carrier when that sink launders on its own and the transform is not idempotent, and a plain type otherwise"><code>security/launderer-answers-a-carrier</code></a> <a href="/docs/rules/core-classes/regex-html-and-introspection/#html-auto-escape" title="echo in an HTTP request escapes everything it is given, and Core\Html\Markup is the only raw-write bypass"><code>core-classes/html-auto-escape</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0088.md">record 0088</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0024.md">record 0024</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0074.md">record 0074</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0177.md">record 0177</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/a-response-json-body-frames-a-tainted-value.nvst"><code>tests/conformance/core/a-response-json-body-frames-a-tainted-value.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/core/a-response-text-body-accepts-a-tainted-argument.nvst"><code>tests/conformance/core/a-response-text-body-accepts-a-tainted-argument.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-types/tests/response.rs"><code>crates/nvs-types/tests/response.rs</code></a></dd></div></dl>
 
 </div>

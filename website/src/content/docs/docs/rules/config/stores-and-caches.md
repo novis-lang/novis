@@ -126,10 +126,12 @@ host   = "/var/run/postgresql"        # a socket directory
 
 Two spellings because the two keys are two different things, and each takes the one that reads as
 itself. `[cache.shared] url` holds a URL and its parser already dispatches on scheme — it strips
-`redis://` and refuses `rediss://` and a database index with a sentence apiece — so `unix:` is one
-more arm on machinery that exists, and the value stays a URL as the key's name promises. The scheme
-names no protocol and does not need to: the block speaks RESP and nothing else, so its whole job is to
-say *which transport*.
+`redis://` and `rediss://`, and refuses a credential written as userinfo and an index written as a
+path, because `[cache.shared] password` and `[cache.shared] database` are the one place each of
+those is written — so `unix:` is one more arm on machinery that exists, and the value stays a URL as
+the key's name promises. A scheme names no protocol and does not need to: the block speaks RESP and
+nothing else, so every one of the three says *which transport* and nothing more. That is also why
+TLS is a scheme here and not a key beside the URL.
 
 `[db.<name>] host` is not a URL and never was, so it takes the overload the listening side already
 established for `[server] listen`: a value beginning with a path separator is a socket, and no
@@ -142,7 +144,7 @@ re-litigate rather than a thing to read.
 
 <aside class="nv-rule-diverges">
 <p class="nv-rule-diverges-label">Where this differs from PHP</p>
-<p><code>redis://</code> and <code>unix:</code> are the only schemes <code>[cache.shared] url</code> reads — <code>rediss://</code> and a database index are refused with a sentence apiece</p>
+<p><code>redis://</code>, <code>rediss://</code> and <code>unix:</code> are the only schemes <code>[cache.shared] url</code> reads — a credential is <code>[cache.shared] password</code> rather than userinfo, and a database index is <code>[cache.shared] database</code> rather than a path on the URL</p>
 </aside>
 
 <dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/config/stores-and-caches/#a-unix-socket-is-admitted-only-where-an-operator-wrote-it" title="A Unix socket is admitted in [cache.shared] url and [db.&lt;name&gt;] host, and refused from any program-supplied endpoint"><code>config/a-unix-socket-is-admitted-only-where-an-operator-wrote-it</code></a> <a href="/docs/rules/core-classes/connecting-to-a-database/#db-unix-socket-path" title="A Unix-socket host is the string that deployment already holds, and MSSQL refuses one"><code>core-classes/db-unix-socket-path</code></a> <a href="/docs/rules/config/stores-and-caches/#a-unix-spelling-with-no-af-unix-transport-refuses-at-boot" title="A Unix spelling on a build with no AF_UNIX transport is refused at boot, never read as loopback TCP"><code>config/a-unix-spelling-with-no-af-unix-transport-refuses-at-boot</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0142.md">record 0142</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0097.md">record 0097</a></dd></div></dl>
@@ -171,9 +173,9 @@ is not waiting for this project — the deployment has to be spelled differently
 until someone notices is one a boot refusal would have prevented. So it sits with `backend = "local"`:
 refused where it is written, so a deployment cannot run believing it has a store it will never reach.
 
-**Silently reading it as loopback TCP is refused**, for the reason `rediss://` is refused rather than
-half-served: a configuration that reads as one transport and runs as another is worse than one that
-does not run, because the difference is invisible in exactly the review that would have caught it.
+**Silently reading it as loopback TCP is refused.** A configuration that reads as one transport and
+runs as another is worse than one that does not run, because the difference is invisible in exactly
+the review that would have caught it.
 
 <dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/config/stores-and-caches/#unix-scheme-in-a-url-and-a-bare-path-in-a-host" title="A socket is unix: where the key is a URL and a bare absolute path where the key is a host"><code>config/unix-scheme-in-a-url-and-a-bare-path-in-a-host</code></a> <a href="/docs/rules/core-api/lifetimes-and-absences/#session-roster" title="The session roster is start and the members that work on the record it loaded, and a member called before start throws naming it"><code>core-api/session-roster</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0142.md">record 0142</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0139.md">record 0139</a></dd></div></dl>
 

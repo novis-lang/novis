@@ -117,7 +117,11 @@ satisfying the shape's declared type by ordinary assignability. No new compariso
   does not.
 - Plain `object` is the fully erased form, and every shape type is a subtype of it
   ([`types/object-top`](/docs/rules/types/objects-and-shapes/#object-top "object is the opaque top of every class type")).
-- A shape is a type *expression*, so [`types/type-alias`](/docs/rules/types/unions-and-conversion/#type-alias "A type alias is a transparent, compile-time-only synonym for a type expression") names one for free.
+- A shape is a type *expression*, so [`types/type-alias`](/docs/rules/types/unions-and-conversion/#type-alias "A type alias is a transparent, compile-time-only synonym for a type expression") names one for free — and a **local
+  declaration** is the one slot where naming it first is required rather than optional, because a
+  statement-initial `{` opens a block before it is anything else. `{x: int} $point;` is `E0134`,
+  naming `type Point = {x: int}; Point $point;`; a parameter, a return type, a property, a class
+  constant and a `foreach` binding each take the bare shape.
 
 **This is the one deliberate, tightly scoped exception to an otherwise fully nominal type system.**
 Two unrelated named classes sharing field names and types are interchangeable wherever a shape type is
@@ -264,7 +268,7 @@ Three spellings accept a `class<T>` operand, and nothing else:
 |---|---|---|
 | `new $cls(...)` | `T`'s constructor | the dynamic-new instruction `new static` already uses |
 | `$cls::f(...)` | `T`'s static or instance member roster | a virtual call |
-| `$x instanceof $cls` | nothing; the descriptor is the test | a descriptor-valued `instanceof` |
+| `$x is $cls` | nothing; the descriptor is the test | a descriptor-valued class test |
 
 Every other operand type keeps `E0496`, with its help naming `as class<T>`. A bare `string` is
 therefore still refused at all three sites — one refusal, with a fix the author can take.
@@ -277,10 +281,15 @@ PHP and never *different* from PHP: every program it accepts, PHP runs the same 
 deliberately checked at the `new` rather than at the class declaration — a subclass never instantiated
 through a class reference is nobody's problem.
 
+`$x is $cls` is the dynamic class test, and it narrows its subject to `T` on the true edge
+([`types/narrowing`](/docs/rules/types/unions-and-conversion/#narrowing "Narrowing is flow-sensitive and branch-local, and there are exactly four spellings of it")) — the value it tests holds `T` or an implementor, so the narrowing is what
+the reference already promised. PHP spells this site with the operator Novis refuses
+([`php-migration/one-type-test`](/docs/rules/php-migration/divergences/#one-type-test "instanceof is refused where it is written, is is the one type test, and neither keyword is compared with PHP again")).
+
 `$obj->$name` is untouched by any of this: a class reference answers "which class", never "which
 member" ([`types/property-key-access`](/docs/rules/types/arrays-and-property-keys/#property-key-access "$obj->$key accepts a property<T> and nothing else; a read is the union and a write is checked")).
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/types/objects-and-shapes/#class-reference" title="class&lt;T&gt; is a type whose value is a class descriptor, and as is its only source"><code>types/class-reference</code></a> <a href="/docs/rules/types/arrays-and-property-keys/#property-key-access" title="$obj-&gt;$key accepts a property&lt;T&gt; and nothing else; a read is the union and a write is checked"><code>types/property-key-access</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0125.md">record 0125</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0007.md">record 0007</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0126.md">record 0126</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/class/a-class-reference-carries-a-static-call-and-an-instanceof.nvst"><code>tests/conformance/class/a-class-reference-carries-a-static-call-and-an-instanceof.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/reject/a-subclass-with-another-constructor-refuses-a-dynamic-new.nvst"><code>tests/conformance/reject/a-subclass-with-another-constructor-refuses-a-dynamic-new.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-ir/tests/class_reference.rs"><code>crates/nvs-ir/tests/class_reference.rs</code></a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/types/objects-and-shapes/#class-reference" title="class&lt;T&gt; is a type whose value is a class descriptor, and as is its only source"><code>types/class-reference</code></a> <a href="/docs/rules/types/arrays-and-property-keys/#property-key-access" title="$obj-&gt;$key accepts a property&lt;T&gt; and nothing else; a read is the union and a write is checked"><code>types/property-key-access</code></a> <a href="/docs/rules/types/unions-and-conversion/#type-test" title="$x is T tests whether a value holds a T, answers bool, and never refuses because the answer is knowable"><code>types/type-test</code></a> <a href="/docs/rules/php-migration/divergences/#one-type-test" title="instanceof is refused where it is written, is is the one type test, and neither keyword is compared with PHP again"><code>php-migration/one-type-test</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0125.md">record 0125</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0007.md">record 0007</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0126.md">record 0126</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0192.md">record 0192</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/class/a-class-reference-carries-a-static-call-and-a-type-test.nvst"><code>tests/conformance/class/a-class-reference-carries-a-static-call-and-a-type-test.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/conformance/reject/a-subclass-with-another-constructor-refuses-a-dynamic-new.nvst"><code>tests/conformance/reject/a-subclass-with-another-constructor-refuses-a-dynamic-new.nvst</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-ir/tests/class_reference.rs"><code>crates/nvs-ir/tests/class_reference.rs</code></a></dd></div></dl>
 
 </div>
 
@@ -314,8 +323,9 @@ absent.
 The operand must carry a class statically. An object does, and a `class<T>` does — for which the name
 is a conversion rather than a member read ([`types/class-reference`](/docs/rules/types/objects-and-shapes/#class-reference "class<T> is a type whose value is a class descriptor, and as is its only source")), answering the **descriptor's**
 class rather than the `T` it was checked against, so `$name as class<Animal> as string` is the name it
-started from. A `mixed` or a `?T` is **refused** (`E0702`): narrow it — `instanceof`, or a `!= null`
-test — or ask reflection, whose whole purpose is the erased receiver. That is where this parts company
+started from. A `mixed` or a `?T` is **refused** (`E0702`): narrow it — an `is` test, or a `!= null`
+one ([`types/narrowing`](/docs/rules/types/unions-and-conversion/#narrowing "Narrowing is flow-sensitive and branch-local, and there are exactly four spellings of it")) — or ask reflection, whose whole purpose is the erased receiver. That is
+where this parts company
 with PHP, which accepts `$m::class` on any operand and fails at run time on one that is not an object;
 accepting it here would put a tag test and a throw behind a spelling that reads like a member read.
 The narrowing that lifts the refusal is the one `->` already requires of the same receiver.

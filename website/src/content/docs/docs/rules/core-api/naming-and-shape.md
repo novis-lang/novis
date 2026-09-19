@@ -221,6 +221,7 @@ hard compile error — not a lint, not a warning.
 | Category | Convention | Example |
 |---|---|---|
 | Class, interface, enum | `PascalCase` | `HTTPClient`, `Comparable` |
+| `type` alias, at file scope or in a body | `PascalCase` | `UserId` |
 | Enum case | `PascalCase` | `Active` |
 | Namespace segment | `PascalCase` | `Core\Html\Markup` |
 | Method, instance or `static` | `camelCase` | `parseXMLPayload` |

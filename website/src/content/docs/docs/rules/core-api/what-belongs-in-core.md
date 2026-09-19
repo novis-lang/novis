@@ -134,11 +134,12 @@ Native and feature-gated, which is how the metrics class and the shared cache ti
 is the general rule rather than a special case, and it is what keeps the `Core` name unconditional
 ([`core-api/core-means-always-present`](/docs/rules/core-api/what-belongs-in-core/#core-means-always-present "Core means always present, so nothing outside Tier 0 may register a name under it")) while the thing it talks to is optional.
 
-**Designed, not shipped.** Several classes the roster places at Tier 0 are not registered in
-`crates/nvs-stdlib/src/registry.rs` yet — the archive class, XML, big integers, the signature class and
-the metrics class — and none of the four first-party sandboxed components exists. The tier-boundary guard in `crates/nvs-stdlib/tests/tier_boundary.rs` holds the rule for
-what *is* registered; the missing rows fail nothing, because there is no coverage gate past the spec
-sections the current milestone owns.
+**Designed, not shipped.** Every class the roster places at Tier 0 is registered in
+`crates/nvs-stdlib/src/registry.rs`: the four `spec-*-outstanding.txt` ratchets under
+`crates/nvs-stdlib/tests/` are the gates that say so, each holds no keys, and each only shrinks. What
+the roster places at Tier 0 and nothing provides is the four first-party sandboxed components. The
+tier-boundary guard in `crates/nvs-stdlib/tests/tier_boundary.rs` holds the rule for what is
+registered.
 
 <dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/core-api/what-belongs-in-core/#tier-placement" title="A library candidate is placed by six ordered tests, not by PHP's extension list"><code>core-api/tier-placement</code></a> <a href="/docs/rules/core-api/what-belongs-in-core/#five-placements" title="A candidate lands in exactly one of five placements: Core, Native, Ext, Dropped or answered"><code>core-api/five-placements</code></a> <a href="/docs/rules/core-api/what-belongs-in-core/#core-means-always-present" title="Core means always present, so nothing outside Tier 0 may register a name under it"><code>core-api/core-means-always-present</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0051.md">record 0051</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0067.md">record 0067</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0076.md">record 0076</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0086.md">record 0086</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0120.md">record 0120</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0121.md">record 0121</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0122.md">record 0122</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0123.md">record 0123</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-stdlib/tests/tier_boundary.rs"><code>crates/nvs-stdlib/tests/tier_boundary.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-stdlib/src/registry.rs"><code>crates/nvs-stdlib/src/registry.rs</code></a></dd></div></dl>
 

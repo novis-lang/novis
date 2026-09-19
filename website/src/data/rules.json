@@ -1,8 +1,8 @@
 {
   "totals": {
     "total": 993,
-    "shipped": 749,
-    "designed": 244,
+    "shipped": 755,
+    "designed": 238,
     "diverging": 586
   },
   "topics": [
@@ -221,8 +221,8 @@
       "single": false,
       "counts": {
         "total": 48,
-        "shipped": 47,
-        "designed": 1,
+        "shipped": 48,
+        "designed": 0,
         "diverging": 26
       },
       "sections": [
@@ -459,8 +459,8 @@
           "url": "/docs/rules/types/unions-and-conversion/",
           "counts": {
             "total": 8,
-            "shipped": 7,
-            "designed": 1,
+            "shipped": 8,
+            "designed": 0,
             "diverging": 4
           },
           "rules": [
@@ -476,14 +476,14 @@
               "id": "types/type-test",
               "slug": "type-test",
               "title": "`$x is T` tests whether a value holds a `T`, answers `bool`, and never refuses because the answer is knowable",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/types/unions-and-conversion/#type-test",
               "diverges": "`int` and `uint` are separate tags, so a `BIGINT UNSIGNED` value answers `is uint` and not `is int` where `is_int()` was true for both, and `string` and `bytes` are separate the same way; `is 3.14` is refused outright, there being no float literal type"
             },
             {
               "id": "types/narrowing",
               "slug": "narrowing",
-              "title": "Narrowing is flow-sensitive and branch-local, and there are exactly five spellings of it",
+              "title": "Narrowing is flow-sensitive and branch-local, and there are exactly four spellings of it",
               "status": "shipped",
               "href": "/docs/rules/types/unions-and-conversion/#narrowing",
               "diverges": null
@@ -1611,8 +1611,8 @@
       "single": true,
       "counts": {
         "total": 8,
-        "shipped": 7,
-        "designed": 1,
+        "shipped": 8,
+        "designed": 0,
         "diverging": 7
       },
       "sections": [
@@ -1623,8 +1623,8 @@
           "url": "/docs/rules/enums/",
           "counts": {
             "total": 8,
-            "shipped": 7,
-            "designed": 1,
+            "shipped": 8,
+            "designed": 0,
             "diverging": 7
           },
           "rules": [
@@ -1688,7 +1688,7 @@
               "id": "enums/reflection",
               "slug": "reflection",
               "title": "Reflection describes an enum's shape and grants it nothing a class has",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/enums/#reflection",
               "diverges": "there are no case instances for a description to hand back — it carries the type's name and its case list, and nothing that acts"
             }
@@ -3499,8 +3499,8 @@
       "single": false,
       "counts": {
         "total": 55,
-        "shipped": 40,
-        "designed": 15,
+        "shipped": 42,
+        "designed": 13,
         "diverging": 16
       },
       "sections": [
@@ -3605,8 +3605,8 @@
           "url": "/docs/rules/testing/doubles-and-the-runner/",
           "counts": {
             "total": 13,
-            "shipped": 9,
-            "designed": 4,
+            "shipped": 11,
+            "designed": 2,
             "diverging": 6
           },
           "rules": [
@@ -3614,7 +3614,7 @@
               "id": "testing/doubles",
               "slug": "doubles",
               "title": "A double is a shape of closures, structurally checked against an interface",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/testing/doubles-and-the-runner/#doubles",
               "diverges": "no class is generated and no source is evaluated; a double is a value the checker compares against the interface, and a loose or nice double is not expressible"
             },
@@ -3622,7 +3622,7 @@
               "id": "testing/interaction-after-the-fact",
               "slug": "interaction-after-the-fact",
               "title": "A call to a double is asserted after the exercise, never expected before it",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/testing/doubles-and-the-runner/#interaction-after-the-fact",
               "diverges": "there is no `expects()`; the method being asserted on is a compile-checked reference, so renaming it breaks the test rather than leaving it passing"
             },
@@ -3717,10 +3717,10 @@
           ]
         },
         {
-          "slug": "the-four-proofs",
-          "title": "The four proofs",
-          "blurb": "A feature is finished when it has a test from both sides, three examples, a measured figure and an attack against it.",
-          "url": "/docs/rules/testing/the-four-proofs/",
+          "slug": "feature-proofs",
+          "title": "Feature proofs",
+          "blurb": "A feature is finished when it has a description, a test from both sides, three examples, a measured figure and an attack against it.",
+          "url": "/docs/rules/testing/feature-proofs/",
           "counts": {
             "total": 8,
             "shipped": 8,
@@ -3733,15 +3733,15 @@
               "slug": "nvst-is-separate",
               "title": "`.nvst` proves the language; `#[Test]` is how a program written in Novis tests itself",
               "status": "shipped",
-              "href": "/docs/rules/testing/the-four-proofs/#nvst-is-separate",
+              "href": "/docs/rules/testing/feature-proofs/#nvst-is-separate",
               "diverges": null
             },
             {
               "id": "testing/one-slice-is-one-feature",
               "slug": "one-slice-is-one-feature",
-              "title": "One slice writes all four of a feature's proofs together",
+              "title": "One slice writes all of a feature's proofs together",
               "status": "shipped",
-              "href": "/docs/rules/testing/the-four-proofs/#one-slice-is-one-feature",
+              "href": "/docs/rules/testing/feature-proofs/#one-slice-is-one-feature",
               "diverges": null
             },
             {
@@ -3749,7 +3749,7 @@
               "slug": "examples-live-in-the-repository",
               "title": "`docs/examples/` is authoritative and the website mirrors it",
               "status": "shipped",
-              "href": "/docs/rules/testing/the-four-proofs/#examples-live-in-the-repository",
+              "href": "/docs/rules/testing/feature-proofs/#examples-live-in-the-repository",
               "diverges": null
             },
             {
@@ -3757,15 +3757,15 @@
               "slug": "hostile-case-contract",
               "title": "A hostile case passes when nothing came apart, and a compile diagnostic is never a pass",
               "status": "shipped",
-              "href": "/docs/rules/testing/the-four-proofs/#hostile-case-contract",
+              "href": "/docs/rules/testing/feature-proofs/#hostile-case-contract",
               "diverges": null
             },
             {
-              "id": "testing/four-proofs",
-              "slug": "four-proofs",
-              "title": "A feature is finished when it has a test from both sides, three examples, a measured figure and an attack",
+              "id": "testing/feature-proofs",
+              "slug": "feature-proofs",
+              "title": "A feature is finished when its feature proofs exist: a description, a test from both sides, three examples, a measured figure and an attack",
               "status": "shipped",
-              "href": "/docs/rules/testing/the-four-proofs/#four-proofs",
+              "href": "/docs/rules/testing/feature-proofs/#feature-proofs",
               "diverges": null
             },
             {
@@ -3773,7 +3773,7 @@
               "slug": "roster-is-derived",
               "title": "The roster of features is read from the registry and the reference chapters, never kept as a list",
               "status": "shipped",
-              "href": "/docs/rules/testing/the-four-proofs/#roster-is-derived",
+              "href": "/docs/rules/testing/feature-proofs/#roster-is-derived",
               "diverges": null
             },
             {
@@ -3781,7 +3781,7 @@
               "slug": "proof-attribution",
               "title": "An example, an attack and a bench are attributed by path; a test is attributed by a marker",
               "status": "shipped",
-              "href": "/docs/rules/testing/the-four-proofs/#proof-attribution",
+              "href": "/docs/rules/testing/feature-proofs/#proof-attribution",
               "diverges": null
             },
             {
@@ -3789,7 +3789,7 @@
               "slug": "a-failing-proof-is-fixed-or-recorded",
               "title": "A proof that fails is fixed or recorded as a known gap, and never weakened",
               "status": "shipped",
-              "href": "/docs/rules/testing/the-four-proofs/#a-failing-proof-is-fixed-or-recorded",
+              "href": "/docs/rules/testing/feature-proofs/#a-failing-proof-is-fixed-or-recorded",
               "diverges": null
             }
           ]
@@ -3943,7 +3943,7 @@
             {
               "id": "testing/member-perf-ledger",
               "slug": "member-perf-ledger",
-              "title": "A member's figure is Novis against Novis, fingerprinted, and re-measured only when its implementing file moves",
+              "title": "A member's record is four counts that compare on any machine and one clock that compares on its own, re-measured only when its implementing file's text moves",
               "status": "shipped",
               "href": "/docs/rules/testing/measuring-performance/#member-perf-ledger",
               "diverges": null
@@ -6895,8 +6895,8 @@
       "single": false,
       "counts": {
         "total": 32,
-        "shipped": 26,
-        "designed": 6,
+        "shipped": 27,
+        "designed": 5,
         "diverging": 23
       },
       "sections": [
@@ -7001,8 +7001,8 @@
           "url": "/docs/rules/observability/traces/",
           "counts": {
             "total": 17,
-            "shipped": 13,
-            "designed": 4,
+            "shipped": 14,
+            "designed": 3,
             "diverging": 10
           },
           "rules": [
@@ -7050,7 +7050,7 @@
               "id": "observability/gc-pause-is-its-own-event",
               "slug": "gc-pause-is-its-own-event",
               "title": "A collector pause is a `gc` event recorded from the collector's run routine, never from the safepoint poll",
-              "status": "designed",
+              "status": "shipped",
               "href": "/docs/rules/observability/traces/#gc-pause-is-its-own-event",
               "diverges": null
             },
@@ -8862,7 +8862,7 @@
               "title": "A socket is `unix:` where the key is a URL and a bare absolute path where the key is a host",
               "status": "designed",
               "href": "/docs/rules/config/stores-and-caches/#unix-scheme-in-a-url-and-a-bare-path-in-a-host",
-              "diverges": "`redis://` and `unix:` are the only schemes `[cache.shared] url` reads — `rediss://` and a database index are refused with a sentence apiece"
+              "diverges": "`redis://`, `rediss://` and `unix:` are the only schemes `[cache.shared] url` reads — a credential is `[cache.shared] password` rather than userinfo, and a database index is `[cache.shared] database` rather than a path on the URL"
             },
             {
               "id": "config/a-unix-spelling-with-no-af-unix-transport-refuses-at-boot",
@@ -9589,8 +9589,8 @@
       "single": false,
       "counts": {
         "total": 20,
-        "shipped": 6,
-        "designed": 14,
+        "shipped": 7,
+        "designed": 13,
         "diverging": 19
       },
       "sections": [
@@ -9601,8 +9601,8 @@
           "url": "/docs/rules/php-migration/divergences/",
           "counts": {
             "total": 11,
-            "shipped": 6,
-            "designed": 5,
+            "shipped": 7,
+            "designed": 4,
             "diverging": 11
           },
           "rules": [
@@ -9617,10 +9617,10 @@
             {
               "id": "php-migration/a-declared-type-answers-before-the-program-runs",
               "slug": "a-declared-type-answers-before-the-program-runs",
-              "title": "`->` on a receiver that can hold no object, and `instanceof` on a subject that can hold none, are refused where they are written",
+              "title": "`->` on a receiver that can hold no object is refused where it is written",
               "status": "shipped",
               "href": "/docs/rules/php-migration/divergences/#a-declared-type-answers-before-the-program-runs",
-              "diverges": "`$i->name` on an `int` and `1 instanceof Box` are compile errors (`E0495`, `E0497`) rather than a warning yielding `null` and a `false`; only `mixed`, `object`, a shape and a union holding a class keep PHP's run-time answer"
+              "diverges": "`$i->name` on an `int` is a compile error (`E0495`) rather than a warning yielding `null`; only `mixed` keeps PHP's run-time answer, through a name-keyed fetch that throws"
             },
             {
               "id": "php-migration/absent-storage-is-never-a-zero-value",
@@ -9687,12 +9687,12 @@
               "diverges": "`let` and `is` cannot name anything (deprecated as identifiers in 8.6), so a converted program renames them"
             },
             {
-              "id": "php-migration/is-takes-pattern-matchings-type-patterns",
-              "slug": "is-takes-pattern-matchings-type-patterns",
-              "title": "`is` implements the type-pattern half of PHP's Pattern Matching RFC and reserves every other row of it",
-              "status": "designed",
-              "href": "/docs/rules/php-migration/divergences/#is-takes-pattern-matchings-type-patterns",
-              "diverges": "PHP reserved `is` for pattern matching and has not voted it; Novis ships the settled type-pattern half now, refuses `is 3.14` for want of a float literal type, and leaves binding, destructuring, array patterns, comparison patterns and pinning unclaimed"
+              "id": "php-migration/one-type-test",
+              "slug": "one-type-test",
+              "title": "`instanceof` is refused where it is written, `is` is the one type test, and neither keyword is compared with PHP again",
+              "status": "shipped",
+              "href": "/docs/rules/php-migration/divergences/#one-type-test",
+              "diverges": "PHP keeps `instanceof` beside the `is` it has reserved; Novis refuses the spelling outright and names the rewrite, and gives `$x is $cls` the dynamic class test PHP's Pattern Matching RFC leaves unclaimed"
             }
           ]
         },
