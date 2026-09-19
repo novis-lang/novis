@@ -1,0 +1,51 @@
+--TEST--
+An argument list refuses a missing `inout`, a spurious one, an element passed by reference, a positional argument after a named one and a name aimed at the variadic tail — `rule:statements/inout-is-written-at-the-call`, `rule:statements/an-inout-argument-is-a-local`, `rule:core-api/parameters-are-callable-by-name`
+--FILE--
+<?nvs
+// covers: lang:types/parameters
+// Five mistakes, five diagnostics, one argument list apiece. Each is a rule
+// stated the other way round: the marker is written at both ends
+// (`rule:statements/inout-is-written-at-the-call`, `E0713` and `E0714`), what
+// may be passed by reference is a local and not an element
+// (`rule:statements/an-inout-argument-is-a-local`, `E0439`), and a name fills
+// a parameter that exists while every positional argument comes first
+// (`rule:core-api/parameters-are-callable-by-name`, `E0486` and `E0488`).
+//
+// A variadic tail is the one parameter a name can never reach: what is left
+// over is built into a single array, so there is no slot for `rest:` to key.
+class Sum {
+    public static function of(int $first, int $second = 2, int ...$rest): int {
+        return $first + $second;
+    }
+
+    public static function bump(inout int $n): void {
+        $n = $n + 1;
+    }
+
+    public static function plain(int $n): int {
+        return $n;
+    }
+}
+
+int $count = 5;
+array<int> $slots = [1, 2];
+
+Sum::bump($count);
+Sum::plain(inout $count);
+Sum::bump(inout $slots[0]);
+echo Sum::of(1, second: 2, 3), "\n";
+echo Sum::of(first: 1, rest: 3), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0713]: this argument binds an `inout` parameter and must say so
+%A
+error[E0714]: `inout` here names a by-value parameter
+%A
+error[E0439]: an array element cannot be passed to an `inout` parameter
+%A
+error[E0488]: a positional argument cannot follow a `name:` or `...` argument
+%A
+error[E0486]: no parameter of this call can be filled by the name `rest`
+%A
+error: aborting due to 5 errors

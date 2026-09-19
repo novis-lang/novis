@@ -1,0 +1,104 @@
+--TEST--
+Every spelling of one argument list fills the same parameters, written order is evaluation order, and an `inout` argument is written back once and not at all through a throw — `rule:core-api/parameters-are-callable-by-name`, `rule:statements/inout-is-written-at-the-call`
+--FILE--
+<?nvs
+// covers: lang:types/parameters
+// `rule:core-api/parameters-are-callable-by-name` gives a name and a position
+// one meaning, so the claim here is agreement: seven spellings of one call are
+// asked the same question and counted, rather than one of them being read off
+// a line. A spelling that fills a slot differently still looks right on its
+// own and fails the count.
+//
+// Evaluation order is the half a name could quietly change, since a named
+// argument may be written out of declaration order: the trace below is the
+// order the arguments were *written* in, not the order they are declared.
+
+class Trace {
+    public static array<string> $order = [];
+
+    public static function step(string $tag, int $value): int {
+        Trace::$order = Core\Arr::append(Trace::$order, $tag);
+
+        return $value;
+    }
+}
+
+class Order {
+    public static function price(int $units, int $each = 5, int $postage = 2): int {
+        return $units * $each + $postage;
+    }
+
+    public static function of(int $first, int $second = 2, int ...$rest): int {
+        int $total = $first + $second;
+
+        foreach ($rest as int $each) {
+            $total = $total + $each;
+        }
+
+        return $total;
+    }
+
+    public static function bump(inout int $n, int $by = 1): void {
+        $n = $n + $by;
+    }
+
+    public static function abandon(inout int $n): void {
+        $n = $n + 100;
+
+        throw new RuntimeError("the write back is never reached");
+    }
+}
+
+// Seven ways to write one call: all positional, defaults left out, names in
+// declaration order, names out of it, and the two mixed.
+array<int> $answers = [
+    Order::price(3, 5, 2),
+    Order::price(3, 5),
+    Order::price(3),
+    Order::price(units: 3),
+    Order::price(3, each: 5, postage: 2),
+    Order::price(postage: 2, each: 5, units: 3),
+    Order::price(3, postage: 2),
+];
+
+int $agree = 0;
+
+foreach ($answers as int $answer) {
+    if ($answer == 17) {
+        $agree = $agree + 1;
+    }
+}
+
+echo "spellings agreeing on 17: ", $agree, " of ", Core\Arr::count($answers), "\n";
+
+// A variadic tail is one array built from whatever is left, so writing the
+// leftovers out and pouring a list in are the same call.
+echo "written out ", Order::of(1, 2, 3, 4), " poured in ", Order::of(1, 2, ...[3, 4]), "\n";
+
+// Written order, not declared order.
+echo "sum ", Order::price(postage: Trace::step("postage", 2), units: Trace::step("units", 3)), "\n";
+echo "evaluated ", Core\Str::join(Trace::$order, ","), "\n";
+
+// `inout` writes back through the caller's own variable, once per call,
+// whichever way the argument is written.
+int $count = 5;
+Order::bump(inout $count);
+Order::bump(inout $count, 3);
+Order::bump(inout n: $count, by: 10);
+Order::bump(by: 100, inout n: $count);
+
+echo "written back to ", $count, "\n";
+
+// A callee that throws is the one path that does not reach the write back.
+try {
+    Order::abandon(inout $count);
+} catch (RuntimeError $stopped) {
+    echo "after a throw ", $count, "\n";
+}
+--EXPECT--
+spellings agreeing on 17: 7 of 7
+written out 10 poured in 10
+sum 17
+evaluated postage,units
+written back to 119
+after a throw 119

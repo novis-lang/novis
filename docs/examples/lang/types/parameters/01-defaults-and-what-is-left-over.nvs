@@ -1,0 +1,26 @@
+<?nvs
+// A parameter can carry a default, so a caller who is happy with it leaves it
+// out. The last parameter can collect everything left over, and inside the
+// method it is a plain list.
+
+class Basket
+{
+    public static function total(int $items, int $each = 5, int ...$surcharges): int
+    {
+        int $sum = $items * $each;
+
+        foreach ($surcharges as int $surcharge) {
+            $sum = $sum + $surcharge;
+        }
+
+        return $sum;
+    }
+}
+
+echo "three at the usual price: ", Basket::total(3), "\n";
+echo "three at four each: ", Basket::total(3, 4), "\n";
+echo "three at four each, plus two surcharges: ", Basket::total(3, 4, 2, 7), "\n";
+
+// A list you already have can be poured into the same place with `...`.
+array<int> $surcharges = [2, 7];
+echo "the same two, out of a list: ", Basket::total(3, 4, ...$surcharges), "\n";

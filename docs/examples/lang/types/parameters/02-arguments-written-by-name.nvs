@@ -1,0 +1,27 @@
+<?nvs
+// An argument may be written with its parameter's name in front of it. That
+// lets a caller skip the defaults it is happy with, and it turns a row of
+// bare values into something you can read without looking the method up.
+
+class Slot
+{
+    public static function book(string $who, string $day = "Monday", string $time = "09:00", int $minutes = 30): string
+    {
+        return $who . " on " . $day . " at " . $time . " for " . ($minutes as string) . " minutes";
+    }
+}
+
+echo Slot::book("Ada"), "\n";
+
+// Only the one setting that differs has to be written.
+echo Slot::book("Ada", minutes: 60), "\n";
+
+// Named arguments may be written in any order, and the two here are not the
+// order the method declares them in.
+echo Slot::book("Ada", time: "14:00", day: "Friday"), "\n";
+
+// Every plain argument comes before the first named one.
+echo Slot::book(who: "Ada", day: "Friday"), "\n";
+
+// The library's own methods take their names the same way.
+echo Core\Str::padStart("7", length: 3, padding: "0"), "\n";
