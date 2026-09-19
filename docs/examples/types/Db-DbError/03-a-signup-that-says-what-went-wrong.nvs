@@ -1,0 +1,31 @@
+<?nvs
+// Signing somebody up. One refusal is the person's to fix — that address is
+// already registered — and every other one is ours, so only the first is turned
+// into a sentence anyone reads and the rest are left to travel on.
+
+use Core\Db;
+use Core\Db\Connection;
+use Core\Db\DbError;
+use Core\Db\ErrorKind;
+
+final class Signup {
+    public static function add(Connection $db, string $email): string {
+        try {
+            $db->execute('insert into accounts (email) values (?)', [$email]);
+            return "welcome";
+        } catch (DbError $refused) {
+            if ($refused->kind == ErrorKind::UniqueViolation) {
+                return "that address is already registered";
+            }
+            throw $refused;
+        }
+    }
+}
+
+var $db = Db::connect('schema');
+$db->execute('create table accounts (email text not null primary key)', []);
+
+echo Signup::add($db, "ada@example.test"), "\n";
+echo Signup::add($db, "ada@example.test"), "\n";
+
+$db->execute('drop table accounts', []);

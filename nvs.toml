@@ -232,6 +232,40 @@ entry = "examples/schema.nvs"
 connect = ["schema"]
 schema = ["schema"]
 
+# `Core\Db\DbError`'s three examples, on the same in-memory SQLite block and for the same reason
+# `examples/schema.nvs` is on it: each shows a statement the server refuses, and what they print has
+# to be the same four lines on Windows, under WSL and under valgrind. A refusal needs no server to
+# be real — a unique index is enforced by SQLite exactly as PostgreSQL enforces it — so these cost
+# the sweep no container. One entry each, because a grant is per application entry and never per
+# directory.
+[[app]]
+entry = "docs/examples/types/Db-DbError/01-a-row-that-is-already-there.nvs"
+
+[app.capabilities.db]
+connect = ["schema"]
+
+[[app]]
+entry = "docs/examples/types/Db-DbError/02-what-the-refusal-tells-you.nvs"
+
+[app.capabilities.db]
+connect = ["schema"]
+
+[[app]]
+entry = "docs/examples/types/Db-DbError/03-a-signup-that-says-what-went-wrong.nvs"
+
+[app.capabilities.db]
+connect = ["schema"]
+
+# The attack written against the same class, and the one entry here that is not an example. It makes
+# the server refuse a statement a hundred thousand times over, which is a question about what a
+# refusal keeps rather than about what a database can do — so it wants the block that needs no
+# container, exactly as the three above do.
+[[app]]
+entry = "tests/hostile/types/Db-DbError/01-a-flood-of-refusals-and-a-statement-too-big-to-log.nvs"
+
+[app.capabilities.db]
+connect = ["schema"]
+
 # The retention entry ADR 0153 § 5 is written around, and the only program in this repository that
 # removes queue rows at all. `queue.purge` is deny-by-default and covers `Core\Queue`'s `delete` and
 # `purge` together, because the authority the two need is the same one — permission to make a

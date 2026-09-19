@@ -1,0 +1,81 @@
+--TEST--
+`Core\Db\DbError` is caught by a `RuntimeError` clause and not by a `LogicError` one, a `DbError` clause does not catch its sibling `Core\Db\RolledBack`, and a refusal nobody classified reads `Other` rather than nothing — `rule:core-classes/db-error`
+--FILE--
+<?nvs
+// covers: Core\Db\DbError
+// The place in spec § 10's tree, asserted on both sides and with no server
+// anywhere near it: what this pins is which `catch` clause a refusal reaches,
+// which is decided by `crates/nvs-hir/src/errors.rs` alone.
+use Core\Db\DbError;
+use Core\Db\ErrorKind;
+use Core\Db\RolledBack;
+
+final class Tree {
+    // The world said no, so the parent that means exactly that catches it and
+    // the sibling that means "the program is wrong" does not.
+    public static function clause(): string {
+        try {
+            throw new DbError("the server said no");
+        } catch (LogicError $wrong) {
+            return "a LogicError clause";
+        } catch (RuntimeError $right) {
+            return "a RuntimeError clause";
+        }
+    }
+
+    // The two `Core\Db` names sit beside each other rather than one under the
+    // other: a rollback the program asked for must not arrive at a clause
+    // written for a refusal it did not choose.
+    public static function sibling(): string {
+        try {
+            throw new RolledBack("the transaction was rolled back");
+        } catch (DbError $wrong) {
+            return "a DbError clause";
+        } catch (RuntimeError $right) {
+            return "not a DbError clause";
+        }
+    }
+
+    public static function message(): string {
+        try {
+            throw new DbError("the server said no");
+        } catch (DbError $refused) {
+            return $refused->message;
+        }
+    }
+
+    // § 8 makes `kind` written on every path rather than sometimes absent, so
+    // the condition no code table names has a case of its own to land in.
+    public static function unclassified(): string {
+        try {
+            throw new DbError("a condition with no name");
+        } catch (DbError $refused) {
+            if ($refused->kind == ErrorKind::Other) {
+                return "Other";
+            }
+            return "something else";
+        }
+    }
+
+    // And `sql` is the half that has an absent case: no caller wrote a
+    // statement here, so there is none to name.
+    public static function noStatement(): string {
+        try {
+            throw new DbError("a refusal with no statement behind it");
+        } catch (DbError $refused) {
+            return $refused->sql ?? "no statement";
+        }
+    }
+}
+
+echo Tree::clause(), "\n";
+echo Tree::sibling(), "\n";
+echo Tree::message(), "\n";
+echo Tree::unclassified(), "\n";
+echo Tree::noStatement(), "\n";
+--EXPECT--
+a RuntimeError clause
+not a DbError clause
+the server said no
+Other
+no statement

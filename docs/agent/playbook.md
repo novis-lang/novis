@@ -3194,6 +3194,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   6%, so the disk was contended and no load average would have said so. Read `bench.py
   --warm-start`'s `start floor` before touching a timing assertion — near 5 ms is believable, tens of
   ms fails a different test every run. [until: reviewed 2026-09-19]
+- **A `.nvs` under `docs/examples/` or `tests/hostile/` that opens a database needs its own
+  `[[app]] entry` block in `nvs.toml`, written after the file exists.** A `db.connect` grant is per
+  entry path and the `root = "."` block carries none, and a block naming a path not yet on disk
+  stops *every* program in the tree with `E0605`. Point it at `[db.schema]` — in-memory SQLite, no
+  container — and grant `connect` alone, which is enough to `create table`.
+  [until: reviewed 2026-09-19]
 
 ## Writing a test case
 

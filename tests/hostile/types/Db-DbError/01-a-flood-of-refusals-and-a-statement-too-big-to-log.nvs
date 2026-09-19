@@ -1,0 +1,87 @@
+<?nvs
+// Attack: make the database refuse a statement a hundred thousand times, then
+// make it refuse one whose text is megabytes long, then carry a refusal up
+// through a deep chain of calls. Every refusal keeps a message, a reason and a
+// copy of the statement that caused it, so anything held per failure grows
+// without limit here.
+// hostile: timeout-ms 60000
+
+use Core\Db;
+use Core\Db\Connection;
+use Core\Db\DbError;
+
+final class Flood
+{
+    // The same row, again and again. Each round is a refusal built, read and
+    // dropped; a run that kept one would not finish this.
+    public static function churn(Connection $db, int $rounds): uint
+    {
+        uint $kept = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            try {
+                $db->execute('insert into one (id) values (?)', [1]);
+            } catch (DbError $refused) {
+                // Both are read, so a run cannot pass by never building them.
+                if (Core\Str::length($refused->message) > 0) {
+                    $kept = $kept + 1;
+                }
+                string $wrote = $refused->sql ?? '';
+                if (Core\Str::length($wrote) > 0) {
+                    $kept = $kept + 1;
+                }
+            }
+            $i = $i + 1;
+        }
+        return $kept;
+    }
+
+    // One refused statement carrying a few megabytes of its own text. The
+    // refusal keeps that text, so this asks whether it is kept once or copied
+    // at every step between the driver and the catch clause.
+    public static function huge(Connection $db, int $doublings): uint
+    {
+        string $padding = "-- and the rest of it\n";
+        int $i = 0;
+        while ($i < $doublings) {
+            $padding = $padding . $padding;
+            $i = $i + 1;
+        }
+        try {
+            $db->execute($padding . 'insert into one (id) values (1)', []);
+            return 0;
+        } catch (DbError $refused) {
+            string $wrote = $refused->sql ?? '';
+            return Core\Str::length($wrote);
+        }
+    }
+
+    // Every frame catches what the frame under it was refused and throws a
+    // fresh refusal carrying the same message, so the chain holds as many live
+    // failures as it is deep.
+    public static function rethrow(Connection $db, int $depth): bool
+    {
+        if ($depth == 0) {
+            $db->execute('insert into one (id) values (?)', [1]);
+            return true;
+        }
+        try {
+            return Flood::rethrow($db, $depth - 1);
+        } catch (DbError $rising) {
+            throw new Core\Db\DbError($rising->message);
+        }
+    }
+}
+
+var $db = Db::connect('schema');
+$db->execute('create table one (id integer primary key)', []);
+$db->execute('insert into one (id) values (1)', []);
+
+echo Flood::churn($db, 100000), "\n";
+echo Flood::huge($db, 17), "\n";
+
+try {
+    echo Flood::rethrow($db, 20000) ? "inserted\n" : "declined\n";
+} catch (Throwable $gaveUp) {
+    echo "the chain ended\n";
+}

@@ -1,0 +1,27 @@
+<?nvs
+// Two people sign up with the same email address. The database is the thing
+// that knows the second one is a duplicate, and it says no. That refusal
+// arrives as this error, and the program decides what to tell the person.
+
+use Core\Db;
+use Core\Db\DbError;
+use Core\Db\ErrorKind;
+
+var $db = Db::connect('schema');
+$db->execute('create table people (email text not null primary key)', []);
+
+array<string> $signups = ["ada@example.test", "grace@example.test", "ada@example.test"];
+foreach ($signups as string $email) {
+    try {
+        $db->execute('insert into people (email) values (?)', [$email]);
+        echo 'welcome ', $email, "\n";
+    } catch (DbError $refused) {
+        if ($refused->kind == ErrorKind::UniqueViolation) {
+            echo 'already signed up: ', $email, "\n";
+        } else {
+            echo 'could not sign up ', $email, "\n";
+        }
+    }
+}
+
+$db->execute('drop table people', []);
