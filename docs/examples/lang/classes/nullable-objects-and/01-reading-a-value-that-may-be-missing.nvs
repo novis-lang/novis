@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to read from a value that may be `null`. `?->` returns `null` when
+// the value is missing, and `??` gives you something to use instead.
+
+class Theme {
+    public function constructor(public string $name) {}
+}
+
+?Theme $chosen = new Theme("dark");
+?Theme $missing = null;
+
+// `$chosen` holds a `Theme`, so `?->` reads the property. This prints `dark`.
+echo $chosen?->name ?? "default", "\n";
+
+// `$missing` is `null`, so the whole access is `null` and `??` takes over.
+// This prints `default`.
+echo $missing?->name ?? "default", "\n";
+
+// Without `??` the result is `null` itself. `as string` prints an empty text for it.
+?string $name = $missing?->name;
+echo "[", $name as string, "]\n";

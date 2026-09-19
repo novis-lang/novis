@@ -2,6 +2,7 @@
 `?->` answers `null` for a `null` receiver instead of reaching the member
 --FILE--
 <?nvs
+// covers: lang:classes/nullable-objects-and
 class Box {
     public string $label;
     public int $size;

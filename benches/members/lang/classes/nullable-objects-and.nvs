@@ -1,0 +1,29 @@
+<?nvs
+// Reads a property through `?->`, as a program does when the value it reads from
+// may be missing. Here the value is present, which is the common case.
+// bench: iterations 400000
+// bench: allocations 0
+// bench: calls 0
+
+class Step {
+    public uint $value = 1;
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Step $cell = new Step();
+        ?Step $step = $cell;
+        uint $total = 0;
+        uint $absent = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the value read this round is the one the last round made.
+            $cell->value = $total % 7 + 1;
+            $total = $total + ($step?->value ?? $absent);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";
