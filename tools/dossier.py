@@ -286,7 +286,10 @@ FANOUT_WORKERS = 8
 #: Rust `#[test]` -- and `rust` is how many of them must be the Rust half; `examples` and `hostile`
 #: are file counts; `perf` is a bench program plus a current ledger record; `about` is the
 #: website description, off for every kind here and switched on for all of them at once by the
-#: policy file's `[all] about = true`, which the emitter's closing goal writes.
+#: policy file's `[all] about = true`, which the emitter's closing goal writes. `comments` is a
+#: key no kind carries here, which reads as off: `[all] comments = true` makes every program a
+#: feature's proofs are made of owe the bounds `comment_problems` judges, and goal
+#: `plain-comments` writes it after bringing the landed programs inside them.
 POLICY = {
     "member":    {"tests": 2, "rust": 1, "examples": 3, "perf": True,  "hostile": 1, "about": False},
     "lang":      {"tests": 2, "rust": 0, "examples": 3, "perf": True,  "hostile": 1, "about": False},
@@ -1016,6 +1019,20 @@ def owed(entry: Entry, proofs: Proofs, policy: dict, skips: dict) -> dict[str, s
             out["about"] = f"no description at {rel(entry.about_file)}"
         elif proofs.about_problem:
             out["about"] = f"{proofs.about}: {proofs.about_problem}"
+    if want.get("comments") and "comments" not in skip:
+        # Not a sixth proof and so not in `PROOFS`: it judges the programs the other proofs already
+        # are. Off in `POLICY`, and `[all] comments = true` is what goal `plain-comments` writes
+        # once every landed program is inside the bounds.
+        programs = [*proofs.examples, *proofs.hostile]
+        if proofs.bench:
+            scale = proofs.bench.removesuffix(".nvs") + ".scale.nvs"
+            programs += [proofs.bench, *([scale] if (ROOT / scale).exists() else [])]
+        missed = [(f, comment_problems(ROOT / f)) for f in programs]
+        missed = [(f, problems) for f, problems in missed if problems]
+        if missed:
+            first, problems = missed[0]
+            out["comments"] = (f"{len(missed)} program(s) outside the plain-comment bounds, "
+                               f"first {first} line {problems[0]}")
     if want["perf"] and "perf" not in skip:
         # `perf_any` and not `perf`: a figure taken on another machine against this same
         # implementation text documents the feature just as well, and a fresh clone that owed every
@@ -1978,6 +1995,9 @@ def feature_block(i: int, e: Entry, missing: dict[str, str], p: Proofs, policy: 
         lines.append(f"- **about** -- write `{rel(e.about_file)}` first; the examples build on it.")
     elif "about" in missing:
         lines.append(f"- **about** -- rewrite `{p.about}`: {p.about_problem}.")
+    if "comments" in missing:
+        lines.append(f"- **comments** -- {missing['comments']}. Rewrite the comments and no line "
+                     f"of code; `--comments <file>` names every line.")
     if "examples" in missing:
         n = want["examples"] - len(p.examples)
         lines.append(f"- **examples** -- write {n}: "
@@ -2757,7 +2777,8 @@ def goal_prose(n: int, label: str, members: list[Entry], proofs: dict[str, Proof
         "  `python tools/dossier.py --comments <paths>` judges the half of it a script can: run it",
         "  over every `.nvs` this session wrote before the wrap, and a file it names is rewritten,",
         "  not trimmed. A file you touch for another reason is brought up to it; the landed ones",
-        "  are not swept.",
+        "  are goal `plain-comments`'s to sweep, behind every generated goal, and that goal is",
+        "  also where the check becomes a gate.",
         "- **A `.out` file is created with `--bless` and then read.** Blessing is how the expected",
         "  output is *created*; a red example is never made green by re-blessing it.",
         "- **A hostile case has no expected output.** Its whole assertion is that the runtime",
@@ -3073,8 +3094,9 @@ def gate(scope: list[Entry], proofs: dict[str, Proofs], policy: dict, skips: dic
         if len(missing) > 30:
             print(f"  ... and {len(missing) - 30} more")
         return 1
+    plain = ", plain comments" if any(k.get("comments") for k in policy.values()) else ""
     print(f"dossier gate: nothing owed in {where} "
-          f"({len(scope)} features, each owing {', '.join(shown_proofs(policy))}).")
+          f"({len(scope)} features, each owing {', '.join(shown_proofs(policy))}{plain}).")
     return 0
 
 

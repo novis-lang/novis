@@ -1,7 +1,7 @@
 # The goal chain
 
 This directory **is** the schedule the unattended loop walks, and the table below is that order for the
-hand-written goals. Everything between `dossier` and `ci-green` is generated — one goal per group of
+hand-written goals. Everything between `dossier` and `plain-comments` is generated — one goal per group of
 features owing `rule:testing/four-proofs`'s roster, written onto this same chain by
 `python tools/dossier.py --emit-goals`, which keeps a goal whose front matter says `position: last`
 behind what it appends.
@@ -99,7 +99,8 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [gap-zero](70-gap-zero.md) | post-parity, no ADR — the terminal gate | `tools/`, the ratchet test — no gap owed by anyone but a future milestone, M0–M8 complete, the index deleted |
 | [dossier](71-dossier.md) | `rule:testing/four-proofs` | none — it writes the goals that open all of them, then optimizes the loop for their shape |
 | after `dossier` | `rule:testing/four-proofs`, generated | one group of features per goal, its own `[context]` manifest, under `goals/dossier/` |
-| [ci-green](172-ci-green.md) | post-parity, no ADR — `position: last` | `tools/ci-green.py`, `.github/workflows/ci.yml` — always the last goal, behind every generated one: the latest CI run on `main` succeeded for the code `HEAD` holds |
+| [plain-comments](172-plain-comments.md) | `rule:testing/four-proofs` — `position: last` | `docs/examples/`, `tests/hostile/`, `benches/members/` — behind every generated goal: each landed program's comments rewritten inside the plain-comment bounds, then `[all] comments = true` makes them owed |
+| [ci-green](173-ci-green.md) | post-parity, no ADR — `position: last` | `tools/ci-green.py`, `.github/workflows/ci.yml` — always the last goal, behind every generated one: the latest CI run on `main` succeeded for the code `HEAD` holds |
 
 ## The chain contract
 

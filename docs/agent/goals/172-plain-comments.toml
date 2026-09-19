@@ -1,0 +1,85 @@
+# Goal 172 -- every landed comment reads plainly
+# The acceptance test, as data.
+#
+# `172-plain-comments.md` is the prose. One home each.
+#
+# THE EXPECTED OUTPUT BELOW IS FROZEN; A FIXTURE'S *SOURCE* IS NOT.
+
+files = [
+  # No fixture is named by this goal's own checks. goal-switch.py unions the previous goal's list
+  # into this one, so the key is what has to be here.
+]
+
+[context]
+
+modules = [
+  "docs/examples/README.md",
+  "tests/hostile/README.md",
+  "benches/members/README.md",
+  "tools/data/dossier-policy.toml",
+  "tools/dossier.py",
+]
+
+rules = ["testing/four-proofs", "testing/a-failing-proof-is-fixed-or-recorded"]
+
+adrs = []
+
+shapes = [
+  "A feature's four proofs — an example, an attack, a bench, a `covers:` marker",
+  "A commit message",
+]
+
+milestones = []
+
+playbook = [
+  'Tooling > the end',
+  'Tooling > one call reads',
+  'Tooling > a commit',
+  'Tooling > a [context]*',
+  'Tooling > another agent',
+  'Running things > target/release/nvs.exe is',
+]
+
+plan = ["Open now", "Blocking"]
+
+# The environment tables of `docs/agent/goals/71-dossier.toml`, the goal this one was
+# appended behind: a generated goal runs that goal's whole acceptance list as its
+# floor, so it needs the same containers and the same WSL target. Regenerated,
+# never hand-edited.
+[valgrind]
+skip = ["examples/fatal.nvs", "examples/uncaught.nvs", "examples/cache-shared-socket.nvs", "examples/queue-sqlite.nvs", "examples/cache-shared-tls.nvs"]
+
+[wsl]
+target_dir = "/var/tmp/nvs-target-wsl"
+
+[docker]
+compose = "tests/db/compose.yaml"
+services = ["postgres", "redis"]
+memoize_on = ["crates/nvs-server", "crates/nvs-db", "tests/db"]
+
+# <<< goal-switch: floor checks are inserted below this line >>>
+
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 2 -- the sweep. Every program in the three trees is inside the bounds a script can judge.
+# It reads and runs nothing, so carrying it as floor costs a walk.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "2 the sweep"
+name = "dossier: every example, attack and bench carries comments inside the plain-comment bounds"
+argv = ["python", "tools/dossier.py", "--comments", "docs/examples", "tests/hostile", "benches/members"]
+want = ["each inside the bounds"]
+
+# ---------------------------------------------------------------------------------------------------
+# Stage 3 -- the gate. The switch is on, so the whole roster's gate counts a program outside the
+# bounds as owed, and says so in the line it passes on.
+# ---------------------------------------------------------------------------------------------------
+
+[[check]]
+kind = "command"
+stage = "3 the gate"
+name = "dossier: plain comments are owed and the whole roster owes nothing"
+argv = ["python", "tools/dossier.py", "--gate"]
+want = ["nothing owed in the whole roster", "plain comments"]

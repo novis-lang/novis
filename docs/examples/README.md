@@ -180,7 +180,9 @@ If a comment would only make sense to somebody who works on Novis, it is the wro
 bounds above, a sentence longer than a plain one gets, a dash joining two sentences, and the
 implementation's words. It reads and never runs a program. Passing it is the floor, not the rule —
 a short sentence can still be one nobody follows — and the answer to a line it names is to write
-two sentences, never to trim a word until the count fits.
+two sentences, never to trim a word until the count fits. `[all] comments = true` in
+`tools/data/dossier-policy.toml` makes it part of `--gate`; goal `plain-comments` writes that line
+once the programs that landed before this section are inside the bounds.
 
 ## Creating the `.out`
 
