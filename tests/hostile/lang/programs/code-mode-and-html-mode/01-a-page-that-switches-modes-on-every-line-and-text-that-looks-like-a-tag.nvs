@@ -1,0 +1,60 @@
+<?nvs
+// Attack: a page that leaves and re-enters code on nearly every line, blocks
+// that begin in one mode and end in another several levels deep, and page
+// text full of things that look like tags and are not. The program has to
+// come out the other side with every byte in the right place.
+// hostile: timeout-ms 20000
+
+int $rounds = 0;
+?><? this is text, because there is no short open tag ?>
+<?xml version="1.0" encoding="utf-8"?>
+<?nvs $rounds = $rounds + 1; ?>?> a stray closing marker in text is text too
+<?nvs $rounds = $rounds + 1; ?><?nvs $rounds = $rounds + 1; ?><?nvs $rounds = $rounds + 1; ?>
+<?nvs
+// Text with no newline between the tags at all, thousands of times over, so
+// the page is one long line and the loop crosses the boundary every round.
+int $i = 0;
+while ($i < 20000) {
+    $i = $i + 1;
+    ?>.<?nvs
+}
+?>
+<?nvs
+// Blocks several levels deep, each level opened in code and closed in code
+// with page text lying between them.
+array<string> $rows = ['a', 'b', 'c'];
+foreach ($rows as string $row) {
+    if ($row != 'b') {
+        int $k = 0;
+        while ($k < 2) {
+            $k = $k + 1;
+            ?>[<?= $row ?><?= $k ?>]<?nvs
+        }
+    } else {
+        ?>(skipped)<?nvs
+    }
+}
+?>
+<?nvs
+// A short echo holding a whole expression, and one holding a value that has
+// to be turned into text first.
+$rounds = $rounds + 1;
+?>
+rounds so far: <?= $rounds + 1000 ?>
+list length: <?= Core\Arr::count($rows) ?>
+<?nvs
+// Text that carries markers inside strings, where they are only characters.
+echo 'a string holding <?nvs and ?> and <?= and none of them count', "\n";
+
+// A short echo whose expression throws, caught so the page carries on.
+try {
+    ?><?= ('not a number' as int) ?><?nvs
+    } catch (Throwable $e) {
+    echo "refused\n";
+}
+?>
+one very long line of page text, repeated so the text side is not a short one: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx and it ends here.
+<?nvs
+// Text with no newline at the end of it, and then the file simply stops in
+// code mode with nothing after this note.
+echo "done\n";

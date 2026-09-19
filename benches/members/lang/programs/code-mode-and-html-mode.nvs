@@ -1,0 +1,16 @@
+<?nvs
+// What a template costs per row: the loop leaves code mode, writes the plain
+// page text that sits between the tags, and comes back for the next round.
+// Every list on a page is built this way.
+// bench: iterations 100000
+
+int $total = 0;
+int $i = 0;
+
+while ($i < 100000) {
+    $total = $total + ($i % 7); // each round feeds the next one
+    $i = $i + 1;
+?>x<?nvs
+}
+
+echo "\n", $total, "\n";

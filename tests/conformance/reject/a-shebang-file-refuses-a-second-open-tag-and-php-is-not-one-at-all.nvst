@@ -1,0 +1,23 @@
+--TEST--
+A file whose first two bytes are `#!` is already in code mode, so an `<?nvs` before any `?>` is refused by name rather than by a lex error, and `<?php` is not an open tag in either mode (`rule:tooling/shebang-opens-code-mode`, `rule:statements/nvs-is-the-only-open-tag`)
+--FILE--
+#!/usr/bin/env nvs
+// covers: lang:programs/code-mode-and-html-mode
+// `rule:tooling/shebang-opens-code-mode`: line 1 is trivia and the file
+// continues in code mode, so this statement needs no opening tag.
+echo "one", "\n";
+
+// The file is already in code mode, so the tag below opens nothing.
+<?nvs
+echo "two", "\n";
+?>
+<?php
+echo "three", "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0009]: this file opens with `#!` and is already in code mode
+%A
+error[E0229]: `<?php` is not supported
+%A
+error: aborting due to 2 errors

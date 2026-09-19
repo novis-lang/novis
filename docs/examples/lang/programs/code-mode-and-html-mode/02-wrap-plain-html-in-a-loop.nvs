@@ -1,0 +1,10 @@
+<?nvs
+// A block can start in code and finish in code with page text in between, so
+// the HTML stays HTML instead of becoming quoted text inside your program.
+array<string> $products = ["pen", "ink", "paper"];
+?>
+<ul>
+<?nvs foreach ($products as string $name) { ?>
+  <li><?= $name ?></li>
+<?nvs } ?>
+</ul>
