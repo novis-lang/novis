@@ -485,7 +485,10 @@ autoload discover '../packages/*/src';             // every directory the glob m
 
 A program ends when its last top-level statement has run, with exit status 0. `exit;` ends it
 early with status 0, `exit(3);` with the status given, and `exit("message");` prints the message
-and exits with status 0 — the same three forms PHP's `exit` has. `die` does not exist. An uncaught
+and exits with status 0 — the same three forms PHP's `exit` has. A status is one byte: the low
+eight bits are what the process reports on every platform, so `exit(300)` exits 44 and `exit(-1)`
+exits 255, as in PHP. `die` is not a second spelling — it parses, and only so the compiler can
+point at `exit` (`E0228`, `rule:statements/exit-is-the-only-termination-keyword`). An uncaught
 throw ends the program with status 1 and a backtrace on standard error (the errors chapter).
 
 ```nvs exit=3
