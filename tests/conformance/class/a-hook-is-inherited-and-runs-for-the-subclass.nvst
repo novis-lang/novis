@@ -29,6 +29,7 @@ var $d = new Derived(5);
 echo $d->n, ";", $d->doubled(), "\n";
 $d->n = 10;
 echo $d->n, "\n";
+// covers: lang:classes/property-hooks
 --EXPECT--
 12;12
 22

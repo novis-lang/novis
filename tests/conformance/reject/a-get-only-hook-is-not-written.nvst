@@ -42,6 +42,7 @@ echo $r->doubled, ";", $r->tripled, "\n";
 $r->tripled = 9;
 $r->tripled += 1;
 $r->tripled++;
+// covers: lang:classes/property-hooks
 --EXPECT--
 
 --EXPECTF-ERROR--

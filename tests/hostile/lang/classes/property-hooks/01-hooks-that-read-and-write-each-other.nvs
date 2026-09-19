@@ -1,0 +1,86 @@
+<?nvs
+// Attack: a program builds property hooks that never settle. Two `get` hooks
+// read each other. Two `set` hooks write each other. A `set` hook builds a
+// large string on every one of a million writes. The runtime should stay
+// standing.
+// hostile: ends-early
+// covers: lang:classes/property-hooks
+
+final class Knot
+{
+    // Reading `$left` reads `$right`, and reading `$right` reads `$left`.
+    public int $left {
+        get => $this->right + 1;
+    }
+
+    public int $right {
+        get => $this->left + 1;
+    }
+
+    // Writing `$up` writes `$down`, and writing `$down` writes `$up`.
+    public int $up {
+        set (int $v) {
+        $this->down = $v + 1;
+        }
+    }
+
+    public int $down {
+        set (int $v) {
+        $this->up = $v + 1;
+        }
+    }
+}
+
+final class Grower
+{
+    public string $text {
+        get => $this->text;
+        set (string $v) {
+            // Every write builds a string of its own.
+        $this->text = Core\Str::repeat($v, 100);
+        }
+    }
+
+    public int $always {
+        set (int $v) {
+        throw new LogicError('this property refuses every write');
+        }
+    }
+
+    public function constructor()
+    {
+        $this->text = 'x';
+    }
+}
+
+// 1. Two `get` hooks read each other and never settle.
+var $knot = new Knot();
+try {
+    int $read = $knot->left;
+    echo '1: BAD, the read answered ', $read, "\n";
+} catch (Throwable $e) {
+    echo '1: caught ', $e->message, "\n";
+}
+
+// 2. Two `set` hooks write each other and never settle.
+try {
+    $knot->up = 1;
+    echo "2: BAD, the write finished\n";
+} catch (Throwable $e) {
+    echo '2: caught ', $e->message, "\n";
+}
+
+// 3. A million writes, each one building a string a hundred times as long as
+//    what was written.
+var $grower = new Grower();
+int $written = 0;
+while ($written < 1000000) {
+    $grower->text = 'abcdefghij';
+    $written = $written + 1;
+}
+echo '3: wrote ', $written, ' times, holding ', Core\Str::length($grower->text), " characters\n";
+
+// 4. A `set` hook throws on every write, and nothing catches this one, so the
+//    program ends here.
+$grower->always = 1;
+echo "4: BAD, the program is still running\n";

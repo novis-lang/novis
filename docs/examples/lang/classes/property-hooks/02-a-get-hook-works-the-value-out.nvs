@@ -1,0 +1,22 @@
+<?nvs
+// Shows a `get` hook alone. The property stores nothing of its own. It works
+// its value out from the other properties every time it is read.
+
+class Cart {
+    public function constructor(public int $unitCents, public int $quantity) {}
+
+    // `get => expr;` is short for `get { return expr; }`.
+    public int $totalCents {
+        get => $this->unitCents * $this->quantity;
+    }
+}
+
+var $cart = new Cart(250, 3);
+echo $cart->totalCents, "\n";
+
+// The value follows the properties it is worked out from.
+$cart->quantity = 4;
+echo $cart->totalCents, "\n";
+
+// A read inside a string runs the hook as well.
+echo "the cart costs $cart->totalCents cents\n";

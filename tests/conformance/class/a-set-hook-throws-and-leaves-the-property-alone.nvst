@@ -26,6 +26,7 @@ try {
     echo "refused: ", $e->message, "\n";
 }
 echo $t->celsius, "\n";
+// covers: lang:classes/property-hooks
 --EXPECT--
 now 20
 refused: below absolute zero

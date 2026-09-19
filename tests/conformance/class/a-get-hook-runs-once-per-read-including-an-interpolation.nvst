@@ -20,6 +20,7 @@ var $c = new Counter();
 echo $c->value, ";", $c->value, "\n";
 echo "in a string: $c->value\n";
 echo $c->hits, "\n";
+// covers: lang:classes/property-hooks
 --EXPECT--
 10;10
 in a string: 10

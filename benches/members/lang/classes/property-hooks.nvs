@@ -1,0 +1,37 @@
+<?nvs
+// Writes a property through its `set` hook and reads one through its `get`
+// hook. A class that checks a value on the way in does both on every update.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Gauge {
+    public int $level {
+        get => $this->level;
+        set (int $v) {
+            $this->level = $v % 1000003;
+        }
+    }
+
+    public int $doubled {
+        get => $this->level + $this->level;
+    }
+
+    public function constructor(int $start) {
+        $this->level = $start;
+    }
+}
+
+class Bench {
+    public static function run(int $rounds): int {
+        var $gauge = new Gauge(1);
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: this round writes what the last one read back.
+            $gauge->level = $gauge->doubled + 1;
+            $i = $i + 1;
+        }
+        return $gauge->level;
+    }
+}
+
+echo Bench::run(400000), "\n";

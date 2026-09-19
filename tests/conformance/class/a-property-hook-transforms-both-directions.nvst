@@ -43,6 +43,7 @@ $c->level = -100;
 echo $c->level, "\n";
 $c->level = 7;
 echo $c->level, "\n";
+// covers: lang:classes/property-hooks
 --EXPECT--
 42
 62

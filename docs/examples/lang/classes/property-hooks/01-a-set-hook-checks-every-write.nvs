@@ -1,0 +1,39 @@
+<?nvs
+// Shows a `set` hook. It runs on every write, including the one the
+// constructor makes, so the property can never hold a value outside its range.
+
+class Volume {
+    public int $level {
+        set (int $v) {
+            if ($v < 0) {
+                throw new LogicError("a volume is never below 0");
+            }
+            // Inside the hook, `$this->level` is the stored value. This line
+            // stores it, and does not call the hook again.
+            if ($v > 10) {
+                $this->level = 10;
+            } else {
+                $this->level = $v;
+            }
+        }
+    }
+
+    public function constructor(int $start) {
+        $this->level = $start;
+    }
+}
+
+// 30 is above the ceiling, so the hook stores 10.
+var $radio = new Volume(30);
+echo $radio->level, "\n";
+
+$radio->level = 7;
+echo $radio->level, "\n";
+
+// A hook that throws stops the write. The property keeps the value it had.
+try {
+    $radio->level = -1;
+} catch (LogicError $e) {
+    echo "refused: ", $e->message, "\n";
+}
+echo $radio->level, "\n";

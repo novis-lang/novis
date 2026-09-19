@@ -34,6 +34,7 @@ $local["1"] = "y";
 echo Core\Json::encode($b->rows), "\n";
 $b->rows = $local;
 echo Core\Json::encode($b->rows), "\n";
+// covers: lang:classes/property-hooks
 --EXPECT--
 ["seen-by-set","b"]
 ["seen-by-set","b"]
