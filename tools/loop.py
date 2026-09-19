@@ -1750,9 +1750,9 @@ def reads_of(c):
 #: concurrency cannot change one -- unlike the abi-probe cost guards, which are cost-class
 #: assertions and must have an idle machine. Those run strictly AFTER this sweep, and it is why
 #: `machine.py` hands out half a box and not all of it. Finished is not the same as idle, though,
-#: and `COST_SETTLE` is what the driver does about the shadow this sweep leaves behind it.
+#: and `COST_SETTLES` is what the driver does about the shadow this sweep leaves behind it.
 
-#: How long a red cost-class check waits before it is asked a second time, in seconds.
+#: How long a red cost-class check waits before it is asked again, in seconds, one entry per ask.
 #:
 #: A cost is a measurement of a machine, and this machine is not idle the moment the sweep above
 #: returns. Measured on the 20260918-110653 run: the last valgrind fixture exited 0.14s before the
@@ -1761,10 +1761,19 @@ def reads_of(c):
 #: which needs one core and no wake-ups, was unchanged -- so this is the sweep's shadow and not a
 #: regression, and a ratio guard cannot tell the two apart from the inside.
 #:
-#: So a red one is asked once more and only a second red is a red. A regression fails both asks; a
-#: shadow fails one, and the trace and the failure line say which happened. Paid on a red alone,
-#: which is why it is generous.
-COST_SETTLE = 30
+#: So a red one is asked again after each wait here, and only a red at the end of the ladder is a
+#: red. A regression fails every ask; a shadow fails the early ones, and the trace and the failure
+#: line say which happened. Paid on a red alone, which is why it is generous.
+#:
+#: Two waits rather than one because the tail of that shadow outlives the first. Measured on the
+#: 20260919-023803 run: `nvs-cli`'s warm-start margin read 3.62x as the sweep ended and 3.85x
+#: thirty seconds later, against the 4x it names, and the same binary at the same commit read
+#: 12.3x once the box had had three minutes. Its cold arm was 57.9ms, 56.9ms and 59.3ms across
+#: those three -- the CPU-bound half of the ratio did not move at all, so what recovered was the
+#: machine and not the tree, and a second wait of the length that recovery took is what tells them
+#: apart. A run that needs it pays two and a half minutes once, against the session a red guard
+#: costs.
+COST_SETTLES = (30, 150)
 
 
 #: The tools whose `command` checks run in a pool beside the cargo checks (`Goal.start_pool`), and
@@ -3384,24 +3393,28 @@ class Goal:
         return fail
 
     def asked_again(self, c, leg, first):
-        """A red cost-class check, asked once more on a machine given `COST_SETTLE` to come back.
+        """A red cost-class check, asked again on a machine given each of `COST_SETTLES` to come back.
 
         Only the `--release` checks reach this, and only once everything else in the sweep has
-        finished -- the constant's own note has the measurement that says finishing is not enough.
-        `first` is the verdict being retried, kept so a second red reports the guard's own line
-        rather than a summary of the pair.
+        finished -- the constant's own note has the measurements that say finishing is not enough,
+        and that the shadow's tail outlives the first wait. `first` is the verdict that opened the
+        ladder, kept so a pass says which red it was that recovered.
 
-        The cached run is dropped first, or `cargo()` hands back the very verdict being asked
-        again. That one cache is the only one to drop: `plain_crate_test` wants `test -p`, so a
+        The cached run is dropped before each ask, or `cargo()` hands back the very verdict being
+        asked again. That one cache is the only one to drop: `plain_crate_test` wants `test -p`, so a
         `--release` check never takes the shared-build path."""
-        self.trace(f"cargo {c['name']} came back red -- {COST_SETTLE}s for the machine, then again")
-        time.sleep(COST_SETTLE)
-        self._cargo.pop(tuple(c.get("args", [])), None)
-        again = self.cargo_check(c, leg)
-        if not again:
-            self.trace(f"cargo {c['name']} passed on the second ask: {first}")
-            return ""
-        return f"{again} (asked twice, {COST_SETTLE}s apart)"
+        waited, last = 0, first
+        for settle in COST_SETTLES:
+            self.trace(f"cargo {c['name']} came back red -- {settle}s for the machine, then again")
+            time.sleep(settle)
+            waited += settle
+            self._cargo.pop(tuple(c.get("args", [])), None)
+            again = self.cargo_check(c, leg)
+            if not again:
+                self.trace(f"cargo {c['name']} passed after {waited}s: {first}")
+                return ""
+            last = again
+        return f"{last} (asked {len(COST_SETTLES) + 1} times, over {waited}s)"
 
     def fast_check(self):
         """The check `fast_path` names, if the goal still holds one of that name and kind."""

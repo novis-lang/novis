@@ -370,7 +370,7 @@ def warm_start(binary: Path, reps: int, max_work_ms: float | None) -> int:
     That threshold is a floor level and not a multiple of the budget, because the two measure
     different things and only the floor moves with the machine. Anchored to the budget it abstained
     at 24 ms, which is five times what a quiet box reads, so it saw the 77.5 ms box and nothing
-    milder: an acceptance sweep leaves a shadow that outlasts the driver's own `COST_SETTLE`, and
+    milder: an acceptance sweep leaves a shadow that outlasts the driver's first `COST_SETTLES`, and
     one read a 6.1 ms floor and 7.1 ms of work thirty seconds after finishing, where the same
     binary idle reads 4.5 and 5.5. Both asks were red, so the driver called the shadow a
     regression. A millisecond budget is meaningful only on a box at least as quick as the one it
