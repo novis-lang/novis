@@ -2,6 +2,7 @@
 `Core\Http\Method` declares exactly the eight verbs `rule:http-server/a-non-idempotent-retry-needs-an-idempotency-key` names, each a distinct integer constant, and the four CSRF enforcement covers are the contiguous tail — `rule:routing/route-attribute`, `rule:security/csrf-is-on-by-default`, `rule:enums/no-class-machinery`
 --FILE--
 <?nvs
+// covers: lang:enums/core-enums
 // The depth claim is *a bound asserted on both sides*, plus an invariance over
 // a sweep: the last safe verb and the first unsafe one are named together by
 // counting every safe/unsafe pair, so an enum that grew a case in the middle

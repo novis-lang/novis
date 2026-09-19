@@ -2,6 +2,7 @@
 What `status` answers and the case a program compares it against are one type, and it is not interchangeable with another `Core` enum of the same ordinals — `rule:concurrency/queue-four-members` and `rule:concurrency/attempts-are-finite-and-a-dead-letter-is-kept`, `rule:enums/closed-integer-type`
 --FILE--
 <?nvs
+// covers: lang:enums/core-enums
 // The agreement first, and it is the half that compiles: the answer and the
 // case are the same type, so `$state == Core\Queue\State::Succeeded` is a
 // comparison a program may write and not a cast it has to spell.

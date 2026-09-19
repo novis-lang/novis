@@ -1,0 +1,103 @@
+<?nvs
+// Attack: a program treats the enums that come with Novis as roughly as it can.
+// It compares and converts their cases millions of times, converts numbers that
+// name no case, hands a case to a member again and again, and carries a case
+// into a call that never ends. Every answer should be the one the enum gives,
+// and the runtime should stay standing.
+// covers: lang:enums/core-enums
+// hostile: timeout-ms 20000
+
+// 1. Four million comparisons and conversions of two `Core` enums.
+class Values
+{
+    public static function sweep(int $rounds): int
+    {
+        int $wrong = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            Core\Order $order = ($i % 2) as Core\Order;
+            if (($order == Core\Order::Desc) != (($order as int) == 1)) {
+                $wrong = $wrong + 1;
+            }
+            if ((Core\RoundMode::HalfUp as int) != (Core\RoundMode::HalfUp as int)) {
+                $wrong = $wrong + 1;
+            }
+            $i = $i + 1;
+        }
+        return $wrong;
+    }
+}
+
+echo '1: wrong ', Values::sweep(4000000), "\n";
+
+// 2. Numbers no case of `Core\Order` names, at the ends of the range. The
+// checked conversion should throw every time and `as ?Core\Order` should give
+// `null` every time.
+class Outside
+{
+    public static function sweep(int $rounds): int
+    {
+        int $caught = 0;
+        int $low = -9223372036854775807;
+        int $i = 0;
+        while ($i < $rounds) {
+            if (($low as ?Core\Order) == null) {
+                $caught = $caught + 1;
+            }
+            if ((($i + 2) as ?Core\Order) == null) {
+                $caught = $caught + 1;
+            }
+            try {
+                Core\Order $bad = ($i + 2) as Core\Order;
+                return -1;
+            } catch (RuntimeError $e) {
+                $caught = $caught + 1;
+            }
+            $i = $i + 1;
+        }
+        return $caught;
+    }
+}
+
+echo '2: caught ', Outside::sweep(200000), "\n";
+
+// 3. A case handed to a member two hundred thousand times, with the direction
+// changing every round.
+class Handed
+{
+    public static function sweep(int $rounds): int
+    {
+        int $first = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            array<int> $xs = [3, 1, 2];
+            array<int> $sorted = Core\Arr::sort($xs, { order: ($i % 2) as Core\Order });
+            $first = $first + $sorted[0];
+            $i = $i + 1;
+        }
+        return $first;
+    }
+}
+
+echo '3: sum of firsts ', Handed::sweep(200000), "\n";
+
+// 4. A method that carries a case and then calls itself, with no end.
+class Runaway
+{
+    public static function down(Core\Order $o): int
+    {
+        if ($o == Core\Order::Desc) {
+            return Runaway::down($o);
+        }
+        return 0;
+    }
+}
+
+try {
+    int $reached = Runaway::down(Core\Order::Desc);
+    echo '4: BAD, the call returned ', $reached, "\n";
+} catch (Throwable $e) {
+    echo '4: caught ', $e->message, "\n";
+}
+
+echo "the runtime is still running\n";

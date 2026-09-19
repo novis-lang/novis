@@ -1,0 +1,48 @@
+--TEST--
+A `Core` enum is an ordinary enum at every site a declared one reaches: a binding, `==`, `as int`, a conversion back, a `match`, an `array<T>` element and a member's argument — `rule:enums/closed-integer-type`, `rule:enums/no-class-machinery`
+--FILE--
+<?nvs
+// covers: lang:enums/core-enums
+// `rule:enums/closed-integer-type`: the enums the library ships are declared the same way a
+// program's own are, so nothing here is a site a declared enum could not reach.
+Core\Order $dir = Core\Order::Desc;
+echo $dir as int, "\n";
+echo $dir == Core\Order::Asc ? "asc" : "desc", "\n";
+
+// A number converts back into a case, and one no case names is `null` under the
+// nullable spelling rather than a case picked by default.
+Core\Order $back = 0 as Core\Order;
+echo $back == Core\Order::Asc ? "asc" : "desc", "\n";
+?Core\Order $missing = 9 as ?Core\Order;
+echo $missing == null ? "null" : "some", "\n";
+
+// An element type and a `match` subject, the match exhaustive over the two
+// cases the library declares rather than over a subset named here.
+array<Core\Order> $both = [Core\Order::Asc, Core\Order::Desc];
+foreach ($both as Core\Order $o) {
+    echo match ($o) {
+        Core\Order::Asc => "up",
+        Core\Order::Desc => "down",
+    }, "\n";
+}
+
+// The argument site the enum exists for, reached from a binding rather than
+// from a case written at the call.
+array<int> $xs = [3, 1, 2];
+foreach (Core\Arr::sort($xs, {order: $dir}) as int $v) {
+    echo $v;
+}
+echo "\n";
+
+// A second `Core` enum, to pin that the two are told apart by their own
+// declarations rather than by the ordinals they share.
+echo Core\RoundMode::HalfUp as int, "\n";
+--EXPECT--
+1
+desc
+asc
+null
+up
+down
+321
+0

@@ -1,0 +1,25 @@
+<?nvs
+// Shows a `Core` enum used the way your own enums are used. A class turns the
+// text a visitor sent into a case, and the case then chooses the sort order.
+
+class Listing {
+    // Returns the order the text names. Returns `Core\Order::Asc` for any other
+    // text, so a visitor cannot send something the sort has no answer for.
+    public static function order(string $wanted): Core\Order {
+        return match ($wanted) {
+            "desc" => Core\Order::Desc,
+            default => Core\Order::Asc,
+        };
+    }
+}
+
+array<int> $prices = [30, 10, 20];
+Core\Order $order = Listing::order("desc");
+
+// This prints 30, 20 and 10.
+foreach (Core\Arr::sort($prices, {order: $order}) as int $p) {
+    echo $p, "\n";
+}
+
+// A case of a `Core` enum is compared with `==`. This prints `largest first`.
+echo $order == Core\Order::Desc ? "largest first" : "smallest first", "\n";

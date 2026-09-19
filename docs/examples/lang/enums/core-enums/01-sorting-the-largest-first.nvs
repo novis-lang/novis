@@ -1,0 +1,20 @@
+<?nvs
+// Shows the enum that chooses the direction of a sort. `Core\Order` is an
+// ordinary enum: you name one of its cases where a member asks for it.
+
+array<int> $scores = [3, 1, 2];
+
+// This prints 3, 2 and 1, the largest first.
+foreach (Core\Arr::sort($scores, {order: Core\Order::Desc}) as int $s) {
+    echo $s, "\n";
+}
+
+// Leaving the option out sorts the other way. This prints 1, 2 and 3.
+foreach (Core\Arr::sort($scores) as int $s) {
+    echo $s, "\n";
+}
+
+// The number behind a case comes out with `as int`, as it does for an enum of
+// your own. This prints 0 and 1.
+echo Core\Order::Asc as int, "\n";
+echo Core\Order::Desc as int, "\n";
