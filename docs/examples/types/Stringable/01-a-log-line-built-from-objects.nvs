@@ -1,0 +1,52 @@
+<?nvs
+// A class can say how it looks as text by adding `toString()`. After that you
+// hand the object itself to anything that writes a line, and every line is
+// built the same way.
+
+class AuditEntry implements Stringable {
+    public string $what;
+
+    public function constructor(string $what) {
+        $this->what = $what;
+    }
+
+    public function toString(): string {
+        return $this->what;
+    }
+}
+
+// A kind of entry that needs the user in the line. It does not repeat
+// `implements Stringable`, because it already has that from `AuditEntry`.
+final class LoginFailed extends AuditEntry {
+    public string $user;
+
+    public function constructor(string $user) {
+        parent::constructor("login failed");
+        $this->user = $user;
+    }
+
+    public function toString(): string {
+        return "login failed for " . $this->user;
+    }
+}
+
+final class Audit {
+    // The parameter asks for anything that can be written as text. Any class
+    // with `toString()` fits, and none of them needs to know about this one.
+    public static function write(Stringable $entry): void {
+        echo "[audit] {$entry}\n";
+    }
+}
+
+Audit::write(new AuditEntry("cart emptied"));
+Audit::write(new LoginFailed("ada"));
+
+// The object also joins straight into a longer message.
+var $failed = new LoginFailed("bob");
+echo "the last problem was: " . $failed . "\n";
+
+// One list holding both classes. Every entry is written the same way.
+array<Stringable> $recent = [new AuditEntry("order placed"), new LoginFailed("cho")];
+foreach ($recent as Stringable $entry) {
+    echo "- ", $entry, "\n";
+}
