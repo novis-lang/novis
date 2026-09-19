@@ -3297,6 +3297,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   rather than the program that was run. Write the `.nvs` first and its block second, and read the
   path in an `E0605` before believing it is about the file you just asked for.
   [until: reviewed 2026-09-19]
+- **A bench's `// bench: calls N` declaration counts Novis frames, and a `Core` member call is not
+  one of them.** A round whose only call is `Core\Debug::render` measures `calls 0.000`, so
+  `--record-perf` refuses the figure and the bench reads as though its loop had been optimised away.
+  Declare `calls` for the Novis functions a round enters, and read `allocations` and `bytes` to see
+  that the native work really happened — one rendering counts 23.9 allocations and 1,157 bytes per
+  op while its `calls` figure stays at zero.
+  [until: reviewed 2026-09-19]
 
 ## Writing a test case
 

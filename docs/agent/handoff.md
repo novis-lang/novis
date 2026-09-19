@@ -2,48 +2,41 @@
 
 ## State
 
-Goal `lang:errors` is eight of its twelve features in. `an-uncaught-throw`, `assertion-failures`,
-`capability-denials-are-catchable`, `constructing-and-subclassing`,
-`fatal-errors-limits-no-catch-sees`, `properties-not-accessors`, `rethrowing` and `the-throwable-tree`
-are `complete.` in `python tools/dossier.py --id`; the other four owe everything.
+Goal `lang:errors` is met. All 12 features print `complete.` from `python tools/dossier.py --id`,
+and `python tools/dossier.py --verify --group lang:errors` reports nothing owed with 36 examples and
+12 attacks green. `python tools/verify.py` is 14 of 14 green (conformance 2208), `verify.py --doc`
+resolves every link, and `owners.py --closes lang:errors` and `playbook.py --closes lang:errors`
+name nothing.
 
-Four things the rest of the goal will use. **The two `.nvst` cases a feature owes are usually already
-in `tests/conformance/error/`** — attributing one is a one-line `// covers:` edit in its `--FILE--`
-block, the marker takes a comma-separated list, so one case may serve two features. **A marker shifts
-the lines under it**, and the playbook bullet above says what that breaks. **An example may declare
-the status it ends with** — `// dossier: exit 1`, `docs/examples/README.md` § *`// dossier: exit 1`*.
-**An example that needs a capability or a limit is an `[[app]]` block in the root `nvs.toml` keyed by
-that example's own `entry`**; a `.nvst` case needs none, since it carries its own `--FILE nvs.toml--`
-section.
-
-Two features are excused their perf figure in `tools/data/dossier-policy.toml` because their subject
-is an ending: `an-uncaught-throw` and `fatal-errors-limits-no-catch-sees`.
+Two features stay excused their perf figure in `tools/data/dossier-policy.toml` because their
+subject is an ending: `an-uncaught-throw` and `fatal-errors-limits-no-catch-sees`.
 
 ## Next group
 
-**Stage 2: the last four features of goal `lang:errors`, one slice each** — one file set: the
-reference chapter `docs/reference/lang/70-errors.md`, plus the four proof trees under
-`docs/examples/lang/errors/`, `tests/hostile/lang/errors/`, `benches/members/lang/errors/` and
-`tests/conformance/error/`. `rule:testing/feature-proofs` is what each owes; `python
-tools/dossier.py --id '<feature>'` prints the paths.
+**Stage 2: the first features of goal `lang:concurrency`, one slice each** — one file set: the
+reference chapter `docs/reference/lang/80-concurrency.md`, plus the proof trees under
+`docs/examples/lang/concurrency/`, `tests/hostile/lang/concurrency/`,
+`benches/members/lang/concurrency/` and `tests/conformance/`. `rule:testing/feature-proofs` is what
+each owes, and `python tools/dossier.py --id '<feature>'` prints the path of each artefact. All 10
+features of that goal owe everything.
 
-- [ ] **`lang:errors/throw`** — owes about, examples, hostile, perf, tests.
-      `docs/reference/lang/70-errors.md:177`. `throw` is a statement and an expression, so the
-      examples want it after `??`, in a `match` arm and in a ternary.
-- [ ] **`lang:errors/try-catch-finally`** — owes about, examples, hostile, perf, tests.
-      `docs/reference/lang/70-errors.md:201`. Clause order, one class per clause, one binding per
-      clause, and what `finally` runs on every way out.
-- [ ] **`lang:errors/recursion-depth`** — owes about, examples, hostile, perf, tests.
-      `docs/reference/lang/70-errors.md:370`. The limit fires at about 3,676 frames on this host;
-      measure it again rather than copying that number.
-- [ ] **`lang:errors/inspecting-a-value`** — owes about, examples, hostile, perf, tests.
-      `docs/reference/lang/70-errors.md:510`.
+- [ ] **`lang:concurrency/isolates-spawn-script-and-await`** — owes about, examples, hostile, perf,
+      tests. `docs/reference/lang/80-concurrency.md:193`. A child isolate is a process-shaped thing,
+      so check what an example may spawn before writing three of them.
+- [ ] **`lang:concurrency/a-child-shares-nothing`** — owes about, examples, hostile, perf, tests.
+      `docs/reference/lang/80-concurrency.md:276`. The attack here is the one that matters: a child
+      that tries to reach its parent's state.
+- [ ] **`lang:concurrency/a-child-s-throw`** — owes about, examples, hostile, perf, tests.
+      `docs/reference/lang/80-concurrency.md:276`. Read the chapter's own anchor first; the roster
+      derives this feature and `a-child-s-failure-is-a-value` from neighbouring sections.
 
 ## Backlog
 
-- A throw and a supertype catch cost 17 allocations and 980 bytes per round, and a rethrow round trip
-  22 and 1,237 — `docs/perf/members.ndjson`, features `lang:errors/the-throwable-tree` and
-  `lang:errors/rethrowing`. Nothing is wrong with them; they are the first figures anyone has for the
-  throw path, and whoever owns `crates/nvs-runtime/src/throwable.rs` may want a look.
-- `tests/hostile/lang/errors/properties-not-accessors` reads 3,673 frames out of a chain asked to go
-  10,000 deep: the recursion limit ends it first, which goal item `recursion-depth` is about.
+- `rule:errors/stack-depth` estimates "about 65,000 frames" for its 8 MB ceiling; a small recursive
+  function reaches ~4,800 (release 4878, debug 4782), so the 128-byte frame behind that number is
+  about 12× low. The bound itself holds and stays catchable — only the estimate is off.
+- Two roster entries describe one construct: `lang:errors/throw` beside `lang:statements/throw`, and
+  `lang:errors/try-catch-finally` beside `lang:statements/try-catch-finally`. Each owes its own
+  proofs because `rule:testing/roster-is-derived` reads both reference chapters.
+- `docs/decisions/0079.md` § 15 does not say which calls the `calls` counter counts; the playbook
+  bullet above records what it measured.
