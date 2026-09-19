@@ -97,9 +97,12 @@ files = [
 
 modules = [
   "docs/reference/lang/30-expressions.md",
+  # § *The description* and § *How a comment is written* are what `about.md` and every
+  # comment in the three `.nvs` proofs are held to, and no other field carries them.
+  "docs/examples/README.md",
 ]
 
-rules = ["testing/four-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
+rules = ["testing/four-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "types/arithmetic", "php-migration/absent-storage-is-never-a-zero-value", "expressions/truthy-table", "0134", "0026", "0117", "0004", "0088"]
 
 adrs = ["0134", "0079 §15"]
 
