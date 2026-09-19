@@ -1,0 +1,53 @@
+<?nvs
+// Attack: write every operator PHP has and Novis does not, in chains far
+// longer than a person would type and nested inside each other. The compiler
+// should print one error per operator and stop. It must not crash, hang, or
+// run a single line of this file.
+// hostile: expect-refusal
+// hostile: timeout-ms 20000
+
+// 1. Long chains of the two equality operators that do not exist, mixed with
+// the one that does. The lexer has to keep its place after each error.
+int $n = 1;
+bool $a = $n === $n === $n === $n === $n === $n === $n === $n === $n === $n === $n === $n;
+bool $b = $n !== $n !== $n !== $n !== $n !== $n !== $n !== $n !== $n !== $n !== $n !== $n;
+bool $c = $n === $n != $n !== $n == $n === $n != $n !== $n == $n === $n != $n;
+
+// 2. PHP's inequality written with angle brackets, next to the comparisons
+// that use the same two characters.
+bool $d = $n <> $n;
+bool $e = $n < $n <> $n > $n;
+bool $f = $n <=> $n <> $n <=> $n;
+
+// 3. The same two characters where a type argument list ends, so an error
+// there cannot swallow a bracket that belongs to a type.
+array<> $empty = [];
+array<array<int>>> $deep = [[1]];
+array<int><> $twice = [1];
+
+// 4. The logical operators PHP spells as words, nested as deep as the parser
+// will follow.
+bool $g = true;
+bool $h = false;
+bool $i = ((((((((($g and $h) or $g) and $h) or $g) and $h) or $g) and $h) or $g) and $h);
+bool $j = $g xor $h xor $g xor $h xor $g xor $h xor $g xor $h xor $g xor $h xor $g;
+bool $k = ($g and $h) xor ($g or $h) xor ($g and ($h or ($g and $h)));
+
+// 5. Addition over arrays, chained until the compiler has as many array
+// operands as a program ever gives it, and once more in place.
+array<int> $xs = [1, 2];
+array<int> $ys = [3, 4];
+array<int> $sum = $xs + $ys + $xs + $ys + $xs + $ys + $xs + $ys + $xs + $ys + $xs + $ys;
+$xs += $ys;
+
+// 6. A string subscripted, and subscripted again on the result, then
+// incremented in place.
+string $s = "abcdef";
+string $first = $s[0];
+string $nested = $s[0][0][0][0][0][0][0][0][0][0];
+$s++;
+$s--;
+$s .= "g";
+$s++;
+
+echo "this line must never run\n";

@@ -1,0 +1,21 @@
+<?nvs
+// Shows the one equality operator. `==` never converts its operands, so PHP's
+// `===`, `!==` and `<>` have no work left to do and none of them compiles.
+
+// A quantity that arrived as text, and the quantity already stored.
+string $typed = "7";
+int $stored = 7;
+
+// Convert the text with `as int` first, then compare. This prints `same`.
+echo ($typed as int) == $stored ? "same" : "different", "\n";
+
+// Two strings compare character by character, so `"07"` and `"7"` are two
+// different strings. This prints `no match`.
+string $fromUrl = "07";
+echo $fromUrl == $typed ? "match" : "no match", "\n";
+
+// `!=` is the only inequality operator, and it is exactly the opposite of
+// `==`. This prints `changed`.
+string $saved = "draft";
+string $current = "published";
+echo $saved != $current ? "changed" : "unchanged", "\n";

@@ -1,0 +1,87 @@
+--TEST--
+The replacement for each dropped PHP operator computes what the operator computed — `!=` over the whole `xor` truth table, `!=` as the exact negation of `==` over every pair, `Core\Arr::underlay` as `$a + $b` over two arrays, and `Core\Str::at` as a one-character slice at every position — each counted over its whole sweep, `rule:expressions/one-equality-operator`, `rule:types/array-combination`
+--FILE--
+<?nvs
+// covers: lang:expressions/operators-php-has-that-do-not-parse
+// Each operator the chapter drops has one replacement, and the replacement
+// computes what the PHP operator computed. Every claim is counted over a
+// whole sweep, so a replacement that agrees on one row and not on the next is
+// reported here rather than looking right on the row somebody read.
+
+// `xor` is `!=` between two `bool`s: over the four rows of the truth table it
+// agrees with `(a || b) && !(a && b)` every time, and is true exactly twice.
+array<bool> $lefts = [true, true, false, false];
+array<bool> $rights = [true, false, true, false];
+uint $agreements = 0;
+uint $trueRows = 0;
+uint $i = 0;
+while ($i < 4) {
+    bool $a = $lefts[$i];
+    bool $b = $rights[$i];
+    bool $byNotEqual = $a != $b;
+    bool $byConnectives = ($a || $b) && !($a && $b);
+    if ($byNotEqual == $byConnectives) {
+        $agreements = $agreements + 1;
+    }
+    if ($byNotEqual) {
+        $trueRows = $trueRows + 1;
+    }
+    $i = $i + 1;
+}
+echo "xor rows agreeing: ", $agreements, " of 4, true on ", $trueRows, "\n";
+
+// `!=` is exactly the negation of `==`, which is what leaves `!==` and `<>`
+// nothing to do. Over every pair of five values there is no disagreement.
+array<int> $values = [0, 1, 2, 2, 7];
+uint $disagreements = 0;
+uint $equalPairs = 0;
+uint $x = 0;
+while ($x < 5) {
+    uint $y = 0;
+    while ($y < 5) {
+        bool $same = $values[$x] == $values[$y];
+        bool $different = $values[$x] != $values[$y];
+        if ($same == $different) {
+            $disagreements = $disagreements + 1;
+        }
+        if ($same) {
+            $equalPairs = $equalPairs + 1;
+        }
+        $y = $y + 1;
+    }
+    $x = $x + 1;
+}
+echo "equality disagreements: ", $disagreements, ", equal pairs: ", $equalPairs, "\n";
+
+// `Core\Arr::underlay` is what `$saved + $defaults` meant: the first array's
+// value stands at every key both arrays have, and the keys only the second
+// one has are added after it.
+array<string> $saved = ["theme" => "dark", "pageSize" => "50"];
+array<string> $defaults = ["theme" => "light", "pageSize" => "25", "language" => "en"];
+array<string> $merged = Core\Arr::underlay($saved, $defaults);
+uint $fromSaved = 0;
+foreach ($saved as string $key => string $value) {
+    if ($merged[$key] == $value) {
+        $fromSaved = $fromSaved + 1;
+    }
+}
+echo "merged keys: ", Core\Arr::count($merged), ", kept from the first array: ", $fromSaved, "\n";
+
+// `Core\Str::at` reads the character a subscript used to read, and agrees
+// with a one-character `Core\Str::slice` at every position of the string.
+string $text = "Grüße AT-1042";
+uint $length = Core\Str::length($text);
+uint $matches = 0;
+uint $position = 0;
+while ($position < $length) {
+    if (Core\Str::at($text, $position as int) == Core\Str::slice($text, $position as int, 1)) {
+        $matches = $matches + 1;
+    }
+    $position = $position + 1;
+}
+echo "positions agreeing: ", $matches, " of ", $length, "\n";
+--EXPECT--
+xor rows agreeing: 4 of 4, true on 2
+equality disagreements: 0, equal pairs: 7
+merged keys: 3, kept from the first array: 2
+positions agreeing: 13 of 13

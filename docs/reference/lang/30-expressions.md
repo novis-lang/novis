@@ -67,13 +67,14 @@ sum:3 4x
 | `@expr` | nothing to suppress: a failure is a `Throwable` |
 | `` `cmd` `` | `Core\Process` |
 | `$a = &$b`, `&$x` | no references: `inout` parameters, or an object to share |
-| `$$name`, `${expr}` | an `array<string, T>` keyed by name |
-| `\|>` | not an operator; the token does not parse |
+| `$$name`, `${expr}` | an `array<T>`, whose keys are the names |
 | `$a + $b` on arrays | `Core\Arr::underlay($a, $b)` |
 | `$s[0]` on a string | `Core\Str::at`, `Core\Str::slice` |
 | `$s++` on a string | no string increment; a binding never changes type |
 
-`<>` is accepted as a second spelling of `!=`.
+`<>` is `E0241` at the two characters, for the reason `===` is `E0232`: `!=` is the one spelling of inequality. Both are lexed as the operator they meant, so the rest of the file reports its own errors in the same run.
+
+PHP 8.5's `|>` is the one row that is a difference rather than a drop: `|>` is Novis's pipeline operator, and it substitutes a hole instead of applying a callable — *The pipeline operator* below.
 
 ```nvs error
 <?nvs

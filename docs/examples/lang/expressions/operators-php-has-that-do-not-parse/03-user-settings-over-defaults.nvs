@@ -1,0 +1,17 @@
+<?nvs
+// Shows the two methods that replace PHP's `+` on two arrays and `$s[0]` on a
+// string, in the job they come up in most: reading settings and an order code.
+
+// What this user saved, and the defaults for everything else.
+array<string> $saved = ["theme" => "dark", "pageSize" => "50"];
+array<string> $defaults = ["theme" => "light", "pageSize" => "25", "language" => "en"];
+
+// `Core\Arr::underlay` keeps the first array's value at each shared key and
+// adds the keys only the second array has. This prints `dark 50 en`.
+array<string> $settings = Core\Arr::underlay($saved, $defaults);
+echo $settings["theme"], " ", $settings["pageSize"], " ", $settings["language"], "\n";
+
+// `Core\Str::at` reads the character at one position, and `Core\Str::slice`
+// reads several from a position. This prints `A AT`.
+string $orderCode = "AT-1042";
+echo Core\Str::at($orderCode, 0), " ", Core\Str::slice($orderCode, 0, 2), "\n";

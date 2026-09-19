@@ -54,3 +54,9 @@ perf = "A program ends once, so nothing can be iterated: a bench here would meas
 # `require` — each of which is a feature of its own with its own figure.
 [skip."lang:expressions/refused-in-expression-position"]
 perf = "Every construct here is a compile error, so there is no program to iterate; the replacements carry their own figures."
+
+# Every row of this table is an operator that does not compile, so a bench would have to iterate the
+# replacements — `&&`, `!=`, `as`, `Core\Arr::underlay`, `Core\Str::at` — and each of those is a
+# feature of its own that carries its own figure.
+[skip."lang:expressions/operators-php-has-that-do-not-parse"]
+perf = "Every operator here is a compile error, so there is no program to iterate; the replacements carry their own figures."

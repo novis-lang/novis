@@ -1,0 +1,89 @@
+--TEST--
+Each operator PHP has and Novis does not — `and`, `or`, `xor`, `===`, `!==`, `<>`, `+` over two arrays, a subscript on a `string` and `++` on one — is reported at the operator itself and its help names the replacement, `rule:expressions/one-equality-operator`, `rule:types/arithmetic`
+--FILE--
+<?nvs
+// covers: lang:expressions/operators-php-has-that-do-not-parse
+// Every row of the chapter's table that is an operator proper. Each one is
+// reported where it is written, with the help naming what to write instead,
+// and the expectation below carries one diagnostic per row.
+bool $p = true;
+bool $q = false;
+var $word = $p and $q;
+var $either = $p or $q;
+var $one = $p xor $q;
+int $n = 1;
+var $identical = $n === $n;
+var $notIdentical = $n !== $n;
+var $angled = $n <> $n;
+array<int> $xs = [1];
+array<int> $ys = [2];
+var $joined = $xs + $ys;
+string $s = "abc";
+var $first = $s[0];
+$s++;
+echo "unreached\n";
+--EXPECTF-ERROR--
+error[E0226]: `and` is not supported
+  --> %s:8:16
+  |
+8 | var $word = $p and $q;
+  |                ^^^ Novis keeps exactly one spelling for each logical connective
+  = help: use `&&` instead — it is the only logical connective Novis keeps
+
+error[E0226]: `or` is not supported
+  --> %s:9:18
+  |
+9 | var $either = $p or $q;
+  |                  ^^ Novis keeps exactly one spelling for each logical connective
+  = help: use `||` instead — it is the only logical connective Novis keeps
+
+error[E0226]: `xor` is not supported
+   --> %s:10:15
+   |
+10 | var $one = $p xor $q;
+   |               ^^^ Novis keeps exactly one spelling for each logical connective
+   = help: there is no direct replacement — write `(a || b) && !(a && b)`, or `a != b` when both operands are already `bool`
+
+error[E0232]: `===` is not supported
+   --> %s:12:21
+   |
+12 | var $identical = $n === $n;
+   |                     ^^^ Novis keeps exactly one equality operator
+   = help: use `==` — it never converts either operand, so there is nothing for `===` to distinguish
+
+error[E0232]: `!==` is not supported
+   --> %s:13:24
+   |
+13 | var $notIdentical = $n !== $n;
+   |                        ^^^ Novis keeps exactly one equality operator
+   = help: use `!=` — it never converts either operand, so there is nothing for `!==` to distinguish
+
+error[E0241]: `<>` is not supported
+   --> %s:14:18
+   |
+14 | var $angled = $n <> $n;
+   |                  ^^ Novis spells inequality one way
+   = help: use `!=` — it is the same comparison, and `<>` is the second spelling PHP inherited from its own predecessors
+
+error[E0467]: `+` is not defined with an array operand
+   --> %s:17:15
+   |
+17 | var $joined = $xs + $ys;
+   |               ^^^^^^^^^ array operand of `+`
+   = help: use `Core\Arr::underlay($a, $b)`, which keeps the left array's value at every key both of them have — the one operation `$a + $b` ever meant
+
+error[E0482]: `string` cannot be subscripted
+   --> %s:19:14
+   |
+19 | var $first = $s[0];
+   |              ^^ this is `string`
+   = help: `rule:types/string-is-utf8` indexes a `string` by extended grapheme cluster, which is said out loud rather than spelled with a subscript — `Core\Str::slice($s, $i, 1)`, or `Core\Bytes::slice` for a byte offset
+
+error[E0474]: `++`/`--` has no meaning for `string`
+   --> %s:20:1
+   |
+20 | $s++;
+   | ^^^^ an increment is `± 1`, and this is not a number
+   = help: `rule:types/arithmetic`'s arithmetic is over `int`, `uint`, `float` and `decimal`; PHP's string increment does not exist in Novis, because a binding never changes type
+
+error: aborting due to 9 errors
