@@ -2,56 +2,43 @@
 
 ## State
 
-Goal `lang:expressions` is fourteen of sixteen features done: `match` and
-`is-new-clone-throw-print-exit-isset-empty` now carry all five artefacts each. Only `calls` and
-`closures` still owe theirs — `python tools/dossier.py --owed --group 'lang:expressions'` is the
-list, and closing those two closes the goal.
+Goal `lang-expressions` is **complete**: all sixteen features carry their five artefacts, and
+`python tools/dossier.py --verify --group lang:expressions` prints `nothing owed` with both suites
+at `0 failed`. `python tools/verify.py` is green.
 
-Both new features are attributed partly through existing cases: `covers:` markers were added to
-`tests/conformance/lang/a-match-picks-one-arm-and-throws-when-none-does.nvst`,
-`tests/conformance/lang/an-arm-less-match-is-a-diagnostic.nvst`,
-`tests/conformance/lang/isset-answers-a-null-test-over-every-storage-shape.nvst` and
-`tests/conformance/reject/clone-takes-an-object.nvst` rather than rewriting what they already pin,
-and each feature also got one new depth case. Adding the marker shifts every line under it, so an
-`--EXPECTF-ERROR--` block's `%s:NN` numbers move with it.
+Two findings from the two benches are recorded rather than fixed
+(`rule:testing/a-failing-proof-is-fixed-or-recorded`'s second answer), as `# Known gaps` 10 and 11 in
+`crates/nvs-runtime/src/lib.rs`: a call through a `callable` builds its argument slots in a heap
+vector, 32 bytes a call, and it reaches the callee without passing `nvs_probe_call_enter`, so a
+trace, a profile and `nvs run --count` all miss it. Both benches carry the `dossier: known-gap`
+marker naming that file, so removing it is part of whatever fix lands.
 
-No proof found a bug. One measurement did move: the first
-`is-new-clone-throw-print-exit-isset-empty` bench read `isset`/`empty` through a string-keyed array
-element and measured 61.8 ns/op against 13 statements, four times the per-statement cost of every
-other expression bench. Reading the same two tests off a local and a property instead gives
-14.1 ns/op, so what the first figure measured was the array key lookup, not this feature. The
-lookup cost itself is not recorded as a gap — nothing is known to be wrong with it — but a bench
-for `lang:expressions/arrays-in-expressions` would be where to look.
-
-`python tools/verify.py` is green.
+One reference line was wrong and is fixed: a block-bodied `fn` must declare its return type
+(`E0450`), which the chapter said was always optional. That edit staled every figure in the chapter
+— see the new playbook bullet — so all thirteen benched features were re-measured in the same run.
 
 ## Next group
 
-One slice is one feature with all five proofs. These are the chapter's last two, and they share the
-file set the fourteen landed ones used: `docs/reference/lang/30-expressions.md` plus the four proof
-trees under `docs/examples/lang/expressions/`, `tests/hostile/lang/expressions/`,
-`benches/members/lang/expressions/` and `tests/conformance/`.
+The chain's next goal is `lang-statements`, whose features owe the same five artefacts each. One
+slice is one feature with all five proofs, and they share one file set:
+`docs/reference/lang/40-statements.md` plus the four proof trees under `docs/examples/lang/statements/`,
+`tests/hostile/lang/statements/`, `benches/members/lang/statements/` and `tests/conformance/`.
 
 **Stage 2: the dossier** — one file set, named above.
 
-- [ ] **`lang:expressions/calls`** — owes all five. Named arguments in any order, one that skips a
-      defaulted parameter in the middle, a `...$array` spread into the single variadic, `inout` at
-      both ends of the call, and a `callable` invoked through a variable, an element or a
-      parenthesised property. Evaluation is in written order, extra arguments to a `callable` are
-      dropped and too few throw at the call. `rule:core-api/parameters-are-callable-by-name`.
-      `docs/reference/lang/30-expressions.md:450`
-- [ ] **`lang:expressions/closures`** — owes all five. `fn` is the only closure literal and the
-      only value a `callable` takes; every outer local the body reads is captured **by value when
-      the closure is created**, which is the example worth writing and the hostile case's lever
-      (capture at size, and `$this` captured inside a method). The reject half is the list the
-      section closes: no `use (…)`, no capture by reference, no `static fn`, no `inout` parameter,
-      no anonymous `function () {}`, and `Class::m(...)` is not a closure.
-      `rule:types/callable-is-a-closure`. `docs/reference/lang/30-expressions.md:535`
+- [ ] **`lang:statements/expression-statements-blocks-and-declarations`** — owes all five. What is a
+      statement rather than an expression, what a block scopes, and where a declaration may stand.
+      `rule:testing/four-proofs`. `docs/reference/lang/40-statements.md:9`
+- [ ] **`lang:statements/if-elseif-else`** — owes all five. The condition resolves
+      `rule:expressions/truthy-table`, `elseif` is one word, and only the arm that is taken runs.
+      `docs/reference/lang/40-statements.md:44`
 
 ## Backlog
 
-- `lang:expressions/arrays-in-expressions` has no bench measuring a string-keyed element read; the
-  figure above suggests one would be worth having (`benches/members/README.md`).
-- The help on `E0466` names `$s == ($n as string)` whatever the operands are, so a `match` arm
-  refused for a disjoint condition is advised to rewrite a comparison it did not write
-  (`crates/nvs-diagnostics`, and the wording is pinned by four cases).
+- A call through a `callable` answers `mixed` and `mixed as callable` is refused, so a curried
+  closure cannot be stored: `$f(5)(2)` works inline but `callable $g = $f(5)` does not
+  (`rule:types/callable-is-a-closure`).
+- `lang:expressions/and-the-ternary` and `lang:types/widening-without-as` still carry the two example
+  known gaps recorded in `crates/nvs-ir/src/lib.rs`.
+- `lang:expressions/assignment`'s bench declares `allocations 0` and does four; it is marked, and the
+  entry it names is that crate's to close.

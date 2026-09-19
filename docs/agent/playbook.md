@@ -3257,6 +3257,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   target/debug/nvs.exe` to get around it: the attacks are sized for release, and one in five of them
   outlives its own `timeout-ms` against the debug binary.
   [until: gone tools/dossier.py:def current_binary]
+- A one-line edit to a `docs/reference/lang/*.md` chapter stales the perf figure of **every** feature
+  in it, and the acceptance check then reports thirteen features owing a measurement. A language
+  feature's implementing file *is* its reference chapter, and `dossier.py` prices a figure's currency
+  by that file's text, so one reworded sentence invalidates the chapter. Make the doc fix first, then
+  re-record the whole chapter in one `python tools/dossier.py --record-perf --group <group>` before
+  running the gate. [until: gone tools/dossier.py:impl_hash]
 
 ## Writing a test case
 
@@ -6030,6 +6036,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   — so the comma is read as call syntax and what comes back is an `E0101`/`E0102` pair pointing at
   the `<`, saying nothing about types. Declare the value type alone and key the literal:
   `array<uint> $seen = ["get" => 0];`. [until: reviewed 2026-09-19]
+- A hostile case that builds a big array with `Core\Arr::append` in a loop never finishes: a million
+  rounds hangs, and fifty thousand took two minutes where ten thousand takes five seconds. Each call
+  copies the array it is given, so the loop is quadratic in the number of entries. Build a large
+  array with `Core\Arr::fill(n, v)`, and keep an appending loop to about ten thousand rounds.
+  [until: reviewed 2026-09-19]
 
 ## Splitting a file that got too big
 
