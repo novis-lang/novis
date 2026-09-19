@@ -8327,6 +8327,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   declaration rather than as a misplaced `?`. Copy the spelling from a case that already uses one —
   `tests/conformance/error/throwing-a-nullable-throwable-throws-the-object-it-holds.nvst:8` — rather
   than working back from the diagnostic. [until: reviewed 2026-09-19]
+- **A `lateinit` property read inside the class that declares it is `E0428` unless a write came
+  first on the same path, so the textbook injection shape does not compile.**
+  `rule:classes/lateinit-read-before-write` runs the flow analysis per method, so a method that only
+  reads `$this->printer` is refused however the caller set the object up, while the same read from
+  outside the class is left to throw at run time. Put the read in the method that does the write, or
+  outside the class. [until: gone tests/conformance/class/lateinit-refuses-a-read-before-any-write.nvst]
 
 ## Divergences and refusals already pinned
 
