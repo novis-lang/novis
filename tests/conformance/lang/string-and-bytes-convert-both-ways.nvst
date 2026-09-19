@@ -2,6 +2,8 @@
 `rule:types/conversion`'s conversion pair: `string as bytes` is total, `bytes as string` is checked and throws
 --FILE--
 <?nvs
+// covers: lang:types/text-string-and-bytes
+
 class Convert {
     // § 3's second row: checked. A well-formed buffer becomes the string
     // over the same allocation; anything else throws, and is never

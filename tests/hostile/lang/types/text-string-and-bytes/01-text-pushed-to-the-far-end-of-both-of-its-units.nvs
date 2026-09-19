@@ -1,0 +1,82 @@
+<?nvs
+// Attack: text driven to the far end of both of its units. One "character"
+// built from a hundred thousand accents, so counting characters has to walk
+// all of it. A megabyte of octets whose only bad byte is the very last one.
+// Positions asked for at and past both ends. Buffers that are not text at
+// all, handed to everything that reads text. Sixteen megabytes of text
+// built up and dropped in one go.
+// hostile: timeout-ms 60000
+
+// A hundred thousand combining accents on one letter. That is one character
+// to a reader, and nothing can say so without walking to the end.
+string $oneCharacter = 'e' . Core\Str::repeat("\u{301}", 100000);
+echo Core\Str::length($oneCharacter), ' character, ', Core\Bytes::length($oneCharacter as bytes), " bytes\n";
+
+// A piece of that one character, and then a position it does not have.
+echo Core\Str::length(Core\Str::slice($oneCharacter, 0, 1)), " character taken\n";
+try {
+    echo Core\Str::at($oneCharacter, 1), "\n";
+    echo "read a character that is not there\n";
+} catch (Throwable $e) {
+    echo "refused: a position past the end\n";
+}
+
+// A megabyte of octets with one byte at the very end that is not text, so
+// the check cannot answer until it has looked at every byte before it.
+bytes $almost = Core\Encoding::fromHex(Core\Str::repeat('61', 1048576) . 'ff');
+echo Core\Bytes::length($almost), " bytes\n";
+echo ($almost as ?string) == null ? "not text\n" : "text\n";
+try {
+    echo Core\Str::length($almost as string), "\n";
+    echo "turned a bad buffer into text\n";
+} catch (Throwable $e) {
+    echo 'refused: ', $e->message, "\n";
+}
+
+// A two-byte character cut in half at the end of the buffer, which is the
+// boundary a decoder is most likely to walk off.
+try {
+    echo Core\Encoding::fromHex('616263c3') as string, "\n";
+    echo "read a half character\n";
+} catch (Throwable $e) {
+    echo 'refused: ', $e->message, "\n";
+}
+
+// Octets that are not any encoding, and text that is not any encoding's
+// spelling of octets.
+try {
+    echo Core\Bytes::length(Core\Encoding::fromHex('abc')), "\n";
+    echo "read an odd number of hex digits\n";
+} catch (Throwable $e) {
+    echo "refused: an odd hex digit count\n";
+}
+try {
+    echo Core\Bytes::length(Core\Encoding::fromBase64('not base64 at all!!')), "\n";
+    echo "read something that is not base64\n";
+} catch (Throwable $e) {
+    echo "refused: not base64\n";
+}
+
+// Every byte there is, in one buffer, asked the question it answers `false`
+// to, and then ordered against itself.
+string $hex = '';
+array<string> $digits = Core\Str::graphemes('0123456789abcdef');
+foreach ($digits as string $high) {
+    foreach ($digits as string $low) {
+        $hex = $hex . $high . $low;
+    }
+}
+bytes $everyByte = Core\Encoding::fromHex($hex);
+echo Core\Bytes::length($everyByte), ' octets, ', Core\Bytes::compare($everyByte, $everyByte), " against itself\n";
+echo ($everyByte as ?string) == null ? "not text\n" : "text\n";
+
+// Sixteen megabytes of text, doubled up and then dropped all at once.
+string $big = 'grüße';
+uint $round = 0;
+while ($round < 21) {
+    $big = $big . $big;
+    $round = $round + 1;
+}
+echo Core\Bytes::length($big as bytes), " bytes held\n";
+$big = '';
+echo "released\n";

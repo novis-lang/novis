@@ -1,0 +1,27 @@
+<?nvs
+// Files often arrive base64 encoded inside a JSON field. What you get back is
+// bytes, because nobody has claimed yet that it is text. Look at the opening
+// bytes to tell a picture from a note, and only make a string out of the rest
+// once the check says it really is text.
+
+bytes $pngSignature = Core\Encoding::fromHex("89504e47");
+
+array<string> $uploads = [
+    "iVBORw0KGgo=",          // the first bytes of a PNG
+    "SGVsbG8sIHdvcmxkIQ==",  // a short note
+    "SGVsbG8s/w==",          // a note with one byte that is not text
+];
+
+foreach ($uploads as string $encoded) {
+    bytes $data = Core\Encoding::fromBase64($encoded);
+    // `as ?string` hands back the text when the bytes really are text, and
+    // `null` when they are not, so nothing has to be guessed at.
+    ?string $text = $data as ?string;
+    if (Core\Bytes::startsWith($data, $pngSignature)) {
+        echo "picture, ", Core\Bytes::length($data), " bytes\n";
+    } else if ($text != null) {
+        echo "note: ", $text, "\n";
+    } else {
+        echo "neither a picture nor text\n";
+    }
+}

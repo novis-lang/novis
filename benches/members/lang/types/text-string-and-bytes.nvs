@@ -1,0 +1,28 @@
+<?nvs
+// A name arriving from a form, checked against the two limits every form
+// has: how many characters a reader sees, and how many bytes the store
+// keeps. Counting characters has to walk the text; counting bytes is the
+// same text read through its other type. The name picked each round comes
+// out of the last round's total, so neither count can be lifted out.
+// bench: iterations 200000
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): int {
+        array<string> $names = ["Ann", "Grüße", "Rene\u{301}e", "Łukasz Szymański"];
+        int $carry = 1;
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            string $name = $names[$carry % 4];
+            int $characters = Core\Str::length($name) as int;
+            int $stored = Core\Bytes::length($name as bytes) as int;
+            $carry = ($carry + $characters + $stored) % 997;      // chained: $carry is last round's
+            $total = $total + $carry;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

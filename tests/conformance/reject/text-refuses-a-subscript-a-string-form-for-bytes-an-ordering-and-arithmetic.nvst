@@ -1,0 +1,43 @@
+--TEST--
+The four ways text refuses to behave like something it is not: a `string` subscripted, a `bytes` rendered without saying which encoding it is in, two strings ordered with `<`, and arithmetic over text (`rule:types/string-is-utf8`, `rule:types/bytes`, `rule:types/conversion`, `rule:types/arithmetic`)
+--FILE--
+<?nvs
+// covers: lang:types/text-string-and-bytes
+
+// `rule:types/string-is-utf8`: a `string` is measured in extended grapheme
+// clusters, and a subscript names a position in something whose elements are
+// all the same width, which text is not. `Core\Str::at` and `Core\Str::slice`
+// are the spelling, and they answer whole characters.
+string $s = "grüße";
+echo $s[0], "\n";
+
+// `rule:types/bytes`: octets carry no encoding, so there is no text they
+// obviously are. `echo` converts what it is given to `string`, and
+// `rule:types/conversion` makes that direction the checked one, so it has to
+// be written out rather than assumed.
+bytes $b = "nvs" as bytes;
+echo $b, "\n";
+
+// `rule:types/arithmetic` tabulates no ordering for text: PHP's `<` over two
+// strings converts them first, and `Core\Str::compare` is the ordering that
+// says out loud what it compares.
+string $a = "a";
+string $z = "b";
+echo $a < $z, "\n";
+
+// And no arithmetic row either, where PHP reads a leading number out of the
+// text and drops the rest.
+string $n = "3";
+echo $n * 2, "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0482]: `string` cannot be subscripted
+%A
+error[E0707]: `bytes` has no string form
+%A
+error[E0715]: `<` has no meaning for `string`
+%A
+error[E0716]: `*` has no meaning for `string`
+%A
+error: aborting due to 4 errors

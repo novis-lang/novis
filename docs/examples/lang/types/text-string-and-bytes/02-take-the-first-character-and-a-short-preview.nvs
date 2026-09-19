@@ -1,0 +1,15 @@
+<?nvs
+// There is no `$title[0]`, because the first character of a title is not
+// always its first byte. Ask for a character by position, or for a run of
+// them, and what comes back is whole characters either way — an accent is
+// never cut in half.
+
+array<string> $titles = ["Größenwahn", "Ölzweig", "Straße am Fluss"];
+
+foreach ($titles as string $title) {
+    string $initial = Core\Str::at($title, 0);
+    string $preview = Core\Str::length($title) > 8
+        ? Core\Str::slice($title, 0, 8) . "…"
+        : $title;
+    echo $initial, "  ", $preview, "\n";
+}
