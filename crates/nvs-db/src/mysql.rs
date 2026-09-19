@@ -1571,7 +1571,9 @@ impl MySqlConn {
     /// `deadline` bounds the whole of that and not one leg of it — the connect,
     /// the handshake and every authentication round trip share one clock, filed
     /// on the socket where `nvs-host` keeps it. `None` is unbounded and is for
-    /// a caller that has its own bound.
+    /// a caller that has its own bound. **The clock is lifted before the
+    /// connection is handed back**, as [`crate::PgConn::connect`] lifts its own
+    /// and for the reason that one gives.
     ///
     /// The connection comes back [`State::Idle`]: at a packet boundary, with a
     /// statement allowed.
@@ -1649,6 +1651,9 @@ impl MySqlConn {
         };
         let capabilities = authenticate(&mut wire, &login, &greeting)?;
         set_session_time_zone(&mut wire, capabilities, target.time_zone)?;
+        // Lifted for [`crate::PgConn::connect`]'s reason, which is the same on every
+        // driver that files the handshake clock on its own socket.
+        wire.set_deadline(None);
 
         Ok(MySqlConn {
             wire,
@@ -1669,6 +1674,14 @@ impl MySqlConn {
             // Nothing is parked until `stream` parks it — see the field.
             reading: None,
         })
+    }
+
+    /// Bounds every wait on this connection by `at`, or lifts the bound.
+    ///
+    /// [`crate::PgConn::set_deadline`]'s twin, and the same clock
+    /// [`crate::Connection::set_deadline`] files through the enum.
+    pub fn set_deadline(&mut self, at: Option<Instant>) {
+        self.wire.set_deadline(at);
     }
 
     /// The zone a zone-less `DATETIME` or `TIMESTAMP` off this connection is

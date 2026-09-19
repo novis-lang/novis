@@ -426,6 +426,9 @@ impl MariaConn {
         };
         let capabilities = crate::mysql::authenticate(&mut wire, &login, &greeting)?;
         crate::mysql::set_session_time_zone(&mut wire, capabilities, target.time_zone)?;
+        // Lifted for [`crate::PgConn::connect`]'s reason, which is the same on every
+        // driver that files the handshake clock on its own socket.
+        wire.set_deadline(None);
 
         Ok(MariaConn {
             wire,
@@ -442,6 +445,14 @@ impl MariaConn {
             // Nothing is parked until `stream` parks it — see the field.
             reading: None,
         })
+    }
+
+    /// Bounds every wait on this connection by `at`, or lifts the bound.
+    ///
+    /// [`crate::PgConn::set_deadline`]'s twin, and the same clock
+    /// [`crate::Connection::set_deadline`] files through the enum.
+    pub fn set_deadline(&mut self, at: Option<Instant>) {
+        self.wire.set_deadline(at);
     }
 
     /// The zone a zone-less `DATETIME` or `TIMESTAMP` off this connection is

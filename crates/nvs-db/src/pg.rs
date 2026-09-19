@@ -607,7 +607,9 @@ impl PgConn {
     /// `deadline` bounds the whole of that and not one leg of it — the connect,
     /// the handshake and every authentication round trip share one clock,
     /// filed on the socket where `nvs-host` keeps it. `None` is unbounded and
-    /// is for a caller that has its own bound.
+    /// is for a caller that has its own bound. **The clock is lifted before the
+    /// connection is handed back**, so a statement run later takes the deadline
+    /// its own caller files and never the leftover of getting here.
     ///
     /// The connection comes back [`State::Idle`]: at a message boundary, with
     /// a statement allowed.
@@ -661,6 +663,17 @@ impl PgConn {
         };
         let mut wire = Wire::new(stream);
         let startup = authenticate(&mut wire, target)?;
+        // The handshake's budget ends with the handshake. `NvsTcp::connect_timeout`
+        // lifts its own bound before it hands a stream back, and the one re-filed
+        // above — which is what carries the budget across the upgrade and the
+        // authentication round trips — is lifted here for the same reason: a
+        // statement a caller runs later files its own through [`Wire::set_deadline`].
+        // Left filed, this is a clock the caller never set, and it expires the
+        // connection a fixed time after opening it. It bites only on a read that has
+        // to wait, so a caller that files no deadline of its own — `nvs-cli`'s queue
+        // worker, and the `schema::opened` behind `nvs queue migrate` and `nvs schema
+        // apply` — keeps working on an idle machine and loses its connection under load.
+        wire.set_deadline(None);
 
         Ok(PgConn {
             wire,
@@ -679,6 +692,17 @@ impl PgConn {
             depth: Cell::new(0),
             reading: None,
         })
+    }
+
+    /// Bounds every wait on this connection by `at`, or lifts the bound.
+    ///
+    /// `rule:core-classes/db-statement-members`'s statement deadline for a
+    /// caller holding a `PgConn` itself. [`crate::Connection::set_deadline`] is
+    /// the same clock reached through the enum and owns what a deadline bounds,
+    /// why it outlives the call that filed it, and why every statement path
+    /// files its own — `None` included.
+    pub fn set_deadline(&mut self, at: Option<Instant>) {
+        self.wire.set_deadline(at);
     }
 
     /// The zone a zone-less `TIMESTAMP` off this connection is read in, as

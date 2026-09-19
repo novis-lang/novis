@@ -359,7 +359,8 @@ impl TdsConn {
     /// `db.connect`, and a driver that re-resolved the name would be connecting
     /// somewhere nobody approved. `deadline` covers the whole handshake rather
     /// than each step, because what a caller bounds is how long opening a
-    /// connection may take.
+    /// connection may take. It is lifted before the connection is handed back,
+    /// as [`crate::PgConn::connect`] lifts its own and for that one's reason.
     ///
     /// Unlike every other driver here this one sends nothing after the login.
     /// There is no charset to force — TDS carries text as UCS-2 and § 9's rows
@@ -390,6 +391,9 @@ impl TdsConn {
 
         let mut wire = negotiate_tls(Wire::new(tcp), target.host, target.tls_ca_file)?;
         let ack = login(&mut wire, target)?;
+        // Lifted for [`crate::PgConn::connect`]'s reason, which is the same on every
+        // driver that files the handshake clock on its own socket.
+        wire.set_deadline(None);
 
         Ok(TdsConn {
             wire,
@@ -410,6 +414,14 @@ impl TdsConn {
             // Nothing is parked until `stream` parks it — see the field.
             reading: None,
         })
+    }
+
+    /// Bounds every wait on this connection by `at`, or lifts the bound.
+    ///
+    /// [`crate::PgConn::set_deadline`]'s twin, and the same clock
+    /// [`crate::Connection::set_deadline`] files through the enum.
+    pub fn set_deadline(&mut self, at: Option<Instant>) {
+        self.wire.set_deadline(at);
     }
 
     /// [ADR 0067 § 13](/docs/decisions/0067.md)'s reset, before this
