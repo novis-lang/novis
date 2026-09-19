@@ -1,0 +1,6 @@
+fields changed, oldest first:
+  name is now Ada Lovelace
+  email is now ada@example.com
+  email is now ada.lovelace@example.com
+  orders is now 1
+the record now: Ada Lovelace <ada.lovelace@example.com> 1 orders

@@ -1,0 +1,40 @@
+<?nvs
+// A customer record that writes down every change anybody makes to it. The
+// recording is in one place, so no field can be edited without an entry being
+// added, and adding a field later does not mean remembering to log it.
+
+// The entries are kept outside the record. Writing one down must not count as a
+// change to the customer.
+final class Audit {
+    public static array<string> $entries = [];
+}
+
+class Customer implements PropertyObserver {
+    public string $name = "unknown";
+    public string $email = "";
+    public uint $orders = 0;
+
+    public function onPropertyGet(string $name, mixed $value): void {
+    }
+
+    // Called after the value has been stored, so this is what the record holds
+    // now. Both members are required, even when reads are of no interest.
+    public function onPropertySet(string $name, mixed $value): void {
+        Audit::$entries[] = $name . " is now " . $value;
+    }
+}
+
+var $ada = new Customer();
+$ada->name = "Ada Lovelace";
+$ada->email = "ada@example.com";
+
+// A correction and a new order, later in the day. Neither line has to remember
+// to log anything.
+$ada->email = "ada.lovelace@example.com";
+$ada->orders = $ada->orders + 1;
+
+echo "fields changed, oldest first:\n";
+foreach (Audit::$entries as string $field) {
+    echo "  ", $field, "\n";
+}
+echo "the record now: ", $ada->name, " <", $ada->email, "> ", $ada->orders, " orders\n";

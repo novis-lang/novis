@@ -1,0 +1,112 @@
+--TEST--
+A `PropertyObserver` is not reached by an access inside the observed property's own hooks, is not reached by a `static` property at all, and is re-entered with no guard when its own body writes a property of its class — `rule:classes/property-observer`, `rule:classes/property-observer-pipeline` and `rule:classes/property-hooks`
+--FILE--
+<?nvs
+// covers: PropertyObserver
+// `rule:classes/property-observer-pipeline` § 3's three boundaries, which all follow from the
+// pipeline being written about a *receiver*: the backing slot reached from
+// inside a hook, class storage that has no receiver, and an observer body that
+// is itself an access. The sibling case pins what the observer is told; this
+// one pins the three places it is not told anything, and the one place it is
+// told about its own writing.
+final class Tally {
+    public static int $reads = 0;
+    public static int $writes = 0;
+}
+
+// The first boundary: inside `celsius`'s own `get` and `set`, `$this->celsius`
+// names the backing slot, so the store the hook commits and the load the hook
+// answers with reach nothing. Without that, one write would be reported twice.
+class Reading implements PropertyObserver {
+    // The second boundary, on the observing class itself: a `static` property is
+    // class storage with no receiving instance, so neither of its accesses below
+    // reaches the pipeline at all.
+    public static int $calibrations = 0;
+
+    public int $celsius {
+        get => $this->celsius;
+        set(int $c) {
+            $this->celsius = $c;
+        }
+    }
+
+    public function constructor() {
+        $this->celsius = 0;
+    }
+
+    public function onPropertyGet(string $name, mixed $value): void {
+        Tally::$reads = Tally::$reads + 1;
+        echo "  get ", $name, " = ", $value, "\n";
+    }
+
+    public function onPropertySet(string $name, mixed $value): void {
+        Tally::$writes = Tally::$writes + 1;
+        echo "  set ", $name, " = ", $value, "\n";
+    }
+}
+
+// The third boundary: an observer that writes a property of its own class is
+// entered again for that write, exactly as any method calling itself is. There
+// is no re-entry guard, so the observer's own body is what has to stop — here
+// the class storage counting the reports, which reaches nothing itself and so
+// cannot be the thing it is counting.
+class Escalating implements PropertyObserver {
+    public static int $reports = 0;
+    public int $step;
+
+    public function constructor() {
+        $this->step = 0;
+    }
+
+    public function onPropertyGet(string $name, mixed $value): void {
+    }
+
+    public function onPropertySet(string $name, mixed $value): void {
+        Escalating::$reports = Escalating::$reports + 1;
+        echo "  report ", Escalating::$reports, ": ", $name, " = ", $value, "\n";
+        if (Escalating::$reports < 4) {
+            $this->step = Escalating::$reports;
+        }
+    }
+}
+
+// Two accesses on the receiver — the constructor's write and this one — plus one
+// read, and the hooks add four accesses of their own on top of them.
+echo "a hooked write and read:\n";
+Reading $r = new Reading();
+$r->celsius = 21;
+int $seen = $r->celsius;
+echo "  caller sees ", $seen, "\n";
+
+echo "class storage:\n";
+Reading::$calibrations = 3;
+echo "  caller sees ", Reading::$calibrations, "\n";
+
+// The count is the invariant and not any one line above it: one report per
+// access the receiver was named in, and not one from a hook's own slot or from
+// the class storage.
+echo "reads=", Tally::$reads, " writes=", Tally::$writes, "\n";
+
+echo "an observer that writes its own class:\n";
+Escalating $e = new Escalating();
+
+// Each write commits before its report, so the deepest report is the last value
+// committed and the slot keeps it after the nesting unwinds.
+echo "  stored ", $e->step, "\n";
+echo "  reports=", Escalating::$reports, "\n";
+--EXPECT--
+a hooked write and read:
+  set celsius = 0
+  set celsius = 21
+  get celsius = 21
+  caller sees 21
+class storage:
+  caller sees 3
+reads=1 writes=2
+an observer that writes its own class:
+  report 1: step = 0
+  report 2: step = 1
+  report 3: step = 2
+  report 4: step = 3
+  stored 3
+  reports=4
