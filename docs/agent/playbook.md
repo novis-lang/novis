@@ -2502,9 +2502,8 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   simply predate it, and `cargo build --release -p nvs-cli` relinks the world for a one-line edit.
   Build `cargo build` and run `target/debug/nvs.exe`: it is the binary `tools/loop.py` builds after
   every acceptance check, so it is the cheap answer and usually the faithful one. The exception is
-  `tools/dossier.py`, which picks `target/release` first and falls back to debug only when there is
-  no release binary at all — so a session that changed Rust owes it either `--nvs
-  target/debug/nvs.exe` on every call or one `cargo build --release` before the wrap.
+  `tools/dossier.py`, which runs every proof program against release and rebuilds it itself when
+  `crates/` has moved, so it is owed nothing by hand.
   [until: reviewed 2026-09-06]
 - **`wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh …` fails from the Bash tool and works
   from PowerShell.** Git Bash rewrites any argument that looks like a POSIX path before `wsl.exe`
@@ -3251,19 +3250,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   raises `the calibration did not measure anything` — the bench is not what is wrong. Re-run it: three
   refusals in a row are ordinary on this box, and changing `--reps` is not what makes the next one
   land. [until: reviewed 2026-09-19]
-- **`python tools/dossier.py --run` reaches for `target/release/nvs.exe` first, so a compiler fix
-  landed this session is invisible to it.** An attack that passes under `target/debug/nvs.exe`
-  fails the same sweep as `stderr carries 'panicked at'`, and nothing says which binary answered.
-  Pass `--nvs target/debug/nvs.exe` to see your own fix, and rebuild `cargo build --release -p
-  nvs-cli` once before the wrap when the session changed `crates/` — otherwise every later session's
-  floor check judges the old compiler. [until: reviewed 2026-09-19]
-- **`python tools/dossier.py` judges your program with `target/release/nvs.exe` first, and an
-  ordinary session never rebuilds that one.** Its `binary()` prefers the release profile and only
-  falls back to debug, so a `--bless` or a `--run examples` straight after a compiler fix reports the
-  *previous* binary's diagnostic and reads as if the fix had not worked. Pass `--nvs
-  target/debug/nvs.exe` while authoring, and spend one `cargo build --release` before the goal's own
-  dossier check has to see something you changed under `crates/`.
-  [until: gone tools/dossier.py:for profile in ("release", "debug")]
+- **The first `python tools/dossier.py --run`, `--verify`, `--bless` or `--record-perf` after an edit
+  under `crates/` sits for minutes, and it is building, not hanging.** Those four rebuild
+  `target/release/nvs.exe` themselves when a build input is newer than it, and say so on stderr
+  before cargo starts. Do not run `cargo build --release` for it and do not pass `--nvs
+  target/debug/nvs.exe` to get around it: the attacks are sized for release, and one in five of them
+  outlives its own `timeout-ms` against the debug binary.
+  [until: gone tools/dossier.py:def current_binary]
 
 ## Writing a test case
 

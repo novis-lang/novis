@@ -86,6 +86,14 @@ afford to run is a check nobody runs:
   reach a different verdict, which is the argument `verify.py` and `loop.py` both already make for
   their own caches. So a re-run with an unchanged binary costs the walk; a re-run after a rebuild
   costs the programs. `--no-cache` forces the long way, and a failure is never cached.
+* **A proof program runs against the release `nvs` of the tree as it stands.** `--run`, `--verify`,
+  `--bless` and `--record-perf` rebuild `target/release/nvs` first when a build input is newer than
+  it -- `current_binary` owns how that is decided -- so a session that fixes a crate and writes the
+  attack for the fix is judged on the fix. Release and never debug: the attacks are sized for it,
+  and against the debug binary one in five of them outlives its own `timeout-ms`. An unchanged
+  `crates/` costs a walk of it; a changed one costs a release build of `nvs-cli`, once. The audit
+  and the gate read the roster from whatever binary is on disk and build nothing, and `--nvs` names
+  a binary this tool then leaves alone.
 
 ## Running one group's features at once
 
@@ -244,6 +252,17 @@ CALIBRATION = BENCHES / "_calibration"
 #: Green verdicts from `--run`, keyed on the bytes that produced them. Under `.loop/` with every
 #: other run-time artefact, and gitignored with it.
 GREEN = ROOT / ".loop" / "dossier-green.json"
+#: When `current_binary` last had cargo answer for the release `nvs`. Cargo leaves the binary alone
+#: when the newer file is one `nvs-cli` does not compile -- a crate's test, a bench -- so the
+#: binary's own time cannot say "already asked", and touching the binary would stale every verdict
+#: in `GREEN` to record a build that changed nothing.
+RELEASE_STAMP = ROOT / ".loop" / "dossier-release.stamp"
+#: What a release build of `nvs-cli` reads, beside `crates/`. `loop.py`'s `crates` partition is the
+#: same list for the same reason.
+BUILD_INPUTS = ("Cargo.toml", "Cargo.lock", "rust-toolchain.toml", "nvs.toml")
+#: The build `loop.py`'s `Goal.release_cli` runs, argument for argument, so the two share one set
+#: of artefacts under `target/release/` and neither resolves a second feature set beside the other's.
+RELEASE_BUILD = ["cargo", "build", "--release", "-p", "nvs-cli"]
 
 #: Where `--partition` writes a worker's brief, and where a worker drops a finding. Under `.loop/`
 #: beside `dossier-green.json` for the same reason: a brief restates what the roster already says
@@ -431,6 +450,75 @@ def binary(explicit: str | None = None) -> Path | None:
         if p.exists():
             return p
     return None
+
+
+def newest_build_input() -> float:
+    """The latest modification time among the files a release `nvs` is built from."""
+    newest = 0.0
+    for name in BUILD_INPUTS:
+        try:
+            newest = max(newest, (ROOT / name).stat().st_mtime)
+        except OSError:
+            pass
+    for folder, _, names in os.walk(ROOT / "crates"):
+        for name in names:
+            try:
+                newest = max(newest, os.stat(os.path.join(folder, name)).st_mtime)
+            except OSError:
+                pass
+    return newest
+
+
+def current_binary(explicit: str | None = None) -> Path | None:
+    """The release `nvs` of the tree as it stands, built here when the one on disk is older.
+
+    What runs a proof program calls this and what only audits calls `binary`. A verdict about an
+    attack is a verdict about the runtime that ran it, and `binary` alone returns whatever was last
+    built by hand: `loop.py` builds this profile for `tools/bench.py` and nothing else, so a session
+    that changed a crate had its proofs judged on the runtime from before the change, and `GREEN`
+    went on skipping them because that binary never moved.
+
+    **Cargo is the judge and modification times only decide whether to ask it.** A build input newer
+    than both the binary and `RELEASE_STAMP` means cargo has not answered for this tree yet. It then
+    either relinks -- a new binary, and `GREEN` re-runs every program against it, which is the point
+    -- or finds nothing `nvs-cli` compiles has changed and leaves the binary and every cached
+    verdict as they were. The stamp records that it was asked either way.
+
+    A tree that does not build has no current binary, so that is a failure here and never a fall
+    back to the old one. A machine with no `cargo` to ask is different: nothing can be built, the
+    binary on disk is used, and the warning says it may be about old code. Two of these at once are
+    safe -- cargo takes its own lock on `target/` and the second finds the build done.
+    """
+    if explicit:
+        return binary(explicit)
+    exe = ROOT / "target" / "release" / ("nvs.exe" if os.name == "nt" else "nvs")
+    asked = 0.0
+    for p in (exe, RELEASE_STAMP) if exe.exists() else ():
+        try:
+            asked = max(asked, p.stat().st_mtime)
+        except OSError:
+            pass
+    if asked and newest_build_input() <= asked:
+        return exe
+    print(f"dossier: {rel(exe)} is missing or older than the tree -- {' '.join(RELEASE_BUILD)}",
+          file=sys.stderr)
+    try:
+        out = subprocess.run(RELEASE_BUILD, cwd=ROOT, **CAPTURE)
+    except OSError as exc:
+        print(f"dossier: could not run cargo ({exc}) -- using the binary on disk, which may be "
+              f"about old code", file=sys.stderr)
+        return binary()
+    if out.returncode != 0:
+        errors = [ln for ln in out.stderr.splitlines() if ln.startswith(("error", " -->"))][:6]
+        print("dossier: the tree does not build in release, so there is no `nvs` to judge a proof "
+              "against:\n  " + "\n  ".join(errors or out.stderr.splitlines()[-6:]))
+        return None
+    try:
+        RELEASE_STAMP.parent.mkdir(parents=True, exist_ok=True)
+        RELEASE_STAMP.write_text("", encoding="utf-8")
+    except OSError:
+        pass  # a stamp that cannot be written is cargo asked again next time, never a wrong binary
+    return exe if exe.exists() else binary()
 
 
 def git(*args: str) -> str:
@@ -3216,7 +3304,10 @@ def main() -> int:
     ap.add_argument("--per-goal", type=int, default=18, help="features per emitted goal")
     ap.add_argument("--all-groups", action="store_true",
                     help="with --emit-goals: include groups that owe nothing")
-    ap.add_argument("--nvs", help="the binary to use (default: target/release, then target/debug)")
+    ap.add_argument("--nvs",
+                    help="the binary to use, as it is. Default: target/release, rebuilt first when "
+                         "a proof program is about to run and crates/ is newer; the audit takes "
+                         "release, then debug, and builds nothing")
     args = ap.parse_args()
 
     # Before the binary is resolved, because this one reads files and executes nothing -- a tree
@@ -3231,10 +3322,14 @@ def main() -> int:
         return check_comments([ROOT / p if not Path(p).is_absolute() else Path(p)
                                for p in args.comments])
 
-    nvs = binary(args.nvs)
+    # Only what runs a proof program pays for a current binary; the audit reads a roster and a
+    # person asking `--owed` should not wait out a release build to be told what is missing.
+    executes = args.bless or args.run or args.verify or args.record_perf
+    nvs = current_binary(args.nvs) if executes else binary(args.nvs)
     if nvs is None:
-        print("dossier: no `nvs` binary. Build one (`cargo build --release -p nvs-cli`) or "
-              "pass --nvs.")
+        if not executes or args.nvs:
+            print("dossier: no `nvs` binary. Build one (`cargo build --release -p nvs-cli`) or "
+                  "pass --nvs.")
         return 1
 
     if args.bless:
