@@ -2,40 +2,42 @@
 
 ## State
 
-Goal `lang:enums`. Two of the chapter's nine features carry their full feature proofs:
-`a-case-is-its-integer` and `a-union-of-cases-is-a-narrower-type`. Seven are still owed, all in the
-same file set. Nothing is blocked.
+Goal `lang:enums`. Five of the chapter's nine features carry their full feature proofs:
+`a-case-is-its-integer`, `a-union-of-cases-is-a-narrower-type`, `an-enum-as-a-type`,
+`comparing-cases` and `match-and-switch-over-an-enum`. Four are still owed, all in the same file
+set. Nothing is blocked.
 
-Two findings landed with them. The reference chapter claimed "a comparison does not narrow", which
-is true only of an `||` of two comparisons (`docs/reference/findings.md` D19) — a single `==` does
-narrow, as `tests/conformance/lang/an-enum-case-comparison-narrows-its-subject.nvst` has pinned all
-along, and the chapter now says both halves. And `1 as Mode::Read|Mode::Write` was refused at
-compile time while the same value in a variable converted at run time; the membership test in
-`reject_impossible_literal_conversion` now reads the cases' values rather than their names.
+One claim of the chapter had no case at all: a `switch` over an enum falling through a label that
+has no `break`. `tests/conformance/enum/a-switch-over-an-enum-falls-through-a-label-without-break.nvst`
+pins it now, together with the fall into a `default` written last, against a `match` over the same
+subject, which never runs on. Every other claim of these three features was already pinned, so the
+edit there was the `covers:` marker that attributes the case.
 
 ## Next group
 
-Three more features of the same chapter, sharing one file set: `docs/reference/lang/55-enums.md`
-for what each one claims, plus the four proof trees under `docs/examples/lang/enums/`,
-`tests/hostile/lang/enums/`, `benches/members/lang/enums/` and `tests/conformance/enum/`. One slice
-is one feature with all its proofs, and the anchors below are the section each one is read from.
+Stage 2, the dossier. The four features this chapter still owes, sharing one file set:
+`docs/reference/lang/55-enums.md` for what each one claims, plus the four proof trees under
+`docs/examples/lang/enums/`, `tests/hostile/lang/enums/`, `benches/members/lang/enums/` and
+`tests/conformance/enum/`. One slice is one feature with all its proofs, and the anchor below is the
+section each one is read from.
 
-- [ ] **`lang:enums/an-enum-as-a-type`** — an enum's name at every binding site, and a case as an
-      array index through `as int`. `rule:enums/closed-integer-type`.
-      `docs/reference/lang/55-enums.md:193`
-- [ ] **`lang:enums/comparing-cases`** — `==`/`!=` by value within one enum, and the disjointness
-      refusal against an `int` or another enum. `rule:enums/closed-integer-type`.
-      `docs/reference/lang/55-enums.md:121`
-- [ ] **`lang:enums/match-and-switch-over-an-enum`** — source-order comparison, the throw on an
-      unmatched `match`, fall-through in a `switch`. `rule:enums/closed-integer-type`.
-      `docs/reference/lang/55-enums.md:151`
+- [ ] **`lang:enums/declaring-an-enum`** — the `enum` declaration itself: a case with no written
+      value counting on from the one before it, and the one backing type a declaration may name.
+      `rule:enums/declaration`, `rule:enums/one-backing-type`.
+      `docs/reference/lang/55-enums.md:8`
+- [ ] **`lang:enums/from-an-integer-back-to-a-case`** — `as E` and `as ?E` over an integer, which
+      reach a case only where one names that value. `rule:enums/closed-integer-type`.
+      `docs/reference/lang/55-enums.md:86`
+- [ ] **`lang:enums/what-replaces-php-s-enum-members`** — an enum body declares nothing but cases,
+      and what a static class does instead. `rule:enums/no-class-machinery`.
+      `docs/reference/lang/55-enums.md:283`
+- [ ] **`lang:enums/core-enums`** — the enums `Core` itself ships, and that they are ordinary enums.
+      `rule:enums/closed-integer-type`. `docs/reference/lang/55-enums.md:349`
 
 ## Backlog
 
-- `lang:enums/declaring-an-enum`, `from-an-integer-back-to-a-case`, `what-replaces-php-s-enum-members`
-  and `core-enums` are the rest of this goal — `python tools/dossier.py --owed --group 'lang:enums'`.
-- An `int`-backed enum cannot carry `int`'s own lowest value: the literal is refused (E0429) and a
-  case value must be a literal (E0436), so there is no spelling for it —
-  `docs/reference/lang/55-enums.md`.
-- A ternary joins at the base type, so `return $first ? Mode::Read : Mode::Write` does not satisfy a
-  `Mode::Read|Mode::Write` return, and `"a"|"b"` behaves the same — `rule:types/literal-types`.
+- `benches/members/lang/enums/an-enum-as-a-type.nvs` declares `allocations 0` and no `calls` figure:
+  it measures 1.00 calls per op, and an inline would make a declaration of 1 a false alarm —
+  `benches/members/README.md`.
+- Editing `docs/reference/lang/55-enums.md` stales every perf figure in this group, so a chapter
+  edit costs a `--record-perf` for all of them — `docs/agent/playbook.md`.

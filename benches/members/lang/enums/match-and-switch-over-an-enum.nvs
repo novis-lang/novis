@@ -1,0 +1,38 @@
+<?nvs
+// Chooses a number for a case with `match`, then with `switch`. A program meets this shape when a
+// request carries a status and the code picks one branch for it.
+// bench: iterations 400000
+// bench: calls 0
+// bench: allocations 0
+
+enum Mode { Read = 1, Write = 2, Exec = 3 }
+
+class Bench {
+    public static function run(int $rounds): int {
+        array<Mode> $modes = [Mode::Read, Mode::Write, Mode::Exec];
+        int $total = 0;
+        int $i = 0;
+        while ($i < $rounds) {
+            // Chained: the case chosen this round is picked by the number the
+            // last round produced, so both branches stay inside the loop.
+            Mode $mode = $modes[$total % 3];
+            int $step = match ($mode) {
+                Mode::Read => 1,
+                Mode::Write => 2,
+                default => 3,
+            };
+            switch ($mode) {
+                case Mode::Read:
+                    $step = $step + 1;
+                    break;
+                default:
+                    $step = $step + 2;
+            }
+            $total = $total + $step;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

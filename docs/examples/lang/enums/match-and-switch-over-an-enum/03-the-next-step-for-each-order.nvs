@@ -1,0 +1,32 @@
+<?nvs
+// Shows the next step to take for each order in a list. A `switch` runs
+// statements instead of returning a value, and `break` ends an arm. An arm
+// without `break` runs on into the arm below it.
+
+enum Stage { Placed, Paid, Shipped }
+
+class Work {
+    public static function next(Stage $stage): string {
+        string $todo = "";
+        switch ($stage) {
+            case Stage::Placed:
+                $todo = $todo . "take the payment; ";
+                // No `break` here, so a new order is also packed.
+            case Stage::Paid:
+                $todo = $todo . "pack the box";
+                break;
+            case Stage::Shipped:
+                $todo = $todo . "send the tracking number";
+                break;
+        }
+        return $todo;
+    }
+}
+
+array<Stage> $orders = [Stage::Placed, Stage::Paid, Stage::Shipped];
+
+// This prints `take the payment; pack the box`, then `pack the box`, then
+// `send the tracking number`.
+foreach ($orders as Stage $stage) {
+    echo Work::next($stage), "\n";
+}

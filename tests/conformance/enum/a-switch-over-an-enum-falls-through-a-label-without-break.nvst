@@ -1,0 +1,62 @@
+--TEST--
+A `switch` whose subject is an enum runs on into the next label's body when an arm has no `break`, including into a `default` written last — `rule:enums/closed-integer-type`, `rule:expressions/disjoint-comparison-refused`
+--FILE--
+<?nvs
+// covers: lang:enums/match-and-switch-over-an-enum
+// A label chain over an enum is a comparison on the case's integer, so nothing
+// about the subject's type ends an arm: `break` is the only thing that does,
+// and an arm without one runs into the body written below it. `match` over the
+// same subject has no fall-through at all, which is the pair this case holds
+// against each other.
+enum Stage: int {
+    Build = 1,
+    Test = 2,
+    Ship = 3,
+}
+
+final class Runner {
+    // The `Build` arm has no `break`, so it runs into the `Test` arm's body.
+    public static function from(Stage $s): string {
+        string $log = "";
+        switch ($s) {
+            case Stage::Build:
+                $log = $log . "build,";
+            case Stage::Test:
+                $log = $log . "test,";
+                break;
+            case Stage::Ship:
+                $log = $log . "ship,";
+        }
+        return $log;
+    }
+
+    // The last labelled arm falls into `default`, which is written last.
+    public static function tail(Stage $s): string {
+        string $log = "";
+        switch ($s) {
+            case Stage::Ship:
+                $log = $log . "ship,";
+            default:
+                $log = $log . "done,";
+        }
+        return $log;
+    }
+
+    // The same three subjects through `match`, which answers one arm and never
+    // runs into the next.
+    public static function once(Stage $s): string {
+        return match ($s) {
+            Stage::Build => "build",
+            Stage::Test => "test",
+            default => "other",
+        };
+    }
+}
+
+echo Runner::from(Stage::Build), "|", Runner::from(Stage::Test), "|", Runner::from(Stage::Ship), "\n";
+echo Runner::tail(Stage::Ship), "|", Runner::tail(Stage::Build), "\n";
+echo Runner::once(Stage::Build), "|", Runner::once(Stage::Test), "|", Runner::once(Stage::Ship), "\n";
+--EXPECT--
+build,test,|test,|ship,
+ship,done,|done,
+build|test|other

@@ -2,6 +2,7 @@
 A `match` and a `switch` whose subject is an enum compare each label on the integer its cases are (ADR 0010 §§ 3, 5, `rule:expressions/disjoint-comparison-refused`)
 --FILE--
 <?nvs
+// covers: lang:enums/match-and-switch-over-an-enum
 // `Ty::Enum` is a zero-byte tag over an integer and `nvs-codegen`'s `BinOp`
 // table carries no row for it, so every comparison over an enum is answered
 // one representation down, through the free `Reinterpret` of `rule:types/conversion`

@@ -1,0 +1,22 @@
+<?nvs
+// Shows a `match` that gives one text for each case of an enum. `match` tries
+// the arms from top to bottom and returns the first one that fits.
+
+enum Mode { Read, Write, Exec }
+
+class Name {
+    public static function of(Mode $mode): string {
+        return match ($mode) {
+            Mode::Read => "read",
+            Mode::Write => "write",
+            // `default` answers for every case that no arm above names.
+            default => "other",
+        };
+    }
+}
+
+// This prints `write`.
+echo Name::of(Mode::Write), "\n";
+
+// This prints `other`. No arm names `Exec`, so `default` answers.
+echo Name::of(Mode::Exec), "\n";
