@@ -1,0 +1,19 @@
+<?nvs
+// A program does not have to run to its last line. This one prints today's
+// orders; when there are none, there is nothing left to do, so it says so
+// and stops right there. On its own, `exit` ends the program as a success.
+
+array<string> $orders = [];
+
+echo "Nightly order report\n";
+
+if (Core\Arr::count($orders) == 0) {
+    echo "No orders came in today.\n";
+    exit;
+}
+
+foreach ($orders as string $order) {
+    echo '- ', $order, "\n";
+}
+
+echo "That is every order.\n";

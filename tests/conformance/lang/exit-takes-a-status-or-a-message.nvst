@@ -2,6 +2,7 @@
 `exit("…")` writes its message and ends with status zero, PHP's other spelling of the one construct — docs/adr/README.md § Decisions taken at project start
 --FILE--
 <?nvs
+// covers: lang:programs/ending-a-program
 // The operand carries both of PHP's spellings at once: an `int` is the
 // process status, and a `string` is a message written first, after which the
 // status is `0`. Anything else is a type mismatch at the operand, since

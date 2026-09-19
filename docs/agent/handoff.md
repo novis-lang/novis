@@ -2,62 +2,52 @@
 
 ## State
 
-Goal `lang-programs`, eight of its nine features finished with all four proofs plus `about.md`:
-`require-run-another-file-in-this-frame` and `autoload-find-a-class-by-its-namespace` landed this
-session. `python tools/dossier.py --verify --group lang:programs` names one owing,
-`ending-a-program`, and that is the whole of the next group. Both new benches declare
-`// bench: calls 1` and `// bench: allocations 0` and both measure them; the figures are in
-`docs/perf/members.ndjson`, which also carries a re-measure of the group's other seven features,
-because the chapter fix below moved the `impl_hash` every one of them is keyed on.
+Goal `lang-programs` is finished: all nine features carry the five artefacts, and `python
+tools/dossier.py --verify --group lang:programs` reports nothing owed and both suites clean.
+`ending-a-program` landed this session — `about.md`, three examples, one attack, `covers:` markers
+on the two `exit` cases already in `tests/conformance/lang/`, and a `[skip]` for its perf proof,
+because a program ends once and a bench would measure startup rather than `exit`. Both goal-end
+gates are clear: `owners.py --closes lang-programs` and `playbook.py --closes lang-programs` name
+nothing, and `verify.py --doc` is green.
 
-`docs/reference/lang/10-programs.md` § *`require`* said a required file runs "in the caller's own
-frame — same variables". It does not, and the binary agrees with the rule rather than the chapter:
-`rule:statements/a-required-file-shares-declarations-not-locals` is the home and says declarations
-cross and locals do not. The lead sentence and a new bullet now say what the rule says.
+The proof runner walked subdirectories while the gate counted only the top level, so the helper
+files last session put under `parts/` and `vendor/` ran as though they were cases and failed —
+nine examples and one attack. `run_scoped` now builds its file list from the feature directories
+the gate itself counts, at `tools/dossier.py:3000`, so the two can no longer disagree about what a
+case is. That is what took the group's suites from 36 and 12 files to 27 and 9.
 
-Both `require` and `autoload` need a second file beside the example program, and
-`docs/examples/README.md` § *What an example is* now says where it goes: a subdirectory of the
-example's own directory, because the sweep counts `*.nvs` at the top level only and the website
-mirror walks the whole tree. The three proof trees all follow it.
-
-Two findings are in `## Backlog` rather than in code. Both need a call only the user can make, so
-neither is a `# Known gaps` item: `python tools/owners.py --check` takes a milestone tag or nothing,
-and no milestone at M9 or later scopes either one.
+`docs/reference/lang/10-programs.md` § *Ending a program* was silent on the status range. The
+runtime reports the low byte on every platform — `crates/nvs-cli/src/main.rs:2545` masks with
+`& 0xFF`, as PHP does — so `exit(300)` exits 44 and `exit(-1)` exits 255, and the chapter now says
+so. The same paragraph no longer claims `die` does not exist; it parses, solely so `E0228` can
+point at `exit`, which is what `rule:statements/exit-is-the-only-termination-keyword` says. That
+edit moved the chapter's `impl_hash`, so the group's other eight figures were re-measured into
+`docs/perf/members.ndjson`.
 
 ## Next group
 
-**Stage 2: the dossier, the group's last feature and the goal's end** — one file set:
-`docs/reference/lang/10-programs.md`, a fresh directory each under `docs/examples/lang/programs/`
-and `tests/hostile/lang/programs/`, `tools/data/dossier-policy.toml`, and two `.nvst` cases already
-on disk that need only a `covers:` line. Shapes are `docs/examples/README.md`,
-`tests/hostile/README.md` and `rule:testing/four-proofs`.
+**Stage 2: the dossier, the opening of goal `lang-types`** — one file set:
+`docs/reference/lang/20-types.md`, and a fresh directory each under `docs/examples/lang/types/`
+and `tests/hostile/lang/types/`. Shapes are `docs/examples/README.md`, `tests/hostile/README.md`
+and `rule:testing/four-proofs`. The goal switch installs
+`docs/agent/goals/dossier/80-lang-types.handoff.md` over this file, so these three are what it
+already names.
 
-- [ ] **`lang:programs/ending-a-program`** — owes about, 3 examples, 2 tests, hostile. `exit;`,
-      `exit(3);` and `exit("message");` are the three forms, `die` does not exist, and an uncaught
-      throw ends the program with status 1. `docs/reference/lang/10-programs.md:254`
-- [ ] **Its perf is a `[skip]`, not a bench** — a program can exit once, so there is no loop to
-      measure, which is the case the goal's § *Standing decisions* names by hand ("a member whose
-      program exits"). Write `[skip."lang:programs/ending-a-program"]` with `perf = "<one
-      sentence>"`; the section is empty today and this is the tree's first entry, so the shape is
-      the one `load_policy` reads. Say so in the commit. `tools/data/dossier-policy.toml:44`
-- [ ] **Then the goal's end gates, then `DONE`** — `python tools/verify.py --doc`, then
-      `python tools/owners.py --closes lang-programs` and `python tools/playbook.py --closes
-      lang-programs`, fixing what each names before the status line goes in.
-      `docs/agent/loop-goal.toml:12212`
+- [ ] **`lang:types/array-t`** — owes about, examples, hostile, perf, tests.
+      `docs/reference/lang/20-types.md:151`
+- [ ] **`lang:types/callable-classes-object-shapes`** — owes about, examples, hostile, perf, tests.
+      `docs/reference/lang/20-types.md:186`
+- [ ] **`lang:types/every-binding-has-a-type`** — owes about, examples, hostile, perf, tests.
+      `docs/reference/lang/20-types.md:9`
 
 ## Backlog
 
-- A computed `require` path runs nothing and hands back `1`, silently — `require 'lib/' . $name .
-  '.nvs';` is a no-op. `crates/nvs-ir/src/lower/stmt.rs:403` and `lower/expr.rs:507` emit nothing
-  when `require_target` has no entry, and `crates/nvs-hir/src/requires.rs:12` leaves a non-literal
-  path for a "runtime fallback" that exists nowhere in the tree.
-  `docs/reference/lang/10-programs.md` says such a path resolves at run time and throws if it cannot
-  be read. Two answers, and it is the user's: build the runtime resolve, or refuse a non-literal
-  path where it is written.
-- An autoload miss does not name the roots that were searched, which
-  `docs/reference/lang/10-programs.md` § *`autoload`* says it does. What it prints is
-  `E0303 … no matching declaration`, so a wrong root reads as a wrong class name.
-- A second `namespace` declaration in one file parses and takes effect, which
-  `docs/reference/lang/10-programs.md` § *Namespaces and `use`* does not allow. No rule fragment
-  decides it either way; whether to refuse one is the user's call. (Carried from the previous
-  session.)
+- `nvs fmt` rewrites a quoted string with no escape to single quotes, and the identity corpus
+  covers `docs/examples/` and `tests/hostile/`, so a new proof file is formatted before it is
+  verified — `crates/nvs-fmt`'s module doc owns the rule.
+- No harness can assert a program's exit status: a `.nvst` case has only `--EXPECT--`, and the
+  `& 0xFF` narrowing lives in the binary's own `main`, out of reach of a `-p nvs-cli` test. The
+  hostile case is the only thing guarding it today, through the runner's crash-shaped-status rule.
+- `docs/examples/README.md` § *What an example is* says a helper file goes in a subdirectory
+  because the sweep counts the top level; now that the runner agrees, it could say so in one
+  sentence instead of explaining the mismatch.

@@ -5965,6 +5965,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   passes untouched. Run `target/debug/nvs.exe fmt <the files>` before you verify, and read the diff
   once — it moves a `class`/`function` brace to its own line and rewrites `"plain"` as `'plain'`,
   and it leaves every comment alone. [until: reviewed 2026-12-19]
+- **An example that exits non-zero cannot be blessed, so a feature whose point is the exit status
+  has to show it on the path that succeeds.** `tools/dossier.py`'s `bless` and its example runner
+  both treat a non-zero status as a failure before they look at stdout at all, so an `exit(3);` in
+  a `docs/examples/` program is reported as `exit 3:` and no `.out` is ever written. Write the
+  status-carrying branch in full and give the program data that takes the zero branch —
+  `docs/examples/lang/programs/ending-a-program/03-tell-the-shell-whether-the-check-passed.nvs` is
+  that shape. [until: gone tools/dossier.py:return "fail", f"exit {out.returncode}]
 
 ## Splitting a file that got too big
 

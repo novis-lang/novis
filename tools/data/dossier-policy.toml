@@ -42,3 +42,9 @@ constant = 100
 # ---------------------------------------------------------------------------------------------
 
 [skip]
+
+# A program can end exactly once, so there is no loop to put the feature in: a bench would
+# time process startup and JIT warm-up rather than `exit`, and re-measuring it would report
+# movement in everything except the thing being measured.
+[skip."lang:programs/ending-a-program"]
+perf = "A program ends once, so nothing can be iterated: a bench here would measure startup, not `exit`."

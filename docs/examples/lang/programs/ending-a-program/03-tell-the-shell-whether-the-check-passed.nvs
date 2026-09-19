@@ -1,0 +1,20 @@
+<?nvs
+// The number handed to `exit` is the status the shell reads once the program
+// is over, so a program that checks something can answer with it: zero when
+// everything was in order, and the number of problems when it was not. Every
+// address below is complete, so this run ends with a status of zero.
+
+array<string> $addresses = ['ada@example.com', 'grace@example.com'];
+
+int $problems = 0;
+foreach ($addresses as string $address) {
+    if (Core\Str::contains($address, '@')) {
+        echo 'ok   ', $address, "\n";
+    } else {
+        echo 'bad  ', $address, "\n";
+        $problems = $problems + 1;
+    }
+}
+
+echo 'checked ', Core\Arr::count($addresses), ', problems ', $problems, "\n";
+exit($problems);

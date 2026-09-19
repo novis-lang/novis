@@ -2,6 +2,7 @@
 `exit` stops the program where it stands: no `catch` sees it and no `finally` above it runs — docs/adr/README.md § Decisions taken at project start
 --FILE--
 <?nvs
+// covers: lang:programs/ending-a-program
 // PHP's `exit` is not an unwind. It is neither catchable nor observable by a
 // `finally`, in the frame that runs it or in any frame above — which is what
 // makes it a fourth ABI status rather than a `throw` with a nicer name.

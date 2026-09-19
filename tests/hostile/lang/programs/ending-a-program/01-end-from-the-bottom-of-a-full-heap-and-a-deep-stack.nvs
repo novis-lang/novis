@@ -1,0 +1,39 @@
+<?nvs
+// Attack: hoard memory, drive the call stack until it refuses, and then end
+// the program from deep inside clean-up blocks that never get their turn --
+// with a great deal of output still behind it, and a status far past the
+// largest one a shell can carry.
+// hostile: timeout-ms 20000
+
+class Ending
+{
+    public static array<string> $kept = [];
+
+    public static function down(uint $n): uint
+    {
+        Ending::$kept[] = Core\Str::repeat(s: 'x', times: 256);
+        try {
+            if ($n == 0) {
+                echo Core\Str::repeat(s: 'the end, and then some. ', times: 400000);
+                exit(2147483647);
+            }
+            return Ending::down($n - 1);
+        } finally {
+            Ending::$kept[] = 'this never gets to run';
+        }
+    }
+}
+
+uint $i = 0;
+while ($i < 400000) {
+    Ending::$kept[] = Core\Str::repeat(s: 'y', times: 256);
+    $i = $i + 1;
+}
+
+try {
+    echo Ending::down(4000000), "\n";
+} catch (Throwable $stackRanOut) {
+    echo "the stack ran out first\n";
+}
+
+echo Ending::down(500), "\n";
