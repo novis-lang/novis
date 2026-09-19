@@ -2413,24 +2413,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   example and fixture unrunnable in the meantime. Write the `.nvs` files first and the grant block
   second, and when a run fails on a path you have not created yet, that is what happened.
   [until: reviewed 2026-09-19]
-- **Editing a reference chapter makes every already-measured feature in that chapter stale**, because
-  a language feature's perf figure is current against its implementing file's *text* and that file is
-  the chapter itself. One bullet corrected in `docs/reference/lang/10-programs.md` turned three green
-  rows of `python tools/dossier.py --verify --group lang:programs` into `perf: stale`, which reads
-  exactly like work nobody has measured yet. Re-run `python tools/dossier.py --record-perf --group
-  <group>` straight after any chapter edit rather than after reading that failure.
-  [until: reviewed 2026-09-19]
 - **Editing a reference chapter stales the perf figure of every feature in it.** A language feature's
   implementing file *is* its `docs/reference/lang/*.md` chapter, so `rule:testing/member-perf-ledger`
   re-measures all eighteen of `lang:types` when one paragraph moves, and `dossier.py --verify
   --group` then reports `perf: stale` against features nobody touched. Re-record the group in one
-  call: `python tools/dossier.py --record-perf --group lang:types`. [until: reviewed 2026-09-19]
-- **A `lang:` feature's perf figure goes stale the moment its *reference chapter* is edited, because
-  that chapter is the implementing file the ledger fingerprints.** One sentence fixed in
-  `docs/reference/lang/30-expressions.md` marked every complete feature of `lang:expressions` stale
-  at once, and `dossier.py --verify` then reports the group as owing perf, which reads exactly like a
-  bench nobody wrote. Run `python tools/dossier.py --record-perf --group <group>` after any edit to a
-  reference chapter the goal's features live in, before the wrap. [until: reviewed 2026-09-19]
+  call: `python tools/dossier.py --record-perf --group lang:types`, straight after any chapter edit
+  rather than after reading that failure. [until: gone tools/dossier.py:impl_hash]
 - **`python tools/dossier.py --record-perf --force` widens the scope past the `--id` beside it and
   re-measures every bench whose figure is current, appending a row for each.** One call meant to
   refresh a single rewritten bench appended thirty-nine rows to `docs/perf/members.ndjson`, which is
@@ -3283,12 +3271,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   target/debug/nvs.exe` to get around it: the attacks are sized for release, and one in five of them
   outlives its own `timeout-ms` against the debug binary.
   [until: gone tools/dossier.py:def current_binary]
-- A one-line edit to a `docs/reference/lang/*.md` chapter stales the perf figure of **every** feature
-  in it, and the acceptance check then reports thirteen features owing a measurement. A language
-  feature's implementing file *is* its reference chapter, and `dossier.py` prices a figure's currency
-  by that file's text, so one reworded sentence invalidates the chapter. Make the doc fix first, then
-  re-record the whole chapter in one `python tools/dossier.py --record-perf --group <group>` before
-  running the gate. [until: gone tools/dossier.py:impl_hash]
 
 ## Writing a test case
 
