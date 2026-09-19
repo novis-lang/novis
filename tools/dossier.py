@@ -376,6 +376,11 @@ ENDS_EARLY_RE = re.compile(r"(?://|#)\s*hostile:\s*ends-early")
 #: bug too large for the slice that found it. The path names the module doc whose `# Known gaps`
 #: section carries the entry, which is where this repository already keeps exactly this fact.
 KNOWN_GAP_RE = re.compile(r"(?://|#)\s*dossier:\s*known-gap\s+(\S+)\s*(.*)")
+#: `// dossier: exit 1` in an example. A feature whose whole subject is the program *ending* --
+#: an uncaught throw, a limit, `exit($n)` -- cannot be shown by a program that runs to the last
+#: line, so the example declares the status it ends with and the runner requires exactly that.
+#: Everything else about it is unchanged: its `.out` is still frozen stdout, byte for byte.
+EXAMPLE_EXIT_RE = re.compile(r"(?://|#)\s*dossier:\s*exit\s+([0-9]+)")
 #: A Novis compile diagnostic. A runtime failure does not look like this -- an uncaught throw is a
 #: structured log line -- so this distinguishes "the attack was refused before it ran" from "the
 #: attack ran and the runtime handled it", which are opposite verdicts.
@@ -1161,6 +1166,19 @@ def normalise(text: str) -> str:
     return text.replace("\r\n", "\n").rstrip()
 
 
+def declared_exit(source: str) -> int:
+    """The status an example says it ends with, and `0` for every example that says nothing.
+
+    An example is a program a reader runs, so running to the last line is the default and stays
+    the default. A feature whose subject *is* the ending -- an uncaught throw, a limit, `exit($n)`
+    -- has no such program to write, and declaring the status is what lets it carry an example at
+    all rather than a skip entry. The status is exact, not merely non-zero: a program ending at 1
+    where it declared 3 has stopped doing what its page says it does.
+    """
+    m = EXAMPLE_EXIT_RE.search(source)
+    return int(m.group(1)) if m else 0
+
+
 def run_one_example(nvs: Path, path: Path) -> tuple[str, str]:
     """An example is named to the binary the way `bless` named it: repo-relative, posix, from the
     repository root. A program can print the path it was started with -- a log record carries the
@@ -1173,9 +1191,11 @@ def run_one_example(nvs: Path, path: Path) -> tuple[str, str]:
         out = subprocess.run([str(nvs), "run", rel(path)], timeout=60, cwd=ROOT, **CAPTURE)
     except subprocess.TimeoutExpired:
         return "fail", "timed out after 60s"
-    if out.returncode != 0:
+    want = declared_exit(source)
+    if out.returncode != want:
         first = (out.stderr.strip().splitlines() or [""])[0]
-        return "fail", f"exit {out.returncode}: {first}"
+        return "fail", (f"exit {out.returncode} where it declares `dossier: exit {want}`"
+                        if want else f"exit {out.returncode}: {first}")
     expected_file = path.with_suffix(".out")
     if not expected_file.exists():
         return "fail", f"no {expected_file.name} beside it"
@@ -3219,7 +3239,7 @@ def bless(nvs: Path, targets: list[Path]) -> int:
     failed = 0
     for path in targets:
         out = subprocess.run([str(nvs), "run", rel(path)], timeout=120, cwd=ROOT, **CAPTURE)
-        if out.returncode != 0:
+        if out.returncode != declared_exit(read(path)):
             print(f"  FAIL  {rel(path)} exited {out.returncode}:")
             print("        " + safe(out.stderr.strip().replace("\n", "\n        ")))
             failed += 1

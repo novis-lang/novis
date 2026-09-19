@@ -112,7 +112,10 @@ a program somebody skims for fifteen seconds and then writes their own version o
   something and shows nothing cannot be checked.
 - **Nothing is asserted.** An example is not a test and never carries `Core\Test`. What it *shows*
   is pinned by its `.out`; what the feature *guarantees* is pinned in `tests/conformance/`, and the
-  two are not the same file for a reason — a reader should be able to copy the whole example.
+  two are not the same file for a reason — a reader should be able to copy the whole example. The
+  one exception is a feature that **is** `Core\Test`: an assertion member and
+  `lang:errors/assertion-failures` can only be shown by a program that calls one, and such a program
+  still shows what it prints rather than asserting anything about itself.
 
 ## How a comment is written
 
@@ -141,6 +144,22 @@ than re-blessing: a `# Known gaps` entry in the owning crate's module doc, and a
 example naming it — `// dossier: known-gap crates/…/foo.rs -- what is wrong`. The sweep counts it as
 `known-gap` instead of a failure, and a marked example that passes fails the sweep, so the marker
 comes off with the fix.
+
+## `// dossier: exit 1`
+
+An example runs to its last line and exits `0`, and that is the default because an example is a
+program a reader copies. A feature whose whole subject is the **ending** — an uncaught throw, a
+limit stopping the program, `exit($n)` — has no such program to write, so it declares the status it
+ends with:
+
+    // dossier: exit 1
+
+and the runner then requires exactly that status, the way `tests/hostile/`'s `ends-early` marker
+already does for an attack. The status is exact rather than merely non-zero, so an example that
+lands on a different one is still a failure. Nothing else changes: the `.out` beside it is still
+frozen standard output, byte for byte, and what the program wrote to standard error is not part of
+it. Without this line, the feature could carry no example at all — which is a `[skip]` entry and a
+website page with nothing on it, for a feature a reader is especially likely to look up.
 
 ## `// requires: unimplemented`
 
