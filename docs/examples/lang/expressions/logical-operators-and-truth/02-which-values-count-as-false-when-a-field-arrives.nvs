@@ -1,0 +1,42 @@
+<?nvs
+// Shows which values count as false when you test one directly, and the two
+// that catch people out: the text "0" is false, while the text "0.0" is
+// true.
+
+// A quantity arrived from a form as text.
+string $quantity = "0";
+
+// Testing the text directly checks whether it is empty or the one character
+// "0". This prints "nothing ordered".
+if ($quantity) {
+    echo "something ordered\n";
+} else {
+    echo "nothing ordered\n";
+}
+
+// To check whether the field was filled in, compare it with empty text. This
+// prints "the field was filled in".
+if ($quantity != "") {
+    echo "the field was filled in\n";
+}
+
+// An empty array is false, and an array with anything in it is true, even
+// when that is a zero. This prints "no tags" and then "has sizes".
+array<string> $tags = [];
+array<int> $sizes = [0];
+if (!$tags) {
+    echo "no tags\n";
+}
+if ($sizes) {
+    echo "has sizes\n";
+}
+
+// An object is always true, whatever is inside it. This prints "have a
+// basket".
+class Basket {
+    public function constructor(public int $items) {}
+}
+Basket $basket = new Basket(0);
+if ($basket) {
+    echo "have a basket\n";
+}

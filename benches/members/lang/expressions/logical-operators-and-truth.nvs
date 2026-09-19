@@ -1,0 +1,29 @@
+<?nvs
+// Measures the checks a request runs before it acts: two conditions joined with `&&`, an
+// alternative joined with `||`, a `!`, and a piece of text used directly as a condition.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        string $role = "member";
+        string $blank = "";
+        uint $allowed = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: this round's strikes are decided by the results so far.
+            uint $strikes = ($i + $allowed) % 5;
+            bool $confirmed = $strikes != 0;
+            if ($confirmed && !($strikes > 3) && ($role == "admin" || $role == "member")) {
+                $allowed = $allowed + 1;
+            }
+            if (!$blank || $role) {
+                $allowed = $allowed + 1;
+            }
+            $i = $i + 1;
+        }
+        return $allowed;
+    }
+}
+
+echo Bench::run(400000), "\n";

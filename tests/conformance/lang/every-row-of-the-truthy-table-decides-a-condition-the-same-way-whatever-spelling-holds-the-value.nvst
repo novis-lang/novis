@@ -1,0 +1,86 @@
+--TEST--
+Every row of the truthy table decides a condition its own way — `""` and the one-character `"0"` falsy while `"0.0"` is not, a `bytes` falsy only when it is empty, `NAN` truthy, an empty array of any element type falsy, and an object, a closure and an enum case always truthy — and the same value reaching the condition through a `mixed` takes the same row, `rule:expressions/truthy-table`
+--FILE--
+<?nvs
+// covers: lang:expressions/logical-operators-and-truth
+// The table is asserted by counting rather than row by row, so a condition
+// that answered `true` for everything passes the truthy half and fails the
+// count. Each row that PHP and Novis answer differently, and each row a
+// reader is likely to guess wrong, states both halves.
+
+enum Rank { Bronze }
+
+class Meter {
+    public function constructor(public int $reading) {}
+}
+
+uint $falsy = 0;
+uint $truthy = 0;
+
+// `null` is false, and `false` is false.
+if (!null) { $falsy = $falsy + 1; }
+if (!false) { $falsy = $falsy + 1; }
+if (true) { $truthy = $truthy + 1; }
+
+// A whole number is false only at zero, for both signednesses.
+uint $noneHeld = 0;
+uint $oneHeld = 1;
+if (!0) { $falsy = $falsy + 1; }
+if (!$noneHeld) { $falsy = $falsy + 1; }
+if (-1) { $truthy = $truthy + 1; }
+if ($oneHeld) { $truthy = $truthy + 1; }
+
+// Both zeros are false, and NAN is true, because it is not zero.
+float $nan = Core\Math::fdiv(0.0, 0.0);
+if (!0.0) { $falsy = $falsy + 1; }
+if (!(-0.0)) { $falsy = $falsy + 1; }
+if ($nan) { $truthy = $truthy + 1; }
+if (0.5) { $truthy = $truthy + 1; }
+
+// Text is false when it is empty and when it is the one character `"0"`, and
+// true for every other text, `"0.0"` and `"false"` included.
+if (!"") { $falsy = $falsy + 1; }
+if (!"0") { $falsy = $falsy + 1; }
+if ("0.0") { $truthy = $truthy + 1; }
+if ("false") { $truthy = $truthy + 1; }
+if ("00") { $truthy = $truthy + 1; }
+
+// A `bytes` is false only when it is empty: the one-octet `"0"` is true,
+// which is the one row PHP does not supply.
+bytes $noOctets = "" as bytes;
+bytes $zeroOctet = "0" as bytes;
+if (!$noOctets) { $falsy = $falsy + 1; }
+if ($zeroOctet) { $truthy = $truthy + 1; }
+
+// An array is false when it is empty, whatever its element type, and true
+// when it holds anything at all — an element that is itself false included.
+array<int> $noNumbers = [];
+array<string> $noText = [];
+array<int> $oneZero = [0];
+if (!$noNumbers) { $falsy = $falsy + 1; }
+if (!$noText) { $falsy = $falsy + 1; }
+if ($oneZero) { $truthy = $truthy + 1; }
+
+// An object, a closure and an enum case are true whatever they hold.
+Meter $atZero = new Meter(0);
+callable $identity = fn(int $n): int => $n;
+if ($atZero) { $truthy = $truthy + 1; }
+if ($identity) { $truthy = $truthy + 1; }
+if (Rank::Bronze) { $truthy = $truthy + 1; }
+
+// A `mixed` takes one row per tag, decided at run time, so the two spellings
+// of one value never disagree.
+mixed $heldZero = 0;
+mixed $heldZeroText = "0";
+mixed $heldZeroOctet = "0" as bytes;
+mixed $heldList = [1];
+if (!$heldZero) { $falsy = $falsy + 1; }
+if (!$heldZeroText) { $falsy = $falsy + 1; }
+if ($heldZeroOctet) { $truthy = $truthy + 1; }
+if ($heldList) { $truthy = $truthy + 1; }
+
+echo "falsy ", $falsy, "\n";
+echo "truthy ", $truthy, "\n";
+--EXPECT--
+falsy 13
+truthy 15

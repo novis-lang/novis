@@ -1,0 +1,75 @@
+<?nvs
+// Attack: a condition has to decide whether a value is true, and a `&&` has
+// to decide whether to run its right side. Both are given work far past what
+// a program does: enormous values to test, and a recursion that happens
+// inside the right operand. Nothing may crash or hang.
+// hostile: timeout-ms 20000
+
+class Attack
+{
+    // 1. Text and arrays millions of entries long, tested as conditions over
+    // and over. Deciding this should not depend on their size.
+    public static function enormous(uint $rounds): uint
+    {
+        string $text = '';
+        array<int> $numbers = [];
+        uint $built = 0;
+        while ($built < 200000) {
+            $text = $text . 'novis-';
+            $numbers[] = $built as int;
+            $built = $built + 1;
+        }
+        uint $true = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            if ($text && $numbers && !($text == '')) {
+                $true = $true + 1;
+            }
+            $i = $i + 1;
+        }
+        return $true;
+    }
+
+    // 2. A `&&` whose right side calls back into this method, so the chain
+    // of short-circuit decisions is as deep as the recursion.
+    public static function deep(uint $depth): bool
+    {
+        if ($depth == 0) {
+            return true;
+        }
+        return $depth > 0 && Attack::deep($depth - 1);
+    }
+
+    // 3. The same for `||`, which never gets its answer and so runs every
+    // level.
+    public static function deepEither(uint $depth): bool
+    {
+        if ($depth == 0) {
+            return false;
+        }
+        return $depth > 1000000 || Attack::deepEither($depth - 1);
+    }
+
+    // 4. A negation stacked forty deep over a value the compiler cannot see
+    // through.
+    public static function negated(mixed $value): bool
+    {
+        return !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!$value;
+    }
+}
+
+echo Attack::enormous(100000), "\n";
+
+// Each recursion is caught, so one of them running out of stack does not
+// keep the attacks after it from running.
+try {
+    echo Attack::deep(1000000) as string, "\n";
+} catch (RecursionError $e) {
+    echo $e->message, "\n";
+}
+try {
+    echo Attack::deepEither(1000000) as string, "\n";
+} catch (RecursionError $e) {
+    echo $e->message, "\n";
+}
+echo Attack::negated('0') as string, "\n";
