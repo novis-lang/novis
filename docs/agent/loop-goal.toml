@@ -97,6 +97,9 @@ files = [
 
 modules = [
   "docs/reference/lang/55-enums.md",
+  # What an operator's operands have to be, and what it produces: `rule:types/arithmetic`'s
+  # result-type table and the three refusals layered onto it.
+  "crates/nvs-types/src/expr/operators.rs",
 ]
 
 rules = ["testing/feature-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
