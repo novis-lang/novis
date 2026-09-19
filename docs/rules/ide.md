@@ -3,7 +3,7 @@
 
 # The editor
 
-*61 of 68 rules below are **designed** rather than shipped, and are marked where they appear.*
+*60 of 71 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="ide-one-grammar-one-tree"></a>
 
@@ -391,30 +391,37 @@ compiler, including the one that maintains this repository: over the corpus it e
 diagnostic the text renderer prints, with the same codes and spans.
 
 `nvs check` on the command line analyses what it is given, as it always has — the scope setting of
-[`ide/check-scope-defaults-to-open-documents`](ide.md#ide-check-scope-defaults-to-open-documents) is the editor's, not the CLI's.
+[`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace) is the editor's, not the CLI's.
 
-<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/renderings`](errors.md#errors-renderings), [`ide/check-scope-defaults-to-open-documents`](ide.md#ide-check-scope-defaults-to-open-documents), [`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded), [`ide/ast-json-schema-is-frozen`](ide.md#ide-ast-json-schema-is-frozen). Decided in [0108](../decisions/0108.md), [0172](../decisions/0172.md).</sub>
+<sub>See also [`errors/diagnostic-record`](errors.md#errors-diagnostic-record), [`errors/renderings`](errors.md#errors-renderings), [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace), [`packaging/a-dependency-break-is-absorbed-never-forwarded`](packaging.md#packaging-a-dependency-break-is-absorbed-never-forwarded), [`ide/ast-json-schema-is-frozen`](ide.md#ide-ast-json-schema-is-frozen). Decided in [0108](../decisions/0108.md), [0172](../decisions/0172.md).</sub>
 
-<a id="ide-check-scope-defaults-to-open-documents"></a>
+<a id="ide-check-scope-defaults-to-the-workspace"></a>
 
-## Diagnostics are published for open documents and their require graph by default, and a workspace pass is one setting or one command  *(designed — not yet in the compiler)*
+## The symbol index covers every file under the workspace folder by default, and `"open"` narrows it to the open documents and their require graph
 
-`rule:ide/check-scope-defaults-to-open-documents`
+`rule:ide/check-scope-defaults-to-the-workspace`
 
-`nvs.check.scope` is `"open"` or `"workspace"`, default `"open"`: diagnostics are published for open
-documents and their `require`/`autoload` graph, or for every file the index holds. The default does not
-change what the editor did before the setting existed. `nvs.checkWorkspace` runs one workspace pass on
-demand without changing the setting, which is the cheap version of the same thing.
+`nvs.check.scope` is `"workspace"` or `"open"`, default `"workspace"`: the symbol index is built over every
+`.nvs` file under the workspace folder, or over the open documents and their `require`/`autoload` graph
+alone. The index is what completion offers a type out of, what references and the code lens count, and
+what diagnostics are published for, so the default is the scope at which a developer is offered the classes
+of their own project and not only the ones already on screen. `nvs.checkWorkspace` runs one workspace pass
+on demand without changing the setting, which is what a developer who chose `"open"` reaches for.
 
-Workspace scope is the expensive setting, and the one whose cost is measured least, which is why it is
-off by default. The one feature that is only correct at workspace scope —
-[`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index)'s unused-member dimming — is silent under the default
-rather than wrong, and lands together with this setting.
+Workspace scope is the expensive setting. The tree under the root is walked once when the server starts
+and a repository nobody has opened a file in is still read in full; what it holds for the life of the
+session is one declaration and occurrence list per file. `"open"` is the answer for a tree too large for
+that, and a client that named no workspace folder gets the open documents under either value, because
+guessing a root from an open file's parent would index whatever happened to be beside it.
+
+The one feature that is only correct at workspace scope —
+[`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index)'s unused-member dimming — is silent at open scope rather
+than wrong.
 
 Both identifiers, with `nvs.codeLens.enable`, `nvs.template.services` and the `nvs/regions` request, are
 added to the extension's frozen roster under that roster's own rule: a name is added and never renamed.
 
-<sub>See also [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index), [`ide/check-json-is-the-diagnostic-record-as-a-document`](ide.md#ide-check-json-is-the-diagnostic-record-as-a-document), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0108](../decisions/0108.md).</sub>
+<sub>See also [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index), [`ide/check-json-is-the-diagnostic-record-as-a-document`](ide.md#ide-check-json-is-the-diagnostic-record-as-a-document), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0108](../decisions/0108.md), [0193](../decisions/0193.md).</sub>
 
 <a id="ide-a-code-action-ships-only-a-fix-a-diagnostic-already-knows"></a>
 
@@ -773,7 +780,7 @@ where a reader most needs to see the shape rather than reconstruct it.
 The fifth is **unused-member dimming**: a private member, constant or `use` with no reference anywhere in
 the index is a diagnostic carrying LSP's `Unnecessary` tag, rendered as dimming rather than a squiggle.
 It is only correct at workspace scope — a symbol unused in the open buffer is not unused — so it is
-silent under the default of [`ide/check-scope-defaults-to-open-documents`](ide.md#ide-check-scope-defaults-to-open-documents) rather than wrong.
+silent under the default of [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace) rather than wrong.
 
 Call hierarchy is deliberately not in this list. `textDocument/callHierarchy` is a different index —
 call-site edges kept incrementally — and nothing else needs it, so it is not built.
@@ -781,7 +788,7 @@ call-site edges kept incrementally — and nothing else needs it, so it is not b
 The structural check is that `nvs-lsp` has exactly one symbol-index construction site and all five
 readers read it.
 
-<sub>See also [`ide/check-scope-defaults-to-open-documents`](ide.md#ide-check-scope-defaults-to-open-documents), [`classes/no-traits`](classes.md#classes-no-traits), [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0108](../decisions/0108.md).</sub>
+<sub>See also [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace), [`classes/no-traits`](classes.md#classes-no-traits), [`classes/interface-default-methods`](classes.md#classes-interface-default-methods), [`classes/delegation-by-field`](classes.md#classes-delegation-by-field), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added), [`ide/every-feature-is-staged-behind-its-dependency`](ide.md#ide-every-feature-is-staged-behind-its-dependency). Decided in [0108](../decisions/0108.md).</sub>
 
 <a id="ide-completion-offers-only-what-the-compiler-derived"></a>
 
@@ -821,6 +828,102 @@ A test, not review, enforces this: `nvs-lsp`'s completion sources are enumerated
 table the compiler builds for another reason.
 
 <sub>See also [`ide/three-of-four-item-shapes-insert-nothing`](ide.md#ide-three-of-four-item-shapes-insert-nothing), [`routing/routes-are-compiled-not-registered`](routing.md#routing-routes-are-compiled-not-registered), [`routing/link-name-and-params-are-checked`](routing.md#routing-link-name-and-params-are-checked), [`config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one`](config.md#config-a-duplicate-key-is-an-error-and-so-is-an-unknown-one), [`routing/api-document-is-generated-from-the-route-table`](routing.md#routing-api-document-is-generated-from-the-route-table), [`programs/first-party-framework`](programs.md#programs-first-party-framework), [`php-migration/every-php-builtin-is-a-completion-candidate`](php-migration.md#php-migration-every-php-builtin-is-a-completion-candidate), [`php-migration/an-item-inserts-only-a-registered-member`](php-migration.md#php-migration-an-item-inserts-only-a-registered-member). Decided in [0108](../decisions/0108.md), [0111](../decisions/0111.md).</sub>
+
+<a id="ide-a-bare-name-reaches-every-type-and-imports-the-one-accepted"></a>
+
+## A bare name is offered every type the registry and the workspace index hold, by short name, and accepting one that needs an import writes its `use` line
+
+`rule:ide/a-bare-name-reaches-every-type-and-imports-the-one-accepted`
+
+A bare name at a statement or expression position is offered every type the server holds — the `Core`
+registry's classes and enums and every declaration in the workspace index — from the first character
+typed, and accepting one that no short name reaches inserts its last segment and adds the `use` line for
+it. The registry is the roster a `Core\` separator already lists, read before the separator is written, so
+this is [`ide/completion-offers-only-what-the-compiler-derived`](ide.md#ide-completion-offers-only-what-the-compiler-derived) and not an exception to it.
+
+**The spelling offered is the shortest one that resolves, and the editor makes it resolve.** A type an
+import or the namespace in force already reaches is offered by that short name and edits nothing else. Any
+other type is offered by its last segment, with the qualified name beside it, and the item carries one more
+edit: `use Qualified\Name;` after the last `use` the cursor's namespace has, failing that after the
+`namespace Name;` line in force, failing that after the open tag. Where the short name is already taken in
+the file, or there is no such line to write after — a bracketed namespace with no `use` in it, a shebang
+script with no open tag — the item is the qualified name and edits nothing else. After `use`, every type is
+its qualified name, because a declaration's name is absolute
+([`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute)).
+
+**Matching is the client's.** The server sends the whole list once and the editor filters it as the name is
+typed, so `cs` finds `Core\Str` by the editor's own match across the separator: an item's filter text is
+both of its spellings. **Ranking is the server's where the match ties**, in this order: the variables the
+body declared, imported types, types in the namespace in force, types already written somewhere in the
+file, the rest of `Core`, the rest of the workspace, the reserved words, and the PHP names last. Every tier
+is read off a table an arm already reads — the body's scope, the file's imports, the index's occurrences.
+A member list after `->` or `::` has no tiers.
+
+What it spends is one item per type on every bare-position request, a few hundred for the registry alone,
+built and dropped with the answer.
+
+<sub>See also [`ide/completion-offers-only-what-the-compiler-derived`](ide.md#ide-completion-offers-only-what-the-compiler-derived), [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace), [`statements/a-qualified-name-is-absolute`](statements.md#statements-a-qualified-name-is-absolute). Decided in [0193](../decisions/0193.md).</sub>
+
+<a id="ide-completion-is-asked-where-a-spelling-ends"></a>
+
+## A trigger character opens a list only where it finished `->`, `::`, `\`, `$` or `<?`, and `$`, a lone `:` and `<?` each narrow what is offered
+
+`rule:ide/completion-is-asked-where-a-spelling-ends`
+
+The completion trigger characters are `>`, `:`, `\`, `$` and `?` — the last character of `->`, of `::`, of
+a namespace separator, of a variable's `$` and of a half-written `<?` — and a request one of them raised is
+answered only where the text before the cursor ends in that whole spelling. Each of the five is also an
+operator's character, and an editor asks on the keystroke: answering `$a >` or `Core\Str:` with whatever
+the position offers opens a list nobody asked for. `-` is not a trigger, because it finishes nothing. A
+request the developer raised by hand, or by typing a name, is not held to this.
+
+Three spellings narrow what is offered whoever asked. **After `$`, only variables**: the ones the innermost
+body declared, each replacing the `$` already typed, because a lone `$` is no word to a client and one left
+to choose its own range would write `$$name`. A cursor past the end of every body is in the file's own
+script frame, which is where a developer types in a file with no trailing newline. **After a single `:`
+that follows a bare name, nothing**: `Name:` is half of `Name::` and nothing may be written between the
+colons. **After `<?` in a run of markup, the two open tags and nothing else**
+([`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag)), each replacing the bytes already typed. `<?` is not yet a
+tag, so the lexer still reads it as markup, and it is the one place in markup where the developer is
+writing Novis.
+
+The markup half has a second side, on `nvs/regions`
+([`ide/a-template-region-gets-the-editors-services-and-formatter`](ide.md#ide-a-template-region-gets-the-editors-services-and-formatter)): a half-written open tag and the one
+character after it are cut out of the HTML region they sit in, so the client forwards nothing there and the
+HTML service does not answer beside the two tags. The extra character is what keeps a cursor at the end of
+the hole out of the region that follows, since a client reads a region as half-open. `<?xml` and every
+other processing instruction stay markup's own.
+
+<sub>See also [`ide/a-template-region-gets-the-editors-services-and-formatter`](ide.md#ide-a-template-region-gets-the-editors-services-and-formatter), [`statements/nvs-is-the-only-open-tag`](statements.md#statements-nvs-is-the-only-open-tag). Decided in [0193](../decisions/0193.md).</sub>
+
+<a id="ide-keywords-are-offered-where-the-compiler-accepts-them"></a>
+
+## A reserved word is offered only where the token before it and the nodes around it let the compiler accept it
+
+`rule:ide/keywords-are-offered-where-the-compiler-accepts-them`
+
+A reserved word is offered only at a cursor where the compiler accepts it, which two things decide. **The
+token before the name being written** says whether a statement starts there: after `;`, `{`, `}`, `)`, `:`,
+an open or close tag, `else` or `do`, or at the top of the file, every word may be written; after anything
+else the cursor is inside an expression and is offered only the words that open one — `new`, `match`, `fn`,
+`null`, `true` and the rest of the grammar's primary-expression dispatch — and never `class`, `if` or
+`return`. After `new`, `extends` and `implements` it is offered types and no word at all. The tokens are
+the lexer's own, so a `;` inside a string is not a statement's end; the tree cannot answer this, because
+the name being written is usually what stops the statement around it from parsing.
+
+**What encloses the cursor** decides the rest, read off the index's ancestor list
+([`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor)): `break` needs a loop or a `switch` and `continue` a loop, with
+no function body between it and the cursor; `self`, `parent` and `static` need a class, an interface or an
+enum; `yield` needs a function body; and the words that open a declaration — `class`, `interface`, `enum`,
+`abstract`, `final`, `namespace`, `use`, `autoload` — need there to be no function body around them, since
+a type declared inside one is `E0233`.
+
+The lists stay what they were: spellings read out of the grammar's two dispatches, held to the lexer's
+reserved words by a test. What this adds is when each is offered. It errs toward offering: after a `:` a
+ternary's last operand and a `case` arm's first statement are one position, and both lists are offered
+there.
+
+<sub>See also [`ide/the-index-answers-the-cursor`](ide.md#ide-the-index-answers-the-cursor), [`ide/the-request-set-is-closed`](ide.md#ide-the-request-set-is-closed). Decided in [0193](../decisions/0193.md).</sub>
 
 <a id="ide-three-of-four-item-shapes-insert-nothing"></a>
 
@@ -1268,7 +1371,7 @@ That one line is the difference between working in every remote configuration an
 them with a message about `nvs` not being on `PATH`. The same contributions test that checks the frozen
 identifiers asserts it.
 
-<sub>See also [`ide/check-scope-defaults-to-open-documents`](ide.md#ide-check-scope-defaults-to-open-documents), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0108](../decisions/0108.md).</sub>
+<sub>See also [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace), [`ide/contributions-are-frozen-and-only-ever-added`](ide.md#ide-contributions-are-frozen-and-only-ever-added). Decided in [0108](../decisions/0108.md).</sub>
 
 <a id="ide-the-extension-runs-where-the-binary-is"></a>
 

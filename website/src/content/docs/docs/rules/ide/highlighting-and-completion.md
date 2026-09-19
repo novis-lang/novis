@@ -15,9 +15,9 @@ next:
 
 <p class="nv-section-lead">Two highlighting layers that ship names and no colours, and completion that offers only what the compiler already derived.</p>
 
-<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">8</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">1</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">7</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">6</span><span class="nv-count-label">differ from PHP</span></div></div>
+<div class="nv-counts"><div class="nv-count" data-kind="total"><span class="nv-count-value">11</span><span class="nv-count-label">rules</span></div><div class="nv-count" data-kind="shipped"><span class="nv-count-value">4</span><span class="nv-count-label">shipped</span></div><div class="nv-count" data-kind="designed"><span class="nv-count-value">7</span><span class="nv-count-label">designed</span></div><div class="nv-count" data-kind="php"><span class="nv-count-value">6</span><span class="nv-count-label">differ from PHP</span></div></div>
 
-<ol class="nv-rule-list"><li><a href="#highlighting-is-two-layers">Syntax highlighting is a TextMate grammar and a semantic-token provider, each with its own test, and each must cover what makes Novis not PHP</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#rejected-syntax-gets-no-colour">Nothing Novis rejects is coloured as though it were valid</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#semantic-tokens-carry-the-qualifiers">Semantic tokens use LSP's standard types plus two modifiers of Novis's own, <code>tainted</code> and <code>secret</code>, and the client's legend must equal the server's</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#novis-ships-names-not-colours">Both layers ship standard names and no colours: every scope is on the TextMate allowlist, every token type is in LSP's legend, and the extension overrides no theme</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#five-features-are-one-reference-index">Find-references, occurrence highlight, CodeLens, type hierarchy and unused-member dimming are five queries against one workspace index</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#completion-offers-only-what-the-compiler-derived">The editor completes a value only where the compiler already derives it for another reason, never from a convention scan, an annotation dialect or the network</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#three-of-four-item-shapes-insert-nothing">A PHP-name completion item takes one of four shapes, and three of them insert nothing</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-template-region-gets-the-editors-services-and-formatter">An inline-HTML region gets the editor's own HTML, CSS and JavaScript services on boundaries the server reports, and the editor's HTML formatter after <code>nvs fmt</code>, indented from the Novis code around it</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li></ol>
+<ol class="nv-rule-list"><li><a href="#highlighting-is-two-layers">Syntax highlighting is a TextMate grammar and a semantic-token provider, each with its own test, and each must cover what makes Novis not PHP</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#rejected-syntax-gets-no-colour">Nothing Novis rejects is coloured as though it were valid</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#semantic-tokens-carry-the-qualifiers">Semantic tokens use LSP's standard types plus two modifiers of Novis's own, <code>tainted</code> and <code>secret</code>, and the client's legend must equal the server's</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#novis-ships-names-not-colours">Both layers ship standard names and no colours: every scope is on the TextMate allowlist, every token type is in LSP's legend, and the extension overrides no theme</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#five-features-are-one-reference-index">Find-references, occurrence highlight, CodeLens, type hierarchy and unused-member dimming are five queries against one workspace index</a><span class="nv-rule-list-status" data-status="designed">Designed</span></li><li><a href="#completion-offers-only-what-the-compiler-derived">The editor completes a value only where the compiler already derives it for another reason, never from a convention scan, an annotation dialect or the network</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-bare-name-reaches-every-type-and-imports-the-one-accepted">A bare name is offered every type the registry and the workspace index hold, by short name, and accepting one that needs an import writes its <code>use</code> line</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#completion-is-asked-where-a-spelling-ends">A trigger character opens a list only where it finished <code>-&gt;</code>, <code>::</code>, <code>\</code>, <code>$</code> or <code>&lt;?</code>, and <code>$</code>, a lone <code>:</code> and <code>&lt;?</code> each narrow what is offered</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#keywords-are-offered-where-the-compiler-accepts-them">A reserved word is offered only where the token before it and the nodes around it let the compiler accept it</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span></li><li><a href="#three-of-four-item-shapes-insert-nothing">A PHP-name completion item takes one of four shapes, and three of them insert nothing</a><span class="nv-rule-list-status" data-status="designed">Designed</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li><li><a href="#a-template-region-gets-the-editors-services-and-formatter">An inline-HTML region gets the editor's own HTML, CSS and JavaScript services on boundaries the server reports, and the editor's HTML formatter after <code>nvs fmt</code>, indented from the Novis code around it</a><span class="nv-rule-list-status" data-status="shipped">Shipped</span><span class="nv-rule-list-flag" title="Differs from PHP">PHP</span></li></ol>
 
 <div class="nv-rule" id="highlighting-is-two-layers">
 
@@ -172,7 +172,7 @@ where a reader most needs to see the shape rather than reconstruct it.
 The fifth is **unused-member dimming**: a private member, constant or `use` with no reference anywhere in
 the index is a diagnostic carrying LSP's `Unnecessary` tag, rendered as dimming rather than a squiggle.
 It is only correct at workspace scope — a symbol unused in the open buffer is not unused — so it is
-silent under the default of [`ide/check-scope-defaults-to-open-documents`](/docs/rules/ide/the-language-server/#check-scope-defaults-to-open-documents "Diagnostics are published for open documents and their require graph by default, and a workspace pass is one setting or one command") rather than wrong.
+silent under the default of [`ide/check-scope-defaults-to-the-workspace`](/docs/rules/ide/the-language-server/#check-scope-defaults-to-the-workspace "The symbol index covers every file under the workspace folder by default, and open narrows it to the open documents and their require graph") rather than wrong.
 
 Call hierarchy is deliberately not in this list. `textDocument/callHierarchy` is a different index —
 call-site edges kept incrementally — and nothing else needs it, so it is not built.
@@ -180,7 +180,7 @@ call-site edges kept incrementally — and nothing else needs it, so it is not b
 The structural check is that `nvs-lsp` has exactly one symbol-index construction site and all five
 readers read it.
 
-<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/the-language-server/#check-scope-defaults-to-open-documents" title="Diagnostics are published for open documents and their require graph by default, and a workspace pass is one setting or one command"><code>ide/check-scope-defaults-to-open-documents</code></a> <a href="/docs/rules/classes/interfaces-and-delegation/#no-traits" title="There is no trait: shared behaviour is an interface method with a body, shared state is by delegation"><code>classes/no-traits</code></a> <a href="/docs/rules/classes/interfaces-and-delegation/#interface-default-methods" title="A public interface method with a body is a default method, and $this inside it is the interface"><code>classes/interface-default-methods</code></a> <a href="/docs/rules/classes/interfaces-and-delegation/#delegation-by-field" title="implements I by $field forwards every member I requires to that property"><code>classes/delegation-by-field</code></a> <a href="/docs/rules/ide/one-server-thin-clients/#contributions-are-frozen-and-only-ever-added" title="A setting name and a command id are public API: the roster is frozen, and anything later is added, never renamed"><code>ide/contributions-are-frozen-and-only-ever-added</code></a> <a href="/docs/rules/ide/the-language-server/#every-feature-is-staged-behind-its-dependency" title="The VS Code client goes as deep as the editor allows, and each feature waits for the language or runtime piece it needs rather than shipping as a stub"><code>ide/every-feature-is-staged-behind-its-dependency</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0108.md">record 0108</a></dd></div></dl>
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/the-language-server/#check-scope-defaults-to-the-workspace" title="The symbol index covers every file under the workspace folder by default, and open narrows it to the open documents and their require graph"><code>ide/check-scope-defaults-to-the-workspace</code></a> <a href="/docs/rules/classes/interfaces-and-delegation/#no-traits" title="There is no trait: shared behaviour is an interface method with a body, shared state is by delegation"><code>classes/no-traits</code></a> <a href="/docs/rules/classes/interfaces-and-delegation/#interface-default-methods" title="A public interface method with a body is a default method, and $this inside it is the interface"><code>classes/interface-default-methods</code></a> <a href="/docs/rules/classes/interfaces-and-delegation/#delegation-by-field" title="implements I by $field forwards every member I requires to that property"><code>classes/delegation-by-field</code></a> <a href="/docs/rules/ide/one-server-thin-clients/#contributions-are-frozen-and-only-ever-added" title="A setting name and a command id are public API: the roster is frozen, and anything later is added, never renamed"><code>ide/contributions-are-frozen-and-only-ever-added</code></a> <a href="/docs/rules/ide/the-language-server/#every-feature-is-staged-behind-its-dependency" title="The VS Code client goes as deep as the editor allows, and each feature waits for the language or runtime piece it needs rather than shipping as a stub"><code>ide/every-feature-is-staged-behind-its-dependency</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0108.md">record 0108</a></dd></div></dl>
 
 </div>
 
@@ -231,6 +231,117 @@ table the compiler builds for another reason.
 </aside>
 
 <dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/highlighting-and-completion/#three-of-four-item-shapes-insert-nothing" title="A PHP-name completion item takes one of four shapes, and three of them insert nothing"><code>ide/three-of-four-item-shapes-insert-nothing</code></a> <a href="/docs/rules/routing/declaring-a-route/#routes-are-compiled-not-registered" title="A route is a #[Route] compiled into the unit's table, and its three runtime bugs are compile errors"><code>routing/routes-are-compiled-not-registered</code></a> <a href="/docs/rules/routing/links-and-the-api-document/#link-name-and-params-are-checked" title="Core\Router::url is a launderer whose literal name and $params are checked against the compiled table"><code>routing/link-name-and-params-are-checked</code></a> <a href="/docs/rules/config/the-file-and-the-tree/#a-duplicate-key-is-an-error-and-so-is-an-unknown-one" title="A duplicate key is an error, and so is an unknown one — per file"><code>config/a-duplicate-key-is-an-error-and-so-is-an-unknown-one</code></a> <a href="/docs/rules/routing/links-and-the-api-document/#api-document-is-generated-from-the-route-table" title="The API document is generated from the route table while compiling, so it cannot drift from the code"><code>routing/api-document-is-generated-from-the-route-table</code></a> <a href="/docs/rules/programs/the-framework/#first-party-framework" title="Novis ships the framework, split by the standard-library placement tests"><code>programs/first-party-framework</code></a> <a href="/docs/rules/php-migration/converting-and-completing/#every-php-builtin-is-a-completion-candidate" title="Every PHP built-in name is a completion candidate, and the migration table is what the item says"><code>php-migration/every-php-builtin-is-a-completion-candidate</code></a> <a href="/docs/rules/php-migration/converting-and-completing/#an-item-inserts-only-a-registered-member" title="A PHP-name completion item inserts only a Core member the registry already holds"><code>php-migration/an-item-inserts-only-a-registered-member</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0108.md">record 0108</a> <a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0111.md">record 0111</a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="a-bare-name-reaches-every-type-and-imports-the-one-accepted">
+
+## A bare name is offered every type the registry and the workspace index hold, by short name, and accepting one that needs an import writes its `use` line
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<a class="nv-rule-id" href="#a-bare-name-reaches-every-type-and-imports-the-one-accepted"><code>ide/a-bare-name-reaches-every-type-and-imports-the-one-accepted</code></a>
+</div>
+
+A bare name at a statement or expression position is offered every type the server holds — the `Core`
+registry's classes and enums and every declaration in the workspace index — from the first character
+typed, and accepting one that no short name reaches inserts its last segment and adds the `use` line for
+it. The registry is the roster a `Core\` separator already lists, read before the separator is written, so
+this is [`ide/completion-offers-only-what-the-compiler-derived`](/docs/rules/ide/highlighting-and-completion/#completion-offers-only-what-the-compiler-derived "The editor completes a value only where the compiler already derives it for another reason, never from a convention scan, an annotation dialect or the network") and not an exception to it.
+
+**The spelling offered is the shortest one that resolves, and the editor makes it resolve.** A type an
+import or the namespace in force already reaches is offered by that short name and edits nothing else. Any
+other type is offered by its last segment, with the qualified name beside it, and the item carries one more
+edit: `use Qualified\Name;` after the last `use` the cursor's namespace has, failing that after the
+`namespace Name;` line in force, failing that after the open tag. Where the short name is already taken in
+the file, or there is no such line to write after — a bracketed namespace with no `use` in it, a shebang
+script with no open tag — the item is the qualified name and edits nothing else. After `use`, every type is
+its qualified name, because a declaration's name is absolute
+([`statements/a-qualified-name-is-absolute`](/docs/rules/statements/names-and-require/#a-qualified-name-is-absolute "A name containing a separator is read from the root, and one without it through the imports")).
+
+**Matching is the client's.** The server sends the whole list once and the editor filters it as the name is
+typed, so `cs` finds `Core\Str` by the editor's own match across the separator: an item's filter text is
+both of its spellings. **Ranking is the server's where the match ties**, in this order: the variables the
+body declared, imported types, types in the namespace in force, types already written somewhere in the
+file, the rest of `Core`, the rest of the workspace, the reserved words, and the PHP names last. Every tier
+is read off a table an arm already reads — the body's scope, the file's imports, the index's occurrences.
+A member list after `->` or `::` has no tiers.
+
+What it spends is one item per type on every bare-position request, a few hundred for the registry alone,
+built and dropped with the answer.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/highlighting-and-completion/#completion-offers-only-what-the-compiler-derived" title="The editor completes a value only where the compiler already derives it for another reason, never from a convention scan, an annotation dialect or the network"><code>ide/completion-offers-only-what-the-compiler-derived</code></a> <a href="/docs/rules/ide/the-language-server/#check-scope-defaults-to-the-workspace" title="The symbol index covers every file under the workspace folder by default, and open narrows it to the open documents and their require graph"><code>ide/check-scope-defaults-to-the-workspace</code></a> <a href="/docs/rules/statements/names-and-require/#a-qualified-name-is-absolute" title="A name containing a separator is read from the root, and one without it through the imports"><code>statements/a-qualified-name-is-absolute</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0193.md">record 0193</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-lsp/tests/completion_edits.rs"><code>crates/nvs-lsp/tests/completion_edits.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/lsp/completion/a-bare-name-reaches-a-core-class-by-its-last-segment.lspt"><code>tests/lsp/completion/a-bare-name-reaches-a-core-class-by-its-last-segment.lspt</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="completion-is-asked-where-a-spelling-ends">
+
+## A trigger character opens a list only where it finished `->`, `::`, `\`, `$` or `<?`, and `$`, a lone `:` and `<?` each narrow what is offered
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<a class="nv-rule-id" href="#completion-is-asked-where-a-spelling-ends"><code>ide/completion-is-asked-where-a-spelling-ends</code></a>
+</div>
+
+The completion trigger characters are `>`, `:`, `\`, `$` and `?` — the last character of `->`, of `::`, of
+a namespace separator, of a variable's `$` and of a half-written `<?` — and a request one of them raised is
+answered only where the text before the cursor ends in that whole spelling. Each of the five is also an
+operator's character, and an editor asks on the keystroke: answering `$a >` or `Core\Str:` with whatever
+the position offers opens a list nobody asked for. `-` is not a trigger, because it finishes nothing. A
+request the developer raised by hand, or by typing a name, is not held to this.
+
+Three spellings narrow what is offered whoever asked. **After `$`, only variables**: the ones the innermost
+body declared, each replacing the `$` already typed, because a lone `$` is no word to a client and one left
+to choose its own range would write `$$name`. A cursor past the end of every body is in the file's own
+script frame, which is where a developer types in a file with no trailing newline. **After a single `:`
+that follows a bare name, nothing**: `Name:` is half of `Name::` and nothing may be written between the
+colons. **After `<?` in a run of markup, the two open tags and nothing else**
+([`statements/nvs-is-the-only-open-tag`](/docs/rules/statements/names-and-require/#nvs-is-the-only-open-tag "<?nvs is the only code-mode open tag; <?php is refused")), each replacing the bytes already typed. `<?` is not yet a
+tag, so the lexer still reads it as markup, and it is the one place in markup where the developer is
+writing Novis.
+
+The markup half has a second side, on `nvs/regions`
+([`ide/a-template-region-gets-the-editors-services-and-formatter`](/docs/rules/ide/highlighting-and-completion/#a-template-region-gets-the-editors-services-and-formatter "An inline-HTML region gets the editor's own HTML, CSS and JavaScript services on boundaries the server reports, and the editor's HTML formatter after nvs fmt, indented from the Novis code around it")): a half-written open tag and the one
+character after it are cut out of the HTML region they sit in, so the client forwards nothing there and the
+HTML service does not answer beside the two tags. The extra character is what keeps a cursor at the end of
+the hole out of the region that follows, since a client reads a region as half-open. `<?xml` and every
+other processing instruction stay markup's own.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/highlighting-and-completion/#a-template-region-gets-the-editors-services-and-formatter" title="An inline-HTML region gets the editor's own HTML, CSS and JavaScript services on boundaries the server reports, and the editor's HTML formatter after nvs fmt, indented from the Novis code around it"><code>ide/a-template-region-gets-the-editors-services-and-formatter</code></a> <a href="/docs/rules/statements/names-and-require/#nvs-is-the-only-open-tag" title="&lt;?nvs is the only code-mode open tag; &lt;?php is refused"><code>statements/nvs-is-the-only-open-tag</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0193.md">record 0193</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/crates/nvs-lsp/tests/completion_edits.rs"><code>crates/nvs-lsp/tests/completion_edits.rs</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/lsp/completion/a-half-written-open-tag-offers-the-two-tags-and-nothing-else.lspt"><code>tests/lsp/completion/a-half-written-open-tag-offers-the-two-tags-and-nothing-else.lspt</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/lsp/completion/a-lone-colon-after-a-name-offers-nothing.lspt"><code>tests/lsp/completion/a-lone-colon-after-a-name-offers-nothing.lspt</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/lsp/completion/a-dollar-offers-variables-and-nothing-else.lspt"><code>tests/lsp/completion/a-dollar-offers-variables-and-nothing-else.lspt</code></a></dd></div></dl>
+
+</div>
+
+<div class="nv-rule" id="keywords-are-offered-where-the-compiler-accepts-them">
+
+## A reserved word is offered only where the token before it and the nodes around it let the compiler accept it
+
+<div class="nv-rule-tags">
+<span class="nv-rule-status" data-status="shipped">Shipped</span>
+<a class="nv-rule-id" href="#keywords-are-offered-where-the-compiler-accepts-them"><code>ide/keywords-are-offered-where-the-compiler-accepts-them</code></a>
+</div>
+
+A reserved word is offered only at a cursor where the compiler accepts it, which two things decide. **The
+token before the name being written** says whether a statement starts there: after `;`, `{`, `}`, `)`, `:`,
+an open or close tag, `else` or `do`, or at the top of the file, every word may be written; after anything
+else the cursor is inside an expression and is offered only the words that open one — `new`, `match`, `fn`,
+`null`, `true` and the rest of the grammar's primary-expression dispatch — and never `class`, `if` or
+`return`. After `new`, `extends` and `implements` it is offered types and no word at all. The tokens are
+the lexer's own, so a `;` inside a string is not a statement's end; the tree cannot answer this, because
+the name being written is usually what stops the statement around it from parsing.
+
+**What encloses the cursor** decides the rest, read off the index's ancestor list
+([`ide/the-index-answers-the-cursor`](/docs/rules/ide/the-resilient-parse/#the-index-answers-the-cursor "SyntaxIndex.at(offset) answers the innermost node and its ancestors, and is rebuilt per analysis")): `break` needs a loop or a `switch` and `continue` a loop, with
+no function body between it and the cursor; `self`, `parent` and `static` need a class, an interface or an
+enum; `yield` needs a function body; and the words that open a declaration — `class`, `interface`, `enum`,
+`abstract`, `final`, `namespace`, `use`, `autoload` — need there to be no function body around them, since
+a type declared inside one is `E0233`.
+
+The lists stay what they were: spellings read out of the grammar's two dispatches, held to the lexer's
+reserved words by a test. What this adds is when each is offered. It errs toward offering: after a `:` a
+ternary's last operand and a `case` arm's first statement are one position, and both lists are offered
+there.
+
+<dl class="nv-rule-meta"><div class="nv-rule-meta-row"><dt>See also</dt><dd><a href="/docs/rules/ide/the-resilient-parse/#the-index-answers-the-cursor" title="SyntaxIndex.at(offset) answers the innermost node and its ancestors, and is rebuilt per analysis"><code>ide/the-index-answers-the-cursor</code></a> <a href="/docs/rules/ide/the-language-server/#the-request-set-is-closed" title="M4B answers nine standard requests and exactly one of Novis's own, M10 adds eight more on the same test, and that test keeps the list from growing"><code>ide/the-request-set-is-closed</code></a></dd></div><div class="nv-rule-meta-row"><dt>Decided in</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/docs/decisions/0193.md">record 0193</a></dd></div><div class="nv-rule-meta-row"><dt>Guarded by</dt><dd><a href="https://github.com/novis-lang/novis/blob/main/tests/lsp/completion/an-expression-position-offers-no-word-that-opens-a-statement.lspt"><code>tests/lsp/completion/an-expression-position-offers-no-word-that-opens-a-statement.lspt</code></a> <a href="https://github.com/novis-lang/novis/blob/main/tests/lsp/completion/a-loop-body-offers-break-and-a-method-body-does-not.lspt"><code>tests/lsp/completion/a-loop-body-offers-break-and-a-method-body-does-not.lspt</code></a></dd></div></dl>
 
 </div>
 

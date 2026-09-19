@@ -11,4 +11,4 @@ compiler, including the one that maintains this repository: over the corpus it e
 diagnostic the text renderer prints, with the same codes and spans.
 
 `nvs check` on the command line analyses what it is given, as it always has — the scope setting of
-`rule:ide/check-scope-defaults-to-open-documents` is the editor's, not the CLI's.
+`rule:ide/check-scope-defaults-to-the-workspace` is the editor's, not the CLI's.

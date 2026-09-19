@@ -274,7 +274,7 @@
       "seeAlso": [
         "errors/diagnostic-record",
         "errors/renderings",
-        "ide/check-scope-defaults-to-open-documents",
+        "ide/check-scope-defaults-to-the-workspace",
         "packaging/a-dependency-break-is-absorbed-never-forwarded",
         "ide/ast-json-schema-is-frozen"
       ],
@@ -283,11 +283,12 @@
       ]
     },
     {
-      "id": "ide/check-scope-defaults-to-open-documents",
-      "title": "Diagnostics are published for open documents and their require graph by default, and a workspace pass is one setting or one command",
-      "status": "designed",
+      "id": "ide/check-scope-defaults-to-the-workspace",
+      "title": "The symbol index covers every file under the workspace folder by default, and `\"open\"` narrows it to the open documents and their require graph",
+      "status": "shipped",
       "because": [
-        "0108"
+        "0108",
+        "0193"
       ],
       "seeAlso": [
         "ide/five-features-are-one-reference-index",
@@ -544,7 +545,7 @@
         "0108"
       ],
       "seeAlso": [
-        "ide/check-scope-defaults-to-open-documents",
+        "ide/check-scope-defaults-to-the-workspace",
         "classes/no-traits",
         "classes/interface-default-methods",
         "classes/delegation-by-field",
@@ -573,6 +574,57 @@
         "php-migration/an-item-inserts-only-a-registered-member"
       ],
       "guardedBy": []
+    },
+    {
+      "id": "ide/a-bare-name-reaches-every-type-and-imports-the-one-accepted",
+      "title": "A bare name is offered every type the registry and the workspace index hold, by short name, and accepting one that needs an import writes its `use` line",
+      "status": "shipped",
+      "because": [
+        "0193"
+      ],
+      "seeAlso": [
+        "ide/completion-offers-only-what-the-compiler-derived",
+        "ide/check-scope-defaults-to-the-workspace",
+        "statements/a-qualified-name-is-absolute"
+      ],
+      "guardedBy": [
+        "crates/nvs-lsp/tests/completion_edits.rs",
+        "tests/lsp/completion/a-bare-name-reaches-a-core-class-by-its-last-segment.lspt"
+      ]
+    },
+    {
+      "id": "ide/completion-is-asked-where-a-spelling-ends",
+      "title": "A trigger character opens a list only where it finished `->`, `::`, `\\`, `$` or `<?`, and `$`, a lone `:` and `<?` each narrow what is offered",
+      "status": "shipped",
+      "because": [
+        "0193"
+      ],
+      "seeAlso": [
+        "ide/a-template-region-gets-the-editors-services-and-formatter",
+        "statements/nvs-is-the-only-open-tag"
+      ],
+      "guardedBy": [
+        "crates/nvs-lsp/tests/completion_edits.rs",
+        "tests/lsp/completion/a-half-written-open-tag-offers-the-two-tags-and-nothing-else.lspt",
+        "tests/lsp/completion/a-lone-colon-after-a-name-offers-nothing.lspt",
+        "tests/lsp/completion/a-dollar-offers-variables-and-nothing-else.lspt"
+      ]
+    },
+    {
+      "id": "ide/keywords-are-offered-where-the-compiler-accepts-them",
+      "title": "A reserved word is offered only where the token before it and the nodes around it let the compiler accept it",
+      "status": "shipped",
+      "because": [
+        "0193"
+      ],
+      "seeAlso": [
+        "ide/the-index-answers-the-cursor",
+        "ide/the-request-set-is-closed"
+      ],
+      "guardedBy": [
+        "tests/lsp/completion/an-expression-position-offers-no-word-that-opens-a-statement.lspt",
+        "tests/lsp/completion/a-loop-body-offers-break-and-a-method-body-does-not.lspt"
+      ]
     },
     {
       "id": "ide/three-of-four-item-shapes-insert-nothing",
@@ -868,7 +920,7 @@
         "0108"
       ],
       "seeAlso": [
-        "ide/check-scope-defaults-to-open-documents",
+        "ide/check-scope-defaults-to-the-workspace",
         "ide/contributions-are-frozen-and-only-ever-added"
       ],
       "guardedBy": []

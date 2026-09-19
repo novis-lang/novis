@@ -1,8 +1,8 @@
 {
   "totals": {
-    "total": 993,
-    "shipped": 755,
-    "designed": 238,
+    "total": 996,
+    "shipped": 759,
+    "designed": 237,
     "diverging": 586
   },
   "topics": [
@@ -2814,9 +2814,9 @@
       "url": "/docs/rules/ide/",
       "single": false,
       "counts": {
-        "total": 68,
-        "shipped": 7,
-        "designed": 61,
+        "total": 71,
+        "shipped": 11,
+        "designed": 60,
         "diverging": 23
       },
       "sections": [
@@ -2905,8 +2905,8 @@
           "url": "/docs/rules/ide/the-language-server/",
           "counts": {
             "total": 9,
-            "shipped": 1,
-            "designed": 8,
+            "shipped": 2,
+            "designed": 7,
             "diverging": 1
           },
           "rules": [
@@ -2975,11 +2975,11 @@
               "diverges": null
             },
             {
-              "id": "ide/check-scope-defaults-to-open-documents",
-              "slug": "check-scope-defaults-to-open-documents",
-              "title": "Diagnostics are published for open documents and their require graph by default, and a workspace pass is one setting or one command",
-              "status": "designed",
-              "href": "/docs/rules/ide/the-language-server/#check-scope-defaults-to-open-documents",
+              "id": "ide/check-scope-defaults-to-the-workspace",
+              "slug": "check-scope-defaults-to-the-workspace",
+              "title": "The symbol index covers every file under the workspace folder by default, and `\"open\"` narrows it to the open documents and their require graph",
+              "status": "shipped",
+              "href": "/docs/rules/ide/the-language-server/#check-scope-defaults-to-the-workspace",
               "diverges": null
             }
           ]
@@ -3076,8 +3076,8 @@
           "blurb": "Two highlighting layers that ship names and no colours, and completion that offers only what the compiler already derived.",
           "url": "/docs/rules/ide/highlighting-and-completion/",
           "counts": {
-            "total": 8,
-            "shipped": 1,
+            "total": 11,
+            "shipped": 4,
             "designed": 7,
             "diverging": 6
           },
@@ -3129,6 +3129,30 @@
               "status": "designed",
               "href": "/docs/rules/ide/highlighting-and-completion/#completion-offers-only-what-the-compiler-derived",
               "diverges": "framework-aware IntelliSense built from convention scans, annotation dialects and an `ide.json` patch file has no counterpart; a route name or a directive completes from the table the compiler built, and an ORM column or a view name has nothing to complete from because Novis has neither"
+            },
+            {
+              "id": "ide/a-bare-name-reaches-every-type-and-imports-the-one-accepted",
+              "slug": "a-bare-name-reaches-every-type-and-imports-the-one-accepted",
+              "title": "A bare name is offered every type the registry and the workspace index hold, by short name, and accepting one that needs an import writes its `use` line",
+              "status": "shipped",
+              "href": "/docs/rules/ide/highlighting-and-completion/#a-bare-name-reaches-every-type-and-imports-the-one-accepted",
+              "diverges": null
+            },
+            {
+              "id": "ide/completion-is-asked-where-a-spelling-ends",
+              "slug": "completion-is-asked-where-a-spelling-ends",
+              "title": "A trigger character opens a list only where it finished `->`, `::`, `\\`, `$` or `<?`, and `$`, a lone `:` and `<?` each narrow what is offered",
+              "status": "shipped",
+              "href": "/docs/rules/ide/highlighting-and-completion/#completion-is-asked-where-a-spelling-ends",
+              "diverges": null
+            },
+            {
+              "id": "ide/keywords-are-offered-where-the-compiler-accepts-them",
+              "slug": "keywords-are-offered-where-the-compiler-accepts-them",
+              "title": "A reserved word is offered only where the token before it and the nodes around it let the compiler accept it",
+              "status": "shipped",
+              "href": "/docs/rules/ide/highlighting-and-completion/#keywords-are-offered-where-the-compiler-accepts-them",
+              "diverges": null
             },
             {
               "id": "ide/three-of-four-item-shapes-insert-nothing",

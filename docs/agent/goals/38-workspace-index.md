@@ -60,7 +60,7 @@ stage 3 is a query, so the index goes first and it is provable with no editor in
    read it, and nothing else. `rule:ide/a-full-reanalysis-stays-under-a-bound` is the bound this
    must still hold when the index is warm.
 4. **The scope.** `nvs.check.scope`'s `"open"` and `"workspace"` per
-   `rule:ide/check-scope-defaults-to-open-documents`, default `"open"`, plus `nvs.checkWorkspace`
+   `rule:ide/check-scope-defaults-to-the-workspace`, default `"open"`, plus `nvs.checkWorkspace`
    for one pass on demand. Both identifiers are already frozen in that rule's roster and are added,
    never renamed.
 

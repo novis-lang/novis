@@ -248,7 +248,7 @@ as nothing.
 | `nvs.path` | `""` | absolute path to the `nvs` binary. Empty means look it up on `PATH` |
 | `nvs.lsp.enable` | `true` | whether to run the server at all. Off leaves the TextMate colour and nothing else |
 | `nvs.lsp.trace.server` | `"off"` | log the frames exchanged with the server into the Novis output channel — `off`, `messages`, or `verbose` for the frame bodies too |
-| `nvs.check.scope` | `"open"` | which files diagnostics are published for — `open` for the open documents and what they require or autoload, `workspace` for every file the index holds, which is also the only scope an unreferenced private member is dimmed at |
+| `nvs.check.scope` | `"workspace"` | which files the server reads, so which types completion offers and which files diagnostics are published for — `workspace` for every file under the workspace folder, which is also the only scope an unreferenced private member is dimmed at, `open` for the open documents and what they require or autoload |
 | `nvs.codeLens.enable` | `true` | whether a declaration carries its reference, implementor and override counts as a lens |
 | `nvs.template.services` | `true` | whether the editor's own HTML, CSS and JavaScript services answer inside an inline-HTML region |
 | `nvs.template.format` | `true` | whether the editor's own HTML formatter lays out the markup of a template after `nvs fmt` has laid out the Novis — see below |

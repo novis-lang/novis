@@ -11,7 +11,7 @@ where a reader most needs to see the shape rather than reconstruct it.
 The fifth is **unused-member dimming**: a private member, constant or `use` with no reference anywhere in
 the index is a diagnostic carrying LSP's `Unnecessary` tag, rendered as dimming rather than a squiggle.
 It is only correct at workspace scope — a symbol unused in the open buffer is not unused — so it is
-silent under the default of `rule:ide/check-scope-defaults-to-open-documents` rather than wrong.
+silent under the default of `rule:ide/check-scope-defaults-to-the-workspace` rather than wrong.
 
 Call hierarchy is deliberately not in this list. `textDocument/callHierarchy` is a different index —
 call-site edges kept incrementally — and nothing else needs it, so it is not built.
