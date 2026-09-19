@@ -2,43 +2,40 @@
 
 ## State
 
-Goal `lang-concurrency`. Seven of its ten features now carry every feature proof: the four that
-landed before, plus `what-does-not-exist`, `core-task-all-a-fixed-set-of-tasks` and
-`core-task-map-one-task-per-element`. Three are still owed — `python tools/dossier.py --owed --group
-'lang:concurrency'` is the list.
+Goal `lang-concurrency` is reached. `python tools/dossier.py --verify --group lang:concurrency`
+prints `nothing owed` over all ten features of the chapter and `0 failed` for both suites (30
+examples, 10 attacks). The last three features landed this session with every feature proof: the
+channel, `limit` and `deadline`, and the no-colouring claim. `python tools/owners.py --closes
+lang-concurrency` and `python tools/playbook.py --closes lang-concurrency` each report nothing
+owned, and `python tools/verify.py --doc` is green.
 
-Nothing is blocked. `lang:concurrency/what-does-not-exist` is `[skip]`ped for perf alone in
-`tools/data/dossier-policy.toml:64`, with the reason as its value, the same way
-`lang:iteration/what-does-not-exist` is: every name in it is a compile error, so there is no program
-to iterate. Everything the chapter's § *What does not exist* claims was checked against the binary
-first — `async`, `Fiber`, `Thread`, `Worker`, `parallel\Runtime`, `pcntl_fork`, `curl_multi_init`,
-`spawn worker`, an `fn` literal entry, `global`, `$GLOBALS` and a function-scope `static` all refuse,
-and a generator has no `send`, `throw` or `getReturn`.
+Nothing is blocked. `lang:concurrency/what-does-not-exist` stays `[skip]`ped for perf alone in
+`tools/data/dossier-policy.toml:64`; the other nine features each carry a measured figure in
+`docs/perf/members.ndjson`, and the three new ones sit inside the group's existing spread.
 
 ## Next group
 
-The three features the chapter still owes proofs for — one file set:
-`docs/reference/lang/80-concurrency.md`, `docs/examples/lang/concurrency/`,
-`tests/hostile/lang/concurrency/`, `benches/members/lang/concurrency/` and `tests/conformance/task/`.
+The chain's next goal is `lang-attributes`, whose own handoff `goal-switch.py` installs, so this
+group is only what to take if the switch has not happened yet.
 
-- [ ] **`lang:concurrency/core-task-channel-t-a-bounded-queue-between-tasks`** — owes examples,
-      hostile, perf, tests (`rule:testing/feature-proofs`). The capacity bound is already pinned by
-      `tests/conformance/task/a-bounded-channel-suspends-its-sender.nvst`, so the two new cases are
-      the other claims: what `close` does to a waiting receiver, and the type the queue carries.
-      `docs/reference/lang/80-concurrency.md:147`
-- [ ] **`lang:concurrency/limit-and-deadline`** — owes examples, hostile, perf, tests
-      (`rule:concurrency/limit-and-deadline-are-the-only-bounds`). Two landed cases already pin the
-      deadline; write the `limit` half, and note that `Core\Time\Duration::milliseconds(int)` is the
-      spelling — there is no `fromMillis`. `docs/reference/lang/80-concurrency.md:76`
-- [ ] **`lang:concurrency/no-colouring-i-o-just-waits`** — owes examples, hostile, perf, tests
-      (`rule:concurrency/one-scheduler`). Its § *What does not exist* half is now proved, so what is
-      left is the positive claim: a member that waits parks its own task and the code around it stays
-      sequential. `docs/reference/lang/80-concurrency.md:8`
+**Stage 2: the dossier** — one file set: `docs/reference/lang/90-attributes.md`,
+`docs/examples/lang/attributes/`, `tests/hostile/lang/attributes/`,
+`benches/members/lang/attributes/` and `tests/conformance/`.
+
+- [ ] **`lang:attributes/an-attribute-is-a-shape-literal-attached-to-a-declaration`** — owes
+      examples, hostile, perf, tests (`rule:testing/feature-proofs`).
+      `docs/reference/lang/90-attributes.md:9`
+- [ ] **`lang:attributes/reading-attributes-back-core-attributes-get-and-all`** — owes the same
+      four proofs, and shares the reading half with the item above.
+      `docs/reference/lang/90-attributes.md:93`
+- [ ] **`lang:attributes/the-names-the-compiler-acts-on`** — owes the same four proofs.
+      `docs/reference/lang/90-attributes.md:116`
 
 ## Backlog
 
-- `docs/reference/findings.md:270`'s D11 still records the old refusal of a static-method spawn entry
-  and is stale against the binary — `docs/reference/findings.md`.
-- `E0802`'s help text tells the reader an `fn` literal "in `spawn worker` captures its enclosing
-  scope", and `spawn worker` is a form the chapter says does not exist — `crates/nvs-diagnostics`.
-- Seven `dossier` groups after `lang:concurrency` still owe proofs — `python tools/dossier.py --owed`.
+- A task's `echo` is held until its group returns and is then printed one task at a time; the
+  chapter never says so — `docs/reference/lang/80-concurrency.md` § *`Core\Task::all`*.
+- Tasks do not start in the order their fields are written, which no chapter or rule states —
+  `docs/reference/lang/80-concurrency.md` § *`Core\Task::all`*.
+- `Core\Arr` has no `push`, so a trace across tasks is built by string concatenation — a gap only
+  if `docs/reference/core/` means to offer one.
