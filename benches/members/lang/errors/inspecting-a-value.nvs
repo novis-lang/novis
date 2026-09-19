@@ -1,0 +1,31 @@
+<?nvs
+// Measures one rendering of a small object with `Core\Debug::render`. A program
+// builds these while somebody is looking for a fault in it.
+// bench: iterations 200000
+
+class Row {
+    public function constructor(public int $id, public string $name) {
+    }
+}
+
+class Bench {
+    // The rendering is kept, so the work is really done every round.
+    public static ?Core\Cli\Text $last = null;
+
+    public static function run(uint $rounds): uint {
+        var $row = new Row(1042, "Ada");
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the number in the object comes out of the last round, so
+            // every round renders a value the round before it produced.
+            $row->id = $row->id + (($total % 7) as int) + 1;
+            Bench::$last = Core\Debug::render($row);
+            $total = $total + (($row->id % 97) as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

@@ -2,6 +2,7 @@
 `Core\Debug::dump` writes exactly `render` of each argument plus a newline, so its variadic form, its split form and `render` all agree over one sweep — and `Core\Out::capture` never swallows a dump — spec § 16, `rule:errors/diagnostic-record`, `rule:errors/renderings` and `rule:errors/debug-dump`, `rule:security/capture-answers-the-carrier`
 --FILE--
 <?nvs
+// covers: lang:errors/inspecting-a-value
 // `Core\Debug`'s two members walk one value the same way and differ only in
 // where the bytes go (`nvs_stdlib::debug`'s own module doc, § *`render`, and
 // why it is one member rather than a second mechanism*). Nothing asserted that

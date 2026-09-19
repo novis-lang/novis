@@ -1,0 +1,8 @@
+Order#1 (2) {
+  $id => int(1042)
+  $customer => string(3) "Ada"
+}
+array(2) [
+  "paid" => bool(true)
+  "note" => string(11) "two\tcolumns"
+]

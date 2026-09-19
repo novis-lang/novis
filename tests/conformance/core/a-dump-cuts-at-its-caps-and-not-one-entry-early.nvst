@@ -2,6 +2,7 @@
 Each of the record's three caps is asserted at both sides of its own bound — the last value carried whole and the first one cut — and every cut is an `Elision` node in the model rather than a truncation the rendering chose — `rule:errors/diagnostic-record`, § 3, § 5
 --FILE--
 <?nvs
+// covers: lang:errors/inspecting-a-value
 // `rule:errors/record-transformations`: a cut is a *node*, decided once in the model, so every
 // rendering shows the same cut of the same value. `nvs_render::Caps`'
 // defaults are the bounds this pins: 1024 bytes of one scalar, 100 entries
