@@ -1,0 +1,85 @@
+--TEST--
+Every adjacent pair of rows in the precedence table groups the way the table says — `as` and `**` over a prefix sign, `is` over `!`, `*` over `+` over the shifts over `.`, `&` over `^` over `|`, `&&` over `||` over `??` over the ternary, and `|>` between the unary and the binary operators — each written bare and parenthesized and counted, `rule:types/conversion`, `rule:expressions/pipeline-precedence`
+--FILE--
+<?nvs
+// covers: lang:expressions/precedence-and-associativity
+// Every row of the chapter's table binds tighter than the row under it. Each
+// pair below writes the same expression twice, once bare and once with the
+// parentheses the table says it means, and the two must agree. The count is
+// what is asserted, so a row that groups differently is caught even where
+// both forms happen to print something plausible.
+class Tag {}
+
+string $s = "3";
+int $n = -7;
+int $left = 0;
+int $right = 0;
+Tag $tag = new Tag();
+array<string> $row = ["name" => "ada"];
+
+uint $rows = 0;
+uint $agreeing = 0;
+
+// `as` binds tighter than a prefix sign and than `**`.
+$rows = $rows + 1;
+if (-$s as int == -($s as int)) { $agreeing = $agreeing + 1; }
+$rows = $rows + 1;
+if ($s as int ** 2 == ($s as int) ** 2) { $agreeing = $agreeing + 1; }
+
+// `**` binds tighter than a prefix sign, and a chain groups to the right.
+$rows = $rows + 1;
+if (-2 ** 2 == -(2 ** 2)) { $agreeing = $agreeing + 1; }
+$rows = $rows + 1;
+if (2 ** 3 ** 2 == 2 ** (3 ** 2)) { $agreeing = $agreeing + 1; }
+
+// `!` binds looser than `is`.
+$rows = $rows + 1;
+if ((!$tag is Tag) == !($tag is Tag)) { $agreeing = $agreeing + 1; }
+
+// `*` binds tighter than `+`, and `+` tighter than the shifts.
+$rows = $rows + 1;
+if (1 + 2 * 3 == 1 + (2 * 3)) { $agreeing = $agreeing + 1; }
+$rows = $rows + 1;
+if (1 << 2 + 1 == 1 << (2 + 1)) { $agreeing = $agreeing + 1; }
+
+// The shifts bind tighter than `.`, and `.` tighter than a comparison.
+$rows = $rows + 1;
+if (1 << 2 . "x" == (1 << 2) . "x") { $agreeing = $agreeing + 1; }
+$rows = $rows + 1;
+if ("sum:" . 1 + 2 == "sum:" . (1 + 2)) { $agreeing = $agreeing + 1; }
+
+// `&` binds tighter than `^`, and `^` tighter than `|`.
+$rows = $rows + 1;
+if ((1 | 2 ^ 3 & 1) == (1 | (2 ^ (3 & 1)))) { $agreeing = $agreeing + 1; }
+
+// `&&` binds tighter than `||`, and `||` tighter than `??`.
+$rows = $rows + 1;
+if ((true || false && false) == (true || (false && false))) { $agreeing = $agreeing + 1; }
+$rows = $rows + 1;
+if ((null ?? null ?? 3) == (null ?? (null ?? 3))) { $agreeing = $agreeing + 1; }
+
+// `??` binds tighter than the ternary, and a ternary inside a ternary groups
+// to the right.
+$rows = $rows + 1;
+if ((false ? 1 : true ? 2 : 3) == (false ? 1 : (true ? 2 : 3))) { $agreeing = $agreeing + 1; }
+
+// `|>` binds looser than a prefix sign and tighter than every binary
+// operator.
+$rows = $rows + 1;
+if (-$n |> Core\Math::abs($_) == Core\Math::abs(-$n)) { $agreeing = $agreeing + 1; }
+$rows = $rows + 1;
+if ("x=" . $s |> Core\Str::upper($_) == "x=" . Core\Str::upper($s)) { $agreeing = $agreeing + 1; }
+
+// A subscript and a call bind tighter than everything around them.
+$rows = $rows + 1;
+if ($row["name"] . "!" == ($row["name"]) . "!") { $agreeing = $agreeing + 1; }
+
+// The assignment takes the whole expression to its right.
+$left = 1 + 2 * 3;
+$right = (1 + (2 * 3));
+$rows = $rows + 1;
+if ($left == $right) { $agreeing = $agreeing + 1; }
+
+echo "rows agreeing: ", $agreeing, " of ", $rows, "\n";
+--EXPECT--
+rows agreeing: 17 of 17

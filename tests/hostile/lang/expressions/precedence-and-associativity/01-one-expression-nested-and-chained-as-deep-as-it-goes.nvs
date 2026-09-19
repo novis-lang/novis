@@ -1,0 +1,57 @@
+<?nvs
+// Attack: build single expressions far deeper and far longer than anything a
+// person writes. Each one is read as one tree, so a compiler that follows the
+// nesting with its own stack runs out of it here. It must not crash or hang,
+// and should stop with an error about the depth.
+// hostile: expect-refusal
+// hostile: timeout-ms 20000
+
+class Attack
+{
+    // 1. Eighty parentheses around one number, and the same depth again with
+    // an operator at every level.
+    public static function nested(): int
+    {
+        return ((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((((1))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))));
+    }
+
+    // 2. A minus sign stacked forty deep in front of one number.
+    public static function stacked(): int
+    {
+        return ----------------------------------------7;
+    }
+
+    // 3. A hundred operators in one expression, at eight different levels of
+    // precedence, so the parser has to keep the whole tree in hand.
+    public static function chained(int $n): int
+    {
+        return $n + $n * 2 - $n % 3 + $n * $n - $n / 1 as int + $n << 1 >> 1 & 255 | 16 ^ 4
+            + $n + $n * 2 - $n % 3 + $n * $n - $n / 1 as int + $n << 1 >> 1 & 255 | 16 ^ 4
+            + $n + $n * 2 - $n % 3 + $n * $n - $n / 1 as int + $n << 1 >> 1 & 255 | 16 ^ 4
+            + $n + $n * 2 - $n % 3 + $n * $n - $n / 1 as int + $n << 1 >> 1 & 255 | 16 ^ 4
+            + $n + $n * 2 - $n % 3 + $n * $n - $n / 1 as int + $n << 1 >> 1 & 255 | 16 ^ 4;
+    }
+
+    // 4. Twenty ternaries with no parentheses, which all group to the right.
+    public static function ternaries(int $n): int
+    {
+        return $n == 0 ? 0 : $n == 1 ? 1 : $n == 2 ? 2 : $n == 3 ? 3 : $n == 4 ? 4
+            : $n == 5 ? 5 : $n == 6 ? 6 : $n == 7 ? 7 : $n == 8 ? 8 : $n == 9 ? 9
+            : $n == 10 ? 10 : $n == 11 ? 11 : $n == 12 ? 12 : $n == 13 ? 13
+            : $n == 14 ? 14 : $n == 15 ? 15 : $n == 16 ? 16 : $n == 17 ? 17
+            : $n == 18 ? 18 : $n == 19 ? 19 : 20;
+    }
+
+    // 5. A power chain read from the right, so the exponent is `3 ** 4` and
+    // the result is far past the largest `int`.
+    public static function power(int $base): int
+    {
+        return $base ** 3 ** 2 ** 2;
+    }
+}
+
+echo Attack::nested(), "\n";
+echo Attack::stacked(), "\n";
+echo Attack::chained(3), "\n";
+echo Attack::ternaries(19), "\n";
+echo Attack::power(2), "\n";

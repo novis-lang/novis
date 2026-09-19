@@ -1,0 +1,17 @@
+<?nvs
+// Shows the two rules for `**`: it runs before a minus sign written in front
+// of it, and a chain of them is read from the right.
+
+// `2 ** 2` runs first, and the minus sign is applied to the result.
+// This prints -4.
+echo -2 ** 2, "\n";
+
+// Parentheses make the minus sign part of the number. This prints 4.
+echo (-2) ** 2, "\n";
+
+// A chain is read from the right: `3 ** 2` is 9, and `2 ** 9` is 512.
+echo 2 ** 3 ** 2, "\n";
+
+// The same chain read from the left would be 64. Write the parentheses when
+// you mean that. This prints 64.
+echo (2 ** 3) ** 2, "\n";

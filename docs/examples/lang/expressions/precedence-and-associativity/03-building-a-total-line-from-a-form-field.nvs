@@ -1,0 +1,22 @@
+<?nvs
+// Shows the two rules you meet when you build a line of text out of numbers:
+// `as` binds tighter than every operator around it, and the dot that joins
+// two strings binds looser than the arithmetic.
+
+// The quantity arrived from a form, so it is text.
+string $typed = "3";
+int $unitPrice = 20;
+int $shipping = 5;
+
+// `as int` converts before the multiplication, so no parentheses are needed
+// here. This prints 60.
+echo $typed as int * $unitPrice, "\n";
+
+// The whole sum is worked out first and then joined to the label, because `.`
+// binds looser than `*` and `+`. This prints `total: 65`.
+echo "total: " . $typed as int * $unitPrice + $shipping, "\n";
+
+// A division needs its own parentheses, because `as` would otherwise convert
+// only the number on its right. This prints 21.
+int $cents = 4200;
+echo ($cents / 200) as int, "\n";
