@@ -1,0 +1,20 @@
+<?nvs
+// Shows a `switch` that picks one answer out of several. The subject is
+// compared with each `case` in order, and `default` runs when none matched.
+
+array<string> $statuses = ["new", "sent", "lost"];
+
+foreach ($statuses as string $status) {
+    string $text = "";
+    switch ($status) {
+        case "new":
+            $text = "waiting to be packed";
+            break;
+        case "sent":
+            $text = "on its way";
+            break;
+        default:
+            $text = "we do not know";
+    }
+    echo $status, ": ", $text, "\n";
+}

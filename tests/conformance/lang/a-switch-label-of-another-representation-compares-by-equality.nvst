@@ -2,6 +2,7 @@
 A `switch` label at a representation other than the subject's compares by the one equality — `rule:expressions/switch-match-equality`, `rule:expressions/one-equality-operator`, `rule:expressions/mixed-equality`
 --FILE--
 <?nvs
+// covers: lang:statements/switch
 // `rule:expressions/disjoint-comparison-refused` puts `int`, `uint` and
 // `float` in one numeric domain, so a label may be written at a
 // representation the subject does not share. It is still the one comparison

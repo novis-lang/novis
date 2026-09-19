@@ -1,0 +1,33 @@
+<?nvs
+// Compares one number with a list of labels and runs the body that matches. A
+// program meets this shape whenever it turns a code into an action.
+// bench: iterations 400000
+// bench: calls 0
+// bench: allocations 0
+
+class Bench {
+    public static function run(int $rounds): int {
+        int $acc = 1;
+        for (int $i = 0; $i < $rounds; $i++) {
+            // Chained: this round's subject comes out of the last round.
+            switch ($acc % 5) {
+                case 0:
+                    $acc = $acc + 7;
+                    break;
+                case 1:
+                case 2:
+                    $acc = $acc + 3;
+                    break;
+                case 3:
+                    $acc = $acc + 11;
+                    break;
+                default:
+                    $acc = $acc + 1;
+            }
+            $acc = $acc % 1000003;
+        }
+        return $acc;
+    }
+}
+
+echo Bench::run(400000), "\n";

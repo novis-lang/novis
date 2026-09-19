@@ -2,6 +2,7 @@
 A `switch` compares every label in order, falls through a body with no `break`, and reaches `default` last wherever it is written
 --FILE--
 <?nvs
+// covers: lang:statements/switch
 class Grade {
     public static function tier(string $letter): string {
         switch ($letter) {

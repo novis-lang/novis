@@ -1,0 +1,97 @@
+<?nvs
+// Attack: a `switch` is given as much work as one statement can carry. It runs
+// millions of times, falls through every body it has, and compares texts of a
+// million characters. The runtime should run all of it and stay standing, and
+// the last step should throw an error that nobody catches.
+// hostile: timeout-ms 60000
+// hostile: ends-early
+// covers: lang:statements/switch
+
+class Attack
+{
+    public static function subject(): int
+    {
+        throw new RuntimeError('the subject failed');
+    }
+}
+
+// 1. Five million rounds where nothing matches, so every label is compared
+// before `default` runs.
+int $missed = 0;
+for (int $i = 0; $i < 5000000; $i++) {
+    switch (-1) {
+        case 1:
+        case 2:
+        case 3:
+        case 4:
+        case 5:
+        case 6:
+        case 7:
+        case 8:
+            $missed = $missed - 1;
+            break;
+        default:
+            $missed = $missed + 1;
+    }
+}
+echo $missed, "\n";
+
+// 2. No body has a `break`, so a match at the first label runs every body
+// after it. One million rounds of that.
+int $fell = 0;
+for (int $k = 0; $k < 1000000; $k++) {
+    switch (0) {
+        case 0:
+            $fell = $fell + 1;
+        case 1:
+            $fell = $fell + 1;
+        case 2:
+            $fell = $fell + 1;
+        default:
+            $fell = $fell + 1;
+    }
+}
+echo $fell, "\n";
+
+// 3. The subject is a text of a million characters, and the labels are texts
+// of the same length. Only the last one is equal to it.
+string $long = Core\Str::repeat('x', 1000000);
+string $other = Core\Str::repeat('y', 1000000);
+string $found = '';
+switch ($long) {
+    case $other:
+        $found = 'other';
+        break;
+    case $long:
+        $found = 'long';
+        break;
+    default:
+        $found = 'none';
+}
+echo $found, ' ', Core\Str::length($long), "\n";
+
+// 4. A `switch` inside a loop, where `continue` belongs to the loop and
+// `break 2` leaves the loop from inside the `switch`.
+int $rounds = 0;
+for (int $n = 0; $n < 1000000; $n++) {
+    switch ($n % 3) {
+        case 0:
+            continue;
+        case 1:
+            $rounds = $rounds + 1;
+            break;
+        default:
+            if ($n > 900000) {
+                break 2;
+            }
+    }
+    $rounds = $rounds + 1;
+}
+echo $rounds, "\n";
+
+// 5. The subject is a call that throws. Nothing catches it, so the program
+// ends here.
+switch (Attack::subject()) {
+    case 1:
+        echo "never\n";
+}

@@ -1,0 +1,21 @@
+<?nvs
+// Shows labels that share a body, and a body without `break`. A body without
+// `break` runs on into the next body, which is called falling through.
+
+array<string> $keys = ["a", "s", "q"];
+
+foreach ($keys as string $key) {
+    echo $key, ": ";
+    switch ($key) {
+        case "a":
+        case "s":
+            echo "saving";
+            break;
+        case "q":
+            echo "saving, ";
+            // There is no `break` here, so the next body runs as well.
+        default:
+            echo "leaving";
+    }
+    echo "\n";
+}
