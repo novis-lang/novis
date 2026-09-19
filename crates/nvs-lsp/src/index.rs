@@ -214,6 +214,24 @@ pub struct Declaration {
     /// [`nvs_hir::ClassLinks`] keeps a class's superclass and an interface's
     /// extended interfaces in one field too.
     pub supertypes: Vec<String>,
+    /// What a `class` says about `new`, and `None` for everything that is not
+    /// a class.
+    ///
+    /// Completion after `new` is the only reader: it offers the names a
+    /// program may construct, and puts the cursor between the parentheses
+    /// only where there is an argument to write.
+    pub construction: Option<Construction>,
+}
+
+/// The two things a class declaration says about `new` on it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Construction {
+    /// Whether the class is `abstract`, which `new` does not compile on. Its
+    /// constructor is still the one a subclass without its own inherits.
+    pub is_abstract: bool,
+    /// How many parameters its own `constructor` declares, and `None` for a
+    /// class that declares none and takes whatever its superclass takes.
+    pub parameters: Option<usize>,
 }
 
 /// One place a declared name was used, with what it resolved to.
@@ -620,6 +638,7 @@ fn declarations(analysed: &Analysed, loaded: &Loaded, path: &Path) -> Vec<Declar
             continue;
         }
         let class = symbol.qname.to_string();
+        let declared = declared_type(analysed, &symbol.qname);
         found.push(Declaration {
             symbol: class.clone(),
             kind: DeclKind::of_symbol(symbol.kind),
@@ -628,8 +647,9 @@ fn declarations(analysed: &Analysed, loaded: &Loaded, path: &Path) -> Vec<Declar
             // from every file that resolves its name.
             visibility: Visibility::Public,
             supertypes: supertypes_of(analysed, &symbol.qname),
+            construction: declared.and_then(|(stmt, file)| construction_of(stmt, file)),
         });
-        if let Some((stmt, file)) = declared_type(analysed, &symbol.qname) {
+        if let Some((stmt, file)) = declared {
             members(stmt, file, &class, path, &mut found);
         }
     }
@@ -653,8 +673,28 @@ fn members(stmt: &Stmt, file: &SourceFile, class: &str, path: &Path, found: &mut
             // fact about the class, and the override edge a lens shows is read
             // off the two ends of that.
             supertypes: Vec::new(),
+            construction: None,
         });
     }
+}
+
+/// The name a class spells its constructor with.
+const CONSTRUCTOR: &str = "constructor";
+
+/// What the type `stmt` declares says about `new`, if it is a class.
+fn construction_of(stmt: &Stmt, file: &SourceFile) -> Option<Construction> {
+    let StmtKind::ClassDecl(decl) = &stmt.kind else {
+        return None;
+    };
+    Some(Construction {
+        is_abstract: decl.modifiers.contains(&Modifier::Abstract),
+        parameters: decl.members.iter().find_map(|member| match &member.kind {
+            ClassMemberKind::Method(method) if text_of(file, method.name) == CONSTRUCTOR => {
+                Some(method.params.len())
+            }
+            _ => None,
+        }),
+    })
 }
 
 /// Every member name `stmt` declares, with what it declares and where it is
