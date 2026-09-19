@@ -31,10 +31,13 @@ import {
   workspace,
 } from "vscode";
 import {
+  ClientCapabilities,
   Executable,
+  FeatureState,
   LanguageClient,
   LanguageClientOptions,
   ServerOptions,
+  StaticFeature,
 } from "vscode-languageclient/node";
 
 import * as ast from "./ast";
@@ -53,6 +56,27 @@ import { refusal } from "./version";
 // handshake of its own.
 //
 // **`Executable.transport` is left unset on purpose, and it is not the same field it looks like.**
+// The editor commands a completion item may name. An accepted class writes `Name::` and the list
+// of its static members opens at once, and an accepted class after `new` writes `Name()` and
+// signature help opens between the parentheses. Both are this editor's commands and not the
+// server's, and the server names one only to a client that listed it here: another editor would
+// answer an id it does not know with an error on every accepted item.
+const EDITOR_COMMANDS = ["editor.action.triggerSuggest", "editor.action.triggerParameterHints"];
+
+const editorCommands: StaticFeature = {
+  fillClientCapabilities(capabilities: ClientCapabilities): void {
+    capabilities.experimental = {
+      ...(capabilities.experimental as object | undefined),
+      commands: EDITOR_COMMANDS,
+    };
+  },
+  initialize(): void {},
+  getState(): FeatureState {
+    return { kind: "static" };
+  },
+  clear(): void {},
+};
+
 // For an `Executable`, `vscode-languageclient` reads `TransportKind.stdio` as a claim about the
 // server's *argv* and appends `--stdio` to this list before spawning; `nvs lsp` takes no such flag,
 // so clap rejects it and the process exits before the first byte of protocol. Unset takes the
@@ -198,6 +222,7 @@ async function start(context: ExtensionContext): Promise<void> {
   // The id is what the trace setting hangs off: `vscode-languageclient` reads `<id>.trace.server`,
   // which is the frozen `nvs.lsp.trace.server`.
   const starting = new LanguageClient("nvs.lsp", "Novis", server, options);
+  starting.registerFeature(editorCommands);
   report("starting", `${command} lsp`, LanguageStatusSeverity.Information);
   try {
     await starting.start();
