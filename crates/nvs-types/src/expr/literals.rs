@@ -283,6 +283,39 @@ pub(crate) fn uint_operand_expectation(
     Some(interner.uint())
 }
 
+/// Whether a position typed `id` places an integer literal at `uint`.
+///
+/// `rule:types/numeric-literal-placement`: `expr as T` is a placing position, and an enum's case
+/// values are written at the backing type the declaration names, so a
+/// `uint`-backed enum takes the digit run above `int`'s half exactly where
+/// `as uint` does. Without that row the widest case of such an enum is
+/// unwritable under a conversion, which is the loss that rule's placement
+/// exists to prevent.
+///
+/// `?E` is the union `E|null`, and it descends into the one member beside
+/// `null` because the null arm is the conversion's *outcome* rather than a
+/// second target the literal could take. A union of two numeric types is not
+/// descended into: two members would each claim the literal, and the position
+/// names no single one of them.
+fn wants_uint_placement(id: TypeId, interner: &TypeInterner) -> bool {
+    match interner.get(id) {
+        Ty::Uint => true,
+        Ty::Enum(_, backing) | Ty::EnumCase(_, backing, _) => {
+            matches!(backing, crate::enums::EnumBacking::Uint)
+        }
+        Ty::Union(members) if members.iter().any(|m| matches!(interner.get(*m), Ty::Null)) => {
+            let mut beside_null = members
+                .iter()
+                .filter(|m| !matches!(interner.get(**m), Ty::Null));
+            match (beside_null.next(), beside_null.next()) {
+                (Some(only), None) => wants_uint_placement(*only, interner),
+                _ => false,
+            }
+        }
+        _ => false,
+    }
+}
+
 /// `123` — [`super::infer`]'s `ExprKind::Int` arm.
 ///
 /// `rule:types/arithmetic`: "An integer literal that does not fit `int` is legal only
@@ -307,7 +340,7 @@ pub(crate) fn infer_int_literal(
         check_decimal_int_literal(span, report_span, env);
         return record_decimal_placement(report_span, env);
     }
-    let wants_uint = expected.is_some_and(|id| matches!(env.interner.get(id), Ty::Uint));
+    let wants_uint = expected.is_some_and(|id| wants_uint_placement(id, env.interner));
     let (radix, digits) = int_literal_digits(env.src, span);
     let parsed = u64::from_str_radix(&digits, radix);
     // `rule:types/literal-types`, ahead of `uint`'s placement below because no position

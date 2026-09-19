@@ -1,0 +1,40 @@
+--TEST--
+An integer literal above `int`'s half is placed at a `uint`-backed enum's backing type under `as`, at the enum and at one of its cases — `rule:types/numeric-literal-placement`, `rule:enums/one-backing-type`
+--FILE--
+<?nvs
+// covers: lang:enums/declaring-an-enum
+enum Wide: uint {
+    None = 0,
+    Half = 9223372036854775808,
+    All = 18446744073709551615,
+}
+
+enum Narrow: int {
+    Low = -1,
+    High = 9223372036854775807,
+}
+
+// `rule:types/numeric-literal-placement`: `expr as T` is a placing position, and an enum's
+// cases are written at its backing type, so the digit run above `int`'s half
+// takes `uint` here rather than `int` and a checked conversion afterwards.
+Wide $all = 18446744073709551615 as Wide;
+echo $all as uint, "\n";
+
+// The same at a single case's own type, `rule:enums/closed-integer-type`'s narrower atom.
+Wide::Half $half = 9223372036854775808 as Wide::Half;
+echo $half as uint, "\n";
+
+// An `int`-backed enum places the same way at its own backing type, so the
+// largest `int` reaches a case with no `uint` anywhere in the conversion.
+Narrow $high = 9223372036854775807 as Narrow;
+echo $high as int, "\n";
+
+// A `uint` binding reaches the same case, so placement is the only difference
+// between the two spellings rather than a different set of reachable cases.
+uint $u = 18446744073709551615;
+echo ($u as Wide) as uint, "\n";
+--EXPECT--
+18446744073709551615
+9223372036854775808
+9223372036854775807
+18446744073709551615
