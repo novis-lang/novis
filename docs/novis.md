@@ -1395,8 +1395,10 @@ ones that admit `tainted` (`Core\Str::length($secret)` is refused). Interpolatio
 the qualifier to their result, so `echo "Bearer {$token}"` is refused for the same reason the bare
 `echo $token` is. What still compiles: `==` between two secrets, or a secret and a string; and an
 array literal, which infers `array<mixed>` and drops the qualifier, where a declared
-`array<secret string>` keeps it and is refused at `Core\Json::encode` with everything else. There
-is no member that removes `secret`; a conversion is the only way out.
+`array<secret string>` keeps it and is refused at `Core\Json::encode` with everything else. Beside a
+conversion there is exactly one member that removes it, `Core\Secret::reveal($value, $reason)` with
+a `bytes` twin `revealBytes`, which writes down why at the call site and removes `secret` alone — a
+value that was also `tainted` stays `tainted`.
 
 ```nvs
 <?nvs
@@ -1408,10 +1410,13 @@ echo $header == "Bearer hunter2" ? "matches" : "differs", "\n";
 secret string $digits = "17";
 int $n = $digits as int;
 echo $n, "\n";
+string $shown = Core\Secret::reveal($token, "showing it in the reference");
+echo $shown, "\n";
 ```
 ```output
 matches
 17
+hunter2
 ```
 
 ```nvs error

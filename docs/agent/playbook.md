@@ -2488,9 +2488,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
 - **`target/release/nvs.exe` is whatever the *last* session built, and rebuilding it costs two
   minutes for a verdict the debug binary already gives.** A `.nvst` case a stale binary fails may
   simply predate it, and `cargo build --release -p nvs-cli` relinks the world for a one-line edit.
-  Build `cargo build` and run `target/debug/nvs.exe`: it is the same binary
-  `tools/loop.py`'s acceptance check judges you by, so it is the more faithful answer as well as the
-  cheap one. [until: reviewed 2026-09-06]
+  Build `cargo build` and run `target/debug/nvs.exe`: it is the binary `tools/loop.py` builds after
+  every acceptance check, so it is the cheap answer and usually the faithful one. The exception is
+  `tools/dossier.py`, which picks `target/release` first and falls back to debug only when there is
+  no release binary at all — so a session that changed Rust owes it either `--nvs
+  target/debug/nvs.exe` on every call or one `cargo build --release` before the wrap.
+  [until: reviewed 2026-09-06]
 - **`wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh …` fails from the Bash tool and works
   from PowerShell.** Git Bash rewrites any argument that looks like a POSIX path before `wsl.exe`
   sees it, so the command arrives as `bash: C:/Program Files/Git/mnt/…: No such file or directory` —
