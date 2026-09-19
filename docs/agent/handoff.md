@@ -2,39 +2,45 @@
 
 ## State
 
-Goal types:exception, 3 of its 13 features complete: `ArithmeticError` landed before this session,
-`Core\Cli\NotInteractive` and `Core\Db\DbError` landed in it. Each carries `about.md`, three
-examples with blessed output, one attack and one `.nvst` case; exceptions owe no bench.
-
-`tools/dossier.py` now starts every subprocess with its input closed, the way `nvs-test`'s runner
-already did. Without it a prompting example is interactive under a person's shell and not under the
-loop driver, which is two different answers from one file.
+Goal types:exception, 5 of its 13 features complete: `ArithmeticError`, `Core\Cli\NotInteractive`
+and `Core\Db\DbError` landed earlier, `Core\Db\RolledBack` and `Core\Test\Failure` in this session.
+Each carries `about.md`, three examples with blessed output, one attack and one `.nvst` case;
+exceptions owe no bench. `python tools/dossier.py --verify --group types:exception` names the eight
+that are left.
 
 A `Core\Db` proof runs on `[db.schema]` — in-memory SQLite, no container — and needs an `[[app]]`
-grant per entry path in `nvs.toml`; four are written there now, three examples and the attack.
+grant per entry path in `nvs.toml`; seven are written there now.
+
+A `Core\Test` proof needs neither a grant nor a runner. `Core\Test::assertTrue`, `assertEquals` and
+`expectFailure` all work under plain `nvs run`, so a failed check is showable in an example and
+blessable like any other output. An options argument is written inline — `{message: "…"}` — and
+never as a bare second string.
+
+The three trunk classes left are the ones the rest of the tree is defined against, so they share one
+vocabulary as well as one file set.
 
 ## Next group
 
-**One file set: the exception tree and the three proof trees keyed off it** —
+**Stage 2: the dossier — one file set: the exception tree and the three proof trees keyed off it** —
 `crates/nvs-hir/src/errors.rs`, `docs/examples/types/`, `tests/hostile/types/`,
 `tests/conformance/core/`. One slice is one feature with all four proofs, in this order:
 
-- [ ] **`Core\Db\RolledBack`** — owes about, examples, hostile, tests. Cheapest next: the `nvs.toml`
-      grants, the SQLite block and the sibling assertions are already written for
-      `Core\Db\DbError`, and the two are pinned against each other.
-      `crates/nvs-hir/src/errors.rs:108`
-- [ ] **`Core\Test\Failure`** — owes about, examples, hostile, tests. It hangs off the root rather
-      than off `RuntimeError`; `rule:testing/failure-ledger` is what it is for.
-      `crates/nvs-hir/src/errors.rs:105`
-- [ ] **`LogicError`** — owes about, examples, hostile, tests. The half of the tree the other two
-      are defined against: it is what a mistake in the *call* raises.
+- [ ] **`LogicError`** — owes about, examples, hostile, tests. Cheapest next: it is the half the two
+      landed `Core\Db` classes are already pinned against, so its sibling assertions are written and
+      its examples need no database at all. `rule:testing/four-proofs`.
       `crates/nvs-hir/src/errors.rs:98`
+- [ ] **`RuntimeError`** — owes about, examples, hostile, tests. The other trunk class, and the
+      parent every `Core\Db` and `Core\Cli` proof already catches by name.
+      `rule:testing/four-proofs`. `crates/nvs-hir/src/errors.rs:99`
+- [ ] **`Throwable`** — owes about, examples, hostile, tests. The root, and the one name a `catch`
+      can use to mean anything at all; it owns `message` and the properties every entry inherits.
+      `rule:testing/four-proofs`. `crates/nvs-hir/src/errors.rs:97`
 
 ## Backlog
 
-- Items 5, 7 and 9-13 of this goal: `Core\Script\Finished`, `IOError`, `ParseError`,
-  `RecursionError`, `RuntimeError`, `Throwable`, `TimeoutError` — `docs/agent/loop-goal.md`.
-- The repository's `[queue] connection = "main"` worker starts under any program that lives long
-  enough, and one run of the `Core\Db\DbError` attack waited on a PostgreSQL nobody had started
-  before finishing; every run since took four seconds. Worth sizing a `timeout-ms` against —
-  `nvs.toml:534`.
+- `Core\Db\RolledBack`'s attack ends on `RecursionError` at 2000 nested savepoints, so where SQLite's
+  own savepoint limit sits is still unasserted — `crates/nvs-stdlib/src/db/mod.rs`.
+- `Core\Test\Failure`'s proofs assert nothing about the ledger, because a `.nvst` case has no runner
+  to read one back — `crates/nvs-stdlib/src/test.rs`.
+- `IOError`, `ParseError`, `TimeoutError`, `RecursionError` and `Core\Script\Finished` are the five
+  after the trunk — `docs/agent/loop-goal.toml`.

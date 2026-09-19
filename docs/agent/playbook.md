@@ -2406,6 +2406,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   other leg was read against. Reproduce a red check's own argv by hand before budgeting it as a
   slice, and when a flag's default becomes a sentinel, `grep -n 'args\.<name>'` for every leg that
   reads it rather than the one being changed. [until: reviewed 2026-09-19]
+- **An `[[app]]` entry in `nvs.toml` naming a file that does not exist aborts every program in the
+  tree with `E0605`, not just that one.** A key that matches nothing would silently drop the
+  application it was meant to cover back to the global configuration, so the loader refuses the
+  whole file — which means writing a proof's grants before writing the proof makes every other
+  example and fixture unrunnable in the meantime. Write the `.nvs` files first and the grant block
+  second, and when a run fails on a path you have not created yet, that is what happened.
+  [until: reviewed 2026-09-19]
 
 ## Running things
 
@@ -5832,6 +5839,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   and leave a `docs/examples/` file in its neighbours' style — that tree is not in the corpus, and
   some 130 landed examples are not canonical.
   [until: gone crates/nvs-fmt/tests/identity.rs:the_identity_printer_reproduces_every_corpus_file]
+- **Two `catch` clauses in one scope cannot share a binding name, and the diagnostic is `E0406:
+  already declared` pointing at the earlier clause.** A catch binding is declared for the whole
+  enclosing scope rather than for its own block, so the PHP habit of calling every one `$e` — or two
+  clauses in one file both calling theirs `$notThisOne` — fails to compile for a reason that has
+  nothing to do with what is being caught. Give each clause a name saying what that branch means, or
+  put each `try` in its own static method the way the landed `types/` cases do.
+  [until: reviewed 2026-09-19]
 
 ## Splitting a file that got too big
 
