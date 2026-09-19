@@ -1,0 +1,31 @@
+<?nvs
+// A request updates a running total far more often than it creates one. This
+// measures the three places a compound assignment writes: a local, a property
+// and an array element. Every round follows on from the one before.
+// bench: iterations 400000
+// bench: allocations 0
+// dossier: known-gap crates/nvs-ir/src/lib.rs -- a `uint` array subscript is rendered to a decimal string key on every access, so the element write below allocates twice a round
+
+class Tally {
+    public uint $seen = 0;
+
+    public static function run(uint $rounds): uint {
+        Tally $tally = new Tally();
+        array<uint> $slots = [0, 0, 0, 0];
+        uint $running = 1;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: this round's step comes out of the last round's total.
+            uint $step = $running % 3 + 1;
+            $running += $step;
+            $running *= 2;
+            $running %= 1000003;
+            $tally->seen += $step;
+            $slots[$running % 4] += $step;
+            $i = $i + 1;
+        }
+        return $running + $tally->seen + $slots[0];
+    }
+}
+
+echo Tally::run(400000), "\n";

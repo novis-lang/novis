@@ -1,0 +1,51 @@
+<?nvs
+// Shows what compound assignment is for at work. This report is built by
+// updating a few running values once per row. Nothing is collected first and
+// added up at the end.
+
+class Order {
+    public function constructor(
+        public string $status,
+        public decimal $amount,
+        public uint $items,
+    ) {}
+}
+
+array<Order> $orders = [
+    new Order("paid", 19.99, 2),
+    new Order("refunded", 4.50, 1),
+    new Order("paid", 120.00, 7),
+    new Order("paid", 8.25, 1),
+];
+
+decimal $revenue = 0.00;
+uint $shipped = 0;
+array<uint> $byStatus = [];
+string $slowest = "";
+
+foreach ($orders as Order $order) {
+    // A key that is not there yet cannot be read, so the first row for a
+    // status writes the starting value.
+    if (!Core\Arr::hasKey($byStatus, $order->status)) {
+        $byStatus[$order->status] = 0;
+    }
+    $byStatus[$order->status] += 1;
+
+    if ($order->status == "paid") {
+        $revenue += $order->amount;
+        $shipped += $order->items;
+    }
+
+    if ($order->items > 5) {
+        $slowest .= $order->status . " ";
+    }
+}
+
+// This prints: 148.24 taken over 10 items
+echo $revenue, " taken over ", $shipped, " items\n";
+
+// This prints: paid 3, refunded 1
+echo "paid ", $byStatus["paid"], ", refunded ", $byStatus["refunded"], "\n";
+
+// This prints: large orders: paid
+echo "large orders: ", Core\Str::trim($slowest), "\n";

@@ -663,6 +663,22 @@
 //!     `docs/examples/lang/expressions/and-the-ternary/03-settings-with-their-gaps-filled-in.nvs`
 //!     is the proof that carries it.
 //!     — owner: M10
+//! 21. **A `uint` array subscript is rendered to a decimal string on every
+//!     access.** [`lower::Lowering::lower_array_key`] passes an `int` key
+//!     through as [`ty::Ty::Int`] — which `nvs_codegen` then sends to the
+//!     runtime's integer-key entry point — and hands a `uint` one to
+//!     [`ir::Helper::UintToString`] instead, so the key is a fresh string
+//!     every time the element is touched. Measured on
+//!     `benches/members/lang/expressions/assignment.nvs`: two allocations per
+//!     read and two per write with a `uint` index, none at all with the same
+//!     index declared `int`, and four for a compound `$a[$i] += $v`, which
+//!     pays for both halves. That is a latency cost on the one spelling a
+//!     counted loop reaches for first, and it is invisible in the source.
+//!     What closes it is a `uint` key normalised onto the integer-key path an
+//!     `int` already takes, which is `nvs_runtime::array`'s key model rather
+//!     than this crate's lowering — so it is recorded rather than fixed where
+//!     it was found.
+//!     — owner: M12
 
 pub mod ids;
 pub mod ir;

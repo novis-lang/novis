@@ -1,0 +1,34 @@
+<?nvs
+// Shows `=` writing a value, and the compound forms updating one that is
+// already there. `$x += 1` is `$x = $x + 1` written once.
+
+uint $attempts = 0;
+string $log = "start";
+
+// Each of these reads the variable, applies the operator and writes the
+// result back.
+$attempts += 1;
+$attempts += 1;
+$log .= " -> retry";
+
+// This prints: 2 start -> retry
+echo $attempts, " ", $log, "\n";
+
+// The operator keeps the type of the variable it writes into. These all stay
+// `int`, and this prints: 7 21 1
+int $budget = 10;
+$budget -= 3;
+echo $budget, " ";
+$budget *= 3;
+echo $budget, " ";
+$budget %= 4;
+echo $budget, "\n";
+
+// `=` is an expression too, so its value can be used where it stands. Both
+// variables end up 3, and the sum is 6.
+int $left = 0;
+int $right = 0;
+$left = $right = 3;
+int $sum = $left + $right;
+// This prints: 3 3 6
+echo $left, " ", $right, " ", $sum, "\n";

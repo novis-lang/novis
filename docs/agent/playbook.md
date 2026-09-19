@@ -6026,6 +6026,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   identical loop finished in under two seconds once it stopped. Grow an array in a loop with
   `$a[] = $x` and keep `Core\Arr::append` for the one-off where a second array is what you actually
   want. [until: reviewed 2026-09-19]
+- **An array type takes one parameter, so `array<string, uint>` does not parse.** The key type is
+  never written — a string-keyed array of counts is `array<uint>` and the literal supplies the keys
+  — so the comma is read as call syntax and what comes back is an `E0101`/`E0102` pair pointing at
+  the `<`, saying nothing about types. Declare the value type alone and key the literal:
+  `array<uint> $seen = ["get" => 0];`. [until: reviewed 2026-09-19]
 
 ## Splitting a file that got too big
 
