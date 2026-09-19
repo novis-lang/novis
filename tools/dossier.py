@@ -2998,11 +2998,17 @@ def gate(scope: list[Entry], proofs: dict[str, Proofs], policy: dict, skips: dic
 
 
 def run_scoped(nvs: Path, what: str, scope: list[Entry], args) -> int:
-    base, prefix = (EXAMPLES, "docs/examples/") if what == "examples" else (HOSTILE, "tests/hostile/")
-    files = sorted(base.rglob("*.nvs")) if base.is_dir() else []
-    if args.group or args.only:
-        paths = {e.path for e in scope}
-        files = [f for f in files if any(rel(f).startswith(f"{prefix}{p}/") for p in paths)]
+    """Every case in scope, and nothing that is not a case.
+
+    A case is a `*.nvs` sitting directly in a feature's own directory -- the same set
+    `owed` counts, so the gate and the suite never disagree about what exists. A `.nvs`
+    below that, in a subdirectory, is material one of those cases `require`s or autoloads;
+    it does not stand on its own, has no `.out` and does not compile alone. Walking the
+    whole tree instead runs a fragment as though it were a case and fails it for being
+    one -- `docs/examples/README.md` is where a supporting file's place is decided.
+    """
+    dirs = [e.examples_dir if what == "examples" else e.hostile_dir for e in scope]
+    files = sorted({f for d in dirs if d.is_dir() for f in d.glob("*.nvs")})
     return run_suite(nvs, what, files, what == "hostile" and args.valgrind, args.quiet,
                      not args.no_cache, args.strict)
 
