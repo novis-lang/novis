@@ -519,6 +519,80 @@ def about_problem(path: Path) -> str:
     return ""
 
 
+#: What a script can judge of `docs/examples/README.md` § *How a comment is written*. That section
+#: is the rule and says why; these are the bounds it states, and the words it names that a script
+#: can match without catching an everyday use of them.
+COMMENT_TOP_LINES = 4
+COMMENT_STEP_LINES = 2
+COMMENT_SENTENCE_WORDS = 25
+COMMENT_DIRECTIVE_RE = re.compile(r"^//\s*(?:bench|hostile|covers|dossier|requires):")
+COMMENT_INTERNAL_RE = re.compile(
+    r"\b(?:shards?|refcounts?|reference counts?|lowering|the registry|allocators?|optimi[sz]ers?|"
+    r"hoist(?:s|ed)?|longest[- ]match|single[- ]filler|stack frames?|ADR ?\d+|nvs[-_]\w+)\b|rule:\w",
+    re.I)
+
+
+def comment_problems(path: Path) -> list[str]:
+    """What is wrong with the shape of a proof program's comments, as `line: what` -- only what a
+    script can judge. Whether a comment reads plainly is a person's to check; a sentence too long
+    to be plain, a block too long to be skimmed and a word only the implementation uses are not.
+
+    A directive line is a tool's and is skipped, and so is an indented line, which is how a
+    configuration example shows the block it is about."""
+    blocks: list[tuple[int, list[str]]] = []
+    current: list[str] = []
+    for number, line in enumerate(read(path).splitlines(), 1):
+        text = line.strip()
+        if text.startswith("//") and not COMMENT_DIRECTIVE_RE.match(text):
+            body = text[2:]
+            if body.startswith("     ") or not body.strip():
+                continue
+            if not current:
+                blocks.append((number, current))
+            current.append(body.strip())
+        elif not text.startswith("//"):
+            current = []
+    problems = []
+    for index, (number, lines) in enumerate(blocks):
+        top = index == 0 and number <= 3
+        bound = COMMENT_TOP_LINES if top else COMMENT_STEP_LINES
+        if len(lines) > bound:
+            where = "the top comment" if top else "a comment above a step"
+            problems.append(f"{number}: {where} is {len(lines)} lines, and {bound} is the bound")
+        prose = " ".join(lines)
+        if "—" in prose or " -- " in prose:
+            problems.append(f"{number}: a dash joins two sentences; write two")
+        for sentence in re.split(r"(?<=[.!?:])\s+", prose):
+            words = len(sentence.split())
+            if words > COMMENT_SENTENCE_WORDS:
+                problems.append(f"{number}: a {words}-word sentence opening "
+                                f"`{' '.join(sentence.split()[:5])} ...`; "
+                                f"{COMMENT_SENTENCE_WORDS} is the bound")
+        for word in sorted({m.group(0).lower() for m in COMMENT_INTERNAL_RE.finditer(prose)}):
+            problems.append(f"{number}: `{word}` is the implementation's word, not the reader's")
+    return problems
+
+
+def check_comments(targets: list[Path]) -> int:
+    """`--comments`: judge the named programs, or every `.nvs` under a named directory. It reads
+    and never runs anything, so a worker may call it on its own files during the fan-out."""
+    files = sorted({f for t in targets for f in (t.rglob("*.nvs") if t.is_dir() else [t])})
+    bad = 0
+    for path in files:
+        problems = comment_problems(path)
+        if problems:
+            bad += 1
+            print(f"  {rel(path)}")
+            for problem in problems:
+                print(f"      {problem}")
+    rule = "`How a comment is written` in docs/examples/README.md"
+    if bad:
+        print(f"dossier comments: {bad} of {len(files)} program(s) miss {rule}.")
+        return 1
+    print(f"dossier comments: {len(files)} program(s), each inside the bounds of {rule}.")
+    return 0
+
+
 # ------------------------------------------------------------------------------- the roster
 
 
@@ -1851,7 +1925,11 @@ are not style rules: breaking one silently destroys their work or the parent's.
   read twice. No ADR numbers, no rule ids, no crate names, none of the implementation's own words
   (shard, tier, slot, refcount, lowering, the registry). Up to four lines at the top, one or two
   above a step. `docs/examples/README.md` § *How a comment is written* is the rule and carries a
-  before and an after; read it before your first file.
+  before and an after; read it before your first file. **Then check every `.nvs` you wrote**,
+  all of them in one call: `python tools/dossier.py --comments <file> <file> ...`. It reads and
+  never runs, so it is safe here. It judges only length and vocabulary, so passing it is the
+  floor and not the goal: a file is handed back when it passes *and* a beginner would follow it.
+  Rewrite the sentence as two; never trim a word to get under a bound.
 - **hostile** -- the file you write when you are trying to make the runtime come apart. It has no
   expected output: it passes if nothing panicked, aborted, hung or leaked. Throwing is a pass; a
   limit stopping it cleanly is a pass. Unbounded input, deep nesting, one element either side of a
@@ -2675,8 +2753,11 @@ def goal_prose(n: int, label: str, members: list[Entry], proofs: dict[str, Proof
         "  attack and bench alike are read by somebody who looked the feature up: short sentences,",
         "  one idea each, everyday words, no figure of speech, no ADR number, no crate name, none of",
         "  the implementation's own vocabulary. Up to four lines at the top, one or two above a",
-        "  step. `docs/examples/README.md` § *How a comment is written* is the rule. A file you",
-        "  touch for another reason is brought up to it; the landed ones are not swept.",
+        "  step. `docs/examples/README.md` § *How a comment is written* is the rule, and",
+        "  `python tools/dossier.py --comments <paths>` judges the half of it a script can: run it",
+        "  over every `.nvs` this session wrote before the wrap, and a file it names is rewritten,",
+        "  not trimmed. A file you touch for another reason is brought up to it; the landed ones",
+        "  are not swept.",
         "- **A `.out` file is created with `--bless` and then read.** Blessing is how the expected",
         "  output is *created*; a red example is never made green by re-blessing it.",
         "- **A hostile case has no expected output.** Its whole assertion is that the runtime",
@@ -3080,6 +3161,9 @@ def main() -> int:
     ap.add_argument("--perf-report", action="store_true", help="regenerate docs/perf/members.md")
     ap.add_argument("--bless", nargs="+", metavar="FILE",
                     help="write an example's .out from what it prints, and show it")
+    ap.add_argument("--comments", nargs="+", metavar="PATH",
+                    help="judge the comments of these .nvs programs, or of every one under a "
+                         "directory, against the plain-comment bounds. Reads, never runs")
     ap.add_argument("--partition", action="store_true",
                     help="cut the scope into worker briefs under .loop/dossier-fanout/, or refuse "
                          "naming the two workers that would write the same path")
@@ -3116,6 +3200,9 @@ def main() -> int:
     # middle of a fan-out, when a build may not have happened for an hour.
     if args.findings:
         return print_findings(args.clear)
+    if args.comments:
+        return check_comments([ROOT / p if not Path(p).is_absolute() else Path(p)
+                               for p in args.comments])
 
     nvs = binary(args.nvs)
     if nvs is None:

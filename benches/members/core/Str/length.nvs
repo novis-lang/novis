@@ -1,6 +1,5 @@
 <?nvs
-// Counting the characters of a short label -- what every truncation, column
-// width and form check does, once per value.
+// Counts the characters of a short label, as a program does before it shortens or pads one.
 // bench: iterations 400000
 // bench: allocations 0
 // bench: complexity linear

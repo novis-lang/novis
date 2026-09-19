@@ -81,8 +81,11 @@ of these.
   attack and bench alike are read by somebody who looked the feature up: short sentences,
   one idea each, everyday words, no figure of speech, no ADR number, no crate name, none of
   the implementation's own vocabulary. Up to four lines at the top, one or two above a
-  step. `docs/examples/README.md` § *How a comment is written* is the rule. A file you
-  touch for another reason is brought up to it; the landed ones are not swept.
+  step. `docs/examples/README.md` § *How a comment is written* is the rule, and
+  `python tools/dossier.py --comments <paths>` judges the half of it a script can: run it
+  over every `.nvs` this session wrote before the wrap, and a file it names is rewritten,
+  not trimmed. A file you touch for another reason is brought up to it; the landed ones
+  are not swept.
 - **A `.out` file is created with `--bless` and then read.** Blessing is how the expected
   output is *created*; a red example is never made green by re-blessing it.
 - **A hostile case has no expected output.** Its whole assertion is that the runtime

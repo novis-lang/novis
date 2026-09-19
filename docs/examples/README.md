@@ -176,6 +176,12 @@ And an attack:
 
 If a comment would only make sense to somebody who works on Novis, it is the wrong comment.
 
+`python tools/dossier.py --comments <file or directory> ...` judges what a script can: the line
+bounds above, a sentence longer than a plain one gets, a dash joining two sentences, and the
+implementation's words. It reads and never runs a program. Passing it is the floor, not the rule —
+a short sentence can still be one nobody follows — and the answer to a line it names is to write
+two sentences, never to trim a word until the count fits.
+
 ## Creating the `.out`
 
     python tools/dossier.py --bless docs/examples/core/Str/length/01-count-characters.nvs
