@@ -1,0 +1,16 @@
+<?nvs
+// Every name says what kind of value it holds, and it says it once. A name
+// can be written down first and filled in later. Where the value on the
+// right already says it, `var` takes the kind from there.
+
+int $count = 3;
+
+string $label;
+$label = "boxes";
+
+var $weight = 1.25;
+
+$count = $count + 1;
+$weight = $weight * 2;
+
+echo $count, " ", $label, ", ", $weight, " kg each\n";

@@ -1,0 +1,136 @@
+<?nvs
+// Attack: the machinery that hands every name a type, pushed on every side.
+// Recursion deep enough to run out of frames, with four names written down in
+// each one. A name written down inside a loop that runs a million times. A
+// closure that keeps a name alive after the frame that wrote it down is gone.
+// Forty names in one function, one of them spelled with a word of two hundred
+// letters. A name given a value in both arms of a branch nested deeply.
+// hostile: timeout-ms 60000
+
+// Four names per frame, as deep as the engine will let the stack go.
+class Deep
+{
+    public static function down(uint $n): uint
+    {
+        uint $mark = 1;
+        string $tag = 'frame';
+        var $copy = $tag;
+        array<uint> $slot = [1];
+        if ($n == 0) {
+            return $mark + $slot[0] - Core\Str::length($copy) + 4;
+        }
+        return Deep::down($n - 1) + $mark - 1;
+    }
+}
+try {
+    echo Deep::down(4000000), "\n";
+} catch (Throwable $e) {
+    echo 'recursion stopped: ', $e->message, "\n";
+}
+
+// A million rounds, each one writing the same three names down again.
+uint $rounds = 0;
+uint $seen = 0;
+while ($rounds < 1000000) {
+    string $inner = 'row';
+    var $len = Core\Str::length($inner);
+    array<uint> $one = [$len];
+    $seen = $seen + $one[0];
+    $rounds = $rounds + 1;
+}
+echo $seen, " names written down and dropped\n";
+
+// A thousand closures, each holding on to a big value the frame that made it
+// has long since left, all released in one go at the end.
+array<callable> $kept = [];
+uint $made = 0;
+while ($made < 1000) {
+    string $big = Core\Str::repeat('x', 10000);
+    $kept[] = fn(): uint => Core\Str::length($big);
+    $made = $made + 1;
+}
+uint $first = $kept[0]() as uint;
+$kept = [];
+echo $first, " held after the frame went\n";
+
+// Forty names in one function, including one nobody would type twice.
+class Wide
+{
+    public static function many(): uint
+    {
+        uint $a01 = 1;
+        uint $a02 = 2;
+        uint $a03 = 3;
+        uint $a04 = 4;
+        uint $a05 = 5;
+        uint $a06 = 6;
+        uint $a07 = 7;
+        uint $a08 = 8;
+        uint $a09 = 9;
+        uint $a10 = 10;
+        string $b01 = 'b';
+        string $b02 = 'b';
+        string $b03 = 'b';
+        string $b04 = 'b';
+        string $b05 = 'b';
+        array<uint> $c01 = [1];
+        array<uint> $c02 = [1];
+        array<uint> $c03 = [1];
+        array<uint> $c04 = [1];
+        array<uint> $c05 = [1];
+        var $d01 = 2.0;
+        var $d02 = 2.0;
+        var $d03 = 2.0;
+        var $d04 = 2.0;
+        var $d05 = 2.0;
+        bool $e01 = true;
+        bool $e02 = false;
+        bool $e03 = true;
+        bool $e04 = false;
+        bool $e05 = true;
+        callable $f01 = fn(): uint => 1;
+        callable $f02 = fn(): uint => 2;
+        callable $f03 = fn(): uint => 3;
+        callable $f04 = fn(): uint => 4;
+        callable $f05 = fn(): uint => 5;
+        uint $thisNameIsLongEnoughThatNobodyWouldEverTypeItTwiceAndItGoesOnAndOnPastEveryReasonableLengthAnIdentifierHasEverHadInAnyProgramAnybodyHasWrittenDownInThisOrAnyOtherLanguageAnywhereAtAllEverYes = 1;
+        uint $sum = $a01 + $a02 + $a03 + $a04 + $a05 + $a06 + $a07 + $a08 + $a09 + $a10;
+        $sum = $sum + $c01[0] + $c02[0] + $c03[0] + $c04[0] + $c05[0];
+        $sum = $sum + Core\Str::length($b01 . $b02 . $b03 . $b04 . $b05);
+        $sum = $sum + ($f01() as uint) + ($f02() as uint) + ($f03() as uint);
+        $sum = $sum + ($f04() as uint) + ($f05() as uint);
+        $sum = $sum + $thisNameIsLongEnoughThatNobodyWouldEverTypeItTwiceAndItGoesOnAndOnPastEveryReasonableLengthAnIdentifierHasEverHadInAnyProgramAnybodyHasWrittenDownInThisOrAnyOtherLanguageAnywhereAtAllEverYes;
+        if ($e01 && !$e02 && $e03 && !$e04 && $e05) {
+            $sum = $sum + ($d01 + $d02 + $d03 + $d04 + $d05) as uint;
+        }
+        return $sum;
+    }
+}
+echo Wide::many(), " from forty names\n";
+
+// A name written down at the bottom of a deep nest of branches, given a value
+// in every arm, and read at the top.
+uint $depth = 0;
+string $verdict;
+if ($depth == 0) {
+    if ($depth < 1) {
+        if ($depth < 2) {
+            if ($depth < 3) {
+                if ($depth < 4) {
+                    $verdict = 'reached the bottom';
+                } else {
+                    $verdict = 'no';
+                }
+            } else {
+                $verdict = 'no';
+            }
+        } else {
+            $verdict = 'no';
+        }
+    } else {
+        $verdict = 'no';
+    }
+} else {
+    $verdict = 'no';
+}
+echo $verdict, "\n";

@@ -1,0 +1,32 @@
+<?nvs
+// Pricing up an order, the way a small shop does it. Every place a value is
+// named says what it holds: the tax rate kept beside the class, the field on
+// the object, what the method takes and what it gives back, the names the loop
+// hands out each round, and the two totals at the end.
+
+class Order {
+    public const int TAX_PERCENT = 20;
+
+    public string $customer;
+
+    public function constructor(string $customer) {
+        $this->customer = $customer;
+    }
+
+    public function net(array<decimal> $lines): decimal {
+        decimal $sum = 0;
+        foreach ($lines as string $item => decimal $amount) {
+            echo $item, ": ", $amount, "\n";
+            $sum = $sum + $amount;
+        }
+        return $sum;
+    }
+}
+
+Order $order = new Order("Hedda Voss");
+array<decimal> $lines = ["print run" => 120.00, "delivery" => 15.50];
+
+var $net = $order->net($lines);
+decimal $gross = $net + $net * Order::TAX_PERCENT / 100;
+
+echo $order->customer, " owes ", $gross, " (", $net, " plus tax)\n";

@@ -1,0 +1,48 @@
+--TEST--
+The six ways a declaration is asked for something it does not do: a second declaration of a live name, an assignment to a name that was never declared, a value of another type, a read on a path no assignment reaches, a bare array literal under `var`, and `settype` (`rule:types/declaration`, `rule:types/var-inference`, `rule:types/conversion`)
+--FILE--
+<?nvs
+// covers: lang:types/every-binding-has-a-type
+
+// `rule:types/declaration`: a binding is declared once, and a second
+// declaration of a live name names the first one rather than shadowing it.
+int $count = 1;
+int $count = 2;
+
+// `rule:types/declaration`: every later assignment is bare, and is legal only
+// where the name is already declared in the enclosing function.
+$never = 3;
+
+// `rule:types/declaration`: the declared type is fixed, so a value of another
+// type is refused where it is written.
+$count = "two";
+
+// `rule:types/declaration`: definite assignment is checked, where PHP warns
+// and hands back `null`.
+int $unset;
+echo $unset, "\n";
+
+// `rule:types/var-inference`: an array literal is checked against a target
+// rather than inferring one, so `var` has nothing to read its element type
+// from.
+var $xs = [1, 2, 3];
+
+// `rule:types/conversion`: PHP's one way of retyping a live binding is
+// refused, naming the conversion that makes a new one instead.
+settype($count, "string");
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0406]: `$count` is already declared
+%A
+error[E0301]: `$never` is assigned to but was never declared
+%A
+error[E0401]: expected `int`, found `string`
+%A
+error[E0301]: `$unset` is read before any assignment reaches it
+%A
+error[E0414]: `var` cannot infer an array literal's element type
+%A
+error[E0208]: `settype` is not supported
+%A
+error: aborting due to 6 errors

@@ -1,0 +1,34 @@
+<?nvs
+// Writing names down is the loop every function body has: a call arrives, the
+// names in it take their places, the work happens, the frame goes. This counts
+// one call with six names in it per round, and each round's answer feeds the
+// next, so no round can be skipped.
+// bench: iterations 300000
+// bench: allocations 0
+
+class Bench
+{
+    public static function step(uint $carry): uint
+    {
+        uint $a = $carry % 7;
+        uint $b = $a + 1;
+        var $c = $b * 2;
+        uint $d = $c + $carry % 3;
+        bool $wide = $d > 8;
+        uint $answer = $wide ? $d - 4 : $d + 1;
+        return $answer;
+    }
+
+    public static function run(uint $rounds): uint
+    {
+        uint $carry = 1;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $carry = Bench::step($carry + $i % 5);   // chained: $carry is last round's
+            $i = $i + 1;
+        }
+        return $carry;
+    }
+}
+
+echo Bench::run(300000), "\n";

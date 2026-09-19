@@ -1,0 +1,18 @@
+<?nvs
+// A name belongs to the whole function, not to the block it stands in, so
+// the counter a loop header writes down can still be read after the loop.
+// Two of the places Novis asks for a kind have no room for one in PHP: that
+// counter, and the name a catch block gives the error it caught.
+
+array<string> $entries = ["12", "nine", "30"];
+
+int $total = 0;
+for (uint $i = 0; $i < Core\Arr::count($entries); $i = $i + 1) {
+    try {
+        $total = $total + ($entries[$i] as int);
+    } catch (Throwable $e) {
+        echo "skipped ", $entries[$i], ": ", $e->message, "\n";
+    }
+}
+
+echo "read ", $i, " entries, total ", $total, "\n";
