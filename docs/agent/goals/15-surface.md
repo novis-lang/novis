@@ -65,7 +65,7 @@ Each gets its `--EXPECTF-ERROR--` case under `tests/conformance/reject/`. Partia
 ## Stage 4 — the reference follows
 
 `|>` is a new operator, so it gets its own heading in `docs/reference/lang/30-expressions.md` and owes
-what a language feature owes (`rule:testing/four-proofs`,
+what a language feature owes (`rule:testing/feature-proofs`,
 `POLICY["lang"]`): two tests, three examples under `docs/examples/`, one program under `tests/hostile/`,
 and one measured figure in `benches/members/`. **That last one is not a formality here** — the figure
 worth recording is the pipeline spelling against the nested spelling, which is the claim of the whole

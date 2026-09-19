@@ -54,7 +54,7 @@ export const chapterLeads = {
     'The commands around the compiler: the terminal, the formatter, doc comments, the PHP converter, and two telemetry opt-ins that are off until you say otherwise.',
   ide: 'One resilient parse, one language server, and editor clients thin enough that neither of them holds any language logic — plus everything security means for a file that is open in an editor rather than serving a request.',
   testing:
-    'Testing is part of the language rather than a package you choose — and a feature is not finished until it has four separate proofs.',
+    'Testing is part of the language rather than a package you choose — and a feature is not finished until its feature proofs exist.',
   security:
     "The reason Novis exists. Isolation, capabilities, and two compile-time qualifiers that keep untrusted data and secrets out of the places where they do damage. Every rule here holds while the language is running; what an editor conceals on a screen is the editor's chapter, not this one.",
   concurrency:
@@ -379,9 +379,9 @@ export const ruleSections = {
       from: 'doubles',
     },
     {
-      slug: 'the-four-proofs',
-      title: 'The four proofs',
-      blurb: 'A feature is finished when it has a test from both sides, three examples, a measured figure and an attack against it.',
+      slug: 'feature-proofs',
+      title: 'Feature proofs',
+      blurb: 'A feature is finished when it has a description, a test from both sides, three examples, a measured figure and an attack against it.',
       from: 'nvst-is-separate',
     },
     {

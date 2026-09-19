@@ -12,7 +12,7 @@ Every goal before this one wrote each feature's website description -- `about.md
 example directory -- without any check counting it. **This goal makes it owed**, for every
 kind of feature, and closes whatever the goals before it left. When it is reached, a
 feature without its description is a red check for every goal that follows, the same as
-a feature without its test, and `rule:testing/four-proofs`'s five artefacts are what
+a feature without its test, and `rule:testing/feature-proofs`'s proofs are what
 finished means in this repository.
 
 ## The item list
@@ -41,5 +41,5 @@ One file set -- the policy file and the example tree -- so this is one group.
   lead sentence is carrying the whole page.
 - **A feature that cannot carry a description does not exist.** Every feature has a page
   on the website, so there is no `[skip]` entry for `about`.
-- **No numbered ADR is opened by this goal.** The decision is `rule:testing/four-proofs`.
+- **No numbered ADR is opened by this goal.** The decision is `rule:testing/feature-proofs`.
 

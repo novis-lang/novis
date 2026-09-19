@@ -2,7 +2,7 @@
 
 ## State
 
-Goal `lang-expressions` is **complete**: all sixteen features carry their five artefacts, and
+Goal `lang-expressions` is **complete**: all sixteen features carry their feature proofs, and
 `python tools/dossier.py --verify --group lang:expressions` prints `nothing owed` with both suites
 at `0 failed`. `python tools/verify.py` is green.
 
@@ -19,16 +19,16 @@ One reference line was wrong and is fixed: a block-bodied `fn` must declare its 
 
 ## Next group
 
-The chain's next goal is `lang-statements`, whose features owe the same five artefacts each. One
-slice is one feature with all five proofs, and they share one file set:
-`docs/reference/lang/40-statements.md` plus the four proof trees under `docs/examples/lang/statements/`,
+The chain's next goal is `lang-statements`, whose features owe the same feature proofs each. One
+slice is one feature with all its feature proofs, and they share one file set:
+`docs/reference/lang/40-statements.md` plus the proof trees under `docs/examples/lang/statements/`,
 `tests/hostile/lang/statements/`, `benches/members/lang/statements/` and `tests/conformance/`.
 
 **Stage 2: the dossier** — one file set, named above.
 
 - [ ] **`lang:statements/expression-statements-blocks-and-declarations`** — owes all five. What is a
       statement rather than an expression, what a block scopes, and where a declaration may stand.
-      `rule:testing/four-proofs`. `docs/reference/lang/40-statements.md:9`
+      `rule:testing/feature-proofs`. `docs/reference/lang/40-statements.md:9`
 - [ ] **`lang:statements/if-elseif-else`** — owes all five. The condition resolves
       `rule:expressions/truthy-table`, `elseif` is one word, and only the arm that is taken runs.
       `docs/reference/lang/40-statements.md:44`

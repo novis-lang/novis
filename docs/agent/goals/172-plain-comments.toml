@@ -20,12 +20,12 @@ modules = [
   "tools/dossier.py",
 ]
 
-rules = ["testing/four-proofs", "testing/a-failing-proof-is-fixed-or-recorded"]
+rules = ["testing/feature-proofs", "testing/a-failing-proof-is-fixed-or-recorded"]
 
 adrs = []
 
 shapes = [
-  "A feature's four proofs — an example, an attack, a bench, a `covers:` marker",
+  "Feature proofs — an example, an attack, a bench, a `covers:` marker",
   "A commit message",
 ]
 

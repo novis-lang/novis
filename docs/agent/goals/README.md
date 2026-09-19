@@ -2,7 +2,7 @@
 
 This directory **is** the schedule the unattended loop walks, and the table below is that order for the
 hand-written goals. Everything between `dossier` and `plain-comments` is generated — one goal per group of
-features owing `rule:testing/four-proofs`'s roster, written onto this same chain by
+features owing `rule:testing/feature-proofs`'s roster, written onto this same chain by
 `python tools/dossier.py --emit-goals`, which keeps a goal whose front matter says `position: last`
 behind what it appends.
 
@@ -97,9 +97,9 @@ The split is **by file set, not by topic**. That is why M8 is two goals — `nvs
 | [test-doubles](68-test-doubles.md) | post-parity, no ADR — ADR 0079 §§ 10, 11 and 16 decided it | `nvs-types`, `nvs-diagnostics`, `nvs-stdlib`, `nvs-runtime`, `nvs-ir` — `Core\Test::double<T>` and `partial<T>` are a shape of closures checked against an interface and *are* a `T`; `assertCalled`/`assertNeverCalled` read the record against a compile-checked method reference; `assertCompletes` runs under the test's clock |
 | [bigint](69-bigint.md) | post-parity, no ADR — ADR 0054 § 5 decided it | `nvs-stdlib` — `Core\BigInt` over `num-bigint`, a `Core`-owned immutable instance, `Stringable` and `Comparable`, the class that replaces `gmp` and `bcpowmod` |
 | [gap-zero](70-gap-zero.md) | post-parity, no ADR — the terminal gate | `tools/`, the ratchet test — no gap owed by anyone but a future milestone, M0–M8 complete, the index deleted |
-| [dossier](71-dossier.md) | `rule:testing/four-proofs` | none — it writes the goals that open all of them, then optimizes the loop for their shape |
-| after `dossier` | `rule:testing/four-proofs`, generated | one group of features per goal, its own `[context]` manifest, under `goals/dossier/` |
-| [plain-comments](172-plain-comments.md) | `rule:testing/four-proofs` — `position: last` | `docs/examples/`, `tests/hostile/`, `benches/members/` — behind every generated goal: each landed program's comments rewritten inside the plain-comment bounds, then `[all] comments = true` makes them owed |
+| [dossier](71-dossier.md) | `rule:testing/feature-proofs` | none — it writes the goals that open all of them, then optimizes the loop for their shape |
+| after `dossier` | `rule:testing/feature-proofs`, generated | one group of features per goal, its own `[context]` manifest, under `goals/dossier/` |
+| [plain-comments](172-plain-comments.md) | `rule:testing/feature-proofs` — `position: last` | `docs/examples/`, `tests/hostile/`, `benches/members/` — behind every generated goal: each landed program's comments rewritten inside the plain-comment bounds, then `[all] comments = true` makes them owed |
 | [ci-green](173-ci-green.md) | post-parity, no ADR — `position: last` | `tools/ci-green.py`, `.github/workflows/ci.yml` — always the last goal, behind every generated one: the latest CI run on `main` succeeded for the code `HEAD` holds |
 
 ## The chain contract
@@ -186,7 +186,7 @@ TOML for a doubled floor before restarting.
 ## What stops the run
 
 - **The last goal goes green** — goal `ci-green`, behind the last *generated* one, which is every group on
-  `rule:testing/four-proofs`'s roster owing nothing, `python tools/dossier.py --gate` exiting 0 over the whole language.
+  `rule:testing/feature-proofs`'s roster owing nothing, `python tools/dossier.py --gate` exiting 0 over the whole language.
   The parity program's own gate — goals `core-depth` through `server`, PHP core feature parity — is
   still that goal's final check:
   `python tools/check-migration.py` reporting 100% classified — every one of the oracle build's **1167

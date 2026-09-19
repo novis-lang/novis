@@ -9,7 +9,7 @@ This goal has just been installed. Nothing in Core\Json and 6 more has been take
 
 ## Next group
 
-One slice is one feature with all four proofs. Take them in this order — the list runs in
+One slice is one feature with all its feature proofs. Take them in this order — the list runs in
 file order, so neighbours share an implementing file and the second and third cost a
 fraction of the first:
 

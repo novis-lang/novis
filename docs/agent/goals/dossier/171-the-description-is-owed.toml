@@ -17,13 +17,13 @@ modules = [
   "tools/dossier.py",
 ]
 
-rules = ["testing/four-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
+rules = ["testing/feature-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
 
 adrs = ["0134", "0079 §15"]
 
 shapes = [
   "A `.nvst` test case",
-  "A feature's four proofs — an example, an attack, a bench, a `covers:` marker",
+  "Feature proofs — an example, an attack, a bench, a `covers:` marker",
   "A commit message",
 ]
 

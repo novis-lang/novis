@@ -534,8 +534,8 @@ python tools/dossier.py --brief 'Core\Str::at'   # one feature's brief, as a wor
 python tools/dossier.py --findings [--clear]     # what the workers hit, collated for one batch fix
 ```
 
-`rule:testing/four-proofs` is why four proofs and not some other
-number; each tree's README owns what a file in it is ([examples](../examples/README.md),
+`rule:testing/feature-proofs` is which proofs a feature owes, and why;
+each tree's README owns what a file in it is ([examples](../examples/README.md),
 [attacks](../../tests/hostile/README.md), [benches](../../benches/members/README.md)); `--help` owns the
 rest. **The roster is derived from `nvs meta --json` and the reference chapters**, so nothing needs
 adding to a list when a feature lands.
@@ -559,8 +559,8 @@ the rest.
 
 `--partition` is the one place in this repository where a session hands **writing** to subagents. The rule
 in [session-prompt.md](session-prompt.md) — a subagent searches and never writes — holds everywhere else,
-and the carve-out is this program alone because dossier work is the one shape that earns it: three of the
-four proofs are attributed by a path derived from the feature's own id, so two workers cannot name the
+and the carve-out is this program alone because dossier work is the one shape that earns it: the examples,
+the attack and the bench are attributed by a path derived from the feature's own id, so two workers cannot name the
 same file, nothing in the goal is a design decision, and `--verify --group` judges the result
 mechanically. The tool asserts the first of those on every run rather than trusting it, and writes nothing
 when two lanes collide. `tools/dossier.py`'s § *Running one group's features at once* owns the protocol,

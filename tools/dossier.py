@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Every feature Novis ships owes four proofs. This says which are missing, runs the ones on disk,
+"""Every feature Novis ships owes its feature proofs. This says which are missing, runs the ones on disk,
 and writes the loop goals that produce the rest.
 
 `gaps.py` answers *which claim the corpus does not ask*. `holes.py` answers *which shape the language
 does not have*. This answers the third question, and the three never overlap: **what does each
-shipped feature still owe?** The four proofs, one row each in every table this prints:
+shipped feature still owe?** Its feature proofs, one row each in every table this prints:
 
 | Proof | Lives in | What it is |
 |---|---|---|
@@ -42,7 +42,7 @@ owed, with nobody editing a list.
 
 ## The description, and the switch that makes it owed
 
-Beside the four proofs every feature gets `about.md` in its example directory: the short plain
+Beside the proofs in that table every feature gets `about.md` in its example directory: the short plain
 prose the website shows first when somebody looks the feature up. `docs/examples/README.md` §
 *The description* owns what it is. The emitted goals write it -- it is the first thing in a
 worker's brief for any feature that lacks one, and the examples are then written to deliver what
@@ -97,7 +97,7 @@ afford to run is a check nobody runs:
 
 ## Running one group's features at once
 
-Three of the four proofs are attributed by **position** -- the example, attack and bench trees all
+The examples, the attack and the bench are attributed by **position** -- their trees all
 use the same relative path, derived from the feature's own id -- so two features' proofs cannot name
 the same file. That, and not a hope, is why this work runs wide: `--partition` cuts a group into
 worker briefs and **refuses** if any two workers would write the same path.
@@ -159,8 +159,8 @@ turn a finding into a green check, which is the one outcome this file exists to 
 
 ## What is owed, per kind
 
-A directive is not benchmarked and an interface is not attacked -- the four proofs apply where they
-mean something, and the table is data, not a rule in prose: `POLICY` below, overridable per feature
+A directive is not benchmarked and an interface is not attacked -- a proof applies where it
+means something, and the table is data, not a rule in prose: `POLICY` below, overridable per feature
 in `tools/data/dossier-policy.toml` (`[skip]` for a proof that cannot exist, with the reason). A
 skip carries its reason into the audit, so "this cannot be benchmarked" and "nobody wrote one" never
 look the same.
@@ -686,7 +686,7 @@ def check_comments(targets: list[Path]) -> int:
 
 @dataclass
 class Entry:
-    """One shipped feature, and where each of its four proofs belongs."""
+    """One shipped feature, and where each of its feature proofs belongs."""
 
     id: str
     kind: str
@@ -823,7 +823,7 @@ def chapter_features(directory: Path, area: str) -> list[Entry]:
 
     A fenced block is skipped whole, because a sample program is written in the language the chapter
     documents rather than in Markdown: `# also a line comment` inside one is a comment Novis accepts,
-    and reading it as a heading invents a feature nothing ships and then owes it four proofs.
+    and reading it as a heading invents a feature nothing ships and then owes it feature proofs.
     """
     out: list[Entry] = []
     for path in sorted(directory.glob("*.md")):
@@ -1950,7 +1950,7 @@ def print_owed(entries: list[Entry], proofs: dict[str, Proofs], policy: dict, sk
         if missing:
             rows.append((e, missing))
     print(f"== STILL OWED  ({len(rows)} features)")
-    print("-- one line per feature; a session takes a feature, not a column, because all four "
+    print("-- one line per feature; a session takes a feature, not a column, because all its "
           "proofs\n-- spend the same understanding of what the feature does at its edges.")
     print()
     for e, missing in rows[:limit]:
@@ -1965,7 +1965,7 @@ def print_owed(entries: list[Entry], proofs: dict[str, Proofs], policy: dict, sk
 def owned_paths(entry: Entry) -> list[str]:
     """The paths one worker holding `entry` may write. There are no others.
 
-    Three of the four proofs are attributed **by position**, so this is derived rather than
+    The examples, the attack and the bench are attributed **by position**, so this is derived rather than
     declared, and two workers holding different features cannot name the same path. That is the
     entire argument for running this work wide, and `partition()` asserts it on every run instead
     of trusting this comment.
@@ -2135,7 +2135,7 @@ def worker_brief(n: int, total: int, label: str, lane: list[tuple[Entry, dict]],
     head = [
         f"# Fan-out worker {n} of {total} -- {label}",
         "",
-        f"You are writing `rule:testing/four-proofs`'s proofs for the {len(lane)} feature(s) below. **One feature at",
+        f"You are writing `rule:testing/feature-proofs`'s proofs for the {len(lane)} feature(s) below. **One feature at",
         "a time, all of its proofs together** -- never one proof across many features. The expensive",
         "thing is understanding what the feature does at its edges, and the example, the attack, the",
         "bench and the test all spend that same understanding.",
@@ -2168,9 +2168,9 @@ def wrapped(ids: list[str], indent: str, width: int = 96) -> list[str]:
 def lanes_for(todo: list[tuple[Entry, dict]], workers: int) -> list[list[tuple[Entry, dict]]]:
     """Split the worklist into balanced lanes, heaviest feature first.
 
-    Longest-processing-time-first, priced in proofs owed: a feature owing all four is four times a
-    feature owing one, and a lane holding the four heaviest is what makes a fan-out wait on one
-    worker while seven idle."""
+    Longest-processing-time-first, priced in proofs owed: a feature owing every proof costs that many
+    times a feature owing one, and a lane holding the heaviest few is what makes a fan-out wait on one
+    worker while the others idle."""
     lanes: list[list[tuple[Entry, dict]]] = [[] for _ in range(workers)]
     load = [0] * workers
     for entry, missing in sorted(todo, key=lambda r: (-len(r[1]), r[0].id)):
@@ -2330,11 +2330,11 @@ def print_findings(clear: bool) -> int:
 #: beside them. 0079 and 0063 are deliberately absent: each created twenty-four rules, and naming
 #: them printed forty-eight titles about the test runner and the `Core` shape rules into every
 #: session of every generated goal -- the one section of 0079 a bench needs is `adrs` below.
-GOAL_RULES = ["testing/four-proofs", "testing/a-failing-proof-is-fixed-or-recorded",
+GOAL_RULES = ["testing/feature-proofs", "testing/a-failing-proof-is-fixed-or-recorded",
               "0134", "0026", "0117", "0004", "0088"]
 GOAL_SHAPES = [
     "A `.nvst` test case",
-    "A feature's four proofs — an example, an attack, a bench, a `covers:` marker",
+    "Feature proofs — an example, an attack, a bench, a `covers:` marker",
     "A commit message",
 ]
 GOAL_PLAYBOOK = [
@@ -2780,8 +2780,8 @@ def goal_prose(n: int, label: str, members: list[Entry], proofs: dict[str, Proof
         "",
         "## The target",
         "",
-        f"Every feature listed below owes the four proofs of",
-        "`rule:testing/four-proofs`: the behaviour tested",
+        f"Every feature listed below owes the feature proofs of",
+        "`rule:testing/feature-proofs`: the behaviour tested",
         "Novis *and* from Rust, three small real-world examples, one measured performance figure,",
         "and one file written to break it. `python tools/dossier.py --id '<feature>'` prints what",
         "one feature has and what it still owes, with the path each proof belongs at.",
@@ -2804,10 +2804,10 @@ def goal_prose(n: int, label: str, members: list[Entry], proofs: dict[str, Proof
     lines += [
         "## The item list, grouped by file set",
         "",
-        "**One slice is one feature, all four proofs together** — never one proof across many",
+        "**One slice is one feature, all its feature proofs together** — never one proof across many",
         "features. The expensive thing a session buys is understanding what the feature does at its",
         "edges, and the test, the examples, the bench and the attack all spend that same",
-        "understanding; split across four sessions it is bought four times.",
+        "understanding; split across one session per proof it is bought once per proof.",
         "",
     ]
     for i, e in enumerate(members, 1):
@@ -2826,7 +2826,7 @@ def goal_prose(n: int, label: str, members: list[Entry], proofs: dict[str, Proof
         "**This is one of the few goals where a session may hand *writing* to subagents.** The",
         "standing rule in `docs/agent/session-prompt.md` — a subagent searches and never writes —",
         "holds everywhere else, and the carve-out is this program and no other, because dossier work",
-        "is the one shape that earns it: three of the four proofs are attributed by a path derived",
+        "is the one shape that earns it: the examples, the attack and the bench are attributed by a path derived",
         "from the feature's own id, so two workers cannot name the same file; nothing here is a",
         "design decision; and `dossier.py --verify --group` judges the result mechanically.",
         "",
@@ -2946,7 +2946,7 @@ def closing_prose(n: int) -> str:
         "example directory -- without any check counting it. **This goal makes it owed**, for every",
         "kind of feature, and closes whatever the goals before it left. When it is reached, a",
         "feature without its description is a red check for every goal that follows, the same as",
-        "a feature without its test, and `rule:testing/four-proofs`'s five artefacts are what",
+        "a feature without its test, and `rule:testing/feature-proofs`'s proofs are what",
         "finished means in this repository.",
         "",
         "## The item list",
@@ -2975,7 +2975,7 @@ def closing_prose(n: int) -> str:
         "  lead sentence is carrying the whole page.",
         "- **A feature that cannot carry a description does not exist.** Every feature has a page",
         "  on the website, so there is no `[skip]` entry for `about`.",
-        "- **No numbered ADR is opened by this goal.** The decision is `rule:testing/four-proofs`.",
+        "- **No numbered ADR is opened by this goal.** The decision is `rule:testing/feature-proofs`.",
         "",
     ]
     return "\n".join(lines) + "\n"
@@ -3080,7 +3080,7 @@ def goal_toml(n: int, label: str, groups: list[str], anchors: list[str], no_perf
         return "\n".join(lines) + "\n"
     lines += [
         "# ---------------------------------------------------------------------------------------",
-        "# Stage 2 -- every feature in this goal owes nothing AND the proofs hold: the four",
+        "# Stage 2 -- every feature in this goal owes nothing AND the proofs hold: the",
         "# artefacts are on disk, the perf figure is current for the implementation as it stands,",
         "# every example prints what its `.out` says, and every attack leaves the runtime standing.",
         "#",
@@ -3141,7 +3141,7 @@ def goal_handoff(label: str, members: list[Entry], proofs: dict[str, Proofs], po
         "",
         "## Next group",
         "",
-        "One slice is one feature with all four proofs. Take them in this order — the list runs in",
+        "One slice is one feature with all its feature proofs. Take them in this order — the list runs in",
         "file order, so neighbours share an implementing file and the second and third cost a",
         "fraction of the first:",
         "",

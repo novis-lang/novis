@@ -1,7 +1,7 @@
 # The example tree — three small programs per feature
 
 Every feature Novis ships owes three real-world examples
-(`rule:testing/four-proofs`), and this is where they live. They are
+(`rule:testing/feature-proofs`), and this is where they live. They are
 **the website's copy**, kept in the repository so that the same sweep that tests a feature writes
 them: `npm run sync:examples` in [`website/`](../../website/README.md) copies this tree into the
 site, and nothing edits them there.

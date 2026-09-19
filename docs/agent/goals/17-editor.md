@@ -135,7 +135,7 @@ extension-host run on Linux under `xvfb-run`.
 ## Stage 9 — the reference chapter's last heading
 
 `# The VS Code extension` joins goal `lsp-server`'s two in `docs/reference/tools/40-editor.md`, owing what a tool
-feature owes (`rule:testing/four-proofs`, `POLICY["tool"]`): one
+feature owes (`rule:testing/feature-proofs`, `POLICY["tool"]`): one
 test, one example, one hostile program.
 
 ## Standing decisions — pre-authorized, do not stop the loop for these

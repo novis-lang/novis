@@ -97,7 +97,7 @@ is frozen by a snapshot over `examples/`. `rule:ide/the-ast-panel-shells-out-to-
 
 It is documented under `docs/reference/tools/10-cli.md`'s **existing** `# nvs ast` heading — two new
 flags on a subcommand that already ships, not a new feature — so it adds no row to
-`rule:testing/four-proofs`'s derived roster. The new chapter
+`rule:testing/feature-proofs`'s derived roster. The new chapter
 `40-editor.md` and its own headings belong to goals `lsp-server` and `editor`, which is where `nvs lsp` first exists.
 `python tools/reference.py --check` is in the acceptance list because a chapter edit that stops
 regenerating is how `docs/novis.md` goes quietly stale.

@@ -45,7 +45,7 @@
 > **Open now:** **[the goals directory](agent/goals/) is the list of what is open**, in the order
 > the loop walks it, and `python tools/brief.py` prints where it currently stands — this field
 > restates neither. Most of what is open is now generated: `docs/agent/goals/dossier/` holds one
-> goal per group of features owing `rule:testing/four-proofs`'s artefacts, written by `python
+> goal per group of features owing `rule:testing/feature-proofs`'s artefacts, written by `python
 > tools/dossier.py --emit-goals` and re-emitted rather than hand-edited. A goal switch carries a
 > closed goal's `[[check]]` blocks forward as the live goal's floor, so what is closed is what
 > passes today: the parity program's six goals and every goal after them the chain has already

@@ -1,7 +1,7 @@
 # What each kind of feature owes, and the features excused from one proof.
 #
 # `python tools/dossier.py --help` owns the mechanism; `tools/dossier.py`'s `POLICY` holds the
-# defaults this file overrides. ADR 0134 is why the four proofs exist at all.
+# defaults this file overrides. ADR 0134 is why the feature proofs exist at all.
 #
 # Three sections, all optional:
 #

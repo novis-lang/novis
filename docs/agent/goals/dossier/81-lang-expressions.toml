@@ -99,13 +99,13 @@ modules = [
   "docs/reference/lang/30-expressions.md",
 ]
 
-rules = ["testing/four-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
+rules = ["testing/feature-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
 
 adrs = ["0134", "0079 §15"]
 
 shapes = [
   "A `.nvst` test case",
-  "A feature's four proofs — an example, an attack, a bench, a `covers:` marker",
+  "Feature proofs — an example, an attack, a bench, a `covers:` marker",
   "A commit message",
 ]
 
@@ -4983,7 +4983,7 @@ stage = "1 floor"
 name = "conformance (return in finally, a constructor's value, a readonly default)"
 args = ["test", "tests/conformance/reject/php86"]
 
-# Scoped to the one heading this goal adds. The rest of the chapter's roster is the four-proofs
+# Scoped to the one heading this goal adds. The rest of the chapter's roster is the feature-proofs
 # program's debt and is deliberately not imported here.
 [[check]]
 kind = "command"
@@ -12071,7 +12071,7 @@ argv = ["python", "tools/dossier.py", "--check-goals"]
 want = ["every manifest resolves"]
 
 # ---------------------------------------------------------------------------------------
-# Stage 2 -- every feature in this goal owes nothing AND the proofs hold: the four
+# Stage 2 -- every feature in this goal owes nothing AND the proofs hold: the
 # artefacts are on disk, the perf figure is current for the implementation as it stands,
 # every example prints what its `.out` says, and every attack leaves the runtime standing.
 #
@@ -12090,7 +12090,7 @@ argv = ["python", "tools/dossier.py", "--verify", "--only", "directive:app", "di
 want = ["nothing owed", "0 failed", "0 failed"]
 
 # ---------------------------------------------------------------------------------------
-# Stage 2 -- every feature in this goal owes nothing AND the proofs hold: the four
+# Stage 2 -- every feature in this goal owes nothing AND the proofs hold: the
 # artefacts are on disk, the perf figure is current for the implementation as it stands,
 # every example prints what its `.out` says, and every attack leaves the runtime standing.
 #
@@ -12109,7 +12109,7 @@ argv = ["python", "tools/dossier.py", "--verify", "--only", "directive:http.clie
 want = ["nothing owed", "0 failed", "0 failed"]
 
 # ---------------------------------------------------------------------------------------
-# Stage 2 -- every feature in this goal owes nothing AND the proofs hold: the four
+# Stage 2 -- every feature in this goal owes nothing AND the proofs hold: the
 # artefacts are on disk, the perf figure is current for the implementation as it stands,
 # every example prints what its `.out` says, and every attack leaves the runtime standing.
 #
@@ -12128,7 +12128,7 @@ argv = ["python", "tools/dossier.py", "--verify", "--only", "directive:log.targe
 want = ["nothing owed", "0 failed", "0 failed"]
 
 # ---------------------------------------------------------------------------------------
-# Stage 2 -- every feature in this goal owes nothing AND the proofs hold: the four
+# Stage 2 -- every feature in this goal owes nothing AND the proofs hold: the
 # artefacts are on disk, the perf figure is current for the implementation as it stands,
 # every example prints what its `.out` says, and every attack leaves the runtime standing.
 #
@@ -12147,7 +12147,7 @@ argv = ["python", "tools/dossier.py", "--verify", "--only", 'Core\Audience', 'Co
 want = ["nothing owed", "0 failed", "0 failed"]
 
 # ---------------------------------------------------------------------------------------
-# Stage 2 -- every feature in this goal owes nothing AND the proofs hold: the four
+# Stage 2 -- every feature in this goal owes nothing AND the proofs hold: the
 # artefacts are on disk, the perf figure is current for the implementation as it stands,
 # every example prints what its `.out` says, and every attack leaves the runtime standing.
 #
@@ -12166,7 +12166,7 @@ argv = ["python", "tools/dossier.py", "--verify", "--only", 'Core\Env\Mode', 'Co
 want = ["nothing owed", "0 failed", "0 failed"]
 
 # ---------------------------------------------------------------------------------------
-# Stage 2 -- every feature in this goal owes nothing AND the proofs hold: the four
+# Stage 2 -- every feature in this goal owes nothing AND the proofs hold: the
 # artefacts are on disk, the perf figure is current for the implementation as it stands,
 # every example prints what its `.out` says, and every attack leaves the runtime standing.
 #
@@ -12185,7 +12185,7 @@ argv = ["python", "tools/dossier.py", "--verify", "--group", "types:exception"]
 want = ["nothing owed", "0 failed", "0 failed"]
 
 # ---------------------------------------------------------------------------------------
-# Stage 2 -- every feature in this goal owes nothing AND the proofs hold: the four
+# Stage 2 -- every feature in this goal owes nothing AND the proofs hold: the
 # artefacts are on disk, the perf figure is current for the implementation as it stands,
 # every example prints what its `.out` says, and every attack leaves the runtime standing.
 #
@@ -12204,7 +12204,7 @@ argv = ["python", "tools/dossier.py", "--verify", "--group", "types:interface"]
 want = ["nothing owed", "0 failed", "0 failed"]
 
 # ---------------------------------------------------------------------------------------
-# Stage 2 -- every feature in this goal owes nothing AND the proofs hold: the four
+# Stage 2 -- every feature in this goal owes nothing AND the proofs hold: the
 # artefacts are on disk, the perf figure is current for the implementation as it stands,
 # every example prints what its `.out` says, and every attack leaves the runtime standing.
 #
@@ -12223,7 +12223,7 @@ argv = ["python", "tools/dossier.py", "--verify", "--group", "lang:programs"]
 want = ["nothing owed", "0 failed", "0 failed"]
 
 # ---------------------------------------------------------------------------------------
-# Stage 2 -- every feature in this goal owes nothing AND the proofs hold: the four
+# Stage 2 -- every feature in this goal owes nothing AND the proofs hold: the
 # artefacts are on disk, the perf figure is current for the implementation as it stands,
 # every example prints what its `.out` says, and every attack leaves the runtime standing.
 #
@@ -12245,7 +12245,7 @@ want = ["nothing owed", "0 failed", "0 failed"]
 
 
 # ---------------------------------------------------------------------------------------
-# Stage 2 -- every feature in this goal owes nothing AND the proofs hold: the four
+# Stage 2 -- every feature in this goal owes nothing AND the proofs hold: the
 # artefacts are on disk, the perf figure is current for the implementation as it stands,
 # every example prints what its `.out` says, and every attack leaves the runtime standing.
 #

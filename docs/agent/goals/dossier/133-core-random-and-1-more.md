@@ -8,8 +8,8 @@ milestone: dossier
 
 ## The target
 
-Every feature listed below owes the four proofs of
-`rule:testing/four-proofs`: the behaviour tested
+Every feature listed below owes the feature proofs of
+`rule:testing/feature-proofs`: the behaviour tested
 Novis *and* from Rust, three small real-world examples, one measured performance figure,
 and one file written to break it. `python tools/dossier.py --id '<feature>'` prints what
 one feature has and what it still owes, with the path each proof belongs at.
@@ -21,10 +21,10 @@ paragraph and the worker's brief asks for it: a feature is not done until it has
 
 ## The item list, grouped by file set
 
-**One slice is one feature, all four proofs together** — never one proof across many
+**One slice is one feature, all its feature proofs together** — never one proof across many
 features. The expensive thing a session buys is understanding what the feature does at its
 edges, and the test, the examples, the bench and the attack all spend that same
-understanding; split across four sessions it is bought four times.
+understanding; split across one session per proof it is bought once per proof.
 
 1. **`Core\Random::bytes`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/random.rs:134`
 2. **`Core\Random::float`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/random.rs:125`
@@ -46,7 +46,7 @@ understanding; split across four sessions it is bought four times.
 **This is one of the few goals where a session may hand *writing* to subagents.** The
 standing rule in `docs/agent/session-prompt.md` — a subagent searches and never writes —
 holds everywhere else, and the carve-out is this program and no other, because dossier work
-is the one shape that earns it: three of the four proofs are attributed by a path derived
+is the one shape that earns it: the examples, the attack and the bench are attributed by a path derived
 from the feature's own id, so two workers cannot name the same file; nothing here is a
 design decision; and `dossier.py --verify --group` judges the result mechanically.
 

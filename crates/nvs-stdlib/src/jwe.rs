@@ -1126,7 +1126,7 @@ fn content_key(
 /// not open all arrive back here as the same `None`, and there is no branch left
 /// where a second sentence could be written by accident. It is also the seam the
 /// frozen set is replayed against, so the Rust side of
-/// `rule:testing/four-proofs` reads a token through the member's own path rather
+/// `rule:testing/feature-proofs` reads a token through the member's own path rather
 /// than through a copy of it.
 ///
 /// A ring entry is what `Jwe\Key` holds — which static built it, its octets, and

@@ -138,7 +138,7 @@ measurement that says the trade still holds, and it is not optional.
 
 `docs/reference/tools/40-editor.md` is created here with two headings — `# nvs lsp` and `# nvs lsp-test` —
 each owing what a tool feature owes
-(`rule:testing/four-proofs`, `POLICY["tool"]`): one test, one
+(`rule:testing/feature-proofs`, `POLICY["tool"]`): one test, one
 example under `docs/examples/`, one program under `tests/hostile/`. Goal `editor` adds the extension's heading to
 the same chapter. `python tools/reference.py --check` is in the acceptance list.
 

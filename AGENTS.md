@@ -74,7 +74,7 @@ When choosing between designs:
 Each is one sentence here because not knowing it exists is the entire cost. The mechanism, and why, is in
 [docs/agent/commands.md](docs/agent/commands.md), except the last three, whose homes are
 [docs/agent/conventions.md](docs/agent/conventions.md) § *A code comment*,
-[docs/agent/grounding.md](docs/agent/grounding.md) and `rule:testing/four-proofs`.
+[docs/agent/grounding.md](docs/agent/grounding.md) and `rule:testing/feature-proofs`.
 
 1. **A shell never carries file content into the tree.** Create and edit files with Write and Edit — never
    a heredoc, a `>` redirect or a `sed -i`, because the shell parses your apostrophes and backticks before
@@ -104,7 +104,7 @@ Each is one sentence here because not knowing it exists is the entire cost. The 
 8. **Verify a claim before you make it, not when it is questioned.** Every claim carries a `file:line`
    or the words *not checked*, and advice you volunteered meets the same bar as the answer — a
    follow-up that sends you to the code and changes what you said means the answer went out early.
-9. **A feature is finished when its five artefacts exist, not when it works** — `about.md`, tests from
+9. **A feature is finished when its feature proofs exist, not when it works** — `about.md`, tests from
    Novis and from Rust, three examples, one bench, one attack. `python tools/dossier.py --id
    '<feature>'` prints what it still owes and the path of each, and every `.nvs` and `about.md` among
    them is held to § *Text an end user reads* below.

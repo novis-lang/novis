@@ -134,11 +134,11 @@ candidates; the playbook owns the spellings that will not compile.
   rather than what each answered, so a member that grew its own comparison fails here while still
   looking right on its own line. The shape with the most room left.
 
-## A feature's four proofs — an example, an attack, a bench, a `covers:` marker
+## Feature proofs — an example, an attack, a bench, a `covers:` marker
 
-`rule:testing/four-proofs` makes these owed. **Each tree's own
+`rule:testing/feature-proofs` makes these owed. **Each tree's own
 README owns the rules** — [docs/examples/](../examples/README.md), [tests/hostile/](../../tests/hostile/README.md),
-[benches/members/](../../benches/members/README.md) — and this section is only the four skeletons, so
+[benches/members/](../../benches/members/README.md) — and this section is only the skeletons, so
 nothing is copied out of an existing file to get the shape right. `python tools/dossier.py --id
 '<feature>'` prints the three paths for any feature; all four trees share one path per feature
 (`core/Str/length`, `lang/expressions/precedence-and-associativity`, `types/Throwable`, …).
@@ -199,7 +199,7 @@ echo Bench::run(400000), "\n";
 **Every comment in those three is a model, not a placeholder**, written to
 [AGENTS.md](../../AGENTS.md) § *Text an end user reads*, which is the rule.
 
-**The fifth artefact is `about.md`**, the description the website shows above the examples. It has
+**`about.md` is a feature proof too**, the description the website shows above the examples. It has
 no skeleton here: [docs/examples/README.md](../examples/README.md) § *The description* is its shape
 and carries two models.
 

@@ -93,4 +93,4 @@ class.
 - **ADR slots**: none. ADR 0054 decided the class; the roster above is this goal's, recorded in the
   module doc.
 - **Not this goal**: `test-doubles`; `gmp_*` rows in the migration table (the inventory holds none);
-  the four proofs beyond the cases above (goal `dossier`).
+  the feature proofs beyond the cases above (goal `dossier`).

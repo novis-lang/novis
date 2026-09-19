@@ -288,7 +288,7 @@
       "title": "A mutation run asks whether any test would have noticed the code being wrong",
       "status": "designed",
       "because": ["0079", "0018", "0042"],
-      "seeAlso": ["testing/debug-probes", "testing/isolate-per-test", "testing/four-proofs"],
+      "seeAlso": ["testing/debug-probes", "testing/isolate-per-test", "testing/feature-proofs"],
       "guardedBy": []
     },
     {
@@ -332,15 +332,15 @@
       "title": "`.nvst` proves the language; `#[Test]` is how a program written in Novis tests itself",
       "status": "shipped",
       "because": ["0079"],
-      "seeAlso": ["testing/test-attribute", "testing/report-formats", "testing/four-proofs"],
+      "seeAlso": ["testing/test-attribute", "testing/report-formats", "testing/feature-proofs"],
       "guardedBy": ["crates/nvs-test/src/lib.rs", "crates/nvs-cli/src/main.rs"]
     },
     {
       "id": "testing/one-slice-is-one-feature",
-      "title": "One slice writes all five of a feature's artefacts together",
+      "title": "One slice writes all of a feature's proofs together",
       "status": "shipped",
       "because": ["0134"],
-      "seeAlso": ["testing/four-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "testing/roster-is-derived"],
+      "seeAlso": ["testing/feature-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "testing/roster-is-derived"],
       "guardedBy": ["tools/dossier.py"]
     },
     {
@@ -348,7 +348,7 @@
       "title": "`docs/examples/` is authoritative and the website mirrors it",
       "status": "shipped",
       "because": ["0134"],
-      "seeAlso": ["testing/four-proofs", "testing/proof-attribution"],
+      "seeAlso": ["testing/feature-proofs", "testing/proof-attribution"],
       "guardedBy": ["docs/examples/README.md"]
     },
     {
@@ -356,12 +356,12 @@
       "title": "A hostile case passes when nothing came apart, and a compile diagnostic is never a pass",
       "status": "shipped",
       "because": ["0134"],
-      "seeAlso": ["testing/four-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "testing/capability-closure-test"],
+      "seeAlso": ["testing/feature-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "testing/capability-closure-test"],
       "guardedBy": ["tests/hostile/README.md", "tools/dossier.py"]
     },
     {
-      "id": "testing/four-proofs",
-      "title": "A feature is finished when it has a test from both sides, three examples, a measured figure and an attack",
+      "id": "testing/feature-proofs",
+      "title": "A feature is finished when its feature proofs exist: a description, a test from both sides, three examples, a measured figure and an attack",
       "status": "shipped",
       "because": ["0134", "0079", "0117"],
       "seeAlso": [
@@ -378,7 +378,7 @@
       "title": "The roster of features is read from the registry and the reference chapters, never kept as a list",
       "status": "shipped",
       "because": ["0134", "0117"],
-      "seeAlso": ["testing/four-proofs", "testing/proof-attribution"],
+      "seeAlso": ["testing/feature-proofs", "testing/proof-attribution"],
       "guardedBy": ["tools/dossier.py"]
     },
     {
@@ -386,7 +386,7 @@
       "title": "An example, an attack and a bench are attributed by path; a test is attributed by a marker",
       "status": "shipped",
       "because": ["0134"],
-      "seeAlso": ["testing/four-proofs", "testing/roster-is-derived", "testing/examples-live-in-the-repository"],
+      "seeAlso": ["testing/feature-proofs", "testing/roster-is-derived", "testing/examples-live-in-the-repository"],
       "guardedBy": ["tools/dossier.py"]
     },
     {
@@ -394,7 +394,7 @@
       "title": "A proof that fails is fixed or recorded as a known gap, and never weakened",
       "status": "shipped",
       "because": ["0134"],
-      "seeAlso": ["testing/four-proofs", "testing/hostile-case-contract", "testing/one-slice-is-one-feature"],
+      "seeAlso": ["testing/feature-proofs", "testing/hostile-case-contract", "testing/one-slice-is-one-feature"],
       "guardedBy": ["tools/dossier.py"]
     },
     {
@@ -402,7 +402,7 @@
       "title": "Every member of a capability-bearing class declares a capability or declares none, and there is no allowlist",
       "status": "shipped",
       "because": ["0118"],
-      "seeAlso": ["testing/four-proofs", "testing/hostile-case-contract"],
+      "seeAlso": ["testing/feature-proofs", "testing/hostile-case-contract"],
       "guardedBy": ["crates/nvs-stdlib/tests/capability.rs"]
     },
     {
@@ -538,7 +538,7 @@
       "title": "A member's record is four counts that compare on any machine and one clock that compares on its own, re-measured only when its implementing file's text moves",
       "status": "shipped",
       "because": ["0134", "0026", "0191"],
-      "seeAlso": ["testing/four-proofs", "testing/perf-two-mechanisms", "testing/userland-benchmarks"],
+      "seeAlso": ["testing/feature-proofs", "testing/perf-two-mechanisms", "testing/userland-benchmarks"],
       "guardedBy": ["docs/perf/members.ndjson", "tools/dossier.py"]
     },
     {

@@ -474,7 +474,7 @@ hundred mutants that is the difference between minutes and most of a day.
 
 The operator set is enumerated where it is implemented, so adding an operator changes no rule.
 
-<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/four-proofs`](testing.md#testing-four-proofs). Decided in [0079](../decisions/0079.md), [0018](../decisions/0018.md), [0042](../decisions/0042.md).</sub>
+<sub>See also [`testing/debug-probes`](testing.md#testing-debug-probes), [`testing/isolate-per-test`](testing.md#testing-isolate-per-test), [`testing/feature-proofs`](testing.md#testing-feature-proofs). Decided in [0079](../decisions/0079.md), [0018](../decisions/0018.md), [0042](../decisions/0042.md).</sub>
 
 <a id="testing-runner-is-strict"></a>
 
@@ -552,25 +552,26 @@ The two formats answer different questions and are not unified, now or later. `n
 both — a path of `.nvst` files, or a program's compiled test table — and reports each in the shape
 that fits it.
 
-<sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/report-formats`](testing.md#testing-report-formats), [`testing/four-proofs`](testing.md#testing-four-proofs). Decided in [0079](../decisions/0079.md).</sub>
+<sub>See also [`testing/test-attribute`](testing.md#testing-test-attribute), [`testing/report-formats`](testing.md#testing-report-formats), [`testing/feature-proofs`](testing.md#testing-feature-proofs). Decided in [0079](../decisions/0079.md).</sub>
 
 <a id="testing-one-slice-is-one-feature"></a>
 
-## One slice writes all five of a feature's artefacts together
+## One slice writes all of a feature's proofs together
 
 `rule:testing/one-slice-is-one-feature`
 
-One slice takes one feature and writes **all five of its artefacts together**. The expensive thing a
+One slice takes one feature and writes **all of its feature proofs together**. The expensive thing a
 session buys is understanding what the feature does at its edges, and the description, the test, the
-examples, the bench and the attack all spend that same understanding; split across five sessions it
-is bought five times, against a fixed per-session cost that does not shrink with the size of the work.
+examples, the bench and the attack all spend that same understanding; split across one session per
+proof it is bought once per proof, against a fixed per-session cost that does not shrink with the size
+of the work.
 
 The generated work chain is one goal per group of features sharing an implementing file set, each
 carrying a context manifest naming that file set and each gated by a command that exits non-zero.
 Regenerating the chain is how it stays current: a group that owes nothing is left out, so a second
 emission writes the chain that is *left*.
 
-<sub>See also [`testing/four-proofs`](testing.md#testing-four-proofs), [`testing/a-failing-proof-is-fixed-or-recorded`](testing.md#testing-a-failing-proof-is-fixed-or-recorded), [`testing/roster-is-derived`](testing.md#testing-roster-is-derived). Decided in [0134](../decisions/0134.md).</sub>
+<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/a-failing-proof-is-fixed-or-recorded`](testing.md#testing-a-failing-proof-is-fixed-or-recorded), [`testing/roster-is-derived`](testing.md#testing-roster-is-derived). Decided in [0134](../decisions/0134.md).</sub>
 
 <a id="testing-examples-live-in-the-repository"></a>
 
@@ -585,7 +586,7 @@ overwritten — and this simply makes the example tree one of the tool-owned one
 They live in the repository because the same sweep that tests a feature writes its examples, and a
 sweep cannot write into a tree it is not allowed to touch.
 
-<sub>See also [`testing/four-proofs`](testing.md#testing-four-proofs), [`testing/proof-attribution`](testing.md#testing-proof-attribution). Decided in [0134](../decisions/0134.md).</sub>
+<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/proof-attribution`](testing.md#testing-proof-attribution). Decided in [0134](../decisions/0134.md).</sub>
 
 <a id="testing-hostile-case-contract"></a>
 
@@ -614,15 +615,16 @@ Freezing the output instead is refused: every one of these programs is written t
 nobody can predict, and a suite whose expectations must be maintained is a suite that gets weakened
 until it passes.
 
-<sub>See also [`testing/four-proofs`](testing.md#testing-four-proofs), [`testing/a-failing-proof-is-fixed-or-recorded`](testing.md#testing-a-failing-proof-is-fixed-or-recorded), [`testing/capability-closure-test`](testing.md#testing-capability-closure-test). Decided in [0134](../decisions/0134.md).</sub>
+<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/a-failing-proof-is-fixed-or-recorded`](testing.md#testing-a-failing-proof-is-fixed-or-recorded), [`testing/capability-closure-test`](testing.md#testing-capability-closure-test). Decided in [0134](../decisions/0134.md).</sub>
 
-<a id="testing-four-proofs"></a>
+<a id="testing-feature-proofs"></a>
 
-## A feature is finished when it has a test from both sides, three examples, a measured figure and an attack
+## A feature is finished when its feature proofs exist: a description, a test from both sides, three examples, a measured figure and an attack
 
-`rule:testing/four-proofs`
+`rule:testing/feature-proofs`
 
-A feature is finished when five artefacts exist for it, not when it works.
+A feature is finished when its **feature proofs** exist, not when it works. Each one proves a
+different thing about the feature, and this list is the only place that says which they are.
 
 **Description** — a short page of plain prose saying what the feature does, which a beginner and an
 expert read the same way. It is the first thing the website shows for the feature, it is written
@@ -634,8 +636,8 @@ written to break it, which passes when the runtime is still standing.
 
 Each tree's own README owns what a file in it *is*, and this rule restates none of them.
 
-The rule's name counts the four that prove behaviour. Not every kind of feature owes all of those:
-an enum is not attacked and a directive is not benchmarked.
+Not every kind of feature owes every proof: an enum is not attacked and a directive is not
+benchmarked.
 What each kind owes is **data**, overridable per feature, because a policy stated only in prose is a
 policy nothing can check. A single feature excused from a single proof is a skip entry carrying
 **the reason as its value**, so "this cannot be measured" and "nobody wrote one" never look the same
@@ -661,7 +663,7 @@ owes them on the next sweep. Nobody edits a list, so no list is ever stale — a
 wrong within a day of an unattended run, and it under-reports silently, which is the failure mode
 that looks like success.
 
-<sub>See also [`testing/four-proofs`](testing.md#testing-four-proofs), [`testing/proof-attribution`](testing.md#testing-proof-attribution). Decided in [0134](../decisions/0134.md), [0117](../decisions/0117.md).</sub>
+<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/proof-attribution`](testing.md#testing-proof-attribution). Decided in [0134](../decisions/0134.md), [0117](../decisions/0117.md).</sub>
 
 <a id="testing-proof-attribution"></a>
 
@@ -682,7 +684,7 @@ That written spelling is the only inference made. Crediting a bare `->method(` c
 case happens to name is unsound rather than merely loose, and no tightening fixes it without a type
 checker.
 
-<sub>See also [`testing/four-proofs`](testing.md#testing-four-proofs), [`testing/roster-is-derived`](testing.md#testing-roster-is-derived), [`testing/examples-live-in-the-repository`](testing.md#testing-examples-live-in-the-repository). Decided in [0134](../decisions/0134.md).</sub>
+<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/roster-is-derived`](testing.md#testing-roster-is-derived), [`testing/examples-live-in-the-repository`](testing.md#testing-examples-live-in-the-repository). Decided in [0134](../decisions/0134.md).</sub>
 
 <a id="testing-a-failing-proof-is-fixed-or-recorded"></a>
 
@@ -707,7 +709,7 @@ the marker is part of whatever fix eventually lands.
 skipping the feature each turn a finding into a green check, which is the single outcome this rule
 exists to prevent. A skip is for a proof that *cannot exist*, never for one that fails.
 
-<sub>See also [`testing/four-proofs`](testing.md#testing-four-proofs), [`testing/hostile-case-contract`](testing.md#testing-hostile-case-contract), [`testing/one-slice-is-one-feature`](testing.md#testing-one-slice-is-one-feature). Decided in [0134](../decisions/0134.md).</sub>
+<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/hostile-case-contract`](testing.md#testing-hostile-case-contract), [`testing/one-slice-is-one-feature`](testing.md#testing-one-slice-is-one-feature). Decided in [0134](../decisions/0134.md).</sub>
 
 <a id="testing-capability-closure-test"></a>
 
@@ -731,7 +733,7 @@ A second closure test covers the other half: nothing in the standard library rea
 system except through a door. Neither test subsumes the other — one catches a member that goes
 through a door undeclared, the other a member that reaches the OS with no door at all.
 
-<sub>See also [`testing/four-proofs`](testing.md#testing-four-proofs), [`testing/hostile-case-contract`](testing.md#testing-hostile-case-contract). Decided in [0118](../decisions/0118.md).</sub>
+<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/hostile-case-contract`](testing.md#testing-hostile-case-contract). Decided in [0118](../decisions/0118.md).</sub>
 
 <a id="testing-attribution-is-diffed-in-ci"></a>
 
@@ -1123,7 +1125,7 @@ The gate accepts a record from any machine and only the report's clock columns i
 so a fresh clone owes nothing it already has a current record for. Nothing here gates a build. A
 regression is a row with a delta on it.
 
-<sub>See also [`testing/four-proofs`](testing.md#testing-four-proofs), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/userland-benchmarks`](testing.md#testing-userland-benchmarks). Decided in [0134](../decisions/0134.md), [0026](../decisions/0026.md), [0191](../decisions/0191.md).</sub>
+<sub>See also [`testing/feature-proofs`](testing.md#testing-feature-proofs), [`testing/perf-two-mechanisms`](testing.md#testing-perf-two-mechanisms), [`testing/userland-benchmarks`](testing.md#testing-userland-benchmarks). Decided in [0134](../decisions/0134.md), [0026](../decisions/0026.md), [0191](../decisions/0191.md).</sub>
 
 <a id="testing-userland-benchmarks"></a>
 

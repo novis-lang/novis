@@ -219,7 +219,7 @@ the schema. Rust tests in `nvs-stdlib` read it with `include_str!` and `serde_js
   `jws.keys[key]`, and `Crypto::sign` reproduces it byte for byte where `deterministic` is true.
 - **`signatures.refusals`** — each refused by `Crypto::verify` with the one `RuntimeError`.
 
-Then `examples/webcrypto.nvs`, the example `rule:testing/four-proofs` asks for, frozen by an `exact` check.
+Then `examples/webcrypto.nvs`, the example `rule:testing/feature-proofs` asks for, frozen by an `exact` check.
 It opens one of the set's tokens, so the example is itself a browser's output being read. It also
 verifies one of the set's ID tokens, and refuses the same token with its `alg` swapped.
 

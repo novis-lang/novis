@@ -99,5 +99,5 @@ Then, in this session and only after every worker has stopped:
   a rewrite of the tree.
 - **No feature is excused.** There is no `[skip]` entry for `comments`; every program can carry a
   plain comment.
-- **No numbered ADR is opened by this goal.** The decision is `rule:testing/four-proofs`'s
+- **No numbered ADR is opened by this goal.** The decision is `rule:testing/feature-proofs`'s
   "plainly-commented", and the README section is where it is spelled out.

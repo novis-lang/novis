@@ -18,13 +18,13 @@ modules = [
   "crates/nvs-stdlib/src/cldr.rs",
 ]
 
-rules = ["testing/four-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
+rules = ["testing/feature-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
 
 adrs = ["0134", "0079 §15"]
 
 shapes = [
   "A `.nvst` test case",
-  "A feature's four proofs — an example, an attack, a bench, a `covers:` marker",
+  "Feature proofs — an example, an attack, a bench, a `covers:` marker",
   "A commit message",
 ]
 
@@ -60,7 +60,7 @@ memoize_on = ["crates/nvs-server", "crates/nvs-db", "tests/db"]
 
 
 # ---------------------------------------------------------------------------------------
-# Stage 2 -- every feature in this goal owes nothing AND the proofs hold: the four
+# Stage 2 -- every feature in this goal owes nothing AND the proofs hold: the
 # artefacts are on disk, the perf figure is current for the implementation as it stands,
 # every example prints what its `.out` says, and every attack leaves the runtime standing.
 #

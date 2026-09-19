@@ -4,8 +4,8 @@ milestone: dossier
 # Loop goal 71 — queue the dossier
 
 **One session, one command, and the chain is a hundred goals longer.**
-`rule:testing/four-proofs` settled that every shipped feature
-owes four proofs — a test from Novis *and* from Rust, three examples, one measured figure, one file
+`rule:testing/feature-proofs` settled that every shipped feature
+owes its feature proofs — a test from Novis *and* from Rust, three examples, one measured figure, one file
 written to break it — and `tools/dossier.py` derives that roster from `nvs meta --json` and the reference
 chapters rather than a list anybody maintains. The sweep says **1,069 features, four of them complete**.
 This goal is where the loop stops adding surface and starts closing what is behind it.
@@ -18,7 +18,7 @@ times.** Emission is stage 2 and takes minutes; stage 3 is the goal.
 ## Why here
 
 The dossier writes no proof: it fires `dossier.py --emit-goals` at this file, so
-`rule:testing/four-proofs`'s roster — one goal per group of features owing four proofs — lands on
+`rule:testing/feature-proofs`'s roster — one goal per group of features owing feature proofs — lands on
 the end of the chain the driver is already walking, and `Chain.refresh()` in loop.py walks into it
 without a restart. Everything after goal `dossier` is generated; nothing after it is hand-written, and it
 is last because a proof is only worth writing over a feature that has stopped moving. `dossier.py`'s
@@ -42,7 +42,7 @@ the roster owes on the day this runs is what gets written, and a group that owes
 description — `about.md` in its example directory, `docs/examples/README.md` § *The description* —
 without any check counting it, and goal `the-description-is-owed` closes the emission: it switches
 that on in `tools/data/dossier-policy.toml`, closes what is left, and gates on the whole roster, so
-every goal after it carries all five of `rule:testing/four-proofs`'s artefacts as floor.
+every goal after it carries all of `rule:testing/feature-proofs`'s proofs as floor.
 
 ## Stage 2 — the item list
 
@@ -93,8 +93,8 @@ this stage, not its ceiling.
       stub still needs the Write that fills it, and a directory costs nothing to create. So a
       `--scaffold '<id>'` was not built. Confirm the share against your own run before you accept
       that; overturning it means naming what a stub removes that `--bless` and `--partition` do not.
-- [ ] **The fan-out landed before this goal ran, and its width is the thing to confirm.** `rule:testing/four-proofs`'s
-      work is file-disjoint by construction — three of the four proofs are attributed by a path derived
+- [ ] **The fan-out landed before this goal ran, and its width is the thing to confirm.** `rule:testing/feature-proofs`'s
+      work is file-disjoint by construction — the examples, the attack and the bench are attributed by a path derived
       from the feature's id — so `dossier.py --partition` cuts a group into worker briefs and refuses
       when two lanes would write the same path, and every generated goal's prose § *Running this goal
       wide* drives it. `FANOUT_WORKERS` is 8 and its docstring carries the derivation: a serial tail
@@ -103,7 +103,7 @@ this stage, not its ceiling.
       goal sizes that puts the whole program at **106 hours and 416 sessions serially against 34
       hours and 98 fanned out** — 3.1x, of which 1.4x is the smaller floor and 2.2x is the
       concurrency — and **$3,349 against $891**. **One input is an estimate and everything above
-      rests on it**: 16 tool calls to close one feature's four proofs, which nothing on disk can
+      rests on it**: 16 tool calls to close one feature's proofs, which nothing on disk can
       price because no dossier goal has run. You are the session that can. Fan one group out, put
       the real per-feature figure in the report, and move `FANOUT_WORKERS` only if it says so —
       width is already flat there, 79% of the ceiling at six lanes and 80% at eight, so a wrong
@@ -140,7 +140,7 @@ the commit. Modelled, it is also where the ceiling puts it: at 18 the fan-out's 
 peaks at 186k of the 200k, and 27 would save three hours of a 34-hour program while peaking at 203k.
 Nine costs eleven hours and buys nothing.
 
-**No ADR slot.** `rule:testing/four-proofs` is the decision and it is already written. The one thing this goal *did* decide
+**No ADR slot.** `rule:testing/feature-proofs` is the decision and it is already written. The one thing this goal *did* decide
 is recorded in `docs/agent/commands.md` § the dossier: the emitter may now be fired by a session, because
 appending to the live chain and `Chain.refresh()` are what turn "then somebody restarts the driver" into
 "the run continues". Nothing else here is new design.

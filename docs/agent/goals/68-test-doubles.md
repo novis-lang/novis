@@ -156,5 +156,5 @@ edit as the rows that register them.
   build (`rule:testing/tests-never-reach-a-build`).
 - **ADR slots**: none. ADR 0079 §§ 10, 11 and 16 decided this; a design call the session must make is
   recorded in `test.rs`'s module doc, never in a new record.
-- **Not this goal**: `Core\BigInt` (goal `bigint`); the four proofs beyond ADR 0079's own bullets (goal
+- **Not this goal**: `Core\BigInt` (goal `bigint`); the feature proofs beyond ADR 0079's own bullets (goal
   `dossier`); mutation testing, which is M10's.
