@@ -1,0 +1,120 @@
+<?nvs
+// Attack: a program changes every `Core` collection while a `foreach` is walking it, and
+// nests those loops as deep as it can. Each loop should end after the elements that were
+// there when it started. The last step fills the memory and stops the program, and the
+// runtime should stay standing.
+// covers: lang:iteration/core-collections-are-iterable
+// hostile: timeout-ms 20000
+// hostile: ends-early
+
+// 1. A loop over a set that adds a new member on every round, trying never to end.
+try {
+    var $tags = new Core\ObjectSet<int>();
+    $tags->add(1);
+    $tags->add(2);
+    $tags->add(3);
+    int $visited = 0;
+    foreach ($tags as int $tag) {
+        $visited = $visited + 1;
+        $tags->add($tag + 1000);
+        if ($visited > 1000) {
+            break;
+        }
+    }
+    echo '1: visited ', $visited, ' of ', $tags->count(), "\n";
+} catch (Throwable $e) {
+    echo '1: caught ', $e->message, "\n";
+}
+
+// 2. A loop over a map that removes every key, including the one it is standing on.
+try {
+    var $stock = new Core\ObjectMap<string, int>();
+    $stock->set('a', 1);
+    $stock->set('b', 2);
+    $stock->set('c', 3);
+    int $reached = 0;
+    foreach ($stock as string $name) {
+        $reached = $reached + 1;
+        $stock->remove($name);
+        $stock->clear();
+    }
+    echo '2: visited ', $reached, ' of ', $stock->count(), "\n";
+} catch (Throwable $e) {
+    echo '2: caught ', $e->message, "\n";
+}
+
+// 3. A loop over a heap inside a loop over that same heap, pushing on every round.
+try {
+    var $costs = new Core\Heap<int>();
+    int $i = 0;
+    while ($i < 16) {
+        $costs->push(16 - $i);
+        $i = $i + 1;
+    }
+    int $rounds = 0;
+    foreach ($costs as int $outer) {
+        foreach ($costs as int $inner) {
+            $rounds = $rounds + 1;
+        }
+        $costs->push($outer + 1000);
+    }
+    echo '3: ', $rounds, ' rounds over ', $costs->count(), "\n";
+} catch (Throwable $e) {
+    echo '3: caught ', $e->message, "\n";
+}
+
+// 4. A channel of one slot that a sender fills far faster than the loop takes from it.
+class Tally
+{
+    public static int $taken = 0;
+}
+
+try {
+    var $line = new Core\Task\Channel<int>(1);
+    Core\Task::all({
+        send: fn(): int => {
+            int $k = 0;
+            while ($k < 20000) {
+                $line->send($k);
+                $k = $k + 1;
+            }
+            $line->close();
+            return 0;
+        },
+        take: fn(): int => {
+            foreach ($line as int $value) {
+                Tally::$taken = Tally::$taken + 1;
+            }
+            return 0;
+        },
+    });
+    echo '4: took ', Tally::$taken, "\n";
+} catch (Throwable $e) {
+    echo '4: caught ', $e->message, "\n";
+}
+
+// 5. A set of two hundred thousand members walked at 256 levels of nesting at once.
+// The copies those loops hold fill the memory, so this step ends the program.
+class Deep
+{
+    public static function walk(Core\ObjectSet<int> $members, int $depth): int
+    {
+        if ($depth == 0) {
+            return 0;
+        }
+        int $reached = 0;
+        foreach ($members as int $member) {
+            $reached = Deep::walk($members, $depth - 1) + 1;
+            break;
+        }
+        return $reached;
+    }
+}
+
+var $wide = new Core\ObjectSet<int>();
+int $n = 0;
+while ($n < 200000) {
+    $wide->add($n);
+    $n = $n + 1;
+}
+echo '5: reached depth ', Deep::walk($wide, 256), "\n";

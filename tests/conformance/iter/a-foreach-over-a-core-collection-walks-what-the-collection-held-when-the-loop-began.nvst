@@ -1,0 +1,60 @@
+--TEST--
+A `foreach` over a `Core\ObjectSet`, `Core\ObjectMap` or `Core\Heap` walks what the collection held when the loop began, so the body may add to it, remove from it or clear it, and both sides are named: what the loop reached and what the collection holds afterwards, pinning `rule:iteration/foreach-subjects`
+--FILE--
+<?nvs
+// covers: lang:iteration/core-collections-are-iterable
+// Each block asserts the bound from both directions. The first number is what
+// the loop reached, which is what the collection held at the `foreach`; the
+// second is what it holds after the body's changes. A collection that walked
+// live instead would fail the first, and one that discarded the body's
+// changes would fail the second.
+
+// A set the body adds to on every round.
+var $tags = new Core\ObjectSet<int>();
+$tags->add(1);
+$tags->add(2);
+$tags->add(3);
+var $walked = "";
+foreach ($tags as int $tag) {
+    $walked = $walked . $tag . ";";
+    $tags->add($tag + 10);
+}
+echo $walked, " ", $tags->count(), "\n";
+
+// A map the body empties on its first round. The walk still reaches all three
+// keys, and the map is empty when it ends.
+var $stock = new Core\ObjectMap<string, int>();
+$stock->set("a", 1);
+$stock->set("b", 2);
+$stock->set("c", 3);
+int $keys = 0;
+foreach ($stock as string $name) {
+    $keys = $keys + 1;
+    $stock->clear();
+}
+echo $keys, " ", $stock->count(), "\n";
+
+// A heap the loop does not empty. Two walks in a row give the same elements in
+// the same order, and the heap still holds every one of them.
+var $costs = new Core\Heap<int>();
+$costs->push(30);
+$costs->push(5);
+$costs->push(17);
+var $once = "";
+foreach ($costs as int $cost) {
+    $once = $once . $cost . ";";
+}
+var $twice = "";
+foreach ($costs as int $cost) {
+    $twice = $twice . $cost . ";";
+}
+echo $once == $twice ? "same" : "different", " ", $once, " ", $costs->count(), "\n";
+
+// `pop` is the member that removes one, and it answers what both walks
+// reached first.
+echo $costs->pop(), " ", $costs->count(), "\n";
+--EXPECT--
+1;2;3; 6
+3 0
+same 5;17;30; 3
+5 2

@@ -1,0 +1,32 @@
+<?nvs
+// Shows a worker task taking its jobs from a `Core\Task\Channel` with `foreach`.
+
+class Report {
+    public static string $done = "";
+}
+
+// The channel holds 2 jobs at a time. A sender waits while it is full, so a fast
+// sender cannot fill up the memory of a slow worker.
+var $jobs = new Core\Task\Channel<string>(2);
+
+Core\Task::all({
+    fill: fn(): int => {
+        array<string> $queue = ["resize-logo", "resize-banner", "resize-icon"];
+        foreach ($queue as string $job) {
+            $jobs->send($job);
+        }
+        // `close` ends the loop in the other task. Without it, that loop waits forever.
+        $jobs->close();
+        return 0;
+    },
+    work: fn(): int => {
+        // The loop gives you each job that was sent, in the order it was sent.
+        foreach ($jobs as string $job) {
+            Report::$done = Report::$done . $job . " ";
+        }
+        return 0;
+    },
+});
+
+// Both tasks have finished here, so this prints all three job names.
+echo Report::$done, "\n";

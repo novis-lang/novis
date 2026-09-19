@@ -3271,6 +3271,7 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   target/debug/nvs.exe` to get around it: the attacks are sized for release, and one in five of them
   outlives its own `timeout-ms` against the debug binary.
   [until: gone tools/dossier.py:def current_binary]
+- **`nvs-server`'s `a_fleet_lease_is_renewed_while_its_run_is_in_flight` fails under `verify.py` and passes alone.** It asserts a lease was renewed inside a wall-clock window, and 160 sibling tests sharing the machine widen it. Re-run it with `cargo test -p nvs-server --lib schedule::tests::a_fleet_lease_is_renewed_while_its_run_is_in_flight`, and when it passes finish the gate by hand: `cargo clippy --all-targets`, then `nvs test tests/conformance` and `tests/differential`. [until: gone crates/nvs-server/src/schedule.rs:the key was held again while the run was in flight]
 
 ## Writing a test case
 
@@ -8303,6 +8304,7 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   whose `echo` opens with a `"BAD="` label prints that label and *then* throws, and the expected
   output no longer matches. Put the call that can throw in its own statement and echo the variable.
   [until: reviewed 2026-09-19]
+- **An array literal written in a `foreach` subject position binds `mixed`, so `foreach (["a", "b"] as string $x)` is refused as `E0401`.** A literal takes its element type from the declaration it is assigned to, and a subject position gives it none. Declare it first — `array<string> $queue = ["a", "b"];` — and iterate the variable. [until: reviewed 2026-09-19]
 
 ## Divergences and refusals already pinned
 
