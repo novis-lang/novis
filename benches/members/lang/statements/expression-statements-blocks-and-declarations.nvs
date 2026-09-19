@@ -1,0 +1,26 @@
+<?nvs
+// Runs the statements a program is mostly made of: a local declared inside a
+// loop body, an assignment, and a block that groups one step. A program meets
+// this shape in every function it has.
+// bench: iterations 400000
+// bench: calls 0
+// bench: allocations 0
+
+class Bench {
+    public static function run(int $rounds): int {
+        int $acc = 1;
+        int $i = 0;
+        while ($i < $rounds) {
+            // The declaration is one statement and runs on every round.
+            // Chained: this round's step comes out of the last round.
+            int $step = ($acc % 7) + 3;
+            {
+                $acc = ($acc + $step) % 1000003;
+            }
+            $i = $i + 1;
+        }
+        return $acc;
+    }
+}
+
+echo Bench::run(400000), "\n";

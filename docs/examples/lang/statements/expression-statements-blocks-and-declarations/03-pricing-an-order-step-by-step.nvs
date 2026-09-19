@@ -1,0 +1,42 @@
+<?nvs
+// Shows these statements in a program that prices an order: a variable
+// declared before its price is known, a call written for what it records, and
+// a block that groups one step.
+
+class Audit
+{
+    // Writes one line about a decision and returns whether it was written.
+    public static function note(string $text): bool
+    {
+        echo "audit: ", $text, "\n";
+        return true;
+    }
+}
+
+array<int> $order = ["items" => 4, "weight" => 1200];
+
+// The shipping price is not known yet. Every branch below gives it a value, so
+// it can be read after the `if`.
+int $shipping;
+if ($order["weight"] > 1000) {
+    $shipping = 900;
+    // The result of this call is thrown away. The line is still written.
+    Audit::note("heavy parcel");
+} elseif ($order["items"] > 3) {
+    $shipping = 400;
+    Audit::note("more than three items");
+} else {
+    $shipping = 250;
+}
+
+// The block groups the discount step. `$discount` can be read after it,
+// because a block does not open a new scope.
+{
+    int $discount = 0;
+    if ($shipping > 500) {
+        $discount = 100;
+    }
+}
+
+// This prints 800.
+echo $shipping - $discount, "\n";

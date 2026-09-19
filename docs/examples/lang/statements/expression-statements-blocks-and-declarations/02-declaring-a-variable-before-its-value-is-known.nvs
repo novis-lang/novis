@@ -1,0 +1,27 @@
+<?nvs
+// Shows the two ways to declare a variable, and how to declare one before you
+// know its value.
+
+// A declaration names the type. `$attempts` is a whole number from here on.
+int $attempts = 3;
+
+// `var` takes the type from the value on the right, so `$service` is a string.
+var $service = "payments";
+
+// You can declare a variable without a value. You may read it only after every
+// path has given it one, so both branches below assign it.
+string $plan;
+if ($attempts > 1) {
+    $plan = "retry";
+} else {
+    $plan = "give up";
+}
+
+// Braces group statements into a block. A block does not open a new scope, so
+// `$wait` is still there after the closing brace.
+{
+    int $wait = $attempts * 2;
+}
+
+// This prints: payments: retry after 6 seconds
+echo $service, ": ", $plan, " after ", $wait, " seconds\n";

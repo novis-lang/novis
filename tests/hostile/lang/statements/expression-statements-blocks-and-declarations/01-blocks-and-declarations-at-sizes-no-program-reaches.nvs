@@ -1,0 +1,53 @@
+<?nvs
+// Attack: blocks, declarations and discarded expressions are written at sizes
+// no real program reaches. The runtime should run every step, stop with an
+// error where a number no longer fits, and stay standing.
+// hostile: timeout-ms 30000
+// hostile: ends-early
+// covers: lang:statements/expression-statements-blocks-and-declarations
+
+// 1. Eighty blocks inside each other. A block opens no scope, so the variable
+// declared in the innermost one is read after the last closing brace.
+{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{{
+    int $deep = 5;
+}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}
+echo $deep, "\n";
+
+// 2. A declaration inside a loop body is one statement that runs on every
+// round. This one builds a fresh text one million times.
+int $round = 0;
+int $seen = 0;
+while ($round < 1000000) {
+    string $label = 'row-' . ($round as string);
+    $seen = $seen + (Core\Str::length($label) as int);
+    $round = $round + 1;
+}
+echo $seen, "\n";
+
+// 3. Two hundred thousand discarded expression statements. Each one builds an
+// array and throws the result away.
+int $churn = 0;
+while ($churn < 200000) {
+    Core\Arr::count([$churn, $churn + 1, $churn + 2, $churn + 3]);
+    $churn = $churn + 1;
+}
+echo $churn, "\n";
+
+// 4. A variable declared with no value, assigned inside nested blocks. Every
+// path gives it a value, so it can be read afterwards.
+string $verdict;
+{
+    {
+        if ($seen > 0) {
+            $verdict = 'counted';
+        } else {
+            $verdict = 'empty';
+        }
+    }
+}
+echo $verdict, "\n";
+
+// 5. The last statement throws its value away, and the multiplication still
+// runs. It overflows, nothing catches the error, and the program ends here.
+int $huge = 9223372036854775807;
+$huge * $huge;

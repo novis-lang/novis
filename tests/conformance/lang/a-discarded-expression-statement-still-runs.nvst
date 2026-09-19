@@ -2,6 +2,7 @@
 An expression used as its own statement is evaluated for its effects and its value discarded, whatever shape it is
 --FILE--
 <?nvs
+// covers: lang:statements/expression-statements-blocks-and-declarations
 // PHP evaluates an expression statement for what it does and throws the value
 // away. So does Novis: there is no "expression result unused" refusal, because
 // "has no effect" is not a question the compiler can answer — a call is buried
