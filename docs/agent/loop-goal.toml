@@ -97,6 +97,9 @@ files = [
 
 modules = [
   "docs/reference/lang/10-programs.md",
+  # The dual-mode lexer: HTML/inline-text on one side, Novis code on the other, with a small stack
+  # of nested modes for double-quoted strings, heredocs and their interpolation sites.
+  "crates/nvs-syntax/src/lexer.rs",
 ]
 
 rules = ["testing/four-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
