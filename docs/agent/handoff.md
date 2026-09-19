@@ -2,15 +2,15 @@
 
 ## State
 
-Goal `lang-statements`: two of its thirteen features now carry complete feature proofs —
-`python tools/dossier.py --id 'lang:statements/break-and-continue'` and the same for
-`lang:statements/catch-as-an-expression` both print `complete.`. Eleven are left, all anchored in
-`docs/reference/lang/40-statements.md`.
+Goal `lang-statements`: four of its thirteen features carry complete feature proofs.
+`python tools/dossier.py --id '<feature>'` prints `complete.` for `break-and-continue`,
+`catch-as-an-expression`, `echo-print-unset-exit-yield` and `throw`. Nine are left, all anchored in
+`docs/reference/lang/40-statements.md`, and `python tools/dossier.py --owed --group lang:statements`
+lists them.
 
-Both features already had two conformance cases on disk that nobody had attributed, so the tests
-column was closed by a `// covers:` marker rather than by a new case — check that first for every
-remaining item, because `rule:testing/proof-attribution` credits a language feature by marker alone.
-Nothing is blocked.
+The tests column keeps closing by a `// covers:` marker on a case already on disk that nobody had
+attributed (`rule:testing/proof-attribution`) — four cases so far, two of them under
+`tests/conformance/error/`. Look for one before writing a new case. Nothing is blocked.
 
 ## Next group
 
@@ -19,22 +19,23 @@ Nothing is blocked.
 (`rule:testing/feature-proofs`): `about.md`, three examples with blessed `.out` files, one attack,
 one bench, and two tests carrying a `covers:` marker.
 
-- [ ] **`lang:statements/echo-print-unset-exit-yield`** — owes examples, hostile, perf, tests.
-      `unset` of a local or a property is a compile error and `exit` ends the program, so the attack
-      needs `// hostile: ends-early`. `docs/reference/lang/40-statements.md:445`
-- [ ] **`lang:statements/throw`** — owes examples, hostile, perf, tests. An uncaught `throw` ends the
-      program with status 1. `docs/reference/lang/40-statements.md:432`
-- [ ] **`lang:statements/try-catch-finally`** — owes examples, hostile, perf, tests. The block form
-      the expression `catch` lowers to; its proofs may not repeat that feature's.
+- [ ] **`lang:statements/try-catch-finally`** — owes examples, hostile, perf, tests. The block form,
+      a multi-catch written as two clauses, and `finally` on every way out. Two `catch` clauses in
+      one function need two variable names, which is `E0406` and not a `catch` rule.
       `docs/reference/lang/40-statements.md:294`
+- [ ] **`lang:statements/if-elseif-else`** — owes examples, hostile, perf, tests. `else if` and
+      `elseif` are both written, and the `endif` form does not parse.
+      `docs/reference/lang/40-statements.md:44`
+- [ ] **`lang:statements/foreach`** — owes examples, hostile, perf, tests. The key form, `inout`,
+      and what a write during the loop does. `docs/reference/lang/40-statements.md:137`
 
 ## Backlog
 
-- The loop family — `for`, `foreach`, `while-and-do-while` — is the natural group after this one; the
-  three share one understanding of an iteration. `docs/agent/loop-goal.md:29`
-- `E0475`'s label reads `2 enclosing loop/`switch` here` when two loops enclose the level: the count
-  is plural and the nouns are not. Only the depth-1 wording is pinned today, in
-  `tests/conformance/lang/a-break-level-that-names-no-target-is-a-diagnostic.nvst`.
-  `crates/nvs-types/src/locals.rs:960`
-- Building a string by repeated `.` in a loop is the dominant cost in a hostile case that wants a
-  huge value: 400k appends took ~11s of a 30s budget under the debug binary, 200k took ~5s.
+- `unset($a[$i])` with an `int` subscript costs three allocations, because the key is rendered to
+  its decimal — `crates/nvs-ir/src/lower/expr.rs:2406` owns the reasoning and defers the ABI
+  widening. The bench uses a string key so its figure prices the statement.
+- One raise and one catch across one frame measures 16 allocations and 906 bytes per operation
+  (`docs/perf/members.ndjson`, `lang:statements/throw`). Nothing declares a bound for it.
+- The three tree READMEs (`docs/examples/`, `tests/hostile/`, `benches/members/`) are ~8k of
+  context every dossier session; `[context]` has no field that inlines a body, so peek all three in
+  one call rather than one at a time.

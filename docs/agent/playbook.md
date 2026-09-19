@@ -8289,6 +8289,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   check in a nested `if`, or reach the value through `?->` or `??` — and when a guard is only wanted
   for a throw, the ordinary `$count != 0 && $total / $count > 10.0` shape needs no narrowing at all.
   [until: gone docs/rules/types/narrowing.md:branch-local]
+- **A nullable type is written `?T`, never `T?`, and the trailing form's seven errors name none of
+  that.** `Throwable? $step = $chain;` reports `E0319: `Throwable` is not a constant that exists`
+  first and then six cascading `$step is not declared` lines, so the whole report reads as a missing
+  declaration rather than as a misplaced `?`. Copy the spelling from a case that already uses one —
+  `tests/conformance/error/throwing-a-nullable-throwable-throws-the-object-it-holds.nvst:8` — rather
+  than working back from the diagnostic. [until: reviewed 2026-09-19]
 
 ## Divergences and refusals already pinned
 
