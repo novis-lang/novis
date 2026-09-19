@@ -1,0 +1,27 @@
+<?nvs
+// A confirmation message, written as one block with a heredoc. The text sits
+// in the program the way it will look to the customer, and the values are
+// filled in where they appear. The closing marker sets the indentation, so
+// the lines can stay lined up with the code.
+
+string $who = "Ada";
+int $order = 1042;
+decimal $total = 24.90;
+Core\Time\Duration $window = 2w;
+
+echo <<<TEXT
+    Hi $who,
+
+    Order #$order is on its way. The total was $total euro.
+    You can send it back within $window.
+
+    Thank you!
+    TEXT;
+echo "\n";
+
+// The second kind of heredoc quotes the marker, and then nothing is filled
+// in. It is what you want for a template you hand to something else.
+echo <<<'TEXT'
+    Hi $who, your order #$order is on its way.
+    TEXT;
+echo "\n";

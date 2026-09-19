@@ -1,0 +1,27 @@
+<?nvs
+// Attack: build text out of the characters that break naive string handling,
+// then pile it up round after round and keep every piece, so none of it can
+// be given back while the program is still running.
+// hostile: timeout-ms 20000
+
+// A zero byte ends a string in C, the last code point there is sits at the
+// far end of the range, and the two escapes after it spell one letter out of
+// two separate bytes.
+string $seed = "\0\u{10FFFF}\xC3\xA9\\\t";
+
+array<string> $kept = [];
+string $blob = $seed;
+uint $round = 0;
+
+while ($round < 18) {
+    $blob = "$blob|$blob{$seed}";
+    $kept[] = $blob;
+    $round = $round + 1;
+}
+
+// A heredoc holding the same awkward text, filled in one more time.
+string $again = <<<TEXT
+    $blob
+    TEXT;
+
+echo Core\Str::length($kept[0]), ' ', Core\Str::length($blob), ' ', Core\Str::length($again), "\n";

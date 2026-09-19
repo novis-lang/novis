@@ -1,0 +1,40 @@
+--TEST--
+Every spelling a number literal has lands on the same value, a leading zero is decimal rather than octal, and a unit after the digits is a duration instead — `rule:types/literal-types` and `rule:types/duration-literal`
+--FILE--
+<?nvs
+// covers: lang:types/literals
+// The four bases and the digit separator are spellings, not types: each of
+// these is the same `int` the plain decimal form is, so the count below is
+// what asserts it rather than any one line.
+array<int> $thirtyone = [31, 0x1F, 0X1f, 0b11111, 0B11111, 0o37, 0O37, 3_1];
+int $agree = 0;
+foreach ($thirtyone as int $n) {
+    if ($n == 31) {
+        $agree = $agree + 1;
+    }
+}
+echo $agree, "/", Core\Arr::count($thirtyone), "\n";
+
+// A leading zero is a zero and nothing more. PHP and C read `017` as fifteen;
+// the boundary worth naming is that the digits `8` and `9` stay legal here,
+// which is what an octal reading would refuse.
+echo 017, " ", 0755, " ", 089, "\n";
+
+// The parts of a float may be left out on either side, and the exponent takes
+// either case. `5.` is the whole number five, not a syntax error.
+echo .5, " ", 5., " ", 1e3, " ", 1E-2, " ", 1_000.5, "\n";
+
+// The three word literals, rendered the way `echo` renders them: `true` is
+// `1`, and `false` and `null` are both empty.
+echo "[", true, "][", false, "][", null, "]\n";
+
+// The same digits with a unit after them are a `Core\Time\Duration` and not a
+// number at all, so the suffix decides the type on its own.
+Core\Time\Duration $wait = 1h30m;
+echo $wait, " ", $wait->toSeconds(), " ", 250us->toNanoseconds(), " ", $wait->compareTo(90m), "\n";
+--EXPECT--
+8/8
+17 755 89
+0.5 5 1000 0.01 1000.5
+[1][][]
+1h30m 5400 250000 0

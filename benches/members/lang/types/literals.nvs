@@ -1,0 +1,22 @@
+<?nvs
+// Every way of writing a number ends up as the same value before the program
+// starts, so this loop measures the adding and nothing else. That is the
+// figure worth keeping: writing `0x1F` costs what writing `31` costs. Each
+// round starts from the last round's total, so none of it can be worked out
+// in advance, and nothing here asks for memory.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): int {
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = ($total + 0x1F + 0b101 + 0o17 + 017 + 1_000) % 65_521;   // chained: $total is last round's
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

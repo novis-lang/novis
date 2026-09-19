@@ -1,0 +1,86 @@
+--TEST--
+A single-quoted literal has exactly two escapes and interpolates nothing, a double-quoted one's escape set agrees row for row with the code points written out, and a brace reaches the whole expression grammar while a bare `$a[k]` stops after one level — `rule:types/literal-types`
+--FILE--
+<?nvs
+// covers: lang:types/literals
+class Tag {
+    public string $name = "div";
+
+    public function upper(): string {
+        return Core\Str::upper($this->name);
+    }
+}
+
+string $who = "ann";
+array<string> $flat = ["k" => "ann"];
+Tag $tag = new Tag();
+int $a = 3;
+int $b = 4;
+
+// A single-quoted literal has two escapes and no third. Every other
+// backslash stands for itself, and no `$` is read, so the lengths are what
+// assert the set rather than the rendered line alone.
+echo 'both[\\][\'] and \t \n $who', "|\n";
+echo Core\Str::length('\\'), Core\Str::length('\''), Core\Str::length('\t'), "\n";
+
+// The double-quoted set is asserted by agreement: every escape is the code
+// point written out the long way, in whichever of the three spellings, so a
+// single row that stops matching fails the count even though the others
+// still render plausibly.
+array<bool> $same = [
+    "\n" == "\u{A}",
+    "\t" == "\u{9}",
+    "\r" == "\u{D}",
+    "\v" == "\u{B}",
+    "\f" == "\u{C}",
+    "\e" == "\u{1B}",
+    "\0" == "\u{0}",
+    "\303\251" == "é",
+    "\xC3\xA9" == "é",
+    "\u{E9}" == "é",
+];
+int $agree = 0;
+foreach ($same as bool $ok) {
+    if ($ok) {
+        $agree = $agree + 1;
+    }
+}
+echo $agree, "/", Core\Arr::count($same), "\n";
+
+// The three characters that need a backslash to survive, and the one case
+// that needs none: an escape the language does not know keeps its backslash
+// rather than being dropped or refused.
+echo "dollar[\$a] quote[\"] back[\\] unknown[\q] ", Core\Str::length("\q"), "\n";
+
+// The bare form reaches one level and stops, so the `[j]` after it is text.
+echo "bare[$who] key[$flat[k]] onelevel[$flat[k][j]]\n";
+
+// In braces the first token has to be a variable, and from there it is the
+// whole expression grammar — a property, a call, arithmetic, a quoted key.
+echo "prop[{$tag->name}] call[{$tag->upper()}] expr[{$a + $b}] key[{$flat["k"]}]\n";
+
+// A brace with no `$` after it is literal text.
+echo "plain[{not a variable}]\n";
+
+// A heredoc interpolates like a double-quoted literal and a nowdoc keeps
+// every character; both take the closing marker's indentation off each line.
+echo <<<TXT
+    name: $who
+      indented
+    TXT;
+echo "|\n";
+echo <<<'TXT'
+  literal $who
+  TXT;
+echo "|\n";
+--EXPECT--
+both[\]['] and \t \n $who|
+112
+10/10
+dollar[$a] quote["] back[\] unknown[\q] 2
+bare[ann] key[ann] onelevel[ann[j]]
+prop[div] call[DIV] expr[7] key[ann]
+plain[{not a variable}]
+name: ann
+  indented|
+literal $who|
