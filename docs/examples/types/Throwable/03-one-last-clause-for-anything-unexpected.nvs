@@ -1,0 +1,43 @@
+<?nvs
+// What a handler does at the edge of a request. The failures it knows about get
+// the answer they deserve, and a last clause on the root turns everything else
+// into one safe reply instead of letting an unplanned error reach the visitor.
+// Order matters: the root goes last, because the first arm that matches wins.
+
+final class Handler {
+    public static function reply(string $path): string {
+        try {
+            if ($path == "/orders") {
+                var $body = Core\Json::decode("{\"id\": 9,");
+                return "200 ok";
+            }
+            if ($path == "/export") {
+                throw new TimeoutError("the export service did not answer");
+            }
+            if ($path == "/admin") {
+                throw new RuntimeError("no session for this visitor");
+            }
+            if ($path == "/legacy") {
+                var $code = Core\BigInt::of(7)->format({radix: 1});
+                return "200 ok";
+            }
+            return "200 ok";
+        } catch (ParseError $malformed) {
+            return "400 the request body was not valid JSON";
+        } catch (TimeoutError $slow) {
+            return "504 " . $slow->message;
+        } catch (RuntimeError $refused) {
+            return "403 " . $refused->message;
+        } catch (Throwable $unexpected) {
+            // Nothing planned for reaches here, so the visitor gets one reply
+            // and the detail goes where the team will read it.
+            return "500 something went wrong on our side";
+        }
+    }
+}
+
+array<string> $paths = ["/", "/orders", "/export", "/admin", "/legacy"];
+foreach ($paths as string $path) {
+    string $status = Handler::reply($path);
+    echo $path, " -> ", $status, "\n";
+}

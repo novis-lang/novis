@@ -1,0 +1,5 @@
+/ -> 200 ok
+/orders -> 400 the request body was not valid JSON
+/export -> 504 the export service did not answer
+/admin -> 403 no session for this visitor
+/legacy -> 500 something went wrong on our side

@@ -1,0 +1,85 @@
+<?nvs
+// Attack: hang a hundred thousand errors off one another by their cause, point
+// an error at itself so the chain has no end, and throw from the bottom of a
+// deep call chain so the frame list is grown at every level. What this is aimed
+// at is whatever holds a cause and whatever releases it.
+// hostile: timeout-ms 30000
+
+class Link extends Throwable
+{
+}
+
+final class Chain
+{
+    // One live error at the end of a hundred thousand causes, every one of them
+    // still reachable. Releasing it has as many links to let go of.
+    public static function causes(uint $links): uint
+    {
+        var $tip = new Link('the first thing that went wrong');
+        uint $made = 0;
+        while ($made < $links) {
+            var $next = new Link('and then another');
+            $next->previous = $tip;
+            $tip = $next;
+            $made = $made + 1;
+        }
+
+        // Walked rather than counted as it was built, so a run cannot pass by
+        // never linking anything.
+        uint $walked = 0;
+        var $at = $tip->previous;
+        bool $more = true;
+        while ($more) {
+            var $here = $at;
+            if ($here != null) {
+                $walked = $walked + 1;
+                $at = $here->previous;
+            } else {
+                $more = false;
+            }
+        }
+        return $walked;
+    }
+
+    // An error that is its own cause. Nothing following the chain can reach an
+    // end, and nothing counting references can reach zero on its own.
+    public static function itsOwnCause(): string
+    {
+        var $loop = new Link('this went wrong because this went wrong');
+        $loop->previous = $loop;
+        var $cause = $loop->previous;
+        if ($cause == null) {
+            return 'no cause';
+        }
+        return $cause->message;
+    }
+
+    // Thrown from the bottom of a deep chain, so a frame is appended to the
+    // list on the way out of every one of them.
+    public static function fromTheBottom(int $depth): void
+    {
+        if ($depth == 0) {
+            throw new Link('the bottom');
+        }
+        Chain::fromTheBottom($depth - 1);
+    }
+}
+
+echo Chain::causes(100000), "\n";
+echo Chain::itsOwnCause(), "\n";
+
+try {
+    Chain::fromTheBottom(2000);
+    echo "no throw\n";
+} catch (Throwable $deep) {
+    echo 'frames: ', Core\Arr::count($deep->backtrace), "\n";
+}
+
+// And deeper than the call stack allows, so the limit fires with every frame
+// still waiting to be recorded.
+try {
+    Chain::fromTheBottom(200000);
+    echo "no throw\n";
+} catch (Throwable $gaveUp) {
+    echo "the deep chain ended\n";
+}

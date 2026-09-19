@@ -1,0 +1,27 @@
+<?nvs
+// An application's own error extends the root directly — there is no other
+// base class to pick. It gets the root's message for free and adds whatever
+// the people handling it need, here the invoice the trouble is about.
+
+class Overdue extends Throwable {
+    public string $invoice = "";
+}
+
+final class Ledger {
+    public static function charge(string $invoice, bool $paid): string {
+        if (!$paid) {
+            var $unpaid = new Overdue("invoice " . $invoice . " is still open");
+            $unpaid->invoice = $invoice;
+            throw $unpaid;
+        }
+        return "invoice " . $invoice . " charged";
+    }
+}
+
+try {
+    echo Ledger::charge("4021", true), "\n";
+    echo Ledger::charge("4022", false), "\n";
+} catch (Overdue $chase) {
+    echo $chase->message, "\n";
+    echo "chase up ", $chase->invoice, "\n";
+}

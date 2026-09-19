@@ -1,0 +1,36 @@
+<?nvs
+// Every error, whatever its class, carries the same four things: the message,
+// the error it was raised in answer to, the list of frames it travelled
+// through, and the place it was thrown from. Reporting the second of those is
+// how a wrapped failure keeps the real cause.
+
+class ReportFailed extends Throwable {
+}
+
+final class Report {
+    public static function build(): string {
+        try {
+            var $figures = Core\Json::decode("{\"rows\": 3,");
+            return "built";
+        } catch (Throwable $cause) {
+            var $wrapped = new ReportFailed("the monthly report could not be built");
+            $wrapped->previous = $cause;
+            throw $wrapped;
+        }
+    }
+}
+
+try {
+    echo Report::build(), "\n";
+} catch (Throwable $failed) {
+    echo $failed->message, "\n";
+
+    // The cause may be absent, so it is read into a name and checked before
+    // anything is asked of it.
+    var $cause = $failed->previous;
+    if ($cause != null) {
+        echo "because: ", $cause->message, "\n";
+    }
+
+    echo "frames travelled: ", Core\Arr::count($failed->backtrace), "\n";
+}
