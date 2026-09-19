@@ -2,6 +2,7 @@
 A group whose children can only wait for each other ends at the deadline, runs no instruction past the wait, and leaves nothing parked that a later send could wake — `rule:concurrency/nothing-is-still-running-when-a-call-returns` and `rule:concurrency/cancellation-runs-no-user-code`
 --FILE--
 <?nvs
+// covers: lang:concurrency/limit-and-deadline
 // The neighbouring deadline case pins the clock against children that would
 // have finished on their own. This is the case where nothing would ever
 // finish: two channels, and each child waits for a value only the other could

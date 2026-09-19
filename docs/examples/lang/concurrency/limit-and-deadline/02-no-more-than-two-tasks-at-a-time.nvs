@@ -1,0 +1,24 @@
+<?nvs
+// Shows how to say how many tasks may run at the same time. There are six tasks
+// here, and `limit` lets two of them run at once. The other four wait for a free
+// place. None of them is refused.
+
+class Gauge {
+    public static int $running = 0;
+    public static int $most = 0;
+}
+
+var $results = Core\Task::map(Core\Arr::range(1, 6), fn(int $n): int => {
+    Gauge::$running += 1;
+    if (Gauge::$running > Gauge::$most) {
+        Gauge::$most = Gauge::$running;
+    }
+    Core\Time::sleep(5ms);
+    Gauge::$running -= 1;
+    return $n * 10;
+}, {limit: 2});
+
+// This prints 2. Two tasks ran at the same time, and never three.
+echo "most at once: ", Gauge::$most, "\n";
+// All six tasks ran, so the last result is 60.
+echo "last result: ", $results[5], "\n";

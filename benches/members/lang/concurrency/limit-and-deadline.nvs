@@ -1,0 +1,27 @@
+<?nvs
+// Measures what the two bounds cost a group of eight tasks: the queue behind `limit`
+// and the timer behind `deadline`. A request that calls a slow service meets this
+// once. The tasks do no work of their own, so only the bounds are measured.
+// bench: iterations 5000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<int> $work = [1, 2, 3, 4, 5, 6, 7, 8];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: this round's tasks are given the number the last round returned.
+            uint $seed = $total % 7;
+            var $done = Core\Task::map(
+                $work,
+                fn(int $n): uint => ($n as uint) + $seed,
+                {limit: 4, deadline: 10s},
+            );
+            $total = $total + $done[7];
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(5000), "\n";

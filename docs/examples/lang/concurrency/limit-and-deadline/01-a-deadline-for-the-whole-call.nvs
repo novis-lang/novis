@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to give a group of tasks a time limit. The deadline covers the whole
+// call. When it passes, every task still running is stopped and the call throws
+// `TimeoutError`.
+
+try {
+    Core\Task::all({
+        quick: fn(): int => 1,
+        slow: fn(): int => {
+            Core\Time::sleep(500ms);
+            return 2;
+        },
+    }, {deadline: 20ms});
+    echo "both tasks finished\n";
+} catch (TimeoutError $late) {
+    // This is the line that prints. `slow` needs half a second, and the group has
+    // 20 milliseconds.
+    echo "the group ran out of time\n";
+}

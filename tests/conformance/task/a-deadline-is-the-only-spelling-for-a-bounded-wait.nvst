@@ -2,6 +2,7 @@
 `deadline` bounds the whole call and not each child, `all` and `map` agree on that, and `limit` is the other half of the same bag — `rule:concurrency/limit-and-deadline-are-the-only-bounds` and `rule:concurrency/nothing-is-still-running-when-a-call-returns`
 --FILE--
 <?nvs
+// covers: lang:concurrency/limit-and-deadline
 // The neighbouring case pins that `timeout` and `race` do not exist as names.
 // This is the other half: what the surviving spelling actually means at run
 // time. Five children of 60ms under a 200ms deadline is the discriminator —
