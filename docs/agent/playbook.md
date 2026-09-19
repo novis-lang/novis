@@ -3290,6 +3290,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   is still growing — one left running here reached 6 GB. Start anything that may not terminate
   under `timeout 60`, and check `Get-Process nvs` before believing a build error about that file.
   [until: reviewed 2026-09-19]
+- **An `[[app]] entry` in `nvs.toml` naming a file that is not on disk yet stops every program in
+  the repository, not only the one the block is about.** `E0605` is raised while the configuration
+  tree is read, so a block written ahead of the proof it grants leaves `nvs run` and `dossier.py
+  --bless` refusing files that have nothing to do with it, and the error names the missing *entry*
+  rather than the program that was run. Write the `.nvs` first and its block second, and read the
+  path in an `E0605` before believing it is about the file you just asked for.
+  [until: reviewed 2026-09-19]
 
 ## Writing a test case
 
@@ -6057,12 +6064,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `// hostile: ends-early` is declared, while proving one step of the four it claims in its own top
   comment. Put the step that cannot be caught last, and read the program's own output before
   declaring `ends-early`. [until: reviewed 2026-09-19]
-- **Two `catch` arms cannot share a variable name when they name different classes.** A `catch`
-  binding is declared in the enclosing function's scope rather than in its own arm, so
-  `catch (Throwable $failure)` and a later `catch (Core\Test\Failure $failure)` in one file are two
-  declarations of one name and `E0406` refuses the whole file. Give each arm its own name, and
-  reuse one only where every arm that declares it names the same class.
-  [until: gone crates/nvs-hir/src/lower:catch-binding-scope]
+- **A fault raised inside a `Core` member reaches a `catch` one frame up with an empty `location`,
+  so a case that prints it pins the emptiness rather than a site.** The site is seeded on the
+  catchable edge of the frame that raised it — a `finally` seeds none — which is what
+  `a-helper-fault-names-the-frame-it-was-raised-in-when-it-is-caught-there.nvst` is written around,
+  while `backtrace` is filled either way. Print `Core\Arr::count($e->backtrace)` when the claim is
+  that the throw unwound, and leave `location` to the case that owns it.
+  [until: reviewed 2026-09-19]
 
 ## Splitting a file that got too big
 
