@@ -2413,11 +2413,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   example and fixture unrunnable in the meantime. Write the `.nvs` files first and the grant block
   second, and when a run fails on a path you have not created yet, that is what happened.
   [until: reviewed 2026-09-19]
-- **A new `.nvs` file under `tests/` fails `cargo test` until `nvs fmt` has been over it.**
-  `crates/nvs-fmt/tests/identity.rs` holds every corpus file to the printer's own layout, and a
-  string written `"plain"` with nothing to escape comes back `'plain'`, so a hostile case that runs
-  and passes still turns the gate red. Format the file as you write it rather than after `verify.py`
-  says so. [until: gone crates/nvs-fmt/tests/identity.rs:the_identity_printer_reproduces_every_corpus_file]
 - **Editing a reference chapter makes every already-measured feature in that chapter stale**, because
   a language feature's perf figure is current against its implementing file's *text* and that file is
   the chapter itself. One bullet corrected in `docs/reference/lang/10-programs.md` turned three green
@@ -5789,21 +5784,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `exp == now` and prints the expiry refusal where the verifying line was frozen. Re-run that case
   alone before believing a red `conformance` leg that names it — it passed by itself immediately
   after failing in the suite. [until: reviewed 2026-12-01]
-- **A new `examples/*.nvs` fixture is corpus, so `nvs-fmt`'s identity test fails the whole tree until
-  the file is in the canonical layout.** Nothing in `verify.py` says "run the formatter" — the failure
-  reads `1 corpus file(s) came back changed` from `crates/nvs-fmt/tests/identity.rs` and costs a second
-  build to discover. Run `target/debug/nvs.exe fmt <file>` the moment the fixture prints what you want,
-  then re-run it: the layout rewrite is quotes and spacing and never changes stdout, so the `exact`
-  check's `want` survives it. [until: gone crates/nvs-fmt/tests/identity.rs]
-- **A new attack under `tests/hostile/` is corpus the moment you save it, so an unformatted one
-  fails `nvs-fmt`'s identity test — and an example under `docs/examples/` is not.**
-  `crates/nvs-fmt/tests/identity.rs:49` walks the top-level `examples/` and `tests/` and nothing
-  else, so an attack that runs and passes `dossier.py --verify` still fails `verify.py` in a crate
-  you never touched, while a `docs/examples/` file the formatter would change is left alone — which
-  is why every landed example is in double quotes and formatting one would only diverge it from its
-  neighbours. Run `target/debug/nvs.exe fmt tests/hostile/<dir>` on the attack and leave the
-  examples as written; the layout rewrite is quotes and spacing, so it never moves what a `.out`
-  recorded.
+- **`verify.py` formats a new `.nvs` under `tests/` or `examples/` for you, and nothing formats one
+  under `docs/examples/` or `benches/members/`.** `crates/nvs-fmt/tests/identity.rs:49` holds the
+  first two trees to the formatter's layout and `verify.py`'s `nvs-fmt` step brings a new or modified
+  file into it — quotes, spacing and brace placement, never what a `.out` recorded — so only a bare
+  `cargo test` still fails on one. Leave an example or a bench in its neighbours' style: those trees
+  are not corpus, and formatting one only diverges it.
   [until: gone crates/nvs-fmt/tests/identity.rs:the_identity_printer_reproduces_every_corpus_file]
 - **`Core\Config` never answers for an `[[app]]` block's `mode` or `origin`, so an example built on
   either prints `(unset)` while the setting is in force.** `Snapshot::build` lifts those two onto
@@ -5914,13 +5900,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   two shapes a reader actually writes. Probe the claim with a five-line program through
   `target/debug/nvs.exe run` before believing it, and rewrite the comment in the same
   session. [until: reviewed 2026-09-19]
-- **A new `.nvs` file under `tests/` has to be in the formatter's canonical layout.**
-  `crates/nvs-fmt/tests/identity.rs` holds that tree byte for byte, and canonical puts a class's and
-  a function's `{` on its own line, while every skeleton in `conventions.md` and every `.nvst` case
-  keeps it on the declaration's line. Run `target/debug/nvs.exe fmt <the new file>` before verifying,
-  and leave a `docs/examples/` file in its neighbours' style — that tree is not in the corpus, and
-  some 130 landed examples are not canonical.
-  [until: gone crates/nvs-fmt/tests/identity.rs:the_identity_printer_reproduces_every_corpus_file]
 - **Two `catch` clauses in one scope cannot share a binding name, and the diagnostic is `E0406:
   already declared` pointing at the earlier clause.** A catch binding is declared for the whole
   enclosing scope rather than for its own block, so the PHP habit of calling every one `$e` — or two
@@ -5993,33 +5972,17 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `tests/hostile/README.md` counts as a failure, because an attack that does not compile was never
   delivered. Keep a depth attack in a hostile file well under it, or build the nesting at run time
   out of values. [until: reviewed 2026-09-19]
-- **A new `.nvs` file under `tests/hostile/` is part of the `nvs fmt` corpus, so an unformatted one
-  fails `verify.py` in `nvs-fmt`'s identity test.** The canonical layout single-quotes a string with
-  no escape in it and writes an options bag as `{ key: value }`, which is not how the reference
-  chapters spell either, so a program copied out of one arrives unformatted. Run
-  `target/debug/nvs.exe fmt tests/hostile/<dir>` before verifying; `docs/examples/` and
-  `benches/members/` are not in that corpus and keep the chapters' spelling.
-  [until: reviewed 2026-09-19]
-- **A new `.nvs` under `tests/hostile/` and a new `.nvst` anywhere under `tests/` both join
-  whole-corpus tests that only fail at the end of the session.** `nvs-fmt`'s `identity` demands the
-  file already be formatted — it rewrote `"one"` to `'one'` and indented a `?>` in two new attacks —
-  and `nvs-syntax`'s `lossless` demands every byte be covered by a token or a trivium, which the
-  `<?nvs` a shebang file refuses was not. Run `target/debug/nvs.exe fmt <file>` on each new `.nvs` as
-  soon as it runs, and expect a case exercising a recovery path to be what finds a hole in
-  `rule:ide/tokens-plus-trivia-reproduce-the-file`. [until: reviewed 2026-09-19]
+- **A new `.nvs` or `.nvst` anywhere under `tests/` joins `nvs-syntax`'s `lossless` corpus, which
+  only fails at the end of the session.** `lossless` demands every byte be covered by a token or a
+  trivium, which the `<?nvs` a shebang file refuses was not. Expect a case exercising a recovery
+  path to be what finds a hole in `rule:ide/tokens-plus-trivia-reproduce-the-file`.
+  [until: reviewed 2026-12-19]
 - **A `covers:` marker added at the top of a `--FILE--` block shifts every line number that case's
   `--EXPECTF-ERROR--` pins.** A reject case writing `--> case.nvs:2:1` then fails on the one line the
   marker pushed down, and the failure reads as a diagnostic regression rather than as an edit to the
   file above it. Put the marker on the last line of the `--FILE--` block whenever the expectation
   names a location, and anywhere at all when `%A` swallows it. [until: reviewed 2026-12-19]
 
-- **A hostile case is a formatter corpus file and a proof, and the example and bench trees are
-  not.** `crates/nvs-fmt/tests/identity.rs:49` collects `examples/` and `tests/`, so a hand-written
-  `.nvs` under `tests/hostile/` fails `verify.py` on brace placement and on a double-quoted string
-  with nothing to interpolate, while the same file under `docs/examples/` or `benches/members/`
-  passes untouched. Run `target/debug/nvs.exe fmt <the files>` before you verify, and read the diff
-  once — it moves a `class`/`function` brace to its own line and rewrites `"plain"` as `'plain'`,
-  and it leaves every comment alone. [until: reviewed 2026-12-19]
 - **An example that exits non-zero cannot be blessed, so a feature whose point is the exit status
   has to show it on the path that succeeds.** `tools/dossier.py`'s `bless` and its example runner
   both treat a non-zero status as a failure before they look at stdout at all, so an `exit(3);` in
