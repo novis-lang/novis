@@ -1,0 +1,37 @@
+<?nvs
+// A request whose answer is settled three calls down: the browser already has
+// this version, so there is nothing left to build. Finishing there skips the
+// rest of the work, and the log line written in the outer `finally` is still
+// written — the one thing that must happen on every request either way.
+
+class Cache {
+    public static function isFresh(string $sent, string $current): bool {
+        return $sent == $current;
+    }
+}
+
+class Page {
+    public static function render(string $sentVersion): void {
+        echo "looking up the article\n";
+        if (Cache::isFresh($sentVersion, "v7")) {
+            echo "304 not modified\n";
+            Core\Script::finish();
+        }
+        echo "building the page\n";
+    }
+}
+
+class Request {
+    public static function handle(string $sentVersion): void {
+        try {
+            Page::render($sentVersion);
+            echo "200 ok\n";
+        } finally {
+            echo "access log: request served\n";
+        }
+    }
+}
+
+Request::handle("v7");
+
+echo "this line is never reached\n";

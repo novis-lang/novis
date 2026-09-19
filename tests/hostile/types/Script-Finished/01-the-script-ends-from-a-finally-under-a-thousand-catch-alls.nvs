@@ -1,0 +1,63 @@
+<?nvs
+// Attack: end the script from the worst place there is. The call is made deep
+// inside a stack where every level holds an object, catches everything and has
+// a block to run on the way out, and it is made from a `finally` that is
+// already running because an error is on its way out. The ending then has to
+// travel through a thousand handlers, none of which may take it.
+// hostile: timeout-ms 20000
+
+class Load
+{
+    public array<string> $rows;
+
+    public function constructor()
+    {
+        $this->rows = ['order', 'customer', 'shipping address'];
+    }
+}
+
+class Deep
+{
+    public static function down(uint $left): void
+    {
+        var $held = new Load();
+        try {
+            if ($left == 0) {
+                try {
+                    throw new RuntimeError('something went wrong at the bottom');
+                } finally {
+                    // The script ends while an error is already travelling.
+                    Core\Script::finish();
+                }
+            }
+            Deep::down($left - 1);
+        } catch (Throwable $anything) {
+            // A catch-all at every single level. Not one of them may take the
+            // ending, so nothing here should ever be printed.
+            echo 'a handler took the ending at level ', $left, "\n";
+        } finally {
+            // More to allocate and release while the stack comes apart.
+            var $more = new Load();
+            $held = $more;
+        }
+    }
+}
+
+// Warm the throw path first, so the ending travels through machinery that has
+// already run thousands of times.
+uint $round = 0;
+while ($round < 5000) {
+    try {
+        throw new RuntimeError('a round that is caught');
+    } catch (RuntimeError $caught) {
+    } finally {
+        var $spare = new Load();
+    }
+    $round = $round + 1;
+}
+
+echo "warmed\n";
+
+Deep::down(800);
+
+echo "the ending was swallowed somewhere\n";

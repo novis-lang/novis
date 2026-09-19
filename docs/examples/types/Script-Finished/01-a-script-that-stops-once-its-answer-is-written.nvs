@@ -1,0 +1,27 @@
+<?nvs
+// A script that has said everything it has to say can stop there. The work
+// after the call does not run, and the cleanup written in a `finally` still
+// does — so stopping early is safe even when something is open.
+
+class Export {
+    public static function run(array<string> $rows): void {
+        echo "opening the export file\n";
+        try {
+            if (Core\Arr::count($rows) == 0) {
+                echo "nothing to export\n";
+                Core\Script::finish();
+            }
+            foreach ($rows as string $row) {
+                echo "writing ", $row, "\n";
+            }
+        } finally {
+            // Runs whether the export finished its rows or stopped early.
+            echo "closing the export file\n";
+        }
+    }
+}
+
+array<string> $rows = [];
+Export::run($rows);
+
+echo "this line is never reached\n";
