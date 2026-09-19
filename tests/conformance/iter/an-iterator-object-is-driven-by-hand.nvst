@@ -2,6 +2,7 @@
 `Iterator<T>`'s two members are the whole protocol, so a `while` over `advance()`/`current()` drains it exactly as `foreach` would — `rule:iteration/two-interfaces`
 --FILE--
 <?nvs
+// covers: lang:iteration/the-two-interfaces
 class Walker implements Iterator<int> {
     public int $i;
     public array<int> $items;

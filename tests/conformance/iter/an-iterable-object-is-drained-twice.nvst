@@ -2,6 +2,7 @@
 `Iterable::iterate()` hands out a fresh `Iterator` per `foreach`, so the same object can be walked twice — `rule:iteration/two-interfaces`
 --FILE--
 <?nvs
+// covers: lang:iteration/the-two-interfaces
 class CountUp implements Iterator<int> {
     public int $next;
     public int $limit;

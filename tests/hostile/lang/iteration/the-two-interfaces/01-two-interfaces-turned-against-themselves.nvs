@@ -1,0 +1,122 @@
+<?nvs
+// Attack: a program breaks the two iteration interfaces from the inside. One object refuses
+// to give out a cursor. One object walks itself without end. One cursor drives itself. The
+// last step keeps every cursor it makes until the memory is full, which ends the program.
+// The runtime should stay standing.
+// covers: lang:iteration/the-two-interfaces
+// hostile: timeout-ms 20000
+// hostile: ends-early
+
+class Refusing implements Iterable<int>
+{
+    public function iterate(): Iterator<int>
+    {
+        if (true) {
+            throw new LogicError('this object will not give out a cursor');
+        }
+        yield 0;
+    }
+}
+
+class SelfWalking implements Iterable<int>
+{
+    // `iterate()` walks the very object it was called on, so every cursor makes another one.
+    public function iterate(): Iterator<int>
+    {
+        foreach ($this as int $v) {
+            yield $v;
+        }
+    }
+}
+
+class SelfDriving implements Iterator<int>
+{
+    private int $at = -1;
+
+    // `advance()` drives the same cursor again before it returns.
+    public function advance(): bool
+    {
+        $this->at = $this->at + 1;
+        if ($this->at < 1000000) {
+            $this->advance();
+        }
+        return $this->at < 1000000;
+    }
+
+    public function current(): int
+    {
+        return $this->at;
+    }
+}
+
+class Pages implements Iterable<int>
+{
+    public function iterate(): Iterator<int>
+    {
+        int $i = 0;
+        while ($i < 4) {
+            yield $i;
+            $i = $i + 1;
+        }
+    }
+}
+
+// 1. The object throws instead of giving out a cursor, so the loop never runs a step.
+try {
+    foreach (new Refusing() as int $v) {
+        echo '1: ', $v, "\n";
+    }
+    echo "1: the loop ended\n";
+} catch (Throwable $e) {
+    echo '1: caught ', $e->message, "\n";
+}
+
+// 2. The object walks itself, so one loop starts loops without end.
+try {
+    foreach (new SelfWalking() as int $v) {
+        echo '2: ', $v, "\n";
+    }
+    echo "2: the loop ended\n";
+} catch (Throwable $e) {
+    echo '2: caught ', $e->message, "\n";
+}
+
+// 3. The cursor calls its own `advance()` a million times deep before it answers the loop.
+try {
+    foreach (new SelfDriving() as int $v) {
+        echo '3: ', $v, "\n";
+        break;
+    }
+    echo "3: the loop ended\n";
+} catch (Throwable $e) {
+    echo '3: caught ', $e->message, "\n";
+}
+
+// 4. Fifty thousand cursors from one object are started and left alive at the same time.
+try {
+    array<Iterator<int>> $live = [];
+    var $pages = new Pages();
+    int $k = 0;
+    while ($k < 50000) {
+        var $one = $pages->iterate();
+        $one->advance();
+        $live[] = $one;
+        $k = $k + 1;
+    }
+    echo '4: holding ', Core\Arr::count($live), " cursors\n";
+} catch (Throwable $e) {
+    echo '4: caught ', $e->message, "\n";
+}
+
+// 5. `iterate()` is called again and again, and every cursor it returns is kept. The cursors
+// fill the memory, so this step ends the program.
+array<Iterator<int>> $cursors = [];
+var $source = new Pages();
+int $n = 0;
+while ($n < 100000000) {
+    var $c = $source->iterate();
+    $c->advance();
+    $cursors[] = $c;
+    $n = $n + 1;
+}
+echo '5: kept ', $n, "\n";
