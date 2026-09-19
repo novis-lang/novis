@@ -1,0 +1,5 @@
+invite: ada@example.com
+invite: bob@example.com
+invite: carol@example.com
+3 lines were not addresses
+the second loop printed nothing

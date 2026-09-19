@@ -1,0 +1,58 @@
+<?nvs
+// A cursor of your own: this one walks the lines somebody uploaded and hands
+// back only the ones that look like an email address. A `foreach` drives it, so
+// the loop reads the same as a loop over an array.
+
+class Addresses implements Iterator<string> {
+    private array<string> $lines;
+    private int $at;
+    private int $count;
+    private string $address;
+
+    // How many lines were not addresses. The loop can read this when it is done.
+    public int $skipped;
+
+    public function constructor(string $upload) {
+        $this->lines = Core\Str::split($upload, "\n");
+        $this->count = Core\Arr::count($this->lines) as int;
+        $this->at = -1;
+        $this->address = "";
+        $this->skipped = 0;
+    }
+
+    // One step forward. Blank lines and anything without an `@` are counted and
+    // stepped over here, so the loop never sees them. `false` means the end.
+    public function advance(): bool {
+        $this->at = $this->at + 1;
+        while ($this->at < $this->count) {
+            string $line = Core\Str::trim($this->lines[$this->at]);
+            if (Core\Str::contains($line, "@")) {
+                $this->address = Core\Str::lower($line);
+                return true;
+            }
+            $this->skipped = $this->skipped + 1;
+            $this->at = $this->at + 1;
+        }
+        return false;
+    }
+
+    // The address the last step landed on.
+    public function current(): string {
+        return $this->address;
+    }
+}
+
+string $upload = "Ada@Example.com\n\nnot an address\nbob@example.com\n  Carol@Example.com  \n";
+
+var $addresses = new Addresses($upload);
+foreach ($addresses as string $address) {
+    echo "invite: ", $address, "\n";
+}
+echo $addresses->skipped, " lines were not addresses\n";
+
+// A cursor is walked once, and this one is used up now. A second loop over the
+// same cursor gets nothing, so keep the values if you need them twice.
+foreach ($addresses as string $address) {
+    echo "again: ", $address, "\n";
+}
+echo "the second loop printed nothing\n";
