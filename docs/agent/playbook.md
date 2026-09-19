@@ -2425,6 +2425,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   exactly like work nobody has measured yet. Re-run `python tools/dossier.py --record-perf --group
   <group>` straight after any chapter edit rather than after reading that failure.
   [until: reviewed 2026-09-19]
+- **Editing a reference chapter stales the perf figure of every feature in it.** A language feature's
+  implementing file *is* its `docs/reference/lang/*.md` chapter, so `rule:testing/member-perf-ledger`
+  re-measures all eighteen of `lang:types` when one paragraph moves, and `dossier.py --verify
+  --group` then reports `perf: stale` against features nobody touched. Re-record the group in one
+  call: `python tools/dossier.py --record-perf --group lang:types`. [until: reviewed 2026-09-19]
 
 ## Running things
 
@@ -5989,6 +5994,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   arms are checked with no expectation to place them in and `float` is what a bare fraction is.
   Declare the binding with one literal and assign the other in an `if`, or write `as decimal` on
   each arm. [until: reviewed 2026-09-19]
+- **A `type` alias naming another `type` alias is refused, and the diagnostic calls it a class.**
+  `E0307` reads the written atom rather than what it resolves to
+  (`crates/nvs-hir/src/resolve.rs:284`), so `type B = A;` over `type A = int;` is "a `type` alias may
+  not name a single class, interface or enum on its own" — right about the shape, wrong about the
+  kind. Chain through a wrapper instead, `type B = ?A;` or `type B = array<A>;`, which is what a
+  hostile case needs to build a long chain that compiles at all. [until: reviewed 2026-09-19]
 
 ## Splitting a file that got too big
 
