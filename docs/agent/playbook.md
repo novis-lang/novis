@@ -6381,6 +6381,14 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   always measured those reads, because materializing the folded constant costs a running program
   something. Before writing `[skip] perf`, list `benches/members/lang/<topic>/` for a bench over the
   same surface. [until: reviewed 2026-09-20]
+- **A `.nvst` credits a `Core` member only through the written `Class::member(` spelling, so an
+  instance call earns nothing and a message in `--EXPECT--` earns everything.**
+  `bigint-refuses-a-zero-divisor-…` calls `->shr(` and `->sign(` and credits neither, while its
+  expected `Core\BigInt::shl(): …` line credits `shl`; `scan_calls` reads the whole file and only
+  that spelling is sound without a type checker (`tools/dossier.py:1018`). Check `python
+  tools/dossier.py --id '<feature>'` before believing an existing case covers a member, and give
+  every case you write for an instance member a `// covers:` line.
+  [until: gone tools/dossier.py:scan_calls]
 
 ## Splitting a file that got too big
 
