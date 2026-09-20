@@ -515,7 +515,6 @@ mod tests {
         let (server, _) = listener.accept().expect("the accept failed");
         let mut stream =
             crate::net::NvsTcp::from_std(server).expect("the socket refused non-blocking mode");
-        stream.set_deadline(Some(Instant::now() + Duration::from_millis(10)));
 
         let mut sched = Scheduler::new();
         let _installed = install(Reactor::new().expect("the OS refused a poll"));
@@ -524,6 +523,12 @@ mod tests {
         let by_reader = Rc::clone(&order);
         sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
             use std::io::Read as _;
+            // Armed inside the task, so the window this read parks for is its
+            // own and carries none of the fixture's setup. A deadline already
+            // past when the read begins is answered without parking, and under
+            // a sanitizer binding a listener and installing a reactor can take
+            // longer than the window itself.
+            stream.set_deadline(Some(Instant::now() + Duration::from_millis(25)));
             let mut buf = [0_u8; 4];
             let err = stream
                 .read(&mut buf)
@@ -535,8 +540,9 @@ mod tests {
         sched.spawn(ctx(), TaskRoot::Worker, move |_ctx| {
             // Filed second and due last, so deadline order and filing order
             // disagree — which is the only way the ordering assertion says
-            // anything.
-            sleep(Duration::from_millis(40));
+            // anything. The gap between the two is wide enough that a core
+            // switch between them cannot reorder the pair.
+            sleep(Duration::from_millis(150));
             by_sleeper.borrow_mut().push("the sleep");
         });
 
