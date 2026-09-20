@@ -1,0 +1,36 @@
+<?nvs
+// Tests whether an array is a list, as a program does before it decides
+// whether the array becomes a JSON array or a JSON object.
+// bench: iterations 400000
+// bench: allocations 0
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $colours = ["red", "green", "blue"];
+        array<string> $user = ["name" => "Ada", "city" => "Wien"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Last round's total decides which array this round tests, so no
+            // round can be reused.
+            if ($total % 2 == 0) {
+                if (Core\Arr::isList($colours)) {
+                    $total = $total + 1;
+                } else {
+                    $total = $total + 2;
+                }
+            } else {
+                if (Core\Arr::isList($user)) {
+                    $total = $total + 4;
+                } else {
+                    $total = $total + 3;
+                }
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to test whether an array is a plain list.
+
+array<string> $colours = ["red", "green", "blue"];
+
+// The keys are 0, 1 and 2, so this is a list. This prints yes.
+echo Core\Arr::isList($colours) ? "yes" : "no", "\n";
+
+array<string> $user = ["name" => "Ada", "city" => "Wien"];
+
+// The keys are names, so this is not a list. This prints no.
+echo Core\Arr::isList($user) ? "yes" : "no", "\n";
