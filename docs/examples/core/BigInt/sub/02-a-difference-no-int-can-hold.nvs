@@ -1,0 +1,19 @@
+<?nvs
+// Shows a difference that no `int` can hold. Each of the two numbers below
+// fits in an `int`. What is between them does not.
+
+var $highest = Core\BigInt::parse("9223372036854775807");
+var $lowest = Core\BigInt::parse("-9223372036854775808");
+
+// The distance between the two ends of the `int` range. This prints
+// 18446744073709551615.
+echo $highest->sub($lowest), "\n";
+
+// The other way round the result is just as large, with a minus sign. This
+// prints -18446744073709551615.
+echo $lowest->sub($highest), "\n";
+
+// The result is exact at every size. This prints
+// 340282366920938463463374607431768211456.
+var $huge = Core\BigInt::parse("170141183460469231731687303715884105728");
+echo $huge->sub($huge->neg()), "\n";

@@ -1,0 +1,47 @@
+--TEST--
+`Core\BigInt::sub` agrees with adding the flipped number, and swapping its operands flips its answer, over a sign sweep that crosses the `int` bound — `rule:types/arithmetic`, spec § 13
+--FILE--
+<?nvs
+// covers: Core\BigInt::sub
+// Subtraction is asserted by counting rather than read off one line: a member
+// that lost the sign of a negative operand answers plausibly on every positive
+// row. Each pair is asked three ways — taken away, added flipped, and taken
+// away the other way round — and each count has to reach the number of pairs.
+// The sweep carries both ends of the `int` range and a value wider than any
+// scalar, which is where a difference stops being a number `int` can hold.
+array<string> $values = [
+    "0",
+    "7",
+    "-7",
+    "9223372036854775807",
+    "-9223372036854775808",
+    "170141183460469231731687303715884105728",
+];
+
+int $pairs = 0;
+int $viaAdd = 0;
+int $flipped = 0;
+foreach ($values as string $left) {
+    foreach ($values as string $right) {
+        var $a = Core\BigInt::parse($left);
+        var $b = Core\BigInt::parse($right);
+        var $difference = $a->sub($b);
+        $pairs = $pairs + 1;
+        if ($difference->compareTo($a->add($b->neg())) == 0) {
+            $viaAdd = $viaAdd + 1;
+        }
+        if ($b->sub($a)->compareTo($difference->neg()) == 0) {
+            $flipped = $flipped + 1;
+        }
+    }
+}
+echo $pairs, " ", $viaAdd, " ", $flipped, "\n";
+
+// The two ends of the `int` range are further apart than either of them, so
+// the difference of two values an `int` holds is a value it does not.
+echo Core\BigInt::parse("9223372036854775807")->sub(Core\BigInt::parse("-9223372036854775808")), "\n";
+echo Core\BigInt::parse("-9223372036854775808")->sub(Core\BigInt::parse("9223372036854775807")), "\n";
+--EXPECT--
+36 36 36
+18446744073709551615
+-18446744073709551615

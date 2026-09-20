@@ -1,0 +1,25 @@
+<?nvs
+// Measures taking an amount away from a large balance, as a program does when
+// it draws down a quota too large for an `int`.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\BigInt> $amounts = [
+            Core\BigInt::parse("123456789012345678901234567890"),
+            Core\BigInt::parse("987654321098765432109876543210"),
+        ];
+        // Chained: each round takes an amount away from what the round before
+        // returned.
+        var $balance = Core\BigInt::parse("99999999999999999999999999999999999999999");
+        uint $i = 0;
+        while ($i < $rounds) {
+            $balance = $balance->sub($amounts[($i % 2) as int]);
+            $i = $i + 1;
+        }
+        return Core\Str::length($balance->toString());
+    }
+}
+
+echo Bench::run(200000), "\n";
