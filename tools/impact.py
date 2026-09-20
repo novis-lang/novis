@@ -25,9 +25,10 @@ Three things, and the key is a hash over all of them.
   `nvs_repo::path` leaves one line per path in the file `READS_ENV` names, and `recorded` is the
   last such list. Each entry is hashed as bytes: a file, or every file beneath a directory.
 - **Nothing else, if it can be shown.** `escapes` reads the binary's own sources -- the list
-  rustc's dep-info gives -- for any way out of the package that is not `nvs_repo`: a
-  `CARGO_MANIFEST_DIR` joined upward, a `../`, a changed working directory, a spawned process.
-  A binary with one is **wide**: it keeps the whole-tree key it had before this file existed.
+  rustc's dep-info gives -- for any way out of the package that is not `nvs_repo`, and
+  `way_out` is the list of them. A binary with one is **wide**: it keeps the whole-tree key it
+  had before this file existed. Comments are not read, since a comment opens no file, and a
+  path handed to `include_str!` or `#[path]` is rustc's to open and is in the dep-info already.
 
 So the direction of every doubt is the wide one. A binary whose dep-info cannot be found is wide.
 A package `cargo metadata` does not name is wide. A recorded list is trusted only while the
@@ -58,11 +59,16 @@ READS = TMP / "impact-reads.json"
 #: The environment variable naming the file a test binary appends its run-time reads to.
 READS_ENV = "NVS_READS_LOG"
 
-#: The ways out of a package that are not `nvs_repo`. Deliberately loose: a false match costs a
-#: binary its narrow key and nothing else.
-_ESCAPES = re.compile(r"CARGO_MANIFEST_DIR|CARGO_BIN_EXE|\.\./|\.\.\\\\|set_current_dir|current_dir\("
-                      r"|Command::new|workspace_root|repo_root|target/debug|target\\\\debug")
 _RECORDED = re.compile(r"\bnvs_repo::")
+_SPAWN = re.compile(r"Command::new\(")
+#: `Command::new(env!("CARGO_BIN_EXE_..."))`, as `verify_keys.scan` leaves it: the package's own
+#: binary, which is compiled from what the key already holds.
+_OWN_BIN = re.compile(r"Command::new\(env!\(\x02\)\)")
+_CLIMBS = re.compile(r"\.parent\(\)|\.ancestors\(\)|\.pop\(\)")
+#: The code in front of a literal rustc opens itself.
+_RUSTC_OPENS = re.compile(r"(?:include_str!\(|include_bytes!\(|include!\(|path=)$")
+_SEGMENT = re.compile(r"[\\/]")
+_JOINS = re.compile(r"(?:join|push|from|new)\($")
 #: A package's directories that no dependant is compiled from.
 _OWN_ONLY = ("tests", "benches", "examples")
 
@@ -135,19 +141,85 @@ def dep_info(job):
     return out or None
 
 
+def _body(literal):
+    """A string literal's text without its prefix, hashes and quotes."""
+    start, end = literal.find('"'), literal.rfind('"')
+    return literal[start + 1:end] if 0 <= start < end else ""
+
+
+def _leaves(path):
+    """Does this relative path climb above the directory it starts in? An absolute one names
+    nothing in the tree, so it does not."""
+    if not path or path[0] in "/\\" or path[1:2] == ":":
+        return False
+    depth = 0
+    for part in _SEGMENT.split(path.replace("\\\\", "/")):
+        depth += -1 if part == ".." else (0 if part in ("", ".") else 1)
+        if depth < 0:
+            return True
+    return False
+
+
+def way_out(text):
+    """How this source can reach a file outside its package without `nvs_repo`, or "". The ways:
+
+    - it starts a process that is not its package's own binary, which reads what it likes;
+    - it reads or sets its own working directory, which a test binary starts in its package;
+    - a string literal climbs out of the directory it starts in, or names `target/debug` -- a
+      bare `".."` only where it is joined, pushed or sits beside the manifest directory;
+    - it reads `CARGO_MANIFEST_DIR` and also holds a `..` segment in any literal, or climbs with
+      `.parent()`, `.ancestors()` or `.pop()`.
+
+    Read off `verify_keys.scan`, so a comment is never matched and a literal never splits."""
+    code, literals, _, _ = keys.scan(text)
+    for m in _SPAWN.finditer(code):
+        index = code.count("\x02", 0, m.start())
+        own = _OWN_BIN.match(code, m.start()) and index < len(literals)
+        if not (own and "CARGO_BIN_EXE_" in literals[index]):
+            return "starts a process with `Command::new`"
+    # `Command::current_dir(dir)` takes an argument and moves a child, which was judged above.
+    if "set_current_dir" in code or "current_dir()" in code:
+        return "reads or sets the working directory"
+    rustc_opens, starts = set(), []
+    for index, m in enumerate(re.finditer("\x02", code)):
+        starts.append(m.start())
+        if _RUSTC_OPENS.search(code[:m.start()][-20:]):
+            rustc_opens.add(index)
+    if len(starts) != len(literals):
+        return "its literals could not be placed"
+    manifest = any("CARGO_MANIFEST_DIR" in lit for lit in literals)
+    for index, lit in enumerate(literals):
+        body = _body(lit)
+        if index in rustc_opens or not body:
+            continue
+        if "target/debug" in body or "target\\\\debug" in body:
+            return f"names the target directory in {lit[:60]}"
+        # A bare `".."` is a segment some code compares against far more often than one it
+        # joins, so alone it counts only where it is joined, pushed or listed beside the manifest.
+        bare = body == ".." and not manifest and not _JOINS.search(code[:starts[index]][-12:])
+        if _leaves(body) and not bare:
+            return f"the literal {lit[:60]} climbs out of its directory"
+        if manifest and ".." in _SEGMENT.split(body.replace("\\\\", "/")):
+            return f"`CARGO_MANIFEST_DIR` beside the literal {lit[:60]}"
+    if manifest and _CLIMBS.search(code):
+        return "`CARGO_MANIFEST_DIR` beside `.parent()`, `.ancestors()` or `.pop()`"
+    return ""
+
+
 def escapes(sources):
-    """Does any of these sources leave its package some way `nvs_repo` does not record? A source
-    that cannot be read counts as one that does."""
+    """The first of these sources with a `way_out`, as `file: how`, or "". A source that cannot
+    be read counts as one."""
     for rel in sources:
         if not rel.endswith(".rs"):
             continue
         try:
             text = (ROOT / rel).read_text(encoding="utf-8", errors="replace")
         except OSError:
-            return True
-        if _ESCAPES.search(_RECORDED.sub("", text)):
-            return True
-    return False
+            return f"{rel}: could not be read"
+        how = way_out(text)
+        if how:
+            return f"{rel}: {how}"
+    return ""
 
 
 class Reach:
@@ -205,8 +277,9 @@ class Reach:
         parts += [(rel, t.digest(rel, "raw")) for rel in sorted(outside)]
         for dep in sorted(closure(self.graph, owner)):
             parts += self._package(dep, whole=False)
-        if escapes(sources):
-            return None, "a source leaves its package without `nvs_repo`"
+        how = escapes(sources)
+        if how:
+            return None, f"leaves its package without `nvs_repo` -- {how}"
         return parts, ""
 
     def key(self, job):
