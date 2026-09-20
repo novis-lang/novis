@@ -6362,6 +6362,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   brackets and refuses 20, and an uncaught `ParseError` in step 1 means no later step is delivered at
   all. Let the case find the boundary itself — raise the depth in a loop and count the refusals —
   rather than writing a number the grammar can move. [until: reviewed 2026-09-20]
+- **A hostile case that nests source "as deeply as the parser allows" is refused well short of 96
+  levels, and the refusal reads as the attack having worked.** One `if (1) { … }` costs the parser
+  several of its 96 levels, so `Core\Str::repeat('if (1) { ', 90)` throws a `ParseError` while 40
+  parses and walks, and a case written to reach a deep tree then asserts nothing about depth.
+  Probe the depth with `target/debug/nvs.exe run` on a throwaway program before writing the case,
+  and put the level that parses in the comment beside the number. [until: reviewed 2026-09-20]
 
 ## Splitting a file that got too big
 

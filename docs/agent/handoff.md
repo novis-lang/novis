@@ -2,39 +2,44 @@
 
 ## State
 
-Goal `core-ast-and-2-more` (dossier), 3 of its 9 items landed. `Core\Ast::parse`,
-`Core\Ast\Node::children` and `Core\Ast\Node::column` each report `complete` from
-`python tools/dossier.py --id '<feature>'`: description, examples, attack, figure and a
-`covers:` marker on both sides.
+Goal `core-ast-and-2-more` (dossier), 7 of its 9 items landed. Every `Core\Ast` and
+`Core\Ast\Node` feature now reports `complete` from `python tools/dossier.py --id '<feature>'`:
+`Core\Ast::parse`, and the node's `children`, `column`, `kind`, `nodes`, `line` and `offset`.
+Only `Core\Attributes::all` and `Core\Attributes::get` are left, and they sit in a different
+file set.
 
-One finding is recorded rather than fixed, as `rule:testing/a-failing-proof-is-fixed-or-recorded`
-allows: `Core\Ast::parse` spends time in the square of a line's length, because a node's column is
-counted from the start of its line once per node. It is `# Known gaps` item 1 in
-`crates/nvs-stdlib/src/ast.rs`, owned by M12, and
-`tests/hostile/core/Ast/parse/02-a-program-written-on-one-long-line.nvs` is the marked attack. The
-fix belongs in `nvs-diagnostics`, which `rule:ide/positions-have-one-home` makes the only home for
-position arithmetic, so it is that crate's public surface rather than this module's.
+The Rust-side cases for `kind`, `nodes`, `line` and `offset` all live in
+`crates/nvs-stdlib/src/ast.rs`'s `mod tests`, so they landed in one commit instead of one per
+slice. Three conformance cases were re-attributed rather than duplicated: the column case
+already asserts `line` and `offset`, and the transitive-closure case already asserts `nodes`,
+so each gained a `covers:` marker (`rule:testing/proof-attribution`).
+
+One finding is still recorded rather than fixed, as
+`rule:testing/a-failing-proof-is-fixed-or-recorded` allows: `Core\Ast::parse` spends time in the
+square of a line's length. It is `# Known gaps` item 1 in `crates/nvs-stdlib/src/ast.rs`, owned
+by M12, and `tests/hostile/core/Ast/parse/02-a-program-written-on-one-long-line.nvs` is the
+marked attack.
 
 ## Next group
 
-The rest of `Core\Ast\Node`, which shares one file set with what just landed:
-`crates/nvs-stdlib/src/ast.rs`, `docs/examples/core/Ast-Node/`, `tests/hostile/core/Ast-Node/` and
-`benches/members/core/Ast-Node/`. `rule:testing/feature-proofs` is what each one owes, and the
-landed `column` directory is the shape to follow. The examples of these four must each be a
-*different* use from `column`'s three, which is the only part of the group that is not mechanical.
+The goal's last file set, and the only one left in it:
+`crates/nvs-stdlib/src/attributes.rs`, `docs/examples/core/Attributes/`,
+`tests/hostile/core/Attributes/` and `benches/members/core/Attributes/`.
+`rule:testing/feature-proofs` is what each owes and the landed `Ast-Node` directories are the
+shape to follow. These two are not shaped like a node walk: `Core\Attributes` is the one class
+whose members never run, so read that module's own doc before pricing the bench and the attack.
+The orientation pack prints neither `benches/members/README.md` § *What a bench declares* nor
+`docs/examples/README.md` § *The description*, and both are needed to write a bench's declared
+counts and an `about.md` — peek them once rather than guessing.
 
-- [ ] **`Core\Ast\Node::kind`** — owes examples, hostile, perf, and a `covers:` marker on both
-      sides. `crates/nvs-stdlib/src/ast.rs:192`
-- [ ] **`Core\Ast\Node::nodes`** — the whole subtree, where `children` is one step.
-      `crates/nvs-stdlib/src/ast.rs:210`
-- [ ] **`Core\Ast\Node::line`** — a near-twin of `column`; its `.nvst` marker goes in
-      `tests/conformance/core/core-ast-node-position-names-the-first-character-of-its-production.nvst`.
-      `crates/nvs-stdlib/src/ast.rs:219`
-- [ ] **`Core\Ast\Node::offset`** — bytes where `column` is characters.
-      `crates/nvs-stdlib/src/ast.rs:237`
+- [ ] **`Core\Attributes::all`** — owes `about.md`, examples, hostile, perf, and a `covers:`
+      marker on both sides. `crates/nvs-stdlib/src/attributes.rs:65`
+- [ ] **`Core\Attributes::get`** — the one-attribute half of the same retrieval; its examples
+      must each be a different use from `all`'s three.
+      `crates/nvs-stdlib/src/attributes.rs:56`
 
 ## Backlog
 
-- `Core\Attributes::all` and `::get` are items 8 and 9 of this goal, in
-  `crates/nvs-stdlib/src/attributes.rs` — a different file set, so a group of their own.
-- The known gap above is the only open finding; `python tools/dossier.py --gaps` lists it.
+- `Core\Ast::parse`'s quadratic column cost — `crates/nvs-stdlib/src/ast.rs` `# Known gaps` 1, owner M12.
+- goal `plain-comments` sweeps the landed proof comments and makes `dossier.py --comments` a gate.
+- goal `the-description-is-owed` switches the `about.md` check on; until then only the prose asks for it.
