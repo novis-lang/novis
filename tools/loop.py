@@ -61,6 +61,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import disk  # noqa: E402  -- same directory; the retention policy has one home and it is there
 import goals as goalsmod  # noqa: E402  -- same directory; the chain has one reader and it is there
 import machine  # noqa: E402  -- same directory; how wide anything runs has one home too
+import proctree  # noqa: E402  -- same directory; a session's whole process tree, frozen and thawed
 import relink  # noqa: E402  -- same directory; freeing the release binary an editor is running
 import respawn  # noqa: E402  -- same directory; the process that starts this file again
 import verify_keys  # noqa: E402  -- same directory; how much of a `.rs` file a reader reads
@@ -83,6 +84,10 @@ STATUS = RUNDIR / "status.txt"
 STOP = RUNDIR / "stop"
 PAUSE = RUNDIR / "pause"
 RETRY = RUNDIR / "retry"
+#: Present while the running session is frozen where it stands; `h` writes and deletes it.
+HALT = RUNDIR / "halt"
+#: Text for the running session: delivered as a user message, and deleted. `i` without a console.
+SAY = RUNDIR / "say"
 RUNNING = RUNDIR / "running"
 GOALCACHE = RUNDIR / "goal-green.json"
 LIMIT = RUNDIR / "limit.json"
@@ -363,7 +368,11 @@ class StatusLine:
         if self.total > 0:
             done = min(self.done, self.total)
             head = f"{head} {done}/{self.total} {done * 100 // self.total}%".lstrip()
-        parts = [p for p in (self.scope, head, self.tokens, self.detail, self.verifying) if p]
+        session = CONTROL.session
+        halted = (f"HALTED {hms(time.monotonic() - session.frozen_at)}"
+                  if session and session.frozen_for else "")
+        parts = [p for p in (halted, self.scope, head, self.tokens, self.detail, self.verifying)
+                 if p]
         parts.append(mmss(time.monotonic() - self.since))
         body = self.sep.join(parts).replace("\n", " ")
         # One column short of the width on purpose: a line that exactly fills the terminal wraps,
@@ -439,7 +448,19 @@ class StatusLine:
 
         Painted as one colour rather than per-word, so what a narrow terminal truncates is text
         and never half an escape sequence."""
+        if CONTROL.typing is not None:
+            # The tail, not the head: what is being typed is at the end of it.
+            tail = f"{self.dash}Enter sends, Esc cancels"
+            room = max(18, self.width() - 3 - len("prompt> _") - len(tail))
+            return "  " + C.paint(f"prompt> {CONTROL.typing[-room:]}_{tail}", C.YELLOW)
         bits = []
+        session = CONTROL.session
+        if session and session.frozen_for:
+            bits.append(f"[h] HALTED{self.dash}press h to carry on")
+        elif session:
+            bits.append("[h] halt now")
+        if session and session.streaming and not session.frozen_for:
+            bits.append("[i] type a prompt")
         if CONTROL.parked:
             bits.append("[r] retry now")
         if CONTROL.stop:
@@ -458,7 +479,8 @@ class StatusLine:
         room = max(18, self.width() - 3)
         if len(body) > room:
             body = body[: room - len(self.cut)] + self.cut
-        return "  " + C.paint(body, C.YELLOW if CONTROL.stop or CONTROL.pause_by else C.GRAY)
+        loud = CONTROL.stop or CONTROL.pause_by or (session and session.frozen_for)
+        return "  " + C.paint(body, C.YELLOW if loud else C.GRAY)
 
     # -- the terminal's own title bar --------------------------------------------------
 
@@ -546,7 +568,12 @@ class StatusLine:
 
 
 class Control:
-    """`r`, `s` and `p`, from the console or from `.loop/`.
+    """`r`, `s`, `p`, `h` and `i`, from the console or from `.loop/`.
+
+    `h` and `i` act on the session in flight and on nothing else: `h` freezes it where it stands
+    and thaws it again, `i` sends it a prompt. `Session` is what they do and why; `.loop/halt`
+    and `.loop/say` are the same two things from another terminal. The rest of this is the three
+    keys that act on the RUN.
 
     A run parked behind a usage wall is waiting on a clock, and the one thing that clock cannot
     know is that the account behind it has changed. Logging in somewhere else is not something
@@ -601,6 +628,9 @@ class Control:
         self.pause_why = ""  # what the hold is for, when the driver armed it rather than a person
         self.held = False  # the driver is sitting in `hold_pause` right now, not merely armed
         self._pause_seen = 0.0  # monotonic of the last look at the file; see `_sync_pause`
+        self.session = None  # the `Session` in flight, which is what `h` and `i` act on
+        self.typing = None  # the prompt being typed after `i`, or None when keys are commands
+        self._session_seen = 0.0  # monotonic of the last look at `HALT` and `SAY`
         self.tty = False
         self.saved = None  # POSIX terminal settings, put back by `disable`
 
@@ -669,8 +699,15 @@ class Control:
                     # instead of raising. Put it back where the person pressing it meant it to go.
                     _thread.interrupt_main()
                     continue
+                if self.typing is not None:
+                    self._type(ch)
+                    continue
                 key = ch.lower()
-                if key == "s":
+                if key == "h":
+                    self._toggle_halt()
+                elif key == "i":
+                    self._begin_typing()
+                elif key == "s":
                     self.stop = not self.stop
                     self.stop_at = time.monotonic() + self.STOP_GRACE
                     say(f"   [s] stop requested -- the run ends after the current session, "
@@ -690,6 +727,110 @@ class Control:
             # hold another agent queued *while a session is still running* -- which is the whole
             # of the interval that agent is waiting through.
             self._sync_pause()
+            self._sync_session()
+
+    # -- the running session: halt it, talk to it ---------------------------------------
+
+    def attach(self, session):
+        """A session is in flight, so `h` and `i` have something to act on. A halt file left by
+        anything earlier is not this session's, and would freeze it on its first breath."""
+        with self.lock:
+            HALT.unlink(missing_ok=True)
+            self.session = session
+            self._session_seen = 0.0
+
+    def detach(self):
+        with self.lock:
+            self.session = None
+            self.typing = None
+            HALT.unlink(missing_ok=True)
+
+    def _toggle_halt(self):
+        """`h`. The file is the state, so the key and `.loop/halt` can never disagree: the key
+        writes or deletes it, and `_sync_session` is what freezes and thaws."""
+        if not self.session:
+            say("   [h] does nothing right now; it halts a running session", C.GRAY)
+            return
+        if HALT.exists():
+            HALT.unlink(missing_ok=True)
+        else:
+            HALT.parent.mkdir(parents=True, exist_ok=True)
+            HALT.write_text(
+                "The running session is frozen where it stands, with every process under it.\n"
+                "Delete this file, or press h at the console, to let it carry on.\n",
+                encoding="utf-8", newline="\n")
+        self._session_seen = 0.0
+        self._sync_session()
+
+    def _sync_session(self):
+        """Make the session match `.loop/halt`, and deliver `.loop/say`. Rate-limited like the
+        pause file; a key resets the clock so its own effect is immediate."""
+        s = self.session
+        now = time.monotonic()
+        if not s or now - self._session_seen < self.PAUSE_POLL:
+            return
+        self._session_seen = now
+        want = HALT.exists()
+        if want and "halt" not in s.frozen_for:
+            count = s.freeze("halt")
+            say(f"   [h] HALTED -- {count} process(es) frozen where they stood, nothing lost. "
+                f"Press h, or delete {rel_to_root(HALT)}, to carry on", C.YELLOW)
+        elif not want and "halt" in s.frozen_for:
+            spent = s.thaw("halt")
+            say(f"   [h] carrying on after {hms(spent)}", C.GREEN)
+        if s.streaming and SAY.exists():
+            try:
+                text = SAY.read_text(encoding="utf-8", errors="replace").strip()
+            except OSError:
+                return  # still being written; the next look has it
+            SAY.unlink(missing_ok=True)
+            if text:
+                self._deliver(text, rel_to_root(SAY))
+
+    def _begin_typing(self):
+        """`i`. The session is frozen for as long as the prompt is being typed, so nothing
+        scrolls under the line and the message lands at the moment it was written for."""
+        s = self.session
+        if not s:
+            say("   [i] does nothing right now; it sends a prompt to a running session", C.GRAY)
+            return
+        if not s.streaming:
+            say("   [i] this session cannot be sent a prompt: it was started with --plain-input, "
+                "or its reply is already complete", C.GRAY)
+            return
+        self.typing = ""
+        s.freeze("typing")
+        say("   [i] the session is frozen while you type -- Enter sends, Esc cancels", C.YELLOW)
+
+    def _type(self, ch):
+        """One key of a prompt. Every key is text here, `s` and `p` included."""
+        if ch in ("\r", "\n"):
+            text, self.typing = self.typing.strip(), None
+            if text and self.session:
+                self._deliver(text, "the console")
+            else:
+                say("   [i] nothing sent", C.GRAY)
+            if self.session:
+                self.session.thaw("typing")
+        elif ch == "\x1b":
+            self.typing = None
+            say("   [i] cancelled -- nothing sent", C.GRAY)
+            if self.session:
+                self.session.thaw("typing")
+        elif ch in ("\x08", "\x7f"):
+            self.typing = self.typing[:-1]
+        elif ch.isprintable():
+            self.typing += ch
+
+    def _deliver(self, text, via):
+        """Send `text` to the session as a user message, and leave a record that it happened:
+        a session a person spoke to is not the unattended session the measurements assume."""
+        s = self.session
+        if not s or not s.send(text):
+            say(f"   [i] NOT sent -- the session is no longer taking input: {text}", C.RED)
+            return
+        CONSOLE.raw(json.dumps({"type": "loop_prompt", "via": via, "text": text}) + "\n")
+        say(f"   [i] sent to the session, from {via}: {text}", C.GREEN)
 
     # -- the hold ----------------------------------------------------------------------
 
@@ -5019,6 +5160,101 @@ def mark_interrupted(index, why=None):
     return len(dirty)
 
 
+class Session:
+    """The `claude` child in flight, as the console sees it: something to halt, and something to
+    talk to. `Control` holds the one that is running, and `h`, `i`, `.loop/halt` and `.loop/say`
+    all end up here.
+
+    **A halt is a freeze, not a kill.** Every process under the session is suspended where it
+    stands (`proctree`) and resumed from the same instruction, so nothing is lost and nothing is
+    re-sent: no transcript replayed, no tool call cut off half way, no build to start again. The
+    one thing a freeze can cost is the API stream, if it is held long enough for the far end to
+    give up -- and then the session exits as a dropped stream and `drive` rejoins its transcript,
+    exactly as it does for a drop nobody caused.
+
+    It is frozen *for* reasons and thawed when the last one goes, because there are two: a
+    person halted it, or a person is typing a prompt for it. Typing under a halt, or halting
+    while typing, must not thaw it early.
+
+    **Talking to it** is a user message on its stdin. The session is started with
+    `--input-format stream-json`, which is what keeps stdin open as a channel: the first message
+    is the session prompt and the pack, and any later one is read by the agent at its next step,
+    inside the same run. The price of that mode is that the CLI no longer exits when its reply
+    is complete -- it waits for stdin to close -- so `close_input` is called on the `result`
+    event, and that is what ends the session."""
+
+    def __init__(self, proc, streaming):
+        self.proc = proc
+        self.tree = proctree.Tree(proc)
+        #: Can it be sent a message? False for `--plain-input`, and from `close_input` on.
+        self.streaming = streaming
+        self.frozen_for: set[str] = set()
+        self.frozen_at = 0.0  # monotonic, when the current freeze began
+        self.halts = 0
+        self.halted = 0.0  # seconds spent frozen, over every freeze
+        self.prompts = 0
+        self._stdin = threading.Lock()  # the first message is written from its own thread
+
+    def freeze(self, why):
+        """Freeze for `why`. Returns how many processes are stopped."""
+        if not self.frozen_for:
+            self.frozen_at = time.monotonic()
+            self.halts += 1
+        self.frozen_for.add(why)
+        return self.tree.freeze()
+
+    def thaw(self, why):
+        """`why` no longer holds. Thaws when nothing else does; returns seconds spent frozen."""
+        if why not in self.frozen_for:
+            return 0.0
+        self.frozen_for.discard(why)
+        if self.frozen_for:
+            return 0.0
+        spent = time.monotonic() - self.frozen_at
+        self.halted += spent
+        self.tree.thaw()
+        return spent
+
+    def send(self, text, operator=True):
+        """One user message down stdin. False when the session is no longer taking any."""
+        if not self.streaming or not self.proc.stdin:
+            return False
+        message = {"type": "user",
+                   "message": {"role": "user", "content": [{"type": "text", "text": text}]}}
+        try:
+            with self._stdin:
+                self.proc.stdin.write(json.dumps(message) + "\n")
+                self.proc.stdin.flush()
+        except (OSError, ValueError):
+            return False
+        if operator:
+            self.prompts += 1
+        return True
+
+    def close_input(self):
+        """The reply is complete: closing stdin is what lets a streaming session exit."""
+        self.streaming = False
+        try:
+            with self._stdin:
+                if self.proc.stdin:
+                    self.proc.stdin.close()
+        except (OSError, ValueError):
+            pass
+
+    def record(self):
+        """What a person did to this session, for its ledger line; "" when nobody did anything."""
+        bits = []
+        if self.halts:
+            bits.append(f"halted {self.halts}x for {hms(self.halted)}")
+        if self.prompts:
+            bits.append(f"{self.prompts} operator prompt(s)")
+        return ", ".join(bits)
+
+    def finish(self):
+        self.frozen_for.clear()
+        self.tree.close()
+
+
 def session_env():
     """The environment a `claude` child gets: this one, less the run's name.
 
@@ -5049,8 +5285,8 @@ def run_session(run_id, index, prompt_text, opts, renderer, resume=""):
     and the log still gets its own index, so a resumed session is a separate transcript on disk
     and mixes with nothing. It gets its own log line, its own subagent sweep and its own row in
     `loop-stats.py` -- everything except a `loop_pack` line, which it must not have. Returns the
-    exit code, that log, the session id, any rate limit, the API status, and whether the terminal
-    event blamed a dropped stream."""
+    exit code, that log, the session id, any rate limit, the API status, whether the terminal
+    event blamed a dropped stream, and what a person did to the session (`Session.record`)."""
     log = LOGDIR / f"{run_id}-{index:04d}.log"
     CONSOLE.open_session(log)
     renderer.begin()
@@ -5058,10 +5294,17 @@ def run_session(run_id, index, prompt_text, opts, renderer, resume=""):
     # A resumed session is handed the CONTINUATION, not the session prompt. That prompt is
     # already the first turn of the transcript being replayed, and sending it a second time asks
     # a session standing in the middle of a slice to orient from the top.
+    # The prompt goes down stdin as the first message, with the pack behind it -- the order the
+    # CLI itself puts an argv prompt and a piped stdin in -- so that stdin stays open as the
+    # channel `Session.send` uses. `--plain-input` is the way back to a prompt on argv, for a
+    # CLI that one day stops taking streamed input: the run carries on, and `i` does nothing.
+    streaming = not opts.plain_input
+    opening = RESUME_PROMPT if resume else prompt_text
     cmd = [
         exe,
         "-p",
-        RESUME_PROMPT if resume else prompt_text,
+        *([] if streaming else [opening]),
+        *(["--input-format", "stream-json"] if streaming else []),
         "--model",
         opts.model,
         "--permission-mode",
@@ -5135,6 +5378,7 @@ def run_session(run_id, index, prompt_text, opts, renderer, resume=""):
         # run by hand in another terminal -- while this session is in flight -- reports nothing
         # and its edits stay the person's own. `written.py` owns the convention.
         env={**session_env(), written.ENV: str(WRITTEN)},
+        **proctree.popen_kwargs(),
         # Always a pipe, pack or no pack. Inheriting this driver's stdin would hand the console to
         # the child, and the console is where `r` and `s` are typed -- a session started without a
         # pack would silently eat them. Closed immediately when there is nothing to send: the
@@ -5146,13 +5390,28 @@ def run_session(run_id, index, prompt_text, opts, renderer, resume=""):
         errors="replace",
         bufsize=1,
     )
-    if pack:
+    session = Session(proc, streaming)
+    if streaming:
+        first = opening + (f"\n{pack}" if pack else "")
+        threading.Thread(target=session.send, args=(first, False), daemon=True).start()
+    elif pack:
         threading.Thread(target=feed, args=(proc.stdin, pack), daemon=True).start()
     elif proc.stdin:
         try:
             proc.stdin.close()
         except OSError:
             pass
+    CONTROL.attach(session)
+
+    def watch():
+        # The keys and the two files are read from the ticker, and a run with its stdout
+        # redirected has no ticker: this is what reads them then. Beside the ticker it is a
+        # second reader of a non-blocking read under one lock, which costs nothing.
+        while proc.poll() is None:
+            CONTROL.poll()
+            time.sleep(0.25)
+
+    threading.Thread(target=watch, daemon=True).start()
     assert proc.stdout is not None
     try:
         for line in proc.stdout:
@@ -5178,6 +5437,7 @@ def run_session(run_id, index, prompt_text, opts, renderer, resume=""):
                     said_limit = True
                 api_error = api_error_status(line) or api_error
                 dropped = stream_dropped(line) or dropped
+                session.close_input()
             if not session_id and '"session_id"' in line:
                 try:
                     e = json.loads(line)
@@ -5199,8 +5459,10 @@ def run_session(run_id, index, prompt_text, opts, renderer, resume=""):
         # this tree with permissions bypassed, and when the driver died on an encoding
         # error its child kept going unwatched -- committing work the next session then
         # found beside its own, which is what a `BLOCKED two writers` ledger line is
-        # made of. Ctrl-C reaches the child on its own; every other exit did not.
-        proc.kill()
+        # made of. The whole tree, frozen or not: a `cargo` the session started is the
+        # session's, and on POSIX the child is in a session of its own that a Ctrl-C at
+        # this terminal never reaches.
+        session.tree.kill()
         try:
             proc.wait(timeout=30)
         except subprocess.TimeoutExpired:
@@ -5208,13 +5470,15 @@ def run_session(run_id, index, prompt_text, opts, renderer, resume=""):
         raise
     finally:
         VERIFY.disarm()
+        CONTROL.detach()
+        session.finish()
     if proc.returncode and said_limit and not (limit and limit.blocked):
         # A limit reported in prose, with no event carrying a deadline. Come back shortly rather
         # than ending the run: the next session's own event will carry the real one.
         step(f"a usage limit was reported in text but no event named a reset -- treating it as a "
              f"wall and coming back in {hms(BLIND_WAIT)}", C.YELLOW)
         limit = RateLimit({"status": "rejected", "resetsAt": int(time.time()) + BLIND_WAIT})
-    return proc.returncode, log, session_id, limit, api_error, dropped
+    return proc.returncode, log, session_id, limit, api_error, dropped, session.record()
 
 
 # ------------------------------------------------------------------- subagent transcripts
@@ -5441,6 +5705,11 @@ def run_cli():
     ap.add_argument(
         "--no-status", dest="status", action="store_false",
         help="do not paint the live status line (it is off by itself when stdout is not a terminal)"
+    )
+    ap.add_argument(
+        "--plain-input", action="store_true",
+        help="start each session with its prompt on argv instead of streaming it down stdin. "
+             "The session then cannot be sent a prompt with `i` or .loop/say; `h` still halts it"
     )
     ap.add_argument("--goal-only", action="store_true", help="run the acceptance test and exit")
     ap.add_argument("--full", action="store_true",
@@ -6030,7 +6299,7 @@ def drive(opts, goal, chain, run):
         # Here rather than beside `SLICES.start` above, because this is the line that knows
         # whether a new session is starting or a dropped one is being picked back up.
         TOUCH.start(carry=bool(rejoined))
-        cli_exit, log, session_id, limit, api_error, dropped = run_session(
+        cli_exit, log, session_id, limit, api_error, dropped, operator = run_session(
             run_id, index, prompt_text, opts, renderer, resume=rejoined)
         step(f"session {index} ended after {mmss(time.monotonic() - session_started)}, "
              f"claude exit {cli_exit}"
@@ -6173,7 +6442,10 @@ def drive(opts, goal, chain, run):
             step(f"subagent transcripts took {mmss(spent)}")
         delegated = f" | {agents} subagent(s), {agent_calls} call(s)" if agents else ""
         wip = f" | swept {swept} path(s) into a wip commit" if swept else ""
-        ledger(f"- {index:04d} {commits} commit(s){delegated}{wip} | "
+        # Said in the ledger because it changes what the line means: a session a person halted
+        # or spoke to is not the unattended session every measurement over this file assumes.
+        attended = f" | {operator}" if operator else ""
+        ledger(f"- {index:04d} {commits} commit(s){delegated}{wip}{attended} | "
                f"{line or '(no status written)'}")
 
         # The deterministic goal check outranks whatever the session reported -- against the list
@@ -6992,11 +7264,15 @@ def open_run(opts, run):
     # is painted only when stdout is one, so `nohup` gets the files and `loop.py > log` gets both.
     if not (CONTROL.tty and TICKER.enabled):
         say("controls: " + ("press r to end a usage wait early, s to stop after the current "
-                            "session, p to hold after it without ending the run" if CONTROL.tty
+                            "session, p to hold after it without ending the run, h to halt "
+                            "the running session at once and again to carry on, i to type it "
+                            "a prompt" if CONTROL.tty
                             else
                             f"create {rel_to_root(RETRY)} to end a usage wait early, "
                             f"{rel_to_root(STOP)} to stop after the current session, "
-                            f"{rel_to_root(PAUSE)} to hold after it until the file goes"),
+                            f"{rel_to_root(PAUSE)} to hold after it until the file goes, "
+                            f"{rel_to_root(HALT)} to freeze the running session until the file "
+                            f"goes, {rel_to_root(SAY)} with a prompt in it to send it one"),
             C.GRAY, driver=True)
     # Every acceptance check builds the debug CLI, so from the second session on it is current at
     # the tree the next session starts from -- and orient.py's closing block tells the session so,

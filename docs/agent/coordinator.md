@@ -46,6 +46,7 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
 | `docs/agent/loop-goal.md` | The loop's target and the decisions pre-authorized on the way there — the prose. |
 | `docs/agent/loop-goal.toml` | The same goal's **acceptance test, as data**: every fixture, its exact expected output, the cargo suites and named guard tests — plus the `[context]` manifest that decides what a session reads. The driver reads this; neither file restates the other. |
 | `tools/loop.py` | The driver, and the run above it. Python 3.11+, no third-party packages, runs on Windows/Linux/macOS. One file and one command. One process of it is one **turn** — a session and the boundary behind it — so a driver change takes effect at the next session, whoever made it; at that boundary it decides whether the loop has drifted enough to spend a session on itself. § *The run* below is the only home for what that decides. |
+| `tools/proctree.py` | A child process and everything it started, as one thing the driver can freeze, thaw and kill. What `h` is made of. |
 | `tools/respawn.py` | What starts `loop.py` again for every turn, and the only process that lives as long as a run. It holds no logic: it reads no key, parses no flag, prints nothing and opens no file under `.loop/`. Never run by hand — `python tools/loop.py` starts it. |
 | `docs/agent/optimization-prompt.md` | The prompt for that pass, the way `session-prompt.md` is the prompt for a work session. It owns what a pass may change and what it may only propose. |
 | `docs/agent/handoff.md` | Live state, rewritten by each session. |
@@ -441,6 +442,27 @@ repo is still consistent either way, because every session commits before it exi
 `.loop/running` on the way out; if a hard kill or a reboot leaves one behind, delete it. To take the tree
 for a while and give it back rather than stopping, hold it — `p`, or `.loop/pause`, per § *Holding the
 tree* above.
+
+## Halting a session, and talking to one
+
+`s` and `p` act between two sessions. These two act on the session in flight, and both leave a mark on
+its ledger line (`halted 1x for 8m02s`, `1 operator prompt(s)`), because a session a person touched is
+not the unattended one every measurement over the ledger assumes.
+
+- **`h`, or `.loop/halt`, freezes the session where it stands** — `claude` and every process under it,
+  a running `cargo` included — and `h` again, or deleting the file, lets all of it carry on from the same
+  instruction. Nothing is lost and nothing is re-sent: it is a suspend, not a kill (`tools/proctree.py`:
+  a Job Object on Windows, the process group on POSIX). The status line says `HALTED` and for how long.
+  The one thing a long freeze can cost is the API stream; the session then exits as a dropped stream and
+  the driver rejoins its transcript with `--resume`, exactly as for a drop nobody caused.
+- **`i` sends the session a prompt.** The session freezes while you type, so nothing scrolls under the
+  line; Enter sends, Esc cancels. Without a console, write the text to `.loop/say`: it is delivered and
+  the file deleted. The agent reads the message at its next step, inside the same run — no restart, no
+  lost tool call. It works because a session is started with `--input-format stream-json`, its prompt
+  and pack going down stdin as the first message, and the driver closes stdin on the `result` event,
+  which is what lets such a session exit. `--plain-input` starts sessions the old way, prompt on argv,
+  for a CLI that stops taking streamed input; `h` still works there and `i` does not. The text is kept
+  in the session's log as a `loop_prompt` event.
 
 ## The run
 
