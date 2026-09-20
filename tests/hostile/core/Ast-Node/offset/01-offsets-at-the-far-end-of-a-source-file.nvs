@@ -1,0 +1,41 @@
+<?nvs
+// Attack: a program asks where parts start in a source far larger than anybody
+// writes. The parts sit behind two million bytes, behind characters that take
+// four bytes each, and a hundred thousand deep. The last step should stop at
+// the request's memory limit with an error, and must not crash.
+// hostile: timeout-ms 30000
+// hostile: ends-early
+
+// 1. Two million bytes of comment before a statement. Its offset is a large
+// number, and every byte before it has to be counted.
+string $padded = "<?nvs\n// " . Core\Str::repeat('x', 2000000) . "\necho 1;\n";
+Core\Ast\Node $far = Core\Ast::parse($padded)->children()[0];
+echo 'behind two million bytes the offset is ', $far->offset(), "\n";
+
+// 2. A text value of emoji, each of which takes four bytes. The statement
+// after it starts far along in bytes, and still at column 1.
+string $wide = "<?nvs\necho \"" . Core\Str::repeat("\u{1F600}", 200000) . "\";\necho 2;\n";
+array<Core\Ast\Node> $after = Core\Ast::parse($wide)->children();
+Core\Ast\Node $last = $after[Core\Arr::count($after) - 1];
+echo 'after two hundred thousand emoji the offset is ', $last->offset(),
+    ' at column ', $last->column(), "\n";
+
+// 3. A hundred thousand statements, every one asked where it starts.
+string $many = "<?nvs\n" . Core\Str::repeat("echo 1;\n", 100000);
+int $highest = 0;
+foreach (Core\Ast::parse($many)->children() as Core\Ast\Node $node) {
+    if ($node->offset() > $highest) {
+        $highest = $node->offset();
+    }
+}
+echo 'the last of a hundred thousand statements starts at ', $highest, "\n";
+
+// 4. A list of offsets that doubles in size. That soon needs more memory than
+// the request may hold, so the program stops here.
+array<mixed> $offsets = [$far->offset(), $last->offset(), $highest];
+uint $k = 0;
+while ($k < 40) {
+    $offsets = Core\Arr::appendAll($offsets, $offsets);
+    $k = $k + 1;
+}
+echo "kept them all\n";

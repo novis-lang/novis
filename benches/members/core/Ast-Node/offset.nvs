@@ -1,0 +1,25 @@
+<?nvs
+// Reads where a part of the source starts in bytes, as a tool does before it
+// cuts that part's own text out of the source.
+// bench: iterations 200000
+// bench: allocations 0
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Core\Ast\Node $file = Core\Ast::parse('<?nvs echo 1; echo 2, 3; echo 4, 5, 6;');
+        array<Core\Ast\Node> $top = $file->children();
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Which of the three nodes is asked comes from last round's offset,
+            // so no round can be reused.
+            Core\Ast\Node $node = $top[($total % 3) as int];
+            $total = $total + ($node->offset() as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

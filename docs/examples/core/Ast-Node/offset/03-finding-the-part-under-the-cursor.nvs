@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to find the part of a program an editor's cursor is sitting in.
+// The cursor is a byte position, and the last part starting at or before it is
+// the one the cursor is inside.
+
+string $source = "<?nvs\necho 1;\necho 2;\necho 3;\n";
+int $cursor = 20;
+
+string $found = "nothing";
+foreach (Core\Ast::parse($source)->nodes() as Core\Ast\Node $node) {
+    if ($node->offset() <= $cursor) {
+        $found = $node->kind();
+    }
+}
+
+// This prints Int: the cursor is on the number of the second `echo`.
+echo $found, "\n";
