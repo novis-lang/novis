@@ -2566,11 +2566,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   simply predate it, and `cargo build --release -p nvs-cli` relinks the world for a one-line edit.
   Build `cargo build` and run `target/debug/nvs.exe`: it is the binary `tools/loop.py` builds after
   every acceptance check, so it is the cheap answer and usually the faithful one. The exception is
-  `tools/dossier.py`, which runs every proof program against release: `--bless` refuses with
+  `tools/dossier.py`, which runs every proof program against release: `--bless` prints
   `target/release/nvs.exe is missing or older than the tree -- cargo build --release -p nvs-cli`
-  and writes nothing, and the driver's acceptance sweep reports the same line, so run that build
-  yourself — and run every `crates/` edit of the group before the first `--bless` or
-  `--record-perf`, because each edit costs another six-minute relink.
+  and then runs that build itself (`tools/dossier.py:513`), so the line is the start of a
+  six-minute wait rather than a refusal, and the driver's acceptance sweep reports the same line.
+  Make every `crates/` edit of the group before the first `--bless` or `--record-perf`, because
+  each edit buys another relink.
   [until: reviewed 2026-09-20]
 - **`wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh …` fails from the Bash tool and works
   from PowerShell.** Git Bash rewrites any argument that looks like a POSIX path before `wsl.exe`
@@ -3399,6 +3400,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `arr.rs` after three examples were blessed made the binary stale, and the rebuild then ran twice
   because another process held a copy of `nvs.exe`. Make every Rust edit a slice needs first, then
   bless and record in one pass. [until: reviewed 2026-09-20]
+- **A `cargo build --release -p nvs-cli` piped into `tail` reports `tail`'s clean exit, so a link
+  that failed because another process holds `target/release/nvs.exe` reads as a green build.** An
+  editor running `nvs lsp` out of this tree holds that exact file; this session's build printed
+  nothing, exited 0, left the binary at its old timestamp, and the `--bless` after it spent the
+  relink anyway. Run a release build with no pipe, and check the binary's timestamp moved.
+  [until: reviewed 2026-09-20]
 
 ## Writing a test case
 
@@ -6273,6 +6280,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `Core\Arr::firstKey` cost nothing because that member reads one end. Nothing grows here, so this is
   not the quadratic-append trap above; divide the repeat count by the entries the member walks, and
   time the file yourself before committing it. [until: reviewed 2026-09-20]
+- **A hostile step that hands a member an outsized key *and* an outsized subject multiplies the
+  two.** `Core\Arr::column` hashes the column key once per row, so a key of a million characters
+  over a 200000-row table is 200 GB of hashing and had not finished after two minutes, while each
+  half on its own takes a second. Give an outsized input its own three-entry subject, and keep the
+  big subject's keys ordinary. [until: reviewed 2026-09-20]
 
 ## Splitting a file that got too big
 
