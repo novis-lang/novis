@@ -1,0 +1,27 @@
+<?nvs
+// Shows how a program cancels an entry in a ledger. The correction is the
+// amount with its sign flipped, so the entry and its correction add up to zero.
+
+class Ledger {
+    // Returns the entry that cancels $amount.
+    public static function reversalOf(Core\BigInt $amount): Core\BigInt {
+        return $amount->neg();
+    }
+}
+
+array<Core\BigInt> $entries = [
+    Core\BigInt::parse("120000000000000000000"),
+    Core\BigInt::of(-4500),
+];
+
+var $total = Core\BigInt::of(0);
+foreach ($entries as Core\BigInt $entry) {
+    $total = $total->add($entry)->add(Ledger::reversalOf($entry));
+}
+
+// Every entry was booked and then cancelled, so this prints 0.
+echo $total, "\n";
+
+// A correction keeps the size of the entry and changes its direction. This
+// prints -120000000000000000000.
+echo Ledger::reversalOf($entries[0]), "\n";
