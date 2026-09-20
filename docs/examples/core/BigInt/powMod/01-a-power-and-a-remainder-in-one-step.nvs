@@ -1,0 +1,25 @@
+<?nvs
+// Shows how to raise a number to a power and take the remainder in one step.
+
+// `powMod` raises the number to the power, divides the result by the modulus
+// and keeps the remainder. This prints 445.
+echo Core\BigInt::of(4)->powMod(Core\BigInt::of(13), Core\BigInt::of(497)), "\n";
+
+// The power 0 gives 1, as it does everywhere else. This prints 1.
+echo Core\BigInt::of(12345)->powMod(Core\BigInt::of(0), Core\BigInt::of(497)), "\n";
+
+// The power may not be negative. This throws an `ArithmeticError` and prints
+// the message.
+try {
+    Core\BigInt::of(4)->powMod(Core\BigInt::of(-1), Core\BigInt::of(497));
+} catch (ArithmeticError $negative) {
+    echo $negative->message, "\n";
+}
+
+// The modulus may not be 0, because nothing can be divided by 0. This throws
+// an `ArithmeticError` too.
+try {
+    Core\BigInt::of(4)->powMod(Core\BigInt::of(13), Core\BigInt::of(0));
+} catch (ArithmeticError $zero) {
+    echo $zero->message, "\n";
+}

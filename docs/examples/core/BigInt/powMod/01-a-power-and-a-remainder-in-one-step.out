@@ -1,0 +1,4 @@
+445
+1
+Core\BigInt::powMod(): the exponent is negative
+Core\BigInt::powMod(): the modulus is zero

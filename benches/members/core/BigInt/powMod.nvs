@@ -1,0 +1,25 @@
+<?nvs
+// Measures one modular power over numbers the size a key exchange uses, which
+// is the step a program repeats for every handshake it makes.
+// bench: iterations 20000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $prime = Core\BigInt::parse("170141183460469231731687303715884105727");
+        var $exponent = Core\BigInt::parse("94823749283749283749283749283749");
+        var $base = Core\BigInt::of(5);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the base of this round is the answer of the round
+            // before it, so no round can be skipped.
+            $base = $base->powMod($exponent, $prime);
+            $total = $total + ($base->sign() as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(20000), "\n";

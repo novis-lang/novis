@@ -1,0 +1,23 @@
+<?nvs
+// Shows why `powMod` exists: it gives the remainder of a power that is far too
+// large to hold.
+
+// For a small power, `powMod` and `pow` with `mod` give the same answer. This
+// prints 445 twice.
+echo Core\BigInt::of(4)->powMod(Core\BigInt::of(13), Core\BigInt::of(497)), "\n";
+echo Core\BigInt::of(4)->pow(13)->mod(Core\BigInt::of(497)), "\n";
+
+// 7 to the power 1000000 is a number of 845099 digits. `pow` refuses to build
+// it, and this prints the message.
+try {
+    Core\BigInt::of(7)->pow(1000000);
+} catch (ArithmeticError $tooWide) {
+    echo $tooWide->message, "\n";
+}
+
+// `powMod` gives the remainder of that same power at once, and never holds the
+// whole number. This prints 880007888.
+echo Core\BigInt::of(7)->powMod(
+    Core\BigInt::of(1000000),
+    Core\BigInt::of(1000000007)
+), "\n";
