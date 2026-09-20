@@ -89,6 +89,30 @@
 //!    step 4 is the attack, and it passes: the ending is the memory ceiling
 //!    rather than a crash.
 //!    — owner: M11
+//!
+//! 2. **A walk builds its callback's key argument whether the callback takes
+//!    one or not, and over a list that is an allocation per entry.**
+//!    [`find_slot`] and its siblings pass `&[value, key]` to
+//!    [`nvs_runtime::call_closure`] unconditionally, so a predicate declaring
+//!    only `($value)` still pays for the key beside it. Over a string-keyed
+//!    array the key is the stored [`NvsStr`] and cloning it is a refcount
+//!    pair; over a list it is the position rendered to text, which allocates.
+//!    `benches/members/core/Arr/find.nvs` counts 10 allocations per operation
+//!    over its four-entry list, and the same program over a four-entry
+//!    string-keyed array counts 4. The fix is reading the closure's declared
+//!    arity off `CLOSURE_ARITY_SLOT` before the call, which is a decision
+//!    about what every callback member passes rather than about one member.
+//!    — owner: M12
+//!
+//! 3. **A key argument is copied onto the heap before it is looked up.**
+//!    [`key_bytes`] answers a `Vec<u8>`, so `hasKey`, `get`, `set` and every
+//!    other member reading a key allocates one buffer per call even when the
+//!    argument is already a [`NvsStr`] whose bytes could be borrowed for the
+//!    length of the lookup. `benches/members/core/Arr/hasKey.nvs` counts one
+//!    allocation per operation, and the member neither walks nor calls back.
+//!    The fix is a borrowing return type, which every caller's ownership has
+//!    to be read against, and each of their ledger rows re-measured.
+//!    — owner: M12
 
 use nvs_runtime::{Ctx, Decimal, Fault, NvsArray, NvsStr, SlotKey, Tag, ThrownClass, Value};
 
@@ -7864,6 +7888,162 @@ mod tests {
             (Some(false), 3)
         );
         assert_eq!(walked(super::nvs_core_arr_any, &[]), (Some(false), 0));
+    }
+
+    /// What `member` answered over `entries` against [`below_ten`], and how
+    /// many entries that predicate was shown.
+    ///
+    /// The answer comes back as it was given, because the two members reading
+    /// this walk answer in different types, and the caller owes its release.
+    fn first_match(member: nvs_runtime::NvsFn, entries: &[i64]) -> (Value, usize) {
+        let guard = PREDICATE_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut ctx = Ctx::buffered();
+        let subject = list_of(entries);
+        let predicate = closure_of(1, below_ten);
+        PREDICATE_CALLS.store(0, std::sync::atomic::Ordering::Relaxed);
+        let answer = call(member, &mut ctx, &[subject, predicate]).expect("the member answered");
+        let seen = PREDICATE_CALLS.load(std::sync::atomic::Ordering::Relaxed);
+        drop(guard);
+        dropped(subject);
+        dropped(predicate);
+        (answer, seen)
+    }
+
+    /// The walk stops at the first entry its predicate accepts and answers
+    /// that entry, and answers `null` over an array holding no match.
+    ///
+    /// **The count is asserted beside the value.** A member that walked every
+    /// entry and kept the first acceptance would answer 3 here too, so the
+    /// number of entries the predicate was shown is the only thing telling the
+    /// two apart — and it is the property `filter` plus `first` does not have,
+    /// which is why both members exist.
+    // covers: Core\Arr::find
+    #[test]
+    fn find_answers_the_first_accepted_entry_and_stops_there() {
+        // 3 is the third entry and the first below ten.
+        let (answer, seen) = first_match(super::nvs_core_arr_find, &[40, 50, 3, 4]);
+        assert_eq!((answer.as_int(), seen), (Some(3), 3));
+        dropped(answer);
+
+        let (answer, seen) = first_match(super::nvs_core_arr_find, &[40, 50, 60]);
+        assert_eq!((answer.tag(), seen), (Some(Tag::Null), 3));
+        dropped(answer);
+
+        let (answer, seen) = first_match(super::nvs_core_arr_find, &[]);
+        assert_eq!((answer.tag(), seen), (Some(Tag::Null), 0));
+        dropped(answer);
+    }
+
+    /// The other half of the same walk: the key of the first accepted entry,
+    /// as a `string` even over a list, and `null` when no entry is accepted.
+    ///
+    /// Asserted beside `find`'s row rather than on its own, because the two
+    /// members share one walk and differ only in what they read off the slot
+    /// it stopped at — a member reading the value where the key belongs is
+    /// plausible on its own line and fails here.
+    // covers: Core\Arr::findKey
+    #[test]
+    fn find_key_answers_the_key_of_the_first_accepted_entry() {
+        // 3 is the third entry and the first below ten, so its key is "2".
+        let (answer, seen) = first_match(super::nvs_core_arr_find_key, &[40, 50, 3, 4]);
+        assert_eq!((answer.as_str_bytes(), seen), (Some(b"2".as_slice()), 3));
+        dropped(answer);
+
+        let (answer, seen) = first_match(super::nvs_core_arr_find_key, &[40, 50, 60]);
+        assert_eq!((answer.tag(), seen), (Some(Tag::Null), 3));
+        dropped(answer);
+    }
+
+    /// What `member` answered over `arguments`, as a `bool`.
+    ///
+    /// The subject stays the caller's, because a case asking one array two
+    /// questions builds it once.
+    fn asked(member: nvs_runtime::NvsFn, arguments: &[Value]) -> Option<bool> {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let answer = call(member, &mut ctx, arguments).expect("the member answered");
+        let verdict = answer.as_bool();
+        dropped(answer);
+        verdict
+    }
+
+    /// The empty array is the only array this answers `true` for, and an entry
+    /// holding `null` is still an entry.
+    ///
+    /// **Asserted beside [`super::nvs_core_arr_first`]'s answer over the same
+    /// array**, which is the pair the member exists for: both see a `null`
+    /// there, and only this one says whether an entry is present at all. A
+    /// member reading the first value instead of the count is plausible on the
+    /// empty row alone and fails here.
+    // covers: Core\Arr::isEmpty
+    #[test]
+    fn is_empty_is_true_only_for_an_array_holding_no_entry() {
+        let empty = Value::array(NvsArray::new());
+        assert_eq!(asked(super::nvs_core_arr_is_empty, &[empty]), Some(true));
+
+        let mut holding_null = NvsArray::new();
+        holding_null.append(Value::null());
+        let holding_null = Value::array(holding_null);
+        assert_eq!(
+            asked(super::nvs_core_arr_is_empty, &[holding_null]),
+            Some(false)
+        );
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let first = call(super::nvs_core_arr_first, &mut ctx, &[holding_null])
+            .expect("an empty array is not a failure");
+        assert_eq!(
+            first.tag(),
+            Some(Tag::Null),
+            "the value is null, and the entry is still there"
+        );
+        dropped(first);
+
+        dropped(holding_null);
+        dropped(empty);
+    }
+
+    /// An `int` and the text of that `int` name one entry, and a key holding
+    /// `null` is present.
+    ///
+    /// **Asked of `10` and `"10"` together**, because a member comparing the
+    /// tag before the bytes answers one of them correctly and the other not,
+    /// and either row alone looks right. `crate::arr`'s `key_bytes` owns the
+    /// decoding this rests on.
+    // covers: Core\Arr::hasKey
+    #[test]
+    fn has_key_reads_one_entry_under_an_int_key_and_its_text() {
+        let subject = mixed_keys();
+        let ten = Value::str(NvsStr::new(b"10"));
+        let absent = Value::str(NvsStr::new(b"z"));
+        assert_eq!(
+            asked(super::nvs_core_arr_has_key, &[subject, Value::int(10)]),
+            Some(true)
+        );
+        assert_eq!(
+            asked(super::nvs_core_arr_has_key, &[subject, ten]),
+            Some(true)
+        );
+        assert_eq!(
+            asked(super::nvs_core_arr_has_key, &[subject, absent]),
+            Some(false)
+        );
+        dropped(absent);
+        dropped(ten);
+        dropped(subject);
+
+        let mut holding_null = NvsArray::new();
+        holding_null.set(NvsStr::new(b"note"), Value::null());
+        let holding_null = Value::array(holding_null);
+        let note = Value::str(NvsStr::new(b"note"));
+        assert_eq!(
+            asked(super::nvs_core_arr_has_key, &[holding_null, note]),
+            Some(true),
+            "a stored null is an entry the key names"
+        );
+        dropped(note);
+        dropped(holding_null);
     }
 
     /// The trailing values of a variadic call, at the ABI the member reads
