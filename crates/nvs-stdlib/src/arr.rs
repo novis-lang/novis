@@ -113,6 +113,16 @@
 //!    The fix is a borrowing return type, which every caller's ownership has
 //!    to be read against, and each of their ledger rows re-measured.
 //!    — owner: M12
+//!
+//! 4. **A member that builds an array grows its storage as it appends, with
+//!    the entry count already in hand.** [`NvsArray`] offers `new` and no way
+//!    to reserve, so [`nvs_core_arr_keys`] over a three-entry subject counts
+//!    four allocations for three keys that are clones of the stored ones, and
+//!    the members that build a larger result — `filter` at 16, `mapKeys` at
+//!    25, `groupBy` at 41 — carry the same growth inside their own figures.
+//!    The fix is a capacity constructor on the runtime's array, which every
+//!    building member is then read against one at a time.
+//!    — owner: M12
 
 use nvs_runtime::{Ctx, Decimal, Fault, NvsArray, NvsStr, SlotKey, Tag, ThrownClass, Value};
 
@@ -3006,9 +3016,10 @@ nvs_runtime::nvs_helper! {
     /// `rule:types/arrays` stores every key as a `string`, so "is this an integer key"
     /// is a question about the *bytes*: the key must be the index's decimal
     /// spelling exactly, which rules out `"01"` and `"+1"` the way PHP's
-    /// canonical-integer-key normalization already would. The expected spelling
-    /// is written into one reused buffer rather than a `String` per entry — the
-    /// member is O(n) and this keeps it one allocation rather than n.
+    /// canonical-integer-key normalization already would. Those bytes are
+    /// compared against a spelling rendered on the stack, so the member is O(n)
+    /// and allocates nothing at all — `benches/members/core/Arr/isList.nvs`
+    /// declares the zero and is what would catch it coming back.
     fn nvs_core_arr_is_list(_ctx, args: [1]) {
         // Unreachable from source: an `array<T>` parameter, refused at the
         // checker — [`nvs_core_arr_count`]'s guard states the judgement.
@@ -3031,24 +3042,47 @@ nvs_runtime::nvs_helper! {
 /// member and the rule now read the same predicate rather than two spellings
 /// of it.
 fn is_list(subject: &NvsArray) -> bool {
-    use std::fmt::Write as _;
-
-    let mut expected = String::new();
     let mut from = 0usize;
     let mut index = 0usize;
     while let Some(slot) = subject.next_slot(from) {
-        let key = subject
-            .key_at(slot)
-            .expect("next_slot only names live entries");
-        expected.clear();
-        write!(expected, "{index}").expect("writing a usize into a String never fails");
-        if key.as_bytes() != expected.as_bytes() {
+        // `slot_key` rather than `key_at`: a packed array *is* its positions,
+        // and asking for them as strings rendered one `NvsStr` per entry for a
+        // comparison that never needed the bytes.
+        let carries_its_index = match subject
+            .slot_key(slot)
+            .expect("next_slot only names live entries")
+        {
+            SlotKey::Index(position) => usize::try_from(position).is_ok_and(|at| at == index),
+            SlotKey::Str(key) => is_index_spelling(key.as_bytes(), index),
+        };
+        if !carries_its_index {
             return false;
         }
         from = slot + 1;
         index += 1;
     }
     true
+}
+
+/// Whether `key` is `index`'s decimal spelling exactly, rendered on the stack.
+///
+/// The comparison [`is_list`] makes per entry, written this way so the walk
+/// holds no buffer: twenty digits is every `usize`, and a key of any other
+/// length loses on the slice comparison before a digit is read. Length is what
+/// rules out `"01"`, and the digits are what rule out `"+1"` and `" 1"`.
+fn is_index_spelling(key: &[u8], index: usize) -> bool {
+    let mut digits = [0u8; 20];
+    let mut written = digits.len();
+    let mut rest = index;
+    loop {
+        written -= 1;
+        digits[written] = b'0' + u8::try_from(rest % 10).expect("a decimal digit is below ten");
+        rest /= 10;
+        if rest == 0 {
+            break;
+        }
+    }
+    key == &digits[written..]
 }
 
 nvs_runtime::nvs_helper! {
@@ -6376,6 +6410,7 @@ mod tests {
     /// two `rule:types/arrays` makes interesting: a canonical integer *string* key is
     /// a list key (PHP normalizes it to an int), and a non-canonical one
     /// (`"01"`) is not.
+    // covers: Core\Arr::isList
     #[test]
     fn is_list_matches_phps_answer_for_every_key_shape() {
         let asked = |keys: &[&[u8]]| {
@@ -6515,6 +6550,7 @@ mod tests {
 
     /// Verified against PHP 8.5's `array_keys`, except that the `"10"` key
     /// comes back as the string it is stored as rather than as an `int`.
+    // covers: Core\Arr::keys
     #[test]
     fn keys_yields_the_stored_spelling_of_every_key() {
         let subject = mixed_keys();
@@ -8044,6 +8080,95 @@ mod tests {
         );
         dropped(note);
         dropped(holding_null);
+    }
+
+    /// The search stops at the first identical entry, and the empty array holds
+    /// no entry to stop at.
+    ///
+    /// **`1` is asked of an array holding `1.0`**, which is the row separating
+    /// this member from `in_array($n, $a, true)`: `int`, `uint`, `float` and
+    /// `decimal` are one numeric domain here, so a member comparing the tag
+    /// before the number answers `false` there and looks right on every other
+    /// row. `"3"` is asked of a list holding `3` for the other side of the same
+    /// comparison, since a member that converted instead would answer `true`.
+    // covers: Core\Arr::contains
+    #[test]
+    fn contains_is_true_at_the_first_identical_entry_across_the_numeric_domain() {
+        let list = list_of(&[40, 50, 3]);
+        let three = Value::str(NvsStr::new(b"3"));
+        assert_eq!(
+            asked(super::nvs_core_arr_contains, &[list, Value::int(3)]),
+            Some(true)
+        );
+        assert_eq!(
+            asked(super::nvs_core_arr_contains, &[list, Value::int(4)]),
+            Some(false)
+        );
+        assert_eq!(
+            asked(super::nvs_core_arr_contains, &[list, three]),
+            Some(false),
+            "a text is not the number it spells"
+        );
+        dropped(three);
+        dropped(list);
+
+        let mut fractional = NvsArray::new();
+        fractional.append(Value::float(1.0));
+        let fractional = Value::array(fractional);
+        assert_eq!(
+            asked(super::nvs_core_arr_contains, &[fractional, Value::int(1)]),
+            Some(true),
+            "one numeric domain: the int 1 is the entry 1.0"
+        );
+        dropped(fractional);
+
+        let empty = Value::array(NvsArray::new());
+        assert_eq!(
+            asked(super::nvs_core_arr_contains, &[empty, Value::int(1)]),
+            Some(false)
+        );
+        dropped(empty);
+    }
+
+    /// The other half of that walk: the key of the first identical entry, as a
+    /// `string` even over a list, and `null` when no entry is identical.
+    ///
+    /// **Asked of an array holding the needle twice**, because the first of the
+    /// two is the answer and a member reading the last one passes every
+    /// [`super::nvs_core_arr_contains`] row above. The key comes back in the
+    /// spelling it is stored under, which [`mixed_keys`]'s `"10"` is what shows.
+    // covers: Core\Arr::keyOf
+    #[test]
+    fn key_of_answers_the_key_of_the_first_identical_entry() {
+        let list = list_of(&[40, 3, 3]);
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let answer = call(super::nvs_core_arr_key_of, &mut ctx, &[list, Value::int(3)])
+            .expect("the member answered");
+        assert_eq!(
+            answer.as_str_bytes(),
+            Some(b"1".as_slice()),
+            "the first of the two, as a string even over a list"
+        );
+        dropped(answer);
+
+        let answer = call(super::nvs_core_arr_key_of, &mut ctx, &[list, Value::int(9)])
+            .expect("the member answered");
+        assert_eq!(answer.tag(), Some(Tag::Null));
+        dropped(answer);
+        dropped(list);
+
+        let subject = mixed_keys();
+        let needle = Value::str(NvsStr::new(b"b"));
+        let answer = call(super::nvs_core_arr_key_of, &mut ctx, &[subject, needle])
+            .expect("the member answered");
+        assert_eq!(
+            answer.as_str_bytes(),
+            Some(b"10".as_slice()),
+            "the stored spelling of the key, never an int"
+        );
+        dropped(answer);
+        dropped(needle);
+        dropped(subject);
     }
 
     /// The trailing values of a variadic call, at the ABI the member reads

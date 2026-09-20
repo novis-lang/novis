@@ -2500,6 +2500,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   group once, after the session's last edit to that file — `python tools/dossier.py --record-perf
   --group 'Core\Arr'` re-measures exactly the stale rows and leaves the current ones alone.
   [until: reviewed 2026-09-20]
+- **`--dry-run` does not reach `dossier.py --record-perf`, so a measurement meant as a trial appends
+  to the ledger anyway.** The flag belongs to `--emit-goals`, and `--record-perf --only
+  'Core\Arr::contains' --dry-run` ended with `4 records appended to docs/perf/members.ndjson`. Read
+  the run's last line rather than the flag, and measure only once the session's last edit to the
+  implementing file has landed — `git diff --stat docs/perf/members.ndjson` says what really went in.
+  [until: reviewed 2026-09-20]
 
 ## Running things
 
@@ -3378,6 +3384,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   Declare `allocations 0` only where the round enters no closure — `count` does and `map`, `filter`
   and `reduce` do not — and read the measured number as the member's cost plus one vector per
   callback. [until: reviewed 2026-09-20]
+- **Two timing tests fail under `python tools/verify.py` on a loaded machine and pass on their
+  own.** `nvs_stdlib`'s `http::socket::tests::socket_ping_keeps_a_quiet_live_peer_open` and
+  `nvs-lsp`'s `a_warm_index_answers_within_the_reanalysis_bound` both assert a wall-clock bound —
+  the second one reported 204.1 ms against a 200 ms ceiling — and `test` runs every binary side by
+  side. Read the two lines `verify.py` prints under such a failure: it re-runs the binary alone and
+  says so, and neither test is anything a stdlib or docs session touched.
+  [until: reviewed 2026-09-20]
 
 ## Writing a test case
 

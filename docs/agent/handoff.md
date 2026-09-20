@@ -2,43 +2,53 @@
 
 ## State
 
-Goal `Core\Arr` (1/4). `find`, `findKey`, `isEmpty` and `hasKey` are finished, beside `count`,
-`filter`, `map`, `mapKeys`, `groupBy`, `reduce`, `any` and `all`: `about.md`, three examples, one
-attack, one bench with a row in `docs/perf/members.ndjson`, and a Rust `#[test]` carrying its
-`covers:` marker each. 38 of `Core\Arr`'s features are still owed. Nothing is blocked.
+Goal `Core\Arr` (1/4). `contains`, `keyOf`, `isList` and `keys` are finished, beside `find`,
+`findKey`, `isEmpty`, `hasKey`, `count`, `filter`, `map`, `mapKeys`, `groupBy`, `reduce`, `any` and
+`all`: `about.md`, three examples, one attack, one bench with a row in `docs/perf/members.ndjson`,
+and a Rust `#[test]` carrying its `covers:` marker each. 34 of `Core\Arr`'s features are still owed.
+Nothing is blocked.
 
-The four figures, at a 3.0 to 3.1 ns calibration unit and binary `18d233f52746`: `find` 195.3 ns/op
-and 10 allocations, `findKey` 148.2 and 4, `hasKey` 29.7 and 1, `isEmpty` 7.8 and 0. The whole
-group's ledger rows were re-measured at that binary, which is the playbook bullet above.
+**Two benches found an allocation the member did not need, and both are fixed rather than
+recorded.** `nvs_runtime::value_identical` seeded its worklist with `vec![(left, right)]`, so every
+comparison over two scalars allocated — `==` on the request path as much as this group;
+`crates/nvs-runtime/src/identity.rs:136` compares the first pair before the vector is touched.
+`nvs_stdlib::arr::is_list` asked `key_at` per entry, which renders a packed array's position into a
+fresh `NvsStr`; it reads `slot_key` and compares against a stack-rendered spelling.
 
-`crates/nvs-stdlib/src/arr.rs` `# Known gaps` 2 and 3 are new, both owner M12 and both found by a
-bench. 2: a walk builds its callback's key argument whether the callback declares one or not, so
-`benches/members/core/Arr/find.nvs` counts 10 allocations per operation over a four-entry list
-against 4 for the same program over a four-entry string-keyed array. 3: `key_bytes` copies its key
-onto the heap per call, so `hasKey` counts one allocation per operation while neither walking nor
-calling back.
+The four figures, at a 2.7 ns calibration unit and binary `bee8b7ffeaf6`: `contains` 23.6 ns/op and
+0 allocations, `keyOf` 27.6 and 0, `isList` 10.5 and 0 — 72.9 and 4 before the fix, at a 3.2 ns unit
+— and `keys` 99.3 and 4. Every other `Core\Arr` row was re-measured at that binary, because
+`arr.rs`'s text moved.
+
+`crates/nvs-stdlib/src/arr.rs` `# Known gaps` 4 is new, owner M12 and found by a bench: a member
+that builds an array grows its storage as it appends with the entry count already in hand, because
+`NvsArray` offers `new` and no way to reserve.
 
 ## Next group
 
 **One slice is one feature with all its feature proofs**, taken in registry order so neighbours
 share the declaration region they sit in — one file set: `crates/nvs-stdlib/src/arr.rs`,
-`docs/examples/core/Arr/`, `tests/hostile/core/Arr/`, `benches/members/core/Arr/`. The first two
-search the values rather than the keys, so `find`'s and `findKey`'s landed proofs are the shape to
-follow and `hasKey`'s `about.md` is what each has to be told apart from; the last two read the
-array's shape and take no second argument at all.
+`docs/examples/core/Arr/`, `tests/hostile/core/Arr/`, `benches/members/core/Arr/`. `values` is
+`keys`'s other half, so `keys`'s landed proofs are the shape to follow and its `about.md` is what
+`values` has to be told apart from. The other three read one entry off an end of the array, answer
+`null` over the empty array, and differ only in which end and in value against key — which is the
+one thing each `about.md` has to make plain.
 
-- [ ] **`Core\Arr::contains`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`.
-      `crates/nvs-stdlib/src/arr.rs:293`
-- [ ] **`Core\Arr::keyOf`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`.
-      `crates/nvs-stdlib/src/arr.rs:302`
-- [ ] **`Core\Arr::isList`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`.
-      `crates/nvs-stdlib/src/arr.rs:311`
-- [ ] **`Core\Arr::keys`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`.
-      `crates/nvs-stdlib/src/arr.rs:320`
+- [ ] **`Core\Arr::values`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`.
+      `crates/nvs-stdlib/src/arr.rs:339`
+- [ ] **`Core\Arr::first`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`.
+      `crates/nvs-stdlib/src/arr.rs:348`
+- [ ] **`Core\Arr::last`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`.
+      `crates/nvs-stdlib/src/arr.rs:357`
+- [ ] **`Core\Arr::firstKey`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`.
+      `crates/nvs-stdlib/src/arr.rs:366`
 
 ## Backlog
 
-- `Core\Arr::values`, `first`, `last`, `firstKey`, `lastKey` are the group after that, same file set.
-- Re-record the group's ledger rows as the last step of any session that edits `arr.rs`
-  (`docs/agent/playbook.md` § Tooling).
-- `Core\Arr::average` is the check the driver reports; it is owed like the other 38.
+- `Core\Arr::lastKey` closes the end-reading family; `crates/nvs-stdlib/src/arr.rs:375`.
+- `arr.rs` `# Known gaps` 2 and 3 are still open, both owner M12: the key argument a walk builds for
+  a callback that never declared one, and `key_bytes`'s heap copy per call.
+- `arr.rs` `# Known gaps` 4, owner M12: a capacity constructor on `NvsArray`, which `filter` at 16
+  allocations, `mapKeys` at 25 and `groupBy` at 41 would each then be read against.
+- `docs/perf/members.md` is generated from the ledger by `dossier.py --perf-report` and has not been
+  regenerated since 2026-09-17; no goal owns doing it.
