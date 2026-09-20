@@ -1,0 +1,16 @@
+<?nvs
+// Shows the difference between `children` and `nodes`. `children` gives the
+// parts one step down. `nodes` gives every part below, to the bottom of the
+// tree.
+
+Core\Ast\Node $file = Core\Ast::parse('<?nvs if (1) { echo 2; }');
+
+// This prints 1: the file holds one statement.
+echo "one step down: ", Core\Arr::count($file->children()), "\n";
+
+// This prints 5: the `if`, its condition, its block, the `echo` and the 2.
+echo "everything below: ", Core\Arr::count($file->nodes()), "\n";
+
+foreach ($file->nodes() as Core\Ast\Node $node) {
+    echo $node->kind(), "\n";
+}

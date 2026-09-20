@@ -1,0 +1,26 @@
+<?nvs
+// Shows how to measure each class in a file. The number of nodes below a class
+// says how much it does, so this finds the class worth splitting first. The
+// tree carries no names, so the sizes come out in the order the classes appear.
+
+string $source = <<<'NVS'
+<?nvs
+class Invoice {
+    public static function total(int $a, int $b): int {
+        return $a + $b;
+    }
+}
+class Receipt {
+    public static function line(): string {
+        return "one";
+    }
+    public static function footer(): string {
+        return "two";
+    }
+}
+NVS;
+
+// This prints 5, then 6.
+foreach (Core\Ast::parse($source)->children() as Core\Ast\Node $class) {
+    echo $class->kind(), " ", Core\Arr::count($class->nodes()), "\n";
+}

@@ -1,0 +1,24 @@
+<?nvs
+// Walks everything below a node, as a tool searching a parsed file for one
+// construct does.
+// bench: iterations 50000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Core\Ast\Node $file = Core\Ast::parse('<?nvs echo 1; if (1) { echo 2; } while (0) { echo 3; }');
+        array<Core\Ast\Node> $top = $file->children();
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Which of the three nodes is walked comes from last round's count,
+            // so no round can be reused.
+            Core\Ast\Node $node = $top[($total % 3) as int];
+            $total = $total + Core\Arr::count($node->nodes());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(50000), "\n";

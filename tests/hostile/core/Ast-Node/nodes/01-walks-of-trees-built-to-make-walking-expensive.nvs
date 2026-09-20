@@ -1,0 +1,39 @@
+<?nvs
+// Attack: a program walks everything below a node, over trees built to make
+// that walk expensive. The trees nest deeply, hold a hundred thousand
+// statements, and are walked once per node. The last step should stop at the
+// request's memory limit with an error, and must not crash.
+// hostile: timeout-ms 30000
+// hostile: ends-early
+
+// 1. Forty `if` blocks inside each other. The walk goes down every level, so it
+// must reach the bottom of the tree.
+string $deep = '<?nvs ' . Core\Str::repeat('if (1) { ', 40) . 'echo 1;'
+    . Core\Str::repeat('}', 40);
+uint $depth = Core\Arr::count(Core\Ast::parse($deep)->nodes());
+echo 'forty levels give ', $depth, " nodes\n";
+
+// 2. A hundred thousand statements, walked from the file in one call. The whole
+// tree goes into one array.
+string $wide = "<?nvs\n" . Core\Str::repeat("echo 1;\n", 100000);
+Core\Ast\Node $file = Core\Ast::parse($wide);
+echo 'a hundred thousand statements give ', Core\Arr::count($file->nodes()), " nodes\n";
+
+// 3. Every node of a tree asked for its own walk. That walks the tree once per
+// node, which costs far more than walking it once.
+Core\Ast\Node $many = Core\Ast::parse('<?nvs ' . Core\Str::repeat('if (1) { echo 1; } ', 300));
+uint $seen = 0;
+foreach ($many->nodes() as Core\Ast\Node $node) {
+    $seen = $seen + Core\Arr::count($node->nodes());
+}
+echo 'a walk from every node saw ', $seen, " nodes\n";
+
+// 4. Every walk of the wide file kept, one after another. That soon needs more
+// memory than the request may hold, so the program stops here.
+array<mixed> $kept = [];
+uint $k = 0;
+while ($k < 100000) {
+    $kept = Core\Arr::append($kept, $file->nodes());
+    $k = $k + 1;
+}
+echo "kept them all\n";
