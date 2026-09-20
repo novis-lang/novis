@@ -8685,6 +8685,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `Core\Arr::sum($shares) == 0.3 ? 'yes' : 'no'` prints `no` — which is what
   `docs/examples/lang/expressions/arithmetic/03-a-basket-priced-in-decimal.nvs` already does.
   [until: reviewed 2026-09-20]
+- **A `catch` binding belongs to the enclosing function or script rather than to the `catch`
+  block, so two `catch`es in one program may not share a name.** `catch (ParseError $error)` in
+  one `foreach` body and `catch (LogicError $error)` in the next is `E0406: $error is already
+  declared`, which reads as a clash between two bindings that never overlap. Give every `catch`
+  in a program its own name — `$badText`, `$badBase` — which a hostile case with a numbered step
+  per attack needs several of at once. [until: reviewed 2026-09-20]
 
 ## Divergences and refusals already pinned
 
