@@ -1,0 +1,26 @@
+<?nvs
+// Measures the remainder of a large number. A program does this when an
+// identifier larger than an `int` picks one of a fixed number of groups.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\BigInt> $identifiers = [
+            Core\BigInt::parse("123456789012345678901234567890"),
+            Core\BigInt::parse("987654321098765432109876543211"),
+        ];
+        var $groups = Core\BigInt::of(16);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the identifier used this round is picked by the group the
+            // round before landed in.
+            $total = $total + ($identifiers[($total % 2) as int]->mod($groups)->toUint());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";
