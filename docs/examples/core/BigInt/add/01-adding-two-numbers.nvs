@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to add two numbers, and that `add` returns a new number instead of
+// changing the one you called it on.
+
+var $first = Core\BigInt::of(120);
+var $second = Core\BigInt::of(23);
+
+// This prints 143.
+echo $first->add($second), "\n";
+
+// `$first` still holds what it did before. This prints 120.
+echo $first, "\n";
+
+// Adding a negative number takes it away. This prints 97.
+echo $first->add(Core\BigInt::of(-23)), "\n";

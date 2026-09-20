@@ -2,6 +2,7 @@
 A `Core\BigInt` grows past every scalar's bound and `toInt`, `toUint` and `toDecimal` each name both sides of their own — `rule:types/arithmetic` and `rule:types/decimal`, spec § 13
 --FILE--
 <?nvs
+// covers: Core\BigInt::add
 // A factorial is the shortest program that leaves `int` behind: 20! is the
 // last one an `int` holds, and 21! is not. Counting where `toInt` stops
 // answering names both sides of that bound in one sweep — a member that

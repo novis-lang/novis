@@ -1,0 +1,24 @@
+<?nvs
+// Measures adding a large number to a running total, as a program does when it
+// sums amounts that may outgrow an `int`.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\BigInt> $addends = [
+            Core\BigInt::parse("123456789012345678901234567890"),
+            Core\BigInt::parse("987654321098765432109876543210"),
+        ];
+        // Chained: each round adds to the total the round before returned.
+        var $total = Core\BigInt::of(0);
+        uint $i = 0;
+        while ($i < $rounds) {
+            $total = $total->add($addends[($i % 2) as int]);
+            $i = $i + 1;
+        }
+        return Core\Str::length($total->toString());
+    }
+}
+
+echo Bench::run(200000), "\n";
