@@ -2,52 +2,54 @@
 
 ## State
 
-Goal `lang-attributes`, 4 of the group's **8** features complete in `python tools/dossier.py --gate
---group lang:attributes`: `an-attribute-is-a-shape-literal-attached-to-a-declaration`,
-`core-api-and-the-openapi-document`, `core-command-and-core-option-the-command-table` and
-`reading-attributes-back-core-attributes-get-and-all`. Nothing is blocked.
+Goal `lang-attributes`, **7 of the group's 8** features complete in `python tools/dossier.py --gate
+--group lang:attributes`. This session landed `the-names-the-compiler-acts-on`,
+`core-route-and-core-access-the-route-table` and
+`core-program-implementing-i-every-class-implementing-an-interface`. One feature is left, and the
+goal's stage-2 check goes green the session it lands. Nothing is blocked.
 
-The retrieval slice found and fixed a real bug: a `$member` argument that is not a string literal was
-ignored, so the retrieval answered the *target's own* roster instead of the empty result
-`rule:attributes/structural-retrieval` fixes for that case. The fix is
-`crates/nvs-types/src/retrieval.rs:347`, and the module doc there already stated the intended
-behaviour, so nothing in `docs/` moved.
+Two things the landed proofs settled. **A recognized name stays in the structural roster**:
+`Core\Attributes::all<{}>` at a method carrying `#[Core\Command]` answers one entry, so recognition
+and retrieval are independent, and the `[skip]` note about `#[Core\Api]` answering `null` is about
+that attribute rather than about recognized names in general. And **a feature whose whole surface is
+compile-time takes a `[skip]` perf entry with its reason** — `the-names-the-compiler-acts-on` has one
+in `tools/data/dossier-policy.toml`, because a loop there would re-measure the codec, route row or
+command row the recognized attribute built, each of which carries its own figure.
 
-Two things the landed features settled, so the next session does not re-derive them. **A `lang:`
-feature whose perf figure is measured goes stale when `docs/reference/lang/90-attributes.md` is
-edited** — that chapter is what every `lang:attributes/…` feature is "implemented at" — so a slice
-that corrects the chapter re-measures with `--record-perf --only` before it wraps. And **`#[Core\Api]`
-has no runtime surface at all**: `Core\Attributes::get` answers `null` for it, so its perf proof is a
-`[skip]` entry in `tools/data/dossier-policy.toml` with the reason, while `#[Core\Command]` and
-`#[Core\Option]` *are* readable and carry a real bench.
+A perf figure in this group goes stale when `docs/reference/lang/90-attributes.md` is edited, since
+that chapter is what every `lang:attributes/…` feature is implemented at, so a slice that corrects the
+chapter re-measures with `--record-perf --only` before it wraps.
 
 ## Next group
 
-**Stage 2: the dossier, the compiler-read attribute names over one reference chapter** — one file
-set: `docs/reference/lang/90-attributes.md`, `docs/examples/lang/attributes/`,
-`tests/hostile/lang/attributes/`, `benches/members/lang/attributes/`, `tests/conformance/lang/`.
-All three read the same chapter and all three are about attributes the *compiler* acts on, so the
-proofs share their idiom with the four that landed.
+**Stage 2: the dossier, the last feature of the group and then the goal's own end** — one file set:
+`docs/reference/lang/90-attributes.md`, `docs/examples/lang/attributes/`,
+`tests/hostile/lang/attributes/`, `benches/members/lang/attributes/`, `tests/conformance/lang/`,
+`tests/conformance/reject/`. The second item runs only once the first is green.
 
-- [ ] **`lang:attributes/the-names-the-compiler-acts-on`** — owes about, examples, hostile, perf,
-      tests. `rule:attributes/inert-metadata` is the line between an inert attribute and one the
-      compiler reads; the closed set and the `<!-- generated: attributes -->` table are at
-      `docs/reference/lang/90-attributes.md:115`, and the roster the table is generated from is
-      `crates/nvs-types/src/attributes.rs:1`.
-- [ ] **`lang:attributes/core-route-and-core-access-the-route-table`** — owes about, examples,
-      hostile, perf, tests. `rule:attributes/access-is-a-required-sibling` and
-      `rule:attributes/access-payload` are what the pair owes; the option roster for both is
-      `docs/reference/lang/90-attributes.md:244`.
-- [ ] **`lang:attributes/core-program-implementing-i-every-class-implementing-an-interface`** —
-      owes about, examples, hostile, perf, tests. `rule:programs/implementing` is the rule; the
-      member's reference card is `docs/reference/lang/90-attributes.md:533`.
+- [ ] **`lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec`** — owes
+      about, examples, hostile, perf, tests. The chapter section is
+      `docs/reference/lang/90-attributes.md:129`, the two recognized names and what each may carry
+      are `crates/nvs-types/src/derive.rs:74`, and the codec the attribute generates is
+      `crates/nvs-types/src/derive.rs:1526`. `rule:core-classes/derive-attribute` is the opt-in and
+      `rule:core-classes/derive-field-list` the per-field override; a class carrying neither the
+      attribute nor a hand-written `fromJson` is refused at a document door with `E0821`, and
+      `Core\Json::encode` of an instance with no codec throws a `LogicError` at run time, which is
+      what a conformance case can catch.
+- [ ] **Reach the goal**, whose stage-2 check is `docs/agent/loop-goal.toml:12386` and passes the
+      moment the item above is green. Run `python tools/verify.py --doc` and fix every
+      broken link it names, then `python tools/owners.py --closes lang-attributes` and `python
+      tools/playbook.py --closes lang-attributes`, closing or re-ownering every gap they name, and
+      write `DONE` to `.loop/status.txt`. Those are the gates a goal meets only at its end.
 
 ## Backlog
 
-- A folded `null` read straight through `?->` throws instead of short-circuiting; anchor
-  `crates/nvs-ir/src/lower/expr.rs:1118`, workaround in `docs/agent/playbook.md`. No milestone at M9
-  or later owns it, so `python tools/owners.py --check` refuses it as a recorded gap.
-- `lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec` is the fourth
-  feature this group still owes; `docs/reference/lang/90-attributes.md:129`.
-- An explicitly written `Core\Attributes::get<T>($target, "")` is `E0798` while omitting the
-  argument is fine, because the default is `""`. No rule states which is right.
+- `Core\Router::url` costs 14 allocations and 607 bytes per link (`docs/perf/members.ndjson`), which
+  is a figure to improve rather than a failure; the ledger now has the baseline.
+- A `{path...}` value keeps its `/`s, so `Core\Router::url("tree", ["path" => "../../etc/passwd"])`
+  answers `/files/../../etc/passwd`, which normalizes out of its own route; pinned as current
+  behaviour in `tests/conformance/lang/routes-the-compiled-table-answers-a-link-of-every-capture-kind.nvst`
+  and worth an ADR question when a server exists to dispatch it.
+- `docs/reference/lang/90-attributes.md:124`'s `<!-- generated: attributes -->` table renders
+  nothing in the chapter as it stands on disk; the roster it would list is
+  `crates/nvs-types/src/derive.rs:68`.

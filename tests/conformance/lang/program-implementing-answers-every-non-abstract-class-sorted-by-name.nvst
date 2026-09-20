@@ -1,0 +1,82 @@
+--TEST--
+`Core\Program::implementing<I>()` expands while compiling into one `new C()` per non-abstract class implementing `I`, sorted by fully qualified name, skipping a class that implements nothing, answering `[]` for an interface nothing implements, and building a fresh set on every evaluation (`rule:programs/implementing`)
+--FILE--
+<?nvs
+// covers: lang:attributes/core-program-implementing-i-every-class-implementing-an-interface
+// `rule:programs/implementing`: the call expands while compiling into an array literal of
+// `new C()` for every non-abstract class in the program implementing `I`,
+// sorted by fully qualified name. The roster is printed whole rather than one
+// class per line, so a build that lost a class, added one or reordered the two
+// fails here rather than printing plausibly for the classes it kept.
+interface Check {
+    public function name(): string;
+    public function mark(): uint;
+}
+
+interface Rule {
+    public function apply(): string;
+}
+
+// An abstract class is not instantiated, so it is not in the roster. A class
+// extending it implements `Check` and is.
+abstract class BaseCheck implements Check {
+    public uint $seen = 0;
+
+    public function name(): string { return "base"; }
+
+    public function mark(): uint {
+        $this->seen = $this->seen + 1;
+        return $this->seen;
+    }
+}
+
+class Zebra extends BaseCheck {
+    public function name(): string { return "zebra"; }
+}
+
+class Apple implements Check {
+    public uint $seen = 0;
+
+    public function name(): string { return "apple"; }
+
+    public function mark(): uint {
+        $this->seen = $this->seen + 1;
+        return $this->seen;
+    }
+}
+
+// The same methods, and no `implements`, so this class stays out.
+class Unrelated {
+    public function name(): string { return "unrelated"; }
+}
+
+class Names {
+    public static function of(array<Check> $checks): string {
+        string $out = "";
+        foreach ($checks as Check $check) {
+            $out = $out == "" ? $check->name() : $out . "," . $check->name();
+        }
+        return $out == "" ? "(none)" : $out;
+    }
+}
+
+echo "roster: ", Names::of(Core\Program::implementing<Check>()), "\n";
+echo "empty: ", Core\Arr::count(Core\Program::implementing<Rule>()), "\n";
+
+uint $agreed = 0;
+
+// The instances are built where the call stands, once per evaluation, so a
+// second call answers a second set rather than the first one again.
+array<Check> $first = Core\Program::implementing<Check>();
+if ($first[0]->mark() == 1) { $agreed = $agreed + 1; }
+if ($first[0]->mark() == 2) { $agreed = $agreed + 1; }
+
+array<Check> $second = Core\Program::implementing<Check>();
+if ($second[0]->mark() == 1) { $agreed = $agreed + 1; }
+if ($first[0]->mark() == 3) { $agreed = $agreed + 1; }
+
+echo "agreed: ", $agreed, " of 4\n";
+--EXPECT--
+roster: apple,zebra
+empty: 0
+agreed: 4 of 4

@@ -1,0 +1,60 @@
+--TEST--
+`Core\Program::implementing` refuses a type argument that is not an interface, a shape among them, and an interface one of whose classes has a constructor the enumeration could not call, each at the call that would have written the `new` (`rule:programs/implementing`)
+--FILE--
+<?nvs
+// covers: lang:attributes/core-program-implementing-i-every-class-implementing-an-interface
+// `rule:programs/implementing`: the type argument is what gives the enumerated instances a
+// static type and the enumeration writes `new C()` for each of them, so an
+// argument that is not an interface and a class the enumeration could not
+// construct are both refused where the call is written. The accepted call is
+// first, so an enumeration that stopped answering a well-formed one fails here
+// rather than as a missing refusal.
+interface Check {
+    public function name(): string;
+}
+
+class Fine implements Check {
+    public function name(): string { return "fine"; }
+}
+
+class Plain {
+    public function name(): string { return "plain"; }
+}
+
+interface Needful {
+    public function label(): string;
+}
+
+// What a class needs arrives through the interface's own methods, because the
+// enumeration has nothing to pass to a constructor.
+class Needy implements Needful {
+    public string $label;
+    public function constructor(string $label) { $this->label = $label; }
+    public function label(): string { return $this->label; }
+}
+
+echo Core\Arr::count(Core\Program::implementing<Check>()), "\n";
+
+// A class describes an implementation rather than an interface to enumerate.
+echo Core\Arr::count(Core\Program::implementing<Plain>()), "\n";
+
+// A shape describes data rather than methods, so nothing could be called on
+// the array it would answer.
+echo Core\Arr::count(Core\Program::implementing<{name: string}>()), "\n";
+
+// Every class the enumeration instantiates needs a constructor callable with
+// no arguments.
+echo Core\Arr::count(Core\Program::implementing<Needful>()), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0743]: `Core\Program::implementing` enumerates an interface, and `Plain` is not one
+   --> case.nvs:36:22
+%A
+error[E0743]: `Core\Program::implementing` enumerates an interface, and `{name: string}` is not one
+   --> case.nvs:40:22
+%A
+error[E0744]: `Needy` implements `Needful` and its constructor takes 1 required argument(s)
+   --> case.nvs:44:22
+%A
+error: aborting due to 3 errors

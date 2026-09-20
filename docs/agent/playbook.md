@@ -6158,6 +6158,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `$member`, the way
   `tests/conformance/lang/attributes-retrieval-answers-by-shape-in-declaration-order.nvst` does.
   [until: reviewed 2026-09-20]
+- **A property default has to be a constant, so an array literal with anything in it is refused
+  where it looks like it should work.** `public array<string> $notes = ["one", "two"];` is
+  `E0435` — a default is evaluated once at compile time and written into every fresh instance's
+  slot, and only a scalar literal, `[]`, an enum case or another class's `const` may be written
+  there. Give the class a no-argument `constructor` and fill the property in it, which also keeps
+  the class enumerable by `Core\Program::implementing`. [until: reviewed 2026-12-31]
 
 ## Splitting a file that got too big
 
