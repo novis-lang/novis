@@ -97,6 +97,8 @@ files = [
 
 modules = [
   "crates/nvs-stdlib/src/arr.rs",
+  # Strict identity over two `Value`s, and the hash that agrees with it.
+  "crates/nvs-runtime/src/identity.rs",
 ]
 
 rules = ["testing/feature-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
