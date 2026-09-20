@@ -1,0 +1,74 @@
+<?nvs
+// Attack: a request builds entries with lifetimes and secrets that should not
+// work. Every entry should either be built or stop with an error, and the
+// program must keep running.
+// hostile: timeout-ms 60000
+
+var $cache = Core\Cache::local();
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $keys = [$key];
+
+// 1. A lifetime of nine quintillion seconds. That is more than a `Duration` can
+//    count, so building it must stop with an error.
+try {
+    var $forever = Core\Cache\SecretEntry::of('t0ken', Core\Time\Duration::seconds(9223372036854775807));
+    echo "step 1 built an entry\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. A lifetime of minus one second. The entry is over before it is built, so
+//    the store must keep nothing.
+try {
+    var $past = fn (): Core\Cache\SecretEntry =>
+        Core\Cache\SecretEntry::of('t0ken', Core\Time\Duration::seconds(-1));
+    $cache->getSecret('in-the-past', $keys, { fill: $past });
+    echo 'step 2 left ', $cache->getSecret('in-the-past', $keys) == null ? 'a miss' : 'the secret', "\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. A secret of ten million characters. Sealing it copies it, so the read must
+//    either answer or stop at the memory limit.
+try {
+    var $huge = fn (): Core\Cache\SecretEntry =>
+        Core\Cache\SecretEntry::of(Core\Str::repeat('x', 10000000), 1h);
+    var $big = $cache->getSecret('huge', $keys, { fill: $huge });
+    echo 'step 3 answered ', $big == null ? 'a miss' : 'the secret', "\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. One million entries built and never used. Each one holds a secret, so the
+//    memory of the ones the program let go of must be free again.
+uint $i = 0;
+while ($i < 1000000) {
+    var $thrown = Core\Cache\SecretEntry::of('t0ken', 1h);
+    $i = $i + 1;
+}
+echo "step 4 built a million entries\n";
+
+// 5. One entry handed to two different reads. An entry is a value like any
+//    other, so the second read must work as well as the first.
+var $entry = Core\Cache\SecretEntry::of('shared', 1h);
+var $same = fn (): Core\Cache\SecretEntry => $entry;
+var $first = $cache->getSecret('name-a', $keys, { fill: $same });
+var $second = $cache->getSecret('name-b', $keys, { fill: $same });
+echo 'step 5 filled ',
+    $first != null && $second != null ? 'both names' : 'only one name', "\n";
+
+// 6. A fill that builds an entry and throws afterwards. The entry is gone with
+//    the request, and the name must be left free for the next read.
+try {
+    var $thenThrows = fn (): Core\Cache\SecretEntry => {
+        var $built = Core\Cache\SecretEntry::of('never-stored', 1h);
+        throw new RuntimeError('the service is down');
+    };
+    $cache->getSecret('flaky', $keys, { fill: $thenThrows });
+    echo "step 6 filled\n";
+} catch (Throwable $e) {
+    echo "step 6 stopped\n";
+}
+var $after = fn (): Core\Cache\SecretEntry => Core\Cache\SecretEntry::of('recovered', 1h);
+echo 'step 6 left the name free: ',
+    $cache->getSecret('flaky', $keys, { fill: $after }) == null ? 'no' : 'yes', "\n";

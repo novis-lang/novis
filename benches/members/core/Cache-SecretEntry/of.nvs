@@ -1,0 +1,25 @@
+<?nvs
+// Measures building one entry for a cache fill to hand back. A program does
+// this once for every secret it fetches from somewhere else.
+// bench: iterations 400000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $tokens = ["at-7f3c9b21", "at-91abf042", "at-2d40c8e7"];
+
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The secret of one round is chosen by the round before it, so no
+            // round can be left out.
+            int $pick = ($total % 3) as int;
+            var $entry = Core\Cache\SecretEntry::of($tokens[$pick], 1h);
+            $total = $total + ($pick as uint) + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";
