@@ -455,10 +455,16 @@ def findings(reach, jobs):
     """What `--check` fails on: a wide binary `WIDE` does not list, and a listed one that is
     narrow or gone. A binary that is wide only until a run records what it reads through
     `nvs_repo` is neither -- the run that is asking is about to record it."""
-    allowed, out, wide = allowed_wide(), [], set()
+    allowed, out, wide, pending = allowed_wide(), [], set(), set()
     for job in jobs:
         _, why = reach.key(job)
-        if not why or "no run has recorded" in why:
+        if not why:
+            continue
+        if "no run has recorded" in why:
+            # Neither, and that holds for both loops: a binary recompiled since its last
+            # recorded run has no reads to judge, so calling it narrow here would delete the
+            # line that is about to be needed again.
+            pending.add(job["name"])
             continue
         wide.add(job["name"])
         if job["name"] not in allowed:
@@ -467,7 +473,7 @@ def findings(reach, jobs):
                        f"when what it reads changes and not on every change. If it cannot be "
                        f"narrow, give it a line in {WIDE.relative_to(ROOT).as_posix()}.")
     names = {job["name"] for job in jobs}
-    for name in sorted(allowed - wide):
+    for name in sorted(allowed - wide - pending):
         state = "has a narrow key now" if name in names else "is not a test binary of this build"
         out.append(f"`{name}` is listed in {WIDE.relative_to(ROOT).as_posix()} and {state}: "
                    f"delete its line.")

@@ -2555,6 +2555,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `benches/members/core/Str/length.nvs` already does, rather than reading the miss as the member
   under test allocating.
   [until: gone crates/nvs-ir/src/lib.rs:array subscript is rendered to a decimal string]
+- **A `covers:` marker added to a Rust test re-stales every perf figure measured against that
+  file.** `dossier.py` keys a member's figure to the implementing file's text, so a one-line comment
+  in `cache.rs` put `Core\Cache::local`'s just-recorded figure back into `OWED` the moment the next
+  slice marked its own test. Do every Rust edit of a group first, then `--record-perf --only …`
+  once at the end. [until: reviewed 2026-09-21]
 
 ## Running things
 
@@ -8750,6 +8755,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `uint` sum, because the literal is an `int` and the two sides have no common type. Write the
   literal at the receiver's own type — `?? (1 as uint)` — or cast the whole `??` expression, which
   is what the `bool`-returning benches beside it already do. [until: reviewed 2026-09-20]
+- **A keyed array's type names the value alone — `array<V>` — and `array<string, string>` does not
+  parse.** A map literal `["EUR" => "Euro"]` is an `array<string>`, so writing the key type too
+  stops the parser at the comma and cascades: one such declaration in a two-line example produced
+  64 diagnostics, almost all of them about later lines. Write `array<int> $prices = ["cup" => 450];`
+  and read only the first diagnostic. [until: reviewed 2026-09-21]
 
 ## Divergences and refusals already pinned
 
