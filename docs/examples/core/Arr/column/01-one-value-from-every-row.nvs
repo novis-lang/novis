@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to take one value out of every row. `Core\Arr::column` returns the
+// value of the key you name from each row, in the order of the rows.
+
+array<array<string>> $users = [
+    ['id' => '7', 'name' => 'Ada'],
+    ['id' => '9', 'name' => 'Bo'],
+    ['id' => '12', 'name' => 'Cy'],
+];
+
+array<string> $names = Core\Arr::column($users, 'name');
+
+// This prints Ada, Bo and Cy, one name per line.
+foreach ($names as string $name) {
+    echo $name, "\n";
+}

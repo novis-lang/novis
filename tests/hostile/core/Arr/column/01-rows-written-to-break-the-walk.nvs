@@ -1,0 +1,54 @@
+<?nvs
+// Attack: `Core\Arr::column` walks rows a program built and copies one value
+// out of every row. Each step below gives it rows written to break that walk.
+// Every step should finish, and the last one should stop the program with an
+// error. The runtime must not crash.
+// hostile: timeout-ms 60000
+// hostile: ends-early
+
+// 1. 100000 rows, one value taken out of each.
+array<array<string>> $rows = [];
+int $i = 0;
+while ($i < 100000) {
+    $rows[] = ['id' => Core\Str::format('%d', $i), 'name' => 'n'];
+    $i = $i + 1;
+}
+echo 'step 1: ', Core\Arr::count(Core\Arr::column($rows, 'name')), '|', "\n";
+
+// 2. The same 100000 rows keyed by their ids, so the result copies 100000 keys.
+echo 'step 2: ', Core\Arr::count(Core\Arr::column($rows, 'name', { indexBy: 'id' })), '|', "\n";
+
+// 3. 100000 rows that all carry one id. The result keeps the last row alone,
+//    and the 99999 values it passed over are freed.
+array<array<string>> $same = [];
+int $j = 0;
+while ($j < 100000) {
+    $same[] = ['id' => 'one', 'name' => 'n'];
+    $j = $j + 1;
+}
+echo 'step 3: ', Core\Arr::count(Core\Arr::column($same, 'name', { indexBy: 'id' })), '|', "\n";
+
+// 4. No row has the key that `indexBy` names, so every value lands under a
+//    fresh whole number and nothing is lost.
+echo 'step 4: ', Core\Arr::count(Core\Arr::column($rows, 'name', { indexBy: 'gone' })), '|', "\n";
+
+// 5. A key of one million characters that no row has. The result has no
+//    entries, and the key is freed with it.
+array<array<string>> $three = [
+    ['id' => '1', 'name' => 'a'],
+    ['id' => '2', 'name' => 'b'],
+    ['id' => '3', 'name' => 'c'],
+];
+string $wide = Core\Str::repeat('k', 1000000);
+echo 'step 5: ', Core\Arr::count(Core\Arr::column($three, $wide)), '|', "\n";
+
+// 6. Rows with no entries at all give a result with no entries.
+array<array<string>> $empties = [[], [], []];
+echo 'step 6: ', Core\Arr::count(Core\Arr::column($empties, 'name')), '|', "\n";
+
+// 7. The value that `indexBy` names is a number with a fraction, which is not
+//    a key. The program stops here with an error.
+array<array<mixed>> $mistyped = [['id' => 1.5, 'name' => 'n']];
+echo 'step 7: ', Core\Arr::count(Core\Arr::column($mistyped, 'name', { indexBy: 'id' })), '|', "\n";
+
+echo 'this line is never reached', "\n";
