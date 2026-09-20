@@ -2,6 +2,7 @@
 `Core\Json::decodeAs<T>` runs the class's own constructor, and one failed decode reports every bad field at once — ADR 0071 §§ 2, 4 and 5
 --FILE--
 <?nvs
+// covers: lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec
 #[Core\Json\Derive]
 class Row {
     public string $name;

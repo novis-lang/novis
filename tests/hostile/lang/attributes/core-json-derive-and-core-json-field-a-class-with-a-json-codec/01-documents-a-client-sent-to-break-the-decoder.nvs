@@ -1,0 +1,74 @@
+<?nvs
+// Attack: a service reads JSON that a client sent. The documents below are far
+// larger and stranger than any real request. Every decode should build the object
+// or throw an error, and the program must not crash.
+// hostile: timeout-ms 60000
+
+use Core\Json;
+
+#[Core\Json\Derive]
+class Note
+{
+    public string $text;
+    public uint $size;
+
+    public function constructor(string $text, uint $size)
+    {
+        $this->text = $text;
+        $this->size = $size;
+    }
+}
+
+// 1. A string field of one million characters.
+string $huge = Core\Str::repeat('a', 1000000);
+var $long = Json::decodeAs<Note>("{\"text\":\"" . $huge . "\",\"size\":1}");
+echo 'long text: ', Core\Str::length($long->text), "\n";
+
+// 2. Fifty thousand keys the class does not declare. Each one is ignored, and
+//    the decoder still has to read all of them.
+string $noise = '';
+uint $i = 0;
+while ($i < 50000) {
+    $noise = $noise . ",\"k" . $i . "\":" . $i;
+    $i = $i + 1;
+}
+var $ignored = Json::decodeAs<Note>("{\"text\":\"ok\",\"size\":2" . $noise . '}');
+echo 'unknown keys: ', $ignored->text, "\n";
+
+// 3. A hundred thousand open brackets, which is nesting far deeper than any
+//    program writes.
+string $deep = Core\Str::repeat('[', 100000) . Core\Str::repeat(']', 100000);
+try {
+    Json::decodeAs<Note>("{\"text\":\"ok\",\"size\":3,\"extra\":" . $deep . '}');
+    echo "deep: built\n";
+} catch (ParseError $bad) {
+    echo "deep: threw\n";
+}
+
+// 4. A document that stops in the middle of a key.
+try {
+    Json::decodeAs<Note>("{\"text\":\"ok\",\"size\"");
+    echo "truncated: built\n";
+} catch (ParseError $bad) {
+    echo "truncated: threw\n";
+}
+
+// 5. Every field wrong at once, so the decoder collects an issue for each.
+try {
+    Json::decodeAs<Note>("{\"text\":null,\"size\":\"big\"}");
+    echo "all wrong: built\n";
+} catch (ParseError $bad) {
+    echo "all wrong: threw\n";
+}
+
+// 6. Ten thousand decodes of a large document, one after the other, to see
+//    whether the memory each one takes is given back.
+string $body = "{\"text\":\"" . Core\Str::repeat('b', 20000) . "\",\"size\":6}";
+uint $total = 0;
+uint $round = 0;
+while ($round < 10000) {
+    var $note = Json::decodeAs<Note>($body);
+    $total = $total + $note->size;
+    $round = $round + 1;
+}
+echo 'repeated: ', $total, "\n";

@@ -2,6 +2,7 @@
 #[Core\Json\Derive] makes a class encodable from its declared properties, private ones included, in declaration order, with per-field renaming and skipping — `rule:core-classes/derive-attribute` and `rule:core-classes/derive-field-list`
 --FILE--
 <?nvs
+// covers: lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec
 use Core\Json;
 use Core\Json\Field;
 

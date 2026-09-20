@@ -1,0 +1,36 @@
+<?nvs
+// Shows how to turn an object into JSON text. `#[Core\Json\Derive]` on a class
+// gives it an encoder, so `Core\Json::encode` accepts its instances.
+
+use Core\Json;
+
+#[Core\Json\Derive]
+class Point {
+    public int $x;
+    public int $y;
+
+    // Every field is a constructor parameter of the same name and type.
+    public function constructor(int $x, int $y) {
+        $this->x = $x;
+        $this->y = $y;
+    }
+}
+
+// The keys are the declared properties, in the order they are written.
+// This prints {"x":3,"y":4}.
+echo Json::encode(new Point(3, 4)), "\n";
+
+#[Core\Json\Derive]
+class Line {
+    public Point $from;
+    public Point $to;
+
+    public function constructor(Point $from, Point $to) {
+        $this->from = $from;
+        $this->to = $to;
+    }
+}
+
+// A field whose type is another class with the attribute is encoded inside the
+// same document. This prints {"from":{"x":0,"y":0},"to":{"x":3,"y":4}}.
+echo Json::encode(new Line(new Point(0, 0), new Point(3, 4))), "\n";

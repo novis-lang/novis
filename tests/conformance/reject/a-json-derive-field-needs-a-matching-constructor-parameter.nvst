@@ -2,6 +2,7 @@
 a `#[Json\Derive]` field must be a constructor parameter of the same name and the same type, because a decode is an ordinary `new` — `rule:core-classes/derive-field-list`
 --FILE--
 <?nvs
+// covers: lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec
 #[Core\Json\Derive]
 class User {
     public string $name;
@@ -17,9 +18,9 @@ echo "unreachable\n";
 
 --EXPECTF-ERROR--
 error[E0460]: `$name` is a `#[Json\Derive]` field with no constructor parameter
-  --> case.nvs:4:19
+  --> case.nvs:5:19
 %A
 error[E0461]: `$age` is declared `int` but its constructor parameter is `string`
-  --> case.nvs:5:16
+  --> case.nvs:6:16
 %A
 error: aborting due to 2 errors

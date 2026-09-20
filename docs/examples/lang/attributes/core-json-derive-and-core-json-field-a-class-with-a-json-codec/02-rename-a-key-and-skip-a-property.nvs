@@ -1,0 +1,36 @@
+<?nvs
+// Shows how to control the keys of a JSON document. `#[Core\Json\Field]` has two
+// options. `name:` writes a property under a different key, and `skip: true`
+// leaves it out of the document.
+
+use Core\Json;
+use Core\Json\Field;
+
+#[Core\Json\Derive]
+class Article {
+    public string $title;
+
+    // The document says `published_at`, and your code says `$publishedAt`.
+    #[Field(name: "published_at")]
+    public string $publishedAt;
+
+    // A skipped property is not a field. It needs no constructor parameter, and
+    // it never appears in the document.
+    #[Field(skip: true)]
+    public uint $viewCount;
+
+    public function constructor(string $title, string $publishedAt) {
+        $this->title = $title;
+        $this->publishedAt = $publishedAt;
+        $this->viewCount = 0;
+    }
+}
+
+// This prints {"title":"Novis 1.0","published_at":"2026-03-01"}.
+echo Json::encode(new Article("Novis 1.0", "2026-03-01")), "\n";
+
+// Both options apply to a decode as well. The document uses the new key, and the
+// skipped property gets the value the constructor gives it. This prints
+// `2026-03-01 0`.
+var $article = Json::decodeAs<Article>("{\"title\":\"Novis 1.0\",\"published_at\":\"2026-03-01\"}");
+echo $article->publishedAt, " ", $article->viewCount, "\n";

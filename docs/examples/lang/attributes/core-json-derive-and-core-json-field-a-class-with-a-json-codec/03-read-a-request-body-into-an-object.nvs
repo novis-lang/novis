@@ -1,0 +1,51 @@
+<?nvs
+// Shows how to read a JSON request body into an object. `Core\Json::decodeAs`
+// checks the whole document and then calls the class constructor. A bad document
+// throws a `ParseError` that lists every bad field at once.
+
+use Core\Json;
+use Core\Json\Field;
+
+#[Core\Json\Derive]
+class Address {
+    public string $city;
+
+    public function constructor(string $city) {
+        $this->city = $city;
+    }
+}
+
+#[Core\Json\Derive]
+class Signup {
+    public string $email;
+    public uint $age;
+    #[Field(name: "accepts_mail")]
+    public bool $acceptsMail;
+    public Address $address;
+
+    public function constructor(string $email, uint $age, bool $acceptsMail, Address $address) {
+        $this->email = $email;
+        $this->age = $age;
+        $this->acceptsMail = $acceptsMail;
+        $this->address = $address;
+    }
+}
+
+string $body = "{\"email\":\"ada@example.com\",\"age\":36,\"accepts_mail\":true,"
+    . "\"address\":{\"city\":\"london\"},\"sent_at\":\"today\"}";
+
+// A key the class does not declare is ignored, so `sent_at` changes nothing.
+// This prints `ada@example.com lives in london`.
+var $signup = Json::decodeAs<Signup>($body);
+echo $signup->email, " lives in ", $signup->address->city, "\n";
+
+// Now a body that the client got wrong. The decode builds nothing and throws.
+try {
+    Json::decodeAs<Signup>("{\"email\":\"ada@example.com\",\"age\":\"old\",\"address\":{}}");
+} catch (ParseError $bad) {
+    // Each issue names the key it is about. A key inside `address` is written
+    // with the path that reaches it, as `address.city`.
+    foreach ($bad->issues as {path: string, message: string} $issue) {
+        echo $issue->path, ": ", $issue->message, "\n";
+    }
+}

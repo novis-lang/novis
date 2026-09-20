@@ -1,0 +1,33 @@
+<?nvs
+// Measures encoding one small object as JSON, which a web service does for every
+// response it sends.
+// bench: iterations 200000
+
+#[Core\Json\Derive]
+class Price {
+    public uint $cents;
+    public string $currency;
+
+    public function constructor(uint $cents, string $currency) {
+        $this->cents = $cents;
+        $this->currency = $currency;
+    }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $currencies = ["EUR", "USD", "GBP"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the price encoded this round is built from the length
+            // counted in the round before.
+            string $document = Core\Json::encode(new Price($total % 1000, $currencies[$total % 3]));
+            $total = $total + Core\Str::length($document);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";
