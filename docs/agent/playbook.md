@@ -6297,6 +6297,18 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   loop passes no statement boundary, so the breach is read only where the member returns. Time such
   a step by hand, and where it does not end ask `nvs_runtime::affordable` per entry the way
   `nvs_runtime::sequence::drain` does. [until: reviewed 2026-09-20]
+- **A proof program that adds a counting member's `uint` answer into an `int` accumulator does not
+  compile, and the hostile sweep reports the whole file as `never ran`.** `Core\Arr::count` returns
+  `uint`, and `E0407` refuses `int + uint` outright, so an attack whose accumulator is the usual
+  `int $seen = 0` loses every step it had rather than one line. Declare the accumulator `uint` the
+  moment anything in the sum came from a member that counts, and read a red hostile case's message
+  before deciding the attack itself is wrong. [until: reviewed 2026-09-20]
+
+- **Indexing an `array<mixed>` gives `mixed`, so a case that walks a nested structure needs
+  `as array<mixed>` on every step down.** `$node = $node["next"];` is `E0401` — `mixed` is not
+  `array<mixed>` — which makes a depth-counting assertion look impossible to write from Novis when
+  it is one cast away. Write `$node = $node["next"] as array<mixed>;`, and reach for it whenever a
+  case descends what it built with `$node = ["next" => $node];`. [until: reviewed 2026-09-20]
 
 ## Splitting a file that got too big
 
