@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to drop the fields a form sent that your program does not know.
+// The `on` option says which part of an entry is compared.
+
+array<string> $submitted = ["name" => "Ada", "email" => "ada@example.com", "isAdmin" => "yes"];
+
+// Only the keys of this array are used. The values are never compared, so
+// empty text is enough.
+array<string> $known = ["name" => "", "email" => ""];
+
+// `name` and `email` are left, with the values the form sent. `isAdmin` is
+// gone, because it is not a key the second array has.
+array<string> $clean = Core\Arr::intersect($submitted, $known, {on: Core\SetOn::Keys});
+echo Core\Json::encode($clean), "\n";

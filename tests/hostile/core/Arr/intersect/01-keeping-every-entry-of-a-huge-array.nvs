@@ -1,0 +1,46 @@
+<?nvs
+// Attack: a program intersects two arrays that are entirely the same, so every
+// entry is kept, and it keeps every result. The last step should stop at the
+// memory limit with an error, and the program must not crash.
+// hostile: timeout-ms 20000
+// hostile: ends-early
+
+// 1. Nothing at all, on both sides.
+echo Core\Arr::count(Core\Arr::intersect([], [])), "\n";
+
+// 2. The number 3 and the text "3". They are different values, so nothing is
+// in both arrays and the result is empty.
+array<string|int> $spelled = ['3', '4'];
+array<string|int> $numbers = [3, 4];
+echo Core\Arr::count(Core\Arr::intersect($spelled, $numbers)), "\n";
+
+// 3. An array compared with itself. Every entry is in both, so the result is
+// as large as the array, and nothing may be freed while it is still read.
+array<int> $wide = Core\Arr::range(1, 10000);
+echo Core\Arr::count(Core\Arr::intersect($wide, $wide)), "\n";
+
+// 4. A comparator that says no pair is ever the same. The comparator replaces
+// the comparison, so it runs once for every pair: 500 times 500 calls here.
+array<int> $left = Core\Arr::range(1, 500);
+array<int> $right = Core\Arr::range(1, 500);
+echo Core\Arr::count(Core\Arr::intersect($left, $right, {
+    comparator: fn(int $a, int $b): int => 1,
+})), "\n";
+
+// 5. A `by` function answers the same text for every entry. All ten thousand
+// entries are then compared as one value, and all of them are kept.
+echo Core\Arr::count(Core\Arr::intersect($wide, $left, {
+    by: fn(int $value): string => 'same',
+})), "\n";
+
+// 6. Two lists of one million numbers, with the same numbers in both. Keeping
+// every result needs more memory than the program has, so it stops here.
+array<int> $huge = Core\Arr::range(1, 1000000);
+array<int> $same = Core\Arr::range(1, 1000000);
+array<array<int>> $kept = [];
+uint $k = 0;
+while ($k < 1000) {
+    $kept[] = Core\Arr::intersect($huge, $same);
+    $k = $k + 1;
+}
+echo "kept all\n";

@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to find the values that two lists have in common.
+
+array<string> $needed = ["read", "write", "publish"];
+array<string> $granted = ["read", "publish", "archive"];
+
+// "read" and "publish" are in both lists. Each one keeps the key it had in the
+// first list, so the keys here are 0 and 2.
+array<string> $allowed = Core\Arr::intersect($needed, $granted);
+echo Core\Json::encode($allowed), "\n";

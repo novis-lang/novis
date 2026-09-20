@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to find the settings a user did not change, so that a program can
+// save only the new values.
+
+array<string> $saved = ["theme" => "dark", "language" => "en", "fontSize" => "14"];
+array<string> $submitted = ["theme" => "dark", "language" => "de", "fontSize" => "16"];
+
+// `Core\SetOn::Both` compares the key and the value together. Only `theme`
+// has the same value in both arrays, so it is the one setting that is kept.
+array<string> $unchanged = Core\Arr::intersect($saved, $submitted, {on: Core\SetOn::Both});
+echo Core\Json::encode($unchanged), "\n";
