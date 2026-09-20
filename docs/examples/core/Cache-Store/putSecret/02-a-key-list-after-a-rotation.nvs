@@ -1,0 +1,30 @@
+<?nvs
+// Shows how a key list lets you replace a key without losing the secrets the
+// old key sealed.
+
+secret bytes $newKey = Core\Crypto::generateKey();
+secret bytes $oldKey = Core\Crypto::generateKey();
+
+var $cache = Core\Cache::local();
+secret string $password = "s3cr3t-db-pass";
+
+// Before the rotation the program has one key, so that key seals the entry.
+array<secret bytes> $before = [$oldKey];
+$cache->putSecret("db-password", $password, 30m, $before);
+
+// After the rotation the new key is first and the old key stays in the list.
+// So this prints the old entry still opens.
+array<secret bytes> $after = [$newKey, $oldKey];
+echo ($cache->getSecret("db-password", $after) ?? "") == $password
+    ? "the old entry still opens"
+    : "the old entry is gone", "\n";
+
+// Every new write seals with the first key of the list.
+$cache->putSecret("db-password", $password, 30m, $after);
+
+// Once every entry has been written again you can drop the old key. This
+// prints the new key alone opens it.
+array<secret bytes> $newOnly = [$newKey];
+echo ($cache->getSecret("db-password", $newOnly) ?? "") == $password
+    ? "the new key alone opens it"
+    : "the new key alone does not open it", "\n";
