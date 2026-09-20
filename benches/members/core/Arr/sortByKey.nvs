@@ -1,0 +1,24 @@
+<?nvs
+// Puts a small table of scores in the order of its keys, as a page does before
+// it shows the table to somebody.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<uint> $scores = ['carol' => 3, 'alice' => 1, 'bob' => 2];
+        array<string> $picks = ['alice', 'bob', 'carol'];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            array<uint> $ordered = Core\Arr::sortByKey($scores);
+            // Last round's total decides which score this round reads, so no
+            // round can be reused.
+            $total = $total + $ordered[$picks[$total % 3]];
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

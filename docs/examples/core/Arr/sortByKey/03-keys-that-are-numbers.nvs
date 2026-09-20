@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to order keys as numbers. Keys are text, so `9` comes after `10`
+// without a comparator, and a page number needs the other order.
+
+array<string> $pages = ['10' => 'Index', '9' => 'Summary', '100' => 'Notes'];
+
+// The comparator is given two keys. `as int` reads each key as a whole number,
+// and the subtraction is negative when the first number is the smaller one.
+array<string> $byNumber = Core\Arr::sortByKey($pages, {
+    comparator: fn(string $a, string $b): int => ($a as int) - ($b as int),
+});
+
+// This prints 9, 10 and 100, with the title of each page.
+foreach ($byNumber as string $page => string $title) {
+    echo $page, ': ', $title, "\n";
+}

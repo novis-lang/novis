@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to read the entries from the last key to the first. A report does
+// this to show the newest day at the top.
+
+array<int> $visitsByDay = [
+    '2026-03-01' => 120,
+    '2026-03-03' => 96,
+    '2026-03-02' => 145,
+];
+
+// A day written as 2026-03-01 sorts by its characters in the same order as by
+// date, so `Core\Order::Desc` gives the newest day first.
+array<int> $newestFirst = Core\Arr::sortByKey($visitsByDay, {order: Core\Order::Desc});
+
+// This prints 2026-03-03, then 2026-03-02, then 2026-03-01.
+foreach ($newestFirst as string $day => int $visits) {
+    echo $day, ': ', $visits, "\n";
+}

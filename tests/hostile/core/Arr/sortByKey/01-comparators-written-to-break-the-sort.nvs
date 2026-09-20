@@ -1,0 +1,101 @@
+<?nvs
+// Attack: `Core\Arr::sortByKey` can be given a function that decides the order
+// of two keys, and it calls that function many times for one array. Each step
+// below gives it a function written to break the sort. Every step should
+// finish, and the runtime must not crash.
+// hostile: timeout-ms 60000
+
+class Attack
+{
+    public static uint $calls = 0;
+    public static bool $flip = false;
+    public static uint $depth = 0;
+
+    // Throws on the third pair it is shown.
+    public static function refuse(string $a, string $b): int
+    {
+        Attack::$calls = Attack::$calls + 1;
+        if (Attack::$calls > 2) {
+            throw new LogicError('no');
+        }
+        return 0;
+    }
+
+    // Answers a number with no order at all.
+    public static function withoutOrder(string $a, string $b): float
+    {
+        return Core\Math::sqrt(-1.0);
+    }
+
+    // Contradicts itself: the same pair gets the opposite answer next time.
+    public static function contradict(string $a, string $b): int
+    {
+        Attack::$flip = !Attack::$flip;
+        return Attack::$flip ? 1 : -1;
+    }
+
+    // Sorts an array of its own with the same function, until the runtime stops
+    // it.
+    public static function deeper(string $a, string $b): int
+    {
+        Attack::$depth = Attack::$depth + 1;
+        array<int> $inner = ['b' => 1, 'a' => 2];
+        array<int> $sorted = Core\Arr::sortByKey($inner, { comparator: Attack::deeper(...) });
+        return Core\Arr::isEmpty($sorted) ? 0 : 1;
+    }
+}
+
+array<int> $keys = ['d' => 4, 'b' => 2, 'a' => 1, 'c' => 3];
+
+// 1. The function throws on the third pair. The sort is half done and is thrown
+// away. The error is caught, and nothing of it is left behind.
+try {
+    array<int> $half = Core\Arr::sortByKey($keys, { comparator: Attack::refuse(...) });
+    echo 'step 1: ', Core\Arr::count($half), "\n";
+} catch (LogicError $refused) {
+    echo 'step 1: threw', "\n";
+}
+
+// 2. The function answers a number that is not smaller, equal or greater, which
+// the sort refuses. That error is caught too.
+try {
+    array<int> $unordered = Core\Arr::sortByKey($keys, { comparator: Attack::withoutOrder(...) });
+    echo 'step 2: ', Core\Arr::count($unordered), "\n";
+} catch (RuntimeError $refusedAgain) {
+    echo 'step 2: threw', "\n";
+}
+
+// 3. The function contradicts itself, so there is no order to find. The sort
+// has to finish anyway, with every entry still in the result.
+array<int> $confused = Core\Arr::sortByKey($keys, { comparator: Attack::contradict(...) });
+echo 'step 3: ', Core\Arr::count($confused), "\n";
+
+// 4. The function sorts an array of its own, as deeply as it can. The runtime
+// stops it at its recursion limit, and that error is caught.
+try {
+    array<int> $nested = Core\Arr::sortByKey($keys, { comparator: Attack::deeper(...) });
+    echo 'step 4: ', Core\Arr::count($nested), "\n";
+} catch (RecursionError $stopped) {
+    echo 'step 4: stopped after ', Attack::$depth, ' calls', "\n";
+}
+
+// 5. 200000 keys, given to the sort in the opposite order.
+array<int> $many = [];
+int $i = 200000;
+while ($i > 0) {
+    $many[Core\Str::format('%d', $i)] = $i;
+    $i = $i - 1;
+}
+echo 'step 5: ', Core\Arr::count(Core\Arr::sortByKey($many)), "\n";
+
+// 6. One key of a million characters is compared against ordinary ones.
+array<int> $wide = ['a' => 1];
+$wide[Core\Str::repeat('k', 1000000)] = 2;
+$wide['z'] = 3;
+echo 'step 6: ', Core\Arr::count(Core\Arr::sortByKey($wide)), "\n";
+
+// 7. An array with no entries gives an array with no entries.
+array<int> $empty = [];
+echo 'step 7: ', Core\Arr::count(Core\Arr::sortByKey($empty)), "\n";
+
+echo 'the runtime is still standing', "\n";
