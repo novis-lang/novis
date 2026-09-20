@@ -3399,8 +3399,7 @@ mod tests {
     /// alike — so the last path segment is what is asked about.
     #[test]
     fn every_reflect_info_class_the_record_names_is_registered() {
-        let record =
-            std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/decisions/0019.md");
+        let record = nvs_repo::path("docs/decisions/0019.md");
         let text = std::fs::read_to_string(&record)
             .unwrap_or_else(|err| panic!("{}: {err}", record.display()));
         let section = text

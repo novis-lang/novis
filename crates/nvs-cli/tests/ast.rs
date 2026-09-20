@@ -294,31 +294,30 @@ fn span_of(node: &Value) -> [usize; 2] {
 
 /// Every node under `node`, itself excluded, in no particular order.
 fn subtree(node: &Value) -> Vec<&Value> {
-    let mut out = Vec::new();
-    let mut stack = vec![node];
-    while let Some(next) = stack.pop() {
-        for child in next["children"]
+    fn descend<'a>(node: &'a Value, out: &mut Vec<&'a Value>) {
+        for child in node["children"]
             .as_array()
             .expect("every node has a `children`")
         {
             out.push(child);
-            stack.push(child);
+            descend(child, out);
         }
     }
+
+    let mut out = Vec::new();
+    descend(node, &mut out);
     out
 }
 
-/// `examples/<name>`, from this crate rather than from the shell's directory.
+/// `examples/<name>` under the repository root, whatever the shell's directory is.
 fn example(name: &str) -> PathBuf {
-    [env!("CARGO_MANIFEST_DIR"), "..", "..", "examples", name]
-        .iter()
-        .collect()
+    nvs_repo::path("examples").join(name)
 }
 
 /// Every `*.nvs` under `examples/`, sorted, subdirectories included.
 fn examples() -> Vec<PathBuf> {
     let mut out = Vec::new();
-    collect_examples(&example(""), &mut out);
+    collect_examples(&nvs_repo::path("examples"), &mut out);
     out.sort();
     out
 }

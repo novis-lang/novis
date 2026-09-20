@@ -21,11 +21,6 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// This repository's root — the directory holding the workspace manifest.
-fn workspace_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
-}
-
 /// Read a file this test knows must exist, or fail naming it.
 fn read(path: &Path) -> String {
     fs::read_to_string(path).unwrap_or_else(|err| panic!("{}: {err}", path.display()))
@@ -37,7 +32,7 @@ fn read(path: &Path) -> String {
 /// prose names `overflow-checks` several times while explaining why it is on,
 /// so a search over the raw text would still pass with the setting deleted.
 fn release_profile() -> String {
-    let path = workspace_root().join("Cargo.toml");
+    let path = nvs_repo::path("Cargo.toml");
     let text = read(&path);
 
     let mut lines = text
@@ -99,15 +94,17 @@ fn manifest_code() -> Vec<(PathBuf, usize, String)> {
         }
     }
 
+    // The whole tree, because a manifest may sit in any directory of it.
+    let root = nvs_repo::root();
     let mut paths = Vec::new();
-    walk(&workspace_root(), &mut paths);
+    walk(&root, &mut paths);
     paths.sort();
     assert!(
         paths.len() > 10,
         "found only {} manifest(s) under {} — this walk stopped finding the crates rather than \
          the tree losing them",
         paths.len(),
-        workspace_root().display()
+        root.display()
     );
 
     paths
@@ -133,7 +130,7 @@ fn manifest_code() -> Vec<(PathBuf, usize, String)> {
 /// at all, and it is also why the assertion is written over `tokio`'s *own*
 /// dependency list rather than over a feature string that is not in the file.
 fn locked_packages() -> Vec<(String, Vec<String>)> {
-    let path = workspace_root().join("Cargo.lock");
+    let path = nvs_repo::path("Cargo.lock");
     let text = read(&path);
 
     text.split("[[package]]")

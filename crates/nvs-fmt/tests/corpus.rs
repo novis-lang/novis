@@ -24,11 +24,6 @@ use nvs_diagnostics::SourceMap;
 use nvs_fmt::format;
 use nvs_syntax::walk::{self, Field, Node};
 
-/// The repository root, from this crate's manifest.
-fn repo_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
-}
-
 /// Every `.nvs` file under `dir`, appended to `out`.
 fn collect(dir: &Path, out: &mut Vec<PathBuf>) {
     let Ok(entries) = std::fs::read_dir(dir) else {
@@ -46,10 +41,9 @@ fn collect(dir: &Path, out: &mut Vec<PathBuf>) {
 
 /// Every corpus file, sorted, so a failure names the same file on every machine.
 fn corpus() -> Vec<PathBuf> {
-    let root = repo_root();
     let mut paths = Vec::new();
-    collect(&root.join("examples"), &mut paths);
-    collect(&root.join("tests"), &mut paths);
+    collect(&nvs_repo::path("examples"), &mut paths);
+    collect(&nvs_repo::path("tests"), &mut paths);
     paths.sort();
     paths
 }

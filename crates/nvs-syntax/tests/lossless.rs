@@ -25,11 +25,6 @@ use std::thread;
 use nvs_diagnostics::{Diagnostics, SourceFile, SourceMap};
 use nvs_syntax::{Lexer, TokenKind};
 
-/// The repository root, from this crate's manifest.
-fn repo_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
-}
-
 /// Every file under `dir` whose extension is in `exts`, sorted, so a failure
 /// names the same file on every machine.
 fn collect(dir: &Path, exts: &[&str], out: &mut Vec<PathBuf>) {
@@ -169,11 +164,12 @@ fn holes_in(paths: &[PathBuf], to_source: impl Fn(&str) -> Option<String> + Sync
 
 #[test]
 fn tokens_and_trivia_reproduce_every_corpus_file_byte_for_byte() {
-    let root = repo_root();
+    let examples = nvs_repo::path("examples");
+    let tests = nvs_repo::path("tests");
 
     let mut novis = Vec::new();
-    collect(&root.join("examples"), &["nvs"], &mut novis);
-    collect(&root.join("tests"), &["nvs"], &mut novis);
+    collect(&examples, &["nvs"], &mut novis);
+    collect(&tests, &["nvs"], &mut novis);
     novis.sort();
     assert!(
         novis.len() > 50,
@@ -182,7 +178,7 @@ fn tokens_and_trivia_reproduce_every_corpus_file_byte_for_byte() {
     );
 
     let mut cases = Vec::new();
-    collect(&root.join("tests"), &["nvst"], &mut cases);
+    collect(&tests, &["nvst"], &mut cases);
     cases.sort();
     assert!(
         cases.len() > 100,

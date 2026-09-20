@@ -159,8 +159,11 @@ crates/             the Cargo workspace
   nvs-cli           the `nvs` binary  [audited unsafe]
   nvs-test          the `.nvst` conformance format and its runner
   nvs-lsp           `nvs lsp` — the Novis language server
+  nvs-fmt           `nvs fmt` — the Novis formatter
+  nvs-repo          how a test reaches a file outside its own package, recorded (dev-only)
 benches/
   abi-probe         architecture invariants + cost baselines  [audited unsafe]
+  serve-probe       the load generator of the server's throughput leg
   userland          the same program in Novis and in PHP, for `tools/bench.py`
   members           per-`Core`-member figures, and their calibration
   serve             the request-path pair the server comparison runs

@@ -14,10 +14,15 @@ use std::process::Command;
 
 /// The fixture `rule:routing/routes-are-compiled-not-registered`'s route table already uses: three routes over two
 /// paths, one of them capturing a `uint`.
-const ROUTES: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../examples/routes.nvs");
+const ROUTES: &str = "examples/routes.nvs";
 
 /// A program with no `#[Route]` anywhere in it.
-const HELLO: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../examples/hello.nvs");
+const HELLO: &str = "examples/hello.nvs";
+
+/// The path of `relative`, which is written from the repository root, as the argument `nvs` takes.
+fn in_repo(relative: &str) -> String {
+    nvs_repo::path(relative).display().to_string()
+}
 
 /// `nvs build --openapi <file>`, as `(stdout, stderr, success)`.
 fn build(file: &str) -> (String, String, bool) {
@@ -37,7 +42,7 @@ fn build(file: &str) -> (String, String, bool) {
 /// `operationId` its `name` gave it.
 #[test]
 fn an_openapi_document_names_every_route_of_the_fixture_once() {
-    let (doc, _, ok) = build(ROUTES);
+    let (doc, _, ok) = build(&in_repo(ROUTES));
     assert!(ok, "the fixture compiles, so the emitter runs");
 
     assert!(
@@ -74,8 +79,8 @@ fn an_openapi_document_names_every_route_of_the_fixture_once() {
 /// a hash map in the emitter, and this is what would catch one.
 #[test]
 fn an_openapi_document_is_byte_identical_across_two_emissions() {
-    let (first, _, ok) = build(ROUTES);
-    let (second, _, _) = build(ROUTES);
+    let (first, _, ok) = build(&in_repo(ROUTES));
+    let (second, _, _) = build(&in_repo(ROUTES));
     assert!(ok, "the fixture compiles");
     assert_eq!(first, second, "the emitter is not deterministic");
 }
@@ -85,7 +90,7 @@ fn an_openapi_document_is_byte_identical_across_two_emissions() {
 /// is not a failure.
 #[test]
 fn a_program_declaring_no_route_emits_no_document() {
-    let (doc, err, ok) = build(HELLO);
+    let (doc, err, ok) = build(&in_repo(HELLO));
     assert!(ok, "nothing to emit is not a failure: {err}");
     assert!(
         doc.is_empty(),
@@ -99,8 +104,8 @@ fn a_program_declaring_no_route_emits_no_document() {
 /// partial one is worse than none.
 #[test]
 fn a_program_with_a_diagnostic_emits_no_document() {
-    let missing = concat!(env!("CARGO_MANIFEST_DIR"), "/../../examples/nope.nvs");
-    let (doc, _, ok) = build(missing);
+    let missing = in_repo("examples/nope.nvs");
+    let (doc, _, ok) = build(&missing);
     assert!(!ok, "a file that cannot be read is a failure");
     assert!(doc.is_empty(), "and writes no document: {doc}");
 }

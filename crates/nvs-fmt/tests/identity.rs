@@ -21,11 +21,6 @@ use std::path::{Path, PathBuf};
 use nvs_diagnostics::SourceMap;
 use nvs_fmt::format;
 
-/// The repository root, from this crate's manifest.
-fn repo_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
-}
-
 /// Every `.nvs` file under `dir`, sorted, so a failure names the same file on
 /// every machine.
 fn collect(dir: &Path, out: &mut Vec<PathBuf>) {
@@ -44,15 +39,15 @@ fn collect(dir: &Path, out: &mut Vec<PathBuf>) {
 
 #[test]
 fn the_identity_printer_reproduces_every_corpus_file() {
-    let root = repo_root();
+    let tests = nvs_repo::path("tests");
     let mut corpus = Vec::new();
-    collect(&root.join("examples"), &mut corpus);
-    collect(&root.join("tests"), &mut corpus);
+    collect(&nvs_repo::path("examples"), &mut corpus);
+    collect(&tests, &mut corpus);
     // Every pair's input half is wrong about a rule on purpose, and the frozen
     // half beside it is the claim about what it formats to
     // (`crates/nvs-fmt/tests/fixtures.rs`). The frozen half stays in: it is a
     // corpus file like any other, and a rule that moves it moves it here too.
-    let unformatted_on_purpose = root.join("tests").join("fmt").join("input");
+    let unformatted_on_purpose = tests.join("fmt").join("input");
     corpus.retain(|path| !path.starts_with(&unformatted_on_purpose));
     corpus.sort();
 

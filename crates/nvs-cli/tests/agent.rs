@@ -59,9 +59,7 @@ fn primer() -> String {
 /// from — which is what makes the marking test a guard rather than a copy of
 /// what the marking happens to be today.
 fn chapter(relative: &str) -> String {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../docs/reference")
-        .join(relative);
+    let path = nvs_repo::path(&format!("docs/reference/{relative}"));
     std::fs::read_to_string(&path).unwrap_or_else(|_| panic!("{} is readable", path.display()))
 }
 

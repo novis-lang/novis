@@ -617,12 +617,10 @@ const CREDENTIAL_FIELDS: &[&str] = &[
 /// with no runtime field roster, and the whole point of this census is to catch a field that was
 /// added without the row that reads it.
 fn tree_structs() -> Vec<(String, Vec<String>)> {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/tree.rs");
-    let text =
-        std::fs::read_to_string(&path).unwrap_or_else(|err| panic!("{}: {err}", path.display()));
+    const TREE: &str = include_str!("../src/tree.rs");
 
     let mut out: Vec<(String, Vec<String>)> = Vec::new();
-    for line in text.lines() {
+    for line in TREE.lines() {
         if let Some(rest) = line.strip_prefix("pub struct ") {
             let name = rest
                 .split(|ch: char| !ch.is_alphanumeric() && ch != '_')

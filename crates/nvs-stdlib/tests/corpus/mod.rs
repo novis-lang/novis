@@ -61,7 +61,7 @@ pub(crate) fn mentions(haystack: &str, needle: &str) -> bool {
 /// concatenated because the gates over this count *cases*, not occurrences,
 /// and every one of them reads the same corpus.
 pub(crate) fn sources() -> Vec<String> {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/conformance");
+    let root = nvs_repo::path("tests/conformance");
     let mut paths = Vec::new();
     cases(&root, &mut paths);
     assert!(

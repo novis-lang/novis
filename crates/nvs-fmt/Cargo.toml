@@ -19,5 +19,9 @@ nvs-diagnostics.workspace = true
 # file.
 nvs-syntax.workspace = true
 
+[dev-dependencies]
+# How this crate's tests reach files outside the package.
+nvs-repo.workspace = true
+
 [lints]
 workspace = true

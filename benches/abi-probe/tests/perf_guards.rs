@@ -940,7 +940,7 @@ fn a_route_table_walk_costs_a_fraction_of_the_request_it_rides_in() {
 /// Compiles `examples/arith.nvs` and returns its lowered program alongside the
 /// compiled unit.
 fn compile_arith() -> (nvs_ir::Program, nvs_codegen::Unit) {
-    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../examples/arith.nvs");
+    let path = nvs_repo::path("examples/arith.nvs");
     let text = std::fs::read_to_string(path).expect("the frozen acceptance fixture is readable");
     compile_source("arith.nvs", &text)
 }
@@ -1174,10 +1174,7 @@ fn a_typed_arithmetic_loop_stays_in_the_native_cost_class() {
 /// drift apart, and then the number in `docs/perf/members.ndjson` is no longer
 /// the number this test protects.
 fn compile_decimal_arith() -> nvs_codegen::Unit {
-    let path = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../members/lang/types/numbers-bool-int-uint-float-decimal.nvs"
-    );
+    let path = nvs_repo::path("benches/members/lang/types/numbers-bool-int-uint-float-decimal.nvs");
     let text = std::fs::read_to_string(path).expect("the bench program is readable");
     compile_source("numbers-bool-int-uint-float-decimal.nvs", &text).1
 }

@@ -26,7 +26,6 @@
 )]
 
 use std::panic::{self, AssertUnwindSafe};
-use std::process::Command;
 
 use cranelift::prelude::*;
 use cranelift_jit::{JITBuilder, JITModule};
@@ -59,8 +58,9 @@ fn native_unwinding_through_jit_frames_is_still_unavailable() {
         return;
     }
 
+    // The child is this same binary, and its half of the test opens no file in the tree.
     let exe = std::env::current_exe().expect("cannot locate the test binary");
-    let output = Command::new(&exe)
+    let output = nvs_repo::spawn(&exe, &[])
         .args([TEST_NAME, "--exact", "--nocapture", "--test-threads=1"])
         .env(CHILD_ENV, "1")
         .output()

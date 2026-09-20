@@ -17,14 +17,14 @@
 //! cursor rows and a weaker one over the document-wide rows, and
 //! `Request::takes_cursor` is the only thing that decides which a request is in.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use nvs_lsp::suite::{self, Report};
 use nvs_lsp::{Request, coverage::Matrix};
 
-/// The corpus, from this crate's manifest — two levels up is the repository.
+/// The corpus: `tests/lsp` under the repository root.
 fn corpus() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/lsp")
+    nvs_repo::path("tests/lsp")
 }
 
 /// Every construct any case reached, and the matrix it was read off.

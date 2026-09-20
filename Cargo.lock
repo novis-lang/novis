@@ -2174,6 +2174,7 @@ dependencies = [
  "nvs-host",
  "nvs-ir",
  "nvs-render",
+ "nvs-repo",
  "nvs-runtime",
  "nvs-stdlib",
  "nvs-syntax",
@@ -2201,6 +2202,7 @@ dependencies = [
  "nvs-ir",
  "nvs-lsp",
  "nvs-render",
+ "nvs-repo",
  "nvs-runtime",
  "nvs-server",
  "nvs-stdlib",
@@ -2247,6 +2249,7 @@ dependencies = [
  "libc",
  "nvs-diagnostics",
  "nvs-render",
+ "nvs-repo",
  "serde",
  "toml",
  "windows-sys 0.61.2",
@@ -2283,6 +2286,7 @@ name = "nvs-fmt"
 version = "0.0.1"
 dependencies = [
  "nvs-diagnostics",
+ "nvs-repo",
  "nvs-syntax",
 ]
 
@@ -2324,6 +2328,7 @@ dependencies = [
  "nvs-diagnostics",
  "nvs-hir",
  "nvs-render",
+ "nvs-repo",
  "nvs-syntax",
  "nvs-types",
  "rustc-hash",
@@ -2337,6 +2342,7 @@ dependencies = [
  "lsp-types",
  "nvs-diagnostics",
  "nvs-hir",
+ "nvs-repo",
  "nvs-stdlib",
  "nvs-syntax",
  "nvs-test",
@@ -2354,6 +2360,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "nvs-repo"
+version = "0.0.1"
+
+[[package]]
 name = "nvs-runtime"
 version = "0.0.1"
 dependencies = [
@@ -2364,6 +2374,7 @@ dependencies = [
  "libc",
  "nvs-config",
  "nvs-render",
+ "nvs-repo",
  "rand",
  "subtle",
  "toml",
@@ -2430,6 +2441,7 @@ dependencies = [
  "nvs-diagnostics",
  "nvs-host",
  "nvs-render",
+ "nvs-repo",
  "nvs-runtime",
  "nvs-syntax",
  "nvs-test",
@@ -2463,6 +2475,7 @@ dependencies = [
  "insta",
  "nvs-diagnostics",
  "nvs-render",
+ "nvs-repo",
 ]
 
 [[package]]
@@ -2476,6 +2489,7 @@ dependencies = [
  "nvs-config",
  "nvs-diagnostics",
  "nvs-hir",
+ "nvs-repo",
  "nvs-stdlib",
  "nvs-syntax",
  "rustc-hash",

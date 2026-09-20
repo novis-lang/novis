@@ -27,6 +27,8 @@ wasmtime = { workspace = true, optional = true }
 
 [dev-dependencies]
 criterion.workspace = true
+# How this crate's tests reach files outside the package.
+nvs-repo.workspace = true
 # The typed-arithmetic-loop guards in `tests/perf_guards.rs` compile
 # `examples/arith.nvs` through the real pipeline: ADR 0007's "mandatory types
 # pay for themselves" is a claim about what the *compiler* emits, so a

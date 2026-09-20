@@ -37,16 +37,14 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use nvs_stdlib::php_names::{CANDIDATES, Candidate, Destination, Item, Kind, Outcome};
 use nvs_stdlib::registry;
 
 /// One path under the workspace root, read.
 fn read(relative: &str) -> String {
-    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../..")
-        .join(relative);
+    let path = nvs_repo::path(relative);
     fs::read_to_string(&path).unwrap_or_else(|err| panic!("{}: {err}", path.display()))
 }
 

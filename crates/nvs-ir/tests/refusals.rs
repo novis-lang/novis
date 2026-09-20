@@ -57,7 +57,6 @@
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use std::process::Command;
 
 /// A refusal the language keeps on purpose, as `(file, the start of its
 /// message)`.
@@ -88,12 +87,20 @@ const ALLOWLIST: &[(&str, &str)] = &[];
 /// exists to catch.
 const CEILING: usize = 0;
 
-/// The repository root — this crate is `crates/nvs-ir`.
-fn root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
-}
+/// What `tools/holes.py` opens: itself, the two item lists and the goal's
+/// manifest, the diagnostic registry, and the two crates that lower. It imports
+/// nothing else from `tools/`.
+const HOLES_READS: &[&str] = &[
+    "tools/holes.py",
+    "docs/agent/loop-goal.md",
+    "docs/agent/loop-goal.toml",
+    "docs/agent/carried-refusals.md",
+    "crates/nvs-diagnostics/src/lib.rs",
+    "crates/nvs-ir/src",
+    "crates/nvs-codegen/src",
+];
 
-/// `python tools/holes.py <args>`, run at the repository root.
+/// `python tools/holes.py <args>`, run in the directory that holds `tools/`.
 ///
 /// The interpreter is looked up the way every other entry point into this
 /// tree's tooling is invoked, and a machine with no Python fails the gate
@@ -101,14 +108,19 @@ fn root() -> PathBuf {
 /// Python, so a checkout that cannot run one cannot run this project's checks
 /// at all.
 fn holes(arg: &str) -> String {
-    let script = root().join("tools/holes.py");
+    let script = nvs_repo::path("tools/holes.py");
     assert!(script.is_file(), "{} is missing", script.display());
+    let above_tools: PathBuf = script
+        .parent()
+        .and_then(Path::parent)
+        .expect("`tools/holes.py` has two directories above it")
+        .to_owned();
     let mut last = String::new();
     for exe in ["python3", "python", "py"] {
-        let out = Command::new(exe)
+        let out = nvs_repo::spawn(exe, HOLES_READS)
             .arg(&script)
             .arg(arg)
-            .current_dir(root())
+            .current_dir(&above_tools)
             .output();
         match out {
             Ok(done) if done.status.success() => {
@@ -219,7 +231,7 @@ fn expected_codes(dir: &Path, found: &mut HashSet<String>) {
 /// to a guard would be the rewording the goal forbids, wearing a macro.
 #[test]
 fn every_guarded_site_names_a_code_a_conformance_case_expects() {
-    let cases = root().join("tests/conformance");
+    let cases = nvs_repo::path("tests/conformance");
     assert!(
         cases.is_dir(),
         "{} is not where it was — this gate would pass vacuously",
@@ -264,7 +276,7 @@ fn every_guarded_site_names_a_code_a_conformance_case_expects() {
 fn every_refusal_is_a_diagnostic_or_decided() {
     for crate_src in ["crates/nvs-ir/src", "crates/nvs-codegen/src"] {
         assert!(
-            root().join(crate_src).is_dir(),
+            nvs_repo::path(crate_src).is_dir(),
             "{crate_src} is not where it was — this gate would pass vacuously"
         );
     }

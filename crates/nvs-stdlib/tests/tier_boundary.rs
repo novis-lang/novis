@@ -58,7 +58,7 @@ fn rust_sources(dir: &Path, into: &mut Vec<PathBuf>) {
 /// Every `crates/<name>/src/**/*.rs` in the repository, each with the crate it
 /// belongs to.
 fn crate_sources() -> Vec<(String, PathBuf)> {
-    let crates = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../crates");
+    let crates = nvs_repo::path("crates");
     let entries = fs::read_dir(&crates).unwrap_or_else(|err| panic!("{}: {err}", crates.display()));
     let mut found = Vec::new();
     for entry in entries {
@@ -198,7 +198,7 @@ fn no_class_outside_tier_zero_registers_a_core_name() {
         conditional.push(format!("{}'s `CLASSES`", registry_src.display()));
     }
 
-    let tree_src = Path::new(env!("CARGO_MANIFEST_DIR")).join("../nvs-hir/src/errors.rs");
+    let tree_src = nvs_repo::path("crates/nvs-hir/src/errors.rs");
     let text =
         fs::read_to_string(&tree_src).unwrap_or_else(|err| panic!("{}: {err}", tree_src.display()));
     let tree = const_body(

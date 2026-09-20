@@ -125,6 +125,8 @@ brainsort.workspace = true
 # nothing at all, so this borrows a section splitter rather than a toolchain.
 [dev-dependencies]
 nvs-test.workspace = true
+# How this crate's tests reach files outside the package.
+nvs-repo.workspace = true
 # `ast.rs`'s seed replay asks the compiler's own parser for its verdict, and
 # `nvs_syntax::parse_file` takes a `SourceMap` and a `Diagnostics` to answer
 # with. The point of that case is that the verdict comes from the compiler's

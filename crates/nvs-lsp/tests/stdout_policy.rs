@@ -23,9 +23,14 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// This repository's root — the directory holding the workspace manifest.
-fn workspace_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
+/// The directory holding every crate of this repository, which is all this test reads.
+fn crates_dir() -> PathBuf {
+    nvs_repo::path("crates")
+}
+
+/// `file`, which is under [`crates_dir`], as it is written from the repository root.
+fn from_the_root(crates: &Path, file: &Path) -> PathBuf {
+    Path::new("crates").join(file.strip_prefix(crates).unwrap_or(file))
 }
 
 /// Read a file this test knows must exist, or fail naming it.
@@ -39,12 +44,7 @@ fn read(path: &Path) -> String {
 /// into a test binary and never into the server, so including it would fail
 /// this test over code the server cannot reach.
 fn direct_dependencies(krate: &str) -> Vec<String> {
-    let manifest = read(
-        &workspace_root()
-            .join("crates")
-            .join(krate)
-            .join("Cargo.toml"),
-    );
+    let manifest = read(&crates_dir().join(krate).join("Cargo.toml"));
     let mut section = String::new();
     let mut named = Vec::new();
 
@@ -130,11 +130,11 @@ fn exempt(krate: &str, writer: &str) -> bool {
 
 #[test]
 fn no_crate_the_server_links_writes_to_stdout() {
-    let root = workspace_root();
+    let crates = crates_dir();
     let mut offences = Vec::new();
 
     for krate in linked_crates() {
-        for file in sources(&root.join("crates").join(&krate).join("src")) {
+        for file in sources(&crates.join(&krate).join("src")) {
             for (number, line) in read(&file).lines().enumerate() {
                 let code = line.trim_start();
                 // A comment naming the thing is how this rule is explained, and
@@ -148,7 +148,7 @@ fn no_crate_the_server_links_writes_to_stdout() {
                 let printing = code.replace("eprintln!(", "").replace("eprint!(", "");
                 for writer in WRITERS {
                     if printing.contains(writer) && !exempt(&krate, writer) {
-                        let path = file.strip_prefix(&root).unwrap_or(&file);
+                        let path = from_the_root(&crates, &file);
                         offences.push(format!("{}:{}: {code}", path.display(), number + 1));
                     }
                 }
@@ -178,14 +178,14 @@ const WIRINGS: &[&str] = &["OutputSink::Stdout", "Ctx::stdout("];
 /// spell. What is left is the crates in between, and this is them.
 #[test]
 fn nothing_under_the_server_wires_a_program_to_stdout() {
-    let root = workspace_root();
+    let crates = crates_dir();
     let mut offences = Vec::new();
 
     for krate in linked_crates() {
         if krate == THE_OUTPUT_SINK {
             continue;
         }
-        for file in sources(&root.join("crates").join(&krate).join("src")) {
+        for file in sources(&crates.join(&krate).join("src")) {
             for (number, line) in read(&file).lines().enumerate() {
                 let code = line.trim_start();
                 if code.starts_with("//") {
@@ -193,7 +193,7 @@ fn nothing_under_the_server_wires_a_program_to_stdout() {
                 }
                 for wiring in WIRINGS {
                     if code.contains(wiring) {
-                        let path = file.strip_prefix(&root).unwrap_or(&file);
+                        let path = from_the_root(&crates, &file);
                         offences.push(format!("{}:{}: {code}", path.display(), number + 1));
                     }
                 }

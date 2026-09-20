@@ -28,9 +28,7 @@ use nvs_syntax::TriviaKind;
 
 /// `<repo>/tests/fmt/<half>`, whichever directory in the pair `half` names.
 fn half(half: &str) -> PathBuf {
-    [env!("CARGO_MANIFEST_DIR"), "..", "..", "tests", "fmt", half]
-        .iter()
-        .collect()
+    nvs_repo::path("tests/fmt").join(half)
 }
 
 /// Every `.nvs` file directly under `directory`, by name, sorted.

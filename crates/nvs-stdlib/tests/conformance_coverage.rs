@@ -285,16 +285,14 @@ fn stdlib_sources() -> Vec<(String, String)> {
 /// same one: that tool is the worklist [`OWED_A_CASE`] freezes, and a gate
 /// computing a different set could not be cross-checked against it.
 fn error_corpus() -> String {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let mut paths = Vec::new();
     for suite in ["tests/conformance", "tests/differential"] {
-        cases(&root.join(suite), &mut paths);
+        cases(&nvs_repo::path(suite), &mut paths);
     }
     assert!(
         paths.len() > 100,
-        "{} holds {} cases across both suites, which is too few to be the corpus — \
-         a check over it would pass vacuously",
-        root.display(),
+        "`tests/conformance` and `tests/differential` hold {} cases between them, which is \
+         too few to be the corpus — a check over it would pass vacuously",
         paths.len()
     );
     paths

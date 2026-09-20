@@ -411,36 +411,37 @@ fn outstanding_file(name: &str) -> Ratchet {
 /// `dossier/` subdirectory is walked too — `dossier.py` emits ninety goals into
 /// it and they are on the chain like any other.
 fn chain_goals() -> BTreeSet<String> {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/agent/goals");
     let mut out = BTreeSet::new();
-    let mut dirs = vec![root];
-    while let Some(dir) = dirs.pop() {
-        let entries = fs::read_dir(&dir).unwrap_or_else(|err| panic!("{}: {err}", dir.display()));
-        for entry in entries.flatten() {
-            let path = entry.path();
-            if path.is_dir() {
-                dirs.push(path);
-                continue;
-            }
-            let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
-                continue;
-            };
-            // `29-xml-tree.handoff.md` is the seed beside the goal, not a second goal.
-            if name.ends_with(".handoff.md") {
-                continue;
-            }
-            let Some(stem) = name.strip_suffix(".md") else {
-                continue;
-            };
-            let Some((num, slug)) = stem.split_once('-') else {
-                continue;
-            };
-            if !num.is_empty() && num.bytes().all(|b| b.is_ascii_digit()) {
-                out.insert(slug.to_owned());
-            }
+    goal_slugs(&nvs_repo::path("docs/agent/goals"), &mut out);
+    out
+}
+
+/// The slug of every goal file under `dir`, subdirectories included.
+fn goal_slugs(dir: &Path, out: &mut BTreeSet<String>) {
+    let entries = fs::read_dir(dir).unwrap_or_else(|err| panic!("{}: {err}", dir.display()));
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            goal_slugs(&path, out);
+            continue;
+        }
+        let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+            continue;
+        };
+        // `29-xml-tree.handoff.md` is the seed beside the goal, not a second goal.
+        if name.ends_with(".handoff.md") {
+            continue;
+        }
+        let Some(stem) = name.strip_suffix(".md") else {
+            continue;
+        };
+        let Some((num, slug)) = stem.split_once('-') else {
+            continue;
+        };
+        if !num.is_empty() && num.bytes().all(|b| b.is_ascii_digit()) {
+            out.insert(slug.to_owned());
         }
     }
-    out
 }
 
 /// The first milestone a key may be deferred to.
@@ -459,7 +460,7 @@ const FIRST_FUTURE_MILESTONE: u32 = 9;
 /// only place a milestone is finished — the plan's own § under the table says
 /// so — and `done` is the whole vocabulary for it.
 fn plan_milestones() -> BTreeMap<String, String> {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/implementation-plan.md");
+    let path = nvs_repo::path("docs/implementation-plan.md");
     let text = fs::read_to_string(&path).unwrap_or_else(|err| panic!("{}: {err}", path.display()));
     let row = Regex::new(r"^\|\s*([^|]*?)\s*\|\s*\[(M\d+[A-Z]?)\]").expect("the plan's table row");
     let mut found = BTreeMap::new();
@@ -782,7 +783,7 @@ fn a_key_whose_member_is_now_registered_fails_as_a_stale_line() {
 
 #[test]
 fn every_part_one_spec_member_is_registered() {
-    let spec = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/spec/01-core-library.md");
+    let spec = nvs_repo::path("docs/spec/01-core-library.md");
     let text = fs::read_to_string(&spec).unwrap_or_else(|err| panic!("{}: {err}", spec.display()));
 
     let mut section = None;
@@ -906,7 +907,7 @@ fn every_part_one_spec_member_is_registered() {
 /// has no closing backtick and reads as no signature at all.
 #[test]
 fn every_registry_rows_names_are_the_specs_signature_column() {
-    let spec = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/spec/01-core-library.md");
+    let spec = nvs_repo::path("docs/spec/01-core-library.md");
     let text = fs::read_to_string(&spec).unwrap_or_else(|err| panic!("{}: {err}", spec.display()));
 
     let mut section = None;
@@ -1125,7 +1126,7 @@ struct PartTwoMember {
 /// left `Connection::serverVersion` enumerated by nothing until
 /// [`every_member_beyond_queryable_is_enumerated_from_the_spec`] pinned it.
 fn part_two_members() -> Vec<PartTwoMember> {
-    let spec = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/spec/01-core-library.md");
+    let spec = nvs_repo::path("docs/spec/01-core-library.md");
     let text = fs::read_to_string(&spec).unwrap_or_else(|err| panic!("{}: {err}", spec.display()));
 
     let mut section = None;
@@ -1385,7 +1386,7 @@ fn every_part_two_spec_member_is_registered() {
 /// code spans, one row per class — so a class-level walk is available here
 /// where a member-level one is not.
 fn part_two_classes() -> BTreeSet<String> {
-    let spec = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/spec/01-core-library.md");
+    let spec = nvs_repo::path("docs/spec/01-core-library.md");
     let text = fs::read_to_string(&spec).unwrap_or_else(|err| panic!("{}: {err}", spec.display()));
 
     let mut section = None;
@@ -1550,7 +1551,7 @@ struct CompilerFacingMember {
 /// resolved through [`classes_named`], which is empty for a class nobody has
 /// written, so every one of them is outstanding already.
 fn compiler_facing_members() -> Vec<CompilerFacingMember> {
-    let spec = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/spec/01-core-library.md");
+    let spec = nvs_repo::path("docs/spec/01-core-library.md");
     let text = fs::read_to_string(&spec).unwrap_or_else(|err| panic!("{}: {err}", spec.display()));
 
     let mut in_section = false;
@@ -1905,7 +1906,7 @@ fn classes_spelled(name: &str) -> Vec<&'static registry::CoreClass> {
 /// nothing else in this crate parses: a table whose shape drifts would read as
 /// zero rows and pass every assertion below vacuously.
 fn migration_member_refs() -> (usize, BTreeSet<(String, String)>) {
-    let table = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/spec/02-php-migration.md");
+    let table = nvs_repo::path("docs/spec/02-php-migration.md");
     let text =
         fs::read_to_string(&table).unwrap_or_else(|err| panic!("{}: {err}", table.display()));
     // `python tools/check-migration.py`'s own `ROW`, transcribed: a backticked

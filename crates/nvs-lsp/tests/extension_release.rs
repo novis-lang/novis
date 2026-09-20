@@ -20,12 +20,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
-use std::path::{Path, PathBuf};
-
-/// This repository's root — the directory holding the workspace manifest.
-fn workspace_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
-}
+use std::path::Path;
 
 /// Read a file this test knows must exist, or fail naming it.
 fn read(path: &Path) -> String {
@@ -88,7 +83,7 @@ fn matrix_lines(workflow: &str) -> Vec<&str> {
 
 /// Every archive the release workflow builds, by name.
 fn release_matrix() -> BTreeMap<String, Archive> {
-    let path = workspace_root().join(".github/workflows/release.yml");
+    let path = nvs_repo::path(".github/workflows/release.yml");
     let workflow = read(&path);
 
     let mut built: BTreeMap<String, Archive> = BTreeMap::new();
@@ -121,7 +116,7 @@ fn release_matrix() -> BTreeMap<String, Archive> {
 
 /// Every row of the extension's target table, in the order it declares them.
 fn target_table() -> Vec<Row> {
-    let path = workspace_root().join("editors/vscode/src/install.ts");
+    let path = nvs_repo::path("editors/vscode/src/install.ts");
     let source = read(&path);
 
     let rows: Vec<Row> = source

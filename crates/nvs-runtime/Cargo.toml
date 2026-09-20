@@ -102,6 +102,8 @@ windows-sys.workspace = true
 # the table the way the boot path does, from the text an operator wrote.
 [dev-dependencies]
 toml.workspace = true
+# How this crate's tests reach files outside the package.
+nvs-repo.workspace = true
 
 # ---------------------------------------------------------------------------
 # This crate cannot inherit the workspace lint policy. It owns the heap

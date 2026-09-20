@@ -157,11 +157,6 @@ fn the_four_slash_divider_in_the_encoding_case_stays_ordinary() {
     );
 }
 
-/// The repository root, from this crate's manifest, as in `lossless.rs`.
-fn repo_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
-}
-
 /// Every file under `dir` whose extension is in `exts`, so a failure names the
 /// same file on every machine.
 fn collect(dir: &Path, exts: &[&str], out: &mut Vec<PathBuf>) {
@@ -229,10 +224,9 @@ fn source_of(path: &Path, text: &str) -> Option<String> {
 /// compile error is not corpus for this purpose ([`source_of`]).
 #[test]
 fn the_existing_triple_slash_comments_attach_to_their_declarations() {
-    let root = repo_root();
     let mut paths = Vec::new();
-    collect(&root.join("examples"), &["nvs"], &mut paths);
-    collect(&root.join("tests"), &["nvs", "nvst"], &mut paths);
+    collect(&nvs_repo::path("examples"), &["nvs"], &mut paths);
+    collect(&nvs_repo::path("tests"), &["nvs", "nvst"], &mut paths);
     paths.sort();
 
     let mut documented = Vec::new();

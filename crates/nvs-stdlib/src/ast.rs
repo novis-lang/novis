@@ -928,7 +928,7 @@ mod tests {
     /// programs that parse stops testing the refusal silently.
     #[test]
     fn core_ast_parse_gives_the_compilers_verdict_on_every_parse_seed() {
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fuzz/seeds/parse");
+        let dir = nvs_repo::path("fuzz/seeds/parse");
         let mut seeds: Vec<std::path::PathBuf> = std::fs::read_dir(&dir)
             .unwrap_or_else(|why| {
                 panic!("the seed corpus at {} is committed: {why}", dir.display())

@@ -40,6 +40,10 @@ nvs-render.workspace = true
 serde.workspace = true
 toml.workspace = true
 
+[dev-dependencies]
+# How this crate's tests reach files outside the package.
+nvs-repo.workspace = true
+
 # ADR 0103 § 6's ownership check is the platform's own question, and `std` asks
 # neither half of it: `src/trust.rs` owns what each one is.
 [target.'cfg(unix)'.dependencies]

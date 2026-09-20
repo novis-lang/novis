@@ -265,6 +265,32 @@ class Reach:
             self._packages[(name, whole)] = got
         return self._packages[(name, whole)]
 
+    def packages(self, names):
+        """The key parts of a check that builds and runs these packages' tests itself -- a
+        release-profile guard, the fuzz run, the sanitizer script: each named package as bytes,
+        everything it is compiled against at the code tier, and what every key holds. `None`
+        when the graph cannot be read or does not name one of them, and the caller stays wide."""
+        if self.graph is None or not names or any(n not in self.graph for n in names):
+            return None
+        parts, against = list(self.common()), set()
+        for name in sorted(set(names)):
+            parts += self._package(name, whole=True)
+            against |= closure(self.graph, name)
+        for dep in sorted(against - set(names)):
+            parts += self._package(dep, whole=False)
+        return parts
+
+    def named_in(self, rel):
+        """The workspace packages a script or a manifest names anywhere in its text, comments
+        included: more names is the wide direction."""
+        if self.graph is None:
+            return []
+        try:
+            text = (ROOT / rel).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return []
+        return sorted(n for n in self.graph if re.search(rf"(?<![\w-]){re.escape(n)}(?![\w-])", text))
+
     def compiled(self, job):
         """`(parts, why)`: what this binary is compiled from, or `(None, why)` when that cannot
         be shown and the binary is wide. Worked out once for a binary in any one reading."""

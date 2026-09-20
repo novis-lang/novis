@@ -2052,39 +2052,42 @@ const NOT_READERS: [&str; 3] = [
 /// A whole-line comment is dropped and the file is cut at its first `#[cfg(test)]`, so neither the
 /// prose that cites a key nor a unit test that round-trips one reads as a reader of it.
 fn workspace_source() -> Vec<(String, String)> {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let mut found = Vec::new();
     for group in ["crates", "benches"] {
-        let Ok(entries) = fs::read_dir(root.join(group)) else {
+        let base = nvs_repo::path(group);
+        let Ok(entries) = fs::read_dir(&base) else {
             continue;
         };
         for entry in entries.flatten() {
-            collect_source(&entry.path().join("src"), &root, &mut found);
+            collect_source(&entry.path().join("src"), (group, &base), &mut found);
         }
     }
     found
 }
 
-/// One directory of [`workspace_source`]'s walk, and every directory under it.
-fn collect_source(dir: &Path, root: &Path, found: &mut Vec<(String, String)>) {
+/// One directory of [`workspace_source`]'s walk, and every directory under it. `group` is the
+/// top-level directory the walk started in, as its name and its path, and a file is named from it.
+fn collect_source(dir: &Path, group: (&str, &Path), found: &mut Vec<(String, String)>) {
     let Ok(entries) = fs::read_dir(dir) else {
         return;
     };
     for entry in entries.flatten() {
         let path = entry.path();
         if path.is_dir() {
-            collect_source(&path, root, found);
+            collect_source(&path, group, found);
             continue;
         }
         if path.extension().is_none_or(|ext| ext != "rs") {
             continue;
         }
-        let rel = path
-            .strip_prefix(root)
+        let (name, base) = group;
+        let inside = path
+            .strip_prefix(base)
             .unwrap_or(&path)
             .display()
             .to_string()
             .replace('\\', "/");
+        let rel = format!("{name}/{inside}");
         if NOT_READERS.contains(&rel.as_str()) {
             continue;
         }

@@ -200,7 +200,8 @@ fn a_bundle_carries_every_file_the_autoload_roots_declare() {
 fn a_bundled_class_is_reached_and_enumerated_through_an_autoload_root() {
     let exe = bundle_of(AUTOLOAD_APP, "autoload-run");
 
-    let bundled = Command::new(&exe)
+    // The bundle carries its program inside itself, so running it opens nothing in the repository.
+    let bundled = nvs_repo::spawn(&exe, &[])
         .output()
         .expect("the bundle is an executable this host can run");
     let interpreted = Command::new(env!("CARGO_BIN_EXE_nvs"))
@@ -246,7 +247,8 @@ fn a_bundled_class_is_reached_and_enumerated_through_an_autoload_root() {
 fn a_bundled_executable_runs_identically_to_nvs_run() {
     let exe = bundle("identical");
 
-    let bundled = Command::new(&exe)
+    // The bundle carries its program inside itself, so running it opens nothing in the repository.
+    let bundled = nvs_repo::spawn(&exe, &[])
         .output()
         .expect("the bundle is an executable this host can run");
     let interpreted = Command::new(env!("CARGO_BIN_EXE_nvs"))

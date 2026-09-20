@@ -50,6 +50,10 @@ rustc-hash.workspace = true
 # type it converts through rather than reaching for a second JSON library.
 serde_json.workspace = true
 
+[dev-dependencies]
+# How this crate's tests reach files outside the package.
+nvs-repo.workspace = true
+
 # The workspace table verbatim, and `print_stdout` is the reason this block is
 # spelled out rather than inherited-and-forgotten: `rule:ide/stdout-belongs-to-the-protocol` gives this
 # process's stdout to the protocol, so the allowance `nvs-cli` takes for being a

@@ -1,0 +1,18 @@
+[package]
+name = "nvs-repo"
+description = "How a test reaches a file outside its own package: one function that returns the path and records that it was asked for, so `tools/impact.py` knows what each test binary reads"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+publish = false
+
+# A dev-dependency of the crates whose tests walk the repository, and of nothing
+# that ships: it depends on no `nvs-*` crate and on nothing outside `std`, so
+# adding it to a crate's tests adds no edge to that crate's build.
+[dependencies]
+
+[lints]
+workspace = true

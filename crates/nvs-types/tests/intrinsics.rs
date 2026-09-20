@@ -410,9 +410,9 @@ const TIER_RECORD_HEADER: &str = "\
 /// commit and a reader of either finds the other.
 const TIER_RECORD: &str = "regex-literal-tiers.txt";
 
-/// The regex conformance suite, from this crate's own directory.
+/// The directory that holds the regex conformance suite.
 fn regex_suite() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/conformance/core")
+    nvs_repo::path("tests/conformance/core")
 }
 
 /// Whether `path` is one of that suite's cases. The conformance tree groups a

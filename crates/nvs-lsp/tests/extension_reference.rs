@@ -10,18 +10,13 @@
 //! that agreement nothing else checks.
 //!
 //! It lives in this crate because the chapter it reads is this server's chapter
-//! and `tests/stdout_policy.rs` already reaches the repository root from here.
-//! It links nothing of the client: the manifest is JSON and the chapter is a
-//! table, and both are read as text.
+//! and `tests/stdout_policy.rs` already reads files outside this package from
+//! here. It links nothing of the client: the manifest is JSON and the chapter is
+//! a table, and both are read as text, each found through `nvs_repo::path`.
 
 use std::collections::BTreeMap;
 use std::fs;
-use std::path::{Path, PathBuf};
-
-/// This repository's root — the directory holding the workspace manifest.
-fn workspace_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
-}
+use std::path::Path;
 
 /// Read a file this test knows must exist, or fail naming it.
 fn read(path: &Path) -> String {
@@ -30,7 +25,7 @@ fn read(path: &Path) -> String {
 
 /// The extension's manifest, parsed.
 fn manifest() -> serde_json::Value {
-    let path = workspace_root().join("editors/vscode/package.json");
+    let path = nvs_repo::path("editors/vscode/package.json");
     serde_json::from_str(&read(&path)).unwrap_or_else(|err| panic!("{}: {err}", path.display()))
 }
 
@@ -42,7 +37,7 @@ fn manifest() -> serde_json::Value {
 /// wants. A cell's `` ` `` fences are stripped: the chapter writes an
 /// identifier as code and the manifest writes it bare.
 fn documented(heading: &str) -> BTreeMap<String, String> {
-    let path = workspace_root().join("docs/reference/tools/40-editor.md");
+    let path = nvs_repo::path("docs/reference/tools/40-editor.md");
     let chapter = read(&path);
     let section = chapter
         .split_once(heading)
@@ -155,7 +150,7 @@ fn the_chapter_documents_every_contributed_command_and_no_other() {
 #[test]
 fn the_chapter_and_the_manifest_agree_the_extension_claims_nvs_alone() {
     let manifest = manifest();
-    let raw = read(&workspace_root().join("editors/vscode/package.json")).to_lowercase();
+    let raw = read(&nvs_repo::path("editors/vscode/package.json")).to_lowercase();
 
     assert_eq!(
         manifest["activationEvents"],

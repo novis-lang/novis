@@ -257,10 +257,8 @@ fn a_ceiling_is_a_size_or_the_boolean_that_removes_it() {
 /// repository root is not a roster.
 #[test]
 fn the_repositorys_own_config_deserializes() {
-    let text = std::fs::read_to_string(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../nvs.toml"),
-    )
-    .expect("the repository root holds an nvs.toml");
+    let text = std::fs::read_to_string(nvs_repo::path("nvs.toml"))
+        .expect("the repository root holds an nvs.toml");
     let config = tree(&text);
 
     let app = config

@@ -109,6 +109,10 @@ toml.workspace = true
 # this crate writes an object, that is `nvs-codegen`'s side.
 object.workspace = true
 
+[dev-dependencies]
+# How this crate's tests reach files outside the package.
+nvs-repo.workspace = true
+
 # What tells a long-running `nvs serve` that it has been asked to stop, which
 # `src/stop.rs` turns into `rule:concurrency/a-drain-closes-a-connection-cleanly`'s
 # one drain. There is no `std` spelling of a signal disposition, and both

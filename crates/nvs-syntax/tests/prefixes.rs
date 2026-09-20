@@ -19,22 +19,17 @@
     reason = "the sweep's sizes are this test's report, as in `lossless.rs`"
 )]
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use nvs_diagnostics::{Diagnostics, SourceMap};
 use nvs_syntax::{Lexer, Parsed, TokenKind, parse, walk};
-
-/// The repository root, from this crate's manifest.
-fn repo_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
-}
 
 /// Every `examples/*.nvs`, sorted, so a failure names the same file on every
 /// machine. The directory itself, not its subdirectories: M4B's acceptance
 /// paragraph names that glob, and the nested directories are multi-file
 /// programs whose parts are not documents on their own.
 fn examples() -> Vec<(PathBuf, String)> {
-    let dir = repo_root().join("examples");
+    let dir = nvs_repo::path("examples");
     let mut paths: Vec<PathBuf> = std::fs::read_dir(&dir)
         .expect("examples/ is in the repository")
         .flatten()

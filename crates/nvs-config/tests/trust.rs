@@ -124,7 +124,8 @@ fn a_file_in_a_world_writable_directory_is_a_breach_too() {
 /// remove and the grant survives.
 #[cfg(windows)]
 fn icacls(dir: &std::path::Path, args: &[&str]) {
-    let done = std::process::Command::new("icacls")
+    // `icacls` edits the scratch directory it is given and opens nothing in the repository.
+    let done = nvs_repo::spawn("icacls", &[])
         .arg(dir)
         .args(args)
         .output()
