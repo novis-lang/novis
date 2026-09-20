@@ -1,0 +1,23 @@
+<?nvs
+// Puts a short list of prices in order, as a shop does before it shows the
+// cheapest offer first.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<uint> $prices = [30, 10, 20, 40, 25, 15];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            array<uint> $ordered = Core\Arr::sort($prices);
+            // Last round's total decides which price this round reads, so no
+            // round can be reused.
+            $total = $total + $ordered[$total % 6];
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to sort a table and keep its keys. A page does this to show a
+// scoreboard with the best result at the top.
+
+array<uint> $points = ['bo' => 12, 'ada' => 31, 'cy' => 7];
+
+// `preserveKeys` keeps every value under its own key. `Core\Order::Desc` puts
+// the largest value first.
+array<uint> $ranked = Core\Arr::sort($points, {order: Core\Order::Desc, preserveKeys: true});
+
+// This prints ada: 31, then bo: 12, then cy: 7.
+foreach ($ranked as string $name => uint $score) {
+    echo $name, ': ', $score, "\n";
+}
