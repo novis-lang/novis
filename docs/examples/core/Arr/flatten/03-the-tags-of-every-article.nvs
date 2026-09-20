@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to collect the tags of several articles into one list.
+
+array<array<string>> $tagsPerArticle = [
+    'welcome' => ['news', 'intro'],
+    'release' => ['news', 'release'],
+];
+
+array<string> $allTags = Core\Arr::flatten($tagsPerArticle);
+
+// The list holds every tag, including the one two articles share. This prints
+// ["news","intro","news","release"].
+echo Core\Json::encode($allTags), "\n";
+
+// `Core\Arr::flip` makes every tag a key, which gives you each of them once.
+// This prints ["news","intro","release"].
+echo Core\Json::encode(Core\Arr::keys(Core\Arr::flip($allTags))), "\n";

@@ -1,0 +1,27 @@
+<?nvs
+// Collects the tags of three articles into one list. A page does this before it
+// shows every tag it has.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<array<string>> $tags = [
+            ['news', 'intro'],
+            ['news', 'release'],
+            ['guide'],
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            array<string> $all = Core\Arr::flatten($tags);
+            // Last round's total decides which tag this round reads, so no
+            // round can be reused.
+            $total = $total + Core\Str::length($all[$total % 5]);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";
