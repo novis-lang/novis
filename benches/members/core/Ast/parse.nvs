@@ -1,0 +1,26 @@
+<?nvs
+// Parses a short piece of Novis source, as an editor service does with every
+// snippet somebody sends it.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $sources = [
+            '<?nvs echo 1 + 2;',
+            '<?nvs class C { public int $n; }',
+            '<?nvs foreach ([1, 2] as int $n) { echo $n; }',
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The snippet picked comes from last round's result, so no round
+            // can be reused.
+            Core\Ast\Node $file = Core\Ast::parse($sources[$total % 3]);
+            $total = $total + Core\Arr::count($file->nodes()) + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

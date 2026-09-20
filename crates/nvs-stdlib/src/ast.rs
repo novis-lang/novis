@@ -83,6 +83,29 @@
 //! source file is bounded by the caller's own memory ceiling and the parser's
 //! 96-level nesting limit bounds the depth, so both this walk and
 //! [`nvs_core_ast_node_nodes`]'s recurse on a bounded stack.
+//!
+//! # Known gaps
+//!
+//! 1. **A node's column is counted from the start of its line, once per node,
+//!    so source carrying its work on one long line costs time in the square of
+//!    that line's length.** [`instance_of`] asks
+//!    [`nvs_syntax::walk::Located::position`] for every node it builds, and
+//!    that reaches `nvs_diagnostics::SourceFile::line_col_in`, whose column is
+//!    the `char` count of the text between the line's start and the node
+//!    (`crates/nvs-diagnostics/src/source.rs:131`). One such question is what a
+//!    diagnostic costs and is the right shape for it; one per node of a whole
+//!    tree is O(nodes × line length), which is why the same statements parse in
+//!    a fraction of the time written one per line and why `nvs ast` over the
+//!    one-line file stays linear — the grammar is not what is quadratic here.
+//!    The fix is a batch question in `nvs-diagnostics`, which
+//!    `rule:ide/positions-have-one-home` makes the only home position
+//!    arithmetic may have: one ordered sweep answering every offset a tree
+//!    names, rather than one scan per offset. That is a decision about that
+//!    crate's public surface rather than a change to this module, which is why
+//!    it is recorded here instead of fixed beside the attack that found it.
+//!    `tests/hostile/core/Ast/parse/02-a-program-written-on-one-long-line.nvs`
+//!    is that attack, and it is marked as this gap.
+//!    — owner: M12
 
 use nvs_runtime::{Fault, NvsArray, NvsStr, Tag, ThrownClass, Value};
 
@@ -595,8 +618,8 @@ nvs_runtime::nvs_helper! {
 
 #[cfg(test)]
 mod tests {
-    use nvs_diagnostics::{Diagnostic, Diagnostics, SourceMap};
-    use nvs_runtime::{Ctx, NvsObj, NvsStr, OutputSink, THROWN, Tag, Value, call};
+    use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, SourceMap};
+    use nvs_runtime::{Ctx, NvsArray, NvsObj, NvsStr, OutputSink, THROWN, Tag, Value, call};
 
     use super::{
         CHILDREN_SLOT, COLUMN_SLOT, KIND_SLOT, LINE_SLOT, NAME, NODE, NODE_NAME, OFFSET_SLOT,
@@ -743,6 +766,149 @@ mod tests {
             collect_classes(child, out);
             from = slot + 1;
         }
+    }
+
+    /// `children` answers the node's own array with a reference of its own,
+    /// rather than the bare slot.
+    ///
+    /// Only reachable from Rust: a program cannot count references, so a member
+    /// answering the slot without retaining it reads correctly in every
+    /// conformance case and frees the array under whoever asked next. The
+    /// answer is also the node's own array rather than a copy, which is what
+    /// makes the walk O(nodes) instead of O(nodes²).
+    // covers: Core\Ast\Node::children
+    #[test]
+    fn children_answers_the_nodes_own_array_with_a_reference_of_its_own() {
+        let source = Value::str(NvsStr::new(b"<?nvs echo 1 + 2;"));
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let tree =
+            call(super::nvs_core_ast_parse, &mut ctx, &[source]).expect("that source parses");
+        let receiver = tree.obj_ptr().expect("a node is an object");
+        let array = crate::instance::slot(receiver, CHILDREN_SLOT)
+            .array_ptr()
+            .expect("the children slot is an array");
+
+        #[expect(
+            unsafe_code,
+            reason = "the array is the live tree's own children slot, which this \
+                      test holds the only reference to"
+        )]
+        let before = unsafe { NvsArray::refcount_of(array) };
+        let answer = call(super::nvs_core_ast_node_children, &mut ctx, &[tree])
+            .expect("a node answers its children");
+        assert_eq!(
+            answer.array_ptr(),
+            Some(array),
+            "the answer is the node's own array and not a copy of it"
+        );
+        #[expect(
+            unsafe_code,
+            reason = "the array is still the live tree's, and the answer is a \
+                      second reference to it"
+        )]
+        let held = unsafe { NvsArray::refcount_of(array) };
+        assert_eq!(
+            held,
+            before + 1,
+            "the caller owns the answer, so `children` retained before it \
+             answered"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the answer's reference and the one `parse` \
+                      gave it, and releases each exactly once"
+        )]
+        unsafe {
+            answer.release();
+            assert_eq!(
+                NvsArray::refcount_of(array),
+                before,
+                "releasing the answer gives back exactly the one reference it \
+                 took, so a program walking a tree neither leaks nor frees it \
+                 early"
+            );
+            tree.release();
+            source.release();
+        }
+    }
+
+    /// A node's column is `nvs_diagnostics`' own column for that node's offset,
+    /// counted in `char`s and made 1-based.
+    ///
+    /// `rule:ide/positions-have-one-home` from the side a program cannot reach:
+    /// the member answers a slot, and the arithmetic that filled the slot lives
+    /// in another crate. The source puts a two-byte `ä` before the nodes asked
+    /// about, so a column counted in bytes and one counted in characters
+    /// disagree from there on and this cannot pass by counting the wrong thing.
+    // covers: Core\Ast\Node::column
+    #[test]
+    fn a_nodes_column_is_the_one_homes_column_for_that_nodes_own_offset() {
+        let text = "<?nvs\necho \"ä\", 7 + 1;\n";
+        let source = Value::str(NvsStr::new(text.as_bytes()));
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let tree =
+            call(super::nvs_core_ast_parse, &mut ctx, &[source]).expect("that source parses");
+
+        let mut map = SourceMap::new();
+        let id = map.add("a-node's-column", text);
+
+        // Down the first child of each node in turn, so the deepest node asked
+        // about sits past the `ä` rather than only at column 1 with it.
+        let mut node = tree;
+        let mut seen = 0usize;
+        let mut widest = 0i64;
+        loop {
+            widest = widest.max(column_agrees(node, map.file(id), &mut ctx));
+            seen += 1;
+            let children =
+                crate::instance::slot(node.obj_ptr().expect("a node is an object"), CHILDREN_SLOT);
+            let Some(array) = children.array_ptr() else {
+                break;
+            };
+            let array = crate::arr::borrowed(array);
+            let Some(slot) = array.next_slot(0) else {
+                break;
+            };
+            node = array.value_at(slot).expect("next_slot names a live entry");
+        }
+        assert!(
+            seen >= 3 && widest > 1,
+            "the descent asked {seen} node(s) and reached column {widest}, so it \
+             stopped before it left the start of the line and asserted nothing \
+             about a multi-byte character"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the one reference `parse` answered with, and \
+                      the tree's own references are the nodes'"
+        )]
+        unsafe {
+            tree.release();
+            source.release();
+        }
+    }
+
+    /// Asserts that `node`'s `column` member agrees with `file`'s own column for
+    /// `node`'s offset, and answers the column it checked.
+    fn column_agrees(node: Value, file: &SourceFile, ctx: &mut Ctx) -> i64 {
+        let answered = call(super::nvs_core_ast_node_column, ctx, &[node])
+            .expect("a node answers its column")
+            .as_int()
+            .expect("a column is a whole number");
+        let offset =
+            crate::instance::slot(node.obj_ptr().expect("a node is an object"), OFFSET_SLOT)
+                .as_int()
+                .expect("an offset is a whole number");
+        let (_, col) = file.line_col(u32::try_from(offset).expect("an offset is a byte position"));
+        assert_eq!(
+            answered,
+            i64::try_from(col).expect("a column fits") + 1,
+            "the column a node answers is the one home's column for its own \
+             offset, made 1-based"
+        );
+        answered
     }
 
     /// Whether a signature's type mentions `class` anywhere inside it.
@@ -926,6 +1092,7 @@ mod tests {
     /// about two answers agreeing. Both verdicts are then required of the
     /// corpus by counting, so a seed directory that drifted into holding only
     /// programs that parse stops testing the refusal silently.
+    // covers: Core\Ast::parse
     #[test]
     fn core_ast_parse_gives_the_compilers_verdict_on_every_parse_seed() {
         let dir = nvs_repo::path("fuzz/seeds/parse");

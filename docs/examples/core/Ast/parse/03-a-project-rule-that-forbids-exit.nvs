@@ -1,0 +1,28 @@
+<?nvs
+// Shows a project rule of your own: no file may stop the program with `exit`.
+// `nodes` gives every node in the file, so a call deep inside a method is found
+// too. Each one reports the place a person can go and fix.
+
+string $source = <<<'NVS'
+<?nvs
+class Report {
+    public static function run(int $rows): void {
+        if ($rows == 0) {
+            exit(1);
+        }
+        echo "rows: ", $rows, "\n";
+    }
+}
+
+Report::run(0);
+NVS;
+
+Core\Ast\Node $file = Core\Ast::parse($source);
+int $found = 0;
+foreach ($file->nodes() as Core\Ast\Node $node) {
+    if ($node->kind() == "Exit") {
+        $found = $found + 1;
+        echo "exit at line ", $node->line(), ", column ", $node->column(), "\n";
+    }
+}
+echo $found == 0 ? "the file follows the rule" : "the file breaks the rule", "\n";

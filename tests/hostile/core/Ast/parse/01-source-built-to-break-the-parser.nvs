@@ -1,0 +1,54 @@
+<?nvs
+// Attack: a program parses text that was built to break the parser. The text
+// nests deeper than the parser allows, holds one value of four million
+// characters, and then grows until it no longer fits in memory. The last step
+// should stop at the request's memory limit with an error, and must not crash.
+// hostile: timeout-ms 30000
+// hostile: ends-early
+
+// 1. 100,000 brackets inside each other. The parser stops at its own nesting
+// limit and throws an error, which is caught here so the next step still runs.
+string $nested = '<?nvs echo ' . Core\Str::repeat('(', 100000) . '1'
+    . Core\Str::repeat(')', 100000) . ';';
+try {
+    Core\Ast::parse($nested);
+    echo "deep nesting accepted\n";
+} catch (Throwable $refused) {
+    echo "deep nesting refused\n";
+}
+
+// 2. One text value of four million characters. It is a single part of the
+// program, so the tree stays small and all of the memory sits in one node.
+string $long = '<?nvs echo "' . Core\Str::repeat('a', 4000000) . '";';
+try {
+    Core\Ast\Node $file = Core\Ast::parse($long);
+    echo 'one long value: ', $file->kind(), "\n";
+} catch (Throwable $refused) {
+    echo "one long value refused\n";
+}
+
+// 3. Text that is not a program at all, and text that is only broken
+// punctuation. Neither may bring the parser down.
+try {
+    Core\Ast::parse('just words, and no program tag at all');
+    echo "plain words accepted\n";
+} catch (Throwable $refused) {
+    echo "plain words refused\n";
+}
+try {
+    Core\Ast::parse('<?nvs class {{{{{{ function (((');
+    echo "broken punctuation accepted\n";
+} catch (Throwable $refused) {
+    echo "broken punctuation refused\n";
+}
+
+// 4. A program that doubles in size, parsed again after every step. That soon
+// needs more memory than the request may hold, so the program stops here.
+string $body = Core\Str::repeat("echo 1;\n", 100000);
+uint $k = 0;
+while ($k < 20) {
+    Core\Ast::parse("<?nvs\n" . $body);
+    $body = $body . $body;
+    $k = $k + 1;
+}
+echo "grew forever\n";
