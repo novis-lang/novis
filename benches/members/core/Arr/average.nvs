@@ -1,0 +1,21 @@
+<?nvs
+// Works out the mean of a short list of response times, as a report does for
+// every service it watches.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): float {
+        float $mean = 0.0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The first time is last round's mean, so no round can be reused.
+            array<float> $times = [$mean, 12.0, 47.0, 8.0, 23.0, 91.0];
+            $mean = (Core\Arr::average($times) ?? 0.0) as float;
+            $i = $i + 1;
+        }
+        return $mean;
+    }
+}
+
+echo Bench::run(200000), "\n";

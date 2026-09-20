@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to work out the mean of an array: the total of all values,
+// divided by how many there are.
+
+array<int> $goals = [3, 4, 5, 8];
+
+// This prints 5. The keys are not used, only the values.
+echo Core\Arr::average($goals), "\n";
+
+// The result is a `float`, so a mean that is not a whole number keeps its
+// fraction. This prints 4.5.
+array<int> $points = [4, 5];
+echo Core\Arr::average($points), "\n";
+
+// An array with no entries has no mean, so the result is `null`. `??` gives
+// you the text to show instead. This prints "no games yet".
+array<int> $nothing = [];
+echo Core\Arr::average($nothing) ?? 'no games yet', "\n";

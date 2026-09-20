@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to find the days a shop was busier than usual. The mean of the
+// daily visitor counts is worked out first, and every day is compared to it.
+
+array<int> $visitors = [
+    'mon' => 120, 'tue' => 95, 'wed' => 140,
+    'thu' => 88, 'fri' => 210, 'sat' => 260, 'sun' => 0,
+];
+
+// This prints "mean: 130.42857142857".
+echo 'mean: ', Core\Arr::average($visitors), "\n";
+
+float $mean = (Core\Arr::average($visitors) ?? 0.0) as float;
+
+// This prints "wed 140", "fri 210" and "sat 260", one per line.
+foreach ($visitors as string $day => int $count) {
+    if ($count > $mean) {
+        echo $day, ' ', $count, "\n";
+    }
+}

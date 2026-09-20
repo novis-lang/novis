@@ -1,0 +1,56 @@
+<?nvs
+// Attack: a program asks for the mean of arrays that have no mean. One has no
+// entries, one adds up past the range of a whole number, and one holds two
+// types that cannot be added. The last step should stop at the memory limit
+// with an error, and must not crash.
+// hostile: timeout-ms 30000
+// hostile: ends-early
+
+// 1. Nothing at all. There is nothing to divide, so the result is `null` and
+// this prints "no mean".
+array<int> $empty = [];
+echo Core\Arr::average($empty) ?? 'no mean', "\n";
+
+// 2. Two whole numbers whose total is larger than a whole number holds. The
+// total is built before anything is divided, so the member throws an error.
+array<int> $overflow = [9223372036854775807, 1];
+try {
+    Core\Arr::average($overflow);
+    echo "overflow averaged\n";
+} catch (Throwable $refused) {
+    echo "overflow refused\n";
+}
+
+// 3. A `float` and a `decimal` in one array. No type holds both of them, so
+// the member throws an error.
+float $inexact = 0.5;
+decimal $money = 0.5;
+array<float|decimal> $both = [$inexact, $money];
+try {
+    Core\Arr::average($both);
+    echo "both averaged\n";
+} catch (Throwable $mixed) {
+    echo "both refused\n";
+}
+
+// 4. The far ends of the float range. A float total never throws, so the mean
+// here is a NAN.
+float $inf = Core\Math::fdiv(1.0, 0.0);
+array<float> $wild = [$inf, 0.0 - $inf, 1.5];
+echo Core\Arr::average($wild), "\n";
+
+// 5. A million entries. The count is part of the division, and this one is far
+// larger than any test uses. This prints 1.
+array<int> $long = Core\Arr::fill(1000000, 1);
+echo Core\Arr::average($long), "\n";
+
+// 6. One array that doubles in size, with its mean read after every step.
+// That needs more memory than the program has, so it stops here.
+array<int> $growing = Core\Arr::fill(1000, 1);
+uint $k = 0;
+while ($k < 40) {
+    $growing = Core\Arr::appendAll($growing, $growing);
+    Core\Arr::average($growing);
+    $k = $k + 1;
+}
+echo "grew forever\n";
