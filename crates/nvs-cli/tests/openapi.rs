@@ -490,6 +490,7 @@ fn an_api_attribute_contradicting_its_own_signature_is_a_diagnostic() {
 /// writes each value into a member of its own choosing. The `#[Api]`-less row
 /// is the half that catches the opposite mistake — a `tags: []` or a `security:
 /// []` written for every operation reads as an answer where the code gave none.
+// covers: lang:attributes/core-api-and-the-openapi-document
 #[test]
 fn an_apis_four_values_reach_the_operation_and_nothing_else() {
     let (doc, err, ok) = build(&fixture("api-that-agrees"));

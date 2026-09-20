@@ -1,0 +1,46 @@
+<?nvs
+// Shows a small API described well enough to generate a client from it. Every
+// operation has a summary, a group and an example of what it returns. `nvs
+// build --openapi` writes one document holding all of it, and a code generator
+// turns that document into a client library.
+
+class Order {
+    public uint $id = 0;
+    public string $customer = "";
+    public uint $totalCents = 0;
+}
+
+class Orders {
+    /** Count the open orders. Returns how many are waiting to be shipped. */
+    #[Core\Route(path: "/orders", method: Core\Http\Method::Get, name: "Orders::index")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(tags: ["Orders"], security: ["bearer"])]
+    public function index(): uint {
+        return 3;
+    }
+
+    /** Show one order. Looks the order up by its id. */
+    #[Core\Route(path: "/orders/{id}", method: Core\Http\Method::Get, name: "Orders::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(
+        tags: ["Orders"],
+        security: ["bearer"],
+        // Every key here must be a property of the return type. Novis checks
+        // this, so the example in the document cannot go out of date.
+        example: {id: 7, customer: "Ada Lovelace", totalCents: 4250},
+    )]
+    public function show(uint $id): Order {
+        Order $order = new Order();
+        $order->id = $id;
+        $order->customer = "Ada Lovelace";
+        $order->totalCents = 4250;
+        return $order;
+    }
+}
+
+Orders $orders = new Orders();
+echo "open orders: ", $orders->index(), "\n";
+
+Order $order = $orders->show(7);
+echo "order ", $order->id, " for ", $order->customer, "\n";
+echo "total: ", $order->totalCents, " cents\n";

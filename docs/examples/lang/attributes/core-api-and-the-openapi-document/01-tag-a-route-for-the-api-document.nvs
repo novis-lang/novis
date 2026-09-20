@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to describe a route for the generated API document. `nvs build
+// --openapi` writes that document for every route in the program. `tags:` puts
+// this operation in a named group, so a reader finds it beside the other
+// invoice operations.
+
+class Invoices {
+    // The `/** ... */` comment becomes the summary and the description of this
+    // operation. The first sentence is the summary, and the rest is the description.
+    /** Show one invoice. Looks the invoice up by its number. */
+    #[Core\Route(path: "/invoices/{number}", method: Core\Http\Method::Get, name: "Invoices::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(tags: ["Invoices"])]
+    public function show(uint $number): string {
+        return "invoice " . $number;
+    }
+}
+
+// A route is an ordinary method. You can call it directly.
+// This prints `invoice 1042`.
+Invoices $invoices = new Invoices();
+echo $invoices->show(1042), "\n";

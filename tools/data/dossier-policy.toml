@@ -95,3 +95,12 @@ perf = "A program ends once at an uncaught throw, so there is nothing to iterate
 # reserve that exists so it can.
 [skip."lang:errors/fatal-errors-limits-no-catch-sees"]
 perf = "A `FATAL` stops the program where it stands, so there is nothing to iterate; the allocation accounting that reaches the ceiling is measured by every allocating member's own figure."
+
+# `#[Api]` is read while the program is compiled and reaches nothing the running program can
+# observe: `Core\Attributes::get` answers `null` for it, since `rule:attributes/api-adds-and-cannot-contradict`
+# makes it compiler-recognized rather than a userland shape, and the document it feeds is written by
+# `nvs build --openapi` without running anything. A loop could only iterate the annotated handler,
+# which measures a method call. What the checking itself costs is compile time, which
+# `benches/abi-probe/` and the compiler's own figures own.
+[skip."lang:attributes/core-api-and-the-openapi-document"]
+perf = "`#[Api]` is read while the program compiles and has no runtime surface to iterate; a loop here would measure the annotated method call instead."

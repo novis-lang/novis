@@ -1,0 +1,61 @@
+--TEST--
+every way an `#[Api]` can contradict the code beside it is refused, and all four are `E0771` — `rule:attributes/api-adds-and-cannot-contradict`
+--FILE--
+<?nvs
+// covers: lang:attributes/core-api-and-the-openapi-document
+//
+// The four contradictions in one program, which is the half of
+// `rule:attributes/api-adds-and-cannot-contradict` a Novis case can ask about:
+// the emitted document is a build artefact no program's stdout carries, so
+// `crates/nvs-cli/tests/openapi.rs` owns that half and this file owns the
+// refusals a person writing Novis meets.
+//
+// Asserted as four together rather than one per file on purpose. Each is a
+// *different* comparison against the declaration, and they share one code, so
+// a pass that dropped one of the four still looks right on any single line —
+// what pins them is that the build reports four and no fewer.
+
+interface OrderFault {}
+
+class Order {
+    public uint $id = 0;
+}
+
+class Orders {
+    // 1. `errors:` naming something no handler can produce. The name resolves,
+    //    and an interface is still not a class a `throw` ever answers with.
+    #[Core\Route(path: "/orders/{id}", method: Core\Http\Method::Get, name: "Orders::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(errors: [{status: 404, type: OrderFault::class}])]
+    public function show(uint $id): Order { return new Order(); }
+
+    // 2. `example:` naming a key the return type does not declare.
+    #[Core\Route(path: "/orders", method: Core\Http\Method::Get, name: "Orders::index")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(example: {quantity: 3})]
+    public function index(): Order { return new Order(); }
+
+    // 3. A `security:` entry that is not a name.
+    #[Core\Route(path: "/orders/count", method: Core\Http\Method::Get, name: "Orders::count")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    #[Core\Api(security: [404])]
+    public function count(): uint { return 0; }
+
+    // 4. An `#[Api]` on a method carrying no `#[Route]`, so it describes
+    //    nothing.
+    #[Core\Api(tags: ["Orders"])]
+    public function helper(): uint { return 1; }
+}
+
+echo "unreachable", "\n";
+--EXPECT--
+--EXPECTF-ERROR--
+error[E0771]: `OrderFault` is not a class a handler could produce
+%A
+error[E0771]: `Order` declares no `quantity`
+%A
+error[E0771]: this `security` entry is not a string
+%A
+error[E0771]: this `#[Api]` annotates no operation
+%A
+error: aborting due to 4 errors
