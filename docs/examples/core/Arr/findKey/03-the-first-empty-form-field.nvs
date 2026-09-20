@@ -1,0 +1,18 @@
+<?nvs
+// Shows a check a program makes after a form is sent. It names the first
+// field the visitor left empty.
+
+array<string> $form = [
+    "name" => "Ada",
+    "email" => "",
+    "message" => "Hello",
+];
+
+?string $missing = Core\Arr::findKey($form, fn(string $value) => Core\Str::length($value) == 0);
+
+// The field "email" is empty. This prints "please fill in email".
+if ($missing == null) {
+    echo "the form is complete", "\n";
+} else {
+    echo "please fill in ", $missing, "\n";
+}

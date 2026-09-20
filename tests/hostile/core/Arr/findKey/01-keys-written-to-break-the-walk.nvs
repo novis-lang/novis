@@ -1,0 +1,44 @@
+<?nvs
+// Attack: the array and the condition given to `Core\Arr::findKey` are written
+// to break its walk. Every step should finish or throw an error, and the
+// runtime must not crash.
+// hostile: timeout-ms 60000
+
+// 1. A list of 400000 entries, where no entry meets the condition.
+array<int> $long = [];
+int $i = 0;
+while ($i < 400000) {
+    $long[] = $i;
+    $i = $i + 1;
+}
+?string $none = Core\Arr::findKey($long, fn(int $n) => $n < 0);
+echo 'step 1: ', $none ?? 'null', '|', "\n";
+
+// 2. The only matching entry is the last one of those 400000.
+?string $last = Core\Arr::findKey($long, fn(int $n) => $n == 399999);
+echo 'step 2: ', $last ?? 'null', '|', "\n";
+
+// 3. The key of the matching entry is a text of one million characters.
+array<int> $wide = [];
+$wide[Core\Str::repeat('k', 1000000)] = 7;
+?string $huge = Core\Arr::findKey($wide, fn(int $n) => $n == 7);
+echo 'step 3: ', Core\Str::length($huge ?? ''), '|', "\n";
+
+// 4. The condition throws an error in the middle of the walk.
+try {
+    Core\Arr::findKey($long, fn(int $n): bool => {
+        if ($n == 200000) {
+            throw new RuntimeError('from the condition');
+        }
+        return false;
+    });
+    echo 'step 4: the walk finished', "\n";
+} catch (Throwable $caught) {
+    echo 'step 4 stopped: ', $caught->message, "\n";
+}
+
+// 5. The condition compares every entry with its own key, 400000 times.
+?string $same = Core\Arr::findKey($long, fn(int $n, string $key) => $key == '399999');
+echo 'step 5: ', $same ?? 'null', '|', "\n";
+
+echo 'the runtime is still standing', "\n";

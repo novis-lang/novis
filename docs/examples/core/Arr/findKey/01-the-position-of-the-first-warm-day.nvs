@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to get the position of the first entry that meets a condition.
+// In a list the key is the position, and it is always a string.
+
+array<int> $temperatures = [18, 21, 34, 22];
+
+// 34 is the first value above 30, and it sits at position 2. This prints 2.
+?string $warm = Core\Arr::findKey($temperatures, fn(int $degrees) => $degrees > 30);
+echo $warm ?? "none", "\n";
+
+// No value is below zero, so the result is `null`. This prints "none".
+?string $frozen = Core\Arr::findKey($temperatures, fn(int $degrees) => $degrees < 0);
+echo $frozen ?? "none", "\n";
