@@ -1885,6 +1885,167 @@ mod tests {
         assert_eq!(find(b"\x00\xff\x10", b"\xff\x10"), Some(1));
     }
 
+    /// One row of the search table below: a subject, a needle, the `from` the
+    /// search starts at, and the offset that must come back.
+    type SearchRow = (&'static [u8], &'static [u8], i64, Option<u64>);
+
+    /// `Core\Bytes::indexOf` answers the byte offset its table names, resolves
+    /// `from` at both ends — a negative one counts back from the end, and one
+    /// past either end saturates rather than throwing — and **agrees** with
+    /// `contains` on every row that searches the whole buffer: an offset is
+    /// found exactly where the buffer contains the needle. Both are counted
+    /// over the table rather than read off a line, so a row that answered
+    /// plausibly on its own cannot carry the assertion. The `from` option is
+    /// filled the way a call site fills it, with the `Const::Int(0)` the
+    /// registry declares for it rather than a `Value::null()`.
+    // covers: Core\Bytes::indexOf
+    #[test]
+    fn a_search_answers_an_offset_and_resolves_from_at_both_ends() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let table: [SearchRow; 13] = [
+            (b"abcabc", b"bc", 0, Some(1)),
+            (b"abcabc", b"bc", 2, Some(4)),
+            (b"abcabc", b"bc", -3, Some(4)),
+            (b"abcabc", b"bc", -99, Some(1)),
+            (b"abcabc", b"bc", 5, None),
+            (b"abcabc", b"bc", 99, None),
+            (b"abc", b"", 0, Some(0)),
+            (b"abc", b"", 99, Some(3)),
+            (b"", b"", 0, Some(0)),
+            (b"", b"a", 0, None),
+            (b"abc", b"abcd", 0, None),
+            (b"\x00\xff\x10", b"\xff\x10", 0, Some(1)),
+            (b"aaab", b"aab", 0, Some(1)),
+        ];
+
+        let mut agreed = 0_usize;
+        for (haystack, needle, from, expected) in table {
+            let subject = Value::bytes(NvsStr::new(haystack));
+            let sought = Value::bytes(NvsStr::new(needle));
+            let answer = nvs_runtime::call(
+                nvs_core_bytes_index_of,
+                &mut ctx,
+                &[subject, sought, Value::int(from)],
+            )
+            .expect("a search answers");
+            let found = match answer.tag() {
+                Some(Tag::Null) => None,
+                _ => Some(answer.as_uint().expect("an offset is a `uint`")),
+            };
+            let contained =
+                nvs_runtime::call(nvs_core_bytes_contains, &mut ctx, &[subject, sought])
+                    .expect("a predicate answers")
+                    .as_bool()
+                    .expect("a predicate answers a bool");
+            let agrees_with_contains = from != 0 || contained == found.is_some();
+            if found == expected && agrees_with_contains {
+                agreed += 1;
+            }
+            release(vec![subject, sought]);
+        }
+        assert_eq!(agreed, table.len());
+    }
+
+    /// `Core\Bytes::startsWith` answers its table and **agrees** with the
+    /// search: a buffer begins with a prefix exactly when `indexOf` finds that
+    /// prefix at offset 0. Counted over the whole table, so a predicate that
+    /// grew a scan of its own fails here while still reading right on any one
+    /// line. The rows carry what a prefix test comes apart on — an empty
+    /// prefix, a prefix as wide as the buffer, one octet wider than the buffer,
+    /// a prefix that occurs later but not at the start, and a letter whose case
+    /// differs, since a buffer carries no charset to fold it with.
+    // covers: Core\Bytes::startsWith
+    #[test]
+    fn a_prefix_is_what_the_search_finds_at_offset_zero() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let table: [(&[u8], &[u8], bool); 9] = [
+            (b"", b"", true),
+            (b"\x89PNG", b"", true),
+            (b"", b"\x89", false),
+            (b"\x89PNG", b"\x89PNG", true),
+            (b"\x89PNG", b"\x89PNG\r", false),
+            (b"\x89PNG", b"\x89P", true),
+            (b"\x89PNG", b"PNG", false),
+            (b"\x89PNG", b"\x89png", false),
+            (b"GIF89a", b"GIF8", true),
+        ];
+
+        let mut agreed = 0_usize;
+        for (octets, prefix, expected) in table {
+            let subject = Value::bytes(NvsStr::new(octets));
+            let sought = Value::bytes(NvsStr::new(prefix));
+            let begins =
+                nvs_runtime::call(nvs_core_bytes_starts_with, &mut ctx, &[subject, sought])
+                    .expect("a predicate answers")
+                    .as_bool()
+                    .expect("a predicate answers a bool");
+            let at_zero = nvs_runtime::call(
+                nvs_core_bytes_index_of,
+                &mut ctx,
+                &[subject, sought, Value::int(0)],
+            )
+            .expect("a search answers")
+            .as_uint()
+                == Some(0);
+            if begins == expected && begins == at_zero {
+                agreed += 1;
+            }
+            release(vec![subject, sought]);
+        }
+        assert_eq!(agreed, table.len());
+    }
+
+    /// `Core\Bytes::endsWith` answers its table and **agrees** with the search:
+    /// a buffer ends with a suffix exactly when `indexOf`, started where that
+    /// suffix would have to begin, finds it there. A suffix wider than the
+    /// buffer has no such position at all, which is the row the subtraction
+    /// below reads as `None`. Counted over the whole table, for the reason its
+    /// sibling above is.
+    // covers: Core\Bytes::endsWith
+    #[test]
+    fn a_suffix_is_what_the_search_finds_at_the_far_end() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let table: [(&[u8], &[u8], bool); 11] = [
+            (b"", b"", true),
+            (b"report.pdf", b"", true),
+            (b"", b"a", false),
+            (b"report.pdf", b".pdf", true),
+            (b"report.pdf", b"pdf", true),
+            (b"report.pdf", b".PDF", false),
+            (b"report.pdf", b"report.pdf", true),
+            (b"report.pdf", b"xreport.pdf", false),
+            (b"aaa", b"aa", true),
+            (b"\x00\xff", b"\xff", true),
+            (b"\r\n\r\n", b"\r\n", true),
+        ];
+
+        let mut agreed = 0_usize;
+        for (octets, suffix, expected) in table {
+            let subject = Value::bytes(NvsStr::new(octets));
+            let sought = Value::bytes(NvsStr::new(suffix));
+            let ends = nvs_runtime::call(nvs_core_bytes_ends_with, &mut ctx, &[subject, sought])
+                .expect("a predicate answers")
+                .as_bool()
+                .expect("a predicate answers a bool");
+            let at_far_end = octets.len().checked_sub(suffix.len()).is_some_and(|start| {
+                let from = i64::try_from(start).expect("a row of this table fits an `i64`");
+                nvs_runtime::call(
+                    nvs_core_bytes_index_of,
+                    &mut ctx,
+                    &[subject, sought, Value::int(from)],
+                )
+                .expect("a search answers")
+                .as_uint()
+                    == u64::try_from(start).ok()
+            });
+            if ends == expected && ends == at_far_end {
+                agreed += 1;
+            }
+            release(vec![subject, sought]);
+        }
+        assert_eq!(agreed, table.len());
+    }
+
     /// One `string` argument, which the caller still owns — [`packed`] borrows
     /// its octets exactly as the helper convention does.
     fn text(literal: &str) -> Value {
