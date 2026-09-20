@@ -1,0 +1,23 @@
+<?nvs
+// Reads where a part of the source begins, as a program does when it reports a
+// place somebody can go to and look at.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Core\Ast\Node $file = Core\Ast::parse('<?nvs echo 1; echo 2, 3; echo 4, 5, 6;');
+        array<Core\Ast\Node> $top = $file->children();
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Which of the three nodes is asked comes from last round's column,
+            // so no round can be reused.
+            Core\Ast\Node $node = $top[$total % 3];
+            $total = $total + ($node->column() as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

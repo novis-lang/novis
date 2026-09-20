@@ -6352,6 +6352,16 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   floor, with nothing in the diff to blame. Arm a deadline inside the task that waits on it, where the
   window is the wait's own, and leave a margin the slowest leg can spend.
   [until: reviewed 2026-09-20]
+- **A hostile case's memory ending cannot be reached with `Core\Arr::append` in a loop.** Each call
+  copies the array, so growing to the 256 MiB ceiling one entry at a time is quadratic, and 200,000
+  appends of a one-element array did not finish inside 200 s — well past any `timeout-ms`. Seed the
+  list with the values the attack is about and double it with `Core\Arr::appendAll($kept, $kept)`,
+  which reaches the ceiling in under a second. [until: reviewed 2026-09-20]
+- **The parser's 96-level nesting limit is spent about five levels per bracket, so a case nesting 90
+  of them is refused before its first step runs.** `Core\Ast::parse` accepts `echo` behind 15 opening
+  brackets and refuses 20, and an uncaught `ParseError` in step 1 means no later step is delivered at
+  all. Let the case find the boundary itself — raise the depth in a loop and count the refusals —
+  rather than writing a number the grammar can move. [until: reviewed 2026-09-20]
 
 ## Splitting a file that got too big
 

@@ -2,6 +2,7 @@
 A Core\Ast\Node's column is in characters and its offset is in bytes, so two lines differing only in character width agree on the column — `rule:core-classes/ast-is-inert`, `rule:ide/positions-have-one-home`
 --FILE--
 <?nvs
+// covers: Core\Ast\Node::column
 // The *agreement* shape, over the one question the three position members
 // answer differently: `column()` counts characters and `offset()` counts
 // bytes. Two statements are written with the same shape and the same number of

@@ -1,0 +1,37 @@
+<?nvs
+// Attack: a program asks for the column of parts that sit where nobody writes
+// code. They sit far along one line, far down a file, and behind a million
+// spaces. Then it keeps a list of columns that doubles in size. The last step
+// should stop at the request's memory limit with an error, and must not crash.
+// hostile: timeout-ms 30000
+// hostile: ends-early
+
+// 1. 20,000 statements on one line. The last one starts far along that line,
+// so its column is a large number.
+string $oneLine = '<?nvs ' . Core\Str::repeat('echo 1;', 20000);
+array<Core\Ast\Node> $parts = Core\Ast::parse($oneLine)->children();
+Core\Ast\Node $last = $parts[Core\Arr::count($parts) - 1];
+echo 'the last part of the long line is at column ', $last->column(), "\n";
+
+// 2. The same statements on 100,000 separate lines. Each one starts at column
+// 1, however far down the file it sits.
+string $tall = "<?nvs\n" . Core\Str::repeat("echo 1;\n", 100000);
+array<Core\Ast\Node> $rows = Core\Ast::parse($tall)->children();
+Core\Ast\Node $bottom = $rows[Core\Arr::count($rows) - 1];
+echo 'the last row is on line ', $bottom->line(), ' at column ', $bottom->column(), "\n";
+
+// 3. One million spaces before a statement. The column counts characters, so
+// it must count every one of them and must not overflow.
+string $padded = '<?nvs' . Core\Str::repeat(' ', 1000000) . 'echo 1;';
+array<Core\Ast\Node> $behind = Core\Ast::parse($padded)->children();
+echo 'behind a million spaces the column is ', $behind[0]->column(), "\n";
+
+// 4. A list of columns that doubles in size. That soon needs more memory than
+// the request may hold, so the program stops here.
+array<mixed> $columns = [$last->column(), $bottom->column(), $behind[0]->column()];
+uint $k = 0;
+while ($k < 40) {
+    $columns = Core\Arr::appendAll($columns, $columns);
+    $k = $k + 1;
+}
+echo "kept them all\n";
