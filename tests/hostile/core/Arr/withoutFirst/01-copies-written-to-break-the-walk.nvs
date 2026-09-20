@@ -1,0 +1,53 @@
+<?nvs
+// Attack: `Core\Arr::withoutFirst` copies every entry except the first into a
+// new array. Each step below asks it for a copy it should not be able to make.
+// Every step should finish, and the last one should stop the program at its
+// memory limit. The runtime must not crash.
+// hostile: timeout-ms 60000
+// hostile: ends-early
+
+// 1. The array uses the largest whole number there is as a key. That key
+// belongs to an entry that stays, so the result still has it.
+array<string> $taken = ['0' => 'a', '9223372036854775807' => 'b'];
+echo 'step 1: ', Core\Str::join(Core\Arr::keys(Core\Arr::withoutFirst($taken)), ','), "\n";
+
+// 2. An empty array, and an array of one entry. Both give an empty array.
+array<int> $none = [];
+array<int> $one = [7];
+echo 'step 2: ', Core\Arr::count(Core\Arr::withoutFirst($none)), ' ',
+    Core\Arr::count(Core\Arr::withoutFirst($one)), "\n";
+
+// 3. One call over 400000 entries.
+array<int> $wide = [];
+int $i = 0;
+while ($i < 400000) {
+    $wide[] = $i;
+    $i = $i + 1;
+}
+echo 'step 3: ', Core\Arr::count(Core\Arr::withoutFirst($wide)), "\n";
+
+// 4. Two thousand calls in a row, each one copying the result of the last.
+array<int> $shrinking = [];
+int $fill = 0;
+while ($fill < 2000) {
+    $shrinking[] = $fill;
+    $fill = $fill + 1;
+}
+int $round = 0;
+while ($round < 2000) {
+    $shrinking = Core\Arr::withoutFirst($shrinking);
+    $round = $round + 1;
+}
+echo 'step 4: ', Core\Arr::count($shrinking), "\n";
+
+// 5. Every result is kept, so the copies add up. The program should stop at
+// its memory limit.
+array<mixed> $kept = [];
+array<int> $long = $wide;
+int $step = 0;
+while ($step < 400000) {
+    $long = Core\Arr::withoutFirst($long);
+    $kept[] = $long;
+    $step = $step + 1;
+}
+echo 'step 5: ', Core\Arr::count($kept), "\n";

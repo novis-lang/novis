@@ -1,0 +1,22 @@
+<?nvs
+// Drops the first entry of a short list, as a program does when it reads one line and continues with the rest.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<int> $lines = [10, 20, 30, 40];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The last entry is last round's total, and the call keeps it, so
+            // no round can be reused.
+            $lines[3] = ($total % 7) as int;
+            array<int> $rest = Core\Arr::withoutFirst($lines);
+            $total = $total + ($rest[3] as uint) + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

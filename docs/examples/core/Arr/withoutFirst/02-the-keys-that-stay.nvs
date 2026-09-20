@@ -1,0 +1,17 @@
+<?nvs
+// Shows which keys the result has. Every entry that stays keeps its own key.
+
+array<string> $columns = ["name", "email", "city"];
+
+array<string> $rest = Core\Arr::withoutFirst($columns);
+
+// The entry under the key 0 is gone. The other two keys stay as they were,
+// so this prints 1 and 2.
+foreach (Core\Arr::keys($rest) as string $key) {
+    echo $key, "\n";
+}
+
+// `Core\Arr::values` numbers the keys from 0 again. This prints 0 and 1.
+foreach (Core\Arr::keys(Core\Arr::values($rest)) as string $key) {
+    echo $key, "\n";
+}
