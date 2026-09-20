@@ -7981,4 +7981,185 @@ mod tests {
         dropped(one);
         dropped(full);
     }
+
+    /// Every entry that survives keeps the key it was stored under, and a
+    /// subject of one entry or none answers the empty array.
+    ///
+    /// **Asserted over the keys, not the values.** A member that renumbered
+    /// its result would hold the same values in the same order and differ
+    /// only in what they are stored under, so reading the keys back is the
+    /// only thing telling the two apart. The short subjects are the other
+    /// half: PHP's `array_shift` answers `null` and warns where there is
+    /// nothing to remove, and this answers an array a caller can walk.
+    // covers: Core\Arr::withoutFirst
+    #[test]
+    fn without_first_keeps_the_key_of_every_entry_that_survives() {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+
+        let subject = mixed_keys();
+        let result = call(super::nvs_core_arr_without_first, &mut ctx, &[subject])
+            .expect("dropping the first entry never fails");
+        assert_eq!(
+            entries_of(result),
+            vec![
+                (b"10".to_vec(), b"b".to_vec()),
+                (b"y".to_vec(), b"c".to_vec()),
+            ]
+        );
+        dropped(subject);
+
+        let one = list_of(&[7]);
+        let emptied = call(super::nvs_core_arr_without_first, &mut ctx, &[one])
+            .expect("dropping the first entry never fails");
+        assert!(entries_of(emptied).is_empty());
+        dropped(one);
+
+        let none = list_of(&[]);
+        let still_empty = call(super::nvs_core_arr_without_first, &mut ctx, &[none])
+            .expect("dropping the first entry never fails");
+        assert!(entries_of(still_empty).is_empty());
+        dropped(none);
+    }
+
+    /// The other end of the same shortening: every entry but the last
+    /// survives under the key it was stored under, and a subject of one
+    /// entry or none answers the empty array.
+    ///
+    /// Asserted beside [`without_first_keeps_the_key_of_every_entry_that_survives`]
+    /// rather than on its own, because the two are one walk taken from
+    /// opposite ends: a member that dropped the entry at the wrong end still
+    /// answers two entries under two of the subject's own keys, so only the
+    /// pair says which end went.
+    // covers: Core\Arr::withoutLast
+    #[test]
+    fn without_last_keeps_the_key_of_every_entry_that_survives() {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+
+        let subject = mixed_keys();
+        let result = call(super::nvs_core_arr_without_last, &mut ctx, &[subject])
+            .expect("dropping the last entry never fails");
+        assert_eq!(
+            entries_of(result),
+            vec![
+                (b"x".to_vec(), b"a".to_vec()),
+                (b"10".to_vec(), b"b".to_vec()),
+            ]
+        );
+        dropped(subject);
+
+        let one = list_of(&[7]);
+        let emptied = call(super::nvs_core_arr_without_last, &mut ctx, &[one])
+            .expect("dropping the last entry never fails");
+        assert!(entries_of(emptied).is_empty());
+        dropped(one);
+
+        let none = list_of(&[]);
+        let still_empty = call(super::nvs_core_arr_without_last, &mut ctx, &[none])
+            .expect("dropping the last entry never fails");
+        assert!(entries_of(still_empty).is_empty());
+        dropped(none);
+    }
+
+    /// The padding lands in front of the subject's own values, and the whole
+    /// result is renumbered from `"0"` whatever the subject's keys were.
+    ///
+    /// **The unpadded row is the half that pins the renumbering.** A subject
+    /// already at the wanted length has nothing added, so the keys are the
+    /// only thing that moved — a member that returned the subject as it
+    /// stands would answer the same three values in the same order and still
+    /// be wrong, since [`nvs_core_arr_pad_start`]'s own docs make the list
+    /// the result's shape rather than a side effect of padding.
+    // covers: Core\Arr::padStart
+    #[test]
+    fn pad_start_writes_its_copies_in_front_and_renumbers_the_whole_result() {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let subject = mixed_keys();
+        let filler = Value::str(NvsStr::new(b"-"));
+
+        let result = call(
+            super::nvs_core_arr_pad_start,
+            &mut ctx,
+            &[subject, Value::uint(5), filler],
+        )
+        .expect("a length this short is always affordable");
+        assert_eq!(
+            entries_of(result),
+            vec![
+                (b"0".to_vec(), b"-".to_vec()),
+                (b"1".to_vec(), b"-".to_vec()),
+                (b"2".to_vec(), b"a".to_vec()),
+                (b"3".to_vec(), b"b".to_vec()),
+                (b"4".to_vec(), b"c".to_vec()),
+            ]
+        );
+
+        let unpadded = call(
+            super::nvs_core_arr_pad_start,
+            &mut ctx,
+            &[subject, Value::uint(2), filler],
+        )
+        .expect("a length this short is always affordable");
+        assert_eq!(
+            entries_of(unpadded),
+            vec![
+                (b"0".to_vec(), b"a".to_vec()),
+                (b"1".to_vec(), b"b".to_vec()),
+                (b"2".to_vec(), b"c".to_vec()),
+            ]
+        );
+
+        dropped(filler);
+        dropped(subject);
+    }
+
+    /// The other side of the same padding: the copies land after the
+    /// subject's own values, and the whole result is renumbered from `"0"`.
+    ///
+    /// Asserted beside [`pad_start_writes_its_copies_in_front_and_renumbers_the_whole_result`]
+    /// rather than on its own, because the two are one walk with the padding
+    /// on the other side: a member that padded the wrong side still answers
+    /// five entries under `"0"` to `"4"`, so only the pair says which side
+    /// the copies went to.
+    // covers: Core\Arr::padEnd
+    #[test]
+    fn pad_end_writes_its_copies_after_the_last_value_and_renumbers_the_whole_result() {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let subject = mixed_keys();
+        let filler = Value::str(NvsStr::new(b"-"));
+
+        let result = call(
+            super::nvs_core_arr_pad_end,
+            &mut ctx,
+            &[subject, Value::uint(5), filler],
+        )
+        .expect("a length this short is always affordable");
+        assert_eq!(
+            entries_of(result),
+            vec![
+                (b"0".to_vec(), b"a".to_vec()),
+                (b"1".to_vec(), b"b".to_vec()),
+                (b"2".to_vec(), b"c".to_vec()),
+                (b"3".to_vec(), b"-".to_vec()),
+                (b"4".to_vec(), b"-".to_vec()),
+            ]
+        );
+
+        let unpadded = call(
+            super::nvs_core_arr_pad_end,
+            &mut ctx,
+            &[subject, Value::uint(2), filler],
+        )
+        .expect("a length this short is always affordable");
+        assert_eq!(
+            entries_of(unpadded),
+            vec![
+                (b"0".to_vec(), b"a".to_vec()),
+                (b"1".to_vec(), b"b".to_vec()),
+                (b"2".to_vec(), b"c".to_vec()),
+            ]
+        );
+
+        dropped(filler);
+        dropped(subject);
+    }
 }

@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to make a row of a table as wide as its header before you write
+// the row out. A row that is missing values gets empty text at the end.
+
+array<string> $header = ["name", "city", "phone", "email"];
+array<string> $row = ["Ada", "London"];
+
+array<string> $full = Core\Arr::padEnd($row, Core\Arr::count($header), "");
+
+// The two missing fields are empty, so this prints "Ada;London;;".
+echo Core\Str::join($full, ";"), "\n";
+
+// The row is now as wide as the header, so this prints 4.
+echo Core\Arr::count($full), "\n";
