@@ -2,6 +2,7 @@
 a `#[Fixture]` is a `public static` method returning the type it supplies, and one class supplies each type once, `rule:testing/fixtures`
 --FILE--
 <?nvs
+// covers: lang:testing/core-test-fixture-built-once-injected-by-type
 // `rule:testing/fixtures` builds a fixture once, in the parent isolate, and injects the
 // value it returns into each test that declares a parameter of its type. So
 // what the roster records is the type each one supplies, and a declaration
@@ -91,21 +92,21 @@ final class TwiceTest {
 }
 --EXPECTF-ERROR--
 error[E0735]: the `#[Fixture]` method `notStatic` is not `static`
-   --> case.nvs:45:21
+   --> case.nvs:46:21
 %A
 error[E0735]: the `#[Fixture]` method `notPublic` is not `public`
-   --> case.nvs:51:29
+   --> case.nvs:52:29
 %A
 error[E0735]: the `#[Fixture]` method `suppliesNothing` returns `void`
-   --> case.nvs:57:28
+   --> case.nvs:58:28
 %A
 error[E0454]: `name` is not an option of `#[Fixture]`
-   --> case.nvs:62:15
+   --> case.nvs:63:15
 %A
 error[E0735]: the `#[Fixture]` method `bothAtOnce` is also a `#[Test]`
-   --> case.nvs:71:28
+   --> case.nvs:72:28
 %A
 error[E0304]: `TwiceTest` declares two `#[Fixture]` methods returning `Schema`
-   --> case.nvs:85:28
+   --> case.nvs:86:28
 %A
 error: aborting due to 6 errors

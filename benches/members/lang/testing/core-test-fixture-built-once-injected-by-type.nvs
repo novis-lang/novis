@@ -1,0 +1,42 @@
+<?nvs
+// Measures what a fixture costs a test: the value is built once, then each test
+// that declares its type is called with it. A test runner pays this per test.
+// bench: iterations 300000
+// bench: calls 1
+// bench: allocations 0
+
+use Core\Test;
+use Core\Test\Fixture;
+
+class Counter {
+    public uint $seen = 0;
+}
+
+class InjectedTest {
+    #[Fixture]
+    public static function counter(): Counter {
+        return new Counter();
+    }
+
+    #[Test]
+    public function countsWhatItWasGiven(Counter $counter): void {
+        // Chained: the number written here is the one the round before wrote.
+        $counter->seen = $counter->seen + 1;
+    }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // Built once for the whole class, the way the runner builds it.
+        var $counter = InjectedTest::counter();
+        var $test = new InjectedTest();
+        uint $i = 0;
+        while ($i < $rounds) {
+            $test->countsWhatItWasGiven($counter);
+            $i = $i + 1;
+        }
+        return $counter->seen;
+    }
+}
+
+echo Bench::run(300000), "\n";

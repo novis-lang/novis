@@ -1,0 +1,39 @@
+<?nvs
+// Shows how one value reaches every test. `#[Fixture]` marks a `public static`
+// method, and the type that method returns is what it supplies.
+
+use Core\Test;
+use Core\Test\Fixture;
+
+class ShippingRates {
+    public function constructor(public int $baseCents, public int $perItemCents) {}
+
+    public function totalCents(int $items): int {
+        return $this->baseCents + $this->perItemCents * $items;
+    }
+}
+
+class ShippingRatesTest {
+    // This method runs once for the whole class. Every test below that declares
+    // a `ShippingRates` parameter is called with what it returns.
+    #[Fixture]
+    public static function rates(): ShippingRates {
+        return new ShippingRates(499, 120);
+    }
+
+    #[Test]
+    public function threeItemsPayTheBaseAndThreeItems(ShippingRates $rates): void {
+        Test::assertSame($rates->totalCents(3), 859);
+    }
+
+    // The type of the parameter says which fixture fills it. The name is yours
+    // to choose.
+    #[Test]
+    public function anEmptyOrderPaysTheBase(ShippingRates $anyNameYouLike): void {
+        Test::assertSame($anyNameYouLike->totalCents(0), 499);
+    }
+}
+
+// This prints 859.
+ShippingRates $rates = new ShippingRates(499, 120);
+echo $rates->totalCents(3), "\n";

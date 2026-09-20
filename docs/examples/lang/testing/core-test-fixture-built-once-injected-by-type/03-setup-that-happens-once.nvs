@@ -1,0 +1,51 @@
+<?nvs
+// Shows the use a fixture is really for. Setup that costs time happens one time
+// for the whole class, and each test works with the result.
+
+use Core\Test;
+use Core\Test\Fixture;
+
+// One line per message, as a small translation file holds it.
+class Messages {
+    public function constructor(public array<string> $rows) {}
+
+    public function textOf(string $key): string {
+        foreach ($this->rows as string $row) {
+            array<string> $parts = Core\Str::split($row, "=");
+            if ($parts[0] == $key) {
+                return $parts[1];
+            }
+        }
+        return "";
+    }
+}
+
+class MessagesTest {
+    // Reading the file and splitting it into rows is the slow part. It runs once
+    // here, not once per test.
+    #[Fixture]
+    public static function messages(): Messages {
+        string $file = "greeting=Hello\nfarewell=Goodbye\nthanks=Thank you";
+        return new Messages(Core\Str::split($file, "\n"));
+    }
+
+    #[Test]
+    public function itFindsTheFirstRow(Messages $messages): void {
+        Test::assertSame($messages->textOf("greeting"), "Hello");
+    }
+
+    #[Test]
+    public function itFindsTheLastRow(Messages $messages): void {
+        Test::assertSame($messages->textOf("thanks"), "Thank you");
+    }
+
+    // A key that is not in the file gives an empty string.
+    #[Test]
+    public function anUnknownKeyGivesAnEmptyString(Messages $messages): void {
+        Test::assertSame($messages->textOf("missing"), "");
+    }
+}
+
+// This prints `Goodbye`.
+Messages $messages = new Messages(["greeting=Hello", "farewell=Goodbye"]);
+echo $messages->textOf("farewell"), "\n";

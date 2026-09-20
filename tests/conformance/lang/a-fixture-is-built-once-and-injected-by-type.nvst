@@ -4,6 +4,7 @@ a `#[Fixture]` is built once for its class and injected into each test declaring
 test
 --FILE--
 <?nvs
+// covers: lang:testing/core-test-fixture-built-once-injected-by-type
 // `rule:testing/fixtures`: a fixture is built **once, in the parent isolate**, and
 // injected into each test that declares a parameter of its type — resolution
 // is by type, settled while compiling. So this case is the runner's own report
