@@ -1,0 +1,22 @@
+<?nvs
+// Adds up the amounts of a small basket, as a shop does before it charges a card.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<int> $amounts = [350, 420, 90];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The fold starts from last round's result, so no round can be reused.
+            int $seed = ($total % 7) as int;
+            int $sum = Core\Arr::reduce($amounts, fn(int $carry, int $cents) => $carry + $cents, $seed);
+            $total = $total + (($sum % 11) as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

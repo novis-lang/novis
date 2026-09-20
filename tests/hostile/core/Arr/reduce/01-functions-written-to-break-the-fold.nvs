@@ -1,0 +1,62 @@
+<?nvs
+// Attack: `Core\Arr::reduce` runs a function the program wrote, once per entry,
+// and carries the value it returns into the next call. Each step below gives it
+// a function written to break that walk. Every step should finish, and the last
+// one should stop the program at its memory limit. The runtime must not crash.
+// hostile: timeout-ms 60000
+// hostile: ends-early
+
+class Attack
+{
+    public static uint $depth = 0;
+
+    // Throws instead of returning the next value of the fold.
+    public static function refuse(string $carry): string
+    {
+        throw new LogicError('no');
+    }
+
+    // Folds a one-entry array with a function that does the same again, until
+    // the runtime stops it.
+    public static function deeper(int $n): int
+    {
+        Attack::$depth = Attack::$depth + 1;
+        return Core\Arr::reduce([$n], fn(int $carry, int $m) => Attack::deeper($m), 0);
+    }
+}
+
+// 1. The function throws on the second entry. The value carried so far is
+// thrown away. The error is caught, and nothing of it is left behind.
+array<string> $words = ['a very long word to carry', 'b', 'c'];
+try {
+    string $never = Core\Arr::reduce($words, fn(string $carry, string $word)
+        => Core\Str::length($carry) > 10 ? Attack::refuse($carry) : $carry . $word, '');
+    echo 'step 1: ', Core\Str::length($never), "\n";
+} catch (LogicError $refused) {
+    echo 'step 1: threw', "\n";
+}
+
+// 2. The function folds an array of its own, as deeply as it can. The runtime
+// stops it at its recursion limit, and that error is caught.
+try {
+    int $nested = Core\Arr::reduce([1], fn(int $carry, int $n) => Attack::deeper($n), 0);
+    echo 'step 2: ', $nested, "\n";
+} catch (RecursionError $stopped) {
+    echo 'step 2: stopped after ', Attack::$depth, ' calls', "\n";
+}
+
+// 3. A fold over 400000 entries. The function is called once per entry, and
+// every value it returns replaces the one before it.
+array<int> $wide = [];
+int $i = 0;
+while ($i < 400000) {
+    $wide[] = $i;
+    $i = $i + 1;
+}
+int $sum = Core\Arr::reduce($wide, fn(int $carry, int $n) => $carry + 1, 0);
+echo 'step 3: ', $sum, "\n";
+
+// 4. The carried text doubles in length on every entry. The program should stop
+// at its memory limit.
+string $doubled = Core\Arr::reduce($wide, fn(string $carry, int $n) => $carry . $carry, 'aa');
+echo 'step 4: ', Core\Str::length($doubled), "\n";

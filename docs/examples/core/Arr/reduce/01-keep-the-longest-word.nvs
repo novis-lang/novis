@@ -1,0 +1,12 @@
+<?nvs
+// Folds an array into one value. The function receives the value the fold has
+// so far and the next entry, and returns the value to carry on with.
+
+array<string> $words = ['red', 'orange', 'blue'];
+
+// The fold starts from an empty text, and every longer word replaces it.
+string $longest = Core\Arr::reduce($words, fn(string $carry, string $word)
+    => Core\Str::length($word) > Core\Str::length($carry) ? $word : $carry, '');
+
+// This prints `orange`.
+echo $longest, "\n";
