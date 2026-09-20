@@ -1,0 +1,25 @@
+<?nvs
+// Shows what a web server writes to its log at the end of a request. The peak
+// against the limit tells you which requests are close to failing.
+
+array<string> $rows = [];
+int $i = 0;
+while ($i < 20000) {
+    $rows[] = "one order line";
+    $i = $i + 1;
+}
+
+uint $limit = Core\Budget::memoryLimit();
+uint $peak = Core\Budget::memoryPeak();
+
+if ($limit == 0) {
+    // A limit of 0 means this program has no limit, so there is nothing to
+    // compare the peak with.
+    echo "peak recorded, no limit set\n";
+} else {
+    // The test asks whether the peak is above four fifths of the limit. This
+    // program uses very little, so it prints the second line.
+    echo $peak * 5 > $limit * 4
+        ? "the request came close to its limit\n"
+        : "the request stayed well under its limit\n";
+}

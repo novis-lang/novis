@@ -1,0 +1,23 @@
+<?nvs
+// Measures reading the highest amount of memory a program has used. A program
+// does this at the end of a request to write the figure to its log.
+// bench: iterations 400000
+// bench: calls 0
+// bench: allocations 0
+// bench: statements 3
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The reading of every round is added to the total, so no round can
+            // be left out.
+            $total = $total + Core\Budget::memoryPeak();
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

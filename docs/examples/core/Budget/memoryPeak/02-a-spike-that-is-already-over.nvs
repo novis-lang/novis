@@ -1,0 +1,19 @@
+<?nvs
+// Shows why the peak is useful. A large list is built and then freed. The
+// memory the program is using falls back, and the peak keeps the high point.
+
+array<string> $payload = [];
+int $i = 0;
+while ($i < 50000) {
+    $payload[] = "a row of data from a file";
+    $i = $i + 1;
+}
+uint $peak = Core\Budget::memoryPeak();
+
+// The program is finished with the data and frees it.
+$payload = [];
+
+// This prints "yes" twice. The program now uses less than its high point, and
+// the high point is still the same number.
+echo Core\Budget::memoryHeld() < $peak ? "yes\n" : "no\n";
+echo Core\Budget::memoryPeak() == $peak ? "yes\n" : "no\n";
