@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to write several layers over one base. The layers are used from
+// left to right, so the last one wins.
+
+array<int> $base = ["a" => 1, "b" => 2];
+array<int> $second = ["b" => 20, "c" => 3];
+array<int> $third = ["c" => 30, "a" => 10];
+
+// `a` and `b` keep the place they had in the base. `c` is new, so it sits
+// after them. This prints {"a":10,"b":20,"c":30}.
+echo Core\Json::encode(Core\Arr::overlay($base, $second, $third)), "\n";
+
+// A key is replaced whole. The layer's list takes the place of the base's
+// list, and the two are not joined.
+array<array<string>> $tags = ["post" => ["news", "php"]];
+array<array<string>> $edit = ["post" => ["novis"]];
+echo Core\Json::encode(Core\Arr::overlay($tags, $edit)), "\n";

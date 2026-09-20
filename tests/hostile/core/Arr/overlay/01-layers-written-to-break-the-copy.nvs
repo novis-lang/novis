@@ -1,0 +1,48 @@
+<?nvs
+// Attack: a program writes layers over an array until the copies are larger
+// than the computer can hold. The last step should stop with an error, and
+// the program must not crash.
+// hostile: timeout-ms 20000
+// hostile: ends-early
+
+// 1. Nothing at all, on both sides.
+echo Core\Arr::count(Core\Arr::overlay([], [])), "\n";
+
+// 2. A key written as the number 10, and the same key written as the string
+// "10". Both name one entry, so the result has one entry and not two.
+array<string> $numberKey = [10 => 'first'];
+array<string> $stringKey = ['10' => 'second'];
+echo Core\Json::encode(Core\Arr::overlay($numberKey, $stringKey)), "\n";
+
+// 3. An array written over itself. Both sides are the same array, so nothing
+// may be freed while it is still being read.
+array<int> $wide = Core\Arr::range(1, 10000);
+echo Core\Arr::count(Core\Arr::overlay($wide, $wide)), "\n";
+
+// 4. Twelve layers in one call.
+array<int> $one = [1 => 1];
+echo Core\Arr::count(Core\Arr::overlay(
+    $one, $one, $one, $one, $one, $one, $one, $one, $one, $one, $one, $one,
+)), "\n";
+
+// 5. Two hundred copies of a ten thousand entry array, one after the other.
+// Each one is freed again, so the memory in use must not grow.
+int $seen = 0;
+uint $round = 0;
+while ($round < 200) {
+    array<int> $copy = Core\Arr::overlay($wide, $wide);
+    $seen = $seen + $copy[9999];
+    $round = $round + 1;
+}
+echo 'loop done ', $seen, "\n";
+
+// 6. Copies of a list of one million numbers, all kept at the same time. No
+// computer has that much memory, so the program stops here with an error.
+array<int> $huge = Core\Arr::range(1, 1000000);
+array<array<int>> $kept = [];
+uint $k = 0;
+while ($k < 1000) {
+    $kept[] = Core\Arr::overlay($huge, $huge);
+    $k = $k + 1;
+}
+echo "kept all\n";

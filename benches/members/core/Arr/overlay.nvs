@@ -1,0 +1,23 @@
+<?nvs
+// Writes the settings a user changed over a set of defaults, as a program
+// does while it starts up.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): int {
+        array<int> $defaults = ["a" => 1, "b" => 2, "c" => 3, "d" => 4, "e" => 5, "f" => 6];
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Last round's total decides the layer, so no round can be reused.
+            array<int> $layer = ["b" => $total % 7, "g" => 7];
+            array<int> $settings = Core\Arr::overlay($defaults, $layer);
+            $total = $total + $settings["b"] + $settings["f"];
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to write the settings a user changed over the default settings.
+// Where a key is in both arrays, the value on the right wins.
+
+array<string> $defaults = ["theme" => "light", "language" => "en", "perPage" => "20"];
+array<string> $chosen = ["theme" => "dark", "timezone" => "UTC"];
+
+// `theme` is in both, so the chosen value wins. `timezone` is new, so it is
+// added at the end.
+array<string> $settings = Core\Arr::overlay($defaults, $chosen);
+echo Core\Json::encode($settings), "\n";
+
+// The two arrays you started with are unchanged.
+echo Core\Json::encode($defaults), "\n";
