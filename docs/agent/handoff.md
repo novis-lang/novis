@@ -2,45 +2,51 @@
 
 ## State
 
-Goal `Core\Arr` (1/4). `values`, `first`, `last` and `firstKey` are finished, beside `contains`,
-`keyOf`, `isList`, `keys`, `find`, `findKey`, `isEmpty`, `hasKey`, `count`, `filter`, `map`,
-`mapKeys`, `groupBy`, `reduce`, `any` and `all`: `about.md`, three examples, one attack, one bench
-with a row in `docs/perf/members.ndjson`, and a Rust `#[test]` carrying its `covers:` marker each.
-30 of `Core\Arr`'s features are still owed. Nothing is blocked.
+Goal `Core\Arr` (1/4). `lastKey`, `slice`, `replaceRange` and `chunk` are finished this session,
+beside the 26 members that landed before them: `about.md`, three examples, one attack, one bench with
+a row in `docs/perf/members.ndjson`, and a Rust `#[test]` carrying its `covers:` marker each. 30 of
+`Core\Arr`'s 56 features are complete and 26 are owed. Nothing is blocked.
 
-**No new Rust test was written this session, because all four were already asserted and only the
-attribution was missing.** `values_renumbers_from_zero_and_retains_what_it_copies`
-(`crates/nvs-stdlib/src/arr.rs:6471`), `the_four_end_members_read_insertion_order` (`:7389`) and
-`an_empty_array_has_no_ends` (`:7404`) carry the markers now, and the two end ones name
-`Core\Arr::lastKey` as well — so `lastKey` owes examples, an attack and a bench only.
+**`Core\Arr::count` answers `uint` while `slice`'s and `replaceRange`'s `offset` is `int`**, so a
+count cannot be handed to a position — it is `E0401` at the call. Both a bench and an attack were
+written that way and did not compile; the playbook's `uint` bullets are the family, and an `int`
+counter carrying the position is the fix.
 
-**A bench reaching its array through a nested index charged the member two allocations per op**, and
-the declared `// bench: allocations 0` is what caught it; the playbook bullet has the shape. The four
-figures, at a 2.6 to 3.2 ns calibration unit and binary `af29429c0f73`: `first` 14.0 ns/op and 0
-allocations, `last` 11.3 and 0, `firstKey` 29.4 and 0 — 59.4 and 2 through the nested index — and
-`values` 97.9 and 4, which is its sibling `keys`'s shape.
+**A chunk attack repeating 20000 splits of a 100000-entry array ran 3m23s** against its declared
+60s timeout, and 200 repeats assert the same thing in 2.2s. The playbook bullet has the shape.
+
+The four figures, at a 2.9 to 3.1 ns calibration unit: `lastKey` 30.0 ns/op and 0 allocations, `slice`
+69.7 and 2, `replaceRange` 119.1 and 4, and `chunk` 237.0 and 12 over 914 bytes, which is one array
+per run plus the outer list. **Every `--record-perf` rebuilds the release binary**, so the four rows
+name four different binaries while `impl_hash` stays `37de45ca70f4` across all of them — and the
+ledger keys a figure's currency on that hash, not on the binary.
 
 ## Next group
 
 **One slice is one feature with all its feature proofs**, taken in registry order so neighbours share
 the declaration region they sit in — one file set: `crates/nvs-stdlib/src/arr.rs`,
-`docs/examples/core/Arr/`, `tests/hostile/core/Arr/`, `benches/members/core/Arr/`. `lastKey` is
-`firstKey`'s other end and its Rust proof already landed, so its `about.md` is what has to tell the
-two apart. The other three take a range and return a new array, and what each `about.md` has to make
-plain is what happens at the ends of that range and which keys the result carries.
+`docs/examples/core/Arr/`, `tests/hostile/core/Arr/`, `benches/members/core/Arr/`. All four reshape an
+array rather than reading one window of it, and what each `about.md` has to make plain is which keys
+the result carries: `reverse` keeps them only when asked, `flip` turns every value into a key and so
+loses an entry to every duplicate value, and the two `flatten` members renumber everything they pull
+up. `reverse`'s Rust-side claim is already asserted by
+`reverse_renumbers_by_default_and_keeps_every_key_on_request`, so its `covers:` marker is the whole
+test edit.
 
-- [ ] **`Core\Arr::lastKey`** — owes examples, hostile, perf; `rule:testing/feature-proofs`.
-      `crates/nvs-stdlib/src/arr.rs:375`
-- [ ] **`Core\Arr::slice`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`.
-      `crates/nvs-stdlib/src/arr.rs:384`
-- [ ] **`Core\Arr::replaceRange`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`.
-      `crates/nvs-stdlib/src/arr.rs:398`
-- [ ] **`Core\Arr::chunk`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`.
-      `crates/nvs-stdlib/src/arr.rs:412`
+- [ ] **`Core\Arr::reverse`** — owes examples, hostile, perf; its Rust test needs the `covers:` marker
+      only, at `crates/nvs-stdlib/src/arr.rs:6587`; `rule:testing/feature-proofs`.
+      `crates/nvs-stdlib/src/arr.rs:493`
+- [ ] **`Core\Arr::flip`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`.
+      `crates/nvs-stdlib/src/arr.rs:505`
+- [ ] **`Core\Arr::flatten`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`.
+      `crates/nvs-stdlib/src/arr.rs:514`
+- [ ] **`Core\Arr::flattenDeep`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`.
+      `crates/nvs-stdlib/src/arr.rs:523`
 
 ## Backlog
 
-- 30 `Core\Arr` features still owe their proofs; `python tools/dossier.py --group 'Core\Arr'` is the
-  list, thinnest first.
-- `crates/nvs-stdlib/src/arr.rs` `# Known gaps` 4, owner M12: a member that builds an array grows its
-  storage as it appends with the entry count already in hand.
+- `Core\Arr::column`, `sort`, `sortByKey`, `fill`, `fillKeys` and `range` are the group after that,
+  same file set — `python tools/dossier.py --group 'Core\Arr' --owed` is the live list.
+- `Core\Arr::sort` owes examples, perf and tests only: its attack is already on disk.
+- The 20 members from `fromKeysAndValues` to `shapeAs` close the group; the whole class is then
+  complete.
