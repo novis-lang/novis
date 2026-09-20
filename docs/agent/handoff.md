@@ -2,36 +2,47 @@
 
 ## State
 
-The chain is inside the generated dossier goals and goal `lang-testing` is live; two of its three
-features are finished. `lang:testing/a-test-is-a-method-marked-test` and
-`lang:testing/assertions` each carry every feature proof — `about.md`, three examples, one bench
-with a figure in `docs/perf/members.ndjson`, an attack, and conformance cases carrying the
-`covers:` marker a language feature is attributed by. `python tools/dossier.py --only
-'lang:testing/a-test-is-a-method-marked-test' 'lang:testing/assertions' --verify` is green.
+Goal `lang-testing` is live, and four of the seven features in `lang:testing` carry every feature
+proof: `a-test-is-a-method-marked-test`, `assertions`,
+`core-test-fixture-built-once-injected-by-type` and `core-test-testwith-data-rows`. The three that
+still owe every proof are the next group below. The previous handoff called the fixture feature the
+goal's last one, which was wrong — `python tools/dossier.py --verify --group lang:testing` is what
+says how many the group holds.
 
-Two findings are recorded rather than fixed, because each needs a decision no dossier goal may
-take. An `abstract` `#[Test]` compiles and `nvs test` then raises the internal-error fault for a
-method it cannot find (`crates/nvs-types/src/testing.rs`, `check_method_shape` § *Known gaps*);
-the attack that found it is marked `known-gap` and goes green the day the refusal lands. And the
-assertion ledger is appended to under `nvs run` as well, where nothing reads it
+Two findings stay recorded rather than fixed, each needing a decision no dossier goal may take. An
+`abstract` `#[Test]` compiles and `nvs test` then raises the internal-error fault
+(`crates/nvs-types/src/testing.rs`, `check_method_shape` § *Known gaps*), and the assertion ledger is
+appended to under `nvs run` as well, where nothing reads it
 (`crates/nvs-runtime/src/ctx/error.rs`, `record_assertion` § *Known gaps*).
 
 ## Next group
 
-**One slice is one feature with all its feature proofs** — one file set:
+**Stage 2, the dossier: one slice is one feature with all its feature proofs** — one file set:
 `docs/examples/lang/testing/<slug>/`, `tests/hostile/lang/testing/<slug>/`,
-`benches/members/lang/testing/<slug>.nvs` and `tests/conformance/lang/`. This is the goal's last
-feature; after it lands, the goal's closing gates are what the session owes.
+`benches/members/lang/testing/<slug>.nvs`, `tests/conformance/lang/` and
+`tests/conformance/reject/`. A language feature's tests are attributed only by a `// covers:` marker,
+so each slice ends by marking the cases that already pin its rule; the playbook's bullet on a reject
+case's line numbers applies to every one of those edits. An example and a bench run under `nvs run`,
+where a marked method never runs, so each one prints from top-level code and the marked methods are
+what the reader learns from.
 
-- [ ] **`lang:testing/core-test-fixture-built-once-injected-by-type`** — owes about, examples,
-      hostile, perf, tests. `rule:testing/fixtures` specifies it; an attack wants the two shapes
-      `reject_uninjectable_parameters` already refuses at
-      `crates/nvs-types/src/testing.rs:1028`, and the chapter is
-      `docs/reference/lang/95-testing.md:177`.
+- [ ] **`lang:testing/test-options`** — owes about, examples, hostile, perf, tests.
+      `rule:testing/test-attribute` and `rule:testing/determinism-declared-on-the-test` specify it,
+      and the chapter is `docs/reference/lang/95-testing.md:107`. Two cases already pin it:
+      `tests/conformance/lang/a-retried-test-that-passes-is-reported-as-flaky.nvst` and
+      `tests/conformance/reject/a-retry-states-the-reason-it-is-retried.nvst`.
+- [ ] **`lang:testing/every-test-is-its-own-isolate-and-the-constructor-is-setup`** — owes about,
+      examples, hostile, perf, tests. `rule:testing/isolate-per-test` and
+      `rule:testing/constructor-is-setup` specify it, and the chapter is
+      `docs/reference/lang/95-testing.md:62`. No `nvs run` program can show a second isolate, so the
+      examples show the constructor as the setup each test gets.
+- [ ] **`lang:testing/running-tests-nvs-test`** — owes about, examples, hostile, perf, tests.
+      `rule:testing/runner-is-strict` and `rule:testing/report-formats` specify it, and the chapter is
+      `docs/reference/lang/95-testing.md:343`. The three `a-test-run-*` cases under
+      `tests/conformance/lang/` already pin the report formats.
 
 ## Backlog
-- An `abstract` `#[Test]` is not refused — `crates/nvs-types/src/testing.rs` § *Known gaps* 1.
-- The assertion ledger is never truncated outside a test — `crates/nvs-runtime/src/ctx/error.rs` § *Known gaps* 1.
-- `[context] shapes` does not print `docs/examples/README.md` § *The description*, so every dossier session re-reads it to write `about.md` — `docs/agent/loop-goal.toml`.
-- `[context] shapes` does not print the `.nvst` `--RUN--` directive, which every case that drives `nvs test` needs — `docs/agent/loop-goal.toml`.
-- `lang:testing` has four features after this goal: data rows, the per-test isolate, `#[Test(...)]` options and `nvs test` itself — `docs/agent/goals/dossier/`.
+- `docs/perf/members.md` lists three features while the ledger holds every figure this goal has
+  measured; `python tools/dossier.py --perf-report` regenerates it, and nothing gates on it.
+- The `abstract` `#[Test]` refusal needs a diagnostic nobody has decided — `crates/nvs-types/src/testing.rs` § *Known gaps*.
+- The assertion ledger under `nvs run` has no reader — `crates/nvs-runtime/src/ctx/error.rs` § *Known gaps*.

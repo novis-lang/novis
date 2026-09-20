@@ -6175,6 +6175,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   from a neighbouring runner case that has failing tests carries that assertion along with it. Drop the
   section entirely when every `#[Test]` in the case passes, and keep it only where the run really ends
   non-zero. [until: reviewed 2026-09-20]
+- **Adding a `// covers:` marker to a case under `tests/conformance/reject/` moves every line number
+  its `--EXPECTF-ERROR--` block pins.** That block reproduces each diagnostic's `--> case.nvs:NN:CC`
+  anchor, counted from the `<?nvs` of the `--FILE--` block, so one inserted comment renumbers all of
+  them while the case still reads as untouched. Put the marker and the `NN + 1` bumps in one
+  `tools/splice.py` patch, then run `target/debug/nvs.exe test <path.nvst>` before believing it.
+  [until: reviewed 2026-09-20]
 
 ## Splitting a file that got too big
 
