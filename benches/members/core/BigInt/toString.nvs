@@ -1,0 +1,25 @@
+<?nvs
+// Measures turning a large number into text, as a program does before it
+// writes an amount into a message.
+// bench: iterations 100000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\BigInt> $amounts = [
+            Core\BigInt::parse("123456789012345678901234567890"),
+            Core\BigInt::parse("-987654321098765432109876543210"),
+        ];
+        // Chained: the length the round before measured picks the number this
+        // round writes.
+        uint $digits = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            $digits = Core\Str::length($amounts[(($i + $digits) % 2) as int]->toString());
+            $i = $i + 1;
+        }
+        return $digits;
+    }
+}
+
+echo Bench::run(100000), "\n";

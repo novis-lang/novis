@@ -1,0 +1,17 @@
+<?nvs
+// Shows the digits of a number as a `string`. `echo` prints the same text
+// without you calling `toString` yourself.
+
+var $value = Core\BigInt::parse("184467440737095516150");
+
+// Both lines print 184467440737095516150.
+echo $value->toString(), "\n";
+echo $value, "\n";
+
+// A negative number carries a leading minus sign. This prints
+// -184467440737095516150.
+echo $value->neg()->toString(), "\n";
+
+// A `Core\BigInt` inside a string is replaced with the same text. This prints
+// "balance 184467440737095516150".
+echo "balance {$value}", "\n";
