@@ -1,0 +1,5 @@
+db.host = db.internal
+db.port = 5432
+db.name = shop_live
+log.level = debug
+log.file = app.log

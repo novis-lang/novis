@@ -1,0 +1,55 @@
+<?nvs
+// Attack: a program combines arrays nested far deeper than a program ever
+// nests them, and then keeps more copies than the computer can hold. The last
+// step should stop with an error, and the program must not crash.
+// hostile: timeout-ms 20000
+// hostile: ends-early
+
+class Build
+{
+    // A tower of `$depth` arrays, one inside the next, with one key at the
+    // bottom.
+    public static function nest(int $depth, string $leaf): array<mixed>
+    {
+        array<mixed> $node = [$leaf => 'bottom'];
+        int $d = 0;
+        while ($d < $depth) {
+            $node = ['next' => $node];
+            $d = $d + 1;
+        }
+        return $node;
+    }
+}
+
+// 1. Two hundred thousand levels on both sides. Every level holds keys on
+// both sides, so every level is combined.
+array<mixed> $base = Build::nest(200000, 'leaf');
+array<mixed> $layer = Build::nest(200000, 'mark');
+echo Core\Arr::count(Core\Arr::overlayDeep($base, $layer)), "\n";
+
+// 2. A list on the left and keys on the right under the same name. A list is
+// replaced whole, so the result holds the keys alone.
+array<mixed> $hasList = ['item' => ['a', 'b']];
+array<mixed> $hasKeys = ['item' => ['x' => '1']];
+echo Core\Json::encode(Core\Arr::overlayDeep($hasList, $hasKeys)), "\n";
+
+// 3. Fifty short towers, one after the other. Each one is freed again, so the
+// memory in use must not grow.
+uint $seen = 0;
+uint $round = 0;
+while ($round < 50) {
+    array<mixed> $short = Build::nest(2000, 'leaf');
+    $seen = $seen + Core\Arr::count(Core\Arr::overlayDeep($short, $short));
+    $round = $round + 1;
+}
+echo 'loop done ', $seen, "\n";
+
+// 4. Copies of the two hundred thousand level tower, all kept at once. No
+// computer has that much memory, so the program stops here with an error.
+array<mixed> $kept = [];
+uint $k = 0;
+while ($k < 1000) {
+    $kept[] = Core\Arr::overlayDeep($base, $layer);
+    $k = $k + 1;
+}
+echo "kept all\n";

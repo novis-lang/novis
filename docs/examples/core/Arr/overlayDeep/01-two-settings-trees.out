@@ -1,0 +1,2 @@
+{"db":{"host":"db.example.com","port":"5432"},"log":{"level":"info"}}
+{"db":{"host":"db.example.com"},"log":{"level":"info"}}

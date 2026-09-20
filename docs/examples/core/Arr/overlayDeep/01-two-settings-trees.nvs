@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to combine two settings trees. The arrays that meet under the
+// same key are combined, not replaced.
+
+array<array<string>> $defaults = [
+    "db" => ["host" => "localhost", "port" => "5432"],
+    "log" => ["level" => "info"],
+];
+array<array<string>> $production = [
+    "db" => ["host" => "db.example.com"],
+];
+
+// The port under `db` is kept, because the layer says nothing about it.
+array<array<string>> $config = Core\Arr::overlayDeep($defaults, $production);
+echo Core\Json::encode($config), "\n";
+
+// `Core\Arr::overlay` replaces the whole value under `db`, so the port is
+// gone.
+echo Core\Json::encode(Core\Arr::overlay($defaults, $production)), "\n";

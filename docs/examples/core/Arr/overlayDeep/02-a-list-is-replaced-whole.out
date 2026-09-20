@@ -1,0 +1,1 @@
+{"hosts":["c.example.com"],"db":{"host":"db.example.com","port":"5432"}}

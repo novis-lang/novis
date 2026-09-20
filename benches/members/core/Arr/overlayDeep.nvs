@@ -1,0 +1,26 @@
+<?nvs
+// Combines a configuration tree with the settings of the machine it runs on,
+// as a program does while it starts up.
+// bench: iterations 100000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): int {
+        array<array<int>> $shipped = [
+            "db" => ["port" => 5432, "pool" => 10],
+            "log" => ["level" => 1, "days" => 7],
+        ];
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Last round's total decides the layer, so no round can be reused.
+            array<array<int>> $machine = ["db" => ["port" => 6000 + $total % 9]];
+            array<array<int>> $config = Core\Arr::overlayDeep($shipped, $machine);
+            $total = $total + $config["db"]["port"] + $config["log"]["days"];
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(100000), "\n";

@@ -1,0 +1,23 @@
+<?nvs
+// Shows how a program builds its configuration from three layers: what it
+// ships with, what the machine it runs on sets, and what the command line
+// asked for.
+
+array<array<string>> $shipped = [
+    "db" => ["host" => "localhost", "port" => "5432", "name" => "shop"],
+    "log" => ["level" => "info", "file" => "app.log"],
+];
+array<array<string>> $machine = [
+    "db" => ["host" => "db.internal", "name" => "shop_live"],
+];
+array<array<string>> $flags = [
+    "log" => ["level" => "debug"],
+];
+
+// Every setting nobody changed is still there.
+array<array<string>> $config = Core\Arr::overlayDeep($shipped, $machine, $flags);
+foreach ($config as string $section => array<string> $values) {
+    foreach ($values as string $key => string $value) {
+        echo $section, ".", $key, " = ", $value, "\n";
+    }
+}
