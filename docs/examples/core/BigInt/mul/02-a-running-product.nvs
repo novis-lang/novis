@@ -1,0 +1,14 @@
+<?nvs
+// Shows a running product: the factorial of 25, which is the number of orders
+// 25 items can be put in. It is far larger than an `int` holds.
+
+var $product = Core\BigInt::of(1);
+int $n = 2;
+while ($n <= 25) {
+    // `mul` returns the new product, so the result is kept in `$product`.
+    $product = $product->mul(Core\BigInt::of($n));
+    $n = $n + 1;
+}
+
+// This prints 15511210043330985984000000.
+echo $product, "\n";

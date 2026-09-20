@@ -1,0 +1,10 @@
+<?nvs
+// Shows the total price of an order that is counted in the smallest unit of a
+// currency. One unit here is a millionth of a cent.
+
+var $perItem = Core\BigInt::parse("2500000000000000000");
+uint $quantity = 1200;
+
+// `mul` gives the total price of 1200 items. This prints
+// 3000000000000000000000.
+echo $perItem->mul(Core\BigInt::ofUint($quantity)), "\n";

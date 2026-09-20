@@ -1,0 +1,39 @@
+<?nvs
+// Attack: `mul` is asked for products of very wide numbers, and then for a
+// number that doubles in width every round. A product that is never freed would
+// use up the memory of the machine. The program should run to its last line.
+
+// 1. Two numbers of about a hundred thousand bits are multiplied 200 times.
+//    Only the last product is kept, so the memory held must not grow.
+var $left = Core\BigInt::of(3)->pow(63000);
+var $right = Core\BigInt::of(5)->pow(43000);
+var $product = $left;
+int $round = 0;
+while ($round < 200) {
+    $product = $left->mul($right);
+    $round = $round + 1;
+}
+echo $product->sign(), "\n";
+
+// 2. A number of about a thousand bits is squared ten times. Each round is
+//    twice as wide as the one before, and the last is about a million bits.
+var $growing = Core\BigInt::of(3)->pow(630);
+int $step = 0;
+while ($step < 10) {
+    $growing = $growing->mul($growing);
+    $step = $step + 1;
+}
+echo $growing->sign(), "\n";
+
+// 3. The sign changes every round, and every round copies a number of fifty
+//    thousand bits. This prints -1.
+var $running = Core\BigInt::of(1)->shl(50000);
+int $flip = 0;
+while ($flip < 1000) {
+    $running = $running->mul(Core\BigInt::of(-1));
+    $flip = $flip + 1;
+}
+echo $running->mul(Core\BigInt::of(-1))->sign(), "\n";
+
+// 4. Zero takes the widest number there is down to nothing. This prints 0.
+echo $growing->mul(Core\BigInt::of(0))->sign(), "\n";
