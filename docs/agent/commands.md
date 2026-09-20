@@ -295,6 +295,18 @@ green, so a run that goes red at `test` keeps the verdicts before it; an entry e
 `--no-cache` runs everything, and a `-p` verdict never satisfies an unscoped run. `tools/verify.py` §
 *Why a step whose inputs did not change is not run* is the argument and `tools/verify_keys.py` the table.
 
+**Inside `test`, a binary whose inputs have not changed is not run either.** `tools/impact.py` keys
+each test binary on what *it* reads: its own package as bytes, the workspace packages it is compiled
+against with comments and layout removed, and what it opens while it runs when it says so through
+`nvs_repo`. An edit to `nvs-lsp` therefore runs the binaries of `nvs-lsp` and `nvs-cli` and answers
+the rest from `.agent-tmp/verify-test-green.json`, with the `test result:` line each printed when it
+was green, so the step's counts stay the workspace's. Every doubt resolves wide — a binary whose
+sources leave their package some other way, or whose dep-info cannot be found, keeps the whole-tree
+key. `python tools/impact.py` lists which binaries are narrow and why the others are not,
+`--explain <path>...` says what an edit to a path re-runs, and `--graph` prints the package graph
+that decides it. `tools/verify.py` § *Why `test` runs only the binaries a change reaches* is the
+argument.
+
 `nvs-fmt`, straight after `build`, **formats** each `.nvs` file git reports as new or modified under
 `tests/` and `examples/`, for `fmt`'s reason: `nvs-fmt`'s identity test fails on an unformatted one, and
 the fix was always the same command and the whole run again.

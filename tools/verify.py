@@ -172,6 +172,23 @@ reported as that failure, red, rather than retried into green. The fix is always
 its own resource, never to run it apart: a clash that serial running hides is the same clash waiting
 for the loop and a person to run the suite at the same moment.
 
+## Why `test` runs only the binaries a change reaches
+
+The step's own key is every input in the tree, so an edit anywhere used to run all of the
+workspace's test binaries: a new file under `tests/hostile/` ran `nvs-server`'s unit tests, and a
+one-line edit to `nvs-lsp` ran `nvs-syntax`'s. `tools/impact.py` keys each binary on what *it*
+reads -- its own package as bytes, the workspace packages it is compiled against at the code tier,
+and what it opens while it runs when it says so through `nvs_repo` -- and a binary whose key has
+not moved is answered from `TEST_GREEN` with the `test result:` line it printed when it was green,
+so the step's counts stay the workspace's.
+
+Every doubt resolves wide: a binary whose sources leave their package some way `nvs_repo` does
+not record keeps the whole-tree key, and so does one whose dep-info or package cannot be found.
+`python tools/impact.py` lists which binaries are narrow and why the others are not, and
+`--explain <path>` says what an edit to a path re-runs. A verdict here has no expiry, unlike a
+step's: its key holds every byte the binary can read, which is the whole of the argument.
+`--no-cache` runs every binary, and a binary that fails loses its entry.
+
 ## Why `doc` runs when a goal ends rather than as a step
 
 `cargo doc --no-deps --workspace` resolves every ``[`Foo::bar`]`` in a doc comment. The lint it
@@ -234,6 +251,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
+import impact
 import verify_keys as keys
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -245,6 +263,11 @@ PROGRESS = TMP / "verify-progress.json"  # the step in flight; see the module do
 TEST_TIMES = TMP / "verify-test-times.json"
 # What the last `cargo test --no-run` built, and from which code -- `jobs_on_disk`.
 TEST_BUILT = TMP / "verify-test-built.json"
+# Each test binary's green verdict: `{job name: {"key": ..., "result": ...}}`, the key being
+# `tools/impact.py`'s over what that binary reads -- *Why `test` runs only the binaries a change
+# reaches* in the module doc. Where each binary's run-time reads are logged is `READS_DIR`.
+TEST_GREEN = TMP / "verify-test-green.json"
+READS_DIR = TMP / "reads"
 
 TAIL_LINES = 60  # of the failing step only; the full log is always on disk
 CACHE_TTL = 3600  # seconds. A key cannot go stale on its own; this is a belt on braces.
@@ -470,6 +493,31 @@ def run_tests(step, package=None):
         last = {}
     if not isinstance(last, dict):
         last = {}
+
+    # Which binaries this change reaches -- *Why `test` runs only the binaries a change reaches*.
+    # With no tree to key against, every binary runs and nothing is remembered.
+    tree = getattr(step, "tree", None)
+    reach = impact.Reach(tree) if tree is not None else None
+    green = load_test_green() if reach is not None and not getattr(step, "no_cache", False) else {}
+    binaries = [j for j in jobs if j["name"] != "doc-tests"]
+    held = {}
+    if reach is not None:
+        for j in binaries:
+            entry = green.get(j["name"])
+            if isinstance(entry, dict) and entry.get("key") == reach.key(j)[0]:
+                held[j["name"]] = entry
+    jobs = [j for j in jobs if j["name"] not in held]
+    for j in jobs:
+        if reach is not None and j["name"] != "doc-tests":
+            log = READS_DIR / (re.sub(r"\W+", "-", j["name"]) + ".log")
+            try:
+                READS_DIR.mkdir(parents=True, exist_ok=True)
+                log.unlink(missing_ok=True)
+            except OSError:
+                pass
+            j["env"] = dict(j["env"], **{impact.READS_ENV: str(log)})
+            j["reads_log"] = log
+
     # Unknown first: a binary with no recorded time is new, and new is as likely to be slow.
     jobs.sort(key=lambda j: -float(last.get(j["name"], float("inf"))))
     with ThreadPoolExecutor(max_workers=os.cpu_count() or 4) as pool:
@@ -480,16 +528,41 @@ def run_tests(step, package=None):
     # Alone, one at a time, after the pool has drained: the second run is the diagnosis.
     alone = {j["name"]: run_job(j)[1] == 0 for j in failed}
 
+    if reach is not None:
+        stored = load_test_green()
+        for j in jobs:
+            if j["name"] == "doc-tests":
+                continue
+            if results[j["name"]][1] != 0:
+                stored.pop(j["name"], None)
+                continue
+            # What it opened first, because the key that stands for this run holds those reads.
+            reach.record(j, j["reads_log"])
+            lines = [ln for ln in results[j["name"]][2].splitlines() if RESULT_RE.search(ln)]
+            stored[j["name"]] = {"key": reach.key(j)[0], "result": "\n".join(lines)}
+        reach.save()
+        try:
+            TMP.mkdir(exist_ok=True)
+            TEST_GREEN.write_text(json.dumps(stored, indent=1, sort_keys=True), encoding="utf-8",
+                                  newline="\n")
+        except OSError:
+            pass
+
     try:
         TMP.mkdir(exist_ok=True)
-        TEST_TIMES.write_text(json.dumps({n: round(r[0], 2) for n, r in sorted(results.items())},
-                                         indent=1), encoding="utf-8", newline="\n")
+        times = {**last, **{n: round(r[0], 2) for n, r in results.items()}}
+        TEST_TIMES.write_text(json.dumps(times, indent=1, sort_keys=True), encoding="utf-8",
+                              newline="\n")
     except OSError:
         pass
 
     # Passing binaries first, by name, so the tail a red step prints is the failures.
     names = {j["name"] for j in failed}
     out = [note] if note else []
+    if held:
+        out.append(f"{len(held)} of {len(binaries)} test binaries not re-run: nothing each one "
+                   f"reads has changed since it was green")
+    out += [f"     Unchanged {n}\n{held[n].get('result', '')}" for n in sorted(held)]
     out += [f"     Running {n}\n{results[n][2]}" for n in sorted(results) if n not in names]
     for j in failed:
         out.append(f"     Running {j['name']}  -- FAILED, exit {results[j['name']][1]}\n"
@@ -506,6 +579,16 @@ def run_tests(step, package=None):
         else:
             out.append(f"error: `{j['name']}` failed, alone as well; `{j['rerun']}` runs it again.")
     return (1 if failed else 0), "\n".join(out)
+
+
+def load_test_green():
+    """`TEST_GREEN`, or an empty table when it is missing or unreadable -- and then every binary
+    runs, which is the safe direction."""
+    try:
+        got = json.loads(TEST_GREEN.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return got if isinstance(got, dict) else {}
 
 
 def changed_sources():
@@ -623,7 +706,9 @@ def summarize_test(out):
     failed = sum(int(b) for _, b in suites)
     if not suites:
         return "ran, but printed no `test result:` line -- check the log"
-    return f"{passed} passed, {failed} failed  ({len(suites)} suites)"
+    unchanged = len(re.findall(r"^     Unchanged ", out, re.MULTILINE))
+    note = f", {unchanged} binaries not re-run" if unchanged else ""
+    return f"{passed} passed, {failed} failed  ({len(suites)} suites{note})"
 
 
 def summarize_clippy(out):
@@ -1170,6 +1255,7 @@ def main():
             # `--no-cache` is every step for real, and cargo's build is part of this one.
             step.binary_key = (tree.key("build") if tree is not None and not opts.no_cache
                                else None)
+            step.tree, step.no_cache = tree, opts.no_cache
             if not opts.package:
                 step.skip_doc = held(cache, tree, opts, "test:doc") is not None
         progress(done, step, len(steps), index=i + 1)
