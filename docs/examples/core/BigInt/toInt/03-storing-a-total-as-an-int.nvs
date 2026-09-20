@@ -1,0 +1,27 @@
+<?nvs
+// Shows how a program adds up amounts that arrive as text and stores the total
+// as an `int`. The amounts are in cents, and the database column holds an
+// `int`, so the total has to fit before the program can store it.
+
+array<string> $amounts = ["4500000000", "129900000000", "77000"];
+
+var $total = Core\BigInt::of(0);
+foreach ($amounts as string $amount) {
+    $total = $total->add(Core\BigInt::parse($amount));
+}
+
+// This total fits an `int`, so this prints 134400077000.
+try {
+    echo $total->toInt(), "\n";
+} catch (ArithmeticError $tooLarge) {
+    echo "total is too large to store\n";
+}
+
+// A total a billion times larger does not fit, and the program reports it
+// instead of storing a wrong number. This prints the second message.
+var $huge = $total->mul(Core\BigInt::of(1000000000));
+try {
+    echo $huge->toInt(), "\n";
+} catch (ArithmeticError $tooLarge) {
+    echo "total is too large to store\n";
+}

@@ -1,0 +1,23 @@
+<?nvs
+// Shows what `toInt` does with a number an `int` cannot hold. An `int` stops at
+// 9223372036854775807.
+
+var $value = Core\BigInt::parse("9223372036854775808");
+
+// `toInt` throws an `ArithmeticError`. The message names the method and the
+// number it refused.
+try {
+    echo $value->toInt(), "\n";
+} catch (ArithmeticError $tooLarge) {
+    echo $tooLarge->message, "\n";
+}
+
+// The number itself is unchanged, and `toString` prints all of it.
+echo $value->toString(), "\n";
+
+// The same happens below zero. An `int` stops at -9223372036854775808.
+try {
+    echo Core\BigInt::parse("-9223372036854775809")->toInt(), "\n";
+} catch (ArithmeticError $tooSmall) {
+    echo $tooSmall->message, "\n";
+}

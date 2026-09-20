@@ -1,0 +1,31 @@
+<?nvs
+// Measures converting a number back to an `int`. A program does this to store
+// a large total in a database column.
+// bench: iterations 400000
+// bench: calls 0
+// bench: allocations 1
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // A short magnitude and one of 60 bits, so both a one-word number and a
+        // number near the top of the range are measured.
+        array<Core\BigInt> $values = [
+            Core\BigInt::of(7),
+            Core\BigInt::of(1152921504606846976),
+        ];
+        uint $total = 0;
+        int $pick = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the number narrowed this round is picked by the answer of
+            // the round before, so the two take turns.
+            int $narrowed = $values[$pick]->toInt();
+            $pick = $narrowed % 2;
+            $total = $total + (($narrowed % 3) as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

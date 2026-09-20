@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to convert a `Core\BigInt` back to an `int`.
+
+// `toInt` returns the `int` equal to this number. This prints 42.
+echo Core\BigInt::of(42)->toInt(), "\n";
+
+// The sign is kept. This prints -7.
+echo Core\BigInt::parse("-7")->toInt(), "\n";
+
+// The result is an `int`, so you can do arithmetic with it. This prints 1000.
+int $count = Core\BigInt::of(500)->toInt();
+echo $count * 2, "\n";
+
+// The largest number an `int` holds. This prints 9223372036854775807.
+echo Core\BigInt::parse("9223372036854775807")->toInt(), "\n";

@@ -1,0 +1,55 @@
+<?nvs
+// Attack: `toInt` is asked for numbers far larger than an `int`, thousands of
+// times over. Every call must throw, and the text of every error holds all the
+// digits of the number. Messages that are never freed would use up the memory
+// of the machine. The program should run to its last line.
+
+// 1. A number of 1001 bits is narrowed 5000 times. Every call throws, and each
+//    error carries all 302 digits of the number. This prints 5000.
+var $wide = Core\BigInt::of(1)->shl(1000);
+int $refused = 0;
+int $round = 0;
+while ($round < 5000) {
+    try {
+        $wide->toInt();
+    } catch (ArithmeticError $tooLarge) {
+        $refused = $refused + 1;
+    }
+    $round = $round + 1;
+}
+echo $refused, "\n";
+
+// 2. The text of one refusal is measured. The number has 302 digits and the
+//    message names every one of them, so this prints 1.
+string $message = '';
+try {
+    $wide->toInt();
+} catch (ArithmeticError $tooLarge) {
+    $message = $tooLarge->message;
+}
+echo Core\Str::length($message) > 300 ? 1 : 0, "\n";
+
+// 3. The first number above the range, and the first below it. Both are
+//    outside the range by one. This prints 2.
+int $edges = 0;
+try {
+    Core\BigInt::parse('9223372036854775808')->toInt();
+} catch (ArithmeticError $above) {
+    $edges = $edges + 1;
+}
+try {
+    Core\BigInt::parse('-9223372036854775809')->toInt();
+} catch (ArithmeticError $below) {
+    $edges = $edges + 1;
+}
+echo $edges, "\n";
+
+// 4. A number of about a million bits is narrowed. Its error text holds more
+//    than 300000 digits, and the program must build it. This prints 1.
+int $huge = 0;
+try {
+    Core\BigInt::of(1)->shl(1000000)->toInt();
+} catch (ArithmeticError $far) {
+    $huge = 1;
+}
+echo $huge, "\n";
