@@ -1,0 +1,66 @@
+--TEST--
+every test runs on an isolate of its own and gets a newly constructed class, so a static and an instance property a test writes read their declared values in the next (`rule:testing/isolate-per-test` and `rule:testing/constructor-is-setup`)
+--RUN--
+test
+--FILE--
+<?nvs
+// covers: lang:testing/every-test-is-its-own-isolate-and-the-constructor-is-setup
+// `rule:testing/isolate-per-test`: a test shares compiled code with its
+// siblings and nothing else, so a static one test writes reads its declared
+// value in the next, with no flag to change it. `rule:testing/constructor-is-setup`:
+// the class is constructed for each test, which is why an instance property is
+// fresh too and why there is no `#[Before]` to write one.
+//
+// Both claims are asserted from *inside* the tests rather than tallied
+// afterwards, because a tally would need storage that crosses an isolate and
+// under `rule:testing/isolate-per-test` there is none. What the second and
+// third tests assert about `Counter::$constructed` is the whole evidence that
+// the constructor ran again on an isolate that had not seen it run.
+use Core\Test;
+
+final class Counter {
+    public static int $hits = 0;
+    public static array<string> $constructed = [];
+}
+
+final class IsolationTest {
+    private array<string> $log;
+
+    // The setup: it runs once for every test below, on that test's isolate.
+    public function constructor() {
+        $this->log = ["constructed"];
+        Counter::$constructed[] = "constructed";
+    }
+
+    #[Test]
+    public function aTestWritesAStaticAndAnInstanceProperty(): void {
+        Counter::$hits = Counter::$hits + 1;
+        $this->log[] = "first";
+        Test::assertSame(Counter::$hits, 1);
+        Test::assertCount($this->log, 2);
+        Test::assertCount(Counter::$constructed, 1);
+    }
+
+    #[Test]
+    public function theNextTestReadsTheDeclaredValues(): void {
+        // Neither the static the test above wrote nor the entry it pushed is
+        // here, and the constructor's own append is at one rather than two.
+        Test::assertSame(Counter::$hits, 0);
+        Test::assertCount($this->log, 1);
+        Test::assertCount(Counter::$constructed, 1);
+    }
+
+    #[Test]
+    public function aThirdTestIsFreshAgain(): void {
+        Test::assertSame(Counter::$hits, 0);
+        Test::assertCount($this->log, 1);
+        Test::assertCount(Counter::$constructed, 1);
+    }
+}
+--EXPECTF--
+  IsolationTest
+    ✓ aTestWritesAStaticAndAnInstanceProperty %f ms
+    ✓ theNextTestReadsTheDeclaredValues %f ms
+    ✓ aThirdTestIsFreshAgain           %f ms
+
+  0 failed, 3 passed, 0 skipped, 0 flaky in %d ms

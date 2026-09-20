@@ -1,0 +1,29 @@
+<?nvs
+// Shows that one test cannot change what another test sees. A `static` value
+// written by one test is back at its declared value in the next test.
+
+use Core\Test;
+
+class Counter {
+    public static int $hits = 0;
+}
+
+class CounterTest {
+    #[Test]
+    public function theFirstTestWrites(): void {
+        Counter::$hits = Counter::$hits + 1;
+        Test::assertSame(Counter::$hits, 1);
+    }
+
+    #[Test]
+    public function theSecondTestStartsFresh(): void {
+        // The test above added one. This test reads `0` again.
+        Test::assertSame(Counter::$hits, 0);
+    }
+}
+
+// Outside a test there is one counter for the whole program, so it keeps both
+// of these. This prints `2`.
+Counter::$hits = Counter::$hits + 1;
+Counter::$hits = Counter::$hits + 1;
+echo Counter::$hits, "\n";

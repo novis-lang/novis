@@ -1,0 +1,39 @@
+<?nvs
+// Measures what the setup of a test costs: the test class is built again for
+// every test, so a runner pays this once per test.
+// bench: iterations 200000
+// bench: calls 1
+
+use Core\Test;
+
+class Meter {
+    public static uint $built = 0;
+}
+
+class BasketTest {
+    private array<string> $items;
+
+    public function constructor() {
+        // Chained: the count written here is the one the round before wrote.
+        Meter::$built = Meter::$built + 1;
+        $this->items = ["bread"];
+    }
+
+    #[Test]
+    public function itStartsWithThePreparedItem(): void {
+        Test::assertCount($this->items, 1);
+    }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $i = 0;
+        while ($i < $rounds) {
+            var $test = new BasketTest();
+            $i = $i + 1;
+        }
+        return Meter::$built;
+    }
+}
+
+echo Bench::run(200000), "\n";

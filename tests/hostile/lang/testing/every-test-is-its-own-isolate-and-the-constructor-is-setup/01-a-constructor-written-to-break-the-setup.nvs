@@ -1,0 +1,99 @@
+<?nvs
+// Attack: the constructor of a test class is what a runner calls before every
+// test, so it is built here to break that call. It recurses without end,
+// throws, and fills a large list. The program should run to its last line.
+
+use Core\Test;
+
+class Endless
+{
+    public int $depth;
+
+    public function constructor()
+    {
+        $this->depth = Endless::dig(0);
+    }
+
+    public static function dig(int $n): int
+    {
+        return Endless::dig($n + 1);
+    }
+
+    #[Test]
+    public function itNeverGetsThisFar(): void
+    {
+        Test::assertTrue($this->depth > 0);
+    }
+}
+
+class Thrower
+{
+    public int $attempts;
+
+    public function constructor()
+    {
+        throw new LogicError('the setup of this test threw');
+    }
+
+    #[Test]
+    public function itNeverGetsThisFarEither(): void
+    {
+        Test::assertTrue($this->attempts > 0);
+    }
+}
+
+class Hoarder
+{
+    public array<string> $rows;
+
+    public function constructor()
+    {
+        array<string> $rows = [];
+        uint $i = 0;
+        while ($i < 200000) {
+            $rows[] = 'row';
+            $i = $i + 1;
+        }
+        $this->rows = $rows;
+    }
+
+    #[Test]
+    public function itCountsWhatTheSetupBuilt(): void
+    {
+        Test::assertTrue(Core\Arr::count($this->rows) > 0);
+    }
+}
+
+// 1. The setup that never returns. The error is caught, so the program still
+//    reaches its last line.
+try {
+    var $endless = new Endless();
+    echo 'step 1: the setup returned ', $endless->depth, "\n";
+} catch (Throwable $caught) {
+    echo 'step 1 stopped: ', $caught->message, "\n";
+}
+
+// 2. The setup that throws. This error is caught as well.
+try {
+    var $thrower = new Thrower();
+    echo 'step 2: the setup returned ', $thrower->attempts, "\n";
+} catch (Throwable $caught) {
+    echo 'step 2 stopped: ', $caught->message, "\n";
+}
+
+// 3. The setup that builds two hundred thousand rows, sixteen times over, as
+//    a runner would for sixteen tests of one class.
+try {
+    uint $round = 0;
+    uint $total = 0;
+    while ($round < 16) {
+        var $hoarder = new Hoarder();
+        $total = $total + Core\Arr::count($hoarder->rows);
+        $round = $round + 1;
+    }
+    echo 'step 3: the setups built ', $total, ' rows', "\n";
+} catch (Throwable $caught) {
+    echo 'step 3 stopped: ', $caught->message, "\n";
+}
+
+echo 'the program reached its last line', "\n";

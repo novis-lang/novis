@@ -1,0 +1,48 @@
+--TEST--
+a test class whose constructor declares a parameter is reported as that test failing rather than pretended past, and a sibling class with a no-argument constructor still runs (`rule:testing/constructor-is-setup`)
+--RUN--
+test
+--FILE--
+<?nvs
+// covers: lang:testing/every-test-is-its-own-isolate-and-the-constructor-is-setup
+// `rule:testing/constructor-is-setup`: the runner constructs a test class with
+// no arguments, so a constructor declaring one has nothing to be called with.
+// That is a failure of the test rather than a refusal of the program, which is
+// why this is a run case and not a reject one: the classes around it still run.
+use Core\Test;
+
+final class PreparedTest {
+    private int $prepared;
+
+    public function constructor() {
+        $this->prepared = 7;
+    }
+
+    #[Test]
+    public function itReadsWhatTheSetupPrepared(): void {
+        Test::assertSame($this->prepared, 7);
+    }
+}
+
+final class UnbuildableTest {
+    private int $prepared;
+
+    // The runner has no argument to pass here.
+    public function constructor(int $prepared) {
+        $this->prepared = $prepared;
+    }
+
+    #[Test]
+    public function itIsReportedAsFailing(): void {
+        Test::assertSame($this->prepared, 7);
+    }
+}
+--EXPECTF--
+  PreparedTest
+    ✓ itReadsWhatTheSetupPrepared      %f ms
+  UnbuildableTest
+    ✗ itIsReportedAsFailing            %f ms
+      `UnbuildableTest`'s constructor declares 1 parameter(s), and this runner supplies none: `rule:testing/constructor-is-setup` makes the constructor `setUp`, and § 8's fixtures fill the test method's own parameters
+
+  1 failed, 1 passed, 0 skipped, 0 flaky in %d ms
+--EXPECTF-ERROR--
