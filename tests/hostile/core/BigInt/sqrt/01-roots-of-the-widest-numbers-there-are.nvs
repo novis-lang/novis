@@ -1,0 +1,43 @@
+<?nvs
+// Attack: `sqrt` is given numbers about a million bits wide, and then negative
+// numbers of the same width thousands of times, which it must refuse. A number
+// that is never freed would use up the memory of the machine. The program
+// should run to its last line.
+
+// 1. The root of a number of about a million bits is taken 50 times. Only the
+//    last root is kept, so memory must not grow. This prints 1.
+var $wide = Core\BigInt::of(1)->shl(1000000);
+var $root = $wide;
+int $round = 0;
+while ($round < 50) {
+    $root = $wide->sqrt();
+    $round = $round + 1;
+}
+echo $root->sign(), "\n";
+
+// 2. The root of the widest number a single shift may produce. This prints 1.
+echo Core\BigInt::of(1)->shl(1048575)->sqrt()->sign(), "\n";
+
+// 3. A negative number has no integer square root, so every one of the 2000
+//    calls below throws. Each round builds a wide number. This prints 2000.
+int $refused = 0;
+int $step = 0;
+while ($step < 2000) {
+    try {
+        $wide->neg()->sqrt();
+    } catch (ArithmeticError $negative) {
+        $refused = $refused + 1;
+    }
+    $step = $step + 1;
+}
+echo $refused, "\n";
+
+// 4. The root of the root of the root, 20 times over. Each result is half as
+//    wide as the number it came from, so what is left is 1, and this prints 1.
+var $shrinking = $wide;
+int $taken = 0;
+while ($taken < 20) {
+    $shrinking = $shrinking->sqrt();
+    $taken = $taken + 1;
+}
+echo $shrinking->toString(), "\n";

@@ -1,0 +1,19 @@
+<?nvs
+// Shows what `sqrt` does with a negative number. No whole number gives a
+// negative number when it is multiplied by itself.
+
+var $value = Core\BigInt::of(-9);
+
+// `sqrt` throws an `ArithmeticError`, and the message names the method that
+// refused.
+try {
+    echo $value->sqrt(), "\n";
+} catch (ArithmeticError $negative) {
+    echo $negative->message, "\n";
+}
+
+// Test the sign first where a number may be negative. `abs` removes the minus
+// sign, so this prints 3.
+if ($value->sign() < 0) {
+    echo $value->abs()->sqrt(), "\n";
+}

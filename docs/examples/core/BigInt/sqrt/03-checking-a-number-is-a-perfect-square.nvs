@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to test that a number is a perfect square. A program does this
+// before it lays a set of items out in a square grid. The counts are too large
+// for an `int`, so they arrive as text.
+
+array<string> $counts = ["100000000000000000000000000000000000000", "12345678901234567890"];
+
+var $root = Core\BigInt::of(0);
+foreach ($counts as string $count) {
+    var $value = Core\BigInt::parse($count);
+    $root = $value->sqrt();
+    // A number is a perfect square when its root multiplied by itself gives
+    // that number back. This prints "square" and then "not square".
+    echo $root->mul($root)->compareTo($value) == 0 ? "square\n" : "not square\n";
+}

@@ -1,0 +1,25 @@
+<?nvs
+// Measures the square root of a large number. A program does this to check
+// that a count of items fits in a square grid.
+// bench: iterations 50000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\BigInt> $counts = [
+            Core\BigInt::parse("123456789012345678901234567890"),
+            Core\BigInt::parse("987654321098765432109876543210"),
+        ];
+        // Chained: each round takes the root of a count plus the root the round
+        // before returned.
+        var $root = Core\BigInt::of(0);
+        uint $i = 0;
+        while ($i < $rounds) {
+            $root = $counts[($i % 2) as int]->add($root)->sqrt();
+            $i = $i + 1;
+        }
+        return Core\Str::length($root->toString());
+    }
+}
+
+echo Bench::run(50000), "\n";
