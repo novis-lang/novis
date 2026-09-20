@@ -1,0 +1,23 @@
+<?nvs
+// Puts a set of defaults under the settings a request carried, as a program
+// does while it handles one.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): int {
+        array<int> $defaults = ["a" => 1, "b" => 2, "c" => 3, "d" => 4, "e" => 5, "f" => 6];
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Last round's total decides the base, so no round can be reused.
+            array<int> $chosen = ["b" => $total % 7, "g" => 7];
+            array<int> $settings = Core\Arr::underlay($chosen, $defaults);
+            $total = $total + $settings["b"] + $settings["f"];
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

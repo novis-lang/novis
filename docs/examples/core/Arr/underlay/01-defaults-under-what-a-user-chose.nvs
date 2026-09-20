@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to put the default settings under the settings a user chose.
+// Where a key is in both arrays, the value on the left wins.
+
+array<string> $chosen = ["theme" => "dark", "timezone" => "UTC"];
+array<string> $defaults = ["theme" => "light", "language" => "en", "perPage" => "20"];
+
+// `theme` is in both, so the chosen value stays. `language` and `perPage` are
+// new, so they are added at the end.
+array<string> $settings = Core\Arr::underlay($chosen, $defaults);
+echo Core\Json::encode($settings), "\n";
+
+// The two arrays you started with are unchanged.
+echo Core\Json::encode($chosen), "\n";

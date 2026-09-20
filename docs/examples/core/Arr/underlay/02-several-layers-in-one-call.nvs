@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to put several arrays under one another in a single call.
+// An earlier layer wins over a later one.
+
+array<string> $request = ["region" => "eu-west"];
+array<string> $project = ["region" => "us-east", "bucket" => "reports"];
+array<string> $company = ["region" => "eu-central", "bucket" => "shared", "retentionDays" => "30"];
+
+// `region` comes from the request and `bucket` from the project. Only the
+// last array has `retentionDays`, so that is where it comes from.
+array<string> $config = Core\Arr::underlay($request, $project, $company);
+foreach ($config as string $key => string $value) {
+    echo $key, ": ", $value, "\n";
+}
