@@ -1200,6 +1200,7 @@ mod tests {
     /// over a sign sweep rather than read off a line, so a member that grew a
     /// rounding of its own fails here while still answering plausibly on the
     /// positive row everyone reads first.
+    // covers: Core\BigInt::div, Core\BigInt::mod
     #[test]
     fn bigint_div_and_mod_agree_over_a_sign_sweep() {
         const SWEEP: [(i64, i64); 12] = [
@@ -1370,6 +1371,62 @@ mod tests {
             (summed, commuted, bounded),
             (SWEEP.len(), SWEEP.len(), SWEEP.len())
         );
+    }
+
+    /// `mul` answers the same product in either order and is as wide as its two
+    /// operands together, give or take the one bit a carry moves — the shape
+    /// every wide multiplication has, and the property that fails first when a
+    /// product is truncated. Counted over a sign sweep that includes both ends
+    /// of the `int` range. Zero is named on its own afterwards, because it is
+    /// the one pair whose product is narrower than either operand.
+    // covers: Core\BigInt::mul
+    #[test]
+    fn mul_is_commutative_and_as_wide_as_its_operands_together() {
+        const SWEEP: [(i64, i64); 8] = [
+            (0, 0),
+            (7, 5),
+            (-7, 5),
+            (7, -5),
+            (-7, -5),
+            (i64::MAX, i64::MAX),
+            (i64::MIN, i64::MIN),
+            (1, i64::MIN),
+        ];
+
+        let mut ctx = Ctx::buffered();
+        let mut multiplied = 0usize;
+        let mut commuted = 0usize;
+        let mut as_wide = 0usize;
+        for (left, right) in SWEEP {
+            let forward = read(
+                call(nvs_core_bigint_mul, &mut ctx, &[of(left), of(right)])
+                    .expect("every pair multiplies"),
+            );
+            let backward = read(
+                call(nvs_core_bigint_mul, &mut ctx, &[of(right), of(left)])
+                    .expect("either order multiplies"),
+            );
+            if forward == BigInt::from(left) * BigInt::from(right) {
+                multiplied += 1;
+            }
+            if backward == forward {
+                commuted += 1;
+            }
+            let together = BigInt::from(left).bits() + BigInt::from(right).bits();
+            if forward.bits() == together || forward.bits() + 1 == together {
+                as_wide += 1;
+            }
+        }
+        assert_eq!(
+            (multiplied, commuted, as_wide),
+            (SWEEP.len(), SWEEP.len(), SWEEP.len())
+        );
+
+        let absorbed = read(
+            call(nvs_core_bigint_mul, &mut ctx, &[of(0), of(i64::MAX)])
+                .expect("zero multiplies too"),
+        );
+        assert_eq!(absorbed, BigInt::from(0));
     }
 
     /// `abs` never answers a negative, keeps the magnitude it was handed and

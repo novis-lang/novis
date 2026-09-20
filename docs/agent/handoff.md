@@ -2,37 +2,38 @@
 
 ## State
 
-Goal `core-bigint-1-2` has three of its twelve members finished: `Core\BigInt::abs`, `add` and
-`compareTo` each carry `about.md`, three examples, one attack, one bench figure and a test from both
-sides. Nine are left — `div`, `format`, `gcd`, `lcm`, `mod`, `mul`, `neg`, `of`, `ofUint`.
+Goal `core-bigint-1-2` has six of its twelve members finished: `Core\BigInt::abs`, `add`,
+`compareTo`, `div`, `mod` and `mul` each carry `about.md`, three examples, one attack, one bench and
+a test from both sides. Six are left — `format`, `gcd`, `lcm`, `neg`, `of`, `ofUint`.
 
-`crates/nvs-stdlib/src/bigint.rs`'s module doc claimed a sort over these values takes
-`{comparator: ...}`. It does not: `crate::ordering` sends two objects to `Comparable`'s `compareTo`,
-`tests/conformance/core/bigint-orders-through-compare-to-and-every-spelling-of-it-agrees.nvst:59`
-already asserted the bare `Core\Arr::sort`, and the sentence is corrected rather than reconciled.
+`div` and `mod` take their Rust-side proof from the sign sweep that already asserted both roundings
+(`crates/nvs-stdlib/src/bigint.rs:1203`); it owed a `covers:` marker and nothing else. `mul` has its
+own test there, and the factorial case carries its `.nvst` marker.
+
+The three new benches are written but not yet measured. `python tools/dossier.py --id` reports them
+`stale` until the next sweep records a figure, which is the ordinary state of a new bench.
 
 Nothing is blocked.
 
 ## Next group
 
-**Stage: feature proofs for `Core\BigInt`** — one file set: `crates/nvs-stdlib/src/bigint.rs` for the
-Rust-side test and the module doc, `docs/examples/core/BigInt/<member>/`,
-`tests/hostile/core/BigInt/<member>/`, `benches/members/core/BigInt/<member>.nvs`, and the
-`tests/conformance/core/bigint-*.nvst` case that takes each `covers:` marker.
-`rule:testing/feature-proofs` names what each one owes; the three below are neighbours in the
-implementing file and share one conformance case.
+**Stage: feature proofs for `Core\BigInt`** — one file set: `crates/nvs-stdlib/src/bigint.rs` for
+the Rust-side test, `docs/examples/core/BigInt/<member>/`, `tests/hostile/core/BigInt/<member>/`,
+`benches/members/core/BigInt/<member>.nvs`, and the `tests/conformance/core/bigint-*.nvst` case that
+takes each `covers:` marker. `rule:testing/feature-proofs` names what each one owes. `format` is
+first because the driver's acceptance check names it; `gcd` and `lcm` are neighbours in the
+implementing file and share
+`tests/conformance/core/bigint-number-theory-members-answer-their-own-identities.nvst`.
 
-- [ ] **`Core\BigInt::div`** — owes examples, hostile, perf, tests.
-      `crates/nvs-stdlib/src/bigint.rs:176`
-- [ ] **`Core\BigInt::mod`** — owes examples, hostile, perf, tests.
-      `crates/nvs-stdlib/src/bigint.rs:185`
-- [ ] **`Core\BigInt::mul`** — owes examples, hostile, perf, tests.
-      `crates/nvs-stdlib/src/bigint.rs:167`
+- [ ] **`Core\BigInt::format`** — owes about, examples, hostile, perf, tests.
+      `crates/nvs-stdlib/src/bigint.rs:330`
+- [ ] **`Core\BigInt::gcd`** — owes about, examples, hostile, perf, tests.
+      `crates/nvs-stdlib/src/bigint.rs:222`
+- [ ] **`Core\BigInt::lcm`** — owes about, examples, hostile, perf, tests.
+      `crates/nvs-stdlib/src/bigint.rs:231`
 
 ## Backlog
 
-- `Core\BigInt::format`, `gcd`, `lcm`, `neg`, `of` and `ofUint` — the rest of goal
-  `core-bigint-1-2`, `docs/agent/goals/dossier/95-core-bigint-1-2.md`.
-- The half of the class in goal `core-bigint-2-2`, `docs/agent/goals/dossier/96-core-bigint-2-2.md`.
-- `docs/perf/members.md` is rendered from the ledger by `python tools/dossier.py --perf-report`, and
-  no slice here regenerates it.
+- `Core\BigInt::neg`, `of` and `ofUint` are the rest of this goal — `python tools/dossier.py --id`.
+- A `--bless` run costs a six-minute release relink after any `crates/` edit, so the group's Rust
+  edits go in first — `docs/agent/playbook.md` § *Running things*.
