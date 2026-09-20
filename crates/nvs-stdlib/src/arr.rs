@@ -5309,40 +5309,110 @@ fn copy_all(subject: &NvsArray, out: &mut NvsArray) {
 /// flipped.
 ///
 /// `deep` is `overlayDeep`'s one extra rule and the only difference between
-/// the two members; [`merged`] holds it.
+/// the two members; [`nested_copy`] holds it.
+///
+/// **An explicit stack rather than recursion**, for [`nvs_core_arr_flatten_deep`]'s
+/// reason: the nesting depth is the caller's data, so a native frame per
+/// level is a request's own argument deciding how far this process's stack is
+/// walked down. A configuration two layers deep and one two hundred thousand
+/// deep cost the same here, and what bounds the second is the request's
+/// memory ceiling — `rule:programs/memory-priority` — which stops it with an
+/// error rather than with the worker and every other request on it.
 fn overlay_into(out: &mut NvsArray, layer: &NvsArray, deep: bool) {
+    // Empty for a shallow overlay, which never nests, and one entry per level
+    // of a deep one.
+    let mut stack: Vec<Frame> = Vec::new();
     let mut from = 0usize;
-    while let Some(slot) = layer.next_slot(from) {
-        let key = layer
-            .key_at(slot)
-            .expect("next_slot only names live entries");
-        let value = layer
-            .value_at(slot)
-            .expect("next_slot only names live entries");
-        from = slot + 1;
-
-        if deep && let Some(nested) = merged(out, key.as_bytes(), value) {
-            // `Value::array` takes over the fresh allocation's only reference,
-            // and `set` releases whatever it displaces — the array this one
-            // was built from.
-            out.set(key, Value::array(nested));
-            continue;
+    loop {
+        let step = match stack.last_mut() {
+            Some(frame) => write_one(&mut frame.out, &frame.layer, &mut frame.from, deep),
+            None => write_one(out, layer, &mut from, deep),
+        };
+        match step {
+            Step::Stored => {}
+            Step::Nested(frame) => stack.push(frame),
+            Step::Spent => {
+                let Some(frame) = stack.pop() else { break };
+                let parent = match stack.last_mut() {
+                    Some(above) => &mut above.out,
+                    None => &mut *out,
+                };
+                // `Value::array` takes over the fresh allocation's only
+                // reference, and `set` releases whatever it displaces — the
+                // array this one was built from.
+                parent.set(frame.key, Value::array(frame.out));
+            }
         }
-        #[expect(
-            unsafe_code,
-            reason = "the entry is owned by the layer, which outlives this \
-                      call, so the copy stored here needs a reference of its own"
-        )]
-        unsafe {
-            value.retain();
-        }
-        out.set(key, value);
     }
 }
 
-/// The recursive half of [`overlay_into`]: what `key` should hold once
-/// `value` is overlaid onto whatever `out` already has there, or `None` where
-/// `rule:types/array-combination`'s test says the right-hand value replaces the left wholesale.
+/// One array [`overlay_into`] is building below the one it was handed.
+struct Frame {
+    /// The copy of what the parent holds under [`Self::key`], with
+    /// [`Self::layer`]'s entries being written into it.
+    out: NvsArray,
+    /// The key this array is stored under once it is finished.
+    key: NvsStr,
+    /// The layer's own array under that key, borrowed from the layer, which
+    /// the calling frame owns for the length of the call.
+    layer: std::mem::ManuallyDrop<NvsArray>,
+    /// How far into that layer this frame has read.
+    from: usize,
+}
+
+/// What one entry of a layer cost [`overlay_into`]'s walk.
+enum Step {
+    /// The entry was written, and nothing else is owed for it.
+    Stored,
+    /// Both sides of the key hold a map, so the entry is an array of its own
+    /// to build before the walk can store it.
+    Nested(Frame),
+    /// The layer is read to its end, so the array under it is finished.
+    Spent,
+}
+
+/// Writes the entry at `from` of `layer` into `out` and moves the cursor past
+/// it, or says the layer is spent.
+fn write_one(out: &mut NvsArray, layer: &NvsArray, from: &mut usize, deep: bool) -> Step {
+    let Some(slot) = layer.next_slot(*from) else {
+        return Step::Spent;
+    };
+    let key = layer
+        .key_at(slot)
+        .expect("next_slot only names live entries");
+    let value = layer
+        .value_at(slot)
+        .expect("next_slot only names live entries");
+    *from = slot + 1;
+
+    if deep && let Some(nested) = nested_copy(out, key.as_bytes(), value) {
+        return Step::Nested(Frame {
+            out: nested,
+            key,
+            layer: borrowed(
+                value
+                    .array_ptr()
+                    .expect("nested_copy decoded this value as an array"),
+            ),
+            from: 0,
+        });
+    }
+    #[expect(
+        unsafe_code,
+        reason = "the entry is owned by the layer, which outlives this \
+                  call, so the copy stored here needs a reference of its own"
+    )]
+    unsafe {
+        value.retain();
+    }
+    out.set(key, value);
+    Step::Stored
+}
+
+/// The deep half of [`overlay_into`]: the array `value` is written into once
+/// it is overlaid onto whatever `out` already has under `key`, or `None`
+/// where `rule:types/array-combination`'s test says the right-hand value replaces the left
+/// wholesale.
 ///
 /// The test is *both* sides holding an array and **neither** being a list.
 /// A list is replaced rather than merged element-wise because element-wise is
@@ -5355,7 +5425,7 @@ fn overlay_into(out: &mut NvsArray, layer: &NvsArray, deep: bool) {
 /// an Novis array is a copy-on-write *value* (`rule:types/arrays`), so the entry `out`
 /// holds may be shared with the caller's own binding and writing through it
 /// would be visible there.
-fn merged(out: &NvsArray, key: &[u8], value: Value) -> Option<NvsArray> {
+fn nested_copy(out: &NvsArray, key: &[u8], value: Value) -> Option<NvsArray> {
     let existing = borrowed(out.get(key)?.array_ptr()?);
     let incoming = borrowed(value.array_ptr()?);
     if is_list(&existing) || is_list(&incoming) {
@@ -5363,7 +5433,6 @@ fn merged(out: &NvsArray, key: &[u8], value: Value) -> Option<NvsArray> {
     }
     let mut nested = NvsArray::new();
     copy_all(&existing, &mut nested);
-    overlay_into(&mut nested, &incoming, true);
     Some(nested)
 }
 
@@ -5414,7 +5483,7 @@ nvs_runtime::nvs_helper! {
     /// replacing PHP's `array_replace_recursive`.
     ///
     /// It recurses only where both sides of a key hold an array and neither
-    /// is a list; [`merged`] holds why, and it is also why
+    /// is a list; [`nested_copy`] holds why, and it is also why
     /// `array_merge_recursive` has no replacement at all — promoting two
     /// colliding scalars into a two-element array is a data-shape change
     /// rather than a merge.
@@ -6527,11 +6596,15 @@ mod tests {
         );
     }
 
+    /// One array read as `(key, value-as-string)` pairs, which is what
+    /// [`entries_of`] answers and what [`maps_of`] answers one of per entry.
+    type Entries = Vec<(Vec<u8>, Vec<u8>)>;
+
     /// The entries of an array a helper returned, in cursor order, as
     /// `(key, value-as-string)` pairs — the shape the three key-shuffling
     /// members below are all asserted in, so a wrong *order* fails and not
     /// only a wrong set.
-    fn entries_of(result: Value) -> Vec<(Vec<u8>, Vec<u8>)> {
+    fn entries_of(result: Value) -> Entries {
         #[expect(
             unsafe_code,
             reason = "the helper returned one fresh reference, which the handle \
@@ -6548,6 +6621,50 @@ mod tests {
                 .and_then(|v| v.as_str_bytes().map(<[u8]>::to_vec))
                 .expect("every entry here is a string");
             out.push((key.as_bytes().to_vec(), value));
+            from = slot + 1;
+        }
+        out
+    }
+
+    /// [`entries_of`] one level down: every value of `result` is itself an
+    /// array, and this reads each of them the same way.
+    fn maps_of(result: Value) -> Vec<(Vec<u8>, Entries)> {
+        #[expect(
+            unsafe_code,
+            reason = "the handle takes over the one reference the member \
+                      answered with, and releases it on drop"
+        )]
+        let array =
+            unsafe { NvsArray::from_raw(result.array_ptr().expect("the member returns an array")) };
+        let mut out = Vec::new();
+        let mut from = 0usize;
+        while let Some(slot) = array.next_slot(from) {
+            let key = array.key_at(slot).expect("a live entry has a key");
+            let held = array.value_at(slot).expect("a live entry has a value");
+            #[expect(
+                unsafe_code,
+                reason = "the retain pairs with the release this handle makes on \
+                          drop, so reading a value leaves the result holding it"
+            )]
+            let held = unsafe {
+                held.retain();
+                NvsArray::from_raw(held.array_ptr().expect("every value here is an array"))
+            };
+            let mut entries = Vec::new();
+            let mut inner = 0usize;
+            while let Some(entry) = held.next_slot(inner) {
+                entries.push((
+                    held.key_at(entry)
+                        .expect("a live entry has a key")
+                        .as_bytes()
+                        .to_vec(),
+                    held.value_at(entry)
+                        .and_then(|value| value.as_str_bytes().map(<[u8]>::to_vec))
+                        .expect("every entry here is a string"),
+                ));
+                inner = entry + 1;
+            }
+            out.push((key.as_bytes().to_vec(), entries));
             from = slot + 1;
         }
         out
@@ -7397,6 +7514,7 @@ mod tests {
     /// discarded, its order kept, and `{limit}` honoured. The two object
     /// shapes need compiled code to drive, so they are pinned by
     /// `tests/conformance/core/arr-from-drains-a-sequence.nvst` instead.
+    // covers: Core\Arr::from
     #[test]
     fn from_materialises_an_array_as_a_list() {
         let mut entries = NvsArray::new();
@@ -7435,6 +7553,130 @@ mod tests {
         )]
         unsafe {
             subject.release();
+        }
+    }
+
+    /// `rule:types/array-combination`'s right-wins combination from Rust: a key the base
+    /// already has takes the layer's value in the position it already had, a
+    /// key it does not have is appended, and a layer that is not an array is a
+    /// contained `FATAL`.
+    // covers: Core\Arr::overlay
+    #[test]
+    fn overlay_replaces_in_place_and_appends_what_is_new() {
+        let mut entries = NvsArray::new();
+        entries.set(NvsStr::new(b"host"), Value::str(NvsStr::new(b"localhost")));
+        entries.set(NvsStr::new(b"port"), Value::str(NvsStr::new(b"5432")));
+        let base = Value::array(entries);
+
+        let mut layer = NvsArray::new();
+        layer.set(NvsStr::new(b"port"), Value::str(NvsStr::new(b"6543")));
+        layer.set(NvsStr::new(b"user"), Value::str(NvsStr::new(b"ada")));
+        let mut tail = NvsArray::new();
+        tail.append(Value::array(layer));
+        let layers = Value::array(tail);
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let result = call(super::nvs_core_arr_overlay, &mut ctx, &[base, layers])
+            .expect("a base and one layer are what overlay takes");
+        assert_eq!(
+            entries_of(result),
+            vec![
+                (b"host".to_vec(), b"localhost".to_vec()),
+                (b"port".to_vec(), b"6543".to_vec()),
+                (b"user".to_vec(), b"ada".to_vec()),
+            ]
+        );
+
+        // The checker refuses a layer that is not an array (`E_TYPE_MISMATCH`),
+        // so reaching this means the compiler let through a call it should not
+        // have, and the member contains it rather than panicking.
+        let mut wrong = NvsArray::new();
+        wrong.append(Value::int(7));
+        let wrong = Value::array(wrong);
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let status = call(super::nvs_core_arr_overlay, &mut ctx, &[base, wrong])
+            .expect_err("7 is not a layer");
+        assert_eq!(status, nvs_runtime::FATAL);
+
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the three references it built above, and \
+                      the helper borrowed rather than consumed them"
+        )]
+        unsafe {
+            base.release();
+            layers.release();
+            wrong.release();
+        }
+    }
+
+    /// `rule:types/array-combination`'s recursion rule, asked of both members over one
+    /// subject: where a key holds a map on both sides, `overlayDeep` combines
+    /// the two one level down while `overlay` replaces the whole value. Every
+    /// other key answers alike in both, which is what says the recursion is
+    /// the only difference.
+    // covers: Core\Arr::overlayDeep
+    #[test]
+    fn overlay_deep_combines_two_maps_where_overlay_replaces_one() {
+        let mut db = NvsArray::new();
+        db.set(NvsStr::new(b"host"), Value::str(NvsStr::new(b"localhost")));
+        db.set(NvsStr::new(b"port"), Value::str(NvsStr::new(b"5432")));
+        let mut log = NvsArray::new();
+        log.set(NvsStr::new(b"level"), Value::str(NvsStr::new(b"info")));
+        let mut entries = NvsArray::new();
+        entries.set(NvsStr::new(b"db"), Value::array(db));
+        entries.set(NvsStr::new(b"log"), Value::array(log));
+        let base = Value::array(entries);
+
+        let mut over = NvsArray::new();
+        over.set(NvsStr::new(b"port"), Value::str(NvsStr::new(b"6543")));
+        let mut cache = NvsArray::new();
+        cache.set(NvsStr::new(b"ttl"), Value::str(NvsStr::new(b"60")));
+        let mut layer = NvsArray::new();
+        layer.set(NvsStr::new(b"db"), Value::array(over));
+        layer.set(NvsStr::new(b"cache"), Value::array(cache));
+        let mut tail = NvsArray::new();
+        tail.append(Value::array(layer));
+        let layers = Value::array(tail);
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let deep = call(super::nvs_core_arr_overlay_deep, &mut ctx, &[base, layers])
+            .expect("a base and one layer are what overlayDeep takes");
+        assert_eq!(
+            maps_of(deep),
+            vec![
+                (
+                    b"db".to_vec(),
+                    vec![
+                        (b"host".to_vec(), b"localhost".to_vec()),
+                        (b"port".to_vec(), b"6543".to_vec()),
+                    ]
+                ),
+                (b"log".to_vec(), vec![(b"level".to_vec(), b"info".to_vec())]),
+                (b"cache".to_vec(), vec![(b"ttl".to_vec(), b"60".to_vec())]),
+            ]
+        );
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let shallow = call(super::nvs_core_arr_overlay, &mut ctx, &[base, layers])
+            .expect("the same two arrays are what overlay takes");
+        assert_eq!(
+            maps_of(shallow),
+            vec![
+                (b"db".to_vec(), vec![(b"port".to_vec(), b"6543".to_vec())]),
+                (b"log".to_vec(), vec![(b"level".to_vec(), b"info".to_vec())]),
+                (b"cache".to_vec(), vec![(b"ttl".to_vec(), b"60".to_vec())]),
+            ]
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the two references it built above, and the \
+                      helper borrowed rather than consumed them"
+        )]
+        unsafe {
+            base.release();
+            layers.release();
         }
     }
 
