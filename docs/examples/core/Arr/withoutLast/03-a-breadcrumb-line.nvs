@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to build a breadcrumb line. The last part is the page the reader
+// is on. The parts before it are the pages above it.
+
+array<string> $trail = ["Shop", "Shoes", "Running shoes"];
+
+array<string> $above = Core\Arr::withoutLast($trail);
+
+// This prints "Shop > Shoes".
+echo Core\Str::join($above, " > "), "\n";
+
+// This prints 2, so you know how many links to write.
+echo Core\Arr::count($above), "\n";

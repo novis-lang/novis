@@ -1,0 +1,12 @@
+<?nvs
+// Shows the result for an array whose keys are words. Every entry that stays
+// keeps its own key.
+
+array<int> $scores = ["ada" => 9, "ben" => 7, "cleo" => 8];
+
+array<int> $earlier = Core\Arr::withoutLast($scores);
+
+// This prints "ada 9" and "ben 7".
+foreach ($earlier as string $name => int $score) {
+    echo $name, " ", $score, "\n";
+}

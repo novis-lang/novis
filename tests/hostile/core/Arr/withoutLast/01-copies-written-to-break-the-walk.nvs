@@ -1,0 +1,50 @@
+<?nvs
+// Attack: `Core\Arr::withoutLast` walks to the end to find the entry it leaves
+// out, and copies every other entry into a new array. Each step below asks it
+// for a copy it should not be able to make. The last step should stop the
+// program at its memory limit, and the runtime must not crash.
+// hostile: timeout-ms 60000
+// hostile: ends-early
+
+// 1. The largest whole number there is, as the key of the entry that goes.
+// The entry that stays keeps its own key.
+array<string> $taken = ['0' => 'a', '9223372036854775807' => 'b'];
+echo 'step 1: ', Core\Str::join(Core\Arr::keys(Core\Arr::withoutLast($taken)), ','), "\n";
+
+// 2. An empty array, and an array of one entry. Both give an empty array.
+array<int> $none = [];
+array<int> $one = [7];
+echo 'step 2: ', Core\Arr::count(Core\Arr::withoutLast($none)), ' ',
+    Core\Arr::count(Core\Arr::withoutLast($one)), "\n";
+
+// 3. One call over 400000 entries. The walk reads all of them to find the
+// last one.
+array<int> $wide = [];
+int $i = 0;
+while ($i < 400000) {
+    $wide[] = $i;
+    $i = $i + 1;
+}
+echo 'step 3: ', Core\Arr::count(Core\Arr::withoutLast($wide)), "\n";
+
+// 4. Twenty thousand entries under keys of a thousand characters each, so
+// every key is copied as well as every value.
+array<string> $wideKeys = [];
+int $k = 0;
+while ($k < 20000) {
+    $wideKeys[Core\Str::repeat('k', 1000) . ($k as string)] = 'v';
+    $k = $k + 1;
+}
+echo 'step 4: ', Core\Arr::count(Core\Arr::withoutLast($wideKeys)), "\n";
+
+// 5. Every result is kept, so the copies add up. The program should stop at
+// its memory limit.
+array<mixed> $kept = [];
+array<int> $long = $wide;
+int $step = 0;
+while ($step < 400000) {
+    $long = Core\Arr::withoutLast($long);
+    $kept[] = $long;
+    $step = $step + 1;
+}
+echo 'step 5: ', Core\Arr::count($kept), "\n";
