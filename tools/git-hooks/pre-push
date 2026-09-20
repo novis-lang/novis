@@ -1,0 +1,46 @@
+#!/bin/sh
+# Refuse a push while a carried check is owed.
+#
+# Verification here runs what a change can reach, and the checks that cost minutes -- the fuzz
+# run, the valgrind sweep, the release-profile guards, the database matrix -- are deferred until
+# the loop's floor gate next opens. A change made by hand has no such moment, so the debt is
+# collected where the work leaves the machine: `python tools/loop.py --owed` reads the same memo
+# and the same keys a sweep uses, runs nothing, and exits non-zero while any carried check is not
+# green over the tree as it stands.
+#
+# What clears it is `python tools/loop.py --settle`, which runs the owed checks and only those.
+# Never bypass with `--no-verify`: a commit nothing has checked is the one thing this exists to
+# keep in the building.
+#
+# A tree with uncommitted changes to tracked files is refused too. The memo answers for the files
+# on disk, and those are then not the commits being pushed.
+#
+# Enabled per clone, because git does not version `.git/hooks`:
+#
+#     git config core.hooksPath tools/git-hooks
+#
+# docs/setup.md § *What a clone does not carry* is where a new clone is told. `python`, not
+# `python3`: Git for Windows resolves the second to the Microsoft Store stub.
+
+root=$(git rev-parse --show-toplevel) || exit 1
+cd "$root" || exit 1
+
+if ! git diff --quiet HEAD --; then
+    echo "pre-push: tracked files have uncommitted changes, so what was checked is not what" >&2
+    echo "is being pushed. Commit or stash them, then push again." >&2
+    exit 1
+fi
+
+if ! command -v python >/dev/null 2>&1; then
+    echo "pre-push: \`python\` is not on PATH, so the owed checks could not be read; refusing." >&2
+    exit 1
+fi
+
+python tools/loop.py --owed
+status=$?
+if [ "$status" -ne 0 ]; then
+    echo "pre-push: refused. \`python tools/loop.py --settle\` runs what is owed; push again" >&2
+    echo "when it is green." >&2
+    exit 1
+fi
+exit 0

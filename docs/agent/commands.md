@@ -347,6 +347,37 @@ crate owes that file one line**, and `python tools/layout.py --rows` drafts it f
 opening sentence. Nothing else in the tree notices a new crate: that block is prose, and a build cannot
 fail over it.
 
+## What is owed, and where it is collected
+
+```sh
+python tools/loop.py --owed       # the carried checks no memo answers for this tree; runs nothing
+python tools/loop.py --settle     # run those, and only those
+python tools/impact.py --explain crates/nvs-lsp/src/lib.rs   # which test binaries an edit re-runs
+```
+
+**Verification runs what a change can reach, and the checks that cost minutes wait.** `verify.py`
+runs the test binaries a change reaches and every `.nvst` case; the fuzz run, the valgrind sweep, the
+release-profile guards, the database matrix and the rest of the carried floor are the loop's, and
+inside a run they wait for the floor gate (`tools/loop.py`'s `FLOOR_GATE_EVERY`) and for the sweep a
+goal is reached on. Nothing is dropped: a carried check is remembered against a hash of what it
+reads, so a change stales exactly the checks that read what it touched, and they stay stale until
+something runs them.
+
+**A change made by hand has no gate, so the debt is collected where the work leaves the machine.**
+`--owed` reads it off the same memo and the same keys a sweep uses, and exits non-zero while there is
+any; `tools/git-hooks/pre-push` asks it and refuses the push. `--settle` is `--goal-only` over the
+carried floor alone. The goal's own checks are never counted — they are red until the goal is reached
+— and neither is a check that says `memoize = false`. A worktree's merge into `main` settles first for
+the same reason.
+
+**What a key holds is decided three ways, and each falls back to the whole tree.** A `cargo test -p
+<crate>` check is keyed on that crate's test binaries (`tools/impact.py`). A Python gate is keyed on
+what `tools/observe.py` last saw it open, list and start, plus the set of paths in the tree, which
+stands for every test of whether a path exists. Everything else is keyed on the partitions
+`tools/loop.py`'s `reads_of` names. A binary that leaves its package without `nvs_repo`, a gate that
+starts a process nobody can answer for and a check in a form nothing recognises all keep the wide key
+they had.
+
 ## The user-facing reference, and its proof
 
 ```sh

@@ -128,15 +128,27 @@ echo 'vm.max_map_count=262144' | sudo tee /etc/sysctl.d/99-novis.conf   # across
 Three things sit outside what git tracks. The first is not optional, and neither is the trust flag in the
 third if anyone will work in this tree interactively.
 
-1. **The commit hooks.** git does not version `.git/hooks`, so `tools/git-hooks/` is inert until this clone
-   is pointed at it:
+1. **The git hooks.** git does not version `.git/hooks`, so `tools/git-hooks/` is inert until this clone
+   is pointed at it. One setting enables every hook in that directory, and a hook added there later
+   needs nothing more:
 
    ```sh
    git config core.hooksPath tools/git-hooks
+   git config core.hooksPath                   # prints tools/git-hooks when it is set
    ```
 
-   `verify.py` prints a line every run until it is set. What the hook rejects, and why, is
-   [docs/agent/conventions.md](agent/conventions.md) § *A commit message*.
+   `verify.py` prints a line every run until it is set. There are two:
+
+   | Hook | Refuses | Cleared by |
+   |---|---|---|
+   | `commit-msg` | a commit message carrying an attribution trailer — [docs/agent/conventions.md](agent/conventions.md) § *A commit message* | deleting the lines it names |
+   | `pre-push` | a push while a carried check is not green over the tree, or while tracked files have uncommitted changes | `python tools/loop.py --settle`, which runs what is owed and only that; `python tools/loop.py --owed` names it and runs nothing |
+
+   The second exists because verification runs what a change can reach and defers the checks that
+   cost minutes; [docs/agent/commands.md](agent/commands.md) § *What is owed, and where it is collected*
+   is the reasoning. Neither hook is bypassed with `--no-verify`. On Linux and macOS a hook must also
+   be executable, which the repository records; if a checkout lost the bit, `chmod +x
+   tools/git-hooks/*` puts it back.
 2. **A git identity**, if the machine has no global one — `git config user.name` and `user.email`. Every
    session ends in commits, so a machine that cannot commit cannot finish one.
 3. **Machine-local harness settings.** `.claude/settings.json` is committed and carries the shared
