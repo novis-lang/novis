@@ -1,0 +1,39 @@
+<?nvs
+// Attack: `of` builds a million numbers that are thrown away again, then tens
+// of thousands that are all kept at once. A number that is never freed would
+// use up the memory of the machine. The program should run to its last line.
+
+// 1. One million numbers are built and dropped. The memory the program holds
+//    must not grow with the rounds.
+uint $round = 0;
+int $signs = 0;
+while ($round < 1000000) {
+    $signs = $signs + Core\BigInt::of(-7)->sign();
+    $round = $round + 1;
+}
+echo $signs, "\n";
+
+// 2. Fifty thousand numbers are built and all of them are kept at the same
+//    time.
+array<Core\BigInt> $kept = [];
+int $value = 0;
+while ($value < 50000) {
+    $kept[] = Core\BigInt::of($value);
+    $value = $value + 1;
+}
+echo Core\Arr::count($kept), ' ', $kept[49999], "\n";
+
+// 3. Both ends of the `int` range, which are the values a conversion loses
+//    first.
+echo Core\BigInt::of(9223372036854775807), "\n";
+echo Core\BigInt::of(-9223372036854775807 - 1), "\n";
+
+// 4. The smallest `int` is multiplied until it is a number of thousands of
+//    digits. Each round throws away the number the round before it made.
+var $growing = Core\BigInt::of(-9223372036854775807 - 1);
+uint $step = 0;
+while ($step < 500) {
+    $growing = $growing->mul(Core\BigInt::of(9223372036854775807));
+    $step = $step + 1;
+}
+echo $growing->sign(), "\n";

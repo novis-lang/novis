@@ -1,0 +1,21 @@
+<?nvs
+// Measures building a number from a plain `int`, as a program does before it
+// adds up amounts that grow past what an `int` holds.
+// bench: iterations 400000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the number built this round is the count from the round
+            // before it.
+            $total = $total + (Core\BigInt::of(($total as int) + 1)->sign() as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

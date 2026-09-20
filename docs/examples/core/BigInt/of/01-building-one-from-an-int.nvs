@@ -1,0 +1,17 @@
+<?nvs
+// Shows how a program turns a plain `int` into a `Core\BigInt`.
+
+// `of` takes any `int`. This prints 4500.
+echo Core\BigInt::of(4500), "\n";
+
+// Negative numbers and zero work the same way. This prints -4500 and 0.
+echo Core\BigInt::of(-4500), "\n";
+echo Core\BigInt::of(0), "\n";
+
+// Both ends of the `int` range convert exactly. This prints
+// 9223372036854775807.
+echo Core\BigInt::of(9223372036854775807), "\n";
+
+// The smallest `int` is written as `-9223372036854775807 - 1`. The number on
+// its own does not fit an `int`. This prints -9223372036854775808.
+echo Core\BigInt::of(-9223372036854775807 - 1), "\n";
