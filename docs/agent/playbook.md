@@ -6322,6 +6322,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   new `countBy` test goes, and writing both cost a compile cycle on `E0428`. `grep -n
   nvs_core_<class>_<member> <file>` first — a hit inside the test module is a `covers:` marker to add
   above an existing `#[test]`, never a second test. [until: reviewed 2026-09-20]
+- **A `Core` member whose call site writes a type argument is never credited by a call, so
+  `dossier.py` reports `tests 0 case(s)` over cases that plainly pin it.** The detector matches
+  `Core\Arr::shapeAs(` and the source reads `Core\Arr::shapeAs<{n: int}>(`, so three green conformance
+  cases went uncounted and the member read as owing both its tests. Grep `tests/` for the member
+  before writing anything, and where the claim is already pinned the whole edit is `// covers: <the
+  member>` on one `.nvst` and one Rust `#[test]`. [until: reviewed 2026-09-20]
 
 ## Splitting a file that got too big
 
