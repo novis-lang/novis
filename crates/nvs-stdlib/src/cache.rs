@@ -3068,6 +3068,7 @@ mod tests {
     /// `rule:core-api/two-cache-tiers`: a write on one core is not visible on another. The store is
     /// a `thread_local`, and the runtime is thread-per-core, so a second thread
     /// *is* a second core for this question.
+    // covers: Core\Cache::local
     #[test]
     fn a_local_write_on_one_core_is_not_visible_on_another() {
         store_put(
@@ -3270,6 +3271,7 @@ mod tests {
     /// shard's read guard, which a `get` taking the write lock could not answer
     /// at all. It is asked with a timeout rather than with a `join`, so a `get`
     /// that took the wrong lock fails this case instead of hanging the suite.
+    // covers: Core\Cache::process
     #[test]
     fn process_tier_is_one_map_every_core_reads() {
         /// Long enough that a loaded machine is not why this fails, and short
@@ -4118,6 +4120,7 @@ mod tests {
     /// write. Catchable, per
     /// `rule:security/denial-is-a-runtime-error`, and not the `IOError` an
     /// unreachable store answers with: nothing was dialled.
+    // covers: Core\Cache::shared
     #[test]
     fn a_configured_store_is_refused_without_its_own_grant() {
         let (_listener, url) = listening();
