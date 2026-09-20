@@ -1221,6 +1221,25 @@ def run_one_example(nvs: Path, path: Path) -> tuple[str, str]:
     return "ok", ""
 
 
+def reached(expired: subprocess.TimeoutExpired) -> str:
+    """How far an attack got before its clock ran out, as a clause for the failure line.
+
+    A timeout is the one hostile verdict that says nothing about *where* the program was, and an
+    attack is a numbered sequence of steps that each print. So the output already read off the pipe
+    names the last step that finished, which separates a program hung on one step from a program
+    running every step far too slowly -- the two have different repairs and the bare message tells
+    them apart nowhere. A sweep on a loaded or throttled machine produces the second, and a session
+    that cannot reproduce the failure has only this line to read.
+    """
+    got = expired.stdout or ""
+    if isinstance(got, bytes):
+        got = got.decode("utf-8", "replace")
+    done = [line for line in got.splitlines() if line.strip()]
+    if not done:
+        return ", having printed nothing"
+    return f", having printed {len(done)} line(s), the last {done[-1][:60]!r}"
+
+
 def run_one_hostile(nvs: Path, path: Path, valgrind: bool) -> tuple[str, str]:
     """An attack passes when the *runtime* survives it, whatever the program's own fate.
 
@@ -1260,8 +1279,8 @@ def run_one_hostile(nvs: Path, path: Path, valgrind: bool) -> tuple[str, str]:
         limit *= 20
     try:
         out = subprocess.run(argv, timeout=limit, **CAPTURE)
-    except subprocess.TimeoutExpired:
-        return "fail", f"still running after {limit:.0f}s -- unbounded"
+    except subprocess.TimeoutExpired as expired:
+        return "fail", f"still running after {limit:.0f}s -- unbounded{reached(expired)}"
     except OSError as exc:
         return "fail", f"could not run: {exc}"
     blob = out.stderr + out.stdout
