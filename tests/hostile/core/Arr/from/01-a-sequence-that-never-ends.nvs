@@ -1,0 +1,78 @@
+<?nvs
+// Attack: a program asks for more values than the computer can hold, from a
+// source that never stops giving them. The last step should stop with an
+// error, and the program must not crash.
+// hostile: timeout-ms 20000
+// hostile: ends-early
+
+class Endless
+{
+    // This generator has no end.
+    public static function counter(): Iterator<int>
+    {
+        int $i = 0;
+        while (true) {
+            yield $i;
+            $i = $i + 1;
+        }
+    }
+}
+
+class Breaks implements Iterator<int>
+{
+    private int $at;
+
+    public function constructor()
+    {
+        $this->at = 0;
+    }
+
+    // The first two values are given. After that the source throws.
+    public function advance(): bool
+    {
+        $this->at = $this->at + 1;
+        if ($this->at > 2) {
+            throw new RuntimeError('the source broke');
+        }
+        return true;
+    }
+
+    public function current(): int
+    {
+        return $this->at;
+    }
+}
+
+// 1. A limit far larger than any array could ever hold, over three values.
+// The limit is a stopping point and not a size, so all three are returned.
+array<int> $three = [1, 2, 3];
+echo Core\Arr::count(Core\Arr::from($three, { limit: 9223372036854775807 })), "\n";
+
+// 2. A limit of 0 over the source that never ends. Nothing is read, so the
+// generator is never started and the program gets an empty array.
+echo Core\Arr::count(Core\Arr::from(Endless::counter(), { limit: 0 })), "\n";
+
+// 3. A source that throws in the middle of being read. The two values already
+// read are freed. The error is caught, so the next step still runs.
+try {
+    Core\Arr::from(new Breaks());
+    echo "broken source read\n";
+} catch (Throwable $error) {
+    echo "broken source refused\n";
+}
+
+// 4. Fifty arrays of a hundred thousand values, one after the other. Each one
+// is freed again, so the memory in use must not grow.
+int $seen = 0;
+uint $round = 0;
+while ($round < 50) {
+    array<int> $block = Core\Arr::from(Endless::counter(), { limit: 100000 });
+    $seen = $seen + $block[99999];
+    $round = $round + 1;
+}
+echo 'loop done ', $seen, "\n";
+
+// 5. The source that never ends, with no limit at all. No computer has that
+// much memory, so the program stops here with an error.
+Core\Arr::from(Endless::counter());
+echo "endless read\n";

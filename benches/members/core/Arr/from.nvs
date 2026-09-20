@@ -1,0 +1,23 @@
+<?nvs
+// Materialises a short sequence as an array, as a program does before it
+// counts or encodes what it collected.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): int {
+        array<int> $source = [3, 1, 4, 1, 5, 9];
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Last round's total picks the element read, so no round can be
+            // reused.
+            array<int> $list = Core\Arr::from($source);
+            $total = $total + $list[$total % 6];
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";
