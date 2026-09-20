@@ -6439,6 +6439,14 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   member returned the wrong type. Write `(40 * 1048576) as uint`, and turn a division into a
   multiplication on the other side: `$peak * 5 > $limit * 4` is "more than four fifths of the
   limit". [until: reviewed 2026-09-20]
+- **A `getSecret` whose `fill` merely *reads* its own key does not throw; only one that asks to
+  *fill* it does.** `nvs_core_cache_get_secret` elects a filler once per name, so a plain read
+  inside the fill is an ordinary miss, and the `LogicError` its reference card describes comes from
+  the nested election alone — which is why
+  `tests/conformance/core/cache-get-secret-fill-asking-for-its-own-key-is-a-logic-error.nvst` passes
+  an inner `{fill: …}`. Write the inner call with its own `fill` when the attack is the self-wait,
+  or the step reports the member answering where you meant it to refuse.
+  [until: reviewed 2026-09-21]
 
 ## Splitting a file that got too big
 

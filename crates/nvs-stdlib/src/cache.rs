@@ -2902,11 +2902,12 @@ mod tests {
 
     use super::{
         CLASS, Ctx, DEFAULT_FILL_WAIT, DEFAULT_MAX_SIZE, ENTRIES, ENTRY_OVERHEAD, GET_DOC,
-        LOCAL_DOC, Lifetime, MAX_SIZE, PROCESS, PROCESS_DOC, PROCESS_FILL_WAIT, PROCESS_MAX_SIZE,
-        SEAL_DOMAIN, SHARDS, SHARED_DOC, Value, bound, charged, dial_of, elected, endpoint,
-        local_cap, open_configured, process_cap, process_forget, process_get, process_put, scoped,
-        sealed_key, sealed_plaintext, sealed_value, shard_cap, shard_of, store_forget, store_get,
-        store_put, wait_of, waited,
+        LOCAL_DOC, Lifetime, MAX_SIZE, NvsStr, PROCESS, PROCESS_DOC, PROCESS_FILL_WAIT,
+        PROCESS_MAX_SIZE, SEAL_DOMAIN, SECRET_ENTRY, SHARDS, SHARED_DOC, Value, bound, charged,
+        dial_of, elected, endpoint, local_cap, nvs_core_cache_secret_entry_of, open_configured,
+        process_cap, process_forget, process_get, process_put, scoped, sealed_key,
+        sealed_plaintext, sealed_value, shard_cap, shard_of, store_forget, store_get, store_put,
+        wait_of, waited,
     };
 
     /// Taken by every case that touches the process tier, first thing.
@@ -4469,6 +4470,7 @@ mod tests {
     /// names, one that compared prefixes would open `token` against `tok`, and
     /// one with no domain octet would open a ciphertext another member of this
     /// crate produced under the same ring.
+    // covers: Core\Cache\Store::putSecret
     #[test]
     fn sealed_entry_moved_to_another_key_or_app_is_a_miss() {
         let mut ctx = nvs_runtime::Ctx::buffered();
@@ -4519,6 +4521,7 @@ mod tests {
     /// prints plausibly against either half alone. The tier holds the entry
     /// [`Lifetime::Forever`] throughout, so what the second half reads is the
     /// seal and not a store that had already forgotten it.
+    // covers: Core\Cache\Store::getSecret
     #[test]
     fn sealed_entry_past_its_sealed_expiry_is_a_miss_whatever_the_store_says() {
         const KEY: &[u8] = b"past-its-seal";
@@ -4597,5 +4600,71 @@ mod tests {
             "a sealed entry's nonce is `crate::crypto::seal_under`'s draw, so the shipped half \
              of this module names no generator at all"
         );
+    }
+
+    /// [`SECRET_ENTRY`] holds both halves a fill learned: the secret itself, and
+    /// the lifetime as the count of nanoseconds the `Duration` carried.
+    ///
+    /// Three claims, because each alone passes something broken. An entry that
+    /// dropped the lifetime would still hand the secret back; one that read the
+    /// count as seconds would still hold a lifetime; and one that copied the
+    /// bytes would satisfy both while doubling a token in memory ahead of the
+    /// seal, which is what the member's own doc says it does not spend — so the
+    /// reference count is asserted beside them.
+    // covers: Core\Cache\SecretEntry::of
+    #[test]
+    fn a_secret_entry_holds_the_secret_itself_and_the_lifetime_as_a_count() {
+        const NANOS: i64 = 90_500_000_000;
+        let mut ctx = Ctx::buffered();
+        let value = Value::str(NvsStr::new(b"at-7f3c9b21"));
+        let ttl = crate::instance::build(&crate::time::DURATION, [Value::int(NANOS)]);
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame built the text and holds its one reference until \
+                      the entry below takes a second"
+        )]
+        let alone = unsafe { NvsStr::refcount_of(value.str_ptr().expect("the value is a text")) };
+
+        let entry = nvs_runtime::call(nvs_core_cache_secret_entry_of, &mut ctx, &[value, ttl])
+            .expect("a text and a `Duration` build an entry");
+        let held = crate::instance::receiver(entry, &SECRET_ENTRY, "test")
+            .expect("the member answers its own class");
+        let secret = crate::instance::slot(held, 0);
+
+        assert_eq!(
+            secret.as_text(),
+            Some("at-7f3c9b21"),
+            "the secret reads back as what the fill fetched"
+        );
+        assert_eq!(
+            crate::instance::slot(held, 1).as_int(),
+            Some(NANOS),
+            "and the lifetime is the `Duration`'s own count, to the nanosecond"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "the entry holds the text for the length of this case, and \
+                      this frame's own reference is live beside it"
+        )]
+        let shared = unsafe { NvsStr::refcount_of(secret.str_ptr().expect("the slot is a text")) };
+        assert_eq!(
+            shared,
+            alone + 1,
+            "held as one more reference to the same text rather than a copy, so an \
+             entry does not double the token ahead of the seal"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "this case owns the entry it built and the text and `Duration` \
+                      it was built from, and the member borrowed its arguments"
+        )]
+        unsafe {
+            entry.release();
+            ttl.release();
+            value.release();
+        }
     }
 }
