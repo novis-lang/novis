@@ -1480,6 +1480,151 @@ mod tests {
         assert_eq!(floor.to_string(), "9223372036854775808");
     }
 
+    /// `format` writes a value in every radix this class allows, using only the
+    /// digits that radix has and one leading `-` for a negative — counted over
+    /// the whole range rather than read off a line, so a base whose digit class
+    /// is wrong in one direction only fails here while 10 and 16 go on printing
+    /// plausibly. Radix 10 is `toString`'s own text, which is the row a default
+    /// that drifted would break. Both sides of the range are named afterwards:
+    /// the widest radix writes, and the first one past it is a `LogicError`
+    /// rather than digits nothing can read back.
+    // covers: Core\BigInt::format
+    #[test]
+    fn format_writes_every_radix_it_allows_and_refuses_both_sides_of_the_range() {
+        /// The digits in order, of which a radix uses the first `radix` many.
+        const DIGITS: &str = "0123456789abcdefghijklmnopqrstuvwxyz";
+        const VALUE: i64 = -123_456_789_012_345;
+
+        let mut ctx = Ctx::buffered();
+        let mut agreed = 0usize;
+        let mut negative = 0usize;
+        let mut in_alphabet = 0usize;
+        for asked in MIN_RADIX..=MAX_RADIX {
+            let answer = call(
+                nvs_core_bigint_format,
+                &mut ctx,
+                &[of(VALUE), Value::uint(asked)],
+            )
+            .expect("every radix inside the range writes");
+            let written = answer.as_text().expect("format answers text");
+            let narrow = u32::try_from(asked).expect("a radix fits a `u32`");
+            if written == BigInt::from(VALUE).to_str_radix(narrow) {
+                agreed += 1;
+            }
+            let digits = written.strip_prefix('-').unwrap_or(written);
+            if written.starts_with('-') && written.matches('-').count() == 1 {
+                negative += 1;
+            }
+            let alphabet = &DIGITS[..narrow as usize];
+            if digits.chars().all(|digit| alphabet.contains(digit)) {
+                in_alphabet += 1;
+            }
+        }
+        let radixes = (MIN_RADIX..=MAX_RADIX).count();
+        assert_eq!((agreed, negative, in_alphabet), (radixes, radixes, radixes));
+
+        let decimal = call(
+            nvs_core_bigint_format,
+            &mut ctx,
+            &[of(VALUE), Value::uint(DEFAULT_RADIX)],
+        )
+        .expect("the default radix writes");
+        let rendered =
+            call(nvs_core_bigint_to_string, &mut ctx, &[of(VALUE)]).expect("every value renders");
+        assert_eq!(decimal.as_text(), rendered.as_text());
+
+        call(
+            nvs_core_bigint_format,
+            &mut ctx,
+            &[of(VALUE), Value::uint(MAX_RADIX + 1)],
+        )
+        .expect_err("one radix past the range is refused");
+        assert_eq!(
+            ctx.take_pending().map(std::borrow::Cow::into_owned),
+            Some(
+                "Core\\BigInt::format(): radix 37 is outside the 2 to 36 this class reads and \
+                 writes"
+                    .to_owned()
+            )
+        );
+        call(
+            nvs_core_bigint_format,
+            &mut ctx,
+            &[of(VALUE), Value::uint(MIN_RADIX - 1)],
+        )
+        .expect_err("one radix below the range is refused too");
+    }
+
+    /// `gcd` and `lcm` are one identity rather than two tables of remembered
+    /// answers: their product is the magnitude of the operands' product, the
+    /// divisor divides both operands exactly, and neither member ever answers a
+    /// negative. Counted over a sign sweep that includes a zero operand and the
+    /// floor of the `int` range, so a member that is right on the positive row
+    /// everyone reads first still fails here. Two zeroes are named afterwards:
+    /// they are the pair whose divisor is zero, which the identity's own
+    /// quotient cannot be written over.
+    // covers: Core\BigInt::gcd, Core\BigInt::lcm
+    #[test]
+    fn gcd_and_lcm_multiply_to_the_magnitude_of_their_operands_product() {
+        const SWEEP: [(i64, i64); 10] = [
+            (0, 5),
+            (5, 0),
+            (1, 1),
+            (6, 4),
+            (-6, 4),
+            (6, -4),
+            (-6, -4),
+            (360, 48),
+            (17, 97),
+            (i64::MIN, 6),
+        ];
+
+        let mut ctx = Ctx::buffered();
+        let mut multiplied = 0usize;
+        let mut divides = 0usize;
+        let mut non_negative = 0usize;
+        for (left, right) in SWEEP {
+            let divisor = read(
+                call(nvs_core_bigint_gcd, &mut ctx, &[of(left), of(right)])
+                    .expect("every pair has a divisor"),
+            );
+            let multiple = read(
+                call(nvs_core_bigint_lcm, &mut ctx, &[of(left), of(right)])
+                    .expect("every pair has a multiple"),
+            );
+            let product = BigInt::from(left) * BigInt::from(right);
+            let magnitude = if product.sign() == Sign::Minus {
+                -product
+            } else {
+                product
+            };
+            if &divisor * &multiple == magnitude {
+                multiplied += 1;
+            }
+            if divisor.sign() != Sign::Minus && multiple.sign() != Sign::Minus {
+                non_negative += 1;
+            }
+            if divisor.sign() == Sign::NoSign
+                || (BigInt::from(left) % &divisor == BigInt::from(0)
+                    && BigInt::from(right) % &divisor == BigInt::from(0))
+            {
+                divides += 1;
+            }
+        }
+        assert_eq!(
+            (multiplied, divides, non_negative),
+            (SWEEP.len(), SWEEP.len(), SWEEP.len())
+        );
+
+        let divisor = read(
+            call(nvs_core_bigint_gcd, &mut ctx, &[of(0), of(0)]).expect("two zeroes answer here"),
+        );
+        let multiple = read(
+            call(nvs_core_bigint_lcm, &mut ctx, &[of(0), of(0)]).expect("and answer here too"),
+        );
+        assert_eq!((divisor, multiple), (BigInt::from(0), BigInt::from(0)));
+    }
+
     /// The two members the engine reaches by name rather than through the
     /// method table — this module's § *Decision: a registered member the engine
     /// reaches by name gets a descriptor field*. Both halves are asserted: the

@@ -5,6 +5,7 @@
 // The number-theory members are each defined by an identity, and asserting the
 // identity rather than a table of answers is what catches a member that is
 // right on the pairs somebody thought of. Every line below counts.
+// covers: Core\BigInt::gcd, Core\BigInt::lcm
 array<int> $lefts = [0, 1, 6, 12, 17, 360, -48];
 array<int> $rights = [1, 4, 6, 18, 25, 97, -30];
 int $pairs = 0;
