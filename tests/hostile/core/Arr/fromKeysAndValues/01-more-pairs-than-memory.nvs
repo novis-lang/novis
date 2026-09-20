@@ -1,0 +1,30 @@
+<?nvs
+// Attack: a program pairs lists that do not fit together, and then lists that
+// are far too long. The last step should stop with an error, and the program
+// must not crash.
+// hostile: timeout-ms 20000
+// hostile: ends-early
+
+// 1. One key and two values. The two lists must hold the same number of
+// entries, so this throws. The error is caught, so the next step still runs.
+try {
+    Core\Arr::fromKeysAndValues(['a'], ['1', '2']);
+    echo "mismatch paired\n";
+} catch (Throwable $error) {
+    echo "mismatch refused\n";
+}
+
+// 2. Two hundred thousand keys that are all the same key. The same key twice
+// is one entry, so the result holds one entry.
+array<int> $same = Core\Arr::fill(200000, 7);
+array<int> $counts = Core\Arr::range(1, 200000);
+array<int> $collapsed = Core\Arr::fromKeysAndValues($same, $counts);
+echo 'duplicates ', Core\Arr::count($collapsed), "\n";
+
+// 3. Four million keys and four million values. Both lists fit in memory, and
+// the line below prints their length. Pairing them stops at the memory limit.
+array<int> $keys = Core\Arr::range(1, 4000000);
+array<int> $values = Core\Arr::range(1, 4000000);
+echo 'keys ', Core\Arr::count($keys), ' values ', Core\Arr::count($values), "\n";
+Core\Arr::fromKeysAndValues($keys, $values);
+echo "paired\n";

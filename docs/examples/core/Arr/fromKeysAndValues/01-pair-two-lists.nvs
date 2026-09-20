@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to pair two lists into one array. The first list gives the keys
+// and the second gives the values.
+
+array<string> $fields = ['city', 'country'];
+array<string> $answers = ['Berlin', 'Germany'];
+
+array<string> $address = Core\Arr::fromKeysAndValues($fields, $answers);
+
+// This prints "city: Berlin" and then "country: Germany".
+foreach ($address as string $field => string $value) {
+    echo $field, ': ', $value, "\n";
+}

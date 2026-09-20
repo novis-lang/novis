@@ -1,0 +1,23 @@
+<?nvs
+// Pairs a short list of column names with a row of values, as a program does
+// for every line it reads from a CSV file.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $columns = ['id', 'name', 'city', 'country'];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Last round's total decides the values, so no round can be reused.
+            array<uint> $values = [$total % 7 + 1, $total % 7 + 2, $total % 7 + 3, $total % 7 + 4];
+            array<uint> $row = Core\Arr::fromKeysAndValues($columns, $values);
+            $total = $total + $row['country'];
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";
