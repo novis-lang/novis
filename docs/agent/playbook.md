@@ -3391,6 +3391,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   side. Read the two lines `verify.py` prints under such a failure: it re-runs the binary alone and
   says so, and neither test is anything a stdlib or docs session touched.
   [until: reviewed 2026-09-20]
+- **`dossier.py --bless` and `--record-perf` run `target/release/nvs.exe`, so a Rust edit between
+  writing a proof and blessing it costs a full release rebuild.** A `covers:` marker added to
+  `arr.rs` after three examples were blessed made the binary stale, and the rebuild then ran twice
+  because another process held a copy of `nvs.exe`. Make every Rust edit a slice needs first, then
+  bless and record in one pass. [until: reviewed 2026-09-20]
 
 ## Writing a test case
 
@@ -6246,6 +6251,18 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   same closure with no `: int` on it is accepted, so the same throwing step is fine in one attack
   file and refused in the next. Write that step as a static method declaring the return type and
   throwing in its body, and hand the closure a call to it. [until: reviewed 2026-09-20]
+- **A bench that reaches its subject array through a nested array index charges the member two
+  allocations per op.** `benches/members/core/Arr/first.nvs` chained its rounds through
+  `array<array<uint>> $feeds` and `$feeds[$total % 2]`, so a declared `// bench: allocations 0` was
+  refused at 2.000 and the ns figure was twice the member's: `firstKey` read 59.4 ns/op that way and
+  29.4 measured alone. Chain with two plain arrays and a branch, and read a `FAIL` on a declared
+  count as a question about the bench before the member. [until: reviewed 2026-09-20]
+
+- **`?T ?? <literal>` is `mixed`, so it cannot feed a slot whose type is named.** `$total = $total +
+  (Core\Arr::first($a) ?? 0)` does not compile against `uint $total`, and neither does `array<int>
+  $held = Core\Arr::first($outer) ?? [];` — both are `E0401`, `found mixed`. `echo` accepts it, so a
+  proof program only fails where a type is written down: bind `?uint $v = Core\Arr::first($a);` and
+  branch on `$v != null`. [until: reviewed 2026-09-20]
 
 ## Splitting a file that got too big
 
