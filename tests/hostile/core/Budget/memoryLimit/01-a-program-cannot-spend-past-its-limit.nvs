@@ -1,0 +1,31 @@
+<?nvs
+// Attack: the limit is read half a million times, and then the program takes
+// more memory than the limit allows. The limit must be the same number every
+// time, and the runtime must stop the program when it goes over.
+// hostile: ends-early
+
+// 1. The limit is read 500000 times. It must never change, so this prints 0.
+uint $limit = Core\Budget::memoryLimit();
+int $changed = 0;
+int $i = 0;
+while ($i < 500000) {
+    if (Core\Budget::memoryLimit() != $limit) {
+        $changed = $changed + 1;
+    }
+    $i = $i + 1;
+}
+echo $changed, "\n";
+
+// 2. The memory the program is using must always be under the limit. A limit
+//    of 0 means there is no limit. This prints 0.
+echo $limit > 0 && Core\Budget::memoryHeld() >= $limit ? 1 : 0, "\n";
+
+// 3. The program asks for far more memory than the limit allows. The runtime
+//    must stop it here with an error, so this is the last step.
+array<string> $greed = [];
+$i = 0;
+while ($i < 20000000) {
+    $greed[] = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+    $i = $i + 1;
+}
+echo "the limit did not hold\n";
