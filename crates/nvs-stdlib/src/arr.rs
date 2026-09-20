@@ -7196,6 +7196,7 @@ mod tests {
     /// Ascending with `preserveKeys` off is PHP's `sort`: renumbered from
     /// zero, insertion order gone. Verified against PHP 8.5's own
     /// `sort(["c" => 3, "a" => 1, "b" => 2])`.
+    // covers: Core\Arr::sort
     #[test]
     fn sorting_renumbers_by_default_and_keeps_keys_on_request() {
         let entries: [(&[u8], Value); 3] = [
@@ -7223,6 +7224,7 @@ mod tests {
     /// deliberate divergence from PHP's own `sort`, which answers
     /// `["9", "10"]` here because it reads two numeric strings as numbers.
     /// `nvs_core_arr_sort`'s own docs own the reasoning.
+    // covers: Core\Arr::sort
     #[test]
     fn two_strings_compare_bytewise_rather_than_numerically() {
         let entries: [(&[u8], Value); 2] = [
@@ -7240,6 +7242,7 @@ mod tests {
     /// comparison rather than the result. PHP 8's sorts are stable the same
     /// way — its own `rsort(["bb", "aa", "cc"])` compared by a constant leaves
     /// them untouched.
+    // covers: Core\Arr::sort
     #[test]
     fn equal_entries_keep_their_original_order_in_both_directions() {
         let entries: [(&[u8], Value); 4] = [
@@ -7264,6 +7267,7 @@ mod tests {
     /// An empty array and a one-entry array both come back unchanged rather
     /// than reaching the merge at all — the two sizes a hand-written sort gets
     /// wrong first.
+    // covers: Core\Arr::sort
     #[test]
     fn an_empty_and_a_single_entry_array_sort_to_themselves() {
         assert_eq!(sorted(&[], false, true), Vec::<Vec<u8>>::new());
@@ -7278,6 +7282,7 @@ mod tests {
     /// answer computed by Rust's own sort. This is the check a hand-written
     /// merge actually owes: the `copy_from_slice` that pairs two runs of
     /// unequal length is where it went wrong the first time.
+    // covers: Core\Arr::sort
     #[test]
     fn every_run_length_merges_to_the_same_answer_a_reference_sort_gives() {
         for len in 0..40i64 {
@@ -7308,6 +7313,7 @@ mod tests {
     /// Two values with no natural order between them are `THROWN`, not a
     /// silent `Equal` — an array is the case that reaches this today, and an
     /// object is the one `rule:classes/comparable`'s `Comparable` is the eventual answer for.
+    // covers: Core\Arr::sort
     #[test]
     fn a_pair_with_no_natural_order_throws() {
         let mut array = NvsArray::new();
@@ -7342,6 +7348,7 @@ mod tests {
     /// contained `FATAL`: the checker refuses an `int` there
     /// (`E_TYPE_MISMATCH`), so reaching this means the compiler let through a
     /// call it should not have.
+    // covers: Core\Arr::sort
     #[test]
     fn an_order_outside_the_enum_is_a_contained_fault() {
         let subject = Value::array(NvsArray::new());
@@ -7692,6 +7699,7 @@ mod tests {
     /// Verified against PHP 8.5's `array_fill(0, ...)`; the `$start_index`
     /// overload PHP also has is [`super::nvs_core_arr_fill_keys`]'s job here,
     /// and this member's own docs own why.
+    // covers: Core\Arr::fill
     #[test]
     fn fill_repeats_one_value_under_a_fresh_run_of_keys() {
         let mut ctx = Ctx::new(OutputSink::Sink);
