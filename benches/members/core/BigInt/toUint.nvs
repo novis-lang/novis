@@ -1,0 +1,31 @@
+<?nvs
+// Measures converting a number to a `uint`, as a program does when it turns a
+// large calculation into a count or an identifier.
+// bench: iterations 400000
+// bench: calls 0
+// bench: allocations 1
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // A short magnitude and one of 64 bits, so both a small number and one
+        // above what an `int` holds are measured.
+        array<Core\BigInt> $values = [
+            Core\BigInt::of(7),
+            Core\BigInt::parse("18446744073709551614"),
+        ];
+        uint $total = 0;
+        int $pick = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the number narrowed this round is picked by the answer of
+            // the round before, so the two take turns.
+            uint $narrowed = $values[$pick]->toUint();
+            $pick = ($narrowed % 2) as int;
+            $total = $total + ($narrowed % 3);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

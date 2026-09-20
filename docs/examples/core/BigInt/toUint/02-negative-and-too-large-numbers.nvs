@@ -1,0 +1,23 @@
+<?nvs
+// Shows the two numbers `toUint` does not accept: a negative one, and one above
+// 18446744073709551615.
+
+// A `uint` holds no negative numbers, so `toUint` throws an `ArithmeticError`.
+// The message names the method and the number it refused.
+try {
+    echo Core\BigInt::of(-1)->toUint(), "\n";
+} catch (ArithmeticError $negative) {
+    echo $negative->message, "\n";
+}
+
+// The first number above the range is refused in the same way.
+try {
+    echo Core\BigInt::parse("18446744073709551616")->toUint(), "\n";
+} catch (ArithmeticError $tooLarge) {
+    echo $tooLarge->message, "\n";
+}
+
+// `Core\BigInt::sign` returns -1 for a negative number, so you can test a
+// number before you convert it. This prints "negative".
+var $value = Core\BigInt::parse("-5000");
+echo $value->sign() < 0 ? "negative\n" : "zero or more\n";
