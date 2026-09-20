@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to write a value into the cache this server process shares, and
+// read it back.
+
+var $cache = Core\Cache::process();
+
+// `put` writes the value under the key "greeting". Every core of this server
+// reads the same store, so every one of them finds this value.
+$cache->put("greeting", "hello");
+
+// `get` returns what was written. This prints hello.
+var $greeting = $cache->get("greeting") as string;
+echo $greeting, "\n";
+
+// A key nothing wrote returns `null`. `??` supplies a value to use instead,
+// so this prints no colour yet.
+var $colour = $cache->get("colour") ?? "no colour yet";
+echo $colour as string, "\n";
+
+// `forget` removes one key for the whole server. This prints gone.
+$cache->forget("greeting");
+var $after = $cache->get("greeting") ?? "gone";
+echo $after as string, "\n";

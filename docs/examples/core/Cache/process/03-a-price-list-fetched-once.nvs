@@ -1,0 +1,32 @@
+<?nvs
+// Shows what this cache is for: an answer that is slow to get, fetched once and
+// then used by every request this server handles.
+
+class Prices {
+    public static function all(): array<int> {
+        var $cache = Core\Cache::process();
+
+        // A hit returns the list, and the slow work below is skipped.
+        var $held = $cache->get("prices");
+        if ($held != null) {
+            return $held as array<int>;
+        }
+
+        // This is the slow work. A real program calls another service or reads
+        // a database here, and the prices are in cents.
+        array<int> $fetched = ["cup" => 450, "poster" => 1200, "sticker" => 199];
+
+        // Good for fifteen minutes. After that the next request fetches the
+        // list again, so a new price reaches every core within that time.
+        $cache->put("prices", $fetched, {ttl: 15m});
+        return $fetched;
+    }
+}
+
+// The first request fetches the list. This prints 450.
+array<int> $first = Prices::all();
+echo $first["cup"], "\n";
+
+// Every request after it reads the cache instead. This prints 1200.
+array<int> $second = Prices::all();
+echo $second["poster"], "\n";

@@ -1,0 +1,23 @@
+<?nvs
+// Shows that the two caches in memory are separate stores. A key written in one
+// is not in the other, even when the key is the same.
+
+var $process = Core\Cache::process();
+var $local = Core\Cache::local();
+
+// Written in the store the whole server shares.
+$process->put("visits", 41);
+
+// The per-core store never saw it, so this prints not here.
+var $fromLocal = $local->get("visits") ?? "not here";
+echo $fromLocal as string, "\n";
+
+// The store it was written in still has it. This prints 41.
+var $fromProcess = $process->get("visits") as int;
+echo $fromProcess, "\n";
+
+// The same key in the other direction. Each store answers for its own value,
+// so this prints 7 and then 41.
+$local->put("visits", 7);
+echo $local->get("visits") as int, "\n";
+echo $process->get("visits") as int, "\n";
