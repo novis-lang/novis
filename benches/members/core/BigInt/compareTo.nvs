@@ -1,0 +1,29 @@
+<?nvs
+// Measures putting two large numbers in order, as a program does when it sorts
+// amounts or picks the largest of them.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\BigInt> $amounts = [
+            Core\BigInt::parse("-123456789012345678901234567890"),
+            Core\BigInt::parse("123456789012345678901234567891"),
+            Core\BigInt::parse("123456789012345678901234567890"),
+        ];
+        uint $total = 0;
+        int $pick = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the number compared this round is the one the answer of
+            // the round before picked.
+            int $order = $amounts[$pick]->compareTo($amounts[2]);
+            $total = $total + (($order + 1) as uint);
+            $pick = 2 - ($order + 1);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

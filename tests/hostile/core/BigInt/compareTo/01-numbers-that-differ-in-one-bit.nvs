@@ -1,0 +1,40 @@
+<?nvs
+// Attack: `compareTo` is given pairs of numbers about a million bits wide.
+// Each pair is the same everywhere but in its last bit, so every comparison
+// has to read both numbers all the way through. The program should run to its
+// last line and print the answers.
+
+// 1. Two numbers a million bits wide, one bit apart, compared 200 times in both
+//    orders. A comparison that stopped early would print 0 0 here.
+var $low = Core\BigInt::of(1)->shl(1000000);
+var $high = $low->add(Core\BigInt::of(1));
+int $down = 0;
+int $up = 0;
+int $round = 0;
+while ($round < 200) {
+    $down = $low->compareTo($high);
+    $up = $high->compareTo($low);
+    $round = $round + 1;
+}
+echo $down, ' ', $up, "\n";
+
+// 2. A number compared with itself, at the widest size a single call may
+//    produce. This prints 0.
+var $widest = Core\BigInt::of(1)->shl(1048575);
+echo $widest->compareTo($widest), "\n";
+
+// 3. The same number with the other sign. The two are the same size, so only
+//    the sign decides. This prints 1 -1.
+echo $widest->compareTo($widest->neg()), ' ', $widest->neg()->compareTo($widest), "\n";
+
+// 4. The smallest `int` there is, compared with a small number 100 000 times.
+//    Only the last answer is kept, so the memory held must not grow.
+var $far = Core\BigInt::parse('-9223372036854775808');
+var $near = Core\BigInt::of(7);
+int $answer = 0;
+int $step = 0;
+while ($step < 100000) {
+    $answer = $far->compareTo($near);
+    $step = $step + 1;
+}
+echo $answer, "\n";

@@ -1,0 +1,23 @@
+<?nvs
+// Shows that the comparison operators work on two `Core\BigInt` values, and
+// that they give the same answer as `compareTo`.
+
+var $left = Core\BigInt::parse("18446744073709551616");
+var $right = Core\BigInt::parse("18446744073709551617");
+
+// `<=>` gives the same three-way answer as the method. This prints -1 -1.
+echo $left <=> $right, " ", $left->compareTo($right), "\n";
+
+// `<` is true when the answer is below zero. This prints yes.
+if ($left < $right) {
+    echo "yes\n";
+} else {
+    echo "no\n";
+}
+
+// `>=` is true when the answer is zero or above. This prints yes.
+if ($right >= $left) {
+    echo "yes\n";
+} else {
+    echo "no\n";
+}

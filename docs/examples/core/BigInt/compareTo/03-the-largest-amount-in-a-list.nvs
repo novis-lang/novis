@@ -1,0 +1,29 @@
+<?nvs
+// Shows a job a program does with a list of amounts that are too large for an
+// `int`: put them in order, and pick out the largest one.
+
+array<string> $reported = [
+    "9223372036854775808",
+    "170141183460469231731687303715884105728",
+    "18446744073709551616",
+];
+
+array<Core\BigInt> $amounts = [];
+foreach ($reported as string $text) {
+    $amounts[] = Core\BigInt::parse($text);
+}
+
+// `Core\Arr::sort` puts the amounts in order through `compareTo`.
+// The smallest comes first, so this prints 9223372036854775808.
+array<Core\BigInt> $ordered = Core\Arr::sort($amounts);
+echo $ordered[0], "\n";
+
+// The largest one found without sorting the whole list.
+// This prints 170141183460469231731687303715884105728.
+var $largest = $amounts[0];
+foreach ($amounts as Core\BigInt $amount) {
+    if ($amount->compareTo($largest) > 0) {
+        $largest = $amount;
+    }
+}
+echo $largest, "\n";

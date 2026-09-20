@@ -2,6 +2,7 @@
 `Core\BigInt::compareTo` is the ordering, and `<=>`, `<`, `>`, `<=`, `>=`, the sign of a difference and `Core\Arr::sort` all agree with it over a table — `rule:classes/comparable`, spec § 13
 --FILE--
 <?nvs
+// covers: Core\BigInt::compareTo
 // Agreement, not a second list of the same shape: `compareTo` is the member,
 // and `<=>` and the four comparison operators lower to it. Asking one question
 // of every spelling and counting the answers is what catches an ordering that
