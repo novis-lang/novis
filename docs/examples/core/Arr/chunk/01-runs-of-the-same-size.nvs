@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to split an array into runs of the same size.
+
+array<string> $days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+
+// Each run holds 2 entries. Five entries do not divide by two, so the last run
+// is short. This prints [["Mon","Tue"],["Wed","Thu"],["Fri"]].
+echo Core\Json::encode(Core\Arr::chunk($days, 2)), "\n";
+
+// A size larger than the array gives one run with everything in it. This
+// prints [["Mon","Tue","Wed","Thu","Fri"]].
+echo Core\Json::encode(Core\Arr::chunk($days, 99)), "\n";
+
+// An array with no entries gives no runs at all. This prints [].
+array<string> $nothing = [];
+echo Core\Json::encode(Core\Arr::chunk($nothing, 2)), "\n";
