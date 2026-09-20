@@ -1,0 +1,56 @@
+--TEST--
+every `#[Command]` declaration the compiled table could not dispatch is refused, each by its own diagnostic — `rule:tooling/commands-are-compiled`
+--FILE--
+<?nvs
+// covers: lang:attributes/core-command-and-core-option-the-command-table
+//
+// The sibling case reads the table a correct program builds. This one names
+// every way of writing a command the table cannot hold, in one program, so the
+// count is the assertion: a pass that dropped one of these still looks right on
+// any single line.
+//
+// Each refusal is a different question — a type no argument's text converts to,
+// a method with no instance to call, a return type that is not an exit status, a
+// marker nothing reads, and a spelling claimed twice — which is why they carry
+// four different codes rather than one.
+
+class Deploy {
+    // 1. An option typed as something an argument's text does not convert to.
+    #[Core\Command(name: "deploy", about: "Push the build")]
+    public static function deploy(#[Core\Option] float $ratio): void {}
+
+    // 2. A command that is not `static`, so the table holds no instance to
+    //    call it on.
+    #[Core\Command(name: "again", about: "Run it")]
+    public function again(): void {}
+
+    // 3. A command returning something that is not an exit status.
+    #[Core\Command(name: "report", about: "Print it")]
+    public static function report(): string { return "x"; }
+
+    // 4. An `#[Option]` on a method that declares no command, so nothing
+    //    supplies the parameter.
+    public static function helper(#[Core\Option(short: "h")] bool $flag): void {}
+
+    // 5. Two options of one command answering to the same spelling.
+    #[Core\Command(name: "sync", about: "Sync it")]
+    public static function sync(
+        #[Core\Option(short: "v")] bool $verbose,
+        #[Core\Option(short: "v")] bool $version,
+    ): void {}
+}
+
+echo "unreachable", "\n";
+--EXPECT--
+--EXPECTF-ERROR--
+error[E0746]: `float` is not a type an option of `deploy` can be given at
+%A
+error[E0789]: the `#[Command]` method `again` is not `static`
+%A
+error[E0789]: the `#[Command]` method `report` returns `string`
+%A
+error[E0766]: `#[Option] $flag` is on a method that declares no command
+%A
+error[E0745]: two options of `sync` are spelled `-v`
+%A
+error: aborting due to 5 errors

@@ -6116,7 +6116,8 @@ For that file `nvs build --openapi main.nvs` prints:
         "responses": {
           "200": {"content": {"application/json": {"schema": {"type": "string"}}}, "description": "success"}
         },
-        "summary": "Show one user."
+        "summary": "Show one user.",
+        "tags": ["users"]
       }
     }
   }
@@ -6127,7 +6128,9 @@ For that file `nvs build --openapi main.nvs` prints:
 declaration cannot say: `tags:` and `security:` as arrays of strings, `errors:` as an array of
 `{status: 404, type: NotFound::class}` entries naming classes the program declares, and `example:`
 as a shape literal whose keys are properties of the return type. Each is checked against the
-declaration while compiling; the document this build writes does not include them.
+declaration while compiling and then written into the operation: `tags` and `security` as their own
+members, an `errors` entry as a response of its own described by its class, and `example` beside the
+`200` response's schema. An operation whose method declares no `#[Api]` carries none of them.
 
 ### `#[Core\Command]` and `#[Core\Option]`: the command table
 

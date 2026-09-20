@@ -1,0 +1,43 @@
+<?nvs
+// Measures reading a command and one of its options back off the compiled
+// table. A program does this for every command it knows about when it prints a
+// help screen.
+// bench: iterations 200000
+// bench: allocations 2
+// bench: calls 0
+
+type Command = {name: string, about: string};
+type Option = {short: string, about: string};
+
+class Migrate {
+    #[Core\Command(name: "migrate", about: "Apply pending migrations")]
+    public static function migrate(
+        #[Core\Option(short: "n", about: "Print what would happen")] bool $pretend,
+    ): uint {
+        if ($pretend) { return 0; }
+        return 1;
+    }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            ?Command $command = Core\Attributes::get<Command>(Migrate::migrate(...));
+            ?Option $option = Core\Attributes::get<Option>(Migrate::migrate(...), "pretend");
+            if ($command != null) {
+                if ($option != null) {
+                    // Chained: the length counted this round is picked with the
+                    // total from the round before.
+                    $total = $total + Core\Str::length($command->name) + $total % 2;
+                    $total = $total + Core\Str::length($option->short);
+                }
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

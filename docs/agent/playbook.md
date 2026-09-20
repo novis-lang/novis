@@ -6143,6 +6143,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   one inserted `// covers:` marker moves all of them by one and the case goes red on the anchors alone.
   Bump each `NN` in the same `splice.py` patch, and run `target/release/nvs.exe test <case>.nvst` before
   the wrap. [until: reviewed 2026-09-20]
+- **A `lang:` feature's perf figure goes stale the moment its *reference chapter* is edited, because
+  the chapter is what the feature is "implemented at".** Fixing one stale sentence in
+  `docs/reference/lang/90-attributes.md` turned every measured `lang:attributes/…` figure into
+  `perf: stale: … changed since it was last measured`, including features this session never touched.
+  Re-measure with `python tools/dossier.py --record-perf --only '<feature>' …` in the same session,
+  and budget for it whenever a slice corrects the chapter its own feature is read from.
+  [until: gone tools/dossier.py:impl_hash]
 
 ## Splitting a file that got too big
 
@@ -8416,6 +8423,22 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   mistake in the member rather than in the binding. Bind counts as `uint`, convert the other side with
   `as uint`, and write the zero as a `uint $d = 0;` on its own line before the `if`.
   [until: reviewed 2026-09-19]
+- **`Core\Attributes::get`'s `$member` must be a *written* name; a computed one silently answers
+  `null`.** A loop over `array<string> $names` reading one option per name prints nothing at all,
+  while the same reads spelled as literals answer — `rule:attributes/structural-retrieval` decides
+  it, since a written name is checked against the target's declarations and a computed one falls
+  back to the empty result. Write the parameter name at the call site, and where a list is really
+  wanted, build the array of results rather than the array of names.
+  [until: reviewed 2026-09-20]
+
+- **`Core\Attributes::get<S>(C::m(...))?->field` throws on a `null` answer instead of
+  short-circuiting.** The member folds to a compiled-in constant, and a folded `null` does not reach
+  the nullsafe test, so the program ends with `attempt to read property … on null` — while the same
+  value bound to a `?S` local first, and a userland method declared `: ?S`, both short-circuit
+  correctly. Bind the retrieval to a local before reading it — `open_nullsafe` in
+  `crates/nvs-ir/src/lower/expr.rs` builds no guard at all unless the lowered receiver is
+  `Ty::Tagged`, which a folded constant is not.
+  [until: reviewed 2026-09-20]
 
 ## Divergences and refusals already pinned
 
