@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to shift a whole number to the right. Every place halves it.
+
+// `shr` moves the bits 1 place to the right, which halves the number. This
+// prints 3.
+echo Core\BigInt::of(6)->shr(1), "\n";
+
+// The bits that fall off the right end are gone, so 7 halved is 3. This
+// prints 3 and 1.
+echo Core\BigInt::of(7)->shr(1), "\n";
+echo Core\BigInt::of(255)->shr(7), "\n";
+
+// Shifting by 0 places gives the number back. This prints 9.
+echo Core\BigInt::of(9)->shr(0), "\n";
+
+// A number far larger than an `int` holds is shifted the same way. This
+// prints 1.
+echo Core\BigInt::of(1)->shl(64)->shr(64), "\n";
