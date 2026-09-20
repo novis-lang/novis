@@ -7,10 +7,9 @@
 // table is what makes the round trip below exact — see
 // `crates/nvs-stdlib/src/bytes.rs`.
 //
-// A buffer field (`a`/`A`/`Z`) is read by the same member, but nothing here
-// can *print* one: `mixed as bytes` has no lowering row yet, so those fields
-// are pinned in `nvs-stdlib`'s own unit tests and only their boundary is
-// observed below, as an element count.
+// A buffer field (`a`/`A`/`Z`) is read by the same member, and what each code
+// trims off it is pinned in `nvs-stdlib`'s own unit tests; only its boundary
+// is observed below, as an element count.
 
 // The round trip, field for field, over both signednesses and both widths.
 array<mixed> $fields = Core\Bytes::unpack(Core\Bytes::pack("NnCc", 305419896, 4660, 255, -2), "NnCc");

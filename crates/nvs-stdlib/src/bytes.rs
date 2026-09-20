@@ -2372,6 +2372,7 @@ mod tests {
 
     /// Every numeric code's width and byte order, checked against what
     /// `php -r 'echo bin2hex(pack(…));'` answers for the same call.
+    // covers: Core\Bytes::pack
     #[test]
     fn each_numeric_code_writes_its_own_width_and_order() {
         assert_eq!(hex("C", &[Value::uint(255)]), "ff");
@@ -2390,6 +2391,7 @@ mod tests {
     /// A repeater counts *arguments* on a numeric field, `*` takes every one
     /// left, and `x` writes NUL octets while consuming none — the three rules
     /// that make a header expressible in one call.
+    // covers: Core\Bytes::pack
     #[test]
     fn a_repeater_counts_arguments_and_x_counts_octets() {
         let three = [Value::uint(1), Value::uint(2), Value::uint(3)];
@@ -2404,6 +2406,7 @@ mod tests {
     /// An integer field accepts the union of its width's signed and unsigned
     /// ranges, writes two's complement, and throws outside it rather than
     /// wrapping the way PHP does — `rule:core-api/shape-rules` R4.
+    // covers: Core\Bytes::pack
     #[test]
     fn an_integer_field_spans_both_ranges_and_refuses_outside_them() {
         assert_eq!(hex("N", &[Value::int(-1)]), "ffffffff");
@@ -2417,6 +2420,7 @@ mod tests {
 
     /// A buffer field pads to its declared width, `Z` keeps one octet for its
     /// own NUL, and an argument that does not fit throws instead of being cut.
+    // covers: Core\Bytes::pack
     #[test]
     fn a_buffer_field_pads_and_refuses_to_truncate() {
         let hi = vec![text("Hi")];
@@ -2433,6 +2437,7 @@ mod tests {
     /// The format and the argument list must line up in **both** directions,
     /// and a `mixed` argument of the wrong runtime type is the caller's
     /// mistake rather than a conversion this member performs.
+    // covers: Core\Bytes::pack
     #[test]
     fn a_call_whose_halves_disagree_throws() {
         assert!(refusal("N", &[]).contains("wants argument 1"));
@@ -2448,6 +2453,7 @@ mod tests {
 
     /// Every code this grammar refuses names what to write instead, so a
     /// program ported from PHP is told the answer rather than just told no.
+    // covers: Core\Bytes::pack
     #[test]
     fn a_refused_code_names_its_replacement() {
         assert!(refusal("l", &[Value::int(1)]).contains("`N`/`V`"));
@@ -2479,6 +2485,7 @@ mod tests {
 
     /// The property that makes one shared code table worth having: a format
     /// means the same thing read as it does written.
+    // covers: Core\Bytes::unpack
     #[test]
     fn unpack_is_packs_inverse_over_the_same_format() {
         let format = "NnCcEg";
@@ -2509,6 +2516,7 @@ mod tests {
 
     /// Each order reads the octets back the way it wrote them, and `c` is the
     /// one code that restores a sign — the whole of its difference from `C`.
+    // covers: Core\Bytes::unpack
     #[test]
     fn each_order_reads_back_what_it_wrote() {
         assert_eq!(read("n", b"\x12\x34"), vec![Field::Unsigned(0x1234)]);
@@ -2539,6 +2547,7 @@ mod tests {
     /// A buffer field gives back octets — never a `string`, since a record
     /// field carries no charset — with its own padding taken off where the
     /// code says what the padding was.
+    // covers: Core\Bytes::unpack
     #[test]
     fn a_buffer_field_answers_octets_without_its_padding() {
         assert_eq!(
@@ -2556,6 +2565,7 @@ mod tests {
 
     /// The format must describe the whole buffer, in both directions — a tail
     /// PHP would ignore is what a binary parser must not swallow.
+    // covers: Core\Bytes::unpack
     #[test]
     fn a_buffer_the_format_does_not_describe_throws() {
         assert_eq!(read("n*", b"\x00\x01\x00\x02").len(), 2);

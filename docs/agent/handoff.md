@@ -2,42 +2,37 @@
 
 ## State
 
-Goal `core-bytes` — the feature proofs `rule:testing/feature-proofs` makes `Core\Bytes` owe. Eleven
-of its thirteen members are complete: the nine that measure and search, plus `repeat` and `join`,
-each carrying `about.md`, three examples with blessed output, one attack, one recorded figure and
-one Rust test with a `covers:` marker. `pack` and `unpack` are the two left, and `python
-tools/dossier.py --owed --group 'Core\Bytes'` is that list.
+Goal `core-bytes` is met. All thirteen `Core\Bytes` members carry the feature proofs
+`rule:testing/feature-proofs` makes them owe: `python tools/dossier.py --gate --group 'Core\Bytes'`
+reports nothing owed, its 39 examples and 13 attacks all pass, `python tools/verify.py` is 14 of 14
+green and `python tools/verify.py --doc` resolves every link. `python tools/owners.py --closes
+core-bytes` and `python tools/playbook.py --closes core-bytes` each name nothing.
 
-Nothing is blocked, and no proof found a bug: both members answered what their reference cards say,
-at both ends of their ranges. The figures are 175.1 ns/op with 3 allocations for `repeat` and 130.4
-with 6.5 for `join`. `docs/perf/members.ndjson` carries an earlier `join` row of 168.6/8.0, measured
-before its bench stopped indexing an array; the playbook bullet under *Running things* says why, and
-`--id` reports the later row.
+`pack` and `unpack` were the last two, and they read one format grammar between them. Their figures
+are 178.4 ns/op with 7 allocations for `pack` and 102.8 with 3 for `unpack`.
+
+No proof found a bug: both members answered what their reference cards say, at both ends of their
+ranges, and every step of both attacks stopped where the card says it should. One stale claim went:
+`mixed as bytes` lowers now, so the conformance case that said it does not was rewritten.
 
 ## Next group
 
-One slice is one feature with all of its feature proofs. These two are each other's inverse and read
-one format grammar between them — `packed` and `unpacked` share the `Field` shape and the same
-letters — so the second is most of the first once the grammar is read. One file set:
-`crates/nvs-stdlib/src/bytes.rs` (the registry rows, the two members, the two helpers above them and
-the `tests` module at its foot), `docs/examples/core/Bytes/`, `tests/hostile/core/Bytes/`,
-`benches/members/core/Bytes/`.
+The chain's next goal is `core-cache-and-5-more`, whose own handoff stub
+(`docs/agent/goals/dossier/99-core-cache-and-5-more.handoff.md`) is installed over this file at the
+switch. Its first group is three members of one file set — `crates/nvs-stdlib/src/cache.rs`,
+`docs/examples/core/Cache/`, `tests/hostile/core/Cache/`, `benches/members/core/Cache/` — each
+owing all of `rule:testing/feature-proofs`:
 
-- [ ] **`Core\Bytes::pack`** — owes examples, hostile, perf, tests. It writes numbers into a buffer
-      by a format string, which is the one member of this class whose second argument is a small
-      language, so the examples are where a reader learns the letters.
-      `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/bytes.rs:1461`, and the grammar it reads
-      is `packed` at `crates/nvs-stdlib/src/bytes.rs:1343`.
-- [ ] **`Core\Bytes::unpack`** — owes examples, hostile, perf, tests. It reads the same format back
-      into an array, so its attack is a format that claims more bytes than the buffer holds.
-      `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/bytes.rs:1697`, and its half of the
-      grammar is `unpacked` at `crates/nvs-stdlib/src/bytes.rs:1615`.
+- [ ] **`Core\Cache::local`** — owes examples, hostile, perf, tests. `rule:testing/feature-proofs`.
+      `crates/nvs-stdlib/src/cache.rs:188`
+- [ ] **`Core\Cache::process`** — owes examples, hostile, perf, tests. `rule:testing/feature-proofs`.
+      `crates/nvs-stdlib/src/cache.rs:197`
+- [ ] **`Core\Cache::shared`** — owes examples, hostile, perf, tests. `rule:testing/feature-proofs`.
+      `crates/nvs-stdlib/src/cache.rs:206`
 
 ## Backlog
 
-- `docs/perf/members.md` is not rewritten by `--record-perf`; `python tools/dossier.py
-  --perf-report` is what regenerates it from the ledger — `rule:testing/member-perf-ledger`.
-- After `pack` and `unpack` this group owes nothing and the goal is met — `docs/agent/loop-goal.md`.
-- `nvs-cli`'s `sd_notify_messages_are_ready_then_reloading_and_ready_then_stopping` failed once
-  under load with an extra `STOPPING=1` first and passed alone and on the re-run; the notify
-  socket it reads is shared with whatever runs beside it — `crates/nvs-cli/src/serve.rs:3913`.
+- `Core\Bytes::pack` costs 7 allocations and 333 bytes per call for a five-byte result, most of it
+  the variadic argument array a call site builds — the figure is in `docs/perf/members.ndjson`.
+- `pack` and `unpack` still owe the two classifications their own doc comment names, an intrinsic
+  literal format and a sink qualifier: `crates/nvs-stdlib/src/bytes.rs:1449`.
