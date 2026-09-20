@@ -1,0 +1,31 @@
+<?nvs
+// Measures converting a number to a `decimal`. A program does this when a
+// total it added up as whole numbers becomes an amount of money.
+// bench: iterations 400000
+// bench: calls 0
+// bench: allocations 1
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // A short magnitude and one of 90 bits, so both a small number and one
+        // near the top of what a `decimal` holds are measured.
+        array<Core\BigInt> $values = [
+            Core\BigInt::of(7),
+            Core\BigInt::parse("1237940039285380274899124224"),
+        ];
+        uint $total = 0;
+        int $pick = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the number converted this round is picked by the answer
+            // of the round before, so the two take turns.
+            decimal $converted = $values[$pick]->toDecimal();
+            $pick = $converted > (100 as decimal) ? 0 : 1;
+            $total = $total + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

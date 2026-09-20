@@ -1,0 +1,58 @@
+<?nvs
+// Attack: `toDecimal` is asked for numbers far wider than a `decimal`,
+// thousands of times over. Every call must throw, and the text of every error
+// holds all the digits of the number. Messages that are never freed would use
+// up the memory of the machine. The program should run to its last line.
+
+// 1. A number of 1001 bits is converted 5000 times. Every call throws, and each
+//    error carries all 302 digits of the number. This prints 5000.
+var $wide = Core\BigInt::of(1)->shl(1000);
+int $refused = 0;
+int $round = 0;
+while ($round < 5000) {
+    try {
+        $wide->toDecimal();
+    } catch (ArithmeticError $tooWide) {
+        $refused = $refused + 1;
+    }
+    $round = $round + 1;
+}
+echo $refused, "\n";
+
+// 2. The largest number a `decimal` holds, and the first one above it. This
+//    prints 79228162514264337593543950335 and then 1.
+var $top = Core\BigInt::parse('79228162514264337593543950335');
+echo $top->toDecimal(), "\n";
+int $past = 0;
+try {
+    $top->add(Core\BigInt::of(1))->toDecimal();
+} catch (ArithmeticError $tooWide) {
+    $past = 1;
+}
+echo $past, "\n";
+
+// 3. The same pair below zero, where a check written over magnitudes alone
+//    would refuse one number too early or one too late. This prints 2.
+int $edges = 0;
+try {
+    $top->neg()->toDecimal();
+    $edges = $edges + 1;
+} catch (ArithmeticError $tooWide) {
+    echo "the lowest number was refused\n";
+}
+try {
+    $top->neg()->sub(Core\BigInt::of(1))->toDecimal();
+} catch (ArithmeticError $tooWide) {
+    $edges = $edges + 1;
+}
+echo $edges, "\n";
+
+// 4. A number of about a million bits is converted. Its error text holds more
+//    than 300000 digits, and the program must build it. This prints 1.
+int $huge = 0;
+try {
+    Core\BigInt::of(1)->shl(1000000)->toDecimal();
+} catch (ArithmeticError $far) {
+    $huge = 1;
+}
+echo $huge, "\n";
