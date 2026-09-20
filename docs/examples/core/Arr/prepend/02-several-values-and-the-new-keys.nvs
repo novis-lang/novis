@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to add several values in one call, and what happens to the keys.
+
+array<string> $labels = ["de" => "Deutsch", "fr" => "Français"];
+
+// The values are added in the order you write them.
+array<string> $withEnglish = Core\Arr::prepend($labels, "English", "Español");
+
+// The result is a list, so this prints 0, 1, 2 and 3.
+foreach (Core\Arr::keys($withEnglish) as string $key) {
+    echo $key, "\n";
+}
+
+// The values keep their order: English, Español, Deutsch, Français.
+echo Core\Str::join($withEnglish, ", "), "\n";

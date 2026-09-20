@@ -2,42 +2,43 @@
 
 ## State
 
-Goal `Core\Arr` (1/4). `Core\Arr::all` and `Core\Arr::any` are finished: `about.md`, three
-examples each, one attack, one bench with a row in `docs/perf/members.ndjson`, and a Rust
-`#[test]` carrying its `covers:` marker. Their Novis-side cases were already on disk, credited
-by a plain call.
+Goal `Core\Arr` (1/4). `Core\Arr::all`, `any`, `append` and `prepend` are finished: `about.md`,
+three examples, one attack, one bench with a row in `docs/perf/members.ndjson`, and a Rust `#[test]`
+carrying its `covers:` marker each.
 
-The `#[cfg(test)]` module at the foot of `crates/nvs-stdlib/src/arr.rs` now carries a closure
-fixture — `list_of`, `below_ten`, `closure_of`, `walked` — so any further `Core\Arr` member
-taking a callable gets its Rust proof in a few lines. `crates/nvs-stdlib/tests/allocation_policy.rs`
-holds its own older copy of the same idea; neither is shared, because an integration test and a
-unit test cannot see each other's helpers.
+`Core\Arr::append` panicked the whole process on a subject already holding `i64::MAX` as a key —
+`NvsArray::append` asserts the next integer key is free, which a result copied from the subject does
+not guarantee. It now throws the `LogicError` `$a[] = $v` throws, with that statement's message;
+`crates/nvs-stdlib/src/arr.rs`'s `append_borrowed_or_refuse` is the seam and
+`tests/conformance/core/arr-append-refuses-where-the-next-integer-key-is-taken.nvst` pins both forms
+agreeing.
 
-54 of `Core\Arr`'s features are still owed. Nothing is blocked.
+The bench that found that also priced `copy_entry`, which rendered a decimal key per entry for a
+packed subject and handed it to a write that drops it. It now travels as a `nvs_runtime::SlotKey`
+through `store_at`, which every member whose result starts as a copy of its subject shares:
+`Core\Arr::append`'s figure fell from 10 allocations to 4 and from 203 ns/op to 121.
+
+52 of `Core\Arr`'s features are still owed. Nothing is blocked.
 
 ## Next group
 
-**One slice is one feature with all its feature proofs**, taken in file order so neighbours share
+**One slice is one feature with all its feature proofs**, taken in registry order so neighbours share
 the declaration region they sit in — one file set: `crates/nvs-stdlib/src/arr.rs`,
-`docs/examples/core/Arr/`, `tests/hostile/core/Arr/`, `benches/members/core/Arr/`. All four are
-the ends of a list, so one understanding of the edges pays for the group.
+`docs/examples/core/Arr/`, `tests/hostile/core/Arr/`, `benches/members/core/Arr/`. The four are the
+two ends of a list and the two paddings, so one understanding of an array's ends pays for the group.
 
-- [ ] **`Core\Arr::append`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`.
-      `crates/nvs-stdlib/src/arr.rs:372`
-- [ ] **`Core\Arr::prepend`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`.
-      `crates/nvs-stdlib/src/arr.rs:384`
-- [ ] **`Core\Arr::withoutFirst`** — owes examples, hostile, perf, tests;
-      `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/arr.rs:396`
-- [ ] **`Core\Arr::withoutLast`** — owes examples, hostile, perf, tests;
-      `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/arr.rs:405`
+- [ ] **`Core\Arr::withoutFirst`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`.
+      `crates/nvs-stdlib/src/arr.rs:412`
+- [ ] **`Core\Arr::withoutLast`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`.
+      `crates/nvs-stdlib/src/arr.rs:421`
+- [ ] **`Core\Arr::padStart`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`.
+      `crates/nvs-stdlib/src/arr.rs:430`
+- [ ] **`Core\Arr::padEnd`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`.
+      `crates/nvs-stdlib/src/arr.rs:443`
 
 ## Backlog
 
-- A closure call costs about three allocations an entry: `all` and `any` over four entries each
-  measure 13 allocations and 344 bytes a round, and both rows are in `docs/perf/members.ndjson`.
-  Whether `nvs_runtime::call_closure`'s argument slice can be reused across one walk is a perf
-  question nobody owns.
-- A member bench that calls a user closure can declare neither `allocations 0` nor `calls 0`, so
-  `all` and `any` declare only `iterations`; `benches/members/README.md` § *What a bench declares*
-  is the home if that should become a third shape.
-- `Core\Arr` has 54 features still owed after this group.
+- Every `Core\Arr` member whose result copies its subject now writes through
+  `nvs_runtime::SlotKey`; their recorded figures predate that and are re-measured as each is
+  proved — `docs/perf/members.ndjson`.
+- 52 `Core\Arr` features still owe their feature proofs — `python tools/dossier.py --group 'Core\Arr'`.

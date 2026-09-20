@@ -3350,6 +3350,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `has overflowed its stack` and no diagnostic. Probe a nesting limit with `target/release/nvs.exe`,
   which `parser::MAX_RECURSION_DEPTH`'s own doc comment now says.
   [until: gone crates/nvs-syntax/src/parser/mod.rs:This bounds the parse, not the stack a build runs it]
+- **`python tools/dossier.py --record-perf` measures a member against `target/release/nvs.exe`
+  without rebuilding it, so a session that edited `crates/` measures the previous session's code.**
+  It prints `target/release/nvs.exe is missing or older than the tree` in one line and goes on, and
+  the goal's own acceptance check reports that same line as a failure until somebody builds. Run
+  `cargo build --release -p nvs-cli` after the last Rust edit and before `--bless` or
+  `--record-perf`; `verify.py`'s `fmt` step rewriting a crate file counts as an edit and makes the
+  binary stale again. [until: reviewed 2026-09-20]
 
 ## Writing a test case
 
