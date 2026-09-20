@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to turn a list of allowed values into keys. Reading a key is
+// faster than searching the whole list for every value you check.
+
+array<string> $allowed = ['csv', 'json', 'xml'];
+
+// The values become the keys, and the values of the result are the positions
+// the list held them at.
+array<string> $isAllowed = Core\Arr::flip($allowed);
+
+array<string> $wanted = ['json', 'exe'];
+foreach ($wanted as string $format) {
+    // This prints "json is allowed" and then "exe is not allowed".
+    if (Core\Arr::hasKey($isAllowed, $format)) {
+        echo $format, ' is allowed', "\n";
+    } else {
+        echo $format, ' is not allowed', "\n";
+    }
+}

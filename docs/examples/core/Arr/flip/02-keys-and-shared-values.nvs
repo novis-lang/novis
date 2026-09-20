@@ -1,0 +1,15 @@
+<?nvs
+// Shows what the keys of the result look like, and what happens when two
+// entries share a value.
+
+array<int> $positions = ['gold' => 1, 'silver' => 2, 'bronze' => 3];
+
+// Every key of the result is a string, so the number 1 becomes the key "1".
+// This prints {"1":"gold","2":"silver","3":"bronze"}.
+echo Core\Json::encode(Core\Arr::flip($positions)), "\n";
+
+array<string> $roleOf = ['ada' => 'admin', 'bob' => 'guest', 'cleo' => 'admin'];
+
+// Two entries with the same value give you one entry. This prints
+// {"admin":"cleo","guest":"bob"}.
+echo Core\Json::encode(Core\Arr::flip($roleOf)), "\n";

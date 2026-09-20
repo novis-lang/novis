@@ -1,0 +1,23 @@
+<?nvs
+// Turns a list of allowed values into keys. A program does this before it
+// checks many values against the same list.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $formats = ['csv', 'json', 'xml', 'yaml', 'toml', 'ini'];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            array<string> $keyed = Core\Arr::flip($formats);
+            // Last round's total decides which value this round looks up, so
+            // no round can be reused.
+            $total = $total + Core\Str::length($keyed[$formats[$total % 6]]);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";
