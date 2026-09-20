@@ -2,6 +2,7 @@
 `Core\Attributes::get<T>`/`all<T>` answer the attached literals that structurally satisfy `T`, folded at the call site (`rule:attributes/structural-retrieval` and `rule:attributes/retrieval-folds-while-checking`)
 --FILE--
 <?nvs
+// covers: Core\Attributes::get
 // `rule:attributes/structural-retrieval`: retrieval is structural, not nominal. `T` is a shape and an
 // attached literal is an answer exactly when it satisfies `T` under `rule:types/shape-type`
 // 's width subtyping — whether it was attached bare or under a name, and
