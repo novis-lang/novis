@@ -3,6 +3,7 @@ Core\Ast\Node::nodes is children closed transitively, at every node and not only
 --FILE--
 <?nvs
 // covers: Core\Ast\Node::children
+// covers: Core\Ast\Node::nodes
 var $tree = Core\Ast::parse('<?nvs if (1) { echo 2; }');
 
 // The walk, in source order, in the grammar's own vocabulary.

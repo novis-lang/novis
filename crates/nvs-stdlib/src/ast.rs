@@ -618,7 +618,7 @@ nvs_runtime::nvs_helper! {
 
 #[cfg(test)]
 mod tests {
-    use nvs_diagnostics::{Diagnostic, Diagnostics, SourceFile, SourceMap};
+    use nvs_diagnostics::{Diagnostic, Diagnostics, PositionEncoding, SourceFile, SourceMap};
     use nvs_runtime::{Ctx, NvsArray, NvsObj, NvsStr, OutputSink, THROWN, Tag, Value, call};
 
     use super::{
@@ -909,6 +909,381 @@ mod tests {
              offset, made 1-based"
         );
         answered
+    }
+
+    /// Every kind a parsed tree answers is a name `nvs_syntax::walk::KINDS`
+    /// holds, and one walk reaches several of them.
+    ///
+    /// Only reachable from Rust: that table is the grammar's own vocabulary and
+    /// no program can name it, so a conformance case can compare `kind()` only
+    /// against names it spells out itself. This asserts the closed set instead,
+    /// which is the half the module doc's second decision rests on — a member
+    /// answering a spelling the walk does not have, or a production reaching
+    /// the tree without an entry there, fails on the node carrying it. The two
+    /// counts are what stop a descent that never left the root from passing.
+    // covers: Core\Ast\Node::kind
+    #[test]
+    fn every_kind_a_node_answers_is_one_of_the_walks_own_names() {
+        let source = Value::str(NvsStr::new(
+            b"<?nvs\nint $count = 2;\nif ($count > 1) { foreach ([1, 2] as int $n) { echo $n; } }\n",
+        ));
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let tree =
+            call(super::nvs_core_ast_parse, &mut ctx, &[source]).expect("that source parses");
+
+        let mut seen = std::collections::BTreeSet::new();
+        let mut asked = 0usize;
+        kinds_are_the_walks_own(tree, &mut ctx, &mut seen, &mut asked);
+        assert!(
+            asked >= 10 && seen.len() >= 5,
+            "the descent asked {asked} node(s) and saw {} distinct kind(s), so it \
+             stopped near the root and asserted nothing about the roster",
+            seen.len()
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the one reference `parse` answered with, and \
+                      the tree's own references are the nodes'"
+        )]
+        unsafe {
+            tree.release();
+            source.release();
+        }
+    }
+
+    /// Asserts that `node`'s `kind` member answers a name the walk itself names,
+    /// records it and counts the node, then recurses into its children.
+    fn kinds_are_the_walks_own(
+        node: Value,
+        ctx: &mut Ctx,
+        seen: &mut std::collections::BTreeSet<String>,
+        asked: &mut usize,
+    ) {
+        let answered =
+            call(super::nvs_core_ast_node_kind, ctx, &[node]).expect("a node answers its kind");
+        let name = answered
+            .as_text()
+            .expect("a kind is text — the grammar's name for the production")
+            .to_owned();
+        assert!(
+            nvs_syntax::walk::KINDS.contains(&name.as_str()),
+            "`{name}` is not one of the walk's own production names, so a program \
+             branching on the grammar's vocabulary has no arm that could match it"
+        );
+        assert_eq!(
+            class_of(&name).name,
+            format!("{PRODUCTION_PREFIX}{name}"),
+            "the name `{name}` answers does not find its own production's class"
+        );
+        *asked += 1;
+        seen.insert(name);
+
+        #[expect(
+            unsafe_code,
+            reason = "`kind` retains the slot before it answers, so this reference \
+                      is the caller's to give back"
+        )]
+        unsafe {
+            answered.release();
+        }
+
+        let children =
+            crate::instance::slot(node.obj_ptr().expect("a node is an object"), CHILDREN_SLOT);
+        let Some(array) = children.array_ptr() else {
+            return;
+        };
+        let array = crate::arr::borrowed(array);
+        let mut from = 0usize;
+        while let Some(slot) = array.next_slot(from) {
+            let child = array
+                .value_at(slot)
+                .expect("next_slot only names live entries");
+            kinds_are_the_walks_own(child, ctx, seen, asked);
+            from = slot + 1;
+        }
+    }
+
+    /// `nodes` answers a fresh array carrying a reference of its own to every
+    /// node in it, so releasing a walk leaves the tree exactly as it was.
+    ///
+    /// Only reachable from Rust: a program cannot count references, so a walk
+    /// that collected the nodes without retaining them reads correctly in every
+    /// conformance case and then frees a subtree under whoever asked next. The
+    /// array is a new one rather than the receiver's own children slot, which
+    /// is what the member's doc prices as one array per call instead of one
+    /// reference per descendant on every node.
+    // covers: Core\Ast\Node::nodes
+    #[test]
+    fn nodes_answers_a_fresh_array_holding_a_reference_to_every_node_in_it() {
+        let source = Value::str(NvsStr::new(b"<?nvs if (1) { echo 2; }"));
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let tree =
+            call(super::nvs_core_ast_parse, &mut ctx, &[source]).expect("that source parses");
+        let receiver = tree.obj_ptr().expect("a node is an object");
+        let own = crate::instance::slot(receiver, CHILDREN_SLOT)
+            .array_ptr()
+            .expect("the children slot is an array");
+        let branch = {
+            let array = crate::arr::borrowed(own);
+            let slot = array.next_slot(0).expect("the file holds one statement");
+            array
+                .value_at(slot)
+                .expect("next_slot names a live entry")
+                .obj_ptr()
+                .expect("a node is an object")
+        };
+        #[expect(
+            unsafe_code,
+            reason = "the node is the live tree's own, which this test holds the \
+                      only reference to"
+        )]
+        let before = unsafe { NvsObj::refcount_of(branch) };
+
+        let walk = call(super::nvs_core_ast_node_nodes, &mut ctx, &[tree])
+            .expect("a node answers its walk");
+        let answered = walk.array_ptr().expect("the walk is an array");
+        assert_ne!(
+            answered, own,
+            "the walk is an array of its own and not the receiver's children \
+             slot, so a caller releasing it cannot free the tree's own link"
+        );
+        assert_eq!(
+            entries(answered),
+            5,
+            "the walk is the subtree in source order — the `if`, its condition, \
+             its block, the `echo` and the number — and not one level of it"
+        );
+        #[expect(
+            unsafe_code,
+            reason = "the node is still the live tree's, and the walk is a second \
+                      reference to it"
+        )]
+        let held = unsafe { NvsObj::refcount_of(branch) };
+        assert_eq!(
+            held,
+            before + 1,
+            "the walk retained every node it collected, so a program holding \
+             the array after the tree goes still holds live nodes"
+        );
+
+        let again = call(super::nvs_core_ast_node_nodes, &mut ctx, &[tree])
+            .expect("a node answers its walk a second time");
+        assert_ne!(
+            again.array_ptr(),
+            Some(answered),
+            "each call builds its own array, so walking one node twice hands \
+             out two arrays rather than one shared with the caller"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "this test owns both walks, the reference `parse` answered \
+                      with and the source, and releases each exactly once"
+        )]
+        unsafe {
+            again.release();
+            walk.release();
+            assert_eq!(
+                NvsObj::refcount_of(branch),
+                before,
+                "releasing the walks gives back exactly the references they \
+                 took, so a program walking a tree neither leaks it nor frees \
+                 it early"
+            );
+            tree.release();
+            source.release();
+        }
+    }
+
+    /// How many live entries `array` holds.
+    fn entries(array: *mut nvs_runtime::ArrayHeader) -> usize {
+        let array = crate::arr::borrowed(array);
+        let mut from = 0usize;
+        let mut seen = 0usize;
+        while let Some(slot) = array.next_slot(from) {
+            seen += 1;
+            from = slot + 1;
+        }
+        seen
+    }
+
+    /// A node's line is `nvs_diagnostics`' own line for that node's offset,
+    /// made 1-based — a newline inside a text value included.
+    ///
+    /// `rule:ide/positions-have-one-home` from the side a program cannot reach:
+    /// the member answers a slot, and the arithmetic that filled the slot lives
+    /// in another crate. The source writes one value over three lines, so a
+    /// line counted from the statement boundaries rather than from the text
+    /// puts everything after that value three lines too high, and the set of
+    /// lines reached is what makes the walk say so.
+    // covers: Core\Ast\Node::line
+    #[test]
+    fn a_nodes_line_is_the_one_homes_line_for_that_nodes_own_offset() {
+        let text = "<?nvs\necho 1;\necho \"a\nb\nc\";\necho 2 + 3;\n";
+        let source = Value::str(NvsStr::new(text.as_bytes()));
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let tree =
+            call(super::nvs_core_ast_parse, &mut ctx, &[source]).expect("that source parses");
+
+        let mut map = SourceMap::new();
+        let id = map.add("a-node's-line", text);
+
+        let mut seen = std::collections::BTreeSet::new();
+        line_agrees(tree, map.file(id), &mut ctx, &mut seen);
+        assert!(
+            seen.len() >= 3 && seen.contains(&6),
+            "the walk reached lines {seen:?}, so it never got past the value \
+             written over three lines — line 6 is the statement after it, and \
+             reaching it is what says the newlines inside a value were counted"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the one reference `parse` answered with, and \
+                      the tree's own references are the nodes'"
+        )]
+        unsafe {
+            tree.release();
+            source.release();
+        }
+    }
+
+    /// Asserts that `node`'s `line` member agrees with `file`'s own line for
+    /// `node`'s offset, records the line, and recurses into its children.
+    fn line_agrees(
+        node: Value,
+        file: &SourceFile,
+        ctx: &mut Ctx,
+        seen: &mut std::collections::BTreeSet<i64>,
+    ) {
+        let answered = call(super::nvs_core_ast_node_line, ctx, &[node])
+            .expect("a node answers its line")
+            .as_int()
+            .expect("a line is a whole number");
+        let receiver = node.obj_ptr().expect("a node is an object");
+        let offset = crate::instance::slot(receiver, OFFSET_SLOT)
+            .as_int()
+            .expect("an offset is a whole number");
+        let (line, _) = file.line_col(u32::try_from(offset).expect("an offset is a byte position"));
+        assert_eq!(
+            answered,
+            i64::try_from(line).expect("a line fits") + 1,
+            "the line a node answers is the one home's line for its own offset, \
+             made 1-based"
+        );
+        seen.insert(answered);
+
+        let children = crate::instance::slot(receiver, CHILDREN_SLOT);
+        let Some(array) = children.array_ptr() else {
+            return;
+        };
+        let array = crate::arr::borrowed(array);
+        let mut from = 0usize;
+        while let Some(slot) = array.next_slot(from) {
+            let child = array
+                .value_at(slot)
+                .expect("next_slot only names live entries");
+            line_agrees(child, file, ctx, seen);
+            from = slot + 1;
+        }
+    }
+
+    /// A node's offset is the byte position the one home converts that node's
+    /// own line and column back to, and it points at a byte the construct
+    /// starts with.
+    ///
+    /// `rule:ide/positions-have-one-home` closed the other way round: the
+    /// column test reads a column off an offset, and this reads the offset back
+    /// off a line and a column. The source puts a four-byte emoji before the
+    /// nodes asked about, so a member answering a character position where a
+    /// byte one is documented disagrees from there on, and the largest offset
+    /// reached is what says the walk went past it.
+    // covers: Core\Ast\Node::offset
+    #[test]
+    fn a_nodes_offset_is_the_byte_position_of_its_own_line_and_column() {
+        let text = "<?nvs\necho \"\u{1F600}\", 7 + 1;\n";
+        let source = Value::str(NvsStr::new(text.as_bytes()));
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let tree =
+            call(super::nvs_core_ast_parse, &mut ctx, &[source]).expect("that source parses");
+
+        let mut map = SourceMap::new();
+        let id = map.add("a-node's-offset", text);
+
+        let mut seen = std::collections::BTreeSet::new();
+        offset_agrees(tree, map.file(id), text.as_bytes(), &mut ctx, &mut seen);
+        assert!(
+            seen.len() >= 4 && seen.iter().any(|&at| at > 16),
+            "the walk reached offsets {seen:?}, so it stopped before the \
+             four-byte character and asserted nothing about a position counted \
+             in bytes"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the one reference `parse` answered with, and \
+                      the tree's own references are the nodes'"
+        )]
+        unsafe {
+            tree.release();
+            source.release();
+        }
+    }
+
+    /// Asserts that `node`'s `offset` member is what `file` converts that
+    /// node's own line and column back to, records it, and recurses.
+    fn offset_agrees(
+        node: Value,
+        file: &SourceFile,
+        text: &[u8],
+        ctx: &mut Ctx,
+        seen: &mut std::collections::BTreeSet<i64>,
+    ) {
+        let answered = member_int(super::nvs_core_ast_node_offset, node, ctx, "offset");
+        let line = member_int(super::nvs_core_ast_node_line, node, ctx, "line");
+        let column = member_int(super::nvs_core_ast_node_column, node, ctx, "column");
+        let at = file.offset_of(
+            usize::try_from(line - 1).expect("a line is 1-based"),
+            usize::try_from(column - 1).expect("a column is 1-based"),
+            PositionEncoding::Utf32,
+        );
+        assert_eq!(
+            answered,
+            i64::from(at),
+            "the offset a node answers is not the byte position of the line and \
+             column it answers, so the three name three places"
+        );
+        let byte = text[usize::try_from(answered).expect("an offset is a position")];
+        assert!(
+            !byte.is_ascii_whitespace(),
+            "offset {answered} points at whitespace, so it names the gap before \
+             the construct rather than the construct"
+        );
+        seen.insert(answered);
+
+        let receiver = node.obj_ptr().expect("a node is an object");
+        let children = crate::instance::slot(receiver, CHILDREN_SLOT);
+        let Some(array) = children.array_ptr() else {
+            return;
+        };
+        let array = crate::arr::borrowed(array);
+        let mut from = 0usize;
+        while let Some(slot) = array.next_slot(from) {
+            let child = array
+                .value_at(slot)
+                .expect("next_slot only names live entries");
+            offset_agrees(child, file, text, ctx, seen);
+            from = slot + 1;
+        }
+    }
+
+    /// The whole number `member` answers for `node`.
+    fn member_int(member: nvs_runtime::NvsFn, node: Value, ctx: &mut Ctx, what: &str) -> i64 {
+        call(member, ctx, &[node])
+            .unwrap_or_else(|_| panic!("a node answers its {what}"))
+            .as_int()
+            .unwrap_or_else(|| panic!("a {what} is a whole number"))
     }
 
     /// Whether a signature's type mentions `class` anywhere inside it.
