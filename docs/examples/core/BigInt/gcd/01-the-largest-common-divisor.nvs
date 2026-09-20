@@ -1,0 +1,13 @@
+<?nvs
+// Shows the greatest common divisor of two numbers: the largest number that
+// divides both of them exactly.
+
+var $first = Core\BigInt::of(360);
+var $second = Core\BigInt::of(48);
+
+// `gcd` gives the largest number that divides 360 and 48. This prints 24.
+echo $first->gcd($second), "\n";
+
+// The sign of a number and the order of the two do not change the result.
+// This prints 24 again.
+echo $second->gcd($first->neg()), "\n";

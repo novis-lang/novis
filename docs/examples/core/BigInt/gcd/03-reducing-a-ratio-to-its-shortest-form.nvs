@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to reduce a ratio to its shortest form. Both amounts are counted in
+// the smallest unit of a currency, so they are far too large for an `int`.
+
+var $paid = Core\BigInt::parse("12193263112482853185200427");
+var $total = Core\BigInt::parse("1524157875171467887501905210");
+
+// Dividing both amounts by their greatest common divisor gives the ratio in
+// its shortest form. This prints 32921810703292181 / 4115226300411522630.
+var $divisor = $paid->gcd($total);
+echo $paid->div($divisor), " / ", $total->div($divisor), "\n";

@@ -1,0 +1,27 @@
+<?nvs
+// Measures the greatest common divisor of two large numbers, as a program does
+// when it reduces a ratio to its shortest form.
+// bench: iterations 50000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\BigInt> $amounts = [
+            Core\BigInt::parse("12193263112482853185200427"),
+            Core\BigInt::parse("1524157875171467887501905210"),
+        ];
+        var $total = Core\BigInt::parse("123456789012345678901234567890");
+        uint $picked = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the amount used this round is picked by the result of
+            // the round before.
+            var $divisor = $amounts[($picked % 2) as int]->gcd($total);
+            $picked = $picked + ($divisor->sign() as uint);
+            $i = $i + 1;
+        }
+        return $picked;
+    }
+}
+
+echo Bench::run(50000), "\n";
