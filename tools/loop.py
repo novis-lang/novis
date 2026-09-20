@@ -102,6 +102,10 @@ DOCGATE = RUNDIR / "doc-gate.json"
 OWNERGATE = RUNDIR / "owner-gate.json"
 FLOORGATE = RUNDIR / "floor-gate.json"
 LASTFAIL = RUNDIR / "last-fail.json"
+#: What every check of every sweep cost, one NDJSON line each; `Goal.write_times` is the writer.
+CHECKTIMES = RUNDIR / "check-times.ndjson"
+#: Past this many bytes the older half of `CHECKTIMES` is dropped, so the file stays bounded.
+CHECKTIMES_CAP = 8 * 1024 * 1024
 
 # The optimization pass's. § *the run* at the foot of this file is what they are for.
 OPTDIR = RUNDIR / "optimization"
@@ -3458,6 +3462,7 @@ class Goal:
         """Reset the per-run bookkeeping, and confirm every fixture is still on disk before
         anything is built. Shared by the two entry points below."""
         self.ran = []
+        self._times_written = 0
         self.held = []
         self._cargo = {}
         self._suite = {}
@@ -3850,6 +3855,7 @@ class Goal:
         is still what ranks the slowest three, which is what it was always for."""
         if not self.ran:
             return "nothing ran"
+        self.write_times()
         wall = time.monotonic() - self._begun
         worst = sorted(self.ran, key=lambda x: -x[1])[:3]
         slow = ", ".join(f"{label} {s:.0f}s" for label, s in worst if s >= 1)
@@ -3857,6 +3863,31 @@ class Goal:
         held = f", {len(self.held)} held (floor gate shut)" if self.held else ""
         return (f"{wall:.0f}s over {len(self.ran)} check(s){skipped}{held}"
                 + (f"; slowest: {slow}" if slow else ""))
+
+    def write_times(self):
+        """Append what each check of this sweep cost to `CHECKTIMES`, one line per check:
+        `{"at", "label", "seconds", "gate", "full"}`. `summary` names the three slowest and the
+        ledger keeps only that line, so which check is worth narrowing could not be read off any
+        file. Each entry of `ran` is written once, however often `summary` is asked. A file that
+        cannot be written costs the measurement and nothing else."""
+        fresh = self.ran[getattr(self, "_times_written", 0):]
+        self._times_written = len(self.ran)
+        if not fresh:
+            return
+        at = round(time.time())
+        lines = "".join(json.dumps({"at": at, "label": label, "seconds": round(spent, 2),
+                                    "gate": bool(self.floor_gate), "full": bool(self.full)},
+                                   ensure_ascii=False) + "\n" for label, spent in fresh)
+        try:
+            RUNDIR.mkdir(parents=True, exist_ok=True)
+            if CHECKTIMES.is_file() and CHECKTIMES.stat().st_size > CHECKTIMES_CAP:
+                kept = CHECKTIMES.read_text(encoding="utf-8").splitlines(keepends=True)
+                CHECKTIMES.write_text("".join(kept[len(kept) // 2:]), encoding="utf-8",
+                                      newline="\n")
+            with CHECKTIMES.open("a", encoding="utf-8", newline="\n") as out:
+                out.write(lines)
+        except OSError:
+            pass
 
 
 def load_goal():
