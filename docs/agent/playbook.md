@@ -3344,6 +3344,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   idle machine and certain under the sweep's overlapped release build, ThreadSanitizer and fuzz
   legs. Before calling a red floor check a flake, re-run it with the machine loaded and compare
   the run's wall-clock against every deadline the path files. [until: reviewed 2026-09-20]
+- **A deeply nested literal crashes `target/debug/nvs.exe` where the release binary refuses it
+  cleanly.** The parser's recursion guard reports `E0108` from nineteen nested `[` on, but the debug
+  build's larger frames overflow its 1 MiB main-thread stack one level past that, so the probe prints
+  `has overflowed its stack` and no diagnostic. Probe a nesting limit with `target/release/nvs.exe`,
+  which `parser::MAX_RECURSION_DEPTH`'s own doc comment now says.
+  [until: gone crates/nvs-syntax/src/parser/mod.rs:This bounds the parse, not the stack a build runs it]
 
 ## Writing a test case
 
@@ -6132,6 +6138,11 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `public static string` and echo it after the group returns, which is what
   `tests/conformance/task/a-wait-parks-only-the-calling-task-and-answers-a-value.nvst` does.
   [until: reviewed 2026-09-20]
+- **Adding a line to a `.nvst` case's `--FILE--` block shifts every anchor its `--EXPECTF-ERROR--`
+  names.** The expected diagnostics carry `--> case.nvs:NN:CC` counted from the start of that block, so
+  one inserted `// covers:` marker moves all of them by one and the case goes red on the anchors alone.
+  Bump each `NN` in the same `splice.py` patch, and run `target/release/nvs.exe test <case>.nvst` before
+  the wrap. [until: reviewed 2026-09-20]
 
 ## Splitting a file that got too big
 
