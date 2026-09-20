@@ -1,0 +1,11 @@
+<?nvs
+// Shows what `lcm` gives when one of the two numbers is zero.
+
+var $value = Core\BigInt::of(42);
+var $zero = Core\BigInt::of(0);
+
+// Only zero is a multiple of zero, so the result is 0.
+echo $value->lcm($zero), "\n";
+
+// Two zeroes give 0 as well.
+echo $zero->lcm($zero), "\n";

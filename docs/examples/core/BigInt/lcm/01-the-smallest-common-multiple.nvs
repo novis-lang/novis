@@ -1,0 +1,13 @@
+<?nvs
+// Shows the least common multiple of two numbers: the smallest number that
+// both of them divide exactly.
+
+var $first = Core\BigInt::of(36);
+var $second = Core\BigInt::of(48);
+
+// 36 and 48 both divide 144, and no smaller positive number. This prints 144.
+echo $first->lcm($second), "\n";
+
+// The sign of a number and the order of the two do not change the result.
+// This prints 144 again.
+echo $second->lcm($first->neg()), "\n";

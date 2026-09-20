@@ -1,0 +1,27 @@
+<?nvs
+// Measures the least common multiple of two large numbers, as a program does
+// when it finds the moment two repeating jobs meet.
+// bench: iterations 50000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\BigInt> $periods = [
+            Core\BigInt::parse("123456789012345678901"),
+            Core\BigInt::parse("987654321098765432109"),
+        ];
+        var $other = Core\BigInt::parse("1524157875171467887501905210");
+        uint $picked = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the period used this round is picked by the result of
+            // the round before.
+            var $meeting = $periods[($picked % 2) as int]->lcm($other);
+            $picked = $picked + ($meeting->sign() as uint);
+            $i = $i + 1;
+        }
+        return $picked;
+    }
+}
+
+echo Bench::run(50000), "\n";
