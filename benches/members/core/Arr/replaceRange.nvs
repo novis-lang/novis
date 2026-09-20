@@ -1,0 +1,24 @@
+<?nvs
+// Replaces one item of a basket with another one. A shop does this when it
+// sends a substitute for something it has run out of.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $basket = ['tea', 'milk', 'bread', 'jam'];
+        array<string> $instead = ['oat drink'];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            array<string> $updated = Core\Arr::replaceRange($basket, 1, 1, $instead);
+            // Last round's total decides which entry of the result this round
+            // measures, so no round can be reused.
+            $total = $total + Core\Str::length($updated[$total % 4]);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to replace one window of entries with other values.
+
+array<string> $days = ['Mon', 'Tue', 'Wed', 'Thu'];
+
+// The window opens at position 1 and holds 1 entry, and two values take its
+// place. This prints ["Mon","Sat","Sun","Wed","Thu"].
+echo Core\Json::encode(Core\Arr::replaceRange($days, 1, 1, ['Sat', 'Sun'])), "\n";
+
+// Without a replacement the window is removed. This prints ["Mon","Thu"].
+echo Core\Json::encode(Core\Arr::replaceRange($days, 1, 2)), "\n";
+
+// The original array is not changed. This prints ["Mon","Tue","Wed","Thu"].
+echo Core\Json::encode($days), "\n";
