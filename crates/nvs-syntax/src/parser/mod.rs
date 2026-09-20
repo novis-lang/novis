@@ -178,11 +178,14 @@ pub struct Parser<'src, 'd> {
 /// used close to 64 of a 64-deep budget before this was raised to 96 — so
 /// treat headroom for that axis, not raw stack safety, as the binding
 /// constraint when tuning this, and re-check with a corpus, not just a
-/// stack-depth probe. 96 is still comfortably under the ~120 this parser's
-/// debug build can survive on a 1 MiB thread stack (measured directly:
-/// nested-paren inputs stop crashing somewhere between 118 and 120), and
-/// was re-confirmed crash-free under `cargo fuzz`'s ASan-instrumented
-/// release build too, which has larger per-frame overhead than either.
+/// stack-depth probe. **This bounds the parse, not the stack a build runs it
+/// on.** A release binary refuses every depth cleanly here, and so does
+/// `cargo fuzz`'s ASan-instrumented release build, which carries larger frames
+/// than either. A *debug* binary does not: its frames overflow a 1 MiB
+/// main-thread stack a level or two past where this guard first reports, so a
+/// nested array literal aborts the process at twenty `[` where the guard
+/// reports `E0108` at nineteen. Probe a nesting limit with a release binary;
+/// raising this constant widens that debug-only window rather than closing it.
 const MAX_RECURSION_DEPTH: u32 = 96;
 
 /// A saved parser position, for the three places this parser backtracks:
