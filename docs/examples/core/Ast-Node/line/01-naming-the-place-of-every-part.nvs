@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to name the place of each part of a program. A report that gives a
+// file and a line is one an editor can jump straight to.
+
+string $source = <<<'NVS'
+<?nvs
+int $count = 2;
+
+echo $count, "\n";
+NVS;
+
+// This prints orders.nvs:2, then orders.nvs:4.
+foreach (Core\Ast::parse($source)->children() as Core\Ast\Node $part) {
+    echo "orders.nvs:", $part->line(), "\n";
+}

@@ -1,0 +1,37 @@
+<?nvs
+// Attack: a program asks for the line of parts in files shaped to lose count.
+// The files hold a million blank lines, text values written over many lines,
+// and two kinds of line ending. The last step should stop at the request's
+// memory limit with an error, and must not crash.
+// hostile: timeout-ms 30000
+// hostile: ends-early
+
+// 1. One million blank lines before a statement. Every one of them has to be
+// counted, and the number must not overflow.
+string $blank = '<?nvs' . Core\Str::repeat("\n", 1000000) . 'echo 1;';
+Core\Ast\Node $far = Core\Ast::parse($blank)->children()[0];
+echo 'after a million blank lines the line is ', $far->line(), "\n";
+
+// 2. A text value written over a hundred thousand lines. The statement after it
+// sits that far down, because a newline inside a value counts.
+string $inside = "<?nvs\necho \"" . Core\Str::repeat("a\n", 100000) . "\";\necho 2;\n";
+array<Core\Ast\Node> $after = Core\Ast::parse($inside)->children();
+echo 'after a value of a hundred thousand lines the next line is ',
+    $after[Core\Arr::count($after) - 1]->line(), "\n";
+
+// 3. Windows line endings, a hundred thousand of them. A line ending of two
+// characters is still one line.
+string $crlf = "<?nvs\r\n" . Core\Str::repeat("echo 1;\r\n", 100000);
+array<Core\Ast\Node> $rows = Core\Ast::parse($crlf)->children();
+echo 'the last of a hundred thousand Windows lines is ',
+    $rows[Core\Arr::count($rows) - 1]->line(), "\n";
+
+// 4. A list of line numbers that doubles in size. That soon needs more memory
+// than the request may hold, so the program stops here.
+array<mixed> $lines = [$far->line(), $after[0]->line(), $rows[0]->line()];
+uint $k = 0;
+while ($k < 40) {
+    $lines = Core\Arr::appendAll($lines, $lines);
+    $k = $k + 1;
+}
+echo "kept them all\n";

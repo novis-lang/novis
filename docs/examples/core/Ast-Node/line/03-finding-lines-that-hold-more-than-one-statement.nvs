@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to find lines that hold more than one statement. Some teams ask
+// for one statement per line, because a line doing three things is harder to
+// read and harder to step through.
+
+string $source = <<<'NVS'
+<?nvs
+int $a = 1; int $b = 2;
+echo $a + $b, "\n";
+NVS;
+
+// The parts come in source order, so a part on the same line as the one before
+// it is a second statement on that line.
+int $previous = 0;
+
+// This prints one report, for line 2.
+foreach (Core\Ast::parse($source)->children() as Core\Ast\Node $part) {
+    if ($part->line() == $previous) {
+        echo "line ", $part->line(), " holds more than one statement\n";
+    }
+    $previous = $part->line();
+}
