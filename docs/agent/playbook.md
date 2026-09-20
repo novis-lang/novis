@@ -2500,6 +2500,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   the run's last line rather than the flag, and measure only once the session's last edit to the
   implementing file has landed — `git diff --stat docs/perf/members.ndjson` says what really went in.
   [until: reviewed 2026-09-20]
+- **A generated dossier goal can already be satisfied when its first session opens, while its item
+  list still says every feature "owes examples, hostile, perf, tests".** That list is a snapshot
+  `dossier.py --emit-goals` took, so a neighbour that finished a whole class leaves this one green
+  and its `file:NN` anchors stale: `core-arr-2-4` opened complete, its `Core\Arr::find` anchor
+  naming `map`. Run `python tools/dossier.py --id '<the first item>'` before writing a line; on
+  `complete.`, run the goal's own `[[check]]` argv from `docs/agent/loop-goal.toml` and go to the
+  DONE gates. [until: reviewed 2026-09-20]
 
 ## Running things
 
