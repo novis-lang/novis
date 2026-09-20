@@ -1,0 +1,46 @@
+<?nvs
+// Attack: `div` is asked for quotients of numbers about a million bits wide, a
+// thousand times over. A quotient that is never freed would use up the memory
+// of the machine. The program should run to its last line.
+
+// 1. A number of about a million bits is divided by 1, a thousand times. Only
+//    the last result is kept, so the memory held must not grow.
+var $wide = Core\BigInt::of(1)->shl(1000000)->sub(Core\BigInt::of(1));
+var $one = Core\BigInt::of(1);
+var $quotient = $wide;
+int $round = 0;
+while ($round < 1000) {
+    $quotient = $wide->div($one);
+    $round = $round + 1;
+}
+echo $quotient->sign(), "\n";
+
+// 2. The divisor is one bit narrower than the number, so the whole million bits
+//    are read for a result of one digit. This prints 1.
+echo $wide->div(Core\BigInt::of(1)->shl(999999))->sign(), "\n";
+
+// 3. A number of twenty thousand bits is divided by 3 until nothing is left.
+//    Each round throws away the number before it. This prints 0.
+var $shrinking = Core\BigInt::of(1)->shl(20000);
+var $three = Core\BigInt::of(3);
+while ($shrinking->sign() != 0) {
+    $shrinking = $shrinking->div($three);
+}
+echo $shrinking->sign(), "\n";
+
+// 4. The sign changes every round, so no round gets a result it has seen
+//    before. The number of rounds is even, so this prints 1.
+var $running = $wide;
+int $step = 0;
+while ($step < 1000) {
+    $running = $running->div($three)->neg();
+    $step = $step + 1;
+}
+echo $running->sign(), "\n";
+
+// 5. A divisor of zero is refused, however wide the number it divides is.
+try {
+    $wide->div(Core\BigInt::of(0));
+} catch (ArithmeticError $error) {
+    echo $error->message, "\n";
+}
