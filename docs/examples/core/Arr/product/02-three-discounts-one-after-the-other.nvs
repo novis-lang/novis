@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to apply several discounts to a price. Each discount is a factor,
+// and all the factors multiplied together give the one factor to use.
+
+// 10 percent off, then 5 percent, then 2 percent.
+array<decimal> $discounts = [0.90, 0.95, 0.98];
+
+// One `decimal` in the array makes the result a `decimal`, so no fraction is
+// lost. This prints 0.837900.
+echo Core\Arr::product($discounts), "\n";
+
+decimal $price = 240.00;
+
+// The price with all three discounts taken off it. This prints 201.09600000.
+echo $price * Core\Arr::product($discounts), "\n";

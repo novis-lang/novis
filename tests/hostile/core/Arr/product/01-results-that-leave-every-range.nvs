@@ -1,0 +1,68 @@
+<?nvs
+// Attack: a program multiplies arrays whose result leaves the range of its
+// type. Other arrays hold entries with no common type. The last step should
+// stop at the memory limit with an error, and must not crash.
+// hostile: timeout-ms 30000
+// hostile: ends-early
+
+// 1. Nothing at all. The result of no entries is 1, so this prints 1.
+array<int> $empty = [];
+echo Core\Arr::product($empty), "\n";
+
+// 2. Two whole numbers whose result is larger than a whole number holds. The
+// result does not wrap around, so the member throws an error.
+array<int> $overflow = [9223372036854775807, 2];
+try {
+    Core\Arr::product($overflow);
+    echo "overflow multiplied\n";
+} catch (Throwable $refused) {
+    echo "overflow refused\n";
+}
+
+// 3. Forty copies of a thousand million, as `decimal`. That result is far
+// outside the range a `decimal` holds, so the member throws an error here too.
+array<decimal> $exact = Core\Arr::fill(40, 1000000000.0 as decimal);
+try {
+    Core\Arr::product($exact);
+    echo "decimal multiplied\n";
+} catch (Throwable $tooWide) {
+    echo "decimal refused\n";
+}
+
+// 4. A `float` and a `decimal` in one array. No type holds both of them, so
+// the member throws an error.
+float $inexact = 0.5;
+decimal $money = 0.5;
+array<float|decimal> $both = [$inexact, $money];
+try {
+    Core\Arr::product($both);
+    echo "both multiplied\n";
+} catch (Throwable $mixed) {
+    echo "both refused\n";
+}
+
+// 5. The far end of the float range multiplied by itself. A float result never
+// throws, so the answer here is INF.
+array<float> $wild = [1.0e308, 1.0e308, 0.5];
+echo Core\Arr::product($wild), "\n";
+
+// 6. A million copies of 2. The result leaves the range after 63 entries,
+// while the array is still being walked.
+array<int> $long = Core\Arr::fill(1000000, 2);
+try {
+    Core\Arr::product($long);
+    echo "million multiplied\n";
+} catch (Throwable $tooLarge) {
+    echo "million refused\n";
+}
+
+// 7. One array of zeros that doubles in size, with its result read after every
+// step. That needs more memory than the program has, so it stops here.
+array<int> $growing = Core\Arr::fill(1000, 0);
+uint $k = 0;
+while ($k < 40) {
+    $growing = Core\Arr::appendAll($growing, $growing);
+    Core\Arr::product($growing);
+    $k = $k + 1;
+}
+echo "grew forever\n";

@@ -1,0 +1,21 @@
+<?nvs
+// Multiplies the choice counts of an article, as a shop does when it counts
+// how many variants a customer can order.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): int {
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The first count is last round's total, so no round can be reused.
+            array<int> $counts = [($total % 3) + 1, 4, 2, 3, 2, 5];
+            $total = $total + (Core\Arr::product($counts) as int);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";
