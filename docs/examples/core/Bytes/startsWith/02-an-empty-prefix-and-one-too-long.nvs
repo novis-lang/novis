@@ -1,0 +1,14 @@
+<?nvs
+// Shows the two edges of the test. An empty value begins every value, and
+// bytes longer than the value can never begin it.
+
+bytes $name = "report.pdf" as bytes;
+
+// This prints "true".
+echo Core\Bytes::startsWith($name, "" as bytes) ? "true" : "false", "\n";
+
+// The value is 10 bytes long, so 11 bytes cannot begin it. This prints "false".
+echo Core\Bytes::startsWith($name, "report.pdfx" as bytes) ? "true" : "false", "\n";
+
+// The bytes have to be at the very start. This prints "false".
+echo Core\Bytes::startsWith($name, "pdf" as bytes) ? "true" : "false", "\n";

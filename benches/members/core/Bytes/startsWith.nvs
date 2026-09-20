@@ -1,0 +1,29 @@
+<?nvs
+// Measures checking the first bytes of a value. A program does this when it
+// decides what kind of file it was given.
+// bench: iterations 400000
+// bench: calls 0
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        bytes $upload = Core\Encoding::fromHex("89504e470d0a1a0a0000000d49484452");
+        array<bytes> $magic = [
+            Core\Encoding::fromHex("89504e470d0a1a0a"),
+            Core\Encoding::fromHex("89504e47"),
+            Core\Encoding::fromHex("89504e470d0a1a0a0000000d"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The result of one round picks the bytes the next round tests.
+            // All three are in the value, so every round reads all of them.
+            $total = $total
+                + ((Core\Bytes::startsWith($upload, $magic[($total % 3) as int]) ? 2 : 1) as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

@@ -1,0 +1,40 @@
+<?nvs
+// Attack: a value of five million bytes is tested against bytes of the same
+// length that differ only in the last one. The comparison has to read
+// everything before it can answer. Every test must answer, and the program
+// must keep running.
+// hostile: timeout-ms 30000
+
+bytes $empty = '' as bytes;
+bytes $short = 'ab' as bytes;
+
+// 1. The smallest tests there are. This prints "true", "true", "true" and
+//    then "false".
+echo Core\Bytes::startsWith($empty, $empty) ? 'true' : 'false', "\n";
+echo Core\Bytes::startsWith($short, $empty) ? 'true' : 'false', "\n";
+echo Core\Bytes::startsWith($short, $short) ? 'true' : 'false', "\n";
+echo Core\Bytes::startsWith($short, 'abc' as bytes) ? 'true' : 'false', "\n";
+
+// 2. Five million copies of one byte, tested against five million bytes whose
+//    last one is different. This prints "false".
+bytes $flat = Core\Bytes::fill(5000000, 97);
+bytes $almost = Core\Bytes::join([Core\Bytes::fill(4999999, 97), 'b' as bytes]);
+echo Core\Bytes::startsWith($flat, $almost) ? 'true' : 'false', "\n";
+
+// 3. The same value tested against itself. Every byte matches, so this prints
+//    "true".
+echo Core\Bytes::startsWith($flat, $flat) ? 'true' : 'false', "\n";
+
+// 4. Two hundred thousand tests, each reading a thousand bytes before it can
+//    answer "false". This prints 0.
+bytes $page = Core\Bytes::fill(1000, 97);
+bytes $nearly = Core\Bytes::join([Core\Bytes::fill(999, 97), 'b' as bytes]);
+uint $hits = 0;
+uint $i = 0;
+while ($i < 200000) {
+    if (Core\Bytes::startsWith($page, $nearly)) {
+        $hits = $hits + 1;
+    }
+    $i = $i + 1;
+}
+echo $hits, "\n";
