@@ -1,0 +1,27 @@
+<?nvs
+// Measures reading the sign of a number, as a program does before it decides
+// whether a balance is in debt.
+// bench: iterations 400000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        // One small negative number and one of 201 bits, so both a short and a
+        // long magnitude are measured.
+        array<Core\BigInt> $values = [
+            Core\BigInt::of(-7),
+            Core\BigInt::of(1)->shl(200),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the value read this round comes from the count of the
+            // rounds before it, so the two take turns.
+            $total = $total + (($values[$total % 2]->sign() + 2) as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

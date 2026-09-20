@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to use `sign` in a condition. The answer is an `int`, so you can
+// compare it directly.
+
+array<Core\BigInt> $balances = [
+    Core\BigInt::parse("-250000000000000000000"),
+    Core\BigInt::of(0),
+    Core\BigInt::parse("120000000000000000000"),
+];
+
+// This prints "in debt", "empty" and "in credit".
+foreach ($balances as Core\BigInt $balance) {
+    int $where = $balance->sign();
+    if ($where < 0) {
+        echo "in debt\n";
+    } elseif ($where == 0) {
+        echo "empty\n";
+    } else {
+        echo "in credit\n";
+    }
+}

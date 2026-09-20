@@ -1,0 +1,26 @@
+<?nvs
+// Shows a program checking that a transfer does not leave an account in debt.
+// The amounts are counted in the smallest unit of a token, so they are too
+// large for an `int`.
+
+class Account {
+    // Returns true when $balance still covers $amount.
+    public static function covers(Core\BigInt $balance, Core\BigInt $amount): bool {
+        return $balance->sub($amount)->sign() >= 0;
+    }
+}
+
+var $balance = Core\BigInt::parse("2500000000000000000000");
+var $small = Core\BigInt::parse("1000000000000000000");
+var $large = Core\BigInt::parse("9000000000000000000000");
+
+// The small transfer leaves 2499 tokens, so it is allowed. This prints
+// "allowed".
+echo Account::covers($balance, $small) ? "allowed\n" : "refused\n";
+
+// The large transfer would leave the account in debt. This prints "refused".
+echo Account::covers($balance, $large) ? "allowed\n" : "refused\n";
+
+// Paying out the whole balance leaves exactly zero, which is allowed. This
+// prints "allowed".
+echo Account::covers($balance, $balance) ? "allowed\n" : "refused\n";

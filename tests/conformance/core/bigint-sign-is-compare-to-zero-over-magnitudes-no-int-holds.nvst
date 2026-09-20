@@ -1,0 +1,45 @@
+--TEST--
+`Core\BigInt::sign` is the answer `compareTo` gives against zero, over magnitudes no `int` holds and magnitudes whose low words are all zero — `rule:classes/comparable`, spec § 13
+--FILE--
+<?nvs
+// covers: Core\BigInt::sign
+// `sign` is the answer `compareTo` gives against zero, and the two are asked
+// the same question over the sweep rather than compared on one row, so a
+// member that grew its own comparison fails the count while still looking
+// right on any single line. The sweep carries magnitudes whose low 64 bits are
+// all zero, which is what a member reading the last word alone calls zero.
+array<Core\BigInt> $values = [
+    Core\BigInt::of(0),
+    Core\BigInt::of(1),
+    Core\BigInt::of(-1),
+    Core\BigInt::of(9223372036854775807),
+    Core\BigInt::parse("-9223372036854775808"),
+    Core\BigInt::of(1)->shl(64),
+    Core\BigInt::of(-1)->shl(64),
+    Core\BigInt::of(1)->shl(1000),
+    Core\BigInt::parse("-123456789012345678901234567890"),
+];
+var $zero = Core\BigInt::of(0);
+uint $agreed = 0;
+uint $threeWay = 0;
+uint $opposite = 0;
+foreach ($values as Core\BigInt $value) {
+    int $reported = $value->sign();
+    if ($reported == $value->compareTo($zero)) {
+        $agreed = $agreed + (1 as uint);
+    }
+    if ($reported == -1 || $reported == 0 || $reported == 1) {
+        $threeWay = $threeWay + (1 as uint);
+    }
+    if ($reported + $value->neg()->sign() == 0) {
+        $opposite = $opposite + (1 as uint);
+    }
+}
+echo "rows ", Core\Arr::count($values), " agreed ", $agreed, " three-way ", $threeWay, " opposite ", $opposite, "\n";
+
+// The three answers, named on their own so the counts above are a sign rather
+// than a constant.
+echo "row ", Core\BigInt::of(-42)->sign(), " ", $zero->sign(), " ", Core\BigInt::of(42)->sign(), "\n";
+--EXPECT--
+rows 9 agreed 9 three-way 9 opposite 9
+row -1 0 1
