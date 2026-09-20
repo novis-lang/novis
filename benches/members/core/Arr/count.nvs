@@ -1,0 +1,27 @@
+<?nvs
+// Counts a small array, as a program does before it checks a batch against a limit.
+// bench: iterations 400000
+// bench: allocations 0
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<uint> $small = [1, 2, 3];
+        array<uint> $large = [1, 2, 3, 4, 5];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Last round's count decides which array this round counts, so no
+            // round can be reused.
+            if ($total % 2 == 0) {
+                $total = $total + Core\Arr::count($small);
+            } else {
+                $total = $total + Core\Arr::count($large);
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

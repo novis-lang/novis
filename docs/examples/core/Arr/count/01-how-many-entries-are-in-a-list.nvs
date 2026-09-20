@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to count the entries of an array. `Core\Arr::count` returns a whole
+// number, and `0` for an array with nothing in it.
+
+array<string> $guests = ['Mara', 'Ida', 'Tom'];
+// This prints 3.
+echo Core\Arr::count($guests), "\n";
+
+array<string> $waiting = [];
+// This prints 0.
+echo Core\Arr::count($waiting), "\n";

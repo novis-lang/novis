@@ -1,0 +1,52 @@
+<?nvs
+// Attack: `Core\Arr::count` reports how many entries an array holds. Each step
+// below builds an array that could make that number wrong. Every step should
+// print a correct number, and the last one should stop the program at its
+// memory limit. The runtime must not crash.
+// hostile: timeout-ms 60000
+// hostile: ends-early
+
+// 1. The key is the largest whole number there is, so adding an entry without a
+// key is not allowed. That error is caught, and the count stays at 1.
+array<string> $top = ['9223372036854775807' => 'b'];
+try {
+    $top[] = 'c';
+    echo 'step 1: ', Core\Arr::count($top), "\n";
+} catch (LogicError $error) {
+    echo 'step 1: refused, still ', Core\Arr::count($top), "\n";
+}
+
+// 2. An empty array, and an array whose two keys are a million apart. The count
+// is the number of entries, so it is 0 and 2.
+array<int> $none = [];
+array<int> $far = ['0' => 1, '1000000' => 2];
+echo 'step 2: ', Core\Arr::count($none), ' ', Core\Arr::count($far), "\n";
+
+// 3. An array inside an array, 100000 levels deep. The count at the top is 1,
+// because only the top level is counted.
+array<mixed> $deep = [];
+int $level = 0;
+while ($level < 100000) {
+    $deep = [$deep];
+    $level = $level + 1;
+}
+echo 'step 3: ', Core\Arr::count($deep), "\n";
+
+// 4. One array of 400000 entries, counted after every one of them is added.
+array<int> $wide = [];
+int $i = 0;
+while ($i < 400000) {
+    $wide[] = $i;
+    $i = $i + 1;
+}
+echo 'step 4: ', Core\Arr::count($wide), "\n";
+
+// 5. Every round adds a text of ten million characters and counts the array
+// again. The program should stop at its memory limit.
+array<string> $kept = [];
+int $round = 0;
+while ($round < 400000) {
+    $kept[] = Core\Str::repeat('a', 10000000);
+    echo 'step 5: ', Core\Arr::count($kept), "\n";
+    $round = $round + 1;
+}
