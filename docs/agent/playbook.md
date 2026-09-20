@@ -2540,6 +2540,21 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   member's figure is accepted while a hash of its implementing file matches, and formatting one line
   a session spliced in moves that hash for every member in the file. Measure the group after
   `verify.py` has come back green, not while it is still running. [until: reviewed 2026-09-20]
+- **`dossier.py --record-perf --force` ignores `--id` and re-measures the whole roster.** A
+  `--force --id 'Core\Bytes::compare'` appended 205 rows to `docs/perf/members.ndjson` and turned up
+  two unrelated benches that now miss their own declarations, none of which was asked for. `--id`
+  scopes the audit only; `--only <id> [<id> ...]` is what scopes a recording, and it is the flag to
+  reach for when a bench's declaration changed while its implementing file did not, since the
+  `impl_hash` currency rule otherwise reports the figure as already current.
+  [until: reviewed 2026-09-20]
+
+- **A bench that indexes an array with a `uint` expression records two allocations per op and misses
+  an `allocations 0` declaration.** `crates/nvs-ir/src/lib.rs`'s `# Known gaps` item 21 owns it: a
+  `uint` subscript is lowered to a fresh decimal string on every access, where an `int` one takes the
+  runtime's integer-key entry point. Write the index as `$keys[($total % 3) as int]`, which is what
+  `benches/members/core/Str/length.nvs` already does, rather than reading the miss as the member
+  under test allocating.
+  [until: gone crates/nvs-ir/src/lib.rs:array subscript is rendered to a decimal string]
 
 ## Running things
 

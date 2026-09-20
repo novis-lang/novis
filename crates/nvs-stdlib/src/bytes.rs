@@ -1741,6 +1741,137 @@ mod tests {
         assert_eq!(addressed(0, 0), None);
     }
 
+    /// `Core\Bytes::at` reads the octet at each end of a buffer and refuses the
+    /// first index past either of them, the two named together so a member that
+    /// stops one entry early cannot pass on half the range. A refusal is a throw
+    /// carrying the index it was given, because the `uint` return type
+    /// (`rule:core-api/shape-rules` R4/R5) leaves no sentinel for it to answer.
+    // covers: Core\Bytes::at
+    #[test]
+    fn an_index_reads_inside_the_buffer_and_throws_outside_it() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let subject = Value::bytes(NvsStr::new(b"\x89PNG"));
+
+        for (index, octet) in [(0_i64, 0x89_u64), (3, 0x47), (-1, 0x47), (-4, 0x89)] {
+            let found =
+                nvs_runtime::call(nvs_core_bytes_at, &mut ctx, &[subject, Value::int(index)])
+                    .expect("an index inside the buffer reads");
+            assert_eq!(found.as_uint(), Some(octet), "at index {index}");
+        }
+
+        for index in [4_i64, -5, i64::MAX, i64::MIN] {
+            nvs_runtime::call(nvs_core_bytes_at, &mut ctx, &[subject, Value::int(index)])
+                .expect_err("an index outside the buffer throws");
+            assert_eq!(
+                ctx.take_pending().map(std::borrow::Cow::into_owned),
+                Some(format!(
+                    "Core\\Bytes::at: index {index} is outside a buffer of 4 bytes"
+                ))
+            );
+        }
+
+        release(vec![subject]);
+    }
+
+    /// `Core\Bytes::compare` answers one of exactly three values, reverses when
+    /// its operands do, and agrees with a table written in order by hand —
+    /// counted over every ordered pair rather than read off a line, so a pair
+    /// that happened to answer plausibly cannot carry the row. The table holds
+    /// the three places a length-first or signed comparison would differ: an
+    /// empty buffer, a prefix beside the buffer that extends it, and an octet
+    /// past `0x7f`.
+    // covers: Core\Bytes::compare
+    #[test]
+    fn an_ordering_reverses_with_its_operands_and_follows_the_octets() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let table: [&[u8]; 7] = [
+            b"",
+            b"\x00",
+            b"car",
+            b"cargo",
+            b"\x7f",
+            b"\xff",
+            b"\xff\x00",
+        ];
+        let built: Vec<Value> = table
+            .iter()
+            .map(|octets| Value::bytes(NvsStr::new(octets)))
+            .collect();
+
+        let ordering = |ctx: &mut nvs_runtime::Ctx, left: Value, right: Value| {
+            nvs_runtime::call(nvs_core_bytes_compare, ctx, &[left, right])
+                .expect("two buffers order")
+                .as_int()
+                .expect("an ordering is an int")
+        };
+
+        let mut agreed = 0_usize;
+        for (i, left) in built.iter().enumerate() {
+            for (j, right) in built.iter().enumerate() {
+                let expected = match i.cmp(&j) {
+                    std::cmp::Ordering::Less => -1,
+                    std::cmp::Ordering::Equal => 0,
+                    std::cmp::Ordering::Greater => 1,
+                };
+                if ordering(&mut ctx, *left, *right) == expected
+                    && ordering(&mut ctx, *right, *left) == -expected
+                {
+                    agreed += 1;
+                }
+            }
+        }
+        assert_eq!(agreed, table.len() * table.len());
+
+        release(built);
+    }
+
+    /// `Core\Bytes::contains` answers a table written by hand, and **agrees**
+    /// with the two predicates that answer its ends: a needle at the start or
+    /// at the end of the subject is a needle the subject contains. Both are
+    /// counted over the whole table rather than read off a line, so a predicate
+    /// that grew a scan of its own fails here while still looking right alone.
+    /// The rows carry the edges a scan comes apart on — an empty needle, a
+    /// needle wider than the subject, an overlapping repeat, and a letter whose
+    /// case differs, since a buffer carries no charset to fold it with.
+    // covers: Core\Bytes::contains
+    #[test]
+    fn a_search_answers_its_table_and_agrees_with_both_ends() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let table: [(&[u8], &[u8], bool); 10] = [
+            (b"", b"", true),
+            (b"abc", b"", true),
+            (b"", b"a", false),
+            (b"abc", b"abcd", false),
+            (b"abcabc", b"bc", true),
+            (b"abcabc", b"cab", true),
+            (b"\x00\xff\x10", b"\xff\x10", true),
+            (b"aaab", b"aab", true),
+            (b"aaa", b"aab", false),
+            (b"Content-Type", b"content", false),
+        ];
+
+        let mut agreed = 0_usize;
+        for (haystack, needle, expected) in table {
+            let subject = Value::bytes(NvsStr::new(haystack));
+            let sought = Value::bytes(NvsStr::new(needle));
+            let asked = |ctx: &mut nvs_runtime::Ctx, member: nvs_runtime::NvsFn| {
+                nvs_runtime::call(member, ctx, &[subject, sought])
+                    .expect("a predicate answers")
+                    .as_bool()
+                    .expect("a predicate answers a bool")
+            };
+            let found = asked(&mut ctx, nvs_core_bytes_contains);
+            let at_start = asked(&mut ctx, nvs_core_bytes_starts_with);
+            let at_end = asked(&mut ctx, nvs_core_bytes_ends_with);
+            let ends_imply_it = found || !(at_start || at_end);
+            if found == expected && ends_imply_it {
+                agreed += 1;
+            }
+            release(vec![subject, sought]);
+        }
+        assert_eq!(agreed, table.len());
+    }
+
     /// The empty needle occurs at the start of everything, and a needle longer
     /// than the subject occurs nowhere — the two edges a `windows` scan would
     /// otherwise panic or loop on.
