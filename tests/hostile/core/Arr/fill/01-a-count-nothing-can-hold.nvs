@@ -1,0 +1,28 @@
+<?nvs
+// Attack: a program asks for arrays that are far too big for this computer.
+// Every attempt below should stop with an error, and the program must not crash.
+// hostile: ends-early
+
+// 1. The largest count there is. No computer has that much memory.
+try {
+    Core\Arr::fill(18446744073709551615, 0);
+    echo "huge filled\n";
+} catch (Throwable $refused) {
+    echo "huge refused\n";
+}
+
+// 2. Two thousand small arrays, one after the other. Each one is freed again,
+// so the memory in use must not grow.
+int $seen = 0;
+uint $i = 0;
+while ($i < 2000) {
+    array<int> $block = Core\Arr::fill(1000, 1);
+    $seen = $seen + $block[999];
+    $i = $i + 1;
+}
+echo 'loop done ', $seen, "\n";
+
+// 3. A count that is large but looks possible. This one reaches the memory
+// limit of the request, which stops the program here.
+Core\Arr::fill(4000000000, 'x');
+echo "big filled\n";

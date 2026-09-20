@@ -1,0 +1,21 @@
+<?nvs
+// Builds a short row of cells that all hold the same value, as a report does
+// before it writes the row.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Last round's total decides the value, so no round can be reused.
+            array<uint> $cells = Core\Arr::fill(8, $total % 7 + 1);
+            $total = $total + $cells[3];
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";
