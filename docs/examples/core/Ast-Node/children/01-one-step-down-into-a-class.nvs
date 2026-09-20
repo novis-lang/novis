@@ -1,0 +1,25 @@
+<?nvs
+// Shows how to step one level down into a parsed file. `children` gives the
+// parts directly inside a node, and each of those is a node of its own.
+
+string $source = <<<'NVS'
+<?nvs
+class Cart {
+    public int $total;
+
+    public function clear(): void {
+        $this->total = 0;
+    }
+}
+NVS;
+
+Core\Ast\Node $file = Core\Ast::parse($source);
+
+// The file holds one part: the class.
+Core\Ast\Node $class = $file->children()[0];
+echo $class->kind(), "\n";
+
+// Inside the class are the property and the method.
+foreach ($class->children() as Core\Ast\Node $part) {
+    echo "  ", $part->kind(), "\n";
+}

@@ -1,0 +1,53 @@
+<?nvs
+// Attack: a program asks a node for its parts over and over. Each answer is a
+// new array, so a program that keeps every one of them fills its memory. The
+// last step should stop at the request's memory limit with an error, and must
+// not crash.
+// hostile: timeout-ms 30000
+// hostile: ends-early
+
+// 1. Brackets nested deeper and deeper, each tree that parses walked down to
+// its deepest node. The parser stops at its own limit, and that error is caught.
+uint $n = 1;
+uint $refusals = 0;
+uint $deepest = 0;
+while ($n < 200) {
+    string $deep = '<?nvs echo ' . Core\Str::repeat('(', $n) . '1'
+        . Core\Str::repeat(')', $n) . ';';
+    try {
+        Core\Ast\Node $node = Core\Ast::parse($deep);
+        uint $steps = 0;
+        while (Core\Arr::count($node->children()) > 0) {
+            $node = $node->children()[0];
+            $steps = $steps + 1;
+        }
+        $deepest = $steps;
+    } catch (Throwable $refused) {
+        $refusals = $refusals + 1;
+    }
+    $n = $n + 1;
+}
+echo 'the deepest walk was ', $deepest, ' steps, and ', $refusals, " were refused\n";
+
+// 2. One node asked for its parts a million times, keeping no answer. Nothing
+// is kept, so the memory the program holds must not grow.
+Core\Ast\Node $file = Core\Ast::parse('<?nvs echo 1 + 2;');
+uint $i = 0;
+uint $seen = 0;
+while ($i < 1000000) {
+    $seen = $seen + Core\Arr::count($file->children());
+    $i = $i + 1;
+}
+echo 'asked a million times, saw ', $seen, " parts\n";
+
+// 3. A large file parsed, then a list of its nodes' parts that doubles in
+// size. The request runs out of memory here, so the program stops.
+string $body = Core\Str::repeat("echo 1 + 2;\n", 20000);
+Core\Ast\Node $big = Core\Ast::parse("<?nvs\n" . $body);
+array<mixed> $kept = [$big->children(), $file->children()];
+uint $k = 0;
+while ($k < 40) {
+    $kept = Core\Arr::appendAll($kept, $kept);
+    $k = $k + 1;
+}
+echo "kept them all\n";

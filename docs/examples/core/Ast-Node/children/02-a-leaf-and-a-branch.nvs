@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to tell a part that contains other parts from one that does not.
+// `children` gives an empty array for a node with nothing inside it, such as a
+// number.
+
+Core\Ast\Node $file = Core\Ast::parse('<?nvs echo 40 + 2;');
+
+foreach ($file->nodes() as Core\Ast\Node $node) {
+    uint $inside = Core\Arr::count($node->children());
+    if ($inside == 0) {
+        echo $node->kind(), " contains nothing\n";
+    } else {
+        echo $node->kind(), " contains ", $inside, "\n";
+    }
+}
