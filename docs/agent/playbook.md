@@ -6285,6 +6285,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   over a 200000-row table is 200 GB of hashing and had not finished after two minutes, while each
   half on its own takes a second. Give an outsized input its own three-entry subject, and keep the
   big subject's keys ordinary. [until: reviewed 2026-09-20]
+- **An allocating `Core` member can end the program rather than throw, because a request's memory
+  ceiling is a `FATAL` and no `try` catches it.** `Core\Arr::fill` throws a catchable error for a
+  count nothing could ever hold, and `Core\Arr::fill(4000000000, 'x')` instead reaches the ceiling,
+  which ends the process and takes every later step of the attack with it. Run a new attack once
+  with `target/debug/nvs.exe run` before fixing its order: the step that ends the program goes last,
+  and the file declares `// hostile: ends-early`. [until: reviewed 2026-09-20]
 
 ## Splitting a file that got too big
 

@@ -2,43 +2,42 @@
 
 ## State
 
-Goal `Core\Arr` (1/4). `column` and `sortByKey` are finished this session, beside the 34 members
-that landed before them: `about.md`, three examples, one attack, one bench with a row in
-`docs/perf/members.ndjson`, and a Rust `#[test]` carrying its `covers:` marker each. 36 of
-`Core\Arr`'s 56 members are complete and 20 are owed. Nothing is blocked.
+Goal `Core\Arr` (1/4). `sort` and `fill` are finished this session, beside the 36 members that
+landed before them: `about.md`, three examples, one attack, one bench with a row in
+`docs/perf/members.ndjson`, and a Rust `#[test]` carrying its `covers:` marker each. 38 of
+`Core\Arr`'s 56 members are complete and 18 are owed. Nothing is blocked.
 
-**The red floor check at session start was a deferral, not owed work.** `arr.rs` gap 4 — a member
-that builds an array grows its storage as it appends — names M12, whose plan spoke only of the
-optimising tier, so `python tools/owners.py --deferrals` refused it. M12's plan now states the
-library's own allocation economy as its other half, which is where a `Core` member's deferred
-allocation count belongs; that paragraph also covers `nvs-runtime` gap 10 and `arr.rs` gaps 2 and
-3, which passed before on an accidental word match alone.
+Neither member owed a Rust test that was not already written. `sort` had seven `#[test]`s over
+`nvs_core_arr_sort` and `fill` one, all of them unattributed, so that half of both slices was the
+`covers:` marker and nothing else. At a 2.8 ns calibration unit `sort` is 188.0 ns/op over 8
+allocations for a six-value list, and `fill` 95.8 ns/op over 2 for eight cells; both benches
+declare `calls 0` and the measurement agrees.
 
-At a 3.1 ns calibration unit, `column` is 163.6 ns/op over 5 allocations for a three-row table and
-`sortByKey` 293.5 ns/op over 9 for a three-entry array; both benches declare `calls 0` and the
-measurement agrees.
+`Core\Arr::fill` at a count of four billion reaches the request's memory ceiling, which is a
+`FATAL` no `try` catches, so its attack puts that step last and declares `// hostile: ends-early`.
+That is the ceiling working, not a gap; the playbook holds the shape it forces on an attack.
 
 ## Next group
 
 **One slice is one feature with all its feature proofs**, taken in registry order so neighbours
 share the declaration region they sit in — one file set: `crates/nvs-stdlib/src/arr.rs`,
-`docs/examples/core/Arr/`, `tests/hostile/core/Arr/`, `benches/members/core/Arr/`. `sort` is the
-partial one: it has two examples and an attack already, and owes a third example, a bench and a
-Rust test. **Write every Rust test of the group before the first `--bless`**, because a `crates/`
-edit makes the release binary stale and `--bless` then waits out the relink itself.
+`docs/examples/core/Arr/`, `tests/hostile/core/Arr/`, `benches/members/core/Arr/`. The first two
+below already have their Rust tests written, so the Rust half of each is one marker line. **Write
+every marker of the group before the first `--bless`**: a `crates/` edit makes the release binary
+stale, and `--bless` then waits out a three-minute relink.
 
-- [ ] **`Core\Arr::sort`** — owes `about.md`, a third example, perf and a Rust test with its
-      `covers:` marker; `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/arr.rs:544`
-- [ ] **`Core\Arr::fill`** — owes `about.md`, examples, hostile, perf and a Rust test with its
-      `covers:` marker; `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/arr.rs:569`
-- [ ] **`Core\Arr::fillKeys`** — owes the same five; `rule:testing/feature-proofs`.
+- [ ] **`Core\Arr::fillKeys`** — owes `about.md`, three examples, an attack, a bench, and the
+      `covers:` marker over `fill_keys_stores_one_value_under_each_distinct_key` and
+      `filling_under_a_key_that_is_not_a_key_throws`; `rule:testing/feature-proofs`.
       `crates/nvs-stdlib/src/arr.rs:578`
-- [ ] **`Core\Arr::range`** — owes the same five; `rule:testing/feature-proofs`.
-      `crates/nvs-stdlib/src/arr.rs:587`
+- [ ] **`Core\Arr::range`** — owes the same five; its Rust side is the block the `range_of` helper
+      drives. `rule:testing/feature-proofs`. `crates/nvs-stdlib/src/arr.rs:587`
+- [ ] **`Core\Arr::fromKeysAndValues`** — owes the same five; `rule:testing/feature-proofs`.
+      `crates/nvs-stdlib/src/arr.rs:595`
 
 ## Backlog
 
-- `Core\Arr::flip` costs 682.6 ns/op over 33 allocations for six entries, four times what its
-  neighbours cost; why has not been checked. `docs/perf/members.ndjson`.
-- 20 `Core\Arr` features still owe proofs, `sort` and then `fill` onward in registry order;
-  `python tools/dossier.py --id '<feature>'` prints what each one owes.
+- `docs/examples/core/Arr/sort/01-values-and-order.nvs` has no top comment and `02` joins two
+  clauses with a dash; goal `plain-comments` owns that sweep, not this goal.
+- `tests/hostile/core/Arr/sort/01-every-row-at-size-with-its-corners.nvs` opens with a 60-word
+  sentence, for the same sweep.
