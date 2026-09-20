@@ -1,0 +1,40 @@
+<?nvs
+// Attack: a program deduplicates arrays whose entries are all different, so
+// nothing is dropped and every result is as large as its input. The last step
+// should stop at the memory limit with an error, and must not crash.
+// hostile: timeout-ms 20000
+// hostile: ends-early
+
+// 1. Nothing at all.
+echo Core\Arr::count(Core\Arr::unique([])), "\n";
+
+// 2. The number 1 and the text "1" are different values, so both are kept.
+array<string|int> $mixed = [1, '1', 1, '1'];
+echo Core\Arr::count(Core\Arr::unique($mixed)), "\n";
+
+// 3. Ten thousand different values. Nothing is dropped, so the result is as
+// large as the input and every value is held twice at once.
+array<int> $wide = Core\Arr::range(1, 10000);
+echo Core\Arr::count(Core\Arr::unique($wide)), "\n";
+
+// 4. Ten thousand copies of one value. Only the first is kept, and the other
+// entries must not be freed while the array is still being read.
+array<int> $same = Core\Arr::fill(10000, 7);
+echo Core\Arr::count(Core\Arr::unique($same)), "\n";
+
+// 5. A `by` function that answers the same text for every entry, so ten
+// thousand entries are compared as one value and one entry is kept.
+echo Core\Arr::count(Core\Arr::unique($wide, {
+    by: fn(int $value): string => 'same',
+})), "\n";
+
+// 6. One million different values, deduplicated a thousand times and every
+// result kept. That needs more memory than the program has, so it stops here.
+array<int> $huge = Core\Arr::range(1, 1000000);
+array<array<int>> $kept = [];
+uint $k = 0;
+while ($k < 1000) {
+    $kept[] = Core\Arr::unique($huge);
+    $k = $k + 1;
+}
+echo "kept all\n";

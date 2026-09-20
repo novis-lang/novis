@@ -1,0 +1,22 @@
+<?nvs
+// Removes the repeated tags from a short list, as a program does before it
+// saves what a user typed.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Last round's total decides the first entry, so no round can be reused.
+            array<uint> $tags = [$total % 4, 1, 2, 1, 3, 2];
+            array<uint> $once = Core\Arr::unique($tags);
+            $total = $total + Core\Arr::count($once);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";
