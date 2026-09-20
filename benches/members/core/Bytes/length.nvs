@@ -1,0 +1,27 @@
+<?nvs
+// Measures counting the bytes of a value, as a program does before it checks an
+// upload against a size limit.
+// bench: iterations 400000
+// bench: calls 0
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<bytes> $files = [
+            Core\Bytes::fill(16, 97),
+            Core\Bytes::fill(64, 97),
+            Core\Bytes::fill(4096, 97),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The result of one round picks the value the next round counts.
+            // The three values differ in size, and every round counts one.
+            $total = $total + Core\Bytes::length($files[($total % 3) as int]);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

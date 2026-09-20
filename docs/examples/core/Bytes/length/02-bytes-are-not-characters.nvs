@@ -1,0 +1,11 @@
+<?nvs
+// Shows the difference between bytes and characters. The text here is written
+// in UTF-8, where some letters need more than one byte.
+
+string $word = "Größe";
+
+// `Core\Str::length` counts what a person sees. This prints 5.
+echo Core\Str::length($word), "\n";
+
+// "ö" and "ß" need two bytes each, so the text is 7 bytes. This prints 7.
+echo Core\Bytes::length($word as bytes), "\n";
