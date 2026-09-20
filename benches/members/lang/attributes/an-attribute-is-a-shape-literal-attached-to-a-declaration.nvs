@@ -1,0 +1,38 @@
+<?nvs
+// Measures reading the attributes attached to a class and to one of its
+// methods. A router or a job scheduler does this for every class it knows
+// about when the program starts.
+// bench: iterations 200000
+// bench: allocations 2
+// bench: calls 0
+
+type Route = {path: string, name: string};
+
+#[Route(path: "/orders/{id}", name: "orders.show")]
+class Orders {
+    #[Route(path: "/orders", name: "orders.index")]
+    public function index(): int { return 1; }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            ?Route $onClass = Core\Attributes::get<Route>(Orders::constructor(...));
+            ?Route $onMethod = Core\Attributes::get<Route>(Orders::index(...));
+            if ($onClass != null) {
+                if ($onMethod != null) {
+                    // Chained: the length counted this round is picked with the
+                    // total from the round before.
+                    $total = $total + Core\Str::length($onClass->path) + $total % 2;
+                    $total = $total + Core\Str::length($onMethod->name);
+                }
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

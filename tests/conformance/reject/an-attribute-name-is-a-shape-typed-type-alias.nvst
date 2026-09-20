@@ -2,6 +2,7 @@
 a named attribute's name resolves to a shape-typed `type` alias and the payload is checked against it, so a name that is anything else is refused where it is written — `rule:attributes/attach-sites-and-forms`
 --FILE--
 <?nvs
+// covers: lang:attributes/an-attribute-is-a-shape-literal-attached-to-a-declaration
 // `rule:attributes/attach-sites-and-forms`: the named form reads like a constructor call deliberately,
 // for PHP familiarity, and is not one — `Name` is never a class and never a
 // new namespace of attribute kinds. It is a pre-existing `type` alias whose
@@ -59,18 +60,18 @@ echo "unreachable\n";
 
 --EXPECTF-ERROR--
 error[E0303]: `Undeclared` is not declared
-   --> case.nvs:31:3
+   --> case.nvs:32:3
 %A
 error[E0726]: an attribute's name must be a shape-typed `type` alias, and `NotAnAttribute` is not a `type` alias
-   --> case.nvs:35:7
+   --> case.nvs:36:7
 %A
 error[E0726]: an attribute's name must be a shape-typed `type` alias, and `Id` is a `type` alias for `int`, which is not a shape
-   --> case.nvs:40:28
+   --> case.nvs:41:28
 %A
 error[E0401]: expected `{method: string, path: string}`, found `{method: string, path: int}`
-   --> case.nvs:48:8
+   --> case.nvs:49:8
 %A
 error[E0401]: expected `{method: string, path: string}`, found `{path: string}`
-   --> case.nvs:51:8
+   --> case.nvs:52:8
 %A
 error: aborting due to 5 errors

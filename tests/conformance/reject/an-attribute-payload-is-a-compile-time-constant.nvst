@@ -2,6 +2,7 @@
 an attribute payload's every field value is a literal, a class constant or an enum case, and anything the program would have to run is refused where it is written — `rule:attributes/attach-sites-and-forms` and `rule:attributes/payload-is-a-compile-time-constant`
 --FILE--
 <?nvs
+// covers: lang:attributes/an-attribute-is-a-shape-literal-attached-to-a-declaration
 // `rule:attributes/payload-is-a-compile-time-constant`: the whole payload is resolved once, at compile time, into the
 // unit's constant pool — the storage class an enum case's backing integer and
 // a class constant already use. There is therefore no moment at which a
@@ -71,18 +72,18 @@ echo "unreachable\n";
 
 --EXPECTF-ERROR--
 error[E0725]: an attribute's field value is not a compile-time constant
-   --> case.nvs:50:15
+   --> case.nvs:51:15
 %A
 error[E0725]: an attribute's field value is not a compile-time constant
-   --> case.nvs:55:22
+   --> case.nvs:56:22
 %A
 error[E0725]: an attribute's field value is not a compile-time constant
-   --> case.nvs:55:53
+   --> case.nvs:56:53
 %A
 error[E0725]: an attribute's field value is not a compile-time constant
-   --> case.nvs:60:18
+   --> case.nvs:61:18
 %A
 error[E0725]: an attribute's field value is not a compile-time constant
-   --> case.nvs:61:43
+   --> case.nvs:62:43
 %A
 error: aborting due to 5 errors

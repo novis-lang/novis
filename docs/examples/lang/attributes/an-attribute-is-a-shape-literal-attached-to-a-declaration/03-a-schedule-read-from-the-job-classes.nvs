@@ -1,0 +1,43 @@
+<?nvs
+// A nightly schedule that reads itself from the job classes. Each class says
+// how often it runs, so adding a job means writing one class. There is no
+// second list to keep up to date.
+
+enum Level: int {
+    Normal = 1,
+    Urgent = 2,
+}
+
+class Every {
+    public const int HOUR = 60;
+    public const int QUARTER_HOUR = 15;
+}
+
+// A class constant and an enum case are both allowed in an attribute, because
+// their values are known while the program is compiled.
+type Job = {name: string, everyMinutes: int, level: Level};
+
+#[Job(name: "send invoices", everyMinutes: Every::HOUR, level: Level::Normal)]
+class SendInvoices {
+    public static function run(): string { return "12 invoices sent"; }
+}
+
+#[Job(name: "clean sessions", everyMinutes: Every::QUARTER_HOUR, level: Level::Normal)]
+class CleanSessions {
+    public static function run(): string { return "84 sessions removed"; }
+}
+
+#[Job(name: "charge cards", everyMinutes: Every::HOUR, level: Level::Urgent)]
+class ChargeCards {
+    public static function run(): string { return "3 cards charged"; }
+}
+
+array<Job> $schedule = [];
+$schedule[] = Core\Attributes::get<Job>(SendInvoices::constructor(...)) ?? throw new RuntimeError("no job");
+$schedule[] = Core\Attributes::get<Job>(CleanSessions::constructor(...)) ?? throw new RuntimeError("no job");
+$schedule[] = Core\Attributes::get<Job>(ChargeCards::constructor(...)) ?? throw new RuntimeError("no job");
+
+foreach ($schedule as Job $job) {
+    string $mark = $job->level == Level::Urgent ? " (urgent)" : "";
+    echo $job->name, ": every ", $job->everyMinutes as string, " minutes", $mark, "\n";
+}
