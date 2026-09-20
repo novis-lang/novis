@@ -1908,6 +1908,17 @@ SUMMARY_RE = re.compile(r"(\d+)\s+passed,\s+(\d+)\s+failed")
 # `CARGO_ARGS_READS` and `COMMAND_READS` are the exceptions by name: the few checks that cost
 # minutes and whose inputs are a known, short list. Each row says what was read to show it.
 #
+# A partition is the WIDEST key a check can have, and three kinds of check are answered more
+# narrowly before `reads_of` is asked (`Goal.inputs_for`). A `cargo test -p <crate>` check is
+# keyed on that crate's test binaries as `tools/impact.py` keys them (`binary_inputs`): its own
+# package, the packages it is compiled against, and what its tests record opening through
+# `nvs_repo`. A Python gate is keyed on what `tools/observe.py` last saw it open, list and start
+# (`observed_inputs`), which is what took the handoff out of two hundred keys. And a row of
+# `CARGO_ARGS_READS` or `COMMAND_READS` has `crates` replaced by the packages that check builds
+# (`package_inputs`).
+# Each of the three answers `None` when it cannot show what the check reads, and then the
+# partitions below stand, exactly as they did. `Goal.audits` is what checks the first two.
+#
 # What no partition holds is a SERVICE's state -- the database a `queue migrate` check or the
 # `examples/queue.nvs` fixture reaches -- so a memo cannot see that drift. It is not a change a
 # session makes to the tree, which is what the memo exists to catch, and `--goal-only --full`
@@ -2523,6 +2534,7 @@ class Goal:
         self._prebuilt = frozenset()  # the arg lists it warms, so `cargo()` knows to wait for it
         self.floor_gate = True  # do the carried floor and the release profile run this sweep?
         self.settle_only = False  # `--settle`: the carried floor and nothing else
+        self._claimed = set()  # memo keys `skip` ran anyway this sweep; `audits` says why
         self.held = []  # what a shut gate did not run; non-empty means "green" is not "reached"
         self.fast_path = ""  # a check name to try before the sweep; see `fast_fail`
         self.failed_name = ""  # the `cargo-named` check this run died on, for the next one
@@ -2739,7 +2751,9 @@ class Goal:
         owed, seen = [], set()
         for c in self.swept(self.cargo_checks):
             key = (tuple(c["argv"]), ".") if is_pooled(c) else None
-            if key is None or key in seen or key in self._commands or self.remembered(c):
+            if key is None or key in seen or key in self._commands:
+                continue
+            if self.remembered(c) and not self.audits(c):
                 continue
             seen.add(key)
             owed.append((key, f"{c['name']} [{c.get('stage', '?')}] (pooled)"))
@@ -3277,6 +3291,10 @@ class Goal:
             return False
         key = self.memo_key(c, leg)
         label = what or f"{leg + ' ' if leg else ''}{c.get('name') or c.get('file')}"
+        if key not in self._ran_green and self.audits(c):
+            self._claimed.add(key)
+            self.trace(f"{label} (green on these inputs already -- run again, as the audit of that)")
+            return False
         if key in self._ran_green:
             self.trace(f"{label} (ran above)")
             return True
@@ -3284,6 +3302,25 @@ class Goal:
             self.skipped.append(key)
         self.trace(f"{label} (green on these inputs already)")
         return True
+
+    def audits(self, c):
+        """Is this a check the sweep runs even though the memo answers it, to find out whether
+        the memo was right?
+
+        A key over partitions holds every file of the trees a check could read. A key from
+        `binary_inputs` or `observed_inputs` holds what the check was SEEN or SHOWN to read,
+        which is narrower and rests on more: that a test leaves its package only through
+        `nvs_repo`, that a script reads again what it read last time. So whenever the floor gate
+        is open -- one sweep in `FLOOR_GATE_EVERY`, the sweep a goal is reached on, and
+        `--settle` -- a check with such a key runs whatever the memo says, and
+        `run_cargo_check` names a red one a SELECTOR MISS: the key lacked something the check
+        reads, and that is a bug in the key rather than in the tree. These are the cheap checks:
+        a crate's test binaries run once for every check naming the crate, and a script is
+        seconds. A `package_inputs` key is not audited -- it stands for the checks that cost
+        minutes, and what it rests on is the cargo graph."""
+        if not self.floor_gate or self._parts is None:
+            return False
+        return self.binary_inputs(c) is not None or self.observed_inputs(c) is not None
 
     def remember(self, c, leg=""):
         want = self.inputs_for(c)
@@ -3651,14 +3688,18 @@ class Goal:
         if self.fast_check() is not None:
             n += 1  # last session's failing check, tried before anything is built
         n += 1  # the native build
-        n += sum(1 for c in self.catch_up_checks if not self.remembered(c))
-        n += sum(1 for c in self.setup_checks if not self.remembered(c))
+        # `audits` runs a remembered check anyway, so it is work the bar has to count.
+        def owed(c):
+            return not self.remembered(c) or self.audits(c)
+
+        n += sum(1 for c in self.catch_up_checks if owed(c))
+        n += sum(1 for c in self.setup_checks if owed(c))
         n += sum(1 for c in self.swept_programs() if not self.remembered(c, "native"))
         # The shared workspace test build, paid once by the first plain `cargo test -p` check.
         if any(plain_crate_test(c.get("args", [])) or c.get("args") == WORKSPACE_TEST
                for c in self.catch_up_checks + self.cargo_checks):
             n += 1
-        n += sum(1 for c in self.swept(self.cargo_checks) if not self.remembered(c))
+        n += sum(1 for c in self.swept(self.cargo_checks) if owed(c))
         n += sum(1 for c in self.swept(self.overlap_checks) if not self.remembered(c))
         if self.floor_gate:
             n += sum(1 for c in self.release_checks if not self.remembered(c))
@@ -3702,6 +3743,7 @@ class Goal:
         anything is built. Shared by the two entry points below."""
         self.ran = []
         self._times_written = 0
+        self._claimed = set()
         self.held = []
         self._cargo = {}
         self._suite = {}
@@ -3958,6 +4000,10 @@ class Goal:
         fail = self.cargo_check(c, leg)
         if fail and c["kind"] == "cargo-named" and "--release" not in c.get("args", []):
             self.failed_name = c["name"]
+        if fail and self.memo_key(c) in self._claimed:
+            ledger(f"       SELECTOR MISS: {c['name']} -- green in the memo, red when run")
+            fail = (f"SELECTOR MISS -- the memo called this green over these inputs and it is "
+                    f"red, so its key is missing something it reads (`audits`): {fail}")
         return fail
 
     def asked_again(self, c, leg, first):
