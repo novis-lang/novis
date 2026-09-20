@@ -1,0 +1,20 @@
+<?nvs
+// Shows that `Core\Arr::values` builds a new array. The array you pass in keeps
+// its own keys and entries.
+
+array<int> $stock = ['apples' => 12, 'pears' => 4];
+
+array<int> $counts = Core\Arr::values($stock);
+$counts[] = 99;
+
+// The new list has three entries and $stock still has two, so this prints
+// `3 2`.
+echo Core\Arr::count($counts), ' ', Core\Arr::count($stock), "\n";
+
+// $stock is still read by its own keys. This prints `12`.
+echo $stock['apples'], "\n";
+
+// An array with no entries gives you an array with no entries, so this
+// prints `0`.
+array<int> $empty = [];
+echo Core\Arr::count(Core\Arr::values($empty)), "\n";

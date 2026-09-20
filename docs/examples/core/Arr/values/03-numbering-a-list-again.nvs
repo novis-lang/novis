@@ -1,0 +1,15 @@
+<?nvs
+// Numbers a list again after entries have been removed from it. This is what
+// programs use `Core\Arr::values` for most often.
+
+array<string> $colours = ['red', 'green', 'blue', 'grey'];
+
+// `Core\Arr::filter` keeps the key of every entry it keeps, so the entries
+// that are left are at the positions 0, 2 and 3.
+array<string> $kept = Core\Arr::filter($colours, fn(string $colour) => $colour != 'green');
+echo Core\Str::join(Core\Arr::keys($kept), ','), "\n";
+
+// `Core\Arr::values` gives you the same entries at the positions 0, 1 and 2.
+array<string> $list = Core\Arr::values($kept);
+echo Core\Str::join(Core\Arr::keys($list), ','), "\n";
+echo Core\Str::join($list, ','), "\n";

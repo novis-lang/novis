@@ -1,0 +1,55 @@
+<?nvs
+// Attack: the values of very large arrays are copied out, again and again, and
+// one copy is read after the array it came from is gone. Every step should
+// finish or throw an error, and the runtime must not crash.
+// hostile: timeout-ms 60000
+
+// 1. The values of a list of 400000 entries, so 400000 values are copied at once.
+array<int> $long = [];
+int $i = 0;
+while ($i < 400000) {
+    $long[] = $i;
+    $i = $i + 1;
+}
+echo 'step 1: ', Core\Arr::count(Core\Arr::values($long)), '|', "\n";
+
+// 2. A value of one million characters is copied out.
+array<string> $wide = ['big' => Core\Str::repeat('v', 1000000)];
+echo 'step 2: ', Core\Str::length(Core\Arr::values($wide)[0]), '|', "\n";
+
+// 3. The values are arrays. The array they came from is emptied, and the copy
+//    is read afterwards.
+array<array<int>> $outer = [];
+int $n = 0;
+while ($n < 100) {
+    $outer[] = [$n, $n + 1];
+    $n = $n + 1;
+}
+array<array<int>> $taken = Core\Arr::values($outer);
+$outer = [];
+echo 'step 3: ', $taken[99][1], '|', "\n";
+
+// 4. A value that contains a zero byte in the middle.
+array<string> $odd = ['k' => "a\0b"];
+echo 'step 4: ', Core\Str::length(Core\Arr::values($odd)[0]), '|', "\n";
+
+// 5. An array with no entries has no values.
+array<int> $empty = [];
+echo 'step 5: ', Core\Arr::count(Core\Arr::values($empty)), '|', "\n";
+
+// 6. The values of 2000 entries built 1000 times, and dropped each time.
+array<int> $mid = [];
+int $k = 0;
+while ($k < 2000) {
+    $mid[] = $k;
+    $k = $k + 1;
+}
+uint $built = 0;
+int $r = 0;
+while ($r < 1000) {
+    $built = $built + Core\Arr::count(Core\Arr::values($mid));
+    $r = $r + 1;
+}
+echo 'step 6: ', $built, '|', "\n";
+
+echo 'the runtime is still standing', "\n";

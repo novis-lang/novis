@@ -1,0 +1,26 @@
+<?nvs
+// Reads the values of a request as a list, as a page does when it lists what
+// the form sent without naming the fields.
+// bench: iterations 400000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $sent = ["name" => "Ada", "city" => "Wien", "colour" => "red"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Last round's total decides which of the three values this round
+            // reads, so no round can be reused.
+            if (Core\Arr::values($sent)[$total % 3] == "Ada") {
+                $total = $total + 1;
+            } else {
+                $total = $total + 2;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

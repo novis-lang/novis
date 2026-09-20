@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to read the values of an array as a plain list.
+
+array<string> $user = ['name' => 'Ada', 'city' => 'Wien', 'job' => 'engineer'];
+
+// The values come back in the order they were put in, and the keys are gone.
+// This prints `Ada, Wien, engineer`.
+echo Core\Str::join(Core\Arr::values($user), ', '), "\n";
+
+// The list is numbered from 0, so the first value is at position 0. This
+// prints `Ada`.
+echo Core\Arr::values($user)[0], "\n";
