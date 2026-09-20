@@ -1,0 +1,36 @@
+<?nvs
+// Attack: a request tries to reach the shared store on a server that never
+// granted it, over and over and through a second door. Every attempt should
+// fail with an error the program can catch, and the program should still be
+// running at the end.
+// hostile: timeout-ms 60000
+
+// 1. A hundred thousand calls. Every one must fail, and nothing must be kept
+//    from one failure to the next. Errors are caught here.
+uint $i = 0;
+uint $refused = 0;
+while ($i < 100000) {
+    try {
+        Core\Cache::shared();
+    } catch (Throwable $error) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo 'step 1 was refused ', $refused, " times\n";
+
+// 2. A second door to the same store. `Core\RateLimit::consume` opens it too,
+//    so it must need the same grant and must refuse for the same reason.
+try {
+    Core\RateLimit::consume('an-attacker', 10, 1m);
+    echo "step 2 reached the store through the limiter\n";
+} catch (Throwable $error) {
+    echo "step 2 was refused as well\n";
+}
+
+// 3. The refusal must not damage anything else. The two caches in memory are
+//    still there and still answer.
+var $local = Core\Cache::local();
+$local->put('after', 'still working');
+var $after = $local->get('after') ?? 'absent';
+echo 'step 3 read ', $after as string, "\n";

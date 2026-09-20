@@ -1,0 +1,20 @@
+<?nvs
+// Shows what `Core\Cache::shared` needs before a program can use it. This
+// server granted nothing, so the call below throws and the message names the
+// setting that is missing.
+
+// The person who runs the server writes both of these blocks in `nvs.toml`.
+// A program cannot grant them to itself.
+//
+//     [capabilities.cache]
+//     shared = true
+//
+//     [cache.shared]
+//     url = "redis://cache.internal:6379"
+
+try {
+    var $store = Core\Cache::shared();
+    echo "the store is ready\n";
+} catch (RuntimeError $error) {
+    echo $error->message, "\n";
+}

@@ -114,3 +114,12 @@ perf = "`#[Api]` is read while the program compiles and has no runtime surface t
 # `lang:attributes/reading-attributes-back-core-attributes-get-and-all`'s figure.
 [skip."lang:attributes/the-names-the-compiler-acts-on"]
 perf = "A name is recognized while the program compiles and reaches nothing at run time; a loop here would re-measure the codec, route or command row the recognized attribute built, each of which carries its own figure."
+
+# The member dials the store an operator configured, and a sweep runs no such store: with none
+# configured every iteration is the refusal rather than the tier, and with one configured the four
+# counts are a round trip over a socket to a server this repository does not build, so the figure
+# moves with that server's version and the link rather than with Novis. The two tiers this one is
+# compared against are in memory and carry their own figures; what a shared read costs beside them
+# is a deployment's own measurement, taken where its store actually is.
+[skip."Core\\Cache::shared"]
+perf = "The member dials a store the sweep does not run: unconfigured, every iteration measures the refusal, and configured, it measures another server and the network between them rather than Novis."
