@@ -1,0 +1,45 @@
+--TEST--
+`forget` takes the entry under one key out of the store it was named on, answers nothing whether or not there was one, and leaves every other store alone — `rule:core-api/two-cache-tiers`
+--FILE--
+<?nvs
+// covers: Core\Cache\Store::forget
+var $cache = Core\Cache::local();
+$cache->put("greeting", "hello");
+$cache->put("kept", "still here");
+
+// § 2: the entry named is out of the store, so the read after it is the same
+// miss a key nothing wrote answers.
+$cache->forget("greeting");
+var $gone = $cache->get("greeting") ?? "null";
+echo "forgotten=", $gone as string, "\n";
+
+// And nothing else on the store went with it.
+var $kept = $cache->get("kept") as string;
+echo "kept=", $kept, "\n";
+
+// § 1: a key nothing wrote is already forgotten, so this call reaches the
+// state the one above did rather than a second one. There is no answer here
+// for whether there had been an entry.
+$cache->forget("greeting");
+$cache->forget("nothing-wrote-this");
+var $absent = $cache->get("nothing-wrote-this") ?? "null";
+echo "absent=", $absent as string, "\n";
+
+// § 2: each store removes its own. The process tier still holds the name the
+// local tier was told to forget.
+var $process = Core\Cache::process();
+$process->put("greeting", "hello");
+$cache->forget("greeting");
+var $elsewhere = $process->get("greeting") as string;
+echo "other tier=", $elsewhere, "\n";
+
+// The key is writable again, which is the whole of what `forget` left behind.
+$cache->put("greeting", "hello again");
+var $written = $cache->get("greeting") as string;
+echo "written again=", $written, "\n";
+--EXPECT--
+forgotten=null
+kept=still here
+absent=null
+other tier=hello
+written again=hello again

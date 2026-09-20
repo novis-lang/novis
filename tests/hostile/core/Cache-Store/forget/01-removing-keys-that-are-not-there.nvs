@@ -1,0 +1,47 @@
+<?nvs
+// Attack: a request removes keys that were never written, and writes and
+// removes one key over and over. Every call should do nothing or work, and
+// the program must keep running.
+// hostile: timeout-ms 60000
+
+var $cache = Core\Cache::local();
+
+// 1. A key of one million characters that nothing wrote. There is nothing to
+//    remove, so the call must do nothing and cost nothing that is kept.
+try {
+    string $long = Core\Str::repeat('k', 1000000);
+    $cache->forget($long);
+    echo "step 1 removed nothing\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. The empty key. It is a key like any other, and nothing wrote it.
+$cache->forget('');
+echo "step 2 removed nothing\n";
+
+// 3. Two hundred thousand keys that were never written. A call that finds
+//    nothing must not leave anything behind.
+uint $i = 0;
+while ($i < 200000) {
+    $cache->forget('never-written-' . $i as string);
+    $i = $i + 1;
+}
+echo "step 3 removed 200000 keys that were not there\n";
+
+// 4. One key written and removed two hundred thousand times. The store must
+//    give the room back every time, so it must not grow.
+string $payload = Core\Str::repeat('x', 200);
+$i = 0;
+while ($i < 200000) {
+    $cache->put('one-key', $payload);
+    $cache->forget('one-key');
+    $i = $i + 1;
+}
+var $gone = $cache->get('one-key') ?? 'absent';
+echo 'step 4 left ', $gone as string, "\n";
+
+// 5. The store still keeps what it is given afterwards.
+$cache->put('after', 'still working');
+var $after = $cache->get('after') ?? 'absent';
+echo 'step 5 wrote and read ', $after as string, "\n";

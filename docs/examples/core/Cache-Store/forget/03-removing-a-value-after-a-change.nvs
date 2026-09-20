@@ -1,0 +1,38 @@
+<?nvs
+// Shows how a program removes a cached value after the data behind it
+// changed, so that the next read builds the value again.
+
+class Articles {
+    // A real program reads the database here. This example is given the title
+    // the database holds, to keep the example short.
+    public static function titleOf(string $id, string $inDatabase): string {
+        var $cache = Core\Cache::local();
+        string $key = "article-" . $id;
+
+        var $held = $cache->get($key);
+        if ($held != null) {
+            return $held as string;
+        }
+
+        $cache->put($key, $inDatabase, {ttl: 1h});
+        return $inDatabase;
+    }
+
+    // Your program calls this after it saved the article.
+    public static function saved(string $id): void {
+        var $cache = Core\Cache::local();
+        $cache->forget("article-" . $id);
+    }
+}
+
+// The first read stores the title. This prints Bread and salt.
+echo Articles::titleOf("7", "Bread and salt"), "\n";
+
+// The title in the database is new, but the store still has the old one. This
+// prints Bread and salt.
+echo Articles::titleOf("7", "Bread, salt and water"), "\n";
+
+// After saving, the program removes the entry. The next read builds it again,
+// so this prints Bread, salt and water.
+Articles::saved("7");
+echo Articles::titleOf("7", "Bread, salt and water"), "\n";

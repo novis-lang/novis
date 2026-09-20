@@ -1,0 +1,26 @@
+<?nvs
+// Shows how to remove one value from a cache store.
+
+var $cache = Core\Cache::local();
+$cache->put("greeting", "hello");
+
+// The value is there. This prints hello.
+var $before = $cache->get("greeting") as string;
+echo $before, "\n";
+
+// `forget` removes the value under the key. The read after it returns `null`,
+// so this prints gone.
+$cache->forget("greeting");
+var $after = $cache->get("greeting") ?? "gone";
+echo $after as string, "\n";
+
+// Forgetting a key that has no value does nothing. This prints still gone.
+$cache->forget("greeting");
+$cache->forget("nothing-wrote-this");
+var $again = $cache->get("greeting") ?? "still gone";
+echo $again as string, "\n";
+
+// The key can be used again. This prints hello again.
+$cache->put("greeting", "hello again");
+var $written = $cache->get("greeting") as string;
+echo $written, "\n";
