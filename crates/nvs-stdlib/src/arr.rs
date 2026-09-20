@@ -6467,6 +6467,7 @@ mod tests {
     /// `values` renumbers from zero and keeps insertion order, and takes a
     /// reference of its own for every value it copies — a missing retain is a
     /// double free the moment either array is dropped.
+    // covers: Core\Arr::values
     #[test]
     fn values_renumbers_from_zero_and_retains_what_it_copies() {
         let mut array = NvsArray::new();
@@ -7383,6 +7384,7 @@ mod tests {
     /// The four ends of a map, over a subject whose insertion order is not its
     /// key order — so an implementation that read the hash rather than the
     /// insertion list would answer differently.
+    // covers: Core\Arr::first, Core\Arr::last, Core\Arr::firstKey, Core\Arr::lastKey
     #[test]
     fn the_four_end_members_read_insertion_order() {
         let mut ctx = Ctx::new(OutputSink::Sink);
@@ -7397,6 +7399,7 @@ mod tests {
 
     /// An empty subject answers `null` at all four ends rather than throwing —
     /// `rule:core-api/shape-rules` R5's absence spelling, not R4's failure.
+    // covers: Core\Arr::first, Core\Arr::last, Core\Arr::firstKey, Core\Arr::lastKey
     #[test]
     fn an_empty_array_has_no_ends() {
         let mut ctx = Ctx::new(OutputSink::Sink);
