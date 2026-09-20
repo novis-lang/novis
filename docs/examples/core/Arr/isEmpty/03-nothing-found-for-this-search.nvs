@@ -1,0 +1,15 @@
+<?nvs
+// Shows the check a page makes after a search. When no article matched, the
+// page says so instead of printing an empty list.
+
+array<string> $catalogue = ["red mug", "blue mug", "green cap"];
+array<string> $matches = Core\Arr::filter($catalogue, fn(string $item) => Core\Str::contains($item, "hat"));
+
+// No article contains "hat". This prints "nothing found".
+if (Core\Arr::isEmpty($matches)) {
+    echo "nothing found", "\n";
+} else {
+    foreach ($matches as string $match) {
+        echo $match, "\n";
+    }
+}

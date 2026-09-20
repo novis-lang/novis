@@ -1,0 +1,36 @@
+<?nvs
+// Attack: arrays are grown, emptied and widened, and then asked whether they
+// are empty. Every step should finish or throw an error, and the runtime must
+// not crash.
+// hostile: timeout-ms 60000
+
+// 1. A list of 400000 entries.
+array<int> $long = [];
+int $i = 0;
+while ($i < 400000) {
+    $long[] = $i;
+    $i = $i + 1;
+}
+echo 'step 1: ', Core\Arr::isEmpty($long) ? 'empty' : 'not empty', '|', "\n";
+
+// 2. The same list with every entry taken out of it.
+array<int> $nothingLeft = Core\Arr::filter($long, fn(int $n) => false);
+echo 'step 2: ', Core\Arr::isEmpty($nothingLeft) ? 'empty' : 'not empty', '|', "\n";
+
+// 3. An array whose only key is a text of one million characters.
+array<int> $wide = [];
+$wide[Core\Str::repeat('k', 1000000)] = 7;
+echo 'step 3: ', Core\Arr::isEmpty($wide) ? 'empty' : 'not empty', '|', "\n";
+
+// 4. The same question asked 400000 times.
+int $asked = 0;
+int $j = 0;
+while ($j < 400000) {
+    if (Core\Arr::isEmpty($long)) {
+        $asked = $asked + 1;
+    }
+    $j = $j + 1;
+}
+echo 'step 4: ', $asked, '|', "\n";
+
+echo 'the runtime is still standing', "\n";
