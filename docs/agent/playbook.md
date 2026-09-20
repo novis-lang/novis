@@ -2566,9 +2566,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   simply predate it, and `cargo build --release -p nvs-cli` relinks the world for a one-line edit.
   Build `cargo build` and run `target/debug/nvs.exe`: it is the binary `tools/loop.py` builds after
   every acceptance check, so it is the cheap answer and usually the faithful one. The exception is
-  `tools/dossier.py`, which runs every proof program against release and rebuilds it itself when
-  `crates/` has moved, so it is owed nothing by hand.
-  [until: reviewed 2026-09-06]
+  `tools/dossier.py`, which runs every proof program against release: `--bless` refuses with
+  `target/release/nvs.exe is missing or older than the tree -- cargo build --release -p nvs-cli`
+  and writes nothing, and the driver's acceptance sweep reports the same line, so run that build
+  yourself — and run every `crates/` edit of the group before the first `--bless` or
+  `--record-perf`, because each edit costs another six-minute relink.
+  [until: reviewed 2026-09-20]
 - **`wsl.exe -- bash /mnt/<drive>/<repo>/tools/leak-check.sh …` fails from the Bash tool and works
   from PowerShell.** Git Bash rewrites any argument that looks like a POSIX path before `wsl.exe`
   sees it, so the command arrives as `bash: C:/Program Files/Git/mnt/…: No such file or directory` —
