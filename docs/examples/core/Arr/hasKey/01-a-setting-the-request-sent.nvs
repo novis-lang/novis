@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to test whether an array has an entry under a key.
+
+array<string> $query = ["sort" => "price", "view" => "grid"];
+
+// The key "sort" is there. This prints yes.
+echo Core\Arr::hasKey($query, "sort") ? "yes" : "no", "\n";
+
+// The key "page" is not there. This prints no.
+echo Core\Arr::hasKey($query, "page") ? "yes" : "no", "\n";

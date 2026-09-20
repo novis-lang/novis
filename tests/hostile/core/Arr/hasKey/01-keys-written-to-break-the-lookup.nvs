@@ -1,0 +1,38 @@
+<?nvs
+// Attack: keys at the far ends of what a key may be are looked up in a large
+// array. Every step should finish or throw an error, and the runtime must not
+// crash.
+// hostile: timeout-ms 60000
+
+// 1. A list of 400000 entries, asked for the last position.
+array<int> $long = [];
+int $i = 0;
+while ($i < 400000) {
+    $long[] = $i;
+    $i = $i + 1;
+}
+echo 'step 1: ', Core\Arr::hasKey($long, 399999) ? 'yes' : 'no', '|', "\n";
+
+// 2. The same list asked for a key that is a text of one million characters.
+echo 'step 2: ', Core\Arr::hasKey($long, Core\Str::repeat('k', 1000000)) ? 'yes' : 'no', '|', "\n";
+
+// 3. The largest whole number there is, as a key.
+echo 'step 3: ', Core\Arr::hasKey($long, 9223372036854775807) ? 'yes' : 'no', '|', "\n";
+
+// 4. A key that contains a zero byte in the middle.
+array<int> $odd = [];
+$odd["a\0b"] = 1;
+echo 'step 4: ', Core\Arr::hasKey($odd, "a\0b") ? 'yes' : 'no', '|', "\n";
+
+// 5. The same lookup 400000 times.
+int $found = 0;
+int $j = 0;
+while ($j < 400000) {
+    if (Core\Arr::hasKey($long, $j)) {
+        $found = $found + 1;
+    }
+    $j = $j + 1;
+}
+echo 'step 5: ', $found, '|', "\n";
+
+echo 'the runtime is still standing', "\n";
