@@ -1195,6 +1195,90 @@ mod tests {
         operand(&[answer], 0, "toString").expect("a member answers with its own class")
     }
 
+    /// `of` widens every `int` exactly, counted over a sweep rather than read
+    /// off a line, so a member that lost the top word of a value still prints
+    /// plausibly on the small rows everybody checks first. The two ends of the
+    /// range are in the sweep and the floor is named again afterwards: it is the
+    /// value whose magnitude no `int` can hold, and the one a conversion written
+    /// around the positive half loses.
+    // covers: Core\BigInt::of
+    #[test]
+    fn of_widens_every_int_exactly_including_both_bounds() {
+        const SWEEP: [i64; 9] = [
+            i64::MIN,
+            i64::MIN + 1,
+            -4_500,
+            -1,
+            0,
+            1,
+            4_500,
+            i64::MAX - 1,
+            i64::MAX,
+        ];
+
+        let mut ctx = Ctx::buffered();
+        let mut exact = 0usize;
+        for value in SWEEP {
+            let widened = read(
+                call(nvs_core_bigint_of, &mut ctx, &[Value::int(value)])
+                    .expect("every `int` widens"),
+            );
+            if widened == BigInt::from(value) && widened.to_string() == value.to_string() {
+                exact += 1;
+            }
+        }
+        assert_eq!(exact, SWEEP.len());
+
+        let floor = read(
+            call(nvs_core_bigint_of, &mut ctx, &[Value::int(i64::MIN)])
+                .expect("the smallest `int` widens too"),
+        );
+        assert_eq!(floor.to_string(), "-9223372036854775808");
+    }
+
+    /// `ofUint` widens every `uint` exactly, including the half of the range
+    /// above the largest `int` — the half `of` cannot be handed, and the one a
+    /// member that read the word as signed answers a negative for while it goes
+    /// on printing plausibly below the bound. The sweep counts both halves and
+    /// the top of the range is named again afterwards.
+    // covers: Core\BigInt::ofUint
+    #[test]
+    fn of_uint_widens_every_uint_exactly_including_the_half_above_the_int_bound() {
+        const SWEEP: [u64; 8] = [
+            0,
+            1,
+            4_500,
+            i64::MAX as u64 - 1,
+            i64::MAX as u64,
+            i64::MAX as u64 + 1,
+            u64::MAX - 1,
+            u64::MAX,
+        ];
+
+        let mut ctx = Ctx::buffered();
+        let mut exact = 0usize;
+        let mut non_negative = 0usize;
+        for value in SWEEP {
+            let widened = read(
+                call(nvs_core_bigint_of_uint, &mut ctx, &[Value::uint(value)])
+                    .expect("every `uint` widens"),
+            );
+            if widened == BigInt::from(value) {
+                exact += 1;
+            }
+            if widened.sign() != Sign::Minus {
+                non_negative += 1;
+            }
+        }
+        assert_eq!((exact, non_negative), (SWEEP.len(), SWEEP.len()));
+
+        let top = read(
+            call(nvs_core_bigint_of_uint, &mut ctx, &[Value::uint(u64::MAX)])
+                .expect("the largest `uint` widens"),
+        );
+        assert_eq!(top.to_string(), "18446744073709551615");
+    }
+
     /// `div` truncates toward zero and `mod` carries the dividend's sign — the
     /// two roundings `intdiv` and `%` have on `int`, asserted by **counting**
     /// over a sign sweep rather than read off a line, so a member that grew a
@@ -1427,6 +1511,62 @@ mod tests {
                 .expect("zero multiplies too"),
         );
         assert_eq!(absorbed, BigInt::from(0));
+    }
+
+    /// `neg` returns the same magnitude with the opposite sign, so a value and
+    /// its negation add to zero and two negations answer the value they started
+    /// from — counted over a sign sweep rather than read off a line, so a member
+    /// that is right on the row everybody checks first still fails here. Two
+    /// values are named on their own afterwards: zero, which has a single
+    /// spelling and keeps it, and the floor of the `int` range, whose positive
+    /// twin is the one value unary `-` on an `int` cannot hold.
+    // covers: Core\BigInt::neg
+    #[test]
+    fn neg_flips_every_sign_and_is_total_at_the_int_floor() {
+        const SWEEP: [i64; 7] = [i64::MIN, -9, -1, 0, 1, 9, i64::MAX];
+
+        let mut ctx = Ctx::buffered();
+        let mut opposite = 0usize;
+        let mut cancels = 0usize;
+        let mut involutive = 0usize;
+        for value in SWEEP {
+            let once = read(
+                call(nvs_core_bigint_neg, &mut ctx, &[of(value)]).expect("every value has one"),
+            );
+            let again = read(
+                call(
+                    nvs_core_bigint_neg,
+                    &mut ctx,
+                    &[built(&once).expect("a one-word magnitude is affordable")],
+                )
+                .expect("a negated value has one too"),
+            );
+            let held = BigInt::from(value);
+            if once == -held.clone() {
+                opposite += 1;
+            }
+            if once.clone() + held.clone() == BigInt::from(0) {
+                cancels += 1;
+            }
+            if again == held {
+                involutive += 1;
+            }
+        }
+        assert_eq!(
+            (opposite, cancels, involutive),
+            (SWEEP.len(), SWEEP.len(), SWEEP.len())
+        );
+
+        let zero = read(
+            call(nvs_core_bigint_neg, &mut ctx, &[of(0)]).expect("zero is negated like the rest"),
+        );
+        assert_eq!(zero.to_string(), "0");
+
+        let floor = read(
+            call(nvs_core_bigint_neg, &mut ctx, &[of(i64::MIN)])
+                .expect("the smallest `int` has a negation here"),
+        );
+        assert_eq!(floor.to_string(), "9223372036854775808");
     }
 
     /// `abs` never answers a negative, keeps the magnitude it was handed and

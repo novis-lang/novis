@@ -2,7 +2,7 @@
 `Core\BigInt::div` truncates toward zero and `mod` carries the dividend's sign, agreeing with `Core\Math::intDiv` and `%` at every sign — `rule:types/arithmetic`, spec § 13
 --FILE--
 <?nvs
-// covers: Core\BigInt::abs
+// covers: Core\BigInt::abs, Core\BigInt::neg
 // `div` truncates toward zero and `mod` carries the dividend's sign — the
 // answers `Core\Math::intDiv` and `%` already give on `int`. Asserting that by
 // counting agreements over a sweep of both signs is what catches a member that
