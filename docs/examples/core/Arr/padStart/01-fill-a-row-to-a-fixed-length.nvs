@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to add values in front of an array until it has the length you
+// want.
+
+array<string> $answers = ["yes", "no"];
+
+// `Core\Arr::padStart` adds copies of "-" in front until there are five
+// entries. This prints "- - - yes no".
+array<string> $row = Core\Arr::padStart($answers, 5, "-");
+echo Core\Str::join($row, " "), "\n";
+
+// Your own array is not changed, so this prints 2.
+echo Core\Arr::count($answers), "\n";

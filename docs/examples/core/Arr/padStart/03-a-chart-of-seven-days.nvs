@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to prepare a chart of the last seven days for somebody who has
+// been here for three days. The missing days are added in front as 0, so the
+// newest day is always the last entry.
+
+array<int> $visits = [4, 9, 2];
+
+array<int> $week = Core\Arr::padStart($visits, 7, 0);
+
+// This prints 0 four times, then 4, 9 and 2, each on its own line.
+foreach ($week as int $day) {
+    echo $day, "\n";
+}

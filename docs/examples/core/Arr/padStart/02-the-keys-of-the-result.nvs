@@ -1,0 +1,15 @@
+<?nvs
+// Shows which keys the result has, and what happens when the array is already
+// long enough.
+
+array<string> $named = ["a" => "one", "b" => "two"];
+
+// The array has two entries and you ask for four, so two copies are added.
+// The keys of the result are numbers. This prints "0 1 2 3".
+array<string> $padded = Core\Arr::padStart($named, 4, "");
+echo Core\Str::join(Core\Arr::keys($padded), " "), "\n";
+
+// The array already has two entries, so nothing is added. You get its values
+// back as a list. This prints "one two".
+array<string> $same = Core\Arr::padStart($named, 2, "");
+echo Core\Str::join($same, " "), "\n";

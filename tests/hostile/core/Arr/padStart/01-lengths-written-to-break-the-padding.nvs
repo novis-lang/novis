@@ -1,0 +1,39 @@
+<?nvs
+// Attack: `Core\Arr::padStart` builds a new array of the length it is given.
+// Each step below asks it for a length no machine can hold. Every step should
+// finish, and the last one should stop the program at its memory limit. The
+// runtime must not crash.
+// hostile: timeout-ms 60000
+// hostile: ends-early
+
+// 1. The largest length there is. The program should catch an error.
+array<int> $small = [1, 2, 3];
+try {
+    array<int> $huge = Core\Arr::padStart($small, 18446744073709551615, 0);
+    echo 'step 1: ', Core\Arr::count($huge), "\n";
+} catch (RuntimeError $error) {
+    echo 'step 1: refused', "\n";
+}
+
+// 2. A length of 0, and a length below what the array already has. Nothing is
+// added in either case.
+echo 'step 2: ', Core\Arr::count(Core\Arr::padStart($small, 0, 0)), ' ',
+    Core\Arr::count(Core\Arr::padStart($small, 1, 0)), "\n";
+
+// 3. An array whose key is the largest whole number there is. Every key is
+// renumbered here, so the result is a list of three entries.
+array<string> $taken = ['9223372036854775807' => 'a'];
+echo 'step 3: ', Core\Str::join(Core\Arr::keys(Core\Arr::padStart($taken, 3, 'b')), ','), "\n";
+
+// 4. One call that pads a list of three out to 400000 entries.
+echo 'step 4: ', Core\Arr::count(Core\Arr::padStart($small, 400000, 0)), "\n";
+
+// 5. Every result is kept, so the copies add up. The program should stop at
+// its memory limit.
+array<mixed> $kept = [];
+int $round = 0;
+while ($round < 400000) {
+    $kept[] = Core\Arr::padStart($small, 400000, $round);
+    $round = $round + 1;
+}
+echo 'step 5: ', Core\Arr::count($kept), "\n";
