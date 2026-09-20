@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to find the width of a column before printing a table. Every name
+// is padded to the width of the longest one.
+
+array<string> $names = ['Ada', 'Grace Hopper', 'Lin'];
+
+// `Core\Str::length` counts the characters of one name, and `Core\Arr::map`
+// does that for every name in the list.
+array<uint> $widths = Core\Arr::map($names, fn(string $name): uint => Core\Str::length($name));
+
+// The widest name has 12 characters, so the column is 12 wide.
+uint $column = Core\Arr::max($widths) ?? (0 as uint);
+
+// The second column now starts in the same place on every line.
+foreach ($names as string $name) {
+    echo Core\Str::padEnd($name, $column, ' '), ' | ready', "\n";
+}

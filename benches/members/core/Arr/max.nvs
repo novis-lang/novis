@@ -1,0 +1,21 @@
+<?nvs
+// Reads the highest bid of a short list, as an auction page does before it
+// shows the leading offer.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): int {
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The first bid is last round's total, so no round can be reused.
+            array<int> $bids = [($total % 7) + 41, 30, 10, 20, 40, 25];
+            $total = $total + (Core\Arr::max($bids) ?? 0);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

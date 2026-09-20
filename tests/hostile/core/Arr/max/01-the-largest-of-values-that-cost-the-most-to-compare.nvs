@@ -1,0 +1,79 @@
+<?nvs
+// Attack: a program asks for the largest value of arrays whose entries have
+// no order. Other entries cost as much as possible to compare. The last step
+// should stop at the memory limit with an error, and must not crash.
+// hostile: timeout-ms 30000
+// hostile: ends-early
+
+final class Boastful implements Comparable
+{
+    public function constructor(public int $rank)
+    {}
+
+    // The answer is far outside the usual -1, 0 and 1. Only its sign is read.
+    public function compareTo(self $other): int
+    {
+        if ($this->rank == $other->rank) {
+            return 0;
+        }
+        if ($this->rank > $other->rank) {
+            return 9223372036854775807;
+        }
+        return -9223372036854775807 - 1;
+    }
+}
+
+// 1. Nothing at all. There is no largest value, so the result is `null` and
+// this prints -1.
+array<int> $empty = [];
+echo Core\Arr::max($empty) ?? -1, "\n";
+
+// 2. Entries that are themselves arrays. An array has no order, so the
+// member throws an error instead of picking one.
+array<array<int>> $rows = [[1, 2], [3, 4]];
+try {
+    Core\Arr::max($rows);
+    echo "rows compared\n";
+} catch (Throwable $refused) {
+    echo "rows refused\n";
+}
+
+// 3. Only `true` and `false`, then only `null`. Both kinds have an order.
+// A `true` prints as 1, and the `null` result prints as the -1 from the `??`.
+array<bool> $flags = [false, true, false];
+echo Core\Arr::max($flags) ?? false, "\n";
+array<?int> $nothings = [null, null, null];
+echo Core\Arr::max($nothings) ?? -1, "\n";
+
+// 4. A hundred thousand texts that share a prefix of 300 bytes. Every
+// comparison has to read the whole prefix before it finds a difference.
+string $prefix = Core\Str::repeat('x', 300);
+array<string> $texts = [];
+int $t = 0;
+while ($t < 100000) {
+    $texts[] = $prefix . ($t as string);
+    $t = $t + 1;
+}
+echo Core\Str::length(Core\Arr::max($texts) ?? ''), "\n";
+
+// 5. Fifty objects whose comparison answers the largest and the smallest
+// number there is. Reading the sign of those must not overflow.
+array<Boastful> $boasts = [];
+int $b = 0;
+while ($b < 50) {
+    $boasts[] = new Boastful($b);
+    $b = $b + 1;
+}
+Core\Arr::max($boasts);
+echo "boasts compared\n";
+
+// 6. A list of long texts that doubles in size, with the largest read after
+// every step. That needs more memory than the program has, so it stops here.
+array<string> $growing = [$prefix, $prefix . 'a', $prefix . 'b'];
+uint $k = 0;
+while ($k < 40) {
+    $growing = Core\Arr::appendAll($growing, $growing);
+    Core\Arr::max($growing);
+    $k = $k + 1;
+}
+echo "grew forever\n";
