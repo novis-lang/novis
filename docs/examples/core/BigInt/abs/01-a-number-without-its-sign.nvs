@@ -1,0 +1,17 @@
+<?nvs
+// Shows what `abs` returns for a negative number, a positive number and zero.
+
+var $below = Core\BigInt::of(-273);
+
+// `abs` removes the sign. This prints 273.
+echo $below->abs(), "\n";
+
+// A positive number stays the same. This prints 273.
+echo Core\BigInt::of(273)->abs(), "\n";
+
+// Zero stays zero. This prints 0.
+echo Core\BigInt::of(0)->abs(), "\n";
+
+// `abs` returns a new number, so the one you called it on still has its sign.
+// This prints -273.
+echo $below, "\n";

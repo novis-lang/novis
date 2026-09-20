@@ -1,0 +1,25 @@
+<?nvs
+// Measures taking a large number without its sign, as a program does when it
+// checks how far two totals are apart.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\BigInt> $totals = [
+            Core\BigInt::parse("-123456789012345678901234567890"),
+            Core\BigInt::parse("98765432109876543210"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the number taken this round is picked by the sign counted
+            // in the round before.
+            $total = $total + ($totals[($total % 2) as int]->abs()->sign() as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";
