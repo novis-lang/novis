@@ -60,6 +60,7 @@ except ModuleNotFoundError:  # Python < 3.11
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import disk  # noqa: E402  -- same directory; the retention policy has one home and it is there
 import goals as goalsmod  # noqa: E402  -- same directory; the chain has one reader and it is there
+import impact  # noqa: E402  -- same directory; what each test binary reads, and its key
 import machine  # noqa: E402  -- same directory; how wide anything runs has one home too
 import proctree  # noqa: E402  -- same directory; a session's whole process tree, frozen and thawed
 import relink  # noqa: E402  -- same directory; freeing the release binary an editor is running
@@ -2449,6 +2450,8 @@ class Goal:
         self._crate_runs = {}  # package -> Result of its binaries, within one check() call
         self._tree = ""
         self._parts = None  # partition name -> content hash, or None if unreadable; see `partition_ids`
+        self._tiers = None  # the `verify_keys.Tree` that walk took, which `binary_inputs` keys on
+        self._reach = None  # `impact.Reach` over `_tiers`, built by the first check that asks
         self._green = {}  # memo key -> the inputs hash it was last green over; see `remembered`
         self._green_dirty = False  # `_green` holds a verdict `.loop/goal-green.json` does not yet
         self.full = False  # consult no memo; `--goal-only --full` is the one thing that sets it
@@ -2968,8 +2971,9 @@ class Goal:
                     code.update(path.read_bytes())
                 code.update(b"\0")
 
+        self._tiers = self._reach = None
         try:
-            tiers = verify_keys.Tree()
+            tiers = self._tiers = verify_keys.Tree()
             for top in sorted(os.listdir(ROOT)):
                 if top in NOT_INPUTS or top in ignored or f"{top}/" in ignored:
                     continue
@@ -3014,9 +3018,43 @@ class Goal:
         `None` when the tree could not be hashed."""
         if self._parts is None:
             return None
+        narrow = self.binary_inputs(c)
+        if narrow is not None:
+            return narrow
         h = hashlib.blake2b(digest_size=16)
         for name in reads_of(c):
             h.update(name.encode("utf-8") + b"\0" + self._parts[name].encode("utf-8") + b"\0")
+        return h.hexdigest()
+
+    def binary_inputs(self, c):
+        """A `cargo test -p <crate>` check's inputs as `tools/impact.py` keys them -- one key per
+        test binary of that crate, over what that binary reads -- or `None`, and then
+        `CARGO_READS` stands, which is every crate and every case tree.
+
+        `CARGO_READS` holds all of `crates/` because a partition cannot say which crate a binary
+        is compiled from, so an edit to `nvs-lsp` staled every check naming `nvs-syntax`. The
+        binaries are the ones `verify.py` last built (`impact.last_jobs`), and what each opens
+        while it runs is what `verify.py` last recorded for it. `None` whenever that cannot be
+        shown: a check that is not the plain `-p <crate>` form, a crate with no binary on
+        record, or a binary `impact` calls wide."""
+        if c["kind"] != "cargo-named" or self._tiers is None:
+            return None
+        plain = plain_crate_test(c.get("args", []))
+        if plain is None:
+            return None
+        crate, target = plain
+        jobs = [j for j in impact.last_jobs() if j.get("owner") == crate
+                and (target is None or j.get("name") == f"{crate} test {target}")]
+        if not jobs:
+            return None
+        if self._reach is None:
+            self._reach = impact.Reach(self._tiers)
+        h = hashlib.blake2b(digest_size=16)
+        for job in sorted(jobs, key=lambda j: j["name"]):
+            key, wide = self._reach.key(job)
+            if wide:
+                return None
+            h.update(job["name"].encode("utf-8") + b"\0" + key.encode("utf-8") + b"\0")
         return h.hexdigest()
 
     def remembered(self, c, leg=""):
