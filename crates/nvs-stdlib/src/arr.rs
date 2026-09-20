@@ -6725,6 +6725,7 @@ mod tests {
     /// Here rather than in a `.nvst` case because a conformance case cannot
     /// catch at file scope, and the value of this row is the *class* of
     /// failure, not the message.
+    // covers: Core\Arr::chunk
     #[test]
     fn a_chunk_size_of_zero_throws() {
         let mut ctx = Ctx::new(OutputSink::Sink);
@@ -6735,6 +6736,115 @@ mod tests {
         )
         .expect_err("a zero run length is refused");
         assert_eq!(status, nvs_runtime::THROWN);
+    }
+
+    /// A window is a copy: it renumbers from zero, keeps the subject's own
+    /// keys when it is asked to, and takes a reference of its own for every
+    /// entry it copies — a missing retain is a double free the moment either
+    /// array is dropped.
+    ///
+    /// Here rather than in a `.nvst` case because the retain is the half no
+    /// program can observe; the positions themselves are pinned from Novis.
+    // covers: Core\Arr::slice
+    #[test]
+    fn a_slice_is_a_copy_that_renumbers_unless_it_is_asked_to_keep_the_keys() {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let subject = mixed_keys();
+        let window = |ctx: &mut Ctx, preserve: bool| {
+            entries_of(
+                call(
+                    super::nvs_core_arr_slice,
+                    ctx,
+                    &[subject, Value::int(1), Value::int(2), Value::bool(preserve)],
+                )
+                .expect("a window over three entries never fails"),
+            )
+        };
+
+        assert_eq!(
+            window(&mut ctx, false),
+            vec![
+                (b"0".to_vec(), b"b".to_vec()),
+                (b"1".to_vec(), b"c".to_vec())
+            ]
+        );
+        assert_eq!(
+            window(&mut ctx, true),
+            vec![
+                (b"10".to_vec(), b"b".to_vec()),
+                (b"y".to_vec(), b"c".to_vec())
+            ]
+        );
+
+        // Both windows are released by now, and the subject still holds every
+        // value it lent them — which is what the retain bought.
+        #[expect(
+            unsafe_code,
+            reason = "this test still owns the one reference it built above"
+        )]
+        let still = unsafe { NvsArray::from_raw(subject.array_ptr().expect("an array")) };
+        assert_eq!(
+            still
+                .get(b"y")
+                .and_then(|v| v.as_str_bytes().map(<[u8]>::to_vec)),
+            Some(b"c".to_vec())
+        );
+    }
+
+    /// The kept head, the replacement and the kept tail are three walks into
+    /// one fresh list: every entry is renumbered, string keys included, and
+    /// both subjects keep everything they lent it. The member copies rather
+    /// than moves, so neither argument is left short a reference.
+    // covers: Core\Arr::replaceRange
+    #[test]
+    fn a_replaced_range_renumbers_both_sides_and_copies_what_it_carries() {
+        let mut replacement = NvsArray::new();
+        replacement.set(NvsStr::new(b"k"), Value::str(NvsStr::new(b"n")));
+        let handed = Value::array(replacement);
+        let subject = mixed_keys();
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let out = entries_of(
+            call(
+                super::nvs_core_arr_replace_range,
+                &mut ctx,
+                &[subject, Value::int(1), Value::int(1), handed],
+            )
+            .expect("a window inside the array never fails"),
+        );
+        assert_eq!(
+            out,
+            vec![
+                (b"0".to_vec(), b"a".to_vec()),
+                (b"1".to_vec(), b"n".to_vec()),
+                (b"2".to_vec(), b"c".to_vec())
+            ]
+        );
+
+        // The result is released by now, and both arguments still hold every
+        // value they lent it — which is what the retain bought.
+        #[expect(
+            unsafe_code,
+            reason = "this test still owns the two references it built above, \
+                      and the helper borrowed rather than consumed them"
+        )]
+        let (still, lent) = unsafe {
+            (
+                NvsArray::from_raw(subject.array_ptr().expect("an array")),
+                NvsArray::from_raw(handed.array_ptr().expect("an array")),
+            )
+        };
+        assert_eq!(
+            still
+                .get(b"10")
+                .and_then(|v| v.as_str_bytes().map(<[u8]>::to_vec)),
+            Some(b"b".to_vec())
+        );
+        assert_eq!(
+            lent.get(b"k")
+                .and_then(|v| v.as_str_bytes().map(<[u8]>::to_vec)),
+            Some(b"n".to_vec())
+        );
     }
 
     /// The cursor stops rather than wrapping when the next step would leave
