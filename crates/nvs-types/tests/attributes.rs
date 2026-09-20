@@ -58,6 +58,7 @@ class Row {
     );
 }
 
+// covers: Core\Attributes::get
 #[test]
 fn get_with_one_match_folds_to_that_constant_with_no_runtime_lookup() {
     let (diags, run) = check_src_declared(
@@ -90,6 +91,7 @@ class Row {
     assert!(matches!(fields[1].1, ConstArg::Bool(true)), "{fields:?}");
 }
 
+// covers: Core\Attributes::all
 #[test]
 fn get_with_two_matches_is_a_diagnostic_naming_all() {
     let two_columns = "<?nvs

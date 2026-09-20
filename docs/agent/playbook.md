@@ -6368,6 +6368,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   parses and walks, and a case written to reach a deep tree then asserts nothing about depth.
   Probe the depth with `target/debug/nvs.exe run` on a throwaway program before writing the case,
   and put the level that parses in the comment beside the number. [until: reviewed 2026-09-20]
+- **A `Core` member whose call is folded at compile time still owes a measured figure.**
+  `nvs_stdlib::attributes`' module doc says both retrievals are answered by `nvs check` and that
+  their symbols abort if reached, which reads as a `[skip] perf` entry — but
+  `benches/members/lang/attributes/reading-attributes-back-core-attributes-get-and-all.nvs` has
+  always measured those reads, because materializing the folded constant costs a running program
+  something. Before writing `[skip] perf`, list `benches/members/lang/<topic>/` for a bench over the
+  same surface. [until: reviewed 2026-09-20]
 
 ## Splitting a file that got too big
 

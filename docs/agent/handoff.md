@@ -2,44 +2,39 @@
 
 ## State
 
-Goal `core-ast-and-2-more` (dossier), 7 of its 9 items landed. Every `Core\Ast` and
-`Core\Ast\Node` feature now reports `complete` from `python tools/dossier.py --id '<feature>'`:
-`Core\Ast::parse`, and the node's `children`, `column`, `kind`, `nodes`, `line` and `offset`.
-Only `Core\Attributes::all` and `Core\Attributes::get` are left, and they sit in a different
-file set.
+Goal `core-ast-and-2-more` (dossier) is met — all 9 items landed. Every feature in `Core\Ast`,
+`Core\Ast\Node` and `Core\Attributes` reports `complete` from `python tools/dossier.py --id
+'<feature>'`, and the acceptance check that was red,
+`python tools/dossier.py --verify --group 'Core\Attributes'`, now reports `nothing owed` with 6
+examples and 2 attacks green. `owners.py --closes` and `playbook.py --closes` name nothing for this
+goal, and `verify.py --doc` is green.
 
-The Rust-side cases for `kind`, `nodes`, `line` and `offset` all live in
-`crates/nvs-stdlib/src/ast.rs`'s `mod tests`, so they landed in one commit instead of one per
-slice. Three conformance cases were re-attributed rather than duplicated: the column case
-already asserts `line` and `offset`, and the transitive-closure case already asserts `nodes`,
-so each gained a `covers:` marker (`rule:testing/proof-attribution`).
-
-One finding is still recorded rather than fixed, as
+One finding from the earlier group is still recorded rather than fixed, as
 `rule:testing/a-failing-proof-is-fixed-or-recorded` allows: `Core\Ast::parse` spends time in the
-square of a line's length. It is `# Known gaps` item 1 in `crates/nvs-stdlib/src/ast.rs`, owned
-by M12, and `tests/hostile/core/Ast/parse/02-a-program-written-on-one-long-line.nvs` is the
-marked attack.
+square of a line's length. It is `# Known gaps` item 1 in `crates/nvs-stdlib/src/ast.rs`, owned by
+M12, with the marked attack at
+`tests/hostile/core/Ast/parse/02-a-program-written-on-one-long-line.nvs`.
 
 ## Next group
 
-The goal's last file set, and the only one left in it:
-`crates/nvs-stdlib/src/attributes.rs`, `docs/examples/core/Attributes/`,
-`tests/hostile/core/Attributes/` and `benches/members/core/Attributes/`.
-`rule:testing/feature-proofs` is what each owes and the landed `Ast-Node` directories are the
-shape to follow. These two are not shaped like a node walk: `Core\Attributes` is the one class
-whose members never run, so read that module's own doc before pricing the bench and the attack.
-The orientation pack prints neither `benches/members/README.md` § *What a bench declares* nor
-`docs/examples/README.md` § *The description*, and both are needed to write a bench's declared
-counts and an `about.md` — peek them once rather than guessing.
+The goal is met, so the driver's goal switch replaces this file with
+`docs/agent/goals/dossier/95-core-bigint-1-2.handoff.md`. Its opening group, one file set —
+`crates/nvs-stdlib/src/bigint.rs`, `docs/examples/core/BigInt/`, `tests/hostile/core/BigInt/` and
+`benches/members/core/BigInt/`, under `rule:testing/feature-proofs`:
 
-- [ ] **`Core\Attributes::all`** — owes `about.md`, examples, hostile, perf, and a `covers:`
-      marker on both sides. `crates/nvs-stdlib/src/attributes.rs:65`
-- [ ] **`Core\Attributes::get`** — the one-attribute half of the same retrieval; its examples
-      must each be a different use from `all`'s three.
-      `crates/nvs-stdlib/src/attributes.rs:56`
+- [ ] **`Core\BigInt::abs`** — owes `about.md`, examples, hostile, perf, tests.
+      `crates/nvs-stdlib/src/bigint.rs:248`
+- [ ] **`Core\BigInt::add`** — owes `about.md`, examples, hostile, perf, tests.
+      `crates/nvs-stdlib/src/bigint.rs:149`
+- [ ] **`Core\BigInt::compareTo`** — owes `about.md`, examples, hostile, perf, tests.
+      `crates/nvs-stdlib/src/bigint.rs:284`
 
 ## Backlog
 
-- `Core\Ast::parse`'s quadratic column cost — `crates/nvs-stdlib/src/ast.rs` `# Known gaps` 1, owner M12.
-- goal `plain-comments` sweeps the landed proof comments and makes `dossier.py --comments` a gate.
-- goal `the-description-is-owed` switches the `about.md` check on; until then only the prose asks for it.
+- `Core\Attributes`' two members were re-attributed rather than given new cases: the Novis side is
+  `tests/conformance/lang/attributes-retrieval-answers-by-shape-in-declaration-order.nvst` and
+  `tests/conformance/core/an-attribute-is-retrieved-by-the-shape-it-satisfies.nvst`, both of which
+  already asserted the member (`rule:testing/proof-attribution`).
+- `all`'s bench records 8 allocations per read of a 3-entry roster where 4 was the prediction; the
+  extra is array growth and the index copy, not the retrieval. `benches/members/README.md`
+  § *What the numbers mean* is where a profiler pass would start.
