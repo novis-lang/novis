@@ -132,9 +132,19 @@ const HASH_DEPTH: u32 = 4;
 
 /// Whether two values are the same value — the one strict-identity comparison
 /// this crate defines, whose rules are this module's own docs.
+///
+/// **The first pair is compared before the worklist is touched**, and
+/// [`Vec::new`] holds no heap block until something is pushed into it. Only an array
+/// pair pushes, so every comparison over two scalars — `==` on the request
+/// path, and each entry `Core\Arr::contains` walks — allocates nothing. Seeding
+/// the vector with the first pair instead cost one allocation per call, which
+/// `benches/members/core/Arr/contains.nvs` counted once per entry.
 #[must_use]
 pub fn value_identical(left: Value, right: Value) -> bool {
-    let mut worklist = vec![(left, right)];
+    let mut worklist = Vec::new();
+    if !shallow_identical(left, right, &mut worklist) {
+        return false;
+    }
     while let Some((left, right)) = worklist.pop() {
         if !shallow_identical(left, right, &mut worklist) {
             return false;

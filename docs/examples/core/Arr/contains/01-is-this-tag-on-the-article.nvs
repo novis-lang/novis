@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to test whether an array holds a value.
+
+array<string> $tags = ["sale", "new", "gift"];
+
+// The value "new" is in the array. This prints yes.
+echo Core\Arr::contains($tags, "new") ? "yes" : "no", "\n";
+
+// The value "used" is not in the array. This prints no.
+echo Core\Arr::contains($tags, "used") ? "yes" : "no", "\n";
