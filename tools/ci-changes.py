@@ -26,6 +26,9 @@ import os
 import subprocess
 import sys
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import impact  # noqa: E402  -- same directory; the package graph has one reader and it is there
+
 # One entry per gate a job in ci.yml spells as `needs.changes.outputs.<name> == 'true'`. A prefix
 # ending in `/` matches everything beneath it; anything else matches that one path exactly.
 #
@@ -69,16 +72,34 @@ LANES = {
         "crates/", "docs/reference/", "docs/novis.md", "tools/reference.py",
         ".github/workflows/",
     ),
-    # The five-driver matrix against real servers: the drivers, the harness that points them at a
-    # container each, the compose file those containers come from, and the suites outside `nvs-db`
-    # that `tools/db-matrix.py` runs on every leg -- `nvs-stdlib`'s queue and stream cases, and the
-    # worker `nvs-cli` opens a queue block from. Gates `database`, the one job that needs a daemon.
+    # The five-driver matrix against real servers: the harness that points each driver at a
+    # container, the compose file those containers come from, and -- added by `db_lane` below --
+    # every package `tools/db-matrix.py` runs the tests of and every package those are compiled
+    # against. Gates `database`, the one job that needs a daemon.
     "db": (
-        "crates/nvs-db/", "crates/nvs-stdlib/", "crates/nvs-cli/", "crates/nvs-config/",
-        "tests/db/", "tools/db-matrix.py", "Cargo.lock",
+        "tests/db/", "tools/db-matrix.py", "Cargo.toml", "Cargo.lock",
         ".github/workflows/",
     ),
 }
+
+
+def db_lane(base):
+    """`LANES["db"]` with the packages the matrix builds. They are read rather than listed: the
+    list this replaced named four crates and not `nvs-runtime` or `nvs-host`, which `nvs-db` is
+    compiled against, so an edit to either ran no database leg. The workspace packages
+    `tools/db-matrix.py` names are what it runs; `impact.closure` is what those are compiled
+    against. With no readable graph the lane is every crate, which is the wide direction."""
+    graph = impact.manifest_graph()
+    names = impact.named_in(graph, "tools/db-matrix.py")
+    if not names:
+        return base + ("crates/", "benches/")
+    built = set(names)
+    for name in names:
+        built |= impact.closure(graph, name)
+    return base + tuple(sorted(f"{graph[n]['dir']}/" for n in built))
+
+
+LANES["db"] = db_lane(LANES["db"])
 
 ZERO = "0" * 40
 
