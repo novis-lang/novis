@@ -1,0 +1,22 @@
+<?nvs
+// Adds a shipping fee to every price in a small basket, as a shop does before it shows a total.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<int> $prices = [350, 420, 90];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The fee comes from last round's result, so no round can be reused.
+            int $fee = ($total % 3) as int;
+            array<int> $charged = Core\Arr::map($prices, fn(int $cents): int => $cents + $fee);
+            $total = $total + (($charged[0] % 7) as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

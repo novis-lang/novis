@@ -1,0 +1,61 @@
+<?nvs
+// Attack: `Core\Arr::map` runs a function the program wrote, once per entry, and
+// keeps every value it returns. Each step below gives it a function written to
+// break that walk. Every step should finish, and the last one should stop the
+// program at its memory limit. The runtime must not crash.
+// hostile: timeout-ms 60000
+// hostile: ends-early
+
+class Attack
+{
+    public static uint $depth = 0;
+
+    // Throws instead of answering a value for the entry it is given.
+    public static function refuse(int $n): int
+    {
+        throw new LogicError('no');
+    }
+
+    // Maps a one-entry array with a function that does the same again, until the
+    // runtime stops it.
+    public static function deeper(int $n): int
+    {
+        Attack::$depth = Attack::$depth + 1;
+        return Core\Arr::count(Core\Arr::map([$n], fn(int $m) => Attack::deeper($m))) as int;
+    }
+}
+
+// 1. The function throws on the first entry. Half a result is built and then
+// thrown away. The error is caught, and nothing of it is left behind.
+array<int> $numbers = [4, 11, 7, 20];
+try {
+    array<int> $never = Core\Arr::map($numbers, fn(int $n) => Attack::refuse($n));
+    echo 'step 1: ', Core\Arr::count($never), "\n";
+} catch (LogicError $error) {
+    echo 'step 1: threw', "\n";
+}
+
+// 2. The function maps an array of its own, as deeply as it can. The runtime
+// stops it at its recursion limit, and that error is caught.
+try {
+    array<int> $nested = Core\Arr::map([1], fn(int $n) => Attack::deeper($n));
+    echo 'step 2: ', Core\Arr::count($nested), "\n";
+} catch (RecursionError $stopped) {
+    echo 'step 2: stopped after ', Attack::$depth, ' calls', "\n";
+}
+
+// 3. All 400000 entries are replaced by a text of 200 characters, so the result
+// is much larger than the array it came from.
+array<int> $wide = [];
+int $i = 0;
+while ($i < 400000) {
+    $wide[] = $i;
+    $i = $i + 1;
+}
+array<string> $padded = Core\Arr::map($wide, fn(int $n) => Core\Str::repeat('a', 200));
+echo 'step 3: ', Core\Arr::count($padded), "\n";
+
+// 4. Every entry is replaced by a text of ten million characters. The program
+// should stop at its memory limit.
+array<string> $huge = Core\Arr::map($wide, fn(int $n) => Core\Str::repeat('b', 10000000));
+echo 'step 4: ', Core\Arr::count($huge), "\n";

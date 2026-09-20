@@ -1,0 +1,11 @@
+<?nvs
+// Removes the spaces around every field a form sent. A program does this before
+// it saves the values or compares them with something else.
+
+array<string> $form = ['name' => '  Ida Weber ', 'city' => 'Bonn  '];
+array<string> $clean = Core\Arr::map($form, fn(string $value) => Core\Str::trim($value));
+
+// This prints `name: [Ida Weber]` and `city: [Bonn]`.
+foreach ($clean as string $field => string $value) {
+    echo $field, ': [', $value, ']', "\n";
+}

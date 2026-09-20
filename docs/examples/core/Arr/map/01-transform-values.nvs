@@ -1,5 +1,10 @@
 <?nvs
+// Shows how to replace every value in an array. `Core\Arr::map` calls the
+// function once per entry and collects what it returns.
+
 var $squares = Core\Arr::map([1, 2, 3, 4], fn(int $n): int => $n * $n);
+
+// This prints 1, 4, 9 and 16, one per line.
 foreach ($squares as int $v) {
     echo $v, "\n";
 }

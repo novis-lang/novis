@@ -1,11 +1,13 @@
 <?nvs
-// map keeps every key; the callback may also take the key as its second
-// parameter — no ARRAY_FILTER_USE_BOTH flags anywhere.
+// Shows a function that reads the key as well as the value. `Core\Arr::map`
+// gives it both, and the result keeps every key of the array it came from.
+
 array<int> $prices = ["coffee" => 350, "cake" => 420];
 
 var $labels = Core\Arr::map($prices, fn(int $cents, string $item): string
     => $item . ": " . Core\Str::format("%.2f", $cents / 100.0));
 
+// This prints `coffee: 3.50` and `cake: 4.20`.
 foreach ($labels as string $line) {
     echo $line, "\n";
 }

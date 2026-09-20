@@ -70,6 +70,25 @@
 //! false and no `by` closure declaring a second parameter, nothing downstream
 //! can observe a key, so its walk collects none rather than collecting and
 //! discarding them.
+//!
+//! # Known gaps
+//!
+//! 1. **A callback that reshapes the subject reshapes what the walk is
+//!    reading.** Every member here borrows its subject ([`crate`]'s *Arguments
+//!    are borrowed, never consumed*), so a subject reached through a static or
+//!    instance property has no second reference while the member holds it: a
+//!    predicate appending to that property appends under the cursor, and
+//!    [`nvs_core_arr_filter`] over it walks the entries it is adding until the
+//!    request's memory limit. PHP's `array_filter` walks its own copy and
+//!    ends, and Novis's own `foreach` holds a reference for the loop's length
+//!    so the body's write copies first. The fix is one retained reference for
+//!    the length of the walk in every member that calls back into Novis code,
+//!    which prices a refcount pair onto every one of those calls and is a
+//!    decision about the helper convention rather than about one member.
+//!    `tests/hostile/core/Arr/filter/01-predicates-written-to-break-the-walk.nvs`
+//!    step 4 is the attack, and it passes: the ending is the memory ceiling
+//!    rather than a crash.
+//!    — owner: M11
 
 use nvs_runtime::{Ctx, Decimal, Fault, NvsArray, NvsStr, SlotKey, Tag, ThrownClass, Value};
 
@@ -8161,5 +8180,201 @@ mod tests {
 
         dropped(filler);
         dropped(subject);
+    }
+
+    /// What [`nvs_core_arr_count`] reports for `subject`, beside the number of
+    /// entries a cursor walk finds in it.
+    ///
+    /// Consumes the one reference the caller built: the handle below takes it
+    /// over and releases it on drop.
+    fn counted_and_walked(subject: Value) -> (u64, u64) {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let counted = call(super::nvs_core_arr_count, &mut ctx, &[subject])
+            .expect("counting an array never fails")
+            .as_uint()
+            .expect("the member returns a uint");
+        #[expect(
+            unsafe_code,
+            reason = "the handle takes over the one reference the caller built \
+                      above, and releases it on drop"
+        )]
+        let array = unsafe { NvsArray::from_raw(subject.array_ptr().expect("an array")) };
+        let mut walked = 0u64;
+        let mut from = 0usize;
+        while let Some(slot) = array.next_slot(from) {
+            walked += 1;
+            from = slot + 1;
+        }
+        (counted, walked)
+    }
+
+    /// A one-parameter callback answering a fresh forty-character text for every
+    /// entry it is shown.
+    ///
+    /// Long enough that the answer is a heap allocation of its own, which is
+    /// what [`map_answers_are_stored_with_the_one_reference_they_arrived_with`]
+    /// reads a reference count off.
+    ///
+    /// The sweep of the two references is not optional, for
+    /// [`below_ten`]'s reason.
+    #[expect(
+        unsafe_code,
+        reason = "`call_closure` passes the receiver and one argument, each \
+                  retained for this callee to release, and `abi::call` passes \
+                  the address of a live `Value` for the result — neither is \
+                  expressible in the signature compiled code calls through"
+    )]
+    unsafe extern "C" fn labels_every_entry(
+        _ctx: *mut Ctx,
+        args: *const Value,
+        out: *mut Value,
+    ) -> i32 {
+        for index in 0..2 {
+            dropped(unsafe { *args.add(index) });
+        }
+        unsafe {
+            *out = Value::str(NvsStr::new(b"a label long enough to be its own text"));
+        }
+        nvs_runtime::OK
+    }
+
+    /// Every entry of a mapped result holds exactly one reference to the value
+    /// the callback answered with, under the subject's own key.
+    ///
+    /// **Only the Rust side can see this.** A retain on the way into the result
+    /// would leave every mapped value one reference over, which is a leak per
+    /// entry and prints nothing wrong from Novis: the values are right, the keys
+    /// are right, and the program ends. [`nvs_core_arr_map`]'s docs state the
+    /// rule this reads — the callback's answer is already owned by the frame
+    /// storing it, which is what makes `map` different from
+    /// [`nvs_core_arr_filter`].
+    // covers: Core\Arr::map
+    #[test]
+    fn map_answers_are_stored_with_the_one_reference_they_arrived_with() {
+        let mut ctx = Ctx::buffered();
+        let subject = mixed_keys();
+        let mapper = closure_of(1, labels_every_entry);
+
+        let result = call(super::nvs_core_arr_map, &mut ctx, &[subject, mapper])
+            .expect("this callback never fails");
+        #[expect(
+            unsafe_code,
+            reason = "the handle takes over the one reference the member \
+                      answered with, and releases it on drop"
+        )]
+        let mapped =
+            unsafe { NvsArray::from_raw(result.array_ptr().expect("map answers an array")) };
+        let mut entries = Vec::new();
+        let mut from = 0usize;
+        while let Some(slot) = mapped.next_slot(from) {
+            let key = mapped.key_at(slot).expect("a live entry has a key");
+            let value = mapped.value_at(slot).expect("a live entry has a value");
+            #[expect(
+                unsafe_code,
+                reason = "the entry owns the text for as long as this array \
+                          holds it, and the handle above holds the array"
+            )]
+            let references = unsafe {
+                NvsStr::refcount_of(value.str_ptr().expect("the callback answers a text"))
+            };
+            entries.push((key.as_bytes().to_vec(), references));
+            from = slot + 1;
+        }
+        assert_eq!(
+            entries,
+            vec![(b"x".to_vec(), 1), (b"10".to_vec(), 1), (b"y".to_vec(), 1)]
+        );
+
+        dropped(subject);
+        dropped(mapper);
+    }
+
+    /// A one-parameter predicate keeping every entry whose value is not `"b"`,
+    /// and answering with an `int` where a program could only write a `bool`.
+    ///
+    /// The verdict is what this fixture is for: [`nvs_core_arr_filter`] reads it
+    /// through `nvs_runtime::value_truthy`, so `7` keeps an entry and `0` drops
+    /// one, and a member reading the slot's own tag as a `bool` finds neither.
+    ///
+    /// The sweep of the two references is not optional, for
+    /// [`below_ten`]'s reason.
+    #[expect(
+        unsafe_code,
+        reason = "`call_closure` passes the receiver and one argument, each \
+                  retained for this callee to release, and `abi::call` passes \
+                  the address of a live `Value` for the result — neither is \
+                  expressible in the signature compiled code calls through"
+    )]
+    unsafe extern "C" fn keeps_what_is_not_b(
+        _ctx: *mut Ctx,
+        args: *const Value,
+        out: *mut Value,
+    ) -> i32 {
+        let entry = unsafe { *args.add(1) };
+        let keep = entry.as_str_bytes() != Some(&b"b"[..]);
+        for index in 0..2 {
+            dropped(unsafe { *args.add(index) });
+        }
+        unsafe {
+            *out = Value::int(if keep { 7 } else { 0 });
+        }
+        nvs_runtime::OK
+    }
+
+    /// The result carries the subject's own keys, and a verdict that is not a
+    /// `bool` decides an entry the way a condition would.
+    ///
+    /// **Both halves need the Rust side.** The registry row declares
+    /// `callable(T, string): bool`, so no program can hand this member an `int`
+    /// verdict, and nothing reachable from Novis tells a member reading
+    /// `nvs_runtime::value_truthy` from one reading the slot's tag. The keys
+    /// ride along because `"10"` is the key a renumbering would leave looking
+    /// plausible: a member that rebuilt the result as a list would answer the
+    /// same two values in the same order under `"0"` and `"1"`.
+    // covers: Core\Arr::filter
+    #[test]
+    fn filter_keeps_the_subject_keys_and_reads_a_verdict_that_is_not_a_bool() {
+        let mut ctx = Ctx::buffered();
+        let subject = mixed_keys();
+        let predicate = closure_of(1, keeps_what_is_not_b);
+
+        let result = call(super::nvs_core_arr_filter, &mut ctx, &[subject, predicate])
+            .expect("this predicate never fails");
+        assert_eq!(
+            entries_of(result),
+            vec![
+                (b"x".to_vec(), b"a".to_vec()),
+                (b"y".to_vec(), b"c".to_vec())
+            ]
+        );
+
+        dropped(subject);
+        dropped(predicate);
+    }
+
+    /// The count is the number of live entries, and it agrees with the cursor a
+    /// `foreach` walks over every shape of key this module builds.
+    ///
+    /// **Counted against that walk rather than read off a literal alone.** A
+    /// member reporting the highest key plus one is right on a packed list and
+    /// wrong on the subject whose two keys are a million apart, and one
+    /// reporting how many `set` calls were made is wrong where the second call
+    /// named a key the first had already written. Both still report a plausible
+    /// number on their own line, so the walk is what tells them apart.
+    // covers: Core\Arr::count
+    #[test]
+    fn count_agrees_with_the_walk_over_gaps_overwrites_and_the_empty_array() {
+        assert_eq!(counted_and_walked(Value::array(NvsArray::new())), (0, 0));
+        assert_eq!(counted_and_walked(mixed_keys()), (3, 3));
+
+        let mut far = NvsArray::new();
+        far.set(NvsStr::new(b"0"), Value::int(1));
+        far.set(NvsStr::new(b"1000000"), Value::int(2));
+        assert_eq!(counted_and_walked(Value::array(far)), (2, 2));
+
+        let mut overwritten = NvsArray::new();
+        overwritten.set(NvsStr::new(b"x"), Value::int(1));
+        overwritten.set(NvsStr::new(b"x"), Value::int(2));
+        assert_eq!(counted_and_walked(Value::array(overwritten)), (1, 1));
     }
 }
