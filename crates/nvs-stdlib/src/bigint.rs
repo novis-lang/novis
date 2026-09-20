@@ -34,11 +34,11 @@
 //! `toString` renders in radix 10 and `compareTo` orders two values, so
 //! [`crate::instance::descriptors`] derives this class's `renderer` and
 //! `comparer` from the registry the way it does for every other `Core` class —
-//! `echo`, `<=>`, `<`, `>`, `<=` and `>=` therefore follow
+//! `echo`, `<=>`, `<`, `>`, `<=`, `>=` and `Core\Arr::sort` therefore follow
 //! `rule:classes/stringable` and `rule:classes/comparable` with no rule of this
-//! class's own. `Core\Arr::sort` is **not** in that list: [`crate::ordering`]'s
-//! natural order has no row for an object at all, its own docs say why, and a
-//! sort over these takes `{comparator: ...}` until it does.
+//! class's own. The sort is in that list because [`crate::ordering`]'s natural
+//! order sends two objects to `rule:classes/comparable`'s `compareTo`, so a
+//! sort over these needs no `{comparator: ...}`.
 //!
 //! **There are no operators.** `$a + $b` over two objects is the compile error
 //! it is for any class, because Novis has no operator overloading (ADR 0054's
@@ -1255,6 +1255,172 @@ mod tests {
                 "Core\\BigInt::toInt(): 9223372036854775808 is outside the `int` range".to_owned()
             )
         );
+    }
+
+    /// `compareTo` answers one of exactly three values, reverses when its
+    /// operands do, and agrees with the order of the magnitudes behind them —
+    /// counted over every pair of a table rather than read off a line, so a pair
+    /// that happened to answer plausibly cannot carry the row. The two entries
+    /// that differ in their lowest bit alone are what a comparison stopping at
+    /// the first word would call equal.
+    // covers: Core\BigInt::compareTo
+    #[test]
+    fn compare_to_is_three_valued_and_reverses_with_its_operands() {
+        let table = [
+            BigInt::from(0),
+            BigInt::from(-1),
+            BigInt::from(1),
+            BigInt::from(i64::MIN),
+            BigInt::from(i64::MAX),
+            (BigInt::from(1) << 300) - BigInt::from(1),
+            BigInt::from(1) << 300,
+        ];
+
+        let mut ctx = Ctx::buffered();
+        let mut pairs = 0usize;
+        let mut three_valued = 0usize;
+        let mut reversed = 0usize;
+        let mut ordered = 0usize;
+        for left in &table {
+            for right in &table {
+                pairs += 1;
+                let forward = call(
+                    nvs_core_bigint_compare_to,
+                    &mut ctx,
+                    &[
+                        built(left).expect("a table magnitude is affordable"),
+                        built(right).expect("a table magnitude is affordable"),
+                    ],
+                )
+                .expect("every pair orders")
+                .as_int()
+                .expect("the answer is an `int`");
+                let backward = call(
+                    nvs_core_bigint_compare_to,
+                    &mut ctx,
+                    &[
+                        built(right).expect("a table magnitude is affordable"),
+                        built(left).expect("a table magnitude is affordable"),
+                    ],
+                )
+                .expect("either order orders")
+                .as_int()
+                .expect("the answer is an `int`");
+                if (-1..=1).contains(&forward) {
+                    three_valued += 1;
+                }
+                if forward == -backward {
+                    reversed += 1;
+                }
+                if forward == ordering(left.cmp(right)).as_int().expect("an `int`") {
+                    ordered += 1;
+                }
+            }
+        }
+        assert_eq!(pairs, table.len() * table.len());
+        assert_eq!((three_valued, reversed, ordered), (pairs, pairs, pairs));
+    }
+
+    /// `add` answers the same sum in either order and grows one by at most a
+    /// single bit past its wider operand — the bound this module's § *Decision:
+    /// one call may not explode* rests on when it leaves `add` unchecked, and
+    /// the only place it is asserted. Counted over a sign sweep that includes
+    /// both ends of the `int` range, so a pair that happened to answer plausibly
+    /// cannot carry the row on its own.
+    // covers: Core\BigInt::add
+    #[test]
+    fn add_is_commutative_and_grows_by_one_bit_at_most() {
+        const SWEEP: [(i64, i64); 9] = [
+            (0, 0),
+            (7, 5),
+            (-7, 5),
+            (7, -5),
+            (-7, -5),
+            (i64::MAX, i64::MAX),
+            (i64::MIN, i64::MIN),
+            (i64::MAX, i64::MIN),
+            (i64::MIN, 1),
+        ];
+
+        let mut ctx = Ctx::buffered();
+        let mut summed = 0usize;
+        let mut commuted = 0usize;
+        let mut bounded = 0usize;
+        for (left, right) in SWEEP {
+            let forward = read(
+                call(nvs_core_bigint_add, &mut ctx, &[of(left), of(right)])
+                    .expect("every pair sums"),
+            );
+            let backward = read(
+                call(nvs_core_bigint_add, &mut ctx, &[of(right), of(left)])
+                    .expect("either order sums"),
+            );
+            if forward == BigInt::from(left) + BigInt::from(right) {
+                summed += 1;
+            }
+            if backward == forward {
+                commuted += 1;
+            }
+            let widest = BigInt::from(left).bits().max(BigInt::from(right).bits());
+            if forward.bits() <= widest + 1 {
+                bounded += 1;
+            }
+        }
+        assert_eq!(
+            (summed, commuted, bounded),
+            (SWEEP.len(), SWEEP.len(), SWEEP.len())
+        );
+    }
+
+    /// `abs` never answers a negative, keeps the magnitude it was handed and
+    /// agrees with itself when applied twice — asserted by **counting** over a
+    /// sign sweep rather than read off a line, so a member that answered
+    /// plausibly on the row everyone checks first still fails here. The floor of
+    /// the `int` range is named on its own afterwards: it is the one value
+    /// `Core\Math::abs` refuses, and this member is total there.
+    // covers: Core\BigInt::abs
+    #[test]
+    fn abs_is_never_negative_and_is_total_at_the_int_floor() {
+        const SWEEP: [i64; 7] = [i64::MIN, -9, -1, 0, 1, 9, i64::MAX];
+
+        let mut ctx = Ctx::buffered();
+        let mut non_negative = 0usize;
+        let mut same_magnitude = 0usize;
+        let mut idempotent = 0usize;
+        for value in SWEEP {
+            let once = read(
+                call(nvs_core_bigint_abs, &mut ctx, &[of(value)]).expect("every value has one"),
+            );
+            let again = read(
+                call(
+                    nvs_core_bigint_abs,
+                    &mut ctx,
+                    &[built(&once).expect("a one-word magnitude is affordable")],
+                )
+                .expect("a magnitude has one too"),
+            );
+            let held = BigInt::from(value);
+            let flipped = -held.clone();
+            if once.sign() != Sign::Minus {
+                non_negative += 1;
+            }
+            if once == held || once == flipped {
+                same_magnitude += 1;
+            }
+            if again == once {
+                idempotent += 1;
+            }
+        }
+        assert_eq!(
+            (non_negative, same_magnitude, idempotent),
+            (SWEEP.len(), SWEEP.len(), SWEEP.len())
+        );
+
+        let floor = read(
+            call(nvs_core_bigint_abs, &mut ctx, &[of(i64::MIN)])
+                .expect("the smallest `int` has a magnitude here"),
+        );
+        assert_eq!(floor.to_string(), "9223372036854775808");
     }
 
     /// The two members the engine reaches by name rather than through the
