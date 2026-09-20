@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to build a set. Looking up a key stays fast as the set grows, so
+// this is what you want when you test many values against one list.
+
+array<string> $formats = ['png', 'jpeg', 'webp'];
+array<bool> $allowed = Core\Arr::fillKeys($formats, true);
+
+// This prints "png is allowed".
+if (Core\Arr::hasKey($allowed, 'png')) {
+    echo "png is allowed\n";
+}
+
+// This prints "gif is not allowed".
+if (!Core\Arr::hasKey($allowed, 'gif')) {
+    echo "gif is not allowed\n";
+}

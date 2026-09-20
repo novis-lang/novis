@@ -1,0 +1,23 @@
+<?nvs
+// Attack: a program builds arrays from key lists that are far too long. The
+// last step should stop with an error, and the program must not crash.
+// hostile: timeout-ms 20000
+// hostile: ends-early
+
+// 1. One key of a million characters. The result holds one entry.
+string $long = Core\Str::repeat('k', 1000000);
+array<string> $wide = Core\Arr::fillKeys([$long], 'v');
+echo 'long key ', Core\Arr::count($wide), "\n";
+
+// 2. Two hundred thousand keys that are all the same key. The same key twice
+// is one entry, so the result holds one entry.
+array<int> $same = Core\Arr::fill(200000, 7);
+array<string> $collapsed = Core\Arr::fillKeys($same, 'v');
+echo 'duplicates ', Core\Arr::count($collapsed), "\n";
+
+// 3. Eight million keys. The list of keys fits in memory, and the line below
+// prints its length. The array built from it stops at the memory limit.
+array<int> $many = Core\Arr::range(1, 8000000);
+echo 'keys ', Core\Arr::count($many), "\n";
+Core\Arr::fillKeys($many, 'v');
+echo "filled\n";

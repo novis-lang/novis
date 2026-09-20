@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to count orders by their state. Every state starts at 0, so a
+// state that no order has still appears in the result.
+
+array<string> $states = ['new', 'paid', 'shipped'];
+array<int> $counts = Core\Arr::fillKeys($states, 0);
+
+array<string> $orders = ['paid', 'new', 'paid'];
+foreach ($orders as string $state) {
+    $counts[$state] = $counts[$state] + 1;
+}
+
+// This prints "new: 1", "paid: 2" and "shipped: 0".
+foreach ($counts as string $state => int $count) {
+    echo $state, ': ', $count, "\n";
+}

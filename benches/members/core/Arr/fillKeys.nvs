@@ -1,0 +1,22 @@
+<?nvs
+// Builds a small array that holds one value under each of a few names. A
+// program does this before it fills in the answers a form sent.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $fields = ['name', 'email', 'street', 'city', 'country', 'phone'];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Last round's total decides the value, so no round can be reused.
+            array<uint> $form = Core\Arr::fillKeys($fields, $total % 7 + 1);
+            $total = $total + $form['city'];
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";
