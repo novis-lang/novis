@@ -1,0 +1,35 @@
+<?nvs
+// Shows the second argument of `Core\Attributes::get`. It names one property
+// or one parameter, and you then get the attributes on that one.
+
+type Column = {name: string};
+type Range = {min: int, max: int};
+
+class Product {
+    #[Column(name: "product_title")]
+    public string $title = "";
+
+    public function discount(#[Range(min: 0, max: 90)] int $percent): int {
+        return $percent;
+    }
+}
+
+// A property of a class. `Product::constructor(...)` names the class, and
+// `"title"` names the property. This prints `product_title`.
+?Column $column = Core\Attributes::get<Column>(Product::constructor(...), "title");
+if ($column != null) {
+    echo $column->name, "\n";
+}
+
+// A parameter of a method. `Product::discount(...)` names the method, and
+// `"percent"` names the parameter. This prints `0 to 90`.
+?Range $range = Core\Attributes::get<Range>(Product::discount(...), "percent");
+if ($range != null) {
+    echo $range->min, " to ", $range->max, "\n";
+}
+
+// The name must be written out, as it is above. If you write a variable there,
+// the result is `null`.
+string $field = "title";
+?Column $computed = Core\Attributes::get<Column>(Product::constructor(...), $field);
+echo $computed == null ? "null\n" : "a column name\n";

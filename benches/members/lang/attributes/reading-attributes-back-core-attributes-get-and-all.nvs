@@ -1,0 +1,42 @@
+<?nvs
+// Measures reading attributes back: one value with `get`, a list of three with
+// `all`, and one more read off a parameter. A router does this for every method
+// it knows about when the program starts.
+// bench: iterations 200000
+// bench: calls 0
+// bench: allocations 8
+
+type Route = {path: string};
+type Middleware = {name: string};
+
+class Orders {
+    #[Route(path: "/orders/{id}")]
+    #[Middleware(name: "auth")]
+    #[Middleware(name: "throttle")]
+    #[Middleware(name: "audit")]
+    public function show(#[{max: 64}] int $id): int { return $id; }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            ?Route $route = Core\Attributes::get<Route>(Orders::show(...));
+            array<Middleware> $layers = Core\Attributes::all<Middleware>(Orders::show(...));
+            ?{max: int} $limit = Core\Attributes::get<{max: int}>(Orders::show(...), 'id');
+            if ($route != null) {
+                if ($limit != null) {
+                    // Chained: the length counted this round is picked with the
+                    // total from the round before.
+                    $total = $total + Core\Str::length($route->path) + $total % 2;
+                    $total = $total + Core\Arr::count($layers) + ($limit->max as uint);
+                }
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

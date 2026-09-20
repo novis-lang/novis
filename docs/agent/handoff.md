@@ -2,13 +2,18 @@
 
 ## State
 
-Goal `lang-attributes`, 3 of the group's **8** features complete in `python tools/dossier.py --gate
+Goal `lang-attributes`, 4 of the group's **8** features complete in `python tools/dossier.py --gate
 --group lang:attributes`: `an-attribute-is-a-shape-literal-attached-to-a-declaration`,
-`core-api-and-the-openapi-document` and `core-command-and-core-option-the-command-table`. Nothing is
-blocked. (An earlier handoff said the goal held three features; the group holds eight, and
-`--gate --group lang:attributes` is the list.)
+`core-api-and-the-openapi-document`, `core-command-and-core-option-the-command-table` and
+`reading-attributes-back-core-attributes-get-and-all`. Nothing is blocked.
 
-Two things the two landed features settled, so the next session does not re-derive them. **A `lang:`
+The retrieval slice found and fixed a real bug: a `$member` argument that is not a string literal was
+ignored, so the retrieval answered the *target's own* roster instead of the empty result
+`rule:attributes/structural-retrieval` fixes for that case. The fix is
+`crates/nvs-types/src/retrieval.rs:347`, and the module doc there already stated the intended
+behaviour, so nothing in `docs/` moved.
+
+Two things the landed features settled, so the next session does not re-derive them. **A `lang:`
 feature whose perf figure is measured goes stale when `docs/reference/lang/90-attributes.md` is
 edited** — that chapter is what every `lang:attributes/…` feature is "implemented at" — so a slice
 that corrects the chapter re-measures with `--record-perf --only` before it wraps. And **`#[Core\Api]`
@@ -16,45 +21,33 @@ has no runtime surface at all**: `Core\Attributes::get` answers `null` for it, s
 `[skip]` entry in `tools/data/dossier-policy.toml` with the reason, while `#[Core\Command]` and
 `#[Core\Option]` *are* readable and carry a real bench.
 
-One bug found and not fixed here: a folded `null` read straight through `?->` throws instead of
-short-circuiting. It is a lowering bug rather than a `Core\Attributes` one, its anchor is
-`crates/nvs-ir/src/lower/expr.rs:1118`, and the playbook carries the workaround. It is in the
-backlog below rather than in a `# Known gaps` section, because `python tools/owners.py --check`
-refuses a gap that names no milestone at M9 or later and no milestone owns this.
-
 ## Next group
 
-**Stage 2: the dossier, three features over one reference chapter** — one file set:
-`docs/reference/lang/90-attributes.md`, `docs/examples/lang/attributes/`,
-`tests/hostile/lang/attributes/`, `benches/members/lang/attributes/`, `tests/conformance/core/`.
-All three read the chapter the same way and all three are `Core\Attributes`-shaped, so the proofs
-share their idiom with the two that landed.
+**Stage 2: the dossier, the compiler-read attribute names over one reference chapter** — one file
+set: `docs/reference/lang/90-attributes.md`, `docs/examples/lang/attributes/`,
+`tests/hostile/lang/attributes/`, `benches/members/lang/attributes/`, `tests/conformance/lang/`.
+All three read the same chapter and all three are about attributes the *compiler* acts on, so the
+proofs share their idiom with the four that landed.
 
-- [ ] **`lang:attributes/reading-attributes-back-core-attributes-get-and-all`** — owes about,
-      examples, hostile, perf, tests. The members' own reference card and the structural-match rule
-      are at `docs/reference/lang/90-attributes.md:92`; the registry row, the `$member` contract and
-      the new `# Known gaps` item are `crates/nvs-stdlib/src/attributes.rs:1`.
-      `rule:attributes/structural-retrieval` is what the written-vs-computed `$member` proof owes.
 - [ ] **`lang:attributes/the-names-the-compiler-acts-on`** — owes about, examples, hostile, perf,
-      tests. The roster of compiler-recognized names is at
-      `docs/reference/lang/90-attributes.md:115`; `rule:attributes/attach-sites-and-forms` is why a
-      userland shape that looks like one is not one.
-- [ ] **`lang:attributes/core-program-implementing-i-every-class-implementing-an-interface`** — owes
-      about, examples, hostile, perf, tests. The chapter's own worked example is at
-      `docs/reference/lang/90-attributes.md:533`, and `crates/nvs-stdlib/src/program.rs:1` says why
-      the call never runs. `tests/conformance/core/command-a-table-reads-back-every-command-and-option-a-program-declares.nvst`
-      already drives `implementing<I>()` in one file, which is the idiom an example wants.
+      tests. `rule:attributes/inert-metadata` is the line between an inert attribute and one the
+      compiler reads; the closed set and the `<!-- generated: attributes -->` table are at
+      `docs/reference/lang/90-attributes.md:115`, and the roster the table is generated from is
+      `crates/nvs-types/src/attributes.rs:1`.
+- [ ] **`lang:attributes/core-route-and-core-access-the-route-table`** — owes about, examples,
+      hostile, perf, tests. `rule:attributes/access-is-a-required-sibling` and
+      `rule:attributes/access-payload` are what the pair owes; the option roster for both is
+      `docs/reference/lang/90-attributes.md:244`.
+- [ ] **`lang:attributes/core-program-implementing-i-every-class-implementing-an-interface`** —
+      owes about, examples, hostile, perf, tests. `rule:programs/implementing` is the rule; the
+      member's reference card is `docs/reference/lang/90-attributes.md:533`.
 
 ## Backlog
 
-- `lang:attributes/core-route-and-core-access-the-route-table` and
-  `…/core-json-derive-and-core-json-field-a-class-with-a-json-codec` are the group's last two, and
-  both have landed conformance cases to build on (`tests/conformance/core/a-route-table-…`,
-  `…/json-derive-encodes-declared-fields.nvst`) — `docs/agent/goals/` owns the order.
-- **A folded `null` read through `?->` throws.** `open_nullsafe`
-  (`crates/nvs-ir/src/lower/expr.rs:1118`) returns no guard unless the receiver lowered to
-  `Ty::Tagged`, so `Core\Attributes::get<S>(C::m(...))?->field` reads a null. One slice, with a
-  `.nvst` case pinning both spellings.
-- `docs/reference/lang/90-attributes.md`'s `#[Core\Api]` paragraph and its JSON block were both
-  stale about what the emitted document carries; the rest of the chapter was not re-read against the
-  binary.
+- A folded `null` read straight through `?->` throws instead of short-circuiting; anchor
+  `crates/nvs-ir/src/lower/expr.rs:1118`, workaround in `docs/agent/playbook.md`. No milestone at M9
+  or later owns it, so `python tools/owners.py --check` refuses it as a recorded gap.
+- `lang:attributes/core-json-derive-and-core-json-field-a-class-with-a-json-codec` is the fourth
+  feature this group still owes; `docs/reference/lang/90-attributes.md:129`.
+- An explicitly written `Core\Attributes::get<T>($target, "")` is `E0798` while omitting the
+  argument is fine, because the default is `""`. No rule states which is right.
