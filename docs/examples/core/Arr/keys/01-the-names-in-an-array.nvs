@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to read the keys of an array.
+
+array<string> $user = ["name" => "Ada", "city" => "Wien", "job" => "engineer"];
+
+// The keys come back in the order they were put in. This prints
+// name, city, job.
+echo Core\Str::join(Core\Arr::keys($user), ", "), "\n";
+
+foreach (Core\Arr::keys($user) as string $key) {
+    echo $key, " = ", $user[$key], "\n";
+}
