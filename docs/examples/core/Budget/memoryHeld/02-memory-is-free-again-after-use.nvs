@@ -1,0 +1,23 @@
+<?nvs
+// Shows that memory is free again as soon as your program stops using a value.
+// Novis frees a value when nothing uses it any more, so the figure goes down
+// during the program.
+
+uint $start = Core\Budget::memoryHeld();
+
+array<string> $lines = [];
+int $i = 0;
+while ($i < 20000) {
+    $lines[] = "one line of a report";
+    $i = $i + 1;
+}
+uint $full = Core\Budget::memoryHeld();
+
+// The report is written, so the program clears the list.
+$lines = [];
+uint $cleared = Core\Budget::memoryHeld();
+
+// This prints "yes" twice. Building the list raised the figure, and clearing
+// the list lowered it again.
+echo $full > $start ? "yes\n" : "no\n";
+echo $cleared < $full ? "yes\n" : "no\n";

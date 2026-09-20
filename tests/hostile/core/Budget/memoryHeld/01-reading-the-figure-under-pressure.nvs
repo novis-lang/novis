@@ -1,0 +1,36 @@
+<?nvs
+// Attack: the figure is read a million times, and again around a list of two
+// million strings. Reading it must not use memory itself, and the figure must
+// follow the memory the program really uses. The program should run to its
+// last line.
+
+// 1. The figure is read 1000000 times. Reading it uses no memory, so the
+//    figure at the end is still near where it started. This prints 1.
+uint $before = Core\Budget::memoryHeld();
+uint $sum = 0;
+int $i = 0;
+while ($i < 1000000) {
+    $sum = $sum + Core\Budget::memoryHeld();
+    $i = $i + 1;
+}
+echo Core\Budget::memoryHeld() < $before + 65536 ? 1 : 0, "\n";
+
+// 2. A list of two million strings is built. The figure must rise with it, so
+//    this prints 1.
+array<string> $rows = [];
+$i = 0;
+while ($i < 2000000) {
+    $rows[] = 'a row';
+    $i = $i + 1;
+}
+uint $full = Core\Budget::memoryHeld();
+echo $full > $before ? 1 : 0, "\n";
+
+// 3. The list is freed. The figure must fall back below what the full list
+//    used, so this prints 1.
+$rows = [];
+echo Core\Budget::memoryHeld() < $full ? 1 : 0, "\n";
+
+// 4. The sum of a million readings is far larger than any single reading. It
+//    must not have turned into a small number on the way, so this prints 1.
+echo $sum > $before ? 1 : 0, "\n";

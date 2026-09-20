@@ -202,6 +202,7 @@ mod tests {
     /// class is for: a member answering plausibly on its own line still fails
     /// here if `memoryPeak` is `memoryHeld` under another name, which is the
     /// shape the rule refuses.
+    // covers: Core\Budget::memoryHeld, Core\Budget::memoryPeak, Core\Budget::memoryLimit
     #[test]
     fn the_peak_outlives_the_spike_the_held_figure_gives_back() {
         let mut ctx = Ctx::new(OutputSink::Sink);
@@ -235,6 +236,7 @@ mod tests {
     /// The rule names this reading explicitly, and it is the one value a caller
     /// has to branch on: `peak * 10 > limit * 9` is false for every request
     /// under no cap, which is the intended answer.
+    // covers: Core\Budget::memoryLimit
     #[test]
     fn an_uncapped_request_reads_a_ceiling_of_zero() {
         let mut ctx = Ctx::new(OutputSink::Sink);

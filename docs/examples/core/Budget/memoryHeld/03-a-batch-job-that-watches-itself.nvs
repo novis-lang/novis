@@ -1,0 +1,27 @@
+<?nvs
+// Shows how a job that runs in batches watches its own memory. It reads the
+// figure before each batch. It stops early when it has used half of the limit.
+
+uint $limit = Core\Budget::memoryLimit();
+array<string> $batch = [];
+int $done = 0;
+
+while ($done < 8) {
+    // A limit of 0 means there is no limit, so that program never stops early.
+    if ($limit > 0 && Core\Budget::memoryHeld() * 2 > $limit) {
+        break;
+    }
+
+    // Each batch replaces the one before it, so the memory of the last batch
+    // is free again.
+    $batch = [];
+    int $row = 0;
+    while ($row < 5000) {
+        $batch[] = "invoice row " . $row;
+        $row = $row + 1;
+    }
+    $done = $done + 1;
+}
+
+// Every batch is small, so all eight of them run. This prints 8.
+echo $done, "\n";
