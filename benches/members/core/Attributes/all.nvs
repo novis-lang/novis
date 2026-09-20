@@ -1,0 +1,32 @@
+<?nvs
+// Measures reading the whole list of attributes off one method, as a router does
+// for every handler it knows about when the program starts.
+// bench: iterations 200000
+// bench: calls 0
+// bench: allocations 8
+
+type Middleware = {name: string};
+
+class Orders {
+    #[Middleware(name: "auth")]
+    #[Middleware(name: "throttle")]
+    #[Middleware(name: "audit")]
+    public function show(int $id): int { return $id; }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            array<Middleware> $layers = Core\Attributes::all<Middleware>(Orders::show(...));
+            // Chained: the entry read this round is picked with the total carried
+            // out of the round before.
+            $total = $total + Core\Str::length($layers[$total % 3]->name);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

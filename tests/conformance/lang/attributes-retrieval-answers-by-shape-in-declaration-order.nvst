@@ -3,6 +3,7 @@
 --FILE--
 <?nvs
 // covers: lang:attributes/reading-attributes-back-core-attributes-get-and-all
+// covers: Core\Attributes::all
 // `rule:attributes/structural-retrieval`: retrieval matches under width subtyping and
 // never by the name an attribute was attached under. This case asks the same
 // question at four sites and prints each roster whole, so a site that lost an

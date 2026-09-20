@@ -1,0 +1,26 @@
+<?nvs
+// Shows how to read the attributes of a single property. The second argument is
+// the name of the property.
+
+type Rule = {check: string};
+
+class Signup {
+    #[Rule(check: "not-empty")]
+    #[Rule(check: "an-email-address")]
+    public string $email = "";
+
+    #[Rule(check: "at-least-8-characters")]
+    public string $password = "";
+}
+
+// `Signup::constructor(...)` names the class, and `"email"` picks the property
+// out of it. This prints `not-empty, an-email-address`.
+array<Rule> $rules = Core\Attributes::all<Rule>(Signup::constructor(...), "email");
+string $line = "";
+foreach ($rules as Rule $rule) {
+    $line = $line == "" ? $rule->check : $line . ", " . $rule->check;
+}
+echo $line, "\n";
+
+// The other property carries one rule, so this prints 1.
+echo Core\Arr::count(Core\Attributes::all<Rule>(Signup::constructor(...), "password")), "\n";
