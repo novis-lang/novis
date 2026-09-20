@@ -2,51 +2,50 @@
 
 ## State
 
-Goal `Core\Arr` (1/4). `min`, `max` and `sum` are finished this session, beside the 50 members that
-landed before them: `about.md`, three examples, one attack, one bench with a row in
-`docs/perf/members.ndjson`, and a Rust `#[test]` carrying its `covers:` marker each. 53 of
-`Core\Arr`'s 56 members are complete and 3 are owed. Nothing is blocked.
+Goal `Core\Arr` (1/4). `product` and `average` are finished this session, beside the 53 members
+that landed before them: `about.md`, three examples, one attack, one bench with a row in
+`docs/perf/members.ndjson`, and a Rust `#[test]` carrying its `covers:` marker each. 55 of
+`Core\Arr`'s 56 members are complete and `shapeAs` is the one owed. Nothing is blocked.
 
-`min` and `max` share one walk and so share their two Rust tests: the tie rule is pinned with the
-float `1.0` ahead of the int `1`, which compare equal, so the answer's own tag says the **first**
-extreme won. The divergence from PHP is pinned in the same pair — `[0, "a"]` throws where PHP
-answers `0`, and `["1e2", "50"]` compares bytewise. `sum` carries its own two: the entry-by-entry
-promotion with the empty array at `int` `0`, and the throw past `int`'s range where `array_sum`
-becomes a `float`.
+Both members reach `sum`'s `fold_numbers`, so each Rust test pins only what differs. `product`'s
+identity is `int` `1`, and its overflow throws where `array_product` answers a `float`. `average`
+answers `null` over the empty array and divides an exact total exactly: three `decimal` entries
+totalling `1` over a count of `3` is `1/3` at the widest scale the quotient admits, where every
+other total divides as a `float`.
 
-At a 3.3 ns calibration unit `min` over a six-entry list is 188.6 ns/op, `max` is 191.9 and `sum`
-is 205.1, each across 3 allocations and 304 bytes — the subject literal the round builds, since all
-three answer a scalar and allocate nothing themselves. All three declare `calls 0` and the
-measurement agrees.
+`product` over a six-entry list is 199.4 ns/op at a 2.7 ns calibration unit, and `average` over six
+entries is 208.8 ns/op at a 3.1 ns unit — 74.6 and 66.3 calibration units. Each is 4 statements, 0
+calls, 3 allocations and 304 bytes per op, the same counts the other folds carry: the allocations
+are the subject literal the round builds, since both answer a scalar and allocate nothing
+themselves. Both declare `calls 0` and the measurement agrees.
 
-Every attack reaches its last step and stops at the request's memory ceiling. `Core\Arr::sum`
-returns `int|float|decimal`, which is `mixed` in arithmetic — the first playbook bullet below is
-what that costs a bench.
+Both attacks reach their last step and stop at the request's memory ceiling. `Core\Arr::average`
+returns `?(float|decimal)`, and `?? 0.0` does not narrow it — a bench or example that stores the
+mean writes `as float`, which is the union bullet already in the playbook.
 
 ## Next group
 
-**One slice is one feature with all its feature proofs**, taken in registry order so neighbours
-share the declaration region they sit in — one file set: `crates/nvs-stdlib/src/arr.rs`,
-`docs/examples/core/Arr/`, `tests/hostile/core/Arr/`, `benches/members/core/Arr/`. **Write every
-`covers:` marker of the group before the first `--bless`**: a `crates/` edit makes the release
-binary stale, and `--bless` then waits out a release build of `nvs-cli`.
+**One slice is one feature with all its feature proofs**, and `shapeAs` is the last one this group
+owes — one file set: `crates/nvs-stdlib/src/arr.rs`, `docs/examples/core/Arr/`,
+`tests/hostile/core/Arr/`, `benches/members/core/Arr/`. Write the `covers:` marker before the first
+`--bless`: a `crates/` edit makes the release binary stale, and `--bless` then waits out a release
+build of `nvs-cli`.
 
-- [ ] **`Core\Arr::product`** — owes `about.md`, three examples, an attack, a bench, and a
-      `covers:` marker over a Rust `#[test]`; `rule:testing/feature-proofs`. It is `sum`'s fold
-      with the other operator, so the empty array is `int` `1` and the overflow throw is the same
-      one; `fold_numbers` is shared and the proofs turn on what differs.
-      `crates/nvs-stdlib/src/arr.rs:5839`
-- [ ] **`Core\Arr::average`** — owes the same five; `rule:testing/feature-proofs`. It answers
-      `?(float|decimal)`, so the empty array is `null` and a `decimal` subject stays exact while
-      every other total is a `float`. `crates/nvs-stdlib/src/arr.rs:5858`
-- [ ] **`Core\Arr::shapeAs`** — owes the same five; `rule:testing/feature-proofs`. It is the one
-      member of this group whose arity is three more than its row's, because the call site's type
-      argument arrives ahead of the declared parameters, and it reports through `Core\Json`'s
-      `ParseError` rather than a throw of its own. `crates/nvs-stdlib/src/arr.rs:6169`
+- [ ] **`Core\Arr::shapeAs`** — owes `about.md`, three examples, an attack, a bench, and a
+      `covers:` marker over a Rust `#[test]`; `rule:testing/feature-proofs`. It reads an array as
+      the type written at the call site, so every `.nvs` proof declares an inline shape or a
+      `#[Json\Derive]` class, and a Rust `#[test]` installs a class table the way the playbook's
+      `Ctx::class_desc` bullet describes — `crates/nvs-stdlib/src/arr.rs:6219`'s neighbours in the
+      test module already build one. `crates/nvs-stdlib/src/arr.rs:6169`
+- [ ] **Close the goal.** With `shapeAs` complete `python tools/dossier.py --gate --group
+      'Core\Arr'` is green, and the goal's own end gates are what is left: `python tools/verify.py
+      --doc`, `python tools/owners.py --closes core-arr-1-4` and `python tools/playbook.py --closes
+      core-arr-1-4`, closing or re-ownering every gap they name. Then `.loop/status.txt` reads
+      `DONE`. `docs/agent/loop-goal.md:4`
 
 ## Backlog
 
-- `Core\Arr`'s benches all pay 3 allocations for the subject literal each round, so no member of
-  this group can declare `allocations 0` — `benches/members/README.md` owns the declaration.
-- Goal `plain-comments` sweeps the landed `.nvs` comments; `tests/hostile/core/Arr/sort/01-*.nvs`
-  still opens with a 38-word line.
+- `docs/perf/members.md` holds no row for any member this goal has measured; `python
+  tools/dossier.py --perf-report` regenerates it from the ledger — `docs/perf/README.md`.
+- `tools/data/dossier-policy.toml` has no `[skip]` entry this group needs: every `Core\Arr` member
+  can carry all five proofs.
