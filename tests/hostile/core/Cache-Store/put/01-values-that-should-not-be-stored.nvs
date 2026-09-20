@@ -1,0 +1,83 @@
+<?nvs
+// Attack: a request writes values into the cache that the store cannot copy,
+// or that are far too large for it. Every write should either work or stop
+// with an error, and the program must keep running.
+// hostile: timeout-ms 60000
+
+class Node
+{
+    public string $name = '';
+    public ?Node $next = null;
+}
+
+var $cache = Core\Cache::local();
+
+// 1. A key of one million characters. The store may keep the entry or forget
+//    it as too large, and must answer for the key either way.
+try {
+    string $long = Core\Str::repeat('k', 1000000);
+    $cache->put($long, 'value');
+    var $back = $cache->get($long) ?? 'absent';
+    echo 'step 1 answered ', $back as string, "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. An object that refers to itself. `put` copies the whole value, so the
+//    copy must end. The store may keep the object or stop with an error.
+try {
+    var $node = new Node();
+    $node->name = 'first';
+    $node->next = $node;
+    $cache->put('cycle', $node);
+    echo "step 2 stored the object\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. A chain of five thousand objects. The copy must stop with an error
+//    instead of filling the stack.
+try {
+    var $head = new Node();
+    $head->name = 'leaf';
+    uint $level = 0;
+    while ($level < 5000) {
+        var $outer = new Node();
+        $outer->name = 'level';
+        $outer->next = $head;
+        $head = $outer;
+        $level = $level + 1;
+    }
+    $cache->put('deep', $head);
+    echo "step 3 stored the chain\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. A function. A function belongs to the request that made it, so it cannot
+//    be stored, and this write must fail.
+try {
+    var $fn = fn(): int => 1;
+    $cache->put('function', $fn);
+    echo "step 4 stored a function\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}
+
+// 5. A lifetime of zero. The value is already too old, so the store keeps
+//    nothing and the read returns `null`.
+$cache->put('already-old', 'value', { ttl: 0s });
+var $old = $cache->get('already-old') ?? 'absent';
+echo 'step 5 left ', $old as string, "\n";
+
+// 6. One key written two hundred thousand times. A rewrite must cost the room
+//    of one value, so the store must still answer afterwards.
+string $payload = Core\Str::repeat('x', 200);
+uint $i = 0;
+while ($i < 200000) {
+    $cache->put('one-key', $payload);
+    $i = $i + 1;
+}
+$cache->put('after', 'still working');
+var $after = $cache->get('after') ?? 'absent';
+echo 'step 6 then wrote and read ', $after as string, "\n";

@@ -1,0 +1,24 @@
+<?nvs
+// Shows how to store a value that should only be used for a short time.
+
+var $cache = Core\Cache::local();
+
+// The `ttl` option is the lifetime of the entry. This value may be used for
+// ten minutes.
+$cache->put("rate-eur-usd", "1.08", {ttl: 10m});
+
+// Inside that time `get` returns the value. This prints 1.08.
+var $rate = $cache->get("rate-eur-usd") as string;
+echo $rate, "\n";
+
+// Without a `ttl` the value has no lifetime. It stays until the store needs
+// the room, or until your program removes it. This prints 1.09.
+$cache->put("rate-eur-chf", "1.09");
+var $other = $cache->get("rate-eur-chf") as string;
+echo $other, "\n";
+
+// A lifetime of zero is already over, so the store does not keep the value.
+// The read after it returns `null`, and this prints no rate yet.
+$cache->put("rate-eur-jpy", "170.5", {ttl: 0s});
+var $expired = $cache->get("rate-eur-jpy") ?? "no rate yet";
+echo $expired as string, "\n";

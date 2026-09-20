@@ -1,0 +1,23 @@
+<?nvs
+// Shows how to write a value into a cache store, and what a second write
+// under the same key does.
+
+var $cache = Core\Cache::local();
+
+// `put` writes the value 3 under the key "visits".
+$cache->put("visits", 3);
+
+// `get` returns what was written. This prints 3.
+var $visits = $cache->get("visits") as int;
+echo $visits, "\n";
+
+// A second `put` under the same key replaces the value. This prints 4.
+$cache->put("visits", 4);
+var $updated = $cache->get("visits") as int;
+echo $updated, "\n";
+
+// You can write any value the store accepts, including a list. This prints 2.
+array<string> $tags = ["new", "sale"];
+$cache->put("tags", $tags);
+var $stored = $cache->get("tags") as array<string>;
+echo Core\Arr::count($stored), "\n";

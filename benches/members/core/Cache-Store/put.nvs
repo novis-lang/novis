@@ -1,0 +1,23 @@
+<?nvs
+// Measures writing one value into this core's cache. That is what a request
+// does after it builds a value it wants to keep.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $store = Core\Cache::local();
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The value written in one round is built from the round before
+            // it, so no round can be left out.
+            $total = $total + 1;
+            $store->put("round", $total);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

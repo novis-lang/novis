@@ -1,0 +1,45 @@
+<?nvs
+// Shows how a program stores one user's data under a key of its own. The next
+// request for that user then does not build it again.
+
+class Profile {
+    public string $name = "";
+    public string $city = "";
+}
+
+class Profiles {
+    // The work the cache saves. A real program reads a database here.
+    public static function build(string $userId): Profile {
+        var $profile = new Profile();
+        $profile->name = "User " . $userId;
+        $profile->city = "Berlin";
+        return $profile;
+    }
+
+    public static function of(string $userId): Profile {
+        var $cache = Core\Cache::local();
+
+        // The user id is part of the key, so every user has an entry of their
+        // own. A key may contain values that came from the request.
+        string $key = "profile-" . $userId;
+
+        var $held = $cache->get($key);
+        if ($held != null) {
+            return $held as Profile;
+        }
+
+        // The entry is good for five minutes. After that the next call builds
+        // it again, so a change reaches the program without a restart.
+        var $built = Profiles::build($userId);
+        $cache->put($key, $built, {ttl: 5m});
+        return $built;
+    }
+}
+
+// The first call builds the profile and stores it. This prints User 4711.
+var $first = Profiles::of("4711");
+echo $first->name, "\n";
+
+// The second call finds it in the store. This prints Berlin.
+var $second = Profiles::of("4711");
+echo $second->city, "\n";
