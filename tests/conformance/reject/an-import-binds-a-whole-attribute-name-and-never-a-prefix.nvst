@@ -1,0 +1,41 @@
+--TEST--
+An import binds one whole short name and is never a namespace prefix, so `use Core\Json;` followed by `#[Json\Derive]` resolves to nothing and is refused where it is written, while the whole name and the short name a `use` of it binds both reach the same recognized attribute (`rule:core-classes/derive-attribute`)
+--FILE--
+<?nvs
+// covers: lang:attributes/the-names-the-compiler-acts-on
+// `rule:core-classes/derive-attribute`: a recognized name is matched after it resolves, and an
+// import binds one whole short name rather than a namespace prefix. The two
+// accepted spellings are written first — the whole name, and the short name a
+// `use` of that whole name binds — so a build that stopped resolving either
+// fails here rather than as a missing refusal. `use Core\Json;` followed by
+// `#[Json\Derive]` therefore names nothing at all, and is refused where it is
+// written instead of attaching an inert literal nothing ever reads.
+use Core\Json;
+use Core\Json\Derive;
+
+#[Core\Json\Derive]
+class Long {
+    public string $who;
+    public function constructor(string $who) { $this->who = $who; }
+}
+
+#[Derive]
+class Short {
+    public string $who;
+    public function constructor(string $who) { $this->who = $who; }
+}
+
+#[Json\Derive]
+class Prefixed {
+    public string $who;
+    public function constructor(string $who) { $this->who = $who; }
+}
+
+echo Json::encode(new Long("ada")), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0303]: `Json\Derive` is not declared
+   --> case.nvs:25:3
+%A
+error: aborting due to 1 error

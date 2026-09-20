@@ -1,0 +1,30 @@
+<?nvs
+// A class that carries both kinds of attribute, which is the usual case at
+// work. Novis reads `#[Core\Json\Derive]` and writes the JSON encoder for the
+// class. `#[Audited]` is your own type, so Novis stores it and your own code
+// reads it back.
+
+type Audited = {by: string, since: string};
+
+#[Core\Json\Derive]
+#[Audited(by: "payments", since: "2026-01-14")]
+class Payment {
+    public string $reference;
+    public uint $cents;
+
+    public function constructor(string $reference, uint $cents) {
+        $this->reference = $reference;
+        $this->cents = $cents;
+    }
+}
+
+var $payment = new Payment("PAY-1042", 2599);
+
+// The encoder comes from the attribute. This prints the payment as JSON.
+echo Core\Json::encode($payment), "\n";
+
+// Your own attribute is read with `Core\Attributes::get`.
+?Audited $owner = Core\Attributes::get<Audited>(Payment::constructor(...));
+if ($owner != null) {
+    echo "owned by ", $owner->by, " since ", $owner->since, "\n";
+}

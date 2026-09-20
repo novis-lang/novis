@@ -1,0 +1,153 @@
+<?nvs
+// Attack: a program attaches many attributes whose names look like the ones
+// Novis owns. Each one claims a command name that is already taken. Novis
+// reads an attribute only when its name points to one of its own declarations.
+// The program should compile and run to its last line.
+
+// 1. Types of the program's own, named after the ones Novis reads. Attaching
+//    these tries to make the compiler write a codec, a route or a command row.
+type Derive = {};
+type Field = {name: string};
+type Route = {path: string, method: string};
+type Access = {allow: string};
+type Command = {name: string, about: string};
+type Option = {long: string};
+type Api = {summary: string};
+
+// 2. One real command, called `import`. A second real command of that name
+//    stops the program from compiling, so every step below claims that word.
+class Jobs
+{
+    #[Core\Command(name: "import", about: "Read rows from a file")]
+    public static function import(): void
+    {}
+}
+
+// 3. Eight classes carrying the look-alike names at a class, a property, a
+//    method and a parameter, each claiming `import` again.
+#[Derive]
+#[Command(name: "import", about: "one")]
+#[Route(path: "/import", method: "GET")]
+#[Access(allow: "everyone")]
+class Spoof01
+{
+    #[Field(name: "import")]
+    public int $rows = 0;
+
+    #[Api(summary: "import")]
+    public function run(#[Option(long: "import")] int $id): int
+    {
+        return $id;
+    }
+}
+
+#[Derive]
+#[Command(name: "import", about: "two")]
+class Spoof02
+{
+    #[Field(name: "import")]
+    public int $rows = 0;
+}
+
+#[Derive]
+#[Command(name: "import", about: "three")]
+class Spoof03
+{
+    #[Field(name: "import")]
+    public int $rows = 0;
+}
+
+#[Derive]
+#[Command(name: "import", about: "four")]
+class Spoof04
+{
+    #[Field(name: "import")]
+    public int $rows = 0;
+}
+
+#[Derive]
+#[Command(name: "import", about: "five")]
+class Spoof05
+{
+    #[Field(name: "import")]
+    public int $rows = 0;
+}
+
+#[Derive]
+#[Command(name: "import", about: "six")]
+class Spoof06
+{
+    #[Field(name: "import")]
+    public int $rows = 0;
+}
+
+#[Derive]
+#[Command(name: "import", about: "seven")]
+class Spoof07
+{
+    #[Field(name: "import")]
+    public int $rows = 0;
+}
+
+#[Derive]
+#[Command(name: "import", about: "eight")]
+class Spoof08
+{
+    #[Field(name: "import")]
+    public int $rows = 0;
+}
+
+// 4. A payload with no name at all, in the shape a real `#[Core\Command]`
+//    payload has. It tries to be read as a command by its shape.
+class Nameless
+{
+    #[{name: "import", about: "nine"}]
+    public static function run(): void
+    {}
+}
+
+// 5. A payload far larger than a real one, on a look-alike name.
+class Bulky
+{
+    #[Command(
+        name: "import",
+        about: "00000000001111111111222222222233333333334444444444555555555566666666667777777777888888888899999999990000000000111111111122222222223333333333444444444455555555556666666666777777777788888888889999999999",
+    )]
+    public static function run(): void
+    {}
+}
+
+// 6. Reading all of it back 200000 times. Every payload is stored while the
+//    program compiles, so the running program must not build one again.
+class Attack
+{
+    public static function run(uint $rounds): uint
+    {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            ?Command $real = Core\Attributes::get<Command>(Jobs::import(...));
+            if ($real != null) {
+                $total = $total + Core\Str::length($real->name);
+            }
+            ?Command $spoofed = Core\Attributes::get<Command>(Spoof01::constructor(...));
+            ?Command $nameless = Core\Attributes::get<Command>(Nameless::run(...));
+            if ($spoofed != null) {
+                if ($nameless != null) {
+                    $total = $total + Core\Str::length($spoofed->about) + Core\Str::length($nameless->about);
+                }
+            }
+            ?Command $bulky = Core\Attributes::get<Command>(Bulky::run(...));
+            if ($bulky != null) {
+                $total = $total + Core\Str::length($bulky->about) + $total % 2;
+            }
+            array<Field> $fields = Core\Attributes::all<Field>(Spoof08::constructor(...), 'rows');
+            $total = $total + Core\Arr::count($fields);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Attack::run(200000), "\n";
+echo "still standing\n";

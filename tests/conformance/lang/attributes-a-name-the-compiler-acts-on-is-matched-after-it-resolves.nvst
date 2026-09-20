@@ -1,0 +1,99 @@
+--TEST--
+The compiler acts on an attribute only when its name resolves to one of its closed `Core`-owned list, so a whole name and the short name a `use` binds are one attribute, a userland name of the same shape is inert whatever it is spelled, and recognition leaves the literal in the structural roster (`rule:core-classes/derive-attribute` and `rule:attributes/inert-metadata`)
+--FILE--
+<?nvs
+// covers: lang:attributes/the-names-the-compiler-acts-on
+// `rule:core-classes/derive-attribute`: the match is nominal and happens after resolution, so
+// this case asks the same question from both sides in one program. The two
+// spellings of `Core\Json\Derive` each have to reach the codec, and the two
+// userland attributes each have to fail to, and a build that started matching
+// by shape passes the first half while failing the second.
+use Core\Json\Derive;
+
+type Command = {name: string, note: string};
+type Codec = {};
+
+// The `use`d short name.
+#[Derive]
+class Short {
+    public string $who;
+    public function constructor(string $who) { $this->who = $who; }
+}
+
+// The same attribute, written whole.
+#[Core\Json\Derive]
+class Long {
+    public string $who;
+    public function constructor(string $who) { $this->who = $who; }
+}
+
+// A userland name whose payload is the empty shape `#[Core\Json\Derive]`'s own
+// payload has. Shape is what retrieval matches on and is not what this matches
+// on, so no codec is generated and `encode` refuses the instance at run time.
+#[Codec]
+class Plain {
+    public string $who;
+    public function constructor(string $who) { $this->who = $who; }
+}
+
+// The bare form resolves to no name at all, so it is the same refusal reached
+// with nothing to spell.
+#[{}]
+class Bare {
+    public string $who;
+    public function constructor(string $who) { $this->who = $who; }
+}
+
+class Jobs {
+    // One command called `import`. A second recognized `#[Command]` claiming
+    // that word does not compile, so the userland twin below compiling is what
+    // says it never reached the table.
+    #[Core\Command(name: "import", about: "Read rows from a file")]
+    public static function real(): void {}
+
+    #[Command(name: "import", note: "mine")]
+    public static function mine(): void {}
+}
+
+// Both spellings reach the generated codec.
+echo "short: ", Core\Json::encode(new Short("ada")), "\n";
+echo "long: ", Core\Json::encode(new Long("bea")), "\n";
+
+// `rule:attributes/inert-metadata`: everything below is counted rather than read off a line
+// each, so an attribute that crossed the line in either direction fails here
+// instead of printing one plausible line of seven.
+uint $agreed = 0;
+
+// The userland name and the bare literal are both inert, so neither class has
+// an encoding.
+try {
+    echo Core\Json::encode(new Plain("cyd")), "\n";
+} catch (LogicError $refused) {
+    $agreed = $agreed + 1;
+}
+
+try {
+    echo Core\Json::encode(new Bare("dot")), "\n";
+} catch (LogicError $refused) {
+    $agreed = $agreed + 1;
+}
+
+// The userland twin is ordinary metadata and reads back as itself.
+?Command $mine = Core\Attributes::get<Command>(Jobs::mine(...));
+if ($mine != null) {
+    if ($mine->note == "mine") { $agreed = $agreed + 1; }
+}
+
+// Recognition does not take a literal out of the structural roster: the
+// recognized `#[Core\Command]` payload, the userland twin and the `use`d
+// `#[Derive]` are each one entry where they are attached.
+if (Core\Arr::count(Core\Attributes::all<{name: string}>(Jobs::real(...))) == 1) { $agreed = $agreed + 1; }
+if (Core\Arr::count(Core\Attributes::all<{}>(Jobs::mine(...))) == 1) { $agreed = $agreed + 1; }
+if (Core\Arr::count(Core\Attributes::all<{}>(Short::constructor(...))) == 1) { $agreed = $agreed + 1; }
+if (Core\Arr::count(Core\Attributes::all<{}>(Plain::constructor(...))) == 1) { $agreed = $agreed + 1; }
+
+echo "agreed: ", $agreed, " of 7\n";
+--EXPECT--
+short: {"who":"ada"}
+long: {"who":"bea"}
+agreed: 7 of 7

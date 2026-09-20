@@ -1,0 +1,45 @@
+--TEST--
+A recognized attribute's payload is checked against that attribute's own option roster rather than against a shape, so an option the roster does not name, one carrying the wrong type and one given twice are each refused at the field they are written in (`rule:core-classes/derive-attribute`)
+--FILE--
+<?nvs
+// covers: lang:attributes/the-names-the-compiler-acts-on
+// `rule:core-classes/derive-attribute`: the compiler acts on an attribute whose name resolves to
+// one of its closed `Core`-owned list, and checks that attribute's payload
+// against the option roster the recognizing pass keeps for it rather than
+// against a shape. The accepted row is written first, so a roster that stopped
+// accepting its own two options fails here instead of as a missing refusal.
+// The three after it are the three ways a payload is wrong, and each is
+// reported at the field it is written in rather than at the attribute.
+class Jobs {
+    #[Core\Command(name: "import", about: "Read rows from a file")]
+    public static function accepted(): void {}
+
+    // An option the roster does not name. A userland attribute's literal is
+    // checked under width subtyping, where this same field is accepted.
+    #[Core\Command(name: "export", about: "Write rows", colour: "red")]
+    public static function unknown(): void {}
+
+    // An option carrying the wrong type.
+    #[Core\Command(name: 7, about: "Count rows")]
+    public static function mistyped(): void {}
+
+    // An option given twice, which is the one a longest-match reading of the
+    // payload would silently take the last of.
+    #[Core\Command(name: "purge", name: "sweep", about: "Delete rows")]
+    public static function twice(): void {}
+}
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0454]: `colour` is not an option of `#[Command]`
+   --> case.nvs:16:57
+%A
+error[E0401]: expected `string`, found `int`
+   --> case.nvs:20:26
+%A
+error[E0304]: the option `name` is given twice
+   --> case.nvs:25:35
+%A
+error: aborting due to 3 errors

@@ -104,3 +104,13 @@ perf = "A `FATAL` stops the program where it stands, so there is nothing to iter
 # `benches/abi-probe/` and the compiler's own figures own.
 [skip."lang:attributes/core-api-and-the-openapi-document"]
 perf = "`#[Api]` is read while the program compiles and has no runtime surface to iterate; a loop here would measure the annotated method call instead."
+
+# Recognizing a name is name resolution plus a lookup in `crates/nvs-types/src/derive.rs`'s closed
+# table, and both are over before the program starts. What a recognized name reaches at run time is
+# whatever it built — a codec, a route row, a command row — and each of those carries its own figure
+# under this same group, so a loop written here would re-measure one of them and attribute it to the
+# recognition. What the resolution itself costs is compile time, which `benches/abi-probe/` and the
+# compiler's own figures own. The literal stays retrievable either way, and that read is
+# `lang:attributes/reading-attributes-back-core-attributes-get-and-all`'s figure.
+[skip."lang:attributes/the-names-the-compiler-acts-on"]
+perf = "A name is recognized while the program compiles and reaches nothing at run time; a loop here would re-measure the codec, route or command row the recognized attribute built, each of which carries its own figure."
