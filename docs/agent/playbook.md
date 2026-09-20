@@ -6291,6 +6291,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   which ends the process and takes every later step of the attack with it. Run a new attack once
   with `target/debug/nvs.exe run` before fixing its order: the step that ends the program goes last,
   and the file declares `// hostile: ends-early`. [until: reviewed 2026-09-20]
+- **A hostile case's uncatchable last step can run forever instead of ending, and the cause is the
+  member missing its per-entry ceiling ask.** `Core\Arr::range(1, 9000000000)` ran past ninety
+  seconds while `range(1, 40000000)` reported a `FATAL` naming a gigabyte held: a native accumulate
+  loop passes no statement boundary, so the breach is read only where the member returns. Time such
+  a step by hand, and where it does not end ask `nvs_runtime::affordable` per entry the way
+  `nvs_runtime::sequence::drain` does. [until: reviewed 2026-09-20]
 
 ## Splitting a file that got too big
 
