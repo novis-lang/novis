@@ -1,0 +1,25 @@
+<?nvs
+// Stores a list of records under their own id. A program does this after it
+// reads rows from a database, so that it can find one row by its id.
+
+class Customer
+{
+    public string $id;
+    public string $city;
+
+    public function constructor(string $id, string $city)
+    {
+        $this->id = $id;
+        $this->city = $city;
+    }
+}
+
+array<Customer> $rows = [
+    new Customer('c-17', 'Bonn'),
+    new Customer('c-42', 'Linz'),
+];
+
+array<Customer> $byId = Core\Arr::mapKeys($rows, fn(Customer $row) => $row->id);
+
+// This prints `Linz`.
+echo $byId['c-42']->city, "\n";

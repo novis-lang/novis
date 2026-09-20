@@ -1,0 +1,16 @@
+<?nvs
+// Turns a list of names into a lookup table. Each name becomes a key, so a
+// test for one name does not read the whole list.
+
+array<string> $admins = ['ida', 'ben', 'sara', 'ben'];
+
+// A function that needs only the value declares only that one parameter.
+array<string> $byName = Core\Arr::mapKeys($admins, fn(string $name) => $name);
+
+// The list has four entries and the table has three. Two entries with the same
+// new key become one entry. This prints 3.
+echo Core\Arr::count($byName), "\n";
+
+// This prints `yes` and then `no`.
+echo Core\Arr::hasKey($byName, 'ben') ? 'yes' : 'no', "\n";
+echo Core\Arr::hasKey($byName, 'max') ? 'yes' : 'no', "\n";
