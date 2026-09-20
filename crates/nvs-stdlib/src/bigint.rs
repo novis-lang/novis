@@ -66,6 +66,26 @@
 //! width past the bound and every conversion out of range; `ParseError` for
 //! text that is not an integer in the radix asked for; `LogicError` for a radix
 //! outside 2 to 36, which is a bug in the program rather than in its input.
+//!
+//! # Known gaps
+//!
+//! 1. **`powMod` and `pow` followed by `mod` disagree for a negative
+//!    receiver.** [`nvs_core_bigint_pow_mod`] hands the work to
+//!    `BigInt::modpow`, which answers the least non-negative residue, so
+//!    `Core\BigInt::of(-3)->powMod(3, 7)` is `1`. [`nvs_core_bigint_mod`]
+//!    carries the dividend's sign the way `%` on `int` does, so
+//!    `Core\BigInt::of(-3)->pow(3)->mod(7)` is `-6` — and so is PHP's
+//!    `bcpowmod("-3", "3", "7")`, which `nvs convert` rewrites to this member.
+//!    [`POW_MOD_DOC`]'s `ret` claims an answer only for a non-negative
+//!    receiver, so neither number contradicts what is written down, and
+//!    choosing between them is a decision rather than a fix: the residue is
+//!    what every modular exponentiation wants, and the signed remainder is
+//!    what the rest of this class and a converted program already give.
+//!    `pow_mod_agrees_with_pow_then_mod_over_a_non_negative_receiver` pins
+//!    both halves as they stand. The decision belongs where the rewrite is
+//!    proven: M11's converter owes `bcpowmod` a differential case against the
+//!    PHP oracle, and that case is what settles which answer this member owes.
+//!    — owner: M11
 
 use num_bigint::{BigInt, Sign};
 use num_integer::Integer;
@@ -1190,6 +1210,11 @@ mod tests {
         built(&BigInt::from(value)).expect("a one-word magnitude is affordable")
     }
 
+    /// One `string` argument, built for a single [`call`] the way [`of`] is.
+    fn text(source: &str) -> Value {
+        Value::str(NvsStr::new(source.as_bytes()))
+    }
+
     /// The magnitude a member answered with, read back out of its two slots.
     fn read(answer: Value) -> BigInt {
         operand(&[answer], 0, "toString").expect("a member answers with its own class")
@@ -1693,6 +1718,213 @@ mod tests {
             &[of(VALUE), Value::uint(MIN_RADIX - 1)],
         )
         .expect_err("one radix below the range is refused too");
+    }
+
+    /// `parse` reads a sign and digits and nothing else, counted over a sweep
+    /// of shapes rather than read off a line, so a member that grew a
+    /// leading-garbage rule goes on printing plausibly on the rows a reader
+    /// checks first. The `_` separator is in the sweep because
+    /// [`BigInt::parse_bytes`] accepts it and this member does not, for the
+    /// reason [`nvs_core_bigint_parse`] records. The radix is then bounded on
+    /// both sides — the narrowest and widest read, the values one outside each
+    /// end refused — since a member that stops one base early is right on every
+    /// base 10 row above.
+    // covers: Core\BigInt::parse
+    #[test]
+    fn parse_reads_a_sign_and_digits_and_refuses_every_other_shape() {
+        /// The text, the radix to read it in, and the decimal it spells — or
+        /// [`None`] where the text is not an integer in that radix at all.
+        const SWEEP: [(&str, u64, Option<&str>); 16] = [
+            ("0", 10, Some("0")),
+            ("-0", 10, Some("0")),
+            ("4500", 10, Some("4500")),
+            ("-4500", 10, Some("-4500")),
+            ("+4500", 10, Some("4500")),
+            ("00042", 10, Some("42")),
+            ("9223372036854775808", 10, Some("9223372036854775808")),
+            ("ff", 16, Some("255")),
+            ("zz", 36, Some("1295")),
+            ("", 10, None),
+            ("-", 10, None),
+            ("+", 10, None),
+            ("1_000", 10, None),
+            (" 12", 10, None),
+            ("12 ", 10, None),
+            ("ff", 10, None),
+        ];
+
+        let mut ctx = Ctx::buffered();
+        let mut agreed = 0usize;
+        for (source, base, spelled) in SWEEP {
+            let answer = call(
+                nvs_core_bigint_parse,
+                &mut ctx,
+                &[text(source), Value::uint(base)],
+            )
+            .ok()
+            .map(|value| read(value).to_string());
+            if answer.as_deref() == spelled {
+                agreed += 1;
+            }
+        }
+        assert_eq!(agreed, SWEEP.len());
+
+        for base in [MIN_RADIX, MAX_RADIX] {
+            call(
+                nvs_core_bigint_parse,
+                &mut ctx,
+                &[text("1"), Value::uint(base)],
+            )
+            .expect("both ends of the range are read");
+        }
+        for base in [MIN_RADIX - 1, MAX_RADIX + 1] {
+            call(
+                nvs_core_bigint_parse,
+                &mut ctx,
+                &[text("1"), Value::uint(base)],
+            )
+            .expect_err("one base outside either end is refused");
+        }
+    }
+
+    /// `pow` is repeated multiplication rather than a table of remembered
+    /// answers: over a sweep of signs and magnitudes its answer is the receiver
+    /// multiplied by itself `exponent` times, counted rather than read off a
+    /// line, so a member that lost the sign of an odd power goes on printing
+    /// plausibly on every even row. The width bound is then named on both
+    /// sides — the widest answer one call may produce is built and the power
+    /// one step past it is refused — because a member that stops one step early
+    /// is right about every row above. This module's § *Decision: one call may
+    /// not explode* is the bound.
+    // covers: Core\BigInt::pow
+    #[test]
+    fn pow_is_repeated_multiplication_and_refuses_one_step_past_its_width() {
+        const SWEEP: [(i64, u64); 12] = [
+            (0, 0),
+            (0, 5),
+            (1, 0),
+            (2, 1),
+            (2, 10),
+            (2, 64),
+            (-3, 2),
+            (-3, 3),
+            (-1, 63),
+            (10, 18),
+            (i64::MAX, 3),
+            (i64::MIN, 2),
+        ];
+
+        let mut ctx = Ctx::buffered();
+        let mut agreed = 0usize;
+        for (base, exponent) in SWEEP {
+            let raised = read(
+                call(
+                    nvs_core_bigint_pow,
+                    &mut ctx,
+                    &[of(base), Value::uint(exponent)],
+                )
+                .expect("every row is far inside the width bound"),
+            );
+            let mut multiplied = BigInt::from(1);
+            for _ in 0..exponent {
+                multiplied *= BigInt::from(base);
+            }
+            if raised == multiplied {
+                agreed += 1;
+            }
+        }
+        assert_eq!(agreed, SWEEP.len());
+
+        // A receiver of two bits, so the bound is reached at half its value.
+        let widest = read(
+            call(
+                nvs_core_bigint_pow,
+                &mut ctx,
+                &[of(2), Value::uint(MAX_BITS / 2)],
+            )
+            .expect("the widest answer one call may produce"),
+        );
+        assert_eq!(widest.bits(), MAX_BITS / 2 + 1);
+        call(
+            nvs_core_bigint_pow,
+            &mut ctx,
+            &[of(2), Value::uint(MAX_BITS / 2 + 1)],
+        )
+        .expect_err("one step past the bound is refused");
+    }
+
+    /// `powMod` and `pow` followed by `mod` are one answer rather than two, for
+    /// the receivers [`POW_MOD_DOC`] claims one for: over a sweep whose powers
+    /// are small enough for `pow` to build — which is the only reason the two
+    /// routes can be compared at all, since this member exists for the powers
+    /// `pow` refuses — the two agree, counted rather than read off a row. The
+    /// negative receiver is named afterwards because the two routes *disagree*
+    /// there, which is this module's § *Known gaps* 1 and is pinned here as it
+    /// stands. Both refusals close the test: a zero modulus and a negative
+    /// power.
+    // covers: Core\BigInt::powMod
+    #[test]
+    fn pow_mod_agrees_with_pow_then_mod_over_a_non_negative_receiver() {
+        const SWEEP: [(i64, i64, i64); 10] = [
+            (4, 13, 497),
+            (2, 10, 1_000),
+            (2, 0, 497),
+            (0, 5, 7),
+            (1, 64, 3),
+            (3, 3, 7),
+            (10, 18, 1_000_000_007),
+            (7, 11, 1),
+            (9, 2, 81),
+            (i64::MAX, 3, 65_537),
+        ];
+
+        let mut ctx = Ctx::buffered();
+        let mut agreed = 0usize;
+        for (base, exponent, modulus) in SWEEP {
+            let direct = read(
+                call(
+                    nvs_core_bigint_pow_mod,
+                    &mut ctx,
+                    &[of(base), of(exponent), of(modulus)],
+                )
+                .expect("no row here has a zero modulus or a negative power"),
+            );
+            let raised = call(
+                nvs_core_bigint_pow,
+                &mut ctx,
+                &[
+                    of(base),
+                    Value::uint(
+                        u64::try_from(exponent).expect("no power in the sweep is negative"),
+                    ),
+                ],
+            )
+            .expect("every power in the sweep is small enough to build");
+            let reduced = read(
+                call(nvs_core_bigint_mod, &mut ctx, &[raised, of(modulus)])
+                    .expect("and then reduced the long way"),
+            );
+            if direct == reduced {
+                agreed += 1;
+            }
+        }
+        assert_eq!(agreed, SWEEP.len());
+
+        let residue = read(
+            call(nvs_core_bigint_pow_mod, &mut ctx, &[of(-3), of(3), of(7)])
+                .expect("a negative receiver answers"),
+        );
+        let raised = call(nvs_core_bigint_pow, &mut ctx, &[of(-3), Value::uint(3)])
+            .expect("and so does the long way");
+        let remainder = read(
+            call(nvs_core_bigint_mod, &mut ctx, &[raised, of(7)]).expect("down to the remainder"),
+        );
+        assert_eq!((residue, remainder), (BigInt::from(1), BigInt::from(-6)));
+
+        call(nvs_core_bigint_pow_mod, &mut ctx, &[of(4), of(13), of(0)])
+            .expect_err("a zero modulus is refused");
+        call(nvs_core_bigint_pow_mod, &mut ctx, &[of(4), of(-1), of(497)])
+            .expect_err("and so is a negative power");
     }
 
     /// `gcd` and `lcm` are one identity rather than two tables of remembered
