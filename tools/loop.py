@@ -37,6 +37,7 @@ import json
 import os
 import platform
 import re
+import shlex
 import shutil
 import subprocess
 import sys
@@ -103,6 +104,10 @@ DOCGATE = RUNDIR / "doc-gate.json"
 OWNERGATE = RUNDIR / "owner-gate.json"
 FLOORGATE = RUNDIR / "floor-gate.json"
 LASTFAIL = RUNDIR / "last-fail.json"
+#: What each Python gate was last seen to read, by its command line: `tools/observe.py` writes one
+#: record per run under `READSDIR`, and `Goal.observed_inputs` is what reads them.
+CHECKREADS = RUNDIR / "check-reads.json"
+READSDIR = RUNDIR / "reads"
 #: What every check of every sweep cost, one NDJSON line each; `Goal.write_times` is the writer.
 CHECKTIMES = RUNDIR / "check-times.ndjson"
 #: Past this many bytes the older half of `CHECKTIMES` is dropped, so the file stays bounded.
@@ -1946,6 +1951,8 @@ CRATE_TEST_DIRS = ("tests", "benches")
 # by NAME only, so that a handoff does not stale every fixture, suite and crate test in the tree,
 # and only a set that holds `state` sees their bytes.
 OTHER, STATE, CODE = "other", "state", "crates-code"
+#: Not a partition of bytes: the set of paths in the tree, which `observed_inputs` keys on.
+PATHS = "paths"
 STATE_FILES = re.compile(r"^docs/agent/(handoff\.md|goals/[^/]+\.handoff\.md)$")
 NOT_INPUTS = {".git", "target", ".loop", ".agent-tmp", "node_modules", "out", ".vscode-test",
               "__pycache__"}
@@ -2118,6 +2125,27 @@ class Pooled:
 
 #: `cargo test --workspace`, bare: the one other argument list the shared test build answers.
 WORKSPACE_TEST = ["test", "--workspace"]
+
+
+def is_observed(argv, cwd):
+    """Is this command one `Goal.run_command` runs under `tools/observe.py`: a script of this
+    directory, started from the root by the interpreter the goal file calls `python`?"""
+    return (len(argv) >= 2 and argv[0] == "python" and cwd == "."
+            and argv[1].startswith("tools/") and argv[1].endswith(".py")
+            and argv[1] != "tools/observe.py")
+
+
+def observed_key(argv, cwd):
+    return "\0".join([*argv, cwd])
+
+
+def load_observed():
+    """`CHECKREADS`, or an empty table -- and then every gate keeps `EVERYTHING` until it runs."""
+    try:
+        got = json.loads(CHECKREADS.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return got if isinstance(got, dict) else {}
 
 
 def plain_crate_test(args):
@@ -2451,6 +2479,10 @@ class Goal:
         self._tree = ""
         self._parts = None  # partition name -> content hash, or None if unreadable; see `partition_ids`
         self._tiers = None  # the `verify_keys.Tree` that walk took, which `binary_inputs` keys on
+        self._ignored = set()  # what git ignores, as that walk read it
+        self._digests = {}  # tree path -> content hash, for `observed_inputs`; one sweep's worth
+        self._observed = load_observed()  # "argv\0cwd" -> what `tools/observe.py` saw it read
+        self._observed_dirty = False
         self._reach = None  # `impact.Reach` over `_tiers`, built by the first check that asks
         self._green = {}  # memo key -> the inputs hash it was last green over; see `remembered`
         self._green_dirty = False  # `_green` holds a verdict `.loop/goal-green.json` does not yet
@@ -2584,8 +2616,29 @@ class Goal:
         if running:
             running.join()
         if key not in self._commands:
-            self._commands[key] = capture(argv[0], argv[1:], cwd=ROOT / cwd)
+            self._commands[key] = self.run_command(argv, cwd)
         return self._commands[key]
+
+    def run_command(self, argv, cwd):
+        """One `command` check's process. A Python gate (`is_observed`) runs under
+        `tools/observe.py`, which is the same script in the same interpreter with what it read
+        written down beside it; `observed_inputs` keys the check on that from the next sweep on.
+        A record is kept only from a run that left one, so a gate that died early keeps the key
+        it had."""
+        if not is_observed(argv, cwd):
+            return capture(argv[0], argv[1:], cwd=ROOT / cwd)
+        name = hashlib.blake2b("\0".join(argv).encode("utf-8"), digest_size=8).hexdigest()
+        out = READSDIR / f"{name}.json"
+        with contextlib.suppress(OSError):
+            out.unlink()
+        r = capture(argv[0], ["tools/observe.py", "--out", str(out), "--", *argv[1:]], cwd=ROOT)
+        try:
+            seen = json.loads(out.read_text(encoding="utf-8"))
+            self._observed[observed_key(argv, cwd)] = {k: seen[k] for k in ("files", "dirs", "spawns")}
+            self._observed_dirty = True
+        except (OSError, ValueError, KeyError):
+            pass
+        return r
 
     def start_overlap(self, leg):
         """Start every `overlap` command this sweep owes, in the background, and return at once.
@@ -2618,7 +2671,7 @@ class Goal:
                     commands=self._commands, ran=self.ran):
                 with OVERLAP_LOCKS[key]:
                     started = time.monotonic()
-                    commands[key] = capture(argv[0], argv[1:], cwd=ROOT / cwd)
+                    commands[key] = self.run_command(argv, cwd)
                     ran.append((label, time.monotonic() - started))
 
             self._overlap[key] = threading.Thread(target=run, daemon=True)
@@ -2682,7 +2735,7 @@ class Goal:
 
         def run(key, label, commands=self._commands, ran=self.ran):
             started = time.monotonic()
-            commands[key] = capture(key[0][0], list(key[0][1:]), cwd=ROOT)
+            commands[key] = self.run_command(list(key[0]), ".")
             spent = time.monotonic() - started
             if spent >= 1:
                 ran.append((label, spent))
@@ -2950,7 +3003,8 @@ class Goal:
         file, with a `.rs` file's shipped tier where `crates` takes its bytes -- the comment over
         `PARTITIONS` says who reads which.
         """
-        hashers = {name: hashlib.blake2b(digest_size=16) for name in EVERYTHING + (CODE,)}
+        hashers = {name: hashlib.blake2b(digest_size=16) for name in EVERYTHING + (CODE, PATHS)}
+        self._digests = {}
         for name in ("crates", CODE):
             hashers[name].update(rustc_version().encode("utf-8", "replace"))
         # A file path, or a wholly ignored directory with a trailing `/`. Empty when git cannot
@@ -2958,7 +3012,10 @@ class Goal:
         ignored = {p for p in git("ls-files", "--others", "--ignored", "--exclude-standard",
                                   "--directory").split("\n") if p}
 
+        self._ignored = ignored
+
         def feed(h, rel, path):
+            hashers[PATHS].update(rel.encode("utf-8") + b"\0")
             h.update(rel.encode("utf-8") + b"\0")
             h.update(path.read_bytes())
             h.update(b"\0")
@@ -3018,13 +3075,86 @@ class Goal:
         `None` when the tree could not be hashed."""
         if self._parts is None:
             return None
-        narrow = self.binary_inputs(c)
+        narrow = self.binary_inputs(c) or self.observed_inputs(c)
         if narrow is not None:
             return narrow
         h = hashlib.blake2b(digest_size=16)
         for name in reads_of(c):
             h.update(name.encode("utf-8") + b"\0" + self._parts[name].encode("utf-8") + b"\0")
         return h.hexdigest()
+
+    def observed_inputs(self, c):
+        """A Python gate's inputs as `tools/observe.py` last saw them, or `None`, and then
+        `EVERYTHING` stands -- which holds the handoff, so the check is stale at every wrap.
+
+        The key is the bytes of every file the gate opened or asked the size of, the names in
+        every directory it listed, and the set of paths in the tree. The last is there because a
+        test for whether a path exists opens nothing: `check-links.py` asks that of every link
+        target, and a file that goes away has to move its key. A file git ignores or
+        `NOT_INPUTS` prunes is left out, as it is everywhere here; one under `target/` stands for
+        the binary and is keyed as `CODE`.
+
+        Why the last run's reads are enough: a gate reads the same files again unless one of them,
+        a listing or the path set has changed, and any of those moves this key and runs it, which
+        records what it reads now. `None` for a gate that has never run here, and for one that
+        starts a process this cannot answer for: `git ls-files` is the path set, the `nvs`
+        binary is `CODE` and the paths in its arguments, and anything else reads what it likes."""
+        if c["kind"] != "command" or not is_observed(c.get("argv", []), c.get("cwd", ".")):
+            return None
+        seen = self._observed.get(observed_key(c["argv"], c.get("cwd", ".")))
+        if not seen or c.get("setup"):
+            return None
+        files, dirs, code = set(seen["files"]), set(seen["dirs"]), False
+        for argv in seen["spawns"]:
+            if len(argv) == 1:  # a command handed over as one string
+                argv = shlex.split(argv[0], posix=False)
+            program = Path(argv[0]).name.lower() if argv else ""
+            if program in ("git", "git.exe") and argv[1:2] == ["ls-files"]:
+                continue
+            if program not in ("nvs", "nvs.exe"):
+                return None
+            code = True
+            for a in argv[1:]:
+                rel = Path(a).as_posix().strip("/")
+                if not Path(a).is_absolute() and (ROOT / rel).exists():
+                    (dirs if (ROOT / rel).is_dir() else files).add(rel)
+        h = hashlib.blake2b(digest_size=16)
+        h.update(b"observed\0" + self._parts[PATHS].encode("utf-8") + b"\0")
+        for rel in sorted(files):
+            if rel.split("/")[0] == "target":
+                code = True
+            elif not self.is_ignored(rel):
+                h.update(rel.encode("utf-8") + b"\0" + self.digest_of(rel).encode("utf-8") + b"\0")
+        for rel in sorted(dirs):
+            if self.is_ignored(rel):
+                continue
+            try:
+                names = sorted(n for n in os.listdir(ROOT / rel)
+                               if not self.is_ignored(f"{rel}/{n}" if rel != "." else n))
+            except OSError:
+                names = ["\0absent"]
+            h.update(rel.encode("utf-8") + b"\0" + "\0".join(names).encode("utf-8") + b"\0\0")
+        if code:
+            h.update(b"code\0" + self._parts[CODE].encode("utf-8"))
+        return h.hexdigest()
+
+    def is_ignored(self, rel):
+        """Is this tree path one the memo does not hash -- ignored by git, or under a directory
+        `NOT_INPUTS` prunes?"""
+        parts = rel.split("/")
+        if set(parts) & NOT_INPUTS or rel in self._ignored or f"{rel}/" in self._ignored:
+            return True
+        return any("/".join(parts[:i]) + "/" in self._ignored for i in range(1, len(parts)))
+
+    def digest_of(self, rel):
+        """One file's content hash, read once a sweep; `absent` for a file that is not there."""
+        if rel not in self._digests:
+            try:
+                data = (ROOT / rel).read_bytes()
+                self._digests[rel] = hashlib.blake2b(data, digest_size=16).hexdigest()
+            except OSError:
+                self._digests[rel] = "absent"
+        return self._digests[rel]
 
     def binary_inputs(self, c):
         """A `cargo test -p <crate>` check's inputs as `tools/impact.py` keys them -- one key per
@@ -3104,7 +3234,14 @@ class Goal:
     def save_green(self):
         """Write the memo out, keeping only keys this goal can ask about again -- a check struck
         from the goal file, or a floor folded away, leaves nothing behind. Once per sweep rather
-        than per verdict: seven hundred rewrites of one file a run is what that would be."""
+        than per verdict: seven hundred rewrites of one file a run is what that would be. What
+        the Python gates were seen to read is written beside it, on the same terms."""
+        if getattr(self, "_observed_dirty", False):
+            self._observed_dirty = False
+            with contextlib.suppress(OSError):
+                RUNDIR.mkdir(parents=True, exist_ok=True)
+                CHECKREADS.write_text(json.dumps(self._observed, sort_keys=True),
+                                      encoding="utf-8", newline="\n")
         if not self._green_dirty:
             return
         keys = {self.memo_key(c) for c in self.checks if c["kind"] not in PROGRAM_KINDS}
