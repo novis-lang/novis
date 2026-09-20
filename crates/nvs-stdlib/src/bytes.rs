@@ -1741,6 +1741,52 @@ mod tests {
         assert_eq!(addressed(0, 0), None);
     }
 
+    /// `Core\Bytes::length` counts the octets a program can address, and
+    /// **agrees** with [`nvs_core_bytes_at`] on where the buffer stops: the last
+    /// index the count admits reads, and the first one past it throws. The two
+    /// are named together because a count one entry short answers plausibly
+    /// against either half alone, and the agreement is counted over the whole
+    /// table rather than read off a row. The rows a walk over the octets would
+    /// get wrong — an interior `NUL`, a multi-byte character, an octet past
+    /// `0x7f` — are what the table is made of.
+    // covers: Core\Bytes::length
+    #[test]
+    fn a_count_is_the_number_of_octets_that_can_be_addressed() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let table: [&[u8]; 7] = [
+            b"",
+            b"\x00",
+            b"\x00\x00\x00\x00",
+            b"report.pdf",
+            b"Gr\xc3\xb6\xc3\x9fe",
+            b"\x89PNG\r\n\x1a\n",
+            b"\xff\xfe\xfd",
+        ];
+
+        let mut agreed = 0_usize;
+        for octets in table {
+            let subject = Value::bytes(NvsStr::new(octets));
+            let counted = nvs_runtime::call(nvs_core_bytes_length, &mut ctx, &[subject])
+                .expect("a count answers")
+                .as_uint()
+                .expect("a count answers a `uint`");
+            let end = i64::try_from(counted).expect("a row of this table fits an `i64`");
+            let last_octet_reads = counted == 0
+                || nvs_runtime::call(nvs_core_bytes_at, &mut ctx, &[subject, Value::int(end - 1)])
+                    .is_ok();
+            let past_the_end_throws =
+                nvs_runtime::call(nvs_core_bytes_at, &mut ctx, &[subject, Value::int(end)])
+                    .is_err()
+                    && ctx.take_pending().is_some();
+            let real = u64::try_from(octets.len()).expect("a row of this table fits a `u64`");
+            if counted == real && last_octet_reads && past_the_end_throws {
+                agreed += 1;
+            }
+            release(vec![subject]);
+        }
+        assert_eq!(agreed, table.len());
+    }
+
     /// `Core\Bytes::at` reads the octet at each end of a buffer and refuses the
     /// first index past either of them, the two named together so a member that
     /// stops one entry early cannot pass on half the range. A refusal is a throw
@@ -1769,6 +1815,71 @@ mod tests {
                 ))
             );
         }
+
+        release(vec![subject]);
+    }
+
+    /// `Core\Bytes::slice` copies exactly the window its two positions name,
+    /// swept over every offset and every length a four-octet buffer admits:
+    /// both signs of both, the `null` that runs to the end, and the pairs that
+    /// close the window before it opens. The answer is checked with
+    /// [`nvs_core_bytes_compare`] against a window cut by [`offset`], whose own
+    /// clamping the test above pins, so the two ends of the window are asserted
+    /// together and a member that shifted one of them by one fails here.
+    /// Counted over the sweep rather than read off a row, for the reason its
+    /// siblings below are.
+    // covers: Core\Bytes::slice
+    #[test]
+    fn a_window_is_the_octets_between_the_two_positions_it_names() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let octets: &[u8] = b"\x00A\xff\x7f";
+        let subject = Value::bytes(NvsStr::new(octets));
+        let lengths = [
+            None,
+            Some(-6_i64),
+            Some(-3),
+            Some(-1),
+            Some(0),
+            Some(1),
+            Some(3),
+            Some(6),
+        ];
+
+        let mut agreed = 0_usize;
+        let mut swept = 0_usize;
+        for from in -6_i64..=6 {
+            for length in lengths {
+                swept += 1;
+                let start = offset(octets.len(), from);
+                let end = match length {
+                    None => octets.len(),
+                    Some(span) if span < 0 => offset(octets.len(), span),
+                    Some(span) => start
+                        .saturating_add(usize::try_from(span).expect("a length of this sweep fits"))
+                        .min(octets.len()),
+                };
+                let want = Value::bytes(NvsStr::new(octets.get(start..end).unwrap_or(&[])));
+                let window = nvs_runtime::call(
+                    nvs_core_bytes_slice,
+                    &mut ctx,
+                    &[
+                        subject,
+                        Value::int(from),
+                        length.map_or_else(Value::null, Value::int),
+                    ],
+                )
+                .expect("a window answers");
+                let ordering = nvs_runtime::call(nvs_core_bytes_compare, &mut ctx, &[window, want])
+                    .expect("two buffers order")
+                    .as_int();
+                if ordering == Some(0) {
+                    agreed += 1;
+                }
+                release(vec![window, want]);
+            }
+        }
+        assert_eq!(agreed, swept);
+        assert_eq!(swept, 13 * lengths.len());
 
         release(vec![subject]);
     }
@@ -2044,6 +2155,60 @@ mod tests {
             release(vec![subject, sought]);
         }
         assert_eq!(agreed, table.len());
+    }
+
+    /// `Core\Bytes::fill` writes the octet it is given as many times as it is
+    /// asked for, and the widest value it accepts sits beside the first it
+    /// refuses, the two named together so a member that stopped one short of
+    /// `0xff` — or took a `256` modulo 256 — would still fail. Each buffer is
+    /// checked with [`nvs_core_bytes_compare`] against one built here, so its
+    /// length and its content are asserted at once rather than a count being
+    /// read off a line.
+    // covers: Core\Bytes::fill
+    #[test]
+    fn a_fill_repeats_one_octet_and_refuses_a_value_wider_than_one() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+
+        let mut agreed = 0_usize;
+        let mut swept = 0_usize;
+        for length in [0_u64, 1, 2, 7, 4096] {
+            for byte in [0_u64, 1, 0x7f, 0xfe, 0xff] {
+                swept += 1;
+                let octet = u8::try_from(byte).expect("a row of this sweep is one octet");
+                let wide = usize::try_from(length).expect("a row of this sweep fits a `usize`");
+                let want = Value::bytes(NvsStr::new(&vec![octet; wide]));
+                let built = nvs_runtime::call(
+                    nvs_core_bytes_fill,
+                    &mut ctx,
+                    &[Value::uint(length), Value::uint(byte)],
+                )
+                .expect("a buffer of this size is affordable");
+                if nvs_runtime::call(nvs_core_bytes_compare, &mut ctx, &[built, want])
+                    .expect("two buffers order")
+                    .as_int()
+                    == Some(0)
+                {
+                    agreed += 1;
+                }
+                release(vec![built, want]);
+            }
+        }
+        assert_eq!(agreed, swept);
+
+        for byte in [256_u64, u64::from(u32::MAX), u64::MAX] {
+            nvs_runtime::call(
+                nvs_core_bytes_fill,
+                &mut ctx,
+                &[Value::uint(8), Value::uint(byte)],
+            )
+            .expect_err("a value wider than one octet throws");
+            assert_eq!(
+                ctx.take_pending().map(std::borrow::Cow::into_owned),
+                Some(format!(
+                    "Core\\Bytes::fill: {byte} is not one octet — a byte is 0 to 255"
+                ))
+            );
+        }
     }
 
     /// One `string` argument, which the caller still owns — [`packed`] borrows
