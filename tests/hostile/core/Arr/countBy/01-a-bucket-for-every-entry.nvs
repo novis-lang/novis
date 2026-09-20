@@ -1,0 +1,42 @@
+<?nvs
+// Attack: a program counts an array whose entries are all different, so the
+// result is as large as the array itself. The last step should stop at the
+// memory limit with an error, and the program must not crash.
+// hostile: timeout-ms 20000
+// hostile: ends-early
+
+// 1. Nothing at all.
+echo Core\Arr::count(Core\Arr::countBy([])), "\n";
+
+// 2. The number 1 and the text "1" name the same group, because that is how
+// every array key works. The result has one entry.
+array<string|int> $mixed = [1, '1', 1];
+echo Core\Arr::count(Core\Arr::countBy($mixed)), "\n";
+
+// 3. Ten thousand different values, so every entry gets a group of its own and
+// the result is as large as the input.
+array<int> $wide = Core\Arr::range(1, 10000);
+echo Core\Arr::count(Core\Arr::countBy($wide)), "\n";
+
+// 4. A `by` function that answers the same name for every entry, so ten
+// thousand entries fall into one group.
+echo Core\Arr::count(Core\Arr::countBy($wide, {
+    by: fn(int $value): string => 'same',
+})), "\n";
+
+// 5. A `by` function that answers the entry itself, so the callback runs ten
+// thousand times and every answer is a group of its own.
+echo Core\Arr::count(Core\Arr::countBy($wide, {
+    by: fn(int $value): int => $value,
+})), "\n";
+
+// 6. One million different values, counted a thousand times and every result
+// kept. That needs more memory than the program has, so it stops here.
+array<int> $huge = Core\Arr::range(1, 1000000);
+array<array<uint>> $kept = [];
+uint $k = 0;
+while ($k < 1000) {
+    $kept[] = Core\Arr::countBy($huge);
+    $k = $k + 1;
+}
+echo "kept all\n";

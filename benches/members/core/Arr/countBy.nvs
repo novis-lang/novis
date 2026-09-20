@@ -1,0 +1,22 @@
+<?nvs
+// Counts how often each answer appears in a short list, as a program does when
+// it builds a summary of a survey page.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Last round's total decides the first entry, so no round can be reused.
+            array<uint> $answers = [$total % 3, 1, 2, 1, 2, 2];
+            array<uint> $howMany = Core\Arr::countBy($answers);
+            $total = $total + Core\Arr::count($howMany);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

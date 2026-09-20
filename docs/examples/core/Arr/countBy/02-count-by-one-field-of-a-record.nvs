@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to count records by one of their fields. The `by` option is a
+// function that names the group each entry belongs to.
+
+array<array<string>> $users = [
+    ["name" => "Ada", "city" => "Berlin"],
+    ["name" => "Grace", "city" => "Hamburg"],
+    ["name" => "Alan", "city" => "Berlin"],
+];
+
+// The function returns the city, so the cities become the keys of the result.
+// This prints `{"Berlin":2,"Hamburg":1}`.
+array<uint> $perCity = Core\Arr::countBy($users, {
+    by: fn(array<string> $user): string => $user["city"],
+});
+echo Core\Json::encode($perCity), "\n";

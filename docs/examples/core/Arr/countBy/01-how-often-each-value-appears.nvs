@@ -1,0 +1,9 @@
+<?nvs
+// Shows how to count how often each value appears in a list.
+
+array<string> $answers = ["yes", "no", "yes", "maybe", "yes"];
+
+// The result has one entry per distinct answer. The groups are in the order
+// they first appeared, so "yes" comes first with 3.
+array<uint> $howMany = Core\Arr::countBy($answers);
+echo Core\Json::encode($howMany), "\n";
