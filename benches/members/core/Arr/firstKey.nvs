@@ -1,0 +1,34 @@
+<?nvs
+// Reads the first key of a form, as a page does when it names the field it
+// starts with.
+// bench: iterations 400000
+// bench: calls 0
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $shipping = ['name' => 'Ada', 'city' => 'Wien'];
+        array<string> $billing = ['city' => 'Bonn', 'name' => 'Ida'];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Last round's total decides which of the two forms this round
+            // reads, so no round can be reused.
+            ?string $field = null;
+            if ($total % 2 == 0) {
+                $field = Core\Arr::firstKey($shipping);
+            } else {
+                $field = Core\Arr::firstKey($billing);
+            }
+            if ($field == 'name') {
+                $total = $total + 1;
+            } else {
+                $total = $total + 2;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

@@ -1,0 +1,51 @@
+<?nvs
+// Attack: the first key is copied out of very large arrays, out of one whose
+// key is enormous, and out of an array whose front is removed over and over.
+// Every step should finish or throw an error, and the runtime must not crash.
+// hostile: timeout-ms 60000
+
+// 1. The first key of a list of 400000 entries.
+array<int> $long = [];
+int $i = 0;
+while ($i < 400000) {
+    $long[] = $i;
+    $i = $i + 1;
+}
+echo 'step 1: ', Core\Arr::firstKey($long) ?? 'none', '|', "\n";
+
+// 2. A first key of one million characters, copied and dropped 1000 times.
+array<int> $wide = [];
+$wide[Core\Str::repeat('k', 1000000)] = 1;
+uint $seen = 0;
+int $r = 0;
+while ($r < 1000) {
+    $seen = $seen + Core\Str::length(Core\Arr::firstKey($wide) ?? '');
+    $r = $r + 1;
+}
+echo 'step 2: ', $seen, '|', "\n";
+
+// 3. A key that contains a zero byte in the middle.
+array<int> $odd = [];
+$odd["a\0b"] = 1;
+echo 'step 3: ', Core\Str::length(Core\Arr::firstKey($odd) ?? ''), '|', "\n";
+
+// 4. The front entry is removed 2000 times, and the first key is read after
+//    every removal.
+array<int> $shrinking = [];
+int $n = 0;
+while ($n < 2000) {
+    $shrinking[] = $n;
+    $n = $n + 1;
+}
+uint $read = 0;
+while (!Core\Arr::isEmpty($shrinking)) {
+    $read = $read + Core\Str::length(Core\Arr::firstKey($shrinking) ?? '');
+    $shrinking = Core\Arr::withoutFirst($shrinking);
+}
+echo 'step 4: ', $read, '|', "\n";
+
+// 5. An array with no entries has no first key.
+array<int> $empty = [];
+echo 'step 5: ', Core\Arr::firstKey($empty) ?? 'none', '|', "\n";
+
+echo 'the runtime is still standing', "\n";

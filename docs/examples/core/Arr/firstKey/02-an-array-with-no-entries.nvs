@@ -1,0 +1,18 @@
+<?nvs
+// Shows what `Core\Arr::firstKey` gives you when there is no first entry.
+
+array<int> $stock = [];
+
+// The result is `null`, so this prints `the shelf is empty`.
+?string $name = Core\Arr::firstKey($stock);
+if ($name == null) {
+    echo "the shelf is empty\n";
+}
+
+// One entry is added, and its key is now the first key. This prints `pears`.
+$stock['pears'] = 4;
+echo Core\Arr::firstKey($stock) ?? 'nothing', "\n";
+
+// Adding a second entry does not change the first key. This prints `pears`.
+$stock['apples'] = 12;
+echo Core\Arr::firstKey($stock) ?? 'nothing', "\n";
