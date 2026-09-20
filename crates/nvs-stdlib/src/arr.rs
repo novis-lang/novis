@@ -8286,6 +8286,102 @@ mod tests {
         assert_eq!(status, nvs_runtime::THROWN);
     }
 
+    /// [`super::nvs_core_arr_product`] is [`super::nvs_core_arr_sum`]'s fold
+    /// over the other operator, so what it owes on its own is its own
+    /// identity: the empty array is `int` `1` where the sum's is `0`. The
+    /// promotion is the shared one, and a product past `int`'s range throws,
+    /// which is the divergence from `array_product`: PHP answers
+    /// `1.8446744073709552E+19` for `int`'s largest value doubled.
+    // covers: Core\Arr::product
+    #[test]
+    fn product_folds_from_one_and_throws_past_ints_range() {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+
+        let empty = call(
+            super::nvs_core_arr_product,
+            &mut ctx,
+            &[Value::array(NvsArray::new())],
+        )
+        .expect("the empty array is the identity");
+        assert_eq!(empty.as_int(), Some(1));
+
+        let mut mixed = NvsArray::new();
+        mixed.append(Value::int(3));
+        mixed.append(Value::float(0.5));
+        let numbers = Value::array(mixed);
+        let promoted = call(super::nvs_core_arr_product, &mut ctx, &[numbers])
+            .expect("an int and a float multiply");
+        assert_eq!(promoted.as_float(), Some(1.5));
+
+        let mut large = NvsArray::new();
+        large.append(Value::int(i64::MAX));
+        large.append(Value::int(2));
+        let doubled = Value::array(large);
+        let status = call(super::nvs_core_arr_product, &mut ctx, &[doubled])
+            .expect_err("the product leaves `int`'s range");
+        assert_eq!(status, nvs_runtime::THROWN);
+
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the two references it built above, and the \
+                      member borrowed rather than consumed them"
+        )]
+        unsafe {
+            numbers.release();
+            doubled.release();
+        }
+    }
+
+    /// What [`super::nvs_core_arr_average`] owes past the shared fold: the
+    /// empty array is `null` rather than a division by zero, and an exact
+    /// total divides exactly, at the widest scale the quotient admits. Every
+    /// other total divides as a `float`, which is what makes the result type a
+    /// union.
+    // covers: Core\Arr::average
+    #[test]
+    fn an_average_is_null_over_nothing_and_divides_a_decimal_total_exactly() {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+
+        let nothing = call(
+            super::nvs_core_arr_average,
+            &mut ctx,
+            &[Value::array(NvsArray::new())],
+        )
+        .expect("the empty array is an answer rather than a failure");
+        assert_eq!(nothing.tag_byte(), Tag::Null as u8);
+
+        let mut whole = NvsArray::new();
+        whole.append(Value::int(4));
+        whole.append(Value::int(5));
+        let ints = Value::array(whole);
+        let mean =
+            call(super::nvs_core_arr_average, &mut ctx, &[ints]).expect("two ints have a mean");
+        assert_eq!(mean.as_float(), Some(4.5));
+
+        let mut thirds = NvsArray::new();
+        for entry in [1, 0, 0] {
+            thirds.append(Value::decimal(super::Decimal::from_i64(entry)));
+        }
+        let exact = Value::array(thirds);
+        let third = call(super::nvs_core_arr_average, &mut ctx, &[exact])
+            .expect("three decimals have a mean");
+        assert_eq!(third.tag_byte(), Tag::Decimal as u8);
+        assert_eq!(
+            third.as_decimal(),
+            super::Decimal::from_i64(1).checked_div(super::Decimal::from_i64(3))
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the two references it built above, and the \
+                      member borrowed rather than consumed them"
+        )]
+        unsafe {
+            ints.release();
+            exact.release();
+        }
+    }
+
     /// The deliberate divergence from `array_pad`, which renumbers the integer
     /// keys and keeps the string ones: PHP answers
     /// `{"0":"z","x":"a","1":"b","y":"c"}` for this subject padded on the left
