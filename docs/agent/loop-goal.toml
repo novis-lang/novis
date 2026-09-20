@@ -99,6 +99,8 @@ modules = [
   "crates/nvs-stdlib/src/arr.rs",
   # Strict identity over two `Value`s, and the hash that agrees with it.
   "crates/nvs-runtime/src/identity.rs",
+  # Deadlines on the same reactor: one mechanism, and a sleep and a timeout are two views of it.
+  "crates/nvs-host/src/timer.rs",
 ]
 
 rules = ["testing/feature-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
