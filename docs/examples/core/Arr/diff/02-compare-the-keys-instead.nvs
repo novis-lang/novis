@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to find the keys one array has and another does not. The `on`
+// option says which part of an entry is compared.
+
+array<string> $fromFile = ["theme" => "dark", "language" => "en", "debug" => "on"];
+array<string> $known = ["theme" => "light", "language" => "de"];
+
+// Only `debug` is left, because it is the one key the second array does not
+// have. The values are not compared at all here.
+array<string> $unknown = Core\Arr::diff($fromFile, $known, {on: Core\SetOn::Keys});
+echo Core\Json::encode($unknown), "\n";

@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to find the values of one list that a second list does not have.
+
+array<string> $requested = ["pen", "paper", "ink", "ruler"];
+array<string> $inStock = ["paper", "ruler"];
+
+// "pen" and "ink" are left. Each one keeps the key it had in the first list,
+// so the keys here are 0 and 2.
+array<string> $missing = Core\Arr::diff($requested, $inStock);
+echo Core\Json::encode($missing), "\n";
