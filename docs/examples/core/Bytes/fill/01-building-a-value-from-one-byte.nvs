@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to build a `bytes` value out of one byte repeated. You give the
+// number of bytes and the byte itself, as a number from 0 to 255.
+
+// 65 is the letter "A", so this prints "AAAA".
+echo Core\Bytes::fill(4, 65) as string, "\n";
+
+// A block of 16 zero bytes, as a program writes at the front of a file. This
+// prints 16.
+echo Core\Bytes::length(Core\Bytes::fill(16, 0)), "\n";
+
+// A length of 0 gives a value with nothing in it. This prints 0.
+echo Core\Bytes::length(Core\Bytes::fill(0, 65)), "\n";

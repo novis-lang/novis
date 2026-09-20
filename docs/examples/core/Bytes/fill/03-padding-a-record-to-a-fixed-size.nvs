@@ -1,0 +1,20 @@
+<?nvs
+// Shows how a program brings every record up to the same size. Records of one
+// size can be read back one after another without a separator between them.
+
+final class Record {
+    // Returns the record with zero bytes added at the end, up to $size bytes.
+    public static function padded(bytes $record, uint $size): bytes {
+        uint $have = Core\Bytes::length($record);
+        if ($have >= $size) {
+            return $record;
+        }
+        return Core\Bytes::join([$record, Core\Bytes::fill($size - $have, 0)]);
+    }
+}
+
+// This record has 11 bytes, so 5 zero bytes are added. This prints 16.
+echo Core\Bytes::length(Record::padded("Hello there" as bytes, 16)), "\n";
+
+// This one already has 16 bytes, so nothing is added. This prints 16.
+echo Core\Bytes::length(Record::padded(Core\Bytes::fill(16, 65), 16)), "\n";
