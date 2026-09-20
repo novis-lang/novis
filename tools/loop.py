@@ -2000,6 +2000,13 @@ COMMAND_READS = (
     ("tools/tsan.sh", ("crates", "crate-tests", "docs", "examples", "tools", OTHER)),
     ("tools/db-matrix.py", ("crates", "crate-tests", "docs", "tests", "tools")),
 )
+#: For each `COMMAND_READS` row, the file that says which workspace packages that check builds:
+#: the fuzz workspace's manifest, and the two scripts, each of which names its `-p` crates.
+BUILDS = (
+    ("cargo +nightly fuzz run", "fuzz/Cargo.toml"),
+    ("tools/tsan.sh", "tools/tsan.sh"),
+    ("tools/db-matrix.py", "tools/db-matrix.py"),
+)
 TOP_OWNER = {top: name for name, tops in PARTITIONS.items() for top in tops}
 
 
@@ -2037,9 +2044,15 @@ def reads_of(c):
         if argv and argv[0] == "npm" and c.get("cwd", ".").startswith("editors/"):
             return EDITOR_READS
         for needle, reads in COMMAND_READS:
-            if any(needle in a for a in argv):
+            if runs(argv, needle):
                 return reads
     return EVERYTHING
+
+
+def runs(argv, needle):
+    """Does this command run what `needle` names? A `git grep` whose pattern merely quotes the
+    command does not: it reads the file it searches, which no `COMMAND_READS` row holds."""
+    return bool(argv) and argv[0] != "git" and any(needle in a for a in argv)
 
 
 def suite_reads(args):
@@ -3080,9 +3093,54 @@ class Goal:
         if narrow is not None:
             return narrow
         h = hashlib.blake2b(digest_size=16)
+        built = self.package_inputs(c)
         for name in reads_of(c):
+            if built is not None and name == "crates":
+                h.update(b"packages\0" + built.encode("utf-8") + b"\0")
+                continue
             h.update(name.encode("utf-8") + b"\0" + self._parts[name].encode("utf-8") + b"\0")
         return h.hexdigest()
+
+    def package_inputs(self, c):
+        """What stands in for the `crates` partition in a check whose row in `CARGO_ARGS_READS`
+        or `COMMAND_READS` was read off its source: the packages that check builds, and what
+        they are compiled against, as `impact.Reach.packages` keys them -- or `None`, and then
+        `crates` stands, which is every crate in the workspace.
+
+        Those rows exist because each check costs minutes, and `crates` made every one of them
+        stale on an edit to a crate it never compiles: the sanitizer script runs `nvs-host` and
+        `nvs-runtime`, and an edit to `nvs-lsp` ran it. A `cargo-named` row's package is its
+        `-p`; a `command` row's are the workspace packages named in the file `BUILDS` gives for
+        it. Only a check with such a row is answered: any other `cargo-named` check may hold a
+        test that reads another crate's sources."""
+        if self._tiers is None:
+            return None
+        names = None
+        if c["kind"] == "cargo-named":
+            args = tuple(c.get("args", []))
+            package = args[args.index("-p") + 1:args.index("-p") + 2] if "-p" in args else ()
+            if package and (args in CARGO_ARGS_READS or package in CARGO_ARGS_READS):
+                names = list(package)
+        elif c["kind"] == "command":
+            for needle, source in BUILDS:
+                if runs(c.get("argv", []), needle):
+                    names = self.reach().named_in(source)
+        if not names:
+            return None
+        parts = self.reach().packages(names)
+        if parts is None:
+            return None
+        # The two root files `crates` holds that no package's key does.
+        parts = parts + [(rel, self.digest_of(rel)) for rel in ("nvs.toml", "deny.toml")]
+        return impact._digest("packages", parts)
+
+    def reach(self):
+        """`impact.Reach` over the tree this sweep hashed: one reading a sweep, with the jobs on
+        record and every answer `binary_inputs` has given so far."""
+        if self._reach is None:
+            self._reach = impact.Reach(self._tiers)
+            self._reach.jobs, self._reach.answers = impact.last_jobs(), {}
+        return self._reach
 
     def observed_inputs(self, c):
         """A Python gate's inputs as `tools/observe.py` last saw them, or `None`, and then
@@ -3173,10 +3231,7 @@ class Goal:
         plain = plain_crate_test(c.get("args", []))
         if plain is None:
             return None
-        if self._reach is None:
-            # One reading a sweep: the jobs on record, and every answer `plain` has had so far.
-            self._reach = impact.Reach(self._tiers)
-            self._reach.jobs, self._reach.answers = impact.last_jobs(), {}
+        self.reach()
         if plain in self._reach.answers:
             return self._reach.answers[plain]
         self._reach.answers[plain] = None
