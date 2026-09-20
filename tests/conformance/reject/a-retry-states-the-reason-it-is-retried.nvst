@@ -2,6 +2,7 @@
 a `#[Test(retries: n)]` with no `because:` beside it is refused where it is written, `rule:testing/runner-is-strict` charging a written reason for every retry
 --FILE--
 <?nvs
+// covers: lang:testing/test-options
 // `rule:testing/runner-is-strict` grants retries and charges a reason for them in one sentence:
 // a retried test is reported as flaky rather than green, and the `because:`
 // is what a reader of the attribute has in place of the run that produced it.
@@ -44,9 +45,9 @@ final class AcceptedTest {
 }
 --EXPECTF-ERROR--
 error[E0734]: `retries` is given with no `because`
-   --> case.nvs:30:12
+   --> case.nvs:31:12
 %A
 error[E0734]: `retries` is given with no `because`
-   --> case.nvs:37:53
+   --> case.nvs:38:53
 %A
 error: aborting due to 2 errors

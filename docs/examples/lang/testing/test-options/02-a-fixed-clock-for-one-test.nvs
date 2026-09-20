@@ -1,0 +1,30 @@
+<?nvs
+// Shows how to fix the time a test reads. `at:` sets the clock at one instant
+// for that test. `Core\Test::advance` then moves the clock forward.
+
+use Core\Test;
+use Core\Time;
+
+class Receipt {
+    public static function stampedAt(string $iso): string {
+        return "receipt at " . $iso;
+    }
+}
+
+class ReceiptTest {
+    // The clock stands still at this instant, for this test only.
+    #[Test(at: "2026-01-01T00:00:00Z")]
+    public function itStampsTheTimeTheClockShows(): void {
+        string $first = Receipt::stampedAt(Time::now()->toIso());
+        Test::assertSame($first, "receipt at 2026-01-01T00:00:00Z");
+
+        // This moves the fixed clock forward by 90 minutes.
+        Test::advance(90m);
+
+        string $later = Receipt::stampedAt(Time::now()->toIso());
+        Test::assertSame($later, "receipt at 2026-01-01T01:30:00Z");
+    }
+}
+
+// This prints `receipt at 2026-01-01T00:00:00Z`, the text the test checks first.
+echo Receipt::stampedAt("2026-01-01T00:00:00Z"), "\n";

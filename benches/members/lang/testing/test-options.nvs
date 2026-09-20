@@ -1,0 +1,35 @@
+<?nvs
+// Measures what a test that carries options costs to call. The options are
+// read while the program is built, so a runner pays for them once and not on
+// every call.
+// bench: iterations 300000
+// bench: calls 1
+// bench: allocations 0
+
+use Core\Test;
+
+class Meter {
+    public static uint $entered = 0;
+}
+
+class OptionsTest {
+    #[Test(seed: 7, retries: 2, because: "the options a real test carries")]
+    public function countsOneEntry(): void {
+        // Chained: the count written here is the one the round before wrote.
+        Meter::$entered = Meter::$entered + 1;
+    }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $test = new OptionsTest();
+        uint $i = 0;
+        while ($i < $rounds) {
+            $test->countsOneEntry();
+            $i = $i + 1;
+        }
+        return Meter::$entered;
+    }
+}
+
+echo Bench::run(300000), "\n";

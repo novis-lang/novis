@@ -4,6 +4,7 @@ a `#[Test(retries: n)]` that fails and then passes is flaky rather than green, a
 test
 --FILE--
 <?nvs
+// covers: lang:testing/test-options
 // § 20: retries exist and are reported as flaky, never as green. How many
 // times a body was entered is observable in class storage, because § 2 gives
 // the isolate to a *test* and its attempts run inside it — so each test below
