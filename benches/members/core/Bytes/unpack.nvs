@@ -1,0 +1,25 @@
+<?nvs
+// Measures reading a five-byte header, as a program does with the first bytes of
+// every message it receives.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        bytes $first = Core\Bytes::pack("NC", 1114, 4);
+        bytes $second = Core\Bytes::pack("NC", 1115, 5);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The fields read in one round choose the buffer of the next, so no
+            // round can be left out.
+            bytes $header = ($total % 3) == 0 ? $first : $second;
+            array<mixed> $fields = Core\Bytes::unpack($header, "NC");
+            $total = $total + ($fields[0] as uint) + ($fields[1] as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

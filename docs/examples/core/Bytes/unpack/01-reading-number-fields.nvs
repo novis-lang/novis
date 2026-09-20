@@ -1,0 +1,21 @@
+<?nvs
+// Shows how to read whole numbers out of a buffer of bytes. The format says how
+// wide each field is, and which end of the number comes first.
+
+// `N` reads four bytes as one number, largest byte first. This prints 1114.
+array<mixed> $one = Core\Bytes::unpack(Core\Encoding::fromHex("0000045a"), "N");
+echo ($one[0] as uint) as string, "\n";
+
+// `V` reads the same four bytes smallest byte first, which is a different
+// number. This prints 1510211584.
+array<mixed> $other = Core\Bytes::unpack(Core\Encoding::fromHex("0000045a"), "V");
+echo ($other[0] as uint) as string, "\n";
+
+// One format reads several fields, and the result is a list in the order of the
+// format. This prints 1114 8080 4.
+array<mixed> $header = Core\Bytes::unpack(Core\Bytes::pack("NnC", 1114, 8080, 4), "NnC");
+echo ($header[0] as uint) as string, " ", ($header[1] as uint) as string, " ",
+     ($header[2] as uint) as string, "\n";
+
+// The list holds one entry per field. This prints 3.
+echo Core\Arr::count($header), "\n";

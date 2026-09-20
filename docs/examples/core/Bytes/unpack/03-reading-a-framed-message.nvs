@@ -1,0 +1,20 @@
+<?nvs
+// Shows how a program reads a message that arrived over a socket. The first four
+// bytes hold the length of the body, so the reader takes those bytes first and
+// then reads exactly that many more.
+
+bytes $frame = Core\Bytes::pack("Na", 11, "{\"id\":1042}" as bytes);
+
+// The format must describe the whole buffer, so cut the first four bytes off and
+// read the length out of them. This prints 11.
+array<mixed> $head = Core\Bytes::unpack(Core\Bytes::slice($frame, 0, 4), "N");
+int $length = $head[0] as int;
+echo $length, "\n";
+
+// The body is that many bytes after the first four. This prints {"id":1042}.
+echo Core\Bytes::slice($frame, 4, $length) as string, "\n";
+
+// A buffer you already hold whole needs one call: `N` for the length, and `a`
+// with no width for all the rest. This prints 11 and {"id":1042}.
+array<mixed> $both = Core\Bytes::unpack($frame, "Na");
+echo ($both[0] as uint) as string, " ", ($both[1] as bytes) as string, "\n";

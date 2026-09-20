@@ -1,0 +1,55 @@
+<?nvs
+// Attack: a format asks for many more bytes than the buffer holds, and then for
+// more fields than the host has memory for. Every step should stop with an
+// error, and the last one should stop the program at its memory limit.
+// hostile: timeout-ms 60000
+// hostile: ends-early
+
+bytes $two = Core\Encoding::fromHex('0001');
+
+// 1. A thousand million one-byte fields out of a buffer of two bytes. This must
+//    stop with an error at the end of the buffer.
+try {
+    echo Core\Arr::count(Core\Bytes::unpack($two, 'C1000000000')), "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. A count with more digits than any number the machine holds.
+try {
+    echo Core\Arr::count(Core\Bytes::unpack($two, 'C99999999999999999999999999')), "\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. A text field of four thousand million bytes. The field is longer than the
+//    buffer, so nothing is read and nothing is allocated.
+try {
+    echo Core\Arr::count(Core\Bytes::unpack($two, 'a4294967295')), "\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. A format that leaves a byte over. The bytes it did not describe must stop
+//    the call, not be dropped.
+try {
+    echo Core\Arr::count(Core\Bytes::unpack($two, 'C')), "\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}
+
+// 5. Half a million fields read out of the same megabyte, twenty times over.
+//    Every list must be freed while the loop runs. This prints 10000000.
+bytes $block = Core\Bytes::fill(1000000, 7);
+uint $round = 0;
+uint $seen = 0;
+while ($round < 20) {
+    $seen = $seen + Core\Arr::count(Core\Bytes::unpack($block, 'n*'));
+    $round = $round + 1;
+}
+echo $seen, "\n";
+
+// 6. Twenty million one-byte fields in one list. A field costs more memory than
+//    the byte it came from, so the program stops here at its memory limit.
+echo Core\Arr::count(Core\Bytes::unpack(Core\Bytes::fill(20000000, 7), 'C*')), "\n";
+echo "never reached\n";
