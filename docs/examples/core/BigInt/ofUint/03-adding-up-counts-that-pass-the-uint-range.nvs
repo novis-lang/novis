@@ -1,0 +1,24 @@
+<?nvs
+// Shows a total that stays exact. Each count fits a `uint`, and the total of
+// them does not.
+
+class Traffic {
+    // Returns the total of $counts, which may be larger than any `uint`.
+    public static function total(array<uint> $counts): Core\BigInt {
+        var $total = Core\BigInt::of(0);
+        foreach ($counts as uint $count) {
+            $total = $total->add(Core\BigInt::ofUint($count));
+        }
+        return $total;
+    }
+}
+
+array<uint> $counts = [
+    18000000000000000000,
+    18000000000000000000,
+    446744073709551615,
+];
+
+// The three counts together are larger than any `uint`. The total is exact,
+// and this prints 36446744073709551615.
+echo Traffic::total($counts), "\n";

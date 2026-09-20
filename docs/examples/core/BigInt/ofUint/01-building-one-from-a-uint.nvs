@@ -1,0 +1,15 @@
+<?nvs
+// Shows how a program turns a plain `uint` into a `Core\BigInt`.
+
+// `ofUint` takes any `uint`. This prints 4500.
+echo Core\BigInt::ofUint(4500), "\n";
+
+// Zero works the same way. This prints 0.
+echo Core\BigInt::ofUint(0), "\n";
+
+// The largest `uint` there is converts exactly. This prints
+// 18446744073709551615.
+echo Core\BigInt::ofUint(18446744073709551615), "\n";
+
+// The number is never negative, so this prints 1 for every value but zero.
+echo Core\BigInt::ofUint(18446744073709551615)->sign(), "\n";

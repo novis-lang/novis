@@ -1,0 +1,22 @@
+<?nvs
+// Shows the half of the `uint` range that no `int` can hold. `ofUint` is the
+// way in for those numbers.
+
+uint $identifier = 12000000000000000000;
+
+// The number is larger than the largest `int`, which is 9223372036854775807.
+// As a `Core\BigInt` it is exact, and this prints 12000000000000000000.
+var $wide = Core\BigInt::ofUint($identifier);
+echo $wide, "\n";
+
+// Reading it back as a `uint` gives the number you started with. This prints
+// 12000000000000000000.
+echo $wide->toUint(), "\n";
+
+// Reading it back as an `int` throws an error, because it does not fit. This
+// prints "outside the int range".
+try {
+    echo $wide->toInt(), "\n";
+} catch (ArithmeticError $tooLarge) {
+    echo "outside the int range\n";
+}
