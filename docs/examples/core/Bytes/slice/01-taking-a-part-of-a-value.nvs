@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to copy a part of a `bytes` value. The part starts at a position
+// and has a length, both counted in bytes.
+
+bytes $record = "2026-09-21T08:15:00Z" as bytes;
+
+// 4 bytes from position 0. This prints "2026".
+echo Core\Bytes::slice($record, 0, 4) as string, "\n";
+
+// Without a length the part runs to the end. This prints "08:15:00Z".
+echo Core\Bytes::slice($record, 11) as string, "\n";

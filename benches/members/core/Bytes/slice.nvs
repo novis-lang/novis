@@ -1,0 +1,23 @@
+<?nvs
+// Measures copying a small part out of a larger value, as a program does when
+// it reads the header of a binary message.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        bytes $frame = Core\Bytes::fill(4096, 97);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The result of one round picks where the next one starts, so the
+            // window moves through the value.
+            $total = $total
+                + Core\Bytes::length(Core\Bytes::slice($frame, ($total % 3000) as int, 16));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";
