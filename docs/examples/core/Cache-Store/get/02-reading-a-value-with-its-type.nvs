@@ -1,0 +1,29 @@
+<?nvs
+// Shows how to read a stored value back with the type your program needs.
+// `get` returns `mixed`, because a store holds whatever was written into it.
+
+class Article {
+    public string $title = "";
+}
+
+var $cache = Core\Cache::local();
+
+array<string> $written = ["food", "recipe"];
+var $article = new Article();
+$article->title = "Bread and salt";
+
+$cache->put("views", 42);
+$cache->put("tags", $written);
+$cache->put("article", $article);
+
+// `as int` gives a whole number. This prints 42.
+var $views = $cache->get("views") as int;
+echo $views, "\n";
+
+// `as array<string>` gives the list of texts. This prints 2.
+var $tags = $cache->get("tags") as array<string>;
+echo Core\Arr::count($tags), "\n";
+
+// `as Article` gives the object back. This prints Bread and salt.
+var $stored = $cache->get("article") as Article;
+echo $stored->title, "\n";

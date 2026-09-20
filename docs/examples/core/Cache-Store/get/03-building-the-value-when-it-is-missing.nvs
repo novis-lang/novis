@@ -1,0 +1,37 @@
+<?nvs
+// Shows the way most programs use a cache: read first, build the value only
+// when it is missing, and store what was built.
+
+class Menu {
+    public static function links(): array<string> {
+        var $cache = Core\Cache::local();
+
+        // A value that is there is used as it is, and the work below is
+        // skipped.
+        var $held = $cache->get("menu");
+        if ($held != null) {
+            return $held as array<string>;
+        }
+
+        // This is the work the cache saves. A real program reads a database
+        // here.
+        array<string> $built = [
+            "home" => "/",
+            "shop" => "/shop",
+            "contact" => "/contact",
+        ];
+
+        // The menu is good for one hour. After that the next call builds it
+        // again.
+        $cache->put("menu", $built, {ttl: 1h});
+        return $built;
+    }
+}
+
+// The first call builds the menu. This prints /shop.
+array<string> $first = Menu::links();
+echo $first["shop"], "\n";
+
+// The second call reads it from the store. This prints /contact.
+array<string> $second = Menu::links();
+echo $second["contact"], "\n";

@@ -1,0 +1,27 @@
+<?nvs
+// Shows how to read a value out of a cache store, and what a missing key
+// returns.
+
+var $cache = Core\Cache::local();
+$cache->put("greeting", "hello");
+
+// `get` returns what was written under the key. This prints hello.
+var $greeting = $cache->get("greeting") as string;
+echo $greeting, "\n";
+
+// Reading does not remove the value. The second read returns the same text,
+// so this prints hello again.
+var $again = $cache->get("greeting") as string;
+echo $again, "\n";
+
+// A key that nothing wrote returns `null`. `??` supplies a value to use
+// instead, so this prints no colour yet.
+var $colour = $cache->get("colour") ?? "no colour yet";
+echo $colour as string, "\n";
+
+// You can also test for the missing value yourself. This prints the key is
+// missing.
+var $held = $cache->get("colour");
+if ($held == null) {
+    echo "the key is missing\n";
+}

@@ -1,0 +1,38 @@
+--TEST--
+A `get` answers `null` for a key nothing wrote and for one whose lifetime is over, leaves the entry it read where it was, and reads only the tier it was named on — `rule:core-api/two-cache-tiers`
+--FILE--
+<?nvs
+// covers: Core\Cache\Store::get
+var $cache = Core\Cache::local();
+
+// § 1: a key nothing wrote is `null`, which is an answer and not a failure.
+var $missing = $cache->get("nothing-wrote-this") ?? "null";
+echo "miss=", $missing as string, "\n";
+
+// § 2: a read copies in and leaves the entry where it was, so the second read
+// answers what the first one did.
+$cache->put("kept", "payload");
+var $first = $cache->get("kept") as string;
+var $second = $cache->get("kept") as string;
+echo "first=", $first, "\n";
+echo "second=", $second, "\n";
+
+// § 1: an entry whose lifetime is already over reads as the same `null`. A
+// caller cannot tell it from a key nothing wrote, which is the contract it has
+// to be written against.
+$cache->put("brief", "payload", {ttl: 0s});
+var $expired = $cache->get("brief") ?? "null";
+echo "expired=", $expired as string, "\n";
+
+// § 2: the tier says where the bytes come from and nothing else, so a read on
+// one tier does not see what was written on another.
+var $process = Core\Cache::process();
+$process->put("one-tier-only", "written on the process tier");
+var $elsewhere = $cache->get("one-tier-only") ?? "null";
+echo "other tier=", $elsewhere as string, "\n";
+--EXPECT--
+miss=null
+first=payload
+second=payload
+expired=null
+other tier=null

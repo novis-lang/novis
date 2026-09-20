@@ -1,0 +1,61 @@
+<?nvs
+// Attack: a request reads the cache with keys it should get nothing for, and
+// reads one large value over and over. Every read should answer or stop with
+// an error, and the program must keep running.
+// hostile: timeout-ms 60000
+
+var $cache = Core\Cache::local();
+
+// 1. A key of one million characters that nothing wrote. The answer must be
+//    `null`, and the read must not build the key into anything it keeps.
+try {
+    string $long = Core\Str::repeat('k', 1000000);
+    var $missing = $cache->get($long) ?? 'absent';
+    echo 'step 1 answered ', $missing as string, "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. The empty key. It is a key like any other, so the answer is `null` until
+//    something writes it.
+var $empty = $cache->get('') ?? 'absent';
+echo 'step 2 answered ', $empty as string, "\n";
+
+// 3. A key nothing wrote, read two hundred thousand times. A miss must cost
+//    nothing that the store keeps.
+uint $misses = 0;
+uint $i = 0;
+while ($i < 200000) {
+    if ($cache->get('nothing-wrote-this') == null) {
+        $misses = $misses + 1;
+    }
+    $i = $i + 1;
+}
+echo 'step 3 counted ', $misses, " missing values\n";
+
+// 4. A value of one hundred thousand characters, read fifty thousand times.
+//    Every read makes a copy, and every copy must be freed again.
+$cache->put('big', Core\Str::repeat('y', 100000));
+uint $characters = 0;
+uint $round = 0;
+while ($round < 50000) {
+    string $copy = $cache->get('big') as string;
+    $characters = $characters + Core\Str::length($copy);
+    $round = $round + 1;
+}
+echo 'step 4 read ', $characters, " characters\n";
+
+// 5. A text read as a number. The value is not a number, so the conversion
+//    must stop with an error instead of returning something wrong.
+$cache->put('label', 'not a number');
+try {
+    int $wrong = $cache->get('label') as int;
+    echo 'step 5 answered ', $wrong, "\n";
+} catch (Throwable $e) {
+    echo "step 5 stopped\n";
+}
+
+// 6. The store still answers for a key that is there.
+$cache->put('after', 'still working');
+var $after = $cache->get('after') ?? 'absent';
+echo 'step 6 read ', $after as string, "\n";

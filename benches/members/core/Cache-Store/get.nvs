@@ -1,0 +1,23 @@
+<?nvs
+// Measures reading one value out of this core's cache. That is the read a
+// request makes before it decides whether it has to build the value.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $store = Core\Cache::local();
+        $store->put("row", 1);
+
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Every round adds what it read, so no round can be left out.
+            $total = $total + ($store->get("row") as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";
