@@ -1927,6 +1927,208 @@ mod tests {
             .expect_err("and so is a negative power");
     }
 
+    /// `shl` is multiplication by a power of two rather than a rewrite of the
+    /// digits: over a sweep of signs and distances its answer is the receiver
+    /// doubled `bits` times, counted rather than read off a line, so a member
+    /// that lost the sign of a negative receiver goes on printing plausibly on
+    /// every positive row. The width bound is then named on both sides for two
+    /// receivers of *different* widths — the widest answer each may produce is
+    /// built and one bit past it is refused — because the receiver's own width
+    /// counts toward the bound, and a member weighing the distance alone is
+    /// right about every row of the one-bit receiver. This module's
+    /// § *Decision: one call may not explode* is the bound.
+    // covers: Core\BigInt::shl
+    #[test]
+    fn shl_doubles_its_receiver_and_the_receivers_own_width_counts_toward_the_bound() {
+        const SWEEP: [(i64, u64); 10] = [
+            (0, 0),
+            (0, 64),
+            (1, 0),
+            (1, 10),
+            (1, 64),
+            (3, 1),
+            (-3, 4),
+            (-1, 63),
+            (i64::MAX, 100),
+            (i64::MIN, 1),
+        ];
+
+        let mut ctx = Ctx::buffered();
+        let mut agreed = 0usize;
+        for (value, bits) in SWEEP {
+            let shifted = read(
+                call(
+                    nvs_core_bigint_shl,
+                    &mut ctx,
+                    &[of(value), Value::uint(bits)],
+                )
+                .expect("every row is far inside the width bound"),
+            );
+            let mut doubled = BigInt::from(value);
+            for _ in 0..bits {
+                doubled *= BigInt::from(2);
+            }
+            if shifted == doubled {
+                agreed += 1;
+            }
+        }
+        assert_eq!(agreed, SWEEP.len());
+
+        // A receiver of one bit and one of two bits, so the widest distance
+        // each accepts differs by one.
+        for (value, width) in [(1i64, 1u64), (-3, 2)] {
+            let widest = read(
+                call(
+                    nvs_core_bigint_shl,
+                    &mut ctx,
+                    &[of(value), Value::uint(MAX_BITS - width)],
+                )
+                .expect("the widest answer this receiver may produce"),
+            );
+            assert_eq!(widest.bits(), MAX_BITS);
+            call(
+                nvs_core_bigint_shl,
+                &mut ctx,
+                &[of(value), Value::uint(MAX_BITS - width + 1)],
+            )
+            .expect_err("one bit past the bound is refused");
+        }
+    }
+
+    /// `shr` rounds toward negative infinity rather than toward zero: over a
+    /// sweep of signs its answer is the one `i64`'s own arithmetic shift
+    /// gives, counted rather than read off a line, so a member that shifted
+    /// the magnitude and put the sign back afterwards goes on printing
+    /// plausibly on every positive row and is wrong on every negative one that
+    /// drops a bit. The distance that empties a receiver is then named on both
+    /// sides, for a positive receiver and for its negative, because the two
+    /// ends differ: one falls to `0` and the other to `-1`. A distance no
+    /// number is wide closes the test — this member refuses nothing, so the
+    /// only wrong answer left there is a stall or a panic.
+    // covers: Core\BigInt::shr
+    #[test]
+    fn shr_rounds_down_and_a_negative_receiver_empties_to_minus_one() {
+        const SWEEP: [(i64, u32); 12] = [
+            (0, 0),
+            (0, 7),
+            (7, 0),
+            (7, 1),
+            (7, 3),
+            (8, 3),
+            (-7, 1),
+            (-7, 3),
+            (-8, 3),
+            (-1, 62),
+            (i64::MAX, 62),
+            (i64::MIN, 62),
+        ];
+
+        let mut ctx = Ctx::buffered();
+        let mut agreed = 0usize;
+        for (value, bits) in SWEEP {
+            let shifted = read(
+                call(
+                    nvs_core_bigint_shr,
+                    &mut ctx,
+                    &[of(value), Value::uint(u64::from(bits))],
+                )
+                .expect("no distance is refused"),
+            );
+            if shifted == BigInt::from(value >> bits) {
+                agreed += 1;
+            }
+        }
+        assert_eq!(agreed, SWEEP.len());
+
+        // A receiver of 201 bits and its negative: the distance that leaves
+        // one bit, the one past it, and one no number is wide.
+        for (start, emptied) in [(1i64, 0i64), (-1, -1)] {
+            let mut answers = Vec::new();
+            for distance in [200, 201, u64::MAX] {
+                let wide = call(
+                    nvs_core_bigint_shl,
+                    &mut ctx,
+                    &[of(start), Value::uint(200)],
+                )
+                .expect("a receiver of 201 bits");
+                answers.push(read(
+                    call(
+                        nvs_core_bigint_shr,
+                        &mut ctx,
+                        &[wide, Value::uint(distance)],
+                    )
+                    .expect("no distance is refused"),
+                ));
+            }
+            assert_eq!(
+                answers,
+                [
+                    BigInt::from(start),
+                    BigInt::from(emptied),
+                    BigInt::from(emptied)
+                ]
+            );
+        }
+    }
+
+    /// `sign` is the three-way answer `compareTo` gives against zero, asserted
+    /// as an agreement over a sweep rather than as a table of remembered
+    /// answers, so a member that grew its own comparison fails here while
+    /// still looking right on its own line. The sweep carries a magnitude
+    /// whose low 64 bits are all zero, which is the value a member reading the
+    /// least significant word alone calls zero, and both ends of the `int`
+    /// range, whose magnitudes no `int` holds on one side.
+    // covers: Core\BigInt::sign
+    #[test]
+    fn sign_agrees_with_compare_to_zero_over_every_magnitude() {
+        // A row is a value and how far to shift it left, so a fresh instance is
+        // built for each of the two calls it is asked for: one [`call`]
+        // consumes the one reference it was handed.
+        const SWEEP: [(i64, u64); 9] = [
+            (0, 0),
+            (1, 0),
+            (-1, 0),
+            (4_500, 0),
+            (-4_500, 0),
+            (i64::MAX, 0),
+            (i64::MIN, 0),
+            (1, 200),
+            (-1, 200),
+        ];
+
+        fn receiver(ctx: &mut Ctx, value: i64, shifted_by: u64) -> Value {
+            if shifted_by == 0 {
+                of(value)
+            } else {
+                call(
+                    nvs_core_bigint_shl,
+                    ctx,
+                    &[of(value), Value::uint(shifted_by)],
+                )
+                .expect("a magnitude no `int` holds")
+            }
+        }
+
+        let mut ctx = Ctx::buffered();
+        let mut agreed = 0usize;
+        for (value, shifted_by) in SWEEP {
+            let held = receiver(&mut ctx, value, shifted_by);
+            let reported = call(nvs_core_bigint_sign, &mut ctx, &[held])
+                .expect("every value has a sign")
+                .as_int()
+                .expect("`sign` answers an `int`");
+            let again = receiver(&mut ctx, value, shifted_by);
+            let ordered = call(nvs_core_bigint_compare_to, &mut ctx, &[again, of(0)])
+                .expect("and orders against zero")
+                .as_int()
+                .expect("`compareTo` answers an `int`");
+            if reported == ordered && (-1..=1).contains(&reported) {
+                agreed += 1;
+            }
+        }
+        assert_eq!(agreed, SWEEP.len());
+    }
+
     /// `gcd` and `lcm` are one identity rather than two tables of remembered
     /// answers: their product is the magnitude of the operands' product, the
     /// divisor divides both operands exactly, and neither member ever answers a
