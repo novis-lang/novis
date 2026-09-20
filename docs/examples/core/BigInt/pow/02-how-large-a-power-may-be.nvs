@@ -1,0 +1,19 @@
+<?nvs
+// Shows how large an answer `pow` builds, and what it does when the answer
+// would be too large for one call.
+
+// The answer grows quickly with the power. 2 to the power 1000 is a number of
+// 302 digits, and this prints 302.
+echo Core\Str::length(Core\BigInt::of(2)->pow(1000)->toString()), "\n";
+
+// 2 to the power 500000 is a number of 150515 digits, and `pow` builds it.
+// This prints 150515.
+echo Core\Str::length(Core\BigInt::of(2)->pow(500000)->toString()), "\n";
+
+// One call may produce at most 1048576 bits. A larger answer throws an
+// `ArithmeticError`, and the number is never built.
+try {
+    Core\BigInt::of(2)->pow(600000);
+} catch (ArithmeticError $tooWide) {
+    echo $tooWide->message, "\n";
+}

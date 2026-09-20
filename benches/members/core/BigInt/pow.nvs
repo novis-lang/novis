@@ -1,0 +1,22 @@
+<?nvs
+// Measures raising a number to a small power, as a program does to build the
+// scaling factor an amount is stored with.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $base = Core\BigInt::of(10);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the power used this round comes from the count of the
+            // rounds before it, and stays between 3 and 5.
+            $total = $total + (($base->pow(3 + $total % 3))->sign() as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

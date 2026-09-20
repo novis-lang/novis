@@ -1,0 +1,19 @@
+<?nvs
+// Shows how to raise a whole number to a power.
+
+// `pow` raises the number to the power you give it. This prints 1024.
+echo Core\BigInt::of(2)->pow(10), "\n";
+
+// The answer may be far larger than an `int` holds. This prints
+// 18446744073709551616.
+echo Core\BigInt::of(2)->pow(64), "\n";
+
+// The power 0 gives 1 for every number, and the power 1 gives the number
+// back. This prints 1 and 7.
+echo Core\BigInt::of(7)->pow(0), "\n";
+echo Core\BigInt::of(7)->pow(1), "\n";
+
+// A negative number raised to an even power is positive, and to an odd power
+// is negative. This prints 9 and -27.
+echo Core\BigInt::of(-3)->pow(2), "\n";
+echo Core\BigInt::of(-3)->pow(3), "\n";

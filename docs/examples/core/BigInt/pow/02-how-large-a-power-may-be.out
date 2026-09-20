@@ -1,0 +1,3 @@
+302
+150515
+Core\BigInt::pow(): the answer would be 1200000 bits wide, past the 1048576 one call may produce
