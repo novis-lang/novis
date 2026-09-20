@@ -322,7 +322,8 @@ page and one test-vector directory — while a crate's `tests/` and `benches/` a
 `lsp-cases` — and `tests` for what is left, and `benches/members/` is `bench-members`; then
 `examples/`, `tools/`, `editors/`, everything else. The sets are supersets on purpose: a fixture
 and both whole-leg memos key on `crates-code` — `crates` with each `.rs` file as the binary reads
-it, its comments and layout removed — `docs`, the fixtures and `tests`; a `.nvst` suite on that
+it, its comments, its layout and the body of each inline `#[cfg(test)]` module removed — `docs`,
+the fixtures and `tests`; a `.nvst` suite on that
 plus the case tree its directory is in; an `{nvs}` command on that plus every case tree; a crate's
 tests, which read source as text, walk `tests/` whole and read the goals and the editor's manifest
 at run time, key on `crates` as bytes plus all of those, `crate-tests`, `goals` and `editors`; a
@@ -330,7 +331,8 @@ Python tool, which may read anything, keys on the whole tree. The few checks tha
 read a short, known list — the fuzz run, the ThreadSanitizer run, the database matrix, the release
 cost guards — are named one by one with the set each was read to have. So a session that edits the
 plan, a rule, the playbook or a decision stales no cargo check, one that edits a crate's test
-fixture stales no fixture or leg, one that edits a comment stales no fixture, suite or leg, and one
+fixture stales no fixture or leg, one that edits a comment or adds a `#[test]` to a source file's
+test module stales no fixture, suite or leg, and one
 that adds a conformance case, an attack, an example and a bench stales the conformance suite, the
 crates' tests and the tool gates, and no fixture, leg, valgrind sweep, fuzz run, matrix or cost
 guard. Identical inputs into a deterministic check cannot come out a different verdict,

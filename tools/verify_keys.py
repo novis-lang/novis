@@ -10,11 +10,12 @@ reasoning; this is the table and the scanner behind it.
 
 `STEP_READS` names each step's partition. The part most steps share is `binary`: everything that
 decides how `target/debug/nvs` behaves -- the toolchain, the manifests and locks, every `.rs` file
-at its *code* tier, every other file under `crates/`, the reference chapters `nvs-cli` embeds, and
-the files a `build.rs` reads. A case tree's key is `binary` plus its own directory, so a file under
-`tests/hostile/` is not an input of `conformance`, and a chapter under `docs/reference/` is.
+at its *code* or its *shipped* tier, every other file under `crates/`, the reference chapters
+`nvs-cli` embeds, and the files a `build.rs` reads. A case tree's key is `binary` plus its own
+directory, so a file under `tests/hostile/` is not an input of `conformance`, and a chapter under
+`docs/reference/` is.
 
-## A `.rs` file has three readers
+## A `.rs` file has four readers
 
 - **raw** -- the bytes. `fmt` reads these, and so do the script steps that grep doc comments, and
   so does every test binary: a policy test here reads source as text (`include_str!("cache.rs")`,
@@ -28,7 +29,19 @@ the files a `build.rs` reads. A case tree's key is `binary` plus its own directo
   behaviour of the binary hang on. A doc comment leaves one placeholder per run of them: whether
   an item has one can decide a build, what it says cannot. The one thing `rustc` does read in a
   comment is a bidirectional-text character, which it denies, so a file with one in any comment
-  has every comment folded into this tier.
+  has every comment folded into this tier. `clippy --all-targets` and the test binaries compile
+  with `cfg(test)`, so every token is theirs.
+- **shipped** -- the code tier without the body of any inline `#[cfg(test)] mod name { ... }`.
+  `target/debug/nvs` is built without `cfg(test)`, and `rustc` removes such a module before it
+  resolves a name, so no token inside one can reach the binary. This is what a step that only
+  RUNS the binary hangs on -- the `.nvst` trees, `reference`, `extension` -- and a `#[test]`
+  added to a source file's test module reaches none of them. The header stays in the tier, so
+  whether a file has the module is still in the key. `build` stays on the code tier: a removed
+  module must still parse, and `build`'s key is also what says the test binaries on disk are the
+  right ones. Only that one form is removed. A `#[cfg(test)]` on a function, an `impl`, a `use`
+  or an out-of-line `mod name;`, and a `cfg(any(test, ...))` or a `cfg_attr`, are hashed as the
+  code they are, which is the wide direction; `_TEST_MOD` is the form, and a module whose braces
+  do not close is left whole.
 
 Layout is removed conservatively: a run of whitespace is kept, as one space, between two words
 and between two operator characters, so `& &x` and `&&x` never share a key. It is dropped
@@ -37,8 +50,9 @@ none of which can join a neighbour into another token. String, byte-string, raw-
 before any of that and hashed verbatim. A `.rs` file that some other file embeds with
 `include_str!` or `include_bytes!` is data, and is raw at every tier.
 
-What the code tier does not see is a line number. A formatting-only edit moves `line!()` and the
-location in a panic message, and a step answered from the cache was proved against the old ones.
+What the code and shipped tiers do not see is a line number. A formatting-only edit, or a test
+added to a module with code below it, moves `line!()` and the location in a panic message, and a
+step answered from the cache was proved against the old ones.
 The steps that can be answered that way run the binary over `tests/conformance`,
 `tests/differential` and the reference chapters, and no expectation in those names a Rust line --
 `\.rs:\d+` matches there only in a case's prose comment. A Rust test that pins one is in a test
@@ -58,7 +72,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 TMP = ROOT / ".agent-tmp"
 NORMS = TMP / "verify-norms.json"
-SCANNER = "2"
+SCANNER = "3"
+TIERS = ("shipped", "code", "docs")
 
 # Everything cargo reads, relative to ROOT. Directories are walked in full -- a `.nvst`
 # fixture, an insta `.snap` and a `Cargo.toml` all change what the steps will answer.
@@ -114,6 +129,10 @@ _GLUE = re.compile(r"(?<=\w) (?=\W)|(?<=\W) (?=\w)"
                    r"|(?<=[()\[\]{},;\x01\x02]) | (?=[()\[\]{},;\x01\x02])")
 _DOC_RUN = re.compile("\x01(?: ?\x01)+")
 _INCLUDE = re.compile(r'include_(?:str|bytes)!\(\s*"([^"\n]+)"')
+# An inline test module's header as `scan` leaves it: the attribute, any doc comment or bracket-free
+# attribute after it, an optional visibility, and the opening brace. Nothing looser is matched.
+_TEST_MOD = re.compile(r"#\[cfg\(test\)\](?:\x01|#\[[^\[\]]*\])*(?:pub(?:\([^()]*\))? ?)?mod \w+\{")
+_BRACE = re.compile(r"[{}]")
 # What `text_direction_codepoint_in_comment` denies: the embeddings, overrides and isolates.
 _BIDI = re.compile("[‪-‮⁦-⁩]")
 
@@ -165,25 +184,59 @@ def scan(text):
     return _DOC_RUN.sub("\x01", flat), literals, docs, plain
 
 
+def without_test_modules(code, literals):
+    """`scan`'s `code` and `literals` with the body of every inline `#[cfg(test)] mod` removed,
+    and the literals that were inside one with it. The header and both braces stay. Comments and
+    literals are already out of `code`, and a token tree's braces balance even inside a macro, so
+    counting them finds the module's end; one that never closes is left as it is."""
+    out, kept, pos, lit = [], [], 0, 0
+    while True:
+        m = _TEST_MOD.search(code, pos)
+        if m is None:
+            break
+        depth, close = 1, None
+        for b in _BRACE.finditer(code, m.end()):
+            depth += 1 if b.group() == "{" else -1
+            if depth == 0:
+                close = b.start()
+                break
+        if close is None:
+            break
+        out.append(code[pos:m.end()])
+        before = code.count("\x02", pos, m.end())
+        kept.extend(literals[lit:lit + before])
+        lit += before + code.count("\x02", m.end(), close)
+        pos = close
+    out.append(code[pos:])
+    kept.extend(literals[lit:])
+    return "".join(out), kept
+
+
 def tiers(text):
-    """`(code, docs)` digests of one `.rs` file's text."""
+    """`(shipped, code, docs)` digests of one `.rs` file's text."""
     code, literals, docs, plain = scan(text)
-    h = hashlib.blake2b(digest_size=16)
-    h.update(SCANNER.encode())
-    h.update(code.encode("utf-8", "replace"))
-    for lit in literals:
-        h.update(b"\0")
-        h.update(lit.encode("utf-8", "replace"))
-    if any(_BIDI.search(comment) for comment in docs + plain):
-        for comment in docs + plain:
+    comments = docs + plain if any(_BIDI.search(c) for c in docs + plain) else []
+
+    def tokens(code, literals):
+        h = hashlib.blake2b(digest_size=16)
+        h.update(SCANNER.encode())
+        h.update(code.encode("utf-8", "replace"))
+        for lit in literals:
+            h.update(b"\0")
+            h.update(lit.encode("utf-8", "replace"))
+        for comment in comments:
             h.update(b"\2")
             h.update(comment.encode("utf-8", "replace"))
+        return h
+
+    shipped_digest = tokens(*without_test_modules(code, literals)).hexdigest()
+    h = tokens(code, literals)
     code_digest = h.hexdigest()
     h.update(b"\1")
     for comment in docs:
         h.update(b"\0")
         h.update(comment.encode("utf-8", "replace"))
-    return code_digest, h.hexdigest()
+    return shipped_digest, code_digest, h.hexdigest()
 
 
 # ------------------------------------------------------------------ the tree
@@ -254,7 +307,7 @@ def is_rust(rel):
 
 
 class Tree:
-    """One reading of every input: each file's raw digest, each `.rs` file's two tiers, and the
+    """One reading of every input: each file's raw digest, each `.rs` file's `TIERS`, and the
     set of files some `.rs` file embeds. Raises `OSError` if a file cannot be read; `verify.py`
     then runs every step for real."""
 
@@ -278,7 +331,7 @@ class Tree:
                 joined = os.path.normpath(os.path.join(os.path.dirname(rel), target))
                 self.embedded.add(joined.replace("\\", "/"))
             got = memo.get(digest)
-            if not (isinstance(got, list) and len(got) == 2):
+            if not (isinstance(got, list) and len(got) == len(TIERS)):
                 got = list(tiers(text))
             kept[digest] = got
             self.tier[rel] = got
@@ -296,17 +349,18 @@ class Tree:
 
     def digest(self, rel, tier):
         if tier != "raw" and rel in self.tier and rel not in self.embedded:
-            return self.tier[rel][0 if tier == "code" else 1]
+            return self.tier[rel][TIERS.index(tier)]
         return self.raw[rel]
 
     def part(self, pred, tier="raw"):
         return [(rel, self.digest(rel, tier)) for rel in sorted(self.raw) if pred(rel)]
 
-    def binary(self):
-        """What decides how `target/debug/nvs` is built and behaves."""
+    def binary(self, tier="code"):
+        """What decides how `target/debug/nvs` is built and behaves. `code` is every token the
+        compiler is handed; `shipped` is for a step that only runs the binary it produced."""
         return ([("rustc", self.toolchain)]
                 + self.part(is_manifest)
-                + self.part(is_rust, "code")
+                + self.part(is_rust, tier)
                 + self.part(lambda r: under("crates", "docs/reference")(r)
                             and not is_rust(r) and not is_manifest(r))
                 + self.part(lambda r: r in BUILD_READS or r in self.embedded))
@@ -353,11 +407,11 @@ STEP_READS = {
     "test": _everything,
     # The one test job that reads no file as text: a doc-test is a doc comment, compiled.
     "test:doc": lambda t: t.binary() + t.part(is_rust, "docs"),
-    "conformance": lambda t: t.binary() + t.part(under("tests/conformance")),
-    "differential": lambda t: t.binary() + t.part(under("tests/differential")),
-    "reference": lambda t: t.binary() + t.part(_only("tools/reference.py")),
+    "conformance": lambda t: t.binary("shipped") + t.part(under("tests/conformance")),
+    "differential": lambda t: t.binary("shipped") + t.part(under("tests/differential")),
+    "reference": lambda t: t.binary("shipped") + t.part(_only("tools/reference.py")),
     "clippy": lambda t: t.binary() + t.part(is_rust, "docs"),
-    "extension": lambda t: t.binary() + t.part(under("editors")),
+    "extension": lambda t: t.binary("shipped") + t.part(under("editors")),
     "doc": lambda t: t.binary() + t.part(is_rust, "docs"),
 }
 

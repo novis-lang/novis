@@ -1651,11 +1651,13 @@ SUMMARY_RE = re.compile(r"(\d+)\s+passed,\s+(\d+)\s+failed")
 # valgrind sweep before it existed.
 #
 # `crates-code` is `crates` as the BINARY reads it, and is derived rather than a set of names: the
-# same files, with each `.rs` file fed as `tools/verify_keys.py`'s *code* tier -- its tokens, with
-# comments and layout removed -- in place of its bytes. A fixture, a `.nvst` suite, an `{nvs}`
-# command and the two whole-leg memos run the binary and open no Rust source, so a comment or a
-# re-wrapped line in `crates/` cannot reach their verdict, and it used to re-run every one of them,
-# the valgrind sweep and the WSL leg included. A `.rs` file some source embeds with `include_str!`
+# same files, with each `.rs` file fed as `tools/verify_keys.py`'s *shipped* tier -- its tokens,
+# with comments, layout and the body of every inline `#[cfg(test)] mod` removed -- in place of its
+# bytes. A fixture, a `.nvst` suite, an `{nvs}` command and the two whole-leg memos run the binary
+# and open no Rust source, and the binary is built without `cfg(test)`. So a comment, a re-wrapped
+# line or a `#[test]` added to a source file's test module cannot reach their verdict, and each
+# used to re-run every one of them, the valgrind sweep and the WSL leg included. The cargo checks
+# are what runs such a test, and they key on `crates`. A `.rs` file some source embeds with `include_str!`
 # is data and stays bytes there too, which is `verify_keys.py`'s rule and its scan. A crate's tests
 # keep `crates`, the bytes: the policy tests read source as text, so for them a comment is an
 # input. So do the editor suites, which nobody has shown not to.
@@ -2740,7 +2742,7 @@ class Goal:
         `NOT_INPUTS` is the same idea as a prune list, so the walk never enters `target/`. A
         `STATE_FILES` match is fed to `state` whole and to its own partition by name alone, so a
         rewritten handoff changes `state` and nothing else. `CODE` is fed beside `crates`, file for
-        file, with a `.rs` file's code tier where `crates` takes its bytes -- the comment over
+        file, with a `.rs` file's shipped tier where `crates` takes its bytes -- the comment over
         `PARTITIONS` says who reads which.
         """
         hashers = {name: hashlib.blake2b(digest_size=16) for name in EVERYTHING + (CODE,)}
@@ -2759,7 +2761,7 @@ class Goal:
                 code = hashers[CODE]
                 code.update(rel.encode("utf-8") + b"\0")
                 if rel in tiers.tier and rel not in tiers.embedded:
-                    code.update(tiers.digest(rel, "code").encode("utf-8"))
+                    code.update(tiers.digest(rel, "shipped").encode("utf-8"))
                 else:
                     code.update(path.read_bytes())
                 code.update(b"\0")

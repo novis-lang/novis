@@ -101,11 +101,13 @@ has not moved is answered from `.agent-tmp/verify-green.json` rather than run.
 
 - A file under `tests/hostile/` is read by the test binaries and by nothing else, so reformatting
   one runs `build` and `test` and answers the other eleven steps.
-- A `.rs` file is read three ways. `fmt`, the script steps and the test binaries read its bytes --
+- A `.rs` file is read four ways. `fmt`, the script steps and the test binaries read its bytes --
   a policy test here reads source as text, so for a test binary a comment is an input. `clippy`
-  and the doc-tests read the code and the doc comments with the layout removed. `build`, and
-  every step that only runs `target/debug/nvs`, read the code alone, so a comment or a re-wrapped
-  line cannot reach the `.nvst` trees, `reference` or `extension`.
+  and the doc-tests read the code and the doc comments with the layout removed. `build` reads
+  the code alone. A step that only runs `target/debug/nvs` reads the code outside every inline
+  `#[cfg(test)]` module, which is all of it that binary is built from. So a comment, a
+  re-wrapped line or a new `#[test]` in a source file cannot reach the `.nvst` trees,
+  `reference` or `extension`.
 - The plan and the goal chain are read by `owners` alone, so they are in its key and no other.
 
 This is **not** a check being skipped: the step's inputs are identical in every respect the step
