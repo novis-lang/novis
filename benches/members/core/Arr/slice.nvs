@@ -1,0 +1,30 @@
+<?nvs
+// Takes one page of entries out of a list of results. A program does this when
+// it shows a long list a page at a time.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $found = [
+            'Keyboard', 'Lamp', 'Monitor', 'Mouse', 'Notebook', 'Pen',
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Last round's total decides which page this round takes, so no
+            // round can be reused.
+            array<string> $page = [];
+            if ($total % 2 == 0) {
+                $page = Core\Arr::slice($found, 0, 3);
+            } else {
+                $page = Core\Arr::slice($found, 3, 3);
+            }
+            $total = $total + Core\Arr::count($page);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

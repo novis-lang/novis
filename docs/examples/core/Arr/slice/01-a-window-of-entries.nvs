@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to take one window of entries out of an array, and which keys the
+// window carries.
+
+array<string> $days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+
+// The window opens at position 2 and holds 2 entries. A position counts
+// entries from the front and starts at 0. This prints ["Wed","Thu"].
+echo Core\Json::encode(Core\Arr::slice($days, 2, 2)), "\n";
+
+// A `null` length runs to the end of the array. This prints ["Thu","Fri"].
+echo Core\Json::encode(Core\Arr::slice($days, 3, null)), "\n";
+
+array<int> $stock = ['apples' => 12, 'pears' => 4, 'plums' => 7];
+
+// The result is numbered from 0, and the keys of the original are gone. This
+// prints [4,7].
+echo Core\Json::encode(Core\Arr::slice($stock, 1, null)), "\n";
+
+// `preserveKeys` keeps every value under its own key. This prints
+// {"pears":4,"plums":7}.
+echo Core\Json::encode(Core\Arr::slice($stock, 1, null, {preserveKeys: true})), "\n";
