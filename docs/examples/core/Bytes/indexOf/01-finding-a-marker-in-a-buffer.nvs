@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to find where some bytes start inside a larger value.
+// `Core\Bytes::indexOf` returns the position of the first match, or `null`
+// when the bytes are not there.
+
+bytes $frame = Core\Encoding::fromHex("00ff00ff10203000");
+
+// The two bytes 16 and 32 start at position 4. This prints 4.
+var $at = Core\Bytes::indexOf($frame, Core\Encoding::fromHex("1020"));
+if ($at != null) {
+    echo $at, "\n";
+}
+
+// These two bytes are nowhere in the value, so the result is `null`.
+// This prints "not found".
+if (Core\Bytes::indexOf($frame, Core\Encoding::fromHex("abcd")) == null) {
+    echo "not found\n";
+}

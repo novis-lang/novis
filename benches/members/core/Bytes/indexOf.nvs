@@ -1,0 +1,29 @@
+<?nvs
+// Measures finding where a short run of bytes starts inside a small message. A
+// program does this when it cuts a message into its header and its body.
+// bench: iterations 400000
+// bench: calls 0
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        bytes $message = "GET /orders HTTP/1.1\r\nHost: example.info\r\n\r\nid=1" as bytes;
+        array<bytes> $needles = [
+            Core\Encoding::fromHex("0d0a0d0a"),
+            "Host:" as bytes,
+            "Cookie:" as bytes,
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The position one round finds picks the bytes the next round
+            // looks for. The last needle is not in the message, and counts as 1.
+            $total = $total
+                + (Core\Bytes::indexOf($message, $needles[($total % 3) as int]) ?? (1 as uint));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";
