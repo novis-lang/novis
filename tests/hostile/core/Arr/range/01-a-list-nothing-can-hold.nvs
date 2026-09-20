@@ -1,0 +1,40 @@
+<?nvs
+// Attack: a program asks for steps that are not allowed, and then for a list of
+// numbers that is far too long. The last step should stop with an error, and
+// the program must not crash.
+// hostile: timeout-ms 20000
+// hostile: ends-early
+
+// 1. A step of 0. No list can be built from it, so this throws. The error is
+// caught, so the next step still runs.
+try {
+    Core\Arr::range(1, 1000, { step: 0 });
+    echo "zero step built\n";
+} catch (Throwable $error) {
+    echo "zero step refused\n";
+}
+
+// 2. A step below zero. The direction comes from the bounds, so a step below
+// zero throws as well.
+try {
+    Core\Arr::range(1, 1000, { step: -5 });
+    echo "negative step built\n";
+} catch (Throwable $error) {
+    echo "negative step refused\n";
+}
+
+// 3. Two thousand short lists, one after the other. Each one is freed again,
+// so the memory in use must not grow.
+int $seen = 0;
+uint $i = 0;
+while ($i < 2000) {
+    array<int> $block = Core\Arr::range(1, 1000);
+    $seen = $seen + $block[999];
+    $i = $i + 1;
+}
+echo 'loop done ', $seen, "\n";
+
+// 4. Nine billion numbers. No computer has that much memory, so the program
+// stops here with an error.
+Core\Arr::range(1, 9000000000);
+echo "huge built\n";

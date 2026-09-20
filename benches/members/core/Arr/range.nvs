@@ -1,0 +1,21 @@
+<?nvs
+// Builds a short list of numbers, as a program does before it writes the page
+// links under a list of search results.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): int {
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Last round's total decides the bounds, so no round can be reused.
+            array<int> $pages = Core\Arr::range($total % 7 + 1, $total % 7 + 8);
+            $total = $total + $pages[3];
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";
