@@ -97,6 +97,10 @@ files = [
 
 modules = [
   "docs/reference/lang/95-testing.md",
+  # The pending failure, the class it names, and the assertions a test records.
+  "crates/nvs-runtime/src/ctx/error.rs",
+  # `rule:testing/test-attribute`'s `#[Test]` attribute: what its payload may hold.
+  "crates/nvs-types/src/testing.rs",
 ]
 
 rules = ["testing/feature-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
