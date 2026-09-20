@@ -7680,6 +7680,158 @@ mod tests {
         }
     }
 
+    /// `rule:types/array-combination`'s left-wins combination from Rust, over two layers
+    /// so both halves of the precedence are asked at once: the base keeps a key
+    /// it already has, the earlier layer keeps one the later layer repeats, and
+    /// a key nobody above holds is appended in the order it was met. A layer
+    /// that is not an array is a contained `FATAL`.
+    // covers: Core\Arr::underlay
+    #[test]
+    fn underlay_keeps_the_base_value_and_appends_what_is_new() {
+        let mut entries = NvsArray::new();
+        entries.set(NvsStr::new(b"host"), Value::str(NvsStr::new(b"localhost")));
+        entries.set(NvsStr::new(b"port"), Value::str(NvsStr::new(b"5432")));
+        let base = Value::array(entries);
+
+        let mut first = NvsArray::new();
+        first.set(NvsStr::new(b"port"), Value::str(NvsStr::new(b"6543")));
+        first.set(NvsStr::new(b"user"), Value::str(NvsStr::new(b"ada")));
+        let mut second = NvsArray::new();
+        second.set(NvsStr::new(b"user"), Value::str(NvsStr::new(b"grace")));
+        second.set(NvsStr::new(b"sslmode"), Value::str(NvsStr::new(b"require")));
+        let mut tail = NvsArray::new();
+        tail.append(Value::array(first));
+        tail.append(Value::array(second));
+        let layers = Value::array(tail);
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let result = call(super::nvs_core_arr_underlay, &mut ctx, &[base, layers])
+            .expect("a base and two layers are what underlay takes");
+        assert_eq!(
+            entries_of(result),
+            vec![
+                (b"host".to_vec(), b"localhost".to_vec()),
+                (b"port".to_vec(), b"5432".to_vec()),
+                (b"user".to_vec(), b"ada".to_vec()),
+                (b"sslmode".to_vec(), b"require".to_vec()),
+            ]
+        );
+
+        // The checker refuses a layer that is not an array (`E_TYPE_MISMATCH`),
+        // so reaching this means the compiler let through a call it should not
+        // have, and the member contains it rather than panicking.
+        let mut wrong = NvsArray::new();
+        wrong.append(Value::int(7));
+        let wrong = Value::array(wrong);
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let status = call(super::nvs_core_arr_underlay, &mut ctx, &[base, wrong])
+            .expect_err("7 is not a layer");
+        assert_eq!(status, nvs_runtime::FATAL);
+
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the three references it built above, and \
+                      the helper borrowed rather than consumed them"
+        )]
+        unsafe {
+            base.release();
+            layers.release();
+            wrong.release();
+        }
+    }
+
+    /// `rule:types/array-combination`'s other half from Rust: `appendAll` compares
+    /// nothing, so the keys both arrays carried are dropped, the result is
+    /// numbered from zero in the order the values were met, and a value two of
+    /// the arrays hold is in the result twice.
+    // covers: Core\Arr::appendAll
+    #[test]
+    fn append_all_renumbers_from_zero_and_drops_nothing() {
+        let mut entries = NvsArray::new();
+        entries.set(NvsStr::new(b"host"), Value::str(NvsStr::new(b"localhost")));
+        entries.set(NvsStr::new(b"port"), Value::str(NvsStr::new(b"5432")));
+        let base = Value::array(entries);
+
+        let mut first = NvsArray::new();
+        first.append(Value::str(NvsStr::new(b"5432")));
+        let empty = NvsArray::new();
+        let mut second = NvsArray::new();
+        second.set(NvsStr::new(b"user"), Value::str(NvsStr::new(b"ada")));
+        let mut tail = NvsArray::new();
+        tail.append(Value::array(first));
+        tail.append(Value::array(empty));
+        tail.append(Value::array(second));
+        let layers = Value::array(tail);
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let result = call(super::nvs_core_arr_append_all, &mut ctx, &[base, layers])
+            .expect("a first array and three more are what appendAll takes");
+        assert_eq!(
+            entries_of(result),
+            vec![
+                (b"0".to_vec(), b"localhost".to_vec()),
+                (b"1".to_vec(), b"5432".to_vec()),
+                (b"2".to_vec(), b"5432".to_vec()),
+                (b"3".to_vec(), b"ada".to_vec()),
+            ]
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the two references it built above, and the \
+                      helper borrowed rather than consumed them"
+        )]
+        unsafe {
+            base.release();
+            layers.release();
+        }
+    }
+
+    /// `rule:types/preserve-keys`'s identity rule from Rust: `diff` keeps `$a`'s own keys
+    /// and `$a`'s order, and compares under strict identity, so the text `"3"`
+    /// is not removed by the number 3. A call site fills the options it was not
+    /// given, so `on` arrives as `Core\SetOn::Values`' own number and the two
+    /// callbacks arrive as null.
+    // covers: Core\Arr::diff
+    #[test]
+    fn diff_keeps_its_own_keys_and_compares_under_identity() {
+        let mut entries = NvsArray::new();
+        entries.set(NvsStr::new(b"one"), Value::str(NvsStr::new(b"1")));
+        entries.set(NvsStr::new(b"two"), Value::str(NvsStr::new(b"2")));
+        entries.set(NvsStr::new(b"three"), Value::str(NvsStr::new(b"3")));
+        let a = Value::array(entries);
+
+        let mut other = NvsArray::new();
+        other.append(Value::str(NvsStr::new(b"2")));
+        other.append(Value::int(3));
+        let b = Value::array(other);
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let kept = call(
+            super::nvs_core_arr_diff,
+            &mut ctx,
+            &[a, b, Value::int(0), Value::null(), Value::null()],
+        )
+        .expect("two arrays and the default options are what diff takes");
+        assert_eq!(
+            entries_of(kept),
+            vec![
+                (b"one".to_vec(), b"1".to_vec()),
+                (b"three".to_vec(), b"3".to_vec()),
+            ]
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the two references it built above, and the \
+                      helper borrowed rather than consumed them"
+        )]
+        unsafe {
+            a.release();
+            b.release();
+        }
+    }
+
     /// A wrong tag is a contained `FATAL`, not a panic that takes the process
     /// down — the check every helper's argument decoding owes.
     #[test]
