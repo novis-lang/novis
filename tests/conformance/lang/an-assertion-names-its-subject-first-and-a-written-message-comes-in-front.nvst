@@ -1,0 +1,50 @@
+--TEST--
+an assertion names `$actual` before `$expected`, a trailing `{message: ...}` is written in front of that report, `assertEqualsDeep` names the path of the first difference, and `assertThrows` consumes the throw (`rule:testing/assertions-are-typed`, `rule:testing/failure-ledger`)
+--FILE--
+<?nvs
+// covers: lang:testing/assertions
+// `rule:testing/failure-ledger`: a failure is an ordinary `Throwable`, so
+// outside a `#[Test]` method an arm around the call is all it takes to read
+// the message the runner would have reported.
+use Core\Test;
+
+// `rule:testing/assertions-are-typed`: subject first. A reversed call reads
+// correctly because both sides are named rather than positional.
+try {
+    Test::assertSame(2 + 2, 5);
+} catch (Core\Test\Failure $f) {
+    echo $f->message, "\n";
+}
+
+// The written message is a prefix of the report, not a replacement for it.
+try {
+    Test::assertTrue(false, {message: "a fresh counter is one"});
+} catch (Core\Test\Failure $f) {
+    echo $f->message, "\n";
+}
+
+// A deep comparison names the path it stopped at, so a difference inside a
+// large value is located rather than only reported.
+array<string> $sent = ["city" => "Berlin", "zip" => "10115"];
+array<string> $stored = ["city" => "Berlin", "zip" => "10117"];
+try {
+    Test::assertEqualsDeep($sent, $stored);
+} catch (Core\Test\Failure $f) {
+    echo $f->message, "\n";
+}
+
+// The throw `assertThrows` was given is consumed, so the statement after it
+// runs. A subclass of the named class holds.
+Test::assertThrows(fn (): void => { throw new ParseError("bad input"); }, RuntimeError::class);
+echo "the ParseError was consumed\n";
+
+// An assertion that holds returns nothing and lets the program carry on.
+Test::assertDoesNotThrow(fn (): void => { echo "the body ran\n"; });
+echo "done\n";
+--EXPECT--
+Core\Test::assertSame failed: `$actual` is 4, `$expected` is 5
+a fresh counter is one: Core\Test::assertTrue failed: `$actual` is false
+Core\Test::assertEqualsDeep failed: the two differ at `$actual["zip"]`: `$actual` is "10115", `$expected` is "10117"
+the ParseError was consumed
+the body ran
+done

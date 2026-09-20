@@ -1,0 +1,25 @@
+<?nvs
+// Measures one passing assertion. A large test suite is millions of these, so
+// what `Core\Test::assertSame` costs when it holds is what such a suite costs.
+// bench: iterations 300000
+// bench: calls 0
+// bench: allocations 1
+
+use Core\Test;
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the value checked this round is the total the round
+            // before it produced.
+            Test::assertSame($total % 4, ($total + 4) % 4);
+            $total = $total + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(300000), "\n";

@@ -1,0 +1,24 @@
+<?nvs
+// Shows how to check that a call throws. `assertThrows` runs the function you
+// give it and holds when that function throws the class you name.
+// `assertDoesNotThrow` holds when the function returns.
+
+use Core\Test;
+
+class Age {
+    public static function fromText(string $text): int {
+        ?int $value = $text as ?int;
+        if ($value == null) {
+            throw new ParseError("`" . $text . "` is not a number");
+        }
+        return $value;
+    }
+}
+
+// The call throws `ParseError`, so this assertion holds and prints nothing.
+Test::assertThrows(fn (): void => { Age::fromText("tomorrow"); }, ParseError::class);
+echo "bad input throws", "\n";
+
+// The call returns a number, so this assertion holds too.
+Test::assertDoesNotThrow(fn (): void => { Age::fromText("41"); });
+echo "good input does not throw", "\n";

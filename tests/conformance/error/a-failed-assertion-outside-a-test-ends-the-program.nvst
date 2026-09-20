@@ -2,7 +2,7 @@
 Outside a `#[Test]` method a failed assertion is an ordinary throw: nothing catches it, the program ends at status 1 with standard output intact, and the floor's record names `Core\Test\Failure` — `rule:testing/failure-ledger`, `rule:errors/engine-floor`
 --FILE--
 <?nvs
-// covers: lang:errors/assertion-failures
+// covers: lang:errors/assertion-failures, lang:testing/assertions
 // The runner is what turns a failure into a reported row, and a program run
 // from the command line has no runner. What is left is `rule:errors/propagation`
 // and nothing else, which is the half of this feature a script that checks its

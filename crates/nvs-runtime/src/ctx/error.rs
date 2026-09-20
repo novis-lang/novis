@@ -669,6 +669,18 @@ impl Ctx {
     /// sake: § 20's "a test that asserts nothing fails" is a question about
     /// how many entries a test produced, and a ledger holding only failures
     /// cannot answer it.
+    ///
+    /// # Known gaps
+    ///
+    /// 1. Nothing truncates the ledger outside a test. A `#[Test]` method owns
+    ///    an isolate that ends with it, so there the vector is O(assertions in
+    ///    that test); under `nvs run` a `Core\Test` assertion in a loop grows
+    ///    it for the life of the program, at one entry per call —
+    ///    `benches/members/lang/testing/assertions.nvs` declares that
+    ///    allocation. It is bounded by the memory ceiling rather than
+    ///    unbounded, and `docs/reference/lang/95-testing.md` § *Assertions*
+    ///    says an assertion outside a test has "no ledger to record it",
+    ///    which is true of the verdict and not of the storage.
     pub fn record_assertion(&mut self, member: &'static str, failure: Option<String>) {
         self.assertions.push(AssertionOutcome { member, failure });
     }
