@@ -1,0 +1,20 @@
+<?nvs
+// Adds one value to a short list, as a program does while it collects the lines of a report.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<int> $row = [10, 20, 30];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The added value is last round's total, so no round can be reused.
+            array<int> $grown = Core\Arr::append($row, ($total % 7) as int);
+            $total = $total + Core\Arr::count($grown);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

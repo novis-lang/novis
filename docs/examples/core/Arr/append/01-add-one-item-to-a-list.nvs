@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to add one value to the end of a list.
+
+array<string> $basket = ["bread", "milk"];
+
+// `Core\Arr::append` returns a new array. Your own array stays as it was.
+array<string> $bigger = Core\Arr::append($basket, "apples");
+
+// This prints bread, milk and apples, each on its own line.
+foreach ($bigger as string $item) {
+    echo $item, "\n";
+}
+
+// `$basket` still has two entries, so this prints 2.
+echo Core\Arr::count($basket), "\n";

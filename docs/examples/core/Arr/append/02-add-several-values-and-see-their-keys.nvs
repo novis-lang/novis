@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to add several values in one call, and which key each one gets.
+
+array<int> $stock = ["apples" => 5, "bread" => 2];
+
+// The keys you already have are kept. An added value gets a number as its key.
+// These two keys are words, so the numbering starts at "0".
+array<int> $counted = Core\Arr::append($stock, 7, 9);
+
+// This prints apples, bread, 0 and 1.
+foreach (Core\Arr::keys($counted) as string $key) {
+    echo $key, "\n";
+}
+
+// A list already has number keys. The largest here is "2", so the added value
+// gets "3" and this prints 3.
+array<int> $sizes = [38, 40, 42];
+echo Core\Arr::lastKey(Core\Arr::append($sizes, 44)), "\n";

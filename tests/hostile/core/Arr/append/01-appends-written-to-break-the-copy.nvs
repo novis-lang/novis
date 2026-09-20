@@ -1,0 +1,50 @@
+<?nvs
+// Attack: `Core\Arr::append` copies the whole array on every call, so each step
+// below asks it for a copy it should not be able to make. Every step should
+// finish or throw an error, and the last one should stop the program at its
+// memory limit. The runtime must not crash.
+// hostile: timeout-ms 60000
+// hostile: ends-early
+
+// 1. The array already uses the largest whole number there is as a key, so
+// there is no next key to give the added value.
+array<string> $taken = ['9223372036854775807' => 'a'];
+try {
+    Core\Arr::append($taken, 'b');
+    echo 'step 1: the value was added', "\n";
+} catch (LogicError $caught) {
+    echo 'step 1 stopped: ', $caught->message, "\n";
+}
+
+// 2. Two thousand calls in a row, each one copying a list that is one entry
+// longer than the last.
+array<int> $growing = [];
+int $round = 0;
+while ($round < 2000) {
+    $growing = Core\Arr::append($growing, $round);
+    $round = $round + 1;
+}
+echo 'step 2: ', Core\Arr::count($growing), "\n";
+
+// 3. One call that adds 400000 values at once.
+array<int> $wide = [];
+int $i = 0;
+while ($i < 400000) {
+    $wide[] = $i;
+    $i = $i + 1;
+}
+echo 'step 3: ', Core\Arr::count(Core\Arr::append($wide, ...$wide)), "\n";
+
+// 4. A value of ten million characters is added to an array of words.
+array<string> $words = ['one', 'two'];
+echo 'step 4: ', Core\Arr::count(Core\Arr::append($words, Core\Str::repeat('a', 10000000))), "\n";
+
+// 5. Fifty thousand rounds, each adding the array to itself. The copies grow
+// with every round, so the program should stop at its memory limit.
+array<mixed> $nested = ['a'];
+int $depth = 0;
+while ($depth < 50000) {
+    $nested = Core\Arr::append($nested, $nested);
+    $depth = $depth + 1;
+}
+echo 'step 5: ', Core\Arr::count($nested), "\n";

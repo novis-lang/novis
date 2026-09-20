@@ -71,7 +71,7 @@
 //! can observe a key, so its walk collects none rather than collecting and
 //! discarding them.
 
-use nvs_runtime::{Ctx, Decimal, Fault, NvsArray, NvsStr, SlotKey, Tag, Value};
+use nvs_runtime::{Ctx, Decimal, Fault, NvsArray, NvsStr, SlotKey, Tag, ThrownClass, Value};
 
 use crate::ordering::compare_values;
 use crate::registry::{
@@ -2833,6 +2833,43 @@ fn append_borrowed(out: &mut NvsArray, value: Value) {
     out.append(value);
 }
 
+/// [`append_borrowed`] for a result that may already hold `i64::MAX` as a key,
+/// refusing there instead of panicking.
+///
+/// [`NvsArray::append`] asserts that the next integer key is free, which holds
+/// for every result built from index 0 by the call itself and **not** for
+/// [`nvs_core_arr_append`]'s, which starts as a copy of the subject and
+/// therefore inherits whatever keys the program put there. The refusal is the
+/// one `$a[] = $v` already reports from `nvs_runtime`'s `nvs_array_append`,
+/// message included, so the statement and the member answer the same program
+/// the same way.
+fn append_borrowed_or_refuse(out: &mut NvsArray, value: Value) -> Result<(), Fault> {
+    #[expect(
+        unsafe_code,
+        reason = "the value is owned by the caller's argument, which \
+                  outlives this call, so the copy stored here needs a \
+                  reference of its own — and a refusal hands that \
+                  reference straight back, so it is released again"
+    )]
+    unsafe {
+        value.retain();
+    }
+    out.try_append(value).map_err(|refused| {
+        #[expect(
+            unsafe_code,
+            reason = "the refusal handed back the reference retained above, \
+                      which nothing else holds"
+        )]
+        unsafe {
+            refused.release();
+        }
+        Fault::thrown_as(
+            ThrownClass::Logic,
+            "Cannot add element to the array as the next element is already occupied",
+        )
+    })
+}
+
 /// Appends every value of a borrowed subject to a result being built, under
 /// fresh `0, 1, …` keys — [`nvs_core_arr_values`]'s walk, shared by the two
 /// padding members because each one wraps it in padding on a different side,
@@ -2863,12 +2900,20 @@ fn append_values(subject: &NvsArray, out: &mut NvsArray) {
 ///
 /// The value belongs to the subject array, which outlives the call, so the
 /// copy stored in the result takes a reference of its own; the key does not,
-/// because [`NvsArray::key_at`] already hands back a fresh one. That asymmetry
-/// is the single thing a key-and-value copy has to get right, so it lives here
-/// once rather than in each member that walks entries through unchanged.
+/// because [`NvsArray::slot_key`] already hands back either a position or a
+/// fresh reference to the one the subject holds. That asymmetry is the single
+/// thing a key-and-value copy has to get right, so it lives here once rather
+/// than in each member that walks entries through unchanged.
+///
+/// **The key travels as a [`SlotKey`] and is never rendered.** A packed
+/// subject's key *is* its position, so rendering the decimal here would
+/// allocate a string per entry that [`store_at`]'s `set_index` has no use for
+/// — and the result lands at the same key either way, because that is what
+/// `set_index` writes at. The `$key` a **callback** receives is the other
+/// question and takes the other answer, which the section above states.
 fn copy_entry(subject: &NvsArray, slot: usize, out: &mut NvsArray) {
     let key = subject
-        .key_at(slot)
+        .slot_key(slot)
         .expect("next_slot only names live entries");
     let value = subject
         .value_at(slot)
@@ -2881,7 +2926,7 @@ fn copy_entry(subject: &NvsArray, slot: usize, out: &mut NvsArray) {
     unsafe {
         value.retain();
     }
-    out.set(key, value);
+    store_at(out, key, value);
 }
 
 nvs_runtime::nvs_helper! {
@@ -3265,13 +3310,19 @@ nvs_runtime::nvs_helper! {
     /// nothing to choose. [`nvs_core_arr_prepend`] is the side where there is.
     ///
     /// A call with no trailing values at all is the subject, entry for entry.
+    ///
+    /// **The one refusal is the one `$a[] = $v` has**, and for the same
+    /// reason: a subject already holding `i64::MAX` as a key has no next
+    /// integer key to derive, so a call adding a value to it throws the
+    /// `LogicError` that statement throws, with that statement's message.
+    /// [`append_borrowed_or_refuse`] is where the two meet; the subject is
+    /// untouched either way, since this member builds a result.
     fn nvs_core_arr_append(_ctx, args: [2]) {
         let base = subject(args, "append")?;
         let mut out = NvsArray::new();
         copy_all(&base, &mut out);
         for_each_trailing(&args[1], "append", |value| {
-            append_borrowed(&mut out, value);
-            Ok(())
+            append_borrowed_or_refuse(&mut out, value)
         })?;
         Ok(Value::array(out))
     }
@@ -7794,5 +7845,140 @@ mod tests {
             (Some(false), 3)
         );
         assert_eq!(walked(super::nvs_core_arr_any, &[]), (Some(false), 0));
+    }
+
+    /// The trailing values of a variadic call, at the ABI the member reads
+    /// them at: one array holding them in written order, under `"0"`, `"1"`,
+    /// … — which is the tail a compiled call site packs.
+    fn trailing(values: &[&str]) -> Value {
+        let mut tail = NvsArray::new();
+        for value in values {
+            tail.append(Value::str(NvsStr::new(value.as_bytes())));
+        }
+        Value::array(tail)
+    }
+
+    /// Every key of the subject survives, and each added value lands one past
+    /// the largest integer key present — `"11"` and `"12"` here, because
+    /// `"10"` is the largest and `"x"` and `"y"` are not integer keys at all.
+    ///
+    /// **Asserted over the keys, not the values.** A member that renumbered
+    /// its whole result would hold the same values in the same order and
+    /// differ only in what they are stored under, so reading the keys back is
+    /// the only thing telling the two apart. The empty tail is the other half:
+    /// it adds nothing, so it may change nothing.
+    // covers: Core\Arr::append
+    #[test]
+    fn append_keeps_every_key_and_lands_one_past_the_largest_integer_key() {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+
+        let subject = mixed_keys();
+        let tail = trailing(&["d", "e"]);
+        let result = call(super::nvs_core_arr_append, &mut ctx, &[subject, tail])
+            .expect("a free integer key never fails");
+        assert_eq!(
+            entries_of(result),
+            vec![
+                (b"x".to_vec(), b"a".to_vec()),
+                (b"10".to_vec(), b"b".to_vec()),
+                (b"y".to_vec(), b"c".to_vec()),
+                (b"11".to_vec(), b"d".to_vec()),
+                (b"12".to_vec(), b"e".to_vec()),
+            ]
+        );
+        dropped(tail);
+
+        let empty = trailing(&[]);
+        let same = call(super::nvs_core_arr_append, &mut ctx, &[subject, empty])
+            .expect("adding nothing never fails");
+        assert_eq!(
+            entries_of(same),
+            vec![
+                (b"x".to_vec(), b"a".to_vec()),
+                (b"10".to_vec(), b"b".to_vec()),
+                (b"y".to_vec(), b"c".to_vec()),
+            ]
+        );
+        dropped(empty);
+        dropped(subject);
+    }
+
+    /// A subject already holding the largest integer key has no next one to
+    /// derive, so the member throws where `$a[] = $v` throws.
+    ///
+    /// The result this member builds is a copy of the subject, so it inherits
+    /// that key and reaches an append `nvs_runtime::NvsArray::append` asserts
+    /// against. Asserted here rather than only in the `.nvst` case because
+    /// what it guards is a panic: a status is a refusal a request survives,
+    /// and a panic takes the process and every other request with it.
+    // covers: Core\Arr::append
+    #[test]
+    fn append_refuses_where_the_next_integer_key_is_taken() {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let subject = array_of([("9223372036854775807", Value::str(NvsStr::new(b"a")))]);
+        let tail = trailing(&["b"]);
+
+        let status = call(super::nvs_core_arr_append, &mut ctx, &[subject, tail])
+            .expect_err("the next integer key is taken");
+        assert_eq!(status, nvs_runtime::THROWN);
+
+        // The subject is untouched, which is what building a result buys.
+        let empty = trailing(&[]);
+        let kept = call(super::nvs_core_arr_append, &mut ctx, &[subject, empty])
+            .expect("adding nothing never fails");
+        assert_eq!(
+            entries_of(kept),
+            vec![(b"9223372036854775807".to_vec(), b"a".to_vec())]
+        );
+        dropped(empty);
+        dropped(tail);
+        dropped(subject);
+    }
+
+    /// The values put in front keep the order they were written in, and the
+    /// result is a list: every key of the subject is renumbered from `"0"`.
+    ///
+    /// Asserted beside [`append_keeps_every_key_and_lands_one_past_the_largest_integer_key`]
+    /// rather than on its own, because the pair is the asymmetry: a value
+    /// added at the end has a free key to take and one put in front does not,
+    /// so a member that mirrored the other here would keep `"x"` and `"10"`
+    /// and still look right on its own row.
+    // covers: Core\Arr::prepend
+    #[test]
+    fn prepend_writes_its_values_in_order_and_renumbers_the_whole_result() {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+
+        let subject = mixed_keys();
+        let tail = trailing(&["d", "e"]);
+        let result = call(super::nvs_core_arr_prepend, &mut ctx, &[subject, tail])
+            .expect("prepending never fails");
+        assert_eq!(
+            entries_of(result),
+            vec![
+                (b"0".to_vec(), b"d".to_vec()),
+                (b"1".to_vec(), b"e".to_vec()),
+                (b"2".to_vec(), b"a".to_vec()),
+                (b"3".to_vec(), b"b".to_vec()),
+                (b"4".to_vec(), b"c".to_vec()),
+            ]
+        );
+        dropped(tail);
+        dropped(subject);
+
+        // The key `Core\Arr::append` has no successor for is renumbered like
+        // any other, so this side has nothing to refuse.
+        let full = array_of([("9223372036854775807", Value::str(NvsStr::new(b"a")))]);
+        let one = trailing(&["b"]);
+        let renumbered = call(super::nvs_core_arr_prepend, &mut ctx, &[full, one])
+            .expect("prepending never fails");
+        assert_eq!(
+            entries_of(renumbered),
+            vec![
+                (b"0".to_vec(), b"b".to_vec()),
+                (b"1".to_vec(), b"a".to_vec()),
+            ]
+        );
+        dropped(one);
+        dropped(full);
     }
 }
