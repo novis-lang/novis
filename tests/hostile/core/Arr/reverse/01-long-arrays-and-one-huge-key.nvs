@@ -1,0 +1,49 @@
+<?nvs
+// Attack: very long arrays are reversed, one of them two hundred times, and one
+// entry carries a key of a million characters. Every step should finish, and the
+// runtime must not crash.
+// hostile: timeout-ms 30000
+
+// 1. 100000 entries come back in the opposite order.
+array<int> $long = [];
+int $i = 0;
+while ($i < 100000) {
+    $long[] = $i;
+    $i = $i + 1;
+}
+array<int> $back = Core\Arr::reverse($long);
+echo 'step 1: ', $back[0], '|', "\n";
+
+// 2. The same array is reversed 200 times and the results are dropped, so
+//    nothing may be left behind.
+uint $seen = 0;
+int $r = 0;
+while ($r < 200) {
+    $seen = $seen + Core\Arr::count(Core\Arr::reverse($long));
+    $r = $r + 1;
+}
+echo 'step 2: ', $seen, '|', "\n";
+
+// 3. Keeping the keys of 100000 entries is the other half of the member.
+echo 'step 3: ', Core\Arr::count(Core\Arr::reverse($long, { preserveKeys: true })), '|', "\n";
+
+// 4. A key of one million characters is kept, and then thrown away by the
+//    default.
+array<int> $wide = [];
+$wide[Core\Str::repeat('k', 1000000)] = 1;
+$wide[] = 2;
+echo 'step 4: ', Core\Str::length(Core\Arr::last(Core\Arr::keys(Core\Arr::reverse($wide, { preserveKeys: true }))) ?? ''), '|', "\n";
+echo 'step 5: ', Core\Str::join(Core\Arr::keys(Core\Arr::reverse($wide)), ','), '|', "\n";
+
+// 6. The largest whole-number key there is survives being kept, and is
+//    renumbered away by the default.
+array<int> $far = [];
+$far[9223372036854775807] = 1;
+echo 'step 6: ', Core\Str::join(Core\Arr::keys(Core\Arr::reverse($far, { preserveKeys: true })), ','), '|', "\n";
+echo 'step 7: ', Core\Str::join(Core\Arr::keys(Core\Arr::reverse($far)), ','), '|', "\n";
+
+// 8. An array with no entries reverses to one with no entries.
+array<int> $empty = [];
+echo 'step 8: ', Core\Arr::count(Core\Arr::reverse($empty)), '|', "\n";
+
+echo 'the runtime is still standing', "\n";

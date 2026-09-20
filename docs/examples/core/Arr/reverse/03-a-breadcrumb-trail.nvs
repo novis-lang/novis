@@ -1,0 +1,16 @@
+<?nvs
+// Shows a breadcrumb trail on a shop page. The trail is collected from the page
+// upwards, so it is reversed before it is printed.
+
+array<string> $parent = ['Running shoes' => 'Shoes', 'Shoes' => 'Clothing'];
+
+array<string> $trail = ['Running shoes'];
+string $at = 'Running shoes';
+while (Core\Arr::hasKey($parent, $at)) {
+    $at = $parent[$at];
+    $trail[] = $at;
+}
+
+// `$trail` reads from the page upwards. Reversing it puts the top level first.
+// This prints "Clothing > Shoes > Running shoes".
+echo Core\Str::join(Core\Arr::reverse($trail), ' > '), "\n";
