@@ -1,0 +1,26 @@
+<?nvs
+// Measures writing a large number as text in base 36, as a program does when it
+// turns an order number into a short code.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<Core\BigInt> $numbers = [
+            Core\BigInt::parse("9007199254740993"),
+            Core\BigInt::parse("123456789012345678901234567890"),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the number written this round is picked by the length of
+            // the text the round before gave.
+            string $code = $numbers[($total % 2) as int]->format({radix: 36});
+            $total = $total + Core\Str::length($code);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

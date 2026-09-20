@@ -1,0 +1,45 @@
+<?nvs
+// Attack: `format` is asked for text in every base it allows, for bases it does
+// not allow, and for very long text a thousand times over. Every bad base
+// should throw an error, and the program should run to its last line.
+
+// 1. A number of about twenty thousand bits is written in all 35 bases, ten
+//    times over. Only the last text is kept, so the memory held must not grow.
+var $wide = Core\BigInt::of(2)->pow(20000)->add(Core\BigInt::of(1));
+string $text = '';
+int $round = 0;
+while ($round < 10) {
+    uint $base = 2;
+    while ($base <= 36) {
+        $text = $wide->format({ radix: $base });
+        $base = $base + 1;
+    }
+    $round = $round + 1;
+}
+echo Core\Str::length($text), "\n";
+
+// 2. Four bases outside the 2 to 36 this class allows. Each one should throw a
+//    `LogicError`, and the program catches all four.
+array<uint> $badBases = [0, 1, 37, 18446744073709551615];
+int $refused = 0;
+foreach ($badBases as uint $base) {
+    try {
+        $wide->format({ radix: $base });
+    } catch (LogicError $outsideTheRange) {
+        $refused = $refused + 1;
+    }
+}
+echo $refused, "\n";
+
+// 3. Text of about fifty thousand characters is written a thousand times. Each
+//    text is dropped at once, so the memory held must not grow.
+var $bits = Core\BigInt::of(1)->shl(50000);
+int $made = 0;
+while ($made < 1000) {
+    $text = $bits->format({ radix: 2 });
+    $made = $made + 1;
+}
+echo Core\Str::length($text), "\n";
+
+// 4. The widest number here is written as a negative in the widest base.
+echo Core\Str::length($wide->neg()->format({ radix: 36 })), "\n";

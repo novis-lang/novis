@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to turn a long order number into a short code a customer can type.
+// Base 36 uses the digits and the letters, so the code is shorter than the
+// number it stands for.
+
+var $orderNumber = Core\BigInt::parse("9007199254740993");
+
+// `format` with `radix: 36` writes the code. This prints 2gosa7pa2gx.
+string $code = $orderNumber->format({radix: 36});
+echo $code, "\n";
+
+// `Core\BigInt::parse` reads the code back when you give it the same base.
+// This prints 9007199254740993.
+echo Core\BigInt::parse($code, {radix: 36}), "\n";
