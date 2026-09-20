@@ -2493,6 +2493,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `Core\Arr` members back in the `perf` column of `python tools/dossier.py --group 'Core\Arr'
   --owed`. Close them with one `--record-perf` over the whole group after `verify.py` is green,
   rather than reading that column as new work. [until: reviewed 2026-09-20]
+- **A `Core\Arr` slice's Rust test stales every other member's perf row in the same file, and they
+  then read as unwritten work.** `rule:testing/member-perf-ledger` makes a row current against the
+  *implementing file's* text rather than the member's, so one `#[test]` added to `arr.rs` put all
+  ten finished members back on the owed list with their benches sitting on disk. Record the whole
+  group once, after the session's last edit to that file — `python tools/dossier.py --record-perf
+  --group 'Core\Arr'` re-measures exactly the stale rows and leaves the current ones alone.
+  [until: reviewed 2026-09-20]
 
 ## Running things
 
@@ -3105,7 +3112,7 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `verify.py` and passes on its own.** It asserts how many reads land while a compile is running,
   which is a timing claim, and `test` runs its binaries side by side — a loaded machine lets the
   compile finish between the two reads and the count comes back one short. Re-run `python
-  tools/verify.py` before believing it: the site is `crates/nvs-cli/src/script.rs:1340` and it is
+  tools/verify.py` before believing it: the site is `crates/nvs-cli/src/script.rs:1709` and it is
   nothing a stdlib or docs session touched.
   [until: gone crates/nvs-cli/src/script.rs:a reader was answered once and then waited the compile out]
 - **`python tools/try.py` runs a case's `--FILE--` program and materializes none of its other
