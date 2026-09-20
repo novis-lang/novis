@@ -6723,6 +6723,208 @@ mod tests {
         );
     }
 
+    /// Two rows whose cells are texts long enough to be allocations of their
+    /// own, which is what
+    /// [`column_stores_the_subject_cell_with_a_reference_of_its_own`] reads a
+    /// reference count off — a one-character cell is stored inside the value
+    /// and has none.
+    fn rows_holding_long_cells() -> Value {
+        let mut rows = NvsArray::new();
+        for (position, id, name) in [
+            (
+                &b"0"[..],
+                &b"r1"[..],
+                &b"a text long enough to be its own allocation: a"[..],
+            ),
+            (
+                &b"1"[..],
+                &b"r2"[..],
+                &b"a text long enough to be its own allocation: b"[..],
+            ),
+        ] {
+            let mut row = NvsArray::new();
+            row.set(NvsStr::new(b"id"), Value::str(NvsStr::new(id)));
+            row.set(NvsStr::new(b"name"), Value::str(NvsStr::new(name)));
+            rows.set(NvsStr::new(position), Value::array(row));
+        }
+        Value::array(rows)
+    }
+
+    /// Every entry of an array a helper returned, as `(key, how many references
+    /// hold its text)`.
+    fn references_of(result: Value) -> Vec<(Vec<u8>, usize)> {
+        #[expect(
+            unsafe_code,
+            reason = "the handle takes over the one reference the member \
+                      answered with, and releases it on drop"
+        )]
+        let array =
+            unsafe { NvsArray::from_raw(result.array_ptr().expect("the member returns an array")) };
+        let mut entries = Vec::new();
+        let mut from = 0usize;
+        while let Some(slot) = array.next_slot(from) {
+            let key = array.key_at(slot).expect("a live entry has a key");
+            let value = array.value_at(slot).expect("a live entry has a value");
+            #[expect(
+                unsafe_code,
+                reason = "the subject holds the text for the length of the \
+                          caller's test, and the handle above holds the result"
+            )]
+            let references =
+                unsafe { NvsStr::refcount_of(value.str_ptr().expect("every cell here is a text")) };
+            entries.push((key.as_bytes().to_vec(), references));
+            from = slot + 1;
+        }
+        entries
+    }
+
+    /// Every cell the result holds is the subject's own, held with a reference
+    /// of its own, on both of the member's paths.
+    ///
+    /// **Only the Rust side can see the reference.** A cell is stored twice and
+    /// owned once, so a member that stored it without retaining prints the
+    /// right text from Novis for as long as the subject is alive and frees it
+    /// twice at the end, and one that retained twice leaks a text per row while
+    /// printing exactly the same thing. The two paths reach that reference from
+    /// different places — the default appends a borrowed cell, `{indexBy}`
+    /// retains one and sets it under a key it copied — so both are asked here.
+    // covers: Core\Arr::column
+    #[test]
+    fn column_stores_the_subject_cell_with_a_reference_of_its_own() {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let subject = rows_holding_long_cells();
+        let cell = Value::str(NvsStr::new(b"name"));
+        let by_id = Value::str(NvsStr::new(b"id"));
+
+        let appended = call(
+            super::nvs_core_arr_column,
+            &mut ctx,
+            &[subject, cell, Value::null()],
+        )
+        .expect("every row is an array");
+        assert_eq!(
+            references_of(appended),
+            vec![(b"0".to_vec(), 2), (b"1".to_vec(), 2)]
+        );
+
+        let keyed = call(
+            super::nvs_core_arr_column,
+            &mut ctx,
+            &[subject, cell, by_id],
+        )
+        .expect("every row is an array");
+        assert_eq!(
+            references_of(keyed),
+            vec![(b"r1".to_vec(), 2), (b"r2".to_vec(), 2)]
+        );
+
+        dropped(subject);
+        dropped(cell);
+        dropped(by_id);
+    }
+
+    /// `["b" => …, "a" => …, "c" => …]` over texts long enough to be
+    /// allocations of their own, so a reference count can be read off each of
+    /// them, and under keys no byte compare leaves where it found them.
+    fn out_of_order_holding_long_values() -> Value {
+        let mut array = NvsArray::new();
+        for (key, value) in [
+            (
+                &b"b"[..],
+                &b"a text long enough to be its own allocation: b"[..],
+            ),
+            (
+                &b"a"[..],
+                &b"a text long enough to be its own allocation: a"[..],
+            ),
+            (
+                &b"c"[..],
+                &b"a text long enough to be its own allocation: c"[..],
+            ),
+        ] {
+            array.set(NvsStr::new(key), Value::str(NvsStr::new(value)));
+        }
+        Value::array(array)
+    }
+
+    /// A two-parameter comparator answering `NaN`, the one verdict the sort
+    /// refuses, so that a walk fails part-way through.
+    ///
+    /// The sweep of the three references is not optional, for [`below_ten`]'s
+    /// reason.
+    #[expect(
+        unsafe_code,
+        reason = "`call_closure` passes the receiver and two arguments, each \
+                  retained for this callee to release, and `abi::call` passes \
+                  the address of a live `Value` for the result — neither is \
+                  expressible in the signature compiled code calls through"
+    )]
+    unsafe extern "C" fn compares_with_a_nan(
+        _ctx: *mut Ctx,
+        args: *const Value,
+        out: *mut Value,
+    ) -> i32 {
+        for index in 0..3 {
+            dropped(unsafe { *args.add(index) });
+        }
+        unsafe {
+            *out = Value::float(f64::NAN);
+        }
+        nvs_runtime::OK
+    }
+
+    /// The result holds each of the subject's values with a reference of its
+    /// own, and a comparator that fails leaves the subject holding them alone.
+    ///
+    /// **Only the Rust side can see either half.** The member collects a
+    /// reference per key and borrows a value per entry before it compares
+    /// anything, so a walk that fails half-way has both to give back; from
+    /// Novis a leak there prints nothing at all, and a missing retain prints
+    /// the right order until the subject is freed. The order asserted after the
+    /// failure is the subject's own insertion order, which is the second thing
+    /// a failed sort owes: it answered nothing, so it moved nothing.
+    // covers: Core\Arr::sortByKey
+    #[test]
+    fn sort_by_key_takes_a_reference_per_value_and_gives_them_back_when_it_fails() {
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let subject = out_of_order_holding_long_values();
+
+        let sorted = call(
+            super::nvs_core_arr_sort_by_key,
+            &mut ctx,
+            &[subject, Value::int(0), Value::null()],
+        )
+        .expect("a byte compare never fails");
+        assert_eq!(
+            references_of(sorted),
+            vec![(b"a".to_vec(), 2), (b"b".to_vec(), 2), (b"c".to_vec(), 2)]
+        );
+
+        let comparator = closure_of(2, compares_with_a_nan);
+        call(
+            super::nvs_core_arr_sort_by_key,
+            &mut ctx,
+            &[subject, Value::int(0), comparator],
+        )
+        .expect_err("NaN has no ordering");
+
+        #[expect(
+            unsafe_code,
+            reason = "the reader below releases the reference it is handed, and \
+                      this test still owns the subject afterwards"
+        )]
+        unsafe {
+            subject.retain();
+        }
+        assert_eq!(
+            references_of(subject),
+            vec![(b"b".to_vec(), 1), (b"a".to_vec(), 1), (b"c".to_vec(), 1)]
+        );
+
+        dropped(subject);
+        dropped(comparator);
+    }
+
     /// The values `range` produces, in order — read back through the array's
     /// own cursor rather than by key, so a wrong *order* fails here and not
     /// only a wrong set.
