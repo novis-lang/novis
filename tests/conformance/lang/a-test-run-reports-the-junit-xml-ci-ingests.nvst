@@ -4,6 +4,7 @@
 test --format=junit
 --FILE--
 <?nvs
+// covers: lang:testing/running-tests-nvs-test
 // § 22: the same program as
 // `a-test-run-reports-a-versioned-json-document.nvst`, in the shape every CI
 // system already ingests. Both documents render one `Outcome` list, so the

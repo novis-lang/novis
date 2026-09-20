@@ -4,6 +4,7 @@
 test --list --format=json
 --FILE--
 <?nvs
+// covers: lang:testing/running-tests-nvs-test
 // § 22's discovery, which is what an editor's test tree is populated from: the
 // table the compile already built, read out and located. Both tests below
 // would say so if they ran -- the first echoes and fails, the second is a skip
@@ -29,7 +30,7 @@ final class ListedTest {
 {
   "schemaVersion": 2,
   "listed": [
-    {"class": "ListedTest", "method": "itWouldSayItRan", "file": "case.nvs", "line": 11, "column": 21},
-    {"class": "ListedTest", "method": "aSkippedTestIsDeclaredToo", "file": "case.nvs", "line": 19, "column": 21}
+    {"class": "ListedTest", "method": "itWouldSayItRan", "file": "case.nvs", "line": 12, "column": 21},
+    {"class": "ListedTest", "method": "aSkippedTestIsDeclaredToo", "file": "case.nvs", "line": 20, "column": 21}
   ]
 }

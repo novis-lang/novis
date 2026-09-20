@@ -1,0 +1,30 @@
+<?nvs
+// Shows the program you give to `nvs test`. `nvs test 01-run-the-tests-of-a-program.nvs`
+// compiles it, runs both tests below, and prints a line for each one.
+
+use Core\Test;
+
+class Greeting {
+    public static function forName(string $name): string {
+        if ($name == "") {
+            return "Hello!";
+        }
+        return "Hello, " . $name . "!";
+    }
+}
+
+class GreetingTest {
+    #[Test]
+    public function itGreetsSomebodyByName(): void {
+        Test::assertSame(Greeting::forName("Ada"), "Hello, Ada!");
+    }
+
+    #[Test]
+    public function itGreetsSomebodyWithNoName(): void {
+        Test::assertSame(Greeting::forName(""), "Hello!");
+    }
+}
+
+// The lines outside a class do not run under `nvs test`. Under `nvs run` they
+// do, and this prints `Hello, Ada! Hello!`.
+echo Greeting::forName("Ada"), " ", Greeting::forName(""), "\n";

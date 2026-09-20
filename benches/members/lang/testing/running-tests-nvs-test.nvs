@@ -1,0 +1,40 @@
+<?nvs
+// Measures what one test costs a run: the test class is built, the test is
+// called, and the assertion it makes is recorded. A run pays this for every
+// test in the program.
+// bench: iterations 200000
+
+use Core\Test;
+
+class Meter {
+    public static uint $checked = 0;
+}
+
+class RunTest {
+    private uint $started;
+
+    public function constructor() {
+        $this->started = Meter::$checked;
+    }
+
+    #[Test]
+    public function itChecksOneThing(): void {
+        // Chained: the count checked here is the one the round before wrote.
+        Test::assertSame($this->started, Meter::$checked);
+        Meter::$checked = Meter::$checked + 1;
+    }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $i = 0;
+        while ($i < $rounds) {
+            var $test = new RunTest();
+            $test->itChecksOneThing();
+            $i = $i + 1;
+        }
+        return Meter::$checked;
+    }
+}
+
+echo Bench::run(200000), "\n";

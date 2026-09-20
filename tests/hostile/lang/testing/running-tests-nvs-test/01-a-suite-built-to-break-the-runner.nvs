@@ -1,0 +1,131 @@
+<?nvs
+// Attack: the table `nvs test` builds and reports from is filled with what
+// breaks a report. It holds very long test names, class names that differ only
+// at their end, and one class with twenty-four tests. The program should run
+// to its last line.
+
+use Core\Test;
+
+// 1. A test name of two hundred characters, and the shortest name allowed.
+class LongNameTest
+{
+    #[Test]
+    public function itHasAVeryLongNameThatAReportHasToPrintOnOneLineAndThatAFilterHasToSearchThroughAndThatIsMadeOfTheSameFewWordsRepeatedAgainAndAgainAndAgainAndAgainUntilItIsTwoHundredLong(): void
+    {
+        Test::assertTrue(true);
+    }
+
+    #[Test]
+    public function a(): void
+    {
+        Test::assertTrue(true);
+    }
+}
+
+// 2. Three class names that differ only at their end, which is what a filter
+//    has to tell apart.
+class OrderTest
+{
+    #[Test]
+    public function itRuns(): void
+    {
+        Test::assertTrue(true);
+    }
+}
+
+class OrderTestCase
+{
+    #[Test]
+    public function itRuns(): void
+    {
+        Test::assertTrue(true);
+    }
+}
+
+class OrderTestCases
+{
+    #[Test]
+    public function itRuns(): void
+    {
+        Test::assertTrue(true);
+    }
+}
+
+// 3. One class with twenty-four tests, so the runner builds twenty-four
+//    isolates for one class and reports them under one heading.
+class ManyTest
+{
+    #[Test] public function t01(): void
+    { Test::assertTrue(true); }
+    #[Test] public function t02(): void
+    { Test::assertTrue(true); }
+    #[Test] public function t03(): void
+    { Test::assertTrue(true); }
+    #[Test] public function t04(): void
+    { Test::assertTrue(true); }
+    #[Test] public function t05(): void
+    { Test::assertTrue(true); }
+    #[Test] public function t06(): void
+    { Test::assertTrue(true); }
+    #[Test] public function t07(): void
+    { Test::assertTrue(true); }
+    #[Test] public function t08(): void
+    { Test::assertTrue(true); }
+    #[Test] public function t09(): void
+    { Test::assertTrue(true); }
+    #[Test] public function t10(): void
+    { Test::assertTrue(true); }
+    #[Test] public function t11(): void
+    { Test::assertTrue(true); }
+    #[Test] public function t12(): void
+    { Test::assertTrue(true); }
+    #[Test] public function t13(): void
+    { Test::assertTrue(true); }
+    #[Test] public function t14(): void
+    { Test::assertTrue(true); }
+    #[Test] public function t15(): void
+    { Test::assertTrue(true); }
+    #[Test] public function t16(): void
+    { Test::assertTrue(true); }
+    #[Test] public function t17(): void
+    { Test::assertTrue(true); }
+    #[Test] public function t18(): void
+    { Test::assertTrue(true); }
+    #[Test] public function t19(): void
+    { Test::assertTrue(true); }
+    #[Test] public function t20(): void
+    { Test::assertTrue(true); }
+    #[Test] public function t21(): void
+    { Test::assertTrue(true); }
+    #[Test] public function t22(): void
+    { Test::assertTrue(true); }
+    #[Test] public function t23(): void
+    { Test::assertTrue(true); }
+    #[Test] public function t24(): void
+    { Test::assertTrue(true); }
+}
+
+// 4. A failure message of ten thousand characters is built at run time, the
+//    size a report would have to print. An error here is caught.
+try {
+    string $message = '';
+    uint $i = 0;
+    while ($i < 1000) {
+        $message = $message . 'ünïcödé 🙂 ';
+        $i = $i + 1;
+    }
+    echo 'step 4: the message is ', Core\Str::length($message), ' characters long', "\n";
+} catch (Throwable $caught) {
+    echo 'step 4 stopped: ', $caught->message, "\n";
+}
+
+// 5. An assertion that fails outside a test, where no runner is watching. The
+//    error it throws is caught, so the program still reaches its last line.
+try {
+    Test::assertTrue(false);
+    echo 'step 5: the failed assertion threw nothing', "\n";
+} catch (Throwable $caught) {
+    echo 'step 5 stopped: ', $caught->message, "\n";
+}
+
+echo 'the program reached its last line', "\n";

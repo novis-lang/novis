@@ -6181,6 +6181,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   them while the case still reads as untouched. Put the marker and the `NN + 1` bumps in one
   `tools/splice.py` patch, then run `target/debug/nvs.exe test <path.nvst>` before believing it.
   [until: reviewed 2026-09-20]
+- **A `.nvst` run case whose program succeeds must not carry an empty `--EXPECTF-ERROR--` section.**
+  The runner reads the section's *presence* as "this run is expected to fail", so a case whose tests
+  all pass fails the suite with `expected the run to fail, and it succeeded` — the neighbouring case
+  that has the section is one whose tests deliberately fail, which is why copying its skeleton
+  misleads. Write the section only when the program's exit status is non-zero, and check with
+  `target/debug/nvs.exe test <case>.nvst` before the full sweep. [until: reviewed 2026-10-20]
 
 ## Splitting a file that got too big
 
