@@ -1,0 +1,46 @@
+<?nvs
+// Attack: a program joins a list to itself until the result is larger than the
+// computer can hold. The last step should stop with an error, and the program
+// must not crash.
+// hostile: timeout-ms 20000
+// hostile: ends-early
+
+// 1. Nothing at all, on both sides.
+echo Core\Arr::count(Core\Arr::appendAll([], [])), "\n";
+
+// 2. An array joined to itself. Both sides are the same array, so nothing may
+// be freed while it is still being read.
+array<int> $wide = Core\Arr::range(1, 10000);
+echo Core\Arr::count(Core\Arr::appendAll($wide, $wide)), "\n";
+
+// 3. Twelve arrays in one call. Nothing is compared, so the result holds every
+// value of all twelve.
+echo Core\Arr::count(Core\Arr::appendAll(
+    $wide, $wide, $wide, $wide, $wide, $wide, $wide, $wide, $wide, $wide, $wide, $wide,
+)), "\n";
+
+// 4. Two keys as far apart as a number can be. The result is numbered from 0,
+// so a key this large may not make the result large.
+array<string> $sparse = [0 => 'first', 9223372036854775807 => 'last'];
+echo Core\Arr::count(Core\Arr::appendAll($sparse, $sparse)), "\n";
+
+// 5. Two hundred joins, one after the other. Each result is freed again, so
+// the memory in use must not grow.
+int $seen = 0;
+uint $round = 0;
+while ($round < 200) {
+    array<int> $copy = Core\Arr::appendAll($wide, $wide);
+    $seen = $seen + $copy[19999];
+    $round = $round + 1;
+}
+echo 'loop done ', $seen, "\n";
+
+// 6. A list that doubles in length every round. Forty rounds would need more
+// memory than any computer has, so the program stops here with an error.
+array<int> $growing = Core\Arr::range(1, 1000);
+uint $r = 0;
+while ($r < 40) {
+    $growing = Core\Arr::appendAll($growing, $growing);
+    $r = $r + 1;
+}
+echo "doubled all\n";

@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to collect the rows of several pages into one list, as a program
+// does after reading an API one page at a time.
+
+array<array<string>> $pages = [
+    ["order-1001", "order-1002"],
+    ["order-1003"],
+    ["order-1004", "order-1005"],
+];
+
+array<string> $all = [];
+foreach ($pages as array<string> $page) {
+    $all = Core\Arr::appendAll($all, $page);
+}
+
+// This prints 5, and then the five order numbers in the order they were read.
+echo Core\Arr::count($all), "\n";
+echo Core\Json::encode($all), "\n";

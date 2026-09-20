@@ -1,0 +1,22 @@
+<?nvs
+// Joins a page of results onto the list a program has collected so far.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): int {
+        array<int> $page = [1, 2, 3, 4, 5, 6];
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Last round's total decides the second list, so no round can be reused.
+            array<int> $extra = [$total % 7, 7];
+            array<int> $joined = Core\Arr::appendAll($page, $extra);
+            $total = $total + $joined[6] + $joined[7];
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";
