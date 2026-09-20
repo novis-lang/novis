@@ -2528,6 +2528,18 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   twice, and a `| tail` on the call hides every line of it so the second one reads as a hang. Make
   every Rust edit of the group first, then bless and record once for the whole group, and never pipe
   a `dossier.py` call. [until: reviewed 2026-09-20]
+- **`python tools/dossier.py --bless` runs `target/release/nvs.exe` and rebuilds it whenever the
+  tree has moved, so a bless that follows a Rust edit pays a whole release build.** Its staleness
+  check is the tree rather than the crate the example touches, so blessing one member's examples
+  after splicing that member's Rust test in costs the build again for the next member. Write every
+  example, attack and bench of a group first and bless them in one call, then splice the Rust tests
+  in afterwards. [until: reviewed 2026-09-20]
+
+- **`python tools/verify.py` runs `cargo fmt`, which rewrites the very text a perf record is keyed
+  on, so a `--record-perf` taken before the wrap is stale by the time the gate reads it.** A
+  member's figure is accepted while a hash of its implementing file matches, and formatting one line
+  a session spliced in moves that hash for every member in the file. Measure the group after
+  `verify.py` has come back green, not while it is still running. [until: reviewed 2026-09-20]
 
 ## Running things
 
@@ -3428,6 +3440,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   nothing, exited 0, left the binary at its old timestamp, and the `--bless` after it spent the
   relink anyway. Run a release build with no pipe, and check the binary's timestamp moved.
   [until: reviewed 2026-09-20]
+- **A `Core\BigInt` bench that declares `allocations 0` is refused, because every member of that
+  class materializes its receiver.** `crates/nvs-stdlib/src/bigint.rs`'s `operand` rebuilds the
+  magnitude from the instance's two slots on each call, so even a member answering an `int`
+  allocates once, and `--record-perf` writes no record while the declaration disagrees with the
+  count. Read what a sibling member already recorded in `docs/perf/members.ndjson` before choosing
+  the number a new bench declares. [until: reviewed 2026-09-20]
 
 ## Writing a test case
 

@@ -765,6 +765,29 @@ fn built(value: &BigInt) -> Result<Value, Fault> {
     ))
 }
 
+/// The sign of the `BigInt` in argument slot `at`, as `-1`, `0` or `1`, read
+/// from the slot [`built`] wrote rather than through [`operand`].
+///
+/// Materializing an operand copies every byte of its magnitude, so a member
+/// answering from the sign alone pays a receiver's whole width on every call.
+///
+/// # Errors
+///
+/// A [`Fault::fatal`] naming the member, for [`operand`]'s reason.
+fn sign_of(args: &[Value], at: usize, member: &str) -> Result<i64, Fault> {
+    let object = crate::instance::receiver(args[at], &CLASS, member)?;
+    // Unreachable from source: both slots are written by [`built`] alone, and
+    // no member mutates one, so a tag mismatch here is a paste error in this
+    // module rather than anything a program can reach.
+    crate::instance::slot(object, SIGN_SLOT)
+        .as_int()
+        .ok_or_else(|| {
+            Fault::fatal(format!(
+                "Core\\BigInt::{member} found a non-`int` sign slot"
+            ))
+        })
+}
+
 /// The `BigInt` in argument slot `at` — slot 0 for a receiver, any other slot
 /// for a `BigInt` *parameter*.
 ///
@@ -777,17 +800,8 @@ fn built(value: &BigInt) -> Result<Value, Fault> {
 /// A [`Fault::fatal`] naming the member where a slot holds something the row
 /// above says it cannot, which compiled code cannot produce.
 fn operand(args: &[Value], at: usize, member: &str) -> Result<BigInt, Fault> {
+    let sign = sign_of(args, at, member)?;
     let object = crate::instance::receiver(args[at], &CLASS, member)?;
-    // Unreachable from source: both slots are written by [`built`] alone, and
-    // no member mutates one, so a tag mismatch here is a paste error in this
-    // module rather than anything a program can reach.
-    let sign = crate::instance::slot(object, SIGN_SLOT)
-        .as_int()
-        .ok_or_else(|| {
-            Fault::fatal(format!(
-                "Core\\BigInt::{member} found a non-`int` sign slot"
-            ))
-        })?;
     let magnitude = crate::instance::slot(object, MAGNITUDE_SLOT);
     // Unreachable from source, for the sign slot's reason.
     let bytes = magnitude.as_bytes().ok_or_else(|| {
@@ -1115,13 +1129,11 @@ nvs_runtime::nvs_helper! {
 // ============================================================================
 
 nvs_runtime::nvs_helper! {
-    /// `$n->sign(): int`.
+    /// `$n->sign(): int`, read from the sign slot alone — the receiver's
+    /// magnitude is never materialized for a question the sign already
+    /// answers, which is a copy of every byte of it per call.
     fn nvs_core_bigint_sign(_ctx, args: [1]) {
-        Ok(Value::int(match operand(args, 0, "sign")?.sign() {
-            Sign::Minus => -1,
-            Sign::NoSign => 0,
-            Sign::Plus => 1,
-        }))
+        Ok(Value::int(sign_of(args, 0, "sign")?.signum()))
     }
 }
 
@@ -1531,6 +1543,155 @@ mod tests {
             }
         }
         assert_eq!((written, read_back), (SWEEP.len(), SWEEP.len()));
+    }
+
+    /// `toDecimal` agrees with the scalar's own conversion from an `int` over a
+    /// sign sweep, rather than being read against a table of remembered
+    /// answers, so a member that lost a word or wrote a scale of its own fails
+    /// here while still rendering plausibly. The bound is named from both sides
+    /// at both signs beside it: the widest magnitude a 96-bit mantissa holds
+    /// converts and the next one up is refused, which is where a member that
+    /// truncated the magnitude instead of refusing it parts from this.
+    // covers: Core\BigInt::toDecimal
+    #[test]
+    fn to_decimal_agrees_with_the_scalar_and_refuses_the_first_magnitude_past_its_mantissa() {
+        const SWEEP: [i64; 9] = [
+            i64::MIN,
+            i64::MIN + 1,
+            -4_500,
+            -1,
+            0,
+            1,
+            4_500,
+            i64::MAX - 1,
+            i64::MAX,
+        ];
+
+        /// One instance holding a magnitude no scalar spells, built the way
+        /// [`of`] builds the ones that fit.
+        fn wide(value: &BigInt) -> Value {
+            built(value).expect("a 96-bit magnitude is affordable")
+        }
+
+        let mut ctx = Ctx::buffered();
+        let mut agreed = 0usize;
+        for value in SWEEP {
+            let answer = call(nvs_core_bigint_to_decimal, &mut ctx, &[of(value)])
+                .expect("every `int` is a `decimal`")
+                .as_decimal()
+                .expect("`toDecimal` answers a `decimal`");
+            if answer == Decimal::from_i64(value) && answer.scale() == 0 {
+                agreed += 1;
+            }
+        }
+        assert_eq!(agreed, SWEEP.len());
+
+        let widest = (BigInt::from(1u32) << 96u32) - BigInt::from(1u32);
+        let past = &widest + BigInt::from(1u32);
+        let mut bounded = 0usize;
+        for magnitude in [&widest, &past] {
+            for signed in [magnitude.clone(), -magnitude.clone()] {
+                let refused = call(nvs_core_bigint_to_decimal, &mut ctx, &[wide(&signed)]).is_err();
+                if refused == (magnitude == &past) {
+                    bounded += 1;
+                }
+            }
+        }
+        assert_eq!(bounded, 4);
+    }
+
+    /// `toUint` is `ofUint` read backwards over the whole unsigned range, and
+    /// the pair its floor sits between is named beside the sweep: zero narrows
+    /// and -1 is refused, one step apart, which is what a member deciding on
+    /// the magnitude alone gets wrong while every other row still passes. The
+    /// top is asserted from both sides in the same way, above where any `int`
+    /// reaches.
+    // covers: Core\BigInt::toUint
+    #[test]
+    fn to_uint_round_trips_the_unsigned_range_and_refuses_everything_below_zero() {
+        const SWEEP: [u64; 7] = [
+            0,
+            1,
+            4_500,
+            i64::MAX as u64,
+            i64::MAX as u64 + 1,
+            u64::MAX - 1,
+            u64::MAX,
+        ];
+
+        /// One instance holding a value no `int` spells, built the way [`of`]
+        /// builds the ones that fit.
+        fn unsigned(value: u64) -> Value {
+            built(&BigInt::from(value)).expect("a one-word magnitude is affordable")
+        }
+
+        let mut ctx = Ctx::buffered();
+        let mut narrowed = 0usize;
+        for value in SWEEP {
+            let answer = call(nvs_core_bigint_to_uint, &mut ctx, &[unsigned(value)])
+                .expect("every `uint` narrows back to itself")
+                .as_uint()
+                .expect("`toUint` answers a `uint`");
+            if answer == value {
+                narrowed += 1;
+            }
+        }
+        assert_eq!(narrowed, SWEEP.len());
+
+        for value in [-1i64, -4_500, i64::MIN] {
+            call(nvs_core_bigint_to_uint, &mut ctx, &[of(value)])
+                .expect_err("no negative value is a `uint`");
+        }
+
+        let past = call(nvs_core_bigint_add, &mut ctx, &[unsigned(u64::MAX), of(1)])
+            .expect("a sum one bit wider is affordable");
+        call(nvs_core_bigint_to_uint, &mut ctx, &[past])
+            .expect_err("the first value past the top is outside the range");
+    }
+
+    /// `toInt` is `of` read backwards: over a sweep that includes both ends of
+    /// the range, widening a value and narrowing it again answers the value
+    /// itself, counted rather than read off a line, so a member that lost the
+    /// top word of a magnitude is still right about every small row. The bound
+    /// is named from both sides beside it, which is the half a round trip
+    /// cannot reach: the first value past each end is refused, so a member
+    /// that stops one value early passes the sweep and fails here.
+    // covers: Core\BigInt::toInt
+    #[test]
+    fn to_int_round_trips_every_int_and_refuses_the_first_value_past_each_bound() {
+        const SWEEP: [i64; 9] = [
+            i64::MIN,
+            i64::MIN + 1,
+            -4_500,
+            -1,
+            0,
+            1,
+            4_500,
+            i64::MAX - 1,
+            i64::MAX,
+        ];
+
+        let mut ctx = Ctx::buffered();
+        let mut narrowed = 0usize;
+        for value in SWEEP {
+            let answer = call(nvs_core_bigint_to_int, &mut ctx, &[of(value)])
+                .expect("every `int` narrows back to itself")
+                .as_int()
+                .expect("`toInt` answers an `int`");
+            if answer == value {
+                narrowed += 1;
+            }
+        }
+        assert_eq!(narrowed, SWEEP.len());
+
+        // One step past each end, reached by adding to the bound, since no
+        // `int` spells the value being asked about.
+        for (bound, step) in [(i64::MAX, 1i64), (i64::MIN, -1)] {
+            let past = call(nvs_core_bigint_add, &mut ctx, &[of(bound), of(step)])
+                .expect("a sum one bit wider is affordable");
+            call(nvs_core_bigint_to_int, &mut ctx, &[past])
+                .expect_err("the first value past the bound is outside the range");
+        }
     }
 
     /// `sqrt` answers the floor of the root and never the nearest whole number:
