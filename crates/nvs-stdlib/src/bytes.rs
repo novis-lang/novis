@@ -2211,6 +2211,123 @@ mod tests {
         }
     }
 
+    /// `Core\Bytes::repeat` writes the whole buffer on every round, which is
+    /// what separates it from [`nvs_core_bytes_fill`] and its single octet, so
+    /// the sweep is over buffers whose length is not one. Both degenerate
+    /// counts are named beside it: zero copies of any buffer and any number of
+    /// copies of an empty one are the empty buffer. The second is also how the
+    /// short-circuit is asserted — a member that ran the loop would need
+    /// `u64::MAX` rounds to answer that line rather than returning at once.
+    /// Each result is checked with [`nvs_core_bytes_compare`] against one built
+    /// here, so its length and its content are asserted at once.
+    // covers: Core\Bytes::repeat
+    #[test]
+    fn a_repeat_copies_the_whole_buffer_and_an_empty_one_is_never_looped() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+
+        let subjects: [&[u8]; 5] = [
+            b"",
+            b"\x00",
+            b"ab",
+            b"\x89PNG\r\n\x1a\n",
+            b"Gr\xc3\xb6\xc3\x9fe",
+        ];
+        let mut agreed = 0_usize;
+        let mut swept = 0_usize;
+        for octets in subjects {
+            for times in [0_u64, 1, 2, 3, 512] {
+                swept += 1;
+                let copies = usize::try_from(times).expect("a row of this sweep fits a `usize`");
+                let subject = Value::bytes(NvsStr::new(octets));
+                let want = Value::bytes(NvsStr::new(&octets.repeat(copies)));
+                let built = nvs_runtime::call(
+                    nvs_core_bytes_repeat,
+                    &mut ctx,
+                    &[subject, Value::uint(times)],
+                )
+                .expect("a buffer of this size is affordable");
+                if nvs_runtime::call(nvs_core_bytes_compare, &mut ctx, &[built, want])
+                    .expect("two buffers order")
+                    .as_int()
+                    == Some(0)
+                {
+                    agreed += 1;
+                }
+                release(vec![subject, want, built]);
+            }
+        }
+        assert_eq!(agreed, swept);
+
+        let empty = Value::bytes(NvsStr::new(b""));
+        let unbounded = nvs_runtime::call(
+            nvs_core_bytes_repeat,
+            &mut ctx,
+            &[empty, Value::uint(u64::MAX)],
+        )
+        .expect("an empty buffer costs nothing at any count");
+        assert_eq!(unbounded.as_bytes(), Some(&b""[..]));
+        release(vec![empty, unbounded]);
+
+        let subject = Value::bytes(NvsStr::new(b"\x89PNG"));
+        nvs_runtime::call(
+            nvs_core_bytes_repeat,
+            &mut ctx,
+            &[subject, Value::uint(u64::MAX)],
+        )
+        .expect_err("four octets that many times reaches no allocator");
+        assert_eq!(
+            ctx.take_pending().map(std::borrow::Cow::into_owned),
+            Some(
+                "Core\\Bytes::repeat: the requested allocation is larger than any this process \
+                 could hold"
+                    .to_owned()
+            )
+        );
+        release(vec![subject]);
+    }
+
+    /// `Core\Bytes::join` writes the separator between neighbours and nowhere
+    /// else, so a list of `n` parts carries `n - 1` of them. The sweep counts
+    /// that over every list length from none to six and three separators, each
+    /// result compared with [`nvs_core_bytes_compare`] against one built here,
+    /// so a member that wrote a leading or a trailing separator fails on
+    /// content rather than on a length read off one line. A part with nothing
+    /// in it opens the table and closes it: the member counts what it has
+    /// written rather than testing whether its buffer is still empty, and an
+    /// empty *first* part is the row that tells those two apart.
+    // covers: Core\Bytes::join
+    #[test]
+    fn a_join_writes_one_separator_between_every_pair_of_parts() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+
+        let table: [&[u8]; 6] = [b"", b"alpha", b"", b"\x00\xff", b"b", b""];
+        let mut agreed = 0_usize;
+        let mut swept = 0_usize;
+        for parts in 0..=table.len() {
+            for octets in [&b""[..], b"-", b"\r\n\r\n"] {
+                swept += 1;
+                let mut list = NvsArray::new();
+                for part in &table[..parts] {
+                    list.append(Value::bytes(NvsStr::new(part)));
+                }
+                let subject = Value::array(list);
+                let separator = Value::bytes(NvsStr::new(octets));
+                let want = Value::bytes(NvsStr::new(&table[..parts].join(octets)));
+                let built = nvs_runtime::call(nvs_core_bytes_join, &mut ctx, &[subject, separator])
+                    .expect("a buffer of this size is affordable");
+                if nvs_runtime::call(nvs_core_bytes_compare, &mut ctx, &[built, want])
+                    .expect("two buffers order")
+                    .as_int()
+                    == Some(0)
+                {
+                    agreed += 1;
+                }
+                release(vec![subject, separator, want, built]);
+            }
+        }
+        assert_eq!(agreed, swept);
+    }
+
     /// One `string` argument, which the caller still owns — [`packed`] borrows
     /// its octets exactly as the helper convention does.
     fn text(literal: &str) -> Value {
