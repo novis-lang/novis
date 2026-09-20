@@ -2,42 +2,40 @@
 
 ## State
 
-Goal `core-bigint-1-2` has nine of its twelve members finished: `Core\BigInt::abs`, `add`,
-`compareTo`, `div`, `mod`, `mul`, `format`, `gcd` and `lcm` each carry `about.md`, three examples,
-one attack, one bench and a test from both sides. Three are left — `neg`, `of`, `ofUint`.
+Goal `core-bigint-1-2` has all twelve of its members carrying the feature proofs
+`rule:testing/feature-proofs` names: `abs`, `add`, `compareTo`, `div`, `format`, `gcd`, `lcm`,
+`mod`, `mul`, `neg`, `of` and `ofUint` each have `about.md`, three examples, one attack, one bench,
+a Novis-side case and a Rust `#[test]`.
 
-`gcd` and `lcm` share one Rust test, because they share one identity: their product is the magnitude
-of their operands' product. They also share the `covers:` marker now on
-`tests/conformance/core/bigint-number-theory-members-answer-their-own-identities.nvst`, which
-asserted both identities all along and owed only the marker an instance member needs.
-`format`'s Novis-side case is the radix round-trip case, credited by the call it makes.
+`neg` is credited from Novis by the div/mod sign sweep case, which flips a sign twice, keeps the
+magnitude and prints a flipped zero — an instance member owes a `covers:` marker there and nothing
+else. `of` and `ofUint` are static, so the cases that call them credit them already, and each owed
+only a Rust test.
 
-The six benches this goal has written are not yet measured. `python tools/dossier.py --id` reports
-them `stale` until the next sweep records a figure, which is the ordinary state of a new bench.
+The figures were recorded at the end of the group rather than per slice, because every slice moved
+`crates/nvs-stdlib/src/bigint.rs` and `rule:testing/member-perf-ledger` re-measures a member when
+its implementing file does.
 
 Nothing is blocked.
 
 ## Next group
 
-**Stage: feature proofs for `Core\BigInt`** — one file set: `crates/nvs-stdlib/src/bigint.rs` for
-the Rust-side test, `docs/examples/core/BigInt/<member>/`, `tests/hostile/core/BigInt/<member>/`,
-`benches/members/core/BigInt/<member>.nvs`, and the conformance case that takes each `covers:`
-marker. `rule:testing/feature-proofs` names what each one owes. `neg` is first because its Novis
-side is already pinned in the number-theory case and owes only a marker; `of` and `ofUint` are the
-two constructors and are neighbours in the implementing file. Every `.nvs` proof is cheapest to
-write and bless **before** the slice's `crates/` edit — `docs/agent/playbook.md` § *Running things*
-owns why.
+**Stage: feature proofs for `Core\BigInt`, the second half** — one file set:
+`crates/nvs-stdlib/src/bigint.rs` for the Rust-side test, `docs/examples/core/BigInt/<member>/`,
+`tests/hostile/core/BigInt/<member>/`, `benches/members/core/BigInt/<member>.nvs`, and the
+conformance case that takes each `covers:` marker. `rule:testing/feature-proofs` names what each one
+owes. Write and bless every `.nvs` proof **before** the group's `crates/` edit, and record the
+figures once at the end — `docs/agent/playbook.md` § *Running things* prices each relink.
 
-- [ ] **`Core\BigInt::neg`** — owes about, examples, hostile, perf, tests.
-      `crates/nvs-stdlib/src/bigint.rs:240`
-- [ ] **`Core\BigInt::of`** — owes about, examples, hostile, perf, tests.
-      `crates/nvs-stdlib/src/bigint.rs:121`
-- [ ] **`Core\BigInt::ofUint`** — owes about, examples, hostile, perf, tests.
-      `crates/nvs-stdlib/src/bigint.rs:130`
+- [ ] **`Core\BigInt::parse`** — owes about, examples, hostile, perf and a Rust test; its Novis side
+      is the radix round-trip case. `crates/nvs-stdlib/src/bigint.rs:138`
+- [ ] **`Core\BigInt::sub`** — owes about, examples, hostile, perf and a Rust test.
+      `crates/nvs-stdlib/src/bigint.rs:158`
+- [ ] **`Core\BigInt::sign`** — owes about, examples, hostile, perf and a Rust test.
+      `crates/nvs-stdlib/src/bigint.rs:275`
 
 ## Backlog
 
-- The six benches written in this goal have no figure yet; the `--record-perf` sweep writes them to
-  `docs/perf/members.ndjson`.
-- `Core\BigInt`'s twelve other members are goal `core-bigint-2-2`'s, behind this one in
-  `docs/agent/goals/dossier/`.
+- The other eleven members of `Core\BigInt` — goal `core-bigint-2-2`, `docs/agent/goals/dossier/`.
+- A `.nvs` proof is reformatted by `verify.py`'s `nvs-fmt` step, which rewrites `"` to `'` for a
+  string with nothing to interpolate; write it either way and let the step settle it.
