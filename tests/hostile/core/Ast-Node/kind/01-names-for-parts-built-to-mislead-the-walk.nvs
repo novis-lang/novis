@@ -1,0 +1,60 @@
+<?nvs
+// Attack: a program asks what every part of a file is, over source built to
+// mislead it. The source names its parts after constructs, nests deeper than
+// the parser allows, and holds a hundred thousand statements. The last step
+// should stop at the request's memory limit with an error, and must not crash.
+// hostile: timeout-ms 30000
+// hostile: ends-early
+
+// 1. Source whose own text is full of construct names. The name comes from the
+// grammar, so the text must not reach it.
+string $liar = '<?nvs string $ClassDecl = "Foreach"; echo "File";';
+foreach (Core\Ast::parse($liar)->children() as Core\Ast\Node $part) {
+    echo 'a part named after a construct is a ', $part->kind(), "\n";
+}
+
+// 2. Forty `if` blocks inside each other, which the parser accepts. Every level
+// is asked what it is.
+string $deep = '<?nvs ' . Core\Str::repeat('if (1) { ', 40) . 'echo 1;'
+    . Core\Str::repeat('}', 40);
+uint $ifs = 0;
+foreach (Core\Ast::parse($deep)->nodes() as Core\Ast\Node $node) {
+    if ($node->kind() == 'If') {
+        $ifs = $ifs + 1;
+    }
+}
+echo 'forty levels deep the walk found ', $ifs, " of them\n";
+
+// 3. A hundred thousand blocks inside each other. The parser stops at its own
+// nesting limit and throws an error, which is caught here.
+string $deeper = '<?nvs ' . Core\Str::repeat('if (1) { ', 100000) . 'echo 1;'
+    . Core\Str::repeat('}', 100000);
+try {
+    string $root = Core\Ast::parse($deeper)->kind();
+    echo 'a hundred thousand levels gave a ', $root, "\n";
+} catch (Throwable $refused) {
+    echo "a hundred thousand levels refused\n";
+}
+
+// 4. A hundred thousand statements, each one asked what it is.
+string $wide = "<?nvs\n" . Core\Str::repeat("echo 1;\n", 100000);
+uint $echoes = 0;
+foreach (Core\Ast::parse($wide)->children() as Core\Ast\Node $node) {
+    if ($node->kind() == 'Echo') {
+        $echoes = $echoes + 1;
+    }
+}
+echo 'a hundred thousand statements gave ', $echoes, " echoes\n";
+
+// 5. A list of names that doubles in size. That soon needs more memory than the
+// request may hold, so the program stops here.
+array<mixed> $names = [];
+foreach (Core\Ast::parse($liar)->nodes() as Core\Ast\Node $node) {
+    $names = Core\Arr::append($names, $node->kind());
+}
+uint $k = 0;
+while ($k < 40) {
+    $names = Core\Arr::appendAll($names, $names);
+    $k = $k + 1;
+}
+echo "kept them all\n";

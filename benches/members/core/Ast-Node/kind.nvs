@@ -1,0 +1,29 @@
+<?nvs
+// Reads which construct a node is, as a tool walking a parsed file does at
+// every step.
+// bench: iterations 200000
+// bench: allocations 0
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Core\Ast\Node $file = Core\Ast::parse('<?nvs echo 1; if (1) { echo 2; } while (0) { echo 3; }');
+        array<Core\Ast\Node> $top = $file->children();
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Which of the three nodes is asked comes from last round's total,
+            // so no round can be reused.
+            Core\Ast\Node $node = $top[($total % 3) as int];
+            uint $step = 1;
+            if ($node->kind() == "While") {
+                $step = 2;
+            }
+            $total = $total + $step;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

@@ -1,0 +1,34 @@
+<?nvs
+// Shows how to check that a file only declares classes. A project that loads a
+// file by the class name inside it needs that: every other part of the file
+// runs as soon as the file is loaded.
+
+class LoadCheck {
+    public static function describe(string $source): string {
+        foreach (Core\Ast::parse($source)->children() as Core\Ast\Node $part) {
+            if ($part->kind() != "ClassDecl") {
+                return "also holds " . $part->kind() . ", which runs when the file is loaded";
+            }
+        }
+        return "declares classes only";
+    }
+}
+
+string $clean = <<<'NVS'
+<?nvs
+class Invoice {
+    public static function total(int $a): int {
+        return $a;
+    }
+}
+NVS;
+
+string $mixed = <<<'NVS'
+<?nvs
+class Report {
+}
+echo "building the report\n";
+NVS;
+
+echo LoadCheck::describe($clean), "\n";
+echo LoadCheck::describe($mixed), "\n";
