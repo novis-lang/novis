@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to make one flat list out of arrays nested inside each other.
+
+array<mixed> $nested = ['a', ['b', ['c', ['d']]]];
+
+// `Core\Arr::flattenDeep` removes every level of nesting. This prints
+// ["a","b","c","d"].
+echo Core\Json::encode(Core\Arr::flattenDeep($nested)), "\n";
+
+// This prints 4.
+echo Core\Arr::count(Core\Arr::flattenDeep($nested)), "\n";

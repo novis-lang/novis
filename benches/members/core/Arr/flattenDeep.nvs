@@ -1,0 +1,26 @@
+<?nvs
+// Reads every label of a menu that has menus inside it. A page does this before
+// it draws the navigation.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<array<mixed>> $menus = [
+            ['Home', ['Shop', ['Shoes', 'Shirts']]],
+            [['Help', ['FAQ']], 'About'],
+            ['News'],
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Last round's total decides which menu this round reads, so no
+            // round can be reused.
+            $total = $total + Core\Arr::count(Core\Arr::flattenDeep($menus[$total % 3]));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";
