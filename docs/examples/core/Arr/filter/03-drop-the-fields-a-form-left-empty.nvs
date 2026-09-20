@@ -1,0 +1,15 @@
+<?nvs
+// Removes the empty fields a form sent, so that only what a person filled in is
+// saved. This is what programs use `Core\Arr::filter` for most often.
+
+array<string> $form = [
+    'name' => 'Ida Weber',
+    'phone' => '',
+    'city' => 'Bonn',
+    'note' => '',
+];
+array<string> $filled = Core\Arr::filter($form, fn(string $value) => $value != '');
+
+// This prints `saving 2 fields: name, city`.
+echo 'saving ', Core\Arr::count($filled), ' fields: ',
+    Core\Str::join(Core\Arr::keys($filled), ', '), "\n";

@@ -1,0 +1,59 @@
+<?nvs
+// Attack: `Core\Arr::filter` runs a function the program wrote, once per entry.
+// Each step below gives it a function written to break the walk. Every step
+// should finish, and the last one should stop the program at its memory limit.
+// The runtime must not crash.
+// hostile: timeout-ms 60000
+// hostile: ends-early
+
+class Attack
+{
+    public static array<int> $rows = [];
+    public static uint $depth = 0;
+
+    // Filters a one-entry array with a function that does the same again, until
+    // the runtime stops it.
+    public static function deeper(int $n): bool
+    {
+        Attack::$depth = Attack::$depth + 1;
+        return Core\Arr::count(Core\Arr::filter([$n], fn(int $m) => Attack::deeper($m))) > 0;
+    }
+}
+
+// 1. The function throws on the first entry. Half a result is built and then
+// thrown away. The error is caught, and nothing of it is left behind.
+array<int> $measurements = [4, 11, 7, 20];
+try {
+    array<int> $never = Core\Arr::filter($measurements, fn(int $n) => throw new LogicError('no'));
+    echo 'step 1: ', Core\Arr::count($never), "\n";
+} catch (LogicError $error) {
+    echo 'step 1: threw', "\n";
+}
+
+// 2. The function filters an array of its own, as deeply as it can. The runtime
+// stops it at its recursion limit, and that error is caught.
+try {
+    array<int> $nested = Core\Arr::filter([1], fn(int $n) => Attack::deeper($n));
+    echo 'step 2: ', Core\Arr::count($nested), "\n";
+} catch (RecursionError $stopped) {
+    echo 'step 2: stopped after ', Attack::$depth, ' calls', "\n";
+}
+
+// 3. A function that keeps all 400000 entries, so the result is as large as the
+// array it came from.
+array<int> $wide = [];
+int $i = 0;
+while ($i < 400000) {
+    $wide[] = $i;
+    $i = $i + 1;
+}
+echo 'step 3: ', Core\Arr::count(Core\Arr::filter($wide, fn(int $n) => true)), "\n";
+
+// 4. The function adds an entry to the array being filtered. The walk reaches
+// those entries too, so the program should stop at its memory limit.
+Attack::$rows = [1, 2, 3];
+array<int> $endless = Core\Arr::filter(Attack::$rows, fn(int $n): bool => {
+    Attack::$rows[] = $n;
+    return true;
+});
+echo 'step 4: ', Core\Arr::count($endless), "\n";

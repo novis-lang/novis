@@ -1,0 +1,22 @@
+<?nvs
+// Keeps the quantities in a small basket above a limit, as a shop does before it writes an order.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<int> $basket = [2, 1, 4, 3];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The limit comes from last round's result, so no round can be reused.
+            int $limit = ($total % 3) as int;
+            array<int> $kept = Core\Arr::filter($basket, fn(int $n) => $n > $limit);
+            $total = $total + Core\Arr::count($kept);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

@@ -1,0 +1,11 @@
+<?nvs
+// Keeps the entries a function accepts. `Core\Arr::filter` keeps the key of every
+// entry it keeps, so the result can have gaps in its numbering.
+
+array<int> $measurements = [4, 11, 7, 20];
+array<int> $high = Core\Arr::filter($measurements, fn(int $n) => $n > 9);
+
+// This prints `1: 11` and `3: 20`, the two keys these values had before.
+foreach ($high as string $key => int $value) {
+    echo $key, ': ', $value, "\n";
+}
