@@ -3142,6 +3142,7 @@ mod tests {
     /// tier at once would satisfy the first two, and one that removed the entry
     /// without crediting [`Entries::held`] would leave a tier evicting against
     /// a cap it no longer measures.
+    // covers: Core\Cache\Store::forget
     #[test]
     fn a_forget_takes_one_entry_out_of_one_tier_and_credits_the_cap() {
         const KEY: &[u8] = b"forgettable";
@@ -3189,6 +3190,7 @@ mod tests {
     /// when it fixes a lookup as a read lock and nothing more. The bytes still
     /// standing against the cap afterwards are what that costs, and the
     /// overwrite is what ends it.
+    // covers: Core\Cache\Store::get
     #[test]
     fn an_entry_past_its_lifetime_is_absent_and_the_read_leaves_it_there() {
         const KEY: &[u8] = b"past-it";
@@ -3236,6 +3238,7 @@ mod tests {
     /// eviction order holds one slot per live key rather than one per write —
     /// `Core\RateLimit::shed` rewrites a single key on every request, so the
     /// other spelling would grow with the traffic served.
+    // covers: Core\Cache\Store::put
     #[test]
     fn a_key_rewritten_forever_costs_what_it_cost_the_first_time() {
         let room = Some(4 * (4 + 8 + ENTRY_OVERHEAD));

@@ -100,6 +100,9 @@ modules = [
   "crates/nvs-stdlib/src/cap.rs",
   "crates/nvs-stdlib/src/channel.rs",
   "crates/nvs-stdlib/src/cldr.rs",
+  # The sealed half of the cache takes a `Core\Keyring\Key` array, and this is
+  # the module that answers what one is.
+  "crates/nvs-stdlib/src/keyring.rs",
 ]
 
 rules = ["testing/feature-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
