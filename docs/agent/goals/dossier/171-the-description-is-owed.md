@@ -24,7 +24,7 @@ One file set -- the policy file and the example tree -- so this is one group.
       in `tools/dossier.py` changes: `POLICY` stays the default and the file is the
       repository's durable answer, exactly as it is for `perf`.
 - [ ] **Read what is left.** `python tools/dossier.py --owed` now lists every feature
-      with no description, and every description outside 40 to 160 words, opening
+      with no description, and every description outside 40 to 200 words, opening
       with a heading, or carrying a code block.
 - [ ] **Close it, one feature at a time.** Read the feature's examples first -- they are
       already on disk here, so the description is written to fit them, and where it

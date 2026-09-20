@@ -322,9 +322,13 @@ POLICY = {
 
 PROOFS = ("tests", "examples", "perf", "hostile", "about")
 
-#: The words a description may run to. `docs/examples/README.md` § *The description* is where the
-#: band is explained; this is where it is enforced once the description is owed.
+#: The words a description aims for. `docs/examples/README.md` § *The description* is where the
+#: band is explained, and the prompts state it as the target a writer is given.
 ABOUT_WORDS = (40, 160)
+
+#: The most words the check accepts once the description is owed. It sits above the band's top so a
+#: description a few words over its target is left as it is; only one past this is owed a rewrite.
+ABOUT_WORDS_ACCEPTED = 200
 
 #: `// covers: A, B` -- in a `.nvst`, a `.nvs`, or above a Rust `#[test]`. `#` is accepted so the
 #: marker can sit in a TOML or a shell fixture too.
@@ -630,8 +634,9 @@ def about_problem(path: Path) -> str:
     if "```" in text:
         return "carries a code block, and the examples are where code goes"
     words = len(text.split())
-    if not ABOUT_WORDS[0] <= words <= ABOUT_WORDS[1]:
-        return f"{words} words, outside {ABOUT_WORDS[0]}-{ABOUT_WORDS[1]}"
+    if not ABOUT_WORDS[0] <= words <= ABOUT_WORDS_ACCEPTED:
+        return (f"{words} words, outside {ABOUT_WORDS[0]}-{ABOUT_WORDS_ACCEPTED} "
+                f"(the target is {ABOUT_WORDS[0]}-{ABOUT_WORDS[1]})")
     return ""
 
 
@@ -2989,7 +2994,7 @@ CLOSING_MODULES = ["docs/examples/README.md", "tools/data/dossier-policy.toml", 
 
 
 def closing_prose(n: int) -> str:
-    low, high = ABOUT_WORDS
+    low, high = ABOUT_WORDS[0], ABOUT_WORDS_ACCEPTED
     lines = [
         "---",
         "milestone: dossier",

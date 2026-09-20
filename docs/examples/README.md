@@ -39,7 +39,8 @@ A beginner and an expert should both read it once and come away with the same pi
 - **One lead sentence** saying what the feature does, in plain words. It has to work alone, as a
   search result.
 - **One or two short paragraphs** on what somebody needs to know to use it correctly. 40 to 160
-  words for the whole file; most features want about 80.
+  words for the whole file; most features want about 80. The check accepts up to 200, so a
+  description a few words over 160 that reads well is left as it is.
 - **`**In plain words:**`, only where it is needed.** When the honest explanation is technical —
   taint, a bounded channel, a limit's ceiling — add one or two sentences with an everyday picture.
   A feature whose lead sentence is already plain gets none.
