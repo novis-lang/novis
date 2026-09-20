@@ -6309,6 +6309,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `array<mixed>` — which makes a depth-counting assertion look impossible to write from Novis when
   it is one cast away. Write `$node = $node["next"] as array<mixed>;`, and reach for it whenever a
   case descends what it built with `$node = ["next" => $node];`. [until: reviewed 2026-09-20]
+- **A `-p nvs-stdlib` test of a member with an options block must fill the options the way a call
+  site does, and `Value::null()` is not that.** `Core\Arr::diff` takes five arguments, and
+  `on_of` reads `on` as a plain int (`0`, `1`, `2` for `Core\SetOn`'s three cases), so passing null
+  for the default is a `FATAL` that reads exactly like the member refusing the two arrays. Read the
+  option's `Const::` default in the registry row's `CoreOption` list before building the argument
+  slice — a `Const::EnumCase` arrives as `Value::int(<case index>)` and only a `Const::Null` one
+  arrives as `Value::null()`. [until: reviewed 2026-09-20]
 
 ## Splitting a file that got too big
 
