@@ -1,0 +1,16 @@
+<?nvs
+// Shows two rules of the search: the bytes must match exactly, and an empty
+// value occurs everywhere.
+
+bytes $data = "Content-Type" as bytes;
+
+// Upper case and lower case are different bytes, so this prints "false".
+echo Core\Bytes::contains($data, "content" as bytes) ? "true" : "false", "\n";
+
+// The same letters in the same case are found. This prints "true".
+echo Core\Bytes::contains($data, "Content" as bytes) ? "true" : "false", "\n";
+
+// An empty value occurs in every value, including in an empty one. This
+// prints "true" twice.
+echo Core\Bytes::contains($data, "" as bytes) ? "true" : "false", "\n";
+echo Core\Bytes::contains("" as bytes, "" as bytes) ? "true" : "false", "\n";
