@@ -741,12 +741,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   the first flag, so `peek.py A.rs:re:x --window 4 B.rs:re:y` fails on `B.rs:re:y` and reads as a
   malformed target; re-quoting, escaping the `::` and dropping `re:` all fail the same way. Put
   every target first and every `--window`/`--in` last. [until: gone tools/peek.py:--window]
-- **A driver-side fix does not reach the leg that is already going.** `tools/loop.py` is read off
-  disk once per leg by a process that then lives for up to `--probe-every` sessions, so an edit to a
-  check, a fixture service or the sweep is invisible until the run re-spawns the driver at the next
-  leg boundary — the ledger repeats the old failure and it reads as "my fix did not work". The tell
-  is a failure whose text the current source cannot emit; verify the fix by hand, say in the handoff
-  that it lands at the next leg, and do not re-fix it. [until: gone tools/loop.py:--probe-every]
 - **An acceptance check reading `E0405: Core\X has no member named y` can be a stage nobody has
   started, not a regression.** `nvs_hir::qname::is_reserved_global_class` knows the *name* while no
   module registers a member, so every member of an unwritten class fails with that sentence, and

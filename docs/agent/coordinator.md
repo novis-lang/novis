@@ -45,7 +45,8 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
 | `tools/loop-stats.py` | What the last run's sessions actually cost, measured out of `.loop/logs/`. Every constant this design rests on, re-derived rather than remembered. `--attribute` charges the context to whatever fetched it. |
 | `docs/agent/loop-goal.md` | The loop's target and the decisions pre-authorized on the way there — the prose. |
 | `docs/agent/loop-goal.toml` | The same goal's **acceptance test, as data**: every fixture, its exact expected output, the cargo suites and named guard tests — plus the `[context]` manifest that decides what a session reads. The driver reads this; neither file restates the other. |
-| `tools/loop.py` | The driver, and the run above it. Python 3.11+, no third-party packages, runs on Windows/Linux/macOS. One file and one command: it cuts a long run into **legs**, re-spawns itself with a hidden `--leg` for each one so a driver change committed by a session takes effect, and at every boundary decides whether the loop has drifted enough to spend a session on itself. § *The run* below is the only home for what that decides. |
+| `tools/loop.py` | The driver, and the run above it. Python 3.11+, no third-party packages, runs on Windows/Linux/macOS. One file and one command. One process of it is one **turn** — a session and the boundary behind it — so a driver change takes effect at the next session, whoever made it; at that boundary it decides whether the loop has drifted enough to spend a session on itself. § *The run* below is the only home for what that decides. |
+| `tools/respawn.py` | What starts `loop.py` again for every turn, and the only process that lives as long as a run. It holds no logic: it reads no key, parses no flag, prints nothing and opens no file under `.loop/`. Never run by hand — `python tools/loop.py` starts it. |
 | `docs/agent/optimization-prompt.md` | The prompt for that pass, the way `session-prompt.md` is the prompt for a work session. It owns what a pass may change and what it may only propose. |
 | `docs/agent/handoff.md` | Live state, rewritten by each session. |
 | `docs/agent/playbook.md` | The traps a session paid for once. Append-mostly, and outlives every session. |
@@ -54,13 +55,12 @@ the handoff are plain markdown; `.claude/` holds harness settings and nothing el
 | `.loop/log.md` | Append-only ledger, one line per session: index, commit count, status. The human-readable run history. |
 | `.loop/logs/<run>-NNNN.log` | Full transcript of session NNNN as `stream-json` NDJSON, for when the ledger line is not enough. One JSON object per line. The `<run>` stamp is in the name because the session index restarts at 1 each run, and a name without it makes two runs' session 3 the same file. It also carries the **driver's** lines for that session — its `loop_console` and `loop_output` events are the acceptance check that judged it, verbatim — so one session's file answers both "what did the agent do" and "why was it not green". |
 | `.loop/logs/<run>-console.log` | The whole run as it appeared, plain text, **every line stamped to the millisecond**: driver phases, the rendered session transcripts, and the full stdout and stderr of every subprocess the driver ran. The console shows a green check as one line and a failed one as its first line; this file has all of it. Open this one first when a run went wrong. Not a transcript — `loop-stats.py` skips it. |
-| `.loop/logs/<stamp>-run.log` | What the run said *between* legs — every checkpoint, what fired, what it decided, and the rendered optimization pass when one ran — stamped the same way. One per run, named by its start. It exists because a leg's `console.log` is closed by the time a checkpoint speaks, and a cadence whose every decision went to the screen alone could not be shown to have fired. Not a transcript — `loop-stats.py` skips it, as it still skips the `-supervisor.log` this was called before the two tools were merged. |
 | `.loop/logs/<run>-NNNN.subagents/` | Every subagent that session spawned, copied out of the harness's own transcript directory. A subagent's turns never appear in the parent's stream — only the call and the report it returned do — so without this a delegated read is a session that did a great deal with very few calls. Absent when nothing was delegated. |
 | `.loop/stop` | Create this file to halt the loop cleanly before the next session starts. Pressing `s` at the console does the same thing. |
 | `.loop/pause` | Create this file to **hold** the loop at that same boundary without ending it — the run waits there until the file goes. Pressing `p` at the console arms the same hold, one only `p` can lift. The driver rewrites the file with a `held:` line the moment the hold takes effect, and that line, not the file's existence, is the promise that no session is running. § *Holding the tree* below is the whole of it. |
 | `.loop/retry` | Create this to end a usage-limit wait immediately — the same as pressing `r`. Deleted as it is consumed, and cleared again when a wall goes up, so a request can only ever end the wait it was made during. |
 | `.loop/running` | Held by the run for the whole of its length — **across leg boundaries**, which is exactly where an optimization session may be editing this tree — and deleted on every exit. Anything else about to touch this tree checks it first: `brief.py` and `orient.py` both print it loudly, and any by-hand pass over shared files should refuse to start while it is there. Starting a second run is refused unless you pass `--force`. It was dropped and retaken per leg while the run lived in a second script, which is how it came to say *no loop is running* at the moments one was editing hardest. |
-| `.loop/run-end.json` | Why the last **leg** ended, as a `kind` rather than a sentence — `loop.write_run_end` lists them. The run branches on it, and starts another leg on exactly one of them. Cleared when a leg starts, so a driver that was killed cannot leave a stale verdict for the next one to act on. |
+| `.loop/run.json` | What one turn of a run leaves for the next, since no process outlives a session: the run's name and log stamp, the sessions served, the last log index, the stall streak, the DONE-claim retries and the verdict the run last held on. `loop.Run` lists the fields. A file naming another run is a dead run's and is ignored whole. |
 | `.loop/optimization/` | One evidence pack and one report per optimization pass, plus `state.json` — sessions since the last pass, and the pack size it is measured against. The reports are where a pass's *proposals* go, which is the half of it a human reads. |
 | `.loop/optimize-status.txt` | One line written by an optimization pass: `CLEAN`, `APPLIED n`, `PROPOSED n` or `BROKEN`. The last one stops the run. |
 | `.loop/limit.json` | The deadline of a usage window the driver is waiting out, so one killed or rebooted mid-wait does not start the next run straight back into the same wall. Deleted when the window reopens. |
@@ -197,13 +197,13 @@ console that has gone away cannot leave a hold behind for the next driver to sit
 
 **A verdict that needs a person holds the run rather than ending it.** `blocked`, `stalled`,
 `done-claim`, `cli-failed`, `chain-error` and `wall` are all things one edit usually answers, and
-everything the next leg reads — the chain, the goal file, the handoff, `loop.py` itself — is re-read from
+everything the next turn reads — the chain, the goal file, the handoff, `loop.py` itself — is read from
 disk, so there is nothing a relaunch would do that lifting the hold does not. The driver arms the hold as
 an agent's, with a `why:` line naming the verdict, and `HOLD_KINDS` in `tools/loop.py` is the list. `p`
-or deleting the file starts a fresh leg; `s` ends the run, and the hold the driver armed goes with it
+or deleting the file starts a fresh turn; `s` ends the run, and the hold the driver armed goes with it
 rather than being left to catch the next one. `--no-hold` restores ending, for a run nobody is watching.
 
-**The same verdict twice ends the run.** A hold lifted and a leg that comes back with the identical
+**The same verdict twice ends the run.** A hold lifted and a turn that comes back with the identical
 reason means the question was not answered, and holding again would spend another session asking it. This
 is the one place the driver decides a person has had their turn.
 
@@ -223,13 +223,13 @@ Three more things it does, none of which is obvious:
   wall, at the boundary before the next session, so a hold queued during a five-hour wait is honoured when
   the window reopens rather than slept through — and the agent that queued it waits that long for its
   `held:` line. `.loop/limit.json` is what says a wall is up.
-- **The run holds at its own boundary too, and the keys still work there.** A leg boundary is not an idle
-  moment: it is where an optimization pass may start, and a pass edits this tree exactly the way a session
-  does. The run takes the console back from the leg at every boundary, so `s`, `p` and `r` mean the same
-  thing through a checkpoint — a full `verify.py` and then a whole optimization session — as they do
-  inside one. A hold arriving while the signals are being gathered is answered before the pass starts,
-  not after it. While the run lived in a second script that never enabled the key reader, every one of
-  those keys was dead for the length of a checkpoint, and `.loop/stop` was read at two instants only.
+- **The run holds at its own boundary too, and the keys still work there.** The boundary behind a session
+  is not an idle moment: it is where an optimization pass may start, and a pass edits this tree exactly
+  the way a session does. The turn that served the session is the process that runs the boundary, so
+  `s`, `p` and `r` mean the same thing through a checkpoint — a full `verify.py` and then a whole
+  optimization session — as they do inside one. A hold arriving while the signals are being gathered is
+  answered before the pass starts, not after it, and an `s` still inside its cancel window when the turn
+  is about to end is waited out rather than lost with the process.
 
 Left behind by a hard kill, `.loop/pause` will hold the *next* run before its first session. That is
 visible — the status line says `held` and the console says why — and deleting the file is the whole fix.
@@ -397,8 +397,8 @@ prints what it cost.
     python tools/loop.py
 
 **That is the whole command.** It walks `docs/agent/goals/`, it runs until the chain is walked
-or something goes wrong or you stop it, and it restarts itself along the way — § *The run* below is what
-that second half means. There is nothing to add to make a long run safe; `--max-sessions N` is there for
+or something goes wrong or you stop it, and it starts itself again for every session — § *The run* below
+is what that second half means. There is nothing to add to make a long run safe; `--max-sessions N` is there for
 a short one you intend to watch, and the count is otherwise the answer to a question nobody can ask at
 the start.
 
@@ -444,40 +444,49 @@ tree* above.
 
 ## The run
 
-**A run is a sequence of legs, and a leg is a process.** `loop.py` is both, in one file and behind the one
-command above: it drives the run, and re-spawns *itself* with a hidden `--leg` every `--probe-every`
-sessions (10). Every flag you typed goes to the leg exactly as typed, with `--max-sessions` appended, so
-there is no second parser and no list of flags to keep in step.
+**A run is a sequence of turns, and a turn is a process.** One turn is one `loop.py`: it serves one
+session, runs the acceptance check that judges it, does whatever the boundary behind it holds — a hold, a
+look for drift, an optimization pass — and exits asking to be started again. `tools/respawn.py` starts it
+again, with every flag exactly as you typed it, so there is no second parser and no list of flags to keep
+in step. A fresh process costs a fifth of a second to import and nothing else: what a run sets up once —
+an installed goal, a Docker daemon, the goal's containers — is files and services, not a process's.
 
-The boundary exists for two reasons that have nothing to do with each other:
+- **Nothing in the loop goes stale.** `orient.py` is a subprocess, `session-prompt.md` is re-read and
+  `loop-goal.toml` is re-loaded every session, and since every session is a fresh interpreter, so is
+  `loop.py`. An edit to the driver — a session's commit, or yours while the run holds — is live at the
+  next session. Hold with `p`, edit, release: the next turn runs what you wrote.
+- **`respawn.py` runs nothing, and that is the constraint the rest follows from.** It is the one process
+  that outlives a session, so anything it did would be code read once per run, done by a process that
+  does not read the keys. It starts the turn, waits, and starts another when the turn exits with
+  `respawn.AGAIN`; any other exit code ends the run and is passed through. A `loop.py` that no longer
+  starts is therefore a run that stops, never one that spins, and a turn that asks to be started again
+  five times in five seconds each ends it too.
+- **Nothing about a run is kept in a process.** `.loop/run.json` is what a turn leaves for the next;
+  `.loop/running` is held across all of them, because it is what `brief.py` and `disk.py` ask and a
+  marker dropped between two sessions would say no loop was running exactly where a pass edits the tree.
+  `respawn.py` names the run in each turn's environment, which is how a turn tells its own run's marker
+  from somebody else's; a session's environment has the name taken out again, so a `python tools/loop.py`
+  typed *by* a session is still refused.
 
-- **`loop.py` is the one piece of the loop that does not hot-reload.** `orient.py` is a subprocess,
-  `session-prompt.md` is re-read and `loop-goal.toml` is re-loaded every session, so a session that
-  improves one of those improves the next session. A session that improves the *driver* improves nothing
-  until a fresh interpreter reads it off disk, and sessions do commit driver changes.
-- **A loop changes the shape of its own input**, and nothing announces it. The pack once grew 59 KB → 118 KB
-  at +907 B a session, re-billed on all ~81 calls of every session after it, and the projected slice cap
-  fell to one on that alone.
+**Another turn follows exactly one verdict**: `served` — the session ran and nothing ended the run. The
+verdicts a person can answer hold the run, per § *Holding the tree*; every other kind ends it, including
+the ones that look recoverable. A usage window that never reopened is a reason a person should look, and
+a run that retried it would turn one bad hour into eight. `.loop/stop` and Ctrl-C end the run, and
+`.loop/pause` holds it between two sessions as well as through a checkpoint.
 
-**Another leg follows exactly one verdict**: `kind: "budget"` in `.loop/run-end.json` — the leg served its
-sessions and stopped. Every other kind ends the run, including the ones that look recoverable. A stall
-streak, a CLI failing repeatedly and a usage window that never reopened are all reasons a person should
-look, and a run that retried them would turn one bad hour into eight. `.loop/stop` and Ctrl-C end the run
-and not just the leg, and `.loop/pause` holds it between legs as well as inside one.
+**The console belongs to the one turn alive.** Stdin and the bottom rows are inherited by the turn and
+never touched by `respawn.py` — two readers on one console take each other's keypresses. `s`, `p` and `r`
+therefore mean the same thing during a checkpoint, which can be a full `verify.py` followed by a whole
+optimization session, as they do inside a work session.
 
-**The console is handed over and handed back**, and that is the whole of what "one tool" buys that two did
-not. Stdin and the bottom row belong to exactly one process at a time — two readers on one console take
-each other's keypresses — so the run gives them to each leg and takes them back at the boundary. `s`, `p`
-and `r` therefore mean the same thing during a checkpoint, which can be a full `verify.py` followed by a
-whole optimization session, as they do inside a work session. This was the split's real cost: the second
-script never enabled the key reader at all, so every key was dead for the length of every checkpoint, and
-`.loop/stop` was looked at twice per leg and nowhere else.
-
-This was `tools/loop-supervisor.py` until the two were merged. Neither was ever run without the other.
+**A run's logs share one stamp.** `<run>-console.log` is the whole run, checkpoints included, and
+`<run>-NNNN.log` its sessions, so `loop-stats.py --run <stamp>` prices a run and the log retention in
+`disk.py` keeps whole ones.
 
 ### When it spends a session on the loop itself
 
-Every `--optimize-every` sessions (25) it *looks*; it runs a pass only if something has actually drifted.
+Every `--probe-every` sessions (10) it *looks*, and at `--optimize-every` (25) the count alone makes a
+pass due; it runs a pass only if something has actually drifted.
 The distinction is what makes the cadence safe to be wrong about — **looking is four subprocesses, a pass
 is a session** — so the number is set by the pack slope (25 sessions is ~23 KB of growth at the measured
 rate) against the ~4% of the run a pass costs, and not much rests on it. The signals, any one of which is
@@ -489,11 +498,11 @@ Every checkpoint writes one `## run checkpoint` line to `.loop/log.md`, whicheve
 *clean* (nothing fired), *carried* (something fired, the count is not up yet, and the signals are named),
 or *DEFERRED* (the pass is due but the working tree is not clean — somebody is editing by hand, which the
 loop allows, and a pass over their edits would mix them into its revert range). A deferral keeps the
-count rather than resetting it: the next leg is one session long and the question is asked again at its
-end, so the pass runs at the first clean boundary instead of 25 sessions later. A pass that ran writes
-`## optimization pass … -- <verdict>` as well. Sessions a leg served before a Ctrl-C count too — the
-driver's interrupt handler reports them in `run-end.json` — so the cadence does not lose a leg to a hand
-on the keyboard. The line and the numbers are the evidence that the cadence fired; there is no other.
+count rather than resetting it: the question is asked again after the very next session, so the pass runs
+at the first clean boundary instead of 25 sessions later. A pass that ran writes
+`## optimization pass … -- <verdict>` as well. A served session is counted the moment it is served, so a
+Ctrl-C during the acceptance check behind it does not lose it to the cadence. The line and the numbers
+are the evidence that the cadence fired; there is no other.
 
 The pass gets the measurements piped in on stdin, exactly as a work session gets its orientation pack and
 for the same measured reason: a result that size costs more fetched than piped. It chooses among findings
