@@ -1,0 +1,32 @@
+<?nvs
+// Reads the first value of a short list, as a page does when it shows the
+// newest entry of a feed.
+// bench: iterations 400000
+// bench: calls 0
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<uint> $morning = [1, 4];
+        array<uint> $evening = [2, 3];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Last round's total decides which of the two feeds this round
+            // reads, so no round can be reused.
+            ?uint $newest = null;
+            if ($total % 2 == 0) {
+                $newest = Core\Arr::first($morning);
+            } else {
+                $newest = Core\Arr::first($evening);
+            }
+            if ($newest != null) {
+                $total = $total + $newest;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

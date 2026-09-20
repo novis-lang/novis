@@ -1,0 +1,55 @@
+<?nvs
+// Attack: the first value is read from very large arrays, from an array whose
+// front is removed over and over, and from one that is emptied before the
+// value is used. Every step should finish or throw an error, and the runtime
+// must not crash.
+// hostile: timeout-ms 60000
+
+// 1. The first value of a list of 400000 entries.
+array<int> $long = [];
+int $i = 0;
+while ($i < 400000) {
+    $long[] = $i;
+    $i = $i + 1;
+}
+echo 'step 1: ', Core\Arr::first($long) ?? -1, '|', "\n";
+
+// 2. A first value of one million characters, read and dropped 1000 times.
+array<string> $wide = [Core\Str::repeat('v', 1000000)];
+uint $seen = 0;
+int $r = 0;
+while ($r < 1000) {
+    $seen = $seen + Core\Str::length(Core\Arr::first($wide) ?? '');
+    $r = $r + 1;
+}
+echo 'step 2: ', $seen, '|', "\n";
+
+// 3. The front entry is removed 2000 times, and the first value is read after
+//    every removal.
+array<int> $shrinking = [];
+int $n = 0;
+while ($n < 2000) {
+    $shrinking[] = $n;
+    $n = $n + 1;
+}
+int $sum = 0;
+while (!Core\Arr::isEmpty($shrinking)) {
+    $sum = $sum + (Core\Arr::first($shrinking) ?? 0);
+    $shrinking = Core\Arr::withoutFirst($shrinking);
+}
+echo 'step 3: ', $sum, '|', "\n";
+
+// 4. The first value is an array. The array it came from is emptied, and the
+//    value is read afterwards.
+array<array<int>> $outer = [[7, 8], [9, 10]];
+?array<int> $held = Core\Arr::first($outer);
+$outer = [];
+if ($held != null) {
+    echo 'step 4: ', $held[1], '|', "\n";
+}
+
+// 5. An array with no entries has no first value.
+array<int> $empty = [];
+echo 'step 5: ', Core\Arr::first($empty) ?? -1, '|', "\n";
+
+echo 'the runtime is still standing', "\n";
