@@ -8289,6 +8289,323 @@ mod tests {
         dropped(mapper);
     }
 
+    /// `["x" => …, "10" => …, "y" => …]` over values long enough to be heap
+    /// allocations of their own, which is what
+    /// [`map_keys_stores_the_subject_value_with_a_reference_of_its_own`] reads a
+    /// reference count off — [`mixed_keys`]'s one-character values are too
+    /// short to have one.
+    fn mixed_keys_holding_long_values() -> Value {
+        let mut array = NvsArray::new();
+        for (key, value) in [
+            (
+                &b"x"[..],
+                &b"a text long enough to be its own allocation: a"[..],
+            ),
+            (
+                &b"10"[..],
+                &b"a text long enough to be its own allocation: b"[..],
+            ),
+            (
+                &b"y"[..],
+                &b"a text long enough to be its own allocation: c"[..],
+            ),
+        ] {
+            array.set(NvsStr::new(key), Value::str(NvsStr::new(value)));
+        }
+        Value::array(array)
+    }
+
+    /// A two-parameter callback naming each entry after the key it was shown,
+    /// so the three new keys are distinct and none of them collapses.
+    ///
+    /// The answer is a fresh text this frame owns, which is the reference
+    /// [`nvs_core_arr_map_keys`] releases once it has read the bytes.
+    ///
+    /// The sweep of the three references is not optional, for [`below_ten`]'s
+    /// reason.
+    #[expect(
+        unsafe_code,
+        reason = "`call_closure` passes the receiver and two arguments, each \
+                  retained for this callee to release, and `abi::call` passes \
+                  the address of a live `Value` for the result — neither is \
+                  expressible in the signature compiled code calls through"
+    )]
+    unsafe extern "C" fn names_the_entry_after_its_key(
+        _ctx: *mut Ctx,
+        args: *const Value,
+        out: *mut Value,
+    ) -> i32 {
+        let mut named = b"under ".to_vec();
+        named.extend_from_slice(
+            unsafe { *args.add(2) }
+                .as_str_bytes()
+                .expect("the key arrives as a text"),
+        );
+        for index in 0..3 {
+            dropped(unsafe { *args.add(index) });
+        }
+        unsafe {
+            *out = Value::str(NvsStr::new(&named));
+        }
+        nvs_runtime::OK
+    }
+
+    /// Every value of the result is the subject's own, held with a reference of
+    /// its own, under the key the callback named.
+    ///
+    /// **Only the Rust side can see the reference.** The value is stored twice
+    /// and owned once, so a member that stored it without retaining prints the
+    /// right text from Novis for as long as the subject is alive and frees it
+    /// twice at the end, and one that retained twice leaks a text per entry
+    /// while printing exactly the same thing. This is the obligation
+    /// [`nvs_core_arr_map_keys`] carries and [`nvs_core_arr_map`] does not: the
+    /// callback's answer is a *key* here, so the value it is stored against was
+    /// never this frame's to give away.
+    // covers: Core\Arr::mapKeys
+    #[test]
+    fn map_keys_stores_the_subject_value_with_a_reference_of_its_own() {
+        let mut ctx = Ctx::buffered();
+        let subject = mixed_keys_holding_long_values();
+        let namer = closure_of(2, names_the_entry_after_its_key);
+
+        let result = call(super::nvs_core_arr_map_keys, &mut ctx, &[subject, namer])
+            .expect("this callback never fails");
+        #[expect(
+            unsafe_code,
+            reason = "the handle takes over the one reference the member \
+                      answered with, and releases it on drop"
+        )]
+        let rekeyed =
+            unsafe { NvsArray::from_raw(result.array_ptr().expect("mapKeys answers an array")) };
+        let mut entries = Vec::new();
+        let mut from = 0usize;
+        while let Some(slot) = rekeyed.next_slot(from) {
+            let key = rekeyed.key_at(slot).expect("a live entry has a key");
+            let value = rekeyed.value_at(slot).expect("a live entry has a value");
+            #[expect(
+                unsafe_code,
+                reason = "the subject holds the text for the length of this \
+                          test, and the handle above holds the result"
+            )]
+            let references = unsafe {
+                NvsStr::refcount_of(value.str_ptr().expect("every value here is a text"))
+            };
+            entries.push((key.as_bytes().to_vec(), references));
+            from = slot + 1;
+        }
+        assert_eq!(
+            entries,
+            vec![
+                (b"under x".to_vec(), 2),
+                (b"under 10".to_vec(), 2),
+                (b"under y".to_vec(), 2)
+            ]
+        );
+
+        dropped(subject);
+        dropped(namer);
+    }
+
+    /// A one-parameter callback naming a group after the last character of the
+    /// entry's own text, and counting the entry it was shown.
+    ///
+    /// The count is what
+    /// [`group_by_shows_each_entry_to_its_callback_once_and_keeps_the_keys`]
+    /// reads, so that walk holds [`PREDICATE_LOCK`].
+    ///
+    /// The sweep of the two references is not optional, for [`below_ten`]'s
+    /// reason.
+    #[expect(
+        unsafe_code,
+        reason = "`call_closure` passes the receiver and one argument, each \
+                  retained for this callee to release, and `abi::call` passes \
+                  the address of a live `Value` for the result — neither is \
+                  expressible in the signature compiled code calls through"
+    )]
+    unsafe extern "C" fn groups_by_the_last_character(
+        _ctx: *mut Ctx,
+        args: *const Value,
+        out: *mut Value,
+    ) -> i32 {
+        PREDICATE_CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let entry = unsafe { *args.add(1) };
+        let name = [*entry
+            .as_str_bytes()
+            .and_then(<[u8]>::last)
+            .expect("this test's own entries are texts")];
+        for index in 0..2 {
+            dropped(unsafe { *args.add(index) });
+        }
+        unsafe {
+            *out = Value::str(NvsStr::new(&name));
+        }
+        nvs_runtime::OK
+    }
+
+    /// The callback is shown every entry exactly once, the groups come out in
+    /// first-occurrence order, and each entry sits in its group under the key it
+    /// already had.
+    ///
+    /// **The count is the half only the Rust side can see.** A member that sized
+    /// the groups in one pass and filled them in a second would answer exactly
+    /// these groups, in exactly this order, and call a program's function twice
+    /// per entry — which is a doubled cost for any caller whose callback is
+    /// slow, and nothing a program can observe unless the callback counts
+    /// itself. [`nvs_core_arr_group_by`]'s docs state the single pass this
+    /// reads, and the keys ride along because they are what tells a group
+    /// *which* entries landed in it.
+    // covers: Core\Arr::groupBy
+    #[test]
+    fn group_by_shows_each_entry_to_its_callback_once_and_keeps_the_keys() {
+        let guard = PREDICATE_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut ctx = Ctx::buffered();
+        let mut array = NvsArray::new();
+        for (key, value) in [
+            (&b"x"[..], &b"one: a"[..]),
+            (&b"10"[..], &b"two: b"[..]),
+            (&b"y"[..], &b"three: a"[..]),
+        ] {
+            array.set(NvsStr::new(key), Value::str(NvsStr::new(value)));
+        }
+        let subject = Value::array(array);
+        let namer = closure_of(1, groups_by_the_last_character);
+
+        PREDICATE_CALLS.store(0, std::sync::atomic::Ordering::Relaxed);
+        let result = call(super::nvs_core_arr_group_by, &mut ctx, &[subject, namer])
+            .expect("this callback never fails");
+        let seen = PREDICATE_CALLS.load(std::sync::atomic::Ordering::Relaxed);
+        drop(guard);
+
+        #[expect(
+            unsafe_code,
+            reason = "the handle takes over the one reference the member \
+                      answered with, and releases it on drop"
+        )]
+        let grouped =
+            unsafe { NvsArray::from_raw(result.array_ptr().expect("groupBy answers an array")) };
+        let mut groups = Vec::new();
+        let mut from = 0usize;
+        while let Some(slot) = grouped.next_slot(from) {
+            let name = grouped.key_at(slot).expect("a live entry has a key");
+            let held = grouped.value_at(slot).expect("a live entry has a value");
+            #[expect(
+                unsafe_code,
+                reason = "the retain pairs with the release this handle makes on \
+                          drop, so walking a group leaves the result holding it"
+            )]
+            let group = unsafe {
+                held.retain();
+                NvsArray::from_raw(held.array_ptr().expect("every group is an array"))
+            };
+            let mut keys = Vec::new();
+            let mut inner = 0usize;
+            while let Some(entry) = group.next_slot(inner) {
+                keys.push(
+                    group
+                        .key_at(entry)
+                        .expect("a live entry has a key")
+                        .as_bytes()
+                        .to_vec(),
+                );
+                inner = entry + 1;
+            }
+            groups.push((name.as_bytes().to_vec(), keys));
+            from = slot + 1;
+        }
+
+        assert_eq!(seen, 3);
+        assert_eq!(
+            groups,
+            vec![
+                (b"a".to_vec(), vec![b"x".to_vec(), b"y".to_vec()]),
+                (b"b".to_vec(), vec![b"10".to_vec()])
+            ]
+        );
+
+        dropped(subject);
+        dropped(namer);
+    }
+
+    /// A two-parameter fold answering a fresh forty-character text for every
+    /// entry, and never the carry it was shown.
+    ///
+    /// Long enough that each answer is a heap allocation of its own, which is
+    /// what [`reduce_holds_one_reference_to_the_carry_for_the_whole_fold`] reads
+    /// a reference count off: an answer the member stored without releasing what
+    /// it replaced is a text leaked per entry.
+    ///
+    /// The sweep of the three references is not optional, for [`below_ten`]'s
+    /// reason.
+    #[expect(
+        unsafe_code,
+        reason = "`call_closure` passes the receiver and two arguments, each \
+                  retained for this callee to release, and `abi::call` passes \
+                  the address of a live `Value` for the result — neither is \
+                  expressible in the signature compiled code calls through"
+    )]
+    unsafe extern "C" fn drops_the_carry_for_a_text_of_its_own(
+        _ctx: *mut Ctx,
+        args: *const Value,
+        out: *mut Value,
+    ) -> i32 {
+        for index in 0..3 {
+            dropped(unsafe { *args.add(index) });
+        }
+        unsafe {
+            *out = Value::str(NvsStr::new(b"a carry long enough to be its own text"));
+        }
+        nvs_runtime::OK
+    }
+
+    /// The seed comes back out of the fold with the caller's own reference and
+    /// no other, and the answer carries exactly one.
+    ///
+    /// **Only the Rust side can see either number.** The member takes a
+    /// reference to `$initial` and swaps a fresh answer in for it on the first
+    /// entry, so a member that released the seed and one that did not print the
+    /// same text from Novis for as long as the caller holds it — and the second
+    /// leaks one text per fold, plus one per entry for every carry after it.
+    /// [`Extracted`] is the guard that makes both releases run on the throwing
+    /// path too, and [`nvs_core_arr_reduce`]'s docs state the rule this reads.
+    // covers: Core\Arr::reduce
+    #[test]
+    fn reduce_holds_one_reference_to_the_carry_for_the_whole_fold() {
+        let mut ctx = Ctx::buffered();
+        let subject = mixed_keys();
+        let folder = closure_of(2, drops_the_carry_for_a_text_of_its_own);
+        let seed = Value::str(NvsStr::new(b"a seed long enough to be its own text"));
+
+        let answer = call(
+            super::nvs_core_arr_reduce,
+            &mut ctx,
+            &[subject, folder, seed],
+        )
+        .expect("this callback never fails");
+        #[expect(
+            unsafe_code,
+            reason = "this frame still owns the seed it built, and the array \
+                      below is the one the member answered with"
+        )]
+        let (held, answered) = unsafe {
+            (
+                NvsStr::refcount_of(seed.str_ptr().expect("the seed is a text")),
+                NvsStr::refcount_of(answer.str_ptr().expect("the callback answers a text")),
+            )
+        };
+        assert_eq!((held, answered), (1, 1));
+        assert_eq!(
+            answer.as_str_bytes(),
+            Some(&b"a carry long enough to be its own text"[..])
+        );
+
+        dropped(answer);
+        dropped(seed);
+        dropped(subject);
+        dropped(folder);
+    }
+
     /// A one-parameter predicate keeping every entry whose value is not `"b"`,
     /// and answering with an `int` where a program could only write a `bool`.
     ///

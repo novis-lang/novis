@@ -238,6 +238,19 @@
 //!     reports as its label, and re-measuring every recorded figure whose
 //!     bench calls a closure.
 //!     — owner: M10
+//! 12. **The memory-limit `FATAL` names a reading that is not the breach.**
+//!     [`ctx::Limits::over_memory_limit`] is true as soon as
+//!     [`budget::refused`] is set, and the message
+//!     [`ctx::Limits::memory_breach`] builds then prints `memory_used()` — the
+//!     live reading at the poll, taken after the refused allocation is gone. A
+//!     program holding a 134,217,728-character text is refused its next
+//!     doubling and reports `18825 bytes held against a ceiling of 268435456`,
+//!     which is the one sentence an operator reads to decide whether to raise
+//!     `[limits] memory` or to fix the program. Why the surviving reading is
+//!     that small is not checked. Closing it means the budget recording what it
+//!     refused and how much was held when it did, so the sentence can name the
+//!     allocation instead of the aftermath.
+//!     — owner: M10
 
 mod abi;
 // Compiled where it is used: by the `#[global_allocator]` below in an
