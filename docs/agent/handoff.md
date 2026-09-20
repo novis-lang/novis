@@ -2,44 +2,45 @@
 
 ## State
 
-Goal `Core\Arr` (1/4). `Core\Arr::withoutFirst`, `withoutLast`, `padStart` and `padEnd` are
-finished: `about.md`, three examples, one attack, one bench with a row in
-`docs/perf/members.ndjson`, and a Rust `#[test]` carrying its `covers:` marker each. 48 of
-`Core\Arr`'s features are still owed. Nothing is blocked.
+Goal `Core\Arr` (1/4). `Core\Arr::count`, `filter` and `map` are finished: `about.md`, three
+examples, one attack, one bench with a row in `docs/perf/members.ndjson`, and a Rust `#[test]`
+carrying its `covers:` marker each. 45 of `Core\Arr`'s features are still owed. Nothing is blocked.
 
-`Core\Arr::withoutFirst` costs 11 allocations and 306 ns/op where `withoutLast` costs 2 and 123,
-over the same four-entry subject. That is the price of the rule that every surviving key is kept:
-the result starts at key `"1"`, and `crates/nvs-stdlib/src/arr.rs:2763` states that a gap is exactly
-what degrades a result to the hash form, which renders every key as a string. It is the documented
-behaviour rather than a bug, and the only fix is a packed array that carries a base offset — a
-representation change, larger than a slice.
+Every `Core\Arr` figure was re-measured in one run at a 2.8 ns calibration unit, so the ten rows now
+compare with each other: `count` 7.6 ns/op and no allocation, `map` 176 ns and 6, `filter` 389 and
+16, where `all` and `any` spend 13 on the per-round closure alone. `withoutFirst` stands at 299 ns
+and 11.
 
-`Core\Arr::all` and `any` owed nothing but a re-measurement, and their rows are re-recorded. That
-run's calibration unit came out at 25.1 ns against the 3.0 the four new rows were taken at, so their
-deterministic counts stand and their `ns/op` is noise.
+`filter`'s attack found one thing, recorded as `crates/nvs-stdlib/src/arr.rs`'s `# Known gaps` item
+1 with owner M11: a callback that appends to the property the member is walking appends *under the
+member's own cursor*, so the walk reaches those entries too and the request ends at its memory
+limit. PHP's `array_filter` walks its own copy, and Novis's `foreach` holds a reference for the
+loop's length so the body's write copies first. The fix is one retained reference for the length of
+the walk in every member that calls back into Novis code, which prices a refcount pair onto every
+one of those calls — the helper convention rather than one member, so it wants the user's word.
 
 ## Next group
 
 **One slice is one feature with all its feature proofs**, taken in registry order so neighbours
 share the declaration region they sit in — one file set: `crates/nvs-stdlib/src/arr.rs`,
-`docs/examples/core/Arr/`, `tests/hostile/core/Arr/`, `benches/members/core/Arr/`. The last three
-are the callback family, so one understanding of what a callback sees and what happens to the keys
-pays for the group.
+`docs/examples/core/Arr/`, `tests/hostile/core/Arr/`, `benches/members/core/Arr/`. All three below
+take a callback, so one understanding of what a callback is shown and of what happens to the keys
+pays for the group. `filter`'s and `map`'s attacks are the shape to follow: a throwing callback, a
+recursive one, a wide subject, then the step that ends at the memory ceiling.
 
-- [ ] **`Core\Arr::count`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`.
-      `crates/nvs-stdlib/src/arr.rs:96`
-- [ ] **`Core\Arr::filter`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`.
-      `crates/nvs-stdlib/src/arr.rs:105`
-- [ ] **`Core\Arr::map`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`.
-      `crates/nvs-stdlib/src/arr.rs:117`
 - [ ] **`Core\Arr::mapKeys`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`.
-      `crates/nvs-stdlib/src/arr.rs:129`
+      `crates/nvs-stdlib/src/arr.rs:148`
+- [ ] **`Core\Arr::groupBy`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`.
+      `crates/nvs-stdlib/src/arr.rs:167`
+- [ ] **`Core\Arr::reduce`** — owes examples, hostile, perf, tests; `rule:testing/feature-proofs`.
+      `crates/nvs-stdlib/src/arr.rs:184`
 
 ## Backlog
 
-- `Core\Arr::all` and `any`'s newest `ns/op` rows were measured on a loaded machine; re-record them
-  with `--force` when it is idle — `docs/perf/members.ndjson`.
-- A packed array carrying a base offset would give `Core\Arr::withoutFirst` `withoutLast`'s cost —
-  `crates/nvs-runtime/src/array.rs`, and `crates/nvs-stdlib/src/arr.rs:2763` is the measurement.
-- 48 `Core\Arr` features still owe their feature proofs — `python tools/dossier.py --group
-  'Core\Arr' --owed` is the worklist.
+- A closure that declares a return type and only throws is refused (`E0401: expected int, found
+  never`), while the same closure with no declared type compiles. Whether `never` flows into a
+  declared return is a language question no fragment under `docs/rules/` answers — the user's.
+- 45 `Core\Arr` features still owe proofs, in registry order: `python tools/dossier.py --group
+  'Core\Arr' --owed`.
+- The two `Core\Arr::map` examples that predate `AGENTS.md` § *Text an end user reads* were brought
+  up to it here; every other landed program is goal `plain-comments`'s to sweep.

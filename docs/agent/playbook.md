@@ -2486,6 +2486,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   the tool as `name: contains` and reports no match over a file holding that exact line. Escape
   them — `'str.rs:re:name: \"contains\"'` — or search on the unquoted half alone, and never read a
   `re:` miss as evidence until the pattern is one bare word. [until: reviewed 2026-09-20]
+- **A comment-only edit to a member's implementing file makes every figure in that file stale, and
+  the goal's own acceptance check then goes red on features the session never touched.**
+  `rule:testing/member-perf-ledger` re-measures a figure when the implementing file's text moves
+  with its `mod tests` cut off, so one `# Known gaps` paragraph added to `arr.rs` put nine green
+  `Core\Arr` members back in the `perf` column of `python tools/dossier.py --group 'Core\Arr'
+  --owed`. Close them with one `--record-perf` over the whole group after `verify.py` is green,
+  rather than reading that column as new work. [until: reviewed 2026-09-20]
 
 ## Running things
 
@@ -6199,6 +6206,19 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   and not the spelling that works, so it reads as a member still to be written. Write `($k as
   string)` — `Core\Str::repeat('k', 1000) . ($k as string)` is what builds a long key from a counter.
   [until: reviewed 2026-09-20]
+- **Two `catch` blocks in one scope may not name the same variable, and a multi-step attack file is
+  where that bites.** A hostile case is several numbered steps in one program, so a second
+  `catch (RecursionError $error)` under a first `catch (LogicError $error)` is
+  `E0406: $error is already declared`, and the case then reports as "never ran -- it does not
+  compile", which reads exactly like work nobody has written yet. Give each step's catch its own
+  name — `$stopped`, `$refused` — because a `.nvs` file's top-level statements share one scope.
+  [until: reviewed 2026-09-20]
+
+- **A closure that declares a return type and then only throws does not compile.**
+  `fn(int $n): int => throw new LogicError('no')` is `E0401: expected int, found never`, while the
+  same closure with no `: int` on it is accepted, so the same throwing step is fine in one attack
+  file and refused in the next. Write that step as a static method declaring the return type and
+  throwing in its body, and hand the closure a call to it. [until: reviewed 2026-09-20]
 
 ## Splitting a file that got too big
 
