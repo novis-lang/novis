@@ -2,6 +2,7 @@
 a `#[TestWith(...)]` data row names the method's parameters and gives each the type it declares, `rule:testing/data-rows`
 --FILE--
 <?nvs
+// covers: lang:testing/core-test-testwith-data-rows
 // `rule:testing/data-rows` matches a data row's shape literal against the method's
 // parameters **by name and by type**, and reports each row as its own case.
 // Two rules fall out of that and are refused here: a row describes the method
@@ -85,21 +86,21 @@ final class NamesTest {
 }
 --EXPECTF-ERROR--
 error[E0738]: this `#[TestWith]` is on a method that is not a `#[Test]`
-   --> case.nvs:43:15
+   --> case.nvs:44:15
 %A
 error[E0738]: `itNormalizes` declares no parameter `$inputs`
-   --> case.nvs:51:16
+   --> case.nvs:52:16
 %A
 error[E0738]: the data row field `input` is not a `string` literal, which is what `$input` is declared as
-   --> case.nvs:58:16
+   --> case.nvs:59:16
 %A
 error[E0738]: this data row of `itFolds` gives no `$want`, which another does
-   --> case.nvs:66:15
+   --> case.nvs:67:15
 %A
 error[E0304]: the data row field `input` is given twice
-   --> case.nvs:72:28
+   --> case.nvs:73:28
 %A
 error[E0736]: nothing supplies `$missing` of the #[Test] method `itNeedsMore`, which `NamesTest` declares as `int`
-   --> case.nvs:80:21
+   --> case.nvs:81:21
 %A
 error: aborting due to 6 errors

@@ -1,0 +1,32 @@
+<?nvs
+// Shows how to give one test several sets of values. Each `#[TestWith]` row is
+// its own case, so a row that fails does not stop the rows after it.
+
+use Core\Test;
+use Core\Test\TestWith;
+
+class Band {
+    public static function of(uint $orders): string {
+        if ($orders >= 100) {
+            return "gold";
+        }
+        if ($orders >= 10) {
+            return "silver";
+        }
+        return "bronze";
+    }
+}
+
+class BandTest {
+    // Each field of a row names one parameter below. The values are constants.
+    #[TestWith(orders: 0, want: "bronze")]
+    #[TestWith(orders: 10, want: "silver")]
+    #[TestWith(orders: 100, want: "gold")]
+    #[Test]
+    public function itNamesTheBandOfAnOrderCount(uint $orders, string $want): void {
+        Test::assertSame(Band::of($orders), $want);
+    }
+}
+
+// This prints `bronze silver gold`.
+echo Band::of(0), " ", Band::of(10), " ", Band::of(100), "\n";

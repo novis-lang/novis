@@ -4,6 +4,7 @@ each `#[TestWith]` row is its own reported case, called with the constants the c
 test
 --FILE--
 <?nvs
+// covers: lang:testing/core-test-testwith-data-rows
 // § 9: "each row is its own reported case", so this is the runner's own
 // report and not the program's output — `--RUN--` above is what says so.
 use Core\Test;
