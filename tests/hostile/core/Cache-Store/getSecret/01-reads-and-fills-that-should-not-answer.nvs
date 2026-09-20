@@ -1,0 +1,103 @@
+<?nvs
+// Attack: a request reads secrets with key lists and fill functions that
+// should not answer. Every read should either answer or stop with an error,
+// and the program must keep running.
+// hostile: timeout-ms 60000
+
+var $cache = Core\Cache::process();
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $keys = [$key];
+secret string $token = 'sk-8f2c41';
+$cache->putSecret('api-token', $token, 1h, $keys);
+
+// 1. An empty key list. There is no key to open with, so the read must stop
+//    with an error instead of answering a miss.
+try {
+    array<secret bytes> $empty = [];
+    $cache->getSecret('api-token', $empty);
+    echo "step 1 read with no key\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. A key list holding seven bytes of text. That is too short to be a key, so
+//    the read must stop with an error.
+try {
+    array<secret bytes> $short = ['raw-key' as bytes];
+    $cache->getSecret('api-token', $short);
+    echo "step 2 read under seven bytes\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. A fill that asks to fill the very name it is filling. That call is
+//    waiting for itself, so it must stop with an error and not hang.
+try {
+    var $inner = fn (): Core\Cache\SecretEntry => Core\Cache\SecretEntry::of('inner', 1h);
+    var $itself = fn (): Core\Cache\SecretEntry => {
+        $cache->getSecret('wedged', $keys, { fill: $inner });
+        return Core\Cache\SecretEntry::of('never', 1h);
+    };
+    $cache->getSecret('wedged', $keys, { fill: $itself });
+    echo "step 3 filled itself\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. A fill that throws. The error belongs to this request, and the name must
+//    be left free for the next read.
+try {
+    var $failing = fn (): Core\Cache\SecretEntry => {
+        throw new RuntimeError('the service is down');
+    };
+    $cache->getSecret('flaky', $keys, { fill: $failing });
+    echo "step 4 filled\n";
+} catch (Throwable $e) {
+    echo "step 4 stopped\n";
+}
+var $after = fn (): Core\Cache\SecretEntry => Core\Cache\SecretEntry::of('recovered', 1h);
+echo 'step 4 left the name free: ',
+    $cache->getSecret('flaky', $keys, { fill: $after }) == null ? 'no' : 'yes', "\n";
+
+// 5. A fill whose lifetime is already over. Nothing it stored is readable, so
+//    the next read must be a miss and not the stale secret.
+var $stale = fn (): Core\Cache\SecretEntry => Core\Cache\SecretEntry::of('gone', 0s);
+try {
+    $cache->getSecret('already-old', $keys, { fill: $stale });
+    echo "step 5 answered something\n";
+} catch (Throwable $e) {
+    echo "step 5 stopped\n";
+}
+echo 'step 5 left ', $cache->getSecret('already-old', $keys) == null ? 'a miss' : 'the secret', "\n";
+
+// 6. A fill that answers ten million characters. Sealing it copies it, so the
+//    read must either answer or stop at the memory limit.
+try {
+    var $huge = fn (): Core\Cache\SecretEntry => {
+        return Core\Cache\SecretEntry::of(Core\Str::repeat('x', 10000000), 1h);
+    };
+    var $big = $cache->getSecret('huge', $keys, { fill: $huge });
+    echo 'step 6 answered ', $big == null ? 'a miss' : 'the secret', "\n";
+} catch (Throwable $e) {
+    echo "step 6 stopped\n";
+}
+
+// 7. A name of one million characters. The store may keep the entry or forget
+//    it as too large, and must answer for the name either way.
+try {
+    string $long = Core\Str::repeat('k', 1000000);
+    $cache->putSecret($long, $token, 1h, $keys);
+    echo 'step 7 answered ', $cache->getSecret($long, $keys) == null ? 'a miss' : 'the secret', "\n";
+} catch (Throwable $e) {
+    echo "step 7 stopped\n";
+}
+
+// 8. One hundred thousand reads of a name nothing wrote, with no fill. Every
+//    one of them is a miss, and the store must still answer afterwards.
+uint $i = 0;
+while ($i < 100000) {
+    $cache->getSecret('never-written', $keys);
+    $i = $i + 1;
+}
+echo 'step 8 then read ',
+    ($cache->getSecret('api-token', $keys) ?? '') == $token ? 'the secret' : 'a miss', "\n";

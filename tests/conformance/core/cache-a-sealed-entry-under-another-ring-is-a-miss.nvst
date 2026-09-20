@@ -2,6 +2,7 @@
 Every way a sealed entry fails to open is the same miss and never an error — another ring, another name, and a lifetime already over all answer `null` — while a ring that is wrong in itself throws instead — `rule:security/protocol-roster`, `rule:concurrency/cross-request-state-is-explicit`
 --FILE--
 <?nvs
+// covers: Core\Cache\Store::getSecret
 // A caller that could tell "wrong ring" from "tampered" apart would learn
 // something about the ring from an entry it cannot read, so `getSecret` gives
 // one answer for all of it. That answer being a miss rather than a throw is

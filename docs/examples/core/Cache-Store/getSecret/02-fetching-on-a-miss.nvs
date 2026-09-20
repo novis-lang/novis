@@ -1,0 +1,31 @@
+<?nvs
+// Shows how the `fill` option fetches a secret that is not in the store. Your
+// program then has one line for the hit and the miss together.
+
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $keys = [$key];
+
+var $cache = Core\Cache::process();
+
+// The function runs only on a miss. It returns a `Core\Cache\SecretEntry`: the
+// secret it fetched, and how long that secret stays good.
+var $fetch = fn (): Core\Cache\SecretEntry => {
+    echo "asking the service\n";
+    return Core\Cache\SecretEntry::of("at-7f3c9b21", 15m);
+};
+
+// The store is empty, so this call runs the function. It prints asking the
+// service, then the first read got it.
+var $first = $cache->getSecret("service-token", $keys, {fill: $fetch});
+echo $first == null ? "the first read got nothing" : "the first read got it", "\n";
+
+// The entry is in the store now, so this call does not run the function again.
+// It prints the second read got the same token.
+var $second = $cache->getSecret("service-token", $keys, {fill: $fetch});
+echo ($second ?? "") == ($first ?? "-")
+    ? "the second read got the same token"
+    : "the second read got another token", "\n";
+
+// `fill` is an option. A read without it answers `null` on a miss and fetches
+// nothing. This prints null.
+echo $cache->getSecret("another-token", $keys) == null ? "null" : "a value", "\n";

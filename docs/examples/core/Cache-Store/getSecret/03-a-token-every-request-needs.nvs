@@ -1,0 +1,35 @@
+<?nvs
+// Shows how a program gets the access token that every outbound call needs.
+// One request fetches the token and every other request reads it.
+
+class Api {
+    // A real program calls the token endpoint here. The endpoint says how long
+    // the token lasts, and that is the lifetime of the entry.
+    public static function login(): Core\Cache\SecretEntry {
+        echo "logging in\n";
+        return Core\Cache\SecretEntry::of("at-7f3c9b21", 30m);
+    }
+
+    public static function token(array<secret bytes> $keys): ?secret string {
+        var $cache = Core\Cache::process();
+
+        // `wait` is how long this request waits while another request logs in.
+        // Without it the setting `[cache.process] fill_wait` decides.
+        return $cache->getSecret("api-token", $keys, {
+            fill: fn (): Core\Cache\SecretEntry => Api::login(),
+            wait: 3s
+        });
+    }
+}
+
+secret bytes $key = Core\Crypto::generateKey();
+array<secret bytes> $keys = [$key];
+
+// The first request logs in. This prints logging in, then request 1 has a
+// token.
+echo Api::token($keys) == null ? "request 1 has no token" : "request 1 has a token", "\n";
+
+// The next two requests read the token out of the store, so the program logs
+// in once for all three. Each of them prints that it has a token.
+echo Api::token($keys) == null ? "request 2 has no token" : "request 2 has a token", "\n";
+echo Api::token($keys) == null ? "request 3 has no token" : "request 3 has a token", "\n";
