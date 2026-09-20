@@ -90,6 +90,9 @@ INPUT_FILES = ("Cargo.toml", "Cargo.lock", "rustfmt.toml", "rust-toolchain.toml"
                # of `tools/` is deliberately not an input: `loop.py` and friends change most
                # sessions and change nothing these steps would say.
                "tools/lints.py", "tools/reference.py", "tools/directives.py",
+               # What decides which test binaries the `test` step runs, and which of them may
+               # be wide: an edit to either is a reason to ask the step again.
+               "tools/impact.py", "tools/data/impact-wide.txt",
                # The third file `reference.py` reads, and the only one outside `docs/reference/`:
                # every row of the migration table is rendered into `docs/novis.md`. It is also
                # one of the two files `crates/nvs-stdlib/build.rs` reads; the inventory beside it

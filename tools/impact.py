@@ -9,6 +9,7 @@ answered from the green cache when nothing has.
     python tools/impact.py                     # every test binary: its reach, and why
     python tools/impact.py --explain <path>... # which test binaries a change to each path re-runs
     python tools/impact.py --graph             # the workspace's packages and what each depends on
+    python tools/impact.py --check             # fail on a wide binary `WIDE` does not list
 
 ## What a test binary reads
 
@@ -60,6 +61,8 @@ READS = TMP / "impact-reads.json"
 READS_ENV = "NVS_READS_LOG"
 #: What `nvs_repo::root` records: the binary may open anything, so it keeps the whole-tree key.
 WHOLE_TREE = "."
+#: The binaries that may be wide, each with why; the file's own header is the rule.
+WIDE = ROOT / "tools" / "data" / "impact-wide.txt"
 
 _RECORDED = re.compile(r"\bnvs_repo::")
 _SPAWN = re.compile(r"Command::new\(")
@@ -102,6 +105,52 @@ def metadata():
                     deps[d["name"]] = kind
         out[pkg["name"]] = {"dir": rel, "deps": deps}
     return out
+
+
+_DEP_TABLES = (("dependencies", "normal"), ("dev-dependencies", "dev"),
+               ("build-dependencies", "build"))
+
+
+def manifest_graph():
+    """`metadata`'s answer read off the manifests, for a caller with no toolchain to ask:
+    `tools/ci-changes.py` runs before a CI job has installed one. Every member of the
+    workspace's `crates/*` and `benches/*` globs that has a `[package]`, and each dependency
+    table of it, the `[target.*]` ones included. `--check` holds this to `metadata`, so the two
+    cannot drift apart unnoticed. `None` when a manifest cannot be read."""
+    import tomllib
+    found = {}
+    try:
+        for top in ("crates", "benches"):
+            for manifest in sorted((ROOT / top).glob("*/Cargo.toml")):
+                doc = tomllib.loads(manifest.read_text(encoding="utf-8"))
+                if "package" in doc:
+                    found[doc["package"]["name"]] = (manifest.parent, doc)
+    except (OSError, ValueError, KeyError):
+        return None
+    out = {}
+    for name, (base, doc) in found.items():
+        deps = {}
+        tables = [doc] + list(doc.get("target", {}).values())
+        for table in tables:
+            for key, kind in _DEP_TABLES:
+                for dep, spec in table.get(key, {}).items():
+                    dep = spec.get("package", dep) if isinstance(spec, dict) else dep
+                    if dep in found and deps.get(dep) != "normal":
+                        deps[dep] = kind
+        out[name] = {"dir": base.relative_to(ROOT).as_posix(), "deps": deps}
+    return out
+
+
+def named_in(graph, rel):
+    """The workspace packages a script or a manifest names anywhere in its text, comments
+    included: more names is the wide direction."""
+    if graph is None:
+        return []
+    try:
+        text = (ROOT / rel).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return []
+    return sorted(n for n in graph if re.search(rf"(?<![\w-]){re.escape(n)}(?![\w-])", text))
 
 
 def closure(graph, package):
@@ -281,15 +330,8 @@ class Reach:
         return parts
 
     def named_in(self, rel):
-        """The workspace packages a script or a manifest names anywhere in its text, comments
-        included: more names is the wide direction."""
-        if self.graph is None:
-            return []
-        try:
-            text = (ROOT / rel).read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            return []
-        return sorted(n for n in self.graph if re.search(rf"(?<![\w-]){re.escape(n)}(?![\w-])", text))
+        """`named_in` over this reading's graph."""
+        return named_in(self.graph, rel)
 
     def compiled(self, job):
         """`(parts, why)`: what this binary is compiled from, or `(None, why)` when that cannot
@@ -399,6 +441,39 @@ def _digest(name, parts):
     return h.hexdigest()
 
 
+def allowed_wide():
+    """The binaries `WIDE` lists."""
+    try:
+        lines = WIDE.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return set()
+    return {ln.split("  --  ", 1)[0].strip() for ln in lines
+            if ln.strip() and not ln.startswith("#")}
+
+
+def findings(reach, jobs):
+    """What `--check` fails on: a wide binary `WIDE` does not list, and a listed one that is
+    narrow or gone. A binary that is wide only until a run records what it reads through
+    `nvs_repo` is neither -- the run that is asking is about to record it."""
+    allowed, out, wide = allowed_wide(), [], set()
+    for job in jobs:
+        _, why = reach.key(job)
+        if not why or "no run has recorded" in why:
+            continue
+        wide.add(job["name"])
+        if job["name"] not in allowed:
+            out.append(f"`{job['name']}` {why}.\n    Reach the file through `nvs_repo::path`, "
+                       f"or a child process through `nvs_repo::spawn`, so the binary is run "
+                       f"when what it reads changes and not on every change. If it cannot be "
+                       f"narrow, give it a line in {WIDE.relative_to(ROOT).as_posix()}.")
+    names = {job["name"] for job in jobs}
+    for name in sorted(allowed - wide):
+        state = "has a narrow key now" if name in names else "is not a test binary of this build"
+        out.append(f"`{name}` is listed in {WIDE.relative_to(ROOT).as_posix()} and {state}: "
+                   f"delete its line.")
+    return out
+
+
 def last_jobs():
     """The test jobs `verify.py` last built, or an empty list."""
     try:
@@ -414,6 +489,8 @@ def main():
     ap.add_argument("--explain", nargs="+", metavar="PATH",
                     help="which test binaries a change to each path re-runs")
     ap.add_argument("--graph", action="store_true", help="the packages and their dependencies")
+    ap.add_argument("--check", action="store_true",
+                    help="fail on a wide binary tools/data/impact-wide.txt does not list")
     opts = ap.parse_args()
     try:
         sys.stdout.reconfigure(encoding="utf-8", newline="\n")
@@ -439,6 +516,18 @@ def main():
     if not jobs:
         print("impact: no test build is on record -- `python tools/verify.py` leaves one")
         return 1
+    if opts.check:
+        found = findings(reach, jobs)
+        if reach.graph is not None and manifest_graph() != reach.graph:
+            found.append("the package graph read off the manifests (`manifest_graph`, which "
+                         "`tools/ci-changes.py` uses) is not the one `cargo metadata` gives: "
+                         "a dependency table it does not read has appeared.")
+        for line in found:
+            print(f"impact: {line}")
+        if not found:
+            print(f"impact: every wide test binary is one {WIDE.relative_to(ROOT).as_posix()} "
+                  f"lists, and every binary it lists is wide")
+        return 1 if found else 0
     if opts.explain:
         before = {j["name"]: reach.key(j)[0] for j in jobs}
         for raw in opts.explain:

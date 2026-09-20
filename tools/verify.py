@@ -525,6 +525,9 @@ def run_tests(step, package=None):
 
     failed = [j for j in jobs if results[j["name"]][1] != 0]
     step.doc_green = "doc-tests" in results and results["doc-tests"][1] == 0
+    # A binary that became wide is a red step, named with the line that made it so. Unscoped
+    # runs only: `tools/data/impact-wide.txt` lists the workspace's, and `-p` sees one package's.
+    wide = impact.findings(reach, binaries) if reach is not None and not package else []
     # Alone, one at a time, after the pool has drained: the second run is the diagnosis.
     alone = {j["name"]: run_job(j)[1] == 0 for j in failed}
 
@@ -578,7 +581,8 @@ def run_tests(step, package=None):
                 f"`tools/verify.py` § *Why `test` runs its binaries side by side*.")
         else:
             out.append(f"error: `{j['name']}` failed, alone as well; `{j['rerun']}` runs it again.")
-    return (1 if failed else 0), "\n".join(out)
+    out += [f"error: {line}" for line in wide]
+    return (1 if failed or wide else 0), "\n".join(out)
 
 
 def load_test_green():
