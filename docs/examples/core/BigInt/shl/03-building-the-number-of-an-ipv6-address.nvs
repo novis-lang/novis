@@ -1,0 +1,23 @@
+<?nvs
+// Shows a program building the number of an IPv6 address. Such an address is
+// 128 bits wide: a network prefix of 64 bits, and an interface part of 64 bits
+// under it.
+
+class Address {
+    // Returns the two halves of an address as one number.
+    public static function combine(Core\BigInt $prefix, Core\BigInt $iface): Core\BigInt {
+        return $prefix->shl(64)->add($iface);
+    }
+}
+
+var $prefix = Core\BigInt::parse("20010db8000000ff", {radix: 16});
+
+// `shl(64)` moves the prefix above the interface part. This prints
+// 20010db8000000ff0000000000000042.
+var $iface = Core\BigInt::parse("42", {radix: 16});
+echo Address::combine($prefix, $iface)->format({radix: 16}), "\n";
+
+// The same prefix with another interface part. This prints
+// 20010db8000000ff0000000000000043.
+var $other = Core\BigInt::parse("43", {radix: 16});
+echo Address::combine($prefix, $other)->format({radix: 16}), "\n";

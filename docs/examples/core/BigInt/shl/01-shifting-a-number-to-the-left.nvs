@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to shift a whole number to the left. Every place doubles it.
+
+// `shl` moves the bits 10 places to the left, which multiplies the number by
+// 1024. This prints 1024.
+echo Core\BigInt::of(1)->shl(10), "\n";
+
+// The answer may be far larger than an `int` holds. This prints
+// 18446744073709551616.
+echo Core\BigInt::of(1)->shl(64), "\n";
+
+// Shifting by 0 places gives the number back. This prints 3.
+echo Core\BigInt::of(3)->shl(0), "\n";
+
+// The sign stays what it was. This prints -48.
+echo Core\BigInt::of(-3)->shl(4), "\n";

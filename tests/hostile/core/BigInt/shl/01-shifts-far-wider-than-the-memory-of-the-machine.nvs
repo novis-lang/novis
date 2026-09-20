@@ -1,0 +1,43 @@
+<?nvs
+// Attack: `shl` is asked for numbers far wider than the memory of the machine,
+// and then for hundreds of thousands of small shifts. Every shift that is too
+// wide should throw an error, and the program should run to its last line.
+// hostile: timeout-ms 20000
+
+// 1. Shifts whose answer would be wider than one call may produce. Each one
+//    throws an `ArithmeticError` before it shifts anything.
+array<uint> $places = [1048576, 4294967296, 9223372036854775807];
+foreach ($places as uint $by) {
+    try {
+        var $answer = Core\BigInt::of(1)->shl($by);
+        echo 'built ', Core\Str::length($answer->toString()), " digits\n";
+    } catch (ArithmeticError $tooWide) {
+        echo "refused\n";
+    }
+}
+
+// 2. A number of ten thousand digits is shifted a little, which is allowed,
+//    and then far past the width one call may produce.
+var $wide = Core\BigInt::parse(Core\Str::repeat('9', 10000));
+echo Core\Str::length($wide->shl(1000)->toString()), "\n";
+try {
+    var $wider = $wide->shl(1048576);
+    echo 'built ', Core\Str::length($wider->toString()), " digits\n";
+} catch (ArithmeticError $stillTooWide) {
+    echo "refused\n";
+}
+
+// 3. The shift by 0 places on that same wide number, and the widest shift it
+//    accepts. Neither builds anything larger than the bound allows.
+echo Core\Str::length($wide->shl(0)->toString()), "\n";
+echo $wide->shl(1015356)->sign(), "\n";
+
+// 4. Two hundred thousand small shifts, each thrown away again. The memory the
+//    program holds must not grow with the rounds.
+uint $round = 0;
+int $signs = 0;
+while ($round < 200000) {
+    $signs = $signs + Core\BigInt::of(-3)->shl(60)->sign();
+    $round = $round + 1;
+}
+echo $signs, "\n";

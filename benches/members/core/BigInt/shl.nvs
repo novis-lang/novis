@@ -1,0 +1,22 @@
+<?nvs
+// Measures shifting a number to the left, as a program does to place one half
+// of a wide value above the other.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $base = Core\BigInt::of(3);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the number of places comes from the count of the rounds
+            // before it, and stays between 60 and 62.
+            $total = $total + (($base->shl(60 + $total % 3))->sign() as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";
