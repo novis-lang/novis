@@ -4,7 +4,7 @@ a `#[Test]` method is a row the runner reports, in declaration order, judged off
 test
 --FILE--
 <?nvs
-// covers: lang:errors/assertion-failures
+// covers: lang:errors/assertion-failures, lang:testing/a-test-is-a-method-marked-test
 // § 23: `nvs test` on a program runs its `#[Test]` methods, so this case is
 // the runner's own report rather than the program's output. `--RUN--` above
 // is what says so; every other case in this tree is `nvs run`.

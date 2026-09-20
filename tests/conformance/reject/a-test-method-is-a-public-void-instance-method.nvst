@@ -2,6 +2,7 @@
 a `#[Test]` method that is `static`, that is not `public` or that returns anything but `void` is refused where it is declared, and two sharing one name with it — `rule:testing/test-attribute`
 --FILE--
 <?nvs
+// covers: lang:testing/a-test-is-a-method-marked-test
 // `rule:testing/test-attribute`: these are compile errors, not skipped tests. Three of the
 // five are about the declaration rather than the payload — a `#[Test]`
 // that is `static`, that is not `public`, or that returns anything but
@@ -55,27 +56,27 @@ echo "unreachable\n";
 
 --EXPECTF-ERROR--
 error[E0733]: the `#[Test]` method `aTestIsNotStatic` is `static`
-   --> case.nvs:26:28
+   --> case.nvs:27:28
 %A
 error[E0733]: the `#[Test]` method `aTestIsPublic` is not `public`
-   --> case.nvs:29:22
+   --> case.nvs:30:22
 %A
 error[E0733]: the `#[Test]` method `protectedIsNotPublicEither` is not `public`
-   --> case.nvs:32:24
+   --> case.nvs:33:24
 %A
 error[E0733]: the `#[Test]` method `aTestReturnsVoid` returns `int`
-   --> case.nvs:35:21
+   --> case.nvs:36:21
 %A
 error[E0733]: the `#[Test]` method `everyShapeAtOnce` is `static`
-   --> case.nvs:40:29
+   --> case.nvs:41:29
 %A
 error[E0733]: the `#[Test]` method `everyShapeAtOnce` is not `public`
-   --> case.nvs:40:29
+   --> case.nvs:41:29
 %A
 error[E0733]: the `#[Test]` method `everyShapeAtOnce` returns `string`
-   --> case.nvs:40:29
+   --> case.nvs:41:29
 %A
 error[E0304]: `Refused` declares two `#[Test]` methods named `twiceOver`
-   --> case.nvs:47:21
+   --> case.nvs:48:21
 %A
 error: aborting due to 8 errors

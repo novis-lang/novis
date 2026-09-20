@@ -1,0 +1,32 @@
+<?nvs
+// Attack: a program marks methods `#[Test]` that the test runner could never
+// call. Every one of them should stop the program from compiling. A shape that
+// got through would be a test that never runs, in a report that stays green.
+// hostile: expect-refusal
+
+use Core\Test;
+
+class Uncallable
+{
+    // 1. `#[Core\Test]` written in full is the same marker, so a `static`
+    //    method hidden behind the long name is refused the same way.
+    #[Core\Test]
+    public static function hiddenBehindTheLongName(): void
+    {}
+
+    // 2. The runner calls a test with no arguments, so an `inout` parameter
+    //    has no variable to write back to.
+    #[Test]
+    public function wantsSomethingWrittenBack(inout int $count): void
+    {
+        $count = $count + 1;
+    }
+
+    // 3. The runner gives a test one value for each parameter, so a parameter
+    //    that takes any number of values has nothing to take.
+    #[Test]
+    public function wantsAsManyArgumentsAsItGets(int ...$values): void
+    {}
+}
+
+echo 'this line must never run', "\n";

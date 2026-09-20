@@ -1,0 +1,16 @@
+<?nvs
+// Attack: a method marked `#[Test]` is `abstract`, so it has no body and the
+// test runner has nothing to call. The program should not compile.
+// hostile: expect-refusal
+// dossier: known-gap crates/nvs-types/src/testing.rs -- an `abstract` `#[Test]` method compiles, and `nvs test` then reports an internal error in place of the test
+
+use Core\Test;
+
+abstract class Unwritten
+{
+    // The method is `abstract`. A test with no body is not a test.
+    #[Test]
+    abstract public function aTestNobodyWrote(): void;
+}
+
+echo 'this line must never run', "\n";

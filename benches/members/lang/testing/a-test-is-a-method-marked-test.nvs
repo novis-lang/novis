@@ -1,0 +1,34 @@
+<?nvs
+// Measures what a method marked `#[Test]` costs to call. A test runner pays
+// this once per test, and a marked method is an ordinary method.
+// bench: iterations 300000
+// bench: calls 1
+// bench: allocations 0
+
+use Core\Test;
+
+class Meter {
+    public static uint $rounds = 0;
+}
+
+class MarkedTest {
+    #[Test]
+    public function countsOneRound(): void {
+        // Chained: the round counted here is the one the round before wrote.
+        Meter::$rounds = Meter::$rounds + 1;
+    }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $test = new MarkedTest();
+        uint $i = 0;
+        while ($i < $rounds) {
+            $test->countsOneRound();
+            $i = $i + 1;
+        }
+        return Meter::$rounds;
+    }
+}
+
+echo Bench::run(300000), "\n";
