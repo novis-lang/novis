@@ -1,0 +1,29 @@
+<?nvs
+// Measures checking the last bytes of a value. A program does this when it
+// asks whether what it read from a connection ends on a complete record.
+// bench: iterations 400000
+// bench: calls 0
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        bytes $chunk = "id=1042,name=one\r\nid=1043,name=two\r\n" as bytes;
+        array<bytes> $enders = [
+            Core\Encoding::fromHex("0d0a"),
+            Core\Encoding::fromHex("0a"),
+            "two\r\n" as bytes,
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The result of one round picks the bytes the next round tests.
+            // All three end the value, so every round reads all of them.
+            $total = $total
+                + ((Core\Bytes::endsWith($chunk, $enders[($total % 3) as int]) ? 2 : 1) as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

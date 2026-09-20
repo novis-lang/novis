@@ -1,0 +1,12 @@
+<?nvs
+// Shows how to check the last bytes of a value. Here a program asks whether
+// the bytes it read end with a newline.
+
+bytes $chunk = "id=1042\nid=1043\n" as bytes;
+bytes $newline = Core\Encoding::fromHex("0a");
+
+// The last byte is a newline, so this prints "yes".
+echo Core\Bytes::endsWith($chunk, $newline) ? "yes" : "no", "\n";
+
+// This value stops in the middle of a line, so this prints "no".
+echo Core\Bytes::endsWith("id=1042\nid=10" as bytes, $newline) ? "yes" : "no", "\n";
