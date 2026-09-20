@@ -8611,6 +8611,21 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `crates/nvs-ir/src/lower/expr.rs` builds no guard at all unless the lowered receiver is
   `Ty::Tagged`, which a folded constant is not.
   [until: reviewed 2026-09-20]
+- **A `Core` member whose registry row returns a union answers `mixed` in arithmetic, so a bench
+  that adds it to an `int` does not compile.** `Core\Arr::sum`'s `return_ty` is
+  `CoreTy::Union(NUMBER)` — `int|float|decimal` — and the result does not narrow to the subject's
+  element type, so `$total + Core\Arr::sum($lines)` is `E0401: expected int, found mixed` over an
+  `array<int>`. Write the cast the bench needs, `(Core\Arr::sum($lines) as int)`, and expect the
+  same shape from `??` over a `uint`-valued member: `Core\Arr::max($widths) ?? 0` is `uint|int`
+  and wants `?? (0 as uint)`. [until: reviewed 2026-09-20]
+
+- **`echo` of a `float` prints the way PHP's default precision does, so an example cannot show
+  float inexactness by printing one.** `Core\Arr::sum([0.1, 0.2])` prints `0.3` rather than
+  `0.30000000000000004`, and a comment promising the long digits is wrong the moment `--bless`
+  writes the `.out`. Show the difference with a comparison —
+  `Core\Arr::sum($shares) == 0.3 ? 'yes' : 'no'` prints `no` — which is what
+  `docs/examples/lang/expressions/arithmetic/03-a-basket-priced-in-decimal.nvs` already does.
+  [until: reviewed 2026-09-20]
 
 ## Divergences and refusals already pinned
 

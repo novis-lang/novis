@@ -1,0 +1,59 @@
+<?nvs
+// Attack: a program adds up arrays whose total leaves the range of its type.
+// Other arrays hold entries with no common type. The last step should stop at
+// the memory limit with an error, and must not crash.
+// hostile: timeout-ms 30000
+// hostile: ends-early
+
+// 1. Nothing at all. The total of no entries is 0, so this prints 0.
+array<int> $empty = [];
+echo Core\Arr::sum($empty), "\n";
+
+// 2. Two whole numbers whose total is larger than a whole number holds. The
+// total does not wrap around, so the member throws an error.
+array<int> $overflow = [9223372036854775807, 1];
+try {
+    Core\Arr::sum($overflow);
+    echo "overflow added\n";
+} catch (Throwable $refused) {
+    echo "overflow refused\n";
+}
+
+// 3. A `float` and a `decimal` in one array. No type holds both of them, so
+// the member throws an error.
+float $inexact = 0.5;
+decimal $exact = 0.5;
+array<float|decimal> $both = [$inexact, $exact];
+try {
+    Core\Arr::sum($both);
+    echo "both added\n";
+} catch (Throwable $mixed) {
+    echo "both refused\n";
+}
+
+// 4. The far ends of the float range. A float total never throws, so the
+// answer here is a NaN.
+float $inf = Core\Math::fdiv(1.0, 0.0);
+array<float> $wild = [$inf, 0.0 - $inf, 1.5];
+echo Core\Arr::sum($wild), "\n";
+
+// 5. A million copies of a very large number. The total leaves the range
+// after two entries, while the array is still being walked.
+array<int> $long = Core\Arr::fill(1000000, 4611686018427387904);
+try {
+    Core\Arr::sum($long);
+    echo "million added\n";
+} catch (Throwable $tooLarge) {
+    echo "million refused\n";
+}
+
+// 6. One array that doubles in size, with its total read after every step.
+// That needs more memory than the program has, so it stops here.
+array<int> $growing = Core\Arr::fill(1000, 1);
+uint $k = 0;
+while ($k < 40) {
+    $growing = Core\Arr::appendAll($growing, $growing);
+    Core\Arr::sum($growing);
+    $k = $k + 1;
+}
+echo "grew forever\n";

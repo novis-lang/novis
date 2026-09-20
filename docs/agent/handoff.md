@@ -2,50 +2,51 @@
 
 ## State
 
-Goal `Core\Arr` (1/4). `intersect`, `countBy` and `unique` are finished this session, beside the 47
-members that landed before them: `about.md`, three examples, one attack, one bench with a row in
-`docs/perf/members.ndjson`, and a Rust `#[test]` carrying its `covers:` marker each. 50 of
-`Core\Arr`'s 56 members are complete and 6 are owed. Nothing is blocked.
+Goal `Core\Arr` (1/4). `min`, `max` and `sum` are finished this session, beside the 50 members that
+landed before them: `about.md`, three examples, one attack, one bench with a row in
+`docs/perf/members.ndjson`, and a Rust `#[test]` carrying its `covers:` marker each. 53 of
+`Core\Arr`'s 56 members are complete and 3 are owed. Nothing is blocked.
 
-`countBy` owed only the marker. `count_by_counts_each_bucket_in_first_occurrence_order` already
-asserted first-occurrence order and the `1`/`"1"` bucket, so the slice marked that test rather than
-writing a second one. `intersect`'s new test is the complement of `diff`'s over the same subject, so
-the two results together are the whole of `$a`; `unique`'s reads its mixed-tag result through a new
-`length_of`, because `entries_of` panics on a value that is not a string.
+`min` and `max` share one walk and so share their two Rust tests: the tie rule is pinned with the
+float `1.0` ahead of the int `1`, which compare equal, so the answer's own tag says the **first**
+extreme won. The divergence from PHP is pinned in the same pair — `[0, "a"]` throws where PHP
+answers `0`, and `["1e2", "50"]` compares bytewise. `sum` carries its own two: the entry-by-entry
+promotion with the empty array at `int` `0`, and the throw past `int`'s range where `array_sum`
+becomes a `float`.
 
-At a 3.1 ns calibration unit `countBy` over a six-value list is 455.4 ns/op across 17 allocations,
-`intersect` over a six-value list and a two-value list is 735.7 ns/op across 24.75, and `unique` over
-a six-value list is 937.5 ns/op across 29. All three declare `calls 0` and the measurement agrees.
-`intersect` sits beside `diff`'s 844.2 ns/op across 26, which is what says the two share one walk.
+At a 3.3 ns calibration unit `min` over a six-entry list is 188.6 ns/op, `max` is 191.9 and `sum`
+is 205.1, each across 3 allocations and 304 bytes — the subject literal the round builds, since all
+three answer a scalar and allocate nothing themselves. All three declare `calls 0` and the
+measurement agrees.
 
-All three attacks reached their last step and stopped at the request's memory ceiling, and every
-example prints what its comments claim. A value that cannot name a bucket is a `FATAL` out of
-`countBy`, not a catchable throw, so an attack cannot `try`/`catch` one mid-file without ending the
-program before its last step.
+Every attack reaches its last step and stops at the request's memory ceiling. `Core\Arr::sum`
+returns `int|float|decimal`, which is `mixed` in arithmetic — the first playbook bullet below is
+what that costs a bench.
 
 ## Next group
 
-**One slice is one feature with all its feature proofs**, taken in registry order so neighbours share
-the declaration region they sit in — one file set: `crates/nvs-stdlib/src/arr.rs`,
+**One slice is one feature with all its feature proofs**, taken in registry order so neighbours
+share the declaration region they sit in — one file set: `crates/nvs-stdlib/src/arr.rs`,
 `docs/examples/core/Arr/`, `tests/hostile/core/Arr/`, `benches/members/core/Arr/`. **Write every
-`covers:` marker of the group before the first `--bless`**: a `crates/` edit makes the release binary
-stale, and `--bless` then waits out a release build of `nvs-cli`.
+`covers:` marker of the group before the first `--bless`**: a `crates/` edit makes the release
+binary stale, and `--bless` then waits out a release build of `nvs-cli`.
 
-- [ ] **`Core\Arr::min`** — owes `about.md`, three examples, an attack, a bench, and a `covers:`
-      marker over a Rust `#[test]`; `rule:testing/feature-proofs`. It takes one argument and answers
-      `?T`, so the empty array is the edge every example and the attack turn on, and the ordering is
-      `compare_values` — the same one `sort` uses, never PHP's loose comparison.
-      `crates/nvs-stdlib/src/arr.rs:5803`
-- [ ] **`Core\Arr::max`** — owes the same five; `rule:testing/feature-proofs`. It is `min` with the
-      other end of the same total order, so its arguments are built the same way.
-      `crates/nvs-stdlib/src/arr.rs:5815`
-- [ ] **`Core\Arr::sum`** — owes the same five; `rule:testing/feature-proofs`. It takes no `ctx`, and
-      what its examples separate from `min`/`max` is that it answers a number over an empty array
-      rather than `null`. `crates/nvs-stdlib/src/arr.rs:5828`
+- [ ] **`Core\Arr::product`** — owes `about.md`, three examples, an attack, a bench, and a
+      `covers:` marker over a Rust `#[test]`; `rule:testing/feature-proofs`. It is `sum`'s fold
+      with the other operator, so the empty array is `int` `1` and the overflow throw is the same
+      one; `fold_numbers` is shared and the proofs turn on what differs.
+      `crates/nvs-stdlib/src/arr.rs:5839`
+- [ ] **`Core\Arr::average`** — owes the same five; `rule:testing/feature-proofs`. It answers
+      `?(float|decimal)`, so the empty array is `null` and a `decimal` subject stays exact while
+      every other total is a `float`. `crates/nvs-stdlib/src/arr.rs:5858`
+- [ ] **`Core\Arr::shapeAs`** — owes the same five; `rule:testing/feature-proofs`. It is the one
+      member of this group whose arity is three more than its row's, because the call site's type
+      argument arrives ahead of the declared parameters, and it reports through `Core\Json`'s
+      `ParseError` rather than a throw of its own. `crates/nvs-stdlib/src/arr.rs:6169`
 
 ## Backlog
 
-- `Core\Arr::product` and `Core\Arr::average` close this goal's numeric folds — `crates/nvs-stdlib/src/arr.rs:5839`, `:5858`.
-- `Core\Arr::shapeAs` is the last member this goal owes and the only one taking four arguments; its Rust test builds them the way a call site does — `crates/nvs-stdlib/src/arr.rs:6169`.
-- `Core\Arr` groups 2/4 to 4/4 follow this one — `docs/agent/goals/dossier/`.
-- `serve::tests::a_mount_whose_unit_calls_url_absolute_and_resolves_no_origin_refuses_the_boot` fails side by side and passes alone; `verify.py` names it a shared-resource flake — `crates/nvs-cli/src/serve.rs:4049`.
+- `Core\Arr`'s benches all pay 3 allocations for the subject literal each round, so no member of
+  this group can declare `allocations 0` — `benches/members/README.md` owns the declaration.
+- Goal `plain-comments` sweeps the landed `.nvs` comments; `tests/hostile/core/Arr/sort/01-*.nvs`
+  still opens with a 38-word line.

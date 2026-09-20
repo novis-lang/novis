@@ -1,0 +1,21 @@
+<?nvs
+// Adds up the lines of a short invoice, as a shop does before it shows what
+// an order costs.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): int {
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The first line is last round's total, so no round can be reused.
+            array<int> $lines = [($total % 7) + 1, 1299, 499, 250, 1000, 75];
+            $total = $total + (Core\Arr::sum($lines) as int);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

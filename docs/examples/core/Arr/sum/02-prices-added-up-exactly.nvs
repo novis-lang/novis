@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to add up money. A `decimal` holds the value you wrote, so the
+// total is exact and no cent goes missing.
+
+array<decimal> $prices = [19.99, 5.01, 0.10];
+
+// One `decimal` in the array makes the total a `decimal`. This prints 25.10.
+echo Core\Arr::sum($prices), "\n";
+
+// A `float` cannot hold 0.1 exactly. This total prints as 0.3 and is not
+// equal to 0.3, so the line reads "0.3 no".
+array<float> $shares = [0.1, 0.2];
+echo Core\Arr::sum($shares), ' ', Core\Arr::sum($shares) == 0.3 ? 'yes' : 'no', "\n";
+
+// The same two values as `decimal`. This total is exact, so the line reads
+// "0.3 yes".
+array<decimal> $exact = [0.1, 0.2];
+echo Core\Arr::sum($exact), ' ', Core\Arr::sum($exact) == (0.3 as decimal) ? 'yes' : 'no', "\n";
