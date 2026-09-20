@@ -6407,6 +6407,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   tools/dossier.py --id '<feature>'` before believing an existing case covers a member, and give
   every case you write for an instance member a `// covers:` line.
   [until: gone tools/dossier.py:scan_calls]
+- **A `uint` variable in a `.nvs` proof cannot be initialised from an integer literal or from a
+  division.** `40 * 1048576` is an `int` and `$a / $b` over two `uint`s is `uint|float`, so both are
+  an `E0401` against a `uint` declaration, and the error points at the whole expression as if the
+  member returned the wrong type. Write `(40 * 1048576) as uint`, and turn a division into a
+  multiplication on the other side: `$peak * 5 > $limit * 4` is "more than four fifths of the
+  limit". [until: reviewed 2026-09-20]
 
 ## Splitting a file that got too big
 
