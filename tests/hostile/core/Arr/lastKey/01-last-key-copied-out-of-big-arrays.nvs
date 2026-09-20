@@ -1,0 +1,60 @@
+<?nvs
+// Attack: the last key is read out of very large arrays. One array has a key
+// of a million characters. One array has its end removed over and over. Every
+// step should finish or throw an error, and the runtime must not crash.
+// hostile: timeout-ms 60000
+
+// 1. The last key of a list of 400000 entries.
+array<int> $long = [];
+int $i = 0;
+while ($i < 400000) {
+    $long[] = $i;
+    $i = $i + 1;
+}
+echo 'step 1: ', Core\Arr::lastKey($long) ?? 'none', '|', "\n";
+
+// 2. That same list is read 100 times, so the walk to its end is repeated.
+uint $steps = 0;
+int $r = 0;
+while ($r < 100) {
+    $steps = $steps + Core\Str::length(Core\Arr::lastKey($long) ?? '');
+    $r = $r + 1;
+}
+echo 'step 2: ', $steps, '|', "\n";
+
+// 3. A last key of one million characters, copied and dropped 1000 times.
+array<int> $wide = [];
+$wide[Core\Str::repeat('k', 1000000)] = 1;
+uint $seen = 0;
+int $w = 0;
+while ($w < 1000) {
+    $seen = $seen + Core\Str::length(Core\Arr::lastKey($wide) ?? '');
+    $w = $w + 1;
+}
+echo 'step 3: ', $seen, '|', "\n";
+
+// 4. A key that contains a zero byte in the middle.
+array<int> $odd = [];
+$odd["a\0b"] = 1;
+echo 'step 4: ', Core\Str::length(Core\Arr::lastKey($odd) ?? ''), '|', "\n";
+
+// 5. The end entry is removed 2000 times, and the last key is read after every
+//    removal.
+array<int> $shrinking = [];
+int $n = 0;
+while ($n < 2000) {
+    $shrinking[] = $n;
+    $n = $n + 1;
+}
+uint $read = 0;
+while (!Core\Arr::isEmpty($shrinking)) {
+    $read = $read + Core\Str::length(Core\Arr::lastKey($shrinking) ?? '');
+    $shrinking = Core\Arr::withoutLast($shrinking);
+}
+echo 'step 5: ', $read, '|', "\n";
+
+// 6. An array with no entries has no last key.
+array<int> $empty = [];
+echo 'step 6: ', Core\Arr::lastKey($empty) ?? 'none', '|', "\n";
+
+echo 'the runtime is still standing', "\n";

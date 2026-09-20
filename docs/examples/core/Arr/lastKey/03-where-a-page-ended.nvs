@@ -1,0 +1,17 @@
+<?nvs
+// Reports where a page of records ended, so the next request can carry on from
+// there. The records are stored under their id, in the order the database gave
+// them, so the last key is the id to continue after.
+
+array<string> $page = [
+    '1041' => 'Ada Lovelace',
+    '1042' => 'Grace Hopper',
+    '1043' => 'Alan Turing',
+];
+
+?string $cursor = Core\Arr::lastKey($page);
+if ($cursor == null) {
+    echo "there are no records left\n";
+} else {
+    echo 'continue after id ', $cursor, ' (', $page[$cursor], ')', "\n";
+}

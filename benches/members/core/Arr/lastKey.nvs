@@ -1,0 +1,34 @@
+<?nvs
+// Reads the last key of a page of records, as a program does when it remembers
+// where the page ended.
+// bench: iterations 400000
+// bench: calls 0
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $first = ['1041' => 'Ada', '1042' => 'Grace'];
+        array<string> $second = ['1043' => 'Alan', '1044' => 'Ida'];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Last round's total decides which of the two pages this round
+            // reads, so no round can be reused.
+            ?string $cursor = null;
+            if ($total % 2 == 0) {
+                $cursor = Core\Arr::lastKey($first);
+            } else {
+                $cursor = Core\Arr::lastKey($second);
+            }
+            if ($cursor == '1042') {
+                $total = $total + 1;
+            } else {
+                $total = $total + 2;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";
