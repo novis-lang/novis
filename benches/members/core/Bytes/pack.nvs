@@ -1,0 +1,21 @@
+<?nvs
+// Measures writing a five-byte header, as a program does before it sends a
+// message over a socket.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The length written in one round comes from the round before it, so
+            // no round can be left out. Every result is five bytes long.
+            $total = $total + Core\Bytes::length(Core\Bytes::pack("NC", $total % 1000, 4));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

@@ -1,0 +1,26 @@
+<?nvs
+// Shows how to write text into a field of a fixed width. The number after the
+// letter is the width of the field in bytes.
+
+// `a` fills the rest of the field with zero bytes. "Hi" in a field of four
+// bytes prints "48690000".
+echo Core\Encoding::toHex(Core\Bytes::pack("a4", "Hi")), "\n";
+
+// `A` fills the rest with spaces. This prints "48692020".
+echo Core\Encoding::toHex(Core\Bytes::pack("A4", "Hi")), "\n";
+
+// `Z` keeps one byte of the field for a zero byte of its own, so "Hi" needs
+// three bytes here. This prints "486900".
+echo Core\Encoding::toHex(Core\Bytes::pack("Z3", "Hi")), "\n";
+
+// `x` writes one zero byte and takes no value. A count after it writes that
+// many. This prints "0107000000".
+echo Core\Encoding::toHex(Core\Bytes::pack("CCx3", 1, 7)), "\n";
+
+// Text longer than its field throws an error. "Hi" needs two bytes, and this
+// field holds one.
+try {
+    echo Core\Encoding::toHex(Core\Bytes::pack("a1", "Hi")), "\n";
+} catch (Throwable $e) {
+    echo "the field is too small for \"Hi\"\n";
+}

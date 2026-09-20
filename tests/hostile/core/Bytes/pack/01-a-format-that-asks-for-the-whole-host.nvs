@@ -1,0 +1,53 @@
+<?nvs
+// Attack: a format asks for more memory than the host has, and for counts and
+// values that do not match it. Every step should stop with an error, and the
+// last one should stop the program at its memory limit.
+// hostile: timeout-ms 60000
+// hostile: ends-early
+
+// 1. A count with more digits than any number the machine holds. This must stop
+//    with an error.
+try {
+    echo Core\Bytes::length(Core\Bytes::pack('x99999999999999999999999999')), "\n";
+} catch (Throwable $e) {
+    echo "step 1 stopped\n";
+}
+
+// 2. Two values for a format with one field. The extra value must stop the
+//    call, not be dropped.
+try {
+    echo Core\Bytes::length(Core\Bytes::pack('N', 1, 2)), "\n";
+} catch (Throwable $e) {
+    echo "step 2 stopped\n";
+}
+
+// 3. Three fields and one value. The missing values must stop the call, not be
+//    written as zero.
+try {
+    echo Core\Bytes::length(Core\Bytes::pack('NNN', 1)), "\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. Two hundred thousand headers of fifteen bytes. Every result must be freed
+//    while the loop runs. This prints 3000000.
+uint $i = 0;
+uint $total = 0;
+while ($i < 200000) {
+    $total = $total + Core\Bytes::length(Core\Bytes::pack('NnCa8', $i, 8080, 4, 'abcdefgh'));
+    $i = $i + 1;
+}
+echo $total, "\n";
+
+// 5. Fifty megabytes of padding, four times over. Each buffer must be freed
+//    before the next one is built, or the fourth one reaches the memory limit.
+uint $round = 0;
+while ($round < 4) {
+    echo Core\Bytes::length(Core\Bytes::pack('a50000000', 'x')), "\n";
+    $round = $round + 1;
+}
+
+// 6. A field four billion bytes wide. That is more than the request may hold,
+//    so the program stops here at its memory limit.
+echo Core\Bytes::length(Core\Bytes::pack('a4294967295', 'x')), "\n";
+echo "never reached\n";
