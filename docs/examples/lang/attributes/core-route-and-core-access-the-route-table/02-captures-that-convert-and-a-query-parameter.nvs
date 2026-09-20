@@ -1,0 +1,33 @@
+<?nvs
+// Shows the three kinds of capture, and a parameter that comes from the query
+// string. The type you declare for a parameter is what its part of the path
+// converts to.
+
+enum Lang { En, De }
+
+class Docs {
+    // `{page?}` matches one segment or none, so `$page` needs a default value.
+    // `#[Core\Query]` fills `$q` from the query string instead of the path.
+    #[Core\Route(path: "/{lang}/docs/{page?}", method: Core\Http\Method::Get, name: "docs")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function page(Lang $lang, uint $page = 1, #[Core\Query] string $q = ""): string {
+        return "docs";
+    }
+
+    // `{path...}` matches everything that is left, the `/` characters included.
+    #[Core\Route(path: "/files/{path...}", method: Core\Http\Method::Get, name: "file")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function file(string $path): string {
+        return "file";
+    }
+}
+
+// A value you leave out drops its segment. This prints `/De/docs`.
+echo Core\Router::url("docs", ["lang" => Lang::De]), "\n";
+
+// A key that is not a capture becomes the query string, and the space in `a b`
+// is encoded. This prints `/En/docs/3?q=a+b`.
+echo Core\Router::url("docs", ["lang" => Lang::En, "page" => 3, "q" => "a b"]), "\n";
+
+// This prints `/files/a/b%20c.txt`.
+echo Core\Router::url("file", ["path" => "a/b c.txt"]), "\n";

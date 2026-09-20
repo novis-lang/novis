@@ -1,0 +1,56 @@
+--TEST--
+A route with no `#[Access]`, an `#[Access]` guarding no route, and a link whose name or `$params` the compiled table cannot answer are each refused where they are written (`rule:attributes/access-is-a-required-sibling` and `rule:routing/link-name-and-params-are-checked`)
+--FILE--
+<?nvs
+// covers: lang:attributes/core-route-and-core-access-the-route-table
+// `rule:attributes/access-is-a-required-sibling`: a route and its access decision are required
+// siblings in both directions, and `rule:routing/link-name-and-params-are-checked` checks a link's
+// name and its `$params` against the compiled table. The accepted route is
+// written first, so a build that stopped accepting a well-formed pair fails
+// here rather than as a missing refusal. The four after it are the four ways
+// the pair and the link go wrong, and each is reported where it is written.
+class Users {
+    #[Core\Route(path: "/users", method: Core\Http\Method::Get, name: "Users::index")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function index(): string { return "users"; }
+
+    // A route with no access decision. An omission gets no default, because a
+    // route open by decision and one open by oversight would then read alike.
+    #[Core\Route(path: "/users/{id}", method: Core\Http\Method::Get, name: "Users::show")]
+    public function show(uint $id): string { return "user"; }
+
+    // The same requirement from the other side: the table is the only thing
+    // that ever reads a decision, so one away from a route guards nothing.
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function helper(): string { return "helper"; }
+}
+
+// A name no `#[Route]` claims.
+echo Core\Router::url("Users::missing", []), "\n";
+
+// A key that is neither a capture nor a `#[Query]` parameter, which would
+// otherwise ship as a query parameter nobody reads.
+echo Core\Router::url("Users::index", ["page" => 2]), "\n";
+
+// A `$params` leaving a required capture unfilled. Only a `{name?}` may be
+// left out, because its whole segment is dropped with it.
+echo Core\Router::url("Users::show", []), "\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0762]: the route `Users::show` declares no access decision
+   --> case.nvs:16:7
+%A
+error[E0788]: this `#[Access]` guards no route
+   --> case.nvs:21:7
+%A
+error[E0754]: `Core\Router::url` names the route `Users::missing`, and no `#[Route]` claims it
+   --> case.nvs:26:23
+%A
+error[E0759]: `Users::index`'s path `/users` has no `page`, and `Users::index` declares no `#[Query]` parameter of that name
+   --> case.nvs:30:6
+%A
+error[E0755]: `Users::show`'s path `/users/{id}` captures `id`, and this `$params` supplies no keys at all
+   --> case.nvs:34:6
+%A
+error: aborting due to 5 errors

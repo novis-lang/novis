@@ -1,0 +1,27 @@
+<?nvs
+// Shows how to declare a route and build a link to it. `#[Core\Route]` gives a
+// method a path, and `#[Core\Access]` says who may reach it. Every route needs
+// both. `Core\Router::url` builds the link for a route from its name.
+
+class Users {
+    #[Core\Route(path: "/users", method: Core\Http\Method::Get, name: "Users::index")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function index(): string {
+        return "all users";
+    }
+
+    // `{id}` is a capture. It fills one segment of the path, and the parameter
+    // `$id` says the value there is a whole number.
+    #[Core\Route(path: "/users/{id}", method: Core\Http\Method::Get, name: "Users::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(uint $id): string {
+        return "user " . $id;
+    }
+}
+
+// This prints `/users` and then `/users/7`.
+echo Core\Router::url("Users::index", []), "\n";
+echo Core\Router::url("Users::show", ["id" => 7]), "\n";
+
+// A route method is an ordinary method. You can call it yourself.
+echo (new Users())->show(7), "\n";

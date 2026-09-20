@@ -1,0 +1,72 @@
+--TEST--
+Every `#[Core\Route]` in the program is collected into one compiled table, and `Core\Router::url` is answered from that table for a literal segment, a capture, an enum, an absent trailing segment, a catch-all and a query key alike (`rule:routing/routes-are-compiled-not-registered` and `rule:routing/link-name-and-params-are-checked`)
+--FILE--
+<?nvs
+// covers: lang:attributes/core-route-and-core-access-the-route-table
+// `rule:routing/routes-are-compiled-not-registered`: the table is built while the program
+// compiles and `Core\Router::url` reverses it by name, rather than reaching the
+// method the name belongs to. This case asks one link of every capture kind and
+// prints each whole, so a table that lost a row, reordered a segment or stopped
+// encoding one fails here rather than answering plausibly on the lines beside it.
+enum Lang { En, De }
+
+class Users {
+    // `rule:routing/precedence-is-structural`: a literal segment beats a capture, so these
+    // two coexist in either declaration order.
+    #[Core\Route(path: "/users/{id}", method: Core\Http\Method::Get, name: "Users::show")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(uint $id): string { return "user " . $id; }
+
+    #[Core\Route(path: "/users/new", method: Core\Http\Method::Get, name: "Users::new")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function create(): string { return "new"; }
+
+    // Two `#[Route]`s on one method are two routes served by one
+    // implementation, and the one `#[Access]` covers both of them.
+    #[Core\Route(path: "/users", method: Core\Http\Method::Get, name: "Users::index")]
+    #[Core\Route(path: "/users", method: Core\Http\Method::Post, name: "Users::store")]
+    #[Core\Access(allow: Core\Audience::Public, csrf: false)]
+    public function both(): string { return "both"; }
+}
+
+class Docs {
+    #[Core\Route(path: "/{lang}/docs/{page?}", method: Core\Http\Method::Get, name: "docs")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function page(Lang $lang, uint $page = 1, #[Core\Query] string $q = ""): string { return "docs"; }
+
+    #[Core\Route(path: "/files/{path...}", method: Core\Http\Method::Get, name: "tree")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function tree(string $path): string { return $path; }
+
+    #[Core\Route(path: "/file/{name}", method: Core\Http\Method::Get, name: "file")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function file(string $name): string { return $name; }
+}
+
+echo "show: ", Core\Router::url("Users::show", ["id" => 7]), "\n";
+echo "new: ", Core\Router::url("Users::new", []), "\n";
+echo "index: ", Core\Router::url("Users::index", []), "\n";
+echo "store: ", Core\Router::url("Users::store", []), "\n";
+
+// `rule:routing/an-enum-capture-is-spelled-by-its-backing-value-or-its-case-name`: a case with
+// nothing written after it is spelled by its own name, which is the spelling the
+// route matches on. `rule:routing/a-trailing-segment-may-be-absent`: an omitted `{page?}`
+// drops its whole segment, and a key that is no capture becomes the query string.
+echo "docs: ", Core\Router::url("docs", ["lang" => Lang::De]), "\n";
+echo "page: ", Core\Router::url("docs", ["lang" => Lang::En, "page" => 3, "q" => "a b"]), "\n";
+
+// `rule:routing/link-name-and-params-are-checked`: each value is percent-encoded into its own
+// segment, so the `/`s in a `{name}` value are encoded and a link can never grow a
+// segment the table would not claim. A `{name...}` keeps the `/`s that are its own.
+string $traversal = "../../etc/passwd";
+echo "one: ", Core\Router::url("file", ["name" => $traversal]), "\n";
+echo "rest: ", Core\Router::url("tree", ["path" => $traversal]), "\n";
+--EXPECT--
+show: /users/7
+new: /users/new
+index: /users
+store: /users
+docs: /De/docs
+page: /En/docs/3?q=a+b
+one: /file/..%2F..%2Fetc%2Fpasswd
+rest: /files/../../etc/passwd

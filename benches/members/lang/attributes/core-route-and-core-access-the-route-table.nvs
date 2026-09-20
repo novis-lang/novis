@@ -1,0 +1,31 @@
+<?nvs
+// Measures building one link from the route table, which a page does for every
+// link it renders.
+// bench: iterations 200000
+// bench: calls 0
+
+class Products {
+    #[Core\Route(path: "/products/{sku}", method: Core\Http\Method::Get, name: "product")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function show(string $sku): string {
+        return $sku;
+    }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $skus = ["cup-01", "plate-02", "bowl-03"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the product linked this round is picked with the length
+            // counted in the round before.
+            string $url = Core\Router::url("product", ["sku" => $skus[$total % 3]]);
+            $total = $total + Core\Str::length($url);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

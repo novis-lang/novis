@@ -1,0 +1,81 @@
+<?nvs
+// Attack: links are built from values that try to leave the route they belong
+// to. A capture fills one segment, so every character that would end that
+// segment or start a query string has to be encoded. The program should run to
+// its last line.
+
+class Files
+{
+    #[Core\Route(path: "/files/{name}", method: Core\Http\Method::Get, name: "file")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function one(string $name): string
+    {
+        return $name;
+    }
+
+    #[Core\Route(path: "/admin/{area}/{page}", method: Core\Http\Method::Get, name: "admin")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function admin(string $area, uint $page): string
+    {
+        return $area;
+    }
+
+    #[Core\Route(path: "/search", method: Core\Http\Method::Get, name: "search")]
+    #[Core\Access(allow: Core\Audience::Public)]
+    public function search(#[Core\Query] string $q = ''): string
+    {
+        return $q;
+    }
+}
+
+class Attack
+{
+    // Every link has to start with the route's own literal segments. A value
+    // that escaped its segment would show up here.
+    public static function inside(string $url, string $prefix): uint
+    {
+        if (Core\Str::startsWith($url, $prefix)) {
+            return 1;
+        }
+        return 0;
+    }
+
+    public static function run(uint $rounds): uint
+    {
+        // 1. Segment separators and the two steps up a directory tree.
+        array<string> $values = [
+            '../../etc/passwd',
+            '/admin/users/1',
+            'a/b/c',
+            // 2. The characters that start a query string, a fragment and a
+            //    second parameter.
+            'a?b#c&d=e',
+            // 3. Whitespace, a line ending and characters outside ASCII.
+            "a b\tc\nd",
+            'ünïcode-ページ',
+            // 4. A value with nothing in it.
+            '',
+        ];
+
+        uint $safe = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the value used this round is picked with the count from
+            // the round before.
+            string $value = $values[$safe % 7];
+            $safe = $safe + Attack::inside(Core\Router::url('file', ['name' => $value]), '/files/');
+            $safe = $safe + Attack::inside(Core\Router::url('admin', ['area' => $value, 'page' => 2]), '/admin/');
+            $safe = $safe + Attack::inside(Core\Router::url('search', ['q' => $value]), '/search');
+            $i = $i + 1;
+        }
+        return $safe;
+    }
+}
+
+// 5. A single value far longer than any real one, so one segment is as large
+//    as the program can make it.
+string $huge = Core\Str::repeat('../', 40000);
+echo Core\Str::length(Core\Router::url('file', ['name' => $huge])), "\n";
+
+echo Attack::run(50000), "\n";
+echo "still standing\n";
