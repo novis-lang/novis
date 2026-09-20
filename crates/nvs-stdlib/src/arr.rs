@@ -4020,6 +4020,15 @@ nvs_runtime::nvs_helper! {
     /// multiplying an index: a range whose next step would leave `int` stops
     /// instead of wrapping, which is `rule:types/arithmetic`'s rule applied to a loop
     /// this member owns rather than to arithmetic a program wrote.
+    ///
+    /// **The length is the bounds', so `[limits] memory` is what bounds it**,
+    /// and the loop asks [`nvs_runtime::affordable`] per entry for the reason
+    /// `nvs_runtime::sequence::drain` does: a native loop passes no statement
+    /// boundary and calls no member, so nothing between two appends would
+    /// otherwise read the balance and a wide enough span would hold the host's
+    /// memory rather than the request's ceiling — which
+    /// `rule:programs/memory-priority` does not permit. The refusal is the
+    /// `FATAL` `rule:errors/on-limit` gives every resource limit.
     fn nvs_core_arr_range(_ctx, args: [3]) {
         let start = integer(&args[0], "range", "the start")?;
         let end = integer(&args[1], "range", "the end")?;
@@ -4033,6 +4042,11 @@ nvs_runtime::nvs_helper! {
         let mut out = NvsArray::new();
         let mut cursor = start;
         loop {
+            // Asked in front of the append, so the entry that would cross the
+            // ceiling is never stored: the balance already carries every entry
+            // this loop has appended, and this is the only thing in it that
+            // reads that balance.
+            nvs_runtime::affordable(Some(size_of::<Value>()), r"Core\Arr::range")?;
             out.append(Value::int(cursor));
             let next = if start <= end {
                 match cursor.checked_add(step) {
@@ -6959,6 +6973,7 @@ mod tests {
 
     /// Every row verified against PHP 8.5's own `range`, which is what the
     /// spec's **Replaces** column promises this subsumes.
+    // covers: Core\Arr::range
     #[test]
     fn range_matches_phps_ascending_descending_and_stepped_forms() {
         assert_eq!(range_of(1, 5, 1), vec![1, 2, 3, 4, 5]);
@@ -6977,6 +6992,7 @@ mod tests {
 
     /// A step of zero or less is `THROWN`, not a hang and not a silent
     /// reversal — PHP raises `ValueError` for both.
+    // covers: Core\Arr::range
     #[test]
     fn a_step_of_zero_or_less_throws() {
         for step in [0, -1] {
@@ -7122,6 +7138,7 @@ mod tests {
 
     /// The cursor stops rather than wrapping when the next step would leave
     /// `int` — `rule:types/arithmetic`'s rule applied to a loop this member owns.
+    // covers: Core\Arr::range
     #[test]
     fn a_range_whose_next_step_would_overflow_stops() {
         assert_eq!(range_of(i64::MAX - 1, i64::MAX, 4), vec![i64::MAX - 1]);
@@ -7503,6 +7520,7 @@ mod tests {
     /// Verified against PHP 8.5's `array_combine`: pairing is by position, the
     /// keys array's own keys are discarded, and an `int` key arrives under its
     /// decimal spelling the way every other key position normalizes it.
+    // covers: Core\Arr::fromKeysAndValues
     #[test]
     fn from_keys_and_values_pairs_by_position_and_normalizes_each_key() {
         let mut keys = NvsArray::new();
@@ -7533,6 +7551,7 @@ mod tests {
 
     /// `rule:core-api/shape-rules` R4: PHP 8 raises a `ValueError` here rather than pairing what
     /// it can, and silently dropping the excess would lose data.
+    // covers: Core\Arr::fromKeysAndValues
     #[test]
     fn two_arrays_of_different_lengths_do_not_combine() {
         let mut keys = NvsArray::new();
@@ -7730,6 +7749,7 @@ mod tests {
     /// Verified against PHP 8.5's `array_fill_keys`, duplicate collapse
     /// included: the keys array contributes its values, each normalized the
     /// way every other key position normalizes one.
+    // covers: Core\Arr::fillKeys
     #[test]
     fn fill_keys_stores_one_value_under_each_distinct_key() {
         let mut keys = NvsArray::new();
@@ -7757,6 +7777,7 @@ mod tests {
     /// A key that is neither an `int` nor a `string` is a throw rather than
     /// PHP's warn-and-skip — `flip`'s and `countBy`'s treatment of the
     /// identical situation.
+    // covers: Core\Arr::fillKeys
     #[test]
     fn filling_under_a_key_that_is_not_a_key_throws() {
         let mut keys = NvsArray::new();

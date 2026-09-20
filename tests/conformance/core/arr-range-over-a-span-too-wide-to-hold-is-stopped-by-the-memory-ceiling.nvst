@@ -1,0 +1,27 @@
+--TEST--
+`Core\Arr::range` over a span wider than `[limits] memory` is stopped inside the loop, so the list it was building never reaches the program — `rule:programs/memory-priority`, `rule:errors/on-limit`
+--FILE--
+<?nvs
+// The loop is native: between two entries the request passes no statement
+// boundary and calls no member, so the ask `crates/nvs-stdlib/src/arr.rs` makes
+// per entry is the only thing in the loop that reads the balance. The length is
+// the bounds', and a program that arrived with a request writes those.
+
+// Four million entries is sixty-four megabytes, four times the ceiling below,
+// so the bound is unreachable in a run this case passes and a red case fails
+// rather than taking the suite's host with it.
+
+// `--EXPECT--` is exact, so this line being the whole of stdout is what asserts
+// the loop was stopped where it grew: the `echo` under it is reached only by a
+// call that came back with a list.
+echo "before\n";
+array<int> $everything = Core\Arr::range(1, 4000000);
+echo "kept ", Core\Arr::count($everything), "\n";
+--FILE nvs.toml--
+# The ceiling the loop above crosses, and nothing else.
+[limits]
+memory = "16M"
+--EXPECT--
+before
+--EXPECTF-ERROR--
+FATAL: the request exceeded its memory limit — %d bytes held against a ceiling of 16777216, of which 1048576 is reserved for the limit handler
