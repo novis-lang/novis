@@ -1,0 +1,22 @@
+<?nvs
+// Measures reading a number out of text, as a program does for every amount it
+// reads from a file, a database row or a request.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $texts = ["7", "48", "913"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Chained: the text read this round is chosen by the count of the
+            // rounds before it.
+            $total = $total + (Core\BigInt::parse($texts[$total % 3])->sign() as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

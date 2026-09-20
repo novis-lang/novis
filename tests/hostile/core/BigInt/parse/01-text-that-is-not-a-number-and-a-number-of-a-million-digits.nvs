@@ -1,0 +1,52 @@
+<?nvs
+// Attack: `parse` is handed text that is not a number, a base it does not
+// read, and a number of a million digits. Every one of these should throw an
+// error or return the exact number, and the program should run to its last
+// line.
+// hostile: timeout-ms 30000
+
+// 1. Text that is not a number in base 10. Each one throws a `ParseError`.
+array<string> $bad = ['', '-', '+', ' 12', '12 ', '1_000', '0x1f', '12.0', 'ff', '--7', '7-'];
+foreach ($bad as string $text) {
+    try {
+        var $number = Core\BigInt::parse($text);
+        echo 'read: ', $number, "\n";
+    } catch (ParseError $badText) {
+        echo "refused\n";
+    }
+}
+
+// 2. A base outside the 2 to 36 `parse` reads. Each one throws a `LogicError`.
+array<uint> $bases = [0, 1, 37, 1000, 4294967296];
+foreach ($bases as uint $base) {
+    try {
+        var $inBase = Core\BigInt::parse('10', { radix: $base });
+        echo 'read in base ', $base, ': ', $inBase, "\n";
+    } catch (LogicError $badBase) {
+        echo "refused\n";
+    }
+}
+
+// 3. The same text is refused two hundred thousand times. The memory the
+//    program holds must not grow with the rounds.
+uint $round = 0;
+uint $refusals = 0;
+while ($round < 200000) {
+    try {
+        Core\BigInt::parse('not a number');
+    } catch (ParseError $refusal) {
+        $refusals = $refusals + 1;
+    }
+    $round = $round + 1;
+}
+echo $refusals, "\n";
+
+// 4. A number of a million digits is read, then written back. The two texts
+//    must be the same length.
+string $huge = Core\Str::repeat('9', 1000000);
+var $read = Core\BigInt::parse($huge);
+echo Core\Str::length($read->toString()), "\n";
+
+// 5. The same million digits are read as one hexadecimal number, which is a
+//    number four million bits wide.
+echo Core\BigInt::parse($huge, { radix: 16 })->sign(), "\n";
