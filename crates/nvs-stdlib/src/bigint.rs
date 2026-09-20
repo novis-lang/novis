@@ -1482,6 +1482,157 @@ mod tests {
         );
     }
 
+    /// `toString` renders the digits `parse` reads back and keeps the sign at
+    /// every width, counted over a sign sweep rather than read off a line, so a
+    /// member that lost the top word of a wide value, or the sign of a negative
+    /// one, goes on rendering plausibly over the small positive rows a reader
+    /// checks first. The round trip is asserted beside the text itself, because
+    /// the contract this member carries is that it is `parse`'s inverse:
+    /// digits alone, no separator, and nothing shortened.
+    // covers: Core\BigInt::toString
+    #[test]
+    fn to_string_renders_the_digits_parse_reads_back_and_keeps_the_sign() {
+        const SWEEP: [&str; 7] = [
+            "0",
+            "7",
+            "-7",
+            "9223372036854775807",
+            "-9223372036854775808",
+            "170141183460469231731687303715884105728",
+            "-170141183460469231731687303715884105728",
+        ];
+
+        let mut ctx = Ctx::buffered();
+        let mut written = 0usize;
+        let mut read_back = 0usize;
+        for source in SWEEP {
+            let value = call(
+                nvs_core_bigint_parse,
+                &mut ctx,
+                &[text(source), Value::uint(DEFAULT_RADIX)],
+            )
+            .expect("every row is a sign and digits");
+            let answer =
+                call(nvs_core_bigint_to_string, &mut ctx, &[value]).expect("every value renders");
+            let digits = answer.as_text().expect("toString answers text");
+            if digits == source {
+                written += 1;
+            }
+            let round = read(
+                call(
+                    nvs_core_bigint_parse,
+                    &mut ctx,
+                    &[text(digits), Value::uint(DEFAULT_RADIX)],
+                )
+                .expect("its own text reads back"),
+            );
+            if round == source.parse::<BigInt>().expect("the sweep is decimal") {
+                read_back += 1;
+            }
+        }
+        assert_eq!((written, read_back), (SWEEP.len(), SWEEP.len()));
+    }
+
+    /// `sqrt` answers the floor of the root and never the nearest whole number:
+    /// over a sweep its answer squared is at most the receiver and the next
+    /// number up squared is past it, counted rather than read off a line, so a
+    /// member that rounded is right about every perfect square in the sweep and
+    /// wrong about everything between them. Both sides are asserted because
+    /// either alone passes for a member that answers a neighbour. The refusal
+    /// below zero is named beside them: `num-bigint`'s own `sqrt` panics there,
+    /// so the check in front of it is the only thing between a negative
+    /// receiver and an abort.
+    // covers: Core\BigInt::sqrt
+    #[test]
+    fn sqrt_is_the_floor_of_the_root_and_a_negative_receiver_is_refused() {
+        const SWEEP: [i64; 10] = [0, 1, 2, 3, 8, 9, 15, 16, 1 << 62, i64::MAX];
+
+        let mut ctx = Ctx::buffered();
+        let mut floored = 0usize;
+        let mut bounded = 0usize;
+        for value in SWEEP {
+            let root = read(
+                call(nvs_core_bigint_sqrt, &mut ctx, &[of(value)]).expect("every value has a root"),
+            );
+            if &root * &root <= BigInt::from(value) {
+                floored += 1;
+            }
+            let next = &root + BigInt::from(1);
+            if &next * &next > BigInt::from(value) {
+                bounded += 1;
+            }
+        }
+        assert_eq!((floored, bounded), (SWEEP.len(), SWEEP.len()));
+
+        for value in [-1i64, -9, i64::MIN] {
+            call(nvs_core_bigint_sqrt, &mut ctx, &[of(value)])
+                .expect_err("a negative value has no integer square root");
+        }
+    }
+
+    /// `sub` is `add` of the flipped operand, and swapping its two operands
+    /// flips its answer — the pair of properties that fails first when a member
+    /// subtracts magnitudes and decides the sign afterwards, which is right
+    /// about every row where the larger value comes first. Counted over a sign
+    /// sweep that includes both ends of the `int` range. The width bound is
+    /// asserted beside them, because it is what this module's § *Decision: one
+    /// call may not explode* rests on when it leaves `sub` unchecked: a
+    /// difference is at most one bit wider than its wider operand.
+    // covers: Core\BigInt::sub
+    #[test]
+    fn sub_is_add_of_the_flipped_operand_and_swapping_them_flips_its_answer() {
+        const SWEEP: [(i64, i64); 9] = [
+            (0, 0),
+            (7, 5),
+            (-7, 5),
+            (7, -5),
+            (-7, -5),
+            (i64::MAX, i64::MAX),
+            (i64::MIN, i64::MIN),
+            (i64::MAX, i64::MIN),
+            (i64::MIN, 1),
+        ];
+
+        let mut ctx = Ctx::buffered();
+        let mut subtracted = 0usize;
+        let mut added = 0usize;
+        let mut flipped = 0usize;
+        let mut bounded = 0usize;
+        for (left, right) in SWEEP {
+            let forward = read(
+                call(nvs_core_bigint_sub, &mut ctx, &[of(left), of(right)])
+                    .expect("every pair subtracts"),
+            );
+            let backward = read(
+                call(nvs_core_bigint_sub, &mut ctx, &[of(right), of(left)])
+                    .expect("either order subtracts"),
+            );
+            let negated = call(nvs_core_bigint_neg, &mut ctx, &[of(right)])
+                .expect("every value carries the other sign");
+            let summed = read(
+                call(nvs_core_bigint_add, &mut ctx, &[of(left), negated])
+                    .expect("and adding it is affordable"),
+            );
+            if forward == BigInt::from(left) - BigInt::from(right) {
+                subtracted += 1;
+            }
+            if summed == forward {
+                added += 1;
+            }
+            if backward == -forward.clone() {
+                flipped += 1;
+            }
+            let widest = BigInt::from(left).bits().max(BigInt::from(right).bits());
+            if forward.bits() <= widest + 1 {
+                bounded += 1;
+            }
+        }
+        assert_eq!(
+            (subtracted, added, flipped, bounded),
+            (SWEEP.len(), SWEEP.len(), SWEEP.len(), SWEEP.len())
+        );
+    }
+
     /// `mul` answers the same product in either order and is as wide as its two
     /// operands together, give or take the one bit a carry moves — the shape
     /// every wide multiplication has, and the property that fails first when a
