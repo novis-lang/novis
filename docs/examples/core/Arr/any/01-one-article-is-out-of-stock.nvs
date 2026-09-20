@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to test whether at least one number in a list is zero.
+
+array<int> $stock = [5, 3, 0, 8];
+// The third entry is 0, so this prints "one article is out of stock".
+if (Core\Arr::any($stock, fn(int $left) => $left == 0)) {
+    echo "one article is out of stock", "\n";
+} else {
+    echo "every article is in stock", "\n";
+}
+
+array<int> $refilled = [5, 3, 2, 8];
+// No entry is 0. The result is false, so this prints the other line.
+if (Core\Arr::any($refilled, fn(int $left) => $left == 0)) {
+    echo "one article is out of stock", "\n";
+} else {
+    echo "every article is in stock", "\n";
+}
