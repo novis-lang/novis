@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to read a posted form into the shape the rest of the program
+// wants. Every value in a form is text, and each field the shape names is
+// converted to the type it declares.
+
+type Signup = {name: string, age: int};
+
+// The form as it arrived. The shape does not name `csrf`, so that key is left
+// out of the result.
+array<string> $form = ["name" => "Ada", "age" => "36", "csrf" => "t0ken"];
+
+Signup $signup = Core\Arr::shapeAs<Signup>($form);
+
+// `age` is a whole number now, so you can count with it. This prints
+// `Ada is 36 and will be 37 next year`.
+echo $signup->name, " is ", $signup->age, " and will be ", $signup->age + 1, " next year\n";

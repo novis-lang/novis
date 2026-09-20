@@ -2,6 +2,7 @@
 `Core\Arr::shapeAs` reads an array as the type written at its call site, converting each named field with `as` and leaving every other key behind — `rule:types/arrays`, `rule:types/shape-type` and `rule:types/conversion`
 --FILE--
 <?nvs
+// covers: Core\Arr::shapeAs
 // `rule:types/arrays`'s type-argument door: `shapeAs<T>` is one of the members
 // a call site may write a type argument for, and an inline shape is one of the
 // three things that may be written there.

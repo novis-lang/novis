@@ -8618,6 +8618,7 @@ mod tests {
     /// The whole of what a shape asks for, over three of the wire types a form
     /// or a program hands one: every field the shape names is on the instance,
     /// at the slot its sorted position gives it.
+    // covers: Core\Arr::shapeAs
     #[test]
     fn an_array_hydrates_into_every_field_the_shape_names() {
         let contract = shape_of(&[

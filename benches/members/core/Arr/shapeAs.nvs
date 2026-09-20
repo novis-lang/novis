@@ -1,0 +1,24 @@
+<?nvs
+// Reads a posted form into a shape, as a handler does with every request that
+// carries one.
+// bench: iterations 200000
+// bench: calls 0
+
+type Signup = {name: string, age: int};
+
+class Bench {
+    public static function run(uint $rounds): int {
+        int $carry = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The age comes from last round's result, so no round can be reused.
+            array<mixed> $form = ["name" => "Ada", "age" => $carry % 90];
+            Signup $signup = Core\Arr::shapeAs<Signup>($form);
+            $carry = $carry + $signup->age + 1;
+            $i = $i + 1;
+        }
+        return $carry;
+    }
+}
+
+echo Bench::run(200000), "\n";

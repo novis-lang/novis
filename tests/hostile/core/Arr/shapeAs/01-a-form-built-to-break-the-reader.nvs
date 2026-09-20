@@ -1,0 +1,54 @@
+<?nvs
+// Attack: a program reads arrays that were built to break the reader. They
+// carry far more keys than the shape names, a wrong value in every field, and
+// a value nested far deeper than any form. The last step should stop at the
+// request's memory limit with an error, and must not crash.
+// hostile: timeout-ms 30000
+// hostile: ends-early
+
+type Small = {a: int, b: string};
+
+// 1. A form with 200,000 keys the shape does not name. They are all left out,
+// so this prints `1`.
+array<mixed> $noisy = Core\Arr::overlay(Core\Arr::fill(200000, 'x'), ['a' => 1, 'b' => 'x']);
+Small $small = Core\Arr::shapeAs<Small>($noisy);
+echo $small->a, "\n";
+
+// 2. Every field holds a value its declared type cannot take. The member
+// throws an error that lists all three.
+try {
+    Core\Arr::shapeAs<{one: int, two: int, three: int}>([
+        'one' => 'no',
+        'two' => 'no',
+        'three' => 'no',
+    ]);
+    echo "every bad field accepted\n";
+} catch (ParseError $bad) {
+    echo 'bad fields refused: ', Core\Arr::count($bad->issues), "\n";
+}
+
+// 3. A field declared `string` is given an array nested 10,000 deep. Reading
+// it must not run out of native stack.
+array<mixed> $deep = [];
+uint $d = 0;
+while ($d < 10000) {
+    $deep = [$deep];
+    $d = $d + 1;
+}
+try {
+    Core\Arr::shapeAs<{text: string}>(['text' => $deep]);
+    echo "deep value accepted\n";
+} catch (Throwable $refused) {
+    echo "deep value refused\n";
+}
+
+// 4. One list that doubles in size, read as a list of shapes after every
+// step. That needs more memory than the program has, so it stops here.
+array<mixed> $rows = Core\Arr::fill(1000, ['n' => 1]);
+uint $k = 0;
+while ($k < 40) {
+    $rows = Core\Arr::appendAll($rows, $rows);
+    Core\Arr::shapeAs<array<{n: int}>>($rows);
+    $k = $k + 1;
+}
+echo "grew forever\n";

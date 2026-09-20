@@ -1,0 +1,33 @@
+<?nvs
+// Shows how a search page reads its query parameters. The type here is a
+// class, so the rest of the program works with an object instead of loose
+// text. A class needs `#[Core\Json\Derive]` to be read this way.
+
+#[Core\Json\Derive]
+class Search {
+    public string $term;
+    public int $page;
+    public ?int $maxPrice;
+
+    public function constructor(string $term, int $page, ?int $maxPrice) {
+        $this->term = $term;
+        $this->page = $page;
+        $this->maxPrice = $maxPrice;
+    }
+}
+
+// The query string of `/shoes?term=boots&page=2&maxPrice=80`, split into an
+// array.
+array<string> $query = ["term" => "boots", "page" => "2", "maxPrice" => "80"];
+
+try {
+    Search $search = Core\Arr::shapeAs<Search>($query);
+    // This prints `boots, page 2, under 80`.
+    echo $search->term, ", page ", $search->page, ", under ", $search->maxPrice ?? 0, "\n";
+} catch (ParseError $bad) {
+    // A visitor can type anything into a query string. Every field that did
+    // not fit is one entry here, at its own path.
+    foreach ($bad->issues as ({path: string, message: string}) $issue) {
+        echo $issue->path, ": ", $issue->message, "\n";
+    }
+}
