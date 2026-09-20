@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to read the last value of an array.
+
+array<string> $queue = ['ada', 'grace', 'lin'];
+
+// Last means last in the order the entries were put in. This prints `lin`.
+echo Core\Arr::last($queue) ?? 'nobody', "\n";
+
+// The entry you add to the end is the one you get back. This prints `raj`.
+$queue[] = 'raj';
+echo Core\Arr::last($queue) ?? 'nobody', "\n";
+
+// A map works the same way. The value that was added last is `9`.
+array<int> $scores = ['ada' => 3, 'lin' => 9];
+echo Core\Arr::last($scores) ?? 0, "\n";

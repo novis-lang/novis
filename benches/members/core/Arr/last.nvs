@@ -1,0 +1,32 @@
+<?nvs
+// Reads the last value of a short list, as a program does when it shows the
+// newest reading a sensor sent.
+// bench: iterations 400000
+// bench: calls 0
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<uint> $indoors = [4, 1];
+        array<uint> $outdoors = [3, 2];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Last round's total decides which of the two series this round
+            // reads, so no round can be reused.
+            ?uint $newest = null;
+            if ($total % 2 == 0) {
+                $newest = Core\Arr::last($indoors);
+            } else {
+                $newest = Core\Arr::last($outdoors);
+            }
+            if ($newest != null) {
+                $total = $total + $newest;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";
