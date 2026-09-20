@@ -1,0 +1,65 @@
+<?nvs
+// Attack: `Core\Arr::groupBy` runs a function the program wrote, once per entry,
+// and builds one array per group it names. Each step below gives it a function
+// written to break that walk. Every step should finish, and the last one should
+// stop the program at its memory limit. The runtime must not crash.
+// hostile: timeout-ms 60000
+// hostile: ends-early
+
+class Attack
+{
+    public static uint $depth = 0;
+
+    // Throws instead of naming a group for the entry it is given.
+    public static function refuse(int $n): string
+    {
+        throw new LogicError('no');
+    }
+
+    // Groups a one-entry array with a function that does the same again, until
+    // the runtime stops it.
+    public static function deeper(int $n): string
+    {
+        Attack::$depth = Attack::$depth + 1;
+        return Core\Str::format('%d', Core\Arr::count(
+            Core\Arr::groupBy([$n], fn(int $m) => Attack::deeper($m)),
+        ));
+    }
+}
+
+// 1. The function throws on the third entry. Two groups are already built and
+// are then thrown away. The error is caught, and nothing of it is left behind.
+array<int> $numbers = [4, 11, 7, 20];
+try {
+    array<array<int>> $never = Core\Arr::groupBy($numbers, fn(int $n)
+        => $n < 10 ? 'small' : Attack::refuse($n));
+    echo 'step 1: ', Core\Arr::count($never), "\n";
+} catch (LogicError $refused) {
+    echo 'step 1: threw', "\n";
+}
+
+// 2. The function groups an array of its own, as deeply as it can. The runtime
+// stops it at its recursion limit, and that error is caught.
+try {
+    array<array<int>> $nested = Core\Arr::groupBy([1], fn(int $n) => Attack::deeper($n));
+    echo 'step 2: ', Core\Arr::count($nested), "\n";
+} catch (RecursionError $stopped) {
+    echo 'step 2: stopped after ', Attack::$depth, ' calls', "\n";
+}
+
+// 3. All 400000 entries are named into one single group, so one array holds
+// every entry of the other.
+array<int> $wide = [];
+int $i = 0;
+while ($i < 400000) {
+    $wide[] = $i;
+    $i = $i + 1;
+}
+array<array<int>> $single = Core\Arr::groupBy($wide, fn(int $n) => 'all');
+echo 'step 3: ', Core\Arr::count($single), ' group of ', Core\Arr::count($single['all']), "\n";
+
+// 4. Every entry is named into a group of its own, and each group name is
+// 10000 characters long. The program should stop at its memory limit.
+array<array<int>> $huge = Core\Arr::groupBy($wide, fn(int $n)
+    => Core\Str::repeat('b', 10000) . Core\Str::format('%d', $n));
+echo 'step 4: ', Core\Arr::count($huge), "\n";
