@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to find the key of the entry that holds a value.
+
+array<string> $tags = ["sale", "new", "gift"];
+
+// "new" is the second entry, so its key is 1. This prints 1.
+echo Core\Arr::keyOf($tags, "new"), "\n";
+
+// The key is always text, so you can print it or store it as text.
+string $key = Core\Arr::keyOf($tags, "gift") ?? "";
+echo "gift is stored under ", $key, "\n";

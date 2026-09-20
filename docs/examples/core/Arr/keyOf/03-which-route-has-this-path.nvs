@@ -1,0 +1,12 @@
+<?nvs
+// Shows how a program finds the name of a route when it only has the path.
+
+array<string> $routes = ["home" => "/", "help" => "/help", "shop" => "/products"];
+
+array<string> $visited = ["/help", "/cart"];
+
+foreach ($visited as string $path) {
+    // The name is `null` when no route has this path, so `??` gives the page
+    // a name to log instead.
+    echo $path, " -> ", Core\Arr::keyOf($routes, $path) ?? "unknown", "\n";
+}

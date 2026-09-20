@@ -1,0 +1,35 @@
+<?nvs
+// Finds the name a path is stored under, as a router does when it turns a path
+// back into a route name.
+// bench: iterations 400000
+// bench: allocations 0
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $routes = ["home" => "/", "help" => "/help", "shop" => "/products"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Last round's total decides which path this round looks for, so no
+            // round can be reused. Both searches read every entry.
+            if ($total % 2 == 0) {
+                if (Core\Arr::keyOf($routes, "/products") == null) {
+                    $total = $total + 2;
+                } else {
+                    $total = $total + 1;
+                }
+            } else {
+                if (Core\Arr::keyOf($routes, "/cart") == null) {
+                    $total = $total + 3;
+                } else {
+                    $total = $total + 4;
+                }
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";
