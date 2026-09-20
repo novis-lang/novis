@@ -8140,6 +8140,152 @@ mod tests {
         assert_eq!(status, nvs_runtime::FATAL);
     }
 
+    /// The two ends of [`super::compare_values`]'s total order, and the tie
+    /// rule that makes `min($a) === first(sort($a))` hold: the **first**
+    /// extreme wins, which the float `1.0` ahead of the int `1` makes visible
+    /// — the two compare equal and only one of them is a `float`. An empty
+    /// subject is `null` at both ends, `rule:core-api/shape-rules` R5's
+    /// absence spelling where PHP raises a `ValueError`.
+    // covers: Core\Arr::min, Core\Arr::max
+    #[test]
+    fn min_and_max_take_the_first_extreme_and_an_empty_array_has_neither() {
+        let mut entries = NvsArray::new();
+        entries.append(Value::float(1.0));
+        entries.append(Value::int(3));
+        entries.append(Value::int(1));
+        let subject = Value::array(entries);
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let smallest = call(super::nvs_core_arr_min, &mut ctx, &[subject])
+            .expect("three numbers have an order");
+        assert_eq!(smallest.as_float(), Some(1.0));
+        let largest = call(super::nvs_core_arr_max, &mut ctx, &[subject])
+            .expect("three numbers have an order");
+        assert_eq!(largest.as_int(), Some(3));
+
+        for helper in [
+            super::nvs_core_arr_min as nvs_runtime::NvsFn,
+            super::nvs_core_arr_max,
+        ] {
+            let answer = call(helper, &mut ctx, &[Value::array(NvsArray::new())])
+                .expect("an empty array is not a failure");
+            assert_eq!(answer.tag_byte(), nvs_runtime::Tag::Null as u8);
+        }
+
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the one reference it built above, and the \
+                      member borrowed rather than consumed it"
+        )]
+        unsafe {
+            subject.release();
+        }
+    }
+
+    /// Both halves of the divergence from PHP's `min`, which compares loosely.
+    /// PHP answers `0` for `min([0, "a"])` by casting the `int` to a string;
+    /// here a `string` and an `int` have no order at all and the member
+    /// throws. PHP answers `"50"` for `min(["1e2", "50"])` by reading two
+    /// numeral strings as numbers; here strings compare bytewise, exactly as
+    /// [`super::nvs_core_arr_sort`] does, so `"1e2"` is the smaller text.
+    // covers: Core\Arr::min, Core\Arr::max
+    #[test]
+    fn min_has_no_order_across_tags_and_compares_numeral_strings_bytewise() {
+        let mut mixed = NvsArray::new();
+        mixed.append(Value::int(0));
+        mixed.append(Value::str(NvsStr::new(b"a")));
+        let loose = Value::array(mixed);
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let status = call(super::nvs_core_arr_min, &mut ctx, &[loose])
+            .expect_err("a string and an int have no order between them");
+        assert_eq!(status, nvs_runtime::THROWN);
+
+        let mut numerals = NvsArray::new();
+        numerals.append(Value::str(NvsStr::new(b"1e2")));
+        numerals.append(Value::str(NvsStr::new(b"50")));
+        let texts = Value::array(numerals);
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let smallest =
+            call(super::nvs_core_arr_min, &mut ctx, &[texts]).expect("two strings have an order");
+        assert_eq!(rendered_value(smallest), b"1e2");
+        let largest =
+            call(super::nvs_core_arr_max, &mut ctx, &[texts]).expect("two strings have an order");
+        assert_eq!(rendered_value(largest), b"50");
+
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the two references it built above, and the \
+                      member borrowed rather than consumed them"
+        )]
+        unsafe {
+            loose.release();
+            texts.release();
+        }
+    }
+
+    /// The promotion [`super::Total`] applies entry by entry: two `int`s stay
+    /// an `int`, and one `float` anywhere makes the total a `float`. The empty
+    /// array is the operation's identity, `int` `0`, which is `array_sum`'s
+    /// answer as well.
+    // covers: Core\Arr::sum
+    #[test]
+    fn sum_promotes_entry_by_entry_and_is_zero_over_nothing() {
+        let mut whole = NvsArray::new();
+        whole.append(Value::int(2));
+        whole.append(Value::int(40));
+        let ints = Value::array(whole);
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let total = call(super::nvs_core_arr_sum, &mut ctx, &[ints]).expect("two ints add up");
+        assert_eq!(total.as_int(), Some(42));
+
+        let mut mixed = NvsArray::new();
+        mixed.append(Value::int(2));
+        mixed.append(Value::float(0.5));
+        let numbers = Value::array(mixed);
+
+        let promoted =
+            call(super::nvs_core_arr_sum, &mut ctx, &[numbers]).expect("an int and a float add up");
+        assert_eq!(promoted.as_float(), Some(2.5));
+
+        let empty = call(
+            super::nvs_core_arr_sum,
+            &mut ctx,
+            &[Value::array(NvsArray::new())],
+        )
+        .expect("the empty array is the identity");
+        assert_eq!(empty.as_int(), Some(0));
+
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the two references it built above, and the \
+                      member borrowed rather than consumed them"
+        )]
+        unsafe {
+            ints.release();
+            numbers.release();
+        }
+    }
+
+    /// A total past `int`'s range throws rather than wrapping or becoming a
+    /// `float`, which is `rule:types/arithmetic`'s row verbatim and the
+    /// deliberate divergence from `array_sum`: PHP answers
+    /// `1.8446744073709552E+19` for two copies of its largest `int`.
+    // covers: Core\Arr::sum
+    #[test]
+    fn a_sum_past_ints_range_throws_rather_than_wrapping() {
+        let mut array = NvsArray::new();
+        array.append(Value::int(i64::MAX));
+        array.append(Value::int(1));
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let status = call(super::nvs_core_arr_sum, &mut ctx, &[Value::array(array)])
+            .expect_err("the total leaves `int`'s range");
+        assert_eq!(status, nvs_runtime::THROWN);
+    }
+
     /// The deliberate divergence from `array_pad`, which renumbers the integer
     /// keys and keeps the string ones: PHP answers
     /// `{"0":"z","x":"a","1":"b","y":"c"}` for this subject padded on the left
