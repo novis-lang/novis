@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to build a `bytes` value by repeating a whole buffer. You give the
+// buffer and the number of copies.
+
+// Three copies of "ab", one after another. This prints "ababab".
+echo Core\Bytes::repeat("ab" as bytes, 3) as string, "\n";
+
+// Zero copies give a value with nothing in it. This prints 0.
+echo Core\Bytes::length(Core\Bytes::repeat("ab" as bytes, 0)), "\n";
+
+// A buffer with nothing in it stays empty, for any number of copies. This
+// prints 0.
+echo Core\Bytes::length(Core\Bytes::repeat("" as bytes, 1000)), "\n";

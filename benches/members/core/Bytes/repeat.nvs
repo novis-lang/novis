@@ -1,0 +1,22 @@
+<?nvs
+// Measures building a buffer out of a whole buffer repeated. A program does
+// this when it draws a line under a title or writes a block of a pattern.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        bytes $pattern = "-+" as bytes;
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The result of one round sets the number of copies in the next, so
+            // no round can be left out. The counts run from 8 to 135.
+            $total = $total + Core\Bytes::length(Core\Bytes::repeat($pattern, 8 + ($total % 128)));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

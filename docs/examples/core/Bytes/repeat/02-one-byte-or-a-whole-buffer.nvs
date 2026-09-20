@@ -1,0 +1,14 @@
+<?nvs
+// Shows the two ways to build a buffer out of something repeated. One repeats
+// a single byte, the other repeats a buffer of any length.
+
+// `Core\Bytes::fill` writes the same byte every time. 45 is the letter "-", so
+// this prints "-----".
+echo Core\Bytes::fill(5, 45) as string, "\n";
+
+// `Core\Bytes::repeat` writes the whole buffer every time. This prints
+// "-+-+-+-+-+".
+echo Core\Bytes::repeat("-+" as bytes, 5) as string, "\n";
+
+// The result has one copy for each round. Ten bytes of two, so this prints 10.
+echo Core\Bytes::length(Core\Bytes::repeat("-+" as bytes, 5)), "\n";
