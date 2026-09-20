@@ -97,6 +97,9 @@ files = [
 
 modules = [
   "docs/reference/lang/90-attributes.md",
+  # The recursive-descent parser: the machinery every production shares, and the four modules the
+  # grammar itself lives in.
+  "crates/nvs-syntax/src/parser/mod.rs",
 ]
 
 rules = ["testing/feature-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
