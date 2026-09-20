@@ -1,0 +1,60 @@
+<?nvs
+// Attack: two values of 20 million bytes that are the same everywhere but the
+// last byte are compared. The comparison has to read both values to the end,
+// and must still give the right answer. The program must keep running and must
+// not run out of memory.
+// hostile: timeout-ms 20000
+
+class Probe
+{
+    // Returns 1 when the two values are ordered the same way whichever side
+    // they are given on, and 0 when they are not.
+    public static function agrees(bytes $a, bytes $b): uint
+    {
+        int $forward = Core\Bytes::compare($a, $b);
+        int $backward = Core\Bytes::compare($b, $a);
+        return ($forward + $backward == 0 ? 1 : 0) as uint;
+    }
+}
+
+bytes $empty = '' as bytes;
+bytes $one = Core\Encoding::fromHex('00');
+
+// 1. The smallest values there are. An empty value is the same as an empty
+//    value, and comes before every other value. This prints 0, -1 and 1.
+echo Core\Bytes::compare($empty, $empty), "\n";
+echo Core\Bytes::compare($empty, $one), "\n";
+echo Core\Bytes::compare($one, $empty), "\n";
+
+// 2. Two values of 20 million bytes with a different last byte. This prints
+//    -1 and then 1.
+bytes $head = Core\Bytes::fill(19999999, 97);
+bytes $low = Core\Bytes::join([$head, Core\Encoding::fromHex('00')]);
+bytes $high = Core\Bytes::join([$head, Core\Encoding::fromHex('ff')]);
+echo Core\Bytes::compare($low, $high), "\n";
+echo Core\Bytes::compare($high, $low), "\n";
+
+// 3. The order of a pair must be the same read from either side. This is
+//    checked for 100000 pairs, so it prints 100000.
+uint $agreed = 0;
+uint $i = 0;
+while ($i < 100000) {
+    bytes $left = Core\Bytes::join([$one, Core\Bytes::fill($i % 17, 65)]);
+    bytes $right = Core\Bytes::join([$one, Core\Bytes::fill(($i * 7) % 17, 66)]);
+    $agreed = $agreed + Probe::agrees($left, $right);
+    $i = $i + 1;
+}
+echo $agreed, "\n";
+
+// 4. Two values of 100000 bytes that are the same are compared 2000 times.
+//    Every one of those comparisons has to read both values to the end. Every
+//    answer is 0, so this prints 0.
+bytes $same = Core\Bytes::fill(100000, 122);
+bytes $twin = Core\Bytes::fill(100000, 122);
+int $total = 0;
+$i = 0;
+while ($i < 2000) {
+    $total = $total + Core\Bytes::compare($same, $twin);
+    $i = $i + 1;
+}
+echo $total, "\n";

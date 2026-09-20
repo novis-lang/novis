@@ -1,0 +1,31 @@
+<?nvs
+// Shows how a program picks the records one server is responsible for. Each
+// record has a key made of bytes, and a server holds the keys from its start
+// up to, but not including, its end.
+
+class Range {
+    // Returns true when $key is at or after $start and before $end.
+    public static function holds(bytes $key, bytes $start, bytes $end): bool {
+        return Core\Bytes::compare($key, $start) >= 0
+            && Core\Bytes::compare($key, $end) < 0;
+    }
+}
+
+bytes $start = Core\Encoding::fromHex("40");
+bytes $end = Core\Encoding::fromHex("80");
+
+array<bytes> $keys = [
+    Core\Encoding::fromHex("3fffffff"),
+    Core\Encoding::fromHex("40000000"),
+    Core\Encoding::fromHex("6a1b2c3d"),
+    Core\Encoding::fromHex("80000000"),
+];
+
+// The first key is too small and the last one is too large, so this prints 2.
+uint $held = 0;
+foreach ($keys as bytes $key) {
+    if (Range::holds($key, $start, $end)) {
+        $held = $held + 1;
+    }
+}
+echo $held, "\n";

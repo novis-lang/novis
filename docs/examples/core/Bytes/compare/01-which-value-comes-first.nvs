@@ -1,0 +1,14 @@
+<?nvs
+// Shows the three results of comparing two `bytes` values.
+
+bytes $apple = "apple" as bytes;
+bytes $banana = "banana" as bytes;
+
+// "apple" comes before "banana", so this prints -1.
+echo Core\Bytes::compare($apple, $banana), "\n";
+
+// The same two values the other way round. This prints 1.
+echo Core\Bytes::compare($banana, $apple), "\n";
+
+// Two values with the same bytes. This prints 0.
+echo Core\Bytes::compare($apple, "apple" as bytes), "\n";
