@@ -6626,6 +6626,25 @@ mod tests {
         out
     }
 
+    /// How many entries a result has, for a case whose values have several
+    /// tags and so cannot go through [`entries_of`].
+    fn length_of(result: Value) -> usize {
+        #[expect(
+            unsafe_code,
+            reason = "the helper returned one fresh reference, which the handle \
+                      takes over and releases on drop"
+        )]
+        let array =
+            unsafe { NvsArray::from_raw(result.array_ptr().expect("the member returns an array")) };
+        let mut count = 0usize;
+        let mut from = 0usize;
+        while let Some(slot) = array.next_slot(from) {
+            from = slot + 1;
+            count += 1;
+        }
+        count
+    }
+
     /// [`entries_of`] one level down: every value of `result` is itself an
     /// array, and this reads each of them the same way.
     fn maps_of(result: Value) -> Vec<(Vec<u8>, Entries)> {
@@ -7832,6 +7851,90 @@ mod tests {
         }
     }
 
+    /// The same question the test above asks, with the other answer kept:
+    /// `intersect` keeps the entries `diff` drops, under their own keys and in
+    /// `$a`'s order. The subject is the one that test uses, so the two results
+    /// together are the whole of `$a` — the text `"3"` is not kept by the
+    /// number 3 on either side.
+    // covers: Core\Arr::intersect
+    #[test]
+    fn intersect_keeps_what_diff_drops_under_the_same_identity() {
+        let mut entries = NvsArray::new();
+        entries.set(NvsStr::new(b"one"), Value::str(NvsStr::new(b"1")));
+        entries.set(NvsStr::new(b"two"), Value::str(NvsStr::new(b"2")));
+        entries.set(NvsStr::new(b"three"), Value::str(NvsStr::new(b"3")));
+        let a = Value::array(entries);
+
+        let mut other = NvsArray::new();
+        other.append(Value::str(NvsStr::new(b"2")));
+        other.append(Value::int(3));
+        let b = Value::array(other);
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let kept = call(
+            super::nvs_core_arr_intersect,
+            &mut ctx,
+            &[a, b, Value::int(0), Value::null(), Value::null()],
+        )
+        .expect("two arrays and the default options are what intersect takes");
+        assert_eq!(entries_of(kept), vec![(b"two".to_vec(), b"2".to_vec())]);
+
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the two references it built above, and the \
+                      helper borrowed rather than consumed them"
+        )]
+        unsafe {
+            a.release();
+            b.release();
+        }
+    }
+
+    /// `unique` keeps the *first* occurrence of a value under its own key, and
+    /// compares by strict identity — the half `array_unique`'s `SORT_STRING`
+    /// default collapses. The second call is where identity is visible: the
+    /// number 1 and the text `"1"` are two entries, so both survive.
+    // covers: Core\Arr::unique
+    #[test]
+    fn unique_keeps_the_first_occurrence_and_compares_under_identity() {
+        let mut entries = NvsArray::new();
+        entries.set(NvsStr::new(b"one"), Value::str(NvsStr::new(b"a")));
+        entries.set(NvsStr::new(b"two"), Value::str(NvsStr::new(b"b")));
+        entries.set(NvsStr::new(b"three"), Value::str(NvsStr::new(b"a")));
+        let a = Value::array(entries);
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let kept = call(super::nvs_core_arr_unique, &mut ctx, &[a, Value::null()])
+            .expect("an array and the default option are what unique takes");
+        assert_eq!(
+            entries_of(kept),
+            vec![
+                (b"one".to_vec(), b"a".to_vec()),
+                (b"two".to_vec(), b"b".to_vec())
+            ]
+        );
+
+        let mut spellings = NvsArray::new();
+        spellings.append(Value::int(1));
+        spellings.append(Value::str(NvsStr::new(b"1")));
+        let b = Value::array(spellings);
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let both = call(super::nvs_core_arr_unique, &mut ctx, &[b, Value::null()])
+            .expect("an array and the default option are what unique takes");
+        assert_eq!(length_of(both), 2);
+
+        #[expect(
+            unsafe_code,
+            reason = "this test owns the two references it built above, and the \
+                      helper borrowed rather than consumed them"
+        )]
+        unsafe {
+            a.release();
+            b.release();
+        }
+    }
+
     /// A wrong tag is a contained `FATAL`, not a panic that takes the process
     /// down — the check every helper's argument decoding owes.
     #[test]
@@ -7992,6 +8095,7 @@ mod tests {
     /// Verified against PHP 8.5's `array_count_values`, first-occurrence order
     /// included. The `1`/`"1"` pair is the half PHP shares with every other key
     /// position and this member reaches through `key_bytes`.
+    // covers: Core\Arr::countBy
     #[test]
     fn count_by_counts_each_bucket_in_first_occurrence_order() {
         let mut array = NvsArray::new();
