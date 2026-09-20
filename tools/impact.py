@@ -58,6 +58,8 @@ TMP = keys.TMP
 READS = TMP / "impact-reads.json"
 #: The environment variable naming the file a test binary appends its run-time reads to.
 READS_ENV = "NVS_READS_LOG"
+#: What `nvs_repo::root` records: the binary may open anything, so it keeps the whole-tree key.
+WHOLE_TREE = "."
 
 _RECORDED = re.compile(r"\bnvs_repo::")
 _SPAWN = re.compile(r"Command::new\(")
@@ -236,6 +238,9 @@ class Reach:
             self.recorded = {}
         self._common = None
         self._packages = {}
+        self._reads = {}
+        self._compiled = {}  # job name -> `compiled`'s answer: a scan of the binary's sources
+        self._keys = {}  # job name -> `key`'s answer, until `record` files new reads for it
 
     def common(self):
         """What every binary's key holds: the toolchain, the manifests, and what a `build.rs`
@@ -262,7 +267,12 @@ class Reach:
 
     def compiled(self, job):
         """`(parts, why)`: what this binary is compiled from, or `(None, why)` when that cannot
-        be shown and the binary is wide."""
+        be shown and the binary is wide. Worked out once for a binary in any one reading."""
+        if job["name"] not in self._compiled:
+            self._compiled[job["name"]] = self._compile(job)
+        return self._compiled[job["name"]]
+
+    def _compile(self, job):
         owner = job.get("owner")
         if self.graph is None:
             return None, "cargo metadata could not be read"
@@ -284,6 +294,11 @@ class Reach:
 
     def key(self, job):
         """`(key, why)`. `why` is empty for a narrow key and says what made a wide one wide."""
+        if job["name"] not in self._keys:
+            self._keys[job["name"]] = self._key(job)
+        return self._keys[job["name"]]
+
+    def _key(self, job):
         parts, why = self.compiled(job)
         if parts is None:
             return _digest(job["name"], keys.STEP_READS["test"](self.tree)), why
@@ -293,8 +308,31 @@ class Reach:
         if reads is None and _RECORDED.search(self._text(job)):
             return _digest(job["name"], keys.STEP_READS["test"](self.tree)), \
                 "it reads through `nvs_repo` and no run has recorded what"
-        return _digest(job["name"], parts + self.tree.part(keys.under(*reads)) if reads
-                       else parts), ""
+        if reads and WHOLE_TREE in reads:
+            return _digest(job["name"], keys.STEP_READS["test"](self.tree)), \
+                "it asked `nvs_repo::root` for the whole tree"
+        for rel in reads or []:
+            parts = parts + self._read(rel)
+        return _digest(job["name"], parts), ""
+
+    def _read(self, rel):
+        """One recorded read as key parts: the tree's own digests where `verify_keys` walks that
+        path, and the bytes on disk where it does not -- `fuzz/seeds/`, `nvs.toml`, a directory
+        under `docs/` -- since a test may name any path and an unhashed one is a change nobody
+        sees. A path that is not there is a part too, so its arrival moves the key."""
+        if rel not in self._reads:
+            got = self.tree.part(keys.under(rel))
+            if not got:
+                base = ROOT / rel
+                files = [base] if base.is_file() else sorted(
+                    p for p in base.rglob("*")
+                    if p.is_file() and not set(p.relative_to(ROOT).parts) & keys.NOT_INPUTS
+                ) if base.is_dir() else []
+                got = [(p.relative_to(ROOT).as_posix(),
+                        hashlib.blake2b(p.read_bytes(), digest_size=16).hexdigest())
+                       for p in files] or [(rel, "absent")]
+            self._reads[rel] = got
+        return self._reads[rel]
 
     def _text(self, job):
         out = []
@@ -316,6 +354,7 @@ class Reach:
             lines = []
         reads = sorted({ln.strip().replace("\\", "/").strip("/") for ln in lines if ln.strip()})
         self.recorded[job["name"]] = {"compiled": _digest(job["name"], parts), "reads": reads}
+        self._keys.pop(job["name"], None)
 
     def save(self):
         try:
@@ -379,7 +418,13 @@ def main():
         for raw in opts.explain:
             rel = Path(raw).as_posix().strip("/")
             if rel not in reach.tree.raw:
-                print(f"{rel}: not an input of any step -- no test binary reads it")
+                readers = [name for name, seen in sorted(reach.recorded.items())
+                           if any(keys.under(r)(rel) for r in seen.get("reads", []))]
+                print(f"{rel}: outside the directories every binary is keyed on; "
+                      f"{len(readers)} test binaries have recorded reading it, and a wide one "
+                      f"does not see it")
+                for name in readers:
+                    print(f"    {name}")
                 continue
             probe = Reach(_Moved(reach.tree, rel))
             probe.graph, probe.recorded = reach.graph, reach.recorded

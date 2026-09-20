@@ -2509,6 +2509,7 @@ class Goal:
         self._prebuild = None  # the thread warming the release profile
         self._prebuilt = frozenset()  # the arg lists it warms, so `cargo()` knows to wait for it
         self.floor_gate = True  # do the carried floor and the release profile run this sweep?
+        self.settle_only = False  # `--settle`: the carried floor and nothing else
         self.held = []  # what a shut gate did not run; non-empty means "green" is not "reached"
         self.fast_path = ""  # a check name to try before the sweep; see `fast_fail`
         self.failed_name = ""  # the `cargo-named` check this run died on, for the next one
@@ -3172,20 +3173,26 @@ class Goal:
         plain = plain_crate_test(c.get("args", []))
         if plain is None:
             return None
+        if self._reach is None:
+            # One reading a sweep: the jobs on record, and every answer `plain` has had so far.
+            self._reach = impact.Reach(self._tiers)
+            self._reach.jobs, self._reach.answers = impact.last_jobs(), {}
+        if plain in self._reach.answers:
+            return self._reach.answers[plain]
+        self._reach.answers[plain] = None
         crate, target = plain
-        jobs = [j for j in impact.last_jobs() if j.get("owner") == crate
+        jobs = [j for j in self._reach.jobs if j.get("owner") == crate
                 and (target is None or j.get("name") == f"{crate} test {target}")]
         if not jobs:
             return None
-        if self._reach is None:
-            self._reach = impact.Reach(self._tiers)
         h = hashlib.blake2b(digest_size=16)
         for job in sorted(jobs, key=lambda j: j["name"]):
             key, wide = self._reach.key(job)
             if wide:
                 return None
             h.update(job["name"].encode("utf-8") + b"\0" + key.encode("utf-8") + b"\0")
-        return h.hexdigest()
+        self._reach.answers[plain] = h.hexdigest()
+        return self._reach.answers[plain]
 
     def remembered(self, c, leg=""):
         """Was this check green over inputs bit-identical to the ones on disk right now?
@@ -3613,6 +3620,8 @@ class Goal:
     def swept(self, checks):
         """The checks of `checks` this sweep runs: all of them with the gate open, and with it
         shut everything but the carried floor. `_check` says what the gate is for."""
+        if self.settle_only:
+            return [c for c in checks if is_carried(c)]
         if self.floor_gate:
             return list(checks)
         return [c for c in checks if not is_carried(c)]
@@ -4063,6 +4072,37 @@ class Goal:
                 out.write(lines)
         except OSError:
             pass
+
+
+def owed(goal):
+    """`--owed`: the carried checks no memo answers for the tree as it stands, and exit status 1
+    if there is one. Nothing is run.
+
+    A change made outside a run -- by hand, or by an interactive session -- stales exactly the
+    checks that read what it touched, and nothing runs them until the floor gate next opens.
+    This is that debt, read off the same memo and the same keys a sweep uses, so what it names
+    is what `--settle` would pay for. `tools/git-hooks/pre-push` asks it, which is what keeps a
+    commit nothing has checked from leaving the machine. The goal's own checks are not counted:
+    they are red until the goal is reached, which is the goal's business and not a debt. Nor is
+    a check that says `memoize = false`, which no memo can answer and every open gate runs."""
+    goal.load_green()
+    if goal._parts is None:
+        say("owed: the tree could not be hashed, so every carried check is owed", C.RED)
+        return 1
+    names = []
+    for c in goal.checks:
+        if not is_carried(c) or c.get("memoize") is False:
+            continue
+        leg = "native" if c["kind"] in PROGRAM_KINDS else ""
+        if not goal.remembered(c, leg):
+            names.append(c.get("name") or c.get("file"))
+    if not names:
+        say("owed: nothing -- every carried check is green over this tree", C.GREEN)
+        return 0
+    shown = ", ".join(names[:6]) + (f", +{len(names) - 6} more" if len(names) > 6 else "")
+    say(f"owed: {len(names)} carried check(s) are not green over this tree: {shown}", C.YELLOW)
+    say("      `python tools/loop.py --settle` runs them, and only them", C.GRAY)
+    return 1
 
 
 def load_goal():
@@ -5927,6 +5967,11 @@ def run_cli():
              "Linux build -- and exit"
     )
     ap.add_argument("--list", action="store_true", help="print the acceptance plan and exit")
+    ap.add_argument("--owed", action="store_true",
+                    help="which carried checks are not green over the tree as it stands; exits 1 "
+                         "if any is, and runs nothing")
+    ap.add_argument("--settle", action="store_true",
+                    help="run the carried floor alone, memo consulted: what --owed names")
     ap.add_argument(
         "--chain-install", action="store_true",
         help="install the next staged goal from docs/agent/goals/ and exit, without "
@@ -6029,6 +6074,12 @@ def run_cli():
         say(f"  valgrind sweep over every fixture except: {skipped}")
         return 0
 
+    if opts.owed:
+        return owed(goal)
+
+    if opts.settle:
+        opts.goal_only, goal.settle_only = True, True
+
     if not (opts.goal_only or opts.leg_only or opts.chain_install) and respawn.ENV not in os.environ:
         # A run, typed by hand: `tools/respawn.py` takes it from here, and starts this file again
         # -- with the same flags, exactly as typed -- for every turn of it. This process never
@@ -6050,12 +6101,16 @@ def run_cli():
 
     if opts.goal_only:
         goal.full = opts.full
-        say("running the acceptance test ..." + (" (full: no memo)" if opts.full else ""), C.CYAN)
+        what = "the carried floor" if goal.settle_only else "the acceptance test"
+        say(f"running {what} ..." + (" (full: no memo)" if opts.full else ""), C.CYAN)
         fail = goal.check(verbose=True)
         say(f"\ncost: {goal.summary()}", C.GRAY)
         if fail:
             say(f"NOT GREEN: {fail}", C.RED)
             return 1
+        if goal.settle_only:
+            say("SETTLED: every carried check is green over this tree", C.GREEN)
+            return 0
         say("GOAL REACHED: every acceptance check passes", C.GREEN)
         return 0
 
