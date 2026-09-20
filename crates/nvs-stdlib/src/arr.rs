@@ -6583,6 +6583,7 @@ mod tests {
     /// The default discards every key rather than PHP's renumber-the-integers-
     /// keep-the-strings, which is `rule:types/preserve-keys`'s rule and the one place this
     /// member is not `array_reverse`.
+    // covers: Core\Arr::reverse
     #[test]
     fn reverse_renumbers_by_default_and_keeps_every_key_on_request() {
         let mut ctx = Ctx::new(OutputSink::Sink);
@@ -6619,6 +6620,7 @@ mod tests {
     }
 
     /// Verified against PHP 8.5's `array_flip`, duplicate collapse included.
+    // covers: Core\Arr::flip
     #[test]
     fn flip_collapses_a_duplicate_value_in_its_first_position() {
         let mut array = NvsArray::new();
@@ -6650,6 +6652,75 @@ mod tests {
         let status = call(super::nvs_core_arr_flip, &mut ctx, &[Value::array(array)])
             .expect_err("a bool is not a key");
         assert_eq!(status, nvs_runtime::FATAL);
+    }
+
+    /// One level of nesting, and every key an inner array carried is spent on a
+    /// position in the answer — `rule:types/preserve-keys` again, and why the
+    /// answer is a list whatever the subject's keys were.
+    // covers: Core\Arr::flatten
+    #[test]
+    fn flatten_takes_one_level_and_numbers_what_it_pulled_up() {
+        let mut first = NvsArray::new();
+        first.set(NvsStr::new(b"x"), Value::str(NvsStr::new(b"a")));
+        first.set(NvsStr::new(b"y"), Value::str(NvsStr::new(b"b")));
+        let mut second = NvsArray::new();
+        second.set(NvsStr::new(b"10"), Value::str(NvsStr::new(b"c")));
+
+        let mut outer = NvsArray::new();
+        outer.set(NvsStr::new(b"left"), Value::array(first));
+        outer.set(NvsStr::new(b"right"), Value::array(second));
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let result = call(
+            super::nvs_core_arr_flatten,
+            &mut ctx,
+            &[Value::array(outer)],
+        )
+        .expect("every element is an array");
+        assert_eq!(
+            entries_of(result),
+            vec![
+                (b"0".to_vec(), b"a".to_vec()),
+                (b"1".to_vec(), b"b".to_vec()),
+                (b"2".to_vec(), b"c".to_vec()),
+            ]
+        );
+    }
+
+    /// Depth is the whole difference from [`super::nvs_core_arr_flatten`]: the
+    /// walk descends until it meets a value that is not an array, and a scalar
+    /// standing beside an array at the same level keeps its place in the order.
+    // covers: Core\Arr::flattenDeep
+    #[test]
+    fn flatten_deep_reaches_every_level_in_the_order_it_met_them() {
+        let mut deepest = NvsArray::new();
+        deepest.set(NvsStr::new(b"0"), Value::str(NvsStr::new(b"c")));
+
+        let mut middle = NvsArray::new();
+        middle.set(NvsStr::new(b"0"), Value::str(NvsStr::new(b"b")));
+        middle.set(NvsStr::new(b"1"), Value::array(deepest));
+
+        let mut outer = NvsArray::new();
+        outer.set(NvsStr::new(b"0"), Value::str(NvsStr::new(b"a")));
+        outer.set(NvsStr::new(b"1"), Value::array(middle));
+        outer.set(NvsStr::new(b"2"), Value::str(NvsStr::new(b"d")));
+
+        let mut ctx = Ctx::new(OutputSink::Sink);
+        let result = call(
+            super::nvs_core_arr_flatten_deep,
+            &mut ctx,
+            &[Value::array(outer)],
+        )
+        .expect("a mixed array never fails");
+        assert_eq!(
+            entries_of(result),
+            vec![
+                (b"0".to_vec(), b"a".to_vec()),
+                (b"1".to_vec(), b"b".to_vec()),
+                (b"2".to_vec(), b"c".to_vec()),
+                (b"3".to_vec(), b"d".to_vec()),
+            ]
+        );
     }
 
     /// The values `range` produces, in order — read back through the array's
