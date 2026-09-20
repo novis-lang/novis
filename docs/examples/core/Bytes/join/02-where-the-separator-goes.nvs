@@ -1,0 +1,18 @@
+<?nvs
+// Shows where the separator is written, and what the edges of the list give.
+
+// The separator goes between neighbours. There is none before the first part
+// and none after the last. This prints "a-b-c".
+echo Core\Bytes::join(["a" as bytes, "b" as bytes, "c" as bytes], "-" as bytes) as string, "\n";
+
+// A list of one part gives that part back, with no separator at all. This
+// prints "a".
+echo Core\Bytes::join(["a" as bytes], "-" as bytes) as string, "\n";
+
+// A part with nothing in it still counts as a part, so the separators around
+// it are written. This prints "a--c".
+echo Core\Bytes::join(["a" as bytes, "" as bytes, "c" as bytes], "-" as bytes) as string, "\n";
+
+// An empty list gives a value with nothing in it. This prints 0.
+array<bytes> $none = [];
+echo Core\Bytes::length(Core\Bytes::join($none, "-" as bytes)), "\n";

@@ -1,0 +1,17 @@
+<?nvs
+// Shows how a program puts a body back together. A reader gives the body in
+// chunks, and joining them without a separator makes one value again.
+
+array<bytes> $chunks = [
+    "{\"id\":1042," as bytes,
+    "\"status\":" as bytes,
+    "\"paid\"}" as bytes,
+];
+
+bytes $body = Core\Bytes::join($chunks);
+
+// The three chunks are one value now. This prints the whole body.
+echo $body as string, "\n";
+
+// Its length is the lengths of the chunks added up. This prints 27.
+echo Core\Bytes::length($body), "\n";

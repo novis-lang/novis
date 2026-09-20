@@ -1,0 +1,25 @@
+<?nvs
+// Measures joining a few buffers into one, as a program does when it puts the
+// chunks of a body back together.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<bytes> $parts = ["id=" as bytes, "1042" as bytes, "&status=paid" as bytes];
+        bytes $short = "&" as bytes;
+        bytes $long = "&&" as bytes;
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The result of one round chooses the separator of the next, so no
+            // round can be left out. The results run from 21 to 23 bytes.
+            bytes $separator = ($total % 2) == 0 ? $short : $long;
+            $total = $total + Core\Bytes::length(Core\Bytes::join($parts, $separator));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";
