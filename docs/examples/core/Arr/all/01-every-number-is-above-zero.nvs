@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to test that every number in a list is above zero.
+
+array<int> $quantities = [2, 1, 4];
+// Every entry is above zero, so this prints "every quantity is above zero".
+if (Core\Arr::all($quantities, fn(int $n) => $n > 0)) {
+    echo "every quantity is above zero", "\n";
+} else {
+    echo "one quantity is zero or less", "\n";
+}
+
+array<int> $withZero = [2, 0, 4];
+// The second entry is 0. The result is false, so this prints the other line.
+if (Core\Arr::all($withZero, fn(int $n) => $n > 0)) {
+    echo "every quantity is above zero", "\n";
+} else {
+    echo "one quantity is zero or less", "\n";
+}

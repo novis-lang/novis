@@ -7630,4 +7630,169 @@ mod tests {
             }
         }
     }
+
+    /// A packed list of the `values` given, in order.
+    ///
+    /// The array owns every entry, so releasing the array is the whole of what
+    /// a test using this owes.
+    fn list_of(values: &[i64]) -> Value {
+        let mut list = NvsArray::new();
+        for value in values {
+            list.append(Value::int(*value));
+        }
+        Value::array(list)
+    }
+
+    /// How many entries [`below_ten`] has been shown since a walk reset it.
+    ///
+    /// One counter for every predicate test in this file, so
+    /// [`PREDICATE_LOCK`] is what keeps two of them from interleaving: the
+    /// test binary runs its cases on several threads.
+    static PREDICATE_CALLS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+    /// Held for the whole of one walk, so that the count read afterwards is
+    /// that walk's own.
+    static PREDICATE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    /// A one-parameter predicate answering whether its entry is below ten, and
+    /// counting the entry it was shown.
+    ///
+    /// The sweep of the two references is not optional: `call_closure` retains
+    /// the receiver and each argument for this callee to release, which is
+    /// what a compiled closure body does on its way out.
+    #[expect(
+        unsafe_code,
+        reason = "`call_closure` passes the receiver and one argument, each \
+                  retained for this callee to release, and `abi::call` passes \
+                  the address of a live `Value` for the result — neither is \
+                  expressible in the signature compiled code calls through"
+    )]
+    unsafe extern "C" fn below_ten(_ctx: *mut Ctx, args: *const Value, out: *mut Value) -> i32 {
+        PREDICATE_CALLS.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let entry = unsafe { *args.add(1) };
+        let answer = entry.as_int().expect("this file's own entries are ints") < 10;
+        for index in 0..2 {
+            dropped(unsafe { *args.add(index) });
+        }
+        unsafe {
+            *out = Value::bool(answer);
+        }
+        nvs_runtime::OK
+    }
+
+    /// A closure value declaring `arity` parameters, whose body is `invoke`.
+    ///
+    /// `nvs_runtime::call_closure` reads the arity and the parameter tags off
+    /// the *object*'s own two slots rather than off the method row, so a table
+    /// carrying one `CLOSURE_INVOKE` row plus those two fields is a whole
+    /// closure. Every parameter is tagged `CLOSURE_PARAM_TAG_ANY`, which is
+    /// what a `mixed` one gets: a Rust callback declares no type for the tag
+    /// check to hold it to.
+    ///
+    /// The table is leaked for [`shape_of`]'s reason: a descriptor's *address*
+    /// is its identity and it must outlive every instance made from it.
+    #[expect(
+        unsafe_code,
+        reason = "the table is leaked, so the descriptor outlives every \
+                  instance made from it — `NvsObj::new`'s whole obligation"
+    )]
+    fn closure_of(arity: usize, invoke: nvs_runtime::NvsFn) -> Value {
+        let mut table = ClassTable::new();
+        let id = table.define("{closure}", &["arity", "params"], &[]);
+        table.set_methods(
+            id,
+            vec![nvs_runtime::MethodRow {
+                name: nvs_runtime::CLOSURE_INVOKE.to_owned(),
+                code: invoke as *const u8,
+                arity: 0,
+                param_tags: 0,
+                param_names: Vec::new(),
+                param_types: Vec::new(),
+                public: true,
+                protected: false,
+                native: false,
+            }],
+        );
+        table.set_closure(id);
+        let table: &'static ClassTable = Box::leak(Box::new(table));
+        let object = unsafe { NvsObj::new(table.desc(id)) };
+        object.set_field(
+            nvs_runtime::CLOSURE_ARITY_SLOT,
+            Value::int(i64::try_from(arity).expect("a small arity")),
+        );
+        let mut tags: u64 = 0;
+        for parameter in 0..arity {
+            tags |= u64::from(nvs_runtime::CLOSURE_PARAM_TAG_ANY) << (parameter * 4);
+        }
+        object.set_field(
+            nvs_runtime::CLOSURE_PARAM_TAGS_SLOT,
+            Value::int(i64::from_ne_bytes(tags.to_ne_bytes())),
+        );
+        Value::object(object)
+    }
+
+    /// What `member` answered over `entries` against [`below_ten`], and how
+    /// many entries that predicate was shown.
+    fn walked(member: nvs_runtime::NvsFn, entries: &[i64]) -> (Option<bool>, usize) {
+        let guard = PREDICATE_LOCK
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let mut ctx = Ctx::buffered();
+        let subject = list_of(entries);
+        let predicate = closure_of(1, below_ten);
+        PREDICATE_CALLS.store(0, std::sync::atomic::Ordering::Relaxed);
+        let answer = call(member, &mut ctx, &[subject, predicate]).expect("the member answered");
+        let seen = PREDICATE_CALLS.load(std::sync::atomic::Ordering::Relaxed);
+        let verdict = answer.as_bool();
+        drop(guard);
+        dropped(answer);
+        dropped(subject);
+        dropped(predicate);
+        (verdict, seen)
+    }
+
+    /// The walk stops at the first entry its predicate rejects, and answers
+    /// `true` over an empty array without calling the predicate at all.
+    ///
+    /// **Counted rather than read off the verdict.** A member that walked
+    /// every entry would answer `false` on the first row too, so the number of
+    /// entries the predicate was shown is the only thing telling the two
+    /// apart. The empty row is the other half: `true` there is an answer no
+    /// entry can have produced.
+    // covers: Core\Arr::all
+    #[test]
+    fn all_stops_at_the_first_entry_its_predicate_rejects() {
+        // 40 is the third entry and the first at or above ten.
+        assert_eq!(
+            walked(super::nvs_core_arr_all, &[3, 4, 40, 5]),
+            (Some(false), 3)
+        );
+        assert_eq!(
+            walked(super::nvs_core_arr_all, &[3, 4, 5, 6]),
+            (Some(true), 4)
+        );
+        assert_eq!(walked(super::nvs_core_arr_all, &[]), (Some(true), 0));
+    }
+
+    /// The other half of the same walk: it stops at the first entry its
+    /// predicate accepts, and answers `false` over an empty array without
+    /// calling the predicate at all.
+    ///
+    /// Asserted beside `all`'s row rather than on its own, because the two
+    /// members are one walk under a flag: a `negate` read the wrong way round
+    /// leaves each of them plausible alone and the pair disagreeing.
+    // covers: Core\Arr::any
+    #[test]
+    fn any_stops_at_the_first_entry_its_predicate_accepts() {
+        // 3 is the third entry and the first below ten.
+        assert_eq!(
+            walked(super::nvs_core_arr_any, &[40, 50, 3, 60]),
+            (Some(true), 3)
+        );
+        assert_eq!(
+            walked(super::nvs_core_arr_any, &[40, 50, 60]),
+            (Some(false), 3)
+        );
+        assert_eq!(walked(super::nvs_core_arr_any, &[]), (Some(false), 0));
+    }
 }

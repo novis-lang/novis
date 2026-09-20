@@ -1,0 +1,23 @@
+<?nvs
+// Tests that every quantity in a small basket is above a limit, as a shop does before it saves an order.
+// bench: iterations 200000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<int> $basket = [2, 1, 4, 3];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            int $limit = (($total % 2) as int) - 1;
+            if (Core\Arr::all($basket, fn(int $n) => $n > $limit)) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 2;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

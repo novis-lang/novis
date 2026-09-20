@@ -1,0 +1,17 @@
+<?nvs
+// Shows the same test over text. `Core\Str::contains` tests one address, and
+// `Core\Arr::all` runs that test over the whole list.
+
+array<string> $addresses = ["ada@example.com", "bob@example.com"];
+// Both addresses contain "@", so this prints "every address has an @".
+if (Core\Arr::all($addresses, fn(string $address) => Core\Str::contains($address, "@"))) {
+    echo "every address has an @", "\n";
+} else {
+    echo "one address has no @", "\n";
+}
+
+array<string> $empty = [];
+// An empty array gives true. There is no entry that can fail the test.
+if (Core\Arr::all($empty, fn(string $address) => Core\Str::contains($address, "@"))) {
+    echo "an empty list passes too", "\n";
+}
