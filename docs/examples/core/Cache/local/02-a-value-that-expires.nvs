@@ -1,0 +1,25 @@
+<?nvs
+// Shows how to give a cached value a lifetime. When the lifetime is over, the
+// key reads as `null` again.
+
+var $cache = Core\Cache::local();
+
+// `ttl` is how long the value stays. Write `30s` for thirty seconds, `5m` for
+// five minutes, `1h` for one hour.
+$cache->put("exchange-rate", "1.0874", {ttl: 1h});
+
+// The lifetime is still ahead, so the value reads back. This prints 1.0874.
+var $rate = $cache->get("exchange-rate") as string;
+echo $rate, "\n";
+
+// A lifetime of `0s` is already over when the write finishes. The key reads as
+// `null`, so this prints expired.
+$cache->put("one-time-code", "845192", {ttl: 0s});
+var $code = $cache->get("one-time-code") ?? "expired";
+echo $code as string, "\n";
+
+// Without a `ttl` the value stays until the cache needs the room. This prints
+// still here.
+$cache->put("country", "still here");
+var $country = $cache->get("country") ?? "gone";
+echo $country as string, "\n";

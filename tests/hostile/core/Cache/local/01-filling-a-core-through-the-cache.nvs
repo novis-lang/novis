@@ -1,0 +1,65 @@
+<?nvs
+// Attack: a request tries to fill this core's memory through the cache. The
+// cache has a size limit, so it should forget old values and keep working.
+// hostile: timeout-ms 60000
+
+var $cache = Core\Cache::local();
+string $value = Core\Str::repeat('x', 200);
+
+// 1. Two hundred thousand keys of two hundred bytes each. That is more than the
+//    cache may keep, so it must forget the oldest keys instead of growing.
+uint $i = 0;
+while ($i < 200000) {
+    $cache->put('key-' . $i as string, $value);
+    $i = $i + 1;
+}
+echo "step 1 wrote 200000 keys\n";
+
+// 2. One key written two hundred thousand times. A rewrite must cost one entry,
+//    not one for every write.
+$i = 0;
+while ($i < 200000) {
+    $cache->put('one-key', $value);
+    $i = $i + 1;
+}
+var $rewritten = $cache->get('one-key') ?? 'absent';
+echo 'step 2 read back ', Core\Str::length($rewritten as string), " characters\n";
+
+// 3. A key of one million characters. The cache may keep it or forget it as
+//    too large. Errors are caught, so the steps after this one still run.
+try {
+    string $long = Core\Str::repeat('k', 1000000);
+    $cache->put($long, 'value');
+    var $back = $cache->get($long) ?? 'absent';
+    echo 'step 3 answered ', $back as string, "\n";
+} catch (Throwable $e) {
+    echo "step 3 stopped\n";
+}
+
+// 4. An array nested five thousand levels deep. The cache copies the value it
+//    is given, so this must stop with an error instead of filling the stack.
+try {
+    array<mixed> $deep = ['leaf'];
+    uint $level = 0;
+    while ($level < 5000) {
+        $deep = [$deep];
+        $level = $level + 1;
+    }
+    $cache->put('deep', $deep);
+    echo "step 4 stored the deep array\n";
+} catch (Throwable $e) {
+    echo 'step 4 stopped: ', $e->message, "\n";
+}
+
+// 5. One value larger than the whole cache. The cache must forget it as it
+//    arrives, and must still answer for other keys afterwards.
+try {
+    $cache->put('too-large', Core\Str::repeat('y', 64000000));
+} catch (Throwable $e) {
+    echo "step 5 stopped\n";
+}
+var $oversized = $cache->get('too-large') ?? 'absent';
+echo 'step 5 left ', $oversized as string, "\n";
+$cache->put('after', 'still working');
+var $after = $cache->get('after') ?? 'absent';
+echo 'step 5 then wrote and read ', $after as string, "\n";

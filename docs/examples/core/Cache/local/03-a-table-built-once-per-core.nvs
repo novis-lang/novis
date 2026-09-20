@@ -1,0 +1,36 @@
+<?nvs
+// Shows what this cache is for: a table your program can always build again,
+// kept in memory so that most requests do not build it.
+
+class Currencies {
+    public static function all(): array<string> {
+        var $cache = Core\Cache::local();
+
+        // A hit returns the table, and the work below is skipped.
+        var $held = $cache->get("currencies");
+        if ($held != null) {
+            return $held as array<string>;
+        }
+
+        // This is the work the cache saves. A real program reads a file or a
+        // database here.
+        array<string> $built = [
+            "EUR" => "Euro",
+            "USD" => "US Dollar",
+            "JPY" => "Japanese Yen",
+        ];
+
+        // The table is good for one hour. After that the next call builds it
+        // again, so a change in the file reaches the program without a restart.
+        $cache->put("currencies", $built, {ttl: 1h});
+        return $built;
+    }
+}
+
+// The first call builds the table. This prints Euro.
+array<string> $first = Currencies::all();
+echo $first["EUR"], "\n";
+
+// The second call reads it from the cache. This prints US Dollar.
+array<string> $second = Currencies::all();
+echo $second["USD"], "\n";

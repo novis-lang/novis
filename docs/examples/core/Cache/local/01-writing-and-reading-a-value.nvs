@@ -1,0 +1,22 @@
+<?nvs
+// Shows how to write a value into this core's cache and read it back.
+
+var $cache = Core\Cache::local();
+
+// `put` writes the value under the key "greeting".
+$cache->put("greeting", "hello");
+
+// `get` returns what was written. This prints hello.
+var $greeting = $cache->get("greeting") as string;
+echo $greeting, "\n";
+
+// A key nothing wrote returns `null`. `??` supplies a value to use instead,
+// so this prints no colour yet.
+var $colour = $cache->get("colour") ?? "no colour yet";
+echo $colour as string, "\n";
+
+// `forget` removes one key. The read after it returns `null` again, so this
+// prints gone.
+$cache->forget("greeting");
+var $after = $cache->get("greeting") ?? "gone";
+echo $after as string, "\n";
