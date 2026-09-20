@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to read the smallest value of an array.
+
+array<int> $temperatures = [7, -2, 13, 4];
+
+// This prints -2.
+echo Core\Arr::min($temperatures) ?? 0, "\n";
+
+// A map works the same way. Only the values are compared, so this prints 3.
+array<int> $scores = ['ada' => 9, 'lin' => 3, 'alan' => 5];
+echo Core\Arr::min($scores) ?? 0, "\n";
+
+// Texts compare byte by byte. This prints apple.
+array<string> $fruit = ['pear', 'apple', 'plum'];
+echo Core\Arr::min($fruit) ?? '', "\n";

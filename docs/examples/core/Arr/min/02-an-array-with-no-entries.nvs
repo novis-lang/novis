@@ -1,0 +1,20 @@
+<?nvs
+// Shows what an array with no entries gives you, and two ways to handle it.
+
+array<int> $prices = [];
+
+// There is no smallest value here, so the result is `null`. This prints
+// no prices yet.
+?int $lowest = Core\Arr::min($prices);
+if ($lowest == null) {
+    echo "no prices yet\n";
+} else {
+    echo 'lowest: ', $lowest, "\n";
+}
+
+// `??` gives you a value to use when the result is `null`. This prints 0.
+echo Core\Arr::min($prices) ?? 0, "\n";
+
+// One entry is enough for an answer. This prints 5.
+array<int> $one = [5];
+echo Core\Arr::min($one) ?? 0, "\n";

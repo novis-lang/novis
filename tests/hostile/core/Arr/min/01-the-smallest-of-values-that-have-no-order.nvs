@@ -1,0 +1,77 @@
+<?nvs
+// Attack: a program asks for the smallest value of arrays it cannot compare.
+// It also asks over huge arrays, and over objects whose own comparison fails
+// while it runs. The last step should stop at the memory limit with an error,
+// and must not crash.
+// hostile: timeout-ms 30000
+// hostile: ends-early
+
+final class Cursed implements Comparable
+{
+    public function constructor(public int $rank)
+    {}
+
+    // Every pair with a rank above 10 fails, so the error arrives while the
+    // walk is still running.
+    public function compareTo(self $other): int
+    {
+        if ($this->rank > 10 || $other->rank > 10) {
+            throw new RuntimeError('this pair cannot be compared');
+        }
+        return $this->rank <=> $other->rank;
+    }
+}
+
+// 1. Nothing at all. There is no smallest value, so the result is `null` and
+// this prints -1.
+array<int> $empty = [];
+echo Core\Arr::min($empty) ?? -1, "\n";
+
+// 2. A text among numbers. The two kinds have no order between them, so the
+// member throws an error instead of picking one.
+array<string|int> $mixed = [3, 'a', 1];
+try {
+    Core\Arr::min($mixed);
+    echo "mixed compared\n";
+} catch (Throwable $refused) {
+    echo "mixed refused\n";
+}
+
+// 3. The far ends of the float range in one array. A NaN is below every
+// number in this order, so the result is the NaN and no comparison fails.
+float $nan = Core\Math::fdiv(0.0, 0.0);
+float $inf = Core\Math::fdiv(1.0, 0.0);
+array<float> $edges = [1.5, $nan, $inf, 0.0 - $inf, -0.0, 0.0];
+echo Core\Arr::min($edges) ?? 0.0, "\n";
+
+// 4. Two million numbers with the smallest one last, so the whole array is
+// walked. This prints 1.
+array<int> $long = Core\Arr::range(2, 2000000);
+$long[] = 1;
+echo Core\Arr::min($long) ?? 0, "\n";
+
+// 5. A hundred objects whose own comparison throws an error. The error comes
+// out of the member, and the values it was still holding must be freed.
+array<Cursed> $objects = [];
+int $i = 0;
+while ($i < 100) {
+    $objects[] = new Cursed($i);
+    $i = $i + 1;
+}
+try {
+    Core\Arr::min($objects);
+    echo "objects compared\n";
+} catch (Throwable $failed) {
+    echo "objects refused\n";
+}
+
+// 6. One array that doubles in size, with the smallest value read after every
+// step. That needs more memory than the program has, so it stops here.
+array<int> $growing = Core\Arr::range(1, 1000);
+uint $k = 0;
+while ($k < 40) {
+    $growing = Core\Arr::appendAll($growing, $growing);
+    Core\Arr::min($growing);
+    $k = $k + 1;
+}
+echo "grew forever\n";
