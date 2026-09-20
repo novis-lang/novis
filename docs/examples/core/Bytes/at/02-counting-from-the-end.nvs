@@ -1,0 +1,20 @@
+<?nvs
+// Shows how to read the last byte of a `bytes` value, and what happens when
+// the position is outside it.
+
+bytes $data = "abc" as bytes;
+
+// A negative position counts from the end. -1 is the last byte, so this
+// prints 99, the number for "c".
+echo Core\Bytes::at($data, -1), "\n";
+
+// -3 is the first byte, so this prints 97.
+echo Core\Bytes::at($data, -3), "\n";
+
+// Position 3 is outside a value of 3 bytes. `Core\Bytes::at` throws an error,
+// and this prints the message.
+try {
+    echo Core\Bytes::at($data, 3), "\n";
+} catch (Throwable $e) {
+    echo $e->message, "\n";
+}

@@ -1,0 +1,3 @@
+99
+97
+Core\Bytes::at: index 3 is outside a buffer of 3 bytes
