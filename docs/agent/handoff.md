@@ -2,34 +2,36 @@
 
 ## State
 
-Goal `core-arr-2-4` was already met when this session opened, so nothing was built. Its own
-`[[check]]` argv — `python tools/dossier.py --verify --only` over its 14 members — is green, and
-each of the 14 carries three examples, one attack, a measured figure, tests from Novis and from
-Rust, and the `about.md` the check does not yet count. The whole class is done, not this quarter of
-it: `python tools/dossier.py --verify --group 'Core\Arr'` reports nothing owed in 56 features, with
-168 examples and 56 hostile files run green. Commit `499181042` is where that landed — goal
-`core-arr-1-4`'s sessions finished `Core\Arr` instead of stopping at their own 14. `verify.py
---doc`, `owners.py --closes core-arr-2-4` and `playbook.py --closes core-arr-2-4` are all clean.
-Nothing is blocked.
+Goal `core-arr-2-4` is met and so is `core-arr-3-4`: both groups' own checks report nothing owed,
+14 features each, every example and attack green. What holds the run is a **floor** check,
+`dossier: types:exception`, and it is not `Core\Arr` work. Its two `Core\Db` attacks time out at 60s
+for the driver — three sweeps now, at 13:34 and 16:23 — and are green every way this session could
+run them: 5 cold runs at 8 workers in 3.4s, through `observe.py`, on the same `target/release/nvs.exe`
+the failing sweep used (built 16:20:59, before it). The machine was idle and its checks sequential;
+the neighbouring dossier legs took 2–5s. Peak memory is 42 MB and 35 MB, so the unbounded-attack
+hazard at `tools/dossier.py:1162` is not this. The cause is a per-program slowdown of roughly twenty
+times inside the driver that nothing in this session could reproduce, so what landed instead is the
+instrumentation to locate it on the next occurrence. Nothing is blocked.
 
 ## Next group
 
-**Stage 2: the dossier, already satisfied** — one file set: `docs/agent/goals/dossier/` and
-`crates/nvs-stdlib/src/arr.rs`. Both remaining `Core\Arr` goals cover members inside the 56 the
-group check just passed, so each is a confirmation and not a build. Confirm, then say `DONE`.
+**Stage 2: the dossier, already satisfied except for one floor check** — one file set:
+`tools/dossier.py` and `tests/hostile/types/Db-*/`.
 
-- [ ] **Confirm goal `core-arr-3-4` owes nothing** instead of writing proofs for it —
-      `rule:testing/feature-proofs` is what it would owe, and `python tools/dossier.py --id
-      'Core\Arr::keyOf'` settles it in one call. `crates/nvs-stdlib/src/arr.rs:311`
-- [ ] **Confirm goal `core-arr-4-4` owes nothing**, the same way, from `python tools/dossier.py
-      --id 'Core\Arr::range'`. `crates/nvs-stdlib/src/arr.rs:586`
+- [ ] **Read the next sweep's `types:exception` FAIL line and act on what its new clause names.**
+      A timeout now reports how many lines the attack printed and what the last one was, so
+      `having printed 1 line(s)` puts the hang inside `Flood::huge`/`Churn::huge`, and
+      `2 line(s)` puts it in the deep-rethrow tail; every step too slow prints none of them at 8
+      workers. `rule:testing/a-failing-proof-is-fixed-or-recorded` bounds the repair — the attack is
+      not softened and the limit is not raised. `tools/dossier.py:1224`
+- [ ] **Confirm goal `core-arr-4-4` owes nothing** rather than writing proofs for it, the same way
+      the two goals before it were confirmed: its 14 members sit inside the 56 that
+      `python tools/dossier.py --verify --group 'Core\Arr'` already passes.
+      `rule:testing/feature-proofs` is what it would owe. `crates/nvs-stdlib/src/arr.rs:545`
 
 ## Backlog
 
-- The three `Core\Arr` dossier goal files are a stale snapshot; re-running `python tools/dossier.py
-  --emit-goals` is what drops a satisfied one, and it is the user's call to fire —
-  `docs/agent/goals/dossier/`.
-- The pack prints a goal's standing decisions but never its own `[[check]]` argv, so a session that
-  wants to judge the goal mechanically greps `docs/agent/loop-goal.toml` for it; that file is 12456
-  lines, and the `[context]` manifest has no field that would print the block.
-- `docs/agent/goals/dossier/90-core-arr-1-4.md` is retired and its siblings are gone, as expected.
+- The driver's ~20x per-program slowdown is unexplained; `tools/loop.py:1591`'s `capture()` inherits
+  its environment whole, which is the one input this session could not compare.
+- `tools/dossier.py:1162` still documents an unbounded hostile sweep; measured harmless here (42 MB
+  peak), so it is a real gap but not this failure's.
