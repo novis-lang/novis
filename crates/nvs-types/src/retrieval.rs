@@ -344,13 +344,19 @@ pub(crate) fn fold_retrieval(
         );
         return;
     };
-    let member_name = list.get(1).and_then(|arg| match &arg.value.kind {
+    let member_arg = list.get(1).map(|arg| &arg.value);
+    let member_name = member_arg.and_then(|value| match &value.kind {
         ExprKind::Str(span) => Some((
-            arg.value.span,
+            value.span,
             crate::string_lit::cook_string_literal(env.src, *span),
         )),
         _ => None,
     });
+    // A `$member` written as anything but a string literal names no roster to
+    // select, and the module doc above fixes that case as the empty result. It
+    // is not the same as no second argument at all, which selects the target's
+    // own roster, so the two are told apart here rather than by `sites_for`.
+    let computed_member = member_arg.is_some() && member_name.is_none();
     if let Some((span, name)) = &member_name
         && !declares_member(&class, &method, name, env)
     {
@@ -373,12 +379,16 @@ pub(crate) fn fold_retrieval(
         );
         return;
     }
-    let sites = sites_for(
-        env,
-        &class,
-        &method,
-        member_name.as_ref().map(|(_, name)| name.as_str()),
-    );
+    let sites = if computed_member {
+        Vec::new()
+    } else {
+        sites_for(
+            env,
+            &class,
+            &method,
+            member_name.as_ref().map(|(_, name)| name.as_str()),
+        )
+    };
     let matched = matching(&sites, want, env);
     let value = match (member, matched.len()) {
         ("get", 0) => ConstArg::Null,

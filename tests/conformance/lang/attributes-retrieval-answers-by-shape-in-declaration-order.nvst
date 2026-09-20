@@ -1,0 +1,75 @@
+--TEST--
+`Core\Attributes::all` answers every attached literal satisfying the shape written at the call, in declaration order, at a class, a property, a method and a parameter alike, and a computed `$member` folds to the empty result rather than to the roster the same text names (`rule:attributes/structural-retrieval` and `rule:attributes/retrieval-folds-while-checking`)
+--FILE--
+<?nvs
+// covers: lang:attributes/reading-attributes-back-core-attributes-get-and-all
+// `rule:attributes/structural-retrieval`: retrieval matches under width subtyping and
+// never by the name an attribute was attached under. This case asks the same
+// question at four sites and prints each roster whole, so a site that lost an
+// entry, reordered one, or started matching by name fails here while the other
+// three go on printing plausibly.
+type Tag = {name: string};
+
+#[Tag(name: "class-a")]
+#[{name: "class-b", weight: 2}]
+class Target {
+    #[Tag(name: "prop-a")]
+    #[Tag(name: "prop-b")]
+    public int $rows = 0;
+
+    #[{name: "method-a"}]
+    #[Tag(name: "method-b")]
+    public function run(#[Tag(name: "param-a")] int $id): int {
+        return $id;
+    }
+}
+
+class Bare {}
+
+class Names {
+    public static function of(array<Tag> $tags): string {
+        string $out = "";
+        foreach ($tags as Tag $tag) {
+            $out = $out == "" ? $tag->name : $out . "," . $tag->name;
+        }
+        return $out == "" ? "(none)" : $out;
+    }
+}
+
+// Each roster read whole. A bare literal and a named one are both answers, and
+// the wider `{name, weight}` literal on the class satisfies the narrower `Tag`.
+echo "class: ", Names::of(Core\Attributes::all<Tag>(Target::constructor(...))), "\n";
+echo "property: ", Names::of(Core\Attributes::all<Tag>(Target::constructor(...), "rows")), "\n";
+echo "method: ", Names::of(Core\Attributes::all<Tag>(Target::run(...))), "\n";
+echo "parameter: ", Names::of(Core\Attributes::all<Tag>(Target::run(...), "id")), "\n";
+echo "bare: ", Names::of(Core\Attributes::all<Tag>(Bare::constructor(...))), "\n";
+
+// `rule:attributes/retrieval-folds-while-checking`: the answer is compiled in, so the six
+// below are decided by `nvs check` and not by this run. They are counted rather
+// than read off a line each, so one that folded to a roster instead of to the
+// empty result fails here rather than printing one plausible line of six.
+uint $agreed = 0;
+
+// A `$member` that is not a string literal has no name to check, so it folds to
+// the empty result — `"rows"` written out is the reject case's other half.
+string $computed = "ro" . "ws";
+if (Core\Arr::count(Core\Attributes::all<Tag>(Target::constructor(...), $computed)) == 0) { $agreed = $agreed + 1; }
+if (Core\Attributes::get<Tag>(Target::constructor(...), $computed) == null) { $agreed = $agreed + 1; }
+
+// Nothing anywhere satisfies this shape, so `get` folds to `null` and `all` to [].
+if (Core\Attributes::get<{missing: int}>(Target::constructor(...)) == null) { $agreed = $agreed + 1; }
+if (Core\Arr::count(Core\Attributes::all<{missing: int}>(Target::run(...))) == 0) { $agreed = $agreed + 1; }
+
+// The empty shape is satisfied by every attached literal, so it answers the
+// whole roster wherever it is asked.
+if (Core\Arr::count(Core\Attributes::all<{}>(Target::constructor(...))) == 2) { $agreed = $agreed + 1; }
+if (Core\Arr::count(Core\Attributes::all<{}>(Target::run(...), "id")) == 1) { $agreed = $agreed + 1; }
+
+echo "agreed: ", $agreed, " of 6\n";
+--EXPECT--
+class: class-a,class-b
+property: prop-a,prop-b
+method: method-a,method-b
+parameter: param-a
+bare: (none)
+agreed: 6 of 6

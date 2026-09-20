@@ -1,0 +1,66 @@
+--TEST--
+a `Core\Attributes` retrieval reads its target and its written member name syntactically, so a target that is only a `callable` value and a member name naming no declaration are both refused where they are written, and `get` refuses a shape two attached literals satisfy (`rule:attributes/structural-retrieval` and `rule:attributes/retrieval-folds-while-checking`)
+--FILE--
+<?nvs
+// covers: lang:attributes/reading-attributes-back-core-attributes-get-and-all
+// `rule:attributes/structural-retrieval`: the target is read where it is written and
+// never evaluated, and a *written* member name is checked against the target's
+// real declarations, because the empty result a misspelling folds to is the
+// one a correct retrieval of an absent attribute gives and nothing later can
+// tell the two apart. A computed `$member` has no name to check and is the one
+// spelling that does fall back to that empty result.
+type Tag = {name: string};
+
+#[Tag(name: "class-a")]
+#[Tag(name: "class-b")]
+class Target {
+    #[Tag(name: "prop-a")]
+    public int $rows = 0;
+
+    public function run(#[Tag(name: "param-a")] int $id): int {
+        return $id;
+    }
+}
+
+// The accepted half first, so a spelling that stops being accepted fails here
+// rather than as a missing refusal. Every target below is written out, every
+// member name names a real declaration, and the class's two matching literals
+// are read with `all`, which is what `get`'s refusal names as the fix.
+array<Tag> $both = Core\Attributes::all<Tag>(Target::constructor(...));
+?Tag $property = Core\Attributes::get<Tag>(Target::constructor(...), "rows");
+?Tag $parameter = Core\Attributes::get<Tag>(Target::run(...), "id");
+
+// A `callable` variable is a value, and the reference it was built from is not
+// written here, so there is nothing at this call to read a declaration out of.
+callable $reference = Target::run(...);
+?Tag $computedTarget = Core\Attributes::get<Tag>($reference);
+
+// `rows` written one letter wrong. The class declares no `$row`, and folding
+// this to the empty result would make the misspelling look like an absent
+// attribute for the rest of the program's life.
+?Tag $misspelled = Core\Attributes::get<Tag>(Target::constructor(...), "row");
+
+// A parameter name asked of the class rather than of the method that declares
+// it. Neither of the class's two rosters names `id`.
+?Tag $wrongRoster = Core\Attributes::get<Tag>(Target::constructor(...), "id");
+
+// Two attached literals satisfy `Tag` here, and `get` answers at most one.
+?Tag $ambiguous = Core\Attributes::get<Tag>(Target::constructor(...));
+
+echo "unreachable\n";
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0730]: a `Core\Attributes` retrieval names no declaration
+   --> case.nvs:33:50
+%A
+error[E0798]: a `Core\Attributes` retrieval names `$row`, which `Target` does not declare
+   --> case.nvs:38:72
+%A
+error[E0798]: a `Core\Attributes` retrieval names `$id`, which `Target` does not declare
+   --> case.nvs:42:73
+%A
+error[E0728]: `Target::constructor` carries 2 attached literals satisfying this shape
+   --> case.nvs:45:19
+%A
+error: aborting due to 4 errors
