@@ -3231,12 +3231,6 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   "a blessed output is a claim, not a formality" points at the wrong one of the two. Check the
   bytes with `od -c <file>.out` before believing the echo, and never "fix" an example because the
   bless line looked wrong. [until: reviewed 2026-09-18]
-- **An `[[app]]` block whose `entry` names a file that is not on disk refuses the whole
-  configuration, so every program in the checkout stops running.** The tree is resolved before any
-  program is, and `E0605` names the missing entry rather than the file you ran, so a block written
-  ahead of the proof file it grants reads as a broken example, a broken fixture and a broken
-  acceptance sweep at once. Write the `.nvs` first and the block second, or put both in one edit.
-  [until: reviewed 2026-09-18]
 - **A blessed `.out` holding non-ASCII looks broken when the blesser echoes it back, and the file is
   fine.** `python tools/dossier.py --bless` prints what it wrote through the terminal's own code
   page, so on Windows `Café` comes back as `Caf?` and a Cyrillic line as a row of question marks
@@ -3307,8 +3301,8 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   the repository, not only the one the block is about.** `E0605` is raised while the configuration
   tree is read, so a block written ahead of the proof it grants leaves `nvs run` and `dossier.py
   --bless` refusing files that have nothing to do with it, and the error names the missing *entry*
-  rather than the program that was run. Write the `.nvs` first and its block second, and read the
-  path in an `E0605` before believing it is about the file you just asked for.
+  rather than the program that was run. Write the `.nvs` first and its block second, or put both in
+  one edit, and read the path in an `E0605` before believing it is about the file you just asked for.
   [until: reviewed 2026-09-19]
 - **A bench's `// bench: calls N` declaration counts Novis frames, and a `Core` member call is not
   one of them.** A round whose only call is `Core\Debug::render` measures `calls 0.000`, so
