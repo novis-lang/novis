@@ -565,7 +565,11 @@ const NO_BUFFER: i32 = 0;
 /// The open documents are always in it, `Workspace` or not: a file being edited
 /// is the one whose names are most likely to have just changed, and under
 /// `Open` it is the whole tree.
-fn tree(documents: &Documents, scope: CheckScope, root: Option<&Path>) -> Vec<(PathBuf, i32)> {
+pub(crate) fn tree(
+    documents: &Documents,
+    scope: CheckScope,
+    root: Option<&Path>,
+) -> Vec<(PathBuf, i32)> {
     let mut selected: BTreeMap<PathBuf, i32> = BTreeMap::new();
     for document in documents.iter() {
         if let Some(path) = document.path() {

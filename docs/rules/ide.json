@@ -167,15 +167,33 @@
       "title": "Each open document is analysed as its own entry point, with open buffers overlaid on disk, and diagnostics are published only for open documents",
       "status": "designed",
       "because": [
-        "0099"
+        "0099",
+        "0198"
       ],
       "seeAlso": [
         "ide/the-server-is-synchronous",
         "programs/autoload",
+        "ide/an-autoloaded-file-borrows-its-programs-map",
         "ide/a-full-reanalysis-stays-under-a-bound",
         "ide/five-features-are-one-reference-index"
       ],
       "guardedBy": []
+    },
+    {
+      "id": "ide/an-autoloaded-file-borrows-its-programs-map",
+      "title": "A file a program autoloads is analysed through that program's `autoload` map, behind its own declarations and without reporting anything for the borrowed ones",
+      "status": "shipped",
+      "because": [
+        "0198"
+      ],
+      "seeAlso": [
+        "ide/an-open-document-is-its-own-entry-point",
+        "programs/autoload",
+        "ide/check-scope-defaults-to-the-workspace"
+      ],
+      "guardedBy": [
+        "crates/nvs-lsp/tests/autoload.rs"
+      ]
     },
     {
       "id": "ide/the-request-set-is-closed",

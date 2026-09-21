@@ -159,6 +159,12 @@ pub fn serve(connection: &Connection) -> Result<(), ServerError> {
     // analysed.
     let settings = Settings::from_initialize(&params);
 
+    // Before the index, which analyses every file under the root: a file some
+    // program autoloads resolves its names through that program's map, and the
+    // survey is what finds the programs
+    // (`rule:ide/an-open-document-is-its-own-entry-point`).
+    documents.survey(settings.scope, settings.root.as_deref());
+
     // The one index `rule:ide/five-features-are-one-reference-index` names,
     // held here because this is what owns the store it is built from. Empty at
     // this point at open scope — nothing is open yet — and filled by the
@@ -302,6 +308,8 @@ fn reanalyse(
     changed: &Changed,
 ) -> Result<(), ServerError> {
     if let Some(path) = &changed.path {
+        // First, because both analyses below borrow what it finds.
+        documents.resurvey(path);
         index.refresh(documents, path);
     }
     publish(connection, documents, index, scope, encoding, changed)

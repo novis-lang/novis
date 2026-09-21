@@ -131,12 +131,21 @@ struct Entry {
     /// decides whether a `discover` glob producing the same prefix skips the
     /// name or collides with it.
     explicit: bool,
+    /// Whether another program's declaration introduced it
+    /// ([`AutoloadMap::build_borrowing`]). Resolution reads a borrowed entry
+    /// like any other; [`AutoloadMap::claims`] answers for this program's own.
+    borrowed: bool,
 }
 
 /// Every `autoload` declaration in a program, resolved into prefix → roots.
 #[derive(Clone, Debug, Default)]
 pub struct AutoloadMap {
     entries: Vec<Entry>,
+    /// The declarations this program wrote, as [`Self::build`] was handed
+    /// them, kept so an editor can lend them to the analysis of a file this
+    /// program autoloads ([`Self::sites`]). One [`Site`] per `autoload`
+    /// statement in the bootstrap chain, released with the map.
+    sites: Vec<Site>,
     /// Every directory a `discover` glob matched and did not turn into a
     /// prefix, with the reason, kept only so [`Self::render`] can print it:
     /// resolution never consults this.
@@ -205,15 +214,44 @@ impl AutoloadMap {
     /// order the files were walked in.
     #[must_use]
     pub fn build(sites: &[Site], diags: &mut Diagnostics) -> Self {
-        let mut map = Self::default();
+        Self::build_borrowing(sites, &[], diags)
+    }
 
-        for site in sites {
+    /// [`Self::build`], with another program's declarations behind this one's.
+    ///
+    /// `borrowed` is what an editor passes when the file it analyses is one
+    /// another program autoloads. Such a file writes no `autoload` of its own
+    /// — `rule:programs/autoload` forbids it one — so the names it uses
+    /// resolve through the map of the program that reaches it.
+    ///
+    /// Every site in `own` is taken before any in `borrowed`, in both passes,
+    /// so a prefix both declare is `own`'s and no diagnostic ever names a
+    /// borrowed site as the earlier of two. A borrowed site reports nothing at
+    /// all, a duplicate and a malformed glob included: its span is a position
+    /// in a file this program never loaded, and the program that wrote it is
+    /// where those are already reported.
+    #[must_use]
+    pub fn build_borrowing(own: &[Site], borrowed: &[Site], diags: &mut Diagnostics) -> Self {
+        let mut map = Self {
+            sites: own.to_vec(),
+            ..Self::default()
+        };
+        let mut unreported = Diagnostics::new();
+        let ordered: Vec<(&Site, bool)> = own
+            .iter()
+            .map(|site| (site, false))
+            .chain(borrowed.iter().map(|site| (site, true)))
+            .collect();
+
+        for &(site, is_borrowed) in &ordered {
             let SiteKind::Prefix { prefix, roots } = &site.kind else {
                 continue;
             };
             let segments = QName::parse(prefix).segments().to_vec();
             if let Some(previous) = map.entry(&segments) {
-                report_duplicate(prefix, previous.span, site.span, diags);
+                if !is_borrowed {
+                    report_duplicate(prefix, previous.span, site.span, diags);
+                }
                 continue;
             }
             map.entries.push(Entry {
@@ -221,18 +259,29 @@ impl AutoloadMap {
                 roots: roots.iter().map(|r| canonical(&site.base_dir, r)).collect(),
                 span: site.span,
                 explicit: true,
+                borrowed: is_borrowed,
             });
         }
 
-        for site in sites {
+        for &(site, is_borrowed) in &ordered {
             let SiteKind::Discover { glob } = &site.kind else {
                 continue;
             };
-            let expanded = discover(&site.base_dir, glob, site.span, diags);
-            map.skipped.extend(expanded.skipped);
+            let sink = if is_borrowed {
+                &mut unreported
+            } else {
+                &mut *diags
+            };
+            let expanded = discover(&site.base_dir, glob, site.span, sink);
+            if !is_borrowed {
+                map.skipped.extend(expanded.skipped);
+            }
             for (name, root) in expanded.found {
                 let segments = vec![name.clone()];
                 match map.entry(&segments).map(|e| (e.span, e.explicit)) {
+                    // A borrowed glob that repeats a prefix already taken adds
+                    // nothing and says nothing.
+                    Some(_) if is_borrowed => {}
                     // § 1: an explicit prefix beats a glob that would produce
                     // the same one, and the glob skips the name rather than
                     // colliding with it — the rule a vendor override rides on.
@@ -245,12 +294,35 @@ impl AutoloadMap {
                         roots: vec![root],
                         span: site.span,
                         explicit: false,
+                        borrowed: is_borrowed,
                     }),
                 }
             }
         }
 
         map
+    }
+
+    /// The declarations this program wrote, in the order the walk met them —
+    /// what another analysis hands [`Self::build_borrowing`] as `borrowed`.
+    #[must_use]
+    pub fn sites(&self) -> &[Site] {
+        &self.sites
+    }
+
+    /// Whether `path` is under a root one of this program's own declarations
+    /// names, which makes it a file this program autoloads.
+    ///
+    /// A borrowed entry does not count: it says which program a *name*
+    /// resolves through, and this asks which program a *file* belongs to.
+    #[must_use]
+    pub fn claims(&self, path: &Path) -> bool {
+        let path = crate::requires::canonicalize(path).unwrap_or_else(|| path.to_path_buf());
+        self.entries
+            .iter()
+            .filter(|entry| !entry.borrowed)
+            .flat_map(|entry| &entry.roots)
+            .any(|root| path.starts_with(root))
     }
 
     /// Whether any declaration was collected at all — the fast exit for a

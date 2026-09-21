@@ -73,6 +73,6 @@ pub use hierarchy::{
 };
 pub use members::{ClassMembers, MemberResolver, MemberTable};
 pub use qname::QName;
-pub use requires::{Loaded, resolve_program, resolve_program_linted};
+pub use requires::{Loaded, resolve_program, resolve_program_borrowing, resolve_program_linted};
 pub use resolve::{Import, Module, Resolver, resolve_file};
 pub use symbol::{Symbol, SymbolKind, SymbolTable};

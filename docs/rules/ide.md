@@ -3,7 +3,7 @@
 
 # The editor
 
-*60 of 73 rules below are **designed** rather than shipped, and are marked where they appear.*
+*60 of 74 rules below are **designed** rather than shipped, and are marked where they appear.*
 
 <a id="ide-one-grammar-one-tree"></a>
 
@@ -223,14 +223,51 @@ The unit of analysis is one open document as its own entry point. Its `require`/
 resolved exactly as `nvs check` resolves it, with open buffers overlaid on what is on disk, so a class
 edited in one tab and used in another resolves to the unsaved text. Diagnostics are published only for
 **open** documents — publishing for a file nobody opened is workspace-wide analysis, which is M10's.
-Go-to-definition may still land in a closed file; the editor opens it.
+Go-to-definition may still land in a closed file; the editor opens it. The one thing such a walk takes
+from outside its own graph is the `autoload` map of the program that autoloads the document
+([`ide/an-autoloaded-file-borrows-its-programs-map`](ide.md#ide-an-autoloaded-file-borrows-its-programs-map)).
 
 Editing one document re-analyses every open document whose graph contains it. Otherwise an open `A.nvs`
 that requires an edited `B.nvs` is stale until touched, which reads as the server being wrong. The resolved
 graph is already in hand from the analysis that produced `A`'s diagnostics, so this is a reverse index
 rather than new work.
 
-<sub>See also [`ide/the-server-is-synchronous`](ide.md#ide-the-server-is-synchronous), [`programs/autoload`](programs.md#programs-autoload), [`ide/a-full-reanalysis-stays-under-a-bound`](ide.md#ide-a-full-reanalysis-stays-under-a-bound), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index). Decided in [0099](../decisions/0099.md).</sub>
+<sub>See also [`ide/the-server-is-synchronous`](ide.md#ide-the-server-is-synchronous), [`programs/autoload`](programs.md#programs-autoload), [`ide/an-autoloaded-file-borrows-its-programs-map`](ide.md#ide-an-autoloaded-file-borrows-its-programs-map), [`ide/a-full-reanalysis-stays-under-a-bound`](ide.md#ide-a-full-reanalysis-stays-under-a-bound), [`ide/five-features-are-one-reference-index`](ide.md#ide-five-features-are-one-reference-index). Decided in [0099](../decisions/0099.md), [0198](../decisions/0198.md).</sub>
+
+<a id="ide-an-autoloaded-file-borrows-its-programs-map"></a>
+
+## A file a program autoloads is analysed through that program's `autoload` map, behind its own declarations and without reporting anything for the borrowed ones
+
+`rule:ide/an-autoloaded-file-borrows-its-programs-map`
+
+A file a program autoloads is analysed through that program's `autoload` map. It is its own entry point
+like every open document, it may not write an `autoload` of its own ([`programs/autoload`](programs.md#programs-autoload)), and so
+without a map lent to it every `use` of an autoloaded class would be reported as unresolved in a program
+that builds clean.
+
+The server surveys the tree `nvs.check.scope` selects before its first analysis: a file whose text holds
+the keyword is walked as a program, and one whose `require` chain declares anything is a **lender**. A
+file lies under a lender when its path is under a root one of the lender's *own* declarations names —
+wherever that root is, inside the workspace or not. When such a file is analysed, the lender's
+declarations are placed behind the file's own, each still resolving against the directory of the file
+that wrote it, so a name lands on the file the real build lands it on.
+
+- **The file's own declarations win.** A prefix both declare is the file's, which is what keeps a
+  bootstrap file that happens to sit under a root analysed as itself.
+- **A borrowed declaration reports nothing**, a duplicate and a malformed glob included. Its position is
+  in a file this walk never read, and the lender's own analysis is where it is reported.
+- **The first lender in entry-path order lends, never a union.** Two programs over one source tree may
+  give one prefix different roots, and the union is a map neither of them runs with.
+- **A program never lends to its own entry point**, which `nvs check` and the server analyse identically.
+- **The lender's declaring files are dependencies of the borrowing analysis**, so an edit to one
+  re-analyses and republishes every open document that borrowed from it. An edit to any other file costs
+  one search of its text for the keyword.
+
+Under `nvs.check.scope = open` only the open documents are surveyed, so a map is lent once the file that
+declares it is open too. `nvs check` never borrows: it is handed the file a program starts from, and a
+program has one map.
+
+<sub>See also [`ide/an-open-document-is-its-own-entry-point`](ide.md#ide-an-open-document-is-its-own-entry-point), [`programs/autoload`](programs.md#programs-autoload), [`ide/check-scope-defaults-to-the-workspace`](ide.md#ide-check-scope-defaults-to-the-workspace). Decided in [0198](../decisions/0198.md).</sub>
 
 <a id="ide-the-request-set-is-closed"></a>
 

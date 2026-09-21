@@ -15,6 +15,13 @@
 //! read is. This module decides *what* is overlaid, and [`analyse`] is the one
 //! place a graph is walked with the buffers in front of it.
 //!
+//! **A file a program autoloads borrows that program's `autoload` map**
+//! (`rule:ide/an-autoloaded-file-borrows-its-programs-map`). It may not declare
+//! one, so as its own entry point it would resolve none of the names its
+//! program resolves. [`Documents::survey`] finds the programs that declare one,
+//! [`Documents::resurvey`] keeps that current, and [`analyse_file`] is the one
+//! place a map is lent.
+//!
 //! **Diagnostics are published only for open documents.** Publishing for a file
 //! nobody opened is workspace-wide analysis, which is M10's, and
 //! [`Documents::to_republish`] is where that boundary sits. It answers the
@@ -45,7 +52,7 @@ use std::path::{Path, PathBuf};
 
 use lsp_types::Uri;
 use nvs_diagnostics::{BytePos, Diagnostics, SourceId, SourceMap, Span, canonical_key};
-use nvs_hir::{Loaded, Module, resolve_program};
+use nvs_hir::{AutoloadMap, Loaded, Module, resolve_program, resolve_program_borrowing};
 use nvs_syntax::{SyntaxIndex, Trivia, check_declarations, parse};
 use nvs_types::{ExprTypeTable, LocalBinding, TypeId, TypeInterner};
 
@@ -98,6 +105,72 @@ pub struct Documents {
     /// the graph is already in hand from the analysis that produced that
     /// document's diagnostics, so keeping it is cheaper than deriving it.
     graphs: HashMap<Uri, Vec<PathBuf>>,
+    /// Every program [`survey`](Self::survey) found that declares `autoload`,
+    /// in entry-path order, which is what makes [`lender_for`](Self::lender_for)
+    /// a deterministic choice. One resolved map per such program, held for the
+    /// session.
+    lenders: Vec<Lender>,
+}
+
+/// One program that declares `autoload`, as the files it autoloads borrow it.
+///
+/// `rule:ide/an-open-document-is-its-own-entry-point` is why this exists: a
+/// file a program autoloads is analysed as an entry point, may not write an
+/// `autoload` itself, and so has no map unless it is lent the one that reaches
+/// it.
+#[derive(Debug)]
+struct Lender {
+    /// The file the walk started from, under `canonical_key`.
+    entry: PathBuf,
+    /// Every file of its `require` chain that wrote a declaration, under
+    /// `canonical_key` — the files whose edit makes this lender stale.
+    declaring: Vec<PathBuf>,
+    /// The map those declarations built, which says what the program claims
+    /// and carries the sites it lends.
+    map: AutoloadMap,
+}
+
+/// `path` as a [`Lender`], or `None` for a file whose program declares no
+/// `autoload`.
+///
+/// The text is searched for the keyword before anything is parsed, so a
+/// workspace pays one read per file and one walk per bootstrap file. That walk
+/// is `nvs check`'s name resolution without the type phase, and it reads every
+/// file the program reaches. Its diagnostics are dropped: they are published
+/// when the file itself is analysed.
+fn lender(documents: &Documents, path: &Path) -> Option<Lender> {
+    let mut map = SourceMap::new();
+    documents.overlay(&mut map);
+    let entry = map.load(path).ok()?;
+    if !map.file(entry).text().contains("autoload") {
+        return None;
+    }
+
+    let mut diags = Diagnostics::new();
+    let stmts = parse(map.file(entry), &mut diags).stmts;
+    let (_, _, autoload) = resolve_program(
+        entry,
+        stmts,
+        &mut map,
+        nvs_hir::CoreRoster::Trusted,
+        &mut diags,
+    );
+    if autoload.sites().is_empty() {
+        return None;
+    }
+
+    let mut declaring: Vec<PathBuf> = autoload
+        .sites()
+        .iter()
+        .filter_map(|site| map.file(site.span.file).path().map(canonical_key))
+        .collect();
+    declaring.sort();
+    declaring.dedup();
+    Some(Lender {
+        entry: canonical_key(path),
+        declaring,
+        map: autoload,
+    })
 }
 
 impl Documents {
@@ -192,6 +265,62 @@ impl Documents {
         }
     }
 
+    /// Finds every program under the tree `scope` selects that declares
+    /// `autoload`, replacing whatever an earlier survey found.
+    ///
+    /// Run once, before the first analysis, so an autoloaded file already
+    /// resolves through its program's map the first time it is read —
+    /// [`crate::SymbolIndex::build`] included, which is why this comes before
+    /// it. [`resurvey`](Self::resurvey) keeps the answer current after that.
+    pub fn survey(&mut self, scope: crate::CheckScope, root: Option<&Path>) {
+        let lenders = crate::index::tree(self, scope, root)
+            .into_iter()
+            .filter_map(|(path, _)| lender(self, &path))
+            .collect();
+        self.lenders = lenders;
+    }
+
+    /// [`survey`](Self::survey), for the one file that changed: `changed`
+    /// itself and every lender whose declarations it wrote are walked again,
+    /// and no other file is read.
+    ///
+    /// An edit to a file that declares nothing costs one search of its text.
+    pub fn resurvey(&mut self, changed: &Path) {
+        let key = canonical_key(changed);
+        let mut entries: Vec<PathBuf> = self
+            .lenders
+            .iter()
+            .filter(|lender| lender.entry == key || lender.declaring.contains(&key))
+            .map(|lender| lender.entry.clone())
+            .collect();
+        entries.push(key);
+        entries.sort();
+        entries.dedup();
+
+        self.lenders
+            .retain(|lender| !entries.contains(&lender.entry));
+        for entry in entries {
+            if let Some(found) = lender(self, &entry) {
+                self.lenders.push(found);
+            }
+        }
+        self.lenders.sort_by(|a, b| a.entry.cmp(&b.entry));
+    }
+
+    /// The program `path` borrows its `autoload` map from: the first, in
+    /// entry-path order, that autoloads it.
+    ///
+    /// The first and not a union, because two programs sharing a source tree
+    /// may give one prefix different roots, and a union of their maps is a map
+    /// neither of them runs with. A program never lends to its own entry, which
+    /// already has every declaration it would be lent.
+    fn lender_for(&self, path: &Path) -> Option<&Lender> {
+        let key = canonical_key(path);
+        self.lenders
+            .iter()
+            .find(|lender| lender.entry != key && lender.map.claims(path))
+    }
+
     /// Records every file `uri`'s last analysis read.
     ///
     /// A document that is not open records nothing, so the index never holds a
@@ -265,6 +394,12 @@ pub struct Analysed {
     /// Each file the graph reached, entry first, with the statements the walk
     /// parsed once and every later phase needs again.
     pub loaded: Vec<Loaded>,
+    /// The files whose `autoload` declarations this walk borrowed, and empty
+    /// for an entry no other program autoloads. They are not in
+    /// [`loaded`](Self::loaded) — the walk never opened them — and an edit to
+    /// one still changes what this analysis resolves, which is why
+    /// [`files`](Self::files) names them.
+    pub lent: Vec<PathBuf>,
     /// Every whitespace run and every comment of the **entry** document, in
     /// source order — the other two thirds of the one parse that produced
     /// `loaded`'s first entry (`rule:ide/one-grammar-one-tree`).
@@ -309,7 +444,8 @@ pub struct Analysed {
 }
 
 impl Analysed {
-    /// The path of every file the graph read, entry first.
+    /// The path of every file this analysis depends on: the graph it read,
+    /// entry first, then each file it borrowed an `autoload` declaration from.
     ///
     /// This is what [`Documents::record_graph`] is handed: a file with no path
     /// cannot be edited, so it cannot be what a later change names.
@@ -317,6 +453,7 @@ impl Analysed {
         self.loaded
             .iter()
             .filter_map(|file| self.map.file(file.id).path().map(Path::to_path_buf))
+            .chain(self.lent.iter().cloned())
     }
 
     /// Every body whose span covers `offset` in the entry document, innermost
@@ -434,12 +571,19 @@ pub fn analyse_file(documents: &Documents, path: &Path, version: i32) -> Option<
     } = parse(map.file(entry), &mut diags);
     check_declarations(&stmts, map.file(entry), &mut diags);
     let core = nvs_stdlib::registry::link_targets();
-    let (module, loaded, _autoload) = resolve_program(
+    // The one place this walk is not `nvs check`'s, which is always handed the
+    // file a program starts from. A file some program autoloads has no map of
+    // its own to resolve a name through, so it borrows that program's
+    // (`rule:ide/an-open-document-is-its-own-entry-point`).
+    let lender = documents.lender_for(path);
+    let lent = lender.map_or_else(Vec::new, |lender| lender.declaring.clone());
+    let (module, loaded, _autoload) = resolve_program_borrowing(
         entry,
         stmts,
         &mut map,
         nvs_hir::CoreRoster::Names(&core),
         &mut diags,
+        lender.map_or(&[], |lender| lender.map.sites()),
     );
 
     let mut interner = TypeInterner::new();
@@ -476,6 +620,7 @@ pub fn analyse_file(documents: &Documents, path: &Path, version: i32) -> Option<
         version,
         module,
         loaded,
+        lent,
         trivia,
         index,
         exprs,

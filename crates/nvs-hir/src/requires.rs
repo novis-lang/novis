@@ -229,6 +229,43 @@ pub fn resolve_program_linted(
     diags: &mut Diagnostics,
     strict_docs: bool,
 ) -> (Module, Vec<Loaded>, AutoloadMap) {
+    walk(entry_id, entry_stmts, map, core, diags, strict_docs, &[])
+}
+
+/// [`resolve_program`] for an entry that is not where its program starts —
+/// the same walk, with `borrowed` behind whatever `autoload` the entry's own
+/// `require` chain writes.
+///
+/// An editor analyses the file that is open, and a file a program autoloads
+/// can never carry the map that reached it: `rule:programs/autoload` makes an
+/// `autoload` inside one an error. `borrowed` is that program's declarations,
+/// each still resolving against the directory of the file that wrote it, so
+/// the open file's names land on the files the real build lands them on.
+/// [`AutoloadMap::build_borrowing`] is what keeps a borrowed site from
+/// reporting anything. `nvs check` never calls this: it is given the entry
+/// point, and a program has one map.
+#[must_use]
+pub fn resolve_program_borrowing(
+    entry_id: SourceId,
+    entry_stmts: Vec<Stmt>,
+    map: &mut SourceMap,
+    core: CoreRoster<'_>,
+    diags: &mut Diagnostics,
+    borrowed: &[Site],
+) -> (Module, Vec<Loaded>, AutoloadMap) {
+    walk(entry_id, entry_stmts, map, core, diags, false, borrowed)
+}
+
+/// The walk behind every `resolve_program` entry point.
+fn walk(
+    entry_id: SourceId,
+    entry_stmts: Vec<Stmt>,
+    map: &mut SourceMap,
+    core: CoreRoster<'_>,
+    diags: &mut Diagnostics,
+    strict_docs: bool,
+    borrowed: &[Site],
+) -> (Module, Vec<Loaded>, AutoloadMap) {
     let mut resolver = Resolver::new();
     let mut hierarchy = HierarchyResolver::new(core);
     let mut members = MemberResolver::new();
@@ -401,7 +438,8 @@ pub fn resolve_program_linted(
 
         // Every file the `require` chain can reach is collected, so the map is
         // complete and this is the first moment it can be consulted.
-        let built = autoload_map.get_or_insert_with(|| AutoloadMap::build(&sites, diags));
+        let built = autoload_map
+            .get_or_insert_with(|| AutoloadMap::build_borrowing(&sites, borrowed, diags));
         if built.is_empty() {
             break;
         }
@@ -2404,6 +2442,51 @@ class Unreached {}
                 .any(|d| d.code == Some(code::E_DUPLICATE_AUTOLOAD_PREFIX)),
             "{diags:?}"
         );
+    }
+
+    /// A borrowed declaration sits behind the program's own and never reports:
+    /// a prefix both declare is the program's, a borrowed glob with nothing to
+    /// scan says nothing, and only the program's own roots say which files it
+    /// autoloads.
+    #[test]
+    fn a_borrowed_declaration_yields_to_the_programs_own_and_is_silent() {
+        let dir = TempDir::new("autoload-borrowed");
+        for root in ["own", "lent", "other"] {
+            fs::create_dir_all(dir.path.join(root)).expect("create root");
+        }
+        dir.write("own/Thing.nvs", "<?nvs\nnamespace Acme;\nclass Thing {}\n");
+        dir.write("lent/Thing.nvs", "<?nvs\nnamespace Acme;\nclass Thing {}\n");
+        dir.write("other/Part.nvs", "<?nvs\nnamespace Other;\nclass Part {}\n");
+        let mut map = SourceMap::new();
+        let id = scratch_id(&mut map);
+        let mut diags = Diagnostics::new();
+        let built = AutoloadMap::build_borrowing(
+            &[site(&dir, id, prefix("Acme", &["./own"]))],
+            &[
+                site(&dir, id, prefix("Acme", &["./lent"])),
+                site(&dir, id, prefix("Other", &["./other"])),
+                site(
+                    &dir,
+                    id,
+                    autoload::SiteKind::Discover {
+                        glob: "./missing/*/src".to_owned(),
+                    },
+                ),
+            ],
+            &mut diags,
+        );
+
+        assert!(diags.is_empty(), "{diags:?}");
+        assert_eq!(built.sites().len(), 1);
+        let thing = built.resolve(&QName::parse("Acme\\Thing")).hit;
+        assert_eq!(
+            thing,
+            canonicalize(&dir.path.join("own/Thing.nvs")),
+            "the program's own root is probed, not the borrowed one"
+        );
+        assert!(built.resolve(&QName::parse("Other\\Part")).hit.is_some());
+        assert!(built.claims(&dir.path.join("own/Thing.nvs")));
+        assert!(!built.claims(&dir.path.join("other/Part.nvs")));
     }
 
     /// § 1: an explicit prefix beats a `discover` glob that would produce the
