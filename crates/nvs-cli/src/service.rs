@@ -19,8 +19,9 @@
 //! nowhere to go), `E0633` (a password on a command line) and `E0634` (a
 //! bundle installing itself). § 2's table carries more rows than there are
 //! codes here, because rows that share a reason share a code: the
-//! subcommand allowlist and `--fault-inject` are both "the stored argv names
-//! an instruction that must not run under a privileged account", and the ADR
+//! subcommand allowlist, `--fault-inject` and an argv the command line's own
+//! parser refuses are all "the stored argv names something a service manager
+//! must not be handed", and the ADR
 //! itself calls a missing `--config` "the same first-boot failure as a
 //! relative path, one step less visible". Each code's own doc comment in
 //! `nvs_diagnostics::code` owns the reasoning.
@@ -168,6 +169,10 @@ pub(crate) struct Request<'a> {
     /// A password written on the command line. It exists in order to be
     /// refused by name (`E0633`); the value is prompted for instead.
     pub(crate) password: Option<&'a str>,
+    /// Why this binary's own parser refuses `argv`, where it does. The parser
+    /// belongs to the command line and not to this module, so the caller asks
+    /// it and § 2 refuses on what it said.
+    pub(crate) unaccepted: Option<&'a str>,
 }
 
 /// What the process running the installer can answer about itself and about
@@ -290,6 +295,24 @@ pub(crate) fn plan(request: &Request<'_>, host: &Host) -> Result<Plan, Diagnosti
             &format!("`{word}` may not be installed as a service"),
             "that hook provokes a contained engine panic and must never be reachable from a \
              served request, which a service carrying it is — with a privileged account attached",
+        ));
+    }
+    if let Some(why) = request.unaccepted {
+        return Err(Diagnostic::error(
+            code::E_SERVICE_ARGV_NOT_ALLOWED,
+            format!(
+                "`nvs {}` is not a command line this binary accepts: {why}",
+                request.argv.join(" ")
+            ),
+        )
+        .with_note(
+            "the service manager would start it, it would write a usage error to a console \
+             that is not there and exit, and the manager would start it again"
+                .to_owned(),
+        )
+        .with_help(
+            "run the same words as a command first, and store them once they start a server"
+                .to_owned(),
         ));
     }
 
@@ -1896,22 +1919,121 @@ pub(crate) mod registration {
             }
             return Ok(Vec::new());
         }
+        apply_all(actions, site).map_err(|(_, error)| Refused::Manager(error))
+    }
+
+    /// Every action applied in order, stopping at the first the manager
+    /// refuses.
+    ///
+    /// # Errors
+    ///
+    /// How many actions were applied in full before the refused one, and the
+    /// manager's failure carrying that action's own line. The platform's own
+    /// text names no step and no object, and in an operator's locale "access
+    /// denied" is the whole of it.
+    fn apply_all(
+        actions: &[Action],
+        site: &Site<'_>,
+    ) -> Result<Vec<String>, (usize, std::io::Error)> {
         let mut answers = Vec::new();
-        for action in actions {
+        for (applied, action) in actions.iter().enumerate() {
             match site.manager.apply(action) {
                 Ok(Some(answer)) => answers.push(answer),
                 Ok(None) => {}
-                // The platform's own text names no step and no object, and in
-                // an operator's locale "access denied" is the whole of it.
                 Err(error) => {
-                    return Err(Refused::Manager(std::io::Error::new(
-                        error.kind(),
-                        format!("could not {}: {error}", describe(action)),
-                    )));
+                    return Err((
+                        applied,
+                        std::io::Error::new(
+                            error.kind(),
+                            format!("could not {}: {error}", describe(action)),
+                        ),
+                    ));
                 }
             }
         }
         Ok(answers)
+    }
+
+    /// What takes `applied` back, last step first.
+    ///
+    /// Built from the steps that were applied and never from the plan, so a
+    /// registration the SCM refused because the name is taken is not followed
+    /// by a deregistration of the service that holds the name. `PRESHUTDOWN`
+    /// and the failure actions leave with the registration they were set on. A
+    /// directory a grant created stays: it is empty, and removing a directory is
+    /// not something an install that failed should be doing.
+    pub(crate) fn undo_actions(applied: &[Action]) -> Vec<Action> {
+        let mut out = Vec::new();
+        for action in applied.iter().rev() {
+            match action {
+                Action::Register { name, .. } => {
+                    out.push(Action::Deregister { name: name.clone() })
+                }
+                Action::Grant { account, path, .. } => out.push(Action::Revoke {
+                    account: account.clone(),
+                    path: path.clone(),
+                }),
+                Action::EventSource { name, .. } => {
+                    out.push(Action::RemoveEventSource { name: name.clone() });
+                }
+                Action::WriteUnit { path, .. } => {
+                    out.push(Action::RemoveUnit { path: path.clone() });
+                    // After the file is gone, so systemd forgets the unit it
+                    // read from it.
+                    out.push(Action::Systemctl {
+                        argv: vec!["daemon-reload".to_owned()],
+                    });
+                }
+                Action::Systemctl { argv } if argv.first().is_some_and(|verb| verb == "enable") => {
+                    let mut argv = argv.clone();
+                    argv[0] = "disable".to_owned();
+                    out.push(Action::Systemctl { argv });
+                }
+                Action::Preshutdown { .. }
+                | Action::Failure { .. }
+                | Action::Deregister { .. }
+                | Action::Revoke { .. }
+                | Action::RemoveEventSource { .. }
+                | Action::RemoveUnit { .. }
+                | Action::Systemctl { .. }
+                | Action::Scm { .. } => {}
+            }
+        }
+        out
+    }
+
+    /// `error` with what became of the steps in front of it.
+    ///
+    /// Every undo step is tried, because one that fails is no reason to leave
+    /// the ones behind it in place.
+    fn undone(
+        applied: &[Action],
+        site: &Site<'_>,
+        name: &str,
+        error: std::io::Error,
+    ) -> std::io::Error {
+        if applied.is_empty() {
+            return error;
+        }
+        let left: Vec<String> = undo_actions(applied)
+            .iter()
+            .filter_map(|action| {
+                site.manager
+                    .apply(action)
+                    .err()
+                    .map(|why| format!("could not {}: {why}", describe(action)))
+            })
+            .collect();
+        let outcome = if left.is_empty() {
+            "the steps before it were undone, so nothing is left installed".to_owned()
+        } else {
+            format!(
+                "undoing the steps before it did not finish ({}), and `nvs service uninstall \
+                 {name}` removes what is left",
+                left.join("; ")
+            )
+        };
+        std::io::Error::new(error.kind(), format!("{error}\n  = note: {outcome}"))
     }
 
     /// `nvs service install` — § 2 first, then the platform's own steps.
@@ -1921,9 +2043,13 @@ pub(crate) mod registration {
     /// refusal touches nothing, and no step below re-checks, because none of
     /// them could have been reached without one.
     ///
+    /// An install the manager stops part way takes its own steps back
+    /// ([`undo_actions`]), so a failed install leaves what a refused one leaves.
+    ///
     /// # Errors
     ///
-    /// § 2's refusal, or the manager's own failure at the step it names.
+    /// § 2's refusal, or the manager's own failure at the step it names, with
+    /// what became of the steps in front of it.
     pub(crate) fn install(
         request: &Request<'_>,
         host: &Host,
@@ -1934,7 +2060,18 @@ pub(crate) mod registration {
     ) -> Result<(), Refused> {
         let checked = plan(request, host).map_err(Refused::Installer)?;
         let actions = install_actions(site.platform, &checked, registration, site.unit_root);
-        perform(&actions, site, dry_run, out).map(drop)
+        if dry_run {
+            return perform(&actions, site, true, out).map(drop);
+        }
+        match apply_all(&actions, site) {
+            Ok(_) => Ok(()),
+            Err((applied, error)) => Err(Refused::Manager(undone(
+                &actions[..applied],
+                site,
+                &checked.name,
+                error,
+            ))),
+        }
     }
 
     /// `nvs service uninstall` — the install's steps undone, from what the
@@ -2396,6 +2533,10 @@ pub(crate) mod registration {
         /// § 3's registration, and the two parameters `CreateServiceW` has no
         /// field for: the description, and whether an automatic start is the
         /// delayed one.
+        ///
+        /// A registration one of those two refuses is deleted again before the
+        /// error is returned, so this step either happened or did not, which
+        /// is what [`super::undo_actions`] reads a failed step as.
         fn register(
             name: &str,
             image_path: &str,
@@ -2422,7 +2563,11 @@ pub(crate) mod registration {
                     database.0,
                     wide_name.as_ptr(),
                     wide_name.as_ptr(),
-                    SERVICE_CHANGE_CONFIG | SERVICE_QUERY_STATUS | SERVICE_START | SERVICE_STOP,
+                    SERVICE_CHANGE_CONFIG
+                        | SERVICE_QUERY_STATUS
+                        | SERVICE_START
+                        | SERVICE_STOP
+                        | DELETE,
                     SERVICE_WIN32_OWN_PROCESS,
                     start_type,
                     SERVICE_ERROR_NORMAL,
@@ -2442,6 +2587,23 @@ pub(crate) mod registration {
                 return Err(Error::last_os_error());
             }
             let handle = Handle(handle);
+            let described = describe_registration(&handle, start, description);
+            if described.is_err() {
+                // SAFETY: the handle `CreateServiceW` returned, which carries
+                // `DELETE`. What this answers is not read: the error being
+                // returned is the one the operator has to see.
+                unsafe { DeleteService(handle.0) };
+            }
+            described
+        }
+
+        /// The description and the delayed-start flag, set on the handle a
+        /// registration was just created through.
+        fn describe_registration(
+            handle: &Handle,
+            start: StartMode,
+            description: &str,
+        ) -> std::io::Result<()> {
             let mut wide_description = wide(description);
             let info = SERVICE_DESCRIPTIONW {
                 lpDescription: wide_description.as_mut_ptr(),
@@ -2696,7 +2858,18 @@ pub(crate) mod registration {
                 )
             };
             ok_status(opened)?;
-            let key = Key(created);
+            let valued = event_source_values(&Key(created), exe);
+            if valued.is_err() {
+                // A key holding half its values is a source the viewer reads
+                // wrongly, so it goes. What removing it answers is not read: the
+                // error being returned is the one the operator has to see.
+                let _ = remove_event_source(name);
+            }
+            valued
+        }
+
+        /// The two values a source's subkey holds.
+        fn event_source_values(key: &Key, exe: &Path) -> std::io::Result<()> {
             let message_file = wide_path(exe);
             let value = wide("EventMessageFile");
             // SAFETY: both strings outlive the call, and the byte count is the
@@ -2875,6 +3048,7 @@ pub(crate) fn print_unit(
     log_file: Option<&Path>,
     account: Option<&str>,
     password: Option<&str>,
+    unaccepted: Option<&str>,
 ) -> ExitCode {
     let request = Request {
         name,
@@ -2882,6 +3056,7 @@ pub(crate) fn print_unit(
         log_file,
         account,
         password,
+        unaccepted,
     };
     let mut sources = SourceMap::new();
     let host = match describe_host(config, argv, Unresolved::Refuses, &mut sources) {
@@ -2971,6 +3146,8 @@ pub(crate) struct InstallOptions<'a> {
     pub(crate) account: Option<&'a str>,
     /// § 2 refuses it and exists to name it (`E0633`).
     pub(crate) password: Option<&'a str>,
+    /// Why this binary's own parser refuses the argv, where it does.
+    pub(crate) unaccepted: Option<&'a str>,
     /// § 4's `--start`.
     pub(crate) start: registration::StartMode,
     /// § 4's `--restart`.
@@ -3004,6 +3181,7 @@ pub(crate) fn install(
         log_file: options.log_file,
         account: options.account,
         password: options.password,
+        unaccepted: options.unaccepted,
     };
     let mut sources = SourceMap::new();
     let host = match describe_host(config, argv, Unresolved::Refuses, &mut sources) {
@@ -3329,6 +3507,7 @@ mod tests {
             log_file: None,
             account: None,
             password: None,
+            unaccepted: None,
         }
     }
 
@@ -3522,6 +3701,27 @@ mod tests {
         // shell's own tree looks like, so it is described and left to `plan`.
         let bare = vec!["serve".to_owned()];
         assert!(describe_host(&[file], &bare, Unresolved::Refuses, &mut SourceMap::new()).is_ok());
+    }
+
+    /// An argv the command line's own parser refuses is `E0630`, on the row's
+    /// own reasoning: it exits at once, which a service manager reports as a
+    /// crash loop forever. The allowlist is asked first, so a subcommand that
+    /// is not a server is refused as that.
+    #[test]
+    fn the_installer_refuses_an_argv_this_binary_would_not_run() {
+        let argv = argv();
+        let mut asked = request(&argv);
+        asked.unaccepted = Some("the following required arguments were not provided: <FILE>");
+        let refusal = plan(&asked, &host()).expect_err("unaccepted");
+        assert_eq!(coded(&refusal), code::E_SERVICE_ARGV_NOT_ALLOWED);
+        assert!(refusal.message.contains("<FILE>"), "{}", refusal.message);
+
+        let mut wrong = argv.clone();
+        wrong[0] = "ast".to_owned();
+        let mut asked = request(&wrong);
+        asked.unaccepted = Some("anything");
+        let refusal = plan(&asked, &host()).expect_err("allowlist first");
+        assert!(refusal.message.contains("`nvs ast`"), "{}", refusal.message);
     }
 
     /// `rule:packaging/a-bundle-may-not-install-itself`.
@@ -4225,33 +4425,40 @@ mod tests {
         std::fs::remove_dir_all(&root).expect("a removed scratch directory");
     }
 
-    /// A manager that refuses § 4's failure actions the way the SCM refuses
-    /// them to a handle opened without `SERVICE_START`, and applies the rest.
-    #[derive(Debug, Default)]
-    struct RefusesFailureActions {
+    /// A manager that refuses the actions `refuses` picks, the way the SCM
+    /// answers "access denied" to one step of a list, and applies the rest.
+    #[derive(Debug)]
+    struct Refusing {
+        refuses: fn(&registration::Action) -> bool,
         applied: registration::Recording,
     }
 
-    impl registration::Manager for RefusesFailureActions {
+    impl Refusing {
+        fn of(refuses: fn(&registration::Action) -> bool) -> Self {
+            Self {
+                refuses,
+                applied: registration::Recording::default(),
+            }
+        }
+    }
+
+    impl registration::Manager for Refusing {
         fn apply(&self, action: &registration::Action) -> std::io::Result<Option<String>> {
-            if matches!(action, registration::Action::Failure { .. }) {
+            if (self.refuses)(action) {
                 return Err(std::io::Error::from(std::io::ErrorKind::PermissionDenied));
             }
             self.applied.apply(action)
         }
     }
 
-    /// The platform's own text for a refused step is "access denied" and
-    /// nothing else, so the error carries the line `--dry-run` prints for the
-    /// step it stopped on, and nothing after that step is applied.
-    #[test]
-    fn a_step_the_manager_refuses_is_named_in_the_error() {
-        let root = unit_root("named-step");
-        let manager = RefusesFailureActions::default();
+    /// An install of `argv()` on `platform` through `manager`, which refuses
+    /// part of it, as the error's text.
+    fn refused_install(case: &str, platform: registration::Platform, manager: &Refusing) -> String {
+        let root = unit_root(case);
         let site = registration::Site {
-            platform: registration::Platform::Windows,
+            platform,
             unit_root: &root,
-            manager: &manager,
+            manager,
         };
         let argv = argv();
         let refused = registration::install(
@@ -4262,17 +4469,118 @@ mod tests {
             false,
             &mut std::io::sink(),
         )
-        .expect_err("the failure actions are refused");
+        .expect_err(case);
+        std::fs::remove_dir_all(&root).expect("a removed scratch directory");
         let registration::Refused::Manager(error) = refused else {
             panic!("§ 2 refused an argv that survives it")
         };
-        assert_eq!(error.kind(), std::io::ErrorKind::PermissionDenied);
-        let text = error.to_string();
-        assert!(text.contains("could not set `web` to restart"), "{text}");
+        assert_eq!(error.kind(), std::io::ErrorKind::PermissionDenied, "{case}");
+        error.to_string()
+    }
 
-        // Registered and asked for `PRESHUTDOWN`, and stopped there.
-        assert_eq!(manager.applied.applied().len(), 2);
-        std::fs::remove_dir_all(&root).expect("a removed scratch directory");
+    /// The platform's own text for a refused step is "access denied" and
+    /// nothing else, so the error carries the line `--dry-run` prints for the
+    /// step it stopped on. The steps in front of it are taken back, last first,
+    /// so a failed install leaves nothing installed.
+    #[test]
+    fn an_install_the_manager_stops_part_way_names_the_step_and_undoes_the_ones_before_it() {
+        use registration::Action;
+
+        // Windows, stopped at the event-log source: the last step, so every
+        // other one has been applied and has to go.
+        let manager = Refusing::of(|action| matches!(action, Action::EventSource { .. }));
+        let text = refused_install("undo-windows", registration::Platform::Windows, &manager);
+        assert!(
+            text.contains("could not register the event-log source `web`"),
+            "{text}"
+        );
+        assert!(text.contains("nothing is left installed"), "{text}");
+        let applied = manager.applied.applied();
+        let undo: Vec<&Action> = applied
+            .iter()
+            .skip_while(|action| !matches!(action, Action::Revoke { .. }))
+            .collect();
+        // Three grants — the config, the log directory and the cache — revoked
+        // in the reverse of the order they were made in, then the registration.
+        assert_eq!(undo.len(), 4, "{undo:?}");
+        let revoked: Vec<&PathBuf> = undo
+            .iter()
+            .filter_map(|action| match action {
+                Action::Revoke { path, .. } => Some(path),
+                _ => None,
+            })
+            .collect();
+        let granted: Vec<&PathBuf> = applied
+            .iter()
+            .filter_map(|action| match action {
+                Action::Grant { path, .. } => Some(path),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(revoked, granted.into_iter().rev().collect::<Vec<_>>());
+        assert_eq!(
+            undo.last(),
+            Some(&&Action::Deregister {
+                name: "web".to_owned()
+            })
+        );
+
+        // Linux, stopped at `enable`: the unit is removed and systemd told.
+        let manager = Refusing::of(
+            |action| matches!(action, Action::Systemctl { argv } if argv[0] == "enable"),
+        );
+        let text = refused_install("undo-linux", registration::Platform::Linux, &manager);
+        assert!(
+            text.contains("could not run systemctl enable web"),
+            "{text}"
+        );
+        let applied = manager.applied.applied();
+        assert!(
+            matches!(applied[2], Action::RemoveUnit { .. }),
+            "{applied:?}"
+        );
+        assert_eq!(
+            applied[3],
+            Action::Systemctl {
+                argv: vec!["daemon-reload".to_owned()]
+            }
+        );
+        assert_eq!(applied.len(), 4);
+    }
+
+    /// The undo is built from what was applied and never from the plan. A
+    /// registration refused because the name is taken is followed by nothing:
+    /// a deregistration there would delete the service that holds the name.
+    #[test]
+    fn a_refused_registration_is_followed_by_no_deregistration() {
+        use registration::Action;
+
+        let manager = Refusing::of(|action| matches!(action, Action::Register { .. }));
+        let text = refused_install("undo-nothing", registration::Platform::Windows, &manager);
+        assert!(text.contains("could not register `web`"), "{text}");
+        assert!(!text.contains("note:"), "{text}");
+        assert!(manager.applied.applied().is_empty());
+    }
+
+    /// An undo step that fails does not stop the ones behind it, and the error
+    /// says what is left and which command removes it.
+    #[test]
+    fn an_undo_that_does_not_finish_says_what_is_left() {
+        use registration::Action;
+
+        let manager = Refusing::of(|action| {
+            matches!(action, Action::EventSource { .. } | Action::Revoke { .. })
+        });
+        let text = refused_install("undo-partial", registration::Platform::Windows, &manager);
+        assert!(text.contains("did not finish"), "{text}");
+        assert!(text.contains("could not revoke"), "{text}");
+        assert!(text.contains("`nvs service uninstall web`"), "{text}");
+        assert_eq!(
+            manager.applied.applied().last(),
+            Some(&Action::Deregister {
+                name: "web".to_owned()
+            })
+        );
     }
 
     /// The process a control is answered over: a count that falls the way a

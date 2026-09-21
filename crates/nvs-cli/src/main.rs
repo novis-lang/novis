@@ -987,6 +987,7 @@ enum CtlCommand {
 enum ServiceCommand {
     /// Store this argv with the platform's service manager, and grant the
     /// account it runs as what § 4's closed list allows.
+    #[command(after_help = SERVICE_INSTALL_EXAMPLE)]
     Install(ServiceInstall),
     /// Take the registration away, leaving no key, no event-log source, no
     /// unit and no granted access behind.
@@ -1059,6 +1060,47 @@ enum ServiceCommand {
         argv: Vec<String>,
     },
 }
+
+/// The text under `nvs service install --help`: one whole command line for each
+/// platform, and the rules a first install meets.
+///
+/// An end user reads this, so it is written as `AGENTS.md` § *Text an end user
+/// reads* asks.
+const SERVICE_INSTALL_EXAMPLE: &str = r#"Examples:
+  Each example is shown on several lines. Type it as one line.
+
+  Windows, in a terminal started as administrator:
+
+    nvs service install shop
+        --description "Shop web server"
+        --start delayed
+        --restart on-failure
+        --depends-on postgresql
+        -- serve D:\srv\shop\public\index.nvs --config D:\srv\shop\nvs.toml
+
+  Linux, as root:
+
+    nvs service install shop
+        --description "Shop web server"
+        --depends-on postgresql.service
+        -- serve /srv/shop/public/index.nvs --config /srv/shop/nvs.toml
+
+  Everything before `--` is an option of the installer. Everything after `--` is
+  the `nvs` command that the service runs. It must be `serve` or `run`.
+
+  Write every path in full. Name the entry file, and name the configuration
+  file with `--config`. Paths inside the configuration file must be full too.
+
+  A service has no terminal, so it needs a log file. Set this in the
+  configuration file:
+
+    [log]
+    target = "file:D:/srv/shop/logs/novis.log"
+
+  The installer creates that folder and lets the service write to it.
+
+  Add `--dry-run` to print every step without changing anything. To remove the
+  service, run `nvs service uninstall shop`."#;
 
 /// What `nvs service install` takes, which is also what the hidden
 /// `nvs install-service` takes: one struct, because two spellings of one
@@ -1171,8 +1213,37 @@ fn run_hosted(argv: &[String]) -> ExitCode {
     }
 }
 
+/// Why this binary would refuse `argv` as its own command line, or `None`
+/// where it would run it.
+///
+/// A service manager starts the stored argv with no console, so a usage error
+/// there is an exit nobody reads, repeated at every restart. The installer asks
+/// here, where the parser is, and refuses on the answer. The text is the
+/// parser's first paragraph on one line: the usage block under it is about a
+/// command the operator did not type.
+fn unaccepted(argv: &[String]) -> Option<String> {
+    let error =
+        Cli::try_parse_from(std::iter::once("nvs").chain(argv.iter().map(String::as_str))).err()?;
+    if matches!(
+        error.kind(),
+        clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion
+    ) {
+        return Some("it prints help and exits".to_owned());
+    }
+    let text = error.to_string();
+    let first = text.split("\n\n").next().unwrap_or(&text);
+    Some(
+        first
+            .trim_start_matches("error: ")
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" "),
+    )
+}
+
 /// `nvs service install` and `nvs install-service`, which are one command.
 fn install_service(config: &[PathBuf], args: &ServiceInstall) -> ExitCode {
+    let unaccepted = unaccepted(&args.argv);
     service::install(
         config,
         &args.name,
@@ -1181,6 +1252,7 @@ fn install_service(config: &[PathBuf], args: &ServiceInstall) -> ExitCode {
             log_file: args.log_file.as_deref(),
             account: args.account.as_deref(),
             password: args.password.as_deref(),
+            unaccepted: unaccepted.as_deref(),
             start: args.start.unwrap_or_default(),
             restart: args.restart.unwrap_or_default(),
             depends_on: &args.depends_on,
@@ -1399,6 +1471,7 @@ fn main() -> ExitCode {
                 log_file.as_deref(),
                 account.as_deref(),
                 password.as_deref(),
+                unaccepted(&argv).as_deref(),
             ),
         },
         // `stdio` names the transport the client chose and there is no other
@@ -2740,8 +2813,82 @@ fn render_diagnostics(diags: &mut Diagnostics, map: &SourceMap) {
 
 #[cfg(test)]
 mod tests {
-    use super::{Cli, inbound_of, initializes};
+    use super::{
+        Cli, Command, SERVICE_INSTALL_EXAMPLE, ServiceCommand, inbound_of, initializes, unaccepted,
+    };
     use clap::{CommandFactory as _, Parser as _};
+
+    /// A command line as the words a shell would hand over: split on spaces,
+    /// with a double-quoted run kept as one word.
+    fn words(line: &str) -> Vec<String> {
+        let mut out = Vec::new();
+        let mut word = String::new();
+        let mut quoted = false;
+        for character in line.chars() {
+            match character {
+                '"' => quoted = !quoted,
+                ' ' if !quoted => {
+                    if !word.is_empty() {
+                        out.push(std::mem::take(&mut word));
+                    }
+                }
+                other => word.push(other),
+            }
+        }
+        if !word.is_empty() {
+            out.push(word);
+        }
+        out
+    }
+
+    /// A stored argv this binary would answer with a usage error is refused at
+    /// install, because a service manager starts it with no console to write
+    /// that error to. `serve` with no entry file is the reported case.
+    #[test]
+    fn an_argv_this_binary_would_not_run_is_named_as_unaccepted() {
+        let argv = |line: &str| words(line);
+        let why = unaccepted(&argv("serve --config /srv/shop/nvs.toml")).expect("no entry file");
+        assert!(why.contains("<FILE>"), "{why}");
+        assert!(!why.contains("Usage"), "{why}");
+        assert_eq!(
+            unaccepted(&argv("serve --help")).as_deref(),
+            Some("it prints help and exits")
+        );
+        assert_eq!(
+            unaccepted(&argv(
+                "serve /srv/shop/index.nvs --config /srv/shop/nvs.toml"
+            )),
+            None
+        );
+    }
+
+    /// Every command line the help shows is one the parser takes, and the argv
+    /// it stores is one this binary runs — so the example cannot drift from the
+    /// options it is an example of.
+    #[test]
+    fn every_command_line_in_the_service_install_help_parses_and_stores_an_accepted_argv() {
+        // An example runs from its `nvs service install` line to the next blank
+        // one, and is one command line once those are joined.
+        let lines: Vec<String> = SERVICE_INSTALL_EXAMPLE
+            .split("\n\n")
+            .filter(|block| block.trim_start().starts_with("nvs service install "))
+            .map(|block| block.split_whitespace().collect::<Vec<_>>().join(" "))
+            .collect();
+        assert_eq!(lines.len(), 2, "one for each platform");
+        for line in &lines {
+            let cli =
+                Cli::try_parse_from(words(line)).unwrap_or_else(|error| panic!("{line}: {error}"));
+            let Some(Command::Service {
+                command: ServiceCommand::Install(args),
+            }) = cli.command
+            else {
+                panic!("{line} is not `nvs service install`")
+            };
+            assert_eq!(args.name, "shop");
+            assert_eq!(args.argv[0], "serve");
+            assert_eq!(unaccepted(&args.argv), None, "{line}");
+        }
+    }
 
     /// The half of [`initializes`]'s table that writes nothing, read through the parser so the
     /// case names the command line rather than a variant: `nvs config check` and `nvs config dump`
