@@ -1,0 +1,33 @@
+<?nvs
+// Measures reaching a shared secret with a peer over X25519. A server does this
+// once per client, at the start of a connection.
+// bench: iterations 5000
+// bench: calls 0
+// bench: allocations 1
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Core\Crypto\KeyPair $mine = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519);
+        array<Core\Crypto\PublicKey> $peers = [
+            Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519)->publicKey(),
+            Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519)->publicKey(),
+        ];
+        array<secret bytes> $known = [
+            Core\Crypto::agree($mine, $peers[0]),
+            Core\Crypto::agree($mine, $peers[1]),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The peer of every round is chosen by the round before it, so no
+            // round can be left out.
+            int $peer = ($total % 2) as int;
+            $total = $total
+                + ((Core\Crypto::agree($mine, $peers[$peer]) == $known[$peer] ? 1 : 0) as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(5000), "\n";

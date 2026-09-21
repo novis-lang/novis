@@ -1,0 +1,97 @@
+<?nvs
+// Attack: a peer sends public keys it picked to break the agreement. Among them
+// are a point that forces a known secret, bytes that are not a key at all, and
+// a key from the wrong curve. Every one of them should throw an error the
+// program can catch, and the program should reach its last line.
+
+Core\Crypto\KeyPair $mine = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519);
+Core\Crypto\KeyPair $onP256 = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
+
+// 1. A point of all zeroes, which forces the secret to all zeroes as well. The
+// peer would know it in advance. Caught, so the next step still runs.
+try {
+    Core\Crypto\PublicKey $zero = Core\Crypto\PublicKey::read(
+        Core\Bytes::fill(32, 0),
+        Core\Crypto\KeyKind::X25519,
+        Core\Crypto\KeyFormat::Raw,
+    );
+    Core\Crypto::agree($mine, $zero);
+    echo '1 agreed on the all-zero point', "\n";
+} catch (Throwable $e) {
+    echo '1 refused', "\n";
+}
+
+// 2. A point of small order, which forces the secret into one of a handful of
+// values the peer can guess.
+array<string> $smallOrder = [
+    '0100000000000000000000000000000000000000000000000000000000000000',
+    'e0eb7a7c3b41b8ae1656e3faf19fc46ada098deb9c32b1fd866205165f49b800',
+    '5f9c95bca3508c24b1d0b1559c83ef5b04445cc4581c8e86d8224eddd09f1157',
+];
+foreach ($smallOrder as string $point) {
+    try {
+        Core\Crypto\PublicKey $weak = Core\Crypto\PublicKey::read(
+            Core\Encoding::fromHex($point),
+            Core\Crypto\KeyKind::X25519,
+            Core\Crypto\KeyFormat::Raw,
+        );
+        Core\Crypto::agree($mine, $weak);
+        echo '2 agreed on a small-order point', "\n";
+    } catch (Throwable $e) {
+        echo '2 refused', "\n";
+    }
+}
+
+// 3. Bytes that are not a key at all, in the format a peer normally sends.
+try {
+    Core\Crypto\PublicKey::read(
+        Core\Bytes::fill(200, 7),
+        Core\Crypto\KeyKind::P256,
+        Core\Crypto\KeyFormat::Spki,
+    );
+    echo '3 read a key out of filler bytes', "\n";
+} catch (Throwable $e) {
+    echo '3 refused', "\n";
+}
+
+// 4. A key from the other curve. It is a real key, so only the pairing is
+// wrong.
+try {
+    Core\Crypto::agree($onP256, $mine->publicKey());
+    echo '4 agreed across two curves', "\n";
+} catch (Throwable $e) {
+    echo '4 refused', "\n";
+}
+
+// 5. A key that signs and agrees nothing.
+try {
+    Core\Crypto\KeyPair $signing = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+    Core\Crypto::agree($signing, $mine->publicKey());
+    echo '5 agreed with a signing key', "\n";
+} catch (Throwable $e) {
+    echo '5 refused', "\n";
+}
+
+// 6. A key one megabyte long, to see whether a length is checked before the
+// bytes are read.
+try {
+    Core\Crypto\PublicKey::read(
+        Core\Bytes::fill(1000000, 4),
+        Core\Crypto\KeyKind::X25519,
+        Core\Crypto\KeyFormat::Raw,
+    );
+    echo '6 read a key out of a megabyte of filler', "\n";
+} catch (Throwable $e) {
+    echo '6 refused', "\n";
+}
+
+// 7. The same point sent ten thousand times, which is what a peer does when it
+// wants the server to spend its time on curve arithmetic.
+Core\Crypto\PublicKey $theirs = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519)->publicKey();
+int $reached = 0;
+foreach (Core\Arr::range(1, 10000) as int $round) {
+    if (Core\Crypto::agree($mine, $theirs) == Core\Crypto::agree($mine, $theirs)) {
+        $reached += 1;
+    }
+}
+echo '7 reached the same secret ', $reached, ' times', "\n";

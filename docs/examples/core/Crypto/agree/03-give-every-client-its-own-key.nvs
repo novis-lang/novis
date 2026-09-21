@@ -1,0 +1,34 @@
+<?nvs
+// Shows a server that gives every client its own key. The server has one key
+// pair. It reaches a separate secret with each client, turns that secret into a
+// key, and seals a message only that client can open.
+
+Core\Crypto\KeyPair $server = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519);
+
+array<string> $clients = ["alice", "bob"];
+foreach ($clients as string $name) {
+    // In a real program this key arrives from the client over the network.
+    Core\Crypto\KeyPair $client = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519);
+
+    // The client's name is part of the text, so two clients never end up with
+    // the same key.
+    secret bytes $key = Core\Crypto::expandKey(
+        Core\Crypto::agree($server, $client->publicKey()),
+        "" as bytes,
+        "session for " . $name
+    );
+    bytes $sealed = Core\Crypto::seal(
+        ("hello " . $name) as bytes,
+        $key,
+        Core\Crypto\Cipher::XChaCha20Poly1305
+    );
+
+    // The client reaches the same secret from its own side, builds the same key
+    // and opens the message. This prints `hello alice` and then `hello bob`.
+    secret bytes $clientKey = Core\Crypto::expandKey(
+        Core\Crypto::agree($client, $server->publicKey()),
+        "" as bytes,
+        "session for " . $name
+    );
+    echo Core\Crypto::open($sealed, $clientKey, Core\Crypto\Cipher::XChaCha20Poly1305) as string, "\n";
+}
