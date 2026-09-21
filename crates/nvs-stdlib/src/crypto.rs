@@ -5482,6 +5482,236 @@ mod tests {
         }
     }
 
+    /// A key file reads into the pair's own two slots — the DER the file
+    /// carried, and the kind the call named — whichever of the two spellings
+    /// carried it.
+    ///
+    /// Driven through [`nvs_runtime::call`], because what the member answers is
+    /// an object and the claim is about what that object holds. A `.nvst` case
+    /// can ask a pair what it writes back; it cannot see that a PEM block is
+    /// unwrapped *at the read*, so a member that stored the armoured text and
+    /// unwrapped it again inside every later member would pass one and fail
+    /// here.
+    ///
+    /// That is also the half [`a_pem_private_key_block_reads_and_its_two_neighbours_do_not`]
+    /// leaves open: it reads [`pkcs8_der`] directly, one layer under the member.
+    /// Both spellings of one key go in here, and the two pairs are compared slot
+    /// for slot against the DER the frozen set holds.
+    ///
+    /// The stored DER is parsed back with [`PrivateKey::read`], since a slot
+    /// holding the right octets under the wrong kind still answers every
+    /// comparison above and fails at the first signature.
+    // covers: Core\Crypto\KeyPair::read
+    #[test]
+    fn a_key_file_reads_into_the_der_and_the_kind_whichever_spelling_carried_it() {
+        let slots = |octets: &[u8], kind: KeyKind| -> Option<(Vec<u8>, KeyKind)> {
+            let mut ctx = nvs_runtime::Ctx::buffered();
+            let pair = nvs_runtime::call(
+                nvs_core_crypto_key_pair_read,
+                &mut ctx,
+                &[Value::bytes(NvsStr::new(octets)), Value::int(kind.tag())],
+            )
+            .ok()?;
+            let (held, stored) = stored_key(&[pair], 0, &KEY_PAIR, "read")
+                .expect("the member fills both of the class's slots");
+            let der = stored_octets(&held, &KEY_PAIR, "read")
+                .expect("the `pkcs8` slot holds the DER the member wrote")
+                .to_vec();
+            assert!(
+                PrivateKey::read(&der, stored).is_some(),
+                "the slots read back as a private key, which is what every member taking a pair \
+                 does with them"
+            );
+            #[expect(
+                unsafe_code,
+                reason = "the call answered this reference and nothing else holds it, which is \
+                          `Value::release`'s whole obligation"
+            )]
+            unsafe {
+                pair.release();
+            }
+            Some((der, stored))
+        };
+
+        for (id, kind) in [
+            ("rsa-1", KeyKind::RsaPkcs1),
+            ("rsa-2", KeyKind::RsaPss),
+            ("ec-1", KeyKind::P256),
+            ("ed-1", KeyKind::Ed25519),
+        ] {
+            let node = webcrypto::node(&format!("/jws/keys/{id}"));
+            let pkcs8 = webcrypto::octets(node, "/pkcs8");
+            assert_eq!(
+                slots(&pkcs8, kind),
+                Some((pkcs8.clone(), kind)),
+                "{id}'s DER is what the pair holds, under the kind the call named"
+            );
+            assert_eq!(
+                slots(webcrypto::text(node, "/pem").as_bytes(), kind),
+                Some((pkcs8, kind)),
+                "{id}'s PEM block is unwrapped at the read, so no later member is handed armour"
+            );
+        }
+
+        // The fifth kind of the roster, which the set files under the exchange
+        // it is for and writes no PEM beside.
+        let agreeing = webcrypto::octets(webcrypto::node("/ecdh/vectors/1/a"), "/pkcs8");
+        assert_eq!(
+            slots(&agreeing, KeyKind::X25519),
+            Some((agreeing, KeyKind::X25519)),
+            "every kind a program can hold a pair of reads here, not the four that sign"
+        );
+    }
+
+    /// A pair writes the very octets in its own slot, and writing does not take
+    /// them out of it.
+    ///
+    /// Driven through [`nvs_runtime::call`] over a pair
+    /// [`nvs_core_crypto_key_pair_read`] built, because the claim is about the
+    /// *slot* rather than about the value. A `.nvst` case asserts that what
+    /// comes back reads as the same key, which a member re-encoding the key
+    /// from its parsed components would pass as well — and that member is the
+    /// one [`KEY_PAIR`]'s doc says this is not, since RSA's private components
+    /// are read here and never written. The octets are compared by address,
+    /// which only the slot's own buffer has, and that is also what the ledger's
+    /// `allocations 0` records.
+    ///
+    /// Written twice, because a member moving the value out of the slot answers
+    /// the right octets once and leaves a pair no later member can use.
+    // covers: Core\Crypto\KeyPair::write
+    #[test]
+    fn a_pair_writes_the_octets_in_its_own_slot_and_keeps_them() {
+        let pkcs8 = webcrypto::octets(webcrypto::node("/jws/keys/ed-1"), "/pkcs8");
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let pair = nvs_runtime::call(
+            nvs_core_crypto_key_pair_read,
+            &mut ctx,
+            &[
+                Value::bytes(NvsStr::new(&pkcs8)),
+                Value::int(KeyKind::Ed25519.tag()),
+            ],
+        )
+        .expect("the set's Ed25519 private key reads");
+        let (held, _) = stored_key(&[pair], 0, &KEY_PAIR, "write")
+            .expect("`read` fills both of the class's slots");
+        let slot = stored_octets(&held, &KEY_PAIR, "write")
+            .expect("the `pkcs8` slot holds the DER")
+            .as_ptr();
+
+        for turn in 1..=2 {
+            let written = nvs_runtime::call(nvs_core_crypto_key_pair_write, &mut ctx, &[pair])
+                .expect("a pair writes whenever it is asked");
+            let octets = written.as_bytes().expect("`write` answers a `bytes`");
+            assert_eq!(
+                octets,
+                pkcs8.as_slice(),
+                "turn {turn}: the file the pair was read from"
+            );
+            assert_eq!(
+                octets.as_ptr(),
+                slot,
+                "turn {turn}: the slot itself, rather than a copy of it"
+            );
+            #[expect(
+                unsafe_code,
+                reason = "`instance::read_slot` retained this reference for its caller, so \
+                          releasing it is what the member's own caller owes"
+            )]
+            unsafe {
+                written.release();
+            }
+        }
+
+        #[expect(
+            unsafe_code,
+            reason = "the call answered this reference and nothing else holds it, which is \
+                      `Value::release`'s whole obligation"
+        )]
+        unsafe {
+            pair.release();
+        }
+    }
+
+    /// The public half a pair answers is the one the frozen set exported beside
+    /// its private key, for every kind, and each call answers a half of its own.
+    ///
+    /// Driven through [`nvs_runtime::call`], one layer above
+    /// [`every_kind_of_the_roster_reads_a_private_key_and_derives_its_public_half`],
+    /// which asks [`PrivateKey::public`] the same question directly: what this
+    /// adds is that the member fills a `Crypto\PublicKey`'s own slots with that
+    /// answer, so a derivation that is right and a class that is handed the
+    /// wrong kind cannot pass together.
+    ///
+    /// Two halves are taken from one pair and the first is released while the
+    /// second is still read, since the attack beside this keeps a hundred
+    /// thousand of them: a member handing out one shared instance would answer
+    /// every assertion above and leave the survivors reading freed octets.
+    // covers: Core\Crypto\KeyPair::publicKey
+    #[test]
+    fn every_pair_answers_the_public_half_the_set_exported_and_a_fresh_one_each_call() {
+        let mut derived = 0;
+        let pairs = [
+            ("/jws/keys/rsa-1", KeyKind::RsaPkcs1),
+            ("/jws/keys/rsa-2", KeyKind::RsaPss),
+            ("/jws/keys/ec-1", KeyKind::P256),
+            ("/jws/keys/ed-1", KeyKind::Ed25519),
+            ("/ecdh/vectors/1/a", KeyKind::X25519),
+        ];
+        for (path, kind) in pairs {
+            let node = webcrypto::node(path);
+            let mut ctx = nvs_runtime::Ctx::buffered();
+            let pair = nvs_runtime::call(
+                nvs_core_crypto_key_pair_read,
+                &mut ctx,
+                &[
+                    Value::bytes(NvsStr::new(&webcrypto::octets(node, "/pkcs8"))),
+                    Value::int(kind.tag()),
+                ],
+            )
+            .expect("every kind of the roster reads");
+
+            let half = |ctx: &mut nvs_runtime::Ctx| {
+                nvs_runtime::call(nvs_core_crypto_key_pair_public_key, ctx, &[pair])
+                    .expect("a pair that read has a public half")
+            };
+            let first = half(&mut ctx);
+            let second = half(&mut ctx);
+            #[expect(
+                unsafe_code,
+                reason = "the call answered this reference and nothing else holds it, which is \
+                          `Value::release`'s whole obligation"
+            )]
+            unsafe {
+                first.release();
+            }
+
+            let (spki, stored) = stored_key(&[second], 0, &PUBLIC_KEY, "publicKey")
+                .expect("the member fills both of the class's slots");
+            assert_eq!(stored, kind, "{path}: the half is of the pair's own kind");
+            if stored_octets(&spki, &PUBLIC_KEY, "publicKey")
+                .expect("the `spki` slot holds the encoding the member wrote")
+                == webcrypto::octets(node, "/spki")
+            {
+                derived += 1;
+            }
+            #[expect(
+                unsafe_code,
+                reason = "the call answered this reference and nothing else holds it, which is \
+                          `Value::release`'s whole obligation"
+            )]
+            unsafe {
+                second.release();
+            }
+        }
+
+        assert_eq!(
+            derived,
+            pairs.len(),
+            "every kind's public half is the one the set exported, counted so that a member \
+             carrying four kinds and losing the fifth fails here"
+        );
+    }
+
     /// The kind the set's own label for a key names, so no case here picks one
     /// for itself — the JWS keys are labelled by `alg` and the agreement pairs
     /// by `curve`.

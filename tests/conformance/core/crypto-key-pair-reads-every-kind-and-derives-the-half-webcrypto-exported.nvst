@@ -2,6 +2,7 @@
 Core\Crypto\KeyPair::read takes every kind of the roster as DER PKCS#8, ->write hands the same file back, and ->publicKey derives the public half WebCrypto exported beside it — `rule:core-classes/crypto-interop-tier`, `rule:security/algorithm-comes-from-the-key`
 --FILE--
 <?nvs
+// covers: Core\Crypto\KeyPair::write, Core\Crypto\KeyPair::publicKey
 // WebCrypto's own private keys, frozen under
 // `crates/nvs-stdlib/tests/vectors/`, each beside the `SubjectPublicKeyInfo`
 // WebCrypto exported for it. That these *are* WebCrypto's bytes is held by that
