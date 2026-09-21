@@ -571,6 +571,51 @@ write = true
 [app.capabilities.db]
 open = true
 
+# `Core\Db::inList`'s proof programs, granted for the same reason and in the same three
+# lines: the member itself needs nothing, but a list of bound values is only worth reading
+# beside the statement it expands inside, so each of these opens the same `:memory:`
+# database the block above describes. Its bench is not among them — that one measures the
+# marker alone and opens nothing, so it is granted nothing.
+[[app]]
+entry = "docs/examples/core/Db/inList/01-find-the-rows-a-list-names.nvs"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+[app.capabilities.db]
+open = true
+
+[[app]]
+entry = "docs/examples/core/Db/inList/02-leave-out-the-values-a-list-names.nvs"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+[app.capabilities.db]
+open = true
+
+[[app]]
+entry = "docs/examples/core/Db/inList/03-one-query-instead-of-one-per-row.nvs"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+[app.capabilities.db]
+open = true
+
+[[app]]
+entry = "tests/hostile/core/Db/inList/01-lists-a-request-chose.nvs"
+
+[app.capabilities.fs]
+read = true
+write = true
+
+[app.capabilities.db]
+open = true
+
 # The bound `examples/config.nvs` is written around: ADR 0005's `Runtime`
 # directive moves freely up to a ceiling the operator keeps, so `512M` is
 # the last value `Core\Config::set("memory", …)` accepts and `1G` is the

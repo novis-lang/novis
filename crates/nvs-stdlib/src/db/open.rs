@@ -1848,4 +1848,81 @@ mod tests {
             "a scoped refusal names the argument that fell outside the grant: {message}"
         );
     }
+
+    /// `Core\Db::inList` carries the caller's own array and retains it, rather
+    /// than copying the values into a marker of its own — which is what makes a
+    /// list of a thousand ids cost one reference and not a second array, as
+    /// [`nvs_core_db_in_list`]'s own doc states.
+    ///
+    /// **Only Rust can ask this.** An array is a value with copy-on-write
+    /// storage, so a program is answered identically whether the marker shares
+    /// the caller's allocation or holds a copy of it: no `.nvst` case can see
+    /// which one happened, and a copy would only show up as the page of memory
+    /// it costs under a list long enough to matter.
+    ///
+    /// The count is asserted on both sides of the release, because a member
+    /// that retained without the carrier ever giving the reference back reads
+    /// exactly like this one until the marker is dropped.
+    // covers: Core\Db::inList
+    #[test]
+    fn a_marker_carries_the_callers_own_array_rather_than_a_copy_of_it() {
+        let mut ctx = Ctx::buffered();
+        let mut list = nvs_runtime::NvsArray::new();
+        for id in 0..1000i64 {
+            list.append(Value::int(id));
+        }
+        let values = Value::array(list);
+        let array = values
+            .array_ptr()
+            .expect("the argument this built is an array");
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the one reference the array was built with, \
+                      so it is live for the whole test"
+        )]
+        let before = unsafe { nvs_runtime::NvsArray::refcount_of(array) };
+
+        let marker = nvs_runtime::call(super::nvs_core_db_in_list, &mut ctx, &[values])
+            .expect("a run of a thousand ids is a run the member accepts");
+        let carried = crate::instance::slot(
+            marker.obj_ptr().expect("an `InList` is an object"),
+            VALUES_AT,
+        );
+        assert_eq!(
+            carried.array_ptr(),
+            Some(array),
+            "the marker carries the array it was given and not a copy of it"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "the array is still this frame's, and the marker holds a \
+                      second reference to it"
+        )]
+        let held = unsafe { nvs_runtime::NvsArray::refcount_of(array) };
+        assert_eq!(
+            held,
+            before + 1,
+            "the marker outlives the call, so the member retained before it \
+             answered"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "this frame owns the marker it was answered and the array it \
+                      built, and releases each exactly once"
+        )]
+        unsafe {
+            marker.release();
+            assert_eq!(
+                nvs_runtime::NvsArray::refcount_of(array),
+                before,
+                "dropping the marker gives back exactly the one reference it \
+                 took, so a request marking a list per row neither leaks the \
+                 lists nor frees one the caller is still holding"
+            );
+            values.release();
+        }
+    }
 }

@@ -1,0 +1,29 @@
+<?nvs
+// Shows how to skip a list of values. `not in ?` keeps every row whose value is
+// not in the list. The same marker works for both `in` and `not in`.
+
+var $db = Core\Db::open({ driver: Core\Db\Driver::Sqlite, path: ':memory:' });
+$db->execute('create table task (id integer primary key, state text not null)', []);
+$db->executeMany('insert into task (id, state) values (?, ?)', [
+    [1, 'open'],
+    [2, 'done'],
+    [3, 'cancelled'],
+    [4, 'open'],
+]);
+
+// The states a board does not show.
+array<string> $hidden = ['done', 'cancelled'];
+
+// This prints `1 open` and `4 open`.
+foreach ($db->query('select id, state from task where state not in ? order by id', [Core\Db::inList($hidden)]) as Core\Db\Row $row) {
+    echo $row->int('id') ?? 0, ' ', $row->string('state') ?? '', "\n";
+}
+
+// An empty list throws a `LogicError`. Inside `in` it would match nothing, and
+// inside `not in` it would match everything. Test the list before you mark it.
+array<string> $none = [];
+if (Core\Arr::isEmpty($none)) {
+    echo "nothing to leave out\n";
+}
+
+$db->close();

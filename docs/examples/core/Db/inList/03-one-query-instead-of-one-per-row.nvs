@@ -1,0 +1,33 @@
+<?nvs
+// Shows how a page reads the rows it still needs in one statement. It collects
+// the ids while it walks the orders, then asks for all the customers at once.
+// One query for the whole page is much faster than one query per order.
+
+var $db = Core\Db::open({ driver: Core\Db\Driver::Sqlite, path: ':memory:' });
+$db->execute('create table customer (id integer primary key, name text not null)', []);
+$db->execute('create table orders (id integer primary key, customer_id integer not null)', []);
+$db->executeMany('insert into customer (id, name) values (?, ?)', [
+    [1, 'Ada'],
+    [2, 'Grace'],
+    [3, 'Alan'],
+]);
+$db->executeMany('insert into orders (id, customer_id) values (?, ?)', [
+    [10, 1],
+    [11, 3],
+    [12, 1],
+]);
+
+// Two of the three orders belong to the same customer, so the list has a
+// repeated id. `Core\Arr::unique` leaves one of each.
+array<int> $ids = [];
+foreach ($db->query('select customer_id from orders order by id', []) as Core\Db\Row $row) {
+    $ids[] = $row->int('customer_id') ?? 0;
+}
+$ids = Core\Arr::unique($ids);
+
+// This prints `Ada` and `Alan`.
+foreach ($db->query('select name from customer where id in ? order by id', [Core\Db::inList($ids)]) as Core\Db\Row $row) {
+    echo $row->string('name') ?? '', "\n";
+}
+
+$db->close();
