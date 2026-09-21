@@ -1,0 +1,18 @@
+<?nvs
+// Shows how a program puts back every setting it changed. One call puts back
+// one setting, so a program that changed several of them keeps their names.
+
+array<string> $mine = ["max_tasks", "wall_time"];
+
+Core\Config::set("max_tasks", "4");
+Core\Config::set("wall_time", "90s");
+
+// This prints 4 and 90s.
+echo Core\Config::get("max_tasks") ?? "not set", " and ", Core\Config::get("wall_time") ?? "not set", "\n";
+
+foreach ($mine as string $name) {
+    Core\Config::restore($name);
+}
+
+// This prints not set and not set: the configuration file here sets neither.
+echo Core\Config::get("max_tasks") ?? "not set", " and ", Core\Config::get("wall_time") ?? "not set", "\n";

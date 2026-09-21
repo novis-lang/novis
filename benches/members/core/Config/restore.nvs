@@ -1,0 +1,26 @@
+<?nvs
+// Measures putting one setting back. A program does this after a step that
+// needed a different limit than the rest of the request.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Core\Config::set("memory", "256M");
+        Core\Config::set("max_tasks", "16");
+        array<string> $names = ["memory", "max_tasks"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The name of every round is chosen by the round before it, so no
+            // round can be left out.
+            string $name = $names[(($total + $i) % 2) as int];
+            Core\Config::restore($name);
+            $total = $total + Core\Str::length($name);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

@@ -1,0 +1,11 @@
+<?nvs
+// Shows how to undo a change to a setting. `Core\Config::restore` puts back the
+// value the configuration file gives.
+
+Core\Config::set("max_tasks", "32");
+
+// This prints 32 and then not set. Nothing in the configuration file here sets
+// this limit, so there is no value to go back to.
+echo Core\Config::get("max_tasks") ?? "not set", "\n";
+Core\Config::restore("max_tasks");
+echo Core\Config::get("max_tasks") ?? "not set", "\n";

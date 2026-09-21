@@ -1,0 +1,16 @@
+<?nvs
+// Shows how a program gives itself more time for one slow job and then puts the
+// setting back. The work after it runs under the configuration file's own value
+// again.
+
+// The monthly report takes longer than a normal request.
+Core\Config::set("wall_time", "300s");
+echo "the report runs with ", Core\Config::get("wall_time") ?? "no limit of its own", "\n";
+
+// The report would run here.
+
+Core\Config::restore("wall_time");
+
+// This prints: the work after it runs with no limit of its own. The
+// configuration file here sets no time limit, so there is none to go back to.
+echo "the work after it runs with ", Core\Config::get("wall_time") ?? "no limit of its own", "\n";
