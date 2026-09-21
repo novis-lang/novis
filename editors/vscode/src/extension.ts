@@ -41,10 +41,11 @@ import {
 } from "vscode-languageclient/node";
 
 import * as ast from "./ast";
-import { binary } from "./binary";
+import { binary, install as installCopies, runnable } from "./binary";
 import * as format from "./format";
 import * as redactions from "./redactions";
 import * as regions from "./regions";
+import { Stamp, Watch, stamp } from "./shadow";
 import { Health, Surface } from "./surface";
 import * as tasks from "./tasks";
 import * as testing from "./tests";
@@ -96,6 +97,8 @@ const RESPAWNING_SETTINGS = ["nvs.path", "nvs.lsp.enable"];
 let client: LanguageClient | undefined;
 let status: LanguageStatusItem | undefined;
 let channel: OutputChannel | undefined;
+let watching: Watch | undefined;
+let turn: Promise<void> = Promise.resolve();
 
 export async function activate(context: ExtensionContext): Promise<Surface> {
   channel = window.createOutputChannel("Novis");
@@ -125,6 +128,9 @@ export async function activate(context: ExtensionContext): Promise<Surface> {
       }
     }),
   );
+  // First, because every spawn below and in the modules installed after it asks `binary.ts` which
+  // file to run, and until this there is nowhere to keep a copy.
+  installCopies(context);
   redactions.install(context);
   // The embedded services, likewise installed once and asking only while a server is answering.
   // The providers are registered from activation because a document with markup in it is often the
@@ -175,19 +181,95 @@ export function deactivate(): Promise<void> {
 
 // Spawn the server, and say in the status item what happened either way.
 //
+// The process is started from a copy of the binary and not from the binary, so the file the user
+// named is free to be rebuilt or upgraded while the window is open, and a `Watch` on that file
+// brings up the new build when it is — `shadow.ts` is where both halves are argued. The watch is set
+// before anything is spawned and whatever the spawn comes to, because a build that would not start
+// is exactly the one whose replacement should be picked up without being asked for.
+//
+// **A client that is already answering keeps answering until the next one is.** The copy is made
+// and verified and the new server started and its version read while the old one still serves the
+// editor, and only then is the old one stopped, so a rebuilt binary costs the user no gap in
+// diagnostics or completion and nothing to look at: the status item is not even set to `starting`.
+// What the old client is never allowed to do is outlive a new build that failed. A server that is
+// answering is the build on disk or there is no server, so every way out of this function that does
+// not end in a new client retires the old one and says why.
+//
+// The named binary itself is the fallback twice over: when no copy can be made, and when the copy
+// will not start, which is what storage mounted `noexec` looks like. Either way the status item
+// says the file is being held, since that is the thing the user will otherwise trip over later.
+//
 // The version is checked after `start` rather than before it because `initialize` is where a server
 // reports one (`rule:ide/the-extension-refuses-a-binary-it-does-not-understand`) — there is nowhere
 // earlier to read it from. What that rule refuses is a session, so a binary this client does not
 // understand is stopped here and never handed a document, a request or the editor's attention.
 async function start(context: ExtensionContext): Promise<void> {
+  const previous = client;
+  watching?.close();
+  watching = undefined;
   const settings = workspace.getConfiguration("nvs");
   if (!settings.get<boolean>("lsp.enable", true)) {
+    await retire(previous);
     report("off", "nvs.lsp.enable is false, so no server is running.", LanguageStatusSeverity.Information);
     return;
   }
 
-  // Which binary this is, is `binary.ts`'s to answer — the Tasks spawn the same one.
-  const command = binary();
+  // Which file this is, is `binary.ts`'s to answer — every other spawn asks it the same question.
+  const found = await runnable();
+  const { shown, source } = found;
+  let copied = found.copy;
+  let held = found.held ?? "";
+  if (source !== undefined) {
+    watching = new Watch(source, copied?.stamp ?? (await stamp(source)), () => void restart(context));
+  }
+
+  if (previous === undefined) {
+    report("starting", `${shown} lsp`, LanguageStatusSeverity.Information);
+  }
+  let starting: LanguageClient;
+  try {
+    starting = await launch(found.command);
+  } catch (failure) {
+    if (copied === undefined) {
+      await retire(previous);
+      report("not running", `${shown} lsp did not start: ${reason(failure)}`, LanguageStatusSeverity.Error);
+      return;
+    }
+    held = `its copy did not start (${reason(failure)})`;
+    copied = undefined;
+    try {
+      starting = await launch(binary());
+    } catch (again) {
+      await retire(previous);
+      report("not running", `${shown} lsp did not start: ${reason(again)}`, LanguageStatusSeverity.Error);
+      return;
+    }
+  }
+
+  const reported = starting.initializeResult?.serverInfo;
+  const refused = refusal(version(context), reported?.version);
+  if (refused !== undefined) {
+    await starting.stop();
+    await retire(previous);
+    report("wrong version", refused, LanguageStatusSeverity.Error);
+    return;
+  }
+
+  client = starting;
+  redactions.serve(client);
+  regions.serve(client);
+  await retire(previous);
+  const detail = copied !== undefined
+    ? `${shown} lsp is answering from a copy of the build of ${built(copied.stamp)}. The file may be replaced, and the new build takes over when it is.`
+    : source !== undefined
+      ? `${shown} lsp is answering from the file itself, which cannot be replaced while it runs: ${held}.`
+      : `${shown} lsp is answering.`;
+  report(`nvs lsp ${reported?.version}`, detail, LanguageStatusSeverity.Information);
+}
+
+// One client over `command`, started. It throws what `LanguageClient.start` throws, which is how a
+// binary that cannot be spawned at all is told from one that answered.
+async function launch(command: string): Promise<LanguageClient> {
   const executable: Executable = { command, args: SUBCOMMAND };
   const server: ServerOptions = { run: executable, debug: executable };
   // What the server is configured with. `crates/nvs-lsp/src/settings.rs` reads the `nvs` section out
@@ -223,43 +305,50 @@ async function start(context: ExtensionContext): Promise<void> {
   // which is the frozen `nvs.lsp.trace.server`.
   const starting = new LanguageClient("nvs.lsp", "Novis", server, options);
   starting.registerFeature(editorCommands);
-  report("starting", `${command} lsp`, LanguageStatusSeverity.Information);
-  try {
-    await starting.start();
-  } catch (failure) {
-    report("not running", `${command} lsp did not start: ${reason(failure)}`, LanguageStatusSeverity.Error);
-    return;
-  }
+  await starting.start();
+  return starting;
+}
 
-  const reported = starting.initializeResult?.serverInfo;
-  const refused = refusal(version(context), reported?.version);
-  if (refused !== undefined) {
-    await starting.stop();
-    report("wrong version", refused, LanguageStatusSeverity.Error);
-    return;
-  }
-
-  client = starting;
-  redactions.serve(client);
-  regions.serve(client);
-  report(`nvs lsp ${reported?.version}`, `${command} lsp is answering.`, LanguageStatusSeverity.Information);
+// When the build a copy was taken from was written, in the user's own locale and clock: it is the
+// one thing in the status item that tells two builds of one version apart.
+function built(at: Stamp): string {
+  return new Date(at.modified).toLocaleString();
 }
 
 async function stop(): Promise<void> {
-  const running = client;
-  client = undefined;
-  // What is already concealed stays concealed while nothing is answering
-  // (`rule:ide/redaction-ranges-come-from-the-server`); this only says where to ask next.
-  redactions.serve(undefined);
-  // The embedded services go the other way: without a server there is no boundary, and a client
-  // that guessed one would be a second lexer.
-  regions.serve(undefined);
-  await running?.stop();
+  watching?.close();
+  watching = undefined;
+  await retire(client);
 }
 
-async function restart(context: ExtensionContext): Promise<void> {
-  await stop();
-  await start(context);
+// Stop `previous`, which is either the client that was answering or nothing. When it is still the
+// one the rest of the extension asks, they are told first that nobody is.
+async function retire(previous: LanguageClient | undefined): Promise<void> {
+  if (previous === undefined) {
+    return;
+  }
+  if (client === previous) {
+    client = undefined;
+    // What is already concealed stays concealed while nothing is answering
+    // (`rule:ide/redaction-ranges-come-from-the-server`); this only says where to ask next.
+    redactions.serve(undefined);
+    // The embedded services go the other way: without a server there is no boundary, and a client
+    // that guessed one would be a second lexer.
+    regions.serve(undefined);
+  }
+  try {
+    await previous.stop();
+  } catch {
+    // A server that had already died cannot be stopped, and is as gone as one that could.
+  }
+}
+
+// Restarts take turns. A changed setting and a replaced binary can ask within the same moment, and
+// two interleaved would each retire the other's half-started client and leave a process nobody
+// holds. There is no `stop` in one: `start` retires the client it found, once it has a successor.
+function restart(context: ExtensionContext): Promise<void> {
+  turn = turn.then(() => start(context));
+  return turn;
 }
 
 // The extension's own version, which is the version of server it understands: the two are released

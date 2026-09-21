@@ -40,7 +40,7 @@ import {
   workspace,
 } from "vscode";
 
-import { binary } from "./binary";
+import { binary, runnable } from "./binary";
 import { Listed, Reported, filter, listed, messages, name, ran, state, suites } from "./report";
 
 /** The controller's id, and the `testing` view's grouping key for everything below it. */
@@ -281,10 +281,11 @@ function byFile(items: TestItem[]): Map<string, TestItem[]> {
 }
 
 /** What `nvs` printed and what it exited with, or nothing when it did not run at all. */
-function cli(args: string[]): Promise<{ stdout: string; stderr: string; code: number } | undefined> {
+async function cli(args: string[]): Promise<{ stdout: string; stderr: string; code: number } | undefined> {
+  const { command } = await runnable();
   return new Promise((resolve) => {
     execFile(
-      binary(),
+      command,
       args,
       { maxBuffer: OUTPUT_CEILING, env: { ...process.env, NO_COLOR: "1" } },
       (failure, stdout, stderr) => {

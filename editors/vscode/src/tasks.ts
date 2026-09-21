@@ -17,6 +17,7 @@ import {
   ProcessExecution,
   Task,
   TaskDefinition,
+  TaskExecution,
   TaskProvider,
   TaskScope,
   Uri,
@@ -26,7 +27,7 @@ import {
   workspace,
 } from "vscode";
 
-import { binary } from "./binary";
+import { runnable } from "./binary";
 
 /** The `type` a `tasks.json` entry names, and the manifest's `taskDefinitions` entry. */
 export const TYPE = "nvs";
@@ -43,7 +44,10 @@ export interface NvsTaskDefinition extends TaskDefinition {
 
 /** Register the provider, which is what makes a `"type": "nvs"` entry in `tasks.json` resolve. */
 export function install(context: ExtensionContext): void {
-  context.subscriptions.push(tasks.registerTaskProvider(TYPE, provider));
+  context.subscriptions.push(
+    tasks.registerTaskProvider(TYPE, provider),
+    tasks.onDidStartTask((event) => void current(event.execution)),
+  );
 }
 
 /**
@@ -60,26 +64,26 @@ export async function execute(command: NvsTaskDefinition["command"]): Promise<vo
     void window.showInformationMessage(`nvs ${command} needs a Novis file: open one first.`);
     return;
   }
-  await tasks.executeTask(taskFor({ type: TYPE, command, file }));
+  await tasks.executeTask(await taskFor({ type: TYPE, command, file }));
 }
 
 const provider: TaskProvider = {
   // What "Tasks: Run Task" offers before anybody has written a `tasks.json`: the two subcommands
   // over the file in front of the user.
-  provideTasks(): Task[] {
+  async provideTasks(): Promise<Task[]> {
     const file = active();
     if (file === undefined) {
       return [];
     }
     return [
-      taskFor({ type: TYPE, command: "run", file }),
-      taskFor({ type: TYPE, command: "test", file }),
+      await taskFor({ type: TYPE, command: "run", file }),
+      await taskFor({ type: TYPE, command: "test", file }),
     ];
   },
 
   // A `tasks.json` entry arrives here with its definition and no execution. The definition object
   // is handed back as it came, because the editor matches the returned task to the entry by it.
-  resolveTask(task: Task): Task | undefined {
+  async resolveTask(task: Task): Promise<Task | undefined> {
     const definition = task.definition as NvsTaskDefinition;
     if (typeof definition.command !== "string" || typeof definition.file !== "string") {
       return undefined;
@@ -87,6 +91,27 @@ const provider: TaskProvider = {
     return taskFor(definition, task.scope);
   },
 };
+
+/**
+ * Stop a task that was built for an earlier build, and run it again over the current one.
+ *
+ * A Task carries the path of the file it runs from the moment it is built, and the editor keeps
+ * Task objects of its own — the list it offered, the one "Rerun Last Task" repeats. One built before
+ * the binary was replaced names the copy of a build that is no longer on disk. This is the one
+ * place that is caught: nothing else in the extension holds a path for longer than one spawn.
+ */
+async function current(started: TaskExecution): Promise<void> {
+  const task = started.task;
+  if (task.definition.type !== TYPE || !(task.execution instanceof ProcessExecution)) {
+    return;
+  }
+  const { command } = await runnable();
+  if (task.execution.process === command) {
+    return;
+  }
+  started.terminate();
+  await tasks.executeTask(await taskFor(task.definition as NvsTaskDefinition, task.scope));
+}
 
 /**
  * One task, whichever entry point asked for it.
@@ -98,13 +123,17 @@ const provider: TaskProvider = {
  *
  * A `ProcessExecution` and not a shell: the file is a path the user did not type, and a shell is
  * one more set of quoting rules for it to be wrong under.
+ *
+ * The process is the copy `binary.ts` hands back at this moment, so a program left running in a
+ * Task's terminal never holds the binary the user named.
  */
-function taskFor(
+async function taskFor(
   definition: NvsTaskDefinition,
   scope?: WorkspaceFolder | TaskScope,
-): Task {
+): Promise<Task> {
+  const { command } = await runnable();
   const execution = new ProcessExecution(
-    binary(),
+    command,
     [definition.command, definition.file, ...(definition.args ?? [])],
     { env: { NO_COLOR: "1" } },
   );

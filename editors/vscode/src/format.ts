@@ -43,7 +43,7 @@ import {
   workspace,
 } from "vscode";
 
-import { binary } from "./binary";
+import { runnable } from "./binary";
 import { embedding, regions } from "./regions";
 import { Chunk, chunks, edited, formatted, hidden, merged } from "./template";
 
@@ -163,10 +163,11 @@ function ending(text: string): Position {
  * an empty document and succeeds, where a refusal prints nothing and fails. A failure to spawn
  * arrives here as the same refusal, which is the direction that cannot damage a buffer.
  */
-function fmt(text: string): Promise<string | undefined> {
+async function fmt(text: string): Promise<string | undefined> {
+  const { command } = await runnable();
   return new Promise((resolve) => {
     const child = execFile(
-      binary(),
+      command,
       ["fmt", "--stdin"],
       { maxBuffer: OUTPUT_CEILING },
       (failure, stdout) => resolve(failure === null ? stdout : undefined),

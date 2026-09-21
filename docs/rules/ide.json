@@ -1126,6 +1126,22 @@
       "guardedBy": []
     },
     {
+      "id": "ide/the-extension-runs-a-copy-of-the-binary",
+      "title": "Every process the extension starts runs from a verified copy of the binary that is never older than the build on disk, so the file the user named is never held",
+      "status": "shipped",
+      "because": [
+        "0195"
+      ],
+      "seeAlso": [
+        "ide/the-extension-refuses-a-binary-it-does-not-understand",
+        "ide/the-extension-guides-an-install-and-never-bundles-one",
+        "ide/the-extension-is-a-workspace-extension"
+      ],
+      "guardedBy": [
+        "editors/vscode/test/client/shadow.test.ts"
+      ]
+    },
+    {
       "id": "ide/dependencies-are-allowlisted",
       "title": "The extension holds no language logic, and its `package.json` dependencies are checked against an allowlist by its own tests",
       "status": "designed",

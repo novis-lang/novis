@@ -70,6 +70,15 @@ halves ship from one commit, the contributions suite asserts the manifest and th
 the protocol suite asserts the binary on disk is in the series. A patch release is accepted either way
 round, because it fixes answers rather than changing the shape of the protocol.
 
+**Everything runs from a copy of the binary, never from the binary.** A process started from the file
+`nvs.path` names holds that file for as long as it runs, and a build or an upgrade then cannot write it.
+`src/shadow.ts` copies the binary into the extension's storage and hands the copy over only once both
+files hash equal; `src/binary.ts` is asked for it at every spawn — the server, the Tasks, the formatter,
+the AST panel, the test controller — and reads the binary's stamp each time, so nothing is started from
+an older build than the one on disk. A new build takes over the server within seconds, started beside
+the old one and switched to with no gap (`rule:ide/the-extension-runs-a-copy-of-the-binary`). The status
+item's detail says which build is answering.
+
 **The version is read at `initialize`, so the refusal is a stop and not a non-start.** LSP has nowhere
 earlier to report one, and asking `nvs --version` first would be a second process and a second answer to
 keep in step. The client starts the server, reads `serverInfo`, and stops it before it is handed a

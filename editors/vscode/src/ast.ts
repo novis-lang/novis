@@ -35,7 +35,7 @@ import {
   workspace,
 } from "vscode";
 
-import { binary } from "./binary";
+import { binary, runnable } from "./binary";
 import { Node, detail, index, label, read, tooltip } from "./nodes";
 
 /** The view `package.json` contributes, and the id the editor's own `<view>.focus` hangs off. */
@@ -144,8 +144,8 @@ async function render(file: string): Promise<void> {
  * exists for. Nothing is printed only when the binary did not run or could not read the file, and
  * that is the one case the user is told about.
  */
-function dump(file: string): Promise<string | undefined> {
-  const command = binary();
+async function dump(file: string): Promise<string | undefined> {
+  const { command, shown } = await runnable();
   return new Promise((resolve) => {
     execFile(
       command,
@@ -156,7 +156,7 @@ function dump(file: string): Promise<string | undefined> {
           resolve(stdout);
           return;
         }
-        void window.showErrorMessage(`${command} ast: ${reason(stderr, failure)}`);
+        void window.showErrorMessage(`${shown} ast: ${reason(stderr, failure)}`);
         resolve(undefined);
       },
     );
