@@ -4971,4 +4971,384 @@ mod tests {
             style.release();
         }
     }
+
+    /// `Core\Cli\Color::index` is the palette's constructor, asserted as the
+    /// three things one of its entries is.
+    ///
+    /// First the whole palette, counted rather than read off one line: each of
+    /// the 256 entries carries [`INK_INDEXED`] in [`COLOR_KIND`] and its own
+    /// number in [`COLOR_VALUE`], which a constructor writing the number into
+    /// the other slot passes wherever the number is zero.
+    ///
+    /// Second the bound, on both sides — `255` is an entry and `256` is not —
+    /// with the sentence the refusal carries. The class it is thrown as is
+    /// `tests/conformance/core/cli-a-colour-outside-its-range-is-refused.nvst`'s,
+    /// which catches `RuntimeError` by name, since this side reads the message
+    /// alone.
+    ///
+    /// Third what an entry renders as at a colour depth this process does not
+    /// have, which is the half no `.nvst` case can ask about: an entry is sent
+    /// as itself wherever the terminal has a palette at all, so `Ansi256` and
+    /// `TrueColor` agree on every one of them, the first sixteen are the
+    /// `3x`/`9x` codes a terminal with no palette still knows, and `None` is
+    /// sent nothing.
+    // covers: Core\Cli\Color::index
+    #[test]
+    fn every_palette_entry_carries_its_own_number_and_stops_at_the_last_one() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let mut carried = 0_u32;
+        for entry in 0..=255_u64 {
+            let color =
+                nvs_runtime::call(nvs_core_cli_color_index, &mut ctx, &[Value::uint(entry)])
+                    .expect("an entry the palette has");
+            let object = color.obj_ptr().expect("a `Color` is an object");
+            if crate::instance::slot(object, COLOR_KIND).as_int() == Some(INK_INDEXED)
+                && crate::instance::slot(object, COLOR_VALUE).as_uint() == Some(entry)
+            {
+                carried += 1;
+            }
+            #[expect(unsafe_code, reason = "the value owns the reference it releases")]
+            unsafe {
+                color.release();
+            }
+        }
+        assert_eq!(
+            carried, 256,
+            "a palette entry does not carry its own number in its own slot"
+        );
+
+        for refused in [256_u64, u64::MAX] {
+            nvs_runtime::call(nvs_core_cli_color_index, &mut ctx, &[Value::uint(refused)])
+                .expect_err("a number no palette has an entry for was accepted");
+            assert_eq!(
+                ctx.take_pending().map(std::borrow::Cow::into_owned),
+                Some(format!(
+                    "Core\\Cli\\Color::index: {refused} is not a palette entry, which is 0 to 255"
+                )),
+                "the refusal does not say which number it read"
+            );
+        }
+
+        for entry in 16..=255_u8 {
+            let ink = Ink {
+                kind: INK_INDEXED,
+                value: u64::from(entry),
+            };
+            assert_eq!(
+                sgr(Some(ink), None, 0, ColorDepth::Ansi256),
+                format!("\u{1B}[38;5;{entry}m"),
+                "palette entry {entry} is not sent as itself"
+            );
+            assert_eq!(
+                sgr(Some(ink), None, 0, ColorDepth::TrueColor),
+                sgr(Some(ink), None, 0, ColorDepth::Ansi256),
+                "palette entry {entry} is sent one way to a 256-colour terminal and another to a \
+                 true-colour one"
+            );
+            assert_eq!(
+                sgr(None, Some(ink), 0, ColorDepth::Ansi256),
+                format!("\u{1B}[48;5;{entry}m"),
+                "palette entry {entry} is not the same colour behind the text as in front of it"
+            );
+            assert_eq!(
+                sgr(Some(ink), None, 0, ColorDepth::None),
+                "",
+                "a terminal with no colour was sent palette entry {entry}"
+            );
+        }
+
+        for entry in 0..8_u8 {
+            let plain = Ink {
+                kind: INK_INDEXED,
+                value: u64::from(entry),
+            };
+            let bright = Ink {
+                kind: INK_INDEXED,
+                value: u64::from(entry) + 8,
+            };
+            assert_eq!(
+                sgr(Some(plain), None, 0, ColorDepth::Ansi16),
+                format!("\u{1B}[{}m", 30 + u32::from(entry)),
+                "entry {entry} is not the code every terminal knows it by"
+            );
+            assert_eq!(
+                sgr(Some(bright), None, 0, ColorDepth::Ansi16),
+                format!("\u{1B}[{}m", 90 + u32::from(entry)),
+                "entry {} is not the bright half of entry {entry}",
+                entry + 8
+            );
+        }
+    }
+
+    /// `Core\Cli\Color::rgb` is the constructor for the sixteen million, and
+    /// what it builds is asserted as the three things a 24-bit colour is.
+    ///
+    /// First the packing: slot 0 is [`INK_RGB`] and slot 1 is one number,
+    /// `red << 16 | green << 8 | blue`, over a sweep of triples rather than
+    /// one — a constructor that packed blue where red goes agrees with this on
+    /// every grey.
+    ///
+    /// Second the bound, per channel and on both sides: `255` is a level and
+    /// `256` is not, and each of the three names itself, which a check reading
+    /// only its first argument fails while still refusing plausibly. The class
+    /// the refusal is thrown as is
+    /// `tests/conformance/core/cli-a-colour-outside-its-range-is-refused.nvst`'s,
+    /// which catches `RuntimeError` by name.
+    ///
+    /// Third the degrading, at colour depths this process does not have. A
+    /// terminal with true colour is sent the triple. One with 256 colours is
+    /// sent a palette entry, and a grey is sent an entry of the grey ramp that
+    /// rises with the level rather than one of the colour cube — the branch of
+    /// [`entry_of_rgb`] a colour with three different channels never reaches.
+    /// One with sixteen is sent one of the sixteen, and one with none is sent
+    /// nothing.
+    // covers: Core\Cli\Color::rgb
+    #[test]
+    fn a_24_bit_colour_packs_its_channels_and_degrades_to_what_the_terminal_has() {
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let triples = [
+            (0_u64, 0_u64, 0_u64),
+            (255, 255, 255),
+            (30, 144, 255),
+            (217, 70, 39),
+            (1, 2, 3),
+            (255, 0, 0),
+            (0, 255, 0),
+            (0, 0, 255),
+        ];
+        let mut packed = 0_u32;
+        for (red, green, blue) in triples {
+            let color = nvs_runtime::call(
+                nvs_core_cli_color_rgb,
+                &mut ctx,
+                &[Value::uint(red), Value::uint(green), Value::uint(blue)],
+            )
+            .expect("three levels a channel has");
+            let object = color.obj_ptr().expect("a `Color` is an object");
+            if crate::instance::slot(object, COLOR_KIND).as_int() == Some(INK_RGB)
+                && crate::instance::slot(object, COLOR_VALUE).as_uint()
+                    == Some(red << 16 | green << 8 | blue)
+            {
+                packed += 1;
+            }
+            #[expect(unsafe_code, reason = "the value owns the reference it releases")]
+            unsafe {
+                color.release();
+            }
+        }
+        assert_eq!(
+            packed,
+            u32::try_from(triples.len()).expect("eight triples"),
+            "a colour does not carry the three channels it was given"
+        );
+
+        for (at, channel) in ["red", "green", "blue"].into_iter().enumerate() {
+            let mut levels = [Value::uint(255), Value::uint(255), Value::uint(255)];
+            levels[at] = Value::uint(256);
+            nvs_runtime::call(nvs_core_cli_color_rgb, &mut ctx, &levels)
+                .expect_err("a level no channel has was accepted");
+            assert_eq!(
+                ctx.take_pending().map(std::borrow::Cow::into_owned),
+                Some(format!(
+                    "Core\\Cli\\Color::rgb: `{channel}` is 256, and a channel is 0 to 255"
+                )),
+                "the refusal does not name the channel it read"
+            );
+        }
+
+        let dodger = Ink {
+            kind: INK_RGB,
+            value: 0x001E_90FF,
+        };
+        assert_eq!(
+            sgr(Some(dodger), None, 0, ColorDepth::TrueColor),
+            "\u{1B}[38;2;30;144;255m"
+        );
+        assert_eq!(
+            sgr(None, Some(dodger), 0, ColorDepth::TrueColor),
+            "\u{1B}[48;2;30;144;255m",
+            "a colour behind the text is not the colour in front of it"
+        );
+        assert_eq!(
+            sgr(Some(dodger), None, 0, ColorDepth::None),
+            "",
+            "a terminal with no colour was sent a colour"
+        );
+
+        let mut ramp = Vec::new();
+        for level in 8..=248_u64 {
+            let grey = Ink {
+                kind: INK_RGB,
+                value: level << 16 | level << 8 | level,
+            };
+            let rendered = sgr(Some(grey), None, 0, ColorDepth::Ansi256);
+            let entry: u16 = rendered
+                .trim_start_matches("\u{1B}[38;5;")
+                .trim_end_matches('m')
+                .parse()
+                .unwrap_or_else(|_| panic!("`{rendered}` is not a palette entry"));
+            assert!(
+                (232..=255).contains(&entry),
+                "grey {level} is sent as entry {entry}, which is in the colour cube and not the \
+                 grey ramp"
+            );
+            assert!(
+                ramp.last().is_none_or(|last| *last <= entry),
+                "grey {level} is sent as a darker entry than the grey below it"
+            );
+            ramp.push(entry);
+
+            let sixteen = sgr(Some(grey), None, 0, ColorDepth::Ansi16);
+            let basic: u16 = sixteen
+                .trim_start_matches("\u{1B}[")
+                .trim_end_matches('m')
+                .parse()
+                .unwrap_or_else(|_| panic!("`{sixteen}` is not one of the sixteen"));
+            assert!(
+                (30..=37).contains(&basic) || (90..=97).contains(&basic),
+                "grey {level} is sent to a sixteen-colour terminal as {basic}"
+            );
+        }
+        assert_eq!(
+            (ramp.first().copied(), ramp.last().copied()),
+            (Some(232), Some(255)),
+            "the grey ramp does not run from its first entry to its last"
+        );
+    }
+
+    /// `Core\Cli\Live::set` is the whole of what a program may do to a region,
+    /// asserted on a screen this test can read back — the alternative being a
+    /// test that needs a terminal and a person in front of it.
+    ///
+    /// The frame a program hands it is the frame that lands, the **last** one
+    /// included. A `set` the timer coalesces is painted by the region's end, so
+    /// a program that draws its finished state and returns is not left showing
+    /// the state before it. That is the one bug a coalescing region could have,
+    /// and it is invisible to every case that reads stdout, since a region with
+    /// no terminal renders nothing at all.
+    ///
+    /// A row arrives as the carrier's own text: an escape a program wrote into
+    /// a string reaches the screen as the symbol `Core\Cli\Text::plain` put
+    /// there, never as a command the terminal runs. A row wider than the
+    /// terminal is cut, because a wrapped row leaves the region unable to find
+    /// its own rows again.
+    ///
+    /// The refusal is the member's own — only the innermost open region paints
+    /// — and the class it is thrown as is
+    /// `tests/hostile/core/Cli/live/01-a-region-that-will-not-give-the-terminal-back.nvs`'s,
+    /// which catches `LogicError` by name.
+    // covers: Core\Cli\Live::set
+    #[test]
+    fn a_frame_lands_as_the_carrier_wrote_it_and_the_last_one_lands_too() {
+        use std::io::Write;
+        use std::sync::{Arc, Mutex};
+
+        /// A screen a test can read back.
+        struct Screen(Arc<Mutex<Vec<u8>>>);
+
+        impl Write for Screen {
+            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                self.0
+                    .lock()
+                    .expect("this screen is never poisoned")
+                    .extend_from_slice(bytes);
+                Ok(bytes.len())
+            }
+
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+
+        let mut ctx = nvs_runtime::Ctx::buffered();
+        let row = |ctx: &mut nvs_runtime::Ctx, text: &str| {
+            nvs_runtime::call(
+                nvs_core_cli_text_plain,
+                ctx,
+                &[Value::str(NvsStr::new(text.as_bytes()))],
+            )
+            .expect("a row of plain text")
+        };
+        let frame = |ctx: &mut nvs_runtime::Ctx, texts: &[&str]| {
+            let mut rows = NvsArray::new();
+            for text in texts {
+                rows.append(row(ctx, text));
+            }
+            Value::array(rows)
+        };
+
+        let width = usize::try_from(nvs_runtime::terminal::profile().width()).unwrap_or(80);
+        let wide = "w".repeat(width + 40);
+        let screen = Arc::new(Mutex::new(Vec::new()));
+
+        let open = Open::region();
+        REGIONS.with(|regions| {
+            regions.borrow_mut()[open.depth] =
+                nvs_runtime::terminal::Region::painting_on(Box::new(Screen(Arc::clone(&screen))));
+        });
+        let handle = crate::instance::build(
+            &LIVE,
+            [Value::int(i64::try_from(open.depth).unwrap_or(i64::MAX))],
+        );
+
+        // The first frame lands at once, and the rest are coalesced: what the
+        // screen owes is the last of them.
+        let first = frame(&mut ctx, &["scanning one", &wide, "\u{1B}[2J"]);
+        nvs_runtime::call(nvs_core_cli_live_set, &mut ctx, &[handle, first])
+            .expect("the innermost region painted");
+        let last = frame(&mut ctx, &["scanned three"]);
+        nvs_runtime::call(nvs_core_cli_live_set, &mut ctx, &[handle, last])
+            .expect("the innermost region painted");
+
+        // An inner region owns the cursor from here, so the outer handle paints
+        // nothing at all.
+        let inner = Open::region();
+        nvs_runtime::call(nvs_core_cli_live_set, &mut ctx, &[handle, last])
+            .expect_err("an outer handle painted over the region inside it");
+        let refusal = ctx
+            .take_pending()
+            .expect("the refusal says nothing at all")
+            .into_owned();
+        assert!(
+            refusal.starts_with("Core\\Cli\\Live::set():")
+                && refusal.ends_with("only the innermost open region paints"),
+            "the refusal does not say which member would not paint, or why: {refusal:?}"
+        );
+        drop(inner);
+        drop(open);
+
+        let written = String::from_utf8(screen.lock().expect("the screen").clone())
+            .expect("a region writes what it was handed, and that was text");
+        assert!(
+            written.contains("scanning one"),
+            "the first frame never landed, and this run wrote {written:?}"
+        );
+        assert!(
+            written.contains("scanned three"),
+            "the last frame was coalesced away, so the region ended showing an older one"
+        );
+        assert!(
+            written.contains('\u{241B}'),
+            "an escape a program wrote is not on screen as the symbol the carrier put there"
+        );
+        assert!(
+            !written.contains("\u{1B}[2J"),
+            "a row cleared the screen, so a row reached the terminal as a command"
+        );
+        assert!(
+            !written.contains(&"w".repeat(width + 1)),
+            "a row wider than the {width} columns this terminal has was not cut"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "the handle and the two frames are values this test built, and \
+                      the call took its own reference to each argument"
+        )]
+        unsafe {
+            first.release();
+            last.release();
+            handle.release();
+        }
+    }
 }
