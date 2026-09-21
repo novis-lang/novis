@@ -1,0 +1,27 @@
+<?nvs
+// Measures offering a menu of several choices and reading the set that comes back.
+// A command line tool meets this when it asks which services to restart. The loop
+// answers itself with `Core\Test::scriptAnswers`, the way a test does.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): int {
+        array<int> $sizes = [10, 20, 30];
+        array<string> $lines = ["1", "2,3", "3"];
+        int $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The line each round answers is chosen by the round before it, so no
+            // round can be left out.
+            int $at = $total % 3;
+            Core\Test::scriptAnswers([$lines[$at]]);
+            array<int> $chosen = Core\Cli::multiSelect("how many days?", $sizes);
+            $total = $total + $chosen[0];
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

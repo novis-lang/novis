@@ -3551,6 +3551,154 @@ mod tests {
         }
     }
 
+    /// The half of `Core\Cli::select` that is its own: the answer is the
+    /// **value** and never the number it was typed as, which is
+    /// `rule:core-api/shape-rules` R4 and R5, and a number off the menu is
+    /// asked again rather than clamped to a neighbour. A member answering the
+    /// index, or clamping `4` to the last choice, still looks right on `2` and
+    /// fails here.
+    ///
+    /// The scripted queue drives the member itself, as [`nvs_core_cli_confirm`]'s
+    /// test does, so the assertion holds whether or not the process running it
+    /// has a terminal. The empty choice list needs no scripted answer at all: it
+    /// is refused before anything is read, because it is a bug in the program
+    /// whether or not anybody is watching. The class that refusal arrives as is
+    /// `tests/hostile/core/Cli/select/01-a-menu-nobody-can-answer.nvs`'s first
+    /// step, which catches `LogicError` by name; the sentence is this test's.
+    // covers: Core\Cli::select
+    #[test]
+    fn select_answers_the_chosen_value_and_asks_again_for_a_number_off_the_menu() {
+        let question = Value::str(NvsStr::new(b"which region?"));
+        let mut choices = NvsArray::new();
+        for region in ["eu-west", "us-east", "ap-south"] {
+            choices.append(Value::str(NvsStr::new(region.as_bytes())));
+        }
+        let choices = Value::array(choices);
+        let fallback = Value::str(NvsStr::new(b"ap-south"));
+        let empty = Value::array(NvsArray::new());
+        let mut ctx = nvs_runtime::Ctx::buffered();
+
+        // `0` is below the menu, `4` is above it and `two` is not a number, so
+        // each of the three is asked again; the numbering starts at one, so `2`
+        // is the second choice rather than the third.
+        ctx.script_answers(["0", "4", "two", "2"].map(str::to_owned));
+        let chosen = nvs_runtime::call(
+            nvs_core_cli_select,
+            &mut ctx,
+            &[question, choices, Value::null(), Value::null()],
+        )
+        .expect("select answered");
+        assert_eq!(
+            chosen.as_text(),
+            Some("us-east"),
+            "the answer is the number that was typed, or a number off the menu was taken for one"
+        );
+        assert!(
+            !ctx.has_scripted_answer(),
+            "a refused line was left in the queue for the next prompt to find"
+        );
+
+        // The empty line is the `Enter` key, and the default is what it takes —
+        // never the first choice on the menu.
+        ctx.script_answers([String::new()]);
+        let taken = nvs_runtime::call(
+            nvs_core_cli_select,
+            &mut ctx,
+            &[question, choices, Value::null(), fallback],
+        )
+        .expect("select answered");
+        assert_eq!(
+            taken.as_text(),
+            Some("ap-south"),
+            "`Enter` did not take the default the call named"
+        );
+
+        nvs_runtime::call(
+            nvs_core_cli_select,
+            &mut ctx,
+            &[question, empty, Value::null(), fallback],
+        )
+        .expect_err("a menu with no choices on it was answered");
+        assert_eq!(
+            ctx.take_pending().map(std::borrow::Cow::into_owned),
+            Some("Core\\Cli::select was given nothing to choose between".to_owned()),
+            "the refusal does not say what the call was missing"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "every value here is one this test built, and each answer \
+                      came back with a reference of its own from `handed_back`"
+        )]
+        unsafe {
+            chosen.release();
+            taken.release();
+            empty.release();
+            fallback.release();
+            choices.release();
+            question.release();
+        }
+    }
+
+    /// What a `Core\Cli::multiSelect` line is allowed to be, over the parse
+    /// itself: the separators are the comma, the space and the tab, so `1-3` is
+    /// asked again rather than read as a range that would drop choice 2. A token
+    /// off the menu refuses the whole line, an empty token is forgiven, and a
+    /// choice named twice is chosen once — the three decisions [`chosen_of`]
+    /// records, none of which a `.nvst` case can sweep, since every refused line
+    /// there costs a queued answer to recover from.
+    ///
+    /// The member is driven once beside the table, because the parse alone cannot
+    /// show the two things a caller sees: the answer is a set of the **values**,
+    /// and its order is the menu's rather than the typing's.
+    // covers: Core\Cli::multiSelect
+    #[test]
+    fn a_multi_select_line_is_a_set_of_values_and_a_range_is_not_a_spelling() {
+        assert_eq!(chosen_of("3,1,1", 3), Some(vec![true, false, true]));
+        assert_eq!(chosen_of("2 3", 3), Some(vec![false, true, true]));
+        assert_eq!(chosen_of("2,\t3,", 3), Some(vec![false, true, true]));
+        assert_eq!(chosen_of("", 3), Some(vec![false, false, false]));
+        for refused in ["1-3", "0", "4", "two", "1;2", "1.0"] {
+            assert_eq!(
+                chosen_of(refused, 3),
+                None,
+                "`{refused}` was read as a set rather than asked again"
+            );
+        }
+
+        let question = Value::str(NvsStr::new(b"which regions?"));
+        let mut choices = NvsArray::new();
+        for region in ["eu-west", "us-east", "ap-south"] {
+            choices.append(Value::str(NvsStr::new(region.as_bytes())));
+        }
+        let choices = Value::array(choices);
+        let mut ctx = nvs_runtime::Ctx::buffered();
+
+        ctx.script_answers(["3,1,3".to_owned()]);
+        let chosen = nvs_runtime::call(
+            nvs_core_cli_multi_select,
+            &mut ctx,
+            &[question, choices, Value::null()],
+        )
+        .expect("multiSelect answered");
+        assert_eq!(
+            words_of(chosen),
+            vec!["eu-west".to_owned(), "ap-south".to_owned()],
+            "the set is not in the menu's order, or a choice named twice came back twice"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "the answer is a fresh array this frame owns, and the \
+                      question and the choices are values this test built"
+        )]
+        unsafe {
+            chosen.release();
+            choices.release();
+            question.release();
+        }
+    }
+
     /// What `Core\Cli::displayWidth` counts, and the arm no program can reach.
     /// A column is not a character and not a byte: a Japanese character takes
     /// two, a combining mark takes none, and a tab takes as many as the next

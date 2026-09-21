@@ -1,0 +1,102 @@
+<?nvs
+// Attack: a program offers menus of several choices where nobody can answer, and
+// then answers them itself with nonsense. Every step must end at once, with an
+// error or with a set, and the program must run to the end.
+// hostile: timeout-ms 60000
+
+class Menu
+{
+    // A label nobody asked for. There is no terminal here, so no menu is written
+    // and this must never run.
+    public static function never(string $choice): string
+    {
+        throw new LogicError('a menu was built where nothing can be read');
+    }
+}
+
+array<string> $choices = ['keep', 'archive', 'delete'];
+
+// 1. A list with no choices in it is a mistake in the program. The call must stop
+//    with a `LogicError`, with or without a terminal.
+array<string> $nothing = [];
+try {
+    Core\Cli::multiSelect('what should happen?', $nothing);
+    echo "step 1 chose something\n";
+} catch (LogicError $empty) {
+    echo "step 1 stopped at once\n";
+}
+
+// 2. There is no terminal here, and this member has no default. The call must stop
+//    with an error instead of waiting for an answer nobody can give.
+try {
+    Core\Cli::multiSelect('what should happen?', $choices);
+    echo "step 2 was answered\n";
+} catch (Core\Cli\NotInteractive $nobody) {
+    echo "step 2 stopped at once\n";
+}
+
+// 3. The `labels` function throws. It must not be called, so the error that comes
+//    out is still the one from step 2.
+try {
+    Core\Cli::multiSelect('what should happen?', $choices, {
+        labels: fn(string $choice): string => Menu::never($choice),
+    });
+    echo "step 3 was answered\n";
+} catch (Core\Cli\NotInteractive $nobody) {
+    echo "step 3 stopped at once\n";
+}
+
+// 4. A question made of control characters. They must not reach the terminal as
+//    commands.
+string $sneaky = "\u{1B}]0;rm -rf /\u{7}what should happen?";
+try {
+    Core\Cli::multiSelect($sneaky, $choices);
+    echo "step 4 was answered\n";
+} catch (Core\Cli\NotInteractive $nobody) {
+    echo "step 4 stopped at once\n";
+}
+
+// 5. Two hundred thousand choices, each one a text of its own. The program must
+//    keep going.
+array<string> $many = [];
+uint $at = 0;
+while ($at < 200000) {
+    $many[] = Core\Str::format('choice %d', $at);
+    $at = $at + 1;
+}
+try {
+    Core\Cli::multiSelect('which ones?', $many);
+    echo "step 5 was answered\n";
+} catch (Core\Cli\NotInteractive $nobody) {
+    echo "step 5 stopped at once\n";
+}
+
+// 6. An answer of a million separators and nothing else. Every part of it is
+//    empty, so the answer is the empty set.
+Core\Test::scriptAnswers([Core\Str::repeat(',', 1000000)]);
+array<string> $none = Core\Cli::multiSelect('what should happen?', $choices);
+echo 'step 6 chose ', Core\Arr::count($none), "\n";
+
+// 7. An answer of a million digits. It is not a number on the menu, so the
+//    question is asked again, and there is nobody left to ask.
+Core\Test::scriptAnswers([Core\Str::repeat('9', 1000000)]);
+try {
+    Core\Cli::multiSelect('what should happen?', $choices);
+    echo "step 7 was answered\n";
+} catch (Core\Cli\NotInteractive $nobody) {
+    echo "step 7 stopped at once\n";
+}
+
+// 8. One hundred thousand menus in a row, so that anything a call keeps behind
+//    would grow.
+uint $i = 0;
+uint $stopped = 0;
+while ($i < 100000) {
+    try {
+        Core\Cli::multiSelect('what should happen?', $choices);
+    } catch (Core\Cli\NotInteractive $nobody) {
+        $stopped = $stopped + 1;
+    }
+    $i = $i + 1;
+}
+echo 'step 8 stopped ', $stopped, " times\n";

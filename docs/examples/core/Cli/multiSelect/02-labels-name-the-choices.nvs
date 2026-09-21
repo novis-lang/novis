@@ -1,0 +1,21 @@
+<?nvs
+// Shows the `labels` option. The choices are numbers, and `labels` gives each one
+// the line the person reads. This example answers itself with
+// `Core\Test::scriptAnswers`, so that it prints the same thing everywhere.
+
+array<int> $hours = [1, 6, 24];
+
+// The answer is choice 1 and choice 3, typed with a space between them.
+Core\Test::scriptAnswers(["1 3"]);
+
+array<int> $chosen = Core\Cli::multiSelect("Which reports should run?", $hours, {
+    labels: fn(int $hour): string => Core\Str::format("every %d hour(s)", $hour),
+});
+
+// The result holds the numbers themselves, so you can calculate with them. The
+// chosen numbers are 1 and 24, so this prints 25.
+int $total = 0;
+foreach ($chosen as int $hour) {
+    $total = $total + $hour;
+}
+echo $total, "\n";

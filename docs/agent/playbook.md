@@ -6472,6 +6472,13 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   empty list from `Core\Cli::arguments`, a prompt taking its `{default: …}`, a `colorDepth()` of
   `None`.
   [until: reviewed 2026-09-21]
+- **A `-p nvs-stdlib` test cannot read which class a member threw off `nvs_runtime::call`.** That
+  function answers `Result<Value, i32>`, so a `match` on `Fault::Thrown(class, message)` does not
+  compile at all, and `ctx.take_pending()` gives the message alone — the class sits in a pending slot
+  no test reaches without installing an exception class table first. Assert the sentence from Rust and
+  pin the class from the `.nvst` or hostile case that catches it by name, the way
+  `tests/hostile/core/Cli/select/01-a-menu-nobody-can-answer.nvs` catches `LogicError`.
+  [until: reviewed 2026-09-21]
 
 ## Splitting a file that got too big
 
