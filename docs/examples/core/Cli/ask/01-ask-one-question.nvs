@@ -1,0 +1,10 @@
+<?nvs
+// Shows how to ask a question at the terminal. Run this in a terminal to type
+// your own answer. There is no terminal here, so the answer is the default.
+
+tainted string $name = Core\Cli::ask("What is the new project called?", {default: "shop"});
+
+// The answer is tainted, because a person typed it. You can print it and you
+// can measure it. This prints 4.
+echo "creating the project ", $name, "\n";
+echo "the name is ", Core\Str::length($name), " characters long\n";

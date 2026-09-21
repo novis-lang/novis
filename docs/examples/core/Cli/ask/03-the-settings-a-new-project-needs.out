@@ -1,0 +1,3 @@
+writing nvs.toml
+  name = shop
+  database = localhost:5432

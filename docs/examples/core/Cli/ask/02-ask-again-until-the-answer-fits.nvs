@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to keep asking until the answer fits. `validate` is called with
+// each answer, and an answer it says `false` for is asked again. It runs at a
+// terminal only, so this program takes the default.
+
+tainted string $port = Core\Cli::ask(
+    "Which port should the server use?",
+    {
+        default: "8080",
+        // `as ?int` converts the answer to a whole number. Text that is not a
+        // number becomes `null`, and that answer is asked again.
+        validate: fn(tainted string $answer): bool => ($answer as ?int) != null,
+    }
+);
+
+echo "the server will use port ", $port, "\n";

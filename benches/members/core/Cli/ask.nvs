@@ -1,0 +1,25 @@
+<?nvs
+// Measures asking a question that carries its own answer. A setup script asks a
+// few of these, and a job with no terminal takes the default every time.
+// bench: iterations 200000
+// bench: calls 0
+// bench: allocations 1
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $questions = ["name?", "host?", "port?"];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The question of each round is picked by the round before it, so
+            // no round can be left out.
+            int $pick = ($total % 3) as int;
+            $total = $total
+                + Core\Str::length(Core\Cli::ask($questions[$pick], {default: "ada"}));
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

@@ -1,0 +1,41 @@
+<?nvs
+// Attack: a program asks questions where nobody can answer, and tries to make
+// the prompt wait, break, or paint something on the screen. Every step must end
+// at once, and the program must run to the end.
+// hostile: timeout-ms 60000
+
+// 1. There is no terminal here. A question with no default must stop with an
+//    error instead of waiting for an answer nobody can give.
+try {
+    Core\Cli::ask('who is there?');
+    echo "step 1 was answered\n";
+} catch (Core\Cli\NotInteractive $nobody) {
+    echo "step 1 stopped at once\n";
+}
+
+// 2. A question made of control characters. They must not reach the terminal as
+//    commands, and the default must come back unchanged.
+string $sneaky = "\u{1B}]0;rm -rf /\u{7}your password?";
+echo 'step 2 ', Core\Cli::ask($sneaky, { default: 'kept' }), "\n";
+
+// 3. A question of nearly ten million characters. The program must keep going.
+string $huge = Core\Str::repeat('who is there? ', 700000);
+echo 'step 3 ', Core\Cli::ask($huge, { default: 'kept' }), "\n";
+
+// 4. A check that turns down every answer. There is no terminal to ask again
+//    at, so the default is used and the program does not loop forever.
+tainted string $checked = Core\Cli::ask('your name?', {
+    default: 'kept',
+    validate: fn(tainted string $answer): bool => false,
+});
+echo 'step 4 ', $checked, "\n";
+
+// 5. One hundred thousand questions in a row, so that anything a question kept
+//    behind would grow.
+uint $i = 0;
+uint $length = 0;
+while ($i < 100000) {
+    $length = $length + Core\Str::length(Core\Cli::ask('name?', { default: 'kept' }));
+    $i = $i + 1;
+}
+echo 'step 5 length ', $length, "\n";
