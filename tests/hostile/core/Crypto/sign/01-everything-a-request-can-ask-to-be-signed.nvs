@@ -1,0 +1,57 @@
+<?nvs
+// Attack: a request asks the server to sign whatever it sends, and to sign it
+// with a key that cannot sign. The key that signs nothing should throw an error
+// the program can catch, and the program should reach its last line.
+
+Core\Crypto\KeyPair $pair = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+
+// 1. A key pair that agrees and signs nothing. The program chose that kind, so
+// this is a mistake in the program and not something the request can do.
+try {
+    Core\Crypto::sign('anything' as bytes, Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::X25519));
+    echo '1 signed with an X25519 key', "\n";
+} catch (Throwable $e) {
+    echo '1 refused', "\n";
+}
+
+// 2. An empty message. A signature over nothing is still a signature, and it
+// must not be the signature of another message.
+bytes $overNothing = Core\Crypto::sign('' as bytes, $pair);
+try {
+    Core\Crypto::verify('x' as bytes, $overNothing, $pair->publicKey());
+    echo '2 the empty signature covered another message', "\n";
+} catch (Throwable $e) {
+    echo '2 the empty signature covers nothing else', "\n";
+}
+
+// 3. A message of sixteen megabytes, which is what a request sends when it
+// wants the server to spend its memory on one signature.
+bytes $huge = Core\Bytes::fill(16000000, 122);
+bytes $overHuge = Core\Crypto::sign($huge, $pair);
+Core\Crypto::verify($huge, $overHuge, $pair->publicKey());
+echo '3 signed ', Core\Bytes::length($huge), ' bytes', "\n";
+
+// 4. The same message signed with every kind that signs, one after the other.
+// Each signature belongs to its own key and to no other.
+array<Core\Crypto\KeyKind> $kinds = [Core\Crypto\KeyKind::Ed25519, Core\Crypto\KeyKind::P256];
+bytes $message = 'transfer 100 to account 7' as bytes;
+foreach ($kinds as Core\Crypto\KeyKind $kind) {
+    Core\Crypto\KeyPair $signer = Core\Crypto::generateKeyPair($kind);
+    bytes $signature = Core\Crypto::sign($message, $signer);
+    try {
+        Core\Crypto::verify($message, $signature, $pair->publicKey());
+        echo '4 a signature checked out under another key', "\n";
+    } catch (Throwable $e) {
+        echo '4 refused under another key', "\n";
+    }
+}
+
+// 5. Twenty thousand signatures drawn and kept, which is what a request does
+// when it wants the server to run out of memory.
+array<bytes> $kept = [];
+int $held = 0;
+foreach (Core\Arr::range(1, 20000) as int $round) {
+    $kept[] = Core\Crypto::sign($message, $pair);
+    $held += 1;
+}
+echo '5 kept ', $held, ' signatures', "\n";

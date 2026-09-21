@@ -1,0 +1,25 @@
+<?nvs
+// Shows what the kind of the key pair decides. You never name an algorithm, so
+// the pair you sign with is the whole choice.
+
+bytes $message = "invoice 4711" as bytes;
+
+// `Ed25519` signs one message the same way every time.
+Core\Crypto\KeyPair $ed25519 = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+bytes $first = Core\Crypto::sign($message, $ed25519);
+bytes $second = Core\Crypto::sign($message, $ed25519);
+echo "two Ed25519 signatures are equal: ", ($first == $second ? "yes" : "no"), "\n";
+
+// `P256` uses fresh random data in every call, so two signatures over one
+// message differ. Both of them are valid.
+Core\Crypto\KeyPair $p256 = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::P256);
+bytes $one = Core\Crypto::sign($message, $p256);
+bytes $two = Core\Crypto::sign($message, $p256);
+echo "two P256 signatures are equal: ", ($one == $two ? "yes" : "no"), "\n";
+Core\Crypto::verify($message, $one, $p256->publicKey());
+Core\Crypto::verify($message, $two, $p256->publicKey());
+echo "both P256 signatures are valid", "\n";
+
+// Both kinds sign into 64 bytes. This prints 64 and 64.
+echo Core\Bytes::length($first), "\n";
+echo Core\Bytes::length($one), "\n";

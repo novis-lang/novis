@@ -1,0 +1,28 @@
+<?nvs
+// Shows how a program signs what it sends, so the receiver knows the message
+// came from this program and arrived unchanged. This is what a webhook sender
+// does.
+
+Core\Crypto\KeyPair $sender = Core\Crypto::generateKeyPair(Core\Crypto\KeyKind::Ed25519);
+
+// The receiver is given this one public key beforehand. A public key is safe to
+// publish.
+bytes $published = $sender->publicKey()->write(Core\Crypto\KeyFormat::Spki);
+
+// What the sender sends: the body, and the signature as text in a header.
+string $body = '{"order":1042,"state":"shipped"}';
+string $header = Core\Encoding::toHex(Core\Crypto::sign($body as bytes, $sender));
+
+// This is the receiving side. It reads the key it was given...
+Core\Crypto\PublicKey $key = Core\Crypto\PublicKey::read(
+    $published,
+    Core\Crypto\KeyKind::Ed25519,
+    Core\Crypto\KeyFormat::Spki
+);
+// ...and checks the body it just received against the header.
+try {
+    Core\Crypto::verify($body as bytes, Core\Encoding::fromHex($header), $key);
+    echo "accepted: ", $body, "\n";
+} catch (Throwable $e) {
+    echo "refused", "\n";
+}
