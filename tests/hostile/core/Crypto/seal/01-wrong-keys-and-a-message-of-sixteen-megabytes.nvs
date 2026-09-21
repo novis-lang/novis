@@ -1,0 +1,45 @@
+<?nvs
+// Attack: a program seals under keys that are not 32 bytes. It then seals one
+// message ten thousand times, to look for a nonce that comes back twice. A
+// repeated nonce under one key breaks both ciphers. The last step seals a
+// message of sixteen megabytes.
+
+secret bytes $key = Core\Crypto::generateKey();
+
+// 1. Keys of every wrong width, including the empty one and the one that is a
+// byte short. Each error is caught here.
+array<uint> $widths = [0, 1, 16, 31, 33, 64];
+foreach ($widths as uint $width) {
+    try {
+        Core\Crypto::seal('abc' as bytes, Core\Bytes::fill($width, 65), Core\Crypto\Cipher::Aes256Gcm);
+        echo '1 sealed under a key of ', $width, ' bytes', "\n";
+    } catch (Throwable $e) {
+        echo '1 refused a key of ', $width, ' bytes', "\n";
+    }
+}
+
+// 2. An empty message. It is allowed, and the result is the nonce and the tag.
+bytes $empty = Core\Crypto::seal('' as bytes, $key, Core\Crypto\Cipher::XChaCha20Poly1305);
+echo '2 an empty message seals to ', Core\Bytes::length($empty), ' bytes', "\n";
+
+// 3. Ten thousand seals of one message under one key. Every nonce is the first
+// 24 bytes of the result, and none of them should come back twice.
+array<string> $seen = [];
+uint $repeats = 0;
+uint $i = 0;
+while ($i < 10000) {
+    bytes $sealed = Core\Crypto::seal('the vault code is 4711' as bytes, $key, Core\Crypto\Cipher::XChaCha20Poly1305);
+    string $nonce = Core\Encoding::toHex(Core\Bytes::slice($sealed, 0, 24));
+    if (Core\Arr::hasKey($seen, $nonce)) {
+        $repeats = $repeats + 1;
+    }
+    $seen[$nonce] = 'seen';
+    $i = $i + 1;
+}
+echo '3 nonces seen twice: ', $repeats, "\n";
+
+// 4. A message of sixteen megabytes. The sealed result is another sixteen, and
+// both are held at once.
+bytes $big = Core\Bytes::fill(16000000, 65);
+bytes $sealedBig = Core\Crypto::seal($big, $key, Core\Crypto\Cipher::Aes256Gcm);
+echo '4 sixteen megabytes sealed to ', Core\Bytes::length($sealedBig), ' bytes', "\n";

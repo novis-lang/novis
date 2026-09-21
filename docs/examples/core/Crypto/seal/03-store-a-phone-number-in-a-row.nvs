@@ -1,0 +1,35 @@
+<?nvs
+// Shows how a program seals one field of a record before it is stored. The
+// column holds text, so the sealed bytes are written as hex. Somebody who
+// reads the table sees the hex and nothing else.
+
+secret bytes $key = Core\Crypto::generateKey();
+
+array<string> $customers = ["Ada", "Grace"];
+array<string> $numbers = ["+44 7700 900123", "+1 202 555 0147"];
+array<string> $column = [];
+
+uint $i = 0;
+while ($i < 2) {
+    bytes $sealed = Core\Crypto::seal(
+        $numbers[$i] as bytes,
+        $key,
+        Core\Crypto\Cipher::XChaCha20Poly1305
+    );
+    $column[] = Core\Encoding::toHex($sealed);
+    $i = $i + 1;
+}
+
+// What the row holds is text, and it is 110 characters long for a number of
+// 15. This prints 110.
+echo Core\Str::length($column[0]), "\n";
+
+// The program reads the row back and opens the field. This prints both names
+// with their numbers.
+$i = 0;
+while ($i < 2) {
+    bytes $stored = Core\Encoding::fromHex($column[$i]);
+    echo $customers[$i], ": ",
+        Core\Crypto::open($stored, $key, Core\Crypto\Cipher::XChaCha20Poly1305) as string, "\n";
+    $i = $i + 1;
+}

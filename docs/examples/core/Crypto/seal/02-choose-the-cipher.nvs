@@ -1,0 +1,22 @@
+<?nvs
+// Shows the two ciphers and what each one costs in bytes. Pick
+// `XChaCha20Poly1305` when a Novis program opens the message. Pick `Aes256Gcm`
+// when a browser has to read it.
+
+secret bytes $key = Core\Crypto::generateKey();
+bytes $message = "the meeting moved to Thursday" as bytes;
+
+// The message is 29 bytes long. This prints 29.
+echo Core\Bytes::length($message), "\n";
+
+// `XChaCha20Poly1305` adds 40 bytes: a nonce of 24 and a tag of 16. This
+// prints 69.
+bytes $sealed = Core\Crypto::seal($message, $key, Core\Crypto\Cipher::XChaCha20Poly1305);
+echo Core\Bytes::length($sealed), "\n";
+
+// `Aes256Gcm` adds 28 bytes: a nonce of 12 and a tag of 16. This prints 57.
+bytes $forTheBrowser = Core\Crypto::seal($message, $key, Core\Crypto\Cipher::Aes256Gcm);
+echo Core\Bytes::length($forTheBrowser), "\n";
+
+// The cipher used to open a message must be the one that sealed it.
+echo Core\Crypto::open($forTheBrowser, $key, Core\Crypto\Cipher::Aes256Gcm) as string, "\n";

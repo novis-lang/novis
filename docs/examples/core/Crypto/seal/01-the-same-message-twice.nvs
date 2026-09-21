@@ -1,0 +1,17 @@
+<?nvs
+// Shows that sealing one message twice under one key gives two different
+// results. Both of them open to the same message.
+
+secret bytes $key = Core\Crypto::generateKey();
+bytes $message = "the meeting moved to Thursday" as bytes;
+
+bytes $first = Core\Crypto::seal($message, $key, Core\Crypto\Cipher::XChaCha20Poly1305);
+bytes $second = Core\Crypto::seal($message, $key, Core\Crypto\Cipher::XChaCha20Poly1305);
+
+// Each call draws its own nonce, so the two results differ. An attacker who
+// sees both cannot tell that the same message was sealed twice.
+echo ($first == $second ? "the same" : "different"), "\n";
+
+// Both open to the message that was sealed. This prints the note twice.
+echo Core\Crypto::open($first, $key, Core\Crypto\Cipher::XChaCha20Poly1305) as string, "\n";
+echo Core\Crypto::open($second, $key, Core\Crypto\Cipher::XChaCha20Poly1305) as string, "\n";
