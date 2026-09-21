@@ -97,6 +97,11 @@ files = [
 
 modules = [
   "crates/nvs-stdlib/src/db/registry.rs",
+  # The four executing members, and the per-driver arms beneath them.
+  "crates/nvs-stdlib/src/db/execute.rs",
+  # Getting a connection: `Core\Db::connect`'s configured block, `Core\Db::open`'s twelve
+  # settings, and the two members that need no connection at all.
+  "crates/nvs-stdlib/src/db/open.rs",
 ]
 
 rules = ["testing/feature-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
