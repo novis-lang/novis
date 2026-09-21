@@ -3532,6 +3532,18 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `tests/hostile/core/Db/open/01-settings-a-request-chose.nvs`, which reads as a broken example
   rather than as a file nobody has written. Write every `.nvs` a block names first, or add one
   block at a time as each program lands. [until: reviewed 2026-09-21]
+- **An `[[app]]` block whose `entry` names a file that is not on disk yet refuses every program
+  in the repository, not just that one.** `nvs.toml` is one snapshot, so `E0605 cannot read
+  <path>` comes out of `nvs run` for an unrelated example while the grant sits there unmatched.
+  Write the `.nvs` files before the `[[app]]` blocks that name them, or put both in one edit.
+  [until: reviewed 2026-09-21]
+
+- **`python tools/dossier.py --record-perf` measures every feature whose figure is stale, and
+  `--id <feature>` does not narrow it.** A run naming one new bench measured seven features and
+  appended seven records to `docs/perf/members.ndjson`, six of them for members the slice never
+  touched. Expect the extra rows and name them in the commit rather than reverting them — they
+  are honest measurements from the same machine and the ledger is append-only.
+  [until: reviewed 2026-09-21]
 
 ## Writing a test case
 
