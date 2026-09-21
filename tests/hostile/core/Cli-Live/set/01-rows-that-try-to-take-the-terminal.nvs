@@ -1,0 +1,60 @@
+<?nvs
+// Attack: rows are written that try to run commands on the terminal, to cover
+// the whole screen, and to repaint it faster than it can draw. Nothing may
+// reach the terminal as a command, and the program must run to its last line.
+// hostile: timeout-ms 60000
+
+// 1. A row of control characters. It clears the screen, renames the window and
+//    ends the line early. All of it must arrive as text.
+Core\Cli::live(fn(Core\Cli\Live $screen): uint => {
+    $screen->set([
+        Core\Cli\Text::plain("\u{1B}[2J\u{1B}[H"),
+        Core\Cli\Text::plain("\u{1B}]0;whoami\u{7}"),
+        Core\Cli\Text::plain("a row\rand another\u{0}\u{8}\u{8}"),
+    ]);
+    return 0;
+});
+echo "step 1 painted\n";
+
+// 2. A row of a million characters, and a thousand rows at once. A row wider
+//    than the terminal is cut, so the region keeps its shape.
+Core\Cli::live(fn(Core\Cli\Live $screen): uint => {
+    $screen->set([Core\Cli\Text::plain(Core\Str::repeat('w', 1000000))]);
+
+    array<Core\Cli\Text> $tall = [];
+    uint $row = 0;
+    while ($row < 1000) {
+        $tall[] = Core\Cli\Text::plain(Core\Str::format('row %d', $row));
+        $row = $row + 1;
+    }
+    $screen->set($tall);
+    return $row;
+});
+echo "step 2 painted\n";
+
+// 3. Half a million repaints of one region. The runtime draws on its own timer,
+//    so a program cannot make it draw faster, and nothing may be kept behind.
+uint $painted = Core\Cli::live(fn(Core\Cli\Live $screen): uint => {
+    uint $at = 0;
+    while ($at < 500000) {
+        $screen->set([Core\Cli\Text::plain(Core\Str::format('frame %d', $at))]);
+        $at = $at + 1;
+    }
+    return $at;
+});
+echo 'step 3 painted ', $painted, " frames\n";
+
+// 4. The region is emptied and filled again, over and over. An empty region is
+//    allowed, and the region after it must still be drawn.
+Core\Cli::live(fn(Core\Cli\Live $screen): uint => {
+    array<Core\Cli\Text> $none = [];
+    uint $at = 0;
+    while ($at < 10000) {
+        $screen->set($none);
+        $screen->set([Core\Cli\Text::plain('back again')]);
+        $at = $at + 1;
+    }
+    $screen->set($none);
+    return $at;
+});
+echo "step 4 painted\n";

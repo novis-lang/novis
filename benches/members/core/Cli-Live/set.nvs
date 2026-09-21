@@ -1,0 +1,27 @@
+<?nvs
+// Measures replacing the rows of a live region. A tool meets this once for
+// every step it reports while it works.
+// bench: iterations 200000
+// bench: calls 0
+// bench: allocations 9
+
+class Bench {
+    public static function run(uint $rounds): int {
+        return Core\Cli::live(fn(Core\Cli\Live $screen): int => {
+            array<string> $states = ["reading", "writing", "checking"];
+            int $total = 0;
+            uint $i = 0;
+            while ($i < $rounds) {
+                // The row of each round is chosen by the round before it, so no
+                // round can be left out.
+                int $at = $total % 3;
+                $screen->set([Core\Cli\Text::plain($states[$at])]);
+                $total = $total + $at + 1;
+                $i = $i + 1;
+            }
+            return $total;
+        });
+    }
+}
+
+echo Bench::run(200000), "\n";

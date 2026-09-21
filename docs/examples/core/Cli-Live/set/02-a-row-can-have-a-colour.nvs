@@ -1,0 +1,24 @@
+<?nvs
+// Shows rows with a colour. A row is a `Core\Cli\Text`, so `Core\Cli\Text::styled`
+// makes one that a terminal shows in colour. Without a terminal the colour is
+// left out and the words stay.
+
+Core\Cli\Style $good = Core\Cli\Style::of({color: Core\Cli\Color::GREEN});
+Core\Cli\Style $busy = Core\Cli\Style::of({color: Core\Cli\Color::YELLOW});
+
+string $state = Core\Cli::live(fn(Core\Cli\Live $screen): string => {
+    $screen->set([
+        Core\Cli\Text::styled("database   ready", $good),
+        Core\Cli\Text::styled("cache      warming up", $busy),
+    ]);
+
+    // Both rows are replaced by two green ones when the second service is
+    // ready.
+    $screen->set([
+        Core\Cli\Text::styled("database   ready", $good),
+        Core\Cli\Text::styled("cache      ready", $good),
+    ]);
+    return "ready";
+});
+
+echo "everything is ", $state, "\n";
