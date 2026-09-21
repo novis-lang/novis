@@ -8768,6 +8768,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   stops the parser at the comma and cascades: one such declaration in a two-line example produced
   64 diagnostics, almost all of them about later lines. Write `array<int> $prices = ["cup" => 450];`
   and read only the first diagnostic. [until: reviewed 2026-09-21]
+- **A ternary inside a `uint` sum types as `mixed`, so a chained accumulator needs an `if`.**
+  `$total = $total + ($form == Core\Cldr\PluralCategory::Other ? 1 : 3)` fails twice, `E0407`
+  mixed-signedness and then `E0401` expected `uint`, found `mixed`, because the two branches are
+  `int` literals and the ternary never narrows to the `uint` on the left. Write a `uint $step = 1;`
+  with an `if` above the sum instead, which is also what keeps the member's own answer in the chain
+  a bench and an attack are built around. [until: reviewed 2026-09-21]
 
 ## Divergences and refusals already pinned
 

@@ -3557,6 +3557,7 @@ mod tests {
     /// categories are all reachable, a language is answered from its own rules
     /// rather than from English's, the operands come from what the count
     /// shows, and a language the table does not carry is refused.
+    // covers: Core\Cldr::pluralCategory
     #[test]
     fn plural_category_answers_from_the_carried_cldr_data() {
         use Category::{Few, Many, One, Other, Two, Zero};
@@ -3811,6 +3812,7 @@ mod tests {
     /// ordinal answer, every row of [`ORDINALS`] answers its own published
     /// rule, and the default the module doc argues for is the one a language
     /// off that roster gets.
+    // covers: Core\Cldr::ordinalCategory
     #[test]
     fn an_ordinal_category_is_answered_for_every_language_with_a_published_table() {
         use Category::{Few, Many, One, Other, Two, Zero};
