@@ -1,0 +1,53 @@
+<?nvs
+// Attack: a program opens compression streams and feeds them badly. It
+// abandons streams, adds a million empty pieces, and uses a stream after it
+// ended. Every wrong use must stop with an error. The program must not crash.
+// hostile: timeout-ms 60000
+// hostile: ends-early
+
+// 1. A hundred thousand streams opened and never finished. A stream that was
+//    kept behind after the program stopped using it would fill memory here.
+uint $opened = 0;
+while ($opened < 100000) {
+    var $abandoned = Core\Compress::compressor(Core\Codec::Gzip);
+    $abandoned->add('a piece nobody will ever ask for');
+    $opened = $opened + 1;
+}
+echo 'step 1 opened ', $opened, " streams\n";
+
+// 2. A million pieces with no bytes in them. None of them adds anything to the
+//    result, so the frame must be the one an empty stream writes.
+var $empties = Core\Compress::compressor(Core\Codec::Zstd);
+uint $added = 0;
+while ($added < 1000000) {
+    $empties->add('');
+    $added = $added + 1;
+}
+echo 'step 2 wrote ', Core\Bytes::length($empties->finish()), " bytes\n";
+
+// 3. The same stream used again after it ended. Both members must stop with a
+//    `RuntimeError`, and the second call must not answer half a frame.
+uint $stopped = 0;
+try {
+    $empties->add('one more');
+} catch (RuntimeError $closed) {
+    $stopped = $stopped + 1;
+}
+try {
+    $empties->finish();
+} catch (RuntimeError $twice) {
+    $stopped = $stopped + 1;
+}
+echo 'step 3 stopped ', $stopped, " of 2\n";
+
+// 4. One stream fed four mebibytes two hundred times, then finished. `finish`
+//    joins all of it, so the program stops at its memory limit there.
+bytes $block = Core\Bytes::repeat('C' as bytes, 4194304);
+var $growing = Core\Compress::compressor(Core\Codec::Gzip);
+uint $blocks = 0;
+while ($blocks < 200) {
+    $growing->add($block);
+    $blocks = $blocks + 1;
+}
+echo 'step 4 added ', $blocks, " blocks\n";
+echo 'step 4 finished with ', Core\Bytes::length($growing->finish()), " bytes\n";

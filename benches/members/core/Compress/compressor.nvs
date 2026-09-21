@@ -1,0 +1,26 @@
+<?nvs
+// Measures opening a compression stream, adding two pieces and finishing it. A
+// program meets this every time it writes one compressed record from parts it
+// built separately.
+// bench: iterations 30000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $cities = ['Berlin', 'Lisbon', 'Oslo'];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The city of each round is chosen by the round before it, so no
+            // round can be left out.
+            var $stream = Core\Compress::compressor(Core\Codec::Zstd);
+            $stream->add('{"id":1042,"city":"');
+            $stream->add($cities[($total % 3) as int]);
+            $total = $total + Core\Bytes::length($stream->finish());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(30000), "\n";

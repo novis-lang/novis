@@ -1,0 +1,28 @@
+<?nvs
+// Shows what a program does when it writes a compressed export: it adds each
+// row as it reads it, and finishes once at the end.
+
+array<string> $orders = [
+    'id,city,total',
+    '1042,Berlin,39.90',
+    '1043,Lisbon,12.50',
+    '1044,Oslo,88.00',
+];
+
+var $export = Core\Compress::compressor(Core\Codec::Gzip);
+foreach ($orders as string $row) {
+    $export->add($row);
+    $export->add("\n");
+}
+bytes $file = $export->finish();
+
+echo 'the export is ', Core\Bytes::length($file), " bytes\n";
+
+// A stream ends once. Adding another row after `finish` throws a `RuntimeError`,
+// so open a new stream for the next file.
+try {
+    $export->add('1045,Madrid,5.00');
+    echo "the finished stream took another row\n";
+} catch (RuntimeError $finished) {
+    echo "the finished stream took no more rows\n";
+}

@@ -1,0 +1,17 @@
+<?nvs
+// Shows that how you split the data up does not change what you get. A stream
+// fed in three pieces writes the same bytes as one whole-buffer call.
+
+string $text = Core\Str::repeat("every order is one line\n", 30);
+
+var $stream = Core\Compress::compressor(Core\Codec::Zlib);
+$stream->add(Core\Str::slice($text, 0, 100));
+$stream->add(Core\Str::slice($text, 100, 260));
+$stream->add(Core\Str::slice($text, 360, 360));
+bytes $inPieces = $stream->finish();
+
+bytes $atOnce = Core\Compress::compress($text, Core\Codec::Zlib);
+
+echo 'in pieces: ', Core\Bytes::length($inPieces), " bytes\n";
+echo 'at once: ', Core\Bytes::length($atOnce), " bytes\n";
+echo 'the same bytes: ', Core\Hash::equals($inPieces, $atOnce) ? 'yes' : 'no', "\n";
