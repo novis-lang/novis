@@ -7,6 +7,7 @@
 // two members differ in their answer's *type argument* and in nothing else.
 // That is the whole of what `PDO::FETCH_CLASS` was for, decided at the call
 // site rather than by a mode flag set on the statement.
+// covers: Core\Db\Connection::queryAs
 use Core\Db\Derive;
 
 #[Derive]

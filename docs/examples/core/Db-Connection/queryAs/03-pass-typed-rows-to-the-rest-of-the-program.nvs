@@ -1,0 +1,41 @@
+<?nvs
+// Shows what a program does with typed rows: one method reads the orders of a
+// customer, and everything after it works with `Order` objects.
+use Core\Db\Derive;
+
+#[Derive]
+class Order {
+    public uint $id;
+    public tainted string $customer;
+    public uint $cents;
+
+    public function constructor(uint $id, tainted string $customer, uint $cents)
+    {
+        $this->id = $id;
+        $this->customer = $customer;
+        $this->cents = $cents;
+    }
+}
+
+class Orders {
+    // The return type says what the caller gets. `Core\Db\Rows<Order>` is a
+    // result of `Order` objects, so the statement stays in this one method.
+    public static function of(Core\Db\Connection $db, string $customer): Core\Db\Rows<Order>
+    {
+        return $db->queryAs<Order>('select id, customer, cents from orders where customer = ? order by id', [$customer]);
+    }
+}
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table orders (id integer primary key, customer text not null, cents int not null)', []);
+$db->execute('insert into orders (customer, cents) values (?, ?), (?, ?), (?, ?)', ['Ana', 1200, 'Bo', 4500, 'Ana', 800]);
+
+// This prints one line per order of Ana, then the total of the two.
+uint $total = 0;
+foreach (Orders::of($db, 'Ana') as Order $order) {
+    echo $order->id, ': ', $order->cents, "\n";
+    $total = $total + $order->cents;
+}
+echo 'total: ', $total, "\n";
+
+$db->close();

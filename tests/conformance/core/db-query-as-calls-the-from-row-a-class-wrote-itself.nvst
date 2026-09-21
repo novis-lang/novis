@@ -15,6 +15,7 @@ A class that writes `Core\Db\Codec`'s `fromRow` and carries no `#[Db\Derive]` is
 // So a `queryAs<T>` that quietly fell back to a generated decoder — or that
 // handed the member anything other than the real row — fails this case rather
 // than printing plausibly.
+// covers: Core\Db\Connection::queryAs
 class Account {
     public uint $twice;
 

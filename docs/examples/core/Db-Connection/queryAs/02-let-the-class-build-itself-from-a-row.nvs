@@ -1,0 +1,36 @@
+<?nvs
+// Shows a class that fills itself from a row. Write a `fromRow` method, and
+// `queryAs` calls it for every row.
+
+class Price {
+    public string $label;
+    public int $cents;
+
+    public function constructor(string $label, int $cents)
+    {
+        $this->label = $label;
+        $this->cents = $cents;
+    }
+
+    // `fromRow` gets one row and returns the object. This one joins two
+    // columns into the label, which a property named after a column cannot do.
+    public static function fromRow(Core\Db\Row $row): static
+    {
+        string $name = $row->string('name') ?? 'unknown';
+        string $size = $row->string('size') ?? '';
+        int $cents = $row->int('cents') ?? 0;
+        return new static($name . ' (' . $size . ')', $cents);
+    }
+}
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table products (id integer primary key, name text not null, size text not null, cents int not null)', []);
+$db->execute('insert into products (name, size, cents) values (?, ?, ?), (?, ?, ?)', ['Coffee', 'large', 450, 'Tea', 'small', 220]);
+
+// Each row is a `Price` with the label the method built. This prints
+// `Coffee (large): 450` and `Tea (small): 220`.
+foreach ($db->queryAs<Price>('select name, size, cents from products order by name', []) as Price $price) {
+    echo $price->label, ': ', $price->cents, "\n";
+}
+
+$db->close();

@@ -1,0 +1,43 @@
+<?nvs
+// Measures one `select` that reads a few rows into objects of a class, as a
+// program does when it shows a page of a list.
+// bench: iterations 10000
+use Core\Db\Derive;
+
+#[Derive]
+class Note {
+    public uint $id;
+    public uint $n;
+
+    public function constructor(uint $id, uint $n)
+    {
+        $this->id = $id;
+        $this->n = $n;
+    }
+}
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $db = Core\Db::connect('notes');
+        $db->execute('create table notes (id integer primary key, n int not null)', []);
+        uint $written = 0;
+        while ($written < 10) {
+            $db->execute('insert into notes (n) values (?)', [$written as int]);
+            $written = $written + 1;
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The objects built so far choose the value bound below, and each
+            // row read adds its own number, so the loop cannot be left out.
+            var $rows = $db->queryAs<Note>('select id, n from notes where n >= ? order by n', [($total % 10) as int]);
+            foreach ($rows->all() as Note $note) {
+                $total = $total + $note->n;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(10000), "\n";

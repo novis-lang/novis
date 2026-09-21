@@ -1765,6 +1765,12 @@ mod tests {
     /// not match" from a fix — [ADR 0071 § 5](/docs/decisions/0071.md)
     /// is where the `issues` list this reads back is specified, and the throw is
     /// a `ParseError` for the reason [`hydrate`]'s own docs give.
+    ///
+    /// The member this is the Rust side of is `queryAs`: hydration is the whole
+    /// of what it adds to `query`, and [`hydrate`] is where a row becomes the
+    /// class the call site wrote. The `.nvst` half runs the same construction
+    /// through a program, where the refusal is caught by name.
+    // covers: Core\Db\Connection::queryAs
     #[test]
     fn query_as_throws_naming_the_column_for_a_mismatch_a_missing_column_and_a_null() {
         use nvs_runtime::CodecTy;

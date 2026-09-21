@@ -1,0 +1,73 @@
+<?nvs
+// Attack: thousands of reads whose rows do not fit the class. Then one read
+// that builds half a million objects, and one value of ten million characters.
+// Every failure should be an error the program can catch. Nothing here may
+// crash.
+// hostile: timeout-ms 60000
+use Core\Db\Derive;
+
+#[Derive]
+class Note
+{
+    public uint $id;
+    public tainted string $text;
+
+    public function constructor(uint $id, tainted string $text)
+    {
+        $this->id = $id;
+        $this->text = $text;
+    }
+}
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table notes (id integer primary key, text text not null)', []);
+$db->execute('insert into notes (text) values (?)', ['buy milk']);
+
+// 1. Ten thousand reads whose `id` column holds a word. The property is a
+// number, so every row is refused. Ten thousand errors may not fill the memory.
+uint $refused = 0;
+uint $i = 0;
+while ($i < 10000) {
+    try {
+        $db->queryAs<Note>('select ? as id, text from notes', ['nine'])->all();
+    } catch (Throwable $error) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo '1 refused: ', $refused, "\n";
+
+// 2. Ten thousand reads that leave out a column the class needs. Every one of
+// them is refused as well.
+$refused = 0;
+$i = 0;
+while ($i < 10000) {
+    try {
+        $db->queryAs<Note>('select id from notes', [])->all();
+    } catch (Throwable $error) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo '2 refused: ', $refused, "\n";
+
+// 3. One read that builds half a million objects. Each row is a new `Note`,
+// and the program must stay inside its memory limit.
+uint $built = 0;
+try {
+    foreach ($db->queryAs<Note>('with recursive many(id, text) as (select 1, \'note\' union all select id + 1, \'note\' from many where id < 500000) select id, text from many', []) as Note $note) {
+        $built = $built + $note->id;
+    }
+    echo "3 half a million objects were built\n";
+} catch (Throwable $error) {
+    echo "3 the flood of objects was stopped\n";
+}
+
+// 4. A text of ten million characters read into one property.
+try {
+    $db->queryAs<Note>('select 1 as id, ? as text', [Core\Str::repeat('a', 10000000)])->first();
+    echo "4 the long value was read\n";
+} catch (Throwable $error) {
+    echo "4 the long value was refused\n";
+}
+echo '5 still connected: ', $db->isOpen() ? 'yes' : 'no', "\n";
