@@ -2831,7 +2831,7 @@ pub(crate) fn print_unit(
         password,
     };
     let mut sources = SourceMap::new();
-    let host = match describe_host(config, argv, &mut sources) {
+    let host = match describe_host(config, argv, Unresolved::Refuses, &mut sources) {
         Ok(host) => host,
         Err(diagnostic) => return refuse(diagnostic, &mut sources),
     };
@@ -2953,7 +2953,7 @@ pub(crate) fn install(
         password: options.password,
     };
     let mut sources = SourceMap::new();
-    let host = match describe_host(config, argv, &mut sources) {
+    let host = match describe_host(config, argv, Unresolved::Refuses, &mut sources) {
         Ok(host) => host,
         Err(diagnostic) => return refuse(diagnostic, &mut sources),
     };
@@ -2990,7 +2990,7 @@ pub(crate) fn uninstall(config: &[PathBuf], name: &str, dry_run: bool) -> ExitCo
     let mut sources = SourceMap::new();
     let performed = at_host(|site| {
         let mut stored = held(site, name)?;
-        let host = describe_host(config, &stored.argv, &mut sources)
+        let host = describe_host(config, &stored.argv, Unresolved::ReadsAsEmpty, &mut sources)
             .map_err(registration::Refused::Installer)?;
         // The two the platform does not hold, back from where the install
         // read them. An install given the installer's own `--log-file` over a
@@ -3093,6 +3093,22 @@ fn answered(name: &str, control: registration::Control) -> ExitCode {
     }
 }
 
+/// What [`describe_host`] does with a named configuration that does not
+/// resolve.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Unresolved {
+    /// The configuration's own diagnostic is the refusal. `install` and `unit`
+    /// take this one: the service would refuse the same file at every boot, and
+    /// reading it as empty reports `E0632` about a file whose `[log] target`
+    /// the operator can see — a key under a header left commented out is the
+    /// usual way to get there.
+    Refuses,
+    /// It reads as a configuration that says nothing. `uninstall` takes this
+    /// one, because a service whose configuration has since been broken or
+    /// deleted is exactly one an operator still has to be able to remove.
+    ReadsAsEmpty,
+}
+
 /// What this process and the named configuration answer about themselves.
 ///
 /// The configuration questions are read off the merged table rather than the
@@ -3101,6 +3117,7 @@ fn answered(name: &str, control: registration::Control) -> ExitCode {
 fn describe_host(
     config: &[PathBuf],
     argv: &[String],
+    unresolved: Unresolved,
     sources: &mut SourceMap,
 ) -> Result<Host, Diagnostic> {
     let exe = std::env::current_exe()
@@ -3123,13 +3140,20 @@ fn describe_host(
     let files = crate::config::LocalFiles;
     let roots = crate::config::named_roots(config, &named);
     let cwd = crate::config::working_directory()?;
-    let table = nvs_config::resolve::resolve(
+    let resolved = nvs_config::resolve::resolve(
         &nvs_config::resolve::roots(&roots, &cwd, &files),
         sources,
         &files,
     )
-    .map(|resolved| resolved.table)
-    .unwrap_or_default();
+    .map(|resolved| resolved.table);
+    // An argv naming no `--config` is `E0631`'s to refuse, and what resolved in
+    // its place is this shell's tree, whose faults are not the service's.
+    let table = match resolved {
+        Err(diagnostic) if unresolved == Unresolved::Refuses && !named.is_empty() => {
+            return Err(diagnostic);
+        }
+        resolved => resolved.unwrap_or_default(),
+    };
 
     let target = table
         .get("log")
@@ -3388,6 +3412,36 @@ mod tests {
             host.config_names_a_log_destination = target.starts_with("file:") || target == "syslog";
             assert!(plan(&request(&argv), &host).is_ok(), "{target}");
         }
+    }
+
+    /// A named configuration that does not resolve is refused as itself. The
+    /// file here is the shipped template with `target` uncommented and `[log]`
+    /// left commented out above it, which makes `target` a root key: read as
+    /// empty, that file is refused as `E0632` with its destination in plain
+    /// sight. An uninstall reads the same file as saying nothing, so a broken
+    /// configuration never keeps a service installed.
+    #[test]
+    fn a_configuration_that_does_not_resolve_is_refused_as_itself_and_never_blocks_an_uninstall() {
+        let root = unit_root("unresolved");
+        let file = root.join("nvs.toml");
+        std::fs::write(&file, "#[log]\ntarget = \"file:/var/log/nvs.log\"\n").expect("a file");
+        let named = file.to_str().expect("a UTF-8 path").to_owned();
+        let argv = vec!["serve".to_owned(), "--config".to_owned(), named];
+
+        let refusal = describe_host(&[], &argv, Unresolved::Refuses, &mut SourceMap::new())
+            .err()
+            .expect("a root `target` is not a key");
+        assert_eq!(coded(&refusal), code::E_BAD_DIRECTIVE);
+
+        let host = describe_host(&[], &argv, Unresolved::ReadsAsEmpty, &mut SourceMap::new())
+            .expect("an uninstall reads it as empty");
+        assert!(!host.config_names_a_log_destination);
+        assert_eq!(host.log_file, None);
+
+        // An argv naming no `--config` is `E0631`'s to refuse, whatever this
+        // shell's own tree looks like, so it is described and left to `plan`.
+        let bare = vec!["serve".to_owned()];
+        assert!(describe_host(&[file], &bare, Unresolved::Refuses, &mut SourceMap::new()).is_ok());
     }
 
     /// `rule:packaging/a-bundle-may-not-install-itself`.
