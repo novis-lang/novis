@@ -2112,6 +2112,177 @@ mod tests {
         released(row);
     }
 
+    /// **`Core\Db\Row::string` answers the row's own text rather than a copy
+    /// of it**, so reading one column a million times costs the one allocation
+    /// the row already made.
+    ///
+    /// Asserted on the address of the payload, which is the only thing that
+    /// separates handing a value over from rebuilding it. A reader that copied
+    /// the characters would answer the right text on every row and still turn
+    /// a listing reading one column per row into a listing allocating one
+    /// string per row — the cost `benches/members/core/Db-Row/string.nvs`
+    /// declares as zero. No program can see the difference, which is why this
+    /// half is pinned from Rust and the column types are pinned from Novis.
+    // covers: Core\Db\Row::string
+    #[test]
+    fn string_answers_the_rows_own_text_rather_than_a_copy_of_it() {
+        let mut ctx = Ctx::buffered();
+        let stored = Value::str(NvsStr::new("Amélie".as_bytes()));
+        let mut columns = NvsArray::new();
+        columns.set(NvsStr::new(b"name"), stored);
+        columns.set(NvsStr::new(b"empty"), Value::null());
+        let row = crate::instance::build(&ROW, [Value::array(columns)]);
+        let held = stored
+            .as_str_bytes()
+            .map(<[u8]>::as_ptr)
+            .expect("the column was built holding a text");
+
+        // 1. Four reads of the one column, each answering the allocation the
+        //    row itself holds.
+        let name = Value::str(NvsStr::new(b"name"));
+        for _ in 0..4 {
+            let answered = nvs_runtime::call(nvs_core_db_row_string, &mut ctx, &[row, name])
+                .expect("a `TEXT` column is what `string` reads");
+            assert_eq!(
+                answered.as_str_bytes(),
+                Some("Amélie".as_bytes()),
+                "`string` answered something other than the text the column holds"
+            );
+            assert_eq!(
+                answered.as_str_bytes().map(<[u8]>::as_ptr),
+                Some(held),
+                "`string` built a second copy of the text the row already holds"
+            );
+            released(answered);
+        }
+        released(name);
+
+        // 2. And the column with no value, which is an absence rather than the
+        //    empty text, the value a member inventing one would pick.
+        let absent = Value::str(NvsStr::new(b"empty"));
+        let nothing = nvs_runtime::call(nvs_core_db_row_string, &mut ctx, &[row, absent])
+            .expect("a NULL column is read rather than refused");
+        assert_eq!(nothing.tag(), Some(Tag::Null));
+        released(absent);
+
+        released(row);
+    }
+
+    /// **`Core\Db\Row::int` answers the whole signed range exactly, and never
+    /// through a float**, so both ends of a `BIGINT` column come back as the
+    /// numbers they were stored as.
+    ///
+    /// `i64::MAX` is where that is decided: the nearest `f64` to it is
+    /// `9223372036854775808`, one past the column's own ceiling, so a reader
+    /// converting through a double answers a number the column does not hold
+    /// and stops comparing equal to itself. The float column below holds
+    /// exactly that double and is refused rather than read as the ceiling,
+    /// which is the same claim from the other side. No engine hands a row both
+    /// of those at once, so the pair is built here.
+    // covers: Core\Db\Row::int
+    #[test]
+    fn int_answers_the_whole_signed_range_and_never_through_a_float() {
+        /// The four values a signed column is read at, which are its two ends
+        /// and the two either side of zero.
+        const ENDS: [(&[u8], i64); 4] = [
+            (b"smallest", i64::MIN),
+            (b"below", -1),
+            (b"none", 0),
+            (b"largest", i64::MAX),
+        ];
+
+        let mut ctx = Ctx::buffered();
+        let mut columns = NvsArray::new();
+        for (label, stored) in ENDS {
+            columns.set(NvsStr::new(label), Value::int(stored));
+        }
+        columns.set(NvsStr::new(b"near"), Value::float(9223372036854775808.0));
+        let row = crate::instance::build(&ROW, [Value::array(columns)]);
+
+        // 1. Each end of the range, answered as the number the column holds.
+        for (label, stored) in ENDS {
+            let name = Value::str(NvsStr::new(label));
+            let answered = nvs_runtime::call(nvs_core_db_row_int, &mut ctx, &[row, name])
+                .expect("an integer column is what `int` reads");
+            assert_eq!(
+                answered.as_int(),
+                Some(stored),
+                "`int` answered something other than the number the column holds"
+            );
+            released(name);
+        }
+
+        // 2. And the nearest double to the ceiling, which is a fractional
+        //    column however round its value is.
+        let near = Value::str(NvsStr::new(b"near"));
+        nvs_runtime::call(nvs_core_db_row_int, &mut ctx, &[row, near])
+            .expect_err("a `REAL` column is not an integer, whatever it holds");
+        let message = ctx
+            .take_pending()
+            .expect("a refusal is a throw, and it carries a sentence");
+        assert!(
+            message.contains("near"),
+            "the refusal names the column it was asked about: {message}"
+        );
+        released(near);
+
+        released(row);
+    }
+
+    /// **`Core\Db\Row::uint` tells a negative value apart from a column that
+    /// is no integer at all**, which are the two refusals it has and the one
+    /// distinction a caller acts on.
+    ///
+    /// Both arrive as a `LogicError`, so a program catching them sees one
+    /// thing and the sentence is the whole difference: the first says what the
+    /// column holds and where the reader stops, and the second says what the
+    /// column is. A reader answering [`wrong_column_type`] for a negative
+    /// number would send a caller looking for a column of another type, when
+    /// the column is right and `Core\Db\Row::int` is the reader for it.
+    // covers: Core\Db\Row::uint
+    #[test]
+    fn uint_tells_a_negative_value_apart_from_a_column_that_is_no_integer() {
+        let mut ctx = Ctx::buffered();
+        let mut columns = NvsArray::new();
+        columns.set(NvsStr::new(b"size"), Value::int(18432));
+        columns.set(NvsStr::new(b"owed"), Value::int(-1));
+        columns.set(NvsStr::new(b"label"), Value::str(NvsStr::new(b"18432")));
+        let row = crate::instance::build(&ROW, [Value::array(columns)]);
+
+        // 1. The column this reader answers, which is a signed one that is not
+        //    negative.
+        let name = Value::str(NvsStr::new(b"size"));
+        let answered = nvs_runtime::call(nvs_core_db_row_uint, &mut ctx, &[row, name])
+            .expect("a signed column that is not negative has a `uint` reading");
+        assert_eq!(answered.as_uint(), Some(18432));
+        released(name);
+
+        // 2. The two refusals, read off the member as a program catches them.
+        let mut said = Vec::new();
+        for column in [b"owed".as_slice(), b"label".as_slice()] {
+            let asked = Value::str(NvsStr::new(column));
+            nvs_runtime::call(nvs_core_db_row_uint, &mut ctx, &[row, asked])
+                .expect_err("neither a negative number nor a text is a `uint`");
+            said.push(
+                ctx.take_pending()
+                    .expect("a refusal is a throw, and it carries a sentence"),
+            );
+            released(asked);
+        }
+        assert!(
+            said[0].contains("-1") && said[0].contains("floor"),
+            "the negative column's refusal says what it holds and where `uint` stops: {}",
+            said[0]
+        );
+        assert!(
+            said[1].contains("an integer") && !said[1].contains("floor"),
+            "the text column's refusal says what the column is: {}",
+            said[1]
+        );
+
+        released(row);
+    }
+
     /// § 6's second named crossing: **a `BIGINT UNSIGNED` past `i64::MAX` reads
     /// as `uint` and throws for `int`.**
     ///

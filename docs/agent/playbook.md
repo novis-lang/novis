@@ -6681,6 +6681,18 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `tests/conformance/core/db-schema-plans-every-difference-and-apply-safe-closes-them.nvst`: a
   `[capabilities.db]` table, then the `[db.main]` block the case connects to.
   [until: reviewed 2026-09-21]
+- **`?? 0` after a `?uint` reader answers `uint|int`, and the assignment a line later is what
+  fails.** `Core\Db\Row::uint` answers `?uint` while a bare `0` literal is an `int`, so
+  `uint $total = $total + ($row->uint('size') ?? 0)` is `E0401 expected uint, found mixed` — the
+  same line over `->int` compiles, which is why it reads as a bug in the member. Declare a
+  `uint $zero = 0;` and write `?? $zero`, or read into a `?uint` and narrow it with
+  `if ($size != null)`. [until: reviewed 2026-09-21]
+
+- **An `echo` whose later argument throws has already printed its earlier ones.** A `.nvst` case
+  printing a label and the read in one `echo` inside a `try` writes `uint over below: ` before the
+  refusal, so the `catch`'s own line lands behind it and `--EXPECT--` never matches, while the
+  member is doing exactly what it should. Do the read on its own line, then echo what came back.
+  [until: reviewed 2026-09-21]
 
 ## Splitting a file that got too big
 
