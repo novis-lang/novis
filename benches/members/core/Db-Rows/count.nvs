@@ -1,0 +1,27 @@
+<?nvs
+// Measures counting the rows a small query answered, which a program does
+// before it prints a list or decides there is nothing to print.
+// bench: iterations 400000
+// bench: calls 0
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $db = Core\Db::connect('notes');
+        $db->execute('create table seatings (id integer primary key, seats int not null)', []);
+        $db->execute('insert into seatings (seats) values (?), (?), (?)', [4, 2, 6]);
+        var $rows = $db->query('select seats from seatings order by id', []);
+
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The total carries the last round's count, so the loop cannot be
+            // left out.
+            $total = $total + $rows->count();
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

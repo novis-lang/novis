@@ -1,0 +1,50 @@
+<?nvs
+// Attack: the count of a result is read a million times. A result of two
+// hundred thousand rows is counted. The count of an empty result is read a
+// hundred thousand times. Every step has to finish, and none may stop the
+// program.
+// hostile: timeout-ms 20000
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table seatings (id integer primary key, seats int not null)', []);
+$db->execute('insert into seatings (seats) values (?), (?), (?)', [4, 2, 6]);
+
+// 1. A million reads of the count of a three-row result. Every read gives the
+// same number, so the memory the program holds may not grow.
+var $three = $db->query('select seats from seatings order by id', []);
+uint $counted = 0;
+uint $i = 0;
+while ($i < 1000000) {
+    $counted = $three->count();
+    $i = $i + 1;
+}
+echo '1 counted: ', $counted, "\n";
+
+// 2. A query that matched no rows, counted a hundred thousand times. It has to
+// answer 0 every time rather than throw.
+var $none = $db->query('select seats from seatings where seats < ?', [0]);
+uint $empty = 1;
+$i = 0;
+while ($i < 100000) {
+    $empty = $none->count();
+    $i = $i + 1;
+}
+echo '2 empty: ', $empty, "\n";
+
+// 3. Two hundred thousand rows, held at once and counted. The count is the
+// length of what was read, so it has to be exact at this size too.
+$db->execute('insert into seatings (seats) with recursive counter(x) as (select 1 union all select x + 1 from counter where x < 200000) select x from counter', []);
+var $many = $db->query('select seats from seatings order by id', []);
+echo '3 many: ', $many->count(), "\n";
+
+// 4. That result counted and read whole, again and again. Reading the rows may
+// not change the count, and the rows the walk builds are freed each round.
+uint $walked = 0;
+$i = 0;
+while ($i < 20) {
+    $walked = Core\Arr::count($many->all());
+    $i = $i + 1;
+}
+echo '4 walked: ', $walked, ' and counted ', $many->count(), "\n";
+
+$db->close();

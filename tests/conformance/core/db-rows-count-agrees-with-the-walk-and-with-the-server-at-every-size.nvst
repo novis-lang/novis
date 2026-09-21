@@ -1,0 +1,59 @@
+--TEST--
+`Core\Db\Rows::count` answers the exact number of rows the statement answered, agreeing with the number of rows the walk gives and with the count the server worked out at every size, and answers the same number again after the rows have been read — `rule:core-classes/db-statement-members`
+--FILE--
+<?nvs
+// covers: Core\Db\Rows::count
+// One question asked at four sizes, including none and the whole table: the
+// member's count, the number of rows `all` answers, and the count the server
+// worked out itself. Counted as agreements rather than read off one line, so a
+// member answering one row too few, or the width of the first row, fails here
+// while every single number still prints plausibly. The sizes name the bound on
+// both sides: a result of no rows and a result of every row.
+var $db = Core\Db::connect("main");
+$db->execute("create table seatings (id integer primary key, seats int not null)", []);
+$db->execute(
+    "insert into seatings (seats) with recursive counter(x) as
+       (select 1 union all select x + 1 from counter where x < 100) select x from counter",
+    []
+);
+
+array<int> $sizes = [0, 1, 3, 100];
+uint $agreed = 0;
+uint $carried = 0;
+foreach ($sizes as int $size) {
+    var $rows = $db->query("select seats from seatings where id <= ? order by id", [$size]);
+    uint $counted = $rows->count();
+
+    // The walk over the same result, and the count the server answered for the
+    // same `where`. Three ways to the one number.
+    uint $walked = Core\Arr::count($rows->all());
+    var $server = $db->query("select count(*) as n from seatings where id <= ?", [$size]);
+    uint $said = $server->all()[0]->uint("n") ?? (0 as uint);
+    if ($counted == $walked && $counted == $said) {
+        $agreed = $agreed + 1;
+    }
+
+    // And the same result counted after its rows were read, since reading them
+    // does not use the count up.
+    if ($rows->count() == $counted) {
+        $agreed = $agreed + 1;
+    }
+    $carried = $carried + $counted;
+}
+
+echo "agree: ", $agreed, " of ", Core\Arr::count($sizes) * 2, "\n";
+echo "rows: ", $carried, "\n";
+
+$db->close();
+--FILE nvs.toml--
+# § 3: a SQLite connection's file path comes from its config block, so
+# `db.connect` covers it.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+agree: 8 of 8
+rows: 104

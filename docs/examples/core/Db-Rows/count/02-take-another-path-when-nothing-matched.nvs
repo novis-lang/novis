@@ -1,0 +1,27 @@
+<?nvs
+// Shows how to tell an empty result from a full one. A query that matched
+// nothing answers 0, so your program can say so instead of printing a blank
+// list.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table orders (id integer primary key, customer text not null, cents int not null)', []);
+$db->execute('insert into orders (customer, cents) values (?, ?)', ['Ada Ahmed', 1250]);
+
+var $mine = $db->query('select cents from orders where customer = ?', ['Bo Berg']);
+
+// Bo Berg has no orders, so this prints `no orders yet`.
+if ($mine->count() == 0) {
+    echo "no orders yet\n";
+} else {
+    echo $mine->count(), " orders\n";
+}
+
+// Ada Ahmed has one, so this prints `1 orders`.
+var $hers = $db->query('select cents from orders where customer = ?', ['Ada Ahmed']);
+if ($hers->count() == 0) {
+    echo "no orders yet\n";
+} else {
+    echo $hers->count(), " orders\n";
+}
+
+$db->close();
