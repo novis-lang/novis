@@ -1,0 +1,4 @@
+deploying
+  migrations: run
+  web server: restarted
+  orders_2019: kept

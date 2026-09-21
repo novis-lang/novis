@@ -1,0 +1,13 @@
+<?nvs
+// Shows how to ask a yes/no question at the terminal. Run this in a terminal to
+// answer it yourself. There is no terminal here, so the answer is the default.
+
+bool $go = Core\Cli::confirm("Delete the old backups?", {default: false});
+
+// `Core\Cli::confirm` returns `true` or `false`. The default here is `false`,
+// so this prints "keeping the old backups".
+if ($go) {
+    echo "deleting the old backups\n";
+} else {
+    echo "keeping the old backups\n";
+}

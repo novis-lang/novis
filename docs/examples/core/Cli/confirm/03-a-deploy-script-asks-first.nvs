@@ -1,0 +1,30 @@
+<?nvs
+// Shows the everyday use: a deploy script asks before each step that cannot be
+// undone, and skips a step the person says no to. There is no terminal here, so
+// every answer is the default.
+
+bool $migrate = Core\Cli::confirm("Run the database migrations?", {default: true});
+bool $restart = Core\Cli::confirm("Restart the web server?", {default: true});
+bool $drop = Core\Cli::confirm("Delete the orders_2019 table for good?", {default: false});
+
+echo "deploying\n";
+
+if ($migrate) {
+    echo "  migrations: run\n";
+} else {
+    echo "  migrations: skipped\n";
+}
+
+if ($restart) {
+    echo "  web server: restarted\n";
+} else {
+    echo "  web server: left running\n";
+}
+
+// The last question is the dangerous one, so its default is `false`. A job with
+// no terminal deletes nothing.
+if ($drop) {
+    echo "  orders_2019: deleted\n";
+} else {
+    echo "  orders_2019: kept\n";
+}

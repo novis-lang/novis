@@ -1,0 +1,27 @@
+<?nvs
+// Measures asking a yes/no question that carries its own answer. A deploy script
+// asks a few of these before it changes anything, and a job with no terminal
+// takes the default every time.
+// bench: iterations 200000
+// bench: calls 0
+// bench: allocations 3
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $questions = ["run the migrations?", "restart the server?", "drop the table?"];
+        uint $taken = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The question of each round is picked by the round before it, so
+            // no round can be left out.
+            int $pick = ($taken % 3) as int;
+            if (Core\Cli::confirm($questions[$pick], {default: true})) {
+                $taken = $taken + 1;
+            }
+            $i = $i + 1;
+        }
+        return $taken;
+    }
+}
+
+echo Bench::run(200000), "\n";

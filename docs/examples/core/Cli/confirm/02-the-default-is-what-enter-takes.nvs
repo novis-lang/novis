@@ -1,0 +1,19 @@
+<?nvs
+// Shows what the `default` option does. The question ends with `[Y/n]` or
+// `[y/N]`, and the capital letter is the default. At a terminal the `Enter` key
+// takes it. There is no terminal here, so both answers are the defaults.
+
+bool $logs = Core\Cli::confirm("Send the logs with the report?", {default: true});
+bool $email = Core\Cli::confirm("Send an email as well?", {default: false});
+
+if ($logs) {
+    echo "the report carries the logs\n";
+} else {
+    echo "the report carries the summary only\n";
+}
+
+if ($email) {
+    echo "an email goes out\n";
+} else {
+    echo "no email goes out\n";
+}

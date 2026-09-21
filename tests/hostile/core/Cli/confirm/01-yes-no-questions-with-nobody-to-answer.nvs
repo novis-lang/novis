@@ -1,0 +1,51 @@
+<?nvs
+// Attack: a program asks yes/no questions where nobody can answer, and tries to
+// make the prompt wait, break, or paint something on the screen. Every step must
+// end at once, and the program must run to the end.
+// hostile: timeout-ms 60000
+
+// 1. There is no terminal here. A question with no default must stop with an
+//    error instead of waiting for an answer nobody can give.
+try {
+    Core\Cli::confirm('delete everything?');
+    echo "step 1 was answered\n";
+} catch (Core\Cli\NotInteractive $nobody) {
+    echo "step 1 stopped at once\n";
+}
+
+// 2. A default of `false` is an answer, not a missing option. The call must
+//    return `false` and must not stop with an error.
+if (Core\Cli::confirm('delete everything?', { default: false })) {
+    echo "step 2 said yes\n";
+} else {
+    echo "step 2 said no\n";
+}
+
+// 3. A question made of control characters. They must not reach the terminal as
+//    commands, and the default must come back unchanged.
+string $sneaky = "\u{1B}]0;rm -rf /\u{7}delete everything?";
+if (Core\Cli::confirm($sneaky, { default: true })) {
+    echo "step 3 said yes\n";
+} else {
+    echo "step 3 said no\n";
+}
+
+// 4. A question of nearly ten million characters. The program must keep going.
+string $huge = Core\Str::repeat('delete everything? ', 500000);
+if (Core\Cli::confirm($huge, { default: true })) {
+    echo "step 4 said yes\n";
+} else {
+    echo "step 4 said no\n";
+}
+
+// 5. One hundred thousand questions in a row, so that anything a question kept
+//    behind would grow.
+uint $i = 0;
+uint $saidYes = 0;
+while ($i < 100000) {
+    if (Core\Cli::confirm('delete everything?', { default: true })) {
+        $saidYes = $saidYes + 1;
+    }
+    $i = $i + 1;
+}
+echo 'step 5 said yes ', $saidYes, ' times', "\n";
