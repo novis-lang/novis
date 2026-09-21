@@ -1,0 +1,31 @@
+<?nvs
+// Shows how to read a column by its position instead of by its name.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table readings (id integer primary key, taken_at text not null, degrees real not null)', []);
+$db->execute('insert into readings (taken_at, degrees) values (?, ?), (?, ?)', ['08:00', 11.5, '12:00', 18.25]);
+
+// `count(*)` has no name of its own, so the position is the way to read it.
+// The first column of the query is at position 0.
+array<mixed> $total = $db->query('select count(*) from readings', [])->column(0);
+
+// This prints `rows: 2`.
+echo 'rows: ', $total[0] as ?int ?? 0, "\n";
+
+var $rows = $db->query('select taken_at, degrees from readings order by id', []);
+
+// Position 1 is the second column of the query, which is `degrees` here.
+// This prints `11.5` and `18.25`, one per line.
+foreach ($rows->column(1) as mixed $degrees) {
+    echo $degrees as ?float ?? 0.0, "\n";
+}
+
+// A position that is no column of the result throws a `LogicError`. This
+// prints `no third column`.
+try {
+    $rows->column(2);
+} catch (LogicError $missing) {
+    echo "no third column\n";
+}
+
+$db->close();

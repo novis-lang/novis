@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to send one column of a query as a JSON list. A program answers a
+// request for names or ids this way.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table products (id integer primary key, sku text not null, title text not null)', []);
+$db->execute('insert into products (sku, title) values (?, ?), (?, ?), (?, ?)', ['A-1', 'Tea cup', 'A-2', 'Tea pot', 'B-7', 'Coffee mug']);
+
+var $rows = $db->query('select sku from products order by sku', []);
+
+// One call gives the array `Core\Json::encode` needs. A single column becomes
+// a JSON list, and one row per entry.
+array<mixed> $skus = $rows->column('sku');
+
+// This prints `["A-1","A-2","B-7"]`.
+echo Core\Json::encode($skus), "\n";
+
+$db->close();

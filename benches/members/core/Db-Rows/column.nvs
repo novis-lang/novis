@@ -1,0 +1,32 @@
+<?nvs
+// Measures reading one column of a small result as a list, which a program
+// does to answer a request for names or ids.
+// bench: iterations 200000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $db = Core\Db::connect('notes');
+        $db->execute('create table seatings (id integer primary key, seats int not null, floors int not null)', []);
+        $db->execute('insert into seatings (seats, floors) values (?, ?), (?, ?), (?, ?)', [4, 1, 2, 2, 6, 3]);
+        var $rows = $db->query('select seats, floors from seatings order by id', []);
+        array<string> $columns = ['seats', 'floors'];
+
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The column read is chosen by the total so far, so the loop cannot
+            // be left out.
+            array<mixed> $taken = $rows->column($columns[($total % 2) as int]);
+            if ($taken[0] != null) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 3;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

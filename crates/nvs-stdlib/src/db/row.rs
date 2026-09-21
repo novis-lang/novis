@@ -3006,4 +3006,270 @@ mod tests {
         assert!(message.contains(FROM_ROW), "{message}");
         assert!(message.contains("E0806"), "{message}");
     }
+
+    /// A result set over the rows given, with no class to hydrate into and no
+    /// described columns — the three slots [`ROWS`] declares, in the order its
+    /// readers name them.
+    fn result_over(rows: [Value; 2]) -> Value {
+        let mut held = NvsArray::new();
+        for row in rows {
+            held.append(row);
+        }
+        crate::instance::build(
+            &ROWS,
+            [
+                Value::array(held),
+                Value::null(),
+                Value::array(NvsArray::new()),
+            ],
+        )
+    }
+
+    /// **`Core\Db\Rows::all` lends each row its own columns rather than copying
+    /// them**, and takes every reference back when the caller drops the array.
+    ///
+    /// That is what [`ROWS_ALL_DOC`] means by one object each, and it is the
+    /// half a `.nvst` cannot see: a member that copied would answer rows that
+    /// compare equal under every comparison a program can write, while costing
+    /// one array of the row's width per row — and a request rendering a result
+    /// set calls this once for the whole set.
+    ///
+    /// The counts are asserted on both sides of the release, because a member
+    /// that retained and never gave the references back reads exactly like
+    /// this one until the answer is dropped. A second call closes it: a member
+    /// that moved the arrays out of the result rather than lending them would
+    /// leave the result empty and still pass everything above.
+    // covers: Core\Db\Rows::all
+    #[test]
+    fn all_lends_every_row_its_own_columns_and_takes_the_references_back() {
+        let mut ctx = Ctx::buffered();
+        let mut north = NvsArray::new();
+        north.set(NvsStr::new(b"label"), Value::str(NvsStr::new(b"north")));
+        north.set(NvsStr::new(b"seats"), Value::int(4));
+        let mut east = NvsArray::new();
+        east.set(NvsStr::new(b"label"), Value::str(NvsStr::new(b"east")));
+        east.set(NvsStr::new(b"seats"), Value::int(2));
+
+        let rows = [Value::array(north), Value::array(east)];
+        let held: Vec<_> = rows
+            .iter()
+            .map(|row| row.array_ptr().expect("a row is the array of its columns"))
+            .collect();
+        let result = result_over(rows);
+
+        #[expect(
+            unsafe_code,
+            reason = "the result this frame built holds both rows, so they are \
+                      live until it is released at the end"
+        )]
+        let before: Vec<_> = held
+            .iter()
+            .map(|row| unsafe { NvsArray::refcount_of(*row) })
+            .collect();
+
+        let all = nvs_runtime::call(nvs_core_db_rows_all, &mut ctx, &[result])
+            .expect("a result set answers the rows it holds");
+        let answered = crate::arr::borrowed(all.array_ptr().expect("`all` answers an `array<T>`"));
+        assert_eq!(
+            answered.count(),
+            2,
+            "one entry per row of the result and nothing else"
+        );
+
+        for (at, row) in held.iter().enumerate() {
+            let object = answered
+                .get_index(i64::try_from(at).expect("a two-row result fits an `i64`"))
+                .expect("every entry is a row")
+                .obj_ptr()
+                .expect("a row is an object");
+            assert_eq!(
+                crate::instance::slot(object, COLUMNS_AT).array_ptr(),
+                Some(*row),
+                "`all` built a second copy of the columns the result already \
+                 holds, at row {at}"
+            );
+
+            #[expect(
+                unsafe_code,
+                reason = "the result holds every row and this frame holds the \
+                          answer, so both references are live here"
+            )]
+            let now = unsafe { NvsArray::refcount_of(*row) };
+            assert_eq!(
+                now,
+                before[at] + 1,
+                "the row objects outlive the call, so the member retained \
+                 before it answered, and that second reference is what makes a \
+                 caller's write separate a copy rather than reach into the \
+                 result"
+            );
+        }
+
+        released(all);
+
+        for (at, row) in held.iter().enumerate() {
+            #[expect(
+                unsafe_code,
+                reason = "the result is this frame's and is released below, so \
+                          every row it holds is still live"
+            )]
+            let after = unsafe { NvsArray::refcount_of(*row) };
+            assert_eq!(
+                after, before[at],
+                "dropping the array gives back exactly the one reference each \
+                 row object took, so a request reading result sets neither \
+                 leaks the rows nor frees one the result is still read from"
+            );
+        }
+
+        let again = nvs_runtime::call(nvs_core_db_rows_all, &mut ctx, &[result])
+            .expect("the result still holds the rows it lent out");
+        let twice = crate::arr::borrowed(again.array_ptr().expect("`all` answers an `array<T>`"));
+        assert_eq!(
+            twice.count(),
+            2,
+            "the result lost its rows by answering them once"
+        );
+        let object = twice
+            .get_index(0)
+            .expect("the first row")
+            .obj_ptr()
+            .expect("a row is an object");
+        let columns = crate::arr::borrowed(
+            crate::instance::slot(object, COLUMNS_AT)
+                .array_ptr()
+                .expect("a row's one slot holds its columns"),
+        );
+        assert_eq!(
+            columns
+                .get(b"label")
+                .expect("the row carries the column it was built over")
+                .as_str_bytes(),
+            Some(b"north".as_slice()),
+            "a second call answers the same rows, since there is no cursor the \
+             first one moved past"
+        );
+        released(again);
+
+        released(result);
+    }
+
+    /// **`Core\Db\Rows::column` answers a second reference to the value each
+    /// row holds rather than a copy of it**, and frees what it has collected
+    /// when a row does not carry the key.
+    ///
+    /// The first half is the member's cost: a column of sixteen-megabyte
+    /// pictures read across a thousand rows is a thousand pointers, and a
+    /// member copying instead would answer a list that compares equal under
+    /// every comparison a program can write. The pointer is asserted first,
+    /// then the count on both sides of the release.
+    ///
+    /// The second half is a refusal in the middle of the walk, which a program
+    /// cannot reach: a real statement describes the same columns for every row,
+    /// so only a result built here has a first row carrying the key and a
+    /// second one without it. What the walk had already collected has to be
+    /// freed by the throw, and the value it took its reference from is the one
+    /// thing that says whether it was.
+    // covers: Core\Db\Rows::column
+    #[test]
+    fn column_takes_one_reference_per_row_and_frees_what_it_collected_on_a_refusal() {
+        let mut ctx = Ctx::buffered();
+        let key = Value::str(NvsStr::new(b"label"));
+        let north = Value::str(NvsStr::new("north field".as_bytes()));
+        let text = north.str_ptr().expect("a label is a string");
+        let mut first = NvsArray::new();
+        first.set(NvsStr::new(b"label"), north);
+        let mut second = NvsArray::new();
+        second.set(
+            NvsStr::new(b"label"),
+            Value::str(NvsStr::new("east field".as_bytes())),
+        );
+        let result = result_over([Value::array(first), Value::array(second)]);
+
+        #[expect(
+            unsafe_code,
+            reason = "the result this frame built holds the row that holds this \
+                      string, so it is live until the result is released"
+        )]
+        let before = unsafe { NvsStr::refcount_of(text) };
+
+        let taken = nvs_runtime::call(nvs_core_db_rows_column, &mut ctx, &[result, key])
+            .expect("every row carries the column named");
+        let list = crate::arr::borrowed(taken.array_ptr().expect("`column` answers an array"));
+        assert_eq!(list.count(), 2, "one value per row and nothing else");
+        assert_eq!(
+            list.get_index(0).expect("the first row's value").str_ptr(),
+            Some(text),
+            "`column` copied the value the row already holds"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "the row holds the string and this frame holds the list, \
+                      so both references are live here"
+        )]
+        let held = unsafe { NvsStr::refcount_of(text) };
+        assert_eq!(
+            held,
+            before + 1,
+            "the list outlives the call, so the member retained before it \
+             answered, and that is what makes a column of large values cost a \
+             pointer per row"
+        );
+
+        released(taken);
+
+        #[expect(
+            unsafe_code,
+            reason = "the result is this frame's and is released below, so the \
+                      row it holds is still live"
+        )]
+        let after = unsafe { NvsStr::refcount_of(text) };
+        assert_eq!(
+            after, before,
+            "dropping the list gives back exactly the one reference it took"
+        );
+        released(result);
+
+        // The second row does not carry the key, so the walk refuses after it
+        // has already taken a reference to the first row's value.
+        let mut carries = NvsArray::new();
+        let south = Value::str(NvsStr::new("south field".as_bytes()));
+        let collected = south.str_ptr().expect("a label is a string");
+        carries.set(NvsStr::new(b"label"), south);
+        let mut lacks = NvsArray::new();
+        lacks.set(NvsStr::new(b"seats"), Value::int(4));
+        let partial = result_over([Value::array(carries), Value::array(lacks)]);
+
+        #[expect(
+            unsafe_code,
+            reason = "the result this frame built holds the row that holds this \
+                      string, so it is live until the result is released"
+        )]
+        let taken_once = unsafe { NvsStr::refcount_of(collected) };
+
+        let refused = nvs_runtime::call(nvs_core_db_rows_column, &mut ctx, &[partial, key])
+            .expect_err("a row that does not carry the key is a `LogicError`");
+        assert_eq!(refused, nvs_runtime::THROWN, "the refusal is a throw");
+        let message = ctx.take_pending().expect("a throw leaves its message");
+        assert!(
+            message.contains("no column is named"),
+            "the refusal names the column the caller asked for: {message}"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "the result is this frame's and is released below, so the \
+                      row it holds is still live"
+        )]
+        let kept = unsafe { NvsStr::refcount_of(collected) };
+        assert_eq!(
+            kept, taken_once,
+            "the throw freed the values the walk had already collected, so a \
+             refused read leaks nothing"
+        );
+
+        released(partial);
+        released(key);
+    }
 }

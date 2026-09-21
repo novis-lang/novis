@@ -6712,6 +6712,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   `decimal` columns read fine. Read `crates/nvs-db/src/catalog.rs:598` for the driver's own
   spellings before declaring a table, and pass a day as the text the driver parses.
   [until: gone crates/nvs-db/src/catalog.rs:sqlite_scalar]
+- **A `Core\Db` hostile case that puts the `query` inside its loop attacks the driver rather than
+  the member.** A million-round loop calling `$db->query(...)->all()` runs a million SQL statements:
+  it did not finish in ten minutes under the debug binary, which reads as the member being
+  unbounded, while hoisting the statement above the loop and calling `all()` a million times on the
+  one result took 4.3s. Build the result set once above the loop, then attack the member that reads
+  it. [until: reviewed 2026-09-21]
 
 ## Splitting a file that got too big
 

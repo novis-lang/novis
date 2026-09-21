@@ -1,0 +1,82 @@
+<?nvs
+// Attack: one column is read a million times. A column of twenty thousand
+// rows is read whole. Names and positions that are no column of the result are
+// asked for a hundred thousand times, and a name of a million characters once.
+// Every step has to finish, and none may stop the program.
+// hostile: timeout-ms 20000
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table seatings (id integer primary key, seats int not null, label text not null)', []);
+$db->execute('insert into seatings (seats, label) values (?, ?), (?, ?), (?, ?)', [4, 'four', 2, 'two', 6, 'six']);
+
+// 1. A million reads of one column from a three-row result. Each read builds
+// an array of three values, so three million values are copied and freed here.
+var $three = $db->query('select seats, label from seatings order by id', []);
+uint $taken = 0;
+uint $i = 0;
+while ($i < 1000000) {
+    $taken = Core\Arr::count($three->column('label'));
+    $i = $i + 1;
+}
+echo '1 taken: ', $taken, "\n";
+
+// 2. One column of twenty thousand rows, read whole and then read again by
+// position, so forty thousand values are held at the same time.
+$db->execute('insert into seatings (seats, label) with recursive counter(x) as (select 1 union all select x + 1 from counter where x < 20000) select x, \'row\' from counter', []);
+var $many = $db->query('select seats, label from seatings order by id', []);
+array<mixed> $named = $many->column('label');
+array<mixed> $placed = $many->column(1);
+echo '2 held: ', Core\Arr::count($named) + Core\Arr::count($placed), "\n";
+
+// 3. A hundred thousand reads of a column the result does not have. Each one
+// has to throw, and every throw is caught here.
+uint $refused = 0;
+$i = 0;
+while ($i < 100000) {
+    try {
+        $three->column('nothing_of_the_kind');
+    } catch (LogicError $missing) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo '3 refused: ', $refused, "\n";
+
+// 4. Positions that are no column of the result: below zero, one past the last
+// one, and the largest whole number there is. Each one has to throw.
+uint $outside = 0;
+array<int> $positions = [-1, -9223372036854775807, 2, 9223372036854775807];
+foreach ($positions as int $at) {
+    try {
+        $three->column($at);
+    } catch (LogicError $missing) {
+        $outside = $outside + 1;
+    }
+}
+echo '4 outside: ', $outside, "\n";
+
+// 5. A column name of a million characters. It names no column, so it throws.
+// The throw is caught, so the step after this one still runs.
+string $long = Core\Str::repeat('n', 1000000);
+try {
+    $three->column($long);
+    echo "5 answered\n";
+} catch (LogicError $missing) {
+    echo "5 refused\n";
+}
+
+// 6. A column holding sixteen megabytes, read a hundred thousand times. The
+// memory the program holds may not grow with the reads.
+$db->execute('create table pictures (id integer primary key, picture blob not null)', []);
+$db->execute('insert into pictures (picture) values (?)', [Core\Str::repeat('x', 16000000) as bytes]);
+var $heavy = $db->query('select picture from pictures', []);
+uint $seen = 0;
+$i = 0;
+while ($i < 100000) {
+    array<mixed> $picture = $heavy->column('picture');
+    $seen = Core\Bytes::length($picture[0] as ?bytes ?? ('' as bytes));
+    $i = $i + 1;
+}
+echo '6 seen: ', $seen, "\n";
+
+$db->close();
