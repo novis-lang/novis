@@ -1,0 +1,31 @@
+<?nvs
+// Measures adding one piece to an open decompression stream. A program meets
+// this on every block of a download it reads.
+// bench: iterations 100000
+// bench: calls 0
+// `add` keeps the piece it was given instead of copying it, so one piece costs
+// no memory of its own.
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<bytes> $blocks = [
+            Core\Bytes::fill(64, 65),
+            Core\Bytes::fill(64, 66),
+            Core\Bytes::fill(64, 67),
+        ];
+        var $stream = Core\Compress::decompressor(Core\Codec::Gzip);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The block of each round is chosen by the rounds before it, so no
+            // round can be left out.
+            $stream->add($blocks[($total % 3) as int]);
+            $total = $total + $i + 1;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(100000), "\n";

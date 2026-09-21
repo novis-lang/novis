@@ -1,0 +1,19 @@
+<?nvs
+// Shows what a program sees when a download breaks off. `add` accepts every
+// piece, and `finish` is where the incomplete data is refused.
+
+bytes $frame = Core\Compress::compress(Core\Str::repeat("backup row\n", 200), Core\Codec::Zstd);
+int $half = (Core\Bytes::length($frame) / 2) as int;
+
+var $broken = Core\Compress::decompressor(Core\Codec::Zstd);
+$broken->add(Core\Bytes::slice($frame, 0, $half));
+echo "the first half was added\n";
+
+// The stream has half a frame. `finish` throws a `ParseError`, so a broken
+// download is something your program answers instead of a wrong result.
+try {
+    $broken->finish();
+    echo "half a download was read\n";
+} catch (ParseError $incomplete) {
+    echo "half a download could not be read\n";
+}

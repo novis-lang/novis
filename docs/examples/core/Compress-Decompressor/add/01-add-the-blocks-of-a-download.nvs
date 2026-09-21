@@ -1,0 +1,26 @@
+<?nvs
+// Shows how to read a compressed download that arrives in blocks. You add each
+// block as it comes in, and `finish` reads all of them together.
+
+bytes $report = Core\Str::repeat("order 1042 shipped to Berlin\n", 200) as bytes;
+bytes $download = Core\Compress::compress($report, Core\Codec::Gzip);
+int $size = Core\Bytes::length($download) as int;
+int $block = 64;
+
+var $reader = Core\Compress::decompressor(Core\Codec::Gzip);
+int $at = 0;
+while ($at < $size) {
+    // The last block is shorter than the others, so take what is left.
+    int $take = $size - $at;
+    if ($take > $block) {
+        $take = $block;
+    }
+    $reader->add(Core\Bytes::slice($download, $at, $take));
+    $at = $at + $take;
+}
+
+// The result is `tainted bytes`, which means data that came from outside your
+// program. Novis tracks it so you cannot use it somewhere unsafe by accident.
+tainted bytes $back = $reader->finish();
+echo 'the download was ', $size, " bytes\n";
+echo 'the report is ', Core\Bytes::length($back), " bytes\n";

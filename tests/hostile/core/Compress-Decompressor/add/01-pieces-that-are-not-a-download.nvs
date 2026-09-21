@@ -1,0 +1,53 @@
+<?nvs
+// Attack: a program feeds a decompression stream data that is not a download.
+// It adds a piece after the stream ended, adds octets no format can read, and
+// splits a bomb across thousands of one-byte pieces. Every one must stop with an
+// error, and the program must not crash.
+// hostile: timeout-ms 60000
+
+// 1. A finished stream takes no more pieces. `add` must throw a `RuntimeError`.
+var $ended = Core\Compress::decompressor(Core\Codec::Gzip);
+$ended->add(Core\Compress::compress('a real frame', Core\Codec::Gzip));
+$ended->finish();
+try {
+    $ended->add(Core\Bytes::fill(4, 65));
+    echo "step 1 added a piece to a finished stream\n";
+} catch (RuntimeError $finished) {
+    echo "step 1 stopped the piece that came after the end\n";
+}
+
+// 2. A mebibyte that is no format at all, in a thousand pieces. `add` takes
+//    every one, and `finish` must throw a `ParseError`.
+bytes $junk = Core\Bytes::fill(1024, 90);
+var $nonsense = Core\Compress::decompressor(Core\Codec::Zstd);
+uint $piece = 0;
+while ($piece < 1024) {
+    $nonsense->add($junk);
+    $piece = $piece + 1;
+}
+try {
+    $nonsense->finish();
+    echo "step 2 read a mebibyte of nonsense\n";
+} catch (ParseError $notAFrame) {
+    echo "step 2 refused a mebibyte of nonsense\n";
+}
+
+// 3. Sixteen mebibytes of one byte, compressed to a small frame and added one
+//    byte at a time to a stream that accepts one mebibyte.
+bytes $bomb = Core\Compress::compress(Core\Bytes::fill(16777216, 48), Core\Codec::Gzip);
+int $size = Core\Bytes::length($bomb) as int;
+var $tight = Core\Compress::decompressor(Core\Codec::Gzip, 1048576);
+int $at = 0;
+while ($at < $size) {
+    $tight->add(Core\Bytes::slice($bomb, $at, 1));
+    $at = $at + 1;
+}
+echo 'step 3 added ', $size, " pieces\n";
+
+// The limit belongs to the whole stream, so the pieces buy no extra room.
+try {
+    $tight->finish();
+    echo "step 3 read the bomb\n";
+} catch (ParseError $tooLarge) {
+    echo "step 3 refused the bomb\n";
+}

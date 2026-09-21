@@ -1,0 +1,22 @@
+<?nvs
+// Shows that the size of the pieces does not matter. The same data added as
+// one piece and one byte at a time reads back the same.
+
+bytes $frame = Core\Compress::compress(Core\Str::repeat("<p>a line</p>\n", 100), Core\Codec::Zlib);
+int $size = Core\Bytes::length($frame) as int;
+
+var $wholeFrame = Core\Compress::decompressor(Core\Codec::Zlib);
+$wholeFrame->add($frame);
+tainted bytes $atOnce = $wholeFrame->finish();
+
+var $byByte = Core\Compress::decompressor(Core\Codec::Zlib);
+int $at = 0;
+while ($at < $size) {
+    $byByte->add(Core\Bytes::slice($frame, $at, 1));
+    $at = $at + 1;
+}
+tainted bytes $inPieces = $byByte->finish();
+
+echo 'one piece gave ', Core\Bytes::length($atOnce), " bytes\n";
+echo $size, ' pieces gave ', Core\Bytes::length($inPieces), " bytes\n";
+echo 'the same data: ', $atOnce == $inPieces ? 'yes' : 'no', "\n";
