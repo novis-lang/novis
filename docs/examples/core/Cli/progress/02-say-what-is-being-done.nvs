@@ -1,0 +1,16 @@
+<?nvs
+// Shows the caption beside the bar. A `label` says what the program is doing
+// right now. Leave it out and the caption stays as it was.
+
+string $last = Core\Cli::progress(3, fn(Core\Cli\Progress $bar): string => {
+    array<string> $steps = ["fetching", "building", "testing"];
+    string $current = "";
+    foreach ($steps as string $step) {
+        $current = $step;
+        $bar->advance({label: $step});
+    }
+    return $current;
+});
+
+// `Core\Cli::progress` returns what the body returned. This prints "testing".
+echo "the last step was ", $last, "\n";

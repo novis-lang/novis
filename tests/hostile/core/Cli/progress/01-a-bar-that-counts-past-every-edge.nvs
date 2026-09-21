@@ -1,0 +1,87 @@
+<?nvs
+// Attack: a program counts past the end of its own progress bar, scales one to
+// nothing, and paints captions at it that a terminal would obey. Every step must
+// end at once, and the program must run to the end.
+// hostile: timeout-ms 60000
+
+// 1. The body throws. The bar must close on the way out, and the error must
+//    reach the program that made the call.
+try {
+    Core\Cli::progress(10, fn(Core\Cli\Progress $bar): uint => {
+        $bar->advance();
+        throw new LogicError('the body gave up');
+    });
+    echo "step 1 came back\n";
+} catch (LogicError $gaveUp) {
+    echo "step 1 stopped at once\n";
+}
+
+// 2. The handle is carried out of the call that made it. Its bar has closed, so
+//    counting with it must stop with an error.
+Core\Cli\Progress $escaped = Core\Cli::progress(
+    1,
+    fn(Core\Cli\Progress $bar): Core\Cli\Progress => $bar,
+);
+try {
+    $escaped->advance();
+    echo "step 2 counted\n";
+} catch (LogicError $closed) {
+    echo "step 2 stopped at once\n";
+}
+
+// 3. The outer bar counts while an inner region is open. Two regions on one
+//    cursor would interleave their rows, so this must stop with an error.
+bool $refused = Core\Cli::progress(2, fn(Core\Cli\Progress $outer): bool => {
+    return Core\Cli::live(fn(Core\Cli\Live $inner): bool => {
+        try {
+            $outer->advance();
+            return false;
+        } catch (LogicError $innerIsOpen) {
+            return true;
+        }
+    });
+});
+echo 'step 3 stopped at once: ', $refused ? 'yes' : 'no', "\n";
+
+// 4. A bar scaled to nothing, counted a thousand times. Nothing may be divided
+//    by zero, and the program must keep going.
+uint $none = Core\Cli::progress(0, fn(Core\Cli\Progress $bar): uint => {
+    uint $at = 0;
+    while ($at < 1000) {
+        $bar->advance();
+        $at = $at + 1;
+    }
+    return $at;
+});
+echo 'step 4 counted ', $none, " steps at a total of nothing\n";
+
+// 5. The largest step a whole number can hold, counted twice. The second one
+//    must not make the count start again from zero.
+uint $huge = Core\Cli::progress(4, fn(Core\Cli\Progress $bar): uint => {
+    $bar->advance({ by: 18446744073709551615 });
+    $bar->advance({ by: 18446744073709551615 });
+    return 2;
+});
+echo 'step 5 counted ', $huge, " steps of the largest size\n";
+
+// 6. A caption of a million characters, and a caption of control characters.
+//    Neither may reach the terminal as a command.
+Core\Cli::progress(2, fn(Core\Cli\Progress $bar): uint => {
+    $bar->advance({ label: Core\Str::repeat('w', 1000000) });
+    $bar->advance({ label: "\u{1B}[2J\u{1B}]0;whoami\u{7}\u{0}" });
+    return 2;
+});
+echo "step 6 painted\n";
+
+// 7. One hundred thousand bars in a row, so that anything a bar kept behind
+//    would grow.
+uint $i = 0;
+uint $total = 0;
+while ($i < 100000) {
+    $total = $total + Core\Cli::progress(1, fn(Core\Cli\Progress $bar): uint => {
+        $bar->advance();
+        return 1;
+    });
+    $i = $i + 1;
+}
+echo 'step 7 opened ', $total, " bars\n";

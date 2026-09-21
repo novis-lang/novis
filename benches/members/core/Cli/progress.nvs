@@ -1,0 +1,26 @@
+<?nvs
+// Measures opening a progress bar, counting one step and closing it again. A
+// command line tool meets this when it imports a file row by row. The output here
+// is not a terminal, so nothing is drawn and the bar's own cost is what is left.
+// bench: iterations 200000
+// bench: calls 0
+// bench: allocations 10
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Every round adds what its own bar answered, so no round can be
+            // left out.
+            $total = $total + Core\Cli::progress(1, fn(Core\Cli\Progress $bar): uint => {
+                $bar->advance();
+                return 1;
+            });
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";
