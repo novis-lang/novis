@@ -1,0 +1,18 @@
+<?nvs
+// Shows what the numbers of the palette mean. Entries 0 to 15 are the sixteen
+// colours that also have names on `Core\Cli\Color`. Entries 232 to 255 are
+// greys.
+
+// Entry 1 and `Core\Cli\Color::RED` are the same colour, written two ways.
+Core\Cli\Style $byNumber = Core\Cli\Style::of({color: Core\Cli\Color::index(1)});
+Core\Cli\Style $byName = Core\Cli\Style::of({color: Core\Cli\Color::RED});
+echo Core\Cli\Text::styled("red by number", $byNumber), "\n";
+echo Core\Cli\Text::styled("red by name", $byName), "\n";
+
+// The greys run from 232, which is nearly black, to 255, which is nearly
+// white. Each line prints the word and the number of its entry.
+array<uint> $greys = [232, 240, 248, 255];
+foreach ($greys as uint $entry) {
+    Core\Cli\Style $step = Core\Cli\Style::of({color: Core\Cli\Color::index($entry)});
+    echo Core\Cli\Text::styled("grey", $step), " ", $entry, "\n";
+}

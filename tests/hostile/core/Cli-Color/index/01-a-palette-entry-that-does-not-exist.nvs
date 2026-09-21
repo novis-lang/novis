@@ -1,0 +1,47 @@
+<?nvs
+// Attack: a program asks for palette entries the terminal has no colour for,
+// and then builds millions of colours to use up the memory. Every number above
+// 255 should throw an error, and the program must run to its last line.
+// hostile: timeout-ms 60000
+
+// 1. The last entry that exists, and the first one that does not.
+Core\Cli\Style $last = Core\Cli\Style::of({ color: Core\Cli\Color::index(255) });
+echo 'step 1 ', Core\Cli\Text::styled('entry 255', $last), "\n";
+try {
+    Core\Cli\Color::index(256);
+    echo "step 1 broken: 256 is not a palette entry\n";
+} catch (RuntimeError $e) {
+    echo 'step 1 ', $e->message, "\n";
+}
+
+// 2. Numbers far above the palette, up to the largest a counter can hold.
+array<uint> $wild = [1000, 65535, 4294967295, 9223372036854775807];
+foreach ($wild as uint $entry) {
+    try {
+        Core\Cli\Color::index($entry);
+        echo 'step 2 broken: ', $entry, " was accepted\n";
+    } catch (RuntimeError $e) {
+        echo 'step 2 refused ', $entry, "\n";
+    }
+}
+
+// 3. Two million colours, one after another. Each one is used and then
+//    dropped, so the memory a program holds must not grow with the count.
+uint $built = 0;
+uint $i = 0;
+while ($i < 2000000) {
+    Core\Cli\Color $color = Core\Cli\Color::index($i % 256);
+    Core\Cli\Style::of({ color: $color });
+    $built = $built + 1;
+    $i = $i + 1;
+}
+echo 'step 3 built ', $built, "\n";
+
+// 4. A hundred thousand colours held at the same time, then dropped together.
+array<Core\Cli\Color> $held = [];
+uint $j = 0;
+while ($j < 100000) {
+    $held[] = Core\Cli\Color::index($j % 256);
+    $j = $j + 1;
+}
+echo 'step 4 held ', Core\Arr::count($held), "\n";
