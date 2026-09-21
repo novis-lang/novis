@@ -2,41 +2,46 @@
 
 ## State
 
-Goal `core-cli-progress-and-6-more`: five of its sixteen features are done —
-`Core\Cli\Progress::advance`, `Core\Cli\Style::of` and all three of `Core\Cli\Text` each carry an
-`about.md`, three examples with blessed `.out` files, one attack, one bench with a judged
-`allocations` declaration, and a Rust `#[test]` with its `covers:` marker. `python
-tools/dossier.py --group 'Core\Cli\Text'` shows every column filled, and `--id '<feature>'` says
-`complete.` for all five.
+Goal `core-cli-progress-and-6-more`: eight of its sixteen features are done — `Core\Cli\Progress::advance`,
+`Core\Cli\Style::of`, all three of `Core\Cli\Text` and all three of `Core\Command` each carry an
+`about.md`, three examples with blessed `.out` files, one attack, one bench with a judged declaration,
+and a Rust `#[test]` with its `covers:` marker. `python tools/dossier.py --group 'Core\Command'` shows
+every column filled.
 
-Nothing is blocked. The remaining eleven items are `Core\Command`'s three members in `command.rs`,
-then the eight of `Core\Compress` and its two stream classes in `compress.rs`.
+`Core\Command::completions`'s attack found two shell-injection paths in the scripts it writes, and both
+are fixed in this group rather than recorded (`rule:testing/a-failing-proof-is-fixed-or-recorded`): a
+command name's colon ended a `zsh` `_describe` entry early, and `bash` expands every word of a
+`compgen -W` list, so a name spelled `run$(id)` was a command the user's own shell ran on Tab. One
+`.nvst` case pins each.
+
+Nothing is blocked. The remaining eight items are `Core\Compress`'s four members and its two stream
+classes, all in `compress.rs`.
 
 ## Next group
 
-**`Core\Command`'s three members** — one file set, none of it opened yet:
-`crates/nvs-stdlib/src/command.rs`, `docs/examples/core/Command/`, `tests/hostile/core/Command/`,
-`benches/members/core/Command/`. All three are `rule:testing/feature-proofs`, and the five landed
-`Core\Cli` features are the model for what each proof looks like. `Core\Command` is the compiled
-command table, so the three share one fixture: a program that declares commands and then asks the
-table about them.
+**`Core\Compress`'s four members** — one file set, none of it opened yet:
+`crates/nvs-stdlib/src/compress.rs`, `docs/examples/core/Compress/`, `tests/hostile/core/Compress/`,
+`benches/members/core/Compress/`. All four are `rule:testing/feature-proofs`, and `Core\Command`'s
+three landed features are the model for what each proof looks like. The four share one fixture: a
+program that compresses a buffer under a named codec and reads it back.
 
-- [ ] **`Core\Command::help`** — owes about, examples, hostile, perf, tests.
-      `crates/nvs-stdlib/src/command.rs:115`. It renders the table a program declared, so its
-      examples are the first thing a reader of this class needs and the other two build on them.
-- [ ] **`Core\Command::run`** — owes about, examples, hostile, perf, tests.
-      `crates/nvs-stdlib/src/command.rs:127`. Its attack is the one worth writing first: the words
-      a launcher wrote are attacker-chosen, so an unknown command, an empty argument list and a
-      million-character word all arrive here.
-- [ ] **`Core\Command::completions`** — owes about, examples, hostile, perf, tests.
-      `crates/nvs-stdlib/src/command.rs:136`. The shell script it writes is read by a shell, so its
-      example is the one that shows what a user installs.
+- [ ] **`Core\Compress::compress`** — owes about, examples, hostile, tests.
+      `crates/nvs-stdlib/src/compress.rs:197`. It is the whole-buffer half every other member is
+      compared against, so its examples are what the other three build on.
+- [ ] **`Core\Compress::decompress`** — owes about, examples, hostile, tests.
+      `crates/nvs-stdlib/src/compress.rs:206`. Its attack's subject is
+      `rule:core-classes/decompression-bound`: the bound on what a stream may expand to cannot be
+      switched off, so a compression bomb is what the file should try.
+- [ ] **`Core\Compress::compressor`** — owes about, examples, hostile, tests.
+      `crates/nvs-stdlib/src/compress.rs:223`. The streaming half, which answers a
+      `Core\Compress\Compressor` rather than a buffer.
+- [ ] **`Core\Compress::decompressor`** — owes about, examples, hostile, tests.
+      `crates/nvs-stdlib/src/compress.rs:232`.
 
 ## Backlog
 
-- `Core\Compress`'s eight features, `crates/nvs-stdlib/src/compress.rs` — the goal's last group,
-  and the one whose bench needs real data rather than a repeated byte.
-- A styled `Core\Cli\Text` allocates three more times than a plain one, because `of_runs` renders
-  the runs into a second string even at `ColorDepth::None`, where that string equals the body
-  `built` shares. Memory is priority 5 and this is per call rather than per request, so it is
-  recorded here rather than changed — `crates/nvs-stdlib/src/cli.rs:2093`.
+- `Core\Compress`'s two stream classes are the rest of this goal's roster, after the four members above.
+- `fish` re-expands the argument of `complete -a`, and whether a command name reaches that expansion is
+  **not checked** — `crates/nvs-stdlib/src/command.rs` § *What a completion script completes*.
+- A bench for `Core\Command::run` measures the usage-error path only, because nothing gives a bench
+  program a command line — `benches/members/README.md` names no directive for one.
