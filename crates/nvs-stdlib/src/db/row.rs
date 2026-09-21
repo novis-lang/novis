@@ -1541,6 +1541,7 @@ mod tests {
     /// function is where the rule lives *and* is what `queryAs<T>`'s `bool`
     /// field reaches through [`converted`]: the two surfaces are asserted to
     /// agree below rather than tested twice.
+    // covers: Core\Db\Row::bool
     #[test]
     fn tinyint_one_reads_int_and_bool_and_throws_for_a_stored_seven() {
         // § 9 first: a `TINYINT(1)` is an `int` column, so the value a row
@@ -1604,6 +1605,168 @@ mod tests {
             refused.contains("7, which is neither `0` nor `1`"),
             "the field quotes the reader's own wording: {refused}"
         );
+    }
+
+    /// **`Core\Db\Row::date` lends the day the row already holds**, and takes
+    /// an instance of any other class for a refusal — the member is the lookup
+    /// and the class check, and it builds nothing.
+    ///
+    /// Identity is the assertion a program cannot make: a reader that parsed
+    /// the column a second time, or copied the object, would answer a day equal
+    /// to this one on every case a `.nvst` can write. So what is compared here
+    /// is the address, and the count of holders either side of the read — a
+    /// member that answered without lending would free the row's own day under
+    /// it on the first release.
+    ///
+    /// The refusal is asserted against `Core\Time\TimeOfDay`, which is the
+    /// neighbour a check written as "is this one of the time classes" would let
+    /// through: both are instances, both came out of a text column, and only
+    /// the class tells them apart.
+    // covers: Core\Db\Row::date
+    #[test]
+    fn a_day_is_lent_by_the_row_and_no_other_class_is_taken_for_one() {
+        let mut ctx = Ctx::buffered();
+        let day = crate::time::date_at(2026, 9, 3).expect("the third of September is a day");
+        let clock =
+            crate::time::time_of_day_at(9, 30, 0, 0).expect("half past nine is a clock reading");
+        let mut columns = NvsArray::new();
+        columns.set(NvsStr::new(b"born"), day);
+        columns.set(NvsStr::new(b"opens"), clock);
+        columns.set(NvsStr::new(b"empty"), Value::null());
+        let row = crate::instance::build(&ROW, [Value::array(columns)]);
+
+        // 1. The day the row holds, lent rather than rebuilt: one address, and
+        //    one holder more for as long as the caller has it.
+        let held = day.obj_ptr().expect("a `Core\\Time\\Date` is an object");
+        #[expect(
+            unsafe_code,
+            reason = "the day is alive for this whole test — the row holds it — \
+                      so reading its header is reading a live object"
+        )]
+        let before = unsafe { nvs_runtime::NvsObj::refcount_of(held) };
+        let name = Value::str(NvsStr::new(b"born"));
+        let answered = nvs_runtime::call(nvs_core_db_row_date, &mut ctx, &[row, name])
+            .expect("a `DATE` column is what `date` reads");
+        assert_eq!(
+            answered.obj_ptr(),
+            Some(held),
+            "`date` answered a different object from the one the row holds"
+        );
+        #[expect(
+            unsafe_code,
+            reason = "the same live object, read once the reader has answered"
+        )]
+        let lent = unsafe { nvs_runtime::NvsObj::refcount_of(held) };
+        assert_eq!(
+            lent,
+            before + 1,
+            "the answer is a reference the caller owes"
+        );
+        released(answered);
+        released(name);
+
+        // 2. The neighbouring class, which is an instance and is not a day.
+        let other = Value::str(NvsStr::new(b"opens"));
+        nvs_runtime::call(nvs_core_db_row_date, &mut ctx, &[row, other])
+            .expect_err("a `TIME` column has no `date` reading");
+        let message = ctx
+            .take_pending()
+            .expect("a refusal is a throw, and it carries a sentence");
+        assert!(
+            message.contains("opens") && message.contains("Date"),
+            "the refusal names the column and the class it answers: {message}"
+        );
+        released(other);
+
+        // 3. And the column with no value, which is an absence rather than a
+        //    day the reader had to invent.
+        let absent = Value::str(NvsStr::new(b"empty"));
+        let nothing = nvs_runtime::call(nvs_core_db_row_date, &mut ctx, &[row, absent])
+            .expect("a NULL column is read rather than refused");
+        assert_eq!(nothing.tag(), Some(Tag::Null));
+        released(absent);
+
+        released(row);
+    }
+
+    /// **`Core\Db\Row::bytes` and `Core\Db\Row::string` do not span each
+    /// other**, which is `rule:types/bytes` at the one boundary a database
+    /// crosses: a `BLOB` column has no `string` reading and a `TEXT` column has
+    /// no `bytes` one.
+    ///
+    /// Asserted as an agreement between the two readers rather than one answer
+    /// each, because a reader that spanned would look right against every
+    /// column whose octets happen to be text — which is most of them. The
+    /// stored value below is `00 ff 80`, which no encoding reads, so a reader
+    /// handing it over as a `string` would be handing over a `string` that
+    /// breaks `rule:types/bytes`'s UTF-8 invariant.
+    ///
+    /// The refusal names the column, since that is the half a caller acts on,
+    /// and it is read off the member rather than off [`wrong_column_type`]: the
+    /// sentence is what a program catches.
+    // covers: Core\Db\Row::bytes
+    #[test]
+    fn a_blob_column_and_a_text_column_do_not_read_as_each_other() {
+        let mut ctx = Ctx::buffered();
+        let mut columns = NvsArray::new();
+        columns.set(
+            NvsStr::new(b"photo"),
+            Value::bytes(NvsStr::new(&[0x00, 0xff, 0x80])),
+        );
+        columns.set(NvsStr::new(b"label"), Value::str(NvsStr::new(b"a name")));
+        columns.set(NvsStr::new(b"empty"), Value::null());
+        let row = crate::instance::build(&ROW, [Value::array(columns)]);
+
+        // 1. Each reader over its own column, and the octets come back as they
+        //    were stored rather than as whatever they could be decoded into.
+        let name = Value::str(NvsStr::new(b"photo"));
+        let answered = nvs_runtime::call(nvs_core_db_row_bytes, &mut ctx, &[row, name])
+            .expect("a `BLOB` column is what `bytes` reads");
+        assert_eq!(
+            answered.as_bytes(),
+            Some(&[0x00, 0xff, 0x80][..]),
+            "`bytes` answered something other than the octets the column holds"
+        );
+        released(answered);
+        released(name);
+
+        // 2. The refusals, both directions. Neither reader is a way into the
+        //    other's column, and each names the column it was asked about.
+        for (reader, column, member) in [
+            (
+                nvs_core_db_row_bytes as unsafe extern "C" fn(_, _, _) -> i32,
+                "label",
+                "bytes",
+            ),
+            (nvs_core_db_row_string, "photo", "string"),
+        ] {
+            let asked = Value::str(NvsStr::new(column.as_bytes()));
+            nvs_runtime::call(reader, &mut ctx, &[row, asked])
+                .expect_err("§ 6 keeps `bytes` and `string` apart in both directions");
+            let message = ctx
+                .take_pending()
+                .expect("a refusal is a throw, and it carries a sentence");
+            assert!(
+                message.contains(column) && message.contains(member),
+                "`{member}` over the `{column}` column said: {message}"
+            );
+            released(asked);
+        }
+
+        // 3. And the column with no value, which is an absence in both readers
+        //    and never an empty buffer — the one answer that is not a refusal
+        //    and not the octets.
+        let absent = Value::str(NvsStr::new(b"empty"));
+        let nothing = nvs_runtime::call(nvs_core_db_row_bytes, &mut ctx, &[row, absent])
+            .expect("a NULL column is read rather than refused");
+        assert_eq!(
+            nothing.tag(),
+            Some(Tag::Null),
+            "a NULL `BLOB` column is `null` and not an empty buffer"
+        );
+        released(absent);
+
+        released(row);
     }
 
     /// § 6's second named crossing: **a `BIGINT UNSIGNED` past `i64::MAX` reads

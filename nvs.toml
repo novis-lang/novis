@@ -1236,6 +1236,100 @@ entry = "benches/members/core/Db-Plan-Step/sql.nvs"
 [app.capabilities.db]
 connect = ["notes"]
 
+# `Core\Db\Row`'s proof programs, on `[db.notes]` for the reason every group above is: a reader of a
+# row needs a row, each of these programs creates the table it then reads, and `:memory:` gives every
+# one of them a database of its own. The readers differ only in the type they answer, so one grant
+# per program is what keeps the capability check asked rather than assumed for all of them.
+[[app]]
+entry = "docs/examples/core/Db-Row/bool/01-read-a-yes-or-no-column.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/bool/02-a-column-that-has-no-value.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/bool/03-pick-the-accounts-a-flag-is-set-on.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Row/bool/01-numbers-that-are-not-flags-and-a-million-reads.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Row/bool.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/bytes/01-read-a-picture-out-of-a-row.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/bytes/02-a-column-that-has-no-value.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/bytes/03-find-out-which-file-type-a-picture-is.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Row/bytes/01-a-text-column-a-huge-picture-and-a-million-reads.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Row/bytes.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/date/01-read-the-day-a-task-is-due.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/date/02-a-column-that-has-no-value.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Row/date/03-pick-out-the-tasks-that-are-late.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Row/date/01-days-that-are-not-days-and-a-million-reads.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Row/date.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
 # The bound `examples/config.nvs` is written around: ADR 0005's `Runtime`
 # directive moves freely up to a ceiling the operator keeps, so `512M` is
 # the last value `Core\Config::set("memory", …)` accepts and `1G` is the
