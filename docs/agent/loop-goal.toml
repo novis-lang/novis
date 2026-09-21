@@ -112,6 +112,9 @@ modules = [
   "crates/nvs-stdlib/src/db/mod.rs",
   # ADR 0067 § 7: a transaction is a closure, and what happens when it conflicts.
   "crates/nvs-stdlib/src/db/transaction.rs",
+  # `Core\Db\Plan` — `rule:core-classes/schema-plan` and
+  # `rule:core-classes/schema-absence-never-destroys`'s plan, as a value a program walks.
+  "crates/nvs-stdlib/src/db/plan.rs",
 ]
 
 rules = ["testing/feature-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
