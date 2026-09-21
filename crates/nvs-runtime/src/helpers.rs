@@ -1413,6 +1413,25 @@ mod row {
         exact_integral(value).and_then(|v| u64::try_from(v).ok())
     }
 
+    /// `rule:types/conversion`: integral and in range, or the row fails. The
+    /// scale is not the question — `7.00` is integral and `7.25` is not — so a
+    /// column declared `DECIMAL(10, 2)` converts wherever its value has
+    /// nothing after the point.
+    pub(super) fn decimal_to_int(value: super::Decimal) -> Option<i64> {
+        value.to_i64()
+    }
+
+    /// [`decimal_to_int`]'s row, unsigned.
+    pub(super) fn decimal_to_uint(value: super::Decimal) -> Option<u64> {
+        value.to_u64()
+    }
+
+    /// `rule:types/conversion`'s `decimal → float` row: the nearest `f64`,
+    /// lossy and total, so this row is the one that never fails.
+    pub(super) fn decimal_to_float(value: super::Decimal) -> f64 {
+        value.to_f64()
+    }
+
     pub(super) fn str_to_int(text: &str) -> Option<i64> {
         text.parse().ok()
     }
@@ -1595,6 +1614,7 @@ pub fn to_int(value: Value) -> Option<i64> {
         Some(Tag::Int) => value.as_int(),
         Some(Tag::Uint) => value.as_uint().and_then(row::uint_to_int),
         Some(Tag::Float) => value.as_float().and_then(row::float_to_int),
+        Some(Tag::Decimal) => value.as_decimal().and_then(row::decimal_to_int),
         Some(Tag::Str) => str_operand(&value).and_then(row::str_to_int),
         _ => None,
     }
@@ -1607,6 +1627,7 @@ pub fn to_uint(value: Value) -> Option<u64> {
         Some(Tag::Uint) => value.as_uint(),
         Some(Tag::Int) => value.as_int().and_then(row::int_to_uint),
         Some(Tag::Float) => value.as_float().and_then(row::float_to_uint),
+        Some(Tag::Decimal) => value.as_decimal().and_then(row::decimal_to_uint),
         Some(Tag::Str) => str_operand(&value).and_then(row::str_to_uint),
         _ => None,
     }
@@ -1619,6 +1640,7 @@ pub fn to_float(value: Value) -> Option<f64> {
         Some(Tag::Float) => value.as_float(),
         Some(Tag::Int) => value.as_int().and_then(row::int_to_float),
         Some(Tag::Uint) => value.as_uint().and_then(row::uint_to_float),
+        Some(Tag::Decimal) => value.as_decimal().map(row::decimal_to_float),
         Some(Tag::Str) => str_operand(&value).and_then(row::str_to_float),
         _ => None,
     }
@@ -2431,7 +2453,7 @@ crate::nvs_helper! {
     /// loud, exactly as `float → int` already is.
     fn nvs_decimal_to_int(_ctx, args: [1]) {
         let value = decimal_operand("nvs_decimal_to_int", args[0])?;
-        value.to_i64()
+        row::decimal_to_int(value)
             .map(Value::int)
             .ok_or_else(|| numeric_does_not_fit(&format!("`decimal` {value}"), "int"))
     }
@@ -2442,7 +2464,7 @@ crate::nvs_helper! {
     /// unsigned.
     fn nvs_decimal_to_uint(_ctx, args: [1]) {
         let value = decimal_operand("nvs_decimal_to_uint", args[0])?;
-        value.to_u64()
+        row::decimal_to_uint(value)
             .map(Value::uint)
             .ok_or_else(|| numeric_does_not_fit(&format!("`decimal` {value}"), "uint"))
     }
@@ -2451,7 +2473,10 @@ crate::nvs_helper! {
 crate::nvs_helper! {
     /// `nvs_ir::Helper::DecimalToFloat` — the nearest `f64`, lossy and total.
     fn nvs_decimal_to_float(_ctx, args: [1]) {
-        Ok(Value::float(decimal_operand("nvs_decimal_to_float", args[0])?.to_f64()))
+        Ok(Value::float(row::decimal_to_float(decimal_operand(
+            "nvs_decimal_to_float",
+            args[0],
+        )?)))
     }
 }
 

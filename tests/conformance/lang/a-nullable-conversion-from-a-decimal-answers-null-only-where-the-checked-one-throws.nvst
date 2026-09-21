@@ -1,0 +1,67 @@
+--TEST--
+`as ?int`, `as ?uint` and `as ?float` over a `decimal` answer what the checked spelling answers, and `null` only where that one throws — `rule:expressions/nullable-conversion`, `rule:types/conversion`
+--FILE--
+<?nvs
+// One question asked of both spellings at once, over the source that reaches
+// them by its tag rather than by a written type. `rule:types/conversion` gives
+// `decimal` a row into each of the three numeric targets, and the two
+// spellings share one row apiece, so every pair below has to agree. A nullable
+// form answering `null` for a value the checked form converts would read as
+// "this does not fit" for a `DECIMAL(10, 2)` column holding a whole number.
+
+decimal $whole = "7.00" as decimal;
+decimal $fraction = "7.25" as decimal;
+decimal $negative = "-7.00" as decimal;
+
+// 1. The three targets over a value every row accepts. The scale is not the
+// question: `7.00` is a whole number.
+echo "int: ", $whole as int, " and ", ($whole as ?int) ?? -1, "\n";
+echo "uint: ", $whole as uint, " and ", ($whole as ?uint) ?? -1, "\n";
+echo "float: ", $whole as float, " and ", ($whole as ?float) ?? -1.0, "\n";
+
+// 2. A value with something after the point. Both integer rows refuse it,
+// because rounding is said out loud and never done here.
+try {
+    int $narrowed = $fraction as int;
+    echo "int over 7.25: ", $narrowed, "\n";
+} catch (Throwable $stopped) {
+    echo "int over 7.25: throws\n";
+}
+if (($fraction as ?int) == null) {
+    echo "?int over 7.25: null\n";
+}
+// The `float` row is lossy and total, so it answers for this value as well.
+echo "float over 7.25: ", $fraction as float, " and ", ($fraction as ?float) ?? -1.0, "\n";
+
+// 3. A negative value, which `int` has a row for and `uint` does not.
+echo "int over -7.00: ", $negative as int, " and ", ($negative as ?int) ?? -1, "\n";
+try {
+    uint $unsigned = $negative as uint;
+    echo "uint over -7.00: ", $unsigned, "\n";
+} catch (Throwable $stopped) {
+    echo "uint over -7.00: throws\n";
+}
+if (($negative as ?uint) == null) {
+    echo "?uint over -7.00: null\n";
+}
+
+// 4. The same three targets over a value whose written type is `mixed`, which
+// is the path a column read with `Core\Db\Row::get` takes. It finds its row by
+// the value's tag, and has to answer what the written type answered above.
+array<mixed> $tagged = [$whole];
+echo "mixed ?int: ", ($tagged[0] as ?int) ?? -1, "\n";
+echo "mixed ?uint: ", ($tagged[0] as ?uint) ?? -1, "\n";
+echo "mixed ?float: ", ($tagged[0] as ?float) ?? -1.0, "\n";
+--EXPECT--
+int: 7 and 7
+uint: 7 and 7
+float: 7 and 7
+int over 7.25: throws
+?int over 7.25: null
+float over 7.25: 7.25 and 7.25
+int over -7.00: -7 and -7
+uint over -7.00: throws
+?uint over -7.00: null
+mixed ?int: 7
+mixed ?uint: 7
+mixed ?float: 7
