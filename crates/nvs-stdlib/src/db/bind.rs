@@ -942,4 +942,141 @@ mod tests {
             sets.release();
         }
     }
+
+    /// `rule:core-classes/db-transactions`'s scope guard on the read path, and where in that path it
+    /// answers: [`crate::db::execute::queried_rows`] reads its receiver through
+    /// [`statement_of`] **before** it reads the statement's own `timeout`, so a
+    /// transaction whose call has returned is refused for the handle rather
+    /// than for anything the options said.
+    ///
+    /// **The order is the claim, so both halves of it are asserted.** The
+    /// arguments below carry a zero `timeout`, which
+    /// [`crate::db::execute::statement_deadline`] refuses on its own — asserted
+    /// here first, because without it the `LogicError` further down proves only
+    /// that *something* refused. A read path that asked its options first would
+    /// answer that refusal instead, and a program holding an escaped `$tx`
+    /// would be told to fix its duration.
+    ///
+    /// Reached through `queried_rows` rather than `statement_of`, which is the
+    /// only thing that makes this the *read* path's assertion: § 18's buffered
+    /// read has a preamble of its own, and a guard reached only from the member
+    /// bodies below it is one a later caller can skip.
+    // covers: Core\Db\Transaction::query
+    #[test]
+    fn a_read_through_an_escaped_transaction_is_refused_before_its_options_are_read() {
+        let mut ctx = nvs_runtime::Ctx::new(nvs_runtime::OutputSink::Sink);
+        // The last two slots are this class's own: the scope flag § 7 clears
+        // when the call returns, and the reason a `rollBack` would have left.
+        let handle = |open: bool| {
+            crate::instance::build(
+                &TRANSACTION,
+                [
+                    Value::uint(0),
+                    Value::str(NvsStr::new(b"main")),
+                    Value::bool(open),
+                    Value::null(),
+                ],
+            )
+        };
+        // A zero is the shortest way to a `timeout` that refuses, and
+        // `rule:http-server/no-spelling-for-an-unbounded-wait` is why it is not read as "no bound".
+        let zero = crate::time::duration_of(0);
+        let args = |receiver| {
+            [
+                receiver,
+                Value::str(NvsStr::new(b"select id from t")),
+                Value::null(),
+                zero,
+            ]
+        };
+
+        assert!(
+            matches!(
+                crate::db::execute::statement_deadline(&args(handle(true)), QUERY),
+                Err(Fault::Thrown(..))
+            ),
+            "the options this case carries have to be refusable, or the order below proves nothing"
+        );
+
+        let refused =
+            crate::db::execute::queried_rows(&mut ctx, &args(handle(false)), "query", QUERY)
+                .err()
+                .expect("a transaction whose call has returned refuses every statement");
+        match refused {
+            Fault::Thrown(ThrownClass::Logic, message) => assert_eq!(
+                message,
+                format!("{TRANSACTION_NAME}::query: transaction scope has ended"),
+                "§ 7's refusal names the handle the read was attempted through, and says nothing \
+                 about the `timeout` it never got to"
+            ),
+            other => panic!("an escaped transaction is a `LogicError`, not {other:?}"),
+        }
+
+        // And the other side of the bound: the same arguments with the scope
+        // still open are past the guard, so what stops them is the missing
+        // connection rather than anything this member decided.
+        let past = crate::db::execute::queried_rows(&mut ctx, &args(handle(true)), "query", QUERY)
+            .err()
+            .expect("no connection is filed under the key this fixture wrote");
+        assert!(
+            !matches!(past, Fault::Thrown(ThrownClass::Logic, _)),
+            "an open transaction reaches the connection lookup: {past:?}"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "the duration released here is the one this frame built, and \
+                      no path above retains its arguments"
+        )]
+        unsafe {
+            zero.release();
+        }
+    }
+
+    /// `crate::registry::WRITTEN_CLASS_MEMBERS` is keyed by the class a call is
+    /// *resolved to*, so `rule:classes/no-traits`'s delegation puts each written member on it
+    /// twice — and `queryAs` is where a missing second row is felt first. That
+    /// roster is what the lowering reads to put a descriptor and its two
+    /// companions ahead of the receiver, and the member body slices `args[3..]`
+    /// because of them: a `Core\Db\Transaction` row nobody wrote would send the
+    /// same helper four arguments where it reads seven, losing the class the
+    /// call site named.
+    ///
+    /// **Asserted as agreement over the whole interface rather than for the one
+    /// member**, because a single row is what goes missing: a member both
+    /// classes declare is written on both of them or on neither, and a `streamAs`
+    /// added to one spelling alone fails here rather than at a call site.
+    // covers: Core\Db\Transaction::queryAs
+    #[test]
+    fn a_written_member_is_on_the_roster_under_both_of_its_receivers() {
+        let shared: Vec<&str> = TRANSACTION
+            .instance
+            .iter()
+            .map(|member| member.name)
+            .filter(|name| CONNECTION.instance.iter().any(|twin| twin.name == *name))
+            .collect();
+        assert!(
+            shared.contains(&"queryAs"),
+            "the two receivers share the member this case is about: {shared:?}"
+        );
+
+        let written = |class: &str| -> Vec<&str> {
+            shared
+                .iter()
+                .copied()
+                .filter(|name| crate::registry::takes_written_class(class, name))
+                .collect()
+        };
+        assert_eq!(
+            written(TRANSACTION_NAME),
+            written(CONNECTION_NAME),
+            "one interface, one roster: a member written at its call site is written through \
+             either handle"
+        );
+        assert!(
+            written(TRANSACTION_NAME).contains(&"queryAs"),
+            "`queryAs` reads its receiver past three leading constants that only this roster puts \
+             there"
+        );
+    }
 }

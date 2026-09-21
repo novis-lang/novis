@@ -1985,6 +1985,66 @@ entry = "benches/members/core/Db-Transaction/executeMany.nvs"
 [app.capabilities.db]
 connect = ["notes"]
 
+[[app]]
+entry = "docs/examples/core/Db-Transaction/query/01-read-what-the-transaction-just-wrote.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Transaction/query/02-write-while-you-read-the-rows.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Transaction/query/03-let-a-read-decide-whether-to-keep-the-work.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Transaction/query/01-a-read-after-the-work-is-over-and-reads-without-end.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Transaction/query.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Transaction/queryAs/01-read-what-the-transaction-wrote-as-objects.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Transaction/queryAs/02-build-each-object-from-several-columns.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "docs/examples/core/Db-Transaction/queryAs/03-claim-a-batch-of-jobs.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "tests/hostile/core/Db-Transaction/queryAs/01-rows-that-do-not-fit-the-class-and-a-flood-of-objects.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
+[[app]]
+entry = "benches/members/core/Db-Transaction/queryAs.nvs"
+
+[app.capabilities.db]
+connect = ["notes"]
+
 # The bound `examples/config.nvs` is written around: ADR 0005's `Runtime`
 # directive moves freely up to a ceiling the operator keeps, so `512M` is
 # the last value `Core\Config::set("memory", …)` accepts and `1G` is the
