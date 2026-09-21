@@ -3779,6 +3779,222 @@ mod tests {
         }
     }
 
+    /// A drawn key is [`KEY_LEN`] octets, a different one every call, and comes
+    /// out of the context's generator like every other secret here.
+    ///
+    /// The member is driven through [`nvs_runtime::call`] rather than by
+    /// calling [`crate::random::draw`] again, because the draw and the width
+    /// *are* its whole body: a replay of them would assert this test's own
+    /// code. The width is what makes a key a key — [`keyed_with`] is the only
+    /// thing that reads it, and a member answering 31 octets would throw at
+    /// every call site and nowhere here.
+    ///
+    /// Freshness is asserted over a batch rather than over one pair, since a
+    /// generator stuck on one value still passes a single comparison whenever
+    /// the value it is stuck on differs once. The seeded halves are the same
+    /// claim as [`every_interop_nonce_salt_and_private_key_is_drawn_through_core_random`]
+    /// makes of the nonces, over the member a program actually calls: one seed
+    /// reproduces the keys and a second seed does not, which nothing drawing
+    /// from an entropy source directly can do.
+    // covers: Core\Crypto::generateKey
+    #[test]
+    fn a_generated_key_is_thirty_two_fresh_octets_drawn_through_core_random() {
+        let keys = |seed: Option<u64>| {
+            let mut ctx = nvs_runtime::Ctx::buffered();
+            if let Some(state) = seed {
+                ctx.set_random_state(state);
+            }
+            (0..16)
+                .map(|_| {
+                    nvs_runtime::call(nvs_core_crypto_generate_key, &mut ctx, &[])
+                        .expect("the member takes no arguments and answers a key")
+                        .as_bytes()
+                        .expect("the row answers `secret bytes`, which is a `bytes` value")
+                        .to_vec()
+                })
+                .collect::<Vec<_>>()
+        };
+
+        let drawn = keys(None);
+        assert!(
+            drawn.iter().all(|key| key.len() == KEY_LEN),
+            "every key is {KEY_LEN} octets, which is the one width both ciphers take"
+        );
+        let mut distinct = drawn.clone();
+        distinct.sort();
+        distinct.dedup();
+        assert_eq!(
+            distinct.len(),
+            drawn.len(),
+            "no key is drawn twice, so no two records are sealed under one key by accident"
+        );
+
+        assert_eq!(
+            keys(Some(0x0005_eed1)),
+            keys(Some(0x0005_eed1)),
+            "a seeded context reproduces the keys, which is what says they came through \
+             `crate::random::draw`"
+        );
+        assert_ne!(
+            keys(Some(0x0005_eed1)),
+            keys(Some(0x0005_eed2)),
+            "and a second seed draws different ones"
+        );
+    }
+
+    /// `Core\Crypto::seal` answers a nonce, the body and a tag, with a fresh
+    /// nonce every call, and throws on a key that is not [`KEY_LEN`] octets.
+    ///
+    /// Driven through [`nvs_runtime::call`], with the cipher as the case index
+    /// a compiled call site passes, because the widths are this member's own
+    /// arithmetic: [`NONCE_LEN`] plus [`TAG_LEN`] for the extended
+    /// construction and [`GCM_NONCE_LEN`] plus [`TAG_LEN`] for the interop one.
+    /// A member that drew the other cipher's nonce width answers a plausible
+    /// buffer rather than failing, and only the length says so.
+    ///
+    /// The plaintext is searched for in the answer rather than assumed absent:
+    /// a mode that forgot to encrypt would pass every length and freshness
+    /// assertion above it. The refusal is read as its sentence, since the class
+    /// a member threw is not on [`nvs_runtime::call`]'s error.
+    // covers: Core\Crypto::seal
+    #[test]
+    fn seal_answers_a_fresh_nonce_a_body_and_a_tag_and_refuses_a_key_of_another_width() {
+        let message = b"the vault code is 4711, and nothing else";
+        let sealed = |cipher: i64, key: &[u8]| -> Result<Vec<u8>, String> {
+            let mut ctx = nvs_runtime::Ctx::buffered();
+            let args = [
+                Value::bytes(NvsStr::new(message)),
+                Value::bytes(NvsStr::new(key)),
+                Value::int(cipher),
+            ];
+            match nvs_runtime::call(nvs_core_crypto_seal, &mut ctx, &args) {
+                Ok(answer) => Ok(answer.as_bytes().expect("the row answers `bytes`").to_vec()),
+                Err(_) => Err(ctx
+                    .take_pending()
+                    .expect("a member that did not answer left its sentence")
+                    .to_string()),
+            }
+        };
+
+        let key = [9_u8; KEY_LEN];
+        for (cipher, overhead) in [(0, NONCE_LEN + TAG_LEN), (1, GCM_NONCE_LEN + TAG_LEN)] {
+            let one = sealed(cipher, &key).expect("a 32-octet key seals under either case");
+            let two = sealed(cipher, &key).expect("and does so again");
+            assert_eq!(
+                one.len(),
+                message.len() + overhead,
+                "case {cipher} answers the nonce, the body and the tag and nothing else"
+            );
+            assert_ne!(
+                one, two,
+                "case {cipher} draws its own nonce, so one message sealed twice is two answers"
+            );
+            let nonce = overhead - TAG_LEN;
+            assert_ne!(
+                one[..nonce],
+                two[..nonce],
+                "and the nonce is the part that moved"
+            );
+            assert!(
+                !one.windows(message.len()).any(|slice| slice == message),
+                "case {cipher} answers no octet run of the plaintext"
+            );
+        }
+
+        for width in [0, 1, KEY_LEN - 1, KEY_LEN + 1] {
+            let refusal = sealed(0, &vec![b'A'; width]).expect_err("a key of another width");
+            assert!(
+                refusal.contains("$key is") && refusal.contains("a key is 32"),
+                "the sentence names the width it got and the one width a key has, got {refusal:?}"
+            );
+            assert!(
+                !refusal.contains("AAAA"),
+                "and carries no octet of the key itself, since a key does not belong in a log"
+            );
+        }
+    }
+
+    /// `Core\Crypto::open` answers the plaintext, and every way a message can
+    /// fail to be an authentic one lands on a single sentence.
+    ///
+    /// The forgeries are the shapes an attacker has: one octet changed at every
+    /// position, the buffer cut to every shorter length, the other cipher named
+    /// over the same bytes, and another key. Throwing is not the whole
+    /// assertion — a member that answered a plausible plaintext for a truncated
+    /// buffer would throw nothing, and one that named *which* check failed
+    /// would throw four sentences. That both halves hold is this member's own
+    /// doc written as a test, since telling a forger which half landed is the
+    /// leak the one sentence exists to prevent.
+    // covers: Core\Crypto::open
+    #[test]
+    fn open_answers_the_plaintext_and_every_forgery_lands_on_one_sentence() {
+        let message = b"pay 100 to Ada";
+        let key = [9_u8; KEY_LEN];
+        let called = |member: nvs_runtime::NvsFn,
+                      subject: &[u8],
+                      key: &[u8],
+                      cipher: i64|
+         -> Result<Vec<u8>, String> {
+            let mut ctx = nvs_runtime::Ctx::buffered();
+            let args = [
+                Value::bytes(NvsStr::new(subject)),
+                Value::bytes(NvsStr::new(key)),
+                Value::int(cipher),
+            ];
+            match nvs_runtime::call(member, &mut ctx, &args) {
+                Ok(answer) => Ok(answer.as_bytes().expect("the row answers `bytes`").to_vec()),
+                Err(_) => Err(ctx
+                    .take_pending()
+                    .expect("a member that did not answer left its sentence")
+                    .to_string()),
+            }
+        };
+
+        for cipher in [0, 1] {
+            let sealed = called(nvs_core_crypto_seal, message, &key, cipher)
+                .expect("a 32-octet key seals under either case");
+            assert_eq!(
+                called(nvs_core_crypto_open, &sealed, &key, cipher)
+                    .expect("what was sealed opens again"),
+                message,
+                "case {cipher} answers the plaintext byte for byte"
+            );
+
+            let mut sentences = std::collections::BTreeSet::new();
+            for at in 0..sealed.len() {
+                let mut forged = sealed.clone();
+                forged[at] ^= 1;
+                sentences.insert(
+                    called(nvs_core_crypto_open, &forged, &key, cipher)
+                        .expect_err("an octet changed at any position, the tag included"),
+                );
+            }
+            for cut in 0..sealed.len() {
+                sentences.insert(
+                    called(nvs_core_crypto_open, &sealed[..cut], &key, cipher)
+                        .expect_err("a message cut short, the empty one included"),
+                );
+            }
+            sentences.insert(
+                called(nvs_core_crypto_open, &sealed, &key, 1 - cipher)
+                    .expect_err("the cipher the message was not sealed under"),
+            );
+            let mut another = key;
+            another[0] ^= 1;
+            sentences.insert(
+                called(nvs_core_crypto_open, &sealed, &another, cipher)
+                    .expect_err("a key of the right width that sealed nothing"),
+            );
+
+            assert_eq!(
+                sentences.len(),
+                1,
+                "case {cipher} answers one sentence for every way a message is not authentic, \
+                 got {sentences:?}"
+            );
+        }
+    }
+
     /// Every cipher this class can reach is authenticated — stage 4's first
     /// named check, asked of the construction rather than of a roster, because
     /// the roster is one entry and the claim is about what that entry does.

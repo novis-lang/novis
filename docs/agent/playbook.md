@@ -8893,6 +8893,17 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   the arithmetic. Pick the divisor-free spelling in a proof — a fixed piece size with a `$take`
   clamp for the last one — rather than a cast that depends on the input's length.
   [until: reviewed 2026-09-21]
+- **A local declared inside a loop body stays declared for the rest of the enclosing scope, so a
+  second loop cannot reuse the name.** `bytes $sealed` inside one `while` and `bytes $sealed` inside
+  the next is `E0406: $sealed is already declared`, which reads as a scoping bug rather than as the
+  rule. Give the second pass its own name (`$stored`, `$openedKey`) when a program walks the same
+  shape twice, which every "seal it, then read it back" example does. [until: reviewed 2026-09-21]
+
+- **`Core\Bytes::slice`'s offset and length are `int|null`, and `Core\Bytes::length` answers `uint`,
+  so feeding one to the other does not compile.** `E0401: expected int|null, found uint` lands on the
+  argument, so it reads as the wrong member rather than as a missing cast. Write
+  `int $length = Core\Bytes::length($b) as int;` once at the top and slice with that.
+  [until: reviewed 2026-09-21]
 
 ## Divergences and refusals already pinned
 
