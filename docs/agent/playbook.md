@@ -6605,6 +6605,20 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   that attributes a Rust test. `grep -n '#\[test\]' -A 1` over the implementing file before
   budgeting the test: where a name for the claim already resolves, the slice is two comment lines.
   [until: reviewed 2026-09-21]
+- **`as ?string` over a `mixed` holding `null` answers `''`, so a null test written through that
+  cast never fires.** `rule:expressions/nullable-conversion-availability` refuses `null as ?string`
+  outright because the conversion cannot fail, and the same conversion reached through `mixed`
+  converts the `null` instead of passing it along — a `Core\Db\Row` example meant to skip an empty
+  column printed `note: ` for it and blessed cleanly. Test a SQL NULL with `$row->get($name) ==
+  null`, which stays `mixed`, or read the column with the typed reader `$row->string($name)`, which
+  answers `?string`. [until: reviewed 2026-09-21]
+
+- **An array type takes one parameter, so `array<string, uint>` does not parse and all three
+  diagnostics point at the `<` rather than at the comma.** `rule:types/arrays` fixes every key as a
+  `string` — one parameter, not two — so a counter keyed by a column label is `array<uint>`, and no
+  `.nvs` or `.nvst` file in the corpus writes a key type at all. Grep the corpus for the spelling
+  before reaching for a second type argument; a spelling nothing uses is usually one nothing
+  parses. [until: reviewed 2026-09-21]
 
 ## Splitting a file that got too big
 
