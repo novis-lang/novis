@@ -1,0 +1,101 @@
+<?nvs
+// Attack: a text reader is pointed at columns that hold a number, octets and an
+// id, then at names that belong to no column. Then a text of eight megabytes,
+// and a million reads of one row. Every step has to answer or throw an error,
+// and none may stop the program.
+// hostile: timeout-ms 60000
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table orders (row_id integer primary key, label text not null, seats int not null, id uuid not null, picture blob not null)', []);
+$db->execute(
+    'insert into orders (label, seats, id, picture) values (?, ?, ?, ?)',
+    ['one tea', 2, '3f2504e0-4f89-41d3-9a0c-0305e82c3301', 'GIF89a' as bytes],
+);
+
+array<Core\Db\Row> $one = $db->query('select label, seats, id, picture from orders', [])->all();
+var $row = $one[0];
+
+// 1. Columns of another type. A number, an id and octets are not text, so all
+// three throw an error.
+uint $refused = 0;
+array<string> $others = ['seats', 'id', 'picture'];
+foreach ($others as string $column) {
+    try {
+        $row->string($column);
+    } catch (Throwable $error) {
+        $refused = $refused + 1;
+    }
+}
+echo '1 refused: ', $refused, "\n";
+
+// 2. Ten thousand reads of a name that belongs to no column. Every one throws
+// an error, and ten thousand errors may not fill the memory.
+$refused = 0;
+uint $i = 0;
+while ($i < 10000) {
+    try {
+        $row->string('missing');
+    } catch (Throwable $error) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo '2 refused: ', $refused, "\n";
+
+// 3. A column name of ten million characters. No row has such a column, so the
+// read throws and the row still works after it.
+try {
+    $row->string(Core\Str::repeat('a', 10000000));
+    echo "3 the long name found a column\n";
+} catch (Throwable $error) {
+    echo "3 refused\n";
+}
+
+// 4. A text of eight megabytes, read a thousand times. The characters are not
+// copied for each read, so a thousand reads may not cost eight gigabytes.
+$db->execute(
+    'insert into orders (label, seats, id, picture) values (?, ?, ?, ?)',
+    [Core\Str::repeat('0123456789abcdef', 524288), 3, 'b8c1a0de-2f7a-4d3b-8a91-6f1f2c7d4455', '' as bytes],
+);
+array<Core\Db\Row> $found = $db->query('select label from orders where seats = ?', [3])->all();
+uint $characters = 0;
+$i = 0;
+while ($i < 1000) {
+    $characters = Core\Str::length($found[0]->string('label') ?? '');
+    $i = $i + 1;
+}
+echo '4 characters: ', $characters, "\n";
+
+// 5. A million reads of a short text. Nothing may pile up over them.
+uint $read = 0;
+$i = 0;
+while ($i < 1000000) {
+    $read = $read + Core\Str::length($row->string('label') ?? '');
+    $i = $i + 1;
+}
+echo '5 read: ', $read, "\n";
+
+// 6. Fifty thousand rows kept at once, and the text of every one of them read.
+// A row a program still holds may not be freed under it.
+array<array<Core\Db\Row>> $kept = [];
+$i = 0;
+while ($i < 50000) {
+    $kept[] = $db->query('select label from orders where row_id = ?', [1])->all();
+    $i = $i + 1;
+}
+$read = 0;
+foreach ($kept as array<Core\Db\Row> $rows) {
+    foreach ($rows as Core\Db\Row $held) {
+        $read = $read + Core\Str::length($held->string('label') ?? '');
+    }
+}
+echo '6 read: ', $read, "\n";
+
+// 7. A text of characters that are not ASCII. What was stored is what comes
+// back, so the reader may not cut a character in half.
+$db->execute(
+    'insert into orders (label, seats, id, picture) values (?, ?, ?, ?)',
+    ['ärger 😀 大きい', 4, 'c4d5e6f7-1a2b-4c3d-9e8f-7a6b5c4d3e2f', '' as bytes],
+);
+array<Core\Db\Row> $wide = $db->query('select label from orders where seats = ?', [4])->all();
+echo '7 characters: ', Core\Str::length($wide[0]->string('label') ?? ''), "\n";

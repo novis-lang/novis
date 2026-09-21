@@ -1,0 +1,32 @@
+<?nvs
+// Shows how to build a summary. The `status` column holds text, and that text
+// is used as the key of an array of counts.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table orders (label text not null, status text not null)', []);
+$db->execute(
+    'insert into orders (label, status) values (?, ?), (?, ?), (?, ?), (?, ?)',
+    ['one tea', 'paid', 'two coffees', 'open', 'a sandwich', 'paid', 'a cake', 'sent']
+);
+
+// Every key of this array is a status, and every value is a count.
+array<string> $known = ['open', 'paid', 'sent'];
+array<uint> $counted = [];
+foreach ($known as string $status) {
+    $counted[$status] = 0;
+}
+
+foreach ($db->query('select status from orders', []) as Core\Db\Row $row) {
+    ?string $seen = $row->string('status');
+    if ($seen == null) {
+        continue;
+    }
+    $counted[$seen] = $counted[$seen] + 1;
+}
+
+// This prints `open 1`, `paid 2` and `sent 1`.
+foreach ($known as string $status) {
+    echo $status, ' ', $counted[$status], "\n";
+}
+
+$db->close();

@@ -1,0 +1,76 @@
+--TEST--
+`Core\Db\Row::string` answers every column of the text family and refuses every column outside it, including a `uuid` column holding the very same thirty-six characters — `rule:core-classes/db-column-types`
+--FILE--
+<?nvs
+// covers: Core\Db\Row::string
+// One question asked of both sides of the family at once: the text types agree
+// in answering and the other types agree in refusing. A reader deciding on
+// what a cell looks like rather than on what its column was declared as looks
+// right on every row, and it would answer the id column too — that column
+// holds the same thirty-six characters as the text column beside it.
+use Core\Db\Row;
+
+var $db = Core\Db::connect("main");
+$db->execute(
+    "create table orders (label text not null, code varchar(20) not null, tag char(4) not null,
+      written text not null, id uuid not null, seats int not null, price real not null,
+      picture blob not null, missed text)",
+    []
+);
+$db->execute(
+    "insert into orders (label, code, tag, written, id, seats, price, picture, missed)
+     values (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    [
+        "one tea", "A-17", "hot", "3f2504e0-4f89-41d3-9a0c-0305e82c3301",
+        "3f2504e0-4f89-41d3-9a0c-0305e82c3301", 2, 1.5, "GIF89a" as bytes, null
+    ]
+);
+
+array<Row> $one = $db->query(
+    "select label, code, tag, written, id, seats, price, picture, missed from orders",
+    []
+)->all();
+var $row = $one[0];
+
+// The text family is three declared types and one reader.
+array<string> $text = ["label", "code", "tag", "written"];
+foreach ($text as string $column) {
+    echo "string over ", $column, ": ", $row->string($column) ?? "", "\n";
+}
+
+// And everything outside it. `id` holds the characters `written` holds, so the
+// two columns differ in nothing but the type they were declared as.
+array<string> $others = ["id", "seats", "price", "picture"];
+foreach ($others as string $column) {
+    try {
+        $row->string($column);
+        echo "string over ", $column, ": answered\n";
+    } catch (LogicError $stopped) {
+        echo "string over ", $column, ": refused\n";
+    }
+}
+
+// A NULL column is an absence and not a refusal — `rule:core-classes/db-column-types`, spec § 18.
+?string $missed = $row->string("missed");
+if ($missed == null) {
+    echo "string over missed: null\n";
+}
+--FILE nvs.toml--
+# § 3: a SQLite connection's file path comes from its config block, so
+# `db.connect` covers it.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+string over label: one tea
+string over code: A-17
+string over tag: hot
+string over written: 3f2504e0-4f89-41d3-9a0c-0305e82c3301
+string over id: refused
+string over seats: refused
+string over price: refused
+string over picture: refused
+string over missed: null

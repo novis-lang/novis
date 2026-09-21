@@ -1,0 +1,33 @@
+<?nvs
+// Measures reading a text column out of a row. A program does this for every
+// name, title or address it prints on a page.
+// bench: iterations 300000
+// bench: calls 0
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $db = Core\Db::connect('notes');
+        $db->execute('create table people (id integer primary key, name text not null, city text not null)', []);
+        $db->execute('insert into people (name, city) values (?, ?)', ['Amina', 'Graz']);
+        array<Core\Db\Row> $rows = $db->query('select name, city from people', [])->all();
+        var $row = $rows[0];
+        array<string> $columns = ['name', 'city'];
+
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The texts read so far choose the column read next, so the loop
+            // cannot be left out.
+            if ($row->string($columns[($total % 2) as int]) != null) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 3;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(300000), "\n";
