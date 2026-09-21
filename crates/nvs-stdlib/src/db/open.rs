@@ -2027,4 +2027,66 @@ mod tests {
             "a granted program is told the block is what is missing: {told}"
         );
     }
+
+    /// [ADR 0067 § 18](/docs/decisions/0067.md)'s `isOpen` is the one member a
+    /// released connection still answers, asserted as the **contrast** that
+    /// makes it worth declaring: the same handle, the same empty table, and two
+    /// different outcomes.
+    ///
+    /// A handle whose key the request's table does not hold is what a closed
+    /// connection is — [`nvs_runtime::Ctx::open_connection_mut`] is where
+    /// `close` removed it — so a fresh context and a handle built over any key
+    /// is that state exactly. `driver` needs the connection and throws for it;
+    /// `isOpen` needs only the key and answers `false`, which is what lets a
+    /// caller test a connection without catching an error.
+    ///
+    /// The `true` half is one filed connection away and no `-p nvs-stdlib` test
+    /// can file one, because this crate cannot build an `nvs_db::Connection` at
+    /// all — the playbook's own bullet owns why, and
+    /// `docs/examples/core/Db-Connection/isOpen/` is where both answers are run.
+    // covers: Core\Db\Connection::isOpen
+    #[test]
+    fn a_connection_the_request_no_longer_holds_answers_false_where_every_other_member_throws() {
+        let mut ctx = Ctx::buffered();
+        let handle = crate::instance::build(
+            &CONNECTION,
+            [Value::uint(7), Value::str(NvsStr::new(b"notes"))],
+        );
+
+        let open = nvs_runtime::call(nvs_core_db_connection_is_open, &mut ctx, &[handle])
+            .expect("`isOpen` answers rather than throwing");
+        assert_eq!(
+            open.as_bool(),
+            Some(false),
+            "a handle the request's table does not hold read as open"
+        );
+
+        // And the member beside it, on the same handle: it wants the connection
+        // itself, so the answer is the `LogicError` every other member gives.
+        let refused =
+            nvs_runtime::call(nvs_core_db_connection_driver, &mut ctx, &[handle]).is_err();
+        assert!(
+            refused && ctx.take_pending().is_some(),
+            "a member needing the connection answered for a handle that names none"
+        );
+
+        // Asked again after that refusal, which is the sequence a cleanup step
+        // runs: the second reading is the first one.
+        let again = nvs_runtime::call(nvs_core_db_connection_is_open, &mut ctx, &[handle])
+            .expect("`isOpen` answers rather than throwing");
+        assert_eq!(
+            again.as_bool(),
+            Some(false),
+            "the answer moved under a throw that did not touch the table"
+        );
+
+        #[expect(
+            unsafe_code,
+            reason = "the handle released here is the one this frame built, and \
+                      nothing else holds it"
+        )]
+        unsafe {
+            handle.release();
+        }
+    }
 }

@@ -1,0 +1,22 @@
+<?nvs
+// Shows why this method exists. Every other method of a closed connection
+// throws a `LogicError`. `Core\Db\Connection::isOpen` answers `false` instead,
+// so a program can test the connection without catching an error.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table notes (id integer primary key, text text not null)', []);
+$db->close();
+
+// This prints `the connection is gone`.
+if ($db->isOpen()) {
+    echo "the connection is here\n";
+} else {
+    echo "the connection is gone\n";
+}
+
+// The same question asked by running a statement. This prints `LogicError`.
+try {
+    $db->execute('insert into notes (text) values (?)', ['buy milk']);
+} catch (LogicError $error) {
+    echo "LogicError\n";
+}

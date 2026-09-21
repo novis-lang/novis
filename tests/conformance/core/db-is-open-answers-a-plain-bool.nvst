@@ -1,0 +1,25 @@
+--TEST--
+`isOpen` answers a plain `bool`, so "can I still use this connection" has two answers and not three — `rule:core-classes/db-one-api`, spec § 18
+--FILE--
+<?nvs
+// covers: Core\Db\Connection::isOpen
+// The one member a closed connection still answers, which is why its return
+// type matters: every other member of `Core\Db\Connection` throws a
+// `LogicError` once the handle is released, and this one is what a caller asks
+// so that it does not have to. A `?bool` would have added "the connection
+// cannot say", and there is no such state — the handle is filed or it is not.
+var $db = Core\Db::connect("main");
+
+// The accepted reading, and the only one.
+bool $state = $db->isOpen();
+
+// And the boundary: the answer is a `bool` and not the connection, a name or a
+// count, so nothing here is readable as anything a caller has to interpret.
+string $wrong = $db->isOpen();
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0401]: expected `string`, found `bool`
+   --> case.nvs:15:17
+%A
+error: aborting due to 1 error

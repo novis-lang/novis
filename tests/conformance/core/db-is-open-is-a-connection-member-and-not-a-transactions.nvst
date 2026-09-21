@@ -1,0 +1,26 @@
+--TEST--
+`isOpen` is a `Core\Db\Connection` member and not one a `Core\Db\Transaction` delegates, so the question is asked of the handle that can be closed — `rule:core-classes/db-one-api` and `rule:core-classes/db-transactions`, spec § 18
+--FILE--
+<?nvs
+// covers: Core\Db\Connection::isOpen
+// A `Core\Db\Transaction` carries every `Queryable` member of the connection it
+// runs on, and `close`, `driver`, `serverVersion` and `isOpen` are the four
+// that are not `Queryable`'s. `rule:core-classes/db-transactions` is why: a transaction lives for the
+// length of one closure and nothing inside it can release the connection, so
+// "is this still open" has no answer to give there that is not already `true`.
+class Step {
+    public static function run(Core\Db\Transaction $tx): bool {
+        return $tx->isOpen();
+    }
+}
+
+// The same question of the handle that owns the connection, which is accepted.
+var $db = Core\Db::connect("main");
+bool $state = $db->isOpen();
+--EXPECT--
+
+--EXPECTF-ERROR--
+error[E0405]: `Core\Db\Transaction` has no method named `isOpen`
+   --> case.nvs:10:16
+%A
+error: aborting due to 2 errors

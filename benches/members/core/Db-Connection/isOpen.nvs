@@ -1,0 +1,30 @@
+<?nvs
+// Measures asking a connection whether it is still open, as a program does in
+// a step that may run after the connection was given back.
+// bench: iterations 400000
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $open = Core\Db::connect('notes');
+        var $closed = Core\Db::connect('notes');
+        $closed->close();
+
+        // The count so far picks which connection is asked, and the answer
+        // decides what is added, so the loop cannot be left out.
+        array<Core\Db\Connection> $handles = [$open, $closed];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            if ($handles[($total % 2) as int]->isOpen()) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 3;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

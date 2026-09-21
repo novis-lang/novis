@@ -1,0 +1,27 @@
+<?nvs
+// Shows the cleanup step of a job. An earlier step may have finished with the
+// database and closed it, so the last step asks before it writes.
+
+class Job {
+    // Writes a line saying the job is done, if there is still a connection.
+    // Returns the number of rows written.
+    public static function finish(Core\Db\Connection $db, string $note): int {
+        if (!$db->isOpen()) {
+            return 0;
+        }
+        var $written = $db->execute('insert into log (note) values (?)', [$note]);
+        return $written->affected() as int;
+    }
+}
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table log (id integer primary key, note text not null)', []);
+
+// The database is still here, so the line is written. This prints `1 written`.
+echo Job::finish($db, 'import done'), " written\n";
+
+$db->close();
+
+// The connection is gone, so nothing is written and nothing throws. This
+// prints `0 written`.
+echo Job::finish($db, 'export done'), " written\n";
