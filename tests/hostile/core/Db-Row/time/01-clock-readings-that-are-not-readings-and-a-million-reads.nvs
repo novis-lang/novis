@@ -1,0 +1,100 @@
+<?nvs
+// Attack: a clock column holding something that is not a clock reading, and a
+// column of another type. Then names that belong to no column, and a million
+// reads of one row. Every step has to answer or throw an error, and none may
+// stop the program.
+// hostile: timeout-ms 60000
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table shops (id integer primary key, opens time not null, born date not null, name text not null)', []);
+$db->execute('insert into shops (opens, born, name) values (?, ?, ?)', ['09:00:00', '2026-02-01', 'the tea shop']);
+
+array<Core\Db\Row> $one = $db->query('select opens, born, name from shops', [])->all();
+var $row = $one[0];
+
+// 1. Columns of another type. A clock reading is not a day and not a text, so
+// both of these throw an error.
+uint $refused = 0;
+array<string> $others = ['born', 'name'];
+foreach ($others as string $column) {
+    try {
+        $row->time($column);
+    } catch (Throwable $error) {
+        $refused = $refused + 1;
+    }
+}
+echo '1 refused: ', $refused, "\n";
+
+// 2. Ten thousand reads of a name that belongs to no column. Every one throws
+// an error, and ten thousand errors may not fill the memory.
+$refused = 0;
+uint $i = 0;
+while ($i < 10000) {
+    try {
+        $row->time('missing');
+    } catch (Throwable $error) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo '2 refused: ', $refused, "\n";
+
+// 3. A column name of ten million characters. No row has such a column, so the
+// read throws and the row still works after it.
+try {
+    $row->time(Core\Str::repeat('a', 10000000));
+    echo "3 the long name found a column\n";
+} catch (Throwable $error) {
+    echo "3 refused\n";
+}
+
+// 4. A million reads of the same reading. The reading is not built again for
+// each read, so nothing may pile up over them.
+uint $read = 0;
+$i = 0;
+while ($i < 1000000) {
+    if ($row->time('opens') != null) {
+        $read = $read + 1;
+    }
+    $i = $i + 1;
+}
+echo '4 read: ', $read, "\n";
+
+// 5. Fifty thousand rows kept at once, and the reading of every one of them
+// read. A row a program still holds may not be freed under it.
+array<array<Core\Db\Row>> $kept = [];
+$i = 0;
+while ($i < 50000) {
+    $kept[] = $db->query('select opens from shops where id = ?', [1])->all();
+    $i = $i + 1;
+}
+$read = 0;
+foreach ($kept as array<Core\Db\Row> $rows) {
+    foreach ($rows as Core\Db\Row $held) {
+        if ($held->time('opens') != null) {
+            $read = $read + 1;
+        }
+    }
+}
+echo '5 read: ', $read, "\n";
+
+// 6. A clock column holding `at nine`, which is no reading at all. Reading the
+// row throws, and the connection has to work after that.
+$db->execute('insert into shops (opens, born, name) values (?, ?, ?)', ['at nine', '2026-02-01', 'broken']);
+try {
+    $db->query('select opens from shops order by id', []);
+    echo "6 the text was read as a clock reading\n";
+} catch (Throwable $error) {
+    echo "6 refused\n";
+}
+
+// 7. The hour 99, which no clock shows. The read throws, and the connection
+// still answers after it.
+$db->execute('insert into shops (opens, born, name) values (?, ?, ?)', ['99:00:00', '2026-02-01', 'no such hour']);
+try {
+    $db->query('select opens from shops where name = ?', ['no such hour']);
+    echo "7 the hour 99 was read as a clock reading\n";
+} catch (Throwable $error) {
+    echo "7 refused\n";
+}
+echo '8 still there: ', $db->query('select opens from shops where id = ?', [1])->count(), "\n";

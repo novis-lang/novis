@@ -1,0 +1,20 @@
+<?nvs
+// Shows what you get when the clock column has no value in this row.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table shops (name text not null, opens time)', []);
+$db->execute('insert into shops (name, opens) values (?, ?), (?, ?)', ['the market stall', null, 'the tea shop', '09:00:00']);
+
+// `time` returns `null` for a column with no value, so your program says what
+// to print instead. This prints `the market stall: no fixed hour`.
+foreach ($db->query('select name, opens from shops order by name', []) as Core\Db\Row $row) {
+    ?Core\Time\TimeOfDay $opens = $row->time('opens');
+    echo $row->string('name') ?? '', ': ';
+    if ($opens != null) {
+        echo $opens->format('HH:mm'), "\n";
+    } else {
+        echo "no fixed hour\n";
+    }
+}
+
+$db->close();

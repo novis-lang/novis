@@ -1,0 +1,33 @@
+<?nvs
+// Measures reading a clock reading out of a row. A program does this when it
+// shows a list of shops with the hours each one keeps.
+// bench: iterations 300000
+// bench: calls 0
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $db = Core\Db::connect('notes');
+        $db->execute('create table shops (id integer primary key, opens time not null, closes time not null)', []);
+        $db->execute('insert into shops (opens, closes) values (?, ?)', ['09:00:00', '18:00:00']);
+        array<Core\Db\Row> $rows = $db->query('select opens, closes from shops', [])->all();
+        var $row = $rows[0];
+        array<string> $columns = ['opens', 'closes'];
+
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The readings read so far choose the column read next, so the loop
+            // cannot be left out.
+            if ($row->time($columns[($total % 2) as int]) != null) {
+                $total = $total + 1;
+            } else {
+                $total = $total + 3;
+            }
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(300000), "\n";
