@@ -15,4 +15,4 @@ fail (`rule:types/conversion`), which is what makes "treat these untrusted bytes
 throwing event rather than an unasserted assumption.
 
 There is no dedicated literal token: `"…" as bytes` covers the valid-UTF-8 case for free, and
-`Core\Bytes::fromHex()`/`::fromBase64()` cover arbitrary binary constants.
+`Core\Encoding::fromHex()`/`::fromBase64()` cover arbitrary binary constants.
