@@ -2,6 +2,7 @@
 `rule:core-classes/db-connection-is-named` memoizes a connection and not a name, so a `Core\Db::connect` after that connection's `close` answers a usable handle again — while the closed handle stays closed and stays refused — `rule:core-classes/db-connection-is-named` and `rule:security/db-pool-reset-is-a-boundary` and spec § 18
 --FILE--
 <?nvs
+// covers: Core\Db\Connection::close
 // § 2: two `connect("main")` calls in one request are one connection, so the
 // second call below is only reached because the first connection has been
 // released — a name whose connection has gone is a name the memo no longer

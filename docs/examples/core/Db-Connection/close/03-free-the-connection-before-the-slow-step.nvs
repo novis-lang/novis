@@ -1,0 +1,28 @@
+<?nvs
+// Shows a program that gives the connection back before its slowest step. It
+// reads everything it needs, closes the connection, and writes its report
+// afterwards. Another request can use the connection while the report is built.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table orders (id integer primary key, city text not null, total int not null)', []);
+$db->execute('insert into orders (city, total) values (?, ?)', ['Bremen', 1200]);
+$db->execute('insert into orders (city, total) values (?, ?)', ['Lisbon', 800]);
+
+array<string> $cities = [];
+array<int> $totals = [];
+foreach ($db->query('select city, total from orders order by id', []) as Core\Db\Row $row) {
+    $cities[] = $row->string('city') ?? '';
+    $totals[] = $row->int('total') ?? 0;
+}
+
+// The report needs no more rows, so the database is free from here on.
+$db->close();
+
+// This part can take a while in a real program. It runs without a connection.
+int $sum = 0;
+foreach ($totals as int $total) {
+    $sum = $sum + $total;
+}
+
+// This prints `2 cities, 2000 in total`.
+echo Core\Arr::count($cities), ' cities, ', $sum, " in total\n";

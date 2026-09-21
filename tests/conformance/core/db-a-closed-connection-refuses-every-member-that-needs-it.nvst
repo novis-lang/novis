@@ -2,6 +2,8 @@
 Spec § 18's `close` is the boundary every other `Core\Db\Connection` member is on the far side of: a statement, `driver()` and `serverVersion()` all throw `LogicError` afterwards, while `isOpen()` still answers and a second `close` does nothing — `rule:core-classes/db-statement-members` and `rule:security/db-pool-reset-is-a-boundary`
 --FILE--
 <?nvs
+// covers: Core\Db\Connection::close
+// covers: Core\Db\Connection::driver
 // The connection is real (SQLite), so the statement below is refused by the
 // member and not by a signature check — the refusal is the one the running
 // program would meet.
