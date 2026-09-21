@@ -1,0 +1,26 @@
+<?nvs
+// Shows the everyday use: the colours of a brand are written once, and the
+// rest of the program asks for them by name. A designer changing a colour
+// changes one line.
+
+class Brand {
+    public static function ink(): Core\Cli\Color {
+        return Core\Cli\Color::rgb(24, 24, 27);
+    }
+
+    public static function accent(): Core\Cli\Color {
+        return Core\Cli\Color::rgb(217, 70, 39);
+    }
+
+    public static function quiet(): Core\Cli\Color {
+        return Core\Cli\Color::rgb(113, 113, 122);
+    }
+}
+
+Core\Cli\Style $heading = Core\Cli\Style::of({color: Brand::accent(), bold: true});
+Core\Cli\Style $body = Core\Cli\Style::of({color: Brand::ink()});
+Core\Cli\Style $note = Core\Cli\Style::of({color: Brand::quiet()});
+
+echo Core\Cli\Text::styled("Deploy", $heading), "\n";
+echo Core\Cli\Text::styled("3 services updated", $body), "\n";
+echo Core\Cli\Text::styled("took 12.4s", $note), "\n";

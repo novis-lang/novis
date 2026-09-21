@@ -1,0 +1,29 @@
+<?nvs
+// Measures making a colour out of a red, a green and a blue value. A tool meets
+// this once for every line it writes in a colour of its own.
+// bench: iterations 400000
+// bench: calls 0
+// bench: allocations 1
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        Core\Cli\Color $last = Core\Cli\Color::rgb(0, 0, 0);
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The three channels of each round are chosen by the round before
+            // it, so no round can be left out.
+            Core\Cli\Color $color = Core\Cli\Color::rgb($total % 256, ($total * 7) % 256, 60);
+            if ($color == $last) {
+                $total = $total + 2;
+            } else {
+                $total = $total + 1;
+            }
+            $last = $color;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

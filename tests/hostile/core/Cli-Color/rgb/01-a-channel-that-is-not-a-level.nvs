@@ -1,0 +1,51 @@
+<?nvs
+// Attack: a program gives each of the three channels a value no channel has,
+// and then builds millions of colours to use up the memory. Every value above
+// 255 should throw an error, and the program must run to its last line.
+// hostile: timeout-ms 60000
+
+// 1. The last level that exists, and the first one that does not.
+Core\Cli\Style $white = Core\Cli\Style::of({ color: Core\Cli\Color::rgb(255, 255, 255) });
+echo 'step 1 ', Core\Cli\Text::styled('white', $white), "\n";
+try {
+    Core\Cli\Color::rgb(256, 255, 255);
+    echo "step 1 broken: 256 is not a level\n";
+} catch (RuntimeError $e) {
+    echo 'step 1 ', $e->message, "\n";
+}
+
+// 2. Each channel on its own. A check that reads only the first argument lets
+//    the other two through.
+try {
+    Core\Cli\Color::rgb(0, 4294967295, 0);
+    echo "step 2 broken: the green channel was not checked\n";
+} catch (RuntimeError $e) {
+    echo 'step 2 ', $e->message, "\n";
+}
+try {
+    Core\Cli\Color::rgb(0, 0, 18446744073709551615);
+    echo "step 2 broken: the blue channel was not checked\n";
+} catch (RuntimeError $e) {
+    echo 'step 2 ', $e->message, "\n";
+}
+
+// 3. Two million colours, one after another. Each one is used and then
+//    dropped, so the memory a program holds must not grow with the count.
+uint $built = 0;
+uint $i = 0;
+while ($i < 2000000) {
+    Core\Cli\Color $color = Core\Cli\Color::rgb($i % 256, ($i * 7) % 256, ($i * 13) % 256);
+    Core\Cli\Style::of({ background: $color });
+    $built = $built + 1;
+    $i = $i + 1;
+}
+echo 'step 3 built ', $built, "\n";
+
+// 4. A hundred thousand colours held at the same time, then dropped together.
+array<Core\Cli\Color> $held = [];
+uint $j = 0;
+while ($j < 100000) {
+    $held[] = Core\Cli\Color::rgb($j % 256, 0, $j % 7);
+    $j = $j + 1;
+}
+echo 'step 4 held ', Core\Arr::count($held), "\n";

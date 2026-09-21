@@ -1,0 +1,15 @@
+<?nvs
+// Shows how to make a colour out of a red, a green and a blue value. This
+// output goes to a file, and a file shows no colour, so only the words are
+// printed here.
+
+// 30 red, 144 green and 255 blue is a strong blue.
+Core\Cli\Color $blue = Core\Cli\Color::rgb(30, 144, 255);
+echo Core\Cli\Text::styled("a link to the report", Core\Cli\Style::of({color: $blue})), "\n";
+
+// The same colour behind white text makes a label.
+Core\Cli\Style $label = Core\Cli\Style::of({
+    color: Core\Cli\Color::rgb(255, 255, 255),
+    background: $blue,
+});
+echo Core\Cli\Text::styled(" new ", $label), "\n";

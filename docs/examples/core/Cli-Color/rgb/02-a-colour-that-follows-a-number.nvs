@@ -1,0 +1,18 @@
+<?nvs
+// Shows a colour worked out from a number. A test run where everything fails
+// is red, one where everything passes is green, and the runs in between mix
+// the two colours.
+
+class Bar {
+    // Every step takes 51 off the red and adds 51 to the green, so step 0 is
+    // red and step 5 is green. The blue stays at 60 for all of them.
+    public static function color(uint $step): Core\Cli\Color {
+        return Core\Cli\Color::rgb(255 - $step * 51, $step * 51, 60);
+    }
+}
+
+array<uint> $steps = [0, 2, 4, 5];
+foreach ($steps as uint $step) {
+    Core\Cli\Style $style = Core\Cli\Style::of({color: Bar::color($step)});
+    echo Core\Cli\Text::styled("tests passing", $style), " ", $step * 20, "%\n";
+}
