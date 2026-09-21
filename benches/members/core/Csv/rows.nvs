@@ -1,0 +1,36 @@
+<?nvs
+// Measures reading a small CSV file a record at a time, as an import job does
+// for every file it is given.
+// bench: iterations 20000
+// bench: calls 6
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        string $dir = Core\IO::temporaryDir();
+        array<string> $paths = [
+            Core\Path::join($dir, 'a.csv'),
+            Core\Path::join($dir, 'b.csv'),
+            Core\Path::join($dir, 'c.csv'),
+        ];
+        Core\IO::write($paths[0], "fig,2,3.50\napple,10,0.40\n");
+        Core\IO::write($paths[1], "\"Beans, dried\",500 g,4.10\ntin,2,9.99\n");
+        Core\IO::write($paths[2], "pear,7,1.20\nplum,3,2.05\n");
+
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The file of every round is chosen by the records read so far, so
+            // the loop cannot be left out.
+            int $which = ($total % 3) as int;
+            Core\IO\File $file = Core\IO::open($paths[$which], Core\IO\FileMode::Read);
+            foreach (Core\Csv::rows($file) as array<string> $record) {
+                $total = $total + 1;
+            }
+            $file->close();
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(20000), "\n";

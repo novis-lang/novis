@@ -1,0 +1,28 @@
+<?nvs
+// Shows how to add up one column of a sales export. The file is read record by
+// record, so a file of ten gigabytes needs as much memory as this one.
+
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'sales.csv');
+Core\IO::write($path, "date;region;amount\n"
+    . "2026-01-02;north;120.50\n"
+    . "2026-01-02;south;99.00\n"
+    . "2026-01-03;north;18.25\n");
+
+Core\IO\File $file = Core\IO::open($path, Core\IO\FileMode::Read);
+
+float $north = 0.0;
+int $records = 0;
+// The spreadsheet that wrote this file separates fields with a semicolon.
+foreach (Core\Csv::rows($file, {separator: ';', header: true}) as array<string> $sale) {
+    $records = $records + 1;
+    if ($sale['region'] == 'north') {
+        // A field is always text. `as ?float` converts it to a number, and
+        // gives `null` for a field that is not one.
+        $north = $north + (($sale['amount'] as ?float) ?? 0.0);
+    }
+}
+
+$file->close();
+
+// This prints `3 records, north 138.75`.
+echo $records, ' records, north ', $north, "\n";

@@ -1597,6 +1597,7 @@ mod tests {
     /// record, and what it answers is `parse`'s reading of the same document —
     /// quoted field holding a separator and a terminator included, which is
     /// what a reader fed a chunk at a time is liable to get wrong.
+    // covers: Core\Csv::rows
     #[test]
     fn csv_rows_reads_a_file_one_record_at_a_time() {
         const DOCUMENT: &str = "name,note,qty\nfig,\"a, b\nc\",2\nplum,plain,7\n";
@@ -1656,6 +1657,7 @@ mod tests {
     /// nothing at the end would pass both and fail the line after them. A
     /// document many reads long, because the number the answer must not depend
     /// on is the document's size.
+    // covers: Core\Csv::rows
     #[test]
     fn csv_rows_holds_one_record_and_never_the_document() {
         const RECORDS: usize = 4_000;

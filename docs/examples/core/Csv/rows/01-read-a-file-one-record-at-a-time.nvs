@@ -1,0 +1,16 @@
+<?nvs
+// Shows how to read a CSV file one record at a time. `Core\Csv::rows` holds a
+// single record, so a file of any size can be read this way.
+
+// The program writes a small file first, so that it has one to read.
+string $path = Core\Path::join(Core\IO::temporaryDir(), 'orders.csv');
+Core\IO::write($path, "fig,2\napple,10\n");
+
+Core\IO\File $file = Core\IO::open($path, Core\IO\FileMode::Read);
+
+// This prints `fig 2` and `apple 10`.
+foreach (Core\Csv::rows($file) as array<string> $record) {
+    echo $record[0], ' ', $record[1], "\n";
+}
+
+$file->close();
