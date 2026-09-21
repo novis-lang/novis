@@ -129,6 +129,8 @@ modules = [
   # The accessors on what a statement returned — `Core\Db\Rows`, `Core\Db\Row`, `Core\Db\Column`
   # and `Core\Db\Write` — and the hydration `queryAs` does into a declared class.
   "crates/nvs-stdlib/src/db/row.rs",
+  # `Core\Db` — docs/spec/01-core-library.md § 18's entry points, over `nvs_db`'s wire half.
+  "crates/nvs-stdlib/src/db/mod.rs",
 ]
 
 rules = ["testing/feature-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
