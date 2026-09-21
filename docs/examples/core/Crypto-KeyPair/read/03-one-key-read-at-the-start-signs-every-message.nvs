@@ -1,0 +1,32 @@
+<?nvs
+// Shows the way a server uses this member. The key comes from the place the
+// server keeps its secrets. It is read once when the program starts, and every
+// message is signed with the pair that was read.
+
+class Outbox {
+    // Reading the key for every message would parse the same file again and
+    // again, so the program reads it once and keeps the pair.
+    public static function open(string $secret): Core\Crypto\KeyPair {
+        return Core\Crypto\KeyPair::read(
+            Core\Encoding::fromBase64($secret),
+            Core\Crypto\KeyKind::Ed25519
+        );
+    }
+
+    public static function stamp(Core\Crypto\KeyPair $pair, string $event): string {
+        return Core\Encoding::toBase64(Core\Crypto::sign($event as bytes, $pair));
+    }
+}
+
+// What a secret store gives you: the key as one line of base64.
+string $fromTheStore = "MC4CAQAwBQYDK2VwBCIEIDbnkTx1/12Juk9GUmMg9UfPdTaaVgoWj2q1uxePvqrf";
+Core\Crypto\KeyPair $pair = Outbox::open($fromTheStore);
+
+array<string> $events = [
+    "order.shipped 1042",
+    "order.shipped 1043",
+    "order.packed 1044",
+];
+foreach ($events as string $event) {
+    echo $event, " ", Outbox::stamp($pair, $event), "\n";
+}

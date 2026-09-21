@@ -1,0 +1,36 @@
+<?nvs
+// Measures reading one stored private key, as a server does when it starts or
+// when it takes a key out of its configuration.
+// bench: iterations 20000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<bytes> $files = [
+            Core\Encoding::fromHex("302e020100300506032b65700422042036e7913c75ff5d89ba4f46526320f547cf75369a560a168f6ab5bb178fbeaadf"),
+            Core\Encoding::fromHex("302e020100300506032b656e042204200172af48574da59d306df1b27cc27457304669fb73e0630b9f84eac038695c2c"),
+            Core\Encoding::fromHex("3041020100301306072a8648ce3d020106082a8648ce3d03010704273025020101042033172cfd4cb8e906b35b1dd8753ac6b12b8c760281d124bf635dbf5c5f15c49a"),
+        ];
+        array<Core\Crypto\KeyKind> $kinds = [
+            Core\Crypto\KeyKind::Ed25519,
+            Core\Crypto\KeyKind::X25519,
+            Core\Crypto\KeyKind::P256,
+        ];
+
+        secret bytes $previous = Core\Crypto\KeyPair::read($files[1], $kinds[1])->write();
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The file of every round is chosen by the round before it, so no
+            // round can be left out.
+            int $which = ($total % 3) as int;
+            secret bytes $key = Core\Crypto\KeyPair::read($files[$which], $kinds[$which])->write();
+            $total = $total + (($key != $previous ? 1 : 0) as uint);
+            $previous = $key;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(20000), "\n";

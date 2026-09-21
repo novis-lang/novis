@@ -1,0 +1,24 @@
+<?nvs
+// Shows how to read a private key your program stored, and how to sign a
+// message with it. The key is an Ed25519 key, kept as hex text.
+
+string $stored = "302e020100300506032b65700422042036e7913c75ff5d89ba4f46526320f547cf75369a560a168f6ab5bb178fbeaadf";
+
+// `read` takes the key's octets and the kind of key they hold. It gives you the
+// pair that key belongs to.
+Core\Crypto\KeyPair $pair = Core\Crypto\KeyPair::read(
+    Core\Encoding::fromHex($stored),
+    Core\Crypto\KeyKind::Ed25519
+);
+
+bytes $message = "order 1042 shipped" as bytes;
+bytes $signature = Core\Crypto::sign($message, $pair);
+
+// The public half of the same pair checks the signature. `verify` returns
+// nothing, and throws an error when the check does not hold.
+Core\Crypto::verify($message, $signature, $pair->publicKey());
+echo "the stored key signed the message", "\n";
+
+// The file holds one key, so every run reads that key and writes this same
+// signature.
+echo Core\Encoding::toHex($signature), "\n";

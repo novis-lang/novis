@@ -1,0 +1,30 @@
+<?nvs
+// Shows the two ways a key file is written. A PEM block is text, and `read`
+// takes it as well as the binary form.
+
+string $pem = "-----BEGIN PRIVATE KEY-----\n"
+    . "MC4CAQAwBQYDK2VwBCIEIDbnkTx1/12Juk9GUmMg9UfPdTaaVgoWj2q1uxePvqrf\n"
+    . "-----END PRIVATE KEY-----\n";
+Core\Crypto\KeyPair $fromPem = Core\Crypto\KeyPair::read(
+    $pem as bytes,
+    Core\Crypto\KeyKind::Ed25519
+);
+
+// The binary form of the same key. It is what the text above carries.
+string $der = "302e020100300506032b65700422042036e7913c75ff5d89ba4f46526320f547cf75369a560a168f6ab5bb178fbeaadf";
+Core\Crypto\KeyPair $fromDer = Core\Crypto\KeyPair::read(
+    Core\Encoding::fromHex($der),
+    Core\Crypto\KeyKind::Ed25519
+);
+
+// One key read twice, so both pairs have the same public half.
+bytes $fromText = $fromPem->publicKey()->write(Core\Crypto\KeyFormat::Spki);
+bytes $fromBinary = $fromDer->publicKey()->write(Core\Crypto\KeyFormat::Spki);
+echo "both files are one key: ", ($fromText == $fromBinary ? "yes" : "no"), "\n";
+
+// `write` always gives the binary form, whichever form was read. Your program
+// stores that and reads it back later.
+secret bytes $again = $fromPem->write();
+echo "the pair writes the binary form back: ",
+    ($again == Core\Encoding::fromHex($der) ? "yes" : "no"),
+    "\n";
