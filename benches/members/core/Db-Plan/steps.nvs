@@ -1,0 +1,44 @@
+<?nvs
+// Measures reading the list of steps out of a plan, as a deployment does for
+// every plan it decides about.
+// bench: iterations 200000
+// bench: allocations 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $db = Core\Db::connect('notes');
+        var $schema = Core\Db\Schema::fromArray([
+            'tables' => [
+                [
+                    'name' => 'notes',
+                    'columns' => [
+                        ['name' => 'id', 'type' => 'int64', 'identity' => true],
+                        ['name' => 'title', 'type' => 'text(200)'],
+                    ],
+                    'primary_key' => ['id'],
+                ],
+                [
+                    'name' => 'tags',
+                    'columns' => [
+                        ['name' => 'note_id', 'type' => 'int64'],
+                        ['name' => 'tag', 'type' => 'text(40)'],
+                    ],
+                    'primary_key' => ['note_id', 'tag'],
+                ],
+            ],
+        ]);
+        var $plan = $schema->planAgainst($db);
+
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The number of steps decides what is added, so the loop cannot be
+            // left out.
+            $total = $total + Core\Arr::count($plan->steps());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(200000), "\n";

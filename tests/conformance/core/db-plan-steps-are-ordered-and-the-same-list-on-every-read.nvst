@@ -1,0 +1,77 @@
+--TEST--
+`Core\Db\Plan::steps` answers every step in the order they must run, the same list on every read, and an empty array once the database matches — `rule:core-classes/schema-plan`
+--FILE--
+<?nvs
+// A plan is a document rather than a live query, so this case asks the same
+// question three times: what the list holds, what a second read holds, and
+// what is left once the steps have run. SQLite needs no server, so `main` is
+// the `:memory:` block that makes all three real.
+// covers: Core\Db\Plan::steps
+use Core\Db;
+use Core\Db\Plan\Step;
+use Core\Db\Schema;
+
+var $db = Db::connect("main");
+
+var $schema = Schema::fromArray([
+    "tables" => [
+        [
+            "name" => "notes",
+            "columns" => [
+                ["name" => "id", "type" => "int64", "identity" => true],
+                ["name" => "title", "type" => "text(200)"],
+            ],
+            "primary_key" => ["id"],
+        ],
+        [
+            "name" => "tags",
+            "columns" => [
+                ["name" => "note_id", "type" => "int64"],
+                ["name" => "tag", "type" => "text(40)"],
+            ],
+            "primary_key" => ["note_id", "tag"],
+        ],
+    ],
+]);
+
+var $plan = $schema->planAgainst($db);
+
+// Counted rather than read off one line: a member answering a step at a time
+// would print every line below and still fail here.
+echo "steps ", Core\Arr::count($plan->steps()), "\n";
+
+// § 6: the steps arrive in the order they must run, which is the order the
+// schema declared its tables in.
+uint $at = 0;
+foreach ($plan->steps() as Step $step) {
+    if (Core\Str::contains(Core\Str::lower($step->sql()), '"notes"')) {
+        echo $at, " notes\n";
+    } else {
+        echo $at, " tags\n";
+    }
+    $at = $at + 1;
+}
+
+// A second read answers the same list. Nothing is asked of the database again.
+echo "again ", Core\Arr::count($plan->steps()), "\n";
+
+// § 9: once the steps have run the database matches the schema, and
+// convergence is an empty array rather than an absence a program tests for.
+$schema->applySafe($db);
+echo "after ", Core\Arr::count($schema->planAgainst($db)->steps()), "\n";
+--FILE nvs.toml--
+# § 9's split: `db.connect` is what planning needs, and `db.schema` is the
+# separate grant that lets the last step issue the DDL the plan carries.
+[capabilities.db]
+connect = ["main"]
+schema = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+steps 2
+0 notes
+1 tags
+again 2
+after 0

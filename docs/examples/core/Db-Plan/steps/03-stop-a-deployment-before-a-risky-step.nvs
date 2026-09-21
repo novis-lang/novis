@@ -1,0 +1,53 @@
+<?nvs
+// Shows how a deployment reads a plan before it changes anything. Steps that
+// can lose data or lock a table are printed for a person to run by hand.
+
+use Core\Db;
+use Core\Db\Plan\Grade;
+use Core\Db\Plan\Step;
+use Core\Db\Schema;
+
+var $db = Db::connect('notes');
+
+// What an earlier version of this program left in the database.
+$db->execute('create table notes (id integer primary key, title text not null)', []);
+$db->execute('create table notes_backup (id integer primary key)', []);
+
+var $schema = Schema::fromArray([
+    'tables' => [
+        [
+            'name' => 'notes',
+            'columns' => [
+                ['name' => 'id', 'type' => 'int64', 'identity' => true],
+                ['name' => 'title', 'type' => 'text'],
+            ],
+            'primary_key' => ['id'],
+        ],
+        [
+            'name' => 'tags',
+            'columns' => [
+                ['name' => 'note_id', 'type' => 'int64'],
+                ['name' => 'tag', 'type' => 'text(40)'],
+            ],
+            'primary_key' => ['note_id', 'tag'],
+        ],
+    ],
+]);
+
+var $plan = $schema->planAgainst($db);
+
+uint $safe = 0;
+uint $risky = 0;
+foreach ($plan->steps() as Step $step) {
+    if ($step->grade() == Grade::Safe) {
+        $safe = $safe + 1;
+    } else {
+        // `sql()` is the whole statement, so a person can run it as it stands.
+        $risky = $risky + 1;
+        echo 'by hand: ', $step->sql(), "\n";
+    }
+}
+
+echo $safe, ' safe, ', $risky, " for a person\n";
+
+$db->close();

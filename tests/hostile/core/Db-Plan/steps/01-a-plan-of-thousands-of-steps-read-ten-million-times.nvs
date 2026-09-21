@@ -1,0 +1,82 @@
+<?nvs
+// Attack: a plan with thousands of steps is read ten million times, and a
+// million of the lists are kept at once. The program should finish, or stop at
+// its memory limit with an error, and must not crash.
+// hostile: timeout-ms 120000
+
+use Core\Db;
+use Core\Db\Plan\Step;
+use Core\Db\Schema;
+
+var $db = Db::connect('notes');
+
+// 1. A schema of three thousand tables against an empty database. Every table
+// is one step, so the plan is as long as the schema.
+array<mixed> $tables = [];
+uint $t = 0;
+while ($t < 3000) {
+    $tables[] = [
+        'name' => 'table_' . ($t as string),
+        'columns' => [
+            ['name' => 'id', 'type' => 'int64', 'identity' => true],
+            ['name' => 'label', 'type' => 'text(40)'],
+        ],
+        'primary_key' => ['id'],
+    ];
+    $t = $t + 1;
+}
+
+uint $counted = 0;
+try {
+    var $schema = Schema::fromArray(['tables' => $tables]);
+    var $plan = $schema->planAgainst($db);
+    $counted = Core\Arr::count($plan->steps());
+    echo '1 steps: ', $counted, "\n";
+
+    // 2. The same list read ten million times. A read that copied the steps
+    // would build thirty billion objects here.
+    uint $i = 0;
+    uint $total = 0;
+    while ($i < 10000000) {
+        $total = $total + Core\Arr::count($plan->steps());
+        $i = $i + 1;
+    }
+    echo '2 read: ', $total, "\n";
+
+    // 3. A million lists kept alive together.
+    array<mixed> $kept = [];
+    $i = 0;
+    while ($i < 1000000) {
+        $kept[] = $plan->steps();
+        $i = $i + 1;
+    }
+    echo '3 kept: ', Core\Arr::count($kept), "\n";
+} catch (Throwable $stopped) {
+    echo '1-3 stopped: ', $stopped->message, "\n";
+}
+
+// 4. A thousand tables the schema does not declare. Each one is reported in
+// the plan, which carries the drop and never runs it.
+try {
+    uint $e = 0;
+    while ($e < 1000) {
+        $db->execute('create table extra_' . ($e as string) . ' (id integer primary key)', []);
+        $e = $e + 1;
+    }
+    var $empty = Schema::fromArray(['tables' => []]);
+    uint $reports = 0;
+    foreach ($empty->planAgainst($db)->steps() as Step $step) {
+        if ($step->isRefused()) {
+            $reports = $reports + 1;
+        }
+    }
+    echo '4 reports: ', $reports, "\n";
+} catch (Throwable $stopped) {
+    echo '4 stopped: ', $stopped->message, "\n";
+}
+
+// 5. The connection after all of that. An ordinary statement still works.
+$db->execute('create table still_here (id integer primary key)', []);
+echo '5 still usable: ', $db->query('select id from still_here', [])->count(), "\n";
+
+$db->close();
