@@ -1,0 +1,80 @@
+<?nvs
+// Attack: a batch is run through a transaction whose work already returned.
+// Then one transaction is given batches whose sets do not match, ten thousand
+// refused batches, and half a million sets it gives up on.
+// Every bad call must throw, and nothing given up on may be kept.
+// hostile: timeout-ms 120000
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table notes (id integer primary key, text text not null)', []);
+
+// 1. The transaction is carried out of the work that owned it. A batch through
+// it would write outside every transaction, so it must be refused.
+var $escaped = $db->transaction(fn (Core\Db\Transaction $tx): Core\Db\Transaction => $tx);
+array<array<mixed>> $late = [['written too late']];
+try {
+    $escaped->executeMany('insert into notes (text) values (?)', $late);
+    echo "1 the late batch went through\n";
+} catch (Throwable $refused) {
+    echo "1 the late batch was refused\n";
+}
+
+// 2. Two sets that bind a different number of values. That is two statements
+// and not one batch, so the call must throw and the transaction must end.
+try {
+    $db->transaction(fn (Core\Db\Transaction $tx): uint => {
+        array<array<mixed>> $uneven = [
+            [Core\Db::inList([1, 2])],
+            [Core\Db::inList([1, 2, 3])],
+        ];
+        return $tx->executeMany('select id from notes where id in (?)', $uneven);
+    });
+    echo "2 the uneven batch ran\n";
+} catch (Throwable $error) {
+    echo "2 the uneven batch was refused\n";
+}
+
+// 3. Ten thousand batches refused for the same reason, all inside one
+// transaction. Ten thousand errors may not fill the memory.
+uint $refusals = $db->transaction(fn (Core\Db\Transaction $tx): uint => {
+    array<array<mixed>> $mixed = [];
+    $mixed[] = ['first', 'name' => 'second'];
+    uint $failed = 0;
+    uint $i = 0;
+    while ($i < 10000) {
+        try {
+            $tx->executeMany('insert into notes (text) values (?)', $mixed);
+        } catch (Throwable $error) {
+            $failed = $failed + 1;
+        }
+        $i = $i + 1;
+    }
+    return $failed;
+});
+echo '3 refused: ', $refusals, "\n";
+
+// 4. Half a million sets written in one batch, and then given up on. The
+// program must write them or stop at a limit, and it must keep none of them.
+try {
+    $db->transaction(fn (Core\Db\Transaction $tx): void => {
+        array<array<mixed>> $many = [];
+        uint $i = 0;
+        while ($i < 500000) {
+            $many[] = ['row ' . ($i as string)];
+            $i = $i + 1;
+        }
+        $tx->executeMany('insert into notes (text) values (?)', $many);
+        $tx->rollBack('never keep this');
+    });
+    echo "4 half a million sets were kept\n";
+} catch (Throwable $gone) {
+    echo "4 half a million sets were given up\n";
+}
+echo '4 kept: ', $db->query('select id from notes', [])->count(), "\n";
+
+// 5. The connection after all of that. An ordinary write still works, so no
+// transaction was left open.
+$db->execute('insert into notes (text) values (?)', ['the last row']);
+echo "5 still usable\n";
+
+$db->close();

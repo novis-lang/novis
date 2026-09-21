@@ -1,0 +1,57 @@
+--TEST--
+One batch refused at its second run leaves its first run in place on a `Core\Db\Connection` and takes it back out on a `Core\Db\Transaction`, so § 4's "a batch is not a transaction" is a statement about the receiver — `rule:core-classes/db-statement-members`, `rule:core-classes/db-transactions` and `rule:classes/no-traits`
+--FILE--
+<?nvs
+// covers: Core\Db\Transaction::executeMany
+use Core\Db;
+use Core\Db\DbError;
+use Core\Db\Transaction;
+
+// One statement run three times, refused at its second run by the unique
+// index. Both receivers are asked the identical question, because what differs
+// is the handle and not the batch: `rule:classes/no-traits`'s delegation gives them one body,
+// and § 7 is the only thing that acts between the runs.
+var $db = Db::connect("main");
+$db->execute("create table t (id integer primary key, name text not null unique)", []);
+$db->execute("insert into t (name) values (?)", ["ada"]);
+
+array<array<mixed>> $rows = [["bo"], ["ada"], ["chen"]];
+
+// On the connection each run stands on its own, so the row the first run wrote
+// is still there after the second is refused.
+try {
+    $db->executeMany("insert into t (name) values (?)", $rows);
+    echo "the connection ran the whole batch\n";
+} catch (DbError $refused) {
+    echo "connection stopped\n";
+}
+echo "after the connection ", $db->query("select id from t", [])->count(), "\n";
+
+// Back to one row, so the two halves are asked the same question.
+$db->execute("delete from t where name = ?", ["bo"]);
+
+// Through a transaction the refusal travels out of the closure, and the row the
+// first run wrote goes back out with it. Counting rather than reading a line is
+// what makes this fail for a member that committed each run of the batch.
+try {
+    $db->transaction(fn (Transaction $tx): uint =>
+        $tx->executeMany("insert into t (name) values (?)", $rows));
+    echo "the transaction ran the whole batch\n";
+} catch (DbError $refused) {
+    echo "transaction stopped\n";
+}
+echo "after the transaction ", $db->query("select id from t", [])->count(), "\n";
+--FILE nvs.toml--
+# § 3: a SQLite connection's file path comes from its config block, and
+# `:memory:` gives this case a database nothing else has written to.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+connection stopped
+after the connection 2
+transaction stopped
+after the transaction 1
