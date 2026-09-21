@@ -1,0 +1,56 @@
+<?nvs
+// Attack: a program asks for a key under numbers of rounds and salts that
+// should not be allowed. Too few rounds make the key cheap to attack, and too
+// many tie the machine up. A short salt lets one table of guesses cover every
+// user. Every call below should throw an error the program can catch.
+
+bytes $salt = Core\Bytes::fill(16, 65);
+secret string $password = 'correct horse battery staple';
+
+// 1. Counts under the floor, including zero and one. Caught here, so the next
+// step still runs.
+array<uint> $tooFew = [0, 1, 99999];
+foreach ($tooFew as uint $rounds) {
+    try {
+        Core\Crypto::deriveKey($password, $salt, $rounds);
+        echo '1 derived a key under the floor', "\n";
+    } catch (Throwable $e) {
+        echo '1 refused', "\n";
+    }
+}
+
+// 2. Counts over the ceiling, up to the largest number this argument can hold.
+// The refusal has to come before the work, or the call itself is the attack.
+array<uint> $tooMany = [2000001, 4000000000, 18446744073709551615];
+foreach ($tooMany as uint $rounds) {
+    try {
+        Core\Crypto::deriveKey($password, $salt, $rounds);
+        echo '2 derived a key over the ceiling', "\n";
+    } catch (Throwable $e) {
+        echo '2 refused', "\n";
+    }
+}
+
+// 3. Salts that are too short, ending one byte under the shortest one allowed.
+array<uint> $widths = [0, 1, 15];
+foreach ($widths as uint $width) {
+    try {
+        Core\Crypto::deriveKey($password, Core\Bytes::fill($width, 65), 100000);
+        echo '3 derived a key from a short salt', "\n";
+    } catch (Throwable $e) {
+        echo '3 refused', "\n";
+    }
+}
+
+// 4. A password of one million characters and a salt of one million bytes. Both
+// are allowed, so what is under attack here is the memory they take.
+secret string $long = Core\Str::repeat('a', 1000000);
+secret bytes $fromLong = Core\Crypto::deriveKey($long, $salt, 100000);
+secret bytes $fromWideSalt = Core\Crypto::deriveKey($password, Core\Bytes::fill(1000000, 7), 100000);
+echo '4 both derived, and they differ: ', ($fromLong != $fromWideSalt ? 'yes' : 'no'), "\n";
+
+// 5. A password that is not text a person could type: one million zero bytes,
+// as one string.
+secret string $zeroes = Core\Str::repeat("\u{0}", 1000000);
+secret bytes $fromZeroes = Core\Crypto::deriveKey($zeroes, $salt, 100000);
+echo '5 derived from zero bytes: ', ($fromZeroes != $fromLong ? 'yes' : 'no'), "\n";

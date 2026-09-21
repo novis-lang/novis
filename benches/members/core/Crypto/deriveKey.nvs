@@ -1,0 +1,28 @@
+<?nvs
+// Measures making a key from a password at the lowest number of rounds allowed.
+// A program does this once when somebody signs in.
+// bench: iterations 20
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        bytes $salt = Core\Bytes::fill(16, 65);
+        array<string> $passwords = ["correct horse battery staple", "hunter2 and then some"];
+        array<secret bytes> $known = [
+            Core\Crypto::deriveKey($passwords[0], $salt, 100000),
+            Core\Crypto::deriveKey($passwords[1], $salt, 100000),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The password of every round is chosen by the round before it, so
+            // no round can be left out.
+            int $which = ($total % 2) as int;
+            secret bytes $key = Core\Crypto::deriveKey($passwords[$which], $salt, 100000);
+            $total = $total + (($key == $known[$which] ? 1 : 0) as uint);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(20), "\n";
