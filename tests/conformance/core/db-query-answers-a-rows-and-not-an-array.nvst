@@ -2,6 +2,7 @@
 `query` answers a `Core\Db\Rows`, so a result set is a type of its own rather than the array `fetchAll` hands back — `rule:core-classes/db-statement-members` and `rule:core-classes/db-column-types`, spec § 18
 --FILE--
 <?nvs
+// covers: Core\Db\Connection::query
 // `rule:core-classes/db-statement-members` makes `Core\Db\Connection::query` the buffered member — every
 // row is read before it answers, and the connection is free again — and what
 // it answers with is a `Db\Rows` rather than an array. The difference is § 6's:
@@ -15,6 +16,6 @@ array<mixed> $wrong = $db->query("select 1", []);
 
 --EXPECTF-ERROR--
 error[E0401]: expected `array<mixed>`, found `Core\Db\Rows<Core\Db\Row>`
-   --> case.nvs:10:23
+   --> case.nvs:11:23
 %A
 error: aborting due to 1 error

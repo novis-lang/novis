@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to read the rows of a `select`, one row at a time.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table notes (id integer primary key, text text not null)', []);
+$db->execute('insert into notes (text) values (?), (?), (?)', ['buy milk', 'call Ana', 'book train']);
+
+// `query` returns every row of the statement. This prints the three notes,
+// one per line, with the id in front.
+foreach ($db->query('select id, text from notes order by id', []) as Core\Db\Row $row) {
+    echo $row->int('id') ?? 0, ': ', $row->string('text') ?? '', "\n";
+}
+
+$db->close();

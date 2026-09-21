@@ -1543,6 +1543,93 @@ mod tests {
         drop(peer);
     }
 
+    /// [ADR 0067 § 4](/docs/decisions/0067.md)'s buffered read, which is the
+    /// whole difference between `query` and `stream`: every row is in memory
+    /// before the call returns, and the connection is free from that moment.
+    ///
+    /// **Asserted on a real engine**, because a claim about buffering that
+    /// never stepped a statement would be a claim about this crate's guess at
+    /// one. [`sqlite_rows`] is the arm [`queried_rows`] takes for this driver,
+    /// and what it answers is exactly the two arrays a `Core\Db\Rows` is built
+    /// from — so the member's own shape is what is read here, one layer under
+    /// the receiver this crate cannot build (the playbook's bullet owns why).
+    ///
+    /// Three claims, because the first two alone look right: the result holds
+    /// every row before anything walks it, the descriptions belong to the
+    /// statement rather than to a row, and the connection runs the next
+    /// statement with the first result still in hand. A member that streamed
+    /// would pass the first two and fail the third.
+    ///
+    /// The `.nvst` half runs the same read through a program, where `count`
+    /// and the walk are reached the way a caller reaches them.
+    // covers: Core\Db\Connection::query
+    #[test]
+    fn a_read_holds_every_row_before_it_returns_and_frees_the_connection() {
+        let block = nvs_config::tree::Database {
+            driver: Some(String::from("sqlite")),
+            path: Some(String::from(":memory:")),
+            ..nvs_config::tree::Database::default()
+        };
+        let target = nvs_db::SqliteTarget::resolve(&block).expect("a `sqlite` block resolves");
+        let mut conn = nvs_db::sqlite::open(&target).expect("an in-memory database opens");
+        conn.query(
+            "create table notes (id integer primary key, text text not null)",
+            Vec::new(),
+        )
+        .expect("the schema is applied");
+        conn.query(
+            "insert into notes (text) values ('buy milk'), ('call Ana'), ('book train')",
+            Vec::new(),
+        )
+        .expect("the rows are written");
+
+        // The statement a bound `query` reaches this arm with: § 5's rewrite has
+        // already run, so the text is in the driver's own placeholder spelling
+        // and the binds are in the *statement's* order.
+        let ctx = nvs_runtime::Ctx::buffered();
+        let statement = crate::db::bind::Statement {
+            key: 0,
+            block: Value::null(),
+            sql: String::from("select id, text from notes where id >= ? order by id"),
+            binds: crate::db::bind::Binds::Sqlite(vec![nvs_db::SqliteValue::Int(2)]),
+        };
+        let (answered, _) = sqlite_rows(
+            &mut conn,
+            &statement,
+            None,
+            crate::db::span::QueryWatch::named(&ctx, None),
+            "query",
+        )
+        .expect("a `select` over an open connection answers its rows");
+
+        // 1. Every row is already in the array. Nothing has walked the result,
+        //    and the count is the server's rather than a guess at it.
+        assert_eq!(
+            answered.rows.count(),
+            2,
+            "a buffered read answered a result that does not hold every row"
+        );
+
+        // 2. One description per column the *statement* named, and not per cell
+        //    of a row — `id` and `text`, whatever the rows under them hold.
+        assert_eq!(
+            answered.columns.count(),
+            2,
+            "the descriptions do not describe the statement's own columns"
+        );
+
+        // 3. And the connection is free with the result still in hand, which is
+        //    what `stream` cannot say: its walk holds the connection until the
+        //    rows are gone.
+        conn.query("insert into notes (text) values ('pay rent')", Vec::new())
+            .expect("the connection is free the moment the read returns");
+        assert_eq!(
+            answered.rows.count(),
+            2,
+            "the result changed under a statement that ran after it"
+        );
+    }
+
     /// One row of [`one_sqlite_cell_reads_as_five_things_under_five_declarations`]'s
     /// sweep: a declared type, a cell every row of the sweep shares the storage
     /// class of, and the question the answer has to say yes to.

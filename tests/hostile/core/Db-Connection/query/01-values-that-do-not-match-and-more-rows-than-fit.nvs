@@ -1,0 +1,68 @@
+<?nvs
+// Attack: thousands of reads whose values do not match the statement, and a
+// statement and a value of millions of characters. The last step reads more
+// rows than the program may hold, and should stop it at its memory limit.
+// Nothing here may crash.
+// hostile: timeout-ms 60000
+// hostile: ends-early
+// dossier: known-gap crates/nvs-stdlib/src/db/mod.rs -- a buffered read is not held to the request's memory ceiling, so step 6 reads far past it instead of stopping the program
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table notes (id integer primary key, text text not null)', []);
+$db->execute('insert into notes (text) values (?)', ['buy milk']);
+
+// The two statements below are built while the program runs, so the compiler
+// cannot read them. These attacks want the check the call itself makes.
+string $byName = 'select text from notes where text = ' . Core\Str::repeat(':missing', 1);
+string $byPlace = 'select text from notes where text = ? or text = ' . Core\Str::repeat('?', 1);
+
+// 1. Ten thousand reads whose `:missing` names no value. Every one throws an
+// error, and ten thousand errors may not fill the memory.
+uint $refused = 0;
+uint $i = 0;
+while ($i < 10000) {
+    try {
+        $db->query($byName, ['other' => 'x']);
+    } catch (Throwable $error) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo '1 refused: ', $refused, "\n";
+
+// 2. Ten thousand reads with two markers and one value. Every one throws.
+$refused = 0;
+$i = 0;
+while ($i < 10000) {
+    try {
+        $db->query($byPlace, ['buy milk']);
+    } catch (Throwable $error) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo '2 refused: ', $refused, "\n";
+
+// 3. A statement of two million characters. No database knows it, so it must
+// be refused instead of run.
+try {
+    $db->query(Core\Str::repeat('select ', 250000), []);
+    echo "3 the long statement ran\n";
+} catch (Throwable $error) {
+    echo "3 the long statement was refused\n";
+}
+
+// 4. A value of ten million characters. The search finds no row, and the
+// connection must still work after it.
+try {
+    $db->query('select text from notes where text = ?', [Core\Str::repeat('a', 10000000)]);
+    echo "4 the long value was searched for\n";
+} catch (Throwable $error) {
+    echo "4 the long value was refused\n";
+}
+echo '5 still connected: ', $db->isOpen() ? 'yes' : 'no', "\n";
+
+// 6. A search that builds a gigabyte of rows, where this program may hold 256
+// megabytes. `query` reads every row into memory, so this step ends it.
+$db->query('with recursive many(n) as (select 1 union all select n + 1 from many where n < 10000) select n, hex(zeroblob(50000)) as filler from many', []);
+echo "6 a gigabyte of rows fitted in a 256 megabyte limit\n";

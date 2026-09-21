@@ -1,0 +1,23 @@
+<?nvs
+// Shows a report a program really writes: one statement with named values,
+// and a total built from the rows it returns.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table orders (id integer primary key, customer text not null, cents int not null, day text not null)', []);
+$db->execute('insert into orders (customer, cents, day) values (?, ?, ?), (?, ?, ?), (?, ?, ?), (?, ?, ?)', ['Ana', 1200, '2026-01-04', 'Ana', 800, '2026-01-19', 'Bo', 4500, '2026-01-22', 'Bo', 300, '2026-02-02']);
+
+// A `:name` marks each value, and the same names are the keys of the second
+// argument. A long statement is easier to read this way than with `?`.
+var $rows = $db->query('select customer, sum(cents) as spent from orders where day >= :from and day <= :to group by customer order by spent desc', ['from' => '2026-01-01', 'to' => '2026-01-31']);
+
+// This prints one line per customer, then the total of all of them. The order
+// of February is outside the two dates, so it is not counted.
+int $total = 0;
+foreach ($rows as Core\Db\Row $row) {
+    int $spent = $row->int('spent') ?? 0;
+    $total = $total + $spent;
+    echo $row->string('customer') ?? '', ': ', $spent, "\n";
+}
+echo 'total: ', $total, "\n";
+
+$db->close();

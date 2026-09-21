@@ -1,0 +1,24 @@
+<?nvs
+// Shows the three ways to read a result without writing a loop over it: how
+// many rows there are, what the first row is, and every row as an array.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table notes (id integer primary key, text text not null)', []);
+$db->execute('insert into notes (text) values (?), (?), (?)', ['buy milk', 'buy bread', 'call Ana']);
+
+var $found = $db->query('select id, text from notes where text like ? order by id', ['buy%']);
+
+// `count()` is the number of rows. This prints 2.
+echo $found->count(), "\n";
+
+// `first()` is the first row, or `null` when the search found nothing.
+// This prints `buy milk`.
+echo $found->first()?->string('text') ?? 'nothing found', "\n";
+
+// `all()` is every row as an array. The rows are already in memory, so
+// reading them a second time needs no second statement.
+foreach ($found->all() as Core\Db\Row $row) {
+    echo '- ', $row->string('text') ?? '', "\n";
+}
+
+$db->close();

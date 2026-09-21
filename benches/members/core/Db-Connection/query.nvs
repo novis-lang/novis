@@ -1,0 +1,28 @@
+<?nvs
+// Measures one `select` that reads a few rows, as a program does when it shows
+// a page of a list.
+// bench: iterations 20000
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $db = Core\Db::connect('notes');
+        $db->execute('create table notes (id integer primary key, n int not null)', []);
+        uint $written = 0;
+        while ($written < 10) {
+            $db->execute('insert into notes (n) values (?)', [$written as int]);
+            $written = $written + 1;
+        }
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The rows read so far choose the value bound below. The count then
+            // grows by what this read returns, so the loop cannot be left out.
+            var $rows = $db->query('select n from notes where n >= ? order by n', [($total % 10) as int]);
+            $total = $total + $rows->count();
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(20000), "\n";

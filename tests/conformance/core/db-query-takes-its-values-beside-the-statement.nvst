@@ -2,6 +2,7 @@
 `query` takes its values beside the statement and a one-argument call is refused, so there is no spelling that leaves a placeholder unbound — `rule:core-classes/db-one-api` and `rule:core-classes/db-statement-members`
 --FILE--
 <?nvs
+// covers: Core\Db\Connection::query
 // `rule:core-classes/db-one-api`: there is **no `prepare` step**. `Core\Db\Connection::query`
 // takes the SQL and the parameters together, and the per-connection statement
 // cache is what a separate `prepare` would have bought — so `PDO`'s two
@@ -21,6 +22,6 @@ var $bare = $db->query("select 1");
 
 --EXPECTF-ERROR--
 error[E0402]: expected 2 to 3 argument(s), found 1
-   --> case.nvs:16:13
+   --> case.nvs:17:13
 %A
 error: aborting due to 1 error
