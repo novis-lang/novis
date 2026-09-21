@@ -1,0 +1,33 @@
+<?nvs
+// Measures reading back what a short line of terminal text says. A tool meets
+// this when it writes the same line to a log as well as to the screen.
+// bench: iterations 400000
+// bench: calls 0
+// bench: allocations 3
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        var $style = Core\Cli\Style::of({color: Core\Cli\Color::GREEN});
+        array<Core\Cli\Text> $lines = [
+            Core\Cli\Text::styled("ok", $style),
+            Core\Cli\Text::plain("customer"),
+            Core\Cli\Text::styled("shipping address", $style),
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // Which of the three lines is read comes from last round's total,
+            // so no round can be left out.
+            Core\Cli\Text $line = $lines[($total % 3) as int];
+            uint $step = 1;
+            if ($line->text() == "ok") {
+                $step = 2;
+            }
+            $total = $total + $step;
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(400000), "\n";

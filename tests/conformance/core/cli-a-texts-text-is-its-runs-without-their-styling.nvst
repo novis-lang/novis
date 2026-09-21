@@ -2,6 +2,7 @@
 `Core\Cli\Text::text` answers the text of every run joined and leaves the styling out — `rule:tooling/styling-is-a-value-not-a-grammar`
 --FILE--
 <?nvs
+// covers: Core\Cli\Text::text
 // A `Text` holds runs — a body and the `Cli\Style` that body wears — so reading
 // one answers what it says rather than how it will look. That holds whether or
 // not the stream it would be written to is a terminal, which is why this case

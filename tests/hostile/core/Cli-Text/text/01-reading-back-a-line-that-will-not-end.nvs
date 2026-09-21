@@ -1,0 +1,41 @@
+<?nvs
+// Attack: huge pieces of terminal text are read back, over and over. The
+// reading must not run out of memory, and must never give back a terminal
+// command. The program must run to its last line.
+// hostile: timeout-ms 60000
+
+var $red = Core\Cli\Style::of({ color: Core\Cli\Color::RED });
+
+// 1. A million characters wearing a style, read back once.
+var $big = Core\Cli\Text::styled(Core\Str::repeat('a', 1000000), $red);
+echo 'step 1 read ', Core\Str::length($big->text()), " characters\n";
+
+// 2. The same text read back a thousand times. Each string is finished with
+//    before the next one is made.
+uint $reads = 0;
+while ($reads < 1000) {
+    string $back = $big->text();
+    $reads = $reads + 1;
+}
+echo 'step 2 read it ', $reads, " times\n";
+
+// 3. Ten thousand pieces joined into one, then read back. The reading walks
+//    every piece.
+var $joined = Core\Cli\Text::plain('start');
+uint $at = 0;
+while ($at < 10000) {
+    $joined = $joined + Core\Cli\Text::styled('x', $red);
+    $at = $at + 1;
+}
+echo 'step 3 read ', Core\Str::length($joined->text()), " characters\n";
+
+// 4. Text full of terminal commands, read back and made into terminal text
+//    again. The second reading must give the same string as the first.
+var $loud = Core\Cli\Text::styled("\u{1B}[2J\u{1B}]0;whoami\u{7}", $red);
+string $once = $loud->text();
+string $twice = Core\Cli\Text::plain($once)->text();
+if ($once == $twice) {
+    echo "step 4 reads the same string twice\n";
+} else {
+    echo "step 4 changed the string on the way\n";
+}

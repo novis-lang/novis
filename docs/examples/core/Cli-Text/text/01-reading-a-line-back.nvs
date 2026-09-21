@@ -1,0 +1,14 @@
+<?nvs
+// Shows how to read back what a piece of terminal text says. The styling is
+// left out, so what you get is a plain string.
+
+var $warn = Core\Cli\Style::of({color: Core\Cli\Color::YELLOW, bold: true});
+var $line = Core\Cli\Text::styled("disk almost full", $warn);
+
+// This prints "disk almost full". The colour is not part of the string.
+echo $line->text(), "\n";
+
+// A sum of several pieces reads back as their text in order, so this prints
+// "disk almost full: 2 GB left".
+var $whole = $line + Core\Cli\Text::plain(": 2 GB left");
+echo $whole->text(), "\n";
