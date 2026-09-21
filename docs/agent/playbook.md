@@ -6560,6 +6560,19 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   million times and says nothing about the other. Vary the increment by what the round answered, or
   add `$i` to it, and read the printed total before recording a figure: a total that is exactly
   `rounds * <one weight>` is the tell. [until: reviewed 2026-09-21]
+- **A proof program that reads a file is refused under a plain `nvs run`, and no example, attack or
+  bench in the tree had ever opened one.** `Core\IO::open` throws `needs the capability fs.read …
+  which is not granted`, because a capability is granted only by an `[[app]] entry = "<path>"` block
+  in the repository's own `nvs.toml`. Write one block per proof program before writing the program —
+  `nvs.toml`'s `examples/files.nvs` and `examples/capability.nvs` blocks are the two shapes, one
+  whole-directory and one narrow. [until: reviewed 2026-09-21]
+
+- **A member's row in `docs/perf/members.ndjson` goes stale on any edit to its implementing file,
+  the module doc included.** Recording a figure costs a full `--release` build, so a `# Known gaps`
+  paragraph written after the measurement buys that build a second time — `dossier.py --id
+  '<member>'` then reports `perf stale: <file> changed since it was last measured` over a figure
+  nothing about the member changed. Land every edit the slice makes to the implementing file first
+  and run `dossier.py --record-perf` once, last. [until: reviewed 2026-09-21]
 
 ## Splitting a file that got too big
 

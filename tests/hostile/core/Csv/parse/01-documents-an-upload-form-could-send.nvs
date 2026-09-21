@@ -1,0 +1,48 @@
+<?nvs
+// Attack: a program reads documents that somebody uploaded. It tries a quoted
+// field that is never closed, a record with two hundred thousand fields, and a
+// quoted field of eight megabytes. Every one of them has to give a result or an
+// error, and none of them may stop the program.
+// hostile: timeout-ms 30000
+
+// 1. Documents that are broken or cut short. Reading one must not end the
+// program, so every error is caught here.
+array<string> $broken = [
+    "\"",
+    "\"a,b",
+    "a,\"b\"\"",
+    "\r",
+    "\n\n\n",
+    "a,b\n\"never closed",
+    ',,,,',
+    "\"\"\"\"\"\"\"\"",
+];
+uint $read = 0;
+uint $refused = 0;
+foreach ($broken as string $document) {
+    try {
+        var $records = Core\Csv::parse($document);
+        $read = $read + 1;
+    } catch (Throwable $e) {
+        $refused = $refused + 1;
+    }
+}
+echo '1 broken documents read: ', $read, ', refused: ', $refused, ', of 8', "\n";
+
+// 2. One record of two hundred thousand fields, and the same text read with the
+// first record taken as the column names.
+string $wide = Core\Str::repeat('a,', 200000) . "last\n";
+var $wideRecords = Core\Csv::parse($wide);
+echo '2 fields in one record: ', Core\Arr::count($wideRecords[0]), "\n";
+echo '2 records under a header of that width: ',
+    Core\Arr::count(Core\Csv::parse($wide . "1,2\n", { header: true })), "\n";
+
+// 3. Two hundred thousand records of three fields each.
+string $tall = Core\Str::repeat("a,b,c\n", 200000);
+echo '3 records: ', Core\Arr::count(Core\Csv::parse($tall)), "\n";
+
+// 4. A quoted field of eight megabytes that is never closed. The reader has to
+// read all of it before it can decide what the document holds.
+string $unclosed = '"' . Core\Str::repeat('x', 8000000);
+var $huge = Core\Csv::parse($unclosed);
+echo '4 fields in the unclosed record: ', Core\Arr::count($huge[0]), "\n";

@@ -2,39 +2,48 @@
 
 ## State
 
-Goal `core-csrf-and-3-more`, items 1 and 2 of 12 are done. `Core\Csrf::issue` and
-`Core\Csrf::verify` each carry every feature proof `rule:testing/feature-proofs` names:
-`about.md`, three examples with blessed `.out` files, one attack, one bench, and a Rust test
-carrying the member's own `covers:` marker. Both figures are appended to
-`docs/perf/members.ndjson`, and the `calls 0` each bench declares held.
+Goal `core-csrf-and-3-more`, items 1 to 4 of 12 are done. `Core\Csrf::issue`, `Core\Csrf::verify`,
+`Core\Csv::format` and `Core\Csv::parse` each carry every feature proof
+`rule:testing/feature-proofs` names: `about.md`, three examples with blessed `.out` files, one
+attack, one bench, and a Rust test carrying the member's own `covers:` marker. Both `Core\Csv`
+figures are in `docs/perf/members.ndjson`, and the `calls 0` each bench declares held.
 
-No proof found a bug. Every forged token in both attacks was refused, a session of sixteen
-megabytes is bound and checked with the runtime still standing, and a `$key` that is not 32
-octets is the only throw either member has.
+Neither attack found a bug: every field built out of the dialect's own bytes survives `format` then
+`parse` unchanged, every disallowed dialect is refused, and a document an upload form could send —
+an unclosed quoted field of eight megabytes, a record of two hundred thousand fields — is read with
+the runtime still standing. **The bench did find something**, and it is written up as
+`crates/nvs-stdlib/src/csv.rs`'s first `# Known gaps` item, owner M12: `parse` spends about 11 µs
+per call before it reads a byte, against `format`'s 120 ns for the same table, and the cost is fixed
+per call rather than per byte — an empty document costs the same.
 
-`Core\Csv` and `Core\Db` (items 3 to 12) are untouched. Nothing is blocked.
+`Core\Csv::rows` (item 5) and the seven `Core\Db` items are untouched. Nothing is blocked.
 
 ## Next group
 
 **Stage: one slice is one feature with all its proofs** — one file set:
-`crates/nvs-stdlib/src/csv.rs`, plus `docs/examples/core/Csv/`, `tests/hostile/core/Csv/` and
-`benches/members/core/Csv/`. `python tools/dossier.py --id '<feature>'` prints the path of
-each proof, and `--comments <paths>` counts the three bounds before the wrap does.
+`crates/nvs-stdlib/src/csv.rs`, `docs/examples/core/Csv/rows/`, `tests/hostile/core/Csv/rows/`,
+`benches/members/core/Csv/rows.nvs` and `nvs.toml`. `python tools/dossier.py --id '<feature>'`
+prints the path of each proof, and `--comments <paths>` counts the three bounds before the wrap
+does.
 
-- [ ] **`Core\Csv::format`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/csv.rs:211`
-- [ ] **`Core\Csv::parse`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/csv.rs:202`
 - [ ] **`Core\Csv::rows`** — owes examples, hostile, perf, tests. `crates/nvs-stdlib/src/csv.rs:223`
+      Every proof program has to open a file, which no program under `docs/examples/`,
+      `tests/hostile/` or `benches/members/` does yet; the capability block each one needs is the
+      playbook bullet above, and the member is reached as `Core\IO::open($path,
+      Core\IO\FileMode::Read)` and then `foreach (Core\Csv::rows($file) as array<string> $record)`.
+- [ ] **`Core\Db::inList`** — owes examples, hostile, perf, tests.
+      `crates/nvs-stdlib/src/db/registry.rs:183`
+- [ ] **`Core\Db::quoteIdentifier`** — owes examples, hostile, perf, tests.
+      `crates/nvs-stdlib/src/db/registry.rs:192`
 
-The two tests at the foot of `crates/nvs-stdlib/src/csrf.rs` are the shape for the Rust half:
-a member is driven through `nvs_runtime::call` the way a compiled call site drives it, and the
-frame releases every `Value` it built. Write that test before `--bless` and `--record-perf`,
-because each of those rebuilds `target/release/nvs` when any Rust file is newer.
+The two `Core\Db` members above are the pair that needs no connection, so they share
+`crates/nvs-stdlib/src/db/registry.rs` and nothing else; take them together, and leave
+`Core\Db::connect` and `Core\Db::open` to the session that works out how a proof program reaches a
+database.
 
 ## Backlog
 
-- Items 6 to 12 (`Core\Db`, `Core\Db\Column`) share `crates/nvs-stdlib/src/db/registry.rs`;
-  the playbook's `-p nvs-stdlib` bullets say only a driver-free member is reachable from a
-  Rust test there. `docs/agent/goals/dossier/104-core-csrf-and-3-more.md` is the list.
-- `Core\Csrf::issue` measures 1101 ns/op with 5 allocations per token and `Core\Csrf::verify`
-  1150 ns/op with 3. Nothing gates either; `docs/perf/members.ndjson` is what a later change
-  is re-measured against.
+- `Core\Db::connect`, `Core\Db::open`, `Core\Db\Column::name`, `::nullable`, `::type` — the rest of
+  this goal's twelve, `docs/agent/loop-goal.md`.
+- A `Core\Db` proof needs a reachable database; `crates/nvs-stdlib/tests/queue_sqlite.rs` is the one
+  driver that needs no container, and `nvs_db::sqlite::open` is how it gets one.

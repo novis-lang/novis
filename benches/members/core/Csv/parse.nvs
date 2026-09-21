@@ -1,0 +1,28 @@
+<?nvs
+// Measures reading a small CSV document, as a program does for every upload it
+// accepts.
+// bench: iterations 100000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        array<string> $documents = [
+            "fig,2,3.50\napple,10,0.40\n",
+            "\"Beans, dried\",500 g,4.10\ntin,2,9.99\n",
+            "pear,7,1.20\nplum,3,2.05\n",
+        ];
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            // The document of every round is chosen by the records read so far,
+            // so the loop cannot be left out.
+            int $which = ($total % 3) as int;
+            var $records = Core\Csv::parse($documents[$which]);
+            $total = $total + Core\Arr::count($records);
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(100000), "\n";
