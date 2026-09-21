@@ -403,7 +403,7 @@ fn a_brace_that_is_not_a_capture_reference_is_refused() {
         "{{1}}",
     ] {
         for block in [
-            format!("prefix = \"/fw/{written}.dev\"\n"),
+            format!("prefix = \"/sites/{written}.web\"\n"),
             format!("prefix = \"/{{1}}\"\nhost = \"{written}.dev\"\n"),
             format!("prefix = \"/{{1}}\"\norigin = \"https://{written}.dev\"\n"),
         ] {
@@ -414,7 +414,7 @@ fn a_brace_that_is_not_a_capture_reference_is_refused() {
     }
     // The refusal names what was written, so the operator is not left to find the brace.
     let refused = checked(
-        "[server]\n\n[[server.mount]]\nscan = \"*/index.nvs\"\nprefix = \"/fw/{1:upper}.dev\"\n",
+        "[server]\n\n[[server.mount]]\nscan = \"*/index.nvs\"\nprefix = \"/sites/{1:upper}.web\"\n",
     );
     assert!(
         refused.message.contains("`{1:upper}`"),
@@ -423,7 +423,7 @@ fn a_brace_that_is_not_a_capture_reference_is_refused() {
     );
     // A reference past the last `*` is still that refusal with a transform on it.
     let refused = checked(
-        "[server]\n\n[[server.mount]]\nscan = \"*/index.nvs\"\nprefix = \"/fw/{2:lower}.dev\"\n",
+        "[server]\n\n[[server.mount]]\nscan = \"*/index.nvs\"\nprefix = \"/sites/{2:lower}.web\"\n",
     );
     assert!(refused.message.contains("`{2}`"), "{}", refused.message);
 }
@@ -435,25 +435,25 @@ fn a_brace_that_is_not_a_capture_reference_is_refused() {
 /// and the entry path is the disk's. Only the text the transform was written in changes.
 #[test]
 fn a_lower_transform_writes_the_capture_in_lower_case() {
-    let fs = Fake::with(&["/www/CMB/public/index.nvs", "/www/Orgmap/public/index.nvs"]);
+    let fs = Fake::with(&["/www/Blog/public/index.nvs", "/www/Shop/public/index.nvs"]);
     let mounts = table(
         &fs,
         "[server]\nroot = \"/www\"\n\n[[server.mount]]\nscan = \"*/public/index.nvs\"\n\
-         prefix = \"/fw/{1:lower}.dev\"\norigin = \"https://{1:lower}.example.com/{1}\"\n",
+         prefix = \"/sites/{1:lower}.web\"\norigin = \"https://{1:lower}.example.com/{1}\"\n",
     );
     assert_eq!(
         mounts
             .iter()
             .map(|one| one.prefix.clone())
             .collect::<Vec<_>>(),
-        vec!["/fw/cmb.dev".to_string(), "/fw/orgmap.dev".to_string()]
+        vec!["/sites/blog.web".to_string(), "/sites/shop.web".to_string()]
     );
-    assert_eq!(mounts[0].captures, vec!["CMB".to_string()]);
-    assert_eq!(mounts[0].entry, p("/www/CMB/public/index.nvs"));
+    assert_eq!(mounts[0].captures, vec!["Blog".to_string()]);
+    assert_eq!(mounts[0].entry, p("/www/Blog/public/index.nvs"));
     // Both spellings in one template: the transform belongs to the reference, not to the field.
     assert_eq!(
         mounts[0].origin.as_deref(),
-        Some("https://cmb.example.com/CMB")
+        Some("https://blog.example.com/Blog")
     );
 }
 
@@ -462,7 +462,7 @@ fn a_lower_transform_writes_the_capture_in_lower_case() {
 /// serve one module's URL from the other.
 #[test]
 fn two_captures_a_transform_folds_together_are_a_duplicate() {
-    let fs = Fake::with(&["/www/CMB/public/index.nvs", "/www/cmb/public/index.nvs"]);
+    let fs = Fake::with(&["/www/Blog/public/index.nvs", "/www/blog/public/index.nvs"]);
     let refused = refusal(
         &fs,
         "[server]\nroot = \"/www\"\n\n[[server.mount]]\nscan = \"*/public/index.nvs\"\n\
@@ -476,20 +476,20 @@ fn two_captures_a_transform_folds_together_are_a_duplicate() {
 /// explicit, and § 3's override when one is scanned.
 #[test]
 fn a_host_is_one_key_whatever_case_it_is_written_in() {
-    let fs = Fake::with(&["/www/CMB/public/index.nvs", "/www/other/app.nvs"]);
+    let fs = Fake::with(&["/www/Blog/public/index.nvs", "/www/other/app.nvs"]);
     let mounts = table(
         &fs,
         "[server]\nroot = \"/www\"\n\n[[server.mount]]\nscan = \"*/public/index.nvs\"\n\
          host = \"{1}.Local.Test\"\n",
     );
-    assert_eq!(mounts[0].host.as_deref(), Some("cmb.local.test"));
-    assert_eq!(mounts[0].captures, vec!["CMB".to_string()]);
+    assert_eq!(mounts[0].host.as_deref(), Some("blog.local.test"));
+    assert_eq!(mounts[0].captures, vec!["Blog".to_string()]);
 
     // An explicit block in another case overrides the scanned one rather than sitting beside it.
     let mounts = table(
         &fs,
         "[server]\nroot = \"/www\"\n\n[[server.mount]]\nscan = \"*/public/index.nvs\"\n\
-         host = \"{1}.local.test\"\n\n[[server.mount]]\nhost = \"cmb.LOCAL.test\"\n\
+         host = \"{1}.local.test\"\n\n[[server.mount]]\nhost = \"blog.LOCAL.test\"\n\
          entry = \"other/app.nvs\"\n",
     );
     assert_eq!(mounts.len(), 1);
@@ -500,7 +500,7 @@ fn a_host_is_one_key_whatever_case_it_is_written_in() {
         &fs,
         "[server]\nroot = \"/www\"\n\n[[server.mount]]\nhost = \"A.example.com\"\n\
          entry = \"other/app.nvs\"\n\n[[server.mount]]\nhost = \"a.example.com\"\n\
-         entry = \"CMB/public/index.nvs\"\n",
+         entry = \"Blog/public/index.nvs\"\n",
     );
     assert_eq!(refused.code, Some(code::E_BAD_MOUNT));
 }

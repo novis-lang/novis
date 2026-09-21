@@ -74,8 +74,8 @@ When choosing between designs:
 Each is one sentence here because not knowing it exists is the entire cost. The mechanism, and why, is in
 [docs/agent/commands.md](docs/agent/commands.md), except rules 7 to 9, whose homes are
 [docs/agent/conventions.md](docs/agent/conventions.md) § *A code comment*,
-[docs/agent/grounding.md](docs/agent/grounding.md) and `rule:testing/feature-proofs`, and rule 10, which
-is whole where it stands.
+[docs/agent/grounding.md](docs/agent/grounding.md) and `rule:testing/feature-proofs`, and rules 10 and 11,
+which are whole where they stand.
 
 1. **A shell never carries file content into the tree.** Create and edit files with Write and Edit — never
    a heredoc, a `>` redirect or a `sed -i`, because the shell parses your apostrophes and backticks before
@@ -115,6 +115,13 @@ is whole where it stands.
    harness's own scratchpad or a home directory, whatever a harness offers by default: the user set this
    for every agent and every session, and a file outside the tree is one they cannot see, review or
    clean up.
+11. **Nothing a reporter told you is written into the tree under its own name.** A bug report, a pasted
+   configuration or a log names somebody's modules, namespaces, directories, hosts, URLs and counts, and
+   all of it is theirs: the test, the decision record, the rule, the example, the comment and the commit
+   message that come out of the report use neutral names instead — `Blog`, `Shop`, `Framework`,
+   `example.com` — and say "many" where the report gave a figure. Reproduce the *shape* of what was
+   reported, never its words: this repository is public, and a name copied from a report publishes a
+   piece of somebody's private codebase.
 
 ## Text an end user reads
 
