@@ -28,6 +28,7 @@ try {
 // be refused later — at the first row — rather than where the statement is
 // written. It is not. Naming the walk is what opens the portal, so a released
 // connection is found out at the call and never inside a `foreach`.
+// covers: Core\Db\Connection::stream
 try {
     $db->stream("select id from t", []);
     echo "stream: not refused\n";

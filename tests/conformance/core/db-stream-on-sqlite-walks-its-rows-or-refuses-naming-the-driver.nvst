@@ -9,6 +9,7 @@ Spec § 18's `stream` walks a result set a row at a time and holds the connectio
 // the same three promises against a real server from
 // `crates/nvs-stdlib/tests/db_stream.rs`, which is where a driver that could
 // not park a read would have to name itself and `query` instead.
+// covers: Core\Db\Connection::stream
 var $db = Core\Db::connect("main");
 $db->execute("create table t (id integer primary key, name text)", []);
 $db->executeMany("insert into t (name) values (?)", [["ada"], ["grace"], ["alan"]]);

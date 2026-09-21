@@ -1,0 +1,18 @@
+<?nvs
+// Shows how to read only the first rows of a large table. The statement says
+// how many rows there are, so the walk ends on its own.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table events (id integer primary key, kind text not null)', []);
+$db->execute('insert into events (kind) values (?), (?), (?), (?)', ['open', 'error', 'open', 'error']);
+
+// `limit` bounds the result in the database. Stopping the loop with `break`
+// instead would keep the connection busy until the request ends.
+foreach ($db->stream('select id, kind from events where kind = ? order by id limit 2', ['error']) as Core\Db\Row $row) {
+    echo 'error at ', $row->int('id') ?? 0, "\n";
+}
+
+// The walk read its last row, so the connection is free for this statement.
+echo 'events: ', $db->query('select count(*) as n from events', [])->first()?->int('n') ?? 0, "\n";
+
+$db->close();

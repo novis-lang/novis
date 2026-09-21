@@ -1,0 +1,62 @@
+<?nvs
+// Attack: ten thousand walks over one connection. A statement is attempted in
+// the middle of every one of them. The last walk is over ten million rows and
+// is left after a hundred. Nothing here may crash, and the memory must stay
+// flat.
+// hostile: timeout-ms 60000
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table notes (id integer primary key, text text not null)', []);
+$db->execute('insert into notes (text) values (?), (?), (?)', ['buy milk', 'call Ana', 'book train']);
+
+// 1. Ten thousand walks, each read to its last row. The connection comes back
+// at the end of every one, so a walk that kept it would stop the next one.
+uint $rows = 0;
+uint $i = 0;
+while ($i < 10000) {
+    foreach ($db->stream('select id, text from notes order by id', []) as Core\Db\Row $row) {
+        $rows = $rows + 1;
+    }
+    $i = $i + 1;
+}
+echo '1 rows walked: ', $rows, "\n";
+
+// 2. A second statement in the middle of every walk. The connection is busy
+// until the last row, so all of these are refused.
+uint $refused = 0;
+$i = 0;
+while ($i < 2000) {
+    foreach ($db->stream('select id from notes order by id', []) as Core\Db\Row $row) {
+        try {
+            $db->query('select 1 as n', []);
+        } catch (Throwable $error) {
+            $refused = $refused + 1;
+        }
+    }
+    $i = $i + 1;
+}
+echo '2 refused: ', $refused, "\n";
+
+// 3. A statement no database knows, opened as a walk.
+try {
+    foreach ($db->stream('select from where', []) as Core\Db\Row $row) {
+        echo "3 the broken statement gave a row\n";
+    }
+    echo "3 the broken statement ran\n";
+} catch (Throwable $error) {
+    echo "3 the broken statement was refused\n";
+}
+
+// 4. A result of ten million rows, read for the first hundred and then left.
+// Only one row is held at a time, so the memory stays flat.
+uint $read = 0;
+// A walk left early keeps the connection until the program ends. That is why
+// this is the last step.
+foreach ($db->stream('with recursive many(n) as (select 1 union all select n + 1 from many where n < 10000000) select n, hex(zeroblob(200)) as filler from many', []) as Core\Db\Row $row) {
+    $read = $read + 1;
+    if ($read == 100) {
+        break;
+    }
+}
+echo '4 rows read: ', $read, "\n";
+echo '5 still connected: ', $db->isOpen() ? 'yes' : 'no', "\n";

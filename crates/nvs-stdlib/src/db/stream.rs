@@ -721,6 +721,7 @@ mod tests {
     /// ends and this crate begins: a socket is what no `-p nvs-stdlib` test
     /// has, and `nvs_db::PgConn::stream_next_row` is where the other half of
     /// the member is pinned.
+    // covers: Core\Db\Connection::stream
     #[test]
     fn stream_answers_rows_without_holding_the_result_set() {
         const ROWS: u64 = 1_000;
