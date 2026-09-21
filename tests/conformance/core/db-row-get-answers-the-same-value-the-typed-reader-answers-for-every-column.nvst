@@ -1,0 +1,80 @@
+--TEST--
+`Core\Db\Row::get` answers the same value the reader written for that column's type answers, over every type family, and throws only for a name the row does not carry — `rule:core-classes/db-column-types`
+--FILE--
+<?nvs
+// covers: Core\Db\Row::get
+// One question asked of both readers at once: every column is read by the
+// reader made for its type and by the universal one, and the two have to
+// agree. A universal read that made its own decision about a column's type
+// would still print plausibly on every line that is read only one way. The
+// last two lines are where the two readers differ on purpose: a column with
+// no value answers `null` here, and a name that is no column throws.
+use Core\Db\Row;
+
+var $db = Core\Db::connect("main");
+$db->execute(
+    "create table readings (label text not null, seats int not null, share real not null,
+      price decimal(10,2) not null, missed int)",
+    []
+);
+$db->execute(
+    "insert into readings (label, seats, share, price, missed) values (?, ?, ?, ?, ?)",
+    ["north field", 7, 2.5, "7.25" as decimal, null]
+);
+
+array<Row> $one = $db->query(
+    "select label, seats, share, price, missed from readings",
+    []
+)->all();
+var $row = $one[0];
+
+?string $text = $row->get("label") as ?string;
+if ($text == $row->string("label")) {
+    echo "label: ", $text ?? "", " agrees\n";
+}
+
+?int $whole = $row->get("seats") as ?int;
+if ($whole == $row->int("seats")) {
+    echo "seats: ", $whole ?? 0, " agrees\n";
+}
+
+?float $binary = $row->get("share") as ?float;
+if ($binary == $row->float("share")) {
+    echo "share: ", $binary ?? 0.0, " agrees\n";
+}
+
+?decimal $exact = $row->get("price") as ?decimal;
+if ($exact == $row->decimal("price")) {
+    echo "price: ", $exact ?? ("0" as decimal), " agrees\n";
+}
+
+// A column with no value in this row. The universal read answers `null` for
+// it, the same as every typed reader does.
+if ($row->get("missed") == null) {
+    echo "missed: null\n";
+}
+
+// And a name that belongs to no column, which is the one thing this reader
+// refuses. `Core\Db\Row::has` is how a program tests the name first.
+try {
+    $row->get("missing");
+    echo "missing: answered\n";
+} catch (LogicError $stopped) {
+    echo "missing: throws\n";
+}
+--FILE nvs.toml--
+# § 3: a SQLite connection's file path comes from its config block, so
+# `db.connect` covers it.
+[capabilities.db]
+connect = ["main"]
+
+[db.main]
+driver = "sqlite"
+path = ":memory:"
+--EXPECT--
+label: north field agrees
+seats: 7 agrees
+share: 2.5 agrees
+price: 7.25 agrees
+missed: null
+missing: throws

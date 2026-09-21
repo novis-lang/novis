@@ -1,0 +1,91 @@
+<?nvs
+// Attack: one reader is pointed at a column of every type and the values are
+// all turned into whole numbers. Then names that belong to no column, a
+// million reads of a text column, and fifty thousand rows kept at once. Every
+// step has to answer or throw an error, and none may stop the program.
+// hostile: timeout-ms 60000
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table mixed_up (row_id integer primary key, seats int not null, label text not null, share real not null, price decimal(10,2) not null, picture blob not null, open boolean not null, missed int)', []);
+$db->execute(
+    'insert into mixed_up (seats, label, share, price, picture, open, missed) values (?, ?, ?, ?, ?, ?, ?)',
+    [7, 'seven', 7.5, 7.00 as decimal, 'GIF89a' as bytes, true, null],
+);
+
+array<Core\Db\Row> $one = $db->query('select seats, label, share, price, picture, open, missed from mixed_up', [])->all();
+var $row = $one[0];
+
+// 1. Seven columns of seven types, each read the same way and then turned into
+// a whole number. A value that is no whole number becomes `null`.
+uint $whole = 0;
+array<string> $every = ['seats', 'label', 'share', 'price', 'picture', 'open', 'missed'];
+foreach ($every as string $column) {
+    if (($row->get($column) as ?int) != null) {
+        $whole = $whole + 1;
+    }
+}
+echo '1 whole: ', $whole, "\n";
+
+// 2. Ten thousand reads of a name that belongs to no column. Every one throws
+// an error, and ten thousand errors may not fill the memory.
+uint $refused = 0;
+uint $i = 0;
+while ($i < 10000) {
+    try {
+        $row->get('missing');
+    } catch (Throwable $error) {
+        $refused = $refused + 1;
+    }
+    $i = $i + 1;
+}
+echo '2 refused: ', $refused, "\n";
+
+// 3. A column name of ten million characters. No row has such a column, so the
+// read throws and the row still works after it.
+try {
+    $row->get(Core\Str::repeat('a', 10000000));
+    echo "3 the long name found a column\n";
+} catch (Throwable $error) {
+    echo "3 refused\n";
+}
+
+// 4. A million reads of a text column. The reader gives out the text the row
+// itself holds, so a million reads may not leave a million texts behind.
+uint $length = 0;
+$i = 0;
+while ($i < 1000000) {
+    $length = Core\Str::length($row->get('label') as string);
+    $i = $i + 1;
+}
+echo '4 length: ', $length, "\n";
+
+// 5. A picture of sixteen megabytes, read a hundred thousand times. The memory
+// the program holds may not grow with the number of reads.
+$db->execute(
+    'insert into mixed_up (seats, label, share, price, picture, open, missed) values (?, ?, ?, ?, ?, ?, ?)',
+    [0, 'big', 0.0, 0.00 as decimal, Core\Str::repeat('x', 16000000) as bytes, false, null],
+);
+array<Core\Db\Row> $heavy = $db->query('select picture from mixed_up where label = ?', ['big'])->all();
+uint $seen = 0;
+$i = 0;
+while ($i < 100000) {
+    $seen = Core\Bytes::length($heavy[0]->get('picture') as bytes);
+    $i = $i + 1;
+}
+echo '5 seen: ', $seen, "\n";
+
+// 6. Fifty thousand rows kept at once, and one column of every one of them
+// read. A row a program still holds may not be freed under it.
+array<array<Core\Db\Row>> $kept = [];
+$i = 0;
+while ($i < 50000) {
+    $kept[] = $db->query('select seats from mixed_up where row_id = ?', [1])->all();
+    $i = $i + 1;
+}
+int $total = 0;
+foreach ($kept as array<Core\Db\Row> $rows) {
+    foreach ($rows as Core\Db\Row $held) {
+        $total = $total + ($held->get('seats') as ?int ?? 0);
+    }
+}
+echo '6 total: ', $total, "\n";

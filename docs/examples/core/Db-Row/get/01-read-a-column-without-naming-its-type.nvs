@@ -1,0 +1,17 @@
+<?nvs
+// Shows how to read a column without saying what type it is.
+
+var $db = Core\Db::connect('notes');
+$db->execute('create table tables (name text not null, seats int not null)', []);
+$db->execute('insert into tables (name, seats) values (?, ?)', ['by the window', 4]);
+
+array<Core\Db\Row> $rows = $db->query('select name, seats from tables', [])->all();
+var $row = $rows[0];
+
+// `get` returns the value the column holds, and its type is the column's own.
+// `as` turns that value into the type this line needs.
+?int $seats = $row->get('seats') as ?int;
+?string $name = $row->get('name') as ?string;
+echo $name ?? '', ' has ', $seats ?? 0, " seats\n";
+
+$db->close();
