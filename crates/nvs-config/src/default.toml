@@ -461,9 +461,11 @@
 #[[server.mount]]
 # One mount — `rule:http-server/a-request-resolves-in-five-steps`. A mount matches on `prefix`, on
 # `host`, or on both; `scan` is a glob under `[server] root` where `*` captures one path segment and
-# `{1}` refers back to it. There is no `mode` key here: a mount routes and an `[[app]]` block sets
-# policy (`rule:config/a-mount-routes-and-an-app-block-sets-policy`), so an application's mode is one
-# answer wherever its entry file is reached from.
+# `{1}` refers back to it — `{1:lower}` is the same segment in lower case, for a directory named
+# `Shop` served at `/shop`, and any other brace is refused. A host is compared without regard to
+# case; a prefix is matched exactly. There is no `mode` key here: a mount routes and an `[[app]]`
+# block sets policy (`rule:config/a-mount-routes-and-an-app-block-sets-policy`), so an application's
+# mode is one answer wherever its entry file is reached from.
 #scan = "apps/*/public/index.nvs"
 #prefix = "/{1}"
 #host = "{1}.example.com"

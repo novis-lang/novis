@@ -376,11 +376,131 @@ fn a_block_that_names_no_mount_is_refused_without_asking_the_disk() {
         let refused = checked(text);
         assert_eq!(refused.code, Some(code::E_BAD_MOUNT), "for {text:?}");
     }
-    // A brace that is not a reference is left alone rather than refused: `{` appears in a URL
-    // template that means itself, and repairing it would be `rule:errors/ambiguous-input-refused`'s other direction.
-    nvs_config::server::validate(
-        &tree("[server]\n\n[[server.mount]]\nprefix = \"/{name}\"\nentry = \"a.nvs\"\n"),
-        &BTreeMap::new(),
-    )
-    .expect("a literal brace is not a capture reference");
+}
+
+/// A brace that is not `{n}` or `{n:lower}` is refused in every field that expands, and without a
+/// disk. Kept as text it would be a mount no request reaches — a prefix is matched against the path
+/// as it was sent, and neither a URL path nor a host name carries a brace unescaped — so each of
+/// these used to pass `nvs config check`, boot, and answer nothing.
+#[test]
+fn a_brace_that_is_not_a_capture_reference_is_refused() {
+    for written in [
+        // A transform this table does not have, in every spelling an operator might try.
+        "{1:upper}",
+        "{1:Lower}",
+        "{1:}",
+        "{1|lower}",
+        "{lower(1)}",
+        "{1,lower}",
+        // Not a number at all, and a number `usize` would parse but no operator means.
+        "{name}",
+        "{}",
+        "{+1}",
+        "{ 1 }",
+        // Braces that pair with nothing, and one inside another.
+        "{1",
+        "1}",
+        "{{1}}",
+    ] {
+        for block in [
+            format!("prefix = \"/fw/{written}.dev\"\n"),
+            format!("prefix = \"/{{1}}\"\nhost = \"{written}.dev\"\n"),
+            format!("prefix = \"/{{1}}\"\norigin = \"https://{written}.dev\"\n"),
+        ] {
+            let text = format!("[server]\n\n[[server.mount]]\nscan = \"*/index.nvs\"\n{block}");
+            let refused = checked(&text);
+            assert_eq!(refused.code, Some(code::E_BAD_MOUNT), "for {text:?}");
+        }
+    }
+    // The refusal names what was written, so the operator is not left to find the brace.
+    let refused = checked(
+        "[server]\n\n[[server.mount]]\nscan = \"*/index.nvs\"\nprefix = \"/fw/{1:upper}.dev\"\n",
+    );
+    assert!(
+        refused.message.contains("`{1:upper}`"),
+        "{}",
+        refused.message
+    );
+    // A reference past the last `*` is still that refusal with a transform on it.
+    let refused = checked(
+        "[server]\n\n[[server.mount]]\nscan = \"*/index.nvs\"\nprefix = \"/fw/{2:lower}.dev\"\n",
+    );
+    assert!(refused.message.contains("`{2}`"), "{}", refused.message);
+}
+
+/// `{n:lower}` writes the capture in ASCII lower case, which is what lets a directory named for the
+/// namespace it holds be served at a lower-case URL by one glob.
+///
+/// The capture itself is untouched: `Core\Request::mount()` returns the directory's own spelling,
+/// and the entry path is the disk's. Only the text the transform was written in changes.
+#[test]
+fn a_lower_transform_writes_the_capture_in_lower_case() {
+    let fs = Fake::with(&["/www/CMB/public/index.nvs", "/www/Orgmap/public/index.nvs"]);
+    let mounts = table(
+        &fs,
+        "[server]\nroot = \"/www\"\n\n[[server.mount]]\nscan = \"*/public/index.nvs\"\n\
+         prefix = \"/fw/{1:lower}.dev\"\norigin = \"https://{1:lower}.example.com/{1}\"\n",
+    );
+    assert_eq!(
+        mounts
+            .iter()
+            .map(|one| one.prefix.clone())
+            .collect::<Vec<_>>(),
+        vec!["/fw/cmb.dev".to_string(), "/fw/orgmap.dev".to_string()]
+    );
+    assert_eq!(mounts[0].captures, vec!["CMB".to_string()]);
+    assert_eq!(mounts[0].entry, p("/www/CMB/public/index.nvs"));
+    // Both spellings in one template: the transform belongs to the reference, not to the field.
+    assert_eq!(
+        mounts[0].origin.as_deref(),
+        Some("https://cmb.example.com/CMB")
+    );
+}
+
+/// Two directories a transform folds onto one prefix are two mounts at one key, which § 3 already
+/// makes a boot error — a case-sensitive disk can hold both, and a table that kept either would
+/// serve one module's URL from the other.
+#[test]
+fn two_captures_a_transform_folds_together_are_a_duplicate() {
+    let fs = Fake::with(&["/www/CMB/public/index.nvs", "/www/cmb/public/index.nvs"]);
+    let refused = refusal(
+        &fs,
+        "[server]\nroot = \"/www\"\n\n[[server.mount]]\nscan = \"*/public/index.nvs\"\n\
+         prefix = \"/{1:lower}\"\n",
+    );
+    assert_eq!(refused.code, Some(code::E_BAD_MOUNT));
+}
+
+/// A host is held in ASCII lower case, because that is how a request's `Host` is compared. Two
+/// blocks whose hosts differ only in case are therefore one key: a boot error when both are
+/// explicit, and § 3's override when one is scanned.
+#[test]
+fn a_host_is_one_key_whatever_case_it_is_written_in() {
+    let fs = Fake::with(&["/www/CMB/public/index.nvs", "/www/other/app.nvs"]);
+    let mounts = table(
+        &fs,
+        "[server]\nroot = \"/www\"\n\n[[server.mount]]\nscan = \"*/public/index.nvs\"\n\
+         host = \"{1}.Local.Test\"\n",
+    );
+    assert_eq!(mounts[0].host.as_deref(), Some("cmb.local.test"));
+    assert_eq!(mounts[0].captures, vec!["CMB".to_string()]);
+
+    // An explicit block in another case overrides the scanned one rather than sitting beside it.
+    let mounts = table(
+        &fs,
+        "[server]\nroot = \"/www\"\n\n[[server.mount]]\nscan = \"*/public/index.nvs\"\n\
+         host = \"{1}.local.test\"\n\n[[server.mount]]\nhost = \"cmb.LOCAL.test\"\n\
+         entry = \"other/app.nvs\"\n",
+    );
+    assert_eq!(mounts.len(), 1);
+    assert_eq!(mounts[0].entry, p("/www/other/app.nvs"));
+
+    // Two explicit blocks a request could not tell apart.
+    let refused = refusal(
+        &fs,
+        "[server]\nroot = \"/www\"\n\n[[server.mount]]\nhost = \"A.example.com\"\n\
+         entry = \"other/app.nvs\"\n\n[[server.mount]]\nhost = \"a.example.com\"\n\
+         entry = \"CMB/public/index.nvs\"\n",
+    );
+    assert_eq!(refused.code, Some(code::E_BAD_MOUNT));
 }

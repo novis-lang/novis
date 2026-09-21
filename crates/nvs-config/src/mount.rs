@@ -10,7 +10,8 @@
 //!
 //! **Two halves, because only one of them needs a disk.** [`check`] is everything a block can be
 //! wrong about on its own — naming both `entry` and `scan` or neither, matching on neither `prefix`
-//! nor `host`, referring to a `{2}` its glob has no second `*` for — and it runs inside
+//! nor `host`, referring to a `{2}` its glob has no second `*` for, writing a brace that is not a
+//! capture reference — and it runs inside
 //! [`crate::server::validate`], so `nvs config check` refuses a malformed mount on a machine that
 //! holds none of the files. [`expand`] is the other half: it walks the tree under `[server] root`,
 //! and it is the server's own boot step rather than the resolver's, because a `nvs run` of a CLI
@@ -51,8 +52,8 @@ pub struct Mounted {
     /// The path prefix a request's path must begin with, always beginning with `/` and never
     /// ending with one unless it *is* `/`. § 4 step 2 strips exactly this.
     pub prefix: String,
-    /// The host this mount answers on, or `None` for a host-less mount. § 4 step 1 tries the host
-    /// mounts before the host-less ones.
+    /// The host this mount answers on, in ASCII lower case, or `None` for a host-less mount. § 4
+    /// step 1 tries the host mounts before the host-less ones.
     pub host: Option<String>,
     /// The entry file, canonical and inside `[server] root`.
     pub entry: PathBuf,
@@ -73,6 +74,13 @@ pub struct Mounted {
 /// § 3's implicit mount, for a tree that writes no `[[server.mount]]` at all.
 const IMPLICIT_ENTRY: &str = "public/index.nvs";
 
+/// Why a brace that is not a capture reference is refused rather than kept as text. § 4 step 1
+/// matches a prefix against the path as it was sent, so a brace that survived expansion would be a
+/// mount no request reaches.
+const UNREACHABLE: &str = "`rule:http-server/a-mount-table-expands-at-boot` reads a brace as `{n}` \
+     or `{n:lower}` and as nothing else: a host name and a URL path never carry one unescaped, so \
+     a mount that kept it would be one no request reaches";
+
 /// Everything a `[[server.mount]]` block can be wrong about without asking the disk.
 ///
 /// Called from [`crate::server::validate`], so a tree is refused by `nvs config check` and by every
@@ -82,8 +90,8 @@ const IMPLICIT_ENTRY: &str = "public/index.nvs";
 /// # Errors
 ///
 /// `E0621` for a block naming both `entry` and `scan` or neither, for one matching on neither
-/// `prefix` nor `host`, for a prefix that does not begin with `/`, and for a `{n}` naming a capture
-/// the block's glob cannot produce.
+/// `prefix` nor `host`, for a prefix that does not begin with `/`, for a `{n}` naming a capture the
+/// block's glob cannot produce, and for a brace that is not a capture reference at all.
 pub fn check(config: &Config, origins: &BTreeMap<String, Origin>) -> Result<(), Diagnostic> {
     let Some(server) = config.server.as_ref() else {
         return Ok(());
@@ -157,8 +165,9 @@ fn shape(
         ("origin", block.origin.as_deref()),
     ] {
         let Some(template) = template else { continue };
-        if let Some(reference) = out_of_range(template, captures) {
-            return Err(refuse(
+        let (what, why, help) = match pieces(template, captures) {
+            Ok(_) => continue,
+            Err(Malformed::OutOfRange(reference)) => (
                 format!(
                     "{}'s `{field}` refers to `{{{reference}}}`, and its glob has {captures} \
                      capture(s)",
@@ -167,31 +176,94 @@ fn shape(
                 "§ 3 numbers the captures by the `*`s in `scan`, from 1, so a reference past the \
                  last one names a segment no expansion can produce",
                 "renumber the reference, or add the `*` that captures the segment it means",
-                key(field),
-            ));
-        }
+            ),
+            Err(Malformed::Unknown(written)) => (
+                format!(
+                    "{}'s `{field}` writes `{{{written}}}`, which is not a capture reference",
+                    ordinal(index)
+                ),
+                UNREACHABLE,
+                "write `{1}` for the first captured segment as the disk spells it, or \
+                 `{1:lower}` for the same segment in lower case",
+            ),
+            Err(Malformed::Unpaired(brace)) => (
+                format!(
+                    "{}'s `{field}` has a `{brace}` that pairs with nothing",
+                    ordinal(index)
+                ),
+                UNREACHABLE,
+                "close the reference, as `{1}`, or take the brace out",
+            ),
+        };
+        return Err(refuse(what, why, help, key(field)));
     }
     Ok(())
 }
 
-/// The first `{n}` in `template` that `captures` cannot answer, if there is one.
+/// One piece of a `prefix`, a `host` or an `origin`, as it is written.
+#[derive(Debug, PartialEq, Eq)]
+enum Piece<'a> {
+    /// Text that means itself.
+    Text(&'a str),
+    /// `{n}` or `{n:lower}`: the nth capture counting from 1, as the disk spells it or ASCII
+    /// lower-cased.
+    Capture { nth: usize, lower: bool },
+}
+
+/// What a template can be wrong about.
+#[derive(Debug, PartialEq, Eq)]
+enum Malformed<'a> {
+    /// A `{n}` the glob has no `*` for. `{0}` is one: § 3 numbers from 1, and a `{0}` is an operator
+    /// who counted from zero rather than one who meant something this could resolve.
+    OutOfRange(usize),
+    /// Braces around something that is neither `n` nor `n:lower`.
+    Unknown(&'a str),
+    /// A `{` nothing closes, or a `}` nothing opened.
+    Unpaired(char),
+}
+
+/// `template` read into its pieces, against a glob with `captures` `*`s.
 ///
-/// `{0}` counts as out of range: § 3 numbers from 1, and a `{0}` is an operator who counted from
-/// zero rather than one who meant something this could resolve. Anything between the braces that is
-/// not a number at all is left alone — it is a literal in a host name or a URL, not a reference.
-fn out_of_range(template: &str, captures: usize) -> Option<usize> {
+/// The transform set is closed at `lower`. A module directory is named for the namespace it holds,
+/// whose case `autoload` compares exactly, while a URL is conventionally lower case, and `lower` is
+/// what lets one glob serve both. Nothing is refused for being mixed case without it: `{n}` stays
+/// the capture verbatim.
+fn pieces(template: &str, captures: usize) -> Result<Vec<Piece<'_>>, Malformed<'_>> {
+    let mut out = Vec::new();
     let mut rest = template;
-    while let Some(open) = rest.find('{') {
-        rest = &rest[open + 1..];
-        let Some(close) = rest.find('}') else { break };
-        if let Ok(reference) = rest[..close].parse::<usize>()
-            && (reference == 0 || reference > captures)
-        {
-            return Some(reference);
+    while let Some(open) = rest.find(['{', '}']) {
+        if rest[open..].starts_with('}') {
+            return Err(Malformed::Unpaired('}'));
         }
+        if open > 0 {
+            out.push(Piece::Text(&rest[..open]));
+        }
+        rest = &rest[open + 1..];
+        let close = rest
+            .find(['{', '}'])
+            .filter(|at| rest[*at..].starts_with('}'))
+            .ok_or(Malformed::Unpaired('{'))?;
+        let written = &rest[..close];
+        let (number, lower) = match written.split_once(':') {
+            Some((number, "lower")) => (number, true),
+            Some(_) => return Err(Malformed::Unknown(written)),
+            None => (written, false),
+        };
+        if number.is_empty() || !number.bytes().all(|byte| byte.is_ascii_digit()) {
+            return Err(Malformed::Unknown(written));
+        }
+        // A run of digits too long for a `usize` is past every glob's last capture as well.
+        let nth = number.parse::<usize>().unwrap_or(usize::MAX);
+        if nth == 0 || nth > captures {
+            return Err(Malformed::OutOfRange(nth));
+        }
+        out.push(Piece::Capture { nth, lower });
         rest = &rest[close + 1..];
     }
-    None
+    if !rest.is_empty() {
+        out.push(Piece::Text(rest));
+    }
+    Ok(out)
 }
 
 /// § 3's globs expanded against the disk: the literal table this configuration lets a server run.
@@ -426,10 +498,14 @@ fn mounted(
     let root_of_mount = entry.parent().unwrap_or(root).to_path_buf();
     Ok(Mounted {
         prefix: prefix_of(block.prefix.as_deref().unwrap_or("/"), &captures),
+        // `rule:http-server/host-matching-is-on-the-host-part-only` folds ASCII case when a request
+        // is matched, so the table holds the folded spelling: two blocks whose hosts differ only
+        // in case are then one key to the duplicate check and to § 3's override, as they are to
+        // a request.
         host: block
             .host
             .as_deref()
-            .map(|host| substitute(host, &captures)),
+            .map(|host| substitute(host, &captures).to_ascii_lowercase()),
         entry,
         root: root_of_mount,
         origin: block
@@ -454,34 +530,29 @@ fn prefix_of(written: &str, captures: &[String]) -> String {
     }
 }
 
-/// `{n}` replaced by the nth capture, counting from 1.
+/// `{n}` replaced by the nth capture, counting from 1, and `{n:lower}` by the same capture ASCII
+/// lower-cased.
 ///
-/// [`out_of_range`] has already refused a reference this cannot answer, so anything still unmatched
-/// here is a literal brace the operator wrote — a `{` in a URL template that means itself — and it
-/// is left exactly as written rather than repaired.
+/// [`shape`] has already refused every template [`pieces`] refuses, and [`expand`] runs it before
+/// anything reaches here, so the unread template is returned only to keep this total.
 fn substitute(template: &str, captures: &[String]) -> String {
+    let Ok(pieces) = pieces(template, captures.len()) else {
+        return template.to_string();
+    };
     let mut out = String::with_capacity(template.len());
-    let mut rest = template;
-    while let Some(open) = rest.find('{') {
-        out.push_str(&rest[..open]);
-        rest = &rest[open..];
-        let taken = rest[1..]
-            .find('}')
-            .and_then(|close| rest[1..=close].parse::<usize>().ok().map(|n| (close, n)))
-            .and_then(|(close, n)| n.checked_sub(1).map(|nth| (close, nth)))
-            .and_then(|(close, nth)| captures.get(nth).map(|value| (close, value)));
-        match taken {
-            Some((close, value)) => {
-                out.push_str(value);
-                rest = &rest[close + 2..];
-            }
-            None => {
-                out.push('{');
-                rest = &rest[1..];
+    for piece in pieces {
+        match piece {
+            Piece::Text(text) => out.push_str(text),
+            Piece::Capture { nth, lower } => {
+                let capture = captures.get(nth - 1).map_or("", String::as_str);
+                if lower {
+                    out.push_str(&capture.to_ascii_lowercase());
+                } else {
+                    out.push_str(capture);
+                }
             }
         }
     }
-    out.push_str(rest);
     out
 }
 

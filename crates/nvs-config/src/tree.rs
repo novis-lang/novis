@@ -1193,7 +1193,8 @@ pub struct ServerConnection {
 pub struct Mount {
     /// A glob under `[server] root`; `*` captures one path segment.
     pub scan: Option<String>,
-    /// The path prefix matched, with `{1}` referring to a captured segment.
+    /// The path prefix matched, with `{1}` referring to a captured segment and `{1:lower}` to the
+    /// same segment in ASCII lower case.
     pub prefix: Option<String>,
     /// The host matched, on the same capture rule. A mount matches on `prefix`, on `host`, or both.
     pub host: Option<String>,

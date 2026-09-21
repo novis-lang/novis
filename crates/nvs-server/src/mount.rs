@@ -420,6 +420,14 @@ fn strip<'a>(prefix: &str, path: &'a str) -> &'a str {
 /// traversing is ever *built*; the canonical one refuses a path that resolves
 /// outside `root` anyway, which is the symlink the lexical half cannot see. § 2
 /// is kept by both being true rather than by either.
+///
+/// A third refuses a remainder the disk holds **in another case**. A
+/// case-insensitive filesystem finds `style.css` for `/STYLE.CSS`, and the
+/// canonical path it returns is the entry's own spelling, so the two are
+/// compared and a difference that is only case is a file that is not there —
+/// what a case-sensitive disk already says. `rule:programs/path-case` is the
+/// same comparison for a `require`, and it costs the same nothing: both paths
+/// are already in hand.
 fn under(root: &Path, remainder: &str, disk: &dyn Existing) -> Option<PathBuf> {
     let mut path = root.to_path_buf();
     let mut segments = 0_usize;
@@ -437,7 +445,20 @@ fn under(root: &Path, remainder: &str, disk: &dyn Existing) -> Option<PathBuf> {
         return None;
     }
     let file = disk.file(&path)?;
-    file.starts_with(root).then_some(file)
+    (file.starts_with(root) && !differs_only_in_case(&file, &path)).then_some(file)
+}
+
+/// Whether `resolved` is `asked` written in another case, and in nothing else.
+///
+/// A path that resolved through a link differs from what was asked in more than
+/// case, and the containment check is what answers for it. The exception is a
+/// link whose own name is its target's in another case, which is refused with
+/// the rest: nothing here can tell it from the filesystem folding the name.
+fn differs_only_in_case(resolved: &Path, asked: &Path) -> bool {
+    fn folded(text: &str) -> impl Iterator<Item = char> + '_ {
+        text.chars().flat_map(char::to_lowercase)
+    }
+    resolved != asked && folded(&resolved.to_string_lossy()).eq(folded(&asked.to_string_lossy()))
 }
 
 /// § 4's sole default document, or `None` where there is not one to serve.
@@ -741,6 +762,51 @@ mod tests {
                 "for {path:?}"
             );
         }
+    }
+
+    /// Steps 3 and 4 over a disk that folds case, which is what Windows and
+    /// macOS are: the file is found for any spelling, and only the entry's own
+    /// spelling selects it. Every other one is step 5, as it is on a disk that
+    /// never found the file at all — so a URL cannot work on a developer's
+    /// machine and be a `404` on the server.
+    #[test]
+    fn a_remainder_in_another_case_is_a_file_that_is_not_there() {
+        // A folded lookup is a link from the asked spelling to the entry's own,
+        // which is exactly what `canonicalize` reports on such a disk.
+        let fs = Fake::with(&[
+            "/www/public/index.nvs",
+            "/www/public/style.css",
+            "/www/public/admin.nvs",
+            "/www/public/assets/logo.png",
+        ])
+        .linking("/www/public/STYLE.CSS", "/www/public/style.css")
+        .linking("/www/public/Admin.nvs", "/www/public/admin.nvs")
+        .linking("/www/public/Assets", "/www/public/assets")
+        // A link that is a different name, and not a different case, still serves.
+        .linking("/www/public/theme.css", "/www/public/style.css");
+        let table = Table::new(
+            vec![mount("/", None, "/www/public/index.nvs")],
+            Dispatch::Path,
+            true,
+        );
+        let what = |path: &str| {
+            table
+                .resolve(None, path, &fs)
+                .and_then(Resolved::selection)
+                .expect("the root mount matches everything")
+                .what
+        };
+
+        for folded in ["/STYLE.CSS", "/Admin.nvs", "/Assets/logo.png"] {
+            assert_eq!(
+                what(folded),
+                What::Run(p("/www/public/index.nvs")),
+                "for {folded:?}"
+            );
+        }
+        assert_eq!(what("/style.css"), What::Static(p("/www/public/style.css")));
+        assert_eq!(what("/theme.css"), What::Static(p("/www/public/style.css")));
+        assert_eq!(what("/admin.nvs"), What::Run(p("/www/public/admin.nvs")));
     }
 
     /// Step 2, and what it buys: the same module answers the same remainders
