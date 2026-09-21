@@ -6524,6 +6524,12 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   written to be easy to build fails the roomy call as well as the tight one, and reads as the member
   ignoring its defaults. Build the payload out of English text repeated, the way the `.nvst` cases in
   `tests/conformance/core/compress-*` already do. [until: reviewed 2026-09-21]
+- **A hostile step that ends at the memory limit has to be sized to the ceiling, not merely above
+  it.** A `finish` joining a hundred gibibytes spends the whole 60s timeout copying before the
+  256 MiB ceiling fires, and `dossier.py --run hostile` then reports `unbounded, having printed 2
+  line(s)`, which reads exactly like the attack finding a leak. Size the ending at single-digit
+  gibibytes — two thousand pieces of a mebibyte reaches the ceiling in under a second — and leave
+  the huge count on the step that proves the retention. [until: reviewed 2026-09-21]
 
 ## Splitting a file that got too big
 
@@ -8861,6 +8867,20 @@ session only the bullets its goal's `[context] playbook` selects and its item's 
   the middle of the line.** `echo "status ", Core\Command::run(), "\n"` printed `status ` and then
   the handler's own output, which reads as the member returning something strange rather than as an
   ordering. Assign a call that can print to a variable first, and echo the variable.
+  [until: reviewed 2026-09-21]
+- **A stream member returning `tainted bytes` will not bind to a `bytes` local, and
+  `Core\Hash::equals` refuses it as well.** `Core\Compress\Decompressor::finish` is declared
+  `CoreTy::TaintedBytes` while the static `Core\Compress::decompress` answers plain `bytes`, so an
+  example written from the static member's file fails `E0401` twice — once on the binding and once
+  on the comparison it copied. Declare the local `tainted bytes` and compare two of them with `==`,
+  which is not a sink; read the registry row's `return_ty` before reusing a sibling member's
+  example. [until: reviewed 2026-09-21]
+
+- **`int / int` answers a float in Novis, so `($size / 16) as int` throws at run time whenever the
+  division is not exact.** A bench computing a piece size that way died with `cannot convert this
+  value to int` on a frame whose length was odd, which reads as the member being broken rather than
+  the arithmetic. Pick the divisor-free spelling in a proof — a fixed piece size with a `$take`
+  clamp for the last one — rather than a cast that depends on the input's length.
   [until: reviewed 2026-09-21]
 
 ## Divergences and refusals already pinned
