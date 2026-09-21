@@ -109,6 +109,9 @@ modules = [
   # are terminals, how wide and tall one is, how much colour it can show — and how many of its
   # columns a given string will occupy.
   "crates/nvs-runtime/src/terminal.rs",
+  # Getting a connection: `Core\Db::connect`'s configured block, `Core\Db::open`'s twelve
+  # settings, and the two members that need no connection at all.
+  "crates/nvs-stdlib/src/db/open.rs",
 ]
 
 rules = ["testing/feature-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
