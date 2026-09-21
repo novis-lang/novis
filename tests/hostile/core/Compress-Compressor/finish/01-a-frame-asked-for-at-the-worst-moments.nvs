@@ -1,0 +1,43 @@
+<?nvs
+// Attack: a program asks a compression stream for its block at the worst
+// moments. It finishes a stream given nothing, finishes one twice, finishes a
+// hundred thousand, and finishes one holding more than the machine has. The
+// program must not crash.
+// hostile: timeout-ms 60000
+// hostile: ends-early
+
+// 1. A stream that was given nothing. `finish` must write the block an empty
+//    stream writes, and not stop with an error.
+var $nothing = Core\Compress::compressor(Core\Codec::Gzip);
+echo 'step 1 wrote ', Core\Bytes::length($nothing->finish()), " bytes\n";
+
+// 2. The same stream finished again. It must throw a `RuntimeError`, and it
+//    must not write half a block.
+try {
+    $nothing->finish();
+    echo "step 2 wrote a second block\n";
+} catch (RuntimeError $twice) {
+    echo "step 2 wrote no second block\n";
+}
+
+// 3. A hundred thousand streams opened and finished. The blocks are not kept,
+//    so they must not fill memory here.
+uint $done = 0;
+while ($done < 100000) {
+    var $one = Core\Compress::compressor(Core\Codec::Zstd);
+    $one->add('a row nobody keeps');
+    $one->finish();
+    $done = $done + 1;
+}
+echo 'step 3 finished ', $done, " streams\n";
+
+// 4. One stream given two thousand blocks of four mebibytes. `finish` joins
+//    all of it, so the program stops at its memory limit on this line.
+bytes $block = Core\Bytes::fill(4194304, 66);
+var $huge = Core\Compress::compressor(Core\Codec::Gzip);
+uint $blocks = 0;
+while ($blocks < 2000) {
+    $huge->add($block);
+    $blocks = $blocks + 1;
+}
+echo 'step 4 wrote ', Core\Bytes::length($huge->finish()), " bytes\n";

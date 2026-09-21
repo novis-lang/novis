@@ -1,0 +1,17 @@
+<?nvs
+// Shows what a web server does before it sends a compressed answer: it
+// finishes the stream and compares the two sizes first.
+
+string $answer = '{"ok":true}';
+var $stream = Core\Compress::compressor(Core\Codec::Gzip);
+$stream->add($answer);
+bytes $packed = $stream->finish();
+
+uint $plain = Core\Bytes::length($answer as bytes);
+uint $compressed = Core\Bytes::length($packed);
+echo 'plain: ', $plain, " bytes\n";
+echo 'compressed: ', $compressed, " bytes\n";
+
+// A short answer gets bigger when it is compressed, because every format
+// writes a header of its own. Send this one as it is.
+echo $compressed < $plain ? "send it compressed\n" : "send it as it is\n";

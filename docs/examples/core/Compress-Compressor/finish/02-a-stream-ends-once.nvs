@@ -1,0 +1,24 @@
+<?nvs
+// Shows what happens after a stream is finished. A stream writes one block,
+// and then it is over.
+
+var $stream = Core\Compress::compressor(Core\Codec::Zstd);
+$stream->add('the first and only block');
+bytes $frame = $stream->finish();
+echo 'the block is ', Core\Bytes::length($frame), " bytes\n";
+
+// `add` throws a `RuntimeError` on a finished stream.
+try {
+    $stream->add('too late');
+    echo "the finished stream took another piece\n";
+} catch (RuntimeError $closed) {
+    echo "the finished stream took no more pieces\n";
+}
+
+// A second `finish` throws one too. Open a new stream for the next block.
+try {
+    $stream->finish();
+    echo "the finished stream wrote a second block\n";
+} catch (RuntimeError $twice) {
+    echo "the finished stream wrote no second block\n";
+}

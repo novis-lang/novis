@@ -1,0 +1,17 @@
+<?nvs
+// Shows what `finish` returns: the compressed bytes of every piece you added,
+// joined in the order you added them.
+
+var $stream = Core\Compress::compressor(Core\Codec::Zlib);
+$stream->add("id,city\n");
+$stream->add("1042,Berlin\n");
+$stream->add("1043,Lisbon\n");
+bytes $frame = $stream->finish();
+
+echo 'the table is ', Core\Bytes::length($frame), " bytes\n";
+
+// These are the same bytes `Core\Compress::compress` returns for the three
+// pieces joined together.
+bytes $joined = "id,city\n1042,Berlin\n1043,Lisbon\n" as bytes;
+bytes $atOnce = Core\Compress::compress($joined, Core\Codec::Zlib);
+echo 'the same bytes: ', Core\Hash::equals($frame, $atOnce) ? 'yes' : 'no', "\n";
