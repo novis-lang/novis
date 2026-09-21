@@ -1,0 +1,35 @@
+<?nvs
+// Measures closing a decompression stream that was given its download in
+// pieces of eight bytes: the join and the reading a program pays for once.
+// bench: iterations 5000
+// bench: calls 0
+
+class Bench {
+    public static function run(uint $rounds): uint {
+        bytes $frame = Core\Compress::compress(Core\Str::repeat("order 1042\n", 16), Core\Codec::Zstd);
+        int $size = Core\Bytes::length($frame) as int;
+        int $piece = 8;
+
+        uint $total = 0;
+        uint $i = 0;
+        while ($i < $rounds) {
+            var $stream = Core\Compress::decompressor(Core\Codec::Zstd);
+            int $at = 0;
+            while ($at < $size) {
+                int $take = $size - $at;
+                if ($take > $piece) {
+                    $take = $piece;
+                }
+                $stream->add(Core\Bytes::slice($frame, $at, $take));
+                $at = $at + $take;
+            }
+            // Each round adds what the round before it read, so no round can be
+            // left out.
+            $total = $total + Core\Bytes::length($stream->finish());
+            $i = $i + 1;
+        }
+        return $total;
+    }
+}
+
+echo Bench::run(5000), "\n";

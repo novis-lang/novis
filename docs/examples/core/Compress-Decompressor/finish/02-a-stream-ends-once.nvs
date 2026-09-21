@@ -1,0 +1,25 @@
+<?nvs
+// Shows what happens after a stream is finished. A stream reads one block of
+// data, and then it is over.
+
+bytes $frame = Core\Compress::compress('the only block', Core\Codec::Zstd);
+
+var $stream = Core\Compress::decompressor(Core\Codec::Zstd);
+$stream->add($frame);
+echo 'the block holds ', Core\Bytes::length($stream->finish()), " bytes\n";
+
+// `add` throws a `RuntimeError` on a finished stream.
+try {
+    $stream->add($frame);
+    echo "the finished stream took another piece\n";
+} catch (RuntimeError $closed) {
+    echo "the finished stream took no more pieces\n";
+}
+
+// A second `finish` throws one too. Open a new stream for the next download.
+try {
+    $stream->finish();
+    echo "the finished stream read a second block\n";
+} catch (RuntimeError $twice) {
+    echo "the finished stream read no second block\n";
+}

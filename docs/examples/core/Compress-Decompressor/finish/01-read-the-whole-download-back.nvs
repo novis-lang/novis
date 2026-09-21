@@ -1,0 +1,15 @@
+<?nvs
+// Shows what `finish` returns: every piece you added, joined and decompressed
+// in one block.
+
+bytes $frame = Core\Compress::compress(Core\Str::repeat("order 1042\n", 100), Core\Codec::Zlib);
+int $half = (Core\Bytes::length($frame) / 2) as int;
+
+var $reader = Core\Compress::decompressor(Core\Codec::Zlib);
+$reader->add(Core\Bytes::slice($frame, 0, $half));
+$reader->add(Core\Bytes::slice($frame, $half, Core\Bytes::length($frame) as int - $half));
+
+// The result is `tainted bytes`, which means data that came from outside your
+// program. This prints 1100.
+tainted bytes $orders = $reader->finish();
+echo 'the download holds ', Core\Bytes::length($orders), " bytes\n";

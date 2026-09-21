@@ -1,0 +1,16 @@
+<?nvs
+// Shows what a server does with a compressed upload: it sets a size limit when
+// it opens the stream, and finishes inside a `try`.
+
+bytes $upload = Core\Compress::compress(Core\Str::repeat("name,email\n", 2000), Core\Codec::Gzip);
+
+// This upload holds 22000 bytes, and the server accepts 8000.
+var $stream = Core\Compress::decompressor(Core\Codec::Gzip, 8000);
+$stream->add($upload);
+
+try {
+    tainted bytes $rows = $stream->finish();
+    echo 'the upload holds ', Core\Bytes::length($rows), " bytes\n";
+} catch (ParseError $tooLarge) {
+    echo "the upload is larger than this server accepts\n";
+}

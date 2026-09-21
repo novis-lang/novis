@@ -1,0 +1,48 @@
+<?nvs
+// Attack: a program asks a decompression stream for its data at the worst
+// moments. It finishes a stream given nothing, finishes one twice, finishes
+// one that accepts no bytes, and finishes a hundred thousand in a row. The
+// program must not crash.
+// hostile: timeout-ms 60000
+
+// 1. A stream that was given nothing. No pieces are no block, so `finish` must
+//    throw a `ParseError`.
+var $nothing = Core\Compress::decompressor(Core\Codec::Gzip);
+try {
+    $nothing->finish();
+    echo "step 1 read a block out of no pieces\n";
+} catch (ParseError $empty) {
+    echo "step 1 refused a stream with no pieces\n";
+}
+
+// 2. The same stream finished again. A stream that refused is finished too, so
+//    this must throw a `RuntimeError` and not the same `ParseError`.
+try {
+    $nothing->finish();
+    echo "step 2 read a second block\n";
+} catch (RuntimeError $twice) {
+    echo "step 2 read no second block\n";
+}
+
+// 3. A stream that accepts zero bytes, given a real block. Nothing fits in
+//    nothing, so `finish` must throw a `ParseError`.
+bytes $frame = Core\Compress::compress('a real block of data', Core\Codec::Zstd);
+var $noRoom = Core\Compress::decompressor(Core\Codec::Zstd, 0);
+$noRoom->add($frame);
+try {
+    $noRoom->finish();
+    echo "step 3 read a block into no room\n";
+} catch (ParseError $tooLarge) {
+    echo "step 3 refused a block that had no room\n";
+}
+
+// 4. A hundred thousand streams opened, fed and finished. The results are not
+//    kept, so they must not fill memory here.
+uint $done = 0;
+while ($done < 100000) {
+    var $one = Core\Compress::decompressor(Core\Codec::Zstd);
+    $one->add($frame);
+    $one->finish();
+    $done = $done + 1;
+}
+echo 'step 4 finished ', $done, " streams\n";
