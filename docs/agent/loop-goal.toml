@@ -126,6 +126,9 @@ modules = [
   # today, and `Core\Router\Match`, the match `rule:routing/matched-once-before-the-handler` has
   # the door take once and `Core\Request::route()` hand back.
   "crates/nvs-stdlib/src/router.rs",
+  # The accessors on what a statement returned — `Core\Db\Rows`, `Core\Db\Row`, `Core\Db\Column`
+  # and `Core\Db\Write` — and the hydration `queryAs` does into a declared class.
+  "crates/nvs-stdlib/src/db/row.rs",
 ]
 
 rules = ["testing/feature-proofs", "testing/a-failing-proof-is-fixed-or-recorded", "0134", "0026", "0117", "0004", "0088"]
